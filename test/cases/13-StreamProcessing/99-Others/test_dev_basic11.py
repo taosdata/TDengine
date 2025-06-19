@@ -27,12 +27,13 @@ class TestStreamDevBasic:
 
         """
         tdStream.createSnode()
-        self.generateDataExample()
-        self.stateWindowTest()
+        #self.generateDataExample()
+        self.stateWindowTest1()
+        self.stateWindowTest2()
         
     @staticmethod
     def custom_cint_generator(row):
-        return str(row * 10)  # 每行的 cint 为 row * 10
+        return str(row / 10)  # 每行的 cint 为 row / 10
         
     def generateDataExample(self):
         tdLog.info(f"basic test 1")
@@ -67,27 +68,8 @@ class TestStreamDevBasic:
         ntb2.append_data(20, 30)
         ntb2.update_data(3, 6)
         
-    def checkStateStreamResults1(self,  expectRows):
-        tdSql.query("select ts, avg_cint, count_cint  from test.st7;", queryTimes=1)
-
-        ts = tdSql.getColData(0)
-        avg_cint = tdSql.getColData(1)
-        count_cint = tdSql.getColData(2)
-        
-        for i in range(0, expectRows):
-            sql = f"select '{ts[i]}', avg(cint), count(cint) from test.st where cts <= '{ts[i]}'"
-            tdSql.query(sql, queryTimes=1)
-            
-            expected_ts = datetime.strptime(tdSql.getData(0, 0), "%Y-%m-%d %H:%M:%S") 
-            expected_avg_cint = tdSql.getData(0, 1)
-            expected_count_cint = tdSql.getData(0, 2)
-            
-            assert ts[i] == expected_ts, f"Row {i} ts mismatch: expected {expected_ts}, got {ts[i]}"
-            assert math.isclose(avg_cint[i], expected_avg_cint, rel_tol=1e-9), f"Row {i} avg_cint mismatch: expected {expected_avg_cint}, got {avg_cint[i]}"
-            assert count_cint[i] == expected_count_cint, f"Row {i} count_cint mismatch: expected {expected_count_cint}, got {count_cint[i]}"
-
-    def stateWindowTest(self):
-        tdLog.info(f"basic test 1")
+    def stateWindowTest1(self):
+        tdLog.info(f"state window test 1")
 
         tdStream.dropAllStreamsAndDbs()
         
@@ -109,30 +91,32 @@ class TestStreamDevBasic:
             id=0,
             stream=sql,
             res_query="select * from test.st7;",
-            check_func=self.checkStateStreamResults1,
+            expect_query_by_row = "select '{_wstart}','{_twend}', avg(cint), count(cint) from test.st where cts <= '{_wstart}';",
+            result_param_mapping = { "_wstart": 0,  "_twend":1}
         )
+
         stream1.createStream()
         expectRows = 39
         stream1.awaitRowStability(expectRows)
-        self.checkStateStreamResults1(expectRows)
+        stream1.checkResultsByRow()
         
         # 追加写入
         trigger.append_data(60, 70)
         expectRows = 49
         stream1.awaitRowStability(expectRows)
-        self.checkStateStreamResults1(expectRows)
+        stream1.checkResultsByRow()
         
         # 乱序写入
         trigger.append_data(50, 55)
         expectRows = 54
         stream1.awaitRowStability(expectRows)
-        self.checkStateStreamResults1(expectRows)
+        stream1.checkResultsByRow()
         
         # 子表追加写入
         trigger.append_subtable_data("trigger_1", 55, 60)
         expectRows = 59
         stream1.awaitRowStability(expectRows)
-        self.checkStateStreamResults1(expectRows)  
+        stream1.checkResultsByRow()
         
         # 更新写入
         tdSql.execute("delete * from st7;")
@@ -140,21 +124,71 @@ class TestStreamDevBasic:
         trigger.append_data(70, 71)
         expectRows = 60
         stream1.awaitRowStability(expectRows)
-        self.checkStateStreamResults1(expectRows)        
+        stream1.checkResultsByRow()      
         
         # 删除数据
         trigger.delete_data(30, 40)
         trigger.append_data(71, 72)
         expectRows = 61
         stream1.awaitRowStability(expectRows)
-        self.checkStateStreamResults1(expectRows)        
+        stream1.checkResultsByRow()
         
         # 删除子表数据
         trigger.delete_subtable_data("st_1", 20, 30)
         trigger.append_data(72, 73)
         expectRows = 62
         stream1.awaitRowStability(expectRows)
-        self.checkStateStreamResults1(expectRows)        
+        stream1.checkResultsByRow()
         
 
         tdLog.info("======over")
+        
+    def stateWindowTest2(self):
+        tdLog.info(f"state window test 2")
+
+        tdStream.dropAllStreamsAndDbs()
+        
+        tdStream.init_database("test")
+        
+        trigger = StreamTable("test", "trigger", StreamTableType.TYPE_SUP_TABLE)
+        trigger.register_column_generator("cint", self.custom_cint_generator)
+        trigger.setInterval(0.1)
+        trigger.createTable(10)
+        trigger.append_data(0, 40)
+        trigger.update_data(3, 4)
+        
+        st1 = StreamTable("test", "st", StreamTableType.TYPE_SUP_TABLE)
+        st1.createTable()
+        st1.setInterval(0.1)
+        st1.appendSubTables(200, 240)
+        st1.append_data(0, 40)
+                 
+        sql1 = f"create stream s1 state_window (cint) from test.trigger options(fill_history_first(1)) into out1  as \
+            select _twstart ts, _twend, avg(cint) avg_cint, count(cint) count_cint from test.st where cts <= _twstart;"
+        sql2 = f"create stream s2 state_window (cint) from test.trigger partition by tbname options(fill_history_first(1)) into out2  as \
+            select _twstart ts, _twend, avg(cint) avg_cint, count(cint) count_cint from test.st where cts <= _twstart;"
+        stream1 = StreamItem(
+            id=0,
+            stream=sql1,
+            res_query="select * from test.out1;",
+            expect_query_by_row = "select '{_wstart}','{_twend}', avg(cint), count(cint) from test.st where cts <= '{_wstart}';",
+            result_param_mapping = { "_wstart": 0,  "_twend":1}
+        )
+        stream2 = StreamItem(
+            id=0,
+            stream=sql2,
+            res_query="select * from test.out2 where tag_tbname='trigger_0';",
+                        expect_query_by_row = "select '{_wstart}','{_twend}', avg(cint), count(cint) from test.st where cts <= '{_wstart}';",
+            result_param_mapping = { "_wstart": 0,  "_twend":1}
+        )
+        stream1.createStream()
+        stream2.createStream()
+        
+        expectRows1 = 5
+        stream1.awaitRowStability(expectRows1)
+        stream1.checkResultsByRow()
+        
+        expectRows2 = 50
+        stream2.awaitRowStability(expectRows2)
+        stream2.checkResultsByRow()
+        
