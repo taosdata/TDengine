@@ -2711,6 +2711,53 @@ _end:
   return code;
 }
 
+static int32_t strtcGenCheckpoint(SSTriggerRealtimeContext *pContext, uint8_t *buf, int64_t *pLen) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pContext->pTask;
+  SEncoder            encoder = {0};
+  int32_t             iter = 0;
+  tEncoderInit(&encoder, buf, *pLen);
+
+  code = tEncodeI32(&encoder, tSimpleHashGetSize(pContext->pReaderWalProgress));
+  QUERY_CHECK_CODE(code, lino, _end);
+  iter = 0;
+  SSTriggerWalProgress *pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, NULL, &iter);
+  while (pProgress != NULL) {
+    code = tEncodeI32(&encoder, pProgress->pTaskAddr->nodeId);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = tEncodeI64(&encoder, pProgress->latestVer);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = tEncodeI64(&encoder, pProgress->lastScanVer);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, pProgress, &iter);
+  }
+
+  code = tEncodeI32(&encoder, tSimpleHashGetSize(pContext->pGroups));
+  QUERY_CHECK_CODE(code, lino, _end);
+  iter = 0;
+  SSTriggerRealtimeGroup *pGroup = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
+  while (pGroup != NULL) {
+    code = tEncodeI64(&encoder, pGroup->groupId);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = tEncodeI64(&encoder, pGroup->curWindow.skey);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = tEncodeI64(&encoder, pGroup->curWindow.ekey);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  tEndEncode(&encoder);
+
+  *pLen = encoder.pos;
+
+_end:
+  tEncoderClear(&encoder);
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t sthgInit(SSTriggerHistoryGroup *pGroup, SSTriggerHistoryContext *pContext, int64_t groupId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -3122,7 +3169,33 @@ int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, const SStreamUndeploy
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = *ppTask;
 
-  // todo(kjq): do checkpoint/cleanup according to pMsg
+  // if (pMsg->doCheckpoint && pTask->pRealtimeCtx) {
+  //   uint8_t *buf = NULL;
+  //   int64_t  len = 0;
+  //   code = strtcGenCheckpoint(pTask->pRealtimeCtx, buf, &len);
+  //   QUERY_CHECK_CODE(code, lino, _end);
+  //   buf = taosMemoryMalloc(len);
+  //   code = strtcGenCheckpoint(pTask->pRealtimeCtx, buf, &len);
+  //   QUERY_CHECK_CODE(code, lino, _end);
+  //   code = streamWriteCheckPoint(pTask->task.streamId, buf, len);
+  //   QUERY_CHECK_CODE(code, lino, _end);
+  //   int32_t leaderSid = (*ppTask)->leaderSnodeId;
+  //   SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
+  //   if (epSet != NULL) {
+  //     code = streamSyncWriteCheckpoint((*ppTask)->task.streamId, epSet, buf, len);
+  //     QUERY_CHECK_CODE(code, lino, _end);
+  //   }
+  //   taosMemoryFree(buf);
+  // }
+  // if (pMsg->doCleanup) {
+  //   streamDeleteCheckPoint((*ppTask)->task.streamId);
+  //   int32_t leaderSid = (*ppTask)->leaderSnodeId;
+  //   SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
+  //   if (epSet != NULL) {
+  //     code = streamSyncDeleteCheckpoint((*ppTask)->task.streamId, epSet);
+  //     QUERY_CHECK_CODE(code, lino, _end);
+  //   }
+  // }
 
   taosWLockLatch(&gStreamTriggerWaitLatch);
   SListNode *pNode = TD_DLIST_HEAD(&gStreamTriggerWaitList);
@@ -3177,29 +3250,6 @@ int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, const SStreamUndeploy
   if ((*ppTask)->pCalcExecCount != NULL) {
     taosMemFreeClear((*ppTask)->pCalcExecCount);
   }
-
-  // todo
-  // remove checkpoint if drop stream
-  // if (delete checkpoint){
-  // streamDeleteCheckPoint((*ppTask)->task.streamId);
-  // int32_t leaderSid = (*ppTask)->leaderSnodeId;
-  //   SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
-  //   if (epSet != NULL){
-  //     code = streamSyncDeleteCheckpoint((*ppTask)->task.streamId, epSet);
-  //   }
-  // } else {    // write checkpoint
-  // checkpoint format: ver(int32)+streamId(int64)+data
-  // void *data = NULL;
-  // int64_t dataLen = 0;
-  // code = streamWriteCheckPoint((*ppTask)->task.streamId, data, dataLen);
-  // if (code == 0){
-  //   int32_t leaderSid = (*ppTask)->leaderSnodeId;
-  //   SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
-  //   if (epSet != NULL){
-  //     code = streamSyncWriteCheckpoint((*ppTask)->task.streamId, epSet, data, dataLen);
-  //   }
-  // }
-  // }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
