@@ -435,6 +435,61 @@ class StreamSQLTemplates:
             from %%tbname where ts >= _twstart and ts < _twend;
     """
     
+    s2_8 = """
+    create stream stream_from.s2_7 INTERVAL(15s) SLIDING(15s)
+            from stream_from.stb 
+            partition by tbname 
+            into stream_to.stb
+            as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
+            max(c0), max(c1), max(c2), max(c3),
+            min(c0), min(c1), min(c2), min(c3)
+            from %%tbname where ts >= _twstart and ts < _twend;
+    """
+    
+    s2_9 = """
+    create stream stream_from.s2_7 INTERVAL(15s) SLIDING(15s)
+            from stream_from.stb 
+            partition by tbname 
+            into stream_to.stb
+            as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
+            max(c0), max(c1), max(c2), max(c3),
+            min(c0), min(c1), min(c2), min(c3)
+            from %%tbname where ts >= _twstart and ts < _twend;
+    """
+    
+    s2_10 = """
+    create stream stream_from.s2_7 INTERVAL(15s) SLIDING(15s)
+            from stream_from.stb 
+            partition by tbname 
+            into stream_to.stb
+            as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
+            max(c0), max(c1), max(c2), max(c3),
+            min(c0), min(c1), min(c2), min(c3)
+            from %%tbname where ts >= _twstart and ts < _twend;
+    """
+    
+    s2_11 = """
+    create stream stream_from.s2_7 INTERVAL(15s) SLIDING(15s)
+            from stream_from.stb 
+            partition by tbname 
+            into stream_to.stb
+            as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
+            max(c0), max(c1), max(c2), max(c3),
+            min(c0), min(c1), min(c2), min(c3)
+            from %%tbname where ts >= _twstart and ts < _twend;
+    """    
+    
+    s2_12 = """
+    create stream stream_from.s2_7 INTERVAL(15s) SLIDING(15s)
+            from stream_from.stb 
+            partition by tbname 
+            into stream_to.stb
+            as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
+            max(c0), max(c1), max(c2), max(c3),
+            min(c0), min(c1), min(c2), min(c3)
+            from %%tbname where ts >= _twstart and ts < _twend;
+    """
+    
     @classmethod
     def get_sql(cls, sql_type):
         """
@@ -449,7 +504,13 @@ class StreamSQLTemplates:
             's2_3': cls.s2_3,
             's2_4': cls.s2_4,
             's2_5': cls.s2_5,
-            's2_6': cls.s2_6
+            's2_6': cls.s2_6,
+            's2_7': cls.s2_7,
+            's2_8': cls.s2_8,
+            's2_9': cls.s2_9,
+            's2_10': cls.s2_10,
+            's2_11': cls.s2_11,
+            's2_12': cls.s2_12,
         }
         return sql_map.get(sql_type, cls.s2_2)  # 默认返回s2_2
     
@@ -2064,7 +2125,7 @@ def main():
     parser.add_argument('--vgroups', type=int, default=4,
                         help='vgroups,默认4')
     parser.add_argument('--sql-type', type=str, default='s2_2',
-                       choices=['s2_2', 's2_3', 's2_4', 's2_5', 's2_6', 's2_7'],
+                       choices=['s2_2', 's2_3', 's2_4', 's2_5', 's2_6', 's2_7', 's2_8', 's2_9', 's2_10'],
                        help='实时流计算SQL-CASE-ID')
     parser.add_argument('--stream-sql', type=str,
                         help='自定义流计算SQL(优先级高于sql-type)')
