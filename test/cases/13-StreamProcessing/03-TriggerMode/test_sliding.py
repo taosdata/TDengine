@@ -58,7 +58,7 @@ class TestStreamSlidingTrigger:
         [-1, None, True, []], #FAILED 1-0
         [-1, None, True, []], #FAILED
         [-1, None, True, []], #FAILED
-        [-1, None, True, [], "order by cts, tag_tbname"],
+        [120, None, True, [], "order by cts, tag_tbname"],
     ]
 
     def setup_class(cls):
@@ -112,13 +112,17 @@ class TestStreamSlidingTrigger:
         self.tableList.append(f"ntb1")
 
     def checkResultWithResultFile(self, caseIdx):
-        tdCom.compare_query_with_result_file(caseIdx, f"select * from {self.dbname}.{self.outTbname}", f"{self.currentDir}/ans/{self.caseName}.{caseIdx}.csv", self.caseName)
+        chkSql = f"select * from {self.dbname}.{self.outTbname} {self.queryResults[caseIdx][4]}"
+        tdLog.info(f"check result with sql: {chkSql}")
+        tdCom.compare_query_with_result_file(caseIdx, chkSql, f"{self.currentDir}/ans/{self.caseName}.{caseIdx}.csv", self.caseName)
         tdLog.info("check result with result file succeed")
 
-    def checkResultWithExpectedList(self, expectedList):
-        tdSql.query(f"select * from {self.dbname}.{self.outTbname};", queryTimes=1)
+    def checkResultWithExpectedList(self, caseIdx):
+        chkSql = f"select * from {self.dbname}.{self.outTbname} {self.queryResults[caseIdx][4]}"
+        tdLog.info(f"check result with sql: {chkSql}")
+        tdSql.query(chkSql, queryTimes=1)
         total_rows = tdSql.getRows()
-        for row in expectedList:
+        for row in self.queryResults[caseIdx][3]:
             print(f"row:{row}")
             for rowIdx, rowValue in row.items():
                 print(f"rowIdx:{rowIdx}, rowValue:{rowValue}")
@@ -174,7 +178,7 @@ class TestStreamSlidingTrigger:
                 elif True == self.queryResults[self.caseIdx][2]:
                     self.checkResultWithResultFile(self.caseIdx)
                 else:
-                    self.checkResultWithExpectedList(self.queryResults[self.caseIdx][3])
+                    self.checkResultWithExpectedList(self.caseIdx)
 
                 self.caseIdx += 1
 
