@@ -23,6 +23,7 @@
 #include "tconv.h"
 #include "dmUtil.h"
 #include "qworker.h"
+#include "tss.h"
 
 #ifdef TD_JEMALLOC_ENABLED
 #define ALLOW_FORBID_FUNC
@@ -55,7 +56,7 @@ static struct {
   bool         deleteTrans;
   bool         generateGrant;
   bool         memDbg;
-  bool         checkS3;
+  bool         checkSs;
   bool         printAuth;
   bool         printVersion;
   bool         printHelp;
@@ -286,8 +287,8 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       cmdEnvIndex++;
     } else if (strcmp(argv[i], "-dm") == 0) {
       global.memDbg = true;
-    } else if (strcmp(argv[i], "--checks3") == 0) {
-      global.checkS3 = true;
+    } else if (strcmp(argv[i], "--checkss") == 0) {
+      global.checkSs = true;
     } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 ||
                strcmp(argv[i], "-?") == 0) {
       global.printHelp = true;
@@ -353,16 +354,37 @@ static void dmDumpCfg() {
   cfgDumpCfg(pCfg, 0, true);
 }
 
-static int32_t dmCheckS3() {
+static int32_t dmCheckSs() {
   int32_t  code = 0;
-#if 0
+  
   SConfig *pCfg = taosGetCfg();
-  cfgDumpCfgS3(pCfg, 0, true);
+  cfgDumpCfgSs(pCfg, 0, true);
 
-#if defined(USE_S3)
-  code = tcsCheckCfg();
+#ifdef USE_S3
+  printf("\nbegin check shared storage configuration.\n\n");
+  code = tssInit();
+  if (code != 0) {
+    printf("failed to initialize shared storage, error code=%d.\n", code);
+    return code;
+  }
+
+  code = tssCreateDefaultInstance();
+  if (code != 0) {
+    printf("failed to create default shared storage instance, error code=%d.\n", code);
+    tssUninit();
+    return code;
+  }
+
+  code = tssCheckDefaultInstance(0);
+  if (code == TSDB_CODE_SUCCESS){
+    printf("\nshared storage configuration check finished successfully.\n");
+  } else {
+    printf("\nshared storage configuration check finished with error.\n");
+  }
+  tssCloseDefaultInstance();
+  tssUninit();
 #endif
-#endif
+
   return code;
 }
 
@@ -493,8 +515,8 @@ int mainWindows(int argc, char **argv) {
     return code;
   }
 #endif
-  if (global.checkS3) {
-    code = dmCheckS3();
+  if (global.checkSs) {
+    code = dmCheckSs();
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();

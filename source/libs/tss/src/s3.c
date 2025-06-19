@@ -30,6 +30,9 @@ typedef struct {
     uint32_t        defaultChunkSizeInMB;
     // max number of allowed chunks in a multipart upload.
     uint32_t        maxChunks;
+    // max retry times when encounter retryable errors, default is 3, negative
+    // value means unlimited retry until success.
+    int32_t         maxRetry;
     S3BucketContext bucketContext;
     S3PutProperties putProperties;
 
@@ -59,6 +62,7 @@ static void printConfig(SSharedStorage* pss) {
     printf("protocol: %s\n", ss->bucketContext.protocol == S3ProtocolHTTP ? "http" : "https");
     printf("chunkSize: %uMB\n", ss->defaultChunkSizeInMB);
     printf("maxChunks: %u\n", ss->maxChunks);
+    printf("maxRetry: %d\n", ss->maxRetry);
 }
 
 
@@ -70,6 +74,7 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
     // set default values
     ss->defaultChunkSizeInMB = 64;
     ss->maxChunks = 10000;
+    ss->maxRetry = 3;
 
     ss->bucketContext.uriStyle = S3UriStyleVirtualHost;
     ss->bucketContext.protocol = S3ProtocolHTTPS;
@@ -138,9 +143,11 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
         } else if (taosStrcasecmp(key, "region") == 0) {
             ss->bucketContext.authRegion = val;
         } else if (taosStrcasecmp(key, "chunkSize") == 0 && val != NULL) {
-            ss->defaultChunkSizeInMB = (uint64_t)atoll(val);
+            ss->defaultChunkSizeInMB = (uint32_t)atoll(val);
         } else if (taosStrcasecmp(key, "maxChunks") == 0 && val != NULL) {
-            ss->maxChunks = (uint64_t)atoll(val);
+            ss->maxChunks = (uint32_t)atoll(val);
+        } else if (taosStrcasecmp(key, "maxRetry") == 0 && val != NULL) {
+            ss->maxRetry = (int32_t)atol(val);
         } else {
             tssError("unknown key '%s' in access string: %s", key, as);
             return false;
@@ -271,13 +278,6 @@ static S3Status propertiesCallbackNop(const S3ResponseProperties *properties, vo
 }
 
 
-
-static int shouldRetry() {
-    return 0;
-}
-
-
-
 // functions and data structures for upload & uploadFile.
 
 // SUploadSource represents the source of data to be uploaded.
@@ -364,15 +364,24 @@ static int32_t simpleUpload(SSharedStorageS3* ss, const char* dstPath, SUploadSo
         .putObjectDataCallback = &uploadCallback,
     };
 
-    do {
+    int32_t retry = 0;
+    while (1) {
         S3_put_object(&ss->bucketContext, dstPath, src->size, &ss->putProperties, 0, 0, &poh, &ucbd);
-    } while (S3_status_is_retryable(ucbd.status) && shouldRetry());
+        if (!S3_status_is_retryable(ucbd.status)) {
+            break;
+        }
+        if (ss->maxRetry >= 0 && retry >= ss->maxRetry) {
+            break;
+        }
+        ++retry;
+        tssDebug("simpleUpload failed %s: %d, retry: %d", dstPath, ucbd.status, retry);
+    }
 
     if (ucbd.status != S3StatusOK) {
-        tssError("failed to upload %s: %d/%s", dstPath, ucbd.status, ucbd.errMsg);
+        tssError("simpleUpload failed %s: %d/%s", dstPath, ucbd.status, ucbd.errMsg);
         code = TAOS_SYSTEM_ERROR(EIO);
     } else if (src->size > src->offset) {
-        tssError("failed to put remaining %lu bytes", src->size - src->offset);
+        tssError("simpleUpload failed to put remaining %lu bytes", src->size - src->offset);
         code = TAOS_SYSTEM_ERROR(EIO);
     }
 
@@ -426,13 +435,22 @@ static int32_t initMultipartUpload(SSharedStorageS3* ss, const char* dstPath, SU
         .responseXmlCallback = &multipartInitialCallback,
     };
 
-    do {
+    int32_t retry = 0;
+    while (1) {
         S3_initiate_multipart(&ss->bucketContext, dstPath, 0, &mih, 0, 0, ucbd);
-    } while (S3_status_is_retryable(ucbd->status) && shouldRetry());
+        if (!S3_status_is_retryable(ucbd->status)) {
+            break;
+        }
+        if (ss->maxRetry >= 0 && retry >= ss->maxRetry) {
+            break;
+        }
+        ++retry;
+        tssDebug("initMultipartUpload failed %s: %d, retry: %d", dstPath, ucbd->status, retry);
+    }
 
     int32_t code = 0;
     if (ucbd->uploadId == NULL || ucbd->status != S3StatusOK) {
-        tssError("failed to initiate multipart upload %s: %d/%s", dstPath, ucbd->status, ucbd->errMsg);
+        tssError("initMultipartUpload failed %s: %d/%s", dstPath, ucbd->status, ucbd->errMsg);
         code = TAOS_SYSTEM_ERROR(EIO);
     }
 
@@ -456,7 +474,8 @@ static int32_t uploadChunks(SSharedStorageS3* ss, const char* dstPath, SUploadCa
         ucbd->src->offset = 0;
         ucbd->src->size = TMIN(ucbd->chunkSize, src->size - src->offset);
 
-        do {
+        int32_t retry = 0;
+        while (1) {
             S3_upload_part(&ss->bucketContext,
                            dstPath,
                            &ss->putProperties,
@@ -467,10 +486,18 @@ static int32_t uploadChunks(SSharedStorageS3* ss, const char* dstPath, SUploadCa
                            NULL,
                            0,
                            ucbd);
-        } while (S3_status_is_retryable(ucbd->status) && shouldRetry());
+            if (!S3_status_is_retryable(ucbd->status)) {
+                break;
+            }
+            if (ss->maxRetry >= 0 && retry >= ss->maxRetry) {
+                break;
+            }
+            ++retry;
+            tssDebug("uploadChunks failed to upload part %d of %s: %d, retry: %d", ucbd->seq, dstPath, ucbd->status, retry);
+        }
 
         if (ucbd->status != S3StatusOK) {
-            tssError("failed to upload part %d of %s: %d/%s", ucbd->seq, dstPath, ucbd->status, ucbd->errMsg);
+            tssError("uploadChunks failed to upload part %d of %s: %d/%s", ucbd->seq, dstPath, ucbd->status, ucbd->errMsg);
             code = TAOS_SYSTEM_ERROR(EIO);
             break;
         }
@@ -518,16 +545,25 @@ static int32_t commitMultipartUpload(SSharedStorageS3* ss, const char* dstPath, 
         .responseXmlCallback = NULL,
     };
 
-    do {
+    int32_t retry = 0;
+    while (1) {
         S3_complete_multipart_upload(&ss->bucketContext, dstPath, &mch, ucbd->uploadId, src.size, 0, 0, ucbd);
-    } while (S3_status_is_retryable(ucbd->status) && shouldRetry());
+        if (!S3_status_is_retryable(ucbd->status)) {
+            break;
+        }
+        if (ss->maxRetry >= 0 && retry >= ss->maxRetry) {
+            break;
+        }
+        ++retry;
+        tssDebug("commitMultipartUpload failed %s: %d, retry: %d", dstPath, ucbd->status, retry);
+    }
 
     ucbd->src = bakSrc;
     taosMemFree(xml);
 
     int32_t code = 0;
     if (ucbd->status != S3StatusOK) {
-        tssError("failed to commit multipart upload %s: %d/%s", dstPath, ucbd->status, ucbd->errMsg);
+        tssError("commitMultipartUpload failed %s: %d/%s", dstPath, ucbd->status, ucbd->errMsg);
         code = TAOS_SYSTEM_ERROR(EIO);
     }
 
@@ -575,12 +611,21 @@ static void abortMultipartUpload(SSharedStorageS3* ss, const char* dstPath, SUpl
         },
     };
 
-    do {
+    int32_t retry = 0;
+    while (1) {
         S3_abort_multipart_upload(&ss->bucketContext, dstPath, ucbd->uploadId, 0, &amh);
-    } while (S3_status_is_retryable(ucbd->status) && shouldRetry());
+        if (!S3_status_is_retryable(ucbd->status)) {
+            break;
+        }
+        if (ss->maxRetry >= 0 && retry >= ss->maxRetry) {
+            break;
+        }
+        ++retry;
+        tssDebug("abortMultipartUpload failed %s: %d, retry: %d", dstPath, ucbd->status, retry);
+    }
 
     if (ucbd->status != S3StatusOK) {
-        tssError("failed to abort multipart upload %s: %d/%s", dstPath, ucbd->status, ucbd->errMsg);
+        tssError("abortMultipartUpload failed %s: %d/%s", dstPath, ucbd->status, ucbd->errMsg);
     }
 }
 
@@ -911,15 +956,24 @@ static int32_t deleteFile(SSharedStorage* pss, const char* path) {
     };
 
     SCallbackData cbd = {0};
-    do {
+    int32_t retry = 0;
+    while (1) {
         S3_delete_object(&ss->bucketContext, path, NULL, 0, &rh, &cbd);
-    } while(S3_status_is_retryable(cbd.status) && shouldRetry());
+        if (!S3_status_is_retryable(cbd.status)) {
+            break;
+        }
+        if (ss->maxRetry >= 0 && retry >= ss->maxRetry) {
+            break;
+        }
+        ++retry;
+        tssDebug("deleteFile failed %s: %d, retry: %d", path, cbd.status, retry);
+    }
 
     if (cbd.status == S3StatusOK || cbd.status == S3StatusErrorNoSuchKey || cbd.status == S3StatusHttpErrorNotFound) {
         TAOS_RETURN(TSDB_CODE_SUCCESS);
     }
 
-    tssError("failed to delete %s: %d/%s", path, cbd.status, cbd.errMsg);
+    tssError("deleteFile failed %s: %d/%s", path, cbd.status, cbd.errMsg);
     TAOS_RETURN(TSDB_CODE_FAILED);
 }
 
@@ -955,18 +1009,27 @@ static int32_t getFileSize(SSharedStorage* pss, const char* path, int64_t* size)
     };
 
     SSizeCallbackData scbd = {0};
-    do {
+    int32_t retry = 0;
+    while (1) {
         S3_head_object(&ss->bucketContext, path, NULL, 0, &rh, &scbd);
-    } while(S3_status_is_retryable(scbd.status) && shouldRetry());
+        if (!S3_status_is_retryable(scbd.status)) {
+            break;
+        }
+        if (ss->maxRetry >= 0 && retry >= ss->maxRetry) {
+            break;
+        }
+        ++retry;
+        tssDebug("getFileSize failed %s: %d, retry: %d", path, scbd.status, retry);
+    }
 
     int code = 0;
     if (scbd.status == S3StatusOK) {
         *size = scbd.size;
     } else if (scbd.status == S3StatusErrorNoSuchKey || scbd.status == S3StatusHttpErrorNotFound) {
-        tssError("file %s does not exist", path);
+        tssError("getFileSize: file %s does not exist", path);
         code = TSDB_CODE_NOT_FOUND;
     } else {
-        tssError("failed to get size of %s: %d/%s", path, scbd.status, scbd.errMsg);
+        tssError("getFileSize failed %s: %d/%s", path, scbd.status, scbd.errMsg);
         code = TSDB_CODE_FAILED;
     }
 

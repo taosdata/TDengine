@@ -247,7 +247,7 @@ TEST_F(CfgTest, cfgDumpItemCategory) {
   EXPECT_EQ(cfgDumpItemCategory(pItem, NULL, 0, 0), TSDB_CODE_INVALID_CFG);
 }
 
-TEST_F(CfgTest, cfgDumpCfgS3) {
+TEST_F(CfgTest, cfgDumpCfgSs) {
   SConfig *pConfig = NULL;
   int32_t  code = cfgInit(&pConfig);
 
@@ -262,13 +262,13 @@ TEST_F(CfgTest, cfgDumpCfgS3) {
               CFG_CATEGORY_GLOBAL);
   cfgAddDir(pConfig, "scriptDir", configDir, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL);
 
-  cfgDumpCfgS3(pConfig, false, false);
+  cfgDumpCfgSs(pConfig, false, false);
 
-  cfgDumpCfgS3(pConfig, true, true);
+  cfgDumpCfgSs(pConfig, true, true);
 
-  cfgDumpCfgS3(pConfig, false, true);
+  cfgDumpCfgSs(pConfig, false, true);
 
-  cfgDumpCfgS3(pConfig, true, false);
+  cfgDumpCfgSs(pConfig, true, false);
 }
 
 #ifndef WINDOWS
