@@ -1102,7 +1102,7 @@ static int32_t strtgAddNewMeta(SSTriggerRealtimeGroup *pGroup) {
           } else {
             pMeta->nrows = *(int64_t *)colDataGetNumData(pNrowsCol, i);
           }
-          pStat->threshold = TMAX(pStat->threshold, ekey - pTask->watermark);
+          pStat->threshold = TMAX(pStat->threshold, ekey);
           pStat->numHoldMetas++;
         }
       }
@@ -1914,10 +1914,7 @@ static int32_t strtgResumeCheck(SSTriggerRealtimeGroup *pGroup) {
       // don't break, continue to the next case
     }
     case STRIGGER_GROUP_WAITING_CALC: {
-      int32_t numToCheck = taosArraySearchIdx(pGroup->pMetas, &pGroup->newThreshold, strtgSearchMeta, TD_GT);
-      if (numToCheck < 0) {
-        numToCheck = taosArrayGetSize(pGroup->pMetas);
-      }
+      int32_t numToCheck = taosArrayGetSize(pGroup->pMetas);
       numToCheck -= pGroup->metaIdx;
       // todo(kjq):  check if the timeout expired
       if (numToCheck < pGroup->minMetaThreshold) {
