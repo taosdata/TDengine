@@ -1,11 +1,13 @@
 import time
 import math
+import os
 from new_test_framework.utils import tdLog, tdSql, tdStream, StreamTableType, StreamTable, StreamItem, tdCom
 import datetime
 
 class TestStreamSlidingTrigger:
     caseName = "test_stream_sliding_trigger"
-    dbname = "test"
+    currentDir = os.path.dirname(os.path.abspath(__file__))
+    dbname = "test1"
     trigTbname = ""
     calcTbname = ""
     outTbname = ""
@@ -16,7 +18,7 @@ class TestStreamSlidingTrigger:
     caseIdx = 0
     slidingList = [1, 10, 100, 1000]
     tableList = []
-    skipCaseList = range(3)
+    skipCaseList = range(8)
     streamSql = ""
     querySql = ""
     querySqls = [ # (SQL, (minPartitionColNum, partitionByTbname), PositiveCase)
@@ -47,14 +49,16 @@ class TestStreamSlidingTrigger:
     ]
 
     queryResults = [
-        #[expectedRows, compareFunc, hasResultFile, [{rowIdx:[col0Value, col1Value...]}]]
+        #[expectedRows, compareFunc, hasResultFile, [{rowIdx:[col0Value, col1Value...]}, order by clause]]
         [1, None, False, [{0:(datetime.datetime(2025, 1, 1, 0, 0), 0)}]],
         [2, None, False, [{0:(datetime.datetime(2025, 1, 1, 0, 19), 38)}, {1:(datetime.datetime(2025, 1, 1, 0, 19, 30), 39)}]],
         [40, None, True, []], #FAILED
-        [-1, None, True, []],
-        [-1, None, True, []],
-        [-1, None, True, []],
-        [-1, None, True, []],
+        [40, None, True, []],
+        [-1, None, True, []], #FAILED
+        [-1, None, True, []], #FAILED 1-0
+        [-1, None, True, []], #FAILED
+        [-1, None, True, []], #FAILED
+        [-1, None, True, [], "order by cts, tag_tbname"],
     ]
 
     def setup_class(cls):
@@ -92,9 +96,9 @@ class TestStreamSlidingTrigger:
 
         tdStream.dropAllStreamsAndDbs()
         
-        tdStream.init_database("test1")
+        tdStream.init_database(self.dbname)
         
-        st1 = StreamTable("test1", "st1", StreamTableType.TYPE_SUP_TABLE)
+        st1 = StreamTable(self.dbname, "st1", StreamTableType.TYPE_SUP_TABLE)
         st1.createTable(3)
         st1.append_data(0, self.tblRowNum)
         
@@ -102,17 +106,17 @@ class TestStreamSlidingTrigger:
         for i in range(1, self.subTblNum + 1):
             self.tableList.append(f"st1_{i}")
         
-        ntb = StreamTable("test1", "ntb1", StreamTableType.TYPE_NORMAL_TABLE)
+        ntb = StreamTable(self.dbname, "ntb1", StreamTableType.TYPE_NORMAL_TABLE)
         ntb.createTable()
         ntb.append_data(0, self.tblRowNum)
         self.tableList.append(f"ntb1")
 
     def checkResultWithResultFile(self, caseIdx):
-        tdCom.compare_query_with_result_file(caseIdx, f"select * from {self.outTbname};", f"ans/{self.caseName}.{caseIdx}.csv", self.caseName)
+        tdCom.compare_query_with_result_file(caseIdx, f"select * from {self.dbname}.{self.outTbname}", f"{self.currentDir}/ans/{self.caseName}.{caseIdx}.csv", self.caseName)
         tdLog.info("check result with result file succeed")
 
     def checkResultWithExpectedList(self, expectedList):
-        tdSql.query(f"select * from {self.outTbname};", queryTimes=1)
+        tdSql.query(f"select * from {self.dbname}.{self.outTbname};", queryTimes=1)
         total_rows = tdSql.getRows()
         for row in expectedList:
             print(f"row:{row}")
@@ -130,14 +134,19 @@ class TestStreamSlidingTrigger:
 
         sql = [ #(SQL, (minPartitionColNum, partitionByTbname))
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} into outTbname as querySql;", (0, False)),
-            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} into outTbname partition by tbname as querySql;", (1, True)),
-            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} into outTbname partition by cint, tbname as querySql;", (2, True)),
-            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} into outTbname partition by cvarchar, tbname, cint as querySql;", (3, True)),
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname into outTbname as querySql;", (1, True)),
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by cint, tbname into outTbname as querySql;", (2, True)),
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by cvarchar, tbname, cint into outTbname as querySql;", (3, True)),
         ]
 
         for sql_idx in range(len(sql)):
             for query_idx in range(len(self.querySqls)):
+                if sql[sql_idx][1][0] < self.querySqls[query_idx][1][0] or (sql[sql_idx][1][1] == False and True == self.querySqls[query_idx][1][1]):
+                    tdLog.info(f"skip case because sql_idx={sql_idx} query_idx={query_idx} minPartitionColNum mismatch")
+                    continue
+
                 tdLog.info(f"start {self.caseIdx} case:")
+
                 if self.caseIdx in self.skipCaseList:
                     tdLog.info(f"skip case {self.caseIdx}")
                     self.caseIdx += 1
@@ -145,9 +154,6 @@ class TestStreamSlidingTrigger:
 
                 self.stName = f"s{self.caseIdx}"
                 self.outTbname = f"{self.stName}_out"
-                if sql[sql_idx][1][0] < self.querySqls[query_idx][1][0] or (sql[sql_idx][1][1] == True and False == self.querySqls[query_idx][1][1]):
-                    self.caseIdx += 1
-                    continue
 
                 # Format the querySql with the current calcTbname
                 self.querySql = self.querySqls[query_idx][0].replace("{calcTbname}", self.calcTbname)

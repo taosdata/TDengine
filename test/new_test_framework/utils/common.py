@@ -19,6 +19,8 @@ import socket
 import json
 import toml
 import subprocess
+import os
+import platform
 from .boundary import DataBoundary
 import taos
 from .log import *
@@ -1994,7 +1996,9 @@ class TDCom:
     def generate_query_result_file(self, test_case, idx, sql):
         self.query_result_file = f"./temp_{test_case}_{idx}.result"
         cfgPath = self.getClientCfgPath()
-        os.system(f"taos -c {cfgPath} -s {sql} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine Command' > {self.query_result_file}  ")
+        taosCmd = f"taos -c {cfgPath} -s '{sql}' | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine Command' > {self.query_result_file}  "
+        #print(f"taosCmd:{taosCmd}, currentPath:{os.getcwd()}")
+        os.system(taosCmd)
         return self.query_result_file
     
     def generate_query_result(self, inputfile, test_case):
@@ -2010,7 +2014,7 @@ class TDCom:
 
         try:
             # use subprocess.run to execute  diff/fc commands
-            # print(file1, file2)
+            #print(file1, file2)
             if platform.system().lower() != 'windows':
                 cmd='diff'
                 result = subprocess.run([cmd, "-u", "--color", file1, file2], text=True, capture_output=True)
@@ -2018,6 +2022,10 @@ class TDCom:
                 cmd='fc'
                 result = subprocess.run([cmd, file1, file2], text=True, capture_output=True)
             # if result is not empty, print the differences and files name. Otherwise, the files are identical.
+            if result.stderr:
+                tdLog.debug(f"Error comparing files {file1} and {file2}: {result.stderr}")
+                return False
+            
             if result.stdout:
                 tdLog.debug(f"Differences between {file1} and {file2}")
                 tdLog.notice(f"\r\n{result.stdout}")
@@ -2033,7 +2041,7 @@ class TDCom:
         self.generate_query_result_file(test_case, idx, sql)
         if self.compare_result_files(resultFile, self.query_result_file):
             tdLog.info("Test passed: Result files are identical.")
-            os.system(f"rm -f {self.query_result_file}")
+            #os.system(f"rm -f {self.query_result_file}")
         else:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             tdLog.exit(f"{caller.lineno}(line:{caller.lineno}) failed: expect_file:{resultFile}  != reult_file:{self.query_result_file} ")
