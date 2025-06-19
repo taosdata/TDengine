@@ -449,8 +449,8 @@ class StreamStarter:
                 insert_rows=50000, disorder_ratio=0, vgroups=4,
                 stream_sql=None, sql_type='s1_2', cluster_root=None, monitor_interval=1,
                 create_data=False, restore_data=False) -> None:
-        # 设置集群根目录,默认使用/root/taos_stream_cluster
-        self.cluster_root = cluster_root if cluster_root else '/root/taos_stream_cluster'        
+        # 设置集群根目录,默认使用/home/taos_stream_cluster
+        self.cluster_root = cluster_root if cluster_root else '/home/taos_stream_cluster'        
         self.table_count = table_count      # 子表数量
         self.insert_rows = insert_rows      # 插入记录数
         self.disorder_ratio = disorder_ratio # 数据乱序率
@@ -1855,8 +1855,8 @@ def main():
                         help='自定义流计算SQL(优先级高于sql-type)')
     parser.add_argument('--sql-file', type=str,
                         help='从文件读取流式查询SQL')
-    parser.add_argument('--cluster-root', type=str, default='/root/taos_stream_cluster',
-                        help='集群根目录,默认/root/taos_stream_cluster')
+    parser.add_argument('--cluster-root', type=str, default='/home/taos_stream_cluster',
+                        help='集群根目录,默认/home/taos_stream_cluster')
     parser.add_argument('--monitor-interval', type=int, default=1,
                         help='性能数据采集间隔(秒),默认1秒')
     
