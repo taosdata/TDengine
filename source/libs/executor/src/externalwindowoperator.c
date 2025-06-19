@@ -540,6 +540,10 @@ static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
   int32_t                  ret = 0;
 
   const STimeWindow* pWin = getExtWindow(pExtW, ts);
+  if (pWin == NULL) {
+    qError("failed to get time window for ts:%" PRId64 ", error:%s", ts, tstrerror(terrno));
+    return;
+  }
   STimeWindow win = *pWin;
   ret = setExtWindowOutputBuf(pResultRowInfo, &win, &pResult, pInputBlock->info.id.groupId, pSup->pCtx,
                               numOfOutput, pSup->rowEntryInfoOffset, &pExtW->aggSup, pTaskInfo);
@@ -604,6 +608,9 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
     for (int32_t i = 0; i < size; ++i) {
       SSTriggerCalcParam* pParam = taosArrayGet(pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPesudoFuncVals, i);
       STimeWindow win = {.skey = pParam->wstart, .ekey = pParam->wend};
+      if (pTaskInfo->pStreamRuntimeInfo->funcInfo.triggerType != 1){  // 1 meams STREAM_TRIGGER_SLIDING
+        win.ekey++;
+      }
       (void)taosArrayPush(pExtW->pWins, &win);
 
       SBlockList bl = {.pSrcBlock = pExtW->binfo.pRes, .pBlocks = 0, .blockRowNumThreshold = 4096};

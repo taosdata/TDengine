@@ -30,7 +30,7 @@ extern "C" {
 
 typedef enum EStreamTriggerType {
   STREAM_TRIGGER_PERIOD = 0,
-  STREAM_TRIGGER_SLIDING,
+  STREAM_TRIGGER_SLIDING,       // sliding is 1 , can not change, because used in doOpenExternalWindow
   STREAM_TRIGGER_SESSION,
   STREAM_TRIGGER_COUNT,
   STREAM_TRIGGER_STATE,
