@@ -256,9 +256,20 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   pRpc->info.wrapper = pWrapper;
 
   EQItype itype = RPC_QITEM;  // rsp msg is not restricted by tsQueueMemoryUsed
-  if (IsReq(pRpc) && pRpc->msgType != TDMT_SYNC_HEARTBEAT && pRpc->msgType != TDMT_SYNC_HEARTBEAT_REPLY)
-    itype = RPC_QITEM;
+  if (pRpc->msgType == TDMT_SYNC_HEARTBEAT || pRpc->msgType == TDMT_SYNC_HEARTBEAT_REPLY) {
+    itype = DEF_QITEM;
+  } else if (IsReq(pRpc)) {
+    itype = APPLY_QITEM;
+  }
+  if (pRpc->msgType == TDMT_SYNC_HEARTBEAT) {
+    dGInfo("Before put msg:%p, type:%s, handle:%p, contLen:%d", pRpc, TMSG_INFO(pRpc->msgType), pRpc->info.handle,
+           pRpc->contLen);
+  }
   code = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg);
+  if (pRpc->msgType == TDMT_SYNC_HEARTBEAT) {
+    dGInfo("After put msg:%p, type:%s, handle:%p, contLen:%d code:%d", pRpc, TMSG_INFO(pRpc->msgType),
+           pRpc->info.handle, pRpc->contLen, code);
+  }
   if (code) goto _OVER;
 
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
