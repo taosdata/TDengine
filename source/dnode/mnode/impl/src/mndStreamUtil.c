@@ -1043,13 +1043,21 @@ int32_t mstSetStreamTaskResBlock(SStreamObj* pStream, SStmTaskStatus* pTask, SSD
   // start time
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-  code = colDataSetVal(pColInfo, numOfRows, (const char*)&pTask->runningStartTs, false);
+  if (pTask->runningStartTs) {
+    code = colDataSetVal(pColInfo, numOfRows, (const char*)&pTask->runningStartTs, false);
+  } else {
+    code = colDataSetVal(pColInfo, numOfRows, (const char*)&pTask->runningStartTs, true);
+  }
   TSDB_CHECK_CODE(code, lino, _end);
 
   // last update
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
-  code = colDataSetVal(pColInfo, numOfRows, (const char*)&pTask->lastUpTs, false);
+  if (pTask->lastUpTs) {
+    code = colDataSetVal(pColInfo, numOfRows, (const char*)&pTask->lastUpTs, false);
+  } else {
+    code = colDataSetVal(pColInfo, numOfRows, (const char*)&pTask->lastUpTs, true);
+  }
   TSDB_CHECK_CODE(code, lino, _end);
 
   // extra info

@@ -1,40 +1,60 @@
 import time
 import math
-from new_test_framework.utils import tdLog, tdSql, tdStream, StreamTableType, StreamTable, StreamItem
-from datetime import datetime
+from new_test_framework.utils import tdLog, tdSql, tdStream, StreamTableType, StreamTable, StreamItem, tdCom
+import datetime
 
 class TestStreamSlidingTrigger:
+    caseName = "test_stream_sliding_trigger"
     dbname = "test"
     trigTbname = ""
     calcTbname = ""
     outTbname = ""
     stName = ""
-    sliding = 
+    sliding = 1
     subTblNum = 3
     tblRowNum = 40
+    caseIdx = 0
+    slidingList = [1, 10, 100, 1000]
     tableList = []
+    skipCaseList = range(3)
+    streamSql = ""
     querySql = ""
     querySqls = [ # (SQL, (minPartitionColNum, partitionByTbname), PositiveCase)
         ("select cts, cint from {calcTbname} order by cts limit 3", (0, False), True),
+        ("select cts, cint from {calcTbname} order by cts desc limit 4", (0, False), True),
         ("select cts, cint, _tprev_ts, _tcurrent_ts, _tnext_ts, _tlocaltime from {calcTbname} order by cts", (0, False), True),
         ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from {calcTbname} order by cts", (2, True), True),
         ("select cts, cint from {calcTbname} where _tcurrent_ts % 2 = 0 order by cts", (0, False), True),
         ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from {calcTbname} where %%tbname like '%1' order by cts", (2, True), True),
+        ("select _tcurrent_ts, cint from {calcTbname} order by cts limit 4", (0, False), True),
 
         ("select cts, cint from %%tbname order by cts limit 3", (1, True), True),
         ("select cts, cint, _tprev_ts, _tcurrent_ts, _tnext_ts, _tlocaltime from %%tbname order by cts", (1, True), True),
         ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname order by cts", (2, True), True),
         ("select cts, cint from %%tbname where _tcurrent_ts % 2 = 0 order by cts", (1, True), True),
         ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname where %%tbname like '%1' order by cts", (2, True), True),
+        ("select _tcurrent_ts, cint from %%tbname order by cts limit 7", (1, True), True),
 
         ("select cts, cint from %%tbname partition by cint order by cts", (1, True), True),
         ("select cts, cint, _tprev_ts, _tcurrent_ts, _tnext_ts, _tlocaltime from %%tbname partition by cint order by cts", (1, True), True),
         ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname partition by cint order by cts", (2, True), True),
         ("select cts, cint from %%tbname where _tcurrent_ts % 2 = 0 partition by cint order by cts", (1, True), True),
         ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname where %%tbname like '%1' partition by cint order by cts", (2, True), True),
+        ("select _tcurrent_ts, cint from %%tbname partition by cint order by cts", (1, True), True),
 
         #("select _twstart, avg(cint), count(cint) from {calcTbname} where cts <= _twstart", ),
         #("")
+    ]
+
+    queryResults = [
+        #[expectedRows, compareFunc, hasResultFile, [{rowIdx:[col0Value, col1Value...]}]]
+        [1, None, False, [{0:(datetime.datetime(2025, 1, 1, 0, 0), 0)}]],
+        [2, None, False, [{0:(datetime.datetime(2025, 1, 1, 0, 19), 38)}, {1:(datetime.datetime(2025, 1, 1, 0, 19, 30), 39)}]],
+        [40, None, True, []], #FAILED
+        [-1, None, True, []],
+        [-1, None, True, []],
+        [-1, None, True, []],
+        [-1, None, True, []],
     ]
 
     def setup_class(cls):
@@ -59,13 +79,14 @@ class TestStreamSlidingTrigger:
 
         tdStream.createSnode()
         self.prepareData()
-        self.execCase()
-        self.basic2()
-        
-    @staticmethod
-    def custom_cint_generator(row):
-        return str(row * 10)  # 每行的 cint 为 row * 10
-        
+
+        self.caseIdx = 0
+        for self.trigTbname in self.tableList:
+            for self.calcTbname in self.tableList:
+                for self.sliding in self.slidingList:
+                    self.execCase()
+
+     
     def prepareData(self):
         tdLog.info(f"prepare data")
 
@@ -76,32 +97,80 @@ class TestStreamSlidingTrigger:
         st1 = StreamTable("test1", "st1", StreamTableType.TYPE_SUP_TABLE)
         st1.createTable(3)
         st1.append_data(0, self.tblRowNum)
+        
+        self.tableList.append("st1")
         for i in range(1, self.subTblNum + 1):
             self.tableList.append(f"st1_{i}")
         
         ntb = StreamTable("test1", "ntb1", StreamTableType.TYPE_NORMAL_TABLE)
+        ntb.createTable()
         ntb.append_data(0, self.tblRowNum)
         self.tableList.append(f"ntb1")
 
-    def execCase(self, tbname):
+    def checkResultWithResultFile(self, caseIdx):
+        tdCom.compare_query_with_result_file(caseIdx, f"select * from {self.outTbname};", f"ans/{self.caseName}.{caseIdx}.csv", self.caseName)
+        tdLog.info("check result with result file succeed")
+
+    def checkResultWithExpectedList(self, expectedList):
+        tdSql.query(f"select * from {self.outTbname};", queryTimes=1)
+        total_rows = tdSql.getRows()
+        for row in expectedList:
+            print(f"row:{row}")
+            for rowIdx, rowValue in row.items():
+                print(f"rowIdx:{rowIdx}, rowValue:{rowValue}")
+                if rowIdx >= total_rows:
+                    raise AssertionError(f"Expected row index {rowIdx} but only {total_rows} rows returned")
+                rowData = tdSql.getRowData(rowIdx)
+                print(f"rowData:{rowData}")
+                assert rowData == rowValue, f"Expected value {rowValue} does not match actual value {rowData} for row index {rowIdx}"
+        tdLog.info("check result with expected list succeed")
+
+    def execCase(self):
         tdLog.info(f"execCase begin")
 
-        sql = [
-            (f"create stream {self.stName} sliding({self.sliding}s) from {self.trigTbname} into {self.outTbname} as {self.querySql};", (0, False)),
-            (f"create stream {self.stName} sliding({self.sliding}s) from {self.trigTbname} partition by tbname into {self.outTbname} as {self.querySql};", (1, True)),
-            (f"create stream {self.stName} sliding({self.sliding}s) from {self.trigTbname} partition by tvarchar, tint into {self.outTbname} as {self.querySql};", (2, False)),  
-            (f"create stream {self.stName} sliding({self.sliding}s) from {self.trigTbname} partition by tbname, tint into {self.outTbname} as {self.querySql};", (2, True)),  
+        sql = [ #(SQL, (minPartitionColNum, partitionByTbname))
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} into outTbname as querySql;", (0, False)),
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} into outTbname partition by tbname as querySql;", (1, True)),
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} into outTbname partition by cint, tbname as querySql;", (2, True)),
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} into outTbname partition by cvarchar, tbname, cint as querySql;", (3, True)),
         ]
-    
-        stream1 = StreamItem(
-            id=0,
-            stream=sql,
-            res_query="select * from test.st7;",
-            check_func=self.checkBaic2Results,
-        )
-        stream1.createStream()
-        stream1.awaitRowStability(39)
-        stream1.checkResults()
+
+        for sql_idx in range(len(sql)):
+            for query_idx in range(len(self.querySqls)):
+                tdLog.info(f"start {self.caseIdx} case:")
+                if self.caseIdx in self.skipCaseList:
+                    tdLog.info(f"skip case {self.caseIdx}")
+                    self.caseIdx += 1
+                    continue
+
+                self.stName = f"s{self.caseIdx}"
+                self.outTbname = f"{self.stName}_out"
+                if sql[sql_idx][1][0] < self.querySqls[query_idx][1][0] or (sql[sql_idx][1][1] == True and False == self.querySqls[query_idx][1][1]):
+                    self.caseIdx += 1
+                    continue
+
+                # Format the querySql with the current calcTbname
+                self.querySql = self.querySqls[query_idx][0].replace("{calcTbname}", self.calcTbname)
+                self.streamSql = sql[sql_idx][0].replace("querySql", self.querySql).replace("stName", self.stName).replace("outTbname", self.outTbname)
+                print(f"{sql_idx} - {query_idx} exec sql: {self.querySql}")
+                print(f"{sql_idx} - {query_idx} stream sql: {self.streamSql}")
+                stream1 = StreamItem(
+                    id=self.caseIdx,
+                    stream=self.streamSql,
+                    res_query=f"select * from {self.outTbname};",
+                    check_func=self.queryResults[self.caseIdx][1],
+                )
+                stream1.createStream()
+                stream1.awaitStreamRunning()
+                stream1.awaitRowStability(self.queryResults[self.caseIdx][0])
+                if stream1.check_func is not None:
+                    stream1.check_func()
+                elif True == self.queryResults[self.caseIdx][2]:
+                    self.checkResultWithResultFile(self.caseIdx)
+                else:
+                    self.checkResultWithExpectedList(self.queryResults[self.caseIdx][3])
+
+                self.caseIdx += 1
 
     def checkBaic2Results(self):
         tdSql.query("select * from test.st7;", queryTimes=1)
@@ -148,6 +217,7 @@ class TestStreamSlidingTrigger:
             check_func=self.checkBaic2Results,
         )
         stream1.createStream()
+        stream1.awaitStreamRunning()
         stream1.awaitRowStability(39)
         stream1.checkResults()
 

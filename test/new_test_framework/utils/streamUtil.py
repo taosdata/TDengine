@@ -951,12 +951,46 @@ class StreamItem:
         tdLog.info(f"ensure stream:s{self.id} has {stable_rows} stable rows")
       
         for loop in range(waitSeconds):
-            tdSql.query(self.res_query)
+            if False == tdSql.query(self.res_query, None, 1, None, False, False):
+                tdLog.info(f"{self.res_query} has failed for {loop} times")
+                time.sleep(1)
+                continue
+            
             actual_rows = tdSql.getRows()
             
-            if actual_rows == stable_rows:
+            tdLog.info(f"Stream:s{self.id} got {actual_rows} rows, expected:{stable_rows}")
+
+            if stable_rows < 0 or (stable_rows > 0 and actual_rows == stable_rows):
                 tdLog.info(f"Stream:s{self.id} has {actual_rows} stable rows")
                 return
             time.sleep(1)
             
         tdLog.exit(f"Stream:s{self.id} did not stabilize to {stable_rows} rows in {waitSeconds} seconds")
+
+    def awaitStreamRunning(self, waitSeconds=60):
+        tdLog.info(f"wait stream:s{self.id} status become running at most {waitSeconds} seconds")
+      
+        sql = f"select status from information_schema.ins_streams where stream_name='s{self.id}';"
+        for loop in range(waitSeconds):
+            if False == tdSql.query(sql, None, 1, None, False, False):
+                tdLog.info(f"{sql} has failed for {loop} times")
+                time.sleep(1)
+                continue
+            
+            actual_rows = tdSql.getRows()
+            
+            if actual_rows != 1:
+                tdLog.info(f"Stream:s{self.id} status not got")
+                time.sleep(1)
+                continue
+
+            stream_status = tdSql.getData(0, 0)
+            if stream_status != "Running":
+                tdLog.info(f"Stream:s{self.id} status {stream_status} got")
+                time.sleep(1)
+                continue
+            else:
+                tdLog.info(f"Stream:s{self.id} status {stream_status} got")
+                return
+
+        tdLog.exit(f"Stream:s{self.id} status not become Running in {waitSeconds} seconds")
