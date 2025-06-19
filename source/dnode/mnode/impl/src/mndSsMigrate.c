@@ -313,20 +313,18 @@ int32_t mndAddSsMigrateToTran(SMnode *pMnode, STrans *pTrans, SSsMigrateObj *pSs
   }
 
   SSdbRaw *pVgRaw = mndSsMigrateActionEncode(pSsMigrate);
+  taosArrayDestroy(pSsMigrate->vgroups);
   if (pVgRaw == NULL) {
-    taosArrayDestroy(pSsMigrate->vgroups);
     code = TSDB_CODE_SDB_OBJ_NOT_THERE;
     if (terrno != 0) code = terrno;
     TAOS_RETURN(code);
   }
   if ((code = mndTransAppendPrepareLog(pTrans, pVgRaw)) != 0) {
-    taosArrayDestroy(pSsMigrate->vgroups);
     sdbFreeRaw(pVgRaw);
     TAOS_RETURN(code);
   }
 
   if ((code = sdbSetRawStatus(pVgRaw, SDB_STATUS_READY)) != 0) {
-    taosArrayDestroy(pSsMigrate->vgroups);
     sdbFreeRaw(pVgRaw);
     TAOS_RETURN(code);
   }

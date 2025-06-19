@@ -1972,7 +1972,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
 #ifdef USE_S3
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ssEnabled");
-  tsSsEnabled = pItem->bval;
+  tsSsEnabled = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ssAccessString");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, sizeof(tsSsAccessString)));

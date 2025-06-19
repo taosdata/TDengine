@@ -223,7 +223,6 @@ static int32_t copyFile(const char* srcPath, const char* dstPath, int64_t offset
         TAOS_RETURN(code);
     }
 
-
     TdFilePtr dstFile = taosOpenFile(dstPath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
     if (dstFile == NULL) {
         code = terrno;
@@ -260,8 +259,8 @@ static int32_t copyFile(const char* srcPath, const char* dstPath, int64_t offset
         size -= read;
     }
 
-
     (void)taosCloseFile(&srcFile);
+    (void)taosCloseFile(&dstFile);
     TAOS_RETURN(code);
 }
 
