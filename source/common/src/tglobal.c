@@ -2162,7 +2162,6 @@ int32_t setAllConfigs(SConfig *pCfg) {
   TAOS_CHECK_GOTO(taosSetServerCfg(tsCfg), &lino, _exit);
   TAOS_CHECK_GOTO(taosSetReleaseCfg(tsCfg), &lino, _exit);
   TAOS_CHECK_GOTO(taosSetTfsCfg(tsCfg), &lino, _exit);
-  TAOS_CHECK_GOTO(taosSetS3Cfg(tsCfg), &lino, _exit);
   TAOS_CHECK_GOTO(taosSetSystemCfg(tsCfg), &lino, _exit);
   TAOS_CHECK_GOTO(taosSetFileHandlesLimit(), &lino, _exit);
 _exit:
@@ -2495,7 +2494,6 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
     TAOS_CHECK_GOTO(taosUpdateServerCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosSetServerCfg(tsCfg), &lino, _exit);
     TAOS_CHECK_GOTO(taosSetReleaseCfg(tsCfg), &lino, _exit);
-    TAOS_CHECK_GOTO(taosSetS3Cfg(tsCfg), &lino, _exit);
   }
 
   TAOS_CHECK_GOTO(taosSetSystemCfg(tsCfg), &lino, _exit);
