@@ -124,6 +124,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_5.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_basic04.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_query.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_column_num_limit.py
 ### 04-Query
 ## 02-SubTables
 ### 01-Create
