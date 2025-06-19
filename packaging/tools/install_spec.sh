@@ -618,8 +618,9 @@ function install_keeper_config() {
 
   file_name="${script_dir}/cfg/${keeperName}.toml"
   if [ -f ${file_name} ]; then
-    ${csudo}sed -i -r "s/127.0.0.1/${serverFqdn}/g" ${file_name}
-
+    sed -i -r "s/127.0.0.1/${serverFqdn}/g" ${file_name}
+    sed -i -r "s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" ${file_name}
+    
     if [ -f "${configDir}/${keeperName}.toml" ]; then
       ${csudo}cp ${file_name} ${configDir}/${keeperName}.toml.new
     else
