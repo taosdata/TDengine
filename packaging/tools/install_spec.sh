@@ -16,7 +16,6 @@ serverFqdn=""
 script_dir=$(dirname $(readlink -f "$0"))
 # Dynamic directory
 
-installDir="$HOME/install_taos" # default install dir
 PREFIX="taos"
 clientName="${PREFIX}"
 serverName="${PREFIX}d"
@@ -45,17 +44,7 @@ GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
-function check_sudo {
-    csudo=""
-    if command -v sudo >/dev/null; then
-        if [ "$UID" -eq 0 ]; then
-            csudo="sudo "
-        else
-            csudo=""
-        fi
-    fi
-}
-check_sudo
+csudo=""
 
 update_flag=0
 prompt_force=0
@@ -127,7 +116,7 @@ fi
 interactiveFqdn=yes # [yes | no]
 verType=server      # [server | client]
 initType=systemd    # [systemd | service | ...]
-installDir="$HOME/install_taos" # default install dir
+# installDir="$HOME/tdengine" # default install dir
 
 while getopts "hv:e:d:" arg; do
   case $arg in
@@ -141,7 +130,7 @@ while getopts "hv:e:d:" arg; do
     ;;
   d)
     #echo "verType=$OPTARG"
-    installDir=$(echo $OPTARG)
+    installDir=$(echo $OPTARG)/tdengine
     ;;
   h)
     echo "Usage: $(basename $0) -v [server | client]  -e [yes | no] -d [install dir]"
@@ -156,12 +145,12 @@ done
 
 # set data log and config dir
 if [ -z "$installDir" ]; then
-  installDir="$HOME/TDengine" # default install dir
+  installDir="$HOME/tdengine" # default install dir
 fi
 
 dataDir="${installDir}/data/${PREFIX}"
 logDir="${installDir}/log/${PREFIX}"
-configDir="${installDir}/cfg/"
+configDir="${installDir}/cfg"
 tmpDir="${installDir}/tmp/${PREFIX}"
 
 # set bin lib and include link dir
@@ -319,9 +308,9 @@ function install_lib() {
   ${csudo}mkdir -p ${bin_link_dir}
   ${csudo}mkdir -p ${lib_link_dir}
   ${csudo}mkdir -p ${inc_link_dir}
-
-  ${csudo}export PATH=$bin_link_dir:$PATH  
-  ${csudo}export LD_LIBRARY_PATH=$lib_link_dir
+  
+  export PATH=$bin_link_dir:$PATH  
+  export LD_LIBRARY_PATH=$lib_link_dir
 }
 
 function install_avro() {
