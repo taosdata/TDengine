@@ -111,7 +111,7 @@ void syncUtilGenerateArbToken(int32_t nodeId, int32_t groupId, char* buf) {
   (void)snprintf(buf, TSDB_ARB_TOKEN_SIZE, "d%d#g%d#%" PRId64 "#%d", nodeId, groupId, currentMs, randVal);
 }
 
-static void syncPrintTime(bool formatTime, int32_t* len, int64_t tsMs, int32_t i, char* buf, int32_t bufLen) {
+static void syncPrintTime(bool formatTime, int32_t* len, int64_t tsMs, int32_t i, char* buf, int32_t bufLen, int64_t count) {
   if (formatTime) {
     char pBuf[TD_TIME_STR_LEN] = {0};
     if (tsMs > 0) {
@@ -119,7 +119,7 @@ static void syncPrintTime(bool formatTime, int32_t* len, int64_t tsMs, int32_t i
         pBuf[0] = '\0';
       }
     }
-    (*len) += tsnprintf(buf + (*len), bufLen - (*len), "%d:%s", i, pBuf);
+    (*len) += tsnprintf(buf + (*len), bufLen - (*len), "%d:%s:%" PRId64, i, pBuf, count);
   } else {
     (*len) += tsnprintf(buf + (*len), bufLen - (*len), "%d:%" PRId64, i, tsMs);
   }
@@ -131,7 +131,8 @@ static void syncHearbeatReplyTime2Str(SSyncNode* pSyncNode, char* buf, int32_t b
   len += tsnprintf(buf + len, bufLen - len, "%s", "{");
   for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
     int64_t tsMs = syncIndexMgrGetRecvTime(pSyncNode->pMatchIndex, &(pSyncNode->replicasId[i]));
-    syncPrintTime(formatTime, &len, tsMs, i, buf, bufLen);
+    int64_t count = syncIndexMgrGetRecvCount(pSyncNode->pMatchIndex, &(pSyncNode->replicasId[i]));
+    syncPrintTime(formatTime, &len, tsMs, i, buf, bufLen, count);
     if (i < pSyncNode->replicaNum - 1) {
       len += tsnprintf(buf + len, bufLen - len, "%s", ",");
     }
@@ -144,7 +145,8 @@ static void syncSentHearbeatTime2Str(SSyncNode* pSyncNode, char* buf, int32_t bu
   len += tsnprintf(buf + len, bufLen - len, "%s", "{");
   for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
     int64_t tsMs = syncIndexMgrGetSentTime(pSyncNode->pMatchIndex, &(pSyncNode->replicasId[i]));
-    syncPrintTime(formatTime, &len, tsMs, i, buf, bufLen);
+    int64_t count = syncIndexMgrGetRecvCount(pSyncNode->pMatchIndex, &(pSyncNode->replicasId[i]));
+    syncPrintTime(formatTime, &len, tsMs, i, buf, bufLen, count);
     if (i < pSyncNode->replicaNum - 1) {
       len += tsnprintf(buf + len, bufLen - len, "%s", ",");
     }
@@ -158,7 +160,8 @@ static void syncHearbeatTime2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen
   len += tsnprintf(buf + len, bufLen - len, "%s", "{");
   for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
     int64_t tsMs = syncIndexMgrGetRecvTime(pSyncNode->pNextIndex, &(pSyncNode->replicasId[i]));
-    syncPrintTime(formatTime, &len, tsMs, i, buf, bufLen);
+    int64_t count = syncIndexMgrGetRecvCount(pSyncNode->pNextIndex, &(pSyncNode->replicasId[i]));
+    syncPrintTime(formatTime, &len, tsMs, i, buf, bufLen, count);
     if (i < pSyncNode->replicaNum - 1) {
       len += tsnprintf(buf + len, bufLen - len, "%s", ",");
     }
@@ -501,10 +504,18 @@ void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool 
                 ", ts:%s}, x",
                 DID(&pMsg->destId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf);
       } else {
-        sHTrace(pSyncNode,
+        if(tsSyncLogHeartbeat){
+          sHInfo(pSyncNode,
                 "send sync-heartbeat to dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
                 ", ts:%s}, timer-elapsed:%" PRId64 ", next-exec:%" PRId64,
                 DID(&pMsg->destId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, timerElapsed, execTime);
+        }
+        else{
+          sHTrace(pSyncNode,
+                "send sync-heartbeat to dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
+                ", ts:%s}, timer-elapsed:%" PRId64 ", next-exec:%" PRId64,
+                DID(&pMsg->destId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, timerElapsed, execTime);
+        }
       }
     }
   }
@@ -536,21 +547,38 @@ void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64
           pBuf[0] = '\0';
         }
       }
-      sHTrace(pSyncNode,
+      if(tsSyncLogHeartbeat){
+        sHInfo(pSyncNode,
               "recv sync-heartbeat from dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
               ", ts:%s}, net elapsed:%" PRId64 "ms, timeDiff:%" PRId64 "ms, QID:0x%" PRIx64 ":0x%" PRIx64,
               DID(&pMsg->srcId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, netElapsed, timeDiff,
               trace->rootId, trace->msgId);
+      }
+      else{
+        sHTrace(pSyncNode,
+              "recv sync-heartbeat from dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
+              ", ts:%s}, net elapsed:%" PRId64 "ms, timeDiff:%" PRId64 "ms, QID:0x%" PRIx64 ":0x%" PRIx64,
+              DID(&pMsg->srcId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, netElapsed, timeDiff,
+              trace->rootId, trace->msgId);
+      }
     }
   }
 }
 
 void syncLogSendHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, const char* s,
                                const STraceId* trace) {
-  sHTrace(pSyncNode,
+  if(tsSyncLogHeartbeat){
+    sHInfo(pSyncNode,
           "send sync-heartbeat-reply from dnode:%d {term:%" PRId64 ", ts:%" PRId64 "}, %s, QID:0x%" PRIx64
           ":0x%" PRIx64,
           DID(&pMsg->destId), pMsg->term, pMsg->timeStamp, s, trace ? trace->rootId : 0, trace ? trace->msgId : 0);
+  }
+  else{
+    sHTrace(pSyncNode,
+          "send sync-heartbeat-reply from dnode:%d {term:%" PRId64 ", ts:%" PRId64 "}, %s, QID:0x%" PRIx64
+          ":0x%" PRIx64,
+          DID(&pMsg->destId), pMsg->term, pMsg->timeStamp, s, trace ? trace->rootId : 0, trace ? trace->msgId : 0);
+  }
 }
 
 void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, int64_t netElapse,
