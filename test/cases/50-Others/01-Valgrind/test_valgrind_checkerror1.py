@@ -22,7 +22,7 @@ class TestValgrindCheckError1:
         Jira: None
 
         History:
-            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/valgrind/checkError1.sim
+            - 2025-5-5 Simon Guan Migrated from tsim/valgrind/checkError1.sim
 
         """
 

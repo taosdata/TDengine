@@ -126,6 +126,7 @@ extern int32_t tsHeartbeatInterval;
 extern int32_t tsHeartbeatTimeout;
 extern int32_t tsSnapReplMaxWaitN;
 extern int64_t tsLogBufferMemoryAllowed;  // maximum allowed log buffer size in bytes for each dnode
+extern int32_t tsRoutineReportInterval;
 
 // arbitrator
 extern int32_t tsArbHeartBeatIntervalSec;
@@ -156,7 +157,7 @@ extern int64_t tsDndUpTime;
 // dnode misc
 extern uint32_t tsEncryptionKeyChksum;
 extern int8_t   tsEncryptionKeyStat;
-extern int8_t   tsGrant;
+extern uint32_t tsGrant;
 
 // monitor
 extern bool     tsEnableMonitor;
@@ -277,6 +278,8 @@ extern int32_t tsTransPullupInterval;
 extern int32_t tsCompactPullupInterval;
 extern int32_t tsMqRebalanceInterval;
 extern int32_t tsStreamCheckpointInterval;
+extern int32_t tsThresholdItemsInWriteQueue;
+extern int32_t tsThresholdItemsInStreamQueue;
 extern float   tsSinkDataRate;
 extern int32_t tsStreamNodeCheckInterval;
 extern int32_t tsMaxConcurrentCheckpoint;
@@ -327,7 +330,7 @@ struct SConfig *taosGetCfg();
 int32_t taosSetGlobalDebugFlag(int32_t flag);
 int32_t taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal);
 void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
-int8_t  taosGranted(int8_t type);
+int32_t taosGranted(int8_t type);
 int32_t taosSetSlowLogScope(char *pScopeStr, int32_t *pScope);
 
 int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version);
@@ -336,7 +339,6 @@ int32_t localConfigSerialize(SArray *array, char **serialized);
 int32_t tSerializeSConfigArray(SEncoder *pEncoder, SArray *array);
 int32_t tDeserializeSConfigArray(SDecoder *pDecoder, SArray *array);
 int32_t setAllConfigs(SConfig *pCfg);
-void    printConfigNotMatch(SArray *array);
 
 bool    isConifgItemLazyMode(SConfigItem *item);
 int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);

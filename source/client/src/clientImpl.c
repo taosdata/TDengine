@@ -81,6 +81,7 @@ bool chkRequestKilled(void* param) {
 void cleanupAppInfo() {
   taosHashCleanup(appInfo.pInstMap);
   taosHashCleanup(appInfo.pInstMapByClusterId);
+  tscInfo("cluster instance map cleaned");
 }
 
 static int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
@@ -953,7 +954,7 @@ int32_t handleQueryExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog,
       code = terrno;
       goto _return;
     }
-    STbSVersion tbSver = {.tbFName = tbInfo->tbFName, .sver = tbInfo->sversion, .tver = tbInfo->tversion};
+    STbSVersion tbSver = {.tbFName = tbInfo->tbFName, .sver = tbInfo->sversion, .tver = tbInfo->tversion, .rver = tbInfo->rversion};
     if (NULL == taosArrayPush(pArray, &tbSver)) {
       code = terrno;
       goto _return;

@@ -3,7 +3,7 @@ title: Add Machine Learning Models to TDgpt
 sidebar_label: Add Machine Learning Models to TDgpt
 ---
 
-Machine and deep learning models generally require a sufficiently large training dataset to achieve good prediction performance. The training process consumes time and computational resources and often requires regular retraining and model updates based on new input data. TDgpt has built-in support for the Torch and Keras machine learning libraries, allowing any model developed with Torch or Keras to be seamlessly integrated and executed within the TDgpt framework.
+Machine and deep learning models generally require a sufficiently large training dataset to achieve good prediction performance. The training process consumes time and computational resources and often requires regular retraining and model updates based on new input data. TDgpt has built-in support for the PyTorch and Keras machine learning libraries, allowing any model developed with Torch or Keras to be seamlessly integrated and executed within the TDgpt framework.
 
 This document describes how to add trained machine or deep learning models to TDgpt.
 
@@ -151,6 +151,7 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
 ```
 
 ## Use the Model in SQL
+
 The model has been preloaded into TDgpt and can be seen in the output of the `SHOW ANODES FULL` statement. Before you can use the model, restart the taosanode service, and then run `UPDATE ALL ANODES` to register the model in the mnode.
 
 - Set the `algo` parameter in your queries to `sample_ad_model`  to instruct TDgpt to use the new algorithm.

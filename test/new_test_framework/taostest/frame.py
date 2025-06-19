@@ -13,6 +13,8 @@ from typing import Dict, Any, List, Tuple
 
 from colorama import Fore
 from .components.taosd import TaosD
+from ..utils.log import tdLog
+
 
 try:
     import taos
@@ -132,7 +134,7 @@ class TaosTestFrame:
         self._logger = Logger(log_queue)
         thread_logger.start()
         # self._logger = Logger(os.path.join(self._run_log_dir, "test.log"))
-        self._logger.info("run log dir is " + self._run_log_dir)
+        self._logger.debug("run log dir is " + self._run_log_dir)
 
     def _check_swarm_env(self):
         # check swarm environment
@@ -215,6 +217,7 @@ class TaosTestFrame:
             if self._opts.destroy:
                 self._read_env_setting(self._opts.destroy)
                 self._destroy()
+                tdLog.info("----------Destroy done----------")
                 return
             elif self._opts.prepare:
                 self._res_mgr.prepare(self._opts.prepare)
@@ -225,7 +228,8 @@ class TaosTestFrame:
                 need_setup = 1
             elif self._opts.setup:
                 self._read_env_setting(self._opts.setup)
-                # self._destroy()
+                if self._opts.clean:
+                   self._destroy()
                 need_setup = 1
             elif self._opts.use:
                 self._read_env_setting(self._opts.use)
@@ -234,6 +238,7 @@ class TaosTestFrame:
             if need_setup == 1:
                 self._nodeInit()
                 self._setup()
+                tdLog.info("----------Deploy done----------")
             if not self._run_test:
                 return
             self._write_env_to_log_dir()
@@ -264,12 +269,12 @@ class TaosTestFrame:
             self._ret = 2
         if self._opts.containers and self._opts.setup and not self._opts.keep:
             self._containers_down()
-        self._logger.info("start.ret = %d", self._ret)
+        self._logger.debug("start.ret = %d", self._ret)
         self._logger.terminate("done")
         return self._ret
 
     def _update_taosd_cfg(self):
-        self._logger.info("update test environment")
+        self._logger.debug("update test environment")
         if not self._opts.setup:
             init_env_file = os.path.join(self._test_root, "env", "env_init.yaml")
             if os.path.exists(init_env_file):
@@ -290,7 +295,7 @@ class TaosTestFrame:
             setting_file = opt_value
         else:
             setting_file = os.path.join(self._test_root, 'env', opt_value)
-        self._logger.info(f"read env setting {setting_file}")
+        self._logger.debug(f"read env setting {setting_file}")
         self._env_setting = read_yaml(setting_file)
         self._env_mgr.set_initial_env(self._env_setting)
 
@@ -453,7 +458,7 @@ class TaosTestFrame:
         dict2yaml(self._env_setting, self._run_log_dir, "setting.yaml")
 
     def _destroy(self):
-        self._logger.info("destroy test environment")
+        self._logger.debug("destroy test environment")
         for node in self._env_setting["settings"]:
             self._env_mgr.destroyNode(node)
 
@@ -534,7 +539,7 @@ class TaosTestFrame:
         return True
 
     def _setup(self):
-        self._logger.info("setup new test environment")
+        self._logger.debug("setup new test environment")
         # print("_setup_ ", self._env_setting)
         #for node in self._env_setting["settings"]:
         #    # print ("_setup_for_node", node)
@@ -575,7 +580,7 @@ class TaosTestFrame:
         if host == self._local_host or host == "localhost":
             corePattern = self._env_mgr._remote.cmd(host, ["cat " + TDCom.system_core_pattern_file])
             if corePattern is not None:
-                self._logger.info("core pattern: {}".format(corePattern))
+                self._logger.debug("core pattern: {}".format(corePattern))
                 dirName = os.path.dirname(corePattern)
                 if dirName.startswith("/"):
                     self._env_mgr._remote.cmd(host, ["mkdir -p {} ".format(dirName)])
@@ -589,7 +594,7 @@ class TaosTestFrame:
                             if self._env_spec_dnode_system != "windows":
                                 corePattern = self._env_mgr._remote.cmd(host, ["cat " + TDCom.system_core_pattern_file])
                                 if corePattern is not None:
-                                    self._logger.info("core pattern: {}".format(corePattern))
+                                    self._logger.debug("core pattern: {}".format(corePattern))
                                     dirName = os.path.dirname(corePattern)
                                     if dirName.startswith("/"):
                                         self._env_mgr._remote.cmd(host, ["mkdir -p {} ".format(dirName)])
@@ -597,14 +602,14 @@ class TaosTestFrame:
                                 pass
 
     def _nodeInit(self):
-        self._logger.info("setup init test environment")
+        self._logger.debug("setup init test environment")
         for node in self._env_setting["settings"]:
             self._env_mgr.initNode(node)
         self._init_taostest()
 
     def _collect_taostest(self):
         host = platform.node()
-        self._logger.info("collect coredump files {}, etc.".format(host))
+        self._logger.debug("collect coredump files {}, etc.".format(host))
         logDir = self._run_log_dir
         coreDir = "{}/data/{}/coredump".format(logDir, host)
         os.system("mkdir -p {}".format(coreDir))
@@ -614,7 +619,7 @@ class TaosTestFrame:
             dirName = os.path.dirname(corePattern)
             if dirName.startswith("/"):
                 cmd = "cp -rf {} {}".format(dirName, coreDir)
-                self._logger.info("CMD: {}".format(cmd))
+                self._logger.debug("CMD: {}".format(cmd))
                 os.system(cmd)
         # default data dir & log dir
         remoteDataDir = "/var/lib/taos"
@@ -629,12 +634,12 @@ class TaosTestFrame:
         os.system(cmd)
         if not self._opts.disable_data_collection:
             cmd = "cp -rf {} {}".format(remoteDataDir, localDataDir)
-            self._logger.info("CMD: {}".format(cmd))
+            self._logger.debug("CMD: {}".format(cmd))
             os.system(cmd)
         # TODO: backup server pkg and client pkg
 
     def _collect(self):
-        self._logger.info("collect coredump files, etc.")
+        self._logger.debug("collect coredump files, etc.")
         for node in self._env_setting["settings"]:
             self._env_mgr.collectNodeData(node, self._run_log_dir)
         self._collect_taostest()
@@ -643,7 +648,7 @@ class TaosTestFrame:
         """
         When use an existing environment, only need to generate taos.cfg in run log dir.
         """
-        self._logger.info("use existing test environment")
+        self._logger.debug("use existing test environment")
         for node in self._env_setting["settings"]:
             if node["name"] == "taospy":
                 config_dir = self._run_log_dir
@@ -652,7 +657,7 @@ class TaosTestFrame:
                 dict2file(config_dir, "taos.cfg", node["spec"]["config"])
 
     def _reset(self):
-        self._logger.info("reset test environment")
+        self._logger.debug("reset test environment")
         for node in self._env_setting["settings"]:
             self._env_mgr.resetNode(node)
 
@@ -865,7 +870,7 @@ class TaosTestFrame:
         return self.run_cmd(cmds)
 
     def _execute_cases(self):
-        self._logger.info("execute cases")
+        self._logger.debug("execute cases")
         self._add_case_root_to_sys_path()
         early_stop_flag = multiprocessing.Value("b", False)
         parent_env = dict(os.environ)
@@ -880,7 +885,7 @@ class TaosTestFrame:
         self._wait_results()
 
     def _execute_groups(self):
-        self._logger.info(f"execute groups with concurrency {self._opts.concurrency}")
+        self._logger.debug(f"execute groups with concurrency {self._opts.concurrency}")
         self._add_case_root_to_sys_path()
         early_stop_flag = multiprocessing.Value("b", False)
         parent_env = dict(os.environ)
@@ -921,7 +926,7 @@ class TaosTestFrame:
                 except queue.Empty:
                     if self._done_workers.qsize() == len(self._worker_threads):
                         break
-        self._logger.info(f"SUCCESS {success_count} FAILED {fail_count}")
+        self._logger.debug(f"SUCCESS {success_count} FAILED {fail_count}")
 
     def _do_work(self, early_stop_flag, env: dict):
         worker_name = multiprocessing.current_process().name
@@ -948,7 +953,7 @@ class TaosTestFrame:
                 early_stop_flag.value = True
 
     def _init_case(self, case_module_path: str):
-        self._logger.info("loading case " + case_module_path)
+        self._logger.debug("loading case " + case_module_path)
         try:
             case_module = importlib.import_module(case_module_path)
         except BaseException as e:
@@ -1065,11 +1070,11 @@ class TaosTestFrame:
                 continue
             attr = getattr(case_module, name)
             if type(attr).__name__ == 'ABCMeta' and issubclass(attr, TDCase):
-                self._logger.info("discovered case class " + name)
+                self._logger.debug("discovered case class " + name)
                 return attr
 
     def _generate_test_report(self):
-        self._logger.info("generate test report")
+        self._logger.debug("generate test report")
 
     def _add_task_from_group_files(self):
         for group_file in self._opts.group_files:

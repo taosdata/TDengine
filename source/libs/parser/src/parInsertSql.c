@@ -1399,7 +1399,7 @@ static int32_t parseUsingTableNameImpl(SInsertParseContext* pCxt, SVnodeModifyOp
   int32_t code = preParseUsingTableName(pCxt, pStmt, &token);
   if (TSDB_CODE_SUCCESS == code) {
     code = getUsingTableSchema(pCxt, pStmt, &ctbCacheHit);
-    if (TSDB_CODE_SUCCESS == code && ctbCacheHit) {
+    if (TSDB_CODE_SUCCESS == code && ctbCacheHit && !pCxt->missCache) {
       pStmt->usingTableProcessing = false;
       return ignoreUsingClauseAndCheckTagValues(pCxt, pStmt);
     }
@@ -1535,12 +1535,6 @@ int32_t initTableColSubmitData(STableDataCxt* pTableCxt) {
 int32_t initTableColSubmitDataWithBoundInfo(STableDataCxt* pTableCxt, SBoundColInfo pBoundColsInfo) {
   insDestroyBoundColInfo(&(pTableCxt->boundColsInfo));
   pTableCxt->boundColsInfo = pBoundColsInfo;
-  pTableCxt->boundColsInfo.pColIndex = taosMemoryCalloc(pBoundColsInfo.numOfBound, sizeof(int16_t));
-  if (NULL == pTableCxt->boundColsInfo.pColIndex) {
-    return terrno;
-  }
-  (void)memcpy(pTableCxt->boundColsInfo.pColIndex, pBoundColsInfo.pColIndex,
-               sizeof(int16_t) * pBoundColsInfo.numOfBound);
   for (int32_t i = 0; i < pBoundColsInfo.numOfBound; ++i) {
     SSchema*  pSchema = &pTableCxt->pMeta->schema[pTableCxt->boundColsInfo.pColIndex[i]];
     SColData* pCol = taosArrayReserve(pTableCxt->pData->aCol, 1);
@@ -2000,6 +1994,9 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
       if (!pCxt->pComCxt->isStmtBind && i != 0) {
         return buildInvalidOperationMsg(&pCxt->msg, "not support mixed bind and non-bind values");
       }
+      if (pCxt->pComCxt->pStmtCb == NULL) {
+        return buildInvalidOperationMsg(&pCxt->msg, "symbol ? only support in stmt mode");
+      }
       pCxt->isStmtBind = true;
       if (pCols->pColIndex[i] == tbnameIdx) {
         *bFoundTbName = true;
@@ -2249,6 +2246,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   int32_t code = getStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pGotRow, pToken, &bFirstTable, &setCtbName, &ctbCols);
 
   if (!setCtbName && pCxt->isStmtBind) {
+    taosMemoryFreeClear(ctbCols.pColIndex);
     return parseStbBoundInfo(pStmt, pStbRowsCxt, ppTableDataCxt);
   }
 
@@ -2297,7 +2295,6 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   }
 
   clearStbRowsDataContext(pStbRowsCxt);
-  insDestroyBoundColInfo(&ctbCols);
 
   return code;
 }

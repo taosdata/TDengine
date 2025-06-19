@@ -7,10 +7,14 @@ class TestDatabaseTables:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_database_table_prefix_suffix(self):
-        """db basic
+    def test_database_tables(self):
+        """meta cache for databases and tables
 
-        1. -
+        1. create database and table
+        2. write and query data
+        3. drop them
+        4. reset query cache
+        5. test again
 
         Catalog:
             - Database:Create
@@ -22,7 +26,7 @@ class TestDatabaseTables:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated to new test framework, from tsim/db/tables.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/db/tables.sim
 
         """
 

@@ -22,35 +22,7 @@ class TestStableDnode3:
         Jira: None
 
         History:
-            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/vnode/stable_dnode3.sim
-
-        """
-
-import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
-
-
-class TestStableDnode2:
-
-    def setup_class(cls):
-        tdLog.debug(f"start to execute {__file__}")
-
-    def test_stable_dnode2(self):
-        """stable dnode2
-
-        1. -
-
-        Catalog:
-            - DataBase:Sync
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-5-5 Simon Guan Migrated to new test framework, from tsim/vnode/stable_dnode2.sim
+            - 2025-5-5 Simon Guan Migrated from tsim/vnode/stable_dnode3.sim
 
         """
 

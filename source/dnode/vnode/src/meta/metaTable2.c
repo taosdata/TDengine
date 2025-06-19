@@ -821,6 +821,13 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
     TAOS_RETURN(TSDB_CODE_PAR_INVALID_ROW_LENGTH);
   }
 
+  if (pSchema->nCols + 1 > TSDB_MAX_COLUMNS) {
+    metaError("vgId:%d, %s failed at %s:%d since column count %d + 1 > %d, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pSchema->nCols, TSDB_MAX_COLUMNS, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_PAR_TOO_MANY_COLUMNS);
+  }
+
   SSchema *pNewSchema = taosMemoryRealloc(pSchema->pSchema, sizeof(SSchema) * (pSchema->nCols + 1));
   if (NULL == pNewSchema) {
     metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
@@ -1927,6 +1934,7 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
   tstrncpy(pColRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pColRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN);
   pSchema->version++;
+  pEntry->colRef.version++;
 
   // do handle entry
   code = metaHandleEntry2(pMeta, pEntry);
@@ -2025,6 +2033,7 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
   pColRef->hasRef = false;
   pColRef->id = pSchema->pSchema[iColumn].colId;
   pSchema->version++;
+  pEntry->colRef.version++;
 
   // do handle entry
   code = metaHandleEntry2(pMeta, pEntry);

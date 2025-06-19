@@ -39,19 +39,6 @@ Record the following information:
 ## Install Grafana Plugin and Configure Data Source
 
 <Tabs defaultValue="script">
-<TabItem value="gui" label="Graphical Interface Installation">
-
-Using the latest version of Grafana (8.5+), you can [browse and manage plugins](https://grafana.com/docs/grafana/next/administration/plugin-management/#plugin-catalog) in Grafana (for version 7.x, please use **Installation Script** or **Manual Installation** methods). In the Grafana management interface, directly search for `TDengine` on the **Configurations > Plugins** page and follow the prompts to install.
-
-After installation, follow the instructions to **Create a TDengine data source** by adding the data source with the following TDengine configurations:
-
-- Host: IP address and port number providing REST service in the TDengine cluster, default `http://localhost:6041`
-- User: TDengine username.
-- Password: TDengine user password.
-
-Click `Save & Test` to test, if successful, it will prompt: `TDengine Data source is working`.  
-
-</TabItem>
 <TabItem value="script" label="Installation Script">
 
 For users using Grafana version 7.x or configuring with [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/), you can use the installation script on the Grafana server to automatically install the plugin and add the data source Provisioning configuration file.
@@ -69,36 +56,52 @@ After installation, you need to restart the Grafana service for it to take effec
 Save the script and execute `./install.sh --help` to view detailed help documentation.
 
 </TabItem>
-<TabItem value="manual" label="Manual Installation">
+<TabItem value="command" label="Command Line Tool">
 
-Use the [`grafana-cli` command line tool](https://grafana.com/docs/grafana/latest/administration/cli/) to install the plugin [installation](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation).
+Use the [`grafana-cli` command line tool](https://grafana.com/docs/grafana/latest/administration/cli/) to install the plugin. After installation, Grafana needs to be restarted.
+
+On Linux or macOS, run the following command in your terminal:
 
 ```shell
-grafana-cli plugins install tdengine-datasource
+grafana-cli --pluginUrl \
+      https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip \
+      plugins install tdengine-datasource
 # with sudo
-sudo -u grafana grafana-cli plugins install tdengine-datasource
+sudo -u grafana grafana-cli --pluginUrl \
+      https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip \
+      plugins install tdengine-datasource
 ```
 
-Alternatively, download the .zip file from [GitHub](https://github.com/taosdata/grafanaplugin/releases/tag/latest) or [Grafana](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation) to your local machine and unzip it into the Grafana plugins directory. Example command line download is as follows:
+On Windows, first ensure that the plugin installation directory exists (by default, it is located in the data/plugins subdirectory of your Grafana installation directory). Then, run the following command in the bin directory of the Grafana installation path using an administrator account:
 
 ```shell
-GF_VERSION=3.5.1
-# from GitHub
-wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
-# from Grafana
-wget -O tdengine-datasource-$GF_VERSION.zip https://grafana.com/api/plugins/tdengine-datasource/versions/$GF_VERSION/download
+./grafana-cli.exe --pluginUrl https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip plugins install tdengine-datasource
+```
+
+Afterward, users can directly access the Grafana server at `http://localhost:3000` (username/password: admin/admin), and add a data source through `Configuration -> Data Sources`,
+
+Click `Add data source` to enter the new data source page, type TDengine in the search box, then click `select` to choose and you will enter the data source configuration page, modify the configuration according to the default prompts:
+
+- Host: IP address and port number providing REST service in the TDengine cluster, default `http://localhost:6041`
+- User: TDengine username.
+- Password: TDengine user password.
+
+Click `Save & Test` to test, if successful, it will prompt: `TDengine Data source is working`
+
+</TabItem>
+
+<TabItem value="manual" label="Manual Installation">
+
+Download [tdengine-datasource.zip](https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip) to your local machine and unzip it into the Grafana plugins directory. Example command line download is as follows:
+
+```shell
+wget https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip
 ```
 
 For CentOS 7.2 operating system, unzip the plugin package into the /var/lib/grafana/plugins directory and restart Grafana.
 
 ```shell
-sudo unzip tdengine-datasource-$GF_VERSION.zip -d /var/lib/grafana/plugins/
-```
-
-If Grafana is running in a Docker environment, you can use the following environment variable to set up automatic installation of the TDengine data source plugin:
-
-```shell
-GF_INSTALL_PLUGINS=tdengine-datasource
+sudo unzip tdengine-datasource.zip -d /var/lib/grafana/plugins/
 ```
 
 Afterward, users can directly access the Grafana server at `http://localhost:3000` (username/password: admin/admin), and add a data source through `Configuration -> Data Sources`,
@@ -120,7 +123,7 @@ Refer to [Grafana containerized installation instructions](https://grafana.com/d
 docker run -d \
   -p 3000:3000 \
   --name=grafana \
-  -e "GF_INSTALL_PLUGINS=tdengine-datasource" \
+  -e "GF_INSTALL_PLUGINS=https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip;tdengine-datasource" \
   grafana/grafana
 ```
 
@@ -169,7 +172,7 @@ Using docker-compose, configure Grafana Provisioning for automated setup, and ex
           - grafana-data:/var/lib/grafana
         environment:
           # install tdengine plugin at start
-          GF_INSTALL_PLUGINS: "tdengine-datasource"
+          GF_INSTALL_PLUGINS: "https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip;tdengine-datasource"
           TDENGINE_API: "http://tdengine:6041"
           #printf "$TDENGINE_USER:$TDENGINE_PASSWORD" | base64
           TDENGINE_BASIC_AUTH: "cm9vdDp0YW9zZGF0YQ=="
@@ -292,9 +295,9 @@ As shown in the image above, select the `TDengine` data source in "Query", and e
 
 Suppose we want to query the average current size over a period of time, with the time window divided by `$interval`, and fill with null if data is missing in any time window.
 
-- “INPUT SQL”: Enter the query statement (the result set of this SQL statement should be two columns and multiple rows), here enter: `select _wstart as ts, avg(current) as current from power.meters where groupid in ($selected_groups) and ts > $from and ts < $to interval($interval) fill(null)`, where from, to, and interval are Grafana built-in variables, and selected_groups is a custom variable.
-- “ALIAS BY”: You can set an alias for the current query.
-- “GENERATE SQL”: Clicking this button will automatically replace the corresponding variables and generate the final execution statement.
+- "INPUT SQL": Enter the query statement (the result set of this SQL statement should be two columns and multiple rows), here enter: `select _wstart as ts, avg(current) as current from power.meters where groupid in ($selected_groups) and ts > $from and ts < $to interval($interval) fill(null)`, where from, to, and interval are Grafana built-in variables, and selected_groups is a custom variable.
+- "ALIAS BY": You can set an alias for the current query.
+- "GENERATE SQL": Clicking this button will automatically replace the corresponding variables and generate the final execution statement.
 
 In the custom variables at the top, if the value of `selected_groups` is set to 1, then querying the average value changes of all devices' current in the `meters` supertable with `groupid` 1 is shown in the following image:
 
@@ -312,8 +315,8 @@ Since the REST interface is stateless, you cannot use the `use db` statement to 
 
 Suppose we want to query the average current size over a period of time and display it grouped by `groupid`, we can modify the previous SQL to `select _wstart as ts, groupid, avg(current) as current from power.meters where ts > $from and ts < $to partition by groupid interval($interval) fill(null)`
 
-- “Group by column(s)”: Comma-separated `group by` or `partition by` column names in **half-width** commas. If it is a `group by` or `partition by` query statement, set the “Group by” column to display multidimensional data. Here, set the “Group by” column name as `groupid` to display data grouped by `groupid`.
-- “Group By Format”: Legend format for multidimensional data in `Group by` or `Partition by` scenarios. For example, in the above INPUT SQL, set the “Group By Format” to `groupid-{{groupid}}`, and the displayed legend name will be the formatted group name.
+- "Group by column(s)": Comma-separated `group by` or `partition by` column names in **half-width** commas. If it is a `group by` or `partition by` query statement, set the "Group by" column to display multidimensional data. Here, set the "Group by" column name as `groupid` to display data grouped by `groupid`.
+- "Group By Format": Legend format for multidimensional data in `Group by` or `Partition by` scenarios. For example, in the above INPUT SQL, set the "Group By Format" to `groupid-{{groupid}}`, and the displayed legend name will be the formatted group name.
 
 After completing the settings, the display grouped by `groupid` is shown in the following image:
 

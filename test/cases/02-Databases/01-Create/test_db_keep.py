@@ -8,9 +8,12 @@ class TestDatabaseKeep:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_Keep(self):
-        """crete db use keep option
+        """create database use keep option
 
-        1. -
+        1. create database with keep option
+        2. write and query data, include data not within the keep range
+        3. alter database keep option
+        4. write and query data again
 
         Catalog:
             - Database:Create
@@ -22,7 +25,7 @@ class TestDatabaseKeep:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated to new test framework, from tsim/db/keep.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/db/keep.sim
 
         """
 
@@ -36,8 +39,8 @@ class TestDatabaseKeep:
 
         x = 1
         while x < 41:
-            time = x + "d"
-            tdSql.execute_any(f"insert into tb values (now - {time} , {x} )")
+            time = str(x) + "d"
+            tdSql.isErrorSql(f"insert into tb values (now - {time} , {x} )")
             x = x + 1
 
         tdSql.query(f"select * from tb")
@@ -45,7 +48,9 @@ class TestDatabaseKeep:
         tdSql.checkAssert(tdSql.getRows() < 40)
 
         tdLog.info(f"======== step2 stop dnode")
+        sc.dnodeStop(2)
         sc.dnodeStart(2)
+        clusterComCheck.checkDnodes(2)
 
         tdSql.query(f"select * from tb")
         tdLog.info(f"===> rows {tdSql.getRows()}) last {tdSql.getData(0,1)}")
@@ -60,13 +65,13 @@ class TestDatabaseKeep:
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkData(2, 2, 2)
 
-        tdSql.checkData(2, 7, "60d")
+        tdSql.checkData(2, 7, "60d,60d,60d")
 
         tdLog.info(f"======== step4 insert data")
         x = 41
         while x < 81:
-            time = x + "d"
-            tdSql.execute_any(f"insert into tb values (now - {time} , {x} )")
+            time = str(x) + "d"
+            tdSql.isErrorSql(f"insert into tb values (now - {time} , {x} )")
             x = x + 1
 
         tdSql.query(f"select * from tb")
@@ -77,7 +82,7 @@ class TestDatabaseKeep:
         tdLog.info(f"======== step5 stop dnode")
         sc.dnodeStop(2)
         sc.dnodeStart(2)
-        clusterComCheck(2)
+        clusterComCheck.checkDnodes(2)
 
         tdSql.query(f"select * from tb")
         tdLog.info(f"===> rows {tdSql.getRows()}) last {tdSql.getData(0,1)}")
@@ -88,13 +93,12 @@ class TestDatabaseKeep:
         tdSql.execute(f"alter database keepdb keep 30")
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkData(2, 2, 2)
-
-        tdSql.checkData(2, 7, "30d,30d,30d ")
+        tdSql.checkData(2, 7, "30d,30d,30d")
 
         tdLog.info(f"======== step7 stop dnode")
         sc.dnodeStop(2)
         sc.dnodeStart(2)
-        clusterComCheck(2)
+        clusterComCheck.checkDnodes(2)
 
         tdSql.query(f"select * from tb")
         tdLog.info(f"===> rows {tdSql.getRows()}) last {tdSql.getData(0,1)}")
@@ -104,8 +108,8 @@ class TestDatabaseKeep:
         tdLog.info(f"======== step8 insert data")
         x = 81
         while x < 121:
-            time = x + "d"
-            tdSql.execute_any(f"insert into tb values (now - {time} , {x} )")
+            time = str(x) + "d"
+            tdSql.isErrorSql(f"insert into tb values (now - {time} , {x} )")
             x = x + 1
 
         tdSql.query(f"select * from tb")

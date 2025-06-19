@@ -8,9 +8,10 @@ class TestDatabaseLen:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_database_len(self):
-        """create db check len
+        """database name length
 
-        1. -
+        1. create database using excessively long name
+        2. test using some invalid values
 
         Catalog:
             - Database:Create
@@ -22,7 +23,7 @@ class TestDatabaseLen:
         Jira: None
 
         History:
-            - 2025-4-30 Simon Guan Migrated to new test framework, from tsim/db/len.sim
+            - 2025-5-12 Simon Guan Migrated from tsim/db/len.sim
 
         """
 
