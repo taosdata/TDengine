@@ -120,7 +120,8 @@ void tsdbStopAllCompTask(STsdb *tsdb) {
     return;
   }
 
-  tsdb->pCompMonitor->killed = 1;
+  atomic_store_32(&tsdb->pCompMonitor->killed, 1);
+
   i = 0;
   while (i < TARRAY2_SIZE(&tsdb->pCompMonitor->stateArr)) {
     SCompState *state = TARRAY2_GET_PTR(&tsdb->pCompMonitor->stateArr, i);
@@ -158,9 +159,4 @@ int32_t tsdbCompMonitorGetInfo(STsdb *tsdb, SQueryCompactProgressRsp *rsp) {
   return 0;
 }
 
-int32_t tsdbCompMonitorGetKilled(STsdb *tsdb) {
-  TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
-  int32_t killed = tsdb->pCompMonitor->killed;
-  TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
-  return killed;
-}
+int32_t tsdbCompMonitorGetKilled(STsdb *tsdb) { return atomic_load_32(&tsdb->pCompMonitor->killed); }
