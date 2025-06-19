@@ -87,7 +87,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 ```
 
 ### Data Collection
-This example uses program-generated random numbers to simulate real device data. The tdengine-operator node is configured with TDengine data source connection information, writes data to TDengine, and uses the debug node to monitor the amount of successfully written data displayed on the interface.
+This example uses generated random numbers to simulate real device data. The tdengine-operator node is configured with TDengine data source connection information, writes data to TDengine, and uses the debug node to monitor the amount of successfully written data displayed on the interface.
 
 Steps:
 - **Add Writer Node**

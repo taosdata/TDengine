@@ -102,7 +102,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 ```
 
 ### 数据采集
-示例使用程序生成随机数方式模拟真实设备生产数据，tdengine-operator 节点配置 TDengine 数据源连接信息，并把数据写入 TDengine，同时使用 debug 节点监控写入成功数据量并展示于界面。
+示例使用生成随机数方式模拟真实设备生产数据，tdengine-operator 节点配置 TDengine 数据源连接信息，并把数据写入 TDengine，同时使用 debug 节点监控写入成功数据量并展示于界面。
 
 操作步骤如下：
 - <b>增加写入节点</b> 
@@ -132,7 +132,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
    
   4. 双击节点打开属性设置，名称填写 ‘inject1’，下拉列表中选择“周期性执行”，周期选择每隔 1 秒，保存返回画布。
    
-  5. 重复 1~ 4 步完成另外两台设备(d1，d2)流程。
+  5. 重复 1 ~ 4 步完成另外两台设备(d1，d2)流程。
    
 - <b>增加信息输出</b> 
   1. 节点选择区域内选中 “debug” 节点，拖动至画布 ‘td-writer’ 节点后。
@@ -166,15 +166,15 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 由 inject 节点完成触发查询请求，结果输出至下游 debug 节点中，节点上显示查询执行成功数量。 
 
 操作步骤如下：
-  1. inject 节点拖动至画布中，双击节点设置属性，名称填写 'query', msg.topic 填写并保存返回画布：
+  1. 将 inject 节点拖动至画布中，双击节点设置属性，名称填写 'query', msg.topic 填写并保存返回画布：
    ``` sql
    select tbname, avg(current), avg(voltage), sum(p) 
    from ( select tbname,current,voltage,current*voltage/60 as p from test.meters 
           where  ts > now-60s partition by tbname)
    group by tbname;
    ``` 
-  2. tdengine-operator 节点拖动至画布中，双击节点设置属性，“数据库”选择前面已创建好的数据源 'td124'，保存并返回画布。
-  3. debug 节点拖动至画布中，双击节点设置属性，勾选“节点状态”，下拉列表中选择“消息数量”，保存并返回画布。
+  2. 将 tdengine-operator 节点拖动至画布中，双击节点设置属性，“数据库”选择前面已创建好的数据源 'td124'，保存并返回画布。
+  3. 将 debug 节点拖动至画布中，双击节点设置属性，勾选“节点状态”，下拉列表中选择“消息数量”，保存并返回画布。
   4. 依次把以上节点按顺序连接起来，点击 “部署” 按钮发布修改内容。
 
 流程启动成功后:
@@ -232,7 +232,7 @@ debug 节点展示向下游节点推送数据次数，生产中可把 debug 节�
      - 消费开始位置：latest
      - 其它项保持默认
    
-  3. debug 节点拖动至画布中，双击节点设置属性，勾选“节点状态”，下拉列表中选择“消息数量”，保存并返回画布。
+  3. 将 debug 节点拖动至画布中，双击节点设置属性，勾选“节点状态”，下拉列表中选择“消息数量”，保存并返回画布。
   4. 依次把以上节点按顺序连接起来，点击”部署“按钮发布修改内容。
 
 流程启动成功后可看到 'td-consumer' 节点状态变成“绿色”表示流程工作正常，debug 节点数字表示消费次数，如下图：
@@ -262,7 +262,7 @@ debug 节点展示向下游节点推送数据次数，生产中可把 debug 节�
 
 ### 异常捕获
 在数据采集、查询及订阅流程中，发生错误均按抛出异常机制来处理，需建立异常监控流程：
-  1. 节点选择区域内选中“catch”节点，拖动至画布中。
+  1. 将“catch”节点拖动至画布中。
   2. 双击节点打开属性设置，名称填写 ‘catch all except’，捕获范围选择“所有节点”。
   3. 节点选择区域内选中“debug”节点，拖动至画布 'catch all except' 节点后。
   4. 双击节点设置属性，勾选“节点状态”，下拉列表中选择“消息数量”，保存并返回画布。
