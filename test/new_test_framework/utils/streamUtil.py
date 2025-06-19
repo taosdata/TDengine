@@ -89,6 +89,7 @@ class StreamTable:
         self.tags = self.default_tags
         
         self.custom_generators = {}  # name -> function(row, ts) -> str
+        self.created = False
         
     def setInterval(self, interval):
         """
@@ -132,6 +133,7 @@ class StreamTable:
         elif self.tableType == StreamTableType.TYPE_NORMAL_TABLE:
             tdLog.info(f"create normal table {self.db}.{self.tbName}")
             self.__createNormalTable()
+        self.created = True
     
     def appendSubTables(self, startTbIndex, endTbIndex):
         """
@@ -161,6 +163,9 @@ class StreamTable:
         :param start_row: int, 起始行索引
         :param end_row: int, 结束行索引
         """
+        if(self.created != True):
+            self.createTable()
+            
         full_table_name = f"{self.db}.{tbName}"
         
         if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
@@ -173,6 +178,10 @@ class StreamTable:
         :param start_row: int, 起始行索引
         :param end_row: int, 结束行索引
         """
+        
+        if(self.created != True):
+            self.createTable()
+        
         full_table_name = f"{self.db}.{self.tbName}"
         
         if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
