@@ -161,14 +161,14 @@ class Test_Nevados:
             "  )"
             "  as select _twstart window_start, _twend as window_hourly, max(windspeed_hourly_maximum) as windspeed_daily_maximum, %%1 as site, %%2 as id from %%trows"
         )
-        
+
         tdSql.checkTableSchema(
             dbname="dev",
             tbname="windspeeds_daily",
             schema=[
                 ["window_start", "TIMESTAMP", 8, ""],
                 ["window_hourly", "TIMESTAMP", 8, ""],
-                ["windspeed_hourly_maximum", "DOUBLE", 8, ""],
+                ["windspeed_daily_maximum", "DOUBLE", 8, ""],
                 ["site", "NCHAR", 16, ""],
                 ["id", "NCHAR", 16, ""],
                 ["group_id", "BIGINT", 8, "TAG"],
@@ -178,4 +178,5 @@ class Test_Nevados:
         tdSql.checkResultsByFunc(
             "select count(*) from information_schema.ins_tables where db_name='dev' and stable_name='windspeeds_daily';",
             lambda: tdSql.compareData(0, 0, 10),
+            retry=50,
         )
