@@ -8,7 +8,7 @@ toc_max_heading_level: 5
 
 TDengine 与 Node-RED 深度融合为工业 IoT 场景提供全栈式解决方案，通过 Node-RED 的 MQTT/OPC UA/Modbus 等协议节点，实现 PLC、传感器等设备毫秒级数据采集，同时 Node-RED 中基于 TDengine 毫秒级实时查询结果，触发继电器动作、阀门开合等物理控制，让联动控制执行更实时。
 
-node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，由两个节点组合：
+node-red-node-tdengine 是 TDengine 为 Node-RED 开发的官方插件，由两个节点组合：
 - **tdengine-operator**：提供 SQL 语句执行能力，可实现数据写入/查询/元数据管理等功能。
 - **tdengine-consumer**：提供数据订阅消费能力，可实现从指定订阅服务器消费指定 TOPIC 的功能。
 
