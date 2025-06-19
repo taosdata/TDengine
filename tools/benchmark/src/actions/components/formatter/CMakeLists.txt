@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(actions_formatter LANGUAGES CXX)
+project(components_formatter LANGUAGES CXX)
 
 # 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 17)
@@ -18,12 +18,12 @@ include_directories(C:/TDengine/include)
 include_directories(/usr/include)
 
 # 添加主库
-add_library(actions_formatter STATIC 
+add_library(components_formatter STATIC 
     src/FormatterFactory.cpp
 )
 
 # 包含头文件目录
-target_include_directories(actions_formatter PUBLIC
+target_include_directories(components_formatter PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
     ${CMAKE_CURRENT_SOURCE_DIR}/../../config/inc
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../utils/inc
@@ -32,7 +32,7 @@ target_include_directories(actions_formatter PUBLIC
 # 链接依赖库
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../utils/build)
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../config/build)
-target_link_libraries(actions_formatter PUBLIC
+target_link_libraries(components_formatter PUBLIC
     actions_config
     utils
 )
@@ -43,7 +43,7 @@ add_executable(TestSqlDatabaseFormatter
     test/TestSqlDatabaseFormatter.cpp
 )
 target_link_libraries(TestSqlDatabaseFormatter PRIVATE 
-    actions_formatter
+    components_formatter
 )
 add_test(NAME TestSqlDatabaseFormatter COMMAND TestSqlDatabaseFormatter)
 
@@ -52,7 +52,7 @@ add_executable(TestSqlSuperTableFormatter
     test/TestSqlSuperTableFormatter.cpp
 )
 target_link_libraries(TestSqlSuperTableFormatter PRIVATE 
-    actions_formatter
+    components_formatter
 )
 add_test(NAME TestSqlSuperTableFormatter COMMAND TestSqlSuperTableFormatter)
 
@@ -61,7 +61,7 @@ add_executable(TestSqlChildTableFormatter
     test/TestSqlChildTableFormatter.cpp
 )
 target_link_libraries(TestSqlChildTableFormatter PRIVATE 
-    actions_formatter
+    components_formatter
 )
 add_test(NAME TestSqlChildTableFormatter COMMAND TestSqlChildTableFormatter)
 
@@ -70,6 +70,6 @@ add_executable(TestSqlInsertDataFormatter
     test/TestSqlInsertDataFormatter.cpp
 )
 target_link_libraries(TestSqlInsertDataFormatter PRIVATE 
-    actions_formatter
+    components_formatter
 )
 add_test(NAME TestSqlInsertDataFormatter COMMAND TestSqlInsertDataFormatter)

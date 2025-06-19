@@ -34,12 +34,26 @@ ColumnType RandomColumnGenerator::generate() const {
     }
     else if (instance_.config().type_tag == ColumnTypeTag::VARCHAR || 
              instance_.config().type_tag == ColumnTypeTag::BINARY) {    
-        if (!instance_.config().corpus) {
-            throw std::runtime_error("Missing corpus for string column");
+        if (instance_.config().corpus) {
+            // 使用指定的字符集
+            const auto& corpus = *instance_.config().corpus;
+            std::uniform_int_distribution<size_t> dist(0, corpus.size() - 1);
+            return std::string(1, corpus[dist(random_engine)]);
+        } else {
+            // 使用默认的小写英文字母
+            if (!instance_.config().len) {
+                throw std::runtime_error("Missing length for string column");
+            }
+            static const std::string default_corpus = "abcdefghijklmnopqrstuvwxyz";
+            std::uniform_int_distribution<size_t> dist(0, default_corpus.size() - 1);
+            
+            std::string result;
+            result.reserve(*instance_.config().len);
+            for (size_t i = 0; i < *instance_.config().len; ++i) {
+                result.push_back(default_corpus[dist(random_engine)]);
+            }
+            return result;
         }
-        const auto& corpus = *instance_.config().corpus;
-        std::uniform_int_distribution<size_t> dist(0, corpus.size() - 1);
-        return std::string(1, corpus[dist(random_engine)]);
     }
     else if (instance_.config().type_tag == ColumnTypeTag::NCHAR) {
         if (!instance_.config().len) {

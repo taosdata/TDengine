@@ -1,9 +1,13 @@
 #pragma once
+
 #include <iostream>
 #include "ActionBase.h"
 #include "ActionFactory.h"
 #include "InsertDataConfig.h"
 #include "DatabaseConnector.h"
+#include "ColumnConfigInstance.h"
+#include "TableDataManager.h"
+#include "DataPipeline.h"
 
 
 class InsertDataAction : public ActionBase {
@@ -12,8 +16,20 @@ public:
 
     void execute() override;
 
+
 private:
     InsertDataConfig config_;
+
+    ColumnConfigInstanceVector create_column_instances(const InsertDataConfig& config) const;
+
+    void producer_thread_function(
+        size_t producer_id,
+        const std::vector<std::string>& assigned_tables,
+        const ColumnConfigInstanceVector& col_instances,
+        DataPipeline<std::string>& pipeline,
+        std::shared_ptr<TableDataManager> data_manager);
+
+    void consumer_thread_function(size_t consumer_id, DataPipeline<std::string>& pipeline, std::atomic<bool>& running);
 
     // 注册 InsertDataAction 到 ActionFactory
     inline static bool registered_ = []() {

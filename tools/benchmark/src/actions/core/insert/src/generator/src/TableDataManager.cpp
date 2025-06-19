@@ -66,6 +66,10 @@ void TableDataManager::acquire_tokens(int64_t tokens) {
     rate_limiter_->acquire(tokens);
 }
 
+size_t TableDataManager::get_total_rows_generated() const {
+    return total_rows_generated_.load(std::memory_order_relaxed);
+}
+
 std::optional<MultiBatch> TableDataManager::next_multi_batch() {
     if (!has_more()) {
         return std::nullopt;
@@ -77,7 +81,9 @@ std::optional<MultiBatch> TableDataManager::next_multi_batch() {
         max_rows = std::numeric_limits<int64_t>::max();
     }
 
-    return collect_batch_data(max_rows);
+    MultiBatch batch = collect_batch_data(max_rows);
+    total_rows_generated_.fetch_add(batch.total_rows, std::memory_order_relaxed);
+    return batch;
 }
 
 MultiBatch TableDataManager::collect_batch_data(int64_t max_rows) {

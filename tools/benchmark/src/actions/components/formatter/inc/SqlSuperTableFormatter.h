@@ -54,7 +54,7 @@ private:
         std::ostringstream oss;
         oss << field.name << " " << field.type;
     
-        if (field.type == "BINARY" || field.type == "NCHAR" || field.type == "VARBINARY" || field.type == "GEOMETRY") {
+        if (field.type == "BINARY" || field.type == "VARCHAR" || field.type == "NCHAR" || field.type == "VARBINARY" || field.type == "GEOMETRY") {
             oss << "(" << field.len.value() << ")";
         } else if (field.type == "DECIMAL" || field.type == "DECIMAL64") {
             oss << "(" << field.precision.value_or(10) << "," << field.scale.value_or(0) << ")";

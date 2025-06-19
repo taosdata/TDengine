@@ -5,6 +5,7 @@
 #include <string>
 #include <unordered_map>
 #include <optional>
+#include <atomic>
 #include "RowDataGenerator.h"
 #include "InsertDataConfig.h"
 #include "RateLimiter.h"
@@ -46,6 +47,8 @@ public:
     // Acquire tokens for flow control
     void acquire_tokens(int64_t tokens);
 
+    size_t get_total_rows_generated() const;
+
 private:
     const InsertDataConfig& config_;
     const ColumnConfigInstanceVector& col_instances_;
@@ -68,4 +71,6 @@ private:
 
     // Flow control
     std::unique_ptr<RateLimiter> rate_limiter_;
+
+    std::atomic<size_t> total_rows_generated_{0};
 };

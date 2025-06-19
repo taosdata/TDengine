@@ -24,7 +24,7 @@ public:
         PopStatus status;
     };
 
-    explicit DataQueue(size_t capacity = 1024) : capacity_(capacity) {}
+    explicit DataQueue(size_t capacity = 1000) : capacity_(capacity) {}
     DataQueue(const DataQueue&) = delete;
     DataQueue& operator=(const DataQueue&) = delete;
 

@@ -53,6 +53,10 @@ std::vector<std::vector<std::string>> TableNameManager::split_by_index_range() {
 }
 
 std::vector<std::vector<std::string>> TableNameManager::split_equally(size_t thread_count) {
+    if (thread_count == 0) {
+        throw std::invalid_argument("Thread count cannot be zero");
+    }
+
     if (table_names_.empty()) {
         return {};
     }

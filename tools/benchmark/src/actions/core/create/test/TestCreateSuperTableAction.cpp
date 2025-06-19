@@ -29,13 +29,13 @@ void test_create_super_table_action() {
     // 添加列
     config.super_table_info.columns = {
         {"col1", "INT", "random"},
-        {"col2", "BINARY", "random", 10}
+        {"col2", "DOUBLE", "random", 0, 100}
     };
 
     // 添加标签
     config.super_table_info.tags = {
         {"tag1", "FLOAT", "random"},
-        {"tag2", "NCHAR", "random", 20}
+        {"tag2", "VARCHAR", "random", 20}
     };
 
     // 创建动作实例

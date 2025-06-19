@@ -529,7 +529,10 @@ namespace YAML {
                 rhs.generate_threads = node["generate_threads"].as<int>(1);
             }
             if (node["per_table_rows"]) {
-                rhs.per_table_rows = node["per_table_rows"].as<int>(10000);
+                rhs.per_table_rows = node["per_table_rows"].as<int64_t>(10000);
+            }
+            if (node["queue_capacity"]) {
+                rhs.queue_capacity = node["queue_capacity"].as<int>(1000);
             }
             return true;
         }

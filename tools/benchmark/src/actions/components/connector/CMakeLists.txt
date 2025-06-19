@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(actions_connector LANGUAGES CXX)
+project(components_connector LANGUAGES CXX)
 
 # 设置 C++ 标准
 set(CMAKE_CXX_STANDARD 17)
@@ -18,7 +18,7 @@ include_directories(C:/TDengine/include)
 include_directories(/usr/include)
 
 # 添加主库
-add_library(actions_connector STATIC 
+add_library(components_connector STATIC 
     src/DatabaseConnector.cpp
     src/NativeConnector.cpp
     src/WebsocketConnector.cpp
@@ -26,7 +26,7 @@ add_library(actions_connector STATIC
 )
 
 # 包含头文件目录
-target_include_directories(actions_connector PUBLIC
+target_include_directories(components_connector PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
     ${CMAKE_CURRENT_SOURCE_DIR}/../../config/inc
 )
@@ -37,7 +37,7 @@ add_executable(TestNativeConnector
     test/TestNativeConnector.cpp
 )
 target_link_libraries(TestNativeConnector PRIVATE 
-    actions_connector
+    components_connector
     taos
 )
 add_test(NAME TestNativeConnector COMMAND TestNativeConnector)

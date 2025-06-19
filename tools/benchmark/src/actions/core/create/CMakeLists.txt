@@ -46,8 +46,8 @@ link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../components/reader/build)
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../components/reader/csv/build)
 target_link_libraries(actions_create PUBLIC
     actions_config
-    actions_connector
-    actions_formatter
+    components_connector
+    components_formatter
     components_generator
     components_reader
     reader_csv

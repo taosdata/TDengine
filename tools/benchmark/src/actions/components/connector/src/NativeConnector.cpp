@@ -34,8 +34,16 @@ bool NativeConnector::execute(const std::string& sql) {
     const bool success = (code == 0);
 
     if (!success) {
+        constexpr size_t max_sql_preview = 300;
+        const bool is_truncated = sql.length() > max_sql_preview;
+        
         std::cerr << "Native execute failed [" << code << "]: " 
-                  << taos_errstr(res) << std::endl;
+                  << taos_errstr(res) << "\n"
+                  << (is_truncated ? "SQL (truncated): " : "SQL: ")
+                  << sql.substr(0, max_sql_preview)
+                  << (is_truncated ? "..." : "")
+                  << ", SQL length: " << sql.length() << " bytes" 
+                  << std::endl;
     }
 
     taos_free_result(res);

@@ -31,6 +31,9 @@ target_include_directories(actions_insert PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../components/formatter/inc
     ${CMAKE_CURRENT_SOURCE_DIR}/../../components/generator/inc
     ${CMAKE_CURRENT_SOURCE_DIR}/../../components/reader/csv/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/generator/inc/
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pipeline/inc/
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/writer/inc/
 )
 
 # 链接依赖库
@@ -42,10 +45,14 @@ link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../components/formatter/build)
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../components/generator/build)
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../components/reader/build)
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../components/reader/csv/build)
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/generator/build)
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/pipeline/build)
 target_link_libraries(actions_insert PUBLIC
+    insert_generator
+    insert_pipeline
     actions_config
-    actions_connector
-    actions_formatter
+    components_connector
+    components_formatter
     components_generator
     components_reader
     reader_csv
@@ -55,12 +62,13 @@ target_link_libraries(actions_insert PUBLIC
 
 
 # 添加测试
-# test CreateDatabaseAction
-# add_executable(TestCreateDatabaseAction
-#     test/TestCreateDatabaseAction.cpp
-# )
-# target_link_libraries(TestCreateDatabaseAction PRIVATE 
-#     actions_insert
-#     taos
-# )
-# add_test(NAME TestCreateDatabaseAction COMMAND TestCreateDatabaseAction)
+#Test InsertDataAction
+add_executable(TestInsertDataAction
+    test/TestInsertDataAction.cpp
+)
+target_link_libraries(TestInsertDataAction PRIVATE 
+    actions_insert
+    taos
+)
+add_test(NAME TestInsertDataAction COMMAND TestInsertDataAction)
+
