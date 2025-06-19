@@ -104,7 +104,7 @@ int32_t tcsInitEnv(int8_t isBlob) {
 
   tstrncpy(tsTempDir, "/tmp/", PATH_MAX);
 
-  tsSsEnabled = true;
+  tsSsEnabled = 1;
 
   return code;
 }

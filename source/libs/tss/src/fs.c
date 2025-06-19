@@ -36,7 +36,7 @@ typedef struct {
 static void printConfig(SSharedStorage* pss) {
     SSharedStorageFS* ss = (SSharedStorageFS*)pss;
 
-    printf("type: %s\n", ss->type->name);
+    printf("type   : %s\n", ss->type->name);
     printf("baseDir: %s\n", ss->baseDir);
 }
 
