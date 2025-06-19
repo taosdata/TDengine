@@ -19,11 +19,12 @@ node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，由�
 
 - TDengine 3.3.2.0 及以上版本集群已部署并正常运行（企业/社区/云服务版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../../reference/components/taosadapter)。
-- Node-RED 3.0.0 及以上版本，[Node-RED 安装](https://nodered.org/docs/getting-started/)）。
+- Node-RED 3.0.0 及以上版本，[Node-RED 安装](https://nodered.org/docs/getting-started/)。
 - Node.js 语言连接器 3.1.8 及以上版本，可从 [npmjs.com](https://www.npmjs.com/package/@tdengine/websocket) 下载。
 - node-red-node-tdengine 插件 1.0.0 及以上版本，可从 [npmjs.com](https://www.npmjs.com/package/node-red-node-tdengine) 下载。
 
 以上各安装组件调用关系如下图：
+
 ![td-frame](img/td-frame.webp)
 
 
@@ -238,7 +239,7 @@ debug 节点展示向下游节点推送数据次数，生产中可把 debug 节�
   
 ![td-consumer](img/td-consumer.webp)
 
-以下是 'td-consumer' 向下游节点推送的过载设备警告信息：
+向下游节点推送的过载设备警告信息：
 ``` json
 {
   "topic": "topic_overload",
@@ -260,7 +261,7 @@ debug 节点展示向下游节点推送数据次数，生产中可把 debug 节�
 ```
 
 ### 异常捕获
-在数据采集、查询及订阅流程中，发生的错误均按抛出异常机制来处理，需建立异常监控流程：
+在数据采集、查询及订阅流程中，发生错误均按抛出异常机制来处理，需建立异常监控流程：
   1. 节点选择区域内选中 “catch” 节点，拖动至画布中。
   2. 双击节点打开属性设置，名称填写 ‘catch all except’，捕获范围选择“所有节点”。
   3. 节点选择区域内选中 “debug” 节点，拖动至画布 'catch all except' 节点后。
@@ -268,7 +269,7 @@ debug 节点展示向下游节点推送数据次数，生产中可把 debug 节�
   5. 依次把以上节点按顺序连接起来，点击 “部署” 按钮发布修改内容。
 流程启动后监控所有节点异常产生：
 - 'debug4' 节点展示发生异常数量。
-- 可通过 NODE-RED 日志系统查看问题详细。
+- 可通过 NODE-RED 日志系统查看异常详细。
 
 ![td-catch](img/td-catch.webp)
 

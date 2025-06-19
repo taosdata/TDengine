@@ -22,6 +22,7 @@ Prepare the following environment:
 - node-red-node-tdengine plugin version 1.0.0 or higher (download from [npmjs.com](https://www.npmjs.com/package/node-red-node-tdengine)).
 
 Component interaction diagram:  
+
 ![td-frame](img/td-frame.webp)
 
 ## Configuring Data Source
