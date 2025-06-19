@@ -39,7 +39,7 @@ node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，由�
    - tdengine-operator 节点连接串格式：`ws://user:password@host:port`
    - tdengine-consumer 节点连接串格式：`ws://host:port`
   
-    更多详细内容请点击画布右侧上方区域中“字典图标”样按钮，参考在线帮助文档。
+    更多详细内容请点击画布右侧上方区域中字典图标按钮，参考在线帮助文档。
  
 4. 配置完成后，点击右上角“部署”按钮，节点状态变为绿色，表示数据源配置正确且连接正常。
 
@@ -79,7 +79,7 @@ node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，由�
 - 过载报警使用 tdengine-consumer 订阅功能。
 
 假设:
-- TDengine 服务器： 192.168.2.124。
+- TDengine 服务器： www.example.com。
 - WEBSOCKET 端口：  6041。
 - 用户名/密码：      默认。
 - 模拟设备：         三台（d0，d1，d2）。
@@ -110,7 +110,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
   2. 双击节点打开属性设置，名称填写 'td-writer'，数据库项右侧点击“+”号图标。
   3. 弹出窗口中，名称填写 'td124'，连接类型选择使用字符串连接，输入：
    ``` sql
-   ws://root:taosdata@192.168.2.124:6041 
+   ws://root:taosdata@www.example.com:6041 
    ```   
   4. 点击“添加”并返回。
 
@@ -225,7 +225,7 @@ debug 节点展示向下游节点推送数据次数，生产中可把 debug 节�
    ``` 
   2. tdengine-consumer 节点拖动至画布中，双击节点设置属性，填写如下内容后保存并返回画布。
      - 名称：       td-consumer
-     - 订阅服务器：  ws://192.168.2.124:6041
+     - 订阅服务器：  ws://www.example.com:6041
      - 用户名：     root
      - 密码：       taosdata
      - 订阅主题：    topic_overload
