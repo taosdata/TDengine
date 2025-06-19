@@ -49,11 +49,14 @@ void tssRegisterType(const SSharedStorageType* t) {
 
 
 int32_t tssInit() {
+#ifdef USE_S3
     void s3RegisterType();
-    void fsRegisterType();
-
     s3RegisterType();
+#endif
+
+    void fsRegisterType();
     fsRegisterType();
+
     return TSDB_CODE_SUCCESS;
 }
 

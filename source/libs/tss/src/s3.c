@@ -14,6 +14,9 @@
  */
 
 #include "tssInt.h"
+
+#ifdef USE_S3
+
 #include "libs3.h"
 
 
@@ -1140,3 +1143,5 @@ void s3RegisterType() {
     tssRegisterType(&sstOss);
     tssRegisterType(&sstCos);
 }
+
+#endif // USE_S3

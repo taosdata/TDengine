@@ -3397,7 +3397,7 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
     goto _OVER;
   }
 
-#if defined(USE_S3)
+#if defined(USE_SHARED_STORAGE)
   if (tsSsEnabled) {
     code = TSDB_CODE_OPS_NOT_SUPPORT;
     mError("vgId:%d, db:%s, shared storage exists, split vgroup not allowed", pVgroup->vgId, pVgroup->dbName);
