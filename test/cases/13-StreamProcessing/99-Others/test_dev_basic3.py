@@ -32,8 +32,8 @@ class TestStreamDevBasic:
         self.prepareQueryData()
         self.prepareTriggerTable()
         self.createStreams()
-        self.writeTriggerData()
         self.checkStreamStatus()
+        self.writeTriggerData()
         self.checkResults()
 
     def createSnode(self):

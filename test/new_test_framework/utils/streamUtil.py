@@ -439,26 +439,19 @@ class StreamUtil:
         tdSql.query(sql)
 
     def checkStreamStatus(self, stream_name=""):
-        return
-
+        if stream_name == "":
+            tdSql.query(f"select * from information_schema.ins_streams")
+        else:
+            tdSql.query(f"select * from information_schema.ins_streams where stream_name = '{stream_name}'")
+        streamNum = tdSql.getRows()
         for loop in range(60):
             if stream_name == "":
-                tdSql.query(f"select * from information_schema.ins_stream_tasks")
-                if tdSql.getRows() == 0:
-                    continue
-                tdSql.query(
-                    f'select * from information_schema.ins_stream_tasks where status != "ready"'
-                )
-                if tdSql.getRows() == 0:
-                    return
+                tdSql.query(f"select * from information_schema.ins_stream_tasks where type = 'Trigger' and status = 'Running'")
             else:
-                tdSql.query(
-                    f'select stream_name, status from information_schema.ins_stream_tasks where stream_name = "{stream_name}" and status == "ready"'
-                )
-                if tdSql.getRows() == 1:
-                    return
+                tdSql.query(f"select * from information_schema.ins_stream_tasks where type = 'Trigger' and status = 'Running' and stream_name = '{stream_name}'")
             time.sleep(1)
-
+            if tdSql.getRows() == streamNum:
+                return
         tdLog.exit(f"stream task status not ready in {loop} seconds")
 
     def dropAllStreamsAndDbs(self):
