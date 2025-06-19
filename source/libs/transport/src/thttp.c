@@ -459,6 +459,7 @@ static FORCE_INLINE void clientRecvCb(uv_stream_t* handle, ssize_t nread, const 
         }
         taosWUnLockLatch(&p->latch);
         TAOS_UNUSED(taosReleaseRef(httpRecvRefMgt, cli->recvBufRid));
+        cli->recvBufRid = 0;
       } else {
         tWarn("http-report failed to acquire recv buf since %s", tstrerror(terrno));
       }
