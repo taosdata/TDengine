@@ -352,9 +352,7 @@ static int32_t tsdbRetention(void *arg) {
   // do retention
   if (rtner.fset) {
     if (rtnArg->ssMigrate) {
-#ifdef USE_S3
       TAOS_CHECK_GOTO(tsdbDoSsMigrate(&rtner), &lino, _exit);
-#endif
     } else {
       TAOS_CHECK_GOTO(tsdbDoRetention(&rtner), &lino, _exit);
     }
@@ -443,20 +441,6 @@ int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
 
 int32_t tsdbAsyncSsMigrate(STsdb *tsdb, SSsMigrateVgroupReq *pReq) {
   int32_t code = 0;
-
-  #if 0
-  int32_t expired = grantCheck(TSDB_GRANT_OBJECT_STORAGE);
-  if (expired && tsSsEnabled) {
-    tsdbWarn("s3 grant expired: %d", expired);
-    tsSsEnabled = false;
-  } else if (!expired) {
-    tsSsEnabled = true;
-  }
-
-  if (!tsSsEnabled) {
-    return 0;
-  }
-    #endif
 
   void tsdbStartSsMigrateMonitor(STsdb *tsdb, int32_t ssMigrateId);
 

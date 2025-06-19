@@ -29,10 +29,11 @@ int32_t vnodeAsyncRetention(SVnode *pVnode, int64_t now) {
 int32_t vnodeAsyncSsMigrate(SVnode *pVnode, SSsMigrateVgroupReq *pReq) {
   // async migration
 #ifdef USE_S3
-  return tsdbAsyncSsMigrate(pVnode->pTsdb, pReq);
-#else
-  return TSDB_CODE_INTERNAL_ERROR;
+  if (tsSsEnabled) {
+    return tsdbAsyncSsMigrate(pVnode->pTsdb, pReq);
+  }
 #endif
+  return TSDB_CODE_INTERNAL_ERROR;
 }
 
 int32_t vnodeQuerySsMigrateProgress(SVnode *pVnode, SRpcMsg *pMsg) {
