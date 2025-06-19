@@ -116,7 +116,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 
 - <b>模拟设备产生数据</b> 
   1. 节点选择区域内选中 function 节点，拖动至画布 td-writer 节点前。
-  2. 双击节点打开属性设置，名称填写 ‘write d0’， 下面选项卡选择“运行函数”，填写如下内容后保存并返回画布。
+  2. 双击节点打开属性设置，名称填写‘write d0’，下面选项卡选择“运行函数”，填写如下内容后保存并返回画布。
    ``` javascript
       // generate rand
       const value2 = Math.floor(Math.random() * (30 - 5 + 1)) + 5; // 5-30
@@ -130,9 +130,9 @@ create table test.d2 using test.meters tags(2, 'workshop2');
    ```
   3. 节点选择区域内选中 inject 节点，拖动至画布 write d0 节点前。
    
-  4. 双击节点打开属性设置，名称填写 ‘inject1’，下拉列表中选择“周期性执行”，周期选择每隔 1 秒，保存返回画布。
+  4. 双击节点打开属性设置，名称填写‘inject1’，下拉列表中选择“周期性执行”，周期选择每隔 1 秒，保存返回画布。
    
-  5. 重复 1 ~ 4 步完成另外两台设备(d1，d2)流程。
+  5. 重复 1 ~ 4 步完成另外两台设备 (d1，d2) 流程。
    
 - <b>增加信息输出</b> 
   1. 节点选择区域内选中 debug 节点，拖动至画布 td-writer 节点后。
@@ -177,7 +177,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
   3. 将 debug 节点拖动至画布中，双击节点设置属性，勾选“节点状态”，下拉列表中选择“消息数量”，保存并返回画布。
   4. 依次把以上节点按顺序连接起来，点击“部署”按钮发布修改内容。
 
-流程启动成功后:
+流程启动成功后：
 - td-reader 节点状态变成“绿色”，表示流程工作正常。
 - debug 节点显示查询成功次数。
   
