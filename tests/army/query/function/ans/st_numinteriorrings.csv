@@ -1,0 +1,26 @@
+
+taos> select st_numinteriorrings(NULL)
+ st_numinteriorrings(null) |
+============================
+ NULL                      |
+
+taos> select st_numinteriorrings(ST_GeomFromText('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'))
+ st_numinteriorrings(st_geomfromtext('POLYGON((0 0, 10 0, 10 10,  |
+===================================================================
+                                                                0 |
+
+taos> select st_numinteriorrings(ST_GeomFromText('POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0),(3 3, 7 3, 7 7, 3 7, 3 3))'))
+ st_numinteriorrings(st_geomfromtext('POLYGON ((0 0, 10 0, 10 10, |
+===================================================================
+                                                                1 |
+
+taos> select st_numinteriorrings(ST_GeomFromText('POLYGON((0 0, 12 0, 12 12, 0 12, 0 0),(2 2, 4 2, 4 4, 2 4, 2 2),(6 6, 10 6, 10 10, 6 10, 6 6))'))
+ st_numinteriorrings(st_geomfromtext('POLYGON((0 0, 12 0, 12 12,  |
+===================================================================
+                                                                2 |
+
+taos> select st_numinteriorrings(ST_GeomFromText('POLYGON((0 0, 15 0, 15 15, 0 15, 0 0),(2 2, 5 2, 5 5, 2 5, 2 2),(6 6, 9 6, 9 9, 6 9, 6 6),(10 10, 13 10, 13 13, 10 13, 10 10))'));
+ st_numinteriorrings(st_geomfromtext('POLYGON((0 0, 15 0, 15 15,  |
+===================================================================
+                                                                3 |
+
