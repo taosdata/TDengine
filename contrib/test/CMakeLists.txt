@@ -20,7 +20,7 @@ if(${BUILD_WITH_SQLITE})
     add_subdirectory(sqlite)
 endif(${BUILD_WITH_SQLITE})
 
-# if(${BUILD_S3})
+# if(${BUILD_SHARED_STORAGE})
 #   add_subdirectory(azure)
 # endif()
 

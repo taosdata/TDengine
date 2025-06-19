@@ -299,7 +299,7 @@ static void tsdbTFileObjRemoveLC(STFileObj *fobj) {
     return;
   }
 
-#ifdef USE_S3
+#ifdef USE_SHARED_STORAGE
   // remove local last chunk file
   char lc_path[TSDB_FILENAME_LEN];
   tstrncpy(lc_path, fobj->fname, TSDB_FQDN_LEN);

@@ -411,7 +411,7 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     mndPullupTrimDb(pMnode);
   }
 #endif
-#ifdef USE_S3
+#ifdef USE_SHARED_STORAGE
   if (tsSsEnabled) {
     if (sec % 10 == 0) { // TODO: make 10 to be configurable
       mndPullupQuerySsMigrateProgress(pMnode);
