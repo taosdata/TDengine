@@ -183,6 +183,7 @@ int32_t rpcSendRecvWithTimeout(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRp
 int32_t rpcFreeConnById(void *shandle, int64_t connId);
 
 int32_t rpcSetDefaultAddr(void *thandle, const char *ip, const char *fqdn);
+
 int32_t rpcAllocHandle(int64_t *refId);
 int32_t rpcSetIpWhite(void *thandl, void *arg);
 
