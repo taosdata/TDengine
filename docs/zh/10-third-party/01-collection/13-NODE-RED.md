@@ -8,7 +8,9 @@ toc_max_heading_level: 5
 
 TDengine 与 Node-RED 深度融合为工业 IoT 场景提供了全栈式解决方案，通过 Node-RED 的 MQTT/OPC UA/Modbus 等协议节点，实现 PLC、传感器等设备的毫秒级数据采集，同时 Node-RED 中基于 TDengine 毫秒级实时查询结果，触发继电器动作、阀门开合等物理控制，联动控制执行更实时。
 
-node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，插件由两个节点组合，tdengine-operator 节点提供 SQL 语句执行能力，可实现数据写入/查询及元数据管理等功能。tdengine-consumer 节点提供数据订阅消费能力，可实现从指定订阅服务器消费指定 TOPIC 的功能。
+node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，插件由两个节点组合：
+- **tdengine-operator node**：提供 SQL 语句执行能力，可实现数据写入/查询及元数据管理等功能。
+- **tdengine-consumer node**：提供数据订阅消费能力，可实现从指定订阅服务器消费指定 TOPIC 的功能。
 
 
 ## 前置条件
@@ -67,15 +69,27 @@ node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，插�
 
 ### 场景介绍
 
-某生产车间有多台智能电表， 电表每一秒产生一条数据，数据准备存储在 TDengine 数据库中，并每分钟实时输出最新 1 分钟内各智能电表平均电流、电压及用电量。同时要求对电流超过 25A 或电压超过 230V 负载过大设备进行报警。
+某生产车间有多台智能电表， 电表每一秒产生一条数据，数据准备存储在 TDengine 数据库中，并实时输出每分钟各智能电表平均电流、电压及用电量。同时要求对电流 > 25A 或电压 > 230V 负载过大设备进行报警。
 
-我们使用 Node-RED + TDengine 来实现需求，使用 Inject + function 节点模拟设备每秒产生一条数据，tdengine-operator 节点负责写入数据，实时查询统计使用 tdengine-operator 节点查询功能，设备过载报警使用 tdengine-consumer 订阅功能。
+我们使用 Node-RED + TDengine 来实现需求：
+- 使用 Inject + function 节点模拟设备每秒产生一条数。
+- tdengine-operator 节点负责写入数据。
+- 实时查询统计使用 tdengine-operator 节点查询功能。
+- 设备过载报警使用 tdengine-consumer 订阅功能。
 
-假设 TDengine 服务器地址： 192.168.2.124 ，WEBSOCKET 端口：6041，使用默认用户名/密码，模拟三台设备，分别命名为 d0，d1，d2。
+假设:
+- TDengine 服务器： 192.168.2.124
+- WEBSOCKET 端口：  6041
+- 用户名/密码：      默认
+- 模拟设备：         三台（d0，d1，d2）。
 
 ### 数据建模
 
-通过数据库管理工具 taos-CLI , 为采集数据进行手工建模，采用一张设备一张表建模思路，创建超级表 meters 及三台设备对应子表 d0，d1，d2。建模 SQL 如下：
+通过数据库管理工具 taos-CLI , 为采集数据进行手工建模，采用一张设备一张表建模思路：
+- 创建超级表： meters。 
+- 创建子表：d0，d1，d2。
+
+建模 SQL 如下：
 ``` sql
 create database test;
 create stable test.meters (ts timestamp, current float, voltage int, phase float ) 
@@ -117,7 +131,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
    
   4. 双击节点打开属性设置，名称填写 ‘inject1’，下拉列表中选择“周期性执行”，周期选择每隔 1 秒，保存返回画布。
    
-  5. 相同方法再制作完成另外两台设备流程。
+  5. 重复 1~ 4 步完成另外两台设备(d1，d2)流程。
    
 - <b>增加信息输出</b> 
   1. 节点选择区域内选中 “debug” 节点，拖动至画布 ‘td-writer’ 节点后。
@@ -126,10 +140,13 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 
 以上节点增加完成后，依次把上面节点按顺序连接起来，形成一条流水线，数据采集流程制作完成。
 
-点击右上角 “部署” 按钮发布修改内容，运行成功后可以看到 'td-writer' 节点状态变成绿色，表示流程工作正常 'debug1' 节点下数字表示采集次数，如下图：
+点击右上角 “部署” 按钮发布修改内容，运行成功后可以看到：
+- 'td-writer' 节点状态变成绿色，表示流程工作正常 
+- 'debug1' 节点下数字表示采集次数
+
 ![td-writer](img/td-writer.webp)
 
-以下为 'td-writer' 向下游节点输出写入成功结果信息，若写入失败，会抛出异常：
+向下游节点输出写入成功结果，若失败抛出异常：
 ``` json
 {
   "topic":  "insert into test.d1 values (now, 20, 203, 2);",
@@ -144,8 +161,8 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 ```
 
 ### 数据查询
-数据查询流程由三个节点（inject/tdengine-operator/debug）组成，完成每分钟实时输出最新 1 分钟内各智能电表平均电流、电压及用电量需求。
-触发每分钟发起一次查询请求由 inject 节点完成，查询结果输出至下游 debug 节点中，在节点上显示计数展示查询执行成功次数。 
+数据查询流程由三个节点（inject/tdengine-operator/debug）组成，完成每分钟实时输出各智能电表平均电流、电压及用电量需求。
+由 inject 节点完成触发查询请求，结果输出至下游 debug 节点中，节点上显示查询执行成功次数。 
 
 操作步骤如下：
   1. inject 节点拖动至画布中，双击节点设置属性，名称填写 'query', msg.topic 填写并保存返回画布：
@@ -159,11 +176,13 @@ create table test.d2 using test.meters tags(2, 'workshop2');
   3. debug 节点拖动至画布中，双击节点设置属性，勾选“节点状态”，下拉列表中选择“消息数量”，保存并返回画布。
   4. 依次把以上节点按顺序连接起来，点击 “部署” 按钮发布修改内容。
 
-流程启动成功后可以看到 'td-reader' 节点状态变成“绿色” ，表示流程工作正常，debug 节点数字表示输出统计结果次数，如下图：
+流程启动成功后:
+- 'td-reader' 节点状态变成“绿色”，表示流程工作正常。
+- debug 节点显示查询成功次数。
   
 ![td-reader](img/td-reader.webp)
 
-以下为 'td-reader' 向下游节点输出查询结果，若查询失败，会抛出异常：
+向下游节点输出查询结果，若失败抛出异常：
 ``` json
 {
   "topic":  "select tbname,avg(current) ...",
@@ -193,8 +212,8 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 ```
 
 ### 数据订阅
-数据订阅流程由两个节点（tdengine-consumer/debug）组成，完成设备过载警告提醒功能。  
-debug 节点在订阅流程中用于可视化展示订阅节点向下游节点推送订阅数据的数量，生产中可把 debug 节点更换为处理订阅数据的功能节点。
+数据订阅流程由两个节点（tdengine-consumer/debug）组成，完成设备过载告警功能。  
+debug 节点在订阅流程中用于展示订阅节点向下游节点推送数据数量，生产中可把 debug 节点更换为处理订阅数据的功能节点。
 
 操作步骤如下：
   1. 使用 taos-CLI 手工创建订阅主题 topic_overload,  SQL 如下：
@@ -247,11 +266,14 @@ debug 节点在订阅流程中用于可视化展示订阅节点向下游节点�
   3. 节点选择区域内选中 “debug” 节点，拖动至画布 'catch all except' 节点后。
   4. 双击节点设置属性，勾选“节点状态”，下拉列表中选择“消息数量”，保存并返回画布。
   5. 依次把以上节点按顺序连接起来，点击 “部署” 按钮发布修改内容。
-流程启动后如有异常，会在 'debug4' 节点下看到所有流程发生错误的数量，可通过 NODE-RED 日志系统查看问题详情，流程如下图：
+流程启动后所有节点如有异常产生：
+- 'debug4' 节点展示发生异常数量。
+- 可通过 NODE-RED 日志系统查看问题详细。
+
 ![td-catch](img/td-catch.webp)
 
 ### 运行效果
-以上流程制作完成后，点击 “部署” 发布所有修改， 示例即进行运行状态，如下：
+以上流程制作完成后，点击 “部署” 发布， 进行运行状态，如下：
 ![td-all](img/td-all.webp)
 
 ## 总结

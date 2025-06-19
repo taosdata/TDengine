@@ -9,72 +9,73 @@ toc_max_heading_level: 5
 The deep integration between TDengine and Node-RED provides a comprehensive solution for industrial IoT scenarios. Through Node-RED's MQTT/OPC UA/Modbus protocol nodes, data from PLCs, sensors and other devices can be collected at millisecond-level speed. Real-time queries of TDengine can trigger physical control actions like relay operations and valve switching for immediate command execution.
 
 node-red-node-tdengine is the official plugin developed by TAOS Data for Node-RED. Composed of two nodes:  
-- **tdengine-operator node**: Provides SQL execution capabilities for data writing/querying and metadata management  
-- **tdengine-consumer node**: Offers data subscription and consumption capabilities from specified subscription servers and topics
+- **tdengine-operator node**: Provides SQL execution capabilities for data writing/querying and metadata management.  
+- **tdengine-consumer node**: Offers data subscription and consumption capabilities from specified subscription servers and topics.
 
 ## Prerequisites
 
 Prepare the following environment:
-- TDengine cluster version 3.3.2.0 or higher installed and running (Enterprise/Community/Cloud editions all supported)
-- taosAdapter running normally (refer to [taosAdapter Reference Manual](../../../reference/components/taosadapter))
-- Node-RED version 3.0.0 or higher ([Node-RED Installation](https://nodered.org/docs/getting-started/))
-- Node.js connector version 3.1.8 or higher (download from [npmjs.com](https://www.npmjs.com/package/@tdengine/websocket))
-- node-red-node-tdengine plugin version 1.0.0 or higher (download from [npmjs.com](https://www.npmjs.com/package/node-red-node-tdengine))
+- TDengine cluster version 3.3.2.0 or higher installed and running (Enterprise/Community/Cloud editions all supported).
+- taosAdapter running normally (refer to [taosAdapter Reference Manual](../../../reference/components/taosadapter)).
+- Node-RED version 3.0.0 or higher ([Node-RED Installation](https://nodered.org/docs/getting-started/)).
+- Node.js connector version 3.1.8 or higher (download from [npmjs.com](https://www.npmjs.com/package/@tdengine/websocket)).
+- node-red-node-tdengine plugin version 1.0.0 or higher (download from [npmjs.com](https://www.npmjs.com/package/node-red-node-tdengine)).
 
 Component interaction diagram:  
 ![td-frame](img/td-frame.webp)
 
 ## Configuring Data Source
-Plugin data sources are configured in node properties via the [Node.js connector](../../../reference/connector/node/):
+Plugin data sources are configured in node properties via the [Node.js connector](../../../tdengine-reference/client-libraries/node):
 
-1. Start Node-RED service and access the Node-RED homepage in a browser
-2. Drag the tdengine-operator or tdengine-consumer node from the left node palette to the workspace canvas
-3. Double-click the node on canvas to open property settings
-   - Connection format for tdengine-operator node: `ws://user:password@host:port`
-   - Connection format for tdengine-consumer node: `ws://host:port`
-   - Click the dictionary icon in the upper right area for detailed reference documentation
-4. After configuration, click the "Deploy" button in the upper right. Green node status indicates successful connection
+1. Start Node-RED service and access the Node-RED homepage in a browser.
+2. Drag the tdengine-operator or tdengine-consumer node from the left node palette to the workspace canvas.
+3. Double-click the node on canvas to open property settings.
+   - Connection format for tdengine-operator node: `ws://user:password@host:port`.
+   - Connection format for tdengine-consumer node: `ws://host:port`.
+   - Click the dictionary icon in the upper right area for detailed reference documentation.
+4. After configuration, click the "Deploy" button in the upper right. Green node status indicates successful connection.
 
 ## Verification Methods
 
 ### tdengine-operator
-1. Configure database connection properties for tdengine-operator node
-2. Add an inject node before it, setting msg.topic to desired write SQL
-3. Click the inject node's trigger button to execute SQL
-4. Use taos-CLI to verify existence of written data
+1. Configure database connection properties for tdengine-operator node.
+2. Add an inject node before it, setting msg.topic to desired write SQL.
+3. Click the inject node's trigger button to execute SQL.
+4. Use taos-CLI to verify existence of written data.
 
 ### tdengine-consumer
-1. Configure subscription properties for tdengine-consumer node
-2. Add a debug node after it
-3. In node properties, check "Node Status" and select "Message Count"
-4. Write a test record using taos-CLI
-5. Observe debug node count increment
-6. Verify payload matches written data
+1. Configure subscription properties for tdengine-consumer node.
+2. Add a debug node after it.
+3. In node properties, check "Node Status" and select "Message Count".
+4. Write a test record using taos-CLI.
+5. Observe debug node count increment.
+6. Verify payload matches written data.
 
 ## Usage Examples
 
 ### Scenario
 A workshop has multiple smart power meters that generate data records each second. Data is stored in TDengine, with real-time calculations performed every minute showing:  
-- Average current/voltage per meter  
-- Power consumption  
-Alerts trigger for current >25A or voltage >230V.
+- Average current/voltage per meter.
+- Power consumption.  
+Alerts trigger for current > 25A or voltage > 230V.
 
 Implementation uses Node-RED + TDengine:  
-- Inject + function nodes simulate devices  
-- tdengine-operator writes data  
-- Real-time queries via tdengine-operator  
-- Overload alerts via tdengine-consumer subscription
+- Inject + function nodes simulate devices. 
+- tdengine-operator writes data.
+- Real-time queries via tdengine-operator.
+- Overload alerts via tdengine-consumer subscription.
 
 Assumptions:  
-- TDengine server: 192.168.2.124  
-- WEBSOCKET port: 6041  
-- Default credentials  
-- Simulated devices: d0, d1, d2  
+- TDengine server: 192.168.2.124.  
+- WEBSOCKET port: 6041.  
+- Default credentials.  
+- Simulated devices: d0, d1, d2.  
 
 ### Data Modeling
 Using taos-CLI to manually create data model:  
-- Super table "meters"  
-- Device tables d0, d1, d2  
+- Super table "meters".  
+- Child tables d0, d1, d2.  
+
 ```sql
 create database test;
 create stable test.meters (ts timestamp, current float, voltage int, phase float) 
@@ -173,7 +174,7 @@ Steps:
 
 4. Connect nodes sequentially → Click "Deploy"  
 
-When operational:
+When the flow is successfully started:
 - 'td-reader' node turns green
 - Debug node shows result count  
 ![td-reader](img/td-reader.webp)  
@@ -213,6 +214,14 @@ The data subscription workflow consists of two nodes (tdengine-consumer/debug) t
 The debug node visually displays the count of subscription data pushed downstream. In production, replace it with functional nodes that process subscription data.
 
 Steps:
+
+1. Manually create a subscription topic “topic_overload” using taos-CLI:
+   ``` sql
+   create topic topic_overload as 
+        select tbname,* from test.meters 
+        where current > 25 or voltage > 230;
+   ``` 
+
 2. Drag tdengine-consumer node to canvas:
    - Name: td-consumer
    - Subscription Server: ws://192.168.2.124:6041
@@ -275,10 +284,6 @@ Complete workflow overview after deployment:
 ![td-all](img/td-all.webp)  
 
 ## Summary
-This scenario demonstrates:
-- Connecting Node-RED to TDengine 
-- Implementing data collection/writing  
-- Performing real-time queries  
-- Configuring event subscriptions  
-- Handling system exceptions  
-Complete documentation available in Node-RED plugin's online help.  
+We have detailed how to connect Node-RED to TDengine and implement data writing, querying, and subscription functionality through a concrete scenario example, while demonstrating the input/output data formats of each node and system exception handling.​​
+
+​This document focuses on introducing features through examples. For complete documentation, refer to the Node-RED plugin's online help section.​​
