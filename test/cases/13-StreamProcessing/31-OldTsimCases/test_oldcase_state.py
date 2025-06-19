@@ -45,7 +45,7 @@ class TestStreamOldCaseState:
             f"create table t1(ts timestamp, a int, b int, c int, d double, e int);"
         )
 
-        sql = "create stream streams1 state_window(a) from t1 options(max_delay(1s)) into streamt1 as select _twstart, _twend, _twrownum, count(*) c1, count(d) c2, sum(a) c3, max(a) c4, min(c) c5, max(e) c6 from t1 where ts >= _twstart and ts < _twend;"
+        sql = "create stream streams1 state_window(a) from t1 options(max_delay(1s)) into streamt1 as select _twstart, _twend, _twrownum, count(*) c1, count(d) c2, sum(a) c3, max(a) c4, min(c) c5, max(e) c6 from t1 where ts >= _twstart and ts <= _twend;"
         tdLog.info(sql)
         tdSql.execute(sql)
 
@@ -54,19 +54,19 @@ class TestStreamOldCaseState:
         tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3, 4.0, 5);")
         tdSql.execute(f"insert into t1 values(1648791213002, 1, 12, 13, 14.0, 15);")
         tdSql.checkResultsByFunc(
-            f"select * from streamt1",
+            f"select * from test.streamt1;",
             lambda: tdSql.getRows() == 1
             and tdSql.compareData(0, 0, "2022-04-01 13:33:33.000")
             and tdSql.compareData(0, 1, "2022-04-01 13:33:33.002")
             and tdSql.compareData(0, 2, 2) # rownum
             and tdSql.compareData(0, 3, 2) # count
-            # and tdSql.compareData(0, 4, 1)
-            # and tdSql.compareData(0, 5, 1)
-            # and tdSql.compareData(0, 6, 1)
-            # and tdSql.compareData(0, 7, 3)
-            # and tdSql.compareData(0, 7, 5),
+            and tdSql.compareData(0, 4, 2)
+            and tdSql.compareData(0, 5, 2)
+            and tdSql.compareData(0, 6, 1)
+            and tdSql.compareData(0, 7, 3)
+            and tdSql.compareData(0, 8, 15),
         )
-
+        
         tdSql.execute(f"insert into t1 values(1648791214000, 1, 22, 23, 24.0, 25);")
         tdSql.checkResultsByFunc(
             f"select * from streamt1",
@@ -75,11 +75,11 @@ class TestStreamOldCaseState:
             and tdSql.compareData(0, 1, "2022-04-01 13:33:34.000")
             and tdSql.compareData(0, 2, 3)
             and tdSql.compareData(0, 3, 3)
-            # and tdSql.compareData(0, 4, 1)
-            # and tdSql.compareData(0, 5, 1)
-            # and tdSql.compareData(0, 6, 1)
-            # and tdSql.compareData(0, 7, 3)
-            # and tdSql.compareData(0, 7, 5),
+            and tdSql.compareData(0, 4, 3)
+            and tdSql.compareData(0, 5, 3)
+            and tdSql.compareData(0, 6, 1)
+            and tdSql.compareData(0, 7, 3)
+            and tdSql.compareData(0, 8, 25),
         )
 
         return
