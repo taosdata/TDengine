@@ -247,30 +247,6 @@ TEST_F(CfgTest, cfgDumpItemCategory) {
   EXPECT_EQ(cfgDumpItemCategory(pItem, NULL, 0, 0), TSDB_CODE_INVALID_CFG);
 }
 
-TEST_F(CfgTest, cfgDumpCfgSs) {
-  SConfig *pConfig = NULL;
-  int32_t  code = cfgInit(&pConfig);
-
-  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  ASSERT_NE(pConfig, nullptr);
-
-  cfgAddInt32(pConfig, "ssAutoMigrateIntervalSec", 60 * 60, 600, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,
-              CFG_CATEGORY_GLOBAL);
-  cfgAddInt32(pConfig, "ssPageCacheSize", 10, 4, 1024 * 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,
-              CFG_CATEGORY_GLOBAL);
-  cfgAddInt32(pConfig, "ssUploadDelaySec", 10, 1, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,
-              CFG_CATEGORY_GLOBAL);
-  cfgAddDir(pConfig, "scriptDir", configDir, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL);
-
-  cfgDumpCfgSs(pConfig, false, false);
-
-  cfgDumpCfgSs(pConfig, true, true);
-
-  cfgDumpCfgSs(pConfig, false, true);
-
-  cfgDumpCfgSs(pConfig, true, false);
-}
-
 #ifndef WINDOWS
 TEST_F(CfgTest, cfgLoadFromEnvVar) {
   SConfig *pConfig = NULL;

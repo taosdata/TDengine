@@ -56,7 +56,11 @@ static struct {
   bool         deleteTrans;
   bool         generateGrant;
   bool         memDbg;
+
+#ifdef USE_SHARED_STORAGE
   bool         checkSs;
+#endif
+
   bool         printAuth;
   bool         printVersion;
   bool         printHelp;
@@ -287,8 +291,10 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       cmdEnvIndex++;
     } else if (strcmp(argv[i], "-dm") == 0) {
       global.memDbg = true;
+#ifdef USE_SHARED_STORAGE
     } else if (strcmp(argv[i], "--checkss") == 0) {
       global.checkSs = true;
+#endif
     } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 ||
                strcmp(argv[i], "-?") == 0) {
       global.printHelp = true;
@@ -354,14 +360,17 @@ static void dmDumpCfg() {
   cfgDumpCfg(pCfg, 0, true);
 }
 
-static int32_t dmCheckSs() {
-  int32_t  code = 0;
-  
-  SConfig *pCfg = taosGetCfg();
-  cfgDumpCfgSs(pCfg, 0, true);
 
 #ifdef USE_SHARED_STORAGE
-  printf("\nbegin check shared storage configuration.\n\n");
+static int32_t dmCheckSs() {
+  int32_t  code = 0;
+  (void)printf("\n");
+  
+  if (!tsSsEnabled) {
+    printf("shared storage is disabled (ssEnabled is 0), please enable it and try again.\n");
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+
   code = tssInit();
   if (code != 0) {
     printf("failed to initialize shared storage, error code=%d.\n", code);
@@ -375,18 +384,25 @@ static int32_t dmCheckSs() {
     return code;
   }
 
+  (void)printf("shared storage configuration\n");
+  (void)printf("=================================================================\n");
+  tssPrintDefaultConfig();
+  (void)printf("=================================================================\n");
   code = tssCheckDefaultInstance(0);
+  (void)printf("=================================================================\n");
+
   if (code == TSDB_CODE_SUCCESS){
-    printf("\nshared storage configuration check finished successfully.\n");
+    printf("shared storage configuration check finished successfully.\n");
   } else {
-    printf("\nshared storage configuration check finished with error.\n");
+    printf("shared storage configuration check finished with error.\n");
   }
+
   tssCloseDefaultInstance();
   tssUninit();
-#endif
 
   return code;
 }
+#endif
 
 static int32_t dmInitLog() {
   const char *logName = CUS_PROMPT "dlog";
@@ -515,6 +531,8 @@ int mainWindows(int argc, char **argv) {
     return code;
   }
 #endif
+
+#ifdef USE_SHARED_STORAGE
   if (global.checkSs) {
     code = dmCheckSs();
     taosCleanupCfg();
@@ -523,6 +541,7 @@ int mainWindows(int argc, char **argv) {
     taosConvDestroy();
     return code;
   }
+#endif
 
   if (global.dumpConfig) {
     dmDumpCfg();
