@@ -93,7 +93,8 @@ static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
 
     int32_t total = atomic_add_fetch_64((int64_t *)&pSummary->totalRequests, 1);
     int32_t currentInst = atomic_add_fetch_64((int64_t *)&pSummary->currentRequests, 1);
-    tscDebug("req:0x%" PRIx64 ", create request from conn:0x%" PRIx64 ", current:%d, app current:%d, total:%d, QID:0x%" PRIx64,
+    tscDebug("req:0x%" PRIx64 ", create request from conn:0x%" PRIx64
+             ", current:%d, app current:%d, total:%d, QID:0x%" PRIx64,
              pRequest->self, pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
   }
 
@@ -333,6 +334,8 @@ static bool clientRpcRfp(int32_t code, tmsg_t msgType) {
         msgType == TDMT_SCH_TASK_NOTIFY) {
       return false;
     }
+    return true;
+  } else if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY) {
     return true;
   } else {
     return false;
@@ -1115,7 +1118,7 @@ void taos_init_imp(void) {
 
   ENV_ERR_RET(taosGetAppName(appInfo.appName, NULL), "failed to get app name");
   ENV_ERR_RET(taosThreadMutexInit(&appInfo.mutex, NULL), "failed to init thread mutex");
-#ifdef USE_REPORT  
+#ifdef USE_REPORT
   ENV_ERR_RET(tscCrashReportInit(), "failed to init crash report");
 #endif
   ENV_ERR_RET(qInitKeywordsTable(), "failed to init parser keywords table");

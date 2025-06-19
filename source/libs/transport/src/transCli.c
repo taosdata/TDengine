@@ -2792,11 +2792,15 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
     tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
     noDelay = cliResetEpset(pCtx, pResp, true);
     transFreeMsg(pResp->pCont);
+  } else if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY) {
+    noDelay = 1;
+    transFreeMsg(pResp->pCont);
   } else {
     tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
     noDelay = cliResetEpset(pCtx, pResp, false);
     transFreeMsg(pResp->pCont);
   }
+
   pResp->pCont = NULL;
   pResp->info.hasEpSet = 0;
   if (code != TSDB_CODE_RPC_BROKEN_LINK && code != TSDB_CODE_RPC_NETWORK_UNAVAIL && code != TSDB_CODE_SUCCESS) {
