@@ -6,11 +6,11 @@ toc_max_heading_level: 5
 
 [Node-RED](https://nodered.org/) 是由 IBM 开发的基于 Node.js 的开源可视化编程工具，通过图形化界面组装连接各种节点，实现物联网设备、API 及在线服务的连接，同时支持多协议、跨平台，社区活跃，适用于智能家居、工业自动化等场景的事件驱动应用开发，其主要特点是低代码、可视化。
 
-TDengine 与 Node-RED 深度融合为工业 IoT 场景提供了全栈式解决方案，通过 Node-RED 的 MQTT/OPC UA/Modbus 等协议节点，实现 PLC、传感器等设备的毫秒级数据采集，同时 Node-RED 中基于 TDengine 毫秒级实时查询结果，触发继电器动作、阀门开合等物理控制，联动控制执行更实时。
+TDengine 与 Node-RED 深度融合为工业 IoT 场景提供全栈式解决方案，通过 Node-RED 的 MQTT/OPC UA/Modbus 等协议节点，实现 PLC、传感器等设备毫秒级数据采集，同时 Node-RED 中基于 TDengine 毫秒级实时查询结果，触发继电器动作、阀门开合等物理控制，让联动控制执行更实时。
 
-node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，插件由两个节点组合：
-- **tdengine-operator node**：提供 SQL 语句执行能力，可实现数据写入/查询及元数据管理等功能。
-- **tdengine-consumer node**：提供数据订阅消费能力，可实现从指定订阅服务器消费指定 TOPIC 的功能。
+node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，由两个节点组合：
+- **tdengine-operator**：提供 SQL 语句执行能力，可实现数据写入/查询/元数据管理等功能。
+- **tdengine-consumer**：提供数据订阅消费能力，可实现从指定订阅服务器消费指定 TOPIC 的功能。
 
 
 ## 前置条件
@@ -19,8 +19,8 @@ node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，插�
 
 - TDengine 3.3.2.0 及以上版本集群已部署并正常运行（企业/社区/云服务版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../../reference/components/taosadapter)。
-- Node-RED 3.0.0 及以上版本（ [Node-RED 安装](https://nodered.org/docs/getting-started/)）。
-- Node.js 语言连接器 3.1.8 及以上版本。可从 [npmjs.com](https://www.npmjs.com/package/@tdengine/websocket) 下载。
+- Node-RED 3.0.0 及以上版本，[Node-RED 安装](https://nodered.org/docs/getting-started/)）。
+- Node.js 语言连接器 3.1.8 及以上版本，可从 [npmjs.com](https://www.npmjs.com/package/@tdengine/websocket) 下载。
 - node-red-node-tdengine 插件 1.0.0 及以上版本，可从 [npmjs.com](https://www.npmjs.com/package/node-red-node-tdengine) 下载。
 
 以上各安装组件调用关系如下图：
@@ -38,7 +38,7 @@ node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，插�
    - tdengine-operator 节点连接串格式：`ws://user:password@host:port`
    - tdengine-consumer 节点连接串格式：`ws://host:port`
   
-    更多详细内容请点击画布右侧上方区域中字典图标按钮，参考在线帮助文档。
+    更多详细内容请点击画布右侧上方区域中“字典图标”样按钮，参考在线帮助文档。
  
 4. 配置完成后，点击右上角“部署”按钮 ，节点状态变为绿色，表示数据源配置正确且连接正常。
 
@@ -69,13 +69,13 @@ node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，插�
 
 ### 场景介绍
 
-某生产车间有多台智能电表， 电表每一秒产生一条数据，数据准备存储在 TDengine 数据库中，并实时输出每分钟各智能电表平均电流、电压及用电量。同时要求对电流 > 25A 或电压 > 230V 负载过大设备进行报警。
+某生产车间有多台智能电表， 电表每一秒产生一条数据，数据准备存储在 TDengine 数据库中，要求实时输出每分钟各智能电表平均电流、电压及用电量，同时要对电流 > 25A 或电压 > 230V 负载过大设备进行报警。
 
 我们使用 Node-RED + TDengine 来实现需求：
-- 使用 Inject + function 节点模拟设备每秒产生一条数。
+- 使用 Inject + function 节点模拟设备产生数据。
 - tdengine-operator 节点负责写入数据。
-- 实时查询统计使用 tdengine-operator 节点查询功能。
-- 设备过载报警使用 tdengine-consumer 订阅功能。
+- 实时统计使用 tdengine-operator 节点查询功能。
+- 过载报警使用 tdengine-consumer 订阅功能。
 
 假设:
 - TDengine 服务器： 192.168.2.124
@@ -85,7 +85,7 @@ node-red-node-tdengine 是涛思数据为 Node-RED 开发的官方插件，插�
 
 ### 数据建模
 
-通过数据库管理工具 taos-CLI , 为采集数据进行手工建模，采用一张设备一张表建模思路：
+使用数据库管理工具 taos-CLI , 为采集数据进行手工建模，采用一张设备一张表建模思路：
 - 创建超级表： meters。 
 - 创建子表：d0，d1，d2。
 
@@ -127,7 +127,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 
       return msg;
    ```
-  3. 画布左侧区域“通用”项下选择 “inject” 节点，拖动至画布 ‘write d0’ 节点前。
+  3. 节点选择区域内选中 “inject” 节点，拖动至画布 ‘write d0’ 节点前。
    
   4. 双击节点打开属性设置，名称填写 ‘inject1’，下拉列表中选择“周期性执行”，周期选择每隔 1 秒，保存返回画布。
    
@@ -141,8 +141,8 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 以上节点增加完成后，依次把上面节点按顺序连接起来，形成一条流水线，数据采集流程制作完成。
 
 点击右上角 “部署” 按钮发布修改内容，运行成功后可以看到：
-- 'td-writer' 节点状态变成绿色，表示流程工作正常 
-- 'debug1' 节点下数字表示采集次数
+- 'td-writer' 节点状态变成绿色，表示流程工作正常。
+- 'debug1' 节点下数字表示成功采集数量。
 
 ![td-writer](img/td-writer.webp)
 
@@ -161,8 +161,8 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 ```
 
 ### 数据查询
-数据查询流程由三个节点（inject/tdengine-operator/debug）组成，完成每分钟实时输出各智能电表平均电流、电压及用电量需求。
-由 inject 节点完成触发查询请求，结果输出至下游 debug 节点中，节点上显示查询执行成功次数。 
+查询流程由三个节点（inject/tdengine-operator/debug）组成，完成每分钟实时输出各智能电表平均电流、电压及用电量需求。
+由 inject 节点完成触发查询请求，结果输出至下游 debug 节点中，节点上显示查询执行成功数量。 
 
 操作步骤如下：
   1. inject 节点拖动至画布中，双击节点设置属性，名称填写 'query', msg.topic 填写并保存返回画布：
@@ -212,8 +212,8 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 ```
 
 ### 数据订阅
-数据订阅流程由两个节点（tdengine-consumer/debug）组成，完成设备过载告警功能。  
-debug 节点在订阅流程中用于展示订阅节点向下游节点推送数据数量，生产中可把 debug 节点更换为处理订阅数据的功能节点。
+数据订阅流程由两个节点（tdengine-consumer/debug）组成，实现过载告警。  
+debug 节点展示向下游节点推送数据次数，生产中可把 debug 节点更换为处理订阅数据的功能节点。
 
 操作步骤如下：
   1. 使用 taos-CLI 手工创建订阅主题 topic_overload,  SQL 如下：
@@ -266,16 +266,16 @@ debug 节点在订阅流程中用于展示订阅节点向下游节点推送数�
   3. 节点选择区域内选中 “debug” 节点，拖动至画布 'catch all except' 节点后。
   4. 双击节点设置属性，勾选“节点状态”，下拉列表中选择“消息数量”，保存并返回画布。
   5. 依次把以上节点按顺序连接起来，点击 “部署” 按钮发布修改内容。
-流程启动后所有节点如有异常产生：
+流程启动后监控所有节点异常产生：
 - 'debug4' 节点展示发生异常数量。
 - 可通过 NODE-RED 日志系统查看问题详细。
 
 ![td-catch](img/td-catch.webp)
 
 ### 运行效果
-以上流程制作完成后，点击 “部署” 发布， 进行运行状态，如下：
+以上流程制作完成后，点击 “部署” 发布， 进入运行状态，如下：
 ![td-all](img/td-all.webp)
 
 ## 总结
-我们通过一个具体场景示例，详细介绍了 Node-RED 如何连接 TDengine 数据源及完成数据写入、查询及订阅功能，同时也展示了各节点输入输出数据格式及系统异常捕获等内容。    
-本文侧重从示例角度介绍功能，全部功能文档还需在 Node-RED 插件在线文档中获取。  
+我们通过一个具体场景示例，详细介绍了 Node-RED 如何连接 TDengine 数据源及完成数据写入、查询及订阅功能，同时也展示了各节点输入输出数据格式及系统异常捕获等。    
+本文侧重从示例角度介绍，全部功能文档请在 Node-RED 节点在线文档中获取。  

@@ -9,8 +9,8 @@ toc_max_heading_level: 5
 The deep integration between TDengine and Node-RED provides a comprehensive solution for industrial IoT scenarios. Through Node-RED's MQTT/OPC UA/Modbus protocol nodes, data from PLCs, sensors and other devices can be collected at millisecond-level speed. Real-time queries of TDengine can trigger physical control actions like relay operations and valve switching for immediate command execution.
 
 node-red-node-tdengine is the official plugin developed by TAOS Data for Node-RED. Composed of two nodes:  
-- **tdengine-operator node**: Provides SQL execution capabilities for data writing/querying and metadata management.  
-- **tdengine-consumer node**: Offers data subscription and consumption capabilities from specified subscription servers and topics.
+- **tdengine-operator**: Provides SQL execution capabilities for data writing/querying and metadata management.  
+- **tdengine-consumer**: Offers data subscription and consumption capabilities from specified subscription servers and topics.
 
 ## Prerequisites
 
