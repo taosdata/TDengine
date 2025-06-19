@@ -388,8 +388,8 @@ github.com/stretchr/testify v1.10.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf
 github.com/subosito/gotenv v1.3.0 h1:mjC+YW8QpAdXibNi+vNWgzmgBH4+5l5dCXv8cNysBLI=
 github.com/subosito/gotenv v1.3.0/go.mod h1:YzJjq/33h7nrwdY+iHMhEOEEbW0ovIz0tB6t6PwAXzs=
 github.com/taosdata/driver-go/v2 v2.0.1-0.20211018081904-0a2a3ef6c829/go.mod h1:W7pu74rSvDmGjJPO6fzp+GCtwOelrMgXEhPD0aQJ1xw=
-github.com/taosdata/driver-go/v3 v3.7.1-0.20250610014504-fa7ddafa68fe h1:RyDl7wvjaQRMmO0sOdTpPWBUKehHWt5/fBV9gb8tBYY=
-github.com/taosdata/driver-go/v3 v3.7.1-0.20250610014504-fa7ddafa68fe/go.mod h1:gSxBEPOueMg0rTmMO1Ug6aeD7AwGdDGvUtLrsDTTpYc=
+github.com/taosdata/driver-go/v3 v3.7.1 h1:GMr3AHR580lsDz7OILj8cq9c53w0hW9Yse/zTVcpQeY=
+github.com/taosdata/driver-go/v3 v3.7.1/go.mod h1:gSxBEPOueMg0rTmMO1Ug6aeD7AwGdDGvUtLrsDTTpYc=
 github.com/taosdata/file-rotatelogs/v2 v2.5.3 h1:muxWvVr0mMC3Q1Ep2Md/MxKFUVa58GpB5CV3HCt/1w8=
 github.com/taosdata/file-rotatelogs/v2 v2.5.3/go.mod h1:Qm99Lh0iMZouGgyy++JgTqKvP5FQw1ruR5jkWF7e1n0=
 github.com/taosdata/go-utils v0.0.0-20211022070036-018cc5f2432a h1:WGFREiuYBrTXTS9GVQQpDvVgGRyByfo0V5//o7tv/ho=

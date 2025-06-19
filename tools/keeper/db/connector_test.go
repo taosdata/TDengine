@@ -16,8 +16,7 @@ import (
 func TestIPv6(t *testing.T) {
 	config.InitConfig()
 
-	// [::1]
-	conn, err := NewConnector("root", "taosdata", "127.0.0.1", 6041, false)
+	conn, err := NewConnector("root", "taosdata", "[::1]", 6041, false)
 	assert.NoError(t, err)
 
 	defer conn.Close()
@@ -28,8 +27,7 @@ func TestIPv6(t *testing.T) {
 	_, err = conn.Exec(context.Background(), "create database test_ipv6", 1002)
 	assert.NoError(t, err)
 
-	// [::1]
-	conn, err = NewConnectorWithDb("root", "taosdata", "127.0.0.1", 6041, "test_ipv6", false)
+	conn, err = NewConnectorWithDb("root", "taosdata", "[::1]", 6041, "test_ipv6", false)
 	assert.NoError(t, err)
 
 	defer conn.Close()
