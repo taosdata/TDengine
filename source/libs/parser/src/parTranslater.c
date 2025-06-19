@@ -9821,6 +9821,10 @@ static int32_t translateCreateMount(STranslateContext* pCxt, SCreateMountStmt* p
   TAOS_UNUSED(snprintf(createReq.mountName, sizeof(createReq.mountName), "%s", pStmt->mountName));
   createReq.ignoreExist = pStmt->ignoreExists;
   createReq.dnodeIds[0] = pStmt->dnodeId;
+  int32_t j = strlen(pStmt->mountPath) - 1;
+  while (j > 0 && (pStmt->mountPath[j] == '/' || pStmt->mountPath[j] == '\\')) {
+    pStmt->mountPath[j--] = '\0';  // remove trailing slashes
+  }
   TSDB_CHECK_NULL((createReq.mountPaths[0] = taosMemoryMalloc(strlen(pStmt->mountPath) + 1)), code, lino, _exit,
                   terrno);
   TAOS_UNUSED(sprintf(createReq.mountPaths[0], "%s", pStmt->mountPath));

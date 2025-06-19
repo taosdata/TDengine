@@ -17,6 +17,7 @@
 #include "taos_monitor.h"
 #include "vmInt.h"
 #include "vnodeInt.h"
+#include "vnd.h"
 
 extern taos_counter_t *tsInsertCounter;
 
@@ -528,14 +529,24 @@ static int32_t vmRetrieveMountDnode(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pR
     if (code < 0) {
       TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
     }
-    int8_t level = -1;
-    code = tjsonGetTinyIntValue(pItem, "level", &level);
-    if (code < 0 || (level < 0 || level >= TFS_MAX_TIERS)) {
+    int32_t j = strlen(dir) - 1;
+    while (j > 0 && (dir[j] == '/' || dir[j] == '\\')) {
+      dir[j--] = '\0';  // remove trailing slashes
+    }
+    SJson  *pLevel = tjsonGetObjectItem(pItem, "level");
+    if (!pLevel) {
       TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
     }
-    int8_t primary = -1;
-    code = tjsonGetTinyIntValue(pItem, "primary", &primary);
-    if (code < 0 || (primary < 0 || primary > 1)) {
+    int8_t level = (int8_t)cJSON_GetNumberValue(pLevel);
+    if (level < 0 || level >= TFS_MAX_TIERS) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
+    }
+    SJson *pPrimary = tjsonGetObjectItem(pItem, "primary");
+    if (!pPrimary) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
+    }
+    int8_t primary = (int8_t)cJSON_GetNumberValue(pPrimary);
+    if (level < 0 || level >= TFS_MAX_TIERS) {
       TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
     }
     if (!pMountInfo->pDisks[level]) {
@@ -555,6 +566,10 @@ static int32_t vmRetrieveMountDnode(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pR
       taosMemFree(pDir);
       TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
     }
+  }
+  int32_t nDiskLevel0 = taosArrayGetSize(pMountInfo->pDisks[0]);
+  if (nDiskLevel0 < 1 || nDiskLevel0 > TFS_MAX_DISKS_PER_TIER) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
   }
 _exit:
   if (content != NULL) taosMemoryFreeClear(content);
@@ -588,8 +603,15 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
   dInfo("mount:%s, num of vnodes is %d in path:%s", pReq->mountName, numOfVnodes, vnodeMgmt.path);
   TSDB_CHECK_NULL((pVgCfgs = taosArrayInit_s(sizeof(SVnodeInfo), numOfVnodes)), code, lino, _exit, terrno);
 
+  int32_t nDiskLevel0 = taosArrayGetSize(pMountInfo->pDisks[0]);
   for (int32_t i = 0; i < numOfVnodes; ++i) {
     SWrapperCfg *pCfg = &pCfgs[i];
+    // in order to support multi-tier disk, the pCfg->path should be adapted according to the diskPrimary firstly
+    if ((nDiskLevel0 > 1) && (pCfg->diskPrimary != pMountInfo->primaryDiskIdx)) {
+      char *pDir = taosArrayGet(pMountInfo->pDisks[0], pCfg->diskPrimary);
+      if (!pDir) TAOS_CHECK_EXIT(TSDB_CODE_INTERNAL_ERROR);
+      (void)snprintf(pCfg->path, sizeof(pCfg->path), "%s%svnode%d", *(char**)pDir, TD_DIRSEP, pCfg->vgId);
+    }
     dInfo("mount:%s, vnode path:%s, dropped:%" PRIi8, pReq->mountName, pCfg->path, pCfg->dropped);
     if (pCfg->dropped) {
       continue;
