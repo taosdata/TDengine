@@ -364,7 +364,7 @@ mod test_tmq_to_local {
             let mut count = 0;
             loop {
                 count += 1;
-                if let Err(err) = taos.exec(format!("DROP TOPIC IF EXISTS `{t}`")).await {
+                if let Err(err) = taos.exec(format!("DROP TOPIC IF EXISTS FORCE `{t}`")).await {
                     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                     if count < 30 {
                         continue;
