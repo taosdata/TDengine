@@ -8,10 +8,34 @@ class TestStreamSlidingTrigger:
     trigTbname = ""
     calcTbname = ""
     outTbname = ""
+    stName = ""
+    sliding = 
     subTblNum = 3
     tblRowNum = 40
     tableList = []
-    querySqls = [""]
+    querySql = ""
+    querySqls = [ # (SQL, (minPartitionColNum, partitionByTbname), PositiveCase)
+        ("select cts, cint from {calcTbname} order by cts limit 3", (0, False), True),
+        ("select cts, cint, _tprev_ts, _tcurrent_ts, _tnext_ts, _tlocaltime from {calcTbname} order by cts", (0, False), True),
+        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from {calcTbname} order by cts", (2, True), True),
+        ("select cts, cint from {calcTbname} where _tcurrent_ts % 2 = 0 order by cts", (0, False), True),
+        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from {calcTbname} where %%tbname like '%1' order by cts", (2, True), True),
+
+        ("select cts, cint from %%tbname order by cts limit 3", (1, True), True),
+        ("select cts, cint, _tprev_ts, _tcurrent_ts, _tnext_ts, _tlocaltime from %%tbname order by cts", (1, True), True),
+        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname order by cts", (2, True), True),
+        ("select cts, cint from %%tbname where _tcurrent_ts % 2 = 0 order by cts", (1, True), True),
+        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname where %%tbname like '%1' order by cts", (2, True), True),
+
+        ("select cts, cint from %%tbname partition by cint order by cts", (1, True), True),
+        ("select cts, cint, _tprev_ts, _tcurrent_ts, _tnext_ts, _tlocaltime from %%tbname partition by cint order by cts", (1, True), True),
+        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname partition by cint order by cts", (2, True), True),
+        ("select cts, cint from %%tbname where _tcurrent_ts % 2 = 0 partition by cint order by cts", (1, True), True),
+        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname where %%tbname like '%1' partition by cint order by cts", (2, True), True),
+
+        #("select _twstart, avg(cint), count(cint) from {calcTbname} where cts <= _twstart", ),
+        #("")
+    ]
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -35,7 +59,7 @@ class TestStreamSlidingTrigger:
 
         tdStream.createSnode()
         self.prepareData()
-        self.normalCase()
+        self.execCase()
         self.basic2()
         
     @staticmethod
@@ -59,12 +83,14 @@ class TestStreamSlidingTrigger:
         ntb.append_data(0, self.tblRowNum)
         self.tableList.append(f"ntb1")
 
-    def normalCase(self, tbname):
-        tdLog.info(f"normalCase begin")
+    def execCase(self, tbname):
+        tdLog.info(f"execCase begin")
 
         sql = [
-            f"create stream s1 sliding(1s) from {self.trigTbname} into {self.outTbname} as select _twstart, avg(cint), count(cint) from test.st where cts <= _twstart;",
-               
+            (f"create stream {self.stName} sliding({self.sliding}s) from {self.trigTbname} into {self.outTbname} as {self.querySql};", (0, False)),
+            (f"create stream {self.stName} sliding({self.sliding}s) from {self.trigTbname} partition by tbname into {self.outTbname} as {self.querySql};", (1, True)),
+            (f"create stream {self.stName} sliding({self.sliding}s) from {self.trigTbname} partition by tvarchar, tint into {self.outTbname} as {self.querySql};", (2, False)),  
+            (f"create stream {self.stName} sliding({self.sliding}s) from {self.trigTbname} partition by tbname, tint into {self.outTbname} as {self.querySql};", (2, True)),  
         ]
     
         stream1 = StreamItem(

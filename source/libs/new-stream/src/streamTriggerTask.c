@@ -1145,6 +1145,7 @@ static int32_t strtgUpdateThreshold(SSTriggerRealtimeGroup *pGroup) {
     bool    holdAllVnodes = (tSimpleHashGetSize(pGroup->pMetaStats) == taosArrayGetSize(pTask->readerList));
     if (numHoldThreshold > 0 || holdAllVnodes) {
       pGroup->newThreshold = INT64_MAX;
+      iter = 0;
       pStat = tSimpleHashIterate(pGroup->pMetaStats, NULL, &iter);
       while (pStat != NULL) {
         if (pStat->numHoldMetas >= numHoldThreshold) {
