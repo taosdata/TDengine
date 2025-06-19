@@ -116,7 +116,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 
 - <b>模拟设备产生数据</b> 
   1. 节点选择区域内选中 function 节点，拖动至画布 td-writer 节点前。
-  2. 双击节点打开属性设置，名称填写 ‘write d0’， 下面选项卡选择“运行函数”，填写如下内容后保存并返回画布。
+  2. 双击节点打开属性设置，名称填写‘write d0’，下面选项卡选择“运行函数”，填写如下内容后保存并返回画布。
    ``` javascript
       // generate rand
       const value2 = Math.floor(Math.random() * (30 - 5 + 1)) + 5; // 5-30
