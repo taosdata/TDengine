@@ -70,8 +70,8 @@ class TestStreamSubquerySliding:
         self.prepareQueryData()
         self.prepareTriggerTable()
         self.createStreams()
-        self.writeTriggerData()
         self.checkStreamStatus()
+        self.writeTriggerData()
         self.checkResults()
 
     def createSnode(self):
@@ -197,14 +197,14 @@ class TestStreamSubquerySliding:
             check_func=self.check5,
         )
         # self.streams.append(stream) basic4
-        
+
         stream = StreamItem(
             id=6,
             stream="create stream rdb.s6 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r6 as select _twstart ts, count(c1), avg(c2) from %%trows where ts >= _twstart and ts < _twend partition by tbname",
             res_query="select *, tag_tbname from rdb.r6 where tag_tbname='t1'",
             exp_query="select _wstart, count(c1), avg(c2), 't1', 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m);",
-        )   
-        self.streams.append(stream)    
+        )
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=7,
@@ -214,30 +214,30 @@ class TestStreamSubquerySliding:
         )
         self.streams.append(stream)
 
-        id = 4
-        # 里面和外面都要分组
-        # stream="create stream rdb.s2 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r2 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, %%tbname tb, %%1 tg1, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null and %%tbname is not null and %%1 is not null;",
-        # from %%tbname partition by %%tbname select  7
-        # from %%1 partition by %%tbname select   6
-        # from %%trows partition by %%tbname select  8
-        # self.streams.append(stream)
-
-        ##############
         stream = StreamItem(
-            id=2,
-            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.s2 tags(gid bigint as _tgrpid) as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null;",
-            res_query="select ts, c1, c2 from rdb.r1",
-            exp_query="select _wstart ts, count(cint) c1, avg(cint) c2 from qdb.meters interval(5m)",
+            id=8,
+            stream="create stream rdb.s8 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r8 as select _twstart ts, count(c1), avg(c2) from %%trows where ts >= _twstart and ts < _twend partition by %%1",
+            res_query="select *, tag_tbname from rdb.r8 where tag_tbname='t1'",
+            exp_query="select _wstart, count(c1), avg(c2), 't1', 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m);",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
-            id=3,
-            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers partition by c1, c2 into rdb.s2 tags(gid bigint as _tgrpid) as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, %%1, %%tbname, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null and %%1 != '1' and %%tbname != '1';",
-            res_query="select ts, c1, c2 from rdb.r1",
-            exp_query="select _wstart ts, count(cint) c1, avg(cint) c2 from qdb.meters interval(5m)",
+            id=9,
+            stream="create stream rdb.s9 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r9 tags(gid bigint as _tgrpid, id int as %%1) as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null;",
+            res_query="select ts, te, c1, c2, id from rdb.r9 where id=1;",
+            exp_query="select _wstart, _wend, count(cint) c1, avg(cint) c2, 1 from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
+
+        stream = StreamItem(
+            id=10,
+            stream="create stream rdb.s10 interval(5m) sliding(5m) from tdb.triggers partition by id, tbname into rdb.r10 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, cast(_tlocaltime % 1000000 as timestamp) tl, %%1 t1_data, %%2 t2_data, %%tbname tb_data, count(cint) c1_data, avg(cint) c2_data from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null and tbname = %%2;",
+            res_query="select ts, t1_data, t2_data, tb_data, c1_data, c2_data, id, tag_tbname from rdb.r10 where id=1;",
+            exp_query="select _wstart, 1, 't1', 't1', count(cint) c1, avg(cint) c2, 1, 't1' from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' interval(5m);",
+            check_func=self.check10,
+        )
+        # self.streams.append(stream) basic7
 
         stream = StreamItem(
             id=4,
@@ -2191,6 +2191,35 @@ class TestStreamSubquerySliding:
             and tdSql.compareData(0, 2, 300000)
             and tdSql.compareData(0, 3, 2)
             and tdSql.compareData(0, 4, "t2"),
+        )
+
+    def check10(self):
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r10",
+            schema=[
+                ["ts", "TIMESTAMP", 8, ""],
+                ["te", "TIMESTAMP", 8, ""],
+                ["td", "BIGINT", 8, ""],
+                ["tw", "BIGINT", 8, ""],
+                ["tg", "BIGINT", 8, ""],
+                ["tl", "TIMESTAMP", 8, ""],
+                ["t1_data", "INT", 4, ""],
+                ["t2_data", "VARCHAR", 270, ""],
+                ["tb_data", "VARCHAR", 270, ""],
+                ["c1_data", "BIGINT", 8, ""],
+                ["c2_data", "DOUBLE", 8, ""],
+                ["id", "INT", 4, "TAG"],
+                ["tag_tbname", "VARCHAR", 270, "TAG"],
+            ],
+        )
+        tdSql.checkResultsByFunc(
+            sql="select * from information_schema.ins_tags where db_name='rdb' and stable_name='r10' and tag_name='tag_tbname';",
+            func=lambda: tdSql.getRows() == 2,
+        )
+        tdSql.checkResultsByFunc(
+            sql="select * from rdb.r10 where tag_tbname='t2'",
+            func=lambda: tdSql.getRows() == 1,
         )
 
     def check12(self):

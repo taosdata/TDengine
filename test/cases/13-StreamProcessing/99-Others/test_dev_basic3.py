@@ -177,6 +177,22 @@ class TestStreamDevBasic:
         self.streams.append(stream)
 
         stream = StreamItem(
+            id=8,
+            stream="create stream rdb.s8 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r8 as select _twstart ts, count(c1), avg(c2) from %%trows where ts >= _twstart and ts < _twend partition by %%1",
+            res_query="select *, tag_tbname from rdb.r8 where tag_tbname='t1'",
+            exp_query="select _wstart, count(c1), avg(c2), 't1', 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m);",
+        )
+        self.streams.append(stream)
+        
+        stream = StreamItem(
+            id=9,
+            stream="create stream rdb.s9 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r9 tags(gid bigint as _tgrpid, id int as %%1) as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null;",
+            res_query="select ts, te, c1, c2, id from rdb.r9 where id=1;",
+            exp_query="select _wstart, _wend, count(cint) c1, avg(cint) c2, 1 from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+        )
+        self.streams.append(stream)
+
+        stream = StreamItem(
             id=12,
             stream="create stream rdb.s12 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r12 as select _twstart ts, %%tbname tb, %%1, count(*) v1, avg(c1) v2, first(c1) v3, last(c1) v4 from %%trows where c2 > 0;",
             res_query="select ts, tb, `%%1`, v2, v3, v4, tag_tbname from rdb.r12 where tb='t1'",
