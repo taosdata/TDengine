@@ -37,7 +37,7 @@ taosAdapter 提供了以下功能：
 - TCollector 数据写入：
   TCollector 是一个客户端进程，从本地收集器收集数据，并将数据推送到 OpenTSDB。请访问 [http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html) 了解更多信息。
 - OpenMetrics 采集写入：
-  OpenMetrics 是 Prometheus 的一种数据格式。请访问 [https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md](https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md) 了解更多信息。
+  OpenMetrics 是云原生监控领域的新兴标准，扩展并规范了 Prometheus 的指标格式，已成为现代监控工具的事实标准。请访问 [https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md](https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md) 了解更多信息。
 - Prometheus remote_read 和 remote_write：
   remote_read 和 remote_write 是 Prometheus 数据读写分离的集群方案。请访问 [https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) 了解更多信息。
 - node_exporter 采集写入：
@@ -190,7 +190,8 @@ taosAdapter 使用连接池管理与 TDengine 的连接，以提高并发性能�
 - Telegraf 数据写入
 - collectd 数据写入
 - StatsD 数据写入
-- 采集 node_exporter 数据写入
+- node_exporter 数据写入
+- OpenMetrics 数据写入
 - Prometheus remote_read 和 remote_write
 
 连接池的配置参数如下：
@@ -273,6 +274,7 @@ taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值�
 - collectd 数据写入
 - StatsD 数据写入
 - node_exporter 数据写入
+- OpenMetrics 数据写入
 
 **参数说明**
 

@@ -42,7 +42,7 @@ The taosAdapter provides the following features:
 - TCollector data writing:
   TCollector is a client process that collects data from local collectors and pushes it to OpenTSDB. Visit [http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html) for more information.
 - OpenMetrics data collection and writing:
-  OpenMetrics is a standardized metrics format for Prometheus. Visit [OpenMetrics Specification](https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md) for more information.
+  OpenMetrics is an emerging standard in the field of cloud-native monitoring. It extends and standardizes the Prometheus metric format and has become the de facto standard for modern monitoring tools. Visit [OpenMetrics Specification](https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md) for more information.
 - Supports Prometheus remote_read and remote_write:
   remote_read and remote_write are Prometheus's data read-write separation cluster solutions. Visit [https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) for more information.
 - node_exporter data collection and writing:
@@ -197,6 +197,7 @@ taosAdapter uses a connection pool to manage connections to TDengine, improving 
 - collectd data writing
 - StatsD data writing
 - node_exporter data collection writing
+- OpenMetrics data collection and writing
 - Prometheus remote_read and remote_write
 
 The configuration parameters for the connection pool are as follows:
@@ -281,6 +282,7 @@ The `smlAutoCreateDB` parameter only affects the following interfaces:
 - collectd data writing
 - StatsD data writing
 - node_exporter data writing
+- OpenMetrics data collection and writing
 
 #### Parameter Description
 
