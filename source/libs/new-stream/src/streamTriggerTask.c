@@ -1382,6 +1382,10 @@ static int32_t strtgCloseCurrentWindow(SSTriggerRealtimeGroup *pGroup, char *pEx
     param.wend++;
     param.wduration++;
   }
+  if (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval == 0) {
+    param.prevTs = param.currentTs - pTask->interval.sliding;
+    param.nextTs = param.currentTs + pTask->interval.sliding;
+  }
   if (pTask->calcEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
     SSTriggerCalcRequest *pReq = &pContext->calcReq;
     if (pContext->calcStatus == STRIGGER_REQUEST_IDLE) {
