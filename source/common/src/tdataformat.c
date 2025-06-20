@@ -844,6 +844,7 @@ _exit:
     taosMemoryFree(p->data);
     taosMemoryFree(p);
   }
+  uInfo("create blob row %p", p);
   return code;
 }
 int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pItem, uint64_t *seq, int8_t nextRow) {
@@ -917,6 +918,7 @@ int32_t tBlobRowSize(SBlobRow2 *pBlobRow) {
 
 int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow) {
   int32_t code = 0;
+  uInfo("destroy blob row, seqTable size %p", pBlowRow);
   taosMemoryFree(pBlowRow->data);
   taosArrayDestroy(pBlowRow->pSeqTable);
   taosHashCleanup(pBlowRow->pSeqToffset);

@@ -775,7 +775,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
     STableDataCxt* pTableCxt = *(STableDataCxt**)p;
     colFormat = (0 != (pTableCxt->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT));
   }
-
+   
   while (TSDB_CODE_SUCCESS == code && NULL != p) {
     STableDataCxt* pTableCxt = *(STableDataCxt**)p;
     if (colFormat) {
@@ -791,7 +791,9 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
 
       taosArraySort(pTableCxt->pData->aCol, insColDataComp);
 
+       
       code = tColDataSortMerge(&pTableCxt->pData->aCol);
+       
     } else {
       // skip the table has no data to insert
       // eg: import a csv without valid data

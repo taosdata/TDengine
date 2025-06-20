@@ -19,6 +19,7 @@
 #include "parInt.h"
 #include "parToken.h"
 #include "query.h"
+#include "tdataformat.h"
 #include "tglobal.h"
 #include "ttime.h"
 #include "ttypes.h"
@@ -62,7 +63,9 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+  code = tBlobRowCreate(4096, &pNew->pBlobRow);
+
+  return code;
 }
 
 int32_t qAppendStmtTableOutput(SQuery* pQuery, SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
