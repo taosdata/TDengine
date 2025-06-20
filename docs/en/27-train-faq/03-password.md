@@ -295,4 +295,72 @@ curl -H 'Authorization: Basic dXNlcjE6QWIxIUAjJCVeJiooKS1fKz1bXXt9' \
 ```
 
 </TabItem>
+<TabItem label="ODBC" value="odbc">
+
+No special handling is required for special character passwords in ODBC connector, as shown below:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <sql.h>
+#include <sqlext.h>
+
+int test_user_connect(const char *dsn, const char *uid, const char *pwd) {
+  SQLHENV   env   = SQL_NULL_HENV;
+  SQLHDBC   dbc   = SQL_NULL_HDBC;
+  SQLHSTMT  stmt  = SQL_NULL_HSTMT;
+  SQLRETURN sr    = SQL_SUCCESS;
+
+  sr = SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &env);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+  sr = SQLSetEnvAttr(env, SQL_ATTR_ODBC_VERSION, (void *)SQL_OV_ODBC3, 0);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+  sr = SQLAllocHandle(SQL_HANDLE_DBC, env, &dbc);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+  sr = SQLConnect(dbc, (SQLCHAR *)dsn, SQL_NTS, (SQLCHAR *)uid, SQL_NTS, (SQLCHAR *)pwd, SQL_NTS);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+  sr = SQLAllocHandle(SQL_HANDLE_STMT, dbc, &stmt);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+  sr = SQLExecDirect(stmt, (SQLCHAR *)"show databases", SQL_NTS);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+end:
+  if (stmt != SQL_NULL_HSTMT) {
+    SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+    stmt = SQL_NULL_HSTMT;
+  }
+
+  if (dbc != SQL_NULL_HDBC) {
+    SQLDisconnect(dbc);
+    SQLFreeHandle(SQL_HANDLE_DBC, dbc);
+    dbc = SQL_NULL_HDBC;
+  }
+
+  if (env != SQL_NULL_HENV) {
+    SQLFreeHandle(SQL_HANDLE_ENV, env);
+    env = SQL_NULL_HENV;
+  }
+
+  return (sr == SQL_SUCCESS || sr == SQL_SUCCESS_WITH_INFO) ? 0 : -1;
+}
+
+int main() {
+  int result = test_user_connect("TAOS_ODBC_WS_DSN", "user1", "Ab1!@#$%^&*()-_+=[]{}");
+  printf("test case test_user_connect %s\n", !result ? "pass" : "failed");
+  return 0;
+}
+```
+
+</TabItem>
 </Tabs>

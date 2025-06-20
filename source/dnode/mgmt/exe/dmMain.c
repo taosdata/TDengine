@@ -276,7 +276,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-C") == 0) {
       global.dumpConfig = true;
-    } else if (strcmp(argv[i], "-V") == 0) {
+    } else if (strcmp(argv[i], "-V") == 0 || strcmp(argv[i], "--version") == 0) {
       global.printVersion = true;
 #ifdef WINDOWS
     } else if (strcmp(argv[i], "--win_service") == 0) {
@@ -293,6 +293,9 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
                strcmp(argv[i], "-?") == 0) {
       global.printHelp = true;
     } else {
+      printf("taosd: invalid option: %s\n", argv[i]);
+      printf("Try `taosd --help' or `taosd --usage' for more information.\n");
+      return TSDB_CODE_INVALID_CFG;
     }
   }
 

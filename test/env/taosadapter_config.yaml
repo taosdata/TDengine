@@ -1,0 +1,5 @@
+logLevel: debug
+port: 6041
+log:
+  path: /var/log/adapter_log
+taosConfigDir: /etc/taos

@@ -456,24 +456,71 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/07-CountWindow/test_count1.py
 
 # 12-DataSubscription
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_drop_lost_comsumers.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_basic1.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_basic2.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_basic3.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_basic4.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_cons_overlap.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_cons1.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_cons2.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_cons3.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_cons4.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_snapshot1.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_snapshot2.py
-,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_topic.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_params.py
-#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/test_tmq_params.py -R
+## 01-Mgmt
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/01-Mgmt/test_drop_lost_comsumers.py
+## 02-Native
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_basic1.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_basic2.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_basic3.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_basic4.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_cons_overlap.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_cons1.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_cons2.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_cons3.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_cons4.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_snapshot1.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_snapshot2.py
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_topic.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_params.py
+#,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_params.py -R
+## 03-WebSocket
+## 04-MQTT
+## 05-OPC
 
 # 13-StreamProcessing
-,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/test_max_delay_interval.py
+## 01-Snode
+## 02-Stream
+## 03-Trigger
+## 04-Option
+## 05-Notify
+## 06-Output
+## 07-SubQuery
+## 08-ReCalculate
+## 20-UseCase
+## 21-Stability 
+## 22-Performance
+## 23-Compatibility 
+## 24-OldCases
+## 30-OldPyCases
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_max_delay_interval.py
+## 31-OldTsimCases
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_check.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_checkpoint.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_continuewindowclose.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_count.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_delete.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_distribute.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_event.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_fillhistory.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_fillinternal.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_forcewindowclose.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_delete.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_fill.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_history.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_partitionby.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_primary.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_update.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_options.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_partitionby.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_primary.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_session.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_snode.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py
+,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
+## 99-Others
 
 # 14-Operators
 

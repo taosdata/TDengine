@@ -42,7 +42,7 @@
                     "delete_ratio": 1,
                     "disorder_fill_interval": 300,
                     "update_fill_interval": 25,
-                    "generate_row_rule": 2,
+                    "generate_row_rule": 1,
                     "columns": [
                         { "type": "bool",        "name": "bc"},
                         { "type": "float",       "name": "fc",  "max": 1, "min": 0 },
@@ -56,7 +56,10 @@
                         { "type": "uint",        "name": "ui",  "max": 100, "min": 0 },
                         { "type": "ubigint",     "name": "ubi", "max": 100, "min": 0 },
                         { "type": "binary",      "name": "bin", "len": 32},
-                        { "type": "nchar",       "name": "nch", "len": 64}
+                        { "type": "timestamp",   "name": "tsc"},
+                        { "type": "decimal", "name": "dec64d", "precision": 10, "scale": 6, "max": -555.456789, "min": -888.987654},
+                        { "type": "decimal", "name": "dec128c", "precision": 24, "scale": 10, "max": 1234567890.5678912345, "min": -5678912345.666555444},
+                        { "type": "geometry",    "name": "geo", "len": 32} 
                     ],
                     "tags": [
                         {

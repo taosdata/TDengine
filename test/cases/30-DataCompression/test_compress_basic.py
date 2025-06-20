@@ -15,7 +15,7 @@ import time
 import random
 import taos
 from new_test_framework.utils import tdLog, tdSql
-from new_test_framework.utils.frame.autogen import *
+from new_test_framework.utils.autogen import *
 
 
 class TestCompressBasic:

@@ -346,7 +346,7 @@ note:
 
 Provides information about file sets.
 
-| #   |   **Column**   | **Data Type** | **Description**                                      | ** |
+| #   |   **Column**   | **Data Type** | **Description**                                      |
 | --- | :------------: | ------------- | ---------------------------------------------------- |
 | 1   |    db_name     | VARCHAR(65)   | Database name                                        |
 | 2   |   vgroup_id    | INT           | Vgroup ID                                            |
@@ -356,3 +356,21 @@ Provides information about file sets.
 | 6   |   total_size   | BIGINT        | Total size of the file set                           |
 | 7   |  last_compact  | TIMESTAMP     | Time of the last compaction                          |
 | 8   | should_compact | bool          | Whether the file set should be compacted             |
+
+## INS_VNODES
+
+Provides information about vnodes in the system. Users with SYSINFO property set to 0 cannot view this table.
+
+| #   |   **Column Name**   | **Data Type** | **Description**                   |
+| --- | :-----------------: | ------------- | --------------------------------- |
+| 1   |      dnode_id       | INT           | Dnode id                          |
+| 2   |      vgroup_id      | INT           | Vgroup id                         |
+| 3   |       db_name       | VARCHAR(66)   | Database name                     |
+| 4   |       status        | VARCHAR(11)   | Status of this vnode              |
+| 5   |      role_time      | TIMESTAMP     | Election time                     |
+| 6   |     start_time      | TIMESTAMP     | Vnode start time                  |
+| 7   |      restored       | BOOL          | Restored or not                   |
+| 8   |  apply_finish_time  | VARCHAR(20)   | Restore finish time               |
+| 9   |      unapplied      | INT           | Number of unapplied request items |
+| 10  | buffer_segment_used | BIGINT        | Buffer segment used size in bytes |
+| 11  | buffer_segment_size | BIGINT        | Buffer segment size in bytes      |
