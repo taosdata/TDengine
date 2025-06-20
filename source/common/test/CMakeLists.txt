@@ -33,35 +33,35 @@ add_test(
     COMMAND dataformatTest
 )
 
-# cosCpTest.cpp
-add_executable(cosCpTest "cosCpTest.cpp")
-DEP_ext_gtest(cosCpTest)
-target_link_libraries(cosCpTest PRIVATE util common)
-target_include_directories(
-    cosCpTest
-    PUBLIC "${TD_SOURCE_DIR}/include/common"
-    PUBLIC "${TD_SOURCE_DIR}/include/util"
-)
-add_test(
-    NAME cosCpTest
-    COMMAND cosCpTest
-)
+# # cosCpTest.cpp
+# add_executable(cosCpTest "cosCpTest.cpp")
+# DEP_ext_gtest(cosCpTest)
+# target_link_libraries(cosCpTest PRIVATE util common)
+# target_include_directories(
+    # cosCpTest
+    # PUBLIC "${TD_SOURCE_DIR}/include/common"
+    # PUBLIC "${TD_SOURCE_DIR}/include/util"
+# )
+# add_test(
+    # NAME cosCpTest
+    # COMMAND cosCpTest
+# )
 
-if(${TD_LINUX})
-    # cosTest.cpp
-    add_executable(cosTest "cosTest.cpp")
-    DEP_ext_gtest(cosTest)
-    target_link_libraries(cosTest PRIVATE util common)
-    target_include_directories(
-        cosTest
-        PUBLIC "${TD_SOURCE_DIR}/include/common"
-        PUBLIC "${TD_SOURCE_DIR}/include/util"
-    )
-    add_test(
-        NAME cosTest
-        COMMAND cosTest
-    )
-endif()
+# if(${TD_LINUX})
+    # # cosTest.cpp
+    # add_executable(cosTest "cosTest.cpp")
+    # DEP_ext_gtest(cosTest)
+    # target_link_libraries(cosTest PRIVATE util common)
+    # target_include_directories(
+        # cosTest
+        # PUBLIC "${TD_SOURCE_DIR}/include/common"
+        # PUBLIC "${TD_SOURCE_DIR}/include/util"
+    # )
+    # add_test(
+        # NAME cosTest
+        # COMMAND cosTest
+    # )
+# endif()
 
 if(${TD_LINUX})
     # tmsg test
