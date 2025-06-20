@@ -6,7 +6,7 @@ class TestJoinNsDb:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_join_ns_db(self):
-        """Join Test
+        """Join Test On Ns Db
 
         1. Create two test db with ns precision
         2. Create table for each db and insert some data, the ts of the data in two tables should have the same timestamp when timetruncate to ms precision
