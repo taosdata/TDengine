@@ -13624,7 +13624,7 @@ static int32_t createStreamReqBuildTriggerWindow(STranslateContext* pCxt, SNode*
       PAR_ERR_JRET(createStreamReqBuildTriggerStateWindow(pCxt, (SStateWindowNode*)pTriggerWindow, pReq));
       break;
     default:
-      PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "Unsupported trigger window type: %d", nodeType(pTriggerWindow)));
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "Unsupported trigger window type: %d", nodeType(pTriggerWindow)));
   }
   return code;
 _return:
@@ -14022,8 +14022,8 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
     case TSDB_VIRTUAL_NORMAL_TABLE:
       break;
     default:
-      PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                        "Invalid trigger table type %d", pTriggerTableMeta->tableType));
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                           "Invalid trigger table type %d", pTriggerTableMeta->tableType));
   }
 
   PAR_ERR_JRET(createStreamReqBuildTriggerTable(pCxt, pTriggerTable, pTriggerTableMeta, pReq));
@@ -14039,20 +14039,28 @@ static int32_t createStreamReqBuildTrigger(STranslateContext* pCxt, SCreateStrea
       case QUERY_NODE_COLUMN: {
         SColumnNode* pCol = (SColumnNode*)pNode;
         if (pCol->colType != COLUMN_TYPE_TAG) {
-          PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "only tag and tbname can be used in partition"));
+          PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "only tag and tbname can be used in partition"));
         }
         break;
       }
       case QUERY_NODE_FUNCTION: {
         SFunctionNode *pFunction = (SFunctionNode*)pNode;
         if (pFunction->funcType != FUNCTION_TYPE_TBNAME) {
-          PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "only tag and tbname can be used in partition"));
+          PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "only tag and tbname can be used in partition"));
         }
         break;
       }
       default:
-        PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "only tag and tbname can be used in partition"));
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "only tag and tbname can be used in partition"));
     }
+  }
+
+  if (pTriggerTableMeta->tableType == TSDB_SUPER_TABLE &&
+      nodeType(pTriggerWindow) != QUERY_NODE_INTERVAL_WINDOW &&
+      nodeType(pTriggerWindow) != QUERY_NODE_SESSION_WINDOW &&
+      (LIST_LENGTH(pTriggerPartition) == 0 || !hasTbnameFunction(pTriggerPartition))) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                         "Partition by tag is not allowed for super table trigger when trigger window is not interval and session"));
   }
 
   PAR_ERR_JRET(createStreamReqBuildTriggerPlan(pCxt, *pTriggerSelect, pReq, pTriggerSlotHash, pTriggerWindow, pTriggerPartition, pTriggerFilter));
