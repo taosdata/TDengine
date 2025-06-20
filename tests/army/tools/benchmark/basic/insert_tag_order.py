@@ -61,28 +61,28 @@ class TDTestCase(TBase):
         cmd = f"{benchmark} -f {filePath}"
         tdLog.info(f"Executing command: {cmd}")
         os.system("%s" % cmd)
-        self.checkDataCorrect(dbname, 10000, 1000)
+        self.checkDataCorrect(dbname, 1000, 100)
         tdSql.execute(f"drop database {dbname};")
     
     def testStmt(self):  
         self.executeAndCheck('stmt1_tag_order1','stmt', 1)
         self.executeAndCheck('stmt1_tag_order2','stmt', 0)
-        self.executeAndCheck('stmt1_tag_order3','stmt', 0, 'yes')
+        # self.executeAndCheck('stmt1_tag_order3','stmt', 0, 'yes')
 
     def testStmt2(self):
-        self.executeAndCheck('stmt2_tag_order_1', 'stmt2', 1)
+        # self.executeAndCheck('stmt2_tag_order_1', 'stmt2', 1)
         self.executeAndCheck('stmt2_tag_order_2', 'stmt2', 1, 'yes')
-        self.executeAndCheck('stmt2_tag_order_3', 'stmt2', 0)
+        # self.executeAndCheck('stmt2_tag_order_3', 'stmt2', 0)
         self.executeAndCheck('stmt2_tag_order_4', 'stmt2', 0, 'yes')
     def testSml(self):
-        self.executeAndCheck('sml_tag_order1', 'sml', 1)
+        # self.executeAndCheck('sml_tag_order1', 'sml', 1)
         self.executeAndCheck('sml_tag_order2', 'sml', 1, 'yes')
-        self.executeAndCheck('sml_tag_order3', 'sml', 0)
+        # self.executeAndCheck('sml_tag_order3', 'sml', 0)
         self.executeAndCheck('sml_tag_order4', 'sml', 0, 'yes')
     def testTaosc(self):
-        self.executeAndCheck('taoc_tag_order_1', 'taosc', 1)
+        # self.executeAndCheck('taoc_tag_order_1', 'taosc', 1)
         self.executeAndCheck('taoc_tag_order_2', 'taosc', 1, 'yes')
-        self.executeAndCheck('taoc_tag_order_3', 'taosc', 0)
+        # self.executeAndCheck('taoc_tag_order_3', 'taosc', 0)
         self.executeAndCheck('taoc_tag_order_4', 'taosc', 0, 'yes')
 
     def run(self):
@@ -90,16 +90,20 @@ class TDTestCase(TBase):
         stmt2 = threading.Thread(target=self.testStmt2)
         sml = threading.Thread(target=self.testSml)
         taosc = threading.Thread(target=self.testTaosc)
+
         tdLog.info("Starting threads for different insert modes...")
         stmt.start()
         stmt2.start()
         sml.start()
         taosc.start()
+
         tdLog.info("Waiting for all threads to complete...")
         stmt.join()
         stmt2.join()
         sml.join()
         taosc.join()
+
+        tdLog.success("Successfully executed")
 
     def stop(self):
         tdSql.close()

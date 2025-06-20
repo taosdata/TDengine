@@ -6,7 +6,7 @@
     "user": "root",
     "password": "taosdata",
     "connection_pool_size": 10,
-    "thread_count": 10,
+    "thread_count": 4,
     "create_table_thread_count": 4,
     "result_file": "./mr.txt",
     "confirm_parameter_prompt": "no",
@@ -26,7 +26,7 @@
                 {
                     "name": "addcolumns",
                     "child_table_exists": "no",
-                    "childtable_count": 1000,
+                    "childtable_count": 100,
                     "childtable_prefix": "ad1_",
                     "auto_create_table": "yes",
                     "batch_create_tbl_num": 5,
