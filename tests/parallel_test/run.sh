@@ -123,9 +123,22 @@ function prepare_cases() {
 function clean_tmp() {
     # clean tmp dir
     local index=$1
-    local ssh_script="sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
-    if [ -z "${passwords[index]}" ]; then
-        ssh_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+    local_hostnames=("127.0.0.1" "localhost" "$(hostname)" "$(hostname -I | awk '{print $1}')")
+    is_local_host=0
+    for lh in "${local_hostnames[@]}"; do
+        if [[ "${hosts[index]}" == "$lh" ]]; then
+            is_local_host=1
+            break
+        fi
+    done
+    if [ $is_local_host -eq 1 ]; then
+        local ssh_script=""
+    else
+        if [ -z "${passwords[index]}" ]; then
+            local ssh_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+        else
+            local ssh_script="sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+        fi
     fi
     local cmd="${ssh_script} rm -rf ${workdirs[index]}/tmp"
     ${cmd}
@@ -134,9 +147,23 @@ function clean_tmp() {
 function run_thread() {
     local index=$1
     local thread_no=$2
-    local runcase_script="sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
-    if [ -z "${passwords[index]}" ]; then
-        runcase_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+    local_hostnames=("127.0.0.1" "localhost" "$(hostname)" "$(hostname -I | awk '{print $1}')")
+    is_local_host=0
+    for lh in "${local_hostnames[@]}"; do
+        if [[ "${hosts[index]}" == "$lh" ]]; then
+            is_local_host=1
+            break
+        fi
+    done
+
+    if [ $is_local_host -eq 1 ]; then
+        runcase_script=""
+    else
+        if [ -z "${passwords[index]}" ]; then
+            runcase_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+        else
+            runcase_script="sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+        fi
     fi
     local count=0
     local script="${workdirs[index]}/TDengine/tests/parallel_test/run_container.sh"
