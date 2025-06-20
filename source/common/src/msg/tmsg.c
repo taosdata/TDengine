@@ -11031,6 +11031,7 @@ void tDestroySVCreateTbReq(SVCreateTbReq *pReq, int32_t flags) {
 
     if (pReq->type == TSDB_CHILD_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
       taosArrayDestroy(pReq->ctb.tagName);
+      pReq.ctb.tagName =  NULL;
     } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
       taosMemoryFreeClear(pReq->ntb.schemaRow.pSchema);
     }
@@ -12548,13 +12549,15 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
   } else if (flag == TSDB_MSG_FLG_DECODE) {
     if (pTbData->pCreateTbReq) {
       tDestroySVCreateTbReq(pTbData->pCreateTbReq, TSDB_MSG_FLG_DECODE);
-      taosMemoryFree(pTbData->pCreateTbReq);
+      taosMemoryFreeClear(pTbData->pCreateTbReq);
     }
 
     if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       taosArrayDestroy(pTbData->aCol);
+      pTbData->aCol = NULL;
     } else {
       taosArrayDestroy(pTbData->aRowP);
+      pTbData->aRowP = NULL;
     }
   }
 
