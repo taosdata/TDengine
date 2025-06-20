@@ -2155,8 +2155,7 @@ mod tests {
             .init();
 
         let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
-        let ws_enable =
-            std::env::var("WS_ENABLE").map_or(false, |w| w.eq_ignore_ascii_case("true"));
+        let ws_enable = std::env::var("WS_ENABLE").is_ok_and(|w| w.eq_ignore_ascii_case("true"));
         const DB_SRC: &str = "test_timestamp_out_of_range_1";
         const DB_DST: &str = "test_timestamp_out_of_range_2";
         const TID: u64 = 32960000;

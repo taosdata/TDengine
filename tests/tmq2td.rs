@@ -36,6 +36,9 @@ async fn test_sync_database_with_taos() -> anyhow::Result<()> {
     const ROWS: u64 = 10;
 
     let taos = taosx_core::utils::sql::connect_taos(&host, ws_enable).await?;
+    taos.exec_many(vec![
+        format!("DROP TOPIC IF EXISTS force `{TOPIC}`"),
+        format!("DROP DATABASE IF EXISTS `{DB_SRC}`"),
         format!("DROP DATABASE IF EXISTS `{DB_DST}`"),
         format!("CREATE DATABASE IF NOT EXISTS `{DB_SRC}`"),
         format!("CREATE DATABASE IF NOT EXISTS `{DB_DST}`"),

@@ -305,7 +305,7 @@ impl Cli {
     pub fn get_listen_port(&self) -> u16 {
         if let Some(addr) = self.listen.as_ref() {
             addr.split(':')
-                .last()
+                .next_back()
                 .map(|port| port.parse().unwrap_or(TAOSX_REST_API_DEFAULT_PORT))
                 .unwrap_or(TAOSX_REST_API_DEFAULT_PORT)
         } else {

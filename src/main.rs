@@ -987,7 +987,6 @@ fn main() -> Result<()> {
             let serve = || {
                 let _span = tracing::info_span!("serve").entered();
                 let port = serve.get_listen_port();
-                let addr = serve.get_listen_address();
                 let scheduler_rt = build_runtime(
                     &format!("{}x-scheduler", build::CUS_PROMPT),
                     serve

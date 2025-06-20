@@ -55,7 +55,7 @@ use taosx_core::{
 use taosx_ipc::types::SampleResponse;
 use taosx_metrics::MetricsEvents;
 
-use crate::serve::{controller::StringSender, TAOSX_GRPC_DEFAULT_PORT};
+use crate::serve::{TAOSX_GRPC_DEFAULT_PORT, controller::StringSender};
 use crate::serve::{
     controller::{
         TaskDetail,

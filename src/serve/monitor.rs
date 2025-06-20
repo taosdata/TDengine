@@ -3,8 +3,6 @@ use std::sync::atomic::Ordering::SeqCst;
 use super::AgentFilter;
 use super::TaskControllerRef;
 use super::controller::TaskController;
-use super::controller::TaskController;
-use super::scheduler::runner::MultiIndexTaskJobMap;
 use super::scheduler::runner::MultiIndexTaskJobMap;
 use clap::Parser;
 use dashmap::DashMap;

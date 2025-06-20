@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod test_tmq_to_local {
-    use anyhow::{Context, bail};
+    use anyhow::Context;
     use assert_cmd::Command;
     use opendal::Entry;
     use std::env;
@@ -138,7 +138,7 @@ mod test_tmq_to_local {
         let backup_dir = env::var("BACKUP_DIR")
             .ok()
             .map(|p| Path::new(&p).to_path_buf())
-            .unwrap_or_else(|| tempfile::TempDir::new().unwrap().into_path());
+            .unwrap_or_else(|| tempfile::TempDir::new().unwrap().keep());
         const SRC_DB: &str = "backup_few_rows_src";
         const DST_DB: &str = "backup_few_rows_dst";
         const VGROUPS: usize = 10;
