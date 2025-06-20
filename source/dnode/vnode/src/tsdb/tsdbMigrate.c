@@ -591,7 +591,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
   // 1. this is the first migration, we should do it;
   // 2. there's a compact after the last migration, we should discard the migrated files;
   if (flocal->f->lcn < 1) {
-    tsdbInfo("vgId:%d, fid:%d, file set will be migrated", vid, pLocalFset->fid);
+    tsdbInfo("vgId:%d, fid:%d, local lcn < 1, file set will be migrated", vid, pLocalFset->fid);
     return true;
   }
 

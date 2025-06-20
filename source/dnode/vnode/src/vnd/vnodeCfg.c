@@ -374,24 +374,27 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE * 1024;
   }
 
-  tjsonGetNumberValue(pJson, "ssChunkSize", pCfg->ssChunkSize, code);
-  if (code < 0) {
+  if (tjsonGetObjectItem(pJson, "ssChunkSize") != NULL) {
+    tjsonGetNumberValue(pJson, "ssChunkSize", pCfg->ssChunkSize, code);
+  } else {
     tjsonGetNumberValue(pJson, "s3ChunkSize", pCfg->ssChunkSize, code);
   }
   if (code < 0 || pCfg->ssChunkSize < TSDB_MIN_SS_CHUNK_SIZE) {
     pCfg->ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE;
   }
 
-  tjsonGetNumberValue(pJson, "ssKeepLocal", pCfg->ssKeepLocal, code);
-  if (code < 0) {
+  if (tjsonGetObjectItem(pJson, "ssKeepLocal") != NULL) {
+    tjsonGetNumberValue(pJson, "ssKeepLocal", pCfg->ssKeepLocal, code);
+  } else {
     tjsonGetNumberValue(pJson, "s3KeepLocal", pCfg->ssKeepLocal, code);
   }
   if (code < 0 || pCfg->ssKeepLocal < TSDB_MIN_SS_KEEP_LOCAL) {
     pCfg->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
   }
 
-  tjsonGetNumberValue(pJson, "ssCompact", pCfg->ssCompact, code);
-  if (code < 0) {
+  if (tjsonGetObjectItem(pJson, "ssCompact") != NULL) {
+    tjsonGetNumberValue(pJson, "ssCompact", pCfg->ssCompact, code);
+  } else {
     tjsonGetNumberValue(pJson, "s3Compact", pCfg->ssCompact, code);
   }
   if (code < 0) {
