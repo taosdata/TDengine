@@ -860,13 +860,16 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
 
         metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
         if (!suidList && !(suidList = taosArrayInit(1, sizeof(tb_uid_t)))) {
-          TSDB_CHECK_CODE(terrno, lino, _exit);
+          TSDB_CHECK_CODE(terrno, lino, _exit0);
         }
         taosArrayClear(suidList);
-        TAOS_CHECK_EXIT(vnodeGetStbIdList(&vnode, 0, suidList));
+        TSDB_CHECK_CODE(vnodeGetStbIdList(&vnode, 0, suidList), lino, _exit0);
         dInfo("mount:%s, vnode:%d, db:%" PRId64 ", stbs num:%d on dnode:%d", pReq->mountName, pVgInfo->vgId,
               pVgInfo->dbId, taosArrayGetSize(suidList), pReq->dnodeId);
         int32_t nStbs = taosArrayGetSize(suidList);
+        if (!pDbInfo->pStbs && !(pDbInfo->pStbs = taosArrayInit(nStbs, sizeof(void *)))) {
+          TSDB_CHECK_CODE(terrno, lino, _exit0);
+        }
         for (int32_t i = 0; i < nStbs; ++i) {
           suid = *(tb_uid_t *)taosArrayGet(suidList, i);
           dInfo("mount:%s, vnode:%d, db:%" PRId64 ", stb suid:%" PRIu64 " on dnode:%d", pReq->mountName, pVgInfo->vgId,
@@ -910,7 +913,7 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
             };
             snprintf(col.name, sizeof(col.name), "%s", pSchema->name);
             if (pSchema->colId != pColComp->id) {
-              TAOS_CHECK_GOTO(TSDB_CODE_FILE_CORRUPTED, &lino, _exit0);
+              TSDB_CHECK_CODE(TSDB_CODE_FILE_CORRUPTED, lino, _exit0);
             }
             if (mr.me.pExtSchemas) {
               col.typeMod = (mr.me.pExtSchemas + c)->typeMod;
@@ -929,14 +932,26 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
           }
           tDecoderClear(&mr.coder);
 
-          p
+          // serialize the create request
+          int32_t msgLen = tSerializeSMCreateStbReq(NULL, 0, &createReq);
+          if (msgLen <= 0) {
+            TSDB_CHECK_CODE(msgLen < 0 ? msgLen : TSDB_CODE_INTERNAL_ERROR, lino, _exit0);
+          }
+          void *pBuf = taosMemoryMalloc(sizeof(int32_t) + msgLen);
+          if (!pBuf) TSDB_CHECK_CODE(TSDB_CODE_OUT_OF_MEMORY, lino, _exit0);
+          *(int32_t *)pBuf = sizeof(int32_t) + msgLen;
+          if (tSerializeSMCreateStbReq(POINTER_SHIFT(pBuf, sizeof(int32_t)), msgLen, &createReq) <= 0) {
+            taosMemoryFree(pBuf);
+            TSDB_CHECK_CODE(msgLen < 0 ? msgLen : TSDB_CODE_INTERNAL_ERROR, lino, _exit0);
+          }
+          TSDB_CHECK_NULL(taosArrayPush(pDbInfo->pStbs, &pBuf), code, lino, _exit0, terrno);
         }
       _exit0:
         metaReaderClear(&mr);
         metaClose(&vnode.pMeta);
         TAOS_CHECK_EXIT(code);
       }
-      break;  // retrieve stbs from 1 vnode is enough
+      break;  // retrieve stbs from one vnode is enough
     }
   }
 _exit:

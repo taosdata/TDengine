@@ -6767,14 +6767,18 @@ int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo) {
   }
   TAOS_CHECK_EXIT(tDecodeI32v(decoder, &nStb));
   if (nStb > 0) {
-    TSDB_CHECK_NULL((pInfo->pStbs = taosArrayInit_s(sizeof(void *), nStb)), code, lino, _exit, terrno);
+    TSDB_CHECK_NULL((pInfo->pStbs = taosArrayInit_s(sizeof(SMCreateStbReq), nStb)), code, lino, _exit, terrno);
     for (int32_t k = 0; k < nStb; ++k) {
       int32_t vlen = 0;
       void   *pVal = NULL;
       TAOS_CHECK_EXIT(tDecodeBinary(decoder, (uint8_t **)&pVal, &vlen));
-      if (vlen <= 12) {
-        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);  // sizeof(int32_t) + sizeof(SSdbRaw) + sdbRaw->dataLen
+      if (vlen < sizeof(int32_t)) {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);  // sizeof(int32_t) + msg
       }
+      SMCreateStbReq *pStbReq = TARRAY_GET_ELEM(pInfo->pStbs, k);
+      TAOS_CHECK_EXIT(
+          tDeserializeSMCreateStbReq(POINTER_SHIFT(pVal, sizeof(int32_t)), vlen - sizeof(int32_t), pStbReq));
+#if 0
       void *pStb = TARRAY_GET_ELEM(pInfo->pStbs, k);
       void *pNewVal = taosMemoryMalloc(vlen);
       if (pNewVal == NULL) {
@@ -6782,6 +6786,7 @@ int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo) {
       }
       memcpy(pNewVal, pVal, vlen);
       *(void **)pStb = pNewVal;
+#endif
     }
   }
   tEndDecode(decoder);

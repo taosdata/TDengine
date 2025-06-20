@@ -1883,6 +1883,7 @@ typedef struct {
 } SMountDbInfo;
 
 typedef struct {
+  // common fields
   char     mountName[TSDB_MOUNT_NAME_LEN];
   char     mountPath[TSDB_MOUNT_PATH_LEN];
   int8_t   ignoreExist;
@@ -1891,9 +1892,13 @@ typedef struct {
   int32_t  dnodeId;
   uint32_t valLen;
   void*    pVal;
-  SArray*  pDbs;   // SMountDbInfo
-  SArray*  pStbs;  // SSdbRaw: serialization, filled when mnode/data/sdb.data exists
-  SArray*  pDisks[TFS_MAX_TIERS];
+
+  // response fields
+  SArray* pDbs;   // SMountDbInfo
+  SArray* pStbs;  // SSdbRaw: serialization, filled when mnode/data/sdb.data exists
+
+  // memory fields, no serialized
+  SArray* pDisks[TFS_MAX_TIERS];
 } SMountInfo;
 
 int32_t tSerializeSMountInfo(void* buf, int32_t bufLen, SMountInfo* pReq);
