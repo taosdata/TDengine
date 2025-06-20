@@ -1,37 +1,37 @@
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use arrow::{datatypes::Schema, record_batch::RecordBatch};
-use arrow_flight::{decode::DecodedFlightData, FlightData, PutResult};
+use arrow_flight::{FlightData, PutResult, decode::DecodedFlightData};
 use bytes::Bytes;
 use flume::Sender;
 use futures::{Stream, TryFutureExt, TryStreamExt};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
-use taoslog::utils::{QidMetadataGetter, QidMetadataSetter};
 use taoslog::QidManager;
-use taosx_core::core_metrics::{init_task_metrics, TaskMetrics};
+use taoslog::utils::{QidMetadataGetter, QidMetadataSetter};
+use taosx_core::core_metrics::{TaskMetrics, init_task_metrics};
 use taosx_core::sink::{handle_point_message_init, read_cache_and_rewrite};
 use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::trace::Qid;
+use taosx_core::{ArchiveConsumer, ArchiveType};
 use taosx_core::{
+    ConnectorLicense, IpcStreamWorker, Parser,
     core_metrics::get_metrics,
     sink::{
-        handle_lush_message_init, lush::TableTagCache, IpcErrorStrategy, MessageMetadata,
-        RPC_ACK_PROCESSED, RPC_ACK_RECEIVED, RPC_ACK_STREAM_END,
+        IpcErrorStrategy, MessageMetadata, RPC_ACK_PROCESSED, RPC_ACK_RECEIVED, RPC_ACK_STREAM_END,
+        handle_lush_message_init, lush::TableTagCache,
     },
     utils::{breakpoints::BreakpointDb, get_main_version_from_server_version, get_server_version},
-    ConnectorLicense, IpcStreamWorker, Parser,
 };
-use taosx_core::{ArchiveConsumer, ArchiveType};
 use tonic::{Status, Streaming};
-use tracing::{instrument, Instrument, Span};
+use tracing::{Instrument, Span, instrument};
 use zerocopy::FromBytes;
 
 use crate::serve::{
-    controller::{transferred::ConnectorTransferred, Activity, TaskControllerRef, TaskDetail},
+    controller::{Activity, TaskControllerRef, TaskDetail, transferred::ConnectorTransferred},
     scheduler::agent::{AgentNotifySender, AgentSpawnSender},
 };
 
@@ -442,7 +442,9 @@ async fn spawn_stream_writer(
         let server_version = get_server_version(&taos).await?;
         let (a, b, c) = get_main_version_from_server_version(&server_version).unwrap();
         let grants_sql = if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
-            format!("select `limits` from information_schema.ins_grants_full where grant_name='{connector}'")
+            format!(
+                "select `limits` from information_schema.ins_grants_full where grant_name='{connector}'"
+            )
         } else {
             format!("select `{connector}` from information_schema.ins_grants")
         };
@@ -463,10 +465,14 @@ async fn spawn_stream_writer(
         if let Some(license) = license {
             if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
                 if license.is_expired_second() {
-                    anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
+                    anyhow::bail!(
+                        "The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code."
+                    )
                 }
             } else if license.is_expired_day() {
-                anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
+                anyhow::bail!(
+                    "The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code."
+                )
             }
         }
         None
@@ -575,8 +581,8 @@ impl PutStream {
         qid: Qid,
         spawn_sender: AgentSpawnSender,
     ) -> anyhow::Result<Self> {
-        use tokio_retry2::strategy::{jitter, ExponentialBackoff, MaxInterval};
         use tokio_retry2::RetryError;
+        use tokio_retry2::strategy::{ExponentialBackoff, MaxInterval, jitter};
         let mut retry = ExponentialBackoff::from_millis(100)
             .factor(2)
             .max_delay_millis(100)

@@ -757,7 +757,7 @@ async fn sync_single_table_partial(
             }
         }
     } else {
-        let question_masks = std::iter::repeat('?').take(fields).join(",");
+        let question_masks = std::iter::repeat_n('?', fields).join(",");
         let sql = format!("INSERT INTO `{new_table_name}` VALUES({question_masks})");
 
         let mut stmt = Stmt::init(to).await.context("initialize stmt")?;

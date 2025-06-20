@@ -1,4 +1,4 @@
-use actix_web::{get, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, get};
 
 #[cfg(not(target_env = "msvc"))]
 #[get("/debug/pprof/heap")]

@@ -41,8 +41,10 @@ fn main() {
     if std::env::var("CARGO_CFG_TARGET_ARCH").is_ok_and(|v| v == "aarch64")
         && cfg!(target_arch = "x86_64")
     {
-        std::env::set_var("CC", "aarch64-linux-gnu-gcc");
-        std::env::set_var("CXX", "aarch64-linux-gnu-g++");
+        unsafe {
+            std::env::set_var("CC", "aarch64-linux-gnu-gcc");
+            std::env::set_var("CXX", "aarch64-linux-gnu-g++");
+        }
     }
 
     let metadata = Metadata {

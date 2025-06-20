@@ -86,7 +86,7 @@ futures-ext = { path = "../crates/futures-ext" }
 
 file-rotate = "0.7.5"
 ringbuf = { version = "0.3.3" }
-deadpool = "0.10"
+deadpool = "=0.10"
 
 actix-web = "4"
 serde_json = { version = "1.0", features = ["raw_value", "preserve_order"] }
@@ -163,7 +163,7 @@ rdkafka = { version = "0.37.0", features = ["cmake-build", "ssl", "tracing"] }
 opendal = { workspace = true }
 taoslog.workspace = true
 bitfield.workspace = true
-deadpool-tiberius = "0.1.8"
+deadpool-tiberius = "=0.1.8"
 file-guard = "0.2.0"
 config = "0.14.0"
 snafu.workspace = true

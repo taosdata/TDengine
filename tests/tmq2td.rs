@@ -1,4 +1,4 @@
-use assert_cmd::{prelude::*, Command};
+use assert_cmd::{Command, prelude::*};
 use taos::{AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
 use taosx_core::tmq_to_td;
 use tokio_util::sync::CancellationToken;
@@ -61,8 +61,19 @@ async fn test_td34829_with_taos() -> anyhow::Result<()> {
         format!("create database if not exists `{DB_SRC}`"),
         format!("create database if not exists `{DB_DST}`"),
         format!("create table `{DB_SRC}`.`meters`(ts timestamp, val float) tags(id int)"),
-        format!("create stream `{STREAM}` into `{DB_SRC}`.`{STREAM}` as select tbname,_wstart,avg(val) from `{DB_SRC}`.meters partition by tbname state_window(cast(val as int))"),
-    ]).await?;
+    ])
+    .await?;
+
+    loop {
+        let sql = format!(
+            "create stream `{STREAM}` into `{DB_SRC}`.`{STREAM}` as select tbname,_wstart,avg(val) from `{DB_SRC}`.meters partition by tbname state_window(cast(val as int))"
+        );
+
+        let result = taos.exec(&sql).await;
+        if result.is_ok() {
+            break;
+        }
+    }
 
     // 2. create a replication task(tmq_to_td) from td34829_src to td34829_dst
     println!("====== start replication task =====");
@@ -171,7 +182,7 @@ fn test_td33080_with_taos() -> anyhow::Result<()> {
         Command::new("taos")
             .args(["-s"])
             .arg(format!(
-                "DROP TOPIC IF EXISTS `{SOURCE}`; DROP DATABASE IF EXISTS `{SOURCE}`; DROP DATABASE IF EXISTS `{SINK}`;"
+                "DROP TOPIC IF EXISTS FORCE `{SOURCE}`; DROP DATABASE IF EXISTS `{SOURCE}`; DROP DATABASE IF EXISTS `{SINK}`;"
             ))
             .output()
             .expect("failed to execute process")
@@ -235,7 +246,7 @@ fn test_td33080_with_taos() -> anyhow::Result<()> {
         Command::new("taos")
             .args(["-s"])
             .arg(format!(
-                "DROP TOPIC IF EXISTS `{SOURCE}`; DROP DATABASE IF EXISTS `{SOURCE}`; DROP DATABASE IF EXISTS `{SINK}`;"
+                "DROP TOPIC IF EXISTS FORCE `{SOURCE}`; DROP DATABASE IF EXISTS `{SOURCE}`; DROP DATABASE IF EXISTS `{SINK}`;"
             ))
             .output()
             .expect("failed to execute process")

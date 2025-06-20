@@ -2,17 +2,16 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use actix_web::{
-    get,
+    HttpRequest, HttpResponse, Responder, get,
     http::header::{ContentDisposition, ContentType},
     post,
     web::{self, Data, Json, Query},
-    HttpRequest, HttpResponse, Responder,
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{Code, IntoDsn};
 use tokio::time::timeout;
-use tracing::{instrument, Instrument, Span};
+use tracing::{Instrument, Span, instrument};
 use utoipa::*;
 
 use crate::serve::{controller::TaskControllerRef, task::Failed};
@@ -22,8 +21,8 @@ use taosx_core::plugins::runners::opc::csv::CsvParser;
 use taosx_core::plugins::runners::opc::model::ModelType;
 use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::timeout::{Timeout, TimeoutType};
-use taosx_core::{dsv::DataSourceValidation, utils::license, QueryDataSourceReq};
-use taosx_core::{get_data_dir, list_datasets_from, plugins, validate_dsn, DataSetsReq};
+use taosx_core::{DataSetsReq, get_data_dir, list_datasets_from, plugins, validate_dsn};
+use taosx_core::{QueryDataSourceReq, dsv::DataSourceValidation, utils::license};
 use taosx_core::{
     plugins::transform::parse::plugin::ParserPlugin,
     plugins::transform::sample::DsSampleIn,
@@ -532,7 +531,7 @@ async fn validate_2dsn_and_license(
             return DataSourceValidation::invalid(
                 "unknown".to_string(),
                 format!("DSN error: {err:#}"),
-            )
+            );
         }
     };
 
@@ -547,7 +546,7 @@ async fn validate_2dsn_and_license(
             return DataSourceValidation::invalid(
                 "unknown".to_string(),
                 format!("Target DSN error: {err:#}"),
-            )
+            );
         }
     };
 

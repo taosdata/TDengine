@@ -1,9 +1,9 @@
-use assert_cmd::{prelude::*, Command};
+use assert_cmd::{Command, prelude::*};
 use chrono::Utc;
 use itertools::Itertools;
 use std::time::Duration;
 use taos::{AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
-use taosx_core::{get_data_dir, legacy_to_taos};
+use taosx_core::{core_metrics::clear_metrics, get_data_dir, legacy_to_taos};
 use tokio_util::sync::CancellationToken;
 
 /// # description
@@ -970,6 +970,8 @@ async fn test_sync_all_with_taos() -> anyhow::Result<()> {
     const N: i32 = 10;
     const TID: i64 = 34842002;
 
+    clear_metrics(TID).await;
+
     // create databases and stables
     let taos = if ws_enable {
         TaosBuilder::from_dsn(format!("taos+ws://{host}:6041").into_dsn()?)?
@@ -983,8 +985,8 @@ async fn test_sync_all_with_taos() -> anyhow::Result<()> {
     taos.exec_many(vec![
         format!("drop database if exists `{DB_SRC}`;"),
         format!("drop database if exists `{DB_DST}`;"),
-        format!("create database if not exists `{DB_SRC}`;"),
-        format!("create database if not exists `{DB_DST}`;"),
+        format!("create database `{DB_SRC}`;"),
+        format!("create database `{DB_DST}`;"),
         format!("create table `{DB_SRC}`.`Stb`(ts timestamp, val float) tags(id int);"),
     ])
     .await?;

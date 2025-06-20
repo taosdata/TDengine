@@ -150,15 +150,15 @@ async fn test_precision_with_taos() {
         .unwrap();
 }
 
-#[tracing::instrument(skip_all)]
-async fn get_maximum_timestamp(
-    _pool: &TaosPool,
-    _taos: &mut Option<TaosConnection>,
-    _max_retries: u32,
-    _cancel: &CancellationToken,
-) -> Result<DateTime<Utc>, TaosError> {
-    Ok(chrono::Utc::now() + Duration::from_secs(365 * 24 * 3600))
-}
+// #[tracing::instrument(skip_all)]
+// async fn get_maximum_timestamp(
+//     _pool: &TaosPool,
+//     _taos: &mut Option<TaosConnection>,
+//     _max_retries: u32,
+//     _cancel: &CancellationToken,
+// ) -> Result<DateTime<Utc>, TaosError> {
+//     Ok(chrono::Utc::now() + Duration::from_secs(365 * 24 * 3600))
+// }
 
 pub async fn get_database(
     pool: &TaosPool,
@@ -1336,7 +1336,7 @@ pub fn values_to_sqls(
     if let Some(sql) = valid_sql_or_none(slice) {
         return vec![sql];
     }
-    let p = (slice.len() + 1) / 2;
+    let p = slice.len().div_ceil(2);
     let (left, right) = slice.split_at(p);
     let mut sqls = values_to_sqls(left);
     sqls.extend(values_to_sqls(right));

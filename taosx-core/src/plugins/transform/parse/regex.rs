@@ -109,7 +109,7 @@ impl Parse for Regex {
         field: &arrow::datatypes::Field,
         array: &arrow::array::ArrayRef,
     ) -> Result<(arrow::record_batch::RecordBatch, Option<Vec<usize>>), super::ParseError> {
-        if array.len() == 0 {
+        if array.is_empty() {
             return Ok((self.to_empty(field.name()), None));
         }
         let array = arrow::compute::cast(array, &DataType::Utf8).map_err(|err| RegexError {

@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod test_tmq_to_local {
-    use anyhow::{bail, Context};
+    use anyhow::{Context, bail};
     use assert_cmd::Command;
     use opendal::Entry;
     use std::env;
@@ -28,7 +28,7 @@ mod test_tmq_to_local {
         let backup_dir = env::var("LOCAL_DIR")
             .ok()
             .map(|p| Path::new(&p).to_path_buf())
-            .unwrap_or_else(|| tempfile::TempDir::new().unwrap().into_path());
+            .unwrap_or_else(|| tempfile::TempDir::new().unwrap().keep());
 
         let taos = TaosBuilder::from_dsn(&backup_dsn)?
             .build()
@@ -123,7 +123,7 @@ mod test_tmq_to_local {
         let backup_dir = env::var("BACKUP_DIR")
             .ok()
             .map(|p| Path::new(&p).to_path_buf())
-            .unwrap_or_else(|| tempfile::TempDir::new().unwrap().into_path());
+            .unwrap_or_else(|| tempfile::TempDir::new().unwrap().keep());
 
         // 备份数据
         let from = format!("{taos_addr}/{SRC_DB}");

@@ -1,9 +1,8 @@
 use std::collections::HashSet;
 
 use actix_web::{
-    delete, get, patch, post, rt,
+    Error, HttpRequest, HttpResponse, Responder, delete, get, patch, post, rt,
     web::{Data, Json, Path, Payload, Query},
-    Error, HttpRequest, HttpResponse, Responder,
 };
 use actix_ws::{CloseCode, CloseReason, Session};
 use tokio_util::sync::CancellationToken;
@@ -11,8 +10,8 @@ use tracing::instrument;
 
 use crate::serve::{
     controller::{
-        agent::{AgentActivityFilter, AgentProps, AgentUpdates},
         AgentFilter, TaskControllerRef,
+        agent::{AgentActivityFilter, AgentProps, AgentUpdates},
     },
     task::Failed,
 };

@@ -6,9 +6,8 @@ use actix_cors::Cors;
 use actix_multipart::form::MultipartFormConfig;
 use actix_web::web;
 use actix_web::{
-    get,
-    web::{resource, Data, PayloadConfig, ServiceConfig},
-    App, HttpResponse, HttpServer, Responder,
+    App, HttpResponse, HttpServer, Responder, get,
+    web::{Data, PayloadConfig, ServiceConfig, resource},
 };
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -16,12 +15,12 @@ use clap_verbosity_flag::{InfoLevel, Verbosity};
 use controller::replica::ReplicaOpts;
 use routes::replica::{delete_replica_monitor, start_replica_monitor, stop_replica_monitor};
 use rustls::{
-    pki_types::{pem::PemObject as _, CertificateDer, PrivateKeyDer},
     ServerConfig,
+    pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject as _},
 };
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
-use tracing::{info, instrument, Instrument};
+use tracing::{Instrument, info, instrument};
 use tracing_actix_web::TracingLogger;
 use trigger::Strategy;
 use utoipa::{OpenApi, ToSchema};
@@ -33,8 +32,8 @@ use self::{
     routes::{cluster::get_cluster_connector_transferred, utils::handle_get_heap},
     rpc::AgentRpcChannel,
     scheduler::{
-        agent::AgentWorker, runner::AgentIntegrationChannel, SchedulerNotifier, SchedulerNotify,
-        TaskScheduler,
+        SchedulerNotifier, SchedulerNotify, TaskScheduler, agent::AgentWorker,
+        runner::AgentIntegrationChannel,
     },
 };
 use crate::serve::controller::agent::{

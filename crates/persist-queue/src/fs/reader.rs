@@ -193,6 +193,8 @@ async fn open_file_with_lock(
     let lock_file = std::fs::File::create(&lock_file_path).context(OpenFileSnafu {
         path: &lock_file_path,
     })?;
+    // TODO: use std file lock instead after stable
+    #[allow(unstable_name_collisions)]
     match lock_file.try_lock_shared() {
         Ok(_) => {}
         Err(e) if e.to_string() == lock_contended_error().to_string() => {
@@ -228,6 +230,8 @@ struct InnerReader {
 impl Drop for InnerReader {
     fn drop(&mut self) {
         // file drop 时会自动 unlock，但这里加一层保险
+        // TODO: use std file lock instead after stable
+        #[allow(unstable_name_collisions)]
         let _ = self._lock_file.unlock();
     }
 }

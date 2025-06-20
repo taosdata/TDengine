@@ -1,11 +1,11 @@
 use crate::serve::controller::Status;
 use crate::serve::data_sources::LangQuery;
-use actix_web::{get, web::Query, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, get, web::Query};
 use std::{collections::BTreeMap, sync::Arc};
 use taosx_core::{
     core_metrics::{
-        compute_avg_speed, compute_total_avg_speed, split_to_total_and_current, try_get_metrics,
-        CoreMetrics, TaskMetrics,
+        CoreMetrics, TaskMetrics, compute_avg_speed, compute_total_avg_speed,
+        split_to_total_and_current, try_get_metrics,
     },
     legacy_metric::LegacyToTaosMetrics,
     runners,

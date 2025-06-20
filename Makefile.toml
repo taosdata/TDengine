@@ -806,7 +806,7 @@ script_runner = "bash"
 script = """
 # docker pull node:22.3.0
 chmod +x ./build.sh
-docker run --rm -e COMMUNITY=${COMMUNITY} -e "CUS_PROMPT=${CUS_PROMPT}" -e "CUS_NAME=${CUS_NAME}" -e "CUS_EMAIL=${CUS_EMAIL}" -v $(pwd):/app node:22.3.0 bash /app/build.sh
+docker run --rm -e COMMUNITY=${COMMUNITY} -e "CUS_PROMPT=${CUS_PROMPT}" -e "CUS_NAME=${CUS_NAME}" -e "CUS_EMAIL=${CUS_EMAIL}" -v $(pwd):/app -w /app node:22.3.0 bash /app/build.sh
 """
 
 [tasks.explorer]

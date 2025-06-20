@@ -1,23 +1,22 @@
 use std::sync::Arc;
 
 use actix_web::{
-    rt,
+    Error, HttpRequest, HttpResponse, rt,
     web::{Data, Payload},
-    Error, HttpRequest, HttpResponse,
 };
 use actix_ws::{CloseCode, CloseReason, Session};
 use actix_ws::{Closed, Message};
 use futures_util::{
-    future::{self, Either},
     StreamExt as _,
+    future::{self, Either},
 };
 use taosx_core::core_metrics::CoreMetrics;
 use tokio::{pin, time::interval};
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
-use crate::serve::{controller::TaskControllerRef, Failed};
-use tokio::time::{sleep, Duration};
+use crate::serve::{Failed, controller::TaskControllerRef};
+use tokio::time::{Duration, sleep};
 
 use super::get_task_metrics_string;
 use super::try_get_metrics_from_task_detail;

@@ -52,7 +52,7 @@ serde = "1"
 # NOTE: 当前 arrow-json 不兼容 serde_json 的 arbitrary_precision feature，添加需谨慎
 serde_json = { version = "1.0", features = ["raw_value", "preserve_order"] }
 fundu = "2.0.1"
-opendal = { version = "0", features = ["services-s3"] }
+opendal = { version = "=0.51", features = ["services-s3"] }
 rumqttc = "0.24.0"
 rustls = { version = "0.23.18", default-features = false }
 rustls-pemfile = { version = "2" }
@@ -80,14 +80,14 @@ actix-ws = "0.3.0"
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "c5d5b9b1"
+rev = "e93f352c"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]
 
 [workspace.package]
 version = "1.10.0"
-rust-version = "1.78.0"
+rust-version = "1.87.0"
 
 [workspace.lints.clippy]
 too_many_arguments = "allow"
@@ -96,7 +96,7 @@ too_many_arguments = "allow"
 name = "taosx"
 version.workspace = true
 build = "build.rs"
-edition = "2021"
+edition = "2024"
 exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
 homepage = "https://taosdata.com"
 rust-version = { workspace = true }
@@ -235,7 +235,7 @@ tikv-jemalloc-sys = { version = "0.6.0", features = [
   "profiling",
 ], optional = true }
 tikv-jemalloc-ctl = { version = "0.6.0", optional = true }
-jemalloc_pprof = { version = "0.6.0", git = "https://github.com/polarsignals/rust-jemalloc-pprof.git", optional = true }
+jemalloc_pprof = { version = "0.7.0", git = "https://github.com/polarsignals/rust-jemalloc-pprof.git", optional = true }
 
 [build-dependencies]
 sqlx = { version = "0.8", features = ["sqlite", "chrono", "mysql"] }
@@ -286,7 +286,7 @@ strip = "debuginfo"
 
 [patch.crates-io]
 sasl2-sys = { path = "./crates/rust-sasl/sasl2-sys" }
-actix-http = { git = "https://github.com/bitcapybara/actix-web", rev = "bf4f6e7a69e8b9805b5c74a81b8524a8fc53f6ed" }
+actix-http = { git = "https://github.com/bitcapybara/actix-web", rev = "5ec0783" }
 # actix-http = { path = "/root/actix-web/actix-http" }
 
 [lints]

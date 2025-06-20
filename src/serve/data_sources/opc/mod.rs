@@ -1,5 +1,5 @@
 use actix_web::web::{Data, Json, Query};
-use actix_web::{get, post, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, get, post};
 use csv_async::AsyncWriter;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};

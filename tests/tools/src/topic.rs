@@ -30,7 +30,7 @@ impl TopicFaker {
     pub fn new(delimiter: char, pattern: &str) -> Result<Self> {
         ensure!(!pattern.trim().is_empty(), EmptyTopicSnafu);
         ensure!(
-            !pattern.contains(&String::from_iter(std::iter::repeat(delimiter).take(2))),
+            !pattern.contains(&String::from_iter(std::iter::repeat_n(delimiter, 2))),
             EmptyTopicPartSnafu
         );
         Ok(Self {

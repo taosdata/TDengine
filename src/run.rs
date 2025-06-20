@@ -1,8 +1,8 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use clap::Parser;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use taos::*;
 use taosx_core::core_metrics::init_task_metrics;
 use taosx_core::task_set::prelude::EventLevel;

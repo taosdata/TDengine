@@ -167,7 +167,10 @@ pub fn delete_old_parquet_files_by_date(
 
     for file in files {
         if let Some(file_name) = file.file_name().and_then(|s| s.to_str()) {
-            let file_date = file_name.split('.').last().context("get file date error")?;
+            let file_date = file_name
+                .split('.')
+                .next_back()
+                .context("get file date error")?;
             if let Ok(file_date) = chrono::NaiveDate::parse_from_str(file_date, "%Y%m%d") {
                 if file_date <= cutoff_date.naive_utc().date() {
                     tracing::info!("delete archived file: {:?}, since out of date", file);
@@ -258,7 +261,7 @@ pub fn read_parquet_dir_files(task_id: i64, filename: &String) -> anyhow::Result
     let files = entries
         .iter()
         .map(|entry| entry.path())
-        .filter(|path| path.to_str().map_or(false, |s| s.contains(filename)))
+        .filter(|path| path.to_str().is_some_and(|s| s.contains(filename)))
         .collect_vec();
     Ok(files)
 }

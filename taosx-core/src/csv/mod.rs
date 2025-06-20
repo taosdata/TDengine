@@ -758,7 +758,7 @@ impl CsvOption {
     fn open(&self, path: impl AsRef<Path>) -> anyhow::Result<CsvReader> {
         let path = path.as_ref();
         let builder = self.builder();
-        let gz = path.extension().map_or(false, |ext| ext == "gz");
+        let gz = path.extension().is_some_and(|ext| ext == "gz");
         let mut reader = if gz {
             let file = File::open(path).with_context(|| format!("Open file {path:?} error"))?;
             tracing::info!(
@@ -1398,7 +1398,7 @@ impl CsvSource {
         skip_error: bool,
     ) -> Result<Reader<Box<dyn CsvReaderExt>>> {
         let path = path.as_ref();
-        let gz = path.extension().map_or(false, |ext| ext == "gz");
+        let gz = path.extension().is_some_and(|ext| ext == "gz");
         let mut reader = if gz {
             let file = File::open(path).with_context(|| format!("Open file {path:?} error"))?;
             tracing::info!(
@@ -1556,7 +1556,7 @@ pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
 }
 
 pub async fn set_breakpoint(task_id: Option<i64>, path: &str, amount: usize) -> anyhow::Result<()> {
-    if task_id.map_or(true, |id| id == -1 || id == 0) {
+    if task_id.is_none_or(|id| id == -1 || id == 0) {
         return Ok(());
     }
     let task_id = format!("{}", task_id.unwrap_or(0));
@@ -1573,7 +1573,7 @@ pub async fn set_breakpoint(task_id: Option<i64>, path: &str, amount: usize) -> 
 }
 
 pub fn get_breakpoint(task_id: Option<i64>) -> anyhow::Result<HashMap<String, usize>> {
-    if task_id.map_or(true, |id| id == -1 || id == 0) {
+    if task_id.is_none_or(|id| id == -1 || id == 0) {
         return Ok(HashMap::new());
     }
     let task_id = format!("{}", task_id.unwrap_or(0));
@@ -2038,7 +2038,7 @@ mod tests {
     async fn create_csv_file(path: impl AsRef<Path>) -> anyhow::Result<()> {
         let path = path.as_ref();
         // let csv;
-        if path.extension().map_or(false, |ext| ext == "gz") {
+        if path.extension().is_some_and(|ext| ext == "gz") {
             let file = std::fs::File::create(path)?;
             let gz = flate2::write::GzEncoder::new(file, flate2::Compression::default());
             let mut csv = csv_lib::Writer::from_writer(gz);

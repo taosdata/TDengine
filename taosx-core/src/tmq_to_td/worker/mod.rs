@@ -884,7 +884,7 @@ impl Worker {
                             .await
                             .context("Write with stmt init error")?;
                         let fields = raw.fields();
-                        let question_masks = std::iter::repeat('?').take(fields.len()).join(",");
+                        let question_masks = std::iter::repeat_n('?', fields.len()).join(",");
                         let table = raw.table_name().unwrap();
                         stmt.prepare(&format!("INSERT INTO `{table}` VALUES({question_masks})"))
                             .await
@@ -945,7 +945,7 @@ impl Worker {
                         .await
                         .context("Write with stmt init error")?;
                     let fields = raw.fields();
-                    let question_masks = std::iter::repeat('?').take(fields.len()).join(",");
+                    let question_masks = std::iter::repeat_n('?', fields.len()).join(",");
                     let table = raw.table_name().unwrap();
                     stmt.prepare(&format!("INSERT INTO `{table}` VALUES({question_masks})"))
                         .await
@@ -1213,7 +1213,7 @@ impl Worker {
                     .await
                     .context("Write with stmt init error")?;
                 let fields = raw.fields();
-                let question_masks = std::iter::repeat('?').take(fields.len()).join(",");
+                let question_masks = std::iter::repeat_n('?', fields.len()).join(",");
                 let table = raw.table_name().unwrap();
                 stmt.prepare(&format!("INSERT INTO `{table}` VALUES({question_masks})"))
                     .await

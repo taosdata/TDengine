@@ -1,8 +1,8 @@
 use std::{
     fmt::{Debug, Display},
     sync::{
-        atomic::{AtomicBool, AtomicI32, AtomicU8, Ordering},
         Arc,
+        atomic::{AtomicBool, AtomicI32, AtomicU8, Ordering},
     },
     time::Duration,
 };
@@ -12,17 +12,19 @@ use dashmap::DashMap;
 use metrics::atomics::AtomicU64;
 use multi_index_map::MultiIndexMap;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
-use taoslog::{utils::QidMetadataGetter, QidManager};
-use tokio::sync::{oneshot, Mutex, RwLock};
+use taoslog::{QidManager, utils::QidMetadataGetter};
+use tokio::sync::{Mutex, RwLock, oneshot};
 use tokio_cron_scheduler::JobScheduler;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, instrument, warn, Instrument};
+use tracing::{Instrument, error, info, instrument, warn};
 use uuid::Uuid;
 
+use taosx_core::{ConnectorLicense, DataSet, TaskOpts, get_data_dir, utils::port_pool::PortPool};
 use taosx_core::{
+    TaskNotify, TaskNotifyReceiver,
     core_metrics::{
-        auto_save_task_metrics, get_metrics_arc_from_i64, init_task_metrics,
-        save_task_metrics_finally, CoreMetrics, TaskMetrics, GLOBAL_METRICS,
+        CoreMetrics, GLOBAL_METRICS, TaskMetrics, auto_save_task_metrics, get_metrics_arc_from_i64,
+        init_task_metrics, save_task_metrics_finally,
     },
     dsv::DataSourceValidation,
     plugins,
@@ -32,25 +34,23 @@ use taosx_core::{
         dsn::json_to_dsn, get_main_version_from_server_version, get_server_version,
         sql::get_timestamp_range,
     },
-    TaskNotify, TaskNotifyReceiver,
 };
-use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, DataSet, TaskOpts};
 use taosx_core::{plugins::transform::sample::DsSampleIn, utils::trace::Qid};
 
 use crate::serve::{
     controller::{
+        AgentAction, Status, Task,
         agent::Activity,
         license::LicenseValidator,
         load_breakpoints,
         trigger::{Schedule, StopCondition, Strategy},
-        AgentAction, Status, Task,
     },
     health,
 };
 
 use super::{
-    agent::{AgentState, AgentTask, AgentWorker},
     NotifySender, SchedulerNotify, StopError,
+    agent::{AgentState, AgentTask, AgentWorker},
 };
 
 #[instrument(skip_all)]
@@ -89,7 +89,9 @@ async fn task_opts_init(
             let server_version = get_server_version(&taos).await?;
             let (a, b, c) = get_main_version_from_server_version(&server_version).unwrap();
             let grants_sql = if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
-                format!("select `limits` from information_schema.ins_grants_full where grant_name='{connector}'")
+                format!(
+                    "select `limits` from information_schema.ins_grants_full where grant_name='{connector}'"
+                )
             } else {
                 format!("select `{connector}` from information_schema.ins_grants")
             };
@@ -102,10 +104,14 @@ async fn task_opts_init(
             if let Some(license) = license {
                 if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
                     if license.is_expired_second() {
-                        anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
+                        anyhow::bail!(
+                            "The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code."
+                        )
                     }
                 } else if license.is_expired_day() {
-                    anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
+                    anyhow::bail!(
+                        "The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code."
+                    )
                 }
             }
         }
@@ -899,9 +905,7 @@ impl TaskJob {
             self.global.agent_runtime.stop(self.task.task.id).await;
         }
 
-        {
-            self.task.state.read().await.clone()
-        }
+        { self.task.state.read().await.clone() }
     }
 
     /// Suspend a job.
@@ -944,9 +948,7 @@ impl TaskJob {
         if self.task.task.via.is_some() {
             self.global.agent_runtime.suspend(self.task.task.id).await;
         }
-        {
-            self.task.state.read().await.clone()
-        }
+        { self.task.state.read().await.clone() }
     }
 
     /// ## Cancellation safety.
@@ -1257,7 +1259,9 @@ impl TaskJob {
                                             break Ok(AgentTaskState::Suspended);
                                         }
                                         _ => {
-                                            warn!("Received `suspended` status but not in suspending, skip");
+                                            warn!(
+                                                "Received `suspended` status but not in suspending, skip"
+                                            );
                                         }
                                     },
                                     "ipc-started" => {
@@ -1380,7 +1384,9 @@ impl TaskJob {
                                             }
                                         }
                                         _ => {
-                                            warn!("Received `stopped` status but not in stopping, skip");
+                                            warn!(
+                                                "Received `stopped` status but not in stopping, skip"
+                                            );
                                         }
                                     },
                                     "failed" => {
