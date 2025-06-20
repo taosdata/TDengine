@@ -602,6 +602,9 @@ static int32_t createRefScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   if (TSDB_CODE_SUCCESS == code) {
     code = addDefaultScanCol(pRealTable, &pScan->pScanCols);
   }
+
+  SNode *pTsCol = nodesListGetNode(pScan->pScanCols, 0);
+  ((SColumnNode*)pTsCol)->hasDep = true;
   *pLogicNode = (SLogicNode*)pScan;
   pCxt->hasScan = true;
 

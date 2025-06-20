@@ -73,6 +73,10 @@ typedef struct SCpdIsMultiTableCondCxt {
   bool       condIsNull;
 } SCpdIsMultiTableCondCxt;
 
+typedef struct SCpdIsVtableTsCondCxt {
+  bool       condHasTs;
+} SCpdIsVtableTsCondCxt;
+
 typedef struct SCpdIsMultiTableResCxt {
   SSHashObj* pLeftTbls;
   SSHashObj* pRightTbls;
@@ -1732,6 +1736,24 @@ static EDealRes pdcCheckTableCondType(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static EDealRes pdcCheckVirtualTableCond(SNode* pNode, void* pContext) {
+  SCpdIsVtableTsCondCxt* pCxt = pContext;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN: {
+      SColumnNode* pCol = (SColumnNode*)pNode;
+      if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        pCxt->condHasTs = true;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+
 static int32_t pdcJoinGetOpTableCondTypes(SNode* pCond, SSHashObj* pLeftTables, SSHashObj* pRightTables,
                                           bool* tableCondTypes) {
   SCpdIsMultiTableCondCxt cxt = {.pLeftTbls = pLeftTables,
@@ -2363,6 +2385,13 @@ static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode
   if (1 != LIST_LENGTH(pVScan->node.pChildren) || 0 != LIST_LENGTH(pVScan->pScanPseudoCols) || pVScan->tableType == TSDB_SUPER_TABLE) {
     return TSDB_CODE_SUCCESS;
   }
+
+  SCpdIsVtableTsCondCxt cxt = {.condHasTs = false};
+  nodesWalkExpr(pVScan->node.pConditions, pdcCheckVirtualTableCond, &cxt);
+  if (cxt.condHasTs) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   return pdcTrivialPushDown(pCxt, (SLogicNode*)pVScan);
 }
 

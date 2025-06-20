@@ -288,6 +288,73 @@ string_func_names = [
     'replace', 'ltrim', 'rtrim', 'trim'
 ]
 
+class TestStreamSubqueryBasic:
+
+    def setup_class(cls):
+        tdLog.debug(f"start to execute {__file__}")
+
+    def test_create_stream_syntax(self):
+        """Create stream syntax test
+
+        Test create stream sql parser and syntax
+
+        Catalog:
+            - Streams:Stream
+
+        Since: v3.3.3.7
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-5-13 Jing Sima Create Case
+
+        """
+
+        self.createSnode()
+        self.createDatabase()
+        self.prepareTables()
+        self.createStream()
+
+        tdSql.pause()
+
+    def createSnode(self):
+        tdLog.info("create snode")
+        tdStream.createSnode(1)
+
+    def createDatabase(self):
+        tdLog.info(f"create database")
+
+        tdSql.prepare(dbname="create_stream_db", vgroups=1)
+        clusterComCheck.checkDbReady("create_stream_db")
+
+    def prepareTables(self):
+        # trigger_table(col1 timestamp, col2 int, col3 int, col4 int, col5 int, col6 int)
+        # trigger_stable(col1 timestamp, col2 int, col3 int, col4 int, col5 int, col6 int) tags(tag1 int, tag2 int, tag3 int, tag4 int)
+        # exist_super_table(out_col1 timestamp, out_col2 int, out_col3 int) tags(out_tag1 int, out_tag2 int)
+        # exist_normal_table(out_col1 timestamp, out_col2 int, out_col3 int)
+        # query_table(ts timestamp, col1 int, col2 int, col3 int, col4 int, col5 int, col6 int)
+        tdSql.execute("create table create_stream_db.trigger_table (col1 timestamp, col2 int, col3 int, col4 int, col5 int, col6 int);")
+        tdSql.execute("create table create_stream_db.trigger_stable (col1 timestamp, col2 int, col3 int, col4 int, col5 int, col6 int) tags(tag1 varchar(30), tag2 varchar(30), tag3 varchar(30), tag4 varchar(30));")
+        tdSql.execute("create table create_stream_db.trigger_ctable using create_stream_db.trigger_stable tags('1', '2', '3', '4');")
+        tdSql.execute("create table create_stream_db.exist_super_table (out_col1 timestamp, out_col2 bigint, out_col3 bigint) tags(out_tag1 varchar(30), out_tag2 varchar(30));")
+        tdSql.execute("create table create_stream_db.exist_normal_table (out_col1 timestamp, out_col2 bigint, out_col3 bigint);")
+        tdSql.execute("create table create_stream_db.exist_sub_table using create_stream_db.exist_super_table tags(1,2);")
+        tdSql.execute("create table create_stream_db.query_table (ts timestamp, q_col1 bigint, q_col2 bigint, q_col3 bigint, q_col4 bigint, q_col5 bigint, q_col6 bigint);")
+
+    def createStream(self):
+        tdSql.execute("use create_stream_db")
+        sql_list = gen_create_stream_variants()
+        for sql, valid, index in sql_list:
+            tdLog.info(f"create stream sql:{sql}, valid:{valid}")
+            if valid:
+                tdSql.execute(sql)
+                tdSql.execute(f"drop stream if exists create_stream_db.stream_{index}")
+                tdSql.execute(f"drop table if exists create_stream_db.new_table_{index}")
+            else:
+                tdSql.error(sql)
+
 def random_from_list(lst, n=1):
     """Return n random elements from a list."""
     if n == 1:
@@ -1112,71 +1179,4 @@ def gen_create_stream_variants():
             sql_variants.append((sql.strip(), valid, stream_index))
             stream_index += 1
     return sql_variants
-
-class TestStreamSubqueryBasic:
-
-    def setup_class(cls):
-        tdLog.debug(f"start to execute {__file__}")
-
-    def test_create_stream_syntax(self):
-        """Create stream syntax test
-
-        1. -
-
-        Catalog:
-            - Streams:Stream
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-5-13 Jing Sima Create Case
-
-        """
-
-        self.createSnode()
-        self.createDatabase()
-        self.prepareTables()
-        self.createStream()
-
-        tdSql.pause()
-
-    def createSnode(self):
-        tdLog.info("create snode")
-        tdStream.createSnode(1)
-
-    def createDatabase(self):
-        tdLog.info(f"create database")
-
-        tdSql.prepare(dbname="create_stream_db", vgroups=1)
-        clusterComCheck.checkDbReady("create_stream_db")
-
-    def prepareTables(self):
-        # trigger_table(col1 timestamp, col2 int, col3 int, col4 int, col5 int, col6 int)
-        # trigger_stable(col1 timestamp, col2 int, col3 int, col4 int, col5 int, col6 int) tags(tag1 int, tag2 int, tag3 int, tag4 int)
-        # exist_super_table(out_col1 timestamp, out_col2 int, out_col3 int) tags(out_tag1 int, out_tag2 int)
-        # exist_normal_table(out_col1 timestamp, out_col2 int, out_col3 int)
-        # query_table(ts timestamp, col1 int, col2 int, col3 int, col4 int, col5 int, col6 int)
-        tdSql.execute("create table create_stream_db.trigger_table (col1 timestamp, col2 int, col3 int, col4 int, col5 int, col6 int);")
-        tdSql.execute("create table create_stream_db.trigger_stable (col1 timestamp, col2 int, col3 int, col4 int, col5 int, col6 int) tags(tag1 varchar(30), tag2 varchar(30), tag3 varchar(30), tag4 varchar(30));")
-        tdSql.execute("create table create_stream_db.trigger_ctable using create_stream_db.trigger_stable tags('1', '2', '3', '4');")
-        tdSql.execute("create table create_stream_db.exist_super_table (out_col1 timestamp, out_col2 bigint, out_col3 bigint) tags(out_tag1 varchar(30), out_tag2 varchar(30));")
-        tdSql.execute("create table create_stream_db.exist_normal_table (out_col1 timestamp, out_col2 bigint, out_col3 bigint);")
-        tdSql.execute("create table create_stream_db.exist_sub_table using create_stream_db.exist_super_table tags(1,2);")
-        tdSql.execute("create table create_stream_db.query_table (ts timestamp, q_col1 bigint, q_col2 bigint, q_col3 bigint, q_col4 bigint, q_col5 bigint, q_col6 bigint);")
-
-    def createStream(self):
-        tdSql.execute("use create_stream_db")
-        sql_list = gen_create_stream_variants()
-        for sql, valid, index in sql_list:
-            tdLog.info(f"create stream sql:{sql}, valid:{valid}")
-            if valid:
-                tdSql.execute(sql)
-                tdSql.execute(f"drop stream if exists create_stream_db.stream_{index}")
-                tdSql.execute(f"drop table if exists create_stream_db.new_table_{index}")
-            else:
-                tdSql.error(sql)
 
