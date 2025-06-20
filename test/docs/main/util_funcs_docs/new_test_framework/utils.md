@@ -21,3 +21,5 @@
 ::: taoskeeper
 ::: tserror
 ::: types
+::: streamUtil
+::: autogen
