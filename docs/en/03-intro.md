@@ -45,9 +45,9 @@ With its innovative "one table per device" design, unique supertable concept, an
 
 With its high performance, standard SQL support, and component integration, TDengine can reduce your total cost of data operations:
 
-1. **Industry-leading performance:** TDengine significantly outperforms other time-series databases with up to 16 times faster ingestion and over 100 times higher query performance than InfluxDB or TimescaleDB while requiring fewer storage resources. Because TDengine ingests data faster, stores data more efficiently, and responds to queries more quickly, it uses fewer CPU and storage resources and adds less to your bills. 
+1. **Industry-leading performance:** TDengine significantly outperforms other time-series databases with up to 16 times faster ingestion and over 100 times higher query performance than InfluxDB or TimescaleDB while requiring fewer storage resources. Because TDengine ingests data faster, stores data more efficiently, and responds to queries more quickly, it uses fewer CPU and storage resources and adds less to your bills.
 2. **Easy to use with no learning costs:** TDengine is easier to use than other time-series database solutions and does not require specialized training. This is because TDengine supports standard SQL, is easy to integrate with third-party tools, and comes with client libraries for various programming languages, including sample code.
-3. **Simplified, fully integrated solution:** By including stream processing, caching, and data subscription as built-in components at no extra cost, TDengine eliminates the need to deploy third-party products just to process time-series data. Its components are simple, easy to use, and purpose-built to process time-series data. 
+3. **Simplified, fully integrated solution:** By including stream processing, caching, and data subscription as built-in components at no extra cost, TDengine eliminates the need to deploy third-party products just to process time-series data. Its components are simple, easy to use, and purpose-built to process time-series data.
 
 ## TDengine Ecosystem
 
@@ -73,4 +73,3 @@ TDengine can also form the core component of a data stack to enable the followin
 - [Predictive maintenance](https://tdengine.com/predictive-maintenance/)
 - [Vibration analysis](https://tdengine.com/high-frequency-data/)
 - [Condition monitoring](https://tdengine.com/condition-monitoring)
-
