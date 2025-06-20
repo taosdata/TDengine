@@ -132,3 +132,23 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
             "period": self.period, "start": self.start_ts, "every": self.time_step,
             "forecast_rows": self.rows, "return_conf": self.return_conf, "conf": self.conf
         }
+
+class AbstractImputationService(AbstractAnalyticsService, ABC):
+    """abstract imputation service, all imputation algorithms class should be inherent from
+    this base class"""
+    def __init__(self):
+        super().__init__()
+        self.type = "imputation"
+
+    def set_input_data(self, input_list: list, input_ts_list: list = None):
+        """ set the input data """
+        self.set_input_list(input_list, input_ts_list)
+
+
+    def set_params(self, params: dict) -> None:
+        pass
+
+    def get_params(self):
+        return {
+            "dummy": "dummy"
+        }

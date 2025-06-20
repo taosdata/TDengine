@@ -1,0 +1,247 @@
+from datetime import timedelta
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+
+from sklearn.preprocessing import StandardScaler
+
+import torch
+from flask import Flask, request, jsonify
+
+from momentfm.utils.forecasting_metrics import mse, mae
+from momentfm.utils.utils import control_randomness
+from momentfm import MOMENTPipeline
+
+from torch.utils.data import DataLoader
+control_randomness(seed=13) # Set random seeds for PyTorch, Numpy etc.
+
+app = Flask(__name__)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+_model_list = [
+    'AutonLab/MOMENT-1-small',  # small model with 37.9M parameters
+    'AutonLab/MOMENT-1-base',   # small model with 113M parameters
+    'AutonLab/MOMENT-1-large',  # small model with 346M parameters
+]
+
+model = MOMENTPipeline.from_pretrained(
+    _model_list[2],
+    model_kwargs={'task_name': 'reconstruction'} # For imputation, we will load MOMENT in `reconstruction` mode
+    # local_files_only=True,  # Whether or not to only look at local files (i.e., do not try to download the model).
+)
+
+model.init()
+print(model)
+
+device = "cuda:1" if torch.cuda.is_available() else "cpu"
+model = model.to(device).float()
+
+@app.route('/imputation', methods=['POST'])
+def moment():
+    data = request.get_json()
+    if not data or 'input' not in data:
+        return jsonify({
+           'status': 'error',
+            'error': 'Invalid input, please provide "input" field in JSON'
+        }), 400
+
+    input_data = data['data']
+    input_ts = data['ts']
+    time_precision = data['time_precision']
+
+    ts, val, mask = do_handle_input_data(input_data, input_ts, time_precision, 'H')
+
+    return {
+        'status': 'success',
+        'val': val.tolist(),
+        'mask':mask.tolist(),
+        'ts': ts.tolist()
+    }
+
+
+class InputDataset(torch.utils.data.Dataset):
+    def __init__(
+            self,
+            input_data,
+            input_ts,
+            time_precision: str,
+            freq,
+            data_stride_len: int = 512,
+    ):
+        self.seq_len = data_stride_len
+        self.data_stride_len = data_stride_len
+        self.time_precision = time_precision
+        self.input_data = input_data
+        self.input_ts = input_ts
+        self.scaler = StandardScaler()
+
+        self.n_channels = 1
+        self.length_timeseries_original = len(input_data)
+
+        complete_df, self.mask = complete_timeseries(self.input_ts, self.input_data, freq)
+
+        self.length_timeseries_full = complete_df.shape[0]
+        self.length_timeseries = ((complete_df.shape[0] // self.seq_len) + 1) * self.seq_len
+        inc = self.length_timeseries - complete_df.shape[0]
+
+        self.data, self.input_mask, self.mask = padding_data_list(complete_df, np.min(input_data), inc, self.mask, freq)
+        self.data, self.ts = self._transform_data(self.data)
+
+
+    def _transform_data(self, input_data):
+        self.scaler.fit(input_data.values)
+        return self.scaler.transform(input_data.values), input_data.index.to_numpy()
+
+    def __getitem__(self, index):
+        seq_start = self.data_stride_len * index
+        seq_end = seq_start + self.seq_len
+
+        if seq_end > self.length_timeseries:
+            seq_end = self.length_timeseries
+            # seq_end = seq_end - self.seq_len
+
+        timeseries = self.data[seq_start:seq_end, :].T
+        mask = self.mask[seq_start:seq_end]
+
+        return timeseries, mask
+
+    def __len__(self):
+        return (self.length_timeseries // self.data_stride_len)
+
+
+def padding_data_list(df, val, n_rows, mask, freq):
+    # get the last timestamp
+    last_time = df.index[-1]
+
+    delta = None
+    if freq == 'H':
+        delta = timedelta(hours=1)
+
+    # generate the increase timestamps series
+    if isinstance(last_time, (np.datetime64, pd.Timestamp)):
+        new_timestamp = pd.date_range(
+            start=last_time + delta,
+            periods=n_rows,
+            freq=freq
+        )
+    else:
+        new_timestamp = [last_time + i + 1 for i in range(n_rows)]
+
+    # 创建新数据
+    new_df = pd.DataFrame({'value': [val] * n_rows, }, index=new_timestamp)
+
+    # append the new rows
+    input_mask = np.ones(df.shape[0] + n_rows, dtype=int)
+    input_mask[-n_rows:] = 0
+
+    return pd.concat([df, new_df]), input_mask, np.append(mask, np.ones(n_rows, dtype=int))
+
+
+def complete_timeseries(timestamps, values, freq='T'):
+    """
+    处理独立时间戳和数值列的时间序列补全
+    :param timestamps: 时间戳列(可迭代对象)
+    :param values: 数值列(可迭代对象)
+    :param freq: 目标频率('T'-分钟, 'H'-小时, 'D'-天)
+    :return: (完整DataFrame, 缺失索引数组, 缺失时间戳数组)
+    """
+    # 创建初始DataFrame
+    df = pd.DataFrame({
+        'timestamp': pd.to_datetime(timestamps, unit='s', errors='coerce'),
+        'value': values
+    }).set_index('timestamp')
+
+    # 生成完整时间范围
+    full_range = pd.date_range(
+        start=df.index.min().floor(freq),
+        end=df.index.max().ceil(freq),
+        freq=freq
+    )
+
+    # rebuild value list and fill with min value
+    complete_df = df.reindex(full_range)
+
+    # fill missing value
+    missing_mask = complete_df['value'].isna()
+    missing_indices = np.where(missing_mask)[0]
+
+    # fill with min value
+    complete_df = complete_df.fillna(np.min(values))
+
+    mask = np.ones(len(complete_df), dtype=int)
+    mask[missing_indices] = 0
+
+    return complete_df, mask
+
+def do_handle_input_data(value_list, ts_list, precision, freq):
+    stride_len = 512
+
+    input_data = InputDataset(value_list, ts_list, precision, freq, data_stride_len=stride_len)
+
+    fold = input_data.input_mask.shape[0] // stride_len
+    input_masks = torch.from_numpy(input_data.input_mask).reshape(fold, stride_len)
+
+    eval_dataloader = DataLoader(input_data, batch_size=64, shuffle=False)
+
+    trues, preds, masks = [], [], []
+    with torch.no_grad():
+        for batch_x, mask in eval_dataloader:
+            trues.append(batch_x.numpy())
+
+            batch_x = batch_x.to(device).float()
+            n_channels = batch_x.shape[1]
+
+            # Reshape to [batch_size * n_channels, 1, window_size]
+            batch_x = batch_x.reshape((-1, 1, stride_len))
+            output = model(x_enc=batch_x, input_mask=input_masks, mask=mask)  # [batch_size, n_channels, window_size]
+
+            reconstruction = output.reconstruction.detach().cpu().numpy()
+            mask = mask.detach().squeeze().cpu().numpy()
+
+            # Reshape back to [batch_size, n_channels, window_size]
+            reconstruction = reconstruction.reshape((-1, n_channels, stride_len))
+            mask = mask.reshape((-1, n_channels, stride_len))
+
+            preds.append(reconstruction)
+            masks.append(mask)
+
+    preds = np.concatenate(preds)
+    trues = np.concatenate(trues)
+    masks = np.concatenate(masks)
+
+    print(f"Shapes: preds={preds.shape} | trues={trues.shape} | masks={masks.shape}")
+
+    fig, axs = plt.subplots(2, 1, figsize=(10, 5))
+    axs[0].set_title(f"Channel=0")
+    axs[0].plot(trues[1, 0, :].squeeze(), label='Ground Truth', c='darkblue')
+    axs[0].plot(preds[1, 0, :].squeeze(), label='Predictions', c='red')
+    axs[0].legend(fontsize=14)
+
+    axs[1].imshow(np.tile(masks[np.newaxis, 1, 0], reps=(8, 1)), cmap='binary')
+    plt.show()
+    plt.savefig("moment.png")
+
+    len = input_data.length_timeseries
+
+    # discard the padding data
+    return input_data.ts, input_data.scaler.inverse_transform(preds.reshape(len, 1)), masks.reshape(len)
+
+if __name__ == '__main__':
+    full_file_path_and_name = "../data/ETTh1.csv"
+
+    df_data = pd.read_csv(full_file_path_and_name)
+    df_data.drop(columns=["HULL", "HUFL", "MULL", "LUFL", "LULL", "OT"], inplace=True)
+
+    remove_list = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+    first = df_data[0:601].drop(remove_list)
+
+    ts_list = (pd.to_datetime(first['date']).astype('int64') // 10 ** 9).tolist()
+    value_list = first['MUFL'].tolist()
+
+    rsp_ts_list, rsp_val_list, rsp_mask = do_handle_input_data(value_list, ts_list, 's', 'H')
+    print(rsp_ts_list)
+    print(rsp_val_list.reshape(rsp_val_list.shape[0]))
+    print(rsp_mask)
+
+    # moment()
+    # app.run(host='0.0.0.0', port=5000)

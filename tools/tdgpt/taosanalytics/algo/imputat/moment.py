@@ -4,13 +4,14 @@
 import json
 import requests
 
-from taosanalytics.algo.forecast import insert_ts_list
 from taosanalytics.conf import app_logger, conf
-from taosanalytics.service import AbstractForecastService
+from taosanalytics.service import AbstractImputationService
 
 
-class TsfmBaseService(AbstractForecastService):
-    """tsfm base service class"""
+class _MomentImputationService(AbstractImputationService):
+    """moment imputation service class"""
+    name = 'moment-imputation'
+    desc = "Time-Series Foundation Model by CMU"
 
     def __init__(self):
         super().__init__()
@@ -19,20 +20,13 @@ class TsfmBaseService(AbstractForecastService):
 
 
     def execute(self):
-        if self.list is None or len(self.list) < self.period:
-            raise ValueError("number of input data is less than the periods")
-
-        if self.rows <= 0:
-            raise ValueError("forecast rows is not specified yet")
+        # if self.list is None or len(self.list) < self.period:
+        #     raise ValueError("number of input data is less than the periods")
 
         # let's request the gpt service
         data = {
             "input": self.list,
             "ts": self.ts_list,
-            "next_len": self.rows,
-            "past_dynamic_real": self.past_dynamic_real,
-            "dynamic_real":self.dynamic_real,
-            "conf_interval": self.conf
         }
 
         try:
@@ -51,26 +45,11 @@ class TsfmBaseService(AbstractForecastService):
         resp_json = response.json()
         app_logger.log_inst.debug(f"recv rsp, {resp_json}")
 
-        if self.return_conf == 0:
-            res = {
-                "res": [resp_json["output"]],
-                "conf": 0,
-            }
-        else:
-            if resp_json.get('upper') is None:
-                res =  {
-                    "res": [resp_json["output"], resp_json["output"], resp_json["output"]],
-                    "conf": self.conf,
-                }
-            else:  # return data with lower/upper interval value
-                res = {
-                    "res": [resp_json["output"], resp_json["lower"], resp_json["upper"]],
-                    "conf": self.conf,
-                }
+        res = {
+            "res": [resp_json["output"]],
+        }
 
-        insert_ts_list(res["res"], self.start_ts, self.time_step, self.rows)
         return res
-
 
     def set_params(self, params):
         super().set_params(params)

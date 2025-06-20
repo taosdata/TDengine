@@ -843,8 +843,8 @@ int8_t taosAnalysisParseWncheck(SHashObj* pHashMap, const char* id) {
     uDebug("%s analysis wncheck:%d", id, v);
     return v;
   } else {
-    uDebug("%s analysis wncheck not found, use default:%d", id, ANALY_FORECAST_DEFAULT_WNCHECK);
-    return ANALY_FORECAST_DEFAULT_WNCHECK;
+    uDebug("%s analysis wncheck not found, use default:%d", id, ANALY_DEFAULT_WNCHECK);
+    return ANALY_DEFAULT_WNCHECK;
   }
 }
 
