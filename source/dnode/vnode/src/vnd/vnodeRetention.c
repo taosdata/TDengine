@@ -47,7 +47,8 @@ int32_t vnodeQuerySsMigrateProgress(SVnode *pVnode, SRpcMsg *pMsg) {
   SQuerySsMigrateProgressRsp rsp = {0};
 
   // deserialize request
-  code = tDeserializeSQuerySsMigrateProgressReq(pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead), &req);
+  char* buf = (char*)pMsg->pCont + sizeof(SMsgHead);
+  code = tDeserializeSQuerySsMigrateProgressReq(buf, pMsg->contLen - sizeof(SMsgHead), &req);
   if (code) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;

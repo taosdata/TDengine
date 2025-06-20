@@ -2243,7 +2243,7 @@ static int32_t mndSetSsMigrateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbOb
     TAOS_RETURN(code);
   }
 
-  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
   TAOS_RETURN(code);
 }
 
