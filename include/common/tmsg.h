@@ -1829,7 +1829,7 @@ int32_t tDeserializeSRetrieveMountPathReq(void* buf, int32_t bufLen, SRetrieveMo
 
 typedef struct {
   // path
-  char vgPath[TSDB_MOUNT_PATH_LEN + 64];
+  int32_t diskPrimary;
 
   // vgInfo
   int32_t  vgId;

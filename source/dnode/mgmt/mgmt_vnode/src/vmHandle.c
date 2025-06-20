@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "taos_monitor.h"
 #include "vmInt.h"
-#include "vnodeInt.h"
 #include "vnd.h"
+#include "vnodeInt.h"
 
 extern taos_counter_t *tsInsertCounter;
 
@@ -442,9 +442,15 @@ _OVER:
 }
 
 #ifdef USE_MOUNT
+typedef struct {
+  int64_t dbId;
+  int32_t vgId;
+  int32_t diskPrimary;
+} SMountDbVgId;
 extern int32_t vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo);
-extern int32_t mndFetchSdbStables(const char* mntName, const char *path, void *output);
-static int     compareVnodeInfo(const void *p1, const void *p2) {
+extern int32_t mndFetchSdbStables(const char *mntName, const char *path, void *output);
+
+static int compareVnodeInfo(const void *p1, const void *p2) {
   SVnodeInfo *v1 = (SVnodeInfo *)p1;
   SVnodeInfo *v2 = (SVnodeInfo *)p2;
 
@@ -456,6 +462,19 @@ static int     compareVnodeInfo(const void *p1, const void *p2) {
   }
 
   return v1->config.dbId > v1->config.dbId ? 1 : -1;
+}
+static int compareVgDiskPrimary(const void *p1, const void *p2) {
+  SMountDbVgId *v1 = (SMountDbVgId *)p1;
+  SMountDbVgId *v2 = (SMountDbVgId *)p2;
+
+  if (v1->dbId == v1->dbId) {
+    if (v1->vgId == v2->vgId) {
+      return 0;
+    }
+    return v1->vgId > v2->vgId ? 1 : -1;
+  }
+
+  return v1->dbId > v1->dbId ? 1 : -1;
 }
 
 static int32_t vmRetrieveMountDnode(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pReq, SMountInfo *pMountInfo) {
@@ -533,7 +552,7 @@ static int32_t vmRetrieveMountDnode(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pR
     while (j > 0 && (dir[j] == '/' || dir[j] == '\\')) {
       dir[j--] = '\0';  // remove trailing slashes
     }
-    SJson  *pLevel = tjsonGetObjectItem(pItem, "level");
+    SJson *pLevel = tjsonGetObjectItem(pItem, "level");
     if (!pLevel) {
       TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
     }
@@ -600,14 +619,17 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
   SVnodeMgmt    vnodeMgmt = {0};
   SArray       *pVgCfgs = NULL;
   SArray       *pDbInfos = NULL;
+  SArray       *pDiskPrimarys = NULL;
 
   snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(VNODE));
   vnodeMgmt.path = path;
   TAOS_CHECK_EXIT(vmGetVnodeListFromFile(&vnodeMgmt, &pCfgs, &numOfVnodes));
   dInfo("mount:%s, num of vnodes is %d in path:%s", pReq->mountName, numOfVnodes, vnodeMgmt.path);
   TSDB_CHECK_NULL((pVgCfgs = taosArrayInit_s(sizeof(SVnodeInfo), numOfVnodes)), code, lino, _exit, terrno);
+  TSDB_CHECK_NULL((pDiskPrimarys = taosArrayInit(numOfVnodes, sizeof(SMountDbVgId))), code, lino, _exit, terrno);
 
   int32_t nDiskLevel0 = taosArrayGetSize(pMountInfo->pDisks[0]);
+  int32_t nVgDropped = 0;
   for (int32_t i = 0; i < numOfVnodes; ++i) {
     SWrapperCfg *pCfg = &pCfgs[i];
     // in order to support multi-tier disk, the pCfg->path should be adapted according to the diskPrimary firstly
@@ -619,6 +641,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
     }
     dInfo("mount:%s, vnode path:%s, dropped:%" PRIi8, pReq->mountName, pCfg->path, pCfg->dropped);
     if (pCfg->dropped) {
+      ++nVgDropped;
       continue;
     }
     SVnodeInfo *pInfo = TARRAY_GET_ELEM(pVgCfgs, i);
@@ -632,9 +655,24 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
              pCfg->vgId);
       TAOS_CHECK_EXIT(TSDB_CODE_FILE_CORRUPTED);
     }
+    SMountDbVgId dbVgId = {.dbId = pInfo->config.dbId, .vgId = pInfo->config.vgId, .diskPrimary = pCfg->diskPrimary};
+    TSDB_CHECK_NULL(taosArrayPush(pDiskPrimarys, &dbVgId), code, lino, _exit, terrno);
+  }
+  if (nVgDropped > 0) {
+    dInfo("mount:%s, %d vnodes are dropped", pReq->mountName, nVgDropped);
+    int32_t nVgToDrop = taosArrayGetSize(pVgCfgs) - nVgDropped;
+    if (nVgToDrop > 0) taosArrayRemoveBatch(pVgCfgs, nVgToDrop - 1, nVgToDrop, NULL);
   }
   int32_t nVgCfg = taosArrayGetSize(pVgCfgs);
-  if (nVgCfg > 1) taosArraySort(pVgCfgs, compareVnodeInfo);
+  int32_t nDiskPrimary = taosArrayGetSize(pDiskPrimarys);
+  if (nVgCfg != nDiskPrimary) {
+    dError("mount:%s, nVgCfg:%d not match nDiskPrimary:%d", pReq->mountName, nVgCfg, nDiskPrimary);
+    TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
+  }
+  if (nVgCfg > 1) {
+    taosArraySort(pVgCfgs, compareVnodeInfo);
+    taosArraySort(pDiskPrimarys, compareVgDiskPrimary);
+  }
 
   int64_t clusterId = pMountInfo->clusterId;
   int64_t dbId = 0, vgId = 0, nDb = 0;
@@ -655,13 +693,13 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
       vgId = pInfo->config.vgId;
     }
   }
-  pMountInfo->clusterId = clusterId;
 
   if (nDb > 0) {
     TSDB_CHECK_NULL((pDbInfos = taosArrayInit_s(sizeof(SMountDbInfo), nDb)), code, lino, _exit, terrno);
     int32_t dbIdx = -1;
     for (int32_t i = 0; i < nVgCfg; ++i) {
       SVnodeInfo   *pVgCfg = TARRAY_GET_ELEM(pVgCfgs, i);
+      SMountDbVgId *pDiskPrimary = TARRAY_GET_ELEM(pDiskPrimarys, i);
       SMountDbInfo *pDbInfo = NULL;
       if (i == 0 || ((SMountDbInfo *)TARRAY_GET_ELEM(pDbInfos, dbIdx))->dbId != pVgCfg->config.dbId) {
         pDbInfo = TARRAY_GET_ELEM(pDbInfos, ++dbIdx);
@@ -672,6 +710,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
         pDbInfo = TARRAY_GET_ELEM(pDbInfos, dbIdx);
       }
       SMountVgInfo vgInfo = {
+          .diskPrimary = pDiskPrimary->diskPrimary,
           .vgId = pVgCfg->config.vgId,
           .cacheLastSize = pVgCfg->config.cacheLastSize,
           .szPage = pVgCfg->config.szPage,
@@ -716,8 +755,8 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
 
 _exit:
   if (code != 0) {
-    dError("mount:%s, failed to retrieve mount vnode at line %d on dnode:%d since %s, path:%s", pReq->mountName, lino, pReq->dnodeId,
-           tstrerror(code), pReq->mountPath);
+    dError("mount:%s, failed to retrieve mount vnode at line %d on dnode:%d since %s, path:%s", pReq->mountName, lino,
+           pReq->dnodeId, tstrerror(code), pReq->mountPath);
   }
   taosArrayDestroy(pVgCfgs);
   taosMemoryFreeClear(pCfgs);
@@ -756,11 +795,53 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
     int32_t       nVg = taosArrayGetSize(pDbInfo->pVgs);
     for (int32_t j = 0; j < nVg; ++j) {
       SMountVgInfo *pVgInfo = TARRAY_GET_ELEM(pDbInfo->pVgs, j);
-      SVnode        vnode = {.config.vgId = pVgInfo->vgId, .config.dbId = pVgInfo->dbId};
-      vnode.path = pVgInfo->vgPath;
+      SVnode        vnode = {
+                 .config.vgId = pVgInfo->vgId,
+                 .config.dbId = pVgInfo->dbId,
+                 .config.vgId = pVgInfo->vgId,
+                 .config.cacheLastSize = pVgInfo->cacheLastSize,
+                 .config.szPage = pVgInfo->szPage,
+                 .config.szCache = pVgInfo->szCache,
+                 .config.szBuf = pVgInfo->szBuf,
+                 .config.cacheLast = pVgInfo->cacheLast,
+                 .config.standby = pVgInfo->standby,
+                 .config.hashMethod = pVgInfo->hashMethod,
+                 .config.hashBegin = pVgInfo->hashBegin,
+                 .config.hashEnd = pVgInfo->hashEnd,
+                 .config.hashPrefix = pVgInfo->hashPrefix,
+                 .config.hashSuffix = pVgInfo->hashSuffix,
+                 .config.sttTrigger = pVgInfo->sttTrigger,
+                 .config.syncCfg.replicaNum = pVgInfo->replications,
+                 .config.tsdbCfg.precision = pVgInfo->precision,
+                 .config.tsdbCfg.compression = pVgInfo->compression,
+                 .config.tsdbCfg.slLevel = pVgInfo->slLevel,
+                 .config.tsdbCfg.days = pVgInfo->daysPerFile,
+                 .config.tsdbCfg.keep0 = pVgInfo->keep0,
+                 .config.tsdbCfg.keep1 = pVgInfo->keep1,
+                 .config.tsdbCfg.keep2 = pVgInfo->keep2,
+                 .config.tsdbCfg.keepTimeOffset = pVgInfo->keepTimeOffset,
+                 .config.tsdbCfg.minRows = pVgInfo->minRows,
+                 .config.tsdbCfg.maxRows = pVgInfo->maxRows,
+                 .config.tsdbPageSize = pVgInfo->tsdbPageSize,
+                 .config.s3ChunkSize = pVgInfo->s3ChunkSize,
+                 .config.s3KeepLocal = pVgInfo->s3KeepLocal,
+                 .config.s3Compact = pVgInfo->s3Compact,
+                 .config.walCfg.fsyncPeriod = pVgInfo->walFsyncPeriod,
+                 .config.walCfg.retentionPeriod = pVgInfo->walRetentionPeriod,
+                 .config.walCfg.rollPeriod = pVgInfo->walRollPeriod,
+                 .config.walCfg.retentionSize = pVgInfo->walRetentionSize,
+                 .config.walCfg.segSize = pVgInfo->walSegSize,
+                 .config.walCfg.level = pVgInfo->walLevel,
+                 .config.walCfg.encryptAlgorithm = pVgInfo->encryptAlgorithm,
+                 .diskPrimary = pVgInfo->diskPrimary,
+      };
+      void *vnodePath = taosArrayGet(pMountInfo->pDisks[0], pVgInfo->diskPrimary);
+      snprintf(path, sizeof(path), "%s%s%s%svnode%d", *(char **)vnodePath, TD_DIRSEP, dmNodeName(VNODE), TD_DIRSEP,
+               pVgInfo->vgId);
+      vnode.path = path;
 
-      SMeta        *pMeta = NULL;
-      int32_t       rollback = vnodeShouldRollback(&vnode);
+      SMeta  *pMeta = NULL;
+      int32_t rollback = vnodeShouldRollback(&vnode);
       if ((code = metaOpen(&vnode, &pMeta, rollback)) != 0) {
         dError("mount:%s, failed to retrieve mount stbs of vnode:%d on dnode:%d since %s, path:%s", pReq->mountName,
                TD_VID(&vnode), pReq->dnodeId, tstrerror(code), path);
