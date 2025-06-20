@@ -4,9 +4,9 @@ title: 与 Node-RED 集成
 toc_max_heading_level: 5
 ---
 
-[Node-RED](https://nodered.org/) 是由 IBM 开发的基于 Node.js 的开源可视化编程工具，通过图形化界面组装连接各种节点，实现物联网设备、API 及在线服务的连接，同时支持多协议、跨平台，社区活跃，适用于智能家居、工业自动化等场景的事件驱动应用开发，其主要特点是低代码、可视化。
+[Node-RED](https://nodered.org/) 是由 IBM 开发的基于 Node.js 的开源可视化编程工具，通过图形化界面组装连接各种节点，实现物联网设备、API 及在线服务的连接。同时支持多协议、跨平台，社区活跃，适用于智能家居、工业自动化等场景的事件驱动应用开发，其主要特点是低代码、可视化。
 
-TDengine 与 Node-RED 深度融合为工业 IoT 场景提供全栈式解决方案，通过 Node-RED 的 MQTT/OPC UA/Modbus 等协议节点，实现 PLC、传感器等设备毫秒级数据采集，同时 Node-RED 中基于 TDengine 毫秒级实时查询结果，触发继电器动作、阀门开合等物理控制，让联动控制执行更实时。
+TDengine 与 Node-RED 深度融合为工业 IoT 场景提供全栈式解决方案。通过 Node-RED 的 MQTT/OPC UA/Modbus 等协议节点，实现 PLC、传感器等设备毫秒级数据采集。同时 Node-RED 中基于 TDengine 的毫秒级实时查询结果，触发继电器动作、阀门开合等物理控制，实现更实时的联动控制。
 
 node-red-node-tdengine 是 TDengine 为 Node-RED 开发的官方插件，由两个节点组合：
 - **tdengine-operator**：提供 SQL 语句执行能力，可实现数据写入/查询/元数据管理等功能。
@@ -33,7 +33,7 @@ node-red-node-tdengine 是 TDengine 为 Node-RED 开发的官方插件，由两�
 
 1. 启动 Node-RED 服务，使用浏览器进入 Node-RED 主页。
 
-2. 画布左侧节点选择区域内选中 tdengine-operator 或 tdengine-consumer 节点拖至画布。
+2. 画布左侧在节点选择区域选择 tdengine-operator 或 tdengine-consumer 节点拖至画布。
 
 3. 双击画布中选中节点，弹出属性设置窗口，填写数据库连接信息：
    - tdengine-operator 节点连接串格式：`ws://user:password@host:port`
@@ -41,7 +41,7 @@ node-red-node-tdengine 是 TDengine 为 Node-RED 开发的官方插件，由两�
   
     更多详细内容请点击画布右侧上方区域中字典图标按钮，参考在线帮助文档。
  
-4. 配置完成后，点击右上角“部署”按钮，节点状态变为绿色，表示数据源配置正确且连接正常。
+4. 配置完成后，点击右上角“部署”按钮，节点状态为绿色，表示数据源配置正确且连接正常。
 
 
 ## 验证方法
@@ -59,11 +59,11 @@ node-red-node-tdengine 是 TDengine 为 Node-RED 开发的官方插件，由两�
 参考下一节“使用示例->数据订阅”章节：
 1. 配置好 tdengine-consumer 节点订阅各属性。
 2. 其后增加 debug 节点。
-3. 节点属性勾选“节点状态”，下拉列表中选择“消息数量”。
+3. 在节点属性中勾选“节点状态”，下拉列表中选择“消息数量”。
 4. 使用 taos-CLI 向 TOPIC 所在表写入一条数据。
 5. 观察 debug 节点计数预期会加 1。
 6. 验证输出 payload 数据预期与写入数据一致。
-7. 全部符合预期为验证成功。
+7. 全部符合预期即为验证成功。
 
 ## 使用示例
 
@@ -106,7 +106,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 
 操作步骤如下：
 - <b>增加写入节点</b> 
-  1. 节点选择区域内选中 tdengine-operator 节点，拖动至画布中。
+  1. 在节点选择区域选择 tdengine-operator 节点，拖动至画布中。
   2. 双击节点打开属性设置，名称填写 'td-writer'，数据库项右侧点击“+”号图标。
   3. 弹出窗口中，名称填写 'td124'，连接类型选择使用字符串连接，输入：
    ``` sql
@@ -115,7 +115,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
   4. 点击“添加”并返回。
 
 - <b>模拟设备产生数据</b> 
-  1. 节点选择区域内选中 function 节点，拖动至画布 td-writer 节点前。
+  1. 在节点选择区域选择 function 节点，拖动至画布 td-writer 节点前。
   2. 双击节点打开属性设置，名称填写‘write d0’，下面选项卡选择“运行函数”，填写如下内容后保存并返回画布。
    ``` javascript
       // generate rand
@@ -128,14 +128,14 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 
       return msg;
    ```
-  3. 节点选择区域内选中 inject 节点，拖动至画布 write d0 节点前。
+  3. 在节点选择区域选择 inject 节点，拖动至画布 write d0 节点前。
    
-  4. 双击节点打开属性设置，名称填写‘inject1’，下拉列表中选择“周期性执行”，周期选择每隔 1 秒，保存返回画布。
+  4. 双击节点打开属性设置，名称填写‘inject1’，下拉列表中选择“周期性执行”，周期选择每隔 1 秒，保存并返回画布。
    
   5. 重复 1 ~ 4 步完成另外两台设备 (d1，d2) 流程。
    
 - <b>增加信息输出</b> 
-  1. 节点选择区域内选中 debug 节点，拖动至画布 td-writer 节点后。
+  1. 在节点选择区域选择 debug 节点，拖动至画布 td-writer 节点后。
   2. 双击节点打开属性设置，勾选“节点状态”，下拉列表中选择消息数量。
 
 
@@ -143,7 +143,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 
 点击右上角“部署”按钮发布修改内容，运行成功后可以看到：
 - td-writer 节点状态变成绿色，表示流程工作正常。
-- debug 节点下数字表示成功采集数量。
+- debug 节点下的数字表示成功采集次数。
 
 ![td-writer](img/td-writer.webp)
 
@@ -166,7 +166,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 由 inject 节点完成触发查询请求，结果输出至下游 debug 节点中，节点上显示查询执行成功数量。 
 
 操作步骤如下：
-  1. 将 inject 节点拖动至画布中，双击节点设置属性，名称填写 'query', msg.topic 填写并保存返回画布：
+  1. 将 inject 节点拖动至画布中，双击节点设置属性，名称填写 'query', msg.topic 填写并保存并返回画布：
    ``` sql
    select tbname, avg(current), avg(voltage), sum(p) 
    from ( select tbname,current,voltage,current*voltage/60 as p from test.meters 
@@ -239,7 +239,7 @@ debug 节点展示向下游节点推送数据次数，生产中可把 debug 节�
   
 ![td-consumer](img/td-consumer.webp)
 
-向下游节点推送的过载设备警告信息：
+向下游节点推送的过载设备警告信息，若失败抛出异常：
 ``` json
 {
   "topic": "topic_overload",
