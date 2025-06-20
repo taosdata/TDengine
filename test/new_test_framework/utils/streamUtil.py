@@ -935,9 +935,11 @@ class StreamItem:
         tdLog.info(f"check stream:s{self.id} result")
 
         if self.check_func != None:
+            tdLog.info(f"check stream:s{self.id} func")
             self.check_func()
 
         if self.exp_query != "":
+            tdLog.info(f"check stream:s{self.id} query")
             if self.exp_rows == []:
                 exp_result = tdSql.getResult(self.exp_query)
             else:

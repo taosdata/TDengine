@@ -149,7 +149,7 @@ class TestStreamDevBasic:
             exp_query="select _wstart ts, _wend te, _wduration td, count(cint) c1, 't1' from qdb.t1 where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
             check_func=self.check4,
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=6,
@@ -158,7 +158,7 @@ class TestStreamDevBasic:
             exp_query="select _wstart, 't1', 't1', avg(c1) v2, first(c1) v3, last(c1) v4, 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m) fill(NULL);",
             check_func=self.check6,
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
