@@ -17,7 +17,7 @@
           <el-statistic title="taosX" :value="statisticData.taosX" />
         </el-col>
         <el-col :span="6">
-          <el-statistic title="taos-keeper" :value="statisticData.taosX" />
+          <el-statistic title="taos-keeper" :value="statisticData.keeper" />
         </el-col>
       </el-row>
     </div>
@@ -135,14 +135,22 @@ async function loadDnodes() {
     adapter_status[host] = [endpoint, checkStatusByTime(ts, error_limit, warn_limit)];
   });
 
-  const taosx_res = await sendSQLReq(`select last_row(_ts, taosx_id) from log.taosx_sys where _ts > '${offline_limit}' partition by taosx_id;`);
-  statisticData.value.taosX = taosx_res.data.length;
   const taosx_status: any = {};
-  taosx_res.data.forEach((taosx: any) => {
-    const [_ts, taosx_id] = taosx;
-    const host = taosx_id.split(':')[0];
-    taosx_status[host] = [taosx_id, checkStatusByTime(_ts, error_limit, warn_limit)];
-  });
+  let taosx_res;
+  try {
+    taosx_res = await sendSQLReq(`select last_row(_ts, taosx_id) from log.taosx_sys where _ts > '${offline_limit}' partition by taosx_id;`);
+  } catch (e) {
+    console.log(e);
+  }
+  
+  if (taosx_res && taosx_res.code === 0) {
+    statisticData.value.taosX = taosx_res.data.length;
+    taosx_res.data.forEach((taosx: any) => {
+      const [_ts, taosx_id] = taosx;
+      const host = taosx_id.split(':')[0];
+      taosx_status[host] = [taosx_id, checkStatusByTime(_ts, error_limit, warn_limit)];
+    });
+  }
 
   const keeper_res = await sendSQLReq(`select last_row(ts, identify) from log.keeper_monitor where ts > '${offline_limit}' partition by identify;`);
   statisticData.value.keeper = keeper_res.data.length;
@@ -155,7 +163,7 @@ async function loadDnodes() {
 
   dnodeList.value = dnode_res.data.map((dnode: any) => {
     const [_ts, ep, cpu_cores, cpu_system, mem_total, mem_free, io_write_disk, io_read_disk, system_net_in, system_net_out] = dnode;
-    const cpu_usage = cpu_system / cpu_cores;
+    const cpu_usage = cpu_system;
     const mem_usage = (mem_total - mem_free) / mem_total * 100;
 
     const netio = `${formatKB(system_net_in)} | ${formatKB(system_net_out)}`;
@@ -189,17 +197,20 @@ async function loadDnodes() {
     return dnode_item;
   });
 
-  Object.keys(taosx_status).forEach((host) => {
-    dnodeList.value.push({
-      ep: taosx_status[host][0],
-      taosX: taosx_status[host],
-      res: '-',
-      cpu_usage: '-',
-      mem_usage: '-',
-      netio: '-',
-      diskio: '-',
+  if (taosx_status) {
+    Object.keys(taosx_status).forEach((host) => {
+      dnodeList.value.push({
+        ep: taosx_status[host][0],
+        taosX: taosx_status[host],
+        res: '-',
+        cpu_usage: '-',
+        mem_usage: '-',
+        netio: '-',
+        diskio: '-',
+      });
     });
-  });
+  }
+  
 
   Object.keys(adapter_status).forEach((host) => {
     dnodeList.value.push({
@@ -227,10 +238,16 @@ async function loadDnodes() {
 
 }
 
+function tryLoadDNodes() {
+  return loadDnodes().catch(error => {
+    console.error(error);
+    ElMessage.error("Load dnodes error:", error.desc || error);
+  });
+}
 
-loadDnodes();
+tryLoadDNodes();
 let timer: any = setInterval(() => {
-  loadDnodes();
+  tryLoadDNodes();
 }, 30000);
 
 onUnmounted(() => {

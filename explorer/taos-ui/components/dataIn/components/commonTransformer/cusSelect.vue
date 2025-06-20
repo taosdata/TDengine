@@ -45,6 +45,7 @@ import { t } from 'locales';
 const props = defineProps<{
   allProperties: Recordable[];
   depth: number | undefined;
+  keep: boolean | undefined;
   modelValue: string;
 }>();
 

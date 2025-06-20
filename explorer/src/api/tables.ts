@@ -39,28 +39,27 @@ export function createTableReq(payload) {
     //创建超级表的子表
     return sendSQLReq(
       `CREATE TABLE \`${selected_db}\`` +
-        '.' +
-        `${name} USING \`${selected_db}\`` +
-        '.' +
-        `\`${stbTmpl}\` (${tags.map(item => `${item.field}`).join(',')}) TAGS (${tags
-          .map(item => handleStringTagValue(item))
-          .join(',')});`
+      '.' +
+      `${name} USING \`${selected_db}\`` +
+      '.' +
+      `\`${stbTmpl}\` (${tags.map(item => `${item.field}`).join(',')}) TAGS (${tags
+        .map(item => handleStringTagValue(item))
+        .join(',')});`
     ).catch(err => {
       return Promise.reject(err);
     });
   } else {
     return sendSQLReq(
       `CREATE TABLE \`${selected_db}\`` +
-        '.' +
-        `${name} (${columns
-          .map(
-            item => `${item.field} ${
-              VariableTableColumnType.includes(item.type) ? item.type + '(' + `${item.length}` + ')' : item.type
+      '.' +
+      `${name} (${columns
+        .map(
+          item => `${item.field} ${VariableTableColumnType.includes(item.type) ? item.type + '(' + `${item.length}` + ')' : item.type
             } ${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}
     ${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''}
     ${item.primaryKey ? ' PRIMARY KEY' : ''}`
-          )
-          .join(',')});`
+        )
+        .join(',')});`
     ).catch(err => {
       return Promise.reject(err);
     });
@@ -90,12 +89,12 @@ export function getTagValue(tags, database, stable_name, table_name) {
       //  = data.data?.[0] || {};
       const result = data.data?.[0]
         ? data.data.map(db => {
-            return Object.fromEntries(
-              data.column_meta.map((item, index) => {
-                return [item[0], db[index]];
-              })
-            );
-          })
+          return Object.fromEntries(
+            data.column_meta.map((item, index) => {
+              return [item[0], db[index]];
+            })
+          );
+        })
         : {};
       // Object.keys(result).forEach(key => {
       //   result[key] = result[key] + "";

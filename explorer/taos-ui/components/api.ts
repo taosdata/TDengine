@@ -2,7 +2,10 @@ import { ExecuteSqlApiFn } from './explorer/model/useExplorer';
 import { ElMessage } from 'element-plus';
 import { TDengineStringType } from 'constants1/index';
 import { escapeSpecialChar, composeType, processStringTagValue, addStrBackquote } from 'utils/tdengine';
-import { ColumnStruct, CreateStableForm, CreateSubTbForm, TagStruct } from './explorer/components/props';
+import { ColumnStruct, CreateStableForm, CreateTableForm, CreateSubTbForm, TagStruct, CreateVirtualNormalTableForm } from './explorer/components/props';
+
+export const NORMAL_TABLE = "NORMAL_TABLE";
+export const VIRTUAL_NORMAL_TABLE = "VIRTUAL_NORMAL_TABLE";
 
 export let executeSqlFn: ExecuteSqlApiFn | undefined;
 
@@ -48,9 +51,11 @@ export async function getPaginationData(
 
 export async function getStableListReq(dbName: string, permissionFn?: (dbName: string) => Promise<Recordable[]>) {
   const hasPermissionStableList = permissionFn ? await permissionFn(dbName) : [];
-  const dataSql = `select stable_name, 0 as total, create_time, last_update  from information_schema.ins_stables where db_name="${dbName}"${getStableConditionStr(hasPermissionStableList)}
-   union 
-   select stable_name, count(*) as total, null as create_time, null as last_update from information_schema.ins_tables where db_name="${dbName}" group by stable_name`;
+  const dataSql = `select stable_name, "STABLE" as \`type\`, isvirtual, 0 as total, create_time, last_update  from information_schema.ins_stables where db_name="${dbName}"${getStableConditionStr(hasPermissionStableList)}
+   union
+   select case when stable_name is NULL THEN \`type\` ELSE stable_name END as stable_name,
+     \`type\`, FALSE as isvirtual, count(*) as total, null as create_time, null as last_update
+   from information_schema.ins_tables where db_name="${dbName}" group by stable_name, \`type\``;
   const handleDataFn = (data: Recordable[]) => {
     let result = handleStableDataKey(data, dbName);
     if (hasPermissionStableList.length) {
@@ -63,7 +68,7 @@ export async function getStableListReq(dbName: string, permissionFn?: (dbName: s
     }
     return result;
   };
-  return getAllData(dataSql, handleDataFn).then(result => {
+  return await getAllData(dataSql, handleDataFn).then(result => {
     if (result[0].length === 0) return result;
     result[1] = result[0].length;
     return getStableTags(
@@ -263,24 +268,102 @@ export function getStableStructReq(dbName: string, stableName: string) {
     });
 }
 
-export function createStableReq(formData: CreateStableForm, dbName: string) {
-  const { name, columns, tags } = formData;
+export async function getNormalTableStructReq(dbName: string, stableName: string): Promise<ColumnStruct[]> {
+  try {
+    const list = await executeSqlFn!(`DESCRIBE \`${dbName}\`.\`${stableName}\`;`, true);
 
-  return executeSqlFn!(
-    `CREATE STABLE \`${dbName}\`.${name} (${columns
-      .map(
-        item =>
-          `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${
-            item.level ? ' LEVEL ' + `'${item.level}'` : ''
-          }${item.primaryKey ? ' PRIMARY KEY' : ''}`
-      )
-      .join(
-        ','
-      )}) TAGS (${tags.map(item => `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}`).join(',')});`
-  ).catch(err => {
+    const columns: ColumnStruct[] = [];
+    for (let i = 0; i < list.length; i++) {
+      const item = list[i];
+      columns.push({ ...item, primaryKey: item.note == 'PRIMARY KEY' } as ColumnStruct);
+    }
+    return columns;
+  }
+  catch (err: any) {
     err.desc && ElMessage.error(err.desc);
     return Promise.reject(err);
-  });
+  };
+}
+
+
+export async function createVirtualNormalTableReq(formData: CreateVirtualNormalTableForm, dbName: string) {
+  const { name, columns } = formData;
+  console.log("Create virtual normal table with:", formData);
+  const columnDefinitions = columns.map((item, index) => {
+    if (index === 0) {
+      // The first column is the primary key, so we add PRIMARY KEY constraint
+      return `${escapeName(item.field)} ${composeType(item)}`;
+    } else {
+      return `${escapeName(item.field)} ${composeType(item)} FROM ${buildVirtualColumn(item)}`;
+    }
+  }).join(',');
+  console.log("Column definitions for virtual normal table:", columnDefinitions);
+
+  try {
+    await executeSqlFn!(`CREATE VTABLE \`${dbName}\`.${escapeName(name)} (${columnDefinitions});`);
+  }
+  catch (err: any) {
+    err.desc && ElMessage.error(err.desc);
+    return Promise.reject(err);
+  }
+}
+export async function createNormalTableReq(formData: CreateTableForm, dbName: string) {
+  const { name, columns } = formData;
+  const columnDefinitions = columns.map(item => {
+    return `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''}${item.primaryKey ? ' PRIMARY KEY' : ''}`;
+  }).join(',');
+
+  try {
+    await executeSqlFn!(`CREATE TABLE \`${dbName}\`.${name} (${columnDefinitions});`);
+  }
+  catch (err: any) {
+    err.desc && ElMessage.error(err.desc);
+    return Promise.reject(err);
+  }
+}
+export interface changeNormalTableStructData {
+  operation: string;
+  first_field: string;
+  second_field?: string;
+  other?: string;
+}
+// 修改普通表的表结构
+export async function changeNormalTableStruct(data: changeNormalTableStructData, name: string, dbName: string) {
+  const { operation, first_field = '', second_field = '', other = '' } = data;
+  let sql = '';
+  const hasBacktick = first_field.startsWith('`') && first_field.endsWith('`');
+  let escaped_first_field = escapeSpecialChar(first_field);
+  const escaped_second_field = escapeSpecialChar(second_field);
+  if (!hasBacktick) {
+    escaped_first_field = `\`${escaped_first_field}\``;
+  }
+  sql = `ALTER TABLE  \`${dbName}\`.\`${name}\` ${operation} ${escaped_first_field} ${escaped_second_field}${other};`;
+  try {
+    return await executeSqlFn!(sql);
+  } catch (err: any) {
+    err.desc && ElMessage.error(err.desc);
+    return Promise.reject(err);
+  }
+}
+export async function createStableReq(formData: CreateStableForm, dbName: string) {
+  const { name, columns, tags } = formData;
+
+  try {
+    return await executeSqlFn!(
+      `CREATE STABLE \`${dbName}\`.${name} (${columns
+        .map(
+          item =>
+            `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''
+            }${item.primaryKey ? ' PRIMARY KEY' : ''}`
+        )
+        .join(
+          ','
+        )}) TAGS (${tags.map(item => `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}`).join(',')});`
+    );
+  } catch (err: any) {
+    err.desc && ElMessage.error(err.desc);
+    return Promise.reject(err);
+  }
 }
 export interface changeStbStructData {
   operation: string;
@@ -321,7 +404,13 @@ export function handleDataKey(data: Recordable[], type: string, parent = '') {
 export async function getTableListReq(params: Recordable) {
   const { currentPage, pageSize, stbName, dbName, filter = '', condition = '' } = params;
   const parent = `${dbName}.${stbName}`;
-  let where = `where db_name='${dbName}' and stable_name='${stbName}'`;
+  let where = `where db_name='${dbName}' and `;
+  if (stbName === VIRTUAL_NORMAL_TABLE || stbName === NORMAL_TABLE) {
+    where += `\`type\`='${stbName}'`;
+  } else {
+    where += `stable_name='${stbName}'`;
+  }
+  console.log("Fetch table list for", where);
   if (filter) {
     where += ` and table_name like '%${filter}%'`;
   }
@@ -349,8 +438,35 @@ export function deleteTableReq(payload: { dbName: string; tbName: string }) {
   });
 }
 
+function escapeName(name: string) {
+  if (!name) return '';
+  if (name.startsWith('`') && name.endsWith('`')) {
+    return name;
+  }
+  return '`' + name + '`';
+}
+
+/**
+ * 构建虚拟子表的列名
+ */
+function buildVirtualColumn(column: Recordable) {
+  return `${escapeName(column.database)}.${escapeName(column.table)}.${escapeName(column.value)}`;
+}
+
+/** 创建虚拟子表或子表 */
 export function createTableReq(formData: CreateSubTbForm, dbName: string) {
-  const { name, stbTmpl, tags } = formData;
+  const { name, stbTmpl, tags, isVirtual, columns } = formData;
+  if (isVirtual) {
+    // 以虚拟超级表为模版创建虚拟子表
+    return executeSqlFn!(
+      `CREATE VTABLE \`${dbName}\`.${name} (${columns.map((item: Recordable) => buildVirtualColumn(item)).join(',')}) USING \`${dbName}\`.\`${stbTmpl}\` (${tags.map((item: Recordable) => `\`${item.field}\``).join(',')}) TAGS (${tags
+        .map((item: Recordable) => processStringTagValue(item.type, item.value))
+        .join(',')});`
+    ).catch(err => {
+      err.desc && ElMessage.error(err.desc);
+      return Promise.reject(err);
+    });
+  }
   // 以超级表为模版创建表
   return executeSqlFn!(
     `CREATE TABLE \`${dbName}\`.${name} USING \`${dbName}\`.\`${stbTmpl}\` (${tags.map((item: Recordable) => `\`${item.field}\``).join(',')}) TAGS (${tags
@@ -360,19 +476,19 @@ export function createTableReq(formData: CreateSubTbForm, dbName: string) {
     err.desc && ElMessage.error(err.desc);
     return Promise.reject(err);
   });
-  // return executeSqlFn!(`CREATE TABLE ${dbName}.${name} (${columns.map(item => `${item.field} ${item.type}`).join(",")});`).catch(err => {
-  //   err.desc && ElMessage.error(err.desc);
-  //   return Promise.reject(err);
-  // });
 }
 
 export function getSubtbInitStruct(dbName: string, stbName: string) {
   return getStableStructReq(dbName, stbName)
     .then((res: Recordable) => {
-      const { tags } = res;
+      const { columns, tags } = res;
       return {
         name: '',
         stbTmpl: stbName,
+        columns: columns.map((item: Recordable) => {
+          item.value = '';
+          return item;
+        }),
         tags: tags.map((item: Recordable) => {
           item.value = '';
           return item;
@@ -387,17 +503,40 @@ export function getSubtbInitStruct(dbName: string, stbName: string) {
     }));
 }
 
+export async function getValidTablesForVirtualTableRef(dbName: string, type: string, tbPattern: string = '', limit: number = 10) {
+  console.log('getValidColumnsForVirtualTableRef', dbName, type);
+  const res = await executeSqlFn!(`SELECT table_name FROM information_schema.ins_columns where table_type != 'SUPER_TABLE' and db_name = '${dbName}' and col_type = '${type}' and table_name like '%${tbPattern || ''}%' limit ${limit};`, true);
+
+  console.log('getValidColumnsForVirtualTableRef res', res);
+  return res.map((item: Recordable) => {
+    return item.table_name;
+  });
+}
+
+export async function getValidColumnsForVirtualTableRef(dbName: string, tbName: string, type: string) {
+  console.log('getValidColumnsForVirtualTableRef', dbName, tbName, type);
+  const res: Recordable = await getStableStructReq(dbName, tbName);
+  console.log('getValidColumnsForVirtualTableRef res', res);
+  const { columns } = res;
+  return columns.filter((item: Recordable, index: number) => {
+    return index != 0 && // 排除第一个字段
+      item.type == type;
+  });
+}
+
 // 修改表结构
-export function changeTableStruct(data: changeStbStructData, tableName: string, dbName: string) {
+export async function changeTableStruct(data: changeStbStructData, tableName: string, dbName: string) {
   // eslint-disable-next-line prefer-const
   const { operation, first_field = '' } = data;
   const second_field = escapeSpecialChar(data.second_field || '');
   let sql = '';
   sql = `ALTER TABLE  \`${dbName}\`.\`${tableName}\` ${operation} ${first_field} ${second_field};`;
-  return executeSqlFn!(sql).catch(err => {
+  try {
+    await executeSqlFn!(sql);
+  } catch (err: any) {
     err.desc && ElMessage.error(err.desc);
     return Promise.reject(err);
-  });
+  };
 }
 
 // 获取表的tag value

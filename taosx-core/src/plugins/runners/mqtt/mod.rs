@@ -25,7 +25,6 @@ use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::mqtt::config::MqttConfig;
 use crate::sink::persist::PersistConfig;
 use crate::utils::codec::Processor;
-use crate::utils::defer::defer;
 use crate::{build_ipc, Parser, Transferred};
 
 use super::{get_data_dir, set_tcp_keepalive};
@@ -64,7 +63,6 @@ pub async fn mqtt_to_taos(
     let metrics = get_metrics_arc_from_i64(task_id).await;
     let metrics = Arc::new(MqttMetrics::new(metrics));
 
-    let _metrics_guard = defer(|| metrics.reset_metrics());
     metrics.reset_metrics();
 
     let config: MqttConfig = from.try_into()?;
@@ -74,6 +72,7 @@ pub async fn mqtt_to_taos(
         .or(with_agent.as_ref().map(|a| a.0))
         .context("task id not found")?;
     let persist_config = config.persist_data.as_ref().map(|c| PersistConfig {
+        task_id: tid,
         record_metrics: true,
         schemas: HashMap::from_iter([(
             schema.clone(),

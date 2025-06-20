@@ -25,7 +25,7 @@
 
 <script setup lang="ts">
 import { t } from 'locales';
-import { currentPageType, taskId } from '../model/util';
+import { currentPageType, taskId, sourceForm, currentTaskStatus } from '../model/util';
 
 const props = withDefaults(
   defineProps<{
@@ -37,6 +37,9 @@ const props = withDefaults(
 const localData = reactive(props.data);
 
 const isEdit = computed(() => {
+  if (currentTaskStatus.value == 'created' && sourceForm.type == 'kafka' && (props.config.field == 'group' || props.config.field == 'client_id') ) {
+    return false
+  }
   return currentPageType.value == 'edit';
 });
 const isCopy = computed(() => {

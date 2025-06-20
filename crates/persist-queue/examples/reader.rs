@@ -6,6 +6,7 @@ use persist_queue::{
     RawReader,
 };
 use tempfile::tempdir;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, clap::Parser)]
 struct Args {
@@ -24,6 +25,7 @@ struct Args {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
+    let cancel = CancellationToken::new();
 
     let (_temp, dir) = args.dir.map(|v| (None, v)).unwrap_or_else(|| {
         let dir = tempdir().unwrap();
@@ -46,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
     let mut count = 0;
     loop {
         let entries = reader
-            .read_util(1, args.batch_size.min(args.count - count), None)
+            .read_util(1, args.batch_size.min(args.count - count), None, &cancel)
             .await?;
         if entries.is_empty() {
             continue;

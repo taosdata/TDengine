@@ -1,6 +1,8 @@
 export default {
   noDatabase: '没有数据库',
   createDatabase: '创建数据库',
+  createNormalTable: '创建普通表',
+  createVirtualNormalTable: '创建虚拟普通表',
   refreshDatabaseList: '刷新数据库列表',
   tdKewordTip: '"{0}"是 TDengine 的一个保留关键词，请使用反引号包裹起来',
   delFavirote: '删除收藏',

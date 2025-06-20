@@ -5,6 +5,7 @@ pub mod writer;
 use std::{future::Future, path::PathBuf, time::Duration};
 
 use bytes::Bytes;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, snafu::Snafu)]
 pub enum Error {
@@ -112,6 +113,7 @@ pub trait RawReader {
         min_batch_size: usize,
         max_batch_size: usize,
         timeout: Option<Duration>,
+        cancel: &CancellationToken,
     ) -> impl Future<Output = Result<Vec<Entry<Self::EntryPosition>>>> + Send;
 
     fn vacuum(&mut self) -> impl Future<Output = Result<()>> + Send;

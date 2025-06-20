@@ -148,7 +148,7 @@ pub fn json_to_dsn(json: &serde_json::Value) -> anyhow::Result<Dsn> {
             let json_value: serde_json::Value = match serde_json::from_str(&str) {
                 Ok(value) => value,
                 Err(_) => {
-                    tracing::warn!("parse by json failed, use default dsn: {}", str);
+                    tracing::info!("parse by json failed, use default dsn: {}", str);
                     return str
                         .parse()
                         .with_context(|| format!("Invalid data source: {}", json));
@@ -250,7 +250,15 @@ pub fn json_to_dsn(json: &serde_json::Value) -> anyhow::Result<Dsn> {
                         endpoint
                     )
                 })?;
-                dsn.protocol = d.protocol;
+                match (d.driver.as_str(), d.protocol.as_ref()) {
+                    ("ws" | "wss" | "http" | "https", None) => {
+                        // TD-34891 支持 ws://... 写法
+                        dsn.protocol = Some(d.driver);
+                    }
+                    _ => {
+                        dsn.protocol = d.protocol;
+                    }
+                }
                 dsn.username = d.username;
                 dsn.password = d.password;
                 dsn.addresses = d.addresses;
@@ -497,5 +505,65 @@ mod tests {
         let json = dsn_to_json(&dsn);
         dbg!(&json);
         println!("{}", serde_json::to_string(&json).unwrap());
+    }
+
+    #[test]
+    fn tmq_json_to_dsn_test() -> anyhow::Result<()> {
+        let dsn = json_to_dsn(&serde_json::json!({
+            "agent": "",
+            "type": "tmq",
+            "data": {
+                "endpoint": "ws://root:taosdata@192.168.0.201:6041/astro_test",
+                "auto.offset.reset": "earliest",
+                "group.id": "",
+                "client.id": "",
+                "timeout": "0s",
+                "experimental.snapshot.enable": true,
+                "with.meta.drop": true,
+                "with.meta.delete": true,
+                "compression": false,
+                "health_check_window_in_second": "0s",
+                "busy_threshold": "100%",
+                "max_queue_length": 1000,
+                "max_errors_in_window": 10,
+                "num.of.consumers": 0,
+                "num.of.writers": 0,
+                "prefer": "auto",
+                "commit.chunk.size": 0,
+                "commit.interval.ms": 0
+            }
+        }))
+        .unwrap();
+        assert_eq!(dsn.driver, "tmq");
+        assert!(dsn.protocol.is_some_and(|s| s == "ws"));
+
+        let dsn = json_to_dsn(&serde_json::json!({
+            "agent": "",
+            "type": "tmq",
+            "data": {
+                "endpoint": "tmq+ws://root:taosdata@192.168.0.201:6041/astro_test",
+                "auto.offset.reset": "earliest",
+                "group.id": "",
+                "client.id": "",
+                "timeout": "0s",
+                "experimental.snapshot.enable": true,
+                "with.meta.drop": true,
+                "with.meta.delete": true,
+                "compression": false,
+                "health_check_window_in_second": "0s",
+                "busy_threshold": "100%",
+                "max_queue_length": 1000,
+                "max_errors_in_window": 10,
+                "num.of.consumers": 0,
+                "num.of.writers": 0,
+                "prefer": "auto",
+                "commit.chunk.size": 0,
+                "commit.interval.ms": 0
+            }
+        }))
+        .unwrap();
+        assert_eq!(dsn.driver, "tmq");
+        assert!(dsn.protocol.is_some_and(|s| s == "ws"));
+        Ok(())
     }
 }

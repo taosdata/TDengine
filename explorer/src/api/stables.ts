@@ -93,20 +93,18 @@ export function createStableReq(payload) {
   return sendSQLReq(
     `CREATE STABLE \`${selected_db}\`.${name} (${columns
       .map(
-        item => `${item.field} ${
-          VariableTableColumnType.includes(item.type) ? item.type + '(' + `${item.length}` + ')' : item.type
-        }${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}
+        item => `${item.field} ${VariableTableColumnType.includes(item.type) ? item.type + '(' + `${item.length}` + ')' : item.type
+          }${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}
       ${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''}
       ${item.primaryKey ? ' PRIMARY KEY' : ''}`
       )
       .join(',')}) TAGS (${tags
-      .map(
-        item =>
-          `${item.field} ${
-            VariableTableColumnType.includes(item.type) ? item.type + '(' + `${item.length}` + ')' : item.type
-          }`
-      )
-      .join(',')}) ${rollupValue};`
+        .map(
+          item =>
+            `${item.field} ${VariableTableColumnType.includes(item.type) ? item.type + '(' + `${item.length}` + ')' : item.type
+            }`
+        )
+        .join(',')}) ${rollupValue};`
   ).catch(err => {
     return Promise.reject(err);
   });

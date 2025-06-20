@@ -1,5 +1,7 @@
 use anyhow::{bail, Context};
-use chrono::{DateTime, Local, Utc};
+use async_compression::tokio::write::ZstdEncoder;
+use async_compression::zstd::CParameter;
+use chrono::{DateTime, Utc};
 use std::io::Result as IoResult;
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -9,26 +11,31 @@ use std::str::FromStr;
 use std::time::Duration;
 use taos::taos_query::common::RawData;
 use taos::*;
+use tokio::fs::File;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWrite;
 use tokio::io::AsyncWriteExt;
+use tokio::io::BufWriter;
+use tokio::time::Instant;
 
 use crate::dsv::DataSourceValidation;
-use async_compression::tokio::write::ZstdEncoder;
+
 pub use header::*;
-use tokio::fs::File;
-use tokio::io::BufReader;
-use tokio::time::Instant;
 
 mod header;
 
 #[derive(Debug, Clone)]
 pub struct ZFileName {
+    /// zfile 的原始路径
     pub raw_path: Option<PathBuf>,
+    /// zfile 对应的 topic 名称
     pub topic: String,
+    /// zfile 对应的备份时间戳
     pub timestamp: Option<DateTime<Utc>>,
+    /// vgroup id
     pub vg_id: i32,
+    /// zfile 的 index
     pub index: u64,
 }
 
@@ -85,7 +92,8 @@ impl ZFileName {
     }
 }
 
-type ZFileInner = ZCodec<ZstdEncoder<BufReader<File>>>;
+// type ZFileInner = ZCodec<ZstdEncoder<BufReader<File>>>;
+type ZFileInner = ZCodec<ZstdEncoder<BufWriter<File>>>;
 
 /// Construct a ZFile with name pattern `{prefix}-{timestamp}.z`.
 ///
@@ -238,57 +246,18 @@ impl ZFile {
                 format!("Can't create file {}: {err:#}", path.display()),
             )
         })?;
-        let wtr = BufReader::new(file);
-        let wtr = ZstdEncoder::with_quality(wtr, compression_level);
+        let wtr = BufWriter::new(file);
+        // let wtr = BufReader::new(file);
+        // let wtr = ZstdEncoder::with_quality(wtr, compression_level);
+        let wtr = ZstdEncoder::with_quality_and_params(
+            wtr,
+            compression_level,
+            &[CParameter::checksum_flag(true)],
+        );
         let mut file = ZCodec::new(wtr);
         file.write_head_async(&Header::new(api_version, server_version, None))
             .await?;
 
-        Ok((path, file))
-    }
-
-    // pub async fn new(
-    //     api_version: &str,
-    //     server_version: &str,
-    //     prefix: impl AsRef<Path>,
-    //     compression_level: async_compression::Level,
-    //     max_file_size: u64,
-    //     move_to: Option<PathBuf>,
-    // ) -> IoResult<Self> {
-    //     let prefix = prefix.as_ref().to_path_buf();
-    //     let (file_name, file) =
-    //         ZFile::new_z_file(api_version, server_version, &prefix, compression_level).await?;
-    //     Ok(Self {
-    //         api_version: api_version.to_string(),
-    //         server_version: server_version.to_string(),
-    //         path: file_name,
-    //         prefix,
-    //         compression_level,
-    //         max_file_size,
-    //         move_to,
-    //         file,
-    //         current_size: 0,
-    //     })
-    // }
-
-    #[deprecated]
-    #[allow(unused)]
-    async fn new_z_file(
-        api_version: &str,
-        server_version: &str,
-        prefix: impl AsRef<Path>,
-        compression_level: async_compression::Level,
-    ) -> IoResult<(PathBuf, ZFileInner)> {
-        let prefix = prefix.as_ref().to_path_buf();
-        let now = Local::now();
-        let timestamp = now.timestamp();
-        let path = PathBuf::from(format!("{}-{timestamp}.z", prefix.display()));
-        let file = File::create(&path).await?;
-        let wtr = BufReader::new(file);
-        let wtr = ZstdEncoder::with_quality(wtr, compression_level);
-        let mut file = ZCodec::new(wtr);
-        file.write_head_async(&Header::new(api_version, server_version, None))
-            .await?;
         Ok((path, file))
     }
 
@@ -309,6 +278,9 @@ impl ZFile {
         };
 
         if self.current_size as u64 >= self.max_file_size || timeout {
+            // 为当前文件计算 CRC 并写入到文件结尾
+
+            // 关闭当前文件
             self.writer
                 .flush()
                 .await
@@ -342,6 +314,7 @@ impl ZFile {
                 self.name.1 = Some(now);
             }
 
+            // 如果 move_to 不为空，则将当前备份文件移动到 move_to 目录
             self.move_to().await?;
 
             // create a new ZFile

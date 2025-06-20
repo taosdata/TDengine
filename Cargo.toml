@@ -74,7 +74,11 @@ bitfield = "0.16.1"
 bigdecimal = "0.4"
 
 prost = "0.13"
-prost-build = "0.13"
+actix-cors = "0.7.0"
+actix-files = "0.6.6"
+actix-multipart = "0.7.2"
+actix-web = { version = "4.9.0", features = ["rustls-0_23"] }
+actix-ws = "0.3.0"
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
@@ -107,8 +111,8 @@ arrow = { workspace = true }
 arrow-flight = { workspace = true }
 zerocopy = { workspace = true }
 opendal = { workspace = true }
-#multi_index_map = "0.11.0"
-multi_index_map = { git = "https://github.com/lun3x/multi_index_map.git", branch = "master" }
+multi_index_map = "0.15.0"
+#multi_index_map = { git = "https://github.com/lun3x/multi_index_map.git", branch = "master" }
 scc = { workspace = true, features = ["serde"] }
 semver = "1"
 shadow-rs = { workspace = true }
@@ -152,11 +156,11 @@ tokio = { workspace = true, features = [
 tokio-util.workspace = true
 toml = "0.8.19"
 
-actix-cors = "0.7.0"
-actix-files = "0.6.6"
-actix-multipart = "0.7.2"
-actix-web = { version = "4", features = ["rustls-0_23"] }
-actix-ws = "0.3.0"
+actix-cors.workspace = true
+actix-files.workspace = true
+actix-multipart.workspace = true
+actix-web.workspace = true
+actix-ws.workspace = true
 base64 = "0.22.1"
 serde_json = { version = "1.0", features = ["raw_value"] }
 sqlx = { version = "0.8", features = ["sqlite", "chrono", "json"] }
@@ -284,6 +288,8 @@ strip = "debuginfo"
 
 [patch.crates-io]
 sasl2-sys = { path = "./crates/rust-sasl/sasl2-sys" }
+actix-http = { git = "https://github.com/bitcapybara/actix-web", rev = "bf4f6e7a69e8b9805b5c74a81b8524a8fc53f6ed" }
+# actix-http = { path = "/root/actix-web/actix-http" }
 
 [lints]
 workspace = true

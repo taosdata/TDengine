@@ -148,6 +148,10 @@ pub async fn opc_to_taos(
             to.clone().to_string()
         );
     }
+    if with_agent.is_some() {
+        let task_id = task_id.context("Task id not found for agent runner")?;
+        let _ = crate::core_metrics::init_task_metrics(&from, &to, task_id, None).await;
+    }
     let ipc_port = port_pool
         .get()
         .await
@@ -172,7 +176,8 @@ pub async fn opc_to_taos(
         .context("task id not found")?;
     let persist_config = config.collect.as_ref().and_then(|c| {
         c.persist_data.as_ref().map(|c| PersistConfig {
-            record_metrics: false,
+            task_id: tid,
+            record_metrics: true,
             schemas: get_schema_path(c.dir.clone().unwrap_or_else(|| {
                 get_data_dir()
                     .join("tasks")

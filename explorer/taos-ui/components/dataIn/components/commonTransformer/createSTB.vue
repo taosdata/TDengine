@@ -33,7 +33,7 @@
             <el-option v-for="item in handleTypeList('dataType')" :key="item" :label="item" :value="item"></el-option>
           </el-select>
           <el-input-number
-            v-if="VariableTableColumnType.includes(column.type)"
+            v-if="VariableTableColumnType.includes(column.type) || TwoVariableTableColumnType.includes(column.type)"
             v-model="column.length"
             size="default"
             :min="1"
@@ -42,6 +42,18 @@
             controls-position="right"
             class="column-width-110"
             @change="newVal => handleChange(newVal, index)"
+          ></el-input-number>
+          <el-input-number
+            v-if="TwoVariableTableColumnType.includes(column.type)"
+            v-model="column.length2"
+            size="default"
+            default-value=0
+            :min="1"
+            :max="column.type == 'NCHAR' ? 4093 : 65517"
+            label="Length"
+            controls-position="right"
+            class="column-width-110"
+            @change="newVal => handleChange2(newVal, index)"
           ></el-input-number>
           <el-input
             v-model="column.field"
@@ -201,7 +213,7 @@ import {
   groupFour,
   groupFive
 } from '../../../explorer/components/createStable/utils';
-import { VariableTableColumnType, TDengineDataType } from 'constants1/index';
+import { VariableTableColumnType, TDengineDataType, TwoVariableTableColumnType } from 'constants1/index';
 import { instance } from 'config';
 import { compareVersion } from 'utils/tdengine';
 import { t } from 'locales';
@@ -341,6 +353,9 @@ function initTemplateColumns() {
 function handleChange(newVal: any, index: number) {
   state.stable_form.columns[index]['length'] = newVal;
 }
+function handleChange2(newVal: any, index: number) {
+  state.stable_form.columns[index]['length2'] = newVal;
+}
 function tagLengthChange(newVal: any, index: number) {
   state.stable_form.tags[index]['length'] = newVal;
 }
@@ -467,7 +482,7 @@ async function createTemplateStable() {
         return {
           name: col.field,
           length: col.length,
-          type: col.type + (VariableTableColumnType.includes(col.type) ? `(${col.length})` : '')
+          type: col.type + (VariableTableColumnType.includes(col.type) ? `(${col.length})` : TwoVariableTableColumnType.includes(col.type) ? `(${col.length},${col.length2})` : '')
         };
       });
       const newTags = tags.map(col => {
@@ -529,8 +544,8 @@ async function createTemplateStable() {
 
   .column-width-110 {
     flex-shrink: 0;
-    width: 110px;
-    min-width: 100px;
+    width: 90px;
+    min-width: 50px;
   }
 
   .input-row {

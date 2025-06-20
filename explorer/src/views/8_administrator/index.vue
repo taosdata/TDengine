@@ -20,7 +20,7 @@
         <el-tab-pane v-if="getMetaShow('dnodes')" name="cluster" :label="$t('route.cluster')" lazy>
           <Cluster></Cluster>
         </el-tab-pane>
-        <el-tab-pane v-if="!$IS_COMMUNITY" name="license" :label="$t('topic.license')" lazy>
+        <el-tab-pane v-if="$IS_TSDBLITE || !$IS_COMMUNITY" name="license" :label="$t('topic.license')" lazy>
           <License></License>
         </el-tab-pane>
         <el-tab-pane v-if="getMetaShow('audit')" name="audit" :label="$t('topic.audit')" lazy>
@@ -54,7 +54,7 @@ import { compareVersion } from '@/utils/index';
 import useLicense from '@/hooks/useLicense.ts';
 
 const globalCustomProperties: any = inject('globalCustomProperties');
-const { $IS_COMMUNITY } = globalCustomProperties;
+const { $IS_COMMUNITY, $IS_TSDBLITE } = globalCustomProperties;
 const router = useRouter();
 const route = useRoute();
 const { getMetaShow } = useLicense();

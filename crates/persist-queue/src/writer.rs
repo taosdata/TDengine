@@ -1,23 +1,21 @@
 use std::time::Duration;
 
 use futures::StreamExt;
-use futures_ext::OptionFuture;
-use tokio::sync::oneshot;
+use tokio::time::MissedTickBehavior;
 use tokio_util::sync::CancellationToken;
 
 const DEFAULT_CHUNK_SIZE: usize = 1000;
 const DEFAULT_SYNC_INTERVAL: Duration = Duration::from_secs(3);
 
-pub struct WriterBuilder<W, B, P> {
+pub struct WriterBuilder<W, B> {
     chunk_size: Option<usize>,
     sync_interval: Option<Duration>,
 
     writer: W,
     rx: flume::Receiver<B>,
-    request_rx: Option<flume::Receiver<Request<P>>>,
 }
 
-impl<W, B, P> WriterBuilder<W, B, P> {
+impl<W, B> WriterBuilder<W, B> {
     pub fn chunk_size(self, chunk_size: usize) -> Self {
         Self {
             chunk_size: Some(chunk_size),
@@ -32,53 +30,42 @@ impl<W, B, P> WriterBuilder<W, B, P> {
         }
     }
 
-    pub fn request_rx(self, request_rx: flume::Receiver<Request<P>>) -> Self {
-        Self {
-            request_rx: Some(request_rx),
-            ..self
-        }
-    }
-
-    pub fn build(self) -> Writer<W, B, P> {
+    pub fn build(self) -> Writer<W, B> {
         Writer {
             writer: self.writer,
             rx: self.rx,
-            request_rx: self.request_rx,
             chunk_size: self.chunk_size.unwrap_or(DEFAULT_CHUNK_SIZE),
             sync_interval: self.sync_interval.unwrap_or(DEFAULT_SYNC_INTERVAL),
         }
     }
 }
 
-pub struct Writer<W, B, P> {
+pub struct Writer<W, B> {
     writer: W,
     rx: flume::Receiver<B>,
     chunk_size: usize,
     sync_interval: Duration,
-    request_rx: Option<flume::Receiver<Request<P>>>,
 }
 
-pub enum Request<P> {
-    Position(oneshot::Sender<P>),
-}
-
-impl<W, B, P> Writer<W, B, P>
+impl<W, B> Writer<W, B>
 where
-    W: super::RawWriter<B, EntryPosition = P>,
+    W: super::RawWriter<B, EntryPosition = crate::fs::EntryPosition>,
     B: AsRef<[u8]> + Send,
 {
-    pub fn builder(writer: W, rx: flume::Receiver<B>) -> WriterBuilder<W, B, P> {
+    pub fn builder(writer: W, rx: flume::Receiver<B>) -> WriterBuilder<W, B> {
         WriterBuilder {
             chunk_size: None,
             sync_interval: None,
-            request_rx: None,
             writer,
             rx,
         }
     }
 
     pub async fn run(mut self, token: CancellationToken) -> super::Result<()> {
+        let mut ticker = tokio::time::interval(self.sync_interval);
+        ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
         let mut stream = self.rx.stream().ready_chunks(self.chunk_size);
+        let mut is_dirty = false;
         loop {
             tokio::select! {
                 res = stream.next() => {
@@ -86,19 +73,9 @@ where
                         break
                     };
                     self.writer.write(entries).await?;
+                    is_dirty = true;
                 },
-                req = OptionFuture::from(self.request_rx.as_ref().map(|v| v.recv_async())) => {
-                    let Ok(req) = req else {
-                        break
-                    };
-                    match req {
-                        Request::Position(sender) => {
-                            let position = self.writer.position();
-                            sender.send(position).ok();
-                        },
-                    }
-                },
-                _ = tokio::time::sleep(self.sync_interval) => {
+                _ = ticker.tick(), if is_dirty => {
                     self.writer.sync_data().await?;
                 }
                 _ = token.cancelled() => {
@@ -107,6 +84,10 @@ where
             }
         }
 
+        // 把剩余的消息消费完
+        while let Some(entries) = stream.next().await {
+            self.writer.write(entries).await?;
+        }
         // 退出前同步数据到磁盘，避免文件损坏
         self.writer.sync_data().await?;
 

@@ -14,11 +14,35 @@ export const columnRule = {
   message: t('common.notEmptyTemp', [t('stb.columnName')]),
   trigger: 'blur'
 };
+
+export const virtualColumnRule = [
+  {
+    required: true,
+    message: t('common.notEmptyTemp', [t('stb.columnName')]),
+    trigger: 'blur'
+  }
+];
 export const tagRule = {
   required: true,
   message: t('common.notEmptyTemp', [t('stb.tagName')]),
   trigger: 'blur'
 };
+export const tbNameRule = [
+  {
+    required: true,
+    message: t('common.requiredTemp', [t('common.name')]),
+    trigger: 'blur'
+  },
+  {
+    validator: (_: any, value: string, callback: AnyFunction) => {
+      if (validTDKeywords(value)) {
+        return callback(new Error(t('explorer.tdKewordTip', [value])));
+      }
+      callback(validTableName(value) ? undefined : new Error(t('common.formatErrorTemp', [t('common.name')])));
+    },
+    trigger: 'blur'
+  }
+];
 
 export const stbNameRule = [
   {
@@ -37,9 +61,19 @@ export const stbNameRule = [
   }
 ];
 
-export function generateCreateSubTableSql(data: CreateSubTbForm, dbName: string) {
+export function generateCreateSubTableSql(data: CreateSubTbForm, dbName: string, isVirtual: boolean) {
+  console.log("generate sub table", data, isVirtual);
+  if (isVirtual) return generateCreateVirtualSubTableSql(data, dbName);
   const { name, stbTmpl, tags } = data;
   return `CREATE TABLE \`${dbName}\`.${name} USING \`${dbName}\`.\`${stbTmpl}\` (${tags.map(item => `\`${item.field}\``).join(',')}) TAGS (${tags
+    .map(item => processStringTagValue(item.type, item.value))
+    .join(',')});`;
+}
+
+export function generateCreateVirtualSubTableSql(data: CreateSubTbForm, dbName: string) {
+  const { name, stbTmpl, columns, tags } = data;
+  console.log("Virtual subtable", data);
+  return `CREATE VTABLE \`${dbName}\`.${name} (${columns.map(item => item.value).join(',')}) USING \`${dbName}\`.\`${stbTmpl}\` (${tags.map(item => `\`${item.field}\``).join(',')}) TAGS (${tags
     .map(item => processStringTagValue(item.type, item.value))
     .join(',')});`;
 }

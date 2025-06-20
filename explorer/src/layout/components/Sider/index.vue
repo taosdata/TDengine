@@ -24,7 +24,7 @@ import { useStore } from 'vuex';
 const { getMetaShow } = useLicense();
 const store = useStore();
 const route = useRoute();
-const { $IS_OEM, $IS_COMMUNITY } = inject('globalCustomProperties') as GlobalCustomProperties;
+const { $IS_OEM, $IS_COMMUNITY, $IS_TSDBLITE } = inject('globalCustomProperties') as GlobalCustomProperties;
 const flag = $IS_OEM;
 
 const isCollapse = ref<boolean>(false);
@@ -129,7 +129,7 @@ onMounted(() => {
     });
   }
 
-  if ($IS_COMMUNITY) {
+  if (!$IS_TSDBLITE && $IS_COMMUNITY) {
     store.commit('app/SET_SHOW_SYSTEM_MES', true)
   }
 });

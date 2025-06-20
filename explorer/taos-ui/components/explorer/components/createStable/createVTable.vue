@@ -1,6 +1,6 @@
 <template>
   <div class="stb-create">
-    <div v-if="props.showTitle" class="form-title">{{ formTitle }}</div>
+    <div class="form-title">{{ formTitle }}</div>
     <el-form
       ref="formIns"
       class="form-wrapper"
@@ -10,7 +10,7 @@
       :model="formData"
     >
       <!-- Name -->
-      <el-form-item prop="name" :rules="stbNameRule">
+      <el-form-item prop="name" :rules="tbNameRule">
         <template #label>
           <div class="flex-start">
             <span>{{ t('common.name') }}</span>
@@ -34,7 +34,7 @@
             :key="'column' + index"
             label-width="0"
             :prop="'columns.' + index + '.field'"
-            :rules="columnRule"
+            :rules="virtualColumnRule"
           >
             <ColumnItem
               v-model="formData.columns[index]"
@@ -42,10 +42,11 @@
               :is-edit="isEdit"
               :is-timestamp="index == 0"
               :is-can-set-primary-key="index == 1"
+              :database="currentSelectedDb"
+              :databases="formData.databases"
               @minus-column="minusColumn(index)"
               @add-column="addColumn(index)"
               @type-change="typeChange(column, 'column', index)"
-              @move-tag="moveToTag(index)"
             />
           </el-form-item>
           <!-- 添加用的column -->
@@ -61,7 +62,6 @@
               currentData = null;
             "
             @confirm="add"
-            @move-tag="addMoveToTag"
           />
           <el-button
             v-if="isEdit"
@@ -71,55 +71,6 @@
             :disabled="currentEditType == 'column'"
             icon="plus"
             @click="addColumn()"
-          ></el-button>
-        </el-collapse-item>
-        <el-collapse-item name="2" :title="t('stb.tags')">
-          <!-- Tag Section -->
-          <!-- 占位元素 -->
-          <el-form-item
-            v-for="(column, index) in formData.tags"
-            :key="'tag' + index"
-            label-width="0"
-            :prop="'tags.' + index + '.field'"
-            :rules="tagRule"
-          >
-            <ColumnItem
-              :key="'tag' + index"
-              v-model="formData.tags[index]"
-              :version="props.version"
-              :is-edit="isEdit"
-              :is-tag="true"
-              :placeholder="t('stb.tagName')"
-              @minus-column="minusColumn(index, 'tag')"
-              @add-column="addColumn(index, 'tag')"
-              @type-change="typeChange(column, 'tag', index)"
-            />
-          </el-form-item>
-
-          <!-- 添加用的tag -->
-          <ColumnItem
-            v-if="currentEditType == 'tag' && isEdit && currentData"
-            v-model="currentData"
-            :version="props.version"
-            class="mb-20px"
-            :loading="loading"
-            :is-add="true"
-            :is-tag="true"
-            :placeholder="t('stb.tagName')"
-            @cancel="
-              currentEditType = '';
-              currentData = null;
-            "
-            @confirm="add"
-          />
-          <el-button
-            v-if="isEdit && CanAddNewTag"
-            class="w-full"
-            size="default"
-            plain
-            :disabled="currentEditType == 'tag'"
-            icon="plus"
-            @click="addColumn(0, 'tag')"
           ></el-button>
         </el-collapse-item>
       </el-collapse>
@@ -133,7 +84,7 @@
           size="default"
           :loading="loading"
           type="primary"
-          @click="handleCreateStable"
+          @click="handleCreateVTable"
           >{{ t('common.create') }}</el-button
         >
         <el-button class="submit-btn" :disabled="loading" size="default" @click="cancel">{{
@@ -145,17 +96,23 @@
 </template>
 
 <script lang="ts" setup>
-import ColumnItem from './columnItem.vue';
+import ColumnItem from './virtualColumnItem.vue';
 // import { cloneDeep } from 'lodash-es';
 import { type_default_version_gte_3300, generateCreateStbSql } from './utils';
-import { ColumnStruct, CreateStableProps, CreateStableForm } from '../props';
-import { isGte3300, stbNameRule, columnRule, tagRule } from '../utils';
+import { ColumnStruct, CreateVirtualNormalTableProps, CreateVirtualNormalTableForm } from '../props';
+import { isGte3300, tbNameRule, virtualColumnRule } from '../utils';
 import { t } from 'locales';
 import { ElMessage, ElMessageBox, FormInstance } from 'element-plus';
 import { composeType } from 'utils/tdengine';
-import { getStableStructReq, createStableReq, changeStableStruct, changeStbStructData } from '../../../api';
+import {
+  getDbList,
+  getNormalTableStructReq,
+  createVirtualNormalTableReq,
+  changeNormalTableStruct,
+  changeNormalTableStructData
+} from '../../../api';
 
-const props = withDefaults(defineProps<CreateStableProps>(), {
+const props = withDefaults(defineProps<CreateVirtualNormalTableProps>(), {
   showTitle: true,
   columnsArray: () => [],
   isEdit: false
@@ -170,13 +127,14 @@ const columnNewField = computed(() =>
       }
 );
 const isEdit = toRef(props, 'isEdit');
-const formData = reactive<CreateStableForm>({
+const formData = reactive<CreateVirtualNormalTableForm>({
+  dbName: props.dbData?.name || '',
   name: '',
+  databases: [],
   columns: [
-    { type: 'TIMESTAMP', field: '', length: 8, length2: 0, ...columnNewField.value.TIMESTAMP },
-    { type: 'INT', field: '', length: 8, length2: 0, ...columnNewField.value.INT }
-  ],
-  tags: [{ type: 'INT', field: '', length: 8, length2: 0 }]
+    { type: 'TIMESTAMP', field: '', length: 8, ...columnNewField.value.TIMESTAMP },
+    { type: 'INT', field: '', length: 8, ...columnNewField.value.INT, database: props.dbData?.name || '' }
+  ]
 });
 const formIns = ref<FormInstance | null>(null);
 const currentEditType = ref('');
@@ -189,64 +147,62 @@ const emits = defineEmits(['success', 'cancel']);
 // const tagDataClone: TagStruct[] = cloneDeep(formData.tags);
 const formTitle = computed(() => {
   if (props.isEdit) {
-    return t('stb.editStable', [formData.name]);
+    return t('stb.editTable', [formData.name]);
   } else {
-    return t('stb.createStbInDb', [currentSelectedDb.value]);
+    return t('stb.createVirtualNormalTableInDb', [currentSelectedDb.value]);
   }
 });
-const CanAddNewTag = computed(() => formData.tags.length < 128);
 const columnStruct = computed(() => {
   return {
     field: '',
     type: 'INT',
     length: 8,
-    length2: 0,
     ...(version_gte_3300.value ? type_default_version_gte_3300.INT : {})
   };
 });
 if (props.isEdit) {
   setFormData();
 }
+initDbList();
+async function initDbList() {
+  try {
+    formData.databases = await getDbList();
+  } catch (error) {
+    ElMessage.error(t('msg.getDbListFailed', [error]));
+    formData.databases = [];
+  } finally {
+    formData.columns.forEach(c => {
+      if (!c.database) {
+        c.database = currentSelectedDb.value;
+      }
+    });
+  }
+}
 
 function setFormData() {
-  getStableStructReq(currentSelectedDb.value, props.stbName!).then(data => {
-    formData.name = props.stbName!;
+  getNormalTableStructReq(currentSelectedDb.value, props.tbName!).then(data => {
+    formData.name = props.tbName!;
     formData.columns = data.columns;
     formData.columns.forEach(c => {
       c.origin_length = c.length;
-    });
-    formData.tags = data.tags;
-    formData.tags.forEach(t => {
-      t.origin_field = t.field;
-      t.origin_length = t.length;
     });
   });
 }
 
 // 类型修改
-async function typeChange(data: ColumnStruct, type: 'column' | 'tag') {
+async function typeChange(data: ColumnStruct) {
   // 不是修改状态就不处理
   if (!props.isEdit) return;
 
   try {
     if (data.length > 0 && data.origin_length !== data.length) {
-      const params: changeStbStructData = {
+      const params: changeNormalTableStructData = {
         operation: 'modify ' + type,
         first_field: data.origin_field || data.field,
         second_field: composeType(data)
       };
       loading.value = true;
-      await changeStableStruct(params, formData.name, currentSelectedDb.value);
-    }
-
-    if (type === 'tag' && data.origin_field !== data.field) {
-      const params = {
-        operation: 'rename tag',
-        first_field: data.origin_field || '',
-        second_field: `\`${data.field}\``
-      };
-      loading.value = true;
-      await changeStableStruct(params, formData.name, currentSelectedDb.value);
+      await changeNormalTableStruct(params, formData.name, currentSelectedDb.value);
     }
 
     if (loading.value === true) {
@@ -258,9 +214,9 @@ async function typeChange(data: ColumnStruct, type: 'column' | 'tag') {
   }
 }
 // 当修改时更新数据的接口，与新增无关
-function updateData(params: changeStbStructData) {
+function updateData(params: changeNormalTableStructData) {
   loading.value = true;
-  changeStableStruct(params, formData.name, currentSelectedDb.value)
+  changeNormalTableStruct(params, formData.name, currentSelectedDb.value)
     .then(() => {
       ElMessage.success(t('msg.modifySuccess'));
     })
@@ -308,21 +264,12 @@ function minusColumn(index: number, type: 'column' | 'tag' = 'column') {
     })
     .catch(() => {});
 }
-function moveToTag(index: number) {
-  if (formData.columns.length > 1) {
-    const column = formData.columns.splice(index, 1)[0];
-    formData.tags.push(column);
-  }
-}
-function addMoveToTag() {
-  currentEditType.value = 'tag';
-}
 
-function handleCreateStable() {
+function handleCreateVTable() {
   if (loading.value || !formIns.value) return;
   formIns.value.validate().then(() => {
     processData();
-    createStableReq(formData, currentSelectedDb.value)
+    createVirtualNormalTableReq(formData, currentSelectedDb.value)
       .then(() => {
         ElMessage.success(t('msg.createSuccess'));
         emits('success', formData.name);
@@ -336,12 +283,11 @@ defineExpose({
 });
 function processData() {
   formData.columns = formData.columns.filter(item => item.field);
-  formData.tags = formData.tags.filter(item => item.field);
 }
 // 修改状态时，确定后发送请求添加数据
 function add() {
   if (!currentData.value) return;
-  const params: changeStbStructData = {
+  const params: changeNormalTableStructData = {
     operation: 'add ' + currentEditType.value,
     first_field: currentData.value.field,
     second_field: composeType(currentData.value)

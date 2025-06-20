@@ -165,7 +165,7 @@ export default {
   csvinusetip: 'Download the current configuration file in use',
   connectionConfiguration: 'Connection Configuration',
   createNewAgent: 'Create New Agent',
-  palceholders: {
+  placeholders: {
     taskName: 'Task Name',
     agentPlaceholder: 'Please select an agent',
     chooseTargetDbTip: 'Please select database',
