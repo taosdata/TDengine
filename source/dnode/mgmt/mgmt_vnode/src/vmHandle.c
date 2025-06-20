@@ -546,7 +546,8 @@ static int32_t vmRetrieveMountDnode(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pR
       TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
     }
     int8_t primary = (int8_t)cJSON_GetNumberValue(pPrimary);
-    if (level < 0 || level >= TFS_MAX_TIERS) {
+    if ((primary < 0 || primary > 1) || (primary == 1 && level != 0)) {
+      dError("mount:%s, invalid primary disk, primary:%d, level:%d", pReq->mountName, primary, level);
       TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
     }
     if (!pMountInfo->pDisks[level]) {
@@ -555,14 +556,17 @@ static int32_t vmRetrieveMountDnode(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pR
         TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
       }
     }
-    if (primary == 1 && level == 0) {
-      pMountInfo->primaryDiskIdx = taosArrayGetSize(pMountInfo->pDisks[0]);
-    }
     char *pDir = taosStrdup(dir);
     if (pDir == NULL) {
       TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
     }
-    if (!taosArrayPush(pMountInfo->pDisks[level], &pDir)) {
+    if (primary == 1 && taosArrayGetSize(pMountInfo->pDisks[0])) {
+      // put the primary disk to the first position of level 0
+      if (!taosArrayInsert(pMountInfo->pDisks[0], 0, &pDir)) {
+        taosMemFree(pDir);
+        TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+      }
+    } else if (!taosArrayPush(pMountInfo->pDisks[level], &pDir)) {
       taosMemFree(pDir);
       TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
     }
@@ -607,10 +611,11 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
   for (int32_t i = 0; i < numOfVnodes; ++i) {
     SWrapperCfg *pCfg = &pCfgs[i];
     // in order to support multi-tier disk, the pCfg->path should be adapted according to the diskPrimary firstly
-    if ((nDiskLevel0 > 1) && (pCfg->diskPrimary != pMountInfo->primaryDiskIdx)) {
+    if ((nDiskLevel0 > 1) && (pCfg->diskPrimary != 0)) {
       char *pDir = taosArrayGet(pMountInfo->pDisks[0], pCfg->diskPrimary);
       if (!pDir) TAOS_CHECK_EXIT(TSDB_CODE_INTERNAL_ERROR);
-      (void)snprintf(pCfg->path, sizeof(pCfg->path), "%s%svnode%d", *(char**)pDir, TD_DIRSEP, pCfg->vgId);
+      (void)snprintf(pCfg->path, sizeof(pCfg->path), "%s%svnode%svnode%d", *(char **)pDir, TD_DIRSEP, TD_DIRSEP,
+                     pCfg->vgId);
     }
     dInfo("mount:%s, vnode path:%s, dropped:%" PRIi8, pReq->mountName, pCfg->path, pCfg->dropped);
     if (pCfg->dropped) {

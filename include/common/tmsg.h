@@ -1886,7 +1886,6 @@ typedef struct {
   char     mountName[TSDB_MOUNT_NAME_LEN];
   char     mountPath[TSDB_MOUNT_PATH_LEN];
   int8_t   ignoreExist;
-  int8_t   primaryDiskIdx;
   int64_t  mountUid;
   int64_t  clusterId;
   int32_t  dnodeId;
