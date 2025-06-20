@@ -6,6 +6,7 @@ use std::{
 
 use bitfield::bitfield;
 use futures::TryStreamExt;
+
 use notify::{
     event::{CreateKind, RemoveKind},
     Watcher,
@@ -64,13 +65,14 @@ impl FsQueueBuilder {
         let segments = Arc::new(Mutex::new(segments));
 
         let dir_modify_notifier = Arc::new(tokio::sync::Notify::new());
-        let mut watcher = notify::recommended_watcher({
+        let handler = {
             let segments = segments.clone();
             let dir_modify_notifier = dir_modify_notifier.clone();
             move |event: std::result::Result<notify::Event, notify::Error>| {
                 let Ok(event) = event else { return };
                 match event.kind {
-                    notify::EventKind::Create(CreateKind::File) => {
+                    notify::EventKind::Create(CreateKind::File)
+                    | notify::EventKind::Create(CreateKind::Any) => {
                         let Some(path) = event.paths.into_iter().next() else {
                             return;
                         };
@@ -80,7 +82,8 @@ impl FsQueueBuilder {
                         segments.lock().insert(id, path);
                         dir_modify_notifier.notify_waiters();
                     }
-                    notify::EventKind::Remove(RemoveKind::File) => {
+                    notify::EventKind::Remove(RemoveKind::File)
+                    | notify::EventKind::Remove(RemoveKind::Any) => {
                         let Some(path) = event.paths.into_iter().next() else {
                             return;
                         };
@@ -92,10 +95,10 @@ impl FsQueueBuilder {
                     _ => {}
                 }
             }
-        })
-        .context(BuildWatcherSnafu)?;
+        };
+        let mut watcher = notify::recommended_watcher(handler).context(BuildWatcherSnafu)?;
         watcher
-            .watch(&self.dir, notify::RecursiveMode::NonRecursive)
+            .watch(self.dir.as_ref(), notify::RecursiveMode::NonRecursive)
             .context(AddWatchSnafu { path: &self.dir })?;
         Ok(FsQueue {
             dir: self.dir,
@@ -371,11 +374,7 @@ mod tests {
             tokio::fs::File::create(dir_path.join(path)).await?;
         }
 
-        for path in ["00000000000000000001.seg", "00000000000000000002.seg"] {
-            tokio::fs::create_dir(dir_path.join(path)).await?;
-        }
-
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
 
         assert_eq!(
             queue.segments(),

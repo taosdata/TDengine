@@ -794,13 +794,15 @@ export const resultFnMap = {
   AVGFN: AggregationFn
 };
 
+export const TwoVariableTableColumnType = ['DECIMAL']
 export const VariableTableColumnType = ['BINARY', 'NCHAR', 'VARCHAR', 'GEOMETRY', 'VARBINARY'];
 export const VariableTableColumnTypeMaxLenthMap = {
   BINARY: 16374,
   NCHAR: 4093,
   VARCHAR: 16374,
   GEOMETRY: 16382,
-  VARBINARY: 16382
+  VARBINARY: 16382,
+  DECIMAL: 38
 };
 
 export const TDengineStringType = ['VARCHAR', 'BINARY', 'NCHAR', 'GEOMETRY', 'VARBINARY'];
@@ -1039,7 +1041,8 @@ export const TDengineDataType = [
   'VARCHAR',
   'NCHAR',
   'GEOMETRY',
-  'VARBINARY'
+  'VARBINARY',
+  'DECIMAL'
 ];
 
 export const TDengineSqlKeywrods = [

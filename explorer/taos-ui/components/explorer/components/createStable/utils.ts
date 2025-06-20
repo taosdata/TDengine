@@ -233,7 +233,7 @@ export const levelList = [
 export const groupOne = ['TINYINT', 'TINYINT UNSIGNED', 'SMALLINT', 'SMALLINT UNSIGNED', 'INT', 'INT UNSIGNED'];
 export const groupTwo = ['BIGINT', 'BIGINT UNSIGNED'];
 export const groupThree = ['FLOAT', 'DOUBLE'];
-export const groupFour = ['BINARY', 'NCHAR', 'VARCHAR', 'VARBINARY', 'GEOMETRY'];
+export const groupFour = ['BINARY', 'NCHAR', 'VARCHAR', 'VARBINARY', 'GEOMETRY', 'DECIMAL'];
 export const groupFive = ['BOOL'];
 export const groupSix = ['TIMESTAMP'];
 
@@ -282,8 +282,7 @@ export function generateCreateStbSql(data: CreateStableForm, dbName: string) {
   `CREATE STABLE \`${dbName}\`.${name} (${columns
     .map(
       item =>
-        `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${
-          item.level ? ' LEVEL ' + `'${item.level}'` : ''
+        `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''
         }${item.primaryKey ? ' PRIMARY KEY' : ''}`
     )
     .join(

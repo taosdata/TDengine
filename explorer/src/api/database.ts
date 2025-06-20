@@ -7,19 +7,18 @@ import { executeDBOperations } from '@/api/explorer';
  * 先使用show databses获取列表
  */
 export async function getDBListReq() {
-  return sendSQLReq(`show databases;`, true)
-    .then(data => {
-      return handleDataKey(
-        data.filter(item => !HIDEDB.includes(item.name)),
-        'database'
-      );
-    })
-    .catch(() => {
-      return [];
-    });
+  try {
+    const data: Recordable[] = await sendSQLReq<Recordable[]>(`show databases;`, true);
+    return handleDataKey(
+      data.filter((item: Recordable) => !HIDEDB.includes(item.name)),
+      'database'
+    );
+  } catch (error) {
+    return [];
+  };
 }
 
-export async function getStables(database) {
+export async function getStables(database: string) {
   const databaseName = formatWithBackticks(database)
   try {
     const result = await sendSQLReq(`show  ${databaseName}.stables`);
@@ -123,7 +122,7 @@ export function updateDB(data: Recordable) {
   return executeDBOperations(`ALTER DATABASE \`${data.name}\` ${getDBParamsSql(data)};`);
 }
 
-export function handleDataKey(data, type, parent = '') {
+export function handleDataKey(data: Array<Recordable>, type: string, parent: string = '') {
   return data.map(item => {
     item.typeName = item.rollup ? 'table' : type;
     if (!item.name) {

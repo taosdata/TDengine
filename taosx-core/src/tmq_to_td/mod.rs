@@ -1453,11 +1453,18 @@ pub async fn tmq_to_td(
             bail!("Source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
         }
 
-        if source_version >= VERSION_3_3_6
-            && target_version >= VERSION_3_3_6
-            && strategy.prefer_raw()
-        {
-            from.set("msg.consume.rawdata", "1");
+        // @huolinhe: Keep the code here, it's dangerous if source schema changes.
+        // Jira: [TS-6672](https://jira.taosdata.com:18080/browse/TS-6672)
+
+        if strategy.prefer_raw() && from.get("msg.consume.rawdata").is_some() {
+            if source_version < VERSION_3_3_6 {
+                tracing::warn!("Source version is earlier than 3.3.6, which does not support msg.consume.rawdata, will remove it from dsn.");
+                from.remove("msg.consume.rawdata");
+            }
+            if target_version < VERSION_3_3_6 {
+                tracing::warn!("Target version is earlier than 3.3.6, which does not support msg.consume.rawdata, will remove it from dsn.");
+                from.remove("msg.consume.rawdata");
+            }
         }
     }
 

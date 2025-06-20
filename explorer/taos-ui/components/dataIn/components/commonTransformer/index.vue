@@ -90,8 +90,21 @@
               <el-input-number v-model="parseruleForm.depth" style="width: 100px; margin-right: 5px" size="default"
                 :controls="false" :min="0">
               </el-input-number>
-              <CusSelect v-model="parseruleForm.expression" :all-properties="allProperties" :depth="parseruleForm.depth"
-                @select-json="selectJson" @update-data="updateData" />
+              <span>keep</span>
+              <el-switch
+                v-model="parseruleForm.keep"
+                style="width: 100px; margin-left: 5px"
+                size="default"
+              >
+              </el-switch>
+              <CusSelect
+                v-model="parseruleForm.expression"
+                :all-properties="allProperties"
+                :depth="parseruleForm.depth"
+                :keep="parseruleForm.keep"
+                @select-json="selectJson"
+                @update-data="updateData"
+              />
             </div>
             <div v-else-if="parseruleForm.type == 'udt'" style="display: inline-flex; align-items: start; width: 100%">
               <el-input v-model="parseruleForm.expression" size="default" type="textarea"
@@ -401,11 +414,13 @@ interface parseruleFormProp {
   type: ParserBuildinType;
   expression: string;
   depth: undefined;
+  keep: boolean;
 }
 const parseruleForm = reactive<parseruleFormProp>({
   type: 'json',
   expression: '',
-  depth: undefined
+  depth: undefined,
+  keep: false,
 });
 const configuredCount = ref(0);
 const parseRules = reactive({
@@ -764,6 +779,7 @@ function getTopParserData() {
   } else {
     let depthObj = {};
     let expressionObj = {};
+    let keepObj = {};
 
     switch (parseruleForm.type) {
       case 'split':
@@ -776,6 +792,11 @@ function getTopParserData() {
           depthObj = {
             depth: parseruleForm.depth
           };
+        }
+        if (parseruleForm.keep) {
+          keepObj = {
+            keep: parseruleForm.keep
+          }
         }
         expressionObj = {
           [parseruleForm.type]: parseruleForm.expression
@@ -806,7 +827,8 @@ function getTopParserData() {
         parse: {
           [sourceForm.type == 'mqtt' ? 'payload' : 'value']: {
             ...expressionObj,
-            ...depthObj
+            ...depthObj,
+            ...keepObj
           }
         }
       },
@@ -1138,10 +1160,11 @@ async function echoParser(parse: TransformerfullparamsType | TransformerSpbfullp
         parseruleForm.type = parse?.parser.parse[tagKey]['plugin_type'];
         parseruleForm.expression = parse?.parser.parse[tagKey]['plugin_params'];
       } else {
-        parseruleForm.type = keys.filter(item => item != 'depth').toString();
+        parseruleForm.type = keys.filter(item => item != 'depth' && item != 'keep').toString();
 
         if (parseruleForm.type == 'json') {
           parseruleForm.depth = parse?.parser.parse[tagKey]['depth'];
+          parseruleForm.keep = parse?.parser.parse[tagKey]['keep'];
         }
         parseruleForm.expression = parse?.parser.parse[tagKey][parseruleForm.type].toString();
       }
@@ -1946,6 +1969,7 @@ function handleRename(value: string) {
 function handleTypeChange() {
   parseruleForm.expression = '';
   parseruleForm.depth = undefined;
+  parseruleForm.keep = false;
 }
 
 defineExpose({

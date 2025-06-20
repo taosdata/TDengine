@@ -13,7 +13,7 @@ import { sendSQLReq } from '@/api/explorer';
 import { getUser, getPassword, getClusterID, getBaseUrl } from '@/utils';
 import { setInstanceData } from 'taos-ui/config';
 
-const { OEM_NAME, $INDUSTRY } = inject('globalCustomProperties') as GlobalCustomProperties;
+const { OEM_NAME, $IS_TSDBLITE, $INDUSTRY } = inject('globalCustomProperties') as GlobalCustomProperties;
 const route = useRoute();
 const showHeaderLeft = ref<boolean>(true);
 const clickCount = ref(0);
@@ -101,6 +101,7 @@ async function getLicense() {
         tdClusterId: getClusterID()
       });
       let versionName = '';
+      console.log(grants.value[0].version);
       switch (grants.value[0].version) {
         case 'trial':
         case `${OEM_NAME} Enterprise Edition trial`:
@@ -119,14 +120,15 @@ async function getLicense() {
           industry.value = 'power';
           break;
         default:
-          versionName = 'Community';
+          versionName = $IS_TSDBLITE ? 'Lite' : 'Community';
           break;
       }
       version.value = getVersion(license.value[0]['server_version()']) + ' ' + versionName;
       localStorage.setItem('serverVersion', version.value);
     });
   } catch (error) {
-    console.log(error);
+    console.error("License error: ", error);
+    ElMessage.error(error);
   }
 }
 </script>

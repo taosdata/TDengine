@@ -136,7 +136,7 @@ const dbList = ref<any[]>([]);
 const toUrl = computed(() => {
   const base_url = instance.gatewayUrl;
   const splitArr = base_url?.split('//') || [];
-  const url = splitArr[0] + '//' + instance?.user + ':' + encodeURIComponent(instance?.password) + '@' + splitArr[1];
+  const url = splitArr[0] + '//' + instance?.user + ':' + instance?.password + '@' + splitArr[1];
   return (splitArr[0].startsWith('taos') ? '' : 'taos+') + url + '/';
 });
 const emit = defineEmits(['importOK']);

@@ -70,8 +70,15 @@ fn main() -> shadow_rs::SdResult<()> {
         .replace(DEFAULT_CUS_CONFIG, cus_config);
     let service_path = target_dir.join(format!("{cus_prompt}-explorer.service"));
     std::fs::write(&service_path, service).unwrap();
+
+    let canonical_cus_name = if cus_name == "TDengine TSDB-Lite" {
+        "TDengine"
+    } else {
+        cus_name
+    };
     println!("cargo:rustc-env=CUS_NAME={cus_name}");
     println!("cargo:rustc-env=CUS_PROMPT={cus_prompt}");
+    println!("cargo:rustc-env=CANONICAL_CUS_NAME={canonical_cus_name}");
     println!("cargo:rustc-env=CUS_CONFIG={cus_config}");
     println!("cargo:rustc-env=CUS_CLI_NAME={cus_prompt}-explorer");
     println!("cargo:rustc-env=CUS_README={}", readme_out.display());

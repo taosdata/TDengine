@@ -162,7 +162,7 @@ export default {
   csvinusetip: '下载使用中的配置文件',
   connectionConfiguration: '连接配置',
   createNewAgent: '创建新的代理',
-  palceholders: {
+  placeholders: {
     taskName: '任务名称',
     agentPlaceholder: '选择代理',
     chooseTargetDbTip: '请选择目标数据库',

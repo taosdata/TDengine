@@ -15,6 +15,8 @@
 <script lang="ts" setup>
 import DatabaseCreate from './createDbForm.vue';
 import StableCreate from './createStable/index.vue';
+import NormalTableCreate from './createStable/createTable.vue';
+import VirtualNormalTableCreate from './createStable/createVTable.vue';
 import Info from './info.vue';
 import TableCreate from './createSubTbForm.vue';
 import AdvancedFilter from './advanceFilter.vue';
@@ -23,6 +25,8 @@ import { currentDetailComponentConfig, backSqlPart } from './utils';
 const components = {
   DatabaseCreate,
   StableCreate,
+  NormalTableCreate,
+  VirtualNormalTableCreate,
   Info,
   TableCreate,
   AdvancedFilter

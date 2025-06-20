@@ -12,6 +12,7 @@ use anyhow::{Context, Result};
 use arrow::array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
+use arrow_flight::flight_service_client::FlightServiceClient;
 use arrow_flight::FlightClient;
 use arrow_flight::{encode::FlightDataEncoderBuilder, Action as FlightAction};
 use cfg_if::cfg_if;
@@ -240,7 +241,10 @@ impl Client {
             }
         }?;
 
-        let mut client = FlightClient::new(channel);
+        let inner = FlightServiceClient::new(channel)
+            .max_decoding_message_size(usize::MAX)
+            .max_encoding_message_size(usize::MAX);
+        let mut client = FlightClient::new_from_inner(inner);
         client.add_header("x-token", &token)?;
         client.add_header("x-version", crate::build::PKG_VERSION)?;
         let result = client
@@ -561,8 +565,12 @@ impl Client {
                 .enumerate()
                 .map(|(req_id, action)| Ok(resp_action_to_arrow(action, req_id as _).unwrap())),
         );
-        let mut stream = self.client.do_exchange(req).await?;
-        while let Some(res) = stream.try_next().await? {
+        let mut stream = self
+            .client
+            .do_exchange(req)
+            .await
+            .context("wait task do_exchange error")?;
+        while let Some(res) = stream.try_next().await.context("fetch recordbatch error")? {
             // dbg!(&res);
             let rows = res.num_rows();
             let ts = res

@@ -442,13 +442,15 @@ async fn ipc_tcp_forward(
         let alive = std::time::Instant::now();
 
         let mut client;
+        let client_inner = FlightServiceClient::new(channel)
+            .max_decoding_message_size(usize::MAX)
+            .max_encoding_message_size(usize::MAX);
         if *(AGENT_COMPRESSION.get().unwrap_or(&false)) {
-            let client_inner = FlightServiceClient::new(channel);
             client = FlightClient::new_from_inner(
                 client_inner.send_compressed(CompressionEncoding::Gzip),
             );
         } else {
-            client = FlightClient::new(channel);
+            client = FlightClient::new_from_inner(client_inner);
         }
         client
             .add_header("x-task-id", &task_id.to_string())

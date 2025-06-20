@@ -71,9 +71,10 @@ drained_rows: 本次运行此任务排除时间戳无法入库的总行数
 failed_points: 本次运行此任务写入失败的点数
 written_raw_blocks: 本次运行此任务写人成功的 raw block 数
 failed_raw_blocks: 本次运行此任务写入失败的 raw block 数
-persist_read_offset: 当前任务读取的持久化数据的偏移量
-persist_write_offset: 当前任务写入的持久化数据的偏移量
-persist_inflight_acks: 当前任务已读取的持久化数据未收到的 ack 数
+persist_read_messages: 当前任务读取的持久化消息数
+persist_write_messages: 当前任务写入的持久化消息数
+persist_received_acks: 当前任务持久化组件接收到的 ACK 数 
+persist_send_batches: 当前任务持久化组件发送的批次数
 kafka_consumers: Kafka 消费者数
 kafka_total_partitions: Kafka topic 总分区数
 kafka_consuming_partitions: 正在消费的分区数
