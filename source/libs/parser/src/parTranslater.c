@@ -5634,6 +5634,7 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
       if (TSDB_CODE_SUCCESS == code) {
         pJoinTable->table.precision = calcJoinTablePrecision(pJoinTable);
         pJoinTable->table.singleTable = joinTableIsSingleTable(pJoinTable);
+        pCurrSmt->precision = pJoinTable->table.precision;
         code = translateExpr(pCxt, &pJoinTable->pOnCond);
       }
       if (TSDB_CODE_SUCCESS == code) {
