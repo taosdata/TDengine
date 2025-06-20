@@ -12,6 +12,9 @@ gopoolsize = 50000
 RotationInterval = "15s"
 
 [tdengine]
+# For IPv6, the address must be enclosed in square brackets.
+# host = "[::1]"
+# For IPv4, use the dotted decimal format.
 host = "127.0.0.1"
 port = 6041
 username = "root"
