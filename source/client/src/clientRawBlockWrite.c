@@ -498,7 +498,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
 
     cJSON* tvalue = NULL;
     if (IS_VAR_DATA_TYPE(pTagVal->type)) {
-      int64_t bufSize = 0;
+      size_t bufSize = 0;
       if (pTagVal->type == TSDB_DATA_TYPE_VARBINARY) {
         bufSize = pTagVal->nData * 2 + 2 + 3;
       } else {

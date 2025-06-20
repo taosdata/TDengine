@@ -3396,7 +3396,7 @@ int32_t nodesListDeduplicate(SNodeList** ppList) {
 }
 
 void rewriteExprAliasName(SExprNode* pNode, int64_t num) {
-  (void)tsnprintf(pNode->aliasName, TSDB_COL_NAME_LEN, "expr_%x", num);
+  (void)tsnprintf(pNode->aliasName, TSDB_COL_NAME_LEN, "expr_%llx", num);
   return;
 }
 

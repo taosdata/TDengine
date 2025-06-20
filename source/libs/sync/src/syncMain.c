@@ -688,7 +688,7 @@ SSyncState syncGetState(int64_t rid) {
 void syncGetCommitIndex(int64_t rid, int64_t* syncCommitIndex) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode != NULL) {
-    *syncCommitIndex = pSyncNode->commitIndex;
+    taosSetInt64Aligned(syncCommitIndex, pSyncNode->commitIndex);
     syncNodeRelease(pSyncNode);
   }
 }
