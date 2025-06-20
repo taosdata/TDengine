@@ -278,5 +278,13 @@ debug 节点展示向下游节点推送数据次数，生产中可把 debug 节�
 ![td-all](img/td-all.webp)
 
 ## 总结
-我们通过一个具体场景示例，详细介绍了 Node-RED 如何连接 TDengine 数据源及完成数据写入、查询及订阅功能，同时也展示了各节点输入输出数据格式及系统异常捕获等。    
-本文侧重从示例角度介绍，全部功能文档请在 Node-RED 节点在线文档中获取。  
+本文通过工业监控场景展示了：
+
+1. Node-RED 与 TDengine 的三种集成模式：
+   - 数据采集（tdengine-operator 写入）
+   - 实时查询（tdengine-operator 查询）
+   - 事件驱动（tdengine-consumer 订阅）
+2. 完整的错误处理机制
+3. 生产环境部署参考方案
+
+本文侧重从示例角度介绍，全部功能文档请在 Node-RED 节点在线文档中获取。

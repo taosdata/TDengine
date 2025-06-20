@@ -4,19 +4,19 @@ title: Integration with Node-RED
 toc_max_heading_level: 5
 ---
 
-[Node-RED](https://nodered.org/) is an open-source visual programming tool developed by IBM based on Node.js. It enables users to assemble and connect various nodes via a graphical interface to create connections for IoT devices, APIs, and online services. Supporting multi-protocol and cross-platform capabilities, it has an active community and is ideal for event-driven application development in smart home, industrial automation and other scenarios, with its main strengths being low-code and visual programming.
+[Node-RED](https://nodered.org/) is an open-source visual programming tool developed by IBM based on Node.js. It enables users to assemble and connect various nodes via a graphical interface to create connections for IoT devices, APIs, and online services. It supports multiple protocols and is cross-platform, has an active community, and is ideal for event-driven application development in smart home, industrial automation, and other scenarios. Its main strengths are low-code and visual programming.
 
-The deep integration between TDengine and Node-RED provides a comprehensive solution for industrial IoT scenarios. Through Node-RED's MQTT/OPC UA/Modbus protocol nodes, data from PLCs, sensors and other devices can be collected at millisecond-level speed. Real-time queries of TDengine can trigger physical control actions like relay operations and valve switching for immediate command execution.
+The deep integration between TDengine and Node-RED provides a comprehensive solution for industrial IoT scenarios. Through Node-RED's MQTT/OPC UA/Modbus protocol nodes, data from PLCs, sensors, and other devices can be collected with millisecond-level latency. Real-time queries in TDengine can trigger physical control actions such as relay operations and valve switching, enabling immediate command execution.
 
-node-red-node-tdengine is the official plugin developed by TDengine for Node-RED. Composed of two nodes:  
+node-red-node-tdengine is the official plugin developed by TDengine for Node-RED. It is composed of two nodes:  
 - **tdengine-operator**: Provides SQL execution capabilities for data writing/querying and metadata management.  
 - **tdengine-consumer**: Offers data subscription and consumption capabilities from specified subscription servers and topics.
 
 ## Prerequisites
 
-Prepare the following environment:
+Prepare the following environment components:
 - TDengine cluster version 3.3.2.0 or higher installed and running (Enterprise/Community/Cloud editions all supported).
-- taosAdapter running normally (refer to [taosAdapter Reference Manual](../../../tdengine-reference/components/taosadapter/)).
+- taosAdapter running (refer to [taosAdapter Reference Manual](../../../tdengine-reference/components/taosadapter/)).
 - Node-RED version 3.0.0 or higher ([Node-RED Installation](https://nodered.org/docs/getting-started/)).
 - Node.js connector version 3.1.8 or higher (download from [npmjs.com](https://www.npmjs.com/package/@tdengine/websocket)).
 - node-red-node-tdengine plugin version 1.0.0 or higher (download from [npmjs.com](https://www.npmjs.com/package/node-red-node-tdengine)).
@@ -26,21 +26,21 @@ Component interaction diagram:
 ![td-frame](img/td-frame.webp)
 
 ## Configuring Data Source
-Plugin data sources are configured in node properties via the [Node.js connector](../../../tdengine-reference/client-libraries/node):
+Plugin data sources are configured in the node properties using [the Node.js connector](../../../tdengine-reference/client-libraries/node):
 
 1. Start Node-RED service and access the Node-RED homepage in a browser.
 2. Drag the tdengine-operator or tdengine-consumer node from the left node palette to the workspace canvas.
-3. Double-click the node on canvas to open property settings.
+3. Double-click the node on the canvas to open property settings.
    - Connection format for tdengine-operator node: `ws://user:password@host:port`.
    - Connection format for tdengine-consumer node: `ws://host:port`.
-   - Click the dictionary icon in the upper right area for detailed reference documentation.
+   - Click the dictionary icon in the upper-right area for detailed documentation.
 4. After configuration, click the "Deploy" button in the upper right. Green node status indicates successful connection.
 
 ## Verification Methods
 
 ### tdengine-operator
 1. Configure database connection properties for tdengine-operator node.
-2. Add an inject node before it, setting msg.topic to desired write SQL.
+2. Add an inject node before it, setting msg.topic to the desired SQL statement.
 3. Click the inject node's trigger button to execute SQL.
 4. Use taos-CLI to verify existence of written data.
 
@@ -49,16 +49,16 @@ Plugin data sources are configured in node properties via the [Node.js connector
 2. Add a debug node after it.
 3. In node properties, check "Node Status" and select "Message Count".
 4. Write a test record using taos-CLI.
-5. Observe debug node count increment.
+5. Observe the debug node count increment.
 6. Verify payload matches written data.
 
 ## Usage Examples
 
 ### Scenario
-A workshop has multiple smart power meters that generate data records each second. Data is stored in TDengine, with real-time calculations performed every minute showing:  
+A workshop has multiple smart power meters, each generating a data record every second. Data is stored in TDengine, with real-time calculations performed every minute showing:  
 - Average current/voltage per meter.
 - Power consumption.  
-Alerts trigger for current > 25A or voltage > 230V.
+Alerts are triggered when current > 25A or voltage > 230V.
 
 Implementation uses Node-RED + TDengine:  
 - Inject + function nodes simulate devices. 
@@ -73,7 +73,7 @@ Assumptions:
 - Simulated devices: d0, d1, d2.  
 
 ### Data Modeling
-Using taos-CLI to manually create data model:  
+Use taos-CLI to manually create the data model:  
 - Super table "meters".  
 - Child tables d0, d1, d2.  
 
@@ -87,7 +87,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 ```
 
 ### Data Collection
-This example uses generated random numbers to simulate real device data. The tdengine-operator node is configured with TDengine data source connection information, writes data to TDengine, and uses the debug node to monitor the amount of successfully written data displayed on the interface.
+This example uses randomly generated numbers to simulate real device data. The tdengine-operator node is configured with TDengine data source connection information, writes data to TDengine, and uses the debug node to monitor the number of successfully written records displayed on the interface.
 
 Steps:
 - **Add Writer Node**
@@ -103,7 +103,7 @@ Steps:
   4. Click "Add" and return.
 
 - **Simulate Device Data**
-  1. Select the ‘function’ node from the palette and drag it before 'td-writer' on the canvas.
+  1. Select the 'function' node from the palette and drag it before 'td-writer' on the canvas.
   2. Double-click the node:
      - Name: 'write d0'.
      - Select “Function” tab and enter:
@@ -130,7 +130,7 @@ Steps:
   2. Configure it:
      - Name: 'debug1'.
      - Node status: checked.
-     - Selected "Message count" in drop-down list.
+     - Select 'Message count' from the drop-down list.
 
 After adding all nodes, connect them in sequence to form a pipeline. Click "Deploy" to publish changes. When running successfully:
 - 'td-writer' turns green.
@@ -152,8 +152,8 @@ Successful write output:
 ```
 
 ### Data Query
-The data query workflow consists of three nodes (inject/tdengine-operator/debug) designed to generate minute-by-minute average current, voltage, and power consumption calculations for each smart meter.  
-The inject node triggers the query request every minute, and the results are sent to the downstream debug node, which displays the count of successful query executions.  
+The data query workflow consists of three nodes (inject/tdengine-operator/debug) designed to calculate the average current, voltage, and power consumption per minute for each smart meter.  
+The inject node triggers the query request every minute. The results are sent to the downstream debug node, which displays the count of successful query executions.  
 
 Steps:  
 1. Drag an inject node to the canvas: 
@@ -173,7 +173,7 @@ Steps:
 3. Drag debug node to canvas and configure it:
      - Name: 'debug2'.
      - Node status: checked.
-     - Selected "Message count" in drop-down list.
+     - Select 'Message count' from the drop-down list.
 
 
 4. Connect nodes sequentially → Click "Deploy".  
@@ -215,7 +215,7 @@ Output from 'td-reader' (exceptions thrown on failure):
 
 ### Data Subscription
 The data subscription workflow consists of two nodes (tdengine-consumer/debug) that provide equipment overload alert functionality.  
-The debug node visually displays the count of subscription data pushed downstream. In production, replace it with functional nodes that process subscription data.
+The debug node visually displays the count of subscription messages pushed downstream. In production, replace it with functional nodes to process the subscription data.
 
 Steps:
 
@@ -238,7 +238,7 @@ Steps:
 3. Drag debug node to canvas and configure it:
      - Name: 'debug3'.
      - Node status: checked.
-     - Selected "Message count" in drop-down list.
+     - Select 'Message count' from the drop-down list.
    
 4. Connect nodes sequentially → Click "Deploy".
 
@@ -270,15 +270,15 @@ Alert output from 'td-consumer':
 ```
 
 ### Error Handling
-Errors in data collection, querying, and subscription workflows are handled through exception throwing mechanisms. Implement error monitoring:
-1. Drag "catch" node to canvas.  
-2. Configure node:  
+Errors in data collection, querying, and subscription workflows are routed to catch nodes for handling in Node-RED. To implement error monitoring:
+1. Drag a 'catch' node to the canvas.  
+2. Configure the node:  
    - Name: 'catch all except'.
    - Scope: "All nodes".
 3. Drag debug node to canvas and configure it:
      - Name: 'debug4'.
      - Node status: checked.
-     - Selected "Message count" in drop-down list.  
+     - Select 'Message count' from the drop-down list.  
 4. Connect nodes and deploy. 
 
 When errors occur:  
@@ -291,6 +291,13 @@ Complete workflow overview after deployment:
 ![td-all](img/td-all.webp)  
 
 ## Summary
-We have detailed how to connect Node-RED to TDengine and implement data writing, querying, and subscription functionality through a concrete scenario example, while demonstrating the input/output data formats of each node and system exception handling.​​
 
-​This document focuses on introducing features through examples. For complete documentation, refer to the Node-RED plugin's online help section.​​
+This article demonstrates, through an industrial monitoring scenario:
+1. Three integration patterns between Node-RED and TDengine:
+	- Data collection (tdengine-operator writes).
+	- Real-time queries (tdengine-operator queries).
+	- Event-driven architecture (tdengine-consumer subscriptions).
+2. Complete error handling mechanisms.
+3. Production-ready deployment reference architecture.
+
+This article focuses on an example-based introduction. For complete documentation, refer to the Node-RED node's online documentation.
