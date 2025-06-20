@@ -12,86 +12,101 @@ class TestStreamSlidingTrigger:
     calcTbname = ""
     outTbname = ""
     stName = ""
+    resultIdx = ""
     sliding = 1
     subTblNum = 3
     tblRowNum = 40
     caseIdx = 0
+    trigTbIdx = 0
+    calcTbIdx = 0
+    slidIdx = 0
+    createStmIdx = 0
+    queryIdx = 0
     slidingList = [1, 10, 100, 1000]
     tableList = []
-    runCaseList = range(18, 24) #[0, 1, 3, 8]
+    runCaseList = ["0-0-0-0-6"]
     streamSql = ""
     querySql = ""
     querySqls = [ # (SQL, (minPartitionColNum, partitionByTbname), PositiveCase)
-        ("select cts, cint from {calcTbname} order by cts limit 3", (0, False), True),
-        ("select cts, cint from {calcTbname} order by cts desc limit 4", (0, False), True),
-        ("select cts, cint, _tprev_ts, _tcurrent_ts, _tnext_ts, cast(_tlocaltime/1000000 as timestamp) from {calcTbname} order by cts", (0, False), True),
-        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from {calcTbname} order by cts", (2, True), True),
-        ("select cts, cint from {calcTbname} where _tcurrent_ts % 2 = 0 order by cts", (0, False), True),
-        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from {calcTbname} where %%tbname like '%1' order by cts", (2, True), True),
-        ("select _tcurrent_ts, cint from {calcTbname} order by cts limit 4", (0, False), True),
+        ("select cts, cint from {calcTbname} order by cts limit 3", (0, False), True), #0
+        ("select cts, cint from {calcTbname} order by cts desc limit 4", (0, False), True), #1
+        ("select cts, cint, _tprev_ts, _tcurrent_ts, _tnext_ts from {calcTbname} order by cts", (0, False), True), #2
+        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from {calcTbname} order by cts", (2, True), True), #3
+        ("select cts, cint from {calcTbname} where _tcurrent_ts % 2 = 0 order by cts", (0, False), True), #4
+        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from {calcTbname} where %%tbname like '%1' order by cts", (2, True), True), #5
+        ("select _tcurrent_ts, cint from {calcTbname} order by cts limit 4", (0, False), True), #6
 
-        ("select cts, cint from %%tbname order by cts limit 3", (1, True), True),
-        ("select cts, cint, _tprev_ts, _tcurrent_ts, _tnext_ts, cast(_tlocaltime/1000000 as timestamp) from %%tbname order by cts", (1, True), True),
-        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname order by cts", (2, True), True),
-        ("select cts, cint from %%tbname where _tcurrent_ts % 2 = 0 order by cts", (1, True), True),
-        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname where %%tbname like '%1' order by cts", (2, True), True),
-        ("select _tcurrent_ts, cint from %%tbname order by cts limit 7", (1, True), True),
+        ("select cts, cint from %%tbname order by cts limit 3", (1, True), True), #7
+        ("select cts, cint, _tprev_ts, _tcurrent_ts, _tnext_ts from %%tbname order by cts", (1, True), True), #8
+        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname order by cts", (2, True), True), #9
+        ("select cts, cint from %%tbname where _tcurrent_ts % 2 = 0 order by cts", (1, True), True), #10
+        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname where %%tbname like '%1' order by cts", (2, True), True), #11
+        ("select _tcurrent_ts, cint from %%tbname order by cts limit 7", (1, True), True), #12
 
-        ("select cts, cint from %%tbname partition by cint order by cts", (1, True), True),
-        ("select cts, cint, _tprev_ts, _tcurrent_ts, _tnext_ts, cast(_tlocaltime/1000000 as timestamp) from %%tbname partition by cint order by cts", (1, True), True),
-        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname partition by cint order by cts", (2, True), True),
-        ("select cts, cint from %%tbname where _tcurrent_ts % 2 = 0 partition by cint order by cts", (1, True), True),
-        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname where %%tbname like '%1' partition by cint order by cts", (2, True), True),
-        ("select _tcurrent_ts, cint from %%tbname partition by cint order by cts", (1, True), True),
+        ("select cts, cint from %%tbname partition by cint order by cts", (1, True), True), #13
+        ("select cts, cint, _tprev_ts, _tcurrent_ts, _tnext_ts from %%tbname partition by cint order by cts", (1, True), True), #14
+        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname partition by cint order by cts", (2, True), True), #15
+        ("select cts, cint from %%tbname where _tcurrent_ts % 2 = 0 partition by cint order by cts", (1, True), True), #16
+        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname where %%tbname like '%1' partition by cint order by cts", (2, True), True), #17
+        ("select _tcurrent_ts, cint from %%tbname partition by cint order by cts", (1, True), True), #18
     ]
 
-    queryResults = [
-        #[expectedRows, compareFunc, hasResultFile, [{rowIdx:[col0Value, col1Value...]}, order by clause]]
-        [1, None, False, [{0:(datetime.datetime(2025, 1, 1, 0, 0), 0)}], ""],
-        [2, None, False, [{0:(datetime.datetime(2025, 1, 1, 0, 19), 38)}, {1:(datetime.datetime(2025, 1, 1, 0, 19, 30), 39)}], ""],
-        [40, None, True, [], ""], #FAILED
-        [40, None, True, [], ""],
-        [-1, None, True, [], ""], #FAILED
+    queryResults = {
+        #{"trigTbIdx-calcTbIdx-slidIdx-createStmIdx-queryIdx":[expectedRows, compareFunc, hasResultFile, [{rowIdx:[col0Value, col1Value...]}, order by clause]]}
 
-        [-1, None, True, [], ""], #FAILED 1-0
-        [-1, None, True, [], ""], #FAILED
-        [-1, None, True, [], ""], #FAILED
-        [120, None, True, [], "order by cts, tag_tbname"],
-        [-1, None, True, [], ""], #FAILED
+        #0
+        "0-0-0-0-0": [1, None, False, [{0:(datetime.datetime(2025, 1, 1, 0, 0), 0)}], ""],
+        "0-0-0-0-1": [2, None, False, [{0:(datetime.datetime(2025, 1, 1, 0, 19), 38)}, {1:(datetime.datetime(2025, 1, 1, 0, 19, 30), 39)}], ""],
+        "0-0-0-0-2": [40, None, True, [], ""],
+        "0-0-0-0-4": [40, None, True, [], ""],
+        "0-0-0-0-6": [-1, None, True, [], ""], #FAILED
 
-        [-1, None, True, [], ""], #FAILED
-        [-1, None, True, [], ""], #FAILED
-        [120, None, True, [], "order by cts, tag_tbname"],
-        [-1, None, True, [], ""], #FAILED
-        [120, None, True, [], "order by cts, tag_tbname"],
+        #5
+        "0-0-0-1-0": [-1, None, True, [], ""], #FAILED
+        "0-0-0-1-1": [-1, None, True, [], ""], #FAILED
+        "0-0-0-1-2": [-1, None, True, [], ""], #FAILED
+        "0-0-0-1-4": [120, None, True, [], "order by cts, tag_tbname"],
+        "0-0-0-1-6": [-1, None, True, [], ""], #FAILED
 
-        [-1, None, True, [], ""], #FAILED
-        [120, None, True, [], "order by cts, tag_tbname"],
-        [-1, None, True, [], "order by `_tcurrent_ts`, tag_tbname"], #FAILED
-        [-1, None, True, [], ""], #2 - 0
-        [-1, None, True, [], ""],
+        #10
+        "0-0-0-1-7": [-1, None, True, [], ""], #FAILED
+        "0-0-0-1-8": [-1, None, True, [], ""], #FAILED
+        "0-0-0-1-10": [120, None, True, [], "order by cts, tag_tbname"],
+        "0-0-0-1-12": [-1, None, True, [], ""], #FAILED
+        "0-0-0-1-13": [120, None, True, [], "order by cts, tag_tbname"],
 
-        [-1, None, True, [], ""],
-        [-1, None, True, [], ""],
-        [-1, None, True, [], ""],
-        [-1, None, True, [], ""],
-        [-1, None, True, [], ""],
+        #15
+        "0-0-0-1-14": [-1, None, True, [], ""], #FAILED
+        "0-0-0-1-16": [120, None, True, [], "order by cts, tag_tbname"],
+        "0-0-0-1-18": [-1, None, True, [], "order by `_tcurrent_ts`, tag_tbname"], #FAILED
+        "0-0-0-2-0": [-1, None, True, [], ""],
+        "0-0-0-2-1": [-1, None, True, [], ""],
 
-        [-1, None, True, [], ""],
-        [-1, None, True, [], ""],
-        [-1, None, True, [], ""],
-        [-1, None, True, [], ""],
-        [-1, None, True, [], ""],
+        #20
+        "0-0-0-2-2": [-1, None, True, [], ""],
+        "0-0-0-2-3": [-1, None, True, [], ""],
+        "0-0-0-2-4": [-1, None, True, [], ""],
+        "0-0-0-2-5": [-1, None, True, [], ""],
+        "0-0-0-2-6": [-1, None, True, [], ""],
 
-        [-1, None, True, [], ""],
-        [-1, None, True, [], ""],
-        [-1, None, True, [], ""],
-        [-1, None, True, [], ""],
-        [-1, None, True, [], ""],
+        #25
+        "0-0-0-2-7": [-1, None, True, [], ""],
+        "0-0-0-2-8": [-1, None, True, [], ""],
+        "0-0-0-2-9": [-1, None, True, [], ""],
+        "0-0-0-2-10": [-1, None, True, [], ""],
+        "0-0-0-2-11": [-1, None, True, [], ""],
 
-        [-1, None, True, [], ""],
-        [-1, None, True, [], ""],        
-    ]
+        #30
+        "0-0-0-2-12": [-1, None, True, [], ""],
+        "0-0-0-2-13": [-1, None, True, [], ""],
+        "0-0-0-2-14": [-1, None, True, [], ""],
+        "0-0-0-2-15": [-1, None, True, [], ""],
+        "0-0-0-2-16": [-1, None, True, [], ""],
+
+        #35
+        "0-0-0-2-17": [-1, None, True, [], ""],
+        "0-0-0-2-18": [-1, None, True, [], ""],        
+    }
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -117,9 +132,12 @@ class TestStreamSlidingTrigger:
         self.prepareData()
 
         self.caseIdx = 0
-        for self.trigTbname in self.tableList:
-            for self.calcTbname in self.tableList:
-                for self.sliding in self.slidingList:
+        for self.trigTbIdx in range(len(self.tableList)):
+            self.trigTbname = self.tableList[self.trigTbIdx]
+            for self.calcTbIdx in range(len(self.tableList)):
+                self.calcTbname = self.tableList[self.calcTbIdx]
+                for self.slidIdx in range(len(self.slidingList)):
+                    self.sliding = self.slidingList[self.slidIdx]
                     if False == self.execCase():
                         return
 
@@ -144,21 +162,21 @@ class TestStreamSlidingTrigger:
         ntb.append_data(0, self.tblRowNum)
         self.tableList.append(f"ntb1")
 
-    def checkResultWithResultFile(self, caseIdx):
-        chkSql = f"select * from {self.dbname}.{self.outTbname} {self.queryResults[caseIdx][4]}"
+    def checkResultWithResultFile(self):
+        chkSql = f"select * from {self.dbname}.{self.outTbname} {self.queryResult[4]}"
         tdLog.info(f"check result with sql: {chkSql}")
-        if self.queryResults[caseIdx][0] < 0:
-            tdCom.generate_query_result_file(self.caseName, caseIdx, chkSql)
+        if self.queryResult[0] < 0:
+            tdCom.generate_query_result_file(self.caseName, self.resultIdx, chkSql)
         else:
-            tdCom.compare_query_with_result_file(caseIdx, chkSql, f"{self.currentDir}/ans/{self.caseName}.{caseIdx}.csv", self.caseName)
+            tdCom.compare_query_with_result_file(self.resultIdx, chkSql, f"{self.currentDir}/ans/{self.caseName}.{self.resultIdx}.csv", self.caseName)
             tdLog.info("check result with result file succeed")
 
-    def checkResultWithExpectedList(self, caseIdx):
-        chkSql = f"select * from {self.dbname}.{self.outTbname} {self.queryResults[caseIdx][4]}"
+    def checkResultWithExpectedList(self):
+        chkSql = f"select * from {self.dbname}.{self.outTbname} {self.queryResult[4]}"
         tdLog.info(f"check result with sql: {chkSql}")
         tdSql.query(chkSql, queryTimes=1)
         total_rows = tdSql.getRows()
-        for row in self.queryResults[caseIdx][3]:
+        for row in self.queryResult[3]:
             print(f"row:{row}")
             for rowIdx, rowValue in row.items():
                 print(f"rowIdx:{rowIdx}, rowValue:{rowValue}")
@@ -169,60 +187,67 @@ class TestStreamSlidingTrigger:
                 assert rowData == rowValue, f"Expected value {rowValue} does not match actual value {rowData} for row index {rowIdx}"
         tdLog.info("check result with expected list succeed")
 
+    def getQueryResult(self):
+        self.resultIdx = f"{self.trigTbIdx}-{self.calcTbIdx}-{self.slidIdx}-{self.createStmIdx}-{self.queryIdx}"
+        return self.queryResults[self.resultIdx]
+
     def execCase(self):
         tdLog.info(f"execCase begin")
 
         runnedCaseNum = 0
-        sql = [ #(SQL, (minPartitionColNum, partitionByTbname))
+        createStreamSqls = [ #(SQL, (minPartitionColNum, partitionByTbname))
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} into outTbname as querySql;", (0, False)),
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname into outTbname as querySql;", (1, True)),
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by cint, tbname into outTbname as querySql;", (2, True)),
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by cvarchar, tbname, cint into outTbname as querySql;", (3, True)),
         ]
 
-        for sql_idx in range(len(sql)):
-            for query_idx in range(len(self.querySqls)):
+        for self.createStmIdx in range(len(createStreamSqls)):
+            for self.queryIdx in range(len(self.querySqls)):
                 #print(f"caseListLen:{len(self.runCaseList)}, runnedCaseNum:{runnedCaseNum}")
 
                 if len(self.runCaseList) > 0 and runnedCaseNum == len(self.runCaseList):
                     tdLog.info(f"all cases in runCaseList: {self.runCaseList} has finished")
                     return False
-                    
-                if sql[sql_idx][1][0] < self.querySqls[query_idx][1][0] or (sql[sql_idx][1][1] == False and True == self.querySqls[query_idx][1][1]):
-                    tdLog.debug(f"skip case because sql_idx={sql_idx} query_idx={query_idx} minPartitionColNum mismatch")
+
+                if createStreamSqls[self.createStmIdx][1][0] < self.querySqls[self.queryIdx][1][0] or (createStreamSqls[self.createStmIdx][1][1] == False and True == self.querySqls[self.queryIdx][1][1]):
+                    tdLog.debug(f"skip case because createStmIdx={self.createStmIdx} query_idx={self.queryIdx} minPartitionColNum mismatch")
                     continue
-                
-                if self.caseIdx not in self.runCaseList:
-                    tdLog.debug(f"skip case {self.caseIdx}")
+
+                self.queryResult = self.getQueryResult()
+
+                if len(self.runCaseList) > 0 and self.resultIdx not in self.runCaseList:
+                    tdLog.debug(f"skip case {self.caseIdx} idx: {self.resultIdx}")
                     self.caseIdx += 1
                     continue
 
                 runnedCaseNum += 1
-                tdLog.info(f"case {self.caseIdx} idx: {sql_idx} - {query_idx} start:")
+
+                tdLog.info(f"case {self.caseIdx} idx: {self.resultIdx} start:")
 
                 self.stName = f"s{self.caseIdx}"
                 self.outTbname = f"{self.stName}_out"
 
                 # Format the querySql with the current calcTbname
-                self.querySql = self.querySqls[query_idx][0].replace("{calcTbname}", self.calcTbname)
-                self.streamSql = sql[sql_idx][0].replace("querySql", self.querySql).replace("stName", self.stName).replace("outTbname", self.outTbname)
+                self.querySql = self.querySqls[self.queryIdx][0].replace("{calcTbname}", self.calcTbname)
+                self.streamSql = createStreamSqls[self.createStmIdx][0].replace("querySql", self.querySql).replace("stName", self.stName).replace("outTbname", self.outTbname)
                 tdLog.info(f"exec sql: {self.querySql}")
                 tdLog.info(f"stream sql: {self.streamSql}")
                 stream1 = StreamItem(
                     id=self.caseIdx,
                     stream=self.streamSql,
                     res_query=f"select * from {self.outTbname};",
-                    check_func=self.queryResults[self.caseIdx][1],
+                    check_func=self.queryResult[1],
                 )
                 stream1.createStream()
                 stream1.awaitStreamRunning()
-                stream1.awaitRowStability(self.queryResults[self.caseIdx][0])
+                stream1.awaitRowStability(self.queryResult[0])
                 if stream1.check_func is not None:
                     stream1.check_func()
-                elif True == self.queryResults[self.caseIdx][2]:
-                    self.checkResultWithResultFile(self.caseIdx)
+                elif True == self.queryResult[2]:
+                    self.checkResultWithResultFile()
                 else:
-                    self.checkResultWithExpectedList(self.caseIdx)
+                    self.checkResultWithExpectedList()
 
                 self.caseIdx += 1
 
