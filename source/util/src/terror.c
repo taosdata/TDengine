@@ -383,13 +383,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_ANA_INTERNAL_ERROR,          "Analysis internal erro
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS,   "Analysis failed since not enough rows")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_NOT_SUPPORT_FORECAST,    "Not support co-variate/multi-variate forecast")
 
-// xnode
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_ALREADY_EXIST,      "Xnode already exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_ALREADY_DEPLOYED,       "Xnode already deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_NOT_DEPLOYED,           "Xnode not deployed")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NOT_EXIST,          "Xnode not there")
-TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_NOT_FOUND,              "Xnode not found")
-TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_UV_EXEC_FAILURE,        "Xnode exec launch failed")
+// Bnode
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_ALREADY_EXIST,      "Bnode already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_ALREADY_DEPLOYED,       "Bnode already deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_NOT_DEPLOYED,           "Bnode not deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NOT_EXIST,          "Bnode not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_NOT_FOUND,              "Bnode not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_UV_EXEC_FAILURE,        "Bnode exec launch failed")
 
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
@@ -685,7 +685,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,   "Invalid identifier n
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_CORRESPONDING_STABLE_ERR,  "Corresponding super table not in this db")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_DB_OPTION,         "Invalid database option")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TABLE_OPTION,      "Invalid table option")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_XNODE_OPTION,      "Invalid xnode option")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_XNODE_OPTION,      "Invalid Bnode option")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_GROUPBY_WINDOW_COEXIST,    "GROUP BY and WINDOW-clause can't be used together")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_AGG_FUNC_NESTING,          "Aggregate functions do not support nesting")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE,    "Only support STATE_WINDOW on integer/bool/varchar column")

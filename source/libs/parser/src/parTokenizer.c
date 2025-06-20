@@ -334,8 +334,6 @@ static SKeyword keywordTable[] = {
     {"WINDOW_OFFSET",        TK_WINDOW_OFFSET},
     {"WITH",                 TK_WITH},
     {"WRITE",                TK_WRITE},
-    {"XNODE",                TK_XNODE},
-    {"XNODES",               TK_XNODES},
     {"PROTOCOL",             TK_PROTOCOL},
     {"_C0",                  TK_ROWTS},
     {"_IROWTS",              TK_IROWTS},
