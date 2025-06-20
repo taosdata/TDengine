@@ -2632,15 +2632,18 @@ static int32_t strtcProcessPullRsp(SSTriggerRealtimeContext *pContext, SSDataBlo
         }
       }
 
+      int64_t lastScanVer = 0;
       if (blockDataGetNumOfRows(pResDataBlock) > 0) {
-        SColumnInfoData      *pVerCol = taosArrayGet(pResDataBlock->pDataBlock, 5);
-        SStreamTaskAddr      *pReader = taosArrayGet(pTask->readerList, pContext->curReaderIdx);
-        SSTriggerWalProgress *pProgress =
-            tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
-        QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-        pProgress->lastScanVer = *(int64_t *)colDataGetNumData(pVerCol, numNewMeta - 1);
-        pProgress->latestVer = pResDataBlock->info.id.groupId;
+        SColumnInfoData *pVerCol = taosArrayGet(pResDataBlock->pDataBlock, 5);
+        lastScanVer = *(int64_t *)colDataGetNumData(pVerCol, numNewMeta - 1);
+      } else {
+        lastScanVer = pResDataBlock->info.id.groupId;
       }
+      SStreamTaskAddr      *pReader = taosArrayGet(pTask->readerList, pContext->curReaderIdx);
+      SSTriggerWalProgress *pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
+      QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      pProgress->lastScanVer = lastScanVer;
+      pProgress->latestVer = pResDataBlock->info.id.groupId;
 
       code = strtcResumeCheck(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -3406,7 +3409,11 @@ int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
               pContext->pullResDataBlock[pReq->type] = NULL;
             }
           }
-          if (pRsp->contLen == 0) {
+          if (pRsp->code == TSDB_CODE_WAL_LOG_NOT_EXIST && pReq->type == STRIGGER_PULL_WAL_META) {
+            QUERY_CHECK_CONDITION(pRsp->contLen == 8, code, lino, _end, TSDB_CODE_INVALID_PARA);
+            blockDataEmpty(pResBlock);
+            pResBlock->info.id.groupId = *(int64_t *)pRsp->pCont;
+          } else if (pRsp->contLen == 0) {
             blockDataEmpty(pResBlock);
           } else if (pReq->type == STRIGGER_PULL_LAST_TS) {
             code = tDeserializeSStreamTsResponse(pRsp->pCont, pRsp->contLen, pResBlock);
