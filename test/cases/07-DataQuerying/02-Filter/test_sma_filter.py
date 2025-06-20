@@ -7,9 +7,14 @@ class TestSmaFilter:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_sma_filter(self):
-        """sma filter
+        """Sma Filter Test
 
-        1. -
+        1.Create db with STT_TRIGGER option and set value to 1, will flush data to disk easily
+        2.Create supper table and sub table
+        3.Insert some data into sub table
+        4.Flush database, the action will trigger the data to be written to disk
+        5.Query the sub table with filter condition on flag column
+        6.Check the number of rows returned by the query
 
         Catalog:
             - Query:Filter
@@ -18,7 +23,7 @@ class TestSmaFilter:
 
         Labels: common,ci
 
-        Jira: None
+        Jira: TS-6650
 
         History:
             - 2025-6-20 Ethan liu add test for sma filter

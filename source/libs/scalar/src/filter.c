@@ -4306,9 +4306,11 @@ int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SColumnNode* pColNode
 
         int32_t len = varDataTLen(valNode->datum.p);
         datum->pData = taosMemoryCalloc(1, len + 1);
-        if (NULL != datum->pData) {
-          memcpy(datum->pData, valNode->datum.p, len);
+        if (NULL == datum->pData) {
+          return terrno;
         }
+
+        memcpy(datum->pData, valNode->datum.p, len);
         break;
       }
       // TODO:varchar/nchar/json
@@ -5098,6 +5100,7 @@ static int32_t fltSclBuildRangePointsForInOper(SFltSclOperator* oper, SArray* po
       int64_t tsInt64 = taosStr2Int64(varDataVal(valDatum.pData), &endPtr, 10);
       minDatum.i = TMIN(minDatum.i, tsInt64);
       maxDatum.i = TMAX(maxDatum.i, tsInt64);
+      taosMemFree(valDatum.pData);
     } else {
       minDatum.i = TMIN(minDatum.i, valDatum.i);
       maxDatum.i = TMAX(maxDatum.i, valDatum.i);
