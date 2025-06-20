@@ -6,7 +6,7 @@ from .frame import TaosTestFrame
 from .dataclass import CmdOption
 from .performance.perfor_basic import Env
 from .util.sql import TDSql
-from ..utils.frame.log import testLog
+from ..utils.log import tdLog
 
 import json
 import argparse
@@ -46,6 +46,7 @@ def params_get(pars):
     opts.rm_containers = True if "rm_containers" in pars else False
     opts.taosd_valgrind = True if "taosd_valgrind" in pars else False
     opts.taosc_valgrind = True if "taosc_valgrind" in pars else False
+    opts.clean = True if "clean" in pars else False
     opts.stop = True if "stop" in pars else False
     opts.disable_collection = True if "disable_collection" in pars else False
     opts.disable_data_collection = True if "disable_data_collection" in pars else False
@@ -60,12 +61,12 @@ def params_get(pars):
 
     if opts.server_pkg is not None:
         if not os.path.exists(opts.server_pkg):
-            testLog.error("server-pkg {} not exist".format(opts.server_pkg))
+            tdLog.error("server-pkg {} not exist".format(opts.server_pkg))
             sys.exit(1)
     opts.client_pkg = pars["client_pkg"] if "client_pkg" in pars else None
     if opts.client_pkg is not None:
         if not os.path.exists(opts.client_pkg):
-            testLog.error("--client-pkg {} not exist".format(opts.client_pkg))
+            tdLog.error("--client-pkg {} not exist".format(opts.client_pkg))
             sys.exit(1)
     opts.use = pars["use"] if "use" in pars else None
     opts.group_files = pars["group_file"] if "group_file" in pars else None
@@ -77,20 +78,20 @@ def params_get(pars):
 
     if opts.taostest_pkg is not None:
         if not os.path.exists(opts.taostest_pkg):
-            testLog.error("taostest-pkg {} not exist".format(opts.taostest_pkg))
+            tdLog.error("taostest-pkg {} not exist".format(opts.taostest_pkg))
             sys.exit(1)
     opts.docker_network = pars["docker_network"] if "docker_network" in pars else None
     opts.cfg_file = pars["cfg_file"] if "cfg_file" in pars else None
     opts.case_param = pars["case_param"] if "case_param" in pars else None
     if "concurrency" in pars:
         if pars["concurrency"] < 1:
-            testLog.error("--concurrency can't less than 1")
+            tdLog.error("--concurrency can't less than 1")
             sys.exit(1)
         else:
             opts.concurrency = pars["concurrency"]
     if "mnode_count" in pars:
         if pars["mnode_count"]< 1:
-            testLog.error("--mnode-count can't less than 1")
+            tdLog.error("--mnode-count can't less than 1")
             sys.exit(1)
         else:
             opts.mnode_count = pars["mnode_count"]
@@ -102,8 +103,8 @@ def params_get(pars):
     opts.tdcfg = pars["tdcfg"] if "tdcfg" in pars else None
 
     origin_cmds = [f"taostest {k} {v}" for k, v in pars.items()]
-    testLog.debug(origin_cmds)
-    testLog.debug(opts)
+    tdLog.debug(origin_cmds)
+    tdLog.debug(opts)
     str_cmds = ' '.join(origin_cmds)
     opts.cmds = str_cmds
 
@@ -115,9 +116,9 @@ def check_opts(opts):
         print("Must specify one option in:[ --destroy, --use, --setup, --prepare]")
         return False
     # have only one
-    if (opts.destroy and opts.use) or (opts.use and opts.setup) or (opts.destroy and opts.setup):
-        print("Can only specify one environment option: --destroy or --use or --setup")
-        return False
+    #if (opts.destroy and opts.use) or (opts.use and opts.setup) or (opts.destroy and opts.setup):
+    #    print("Can only specify one environment option: --destroy or --use or --setup")
+    #    return False
     # test groups and test cases can't run together.
     if (opts.group_dirs or opts.group_files) and opts.cases:
         print("--group-dir or --group-file can't be used together with --case")
@@ -198,14 +199,14 @@ def main(params: dict):
     3. construct TaosTestFrame object.
     4. start test TaosTestFrame.
     """
-    testLog.info(f"Start taostest with params: {params}")
+    tdLog.debug(f"Start taostest with params: {params}")
     opts = params_get(params)
     if opts.test_root is None:
-        testLog.error("Please set test_root")
+        tdLog.error("Please set test_root")
         return 1
 
     if opts.version:
-        testLog.info("0.1.5")
+        tdLog.debug("0.1.5")
         return
 
     if opts.init:

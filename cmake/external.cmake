@@ -16,13 +16,16 @@ endif()
 set(TD_EXTERNALS_BASE_DIR "${CMAKE_SOURCE_DIR}/.externals" CACHE PATH "path where external dependencies reside")
 message(STATUS "TD_EXTERNALS_BASE_DIR:${TD_EXTERNALS_BASE_DIR}")
 
+set(TD_INTERNALS_BASE_DIR "${CMAKE_SOURCE_DIR}/.internals" CACHE PATH "path where internal dependencies reside")
+message(STATUS "TD_INTERNALS_BASE_DIR:${TD_INTERNALS_BASE_DIR}")
+
 include(ExternalProject)
 
 add_custom_target(build_externals)
 
-macro(INIT_DIRS name)              # {
-    set(_base            "${TD_EXTERNALS_BASE_DIR}/build/${name}")                      # where all source and build stuffs locate
-    set(_ins             "${TD_EXTERNALS_BASE_DIR}/install/${name}/${TD_CONFIG_NAME}")  # where all installed stuffs locate
+macro(INIT_DIRS name base_dir)     # {
+    set(_base            "${base_dir}/build/${name}")                      # where all source and build stuffs locate
+    set(_ins             "${base_dir}/install/${name}/${TD_CONFIG_NAME}")  # where all installed stuffs locate
     set(${name}_base     "${_base}")
     set(${name}_source   "${_base}/src/${name}")
     set(${name}_build    "${_base}/src/${name}-build")
@@ -32,7 +35,7 @@ endmacro()                         # }
 # eg.: INIT_EXT(ext_zlib)
 # initialization all variables to be used by external project and those relied on
 macro(INIT_EXT name)               # {
-    INIT_DIRS(${name})
+    INIT_DIRS(${name} ${TD_EXTERNALS_BASE_DIR})
     set(${name}_inc_dir  "")
     set(${name}_libs     "")
     set(${name}_have_dev          FALSE)
@@ -95,7 +98,6 @@ macro(INIT_EXT name)               # {
             add_definitions(-D_${name})
             if("z${name}" STREQUAL "zext_gtest")
                 target_compile_features(${tgt} PUBLIC cxx_std_11)
-                find_package(Threads REQUIRED)
                 target_link_libraries(${tgt} PRIVATE Threads::Threads)
             endif()
         else()
@@ -510,7 +512,7 @@ if(${TD_LINUX})
 elseif(${TD_DARWIN})
     set(ext_xz_static liblzma.a)
 elseif(${TD_WINDOWS})
-    set(ext_xz_static liblzma.lib)
+    set(ext_xz_static lzma.lib)
 endif()
 INIT_EXT(ext_xz
     INC_DIR          include
@@ -520,10 +522,10 @@ INIT_EXT(ext_xz
 )
 # GIT_REPOSITORY https://github.com/xz-mirror/xz.git
 # GIT_TAG v5.4.4
-get_from_local_repo_if_exists("https://github.com/xz-mirror/xz.git")
+get_from_local_repo_if_exists("https://github.com/tukaani-project/xz.git")
 ExternalProject_Add(ext_xz
     GIT_REPOSITORY ${_git_url}
-    GIT_TAG v5.4.4
+    GIT_TAG v5.8.1
     GIT_SHALLOW TRUE
     PREFIX "${_base}"
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
@@ -1478,10 +1480,10 @@ if(NOT ${TD_WINDOWS})        # {
     )
     # URL https://dlcdn.apache.org//apr/apr-1.7.4.tar.gz
     # URL_HASH SHA256=a4137dd82a185076fa50ba54232d920a17c6469c30b0876569e1c2a05ff311d9
-    get_from_local_if_exists("https://dlcdn.apache.org//apr/apr-1.7.5.tar.gz")
+    get_from_local_if_exists("https://dlcdn.apache.org//apr/apr-1.7.6.tar.gz")
     ExternalProject_Add(ext_apr
         URL ${_url}
-        URL_HASH SHA256=3375fa365d67bcf945e52b52cba07abea57ef530f40b281ffbe977a9251361db
+        URL_HASH SHA256=6a10e7f7430510600af25fabf466e1df61aaae910bf1dc5d10c44a4433ccc81d
         # GIT_SHALLOW TRUE
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE

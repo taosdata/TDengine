@@ -1067,7 +1067,7 @@ void    ctgReleaseDBCache(SCatalog* pCtg, SCtgDBCache* dbCache);
 void    ctgRUnlockVgInfo(SCtgDBCache* dbCache);
 int32_t ctgTbMetaExistInCache(SCatalog* pCtg, const char* dbFName, const char* tbName, int32_t* exist);
 int32_t ctgReadTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
-int32_t ctgReadTbVerFromCache(SCatalog* pCtg, SName* pTableName, int32_t* sver, int32_t* tver, int32_t* tbType,
+int32_t ctgReadTbVerFromCache(SCatalog* pCtg, SName* pTableName, int32_t* sver, int32_t* tver, int32_t *rver, int32_t* tbType,
                               uint64_t* suid, char* stbName);
 int32_t ctgChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo* pReq, bool tbNotExists, bool* inCache, SCtgAuthRsp* pRes);
 int32_t ctgDropDbCacheEnqueue(SCatalog* pCtg, const char* dbFName, int64_t dbId);

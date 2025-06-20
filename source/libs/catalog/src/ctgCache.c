@@ -576,6 +576,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   int32_t metaSize = sizeof(SCTableMeta);
   int32_t colRefSize = 0;
   int32_t numOfColRefs = 0;
+  int32_t rversion = hasRefCol(tbMeta->tableType) ? tbMeta->rversion : 1;
   SColRef *tmpRef = NULL;
 
   if (hasRefCol(tbMeta->tableType) && tbMeta->colRef != NULL) {
@@ -641,7 +642,6 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
 
   if (colRefSize != 0) {
     (*pTableMeta)->colRef = (SColRef *)((char *)*pTableMeta + metaSize + schemaExtSize);
-    (*pTableMeta)->numOfColRefs = numOfColRefs;
     TAOS_MEMCPY((*pTableMeta)->colRef, tmpRef, colRefSize);
   } else {
     (*pTableMeta)->colRef = NULL;
@@ -687,7 +687,7 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgReadTbVerFromCache(SCatalog *pCtg, SName *pTableName, int32_t *sver, int32_t *tver, int32_t *tbType,
+int32_t ctgReadTbVerFromCache(SCatalog *pCtg, SName *pTableName, int32_t *sver, int32_t *tver, int32_t *rver, int32_t *tbType,
                               uint64_t *suid, char *stbName) {
   *sver = -1;
   *tver = -1;
@@ -706,8 +706,9 @@ int32_t ctgReadTbVerFromCache(SCatalog *pCtg, SName *pTableName, int32_t *sver, 
   STableMeta *tbMeta = tbCache->pMeta;
   *tbType = tbMeta->tableType;
   *suid = tbMeta->suid;
+  *rver = hasRefCol(*tbType) ? tbMeta->rversion : 1;
 
-  if (*tbType != TSDB_CHILD_TABLE) {
+  if (*tbType != TSDB_CHILD_TABLE && *tbType != TSDB_VIRTUAL_CHILD_TABLE) {
     *sver = tbMeta->sversion;
     *tver = tbMeta->tversion;
 
@@ -718,7 +719,7 @@ int32_t ctgReadTbVerFromCache(SCatalog *pCtg, SName *pTableName, int32_t *sver, 
     return TSDB_CODE_SUCCESS;
   }
 
-  // PROCESS FOR CHILD TABLE
+  // PROCESS FOR CHILD TABLE AND VIRTUAL CHILD TABLE
 
   // ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
   if (tbCache) {
@@ -1894,7 +1895,7 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
     origType = orig->tableType;
 
     if (origType == meta->tableType && orig->uid == meta->uid &&
-        (origType == TSDB_CHILD_TABLE || (orig->sversion >= meta->sversion && orig->tversion >= meta->tversion))) {
+        (origType == TSDB_CHILD_TABLE || (orig->sversion >= meta->sversion && orig->tversion >= meta->tversion && orig->rversion >= meta->rversion))) {
       taosMemoryFree(meta);
       ctgDebug("ignore table %s meta update", tbName);
       return TSDB_CODE_SUCCESS;
@@ -3647,6 +3648,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
     int32_t metaSize = sizeof(SCTableMeta);
     int32_t colRefSize = 0;
+    int32_t rversion = hasRefCol(tbMeta->tableType) ? tbMeta->rversion : 1;
     int32_t colRefNum = 0;
 
     pTableMeta = taosMemoryCalloc(1, metaSize);
@@ -3764,6 +3766,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     } else {
       pTableMeta->colRef = NULL;
     }
+    pTableMeta->rversion = rversion;
     taosMemoryFreeClear(tmpRef);
 
     CTG_UNLOCK(CTG_READ, &pCache->metaLock);

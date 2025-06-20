@@ -1,7 +1,8 @@
 import logging
 import sys
+import threading
 from logging import handlers
-import multiprocessing
+from ..utils.log import tdLog
 
 
 class ThreadLogger():
@@ -9,7 +10,7 @@ class ThreadLogger():
         self._filePath = filePath
         self._queue = queue
         self.t = None
-        self.level = logging.DEBUG
+        self.level = logging.INFO
         if not logLevel is None:
             if logLevel == "debug":
                 self.level = logging.DEBUG
@@ -63,14 +64,14 @@ class ThreadLogger():
                 elif level == "exception":
                     logger.exception(msg, *args)
                 elif level == "terminate":
-                    logger.info(msg, *args)
+                    logger.debug(msg, *args)
                     break
             except:
                 pass
 
     def start(self):
         # start log thread
-        self.t = multiprocessing.Process(target=self.work_thread, args=())
+        self.t = threading.Thread(target=self.work_thread, args=())
         self.t.start()
 
 

@@ -507,7 +507,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
   int32_t        code = TSDB_CODE_SUCCESS;
   SBoundColInfo* tags = (SBoundColInfo*)boundTags;
   if (NULL == tags) {
-    return TSDB_CODE_APP_ERROR;
+    return buildInvalidOperationMsg(&pBuf, "tags is null");
   }
 
   SArray* pTagArray = taosArrayInit(tags->numOfBound, sizeof(STagVal));

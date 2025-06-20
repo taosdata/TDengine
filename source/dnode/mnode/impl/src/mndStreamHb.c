@@ -75,27 +75,23 @@ int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream, int
   int32_t code = doCreateTrans(pMnode, pStream, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_TASK_RESET_NAME,
                                " reset from failed checkpoint", &pTrans);
   if (pTrans == NULL || code) {
-    sdbRelease(pMnode->pSdb, pStream);
     return terrno;
   }
 
   code = mndStreamRegisterTrans(pTrans, MND_STREAM_TASK_RESET_NAME, pStream->uid);
   if (code) {
-    sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
   }
 
   code = mndStreamSetResetTaskAction(pMnode, pTrans, pStream, chkptId);
   if (code) {
-    sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
   }
 
   code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_READY);
   if (code != TSDB_CODE_SUCCESS) {
-    sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
   }
@@ -103,12 +99,10 @@ int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream, int
   code = mndTransPrepare(pMnode, pTrans);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("trans:%d, failed to prepare update stream trans since %s", pTrans->id, tstrerror(code));
-    sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
   }
 
-  sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
 
   if (code == 0) {
@@ -366,7 +360,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   mndInitStreamExecInfo(pMnode, &execInfo);
   if (!validateHbMsg(execInfo.pNodeList, req.vgId)) {
-    mError("vgId:%d not exists in nodeList buf, discarded", req.vgId);
+    mError("vgId:%d not exists in nodeList buf, discarded HbMsg", req.vgId);
 
     doSendHbMsgRsp(terrno, &pReq->info, &mnodeEpset, req.vgId, req.msgId);
 

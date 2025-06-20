@@ -225,13 +225,15 @@ The effective value of charset is UTF-8.
 |compactPullupInterval     |          |Supported, effective immediately  |Internal parameter, frequency of data reorganization timer|
 |walFsyncDataSizeLimit     |          |Supported, effective immediately  |Internal parameter, threshold for WAL to perform FSYNC|
 |transPullupInterval       |          |Supported, effective immediately  |Internal parameter, retry interval for mnode to execute transactions|
+|forceKillTrans            |3.3.7.0   |Supported, effective immediately  |Internal parameter, for debugging mnode module to execute transactions|
 |mqRebalanceInterval       |          |Supported, effective immediately  |Internal parameter, interval for consumer rebalancing|
 |uptimeInterval            |          |Supported, effective immediately  |Internal parameter, for recording system uptime|
 |timeseriesThreshold       |          |Supported, effective immediately  |Internal parameter, for usage statistics|
 |udf                       |          |Supported, effective after restart|Whether to start UDF service; 0: do not start, 1: start; default value 0 |
 |udfdResFuncs              |          |Supported, effective after restart|Internal parameter, for setting UDF result sets|
 |udfdLdLibPath             |          |Supported, effective after restart|Internal parameter, indicates the library path for loading UDF|
-|enableStrongPassword      | After 3.3.6.0 |Supported, effective after restart|The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
+|enableStrongPassword      | 3.3.6.0  |Supported, effective after restart|The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
+|enableIpv6                | 3.3.7.0  |not Supported                     |force nodes to communicate directly via IPv6 only, default value is 0, notes: 1. `firstep`, `sencodep`, and `FQDN` must all resolve to IPv6 addresses. 2. Mixed IPv4/IPv6 deployment is not supported|
 
 ### Stream Computing Parameters
 
@@ -258,7 +260,7 @@ The effective value of charset is UTF-8.
 | minimalLogDirGB |          |Not supported                     | Stops writing logs when the available space on the disk where the log folder is located is less than this value, unit GB, default value 1 |
 | numOfLogLines   |          |Supported, effective immediately  | Maximum number of lines allowed in a single log file, default value 10,000,000 |
 | asyncLog        |          |Supported, effective immediately  | Log writing mode, 0: synchronous, 1: asynchronous, default value 1 |
-| logKeepDays     |          |Supported, effective immediately  | Maximum retention time for log files, unit: days, default value 0, which means unlimited retention, log files will not be renamed, nor will new log files be rolled out, but the content of the log files may continue to roll depending on the log file size setting; when set to a value greater than 0, when the log file size reaches the set limit, it will be renamed to taosdlog.yyy, where yyy is the timestamp of the last modification of the log file, and a new log file will be rolled out |
+| logKeepDays     |          |Supported, effective immediately  | Maximum retention time for log files, unit: days, default value 0, which means unlimited retention, log files will not be renamed, nor will new log files be rolled out, but the content of the log files may continue to roll depending on the log file size setting; when set to a value greater than 0, when the log file size reaches the set limit, it will be renamed to taosdlog.yyy, where yyy is the timestamp of the last modification of the log file, and a new log file will be rolled out, and log files whose creation time exceeds logKeepDays will be removed; Considering the usage habits of users of TDengine 2.0, starting from TDengine 3.3.6.6, when the value is set to less than 0, except that log files whose creation time exceeds -logKeepDays will be removed, other behaviors are the same as those when the value is greater than 0(For TDengine versions between 3.0.0.0 and 3.3.6.5, it is not recommended to set the value to less than 0) |
 | slowLogThreshold| 3.3.3.0 onwards |Supported, effective immediately  | Slow query threshold, queries taking longer than or equal to this threshold are considered slow, unit seconds, default value 3 |
 | slowLogMaxLen   | 3.3.3.0 onwards |Supported, effective immediately  | Maximum length of slow query logs, range 1-16384, default value 4096 |
 | slowLogScope    | 3.3.3.0 onwards |Supported, effective immediately  | Type of slow query records, range ALL/QUERY/INSERT/OTHERS/NONE, default value QUERY |

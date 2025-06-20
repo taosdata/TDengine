@@ -129,7 +129,7 @@ int32_t streamTaskProcessCheckpointTriggerRsp(SStreamTask* pTask, SCheckpointTri
   }
 
   if (pRsp->rspCode != TSDB_CODE_SUCCESS) {
-    stDebug("s-task:%s retrieve checkpoint-trgger rsp from upstream:0x%x invalid, code:%s", id, pRsp->upstreamTaskId,
+    stDebug("s-task:%s retrieve checkpoint-trigger rsp from upstream:0x%x invalid, code:%s", id, pRsp->upstreamTaskId,
             tstrerror(pRsp->rspCode));
     return TSDB_CODE_SUCCESS;
   }
@@ -291,7 +291,7 @@ int32_t doCheckBeforeHandleChkptTrigger(SStreamTask* pTask, int64_t checkpointId
         return TSDB_CODE_STREAM_INVLD_CHKPT;
       }
 
-      if (taskLevel == TASK_LEVEL__SINK || taskLevel == TASK_LEVEL__AGG) {
+      if (taskLevel == TASK_LEVEL__SINK || taskLevel == TASK_LEVEL__AGG || taskLevel == TASK_LEVEL__MERGE) {
         //  check if already recv or not, and duplicated checkpoint-trigger msg recv, discard it
         for (int32_t i = 0; i < taosArrayGetSize(pActiveInfo->pReadyMsgList); ++i) {
           STaskCheckpointReadyInfo* p = taosArrayGet(pActiveInfo->pReadyMsgList, i);
@@ -415,7 +415,7 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
           appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT, pActiveInfo->activeId, pActiveInfo->transId, -1);
       streamFreeQitem((SStreamQueueItem*)pBlock);
     }
-  } else if (taskLevel == TASK_LEVEL__SINK || taskLevel == TASK_LEVEL__AGG) {
+  } else if (taskLevel == TASK_LEVEL__SINK || taskLevel == TASK_LEVEL__AGG || taskLevel == TASK_LEVEL__MERGE) {
     // todo: handle this
     // update the child Id for downstream tasks
     code = streamAddCheckpointReadyMsg(pTask, pBlock->srcTaskId, pTask->info.selfChildId, checkpointId);
