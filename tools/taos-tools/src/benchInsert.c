@@ -3877,7 +3877,7 @@ void *genInsertTheadInfo(void* arg) {
                             pThreadInfo->sml_json_tags,
                                 pThreadInfo->sml_tags_json_array,
                                 stbInfo,
-                            pThreadInfo->start_table_from, index++);
+                            pThreadInfo->start_table_from, t);
                     } else {
                         generateSmlTaosJsonTags(
                             pThreadInfo->sml_json_tags, stbInfo,
