@@ -240,20 +240,13 @@ class TestStreamSubquerySliding:
         # self.streams.append(stream) basic7
 
         stream = StreamItem(
-            id=4,
-            stream="create stream rdb.s0 sliding(5m) from tdb.n1 into rdb.r0 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, %%1, %%tbname, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null and %%1 != '1' and %%tbname != '1';",
-            res_query="select ts, c1, c2 from rdb.r1",
-            exp_query="select _wstart ts, count(cint) c1, avg(cint) c2 from qdb.meters interval(5m)",
+            id=11,
+            stream="create stream rdb.s11 sliding(5m) from tdb.n1 into rdb.r11 as select _tprev_ts tp, _tcurrent_ts tc, _tnext_ts tn, _tgrpid tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _tprev_ts and cts < _tcurrent_ts and _tgrpid is not null and _tlocaltime is not null and tbname != 't1';",
+            res_query="select tp, tc, tn, tg, c1, c2 from rdb.r11;",
+            exp_query="select _wstart, _wend, _wend + 5m, 0, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= '2025-01-01 00:25:00.000' and cts < '2025-01-01 00:40:00.000' and tbname != 't1' interval(5m);",
+            check_func=self.check11,
         )
-        # self.streams.append(stream)
-
-        stream = StreamItem(
-            id=5,
-            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers into rdb.r0 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, %%1, %%tbname, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null and %%1 != '1' and %%tbname != '1';",
-            res_query="select ts, c1, c2 from rdb.r1",
-            exp_query="select _wstart ts, count(cint) c1, avg(cint) c2 from qdb.meters interval(5m)",
-        )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=12,
@@ -263,6 +256,14 @@ class TestStreamSubquerySliding:
             check_func=self.check12,
         )
         self.streams.append(stream)
+
+        stream = StreamItem(
+            id=5,
+            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers into rdb.r0 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, %%1, %%tbname, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null and %%1 != '1' and %%tbname != '1';",
+            res_query="select ts, c1, c2 from rdb.r1",
+            exp_query="select _wstart ts, count(cint) c1, avg(cint) c2 from qdb.meters interval(5m)",
+        )
+        # self.streams.append(stream)
 
         stream = StreamItem(
             id=7,
@@ -2220,6 +2221,21 @@ class TestStreamSubquerySliding:
         tdSql.checkResultsByFunc(
             sql="select * from rdb.r10 where tag_tbname='t2'",
             func=lambda: tdSql.getRows() == 1,
+        )
+
+    def check11(self):
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r11",
+            schema=[
+                ["tp", "TIMESTAMP", 8, ""],
+                ["tc", "TIMESTAMP", 8, ""],
+                ["tn", "TIMESTAMP", 8, ""],
+                ["tg", "BIGINT", 8, ""],
+                ["tl", "TIMESTAMP", 8, ""],
+                ["c1", "BIGINT", 8, ""],
+                ["c2", "DOUBLE", 8, ""],
+            ],
         )
 
     def check12(self):

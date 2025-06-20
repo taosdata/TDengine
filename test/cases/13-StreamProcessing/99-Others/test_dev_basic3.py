@@ -191,6 +191,15 @@ class TestStreamDevBasic:
             exp_query="select _wstart, _wend, count(cint) c1, avg(cint) c2, 1 from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
         )
         self.streams.append(stream)
+        
+        stream = StreamItem(
+            id=11,
+            stream="create stream rdb.s11 sliding(5m) from tdb.n1 into rdb.r11 as select _tprev_ts tp, _tcurrent_ts tc, _tnext_ts tn, _tgrpid tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _tprev_ts and cts < _tcurrent_ts and _tgrpid is not null and _tlocaltime is not null and tbname != 't1';",
+            res_query="select tp, tc, tn, tg, c1, c2 from rdb.r11;",
+            exp_query="select _wstart, _wend, _wend + 5m, 0, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= '2025-01-01 00:25:00.000' and cts < '2025-01-01 00:40:00.000' and tbname != 't1' interval(5m);",
+            check_func=self.check11,
+        )
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=12,
@@ -367,6 +376,21 @@ class TestStreamDevBasic:
             and tdSql.compareData(0, 4, "t2"),
         )
 
+    def check11(self):
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r11",
+            schema=[
+                ["tp", "TIMESTAMP", 8, ""],
+                ["tc", "TIMESTAMP", 8, ""],
+                ["tn", "TIMESTAMP", 8, ""],
+                ["tg", "BIGINT", 8, ""],
+                ["tl", "TIMESTAMP", 8, ""],
+                ["c1", "BIGINT", 8, ""],
+                ["c2", "DOUBLE", 8, ""],
+            ],
+        )
+        
     def check12(self):
         tdSql.checkTableType(
             dbname="rdb",
