@@ -117,8 +117,8 @@ class TestInsertSelect:
         tdSql.execute(
             f"CREATE STABLE IF NOT EXISTS dst_smeters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS(groupId INT, location BINARY(24));"
         )
-        tdSql.execute(f" CREATE TABLE IF NOT EXISTS meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT);")
-        tdSql.execute(f"insert into meters values('2021-04-19 08:00:07', 1, 1, 1)('2021-04-19 08:00:08', 2, 2, 2);")
+        tdSql.execute(f"CREATE TABLE IF NOT EXISTS meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT);")
+        tdSql.execute(f"INSERT INTO meters values('2021-04-19 08:00:07', 1, 1, 1)('2021-04-19 08:00:08', 2, 2, 2);")
         tdSql.execute(f"INSERT INTO dst_smeters(tbname, ts, current, voltage, location) select concat(tbname,'_', to_char(ts, 'SS')) as sub_table_name,ts, current, voltage,to_char(ts, 'SS') as location from meters partition by tbname;")
         tdSql.query(f"select * from dst_smeters;")
         tdSql.checkRows(2)
@@ -148,7 +148,7 @@ class TestInsertSelect:
         tdSql.checkData(1, 3, 2)
         tdSql.checkData(1, 4, 2)
         tdSql.checkData(1, 5, None)
-        
+
         tdSql.error(f"INSERT INTO dst_smeters(ts, current, voltage, phase) select ts, current, voltage, phase from meters partition by tbname;")
         tdSql.error(f"INSERT INTO dst_smeters(tbname, current, voltage,location) select concat(tbname,'_', to_char(ts, 'SS')) as sub_table_name, current, voltage, to_char(ts+10000, 'SS') as location from meters partition by tbname;")
 

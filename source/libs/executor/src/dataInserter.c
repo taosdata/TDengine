@@ -441,6 +441,7 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
   SDBVgInfo* dbInfo = NULL;
   int32_t    code = inserterGetDbVgInfo(pInserter, pInserter->dbFName, &dbInfo);
   if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
     goto _end;
   }
 
@@ -504,6 +505,11 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
     }
     int32_t vgIdForTbName = 0;
     code = inserterGetVgId(dbInfo, tbFullName, &vgIdForTbName);
+    if (code != TSDB_CODE_SUCCESS) {
+      terrno = code;
+      tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
+      goto _end;
+    }
 
     SSubmitReq2* pReq = taosHashGet(pHash, &vgIdForTbName, sizeof(int32_t));
     if (pReq == NULL) {
@@ -534,13 +540,13 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
     for (int32_t i = 0; i < pInserter->pTagSchema->nCols; ++i) {
       SSchema* tSchema = &pInserter->pTagSchema->pSchema[i];
       int16_t  colIdx = tSchema->colId;
-      if (NULL == taosArrayPush(TagNames, tSchema->name)) {
-        tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
-        goto _end;
-      }
       int16_t* slotId = taosHashGet(pInserter->pCols, &colIdx, sizeof(colIdx));
       if (NULL == slotId) {
         continue;
+      }
+      if (NULL == taosArrayPush(TagNames, tSchema->name)) {
+        tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
+        goto _end;
       }
 
       colIdx = *slotId;
@@ -614,8 +620,14 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
       goto _end;
     }
 
-    inserterBuildCreateTbReq(tbData.pCreateTbReq, tableName, pTag, suid, pInserter->pNode->tableName, TagNames,
-                             pInserter->pTagSchema->nCols, TSDB_DEFAULT_TABLE_TTL);
+    code = inserterBuildCreateTbReq(tbData.pCreateTbReq, tableName, pTag, suid, pInserter->pNode->tableName, TagNames,
+                                    pInserter->pTagSchema->nCols, TSDB_DEFAULT_TABLE_TTL);
+    if (code != TSDB_CODE_SUCCESS) {
+      terrno = code;
+      qError("failed to build create table request, error:%s", tstrerror(code));
+      tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
+      goto _end;
+    }
 
     for (int32_t k = 0; k < pTSchema->numOfCols; ++k) {
       int16_t         colIdx = k;
@@ -734,7 +746,7 @@ _end:
   taosArrayDestroy(pTagVals);
   taosArrayDestroy(pVals);
 
-  return TSDB_CODE_SUCCESS;
+  return terrno;
 }
 
 int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** ppReq, const SSDataBlock* pDataBlock,
@@ -941,6 +953,10 @@ int32_t dataBlocksToSubmitReqArray(SDataInserterHandle* pInserter, SArray* pMsgs
     int32_t*     ctbVgId = taosHashGetKey(iterator, &keyLen);
 
     SSubmitTbDataMsg* pMsg = taosMemoryCalloc(1, sizeof(SSubmitTbDataMsg));
+    if (NULL == pMsg) {
+      code = terrno;
+      goto _end;
+    }
     code = submitReqToMsg(*ctbVgId, pReq, &pMsg->pData, &pMsg->len);
     if (code != TSDB_CODE_SUCCESS) {
       goto _end;
