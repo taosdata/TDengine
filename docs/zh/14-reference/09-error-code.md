@@ -236,6 +236,19 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000484 | index not exist                                                                              | 不存在                                        | 确认操作是否正确                                                                                |
 
 
+## Bnode
+
+| 错误码     | 错误描述                   | 可能的出错场景或者可能的原因 | 建议用户采取的措施     |
+| ---------- | -------------------------- | ---------------------------- | ---------------------- |
+| 0x80000450 | Bnode already exists       | 已创建                       | 检查节点状态           |
+| 0x80000451 | Bnode already deployed     | 已部署                       | 确认操作是否正确       |
+| 0x80000452 | Bnode not deployed         | 内部错误                     | 上报 issue             |
+| 0x80000453 | Bnode not there            | 不在线                       | 确认操作是否正确       |
+| 0x80000454 | Bnode not found            | 内部错误                     | 上报 issue             |
+| 0x80000455 | Bnode exec launch failed   | 内部错误                     | 上报 issue             |
+| 0x8000261C | Invalid Bnode option       | Bnode 选项值非法             | 检查并修正数据库选项值 |
+
+
 ## dnode
 
 | 错误码     | 错误描述               | 可能的出错场景或者可能的原因 | 建议用户采取的措施 |

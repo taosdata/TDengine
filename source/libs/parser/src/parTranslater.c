@@ -390,13 +390,20 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pTableName = TSDB_INS_TABLE_TRANSACTION_DETAILS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
-  },
+  }, 
   {
     .showType = QUERY_NODE_SHOW_VTABLES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_TABLES,
     .numOfShowCols = 1,
     .pShowCols = {"table_name"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_XNODES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_XNODES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
   },
 };
 // clang-format on
@@ -9529,6 +9536,15 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       break;
     }
 
+    case TDMT_MND_CREATE_XNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateXnodeReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_XNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropXnodeReq, pReq);
+      break;
+    }
+
     case TDMT_MND_CREATE_MNODE: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateMnodeReq, pReq);
       break;
@@ -11243,6 +11259,43 @@ static int32_t translateUpdateAnode(STranslateContext* pCxt, SUpdateAnodeStmt* p
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_UPDATE_ANODE, (FSerializeFunc)tSerializeSMUpdateAnodeReq, &updateReq);
   tFreeSMUpdateAnodeReq(&updateReq);
+  return code;
+}
+
+static int32_t checkCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* pStmt) {
+  SXnodeOptions* pOptions = pStmt->pOptions;
+
+  if ('\0' != pOptions->protoStr[0]) {
+    if (0 == strcasecmp(pOptions->protoStr, TSDB_XNODE_OPT_PROTO_STR_MQTT)) {
+      pOptions->proto = TSDB_XNODE_OPT_PROTO_MQTT;
+    } else {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_XNODE_OPTION, "Invalid option protocol: %s",
+                                     pOptions->protoStr);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* pStmt) {
+  SMCreateXnodeReq createReq = {.dnodeId = pStmt->dnodeId};
+
+  int32_t code = checkCreateXnode(pCxt, pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    createReq.xnodeProto = pStmt->pOptions->proto;
+
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE, (FSerializeFunc)tSerializeSMCreateXnodeReq, &createReq);
+  }
+
+  tFreeSMCreateXnodeReq(&createReq);
+  return code;
+}
+
+static int32_t translateDropXnode(STranslateContext* pCxt, SDropXnodeStmt* pStmt) {
+  SMDropXnodeReq dropReq = {0};
+  dropReq.dnodeId = pStmt->dnodeId;
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_XNODE, (FSerializeFunc)tSerializeSMDropXnodeReq, &dropReq);
+  tFreeSMDropXnodeReq(&dropReq);
   return code;
 }
 
@@ -14899,6 +14952,12 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_UPDATE_ANODE_STMT:
       code = translateUpdateAnode(pCxt, (SUpdateAnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_CREATE_XNODE_STMT:
+      code = translateCreateXnode(pCxt, (SCreateXnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_XNODE_STMT:
+      code = translateDropXnode(pCxt, (SDropXnodeStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = translateCreateIndex(pCxt, (SCreateIndexStmt*)pNode);
@@ -19202,6 +19261,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_STREAMS_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
+    case QUERY_NODE_SHOW_XNODES_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:

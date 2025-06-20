@@ -98,6 +98,7 @@ SWords shellCommands[] = {
     {"create index <anyword> on <stb_name> ()", 0, 0, NULL},
     {"create mnode on dnode <dnode_id>;", 0, 0, NULL},
     {"create qnode on dnode <dnode_id>;", 0, 0, NULL},
+    {"create bnode on dnode <dnode_id>;", 0, 0, NULL},
     {"create stream <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
     {"create topic <anyword> as select", 0, 0, NULL},                  // 27 append sub sql
     {"create tsma <anyword> on <all_table> function", 0, 0, NULL},
@@ -121,6 +122,7 @@ SWords shellCommands[] = {
     {"drop dnode <dnode_id>;", 0, 0, NULL},
     {"drop mnode on dnode <dnode_id>;", 0, 0, NULL},
     {"drop qnode on dnode <dnode_id>;", 0, 0, NULL},
+    {"drop bnode on dnode <dnode_id>;", 0, 0, NULL},
     {"drop user <user_name>;", 0, 0, NULL},
     // 40
     {"drop function <udf_name>;", 0, 0, NULL},
@@ -189,6 +191,7 @@ SWords shellCommands[] = {
     // 80
     {"show query <anyword> ;", 0, 0, NULL},
     {"show qnodes;", 0, 0, NULL},
+    {"show bnodes;", 0, 0, NULL},
     {"show stables;", 0, 0, NULL},
     {"show stables like ", 0, 0, NULL},
     {"show streams;", 0, 0, NULL},
@@ -347,6 +350,7 @@ char* key_systable[] = {
     "ins_databases",     "ins_functions",  "ins_indexes",      "ins_stables", "ins_tables",          "ins_tags",
     "ins_users",         "ins_grants",     "ins_vgroups",      "ins_configs", "ins_dnode_variables", "ins_topics",
     "ins_subscriptions", "ins_streams",    "ins_stream_tasks", "ins_vnodes",  "ins_user_privileges", "perf_connections",
+    "ins_bnodes",
     "perf_queries",      "perf_consumers", "perf_trans",       "perf_apps"};
 
 char* udf_language[] = {"\'Python\'", "\'C\'"};
@@ -523,6 +527,7 @@ void showHelp() {
     create index <index_name> on <stb_name> (tag_column_name);\n\
     create mnode on dnode <dnode_id> ;\n\
     create qnode on dnode <dnode_id> ;\n\
+    create bnode on dnode <dnode_id> ;\n\
     create stream <stream_name> into <stb_name> as select ...\n\
     create topic <topic_name> as select ...\n\
     create function <udf_name> as <file_name> outputtype <data_types> language \'C\' | \'Python\' ;\n\
@@ -536,6 +541,7 @@ void showHelp() {
     drop dnode <dnode_id>;\n\
     drop mnode on dnode <dnode_id> ;\n\
     drop qnode on dnode <dnode_id> ;\n\
+    drop bnode on dnode <dnode_id> ;\n\
     drop user <user_name> ;\n\
     drop function <udf_name>;\n\
     drop consumer group ... \n\
@@ -600,6 +606,7 @@ void showHelp() {
     show queries;\n\
     show query <query_id> ;\n\
     show qnodes;\n\
+    show bnodes;\n\
     show snodes;\n\
     show stables;\n\
     show stables like \n\
