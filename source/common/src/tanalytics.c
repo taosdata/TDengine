@@ -441,7 +441,7 @@ static int32_t taosAnalyJsonBufWriteOptInt(SAnalyticBuf *pBuf, const char *optNa
 }
 
 static int32_t taosAnalyJsonBufWriteOptStr(SAnalyticBuf *pBuf, const char *optName, const char *optVal) {
-  char    buf[128] = {0};
+  char    buf[512] = {0};
   int32_t bufLen = tsnprintf(buf, sizeof(buf), "\"%s\": \"%s\",\n", optName, optVal);
   if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
     return terrno;
