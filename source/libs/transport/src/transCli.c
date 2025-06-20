@@ -2714,7 +2714,11 @@ void cliRetryMayInitCtx(STrans* pInst, SCliReq* pReq) {
 
 int32_t cliRetryIsTimeout(STrans* pInst, SCliReq* pReq) {
   SReqCtx* pCtx = pReq->ctx;
-  if (pCtx->retryMaxTimeout != -1 && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
+  int64_t  now = taosGetTimestampMs();
+  tInfo("cliRetryIsTimeout, retryInit:%d, retryMaxTimeout:%" PRId64 ", retryInitTimestamp:%" PRId64, pCtx->retryInit,
+        pCtx->retryMaxTimeout, pCtx->retryInitTimestamp);
+  if (pCtx->retryMaxTimeout != -1 && ((now - pCtx->retryInitTimestamp) >= pCtx->retryMaxTimeout)) {
+    tInfo("msg already timeout, not retry");
     return 1;
   }
   return 0;
