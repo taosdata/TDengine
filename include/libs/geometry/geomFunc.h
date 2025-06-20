@@ -28,12 +28,16 @@ int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 int32_t geomFromTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t asTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
+int32_t geomFromGeoJSONFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t asGeoJSONFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
 int32_t intersectsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t equalsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t touchesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t coversFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t containsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t containsProperlyFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
 #endif
 
 #ifdef __cplusplus
