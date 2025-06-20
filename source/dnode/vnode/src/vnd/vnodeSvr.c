@@ -1161,7 +1161,7 @@ static int32_t vnodeProcessSsMigrateReq(SVnode *pVnode, int64_t ver, void *pReq,
     goto _exit;
   }
 
-  vInfo("vgId:%d, process ssmigrate vnode request, time:%ld", pVnode->config.vgId, req.timestamp);
+  vInfo("vgId:%d, process ssmigrate vnode request, time:%" PRId64, pVnode->config.vgId, req.timestamp);
 
   code = vnodeAsyncSsMigrate(pVnode, &req);
   if (code != TSDB_CODE_SUCCESS) {

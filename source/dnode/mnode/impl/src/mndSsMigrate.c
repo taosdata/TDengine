@@ -448,7 +448,7 @@ static void mndSendFollowerSsMigrateReq(SMnode* pMnode, SFollowerSsMigrateReq *p
   if (code != 0) {
     mError("vgId:%d, failed to send follower-ssmigrate request to vnode since 0x%x", pReq->vgId, code);
   } else {
-    mInfo("vgId:%d, send follower-ssmigrate request to vnode, time:%ld", pReq->vgId, pReq->startTimeSec);
+    mInfo("vgId:%d, send follower-ssmigrate request to vnode, time:%" PRId64, pReq->vgId, pReq->startTimeSec);
   }
 }
 
