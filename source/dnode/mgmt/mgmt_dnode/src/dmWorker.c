@@ -23,9 +23,6 @@ static void *dmStatusThreadFp(void *param) {
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-status");
 
-  int32_t upTimeCount = 0;
-  int64_t upTime = 0;
-
   while (1) {
     taosMsleep(200);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
@@ -36,11 +33,6 @@ static void *dmStatusThreadFp(void *param) {
     if (interval >= tsStatusInterval) {
       dmSendStatusReq(pMgmt);
       lastTime = curTime;
-
-      if ((upTimeCount = ((upTimeCount + 1) & 63)) == 0) {
-        upTime = taosGetOsUptime() - tsDndStartOsUptime;
-        tsDndUpTime = TMAX(tsDndUpTime, upTime);
-      }
     }
   }
 
