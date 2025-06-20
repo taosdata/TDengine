@@ -336,7 +336,7 @@ typedef enum {
   STREAM_STATUS_DROPPING,
 } EStreamStatus;
 
-static const char* gStreamStatusStr[] = {"Undeployed", "Deploying", "Running", "Stopped", "Failed", "Dropping"};
+static const char* gStreamStatusStr[] = {"Undeployed", "Idle", "Running", "Stopped", "Failed", "Dropping"};
 
 typedef enum EStreamTaskType {
   STREAM_READER_TASK = 0,

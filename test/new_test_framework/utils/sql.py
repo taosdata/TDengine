@@ -740,6 +740,24 @@ class TDSql:
             colDatas.append(self.queryResult[i][col])
         return colDatas
 
+    def getRowData(self, row):
+        """
+        Retrieves all data from the specified row in the last query result.
+
+        Args:
+            row (int): The row index of the data to be retrieved.
+
+        Returns:
+            list: A list containing all data from the specified row.
+
+        Raises:
+            SystemExit: If the specified row is out of range.
+        """
+        if row >= self.queryRows:
+            return None
+        
+        return self.queryResult[row]
+
     def getResult(self, sql, exit=True):
         """
         Executes a SQL query and fetches the results.

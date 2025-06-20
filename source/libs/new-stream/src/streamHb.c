@@ -49,6 +49,8 @@ static int32_t streamHbSendRequestMsg(SStreamHbMsg* pMsg, SEpSet* pEpset) {
   
   TAOS_CHECK_EXIT(tmsgSendReq(pEpset, &msg));
 
+  stTrace("stream hb sent");
+
   return code;
 
 _exit:
@@ -106,9 +108,12 @@ void streamHbStart(void* param, void* tmrId) {
   bool    skipHb = false;
   SStreamHbMsg reqMsg = {0};
   SEpSet epSet = {0};
+
+  stTrace("stream hb begin");
   
   TAOS_CHECK_EXIT(streamHbBuildRequestMsg(&reqMsg, &skipHb));
   if (skipHb) {
+    stTrace("stream hb skipped");
     goto _exit;
   }
   
@@ -121,6 +126,8 @@ _exit:
   
   if (code) {
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    stTrace("stream hb end");
   }
 }
 
