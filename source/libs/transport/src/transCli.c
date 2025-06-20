@@ -2530,9 +2530,9 @@ static FORCE_INLINE void doCloseIdleConn(void* param) {
 }
 static FORCE_INLINE void cliPerfLog_schedMsg(SCliReq* pReq, char* label) {
   int32_t code = 0;
-  if (!(rpcDebugFlag & DEBUG_DEBUG)) {
-    return;
-  }
+  // if (!(rpcDebugFlag & DEBUG_DEBUG)) {
+  //   return;
+  // }
   SReqCtx*  pCtx = pReq->ctx;
   STraceId* trace = &pReq->msg.info.traceId;
   char      tbuf[512] = {0};
@@ -2543,8 +2543,8 @@ static FORCE_INLINE void cliPerfLog_schedMsg(SCliReq* pReq, char* label) {
     return;
   }
 
-  tGInfo("%s retry on next node,use:%s, step:%d,timeout:%" PRId64, label, tbuf, pCtx->retryStep,
-         pCtx->retryNextInterval);
+  tGError("%s retry on next node,use:%s, step:%d,timeout:%" PRId64, label, tbuf, pCtx->retryStep,
+          pCtx->retryNextInterval);
   return;
 }
 static FORCE_INLINE void cliPerfLog_epset(SCliConn* pConn, SCliReq* pReq) {
@@ -2715,10 +2715,10 @@ void cliRetryMayInitCtx(STrans* pInst, SCliReq* pReq) {
 int32_t cliRetryIsTimeout(STrans* pInst, SCliReq* pReq) {
   SReqCtx* pCtx = pReq->ctx;
   int64_t  now = taosGetTimestampMs();
-  tInfo("cliRetryIsTimeout, retryInit:%d, retryMaxTimeout:%" PRId64 ", retryInitTimestamp:%" PRId64, pCtx->retryInit,
-        pCtx->retryMaxTimeout, pCtx->retryInitTimestamp);
+  tError("cliRetryIsTimeout, retryInit:%d, retryMaxTimeout:%" PRId64 ", retryInitTimestamp:%" PRId64, pCtx->retryInit,
+         pCtx->retryMaxTimeout, pCtx->retryInitTimestamp);
   if (pCtx->retryMaxTimeout != -1 && ((now - pCtx->retryInitTimestamp) >= pCtx->retryMaxTimeout)) {
-    tInfo("msg already timeout, not retry");
+    tError("msg already timeout, not retry");
     return 1;
   }
   return 0;
@@ -2798,7 +2798,7 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
     transFreeMsg(pResp->pCont);
   } else if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY || code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE) {
     noDelay = 0;
-    tInfo("do retry on next node since %s", tstrerror(code));
+    tError("do retry on next node since %s", tstrerror(code));
     transFreeMsg(pResp->pCont);
   } else {
     tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);

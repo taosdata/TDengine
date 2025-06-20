@@ -336,7 +336,7 @@ static bool clientRpcRfp(int32_t code, tmsg_t msgType) {
     }
     return true;
   } else if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY || code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE) {
-    tscInfo("client msg type %s should retry since %s", TMSG_INFO(msgType), tstrerror(code));
+    tscError("client msg type %s should retry since %s", TMSG_INFO(msgType), tstrerror(code));
     return true;
   } else {
     return false;
@@ -387,6 +387,7 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
     return code;
   }
 
+  tscError("rpc max retry timeout %" PRId64 "", rpcInit.retryMaxTimeout);
   *pDnodeConn = rpcOpen(&rpcInit);
   if (*pDnodeConn == NULL) {
     tscError("failed to init connection to server since %s", tstrerror(terrno));
