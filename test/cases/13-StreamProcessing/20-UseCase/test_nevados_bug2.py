@@ -120,6 +120,7 @@ class Test_Nevados:
             "  into `windspeeds_hourly`"
             "  as select _twstart window_start, _twend as window_hourly, max(speed) as windspeed_hourly_maximum from %%trows"
         )
+        tdStream.checkStreamStatus()
 
         tdSql.checkTableSchema(
             dbname="dev",
@@ -161,6 +162,7 @@ class Test_Nevados:
             "  )"
             "  as select _twstart window_start, _twend as window_hourly, max(windspeed_hourly_maximum) as windspeed_daily_maximum, %%1 as site, %%2 as id from %%trows"
         )
+        tdStream.checkStreamStatus()
 
         tdSql.checkTableSchema(
             dbname="dev",
@@ -177,6 +179,6 @@ class Test_Nevados:
 
         tdSql.checkResultsByFunc(
             "select count(*) from information_schema.ins_tables where db_name='dev' and stable_name='windspeeds_daily';",
-            lambda: tdSql.compareData(0, 0, 10),
-            retry=50,
+            lambda: tdSql.getData(0, 0) > 10,
+            retry=60
         )

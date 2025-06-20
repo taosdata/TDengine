@@ -69,7 +69,7 @@ class TestStreamOldCaseState:
         
         tdSql.execute(f"insert into t1 values(1648791214000, 1, 22, 23, 24.0, 25);")
         tdSql.checkResultsByFunc(
-            f"select * from streamt1",
+            f"select * from test.streamt1",
             lambda: tdSql.getRows() == 1
             and tdSql.compareData(0, 0, "2022-04-01 13:33:33.000")
             and tdSql.compareData(0, 1, "2022-04-01 13:33:34.000")

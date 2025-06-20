@@ -436,20 +436,20 @@ class StreamSQLTemplates:
     """
     
     s2_8 = """
-    create stream stream_from.s2_7 INTERVAL(15s) SLIDING(15s)
+    create stream stream_from.s2_8 INTERVAL(15s) SLIDING(15s)
             from stream_from.stb 
             partition by tbname 
             into stream_to.stb
             as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
             max(c0), max(c1), max(c2), max(c3),
             min(c0), min(c1), min(c2), min(c3)
-            from %%tbname where ts >= _twstart and ts < _twend;
+            from %%trows ;
     """
     
     s2_9 = """
-    create stream stream_from.s2_7 INTERVAL(15s) SLIDING(15s)
+    create stream stream_from.s2_9 INTERVAL(15s) SLIDING(15s)
             from stream_from.stb 
-            partition by tbname 
+            OPTIONS(MAX_DELAY(5s)) 
             into stream_to.stb
             as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
             max(c0), max(c1), max(c2), max(c3),
@@ -458,20 +458,19 @@ class StreamSQLTemplates:
     """
     
     s2_10 = """
-    create stream stream_from.s2_7 INTERVAL(15s) SLIDING(15s)
+    create stream stream_from.s2_10 INTERVAL(15s) SLIDING(15s) 
             from stream_from.stb 
-            partition by tbname 
+            OPTIONS(MAX_DELAY(5s))
             into stream_to.stb
             as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
             max(c0), max(c1), max(c2), max(c3),
             min(c0), min(c1), min(c2), min(c3)
-            from %%tbname where ts >= _twstart and ts < _twend;
+            from %%trows ;
     """
     
     s2_11 = """
-    create stream stream_from.s2_7 INTERVAL(15s) SLIDING(15s)
+    create stream stream_from.s2_11 period(15s) 
             from stream_from.stb 
-            partition by tbname 
             into stream_to.stb
             as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
             max(c0), max(c1), max(c2), max(c3),
@@ -519,8 +518,8 @@ class StreamStarter:
                 insert_rows=1, next_insert_rows=250, disorder_ratio=0, vgroups=4,
                 stream_sql=None, sql_type='s2_2', cluster_root=None, monitor_interval=1,
                 create_data=False, restore_data=False) -> None:
-        # 设置集群根目录,默认使用/root/taos_stream_cluster
-        self.cluster_root = cluster_root if cluster_root else '/root/taos_stream_cluster'        
+        # 设置集群根目录,默认使用/home/taos_stream_cluster
+        self.cluster_root = cluster_root if cluster_root else '/home/taos_stream_cluster'        
         self.table_count = table_count      # 子表数量
         self.insert_rows = insert_rows      # 插入记录数
         self.next_insert_rows = next_insert_rows      # 后续每轮插入记录数
@@ -1317,9 +1316,9 @@ EOF
             
             try:
                 # 根据 SQL 类型决定时间戳更新方式
-                if self.sql_type == 's2_5':
+                if self.sql_type == 's2_5' or self.sql_type == 's2_11':
                     next_start_time = time.strftime("%Y-%m-%d %H:%M:%S")
-                    print(f"流类型为s2_5[FORCE_WINDOW_CLOSE]，使用当前时间作为起始时间: {next_start_time}")
+                    print(f"流类型为{self.sql_type}，使用当前时间作为起始时间: {next_start_time}")
                 
                 else:
                     # 查询最新时间戳
@@ -2131,8 +2130,8 @@ def main():
                         help='自定义流计算SQL(优先级高于sql-type)')
     parser.add_argument('--sql-file', type=str,
                         help='从文件读取流式查询SQL')
-    parser.add_argument('--cluster-root', type=str, default='/root/taos_stream_cluster',
-                        help='集群根目录,默认/root/taos_stream_cluster')
+    parser.add_argument('--cluster-root', type=str, default='/home/taos_stream_cluster',
+                        help='集群根目录,默认/home/taos_stream_cluster')
     parser.add_argument('--monitor-interval', type=int, default=1,
                         help='性能数据采集间隔(秒),默认1秒')
     

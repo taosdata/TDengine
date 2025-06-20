@@ -154,6 +154,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   SResFetchReq req = {0};
   SSTriggerCalcRequest calcReq = {0};
   SStreamRunnerTask* pTask = NULL;
+  stDebug("handleStreamFetchData, msgType:%d, contLen:%d", pRpcMsg->msgType, pRpcMsg->contLen);
   code = tDeserializeSResFetchReq(pRpcMsg->pCont,pRpcMsg->contLen, &req);
   if (code == 0) {
     //code =  make one strigger calc req
