@@ -1,4 +1,5 @@
-﻿using Xunit;
+﻿using System.Collections.Generic;
+using Xunit;
 
 namespace Driver.Test.Client.TMQ
 {
@@ -34,6 +35,18 @@ namespace Driver.Test.Client.TMQ
             var db = "tmq_auto_commit_test";
             var topic = "tmq_auto_commit_test_topic";
             this.ConsumerAutoCommitTest(this._nativeConnectString, db, topic, this._nativeTMQCfgAutoCommit);
+        }
+
+        [Fact]
+        public void NativeConsumerMultiPollTest()
+        {
+            var db = "tmq_multi_poll_test";
+            var topic = "tmq_multi_poll_test_topic";
+            var cfg = new Dictionary<string, string>(this._nativeTMQCfgAutoCommit)
+            {
+                ["auto.offset.reset"] = "latest"
+            };
+            this.ConsumerMultiPollTest(this._wsConnectString, db, topic, cfg);
         }
     }
 }

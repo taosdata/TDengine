@@ -18,6 +18,7 @@ namespace TDengine.TMQ.WebSocket
         private readonly int _reconnectRetryCount;
         private readonly int _reconnectRetryIntervalMs;
         private List<string> _topics;
+        private ulong _lastMessageId = 0;
 
         private IDeserializer<TValue> valueDeserializer;
 
@@ -154,12 +155,13 @@ namespace TDengine.TMQ.WebSocket
 
         private ConsumeResult<TValue> DoConsume(int millisecondsTimeout)
         {
-            var resp = _connection.Poll(millisecondsTimeout);
+            var resp = _connection.Poll(millisecondsTimeout, _lastMessageId);
             if (!resp.HaveMessage)
             {
                 return null;
             }
 
+            _lastMessageId = resp.MessageId;
             var consumeResult = new ConsumeResult<TValue>(resp.MessageId, resp.Topic, resp.VgroupId, resp.Offset,
                 (TMQ_RES)resp.MessageType);
             if (!NeedGetData((TMQ_RES)resp.MessageType)) return null;

@@ -77,17 +77,18 @@ namespace TDengine.Driver.Impl.WebSocketMethods
                 }, reqId);
         }
 
-        public WSTMQPollResp Poll(long blockingTime)
+        public WSTMQPollResp Poll(long blockingTime, ulong lastMessageId)
         {
-            return Poll(_GetReqId(), blockingTime);
+            return Poll(_GetReqId(), blockingTime, lastMessageId);
         }
 
-        public WSTMQPollResp Poll(ulong reqId, long blockingTime)
+        public WSTMQPollResp Poll(ulong reqId, long blockingTime, ulong lastMessageId)
         {
             return SendJsonBackJson<WSTMQPollReq, WSTMQPollResp>(WSTMQAction.TMQPoll, new WSTMQPollReq
             {
                 ReqId = reqId,
-                BlockingTime = blockingTime
+                BlockingTime = blockingTime,
+                MessageId = lastMessageId
             }, reqId);
         }
 

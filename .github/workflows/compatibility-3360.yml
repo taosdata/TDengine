@@ -1,0 +1,76 @@
+name: compatibility-3360
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+  push:
+    branches:
+      - 'main'
+      - '3.0'
+  workflow_dispatch:
+
+jobs:
+  test_unit:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        dotnet: [ '6.0.x' ]
+    name: test unit ${{ matrix.dotnet }}
+    steps:
+      - name: get TDengine
+        run: |
+          wget https://github.com/taosdata/TDengine/releases/download/ver-3.3.6.0/TDengine-server-3.3.6.0-Linux-x64.tar.gz
+
+      - name: install
+        run: |
+          tar -zxf TDengine-server-3.3.6.0-Linux-x64.tar.gz
+          cd TDengine-server-3.3.6.0
+          sudo ./install.sh -e no
+
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: copy taos cfg
+        run: |
+          sudo mkdir -p /etc/taos
+          sudo cp ./.github/workflows/taos.cfg /etc/taos/taos.cfg
+          sudo cp ./.github/workflows/taosadapter.toml /etc/taos/taosadapter.toml
+
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.dotnet }}
+
+
+      - name: Restore dependencies
+        run: |
+          ls -al
+          dotnet restore
+
+      - name: start shell
+        run: |
+          cat >start.sh<<EOF
+          ulimit -n 65535 && TAOS_SUPPORT_VNODES=256 taosd
+          EOF
+
+      - name: start taosd
+        run: nohup sudo sh ./start.sh &
+
+      - name: start taosadapter
+        run: sudo taosadapter &
+
+      - name: test
+        id: test
+        env:
+          TDENGINE_CLOUD_ENDPOINT: ${{ secrets.TDENGINE_CLOUD_ENDPOINT }}
+          TDENGINE_CLOUD_TOKEN: ${{ secrets.TDENGINE_CLOUD_TOKEN }}
+        run: |
+          dotnet test --logger "console;verbosity=detailed" --collect:"XPlat Code Coverage" --results-directory:./testresults
+        timeout-minutes: 15
+
+      - uses: actions/upload-artifact@v4
+        if: always() && (steps.test.outcome == 'failure' || steps.test.outcome == 'cancelled')
+        with:
+          name: ${{ runner.os }}-${{ matrix.dotnet }}-log
+          path: /var/log/taos/

@@ -39,6 +39,18 @@ namespace Driver.Test.Client.TMQ
             this.ConsumerAutoCommitTest(this._wsConnectString, db, topic, this._wsTMQCfgAutoCommit);
         }
 
+        [Fact]
+        public void WSConsumerMultiPollTest()
+        {
+            var db = "ws_tmq_multi_poll_test";
+            var topic = "ws_tmq_multi_poll_test_topic";
+            var cfg = new Dictionary<string, string>(this._wsTMQCfg)
+            {
+                ["auto.offset.reset"] = "latest"
+            };
+            this.ConsumerMultiPollTest(this._wsConnectString, db, topic, cfg);
+        }
+
         [Theory]
         // Test SSL and non-SSL cases
         [InlineData("false", "", "localhost", "", "ws://localhost:6041/rest/tmq")]

@@ -630,5 +630,104 @@ namespace Driver.Test.Client.TMQ
                 }
             }
         }
+
+        // test consumer multi poll without duplicating messages
+        private void ConsumerMultiPollTest(string connectString, string db, string topic,
+            Dictionary<string, string> cfg)
+        {
+            var builder =
+                new ConnectionStringBuilder(connectString);
+            using (var client = DbDriver.Open(builder))
+            {
+                try
+                {
+                    string[] sqlCommands =
+                    {
+                        $"drop topic if exists {topic}",
+                        $"drop database if exists {db}",
+                        $"create database if not exists {db}  vgroups 2  WAL_RETENTION_PERIOD 86400",
+                        $"use {db}",
+                        "create table t(ts timestamp,v int)",
+                        $"create topic if not exists {topic} as select * from t"
+                    };
+                    foreach (var sqlCommand in sqlCommands)
+                    {
+                        DoRequest(client, sqlCommand);
+                    }
+
+                    DateTime dateTime = DateTime.Now;
+                    var nowTs = TDengineConstant.ConvertDatetimeToTick(dateTime,
+                        TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+                    var consumer = new ConsumerBuilder<Dictionary<string, object>>(cfg).Build();
+                    consumer.Subscribe($"{topic}");
+                    var assignment = consumer.Assignment;
+                    Assert.Equal(2, assignment.Count);
+                    var topics = consumer.Subscription();
+                    Assert.Single(topics);
+                    Assert.Equal($"{topic}", topics[0]);
+                    var messageCount = 0;
+                    var insertIndex = 0;
+                    for (int i = 0; i < 5; i++)
+                    {
+                        using (var result = consumer.Consume(500))
+                        {
+                            if (result == null)
+                            {
+                                if (i == 0)
+                                {
+                                    // insert data for the first time
+                                    var sql = $"insert into t values('{nowTs}',{0})";
+                                    DoRequest(client, sql);
+                                }
+
+                                continue;
+                            }
+
+                            foreach (var message in result.Message)
+                            {
+                                messageCount += 1;
+                                // check message
+                                var tsData = (DateTime)message.Value["ts"];
+                                var v = (int)message.Value["v"];
+                                var ts = TDengineConstant.ConvertDatetimeToTick(tsData,
+                                    TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+                                Assert.Equal(insertIndex, v);
+                                Assert.Equal(nowTs + 1000 * insertIndex, ts);
+                            }
+
+                            consumer.Commit(new List<TopicPartitionOffset>
+                            {
+                                result.TopicPartitionOffset,
+                            });
+                            var committed = consumer.Committed(new TopicPartition[] { result.TopicPartition },
+                                TimeSpan.Zero);
+                            Assert.Single(committed);
+                            Assert.Equal(result.TopicPartitionOffset.Offset, committed[0].Offset);
+                            // insert next data
+                            insertIndex++;
+                            DoRequest(client, $"insert into t values('{nowTs + 1000 * insertIndex}',{insertIndex})");
+                        }
+                    }
+
+                    Assert.True(messageCount > 1);
+                    // check message count
+                    Assert.Equal(4, messageCount);
+                    consumer.Unsubscribe();
+                    consumer.Close();
+                }
+                catch (Exception e)
+                {
+                    _output.WriteLine(e.ToString());
+                    throw;
+                }
+                finally
+                {
+                    Thread.Sleep(3000);
+                    DoRequest(client, $"drop topic if exists {topic}");
+                    Thread.Sleep(3000);
+                    DoRequest(client, $"drop database if exists {db}");
+                }
+            }
+        }
     }
 }
