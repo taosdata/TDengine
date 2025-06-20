@@ -1047,8 +1047,8 @@ static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
   // TODO: ...
   // make sure the clusterId from all rsp is the same, but not with the clusterId of the host cluster
   if (mntInfo.clusterId == pMnode->clusterId) {
-    mError("mount:%s, clusterId:%" PRIi64 " from dnode is the same as host cluster:%" PRIi64, mntInfo.mountName,
-           mntInfo.clusterId, pMnode->clusterId);
+    mError("mount:%s, clusterId:%" PRIi64 " from dnode is identical to the host cluster's id:%" PRIi64,
+           mntInfo.mountName, mntInfo.clusterId, pMnode->clusterId);
     TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_DUP_CLUSTER_EXIST);
   }
 

@@ -712,6 +712,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
       SMountVgInfo vgInfo = {
           .diskPrimary = pDiskPrimary->diskPrimary,
           .vgId = pVgCfg->config.vgId,
+          .dbId = pVgCfg->config.dbId,
           .cacheLastSize = pVgCfg->config.cacheLastSize,
           .szPage = pVgCfg->config.szPage,
           .szCache = pVgCfg->config.szCache,
@@ -758,6 +759,7 @@ _exit:
     dError("mount:%s, failed to retrieve mount vnode at line %d on dnode:%d since %s, path:%s", pReq->mountName, lino,
            pReq->dnodeId, tstrerror(code), pReq->mountPath);
   }
+  taosArrayDestroy(pDiskPrimarys);
   taosArrayDestroy(pVgCfgs);
   taosMemoryFreeClear(pCfgs);
   TAOS_RETURN(code);
@@ -843,10 +845,27 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
       SMeta  *pMeta = NULL;
       int32_t rollback = vnodeShouldRollback(&vnode);
       if ((code = metaOpen(&vnode, &pMeta, rollback)) != 0) {
-        dError("mount:%s, failed to retrieve mount stbs of vnode:%d on dnode:%d since %s, path:%s", pReq->mountName,
-               TD_VID(&vnode), pReq->dnodeId, tstrerror(code), path);
+        dError("mount:%s, failed to retrieve stbs of vnode:%d for db:%" PRId64 " on dnode:%d since %s, path:%s",
+               pReq->mountName, pVgInfo->vgId, pVgInfo->dbId, pReq->dnodeId, tstrerror(code), path);
         TAOS_CHECK_EXIT(code);
+      } else {
+        dInfo("mount:%s, success to retrieve stbs of vnode:%d for db:%" PRId64 "on dnode:%d, path:%s", pReq->mountName,
+              pVgInfo->vgId, pVgInfo->dbId, pReq->dnodeId, path);
+        // if (pMeta->pStables) {
+        //   if (pMountInfo->pStbs == NULL) {
+        //     pMountInfo->pStbs = taosArrayInit_s(sizeof(SStable), 1);
+        //   }
+        //   for (int32_t k = 0; k < pMeta->numOfStables; ++k) {
+        //     SStable *pStb = &pMeta->pStables[k];
+        //     if (!taosArrayPush(pMountInfo->pStbs, pStb)) {
+        //       code = TSDB_CODE_OUT_OF_MEMORY;
+        //       goto _exit;
+        //     }
+        //   }
+        // }
+        metaClose(&pMeta);
       }
+      break;  // only retrieve the first vnode stbs
     }
   }
 _exit:

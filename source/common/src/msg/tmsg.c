@@ -6800,6 +6800,9 @@ void tFreeMountInfo(SMountInfo *pReq) {
       taosArrayDestroy(pReq->pDbs);
     }
     taosArrayDestroyP(pReq->pStbs, NULL);
+    for (int32_t i = 0; i < TFS_MAX_TIERS; ++i) {
+      taosArrayDestroyP(pReq->pDisks[i], NULL);
+    }
   }
 }
 #endif // USE_MOUNT
