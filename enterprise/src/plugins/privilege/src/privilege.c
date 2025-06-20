@@ -294,13 +294,21 @@ _OVER:
 int32_t mndSetUserWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteListRsp *pWhiteListRsp) {
   if (tsEnableWhiteList) {
     (void)memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
-    pWhiteListRsp->numWhiteLists = pUser->pIpWhiteList->num;
+    pWhiteListRsp->numWhiteLists = pUser->pIpWhiteListDual->num;
     pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
     if (pWhiteListRsp->pWhiteLists == NULL) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
-    (void)memcpy(pWhiteListRsp->pWhiteLists, pUser->pIpWhiteList->pIpRange,
-           pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+    int32_t ipv4Count = 0;
+    for (int32_t i = 0; i < pUser->pIpWhiteListDual->num; i++) {
+      SIpRange *pRange = &pUser->pIpWhiteListDual->pIpRanges[i];
+      if (pRange->type == 0) {
+        memcpy(&pWhiteListRsp->pWhiteLists[ipv4Count], pRange, sizeof(SIpV4Range));
+        ipv4Count++;
+      }
+    }
+    pWhiteListRsp->numWhiteLists = ipv4Count;
+
   } else {
     (void)memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
     pWhiteListRsp->numWhiteLists = 1;
@@ -311,6 +319,32 @@ int32_t mndSetUserWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteLis
     (void)memset(pWhiteListRsp->pWhiteLists, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
   }
   TAOS_RETURN(0);
+}
+
+int32_t mndSetUserWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteListRsp *pWhiteListRsp) {
+  if (tsEnableWhiteList) {
+    (void)memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
+    pWhiteListRsp->numWhiteLists = pUser->pIpWhiteListDual->num;
+    pWhiteListRsp->pWhiteListsDual = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
+    if (pWhiteListRsp->pWhiteListsDual == NULL) {
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    (void)memcpy(pWhiteListRsp->pWhiteListsDual, pUser->pIpWhiteListDual->pIpRanges,
+                 pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
+  } else {
+    (void)memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
+    pWhiteListRsp->numWhiteLists = 2;
+    pWhiteListRsp->pWhiteListsDual = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
+    if (pWhiteListRsp->pWhiteLists == NULL) {
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    (void)memset(pWhiteListRsp->pWhiteListsDual, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
+    pWhiteListRsp->pWhiteListsDual[0].type = 0;  // ipv4
+    pWhiteListRsp->pWhiteListsDual[1].type = 1;  // ipv6
+  }
+  TAOS_RETURN(0);
+
+  return 0;
 }
 
 int32_t mndEnableIpWhiteList(SMnode *pMnode) { return 1; }

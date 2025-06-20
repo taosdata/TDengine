@@ -33,7 +33,7 @@ int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t
     goto _OVER;
   }
 
-  mndTransSetSerial(pTrans);
+  mndTransSetGroupParallel(pTrans);
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_INTERUPT);
 
   mInfo("trans:%d, used to restore dnode:%s", pTrans->id, pDnode->ep);
@@ -159,6 +159,13 @@ int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS; //
 
 _OVER:
+  if (code != 0) {
+    if (pTrans != NULL) {
+      mError("trans:%d, failed to restore dnode:%s since %s", pTrans->id, pDnode->ep, tstrerror(code));
+    } else {
+      mError("failed to restore dnode:%s since %s", pDnode->ep, tstrerror(code));
+    }
+  }
 
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
