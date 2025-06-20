@@ -123,7 +123,7 @@ static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
     if (taosFqdnEnvItem != NULL) {
       tstrncpy(taosFqdnEnvItem, "TAOS_FQDN=", len);
       TAOS_STRNCAT(taosFqdnEnvItem, taosFqdn, subLen);
-      xndInfo("[MQTTD]Succsess to set TAOS_FQDN:%s", taosFqdn);
+      xndInfo("[MQTTD]Success to set TAOS_FQDN:%s", taosFqdn);
     } else {
       xndError("[MQTTD]Failed to allocate memory for TAOS_FQDN");
       return terrno;
