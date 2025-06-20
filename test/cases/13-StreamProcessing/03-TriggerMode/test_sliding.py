@@ -24,7 +24,7 @@ class TestStreamSlidingTrigger:
     queryIdx = 0
     slidingList = [1, 10, 100, 1000]
     tableList = []
-    runCaseList = ["0-0-0-0-6"]
+    runCaseList = []
     streamSql = ""
     querySql = ""
     querySqls = [ # (SQL, (minPartitionColNum, partitionByTbname), PositiveCase)
@@ -54,58 +54,75 @@ class TestStreamSlidingTrigger:
     queryResults = {
         #{"trigTbIdx-calcTbIdx-slidIdx-createStmIdx-queryIdx":[expectedRows, compareFunc, hasResultFile, [{rowIdx:[col0Value, col1Value...]}, order by clause]]}
 
-        #0
+        
         "0-0-0-0-0": [1, None, False, [{0:(datetime.datetime(2025, 1, 1, 0, 0), 0)}], ""],
         "0-0-0-0-1": [2, None, False, [{0:(datetime.datetime(2025, 1, 1, 0, 19), 38)}, {1:(datetime.datetime(2025, 1, 1, 0, 19, 30), 39)}], ""],
         "0-0-0-0-2": [40, None, True, [], ""],
         "0-0-0-0-4": [40, None, True, [], ""],
         "0-0-0-0-6": [-1, None, True, [], ""], #FAILED
 
-        #5
+        
         "0-0-0-1-0": [-1, None, True, [], ""], #FAILED
         "0-0-0-1-1": [-1, None, True, [], ""], #FAILED
         "0-0-0-1-2": [-1, None, True, [], ""], #FAILED
         "0-0-0-1-4": [120, None, True, [], "order by cts, tag_tbname"],
         "0-0-0-1-6": [-1, None, True, [], ""], #FAILED
 
-        #10
+        
         "0-0-0-1-7": [-1, None, True, [], ""], #FAILED
         "0-0-0-1-8": [-1, None, True, [], ""], #FAILED
         "0-0-0-1-10": [120, None, True, [], "order by cts, tag_tbname"],
         "0-0-0-1-12": [-1, None, True, [], ""], #FAILED
         "0-0-0-1-13": [120, None, True, [], "order by cts, tag_tbname"],
 
-        #15
+        
         "0-0-0-1-14": [-1, None, True, [], ""], #FAILED
         "0-0-0-1-16": [120, None, True, [], "order by cts, tag_tbname"],
         "0-0-0-1-18": [-1, None, True, [], "order by `_tcurrent_ts`, tag_tbname"], #FAILED
-        "0-0-0-2-0": [-1, None, True, [], ""],
-        "0-0-0-2-1": [-1, None, True, [], ""],
+        "0-0-0-2-0": [-1, None, True, [], ""], #FAILED, 结果子表数不够
+        "0-0-0-2-1": [-1, None, True, [], ""], #FAILED, 结果子表数不够
 
-        #20
-        "0-0-0-2-2": [-1, None, True, [], ""],
-        "0-0-0-2-3": [-1, None, True, [], ""],
-        "0-0-0-2-4": [-1, None, True, [], ""],
-        "0-0-0-2-5": [-1, None, True, [], ""],
-        "0-0-0-2-6": [-1, None, True, [], ""],
+        
+        "0-0-0-2-2": [-1, None, True, [], ""], #FAILED, 结果子表TAG值错误
+        "0-0-0-2-3": [-1, None, True, [], "order by cts, tag_tbname"], #FAILED, 预期120行，结果子表TAG值错误
+        "0-0-0-2-4": [-1, None, True, [], "order by cts, tag_tbname"], #FAILED, 预期120行，结果子表TAG值错误
+        "0-0-0-2-5": [-1, None, True, [], ""], #FAILED, 预期40行，结果子表TAG值错误
+        "0-0-0-2-6": [-1, None, True, [], ""], #FAILED, 预期240行，结果子表数不够
 
-        #25
-        "0-0-0-2-7": [-1, None, True, [], ""],
-        "0-0-0-2-8": [-1, None, True, [], ""],
+        
+        "0-0-0-2-7": [-1, None, True, [], ""], #FAILED, 结果子表数不够
+        "0-0-0-2-8": [-1, None, True, [], ""], #FAILED, 预期120行，结果子表TAG值错误
         "0-0-0-2-9": [-1, None, True, [], ""],
         "0-0-0-2-10": [-1, None, True, [], ""],
         "0-0-0-2-11": [-1, None, True, [], ""],
 
-        #30
+        
         "0-0-0-2-12": [-1, None, True, [], ""],
         "0-0-0-2-13": [-1, None, True, [], ""],
         "0-0-0-2-14": [-1, None, True, [], ""],
         "0-0-0-2-15": [-1, None, True, [], ""],
         "0-0-0-2-16": [-1, None, True, [], ""],
 
-        #35
+        
         "0-0-0-2-17": [-1, None, True, [], ""],
-        "0-0-0-2-18": [-1, None, True, [], ""],        
+        "0-0-0-2-18": [-1, None, True, [], ""],   
+        "0-0-0-3-0": [-1, None, True, [], "order by cts, tag_tbname"], #FAILED, 预期3行，结果子表数不够
+        "0-0-0-3-1": [-1, None, True, [], "order by cts, tag_tbname"], #FAILED, 结果子表数不够      
+        "0-0-0-3-2": [-1, None, True, [], "order by cts, tag_tbname"], #FAILED, 预期120行，结果子表TAG值错误      
+
+        "0-0-0-3-3": [-1, None, True, [], ""],
+        "0-0-0-3-4": [-1, None, True, [], ""], 
+        "0-0-0-3-5": [-1, None, True, [], ""], 
+        "0-0-0-3-6": [-1, None, True, [], ""],         
+        "0-0-0-3-7": [-1, None, True, [], ""],     
+
+        "0-0-0-4-2": [-1, None, True, [], ""],  #FAILED, OFFSET未生效    
+        "0-0-0-4-4": [-1, None, True, [], ""],     
+        "0-0-0-4-6": [-1, None, True, [], ""],     
+
+        "0-0-0-5-2": [-1, None, True, [], "order by cts, tag_tbname"],     #FAILED, OFFSET未生效
+        "0-0-0-5-4": [-1, None, True, [], ""],     
+        "0-0-0-5-6": [-1, None, True, [], ""],  
     }
 
     def setup_class(cls):
@@ -187,10 +204,6 @@ class TestStreamSlidingTrigger:
                 assert rowData == rowValue, f"Expected value {rowValue} does not match actual value {rowData} for row index {rowIdx}"
         tdLog.info("check result with expected list succeed")
 
-    def getQueryResult(self):
-        self.resultIdx = f"{self.trigTbIdx}-{self.calcTbIdx}-{self.slidIdx}-{self.createStmIdx}-{self.queryIdx}"
-        return self.queryResults[self.resultIdx]
-
     def execCase(self):
         tdLog.info(f"execCase begin")
 
@@ -198,8 +211,10 @@ class TestStreamSlidingTrigger:
         createStreamSqls = [ #(SQL, (minPartitionColNum, partitionByTbname))
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} into outTbname as querySql;", (0, False)),
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname into outTbname as querySql;", (1, True)),
-            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by cint, tbname into outTbname as querySql;", (2, True)),
-            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by cvarchar, tbname, cint into outTbname as querySql;", (3, True)),
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tint, tbname into outTbname as querySql;", (2, True)),
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tvarchar, tbname, tint into outTbname as querySql;", (3, True)),
+            (f"create stream stName sliding({self.sliding}s, 1a) from {self.trigTbname} into outTbname as querySql;", (0, False)),
+            (f"create stream stName sliding({self.sliding}s, 1a) from {self.trigTbname} partition by tbname into outTbname as querySql;", (1, True)),
         ]
 
         for self.createStmIdx in range(len(createStreamSqls)):
@@ -210,14 +225,23 @@ class TestStreamSlidingTrigger:
                     tdLog.info(f"all cases in runCaseList: {self.runCaseList} has finished")
                     return False
 
+                if len(self.queryResults) > 0 and runnedCaseNum == len(self.queryResults):
+                    tdLog.info(f"all cases in queryResults has finished")
+                    return False
+
                 if createStreamSqls[self.createStmIdx][1][0] < self.querySqls[self.queryIdx][1][0] or (createStreamSqls[self.createStmIdx][1][1] == False and True == self.querySqls[self.queryIdx][1][1]):
                     tdLog.debug(f"skip case because createStmIdx={self.createStmIdx} query_idx={self.queryIdx} minPartitionColNum mismatch")
                     continue
 
-                self.queryResult = self.getQueryResult()
+                self.resultIdx = f"{self.trigTbIdx}-{self.calcTbIdx}-{self.slidIdx}-{self.createStmIdx}-{self.queryIdx}"
 
                 if len(self.runCaseList) > 0 and self.resultIdx not in self.runCaseList:
                     tdLog.debug(f"skip case {self.caseIdx} idx: {self.resultIdx}")
+                    self.caseIdx += 1
+                    continue
+                
+                if self.resultIdx not in self.queryResults:
+                    tdLog.debug(f"skip case {self.caseIdx} idx: {self.resultIdx} because not in queryResults")
                     self.caseIdx += 1
                     continue
 
@@ -225,8 +249,9 @@ class TestStreamSlidingTrigger:
 
                 tdLog.info(f"case {self.caseIdx} idx: {self.resultIdx} start:")
 
-                self.stName = f"s{self.caseIdx}"
-                self.outTbname = f"{self.stName}_out"
+                self.stName = f"`s{self.resultIdx}`"
+                self.outTbname = f"`s{self.resultIdx}_out`"
+                self.queryResult = self.queryResults[self.resultIdx]
 
                 # Format the querySql with the current calcTbname
                 self.querySql = self.querySqls[self.queryIdx][0].replace("{calcTbname}", self.calcTbname)
@@ -234,7 +259,7 @@ class TestStreamSlidingTrigger:
                 tdLog.info(f"exec sql: {self.querySql}")
                 tdLog.info(f"stream sql: {self.streamSql}")
                 stream1 = StreamItem(
-                    id=self.caseIdx,
+                    id=self.resultIdx,
                     stream=self.streamSql,
                     res_query=f"select * from {self.outTbname};",
                     check_func=self.queryResult[1],
