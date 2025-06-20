@@ -120,45 +120,37 @@ function prepare_cases() {
     done
 }
 
-function clean_tmp() {
-    # clean tmp dir
-    local index=$1
-    local_hostnames=("127.0.0.1" "localhost" "$(hostname)" "$(hostname -I | awk '{print $1}')")
-    is_local_host=0
+function is_local_host() {
+    # $1: host to check
+    local check_host="$1"
+    local local_hostnames=("127.0.0.1" "localhost" "$(hostname)" "$(hostname -I | awk '{print $1}')")
     for lh in "${local_hostnames[@]}"; do
-        if [[ "${hosts[index]}" == "$lh" ]]; then
-            is_local_host=1
-            break
+        if [[ "$check_host" == "$lh" ]]; then
+            return 0
         fi
     done
-    if [ $is_local_host -eq 1 ]; then
-        local ssh_script=""
-    else
+    return 1
+}
+
+function clean_tmp() {
+    local index=$1
+    local ssh_script=""
+    if ! is_local_host "${hosts[index]}"; then
         if [ -z "${passwords[index]}" ]; then
-            local ssh_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+            ssh_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
         else
-            local ssh_script="sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+            ssh_script="sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
         fi
     fi
     local cmd="${ssh_script} rm -rf ${workdirs[index]}/tmp"
-    ${cmd}
+    $cmd
 }
 
 function run_thread() {
     local index=$1
     local thread_no=$2
-    local_hostnames=("127.0.0.1" "localhost" "$(hostname)" "$(hostname -I | awk '{print $1}')")
-    is_local_host=0
-    for lh in "${local_hostnames[@]}"; do
-        if [[ "${hosts[index]}" == "$lh" ]]; then
-            is_local_host=1
-            break
-        fi
-    done
-
-    if [ $is_local_host -eq 1 ]; then
-        runcase_script=""
-    else
+    local runcase_script=""
+    if ! is_local_host "${hosts[index]}"; then
         if [ -z "${passwords[index]}" ]; then
             runcase_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
         else
@@ -263,7 +255,8 @@ function run_thread() {
             real_start_time=$(date +%s)
             # $cmd 2>&1 | tee -a $case_log_file
             # ret=${PIPESTATUS[0]}
-            $cmd >>"$case_log_file" 2>&1
+            echo "cmd:${cmd}"
+            eval $cmd >>"$case_log_file" 2>&1
             ret=$?
             local real_end_time
             real_end_time=$(date +%s)
@@ -324,12 +317,14 @@ function run_thread() {
             fi
             mkdir -p "${log_dir}"/"${case_file}".coredump
             local remote_coredump_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/coredump"
-            local scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-            if [ -z "${passwords[index]}" ]; then
-                scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+            if ! is_local_host "${hosts[index]}"; then
+                local scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+                if [ -z "${passwords[index]}" ]; then
+                    scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+                fi
             fi
             cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
-            $cmd # 2>/dev/null
+            eval $cmd # 2>/dev/null
             local corefile
             corefile=$(ls "$log_dir/${case_file}.coredump/")
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[31m failed\e[0m"
@@ -355,27 +350,31 @@ function run_thread() {
                 $cmd >/dev/null
                 cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
                 echo "$cmd"
-                $cmd >/dev/null
+                eval $cmd >/dev/null
             fi
 
             # get remote sim dir
             local remote_sim_dir="${workdirs[index]}/tmp/thread_volume/$thread_no"
-            local tarcmd="sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-            if [ -z "${passwords[index]}" ]; then
-                tarcmd="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+            if ! is_local_host "${hosts[index]}"; then
+                local tarcmd="sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+                if [ -z "${passwords[index]}" ]; then
+                    tarcmd="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+                fi
             fi
             cmd="$tarcmd sh -c \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
-            $cmd
+            eval $cmd
             local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
             local remote_case_sql_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${case_sql_file}"
-            scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-            if [ -z "${passwords[index]}" ]; then
-                scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+            if ! is_local_host "${hosts[index]}"; then
+                scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+                if [ -z "${passwords[index]}" ]; then
+                    scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+                fi
             fi
             cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
-            $cmd
+            eval $cmd
             cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
-            $cmd
+            eval $cmd
             # backup source code (disabled)
             source_tar_dir=$log_dir/TDengine_${hosts[index]}
             source_tar_file=TDengine.tar.gz
