@@ -172,7 +172,7 @@ static void releaseStreamReaderInfo(void* p) {
   blockDataDestroy(pInfo->triggerResBlock);
   blockDataDestroy(pInfo->calcResBlock);
   taosMemoryFree(pInfo->triggerSchema);
-  taosMemoryFree(pInfo->calcSchema);
+  // taosMemoryFree(pInfo->calcSchema);
   destroyExprInfo(pInfo->pExprInfo, pInfo->numOfExpr);
   taosMemoryFreeClear(pInfo->pExprInfo);
   destroyExprInfo(pInfo->pCalcExprInfo, pInfo->numOfCalcExpr);
@@ -230,8 +230,12 @@ static int32_t buildSTSchemaAndSetColId(STSchema** sSchema, SNodeList* list, SSD
   int32_t  code = 0;
   int32_t  lino = 0;
   int32_t  nCols = LIST_LENGTH(list);
-  SSchema* pSchema = (SSchema*)taosMemoryCalloc(nCols, sizeof(SSchema));
-  STREAM_CHECK_NULL_GOTO(pSchema, terrno);
+  SSchema* pSchema = NULL;
+  if (sSchema != NULL){
+    pSchema = (SSchema*)taosMemoryCalloc(nCols, sizeof(SSchema));
+    STREAM_CHECK_NULL_GOTO(pSchema, terrno);
+  }
+  
   SNode*  nodeItem = NULL;
   int32_t i = 0;
   FOREACH(nodeItem, list) {
@@ -240,14 +244,18 @@ static int32_t buildSTSchemaAndSetColId(STSchema** sSchema, SNodeList* list, SSD
     SColumnInfoData* pColData = taosArrayGet(pResBlock->pDataBlock, slotId);
     STREAM_CHECK_NULL_GOTO(pColData, terrno);
     pColData->info.colId = valueNode->colId;
-    pSchema[i].type = valueNode->node.resType.type;
-    pSchema[i].colId = valueNode->colId;
-    pSchema[i].bytes = valueNode->node.resType.bytes;
+    if (sSchema != NULL){
+      pSchema[i].type = valueNode->node.resType.type;
+      pSchema[i].colId = valueNode->colId;
+      pSchema[i].bytes = valueNode->node.resType.bytes;
+    }
     i++;
   }
 
-  *sSchema = tBuildTSchema(pSchema, nCols, 0);
-  STREAM_CHECK_NULL_GOTO(*sSchema, terrno);
+  if (sSchema != NULL){
+    *sSchema = tBuildTSchema(pSchema, nCols, 0);
+    STREAM_CHECK_NULL_GOTO(*sSchema, terrno);
+  }
 
 end:
   STREAM_PRINT_LOG_END(code, lino);
@@ -342,7 +350,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
     sStreamReaderInfo->calcResBlock = createDataBlockFromDescNode(pDescNode);
     STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->calcResBlock, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
 
-    STREAM_CHECK_RET_GOTO(buildSTSchemaAndSetColId(&sStreamReaderInfo->calcSchema, sStreamReaderInfo->calcCols,
+    STREAM_CHECK_RET_GOTO(buildSTSchemaAndSetColId(NULL, sStreamReaderInfo->calcCols,
                                                    sStreamReaderInfo->calcResBlock));
     SNodeList* pseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanPseudoCols;
     if (pseudoCols != NULL) {
