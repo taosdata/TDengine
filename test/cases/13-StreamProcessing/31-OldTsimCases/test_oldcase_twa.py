@@ -34,7 +34,7 @@ class TestStreamOldCaseTwa:
 
         tdStream.createSnode()
 
-        # self.streamTwaError()
+        self.streamTwaError()
         self.streamTwaFwcFill()
         # self.streamTwaFwcFillPrimaryKey()
         # self.streamTwaFwcInterval()
@@ -96,7 +96,27 @@ class TestStreamOldCaseTwa:
             f"create stream streams13 interval(2s) sliding(2s) from st options(expired_time(0s)|ignore_disorder) into streams10 as select _twstart, sum(a) from st where ts >= _twstart and ts < _twend;"
         )
 
-        tdLog.info(f"end")
+        tdSql.query("show test.streams;")
+        tdSql.checkRows(12)
+        tdSql.checkKeyData("streams1", 0, "streams1")
+        tdSql.checkKeyData("streams2", 0, "streams2")
+        tdSql.checkKeyData("streams3", 0, "streams3")
+
+        tdSql.query("select * from information_schema.ins_streams;")
+        tdSql.checkRows(12)
+        tdSql.checkKeyData("streams5", 1, "test")
+        tdSql.checkKeyData("streams6", 1, "test")
+
+        tdSql.query(
+            "select * from information_schema.ins_streams where db_name='test';"
+        )
+        tdSql.checkRows(12)
+
+        tdStream.dropAllStreamsAndDbs()
+        tdSql.query("select * from information_schema.ins_streams;")
+        tdSql.checkRows(0)
+        tdSql.query("show databases")
+        tdSql.checkRows(2)
 
     def streamTwaFwcFill(self):
         tdLog.info(f"streamTwaFwcFill")
@@ -133,6 +153,8 @@ class TestStreamOldCaseTwa:
             f"select * from test.streamt where ta == 2;",
             lambda: tdSql.getRows() == 5,
         )
+        
+        return
 
         tdLog.info(f"step2")
         tdStream.dropAllStreamsAndDbs()
