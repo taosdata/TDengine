@@ -135,6 +135,7 @@
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert-json-csv.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/insertBasic.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertBindVGroup.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertMix.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertPrecision.py
