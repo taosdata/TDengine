@@ -1410,7 +1410,7 @@ static int32_t parseUsingTableNameImpl(SInsertParseContext* pCxt, SVnodeModifyOp
   int32_t code = preParseUsingTableName(pCxt, pStmt, &token);
   if (TSDB_CODE_SUCCESS == code) {
     code = getUsingTableSchema(pCxt, pStmt, &ctbCacheHit);
-    if (TSDB_CODE_SUCCESS == code && ctbCacheHit) {
+    if (TSDB_CODE_SUCCESS == code && ctbCacheHit && !pCxt->missCache) {
       pStmt->usingTableProcessing = false;
       return ignoreUsingClauseAndCheckTagValues(pCxt, pStmt);
     }

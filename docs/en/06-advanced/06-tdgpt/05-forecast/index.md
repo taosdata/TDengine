@@ -46,7 +46,7 @@ algo=expr1
 ```
 
 1. `column_expr`: The time-series data column to forecast. Enter a column whose data type is numerical.
-2. `options`: The parameters for forecasting. Enter parameters in key=value format, separating multiple parameters with a comma (,). It is not necessary to use quotation marks or escape characters. Only ASCII characters are supported. The supported parameters are described as follows:
+1. `options`: The parameters for forecasting. Enter parameters in key=value format, separating multiple parameters with a comma (,). It is not necessary to use quotation marks or escape characters. Only ASCII characters are supported. The supported parameters are described as follows:
 
 ### Parameter Description
 
@@ -68,7 +68,6 @@ algo=expr1
 - If you specify a confidence interval for an algorithm that does not use it, the upper and lower thresholds of the confidence interval regress to a single point.
 - The maximum value of rows is 1024. If you specify a higher value, only 1024 rows are returned.
 - The maximum size of the input historical data is 40,000 rows. Note that some models may have stricter limitations.
-
 
 ### Example
 
@@ -102,7 +101,7 @@ taos> select _flow, _fhigh, _frowts, forecast(i32) from foo;
 
 - [ARIMA](./arima/)
 - [HoltWinters](./holtwinters/)
-- Complex exponential smoothing (CES) 
+- Complex exponential smoothing (CES)
 - Theta
 - Prophet
 - XGBoost
@@ -146,7 +145,9 @@ gen_figure = true
 ```
 
 To use the tool, run `analytics_compare` in TDgpt's `misc` directory. Ensure that you run the tool on a machine with a Python environment installed. You can test the tool as follows:
+
 1. Configure your TDengine cluster information in the `analytics.ini` file:
+
 ```ini
 [taosd]
 # taosd hostname
@@ -172,21 +173,23 @@ table_name = passengers
 column_name = val, _c0   
 ```
 
-2. Prepare your data.
+1. Prepare your data.
 
 A sample data file `sample-fc.sql` is included in the `resource` directory. Run the following command to ingest the sample data into TDengine:
+
 ```shell
 taos -f sample-fc.sql
 ```
+
 You can now begin the evaluation.
 
-3. Ensure that the Python environment on the local machine is operational. Then run the following command:
-   
+1. Ensure that the Python environment on the local machine is operational. Then run the following command:
+
 ```shell
 python3.10 ./analytics_compare.py forecast
 ```
 
-4. The evaluation results are written to `fc_result.xlsx`. The first card shows the results, shown as follows, including the algorithm name, parameters, mean square error, and elapsed time.
+1. The evaluation results are written to `fc_result.xlsx`. The first card shows the results, shown as follows, including the algorithm name, parameters, mean square error, and elapsed time.
 
 | algorithm   | params                                                                    | MSE     | elapsed_time(ms.) |
 | ----------- | ------------------------------------------------------------------------- | ------- | ----------------- |
@@ -195,6 +198,6 @@ python3.10 ./analytics_compare.py forecast
 
 If you set `gen_figure` to `true`, a chart is also generated, as displayed in the following figure.
 
-<figure> 
+<figure>
 <Image img={fcResult} alt="Forecasting comparison"/>
 </figure>
