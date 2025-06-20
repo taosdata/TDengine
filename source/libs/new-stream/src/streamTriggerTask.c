@@ -1323,7 +1323,7 @@ static int32_t strtgOpenNewWindow(SSTriggerRealtimeGroup *pGroup, int64_t ts, ch
       .wduration = pWindow->ekey - pWindow->skey,
       .wrownum = 0,
       .triggerTime = taosGetTimestampNs(),
-      .notifyType = STRIGGER_EVENT_WINDOW_OPEN,
+      .notifyType = (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN),
       .extraNotifyContent = pExtraNotifyContent,
   };
   if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
@@ -1375,7 +1375,7 @@ static int32_t strtgCloseCurrentWindow(SSTriggerRealtimeGroup *pGroup, char *pEx
       .wduration = pWindow->ekey - pWindow->skey,
       .wrownum = (pTask->triggerType == STREAM_TRIGGER_COUNT) ? pTask->windowCount : pGroup->nrowsInWindow,
       .triggerTime = taosGetTimestampNs(),
-      .notifyType = STRIGGER_EVENT_WINDOW_CLOSE,
+      .notifyType = (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE),
       .extraNotifyContent = pExtraNotifyContent,
   };
   if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
@@ -1468,12 +1468,26 @@ static int32_t strtgDoCheck(SSTriggerRealtimeGroup *pGroup) {
           ts = pGroup->curWindow.ekey;
         }
       }
-      void *px = tSimpleHashGet(pTask->pHistoryCutoffTime, &pGroup->groupId, sizeof(int64_t));
-      if (px != NULL && pGroup->newThreshold == *(int64_t *)px && pGroup->winStatus == STRIGGER_WINDOW_OPENED) {
-        pGroup->newThreshold = ts;
-        code = strtgCloseCurrentWindow(pGroup, NULL);
-        QUERY_CHECK_CODE(code, lino, _end);
-        ts = pGroup->curWindow.ekey + 1;
+      if (pTask->fillHistory) {
+        void *px = tSimpleHashGet(pTask->pHistoryCutoffTime, &pGroup->groupId, sizeof(int64_t));
+        if (px != NULL && pGroup->newThreshold == *(int64_t *)px && pGroup->winStatus == STRIGGER_WINDOW_OPENED &&
+            (pTask->calcEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
+          STimeWindow       *pWindow = &pGroup->curWindow;
+          SSTriggerCalcParam param = {
+              .currentTs = pWindow->ekey + 1,
+              .wstart = pWindow->skey,
+              .wend = pWindow->ekey + 1,
+              .wduration = pWindow->ekey + 1 - pWindow->skey,
+              .wrownum = pGroup->nrowsInWindow,
+              .triggerTime = taosGetTimestampNs(),
+              .notifyType = (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE),
+              .extraNotifyContent = NULL,
+          };
+          pContext->calcStatus = STRIGGER_REQUEST_TO_RUN;
+          pContext->pCalcGroup = pGroup;
+          void *px = taosArrayPush(pReq->params, &param);
+          QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+        }
       }
       endtime = TMIN(pGroup->newThreshold, ts);
       break;
@@ -2497,7 +2511,7 @@ static int32_t strtcResumeCheck(SSTriggerRealtimeContext *pContext) {
           .wduration = pWindow->ekey - pWindow->skey,
           .wrownum = (pTask->triggerType == STREAM_TRIGGER_COUNT) ? pTask->windowCount : pCurGroup->nrowsInWindow,
           .triggerTime = taosGetTimestampNs(),
-          .notifyType = STRIGGER_EVENT_WINDOW_CLOSE,
+          .notifyType = (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE),
           .extraNotifyContent = NULL,
       };
       if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
