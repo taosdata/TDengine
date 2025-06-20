@@ -11031,7 +11031,7 @@ void tDestroySVCreateTbReq(SVCreateTbReq *pReq, int32_t flags) {
 
     if (pReq->type == TSDB_CHILD_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
       taosArrayDestroy(pReq->ctb.tagName);
-      pReq.ctb.tagName =  NULL;
+      pReq->ctb.tagName = NULL;
     } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
       taosMemoryFreeClear(pReq->ntb.schemaRow.pSchema);
     }

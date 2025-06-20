@@ -1705,6 +1705,7 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   size_t       size = 0;
   SSDataBlock* pBlock = NULL;
   void*        pTableList = NULL;
+  SNodeList*   groupNew = NULL;
 
   stDebug("vgId:%d %s start, request paras lastVer:%" PRId64 ",ctime:%" PRId64, TD_VID(pVnode), __func__,
           req->walMetaReq.lastVer, req->walMetaReq.ctime);
@@ -1716,9 +1717,10 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   if (sStreamReaderInfo->uidList == NULL) {
     SStorageAPI api = {0};
     initStorageAPI(&api);
+    STREAM_CHECK_RET_GOTO(nodesCloneList(sStreamReaderInfo->partitionCols, &groupNew));
     STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(
         pVnode, sStreamReaderInfo->suid, sStreamReaderInfo->uid, sStreamReaderInfo->tableType,
-        sStreamReaderInfo->partitionCols, false, sStreamReaderInfo->pTagCond, sStreamReaderInfo->pTagIndexCond, &api,
+        groupNew, false, sStreamReaderInfo->pTagCond, sStreamReaderInfo->pTagIndexCond, &api,
         &pTableList, sStreamReaderInfo->groupIdMap));
   }
 
@@ -1737,6 +1739,7 @@ end:
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
 
+  nodesDestroyList(groupNew);
   blockDataDestroy(pBlock);
   qStreamDestroyTableList(pTableList);
 
@@ -1902,6 +1905,7 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   size_t               size = 0;
   SStreamMsgVTableInfo vTableInfo = {0};
   SMetaReader          metaReader = {0};
+  SNodeList*           groupNew = NULL;
 
   stDebug("vgId:%d %s start", TD_VID(pVnode), __func__);
 
@@ -1911,9 +1915,10 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   SStorageAPI api = {0};
   initStorageAPI(&api);
   void* pTableList = NULL;
+  STREAM_CHECK_RET_GOTO(nodesCloneList(sStreamReaderInfo->partitionCols, &groupNew));
   STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(
       pVnode, sStreamReaderInfo->suid, sStreamReaderInfo->uid, sStreamReaderInfo->tableType,
-      sStreamReaderInfo->partitionCols, true, sStreamReaderInfo->pTagCond, sStreamReaderInfo->pTagIndexCond, &api,
+      groupNew, true, sStreamReaderInfo->pTagCond, sStreamReaderInfo->pTagIndexCond, &api,
       &pTableList, sStreamReaderInfo->groupIdMap));
 
   SArray* cids = req->virTableInfoReq.cids;
@@ -1977,6 +1982,7 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   STREAM_CHECK_RET_GOTO(buildVTableInfoRsp(&vTableInfo, &buf, &size));
 
 end:
+  nodesDestroyList(groupNew);
   qStreamDestroyTableList(pTableList);
   tDestroySStreamMsgVTableInfo(&vTableInfo);
   api.metaReaderFn.clearReader(&metaReader);
