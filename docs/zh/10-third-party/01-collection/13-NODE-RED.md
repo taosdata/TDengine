@@ -8,7 +8,7 @@ toc_max_heading_level: 5
 
 TDengine 与 Node-RED 深度融合为工业 IoT 场景提供全栈式解决方案。通过 Node-RED 的 MQTT/OPC UA/Modbus 等协议节点，实现 PLC、传感器等设备毫秒级数据采集。同时 Node-RED 中基于 TDengine 的毫秒级实时查询结果，触发继电器动作、阀门开合等物理控制，实现更实时的联动控制。
 
-node-red-node-tdengine 是 TDengine 为 Node-RED 开发的官方插件，由两个节点组合：
+node-red-node-tdengine 是 TDengine 为 Node-RED 开发的官方插件，由两个节点组成：
 - **tdengine-operator**：提供 SQL 语句执行能力，可实现数据写入/查询/元数据管理等功能。
 - **tdengine-consumer**：提供数据订阅消费能力，可实现从指定订阅服务器消费指定 TOPIC 的功能。
 
@@ -67,8 +67,9 @@ node-red-node-tdengine 是 TDengine 为 Node-RED 开发的官方插件，由两�
 
 ## 使用示例
 
+### 场景准备
 
-### 场景介绍
+#### 场景介绍
 
 某生产车间有多台智能电表，电表每一秒产生一条数据，数据准备存储在 TDengine 数据库中，要求实时输出每分钟各智能电表平均电流、电压及用电量，同时要对电流 > 25A 或电压 > 230V 负载过大设备进行报警。
 
@@ -84,7 +85,7 @@ node-red-node-tdengine 是 TDengine 为 Node-RED 开发的官方插件，由两�
 - 用户名/密码：默认。
 - 模拟设备：三台（d0，d1，d2）。
 
-### 数据建模
+#### 数据建模
 
 使用数据库管理工具 taos-CLI，为采集数据进行手工建模，采用一张设备一张表建模思路：
 - 创建超级表：meters。 
@@ -101,14 +102,16 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 
 ```
 
-### 数据采集
+### 业务处理
+
+#### 数据采集
 示例使用生成随机数方式模拟真实设备生产数据，tdengine-operator 节点配置 TDengine 数据源连接信息，并把数据写入 TDengine，同时使用 debug 节点监控写入成功数据量并展示于界面。
 
 操作步骤如下：
 - <b>增加写入节点</b> 
   1. 在节点选择区域选择 tdengine-operator 节点，拖动至画布中。
   2. 双击节点打开属性设置，名称填写 'td-writer'，数据库项右侧点击“+”号图标。
-  3. 弹出窗口中，名称填写 'td124'，连接类型选择使用字符串连接，输入：
+  3. 弹出窗口中，名称填写 'db-server'，连接类型选择使用字符串连接，输入：
    ``` sql
    ws://root:taosdata@www.example.com:6041 
    ```   
@@ -151,7 +154,6 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 ``` json
 {
   "topic":  "insert into test.d1 values (now, 20, 203, 2);",
-  "_msgid": "8f50fe84338387d7",
   "isQuery":  false,
   "payload":{
     "affectRows": 1,
@@ -161,7 +163,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 }
 ```
 
-### 数据查询
+#### 数据查询
 查询流程由三个节点（inject/tdengine-operator/debug）组成，完成每分钟实时输出各智能电表平均电流、电压及用电量需求。
 由 inject 节点完成触发查询请求，结果输出至下游 debug 节点中，节点上显示查询执行成功数量。 
 
@@ -173,7 +175,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
           where  ts > now-60s partition by tbname)
    group by tbname;
    ``` 
-  2. 将 tdengine-operator 节点拖动至画布中，双击节点设置属性，“数据库”选择前面已创建好的数据源 'td124'，保存并返回画布。
+  2. 将 tdengine-operator 节点拖动至画布中，双击节点设置属性，“数据库”选择前面已创建好的数据源 'db-server'，保存并返回画布。
   3. 将 debug 节点拖动至画布中，双击节点设置属性，勾选“节点状态”，下拉列表中选择“消息数量”，保存并返回画布。
   4. 依次把以上节点按顺序连接起来，点击“部署”按钮发布修改内容。
 
@@ -187,7 +189,6 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 ``` json
 {
   "topic":  "select tbname,avg(current) ...",
-  "_msgid": "0d19e9b82ae3841a",
   "isQuery":  true,
   "payload": [
     {
@@ -212,7 +213,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 }
 ```
 
-### 数据订阅
+#### 数据订阅
 数据订阅流程由两个节点（tdengine-consumer/debug）组成，实现过载告警。  
 debug 节点展示向下游节点推送数据次数，生产中可把 debug 节点更换为处理订阅数据的功能节点。
 

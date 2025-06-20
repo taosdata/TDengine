@@ -26,7 +26,7 @@ Component interaction diagram:
 ![td-frame](img/td-frame.webp)
 
 ## Configuring Data Source
-Plugin data sources are configured in the node properties using [the Node.js connector](../../../tdengine-reference/client-libraries/node):
+Plugin data sources are configured in the node properties using the [Node.js connector](../../../tdengine-reference/client-libraries/node):
 
 1. Start Node-RED service and access the Node-RED homepage in a browser.
 2. Drag the tdengine-operator or tdengine-consumer node from the left node palette to the workspace canvas.
@@ -54,7 +54,10 @@ Plugin data sources are configured in the node properties using [the Node.js con
 
 ## Usage Examples
 
-### Scenario
+### Scenario Preparation
+
+#### Scenario Overview
+
 A workshop has multiple smart power meters, each generating a data record every second. Data is stored in TDengine, with real-time calculations performed every minute showing:  
 - Average current/voltage per meter.
 - Power consumption.  
@@ -72,7 +75,7 @@ Assumptions:
 - Default credentials.  
 - Simulated devices: d0, d1, d2.  
 
-### Data Modeling
+#### Data Modeling
 Use taos-CLI to manually create the data model:  
 - Super table "meters".  
 - Child tables d0, d1, d2.  
@@ -86,7 +89,9 @@ create table test.d1 using test.meters tags(2, 'workshop1');
 create table test.d2 using test.meters tags(2, 'workshop2');
 ```
 
-### Data Collection
+### Business Processing
+
+#### Data Collection
 This example uses randomly generated numbers to simulate real device data. The tdengine-operator node is configured with TDengine data source connection information, writes data to TDengine, and uses the debug node to monitor the number of successfully written records displayed on the interface.
 
 Steps:
@@ -94,7 +99,7 @@ Steps:
   1. Select the tdengine-operator node in the node palette and drag it to the canvas.
   2. Double-click the node to open property settings, fill in the name as 'td-writer', and click the "+" icon to the right of the database field.
   3. In the pop-up window:
-     - Name: 'td124'.
+     - Name: 'db-server'.
      - Connection type: "Connection string".
      - Input: 
      ```sql
@@ -151,7 +156,7 @@ Successful write output:
 }
 ```
 
-### Data Query
+#### Data Query
 The data query workflow consists of three nodes (inject/tdengine-operator/debug) designed to calculate the average current, voltage, and power consumption per minute for each smart meter.  
 The inject node triggers the query request every minute. The results are sent to the downstream debug node, which displays the count of successful query executions.  
 
@@ -167,7 +172,7 @@ Steps:
    group by tbname;
    ``` 
 2. Drag tdengine-operator node to canvas:
-   - Database: Select existing 'td124' connection.
+   - Database: Select existing 'db-server' connection.
    - Save and return.
 
 3. Drag debug node to canvas and configure it:
@@ -188,7 +193,6 @@ Output from 'td-reader' (exceptions thrown on failure):
 ``` json
 {
   "topic":  "select tbname,avg(current) ...",
-  "_msgid": "0d19e9b82ae3841a",
   "isQuery":  true,
   "payload": [
     {
@@ -213,7 +217,7 @@ Output from 'td-reader' (exceptions thrown on failure):
 }
 ```
 
-### Data Subscription
+#### Data Subscription
 The data subscription workflow consists of two nodes (tdengine-consumer/debug) that provide equipment overload alert functionality.  
 The debug node visually displays the count of subscription messages pushed downstream. In production, replace it with functional nodes to process the subscription data.
 
