@@ -11,6 +11,73 @@ import signal
 import sys
 import datetime
 
+"""TDengine Historical Data Stream Performance Testing Tool
+TDengine 历史数据流计算性能测试工具
+
+Purpose/用途:
+    A performance testing tool for TDengine stream computing functionality.
+    用于测试 TDengine 历史数据流计算功能的性能测试工具。
+
+Catalog/目录:
+    - Performance:Stream Computing
+    - 性能测试:流计算
+
+Features/功能:
+    - Multiple stream computing modes support
+    - Load a large amount of historical data for calculation
+    - System resource monitoring
+    - Performance data collection
+    
+    - 支持多种流计算模式测试
+    - 加载大量历史数据计算
+    - 系统资源监控
+    - 性能数据收集
+
+Requirements/要求:
+    Since: v3.3.7.0
+    自版本: v3.3.7.0
+
+Labels/标签: 
+    performance, stream, testing
+
+History/历史:
+    - 2025-06-19 Initial commit
+                 首次提交
+    - 2025-06-20 Added resource monitoring
+                 添加资源监控功能
+    - 2025-06-21 Added multiple stream modes
+                 增加多种流计算模式支持
+
+Usage/用法:
+    Basic Testing/基础测试:
+        python3 stream_perf_1.py -m 2 --table-count 1000
+    
+    Force Trigger Mode/强制触发模式:
+        python3 stream_perf_1.py -m 2 --sql-type s2_5
+    
+    Window Trigger Mode/窗口触发模式:
+        python3 stream_perf_1.py -m 2 --sql-type s2_7
+
+Parameters/参数:
+    -m, --mode: Test mode / 测试模式
+        1: Stream test / 写入数据并执行历史数据流计算
+        11: Restore data and execute stream test / 恢复数据并执行历史数据流计算
+        2: Query and insert test / 查询写入
+        22: Restore data and execute query / 恢复数据并执行查询写入
+    
+    --table-count: Number of tables / 表数量
+    --insert-rows: Number of rows per table / 每个表的行数
+    --vgroups : Number of vgroups / vgroup数量
+    --sql-type: Stream SQL type / 流式 SQL 类型
+    --time: Runtime in minutes / 运行时间(分钟)
+    --cluster-root : Cluster root directory / 集群根目录
+    --monitor-interval: Monitoring interval in seconds / 监控间隔(秒)
+
+Authors/作者:
+    - Guo Xiaoyang / 郭向阳
+"""
+
+
 
 class MonitorSystemLoad:
 
