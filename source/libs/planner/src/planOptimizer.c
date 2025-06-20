@@ -4021,6 +4021,10 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
 }
 
 static int32_t eliminateProjOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  if (pCxt->pPlanCxt->streamCalcQuery) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   int32_t            code = 0;
   SProjectLogicNode* pProjectNode =
       (SProjectLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, eliminateProjOptMayBeOptimized, &code);
