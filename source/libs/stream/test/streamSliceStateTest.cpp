@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 #include "tstream.h"
 #include "streamInt.h"
-#include "tcs.h"
 #include "tglobal.h"
 #include "streamState.h"
 

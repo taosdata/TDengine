@@ -260,7 +260,7 @@ int32_t tssCheckInstance(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
         return code;
     }
     if (fileSize != dataSize) {
-        printf("test file size mismatch, expected: %zu, actual: %ld\n", dataSize, fileSize);
+        printf("test file size mismatch, expected: %" PRIu64 ", actual: %" PRId64 "\n", dataSize, fileSize);
         return TSDB_CODE_FAILED;
     }
 
@@ -299,7 +299,7 @@ int32_t tssCheckInstance(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
         return code;
     }
     if( fileSize != dataSize ) {
-        printf("data size mismatch, expected: %zu, actual: %ld\n", dataSize, fileSize);
+        printf("data size mismatch, expected: %" PRIu64 ", actual: %" PRId64 "\n", dataSize, fileSize);
         taosMemFree(data);
         code = TSDB_CODE_FAILED;
         return code;
@@ -339,7 +339,7 @@ int32_t tssCheckInstance(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
             return code;
         }
         if (fileSize != dataSize) {
-            printf("large test file size mismatch, expected: %zu, actual: %ld\n", dataSize, fileSize);
+            printf("large test file size mismatch, expected: %" PRIu64 ", actual: %" PRId64 "\n", dataSize, fileSize);
             return TSDB_CODE_FAILED;
         }
 
@@ -352,7 +352,7 @@ int32_t tssCheckInstance(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
             return code;
         }
         if(dataSize != 1024 * 1024) {
-            printf("large file data size mismatch, expected: %d, actual: %ld\n", 1024 * 1024, dataSize);
+            printf("large file data size mismatch, expected: %d, actual: %" PRId64 "\n", 1024 * 1024, dataSize);
             taosMemFree(data);
             return TSDB_CODE_FAILED;
         }

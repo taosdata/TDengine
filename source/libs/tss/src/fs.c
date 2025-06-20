@@ -177,7 +177,7 @@ static int32_t upload(SSharedStorage* pss, const char* dstPath, const void* data
         tssError("failed to write to destination file: %s", fullPath);
     } else if (wrote != size) {
         code = terrno;
-        tssError("failed to write to destination file: %s, want to write %ld bytes, actually write %ld bytes", fullPath, size, wrote);
+        tssError("failed to write to destination file: %s, want to write %" PRId64 " bytes, actually write %" PRId64 " bytes", fullPath, size, wrote);
     }
 
     taosCloseFile(&dstFile);
@@ -188,7 +188,7 @@ static int32_t upload(SSharedStorage* pss, const char* dstPath, const void* data
 
 static int32_t copyFile(const char* srcPath, const char* dstPath, int64_t offset, int64_t size) {
     if (offset < 0) {
-        tssError("invalid offset %ld for file %s: ", offset, srcPath);
+        tssError("invalid offset %" PRId64 " for file %s: ", offset, srcPath);
         TAOS_RETURN(TSDB_CODE_INVALID_PARA);
     }
 
@@ -205,7 +205,7 @@ static int32_t copyFile(const char* srcPath, const char* dstPath, int64_t offset
         size = fileSize - offset;
     }
     if (size < 0 || offset + size > fileSize) {
-        tssError("invalid offset %ld and size %ld for file %s", offset, size, srcPath);
+        tssError("invalid offset %" PRId64 " and size %" PRId64 " for file %s", offset, size, srcPath);
         TAOS_RETURN(TSDB_CODE_INVALID_PARA);
     }
 
@@ -218,7 +218,7 @@ static int32_t copyFile(const char* srcPath, const char* dstPath, int64_t offset
 
     if (offset > 0 && taosLSeekFile(srcFile, offset, SEEK_SET) < 0) {
         code = terrno;
-        tssError("failed to seek source file %s to offset %ld, code = %d", srcPath, offset, code);
+        tssError("failed to seek source file %s to offset %" PRId64 ", code = %d", srcPath, offset, code);
         (void)taosCloseFile(&srcFile);
         TAOS_RETURN(code);
     }
@@ -252,7 +252,7 @@ static int32_t copyFile(const char* srcPath, const char* dstPath, int64_t offset
             break;
         } else if (wrote != read) {
             code = terrno;
-            tssError("failed to write to destination file, want to write %ld bytes, actually write %ld bytes", read, wrote);
+            tssError("failed to write to destination file, want to write %" PRId64 " bytes, actually write %" PRId64 " bytes", read, wrote);
             break;
         }
 
@@ -301,7 +301,7 @@ static int32_t readFile(SSharedStorage* pss, const char* srcPath, int64_t offset
 
     if (offset > 0 && taosLSeekFile(srcFile, offset, SEEK_SET) < 0) {
         code = terrno;
-        tssError("failed to seek source file %s to offset %ld, code = %d", fullPath, offset, code);
+        tssError("failed to seek source file %s to offset %" PRId64 ", code = %d", fullPath, offset, code);
         (void)taosCloseFile(&srcFile);
         TAOS_RETURN(code);
     }
