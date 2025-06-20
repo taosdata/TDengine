@@ -111,9 +111,9 @@ class Test_Nevados:
             "  from windspeeds"
             "  options(fill_history('2025-06-01 00:00:00') | watermark(10m) | ignore_disorder | pre_filter(_ts >= '2024-10-04T00:00:00.000Z'))"
             "  into `kpi_db_test`"
-            "  as select _twstart window_start, _twend as window_end, case when last(_ts) is not null then 1 else 0 end as db_online, count(*) from windspeeds where _ts >= _twstart and _ts <_twend"
+            "  as select _twstart window_start, _twend as window_end, last(_ts), count(*) from windspeeds where _ts >= _twstart and _ts <_twend"
         )
 
         sql = "select * from dev.kpi_db_test;"
-        exp_sql = "select tw, te, case when tl is not null then 1 else 0 end as db_online, case when tc is not null then 1 else 0 end as cnt from (select _wstart tw, _wend te, last(_ts) tl, count(*) tc from windspeeds where _ts >= '2025-06-01 00:00:00.000' and _ts < '2025-06-01 09:00:00.000' interval(1h) fill(null));"
+        exp_sql = "select _wstart tw, _wend te, last(_ts) tl, count(*) tc from windspeeds where _ts >= '2025-06-01 00:00:00.000' and _ts < '2025-06-01 09:00:00.000' interval(1h) fill(value, null, 0)"        
         tdSql.checkResultsBySql(sql=sql, exp_sql=exp_sql)
