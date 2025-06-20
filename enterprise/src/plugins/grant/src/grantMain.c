@@ -87,32 +87,34 @@
     }                                                          \
   } while (0)
 
-#define GRANT_EXPIRE_SHOW(expireSec)                      \
-  do {                                                    \
-    ++cols;                                               \
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);    \
-    if ((expireSec) != GRANT_UNIQ_UNLIMITED) {            \
-      TAOS_UNUSED(grantSecondsToString((expireSec), ts)); \
-      src = ts;                                           \
-    } else {                                              \
-      src = GRANT_UNIQ_UNLIMITED_S;                       \
-    }                                                     \
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));       \
-    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);       \
+#define GRANT_EXPIRE_SHOW(expireSec)                           \
+  do {                                                         \
+    if ((++cols) >= nCols) goto _end;                          \
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols))) { \
+      if ((expireSec) != GRANT_UNIQ_UNLIMITED) {               \
+        TAOS_UNUSED(grantSecondsToString((expireSec), ts));    \
+        src = ts;                                              \
+      } else {                                                 \
+        src = GRANT_UNIQ_UNLIMITED_S;                          \
+      }                                                        \
+      STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));          \
+      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);          \
+    }                                                          \
   } while (0)
 
-#define GRANT_ITEM_SHOW(cur, limit, unit)                                                                        \
-  do {                                                                                                           \
-    ++cols;                                                                                                      \
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);                                                           \
-    if ((limit) != GRANT_UNIQ_UNLIMITED) {                                                                       \
-      TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%" PRIi64 "/%" PRIi64, (int64_t)(cur), (int64_t)(limit))); \
-    } else {                                                                                                     \
-      TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%" PRIi64 "/%s", (int64_t)(cur), GRANT_UNIQ_UNLIMITED_S)); \
-    }                                                                                                            \
-    src = tmp1;                                                                                                  \
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));                                                              \
-    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);                                                              \
+#define GRANT_ITEM_SHOW(cur, limit, unit)                                                                          \
+  do {                                                                                                             \
+    if ((++cols) >= nCols) goto _end;                                                                              \
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols))) {                                                     \
+      if ((limit) != GRANT_UNIQ_UNLIMITED) {                                                                       \
+        TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%" PRIi64 "/%" PRIi64, (int64_t)(cur), (int64_t)(limit))); \
+      } else {                                                                                                     \
+        TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%" PRIi64 "/%s", (int64_t)(cur), GRANT_UNIQ_UNLIMITED_S)); \
+      }                                                                                                            \
+      src = tmp1;                                                                                                  \
+      STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));                                                              \
+      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);                                                              \
+    }                                                                                                              \
   } while (0)
 
 #define GRANT_VALUE_CONVERT(from, to, factor, dft) \
@@ -2644,6 +2646,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   char    tmp[GRANTS_COL_MAX_LEN] = {0};
   char    tmp1[GRANTS_COL_MAX_LEN] = {0};
   char    ts[GRANT_TS_SEC_LEN] = {0};
+  int32_t nCols = taosArrayGetSize(pBlock->pDataBlock);
 
   if (pShow->numOfRows < 1) {
     cols = 0;
@@ -2661,28 +2664,28 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     GRANT_EXPIRE_SHOW(gStatus.serviceExpireSec);
 
-    ++cols;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = (gStatus.expired || (gStatus.multiTierExpired && gStatus.nDiskCfg > 1)) ? "true" : "false";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);
-
-    ++cols;
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    if (gStatus.grantState < 0 || gStatus.grantState > GRANT_STATE_MAX) {
-      src = "unknown";
-    } else {
-      src = gGrantState[gStatus.grantState];
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+      src = (gStatus.expired || (gStatus.multiTierExpired && gStatus.nDiskCfg > 1)) ? "true" : "false";
+      STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);
     }
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);
+
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+      if (gStatus.grantState < 0 || gStatus.grantState > GRANT_STATE_MAX) {
+        src = "unknown";
+      } else {
+        src = gGrantState[gStatus.grantState];
+      }
+      STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);
+    }
 
     GRANT_ITEM_SHOW(gStatus.curTimeSeries, gStatus.limitTimeSeries, 64);
     GRANT_ITEM_SHOW(gStatus.curDnodes, gStatus.limitDnodes, 16);
     GRANT_ITEM_SHOW(gStatus.curCpuCores, gStatus.limitCpuCores, 32);
     GRANT_ITEM_SHOW(gStatus.curVnodes, gStatus.limitVnodes, 32);
     GRANT_ITEM_SHOW(gStatus.curStorageSize, gStatus.limitStorageSize, 64);
-
+  _end:
     ++numOfRows;
   }
 
