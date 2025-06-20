@@ -483,7 +483,7 @@ func (r *Reporter) metricsBatchHandlerFunc() gin.HandlerFunc {
 }
 
 func (r *Reporter) insertWriteMetricsSql(metrics WriteMetricsInfo) string {
-	return fmt.Sprintf("insert into write_metrics_%d_%d_%s using write_metrics tags (%d, %d, '%s', '%s') values (now, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
+	return fmt.Sprintf("insert into write_metrics_%d_%d_%s using write_metrics tags (%d, %d, '%s', '%s') values (now, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
 		metrics.DnodeId, metrics.VgId, metrics.ClusterId, metrics.VgId, metrics.DnodeId, metrics.ClusterId, metrics.DbName,
 		metrics.TotalRequests, metrics.TotalRows, metrics.TotalBytes,
 		metrics.FetchBatchMetaTime, metrics.FetchBatchMetaCount, metrics.PreprocessTime,
