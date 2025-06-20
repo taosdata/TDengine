@@ -8,7 +8,10 @@ class TestJoinNsDb:
     def test_join_ns_db(self):
         """Join Test
 
-        1.
+        1. Create two test db with ns precision
+        2. Create table for each db and insert some data, the ts of the data in two tables should have the same timestamp when timetruncate to ms precision
+        3. Select with join condition on the two tables, the join result will return the expected row
+
 
         Catalog:
             - Query:Join
