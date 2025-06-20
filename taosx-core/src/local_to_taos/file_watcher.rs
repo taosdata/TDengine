@@ -235,7 +235,7 @@ mod tests {
 
         // 创建 watcher
         let watcher = FileWatcher::new(
-            dir.into_path(),
+            dir.keep(),
             Duration::from_secs(2),
             Some(Box::new(move |file_name: &str| {
                 file_name.starts_with("topic") && file_name.ends_with(".z")

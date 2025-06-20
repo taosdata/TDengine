@@ -1547,9 +1547,7 @@ pub(crate) async fn exec_sql(pool: &TaosPool, sql: &str) -> anyhow::Result<()> {
                 let errno: i32 = code.into();
                 write_retries += 1;
                 if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
-                    break Err(err)
-                        .context("Exec SQL error: Retries exceeded")
-                        .map_err(Into::into);
+                    break Err(err).context("Exec SQL error: Retries exceeded");
                 }
                 match errno {
                     0xE000 | 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
@@ -1571,7 +1569,7 @@ pub(crate) async fn exec_sql(pool: &TaosPool, sql: &str) -> anyhow::Result<()> {
                     }
                     _ => {
                         tracing::error!("Exec SQL error: {:#}, sql={}", err, sql,);
-                        break Err(err).context("Exec sql error").map_err(Into::into);
+                        break Err(err).context("Exec sql error");
                     }
                 }
             }

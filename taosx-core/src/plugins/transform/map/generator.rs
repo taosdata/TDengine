@@ -185,7 +185,7 @@ mod tests {
             serde_json::from_str(r#"{ "generator": "now", "precision": "ms" }"#).unwrap();
         let mut pre = 0;
         for _ in 0..10 {
-            let array: Int32Array = std::iter::repeat(42).take(1000).collect();
+            let array: Int32Array = std::iter::repeat_n(42, 1000).collect();
             let batch = RecordBatch::try_from_iter([("f1", Arc::new(array) as ArrayRef)]).unwrap();
 
             let (field, value) = builder.build_field("ts", &batch, None).unwrap();
@@ -217,7 +217,7 @@ mod tests {
             serde_json::from_str(r#"{ "generator": "now", "precision": "s" }"#).unwrap();
         let mut pre = 0;
         for _ in 0..10 {
-            let array: Int32Array = std::iter::repeat(42).take(1000).collect();
+            let array: Int32Array = std::iter::repeat_n(42, 1000).collect();
             let batch = RecordBatch::try_from_iter([("f1", Arc::new(array) as ArrayRef)]).unwrap();
 
             let (field, value) = builder.build_field("ts", &batch, None).unwrap();
@@ -248,7 +248,7 @@ mod tests {
             serde_json::from_str(r#"{ "generator": "now", "precision": "us" }"#).unwrap();
         let mut pre = 0;
         for _ in 0..10 {
-            let array: Int32Array = std::iter::repeat(42).take(1000).collect();
+            let array: Int32Array = std::iter::repeat_n(42, 1000).collect();
             let batch = RecordBatch::try_from_iter([("f1", Arc::new(array) as ArrayRef)]).unwrap();
 
             let (field, value) = builder.build_field("ts", &batch, None).unwrap();
@@ -280,7 +280,7 @@ mod tests {
             serde_json::from_str(r#"{ "generator": "now" }"#).unwrap();
         let mut pre = 0;
         for _ in 0..10 {
-            let array: Int32Array = std::iter::repeat(42).take(1000).collect();
+            let array: Int32Array = std::iter::repeat_n(42, 1000).collect();
             let batch = RecordBatch::try_from_iter([("f1", Arc::new(array) as ArrayRef)]).unwrap();
 
             let (field, value) = builder.build_field("ts", &batch, None).unwrap();

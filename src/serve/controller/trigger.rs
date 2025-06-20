@@ -284,11 +284,7 @@ impl StopCondition {
     pub fn tick(&self) {
         if let StopCondition::Repeated(atomic) = self {
             let _ = atomic.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| {
-                if v > 0 {
-                    Some(v - 1)
-                } else {
-                    None
-                }
+                if v > 0 { Some(v - 1) } else { None }
             });
         }
     }

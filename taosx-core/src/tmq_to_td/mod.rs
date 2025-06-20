@@ -282,7 +282,7 @@ async fn write_data(
                     .await
                     .context("Write with stmt init error")?;
                 let fields = raw.fields();
-                let question_masks = std::iter::repeat('?').take(fields.len()).join(",");
+                let question_masks = std::iter::repeat_n('?', fields.len()).join(",");
                 let table = raw.table_name().unwrap();
                 stmt.prepare(&format!("INSERT INTO `{table}` VALUES({question_masks})"))
                     .await
@@ -2315,8 +2315,17 @@ mod tests {
             format!("create database if not exists `{DB_SRC}`"),
             format!("create database if not exists `{DB_DST}`"),
             format!("create table `{DB_SRC}`.`meters`(ts timestamp, val float) tags(id int)"),
-            format!("create stream `{STREAM}` into `{DB_SRC}`.`{STREAM}` as select tbname,_wstart,avg(val) from `{DB_SRC}`.meters partition by tbname state_window(cast(val as int))"),
-        ]).await?;
+        ])
+        .await?;
+
+        loop {
+            let sql = format!("create stream `{STREAM}` into `{DB_SRC}`.`{STREAM}` as select tbname,_wstart,avg(val) from `{DB_SRC}`.meters partition by tbname state_window(cast(val as int))");
+
+            let result = taos.exec(&sql).await;
+            if result.is_ok() {
+                break;
+            }
+        }
 
         // 2. create a replication task(tmq_to_td) from td34829_src to td34829_dst
         println!("====== start replication task =====");

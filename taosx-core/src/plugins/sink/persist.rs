@@ -783,7 +783,7 @@ mod tests {
             PersistConfig {
                 task_id: 0,
                 record_metrics: false,
-                schemas: HashMap::from_iter([(schema.clone(), dir.into_path())]),
+                schemas: HashMap::from_iter([(schema.clone(), dir.path().to_path_buf())]),
                 batch_size: Some(10),
                 batch_timeout: Some(Duration::from_millis(100)),
                 batch_chunk_size: None,

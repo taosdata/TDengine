@@ -8,20 +8,20 @@ use taosx_core::set_env_data_dir;
 use crate::serve::{
     controller::Activity,
     scheduler::{
+        SchedulerNotify,
         agent::{AgentNotify, AgentWorker},
         runner::AgentIntegrationChannel,
-        SchedulerNotify,
     },
 };
 
 use super::{
     controller::TaskController,
-    scheduler::{agent::AgentNotifySender, NotifyChannel, TaskScheduler},
+    scheduler::{NotifyChannel, TaskScheduler, agent::AgentNotifySender},
     *,
 };
 
-pub(crate) async fn generate_scheduler_for_test(
-) -> anyhow::Result<(TaskController, TaskScheduler, AgentNotifySender)> {
+pub(crate) async fn generate_scheduler_for_test()
+-> anyhow::Result<(TaskController, TaskScheduler, AgentNotifySender)> {
     let (agent_activity_sender, agent_activity_receiver) = tokio::sync::broadcast::channel(1024);
     let (agent_notify_sender, agent_notify_receiver) = tokio::sync::broadcast::channel(1024);
     let (scheduler_notify_sender, _) = tokio::sync::broadcast::channel::<SchedulerNotify>(1024);
@@ -89,8 +89,8 @@ pub(crate) async fn generate_scheduler_for_test(
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(lagged)) => {
                     tracing::warn!(
-                            "agent activity channel lagged: {lagged}, resubscribe it from current offset"
-                        );
+                        "agent activity channel lagged: {lagged}, resubscribe it from current offset"
+                    );
                     continue;
                 }
             }

@@ -134,10 +134,10 @@ pub async fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<()> {
 /// * `dsn` - historian dsn
 /// # Returns
 /// * `DsSampleIn` - {
-///     "input": [{ "col_name": "xxx", ... }],
-///     "parser": {"parse": {
-///         "col_name": { "as": col_type }, ...
-///     }}
+///   "input": [{ "col_name": "xxx", ... }],
+///   "parser": {"parse": {
+///   "col_name": { "as": col_type }, ...
+///   }}
 ///   }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     assert_driver(dsn)?;

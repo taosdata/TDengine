@@ -1193,9 +1193,9 @@ impl<'a> MessagesSender<'a> {
     }
 }
 
-async fn poll_message<'a>(
+async fn poll_message(
     index: usize,
-    consumer: &'a mut LoggingConsumer,
+    consumer: &mut LoggingConsumer,
     tx: &flume::Sender<RecordBatch>,
     commit_rx: &flume::Receiver<LushAck>,
     timeout: i64,

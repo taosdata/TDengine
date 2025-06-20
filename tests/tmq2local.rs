@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod test_tmq_to_local {
-    use anyhow::Context;
+    use anyhow::{Context, bail};
     use assert_cmd::Command;
     use opendal::Entry;
     use std::env;
@@ -479,7 +479,10 @@ mod test_tmq_to_local {
         // write data to source database
         println!("write data to source database `{DB_SRC}` start");
         for i in 1..=ROWS {
-            taos.exec(format!("INSERT INTO `{DB_SRC}`.t{i} USING `{DB_SRC}`.meters TAGS({i}) VALUES(now, {i}.{i})")).await?;
+            taos.exec(format!(
+                "INSERT INTO `{DB_SRC}`.t{i} USING `{DB_SRC}`.meters TAGS({i}) VALUES(now, {i}.{i})"
+            ))
+            .await?;
         }
         println!("write data to source database `{DB_SRC}` stop");
         // wait for replica

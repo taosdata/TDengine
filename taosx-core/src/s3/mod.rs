@@ -427,7 +427,7 @@ mod tests {
             let local_dir = env::var("LOCAL_DIR")
                 .map(PathBuf::from)
                 .ok()
-                .unwrap_or(tempfile::tempdir().unwrap().into_path());
+                .unwrap_or(tempfile::tempdir().unwrap().keep());
             let access_key_id = env::var("S3_ACCESS_KEY_ID").unwrap();
             let secret_access_key = env::var("S3_SECRET_ACCESS_KEY").unwrap();
             let bucket = env::var("S3_BUCKET").unwrap();
@@ -475,7 +475,7 @@ mod tests {
             let local_dir = env::var("LOCAL_DIR")
                 .map(PathBuf::from)
                 .ok()
-                .unwrap_or(tempfile::tempdir().unwrap().into_path());
+                .unwrap_or(tempfile::tempdir().unwrap().keep());
 
             // when
             let loader = S3Loader::try_from(&s3_config).await.unwrap();

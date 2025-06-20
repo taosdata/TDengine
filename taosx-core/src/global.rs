@@ -25,8 +25,7 @@ pub static GLOBAL_LOG_OPTS: OnceLock<LogOpts> = OnceLock::new();
 static AGENT_IN_MEMORY_CACHE_CAPACITY: OnceLock<NonZeroUsize> = OnceLock::new();
 
 pub(crate) fn agent_in_memory_cache_capacity() -> NonZeroUsize {
-    const DEFAULT_AGENT_IN_MEMORY_CACHE_CAPACITY: NonZeroUsize =
-        unsafe { NonZeroUsize::new_unchecked(64) };
+    const DEFAULT_AGENT_IN_MEMORY_CACHE_CAPACITY: NonZeroUsize = NonZeroUsize::new(64).unwrap();
     *AGENT_IN_MEMORY_CACHE_CAPACITY.get_or_init(|| {
         std::env::var("AGENT_CACHE_CAPACITY")
             .ok()

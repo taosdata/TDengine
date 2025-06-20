@@ -124,7 +124,9 @@ fn main() {
         println!("cargo:rerun-if-changed={file}");
 
         let dsn = format!("sqlite:{}", file.to_string().escape_default());
-        std::env::set_var("DATABASE_URL", &dsn);
+        unsafe {
+            std::env::set_var("DATABASE_URL", &dsn);
+        }
 
         let dotenv = root.join(".env");
         let mut file = if dotenv.exists() {

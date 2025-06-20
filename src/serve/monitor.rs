@@ -1,15 +1,17 @@
 use std::sync::atomic::Ordering::SeqCst;
 
-use super::controller::TaskController;
-use super::scheduler::runner::MultiIndexTaskJobMap;
 use super::AgentFilter;
 use super::TaskControllerRef;
+use super::controller::TaskController;
+use super::controller::TaskController;
+use super::scheduler::runner::MultiIndexTaskJobMap;
+use super::scheduler::runner::MultiIndexTaskJobMap;
 use clap::Parser;
 use dashmap::DashMap;
 use gethostname::gethostname;
 use lazy_static::lazy_static;
-use metrics::gauge;
 use metrics::Label;
+use metrics::gauge;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
@@ -25,8 +27,8 @@ use taosx_core::utils::monitor::update_sub_connector_process_metrics;
 use taosx_metrics::TaosXRecorder;
 use taosx_metrics::TaosXRecorderHandle;
 use tokio::sync::RwLock;
-use tracing::instrument;
 use tracing::Instrument;
+use tracing::instrument;
 
 #[derive(Parser, Debug, Deserialize, Serialize, Default, Clone)]
 #[serde(default)]

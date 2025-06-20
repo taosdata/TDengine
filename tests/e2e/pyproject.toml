@@ -8,6 +8,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.9"
 pytest = "^7.4.2"
+pytest-rerunfailures = "^15.1"
 allure-pytest = "^2.13.2"
 pytest-timeout = "^2.2.0"
 semver = "^3.0.2"

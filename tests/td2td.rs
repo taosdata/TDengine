@@ -1,9 +1,9 @@
-use assert_cmd::{prelude::*, Command};
+use assert_cmd::{Command, prelude::*};
 use chrono::Utc;
 use itertools::Itertools;
 use std::time::Duration;
 use taos::{AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
-use taosx_core::{get_data_dir, legacy_to_taos};
+use taosx_core::{core_metrics::clear_metrics, get_data_dir, legacy_to_taos};
 use tokio_util::sync::CancellationToken;
 
 /// # description
@@ -969,6 +969,8 @@ async fn test_sync_all_with_taos() -> anyhow::Result<()> {
     const DB_DST: &str = "test_sync_all_dst";
     const N: i32 = 10;
     const TID: i64 = 34842002;
+
+    clear_metrics(TID).await;
 
     // create databases and stables
     let taos = if ws_enable {

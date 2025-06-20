@@ -3,6 +3,10 @@ retries = 1
 test-threads = "num-cpus"
 slow-timeout = { period = "5m", terminate-after = 1 }
 
+[[profile.default.overrides]]
+filter = 'test(with_taos)'
+retries = { backoff = "exponential", count = 5, delay = "3s", jitter = true }
+
 [profile.ci]
 fail-fast = false
 

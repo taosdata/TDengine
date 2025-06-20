@@ -311,7 +311,7 @@ jobs:
 
           docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && source ./setenv.sh && poetry run pytest test_function/global_setup.py::test_setup"
 
-          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && source ./setenv.sh && echo \"poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile\" && poetry add pytest-xdist && poetry run pytest --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile test_function/"
+          docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && source ./setenv.sh && echo \"poetry run pytest --reruns 3 --reruns-delay 1 --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile\" && poetry add pytest-xdist && poetry run pytest --reruns 3 --reruns-delay 1 --last-failed --last-failed-no-failures all --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH/allure_profile --timeout=200 -m sanity -n auto --dist=loadfile test_function/"
 
           docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && source ./setenv.sh && poetry run pytest test_function/global_setup.py::test_teardown"
 

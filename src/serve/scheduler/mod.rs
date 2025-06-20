@@ -8,18 +8,18 @@ use std::{
 };
 use taos::{Dsn, IntoDsn};
 use taoslog::{
-    utils::{QidMetadataSetter, Span},
     QidManager,
+    utils::{QidMetadataSetter, Span},
 };
+use taosx_core::DataSet;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::sink::lush::TableTagCache;
 use taosx_core::utils::{breakpoints::BreakpointDb, trace::Qid};
-use taosx_core::DataSet;
 use taosx_core::{dsv::DataSourceValidation, plugins::transform::sample::DsSamples};
 use thiserror::Error;
 use tokio::sync::{Mutex, Notify, RwLock};
 use tokio_cron_scheduler::{Job, JobBuilder, JobScheduler};
-use tracing::{instrument, Instrument};
+use tracing::{Instrument, instrument};
 
 use self::runner::{AgentIntegrationChannel, GlobalState, MultiIndexTaskJobMap};
 use super::controller::{Activity, Task};
@@ -557,7 +557,9 @@ impl TaskScheduler {
     /// 2. send shutdown signal to agent workers scheduler.
     /// 3. send shutdown signal to running tasks.
     pub async fn shutdown(mut self) {
-        tracing::info!("Shutdown scheduler, waiting for all tasks to stop, expect all tasks state be suspended");
+        tracing::info!(
+            "Shutdown scheduler, waiting for all tasks to stop, expect all tasks state be suspended"
+        );
         self.try_shutdown();
         self.wait_shutdown().await;
     }
@@ -656,7 +658,7 @@ impl TaskScheduler {
 #[cfg(test)]
 mod tests {
     use crate::serve::{
-        controller::{agent::AgentActivityFilter, NewTask, Status, TaskController},
+        controller::{NewTask, Status, TaskController, agent::AgentActivityFilter},
         rpc::AgentRpcChannel,
         scheduler::agent::{AgentNotify, AgentWorker},
         tests::{tracing_subscriber_init, wait_notify_channel},
