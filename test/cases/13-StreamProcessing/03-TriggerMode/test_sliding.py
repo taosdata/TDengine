@@ -18,7 +18,7 @@ class TestStreamSlidingTrigger:
     caseIdx = 0
     slidingList = [1, 10, 100, 1000]
     tableList = []
-    runCaseList = [17]#range(10, 18) #[0, 1, 3, 8]
+    runCaseList = range(18, 24) #[0, 1, 3, 8]
     streamSql = ""
     querySql = ""
     querySqls = [ # (SQL, (minPartitionColNum, partitionByTbname), PositiveCase)
@@ -43,9 +43,6 @@ class TestStreamSlidingTrigger:
         ("select cts, cint from %%tbname where _tcurrent_ts % 2 = 0 partition by cint order by cts", (1, True), True),
         ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname where %%tbname like '%1' partition by cint order by cts", (2, True), True),
         ("select _tcurrent_ts, cint from %%tbname partition by cint order by cts", (1, True), True),
-
-        #("select _twstart, avg(cint), count(cint) from {calcTbname} where cts <= _twstart", ),
-        #("")
     ]
 
     queryResults = [
@@ -71,6 +68,29 @@ class TestStreamSlidingTrigger:
         [-1, None, True, [], ""], #FAILED
         [120, None, True, [], "order by cts, tag_tbname"],
         [-1, None, True, [], "order by `_tcurrent_ts`, tag_tbname"], #FAILED
+        [-1, None, True, [], ""], #2 - 0
+        [-1, None, True, [], ""],
+
+        [-1, None, True, [], ""],
+        [-1, None, True, [], ""],
+        [-1, None, True, [], ""],
+        [-1, None, True, [], ""],
+        [-1, None, True, [], ""],
+
+        [-1, None, True, [], ""],
+        [-1, None, True, [], ""],
+        [-1, None, True, [], ""],
+        [-1, None, True, [], ""],
+        [-1, None, True, [], ""],
+
+        [-1, None, True, [], ""],
+        [-1, None, True, [], ""],
+        [-1, None, True, [], ""],
+        [-1, None, True, [], ""],
+        [-1, None, True, [], ""],
+
+        [-1, None, True, [], ""],
+        [-1, None, True, [], ""],        
     ]
 
     def setup_class(cls):
