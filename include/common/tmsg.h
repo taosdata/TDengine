@@ -1879,7 +1879,7 @@ typedef struct {
   char     dbName[TSDB_DB_FNAME_LEN];
   uint64_t dbId;
   SArray*  pVgs;   // SMountVgInfo
-  SArray*  pStbs;  // SStbObj: memory structure, no serialization
+  SArray*  pStbs;  // SMCreateStbReq
 } SMountDbInfo;
 
 typedef struct {

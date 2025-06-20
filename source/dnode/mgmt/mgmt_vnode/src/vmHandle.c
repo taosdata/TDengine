@@ -790,6 +790,9 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
   int32_t code = 0, lino = 0;
   char    path[TSDB_MOUNT_PATH_LEN + 128] = {0};
   int32_t nDb = taosArrayGetSize(pMountInfo->pDbs);
+  SArray *suidList = NULL;
+  SArray *pCols = NULL;
+  SArray *pTags = NULL;
 
   snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(VNODE));
   for (int32_t i = 0; i < nDb; ++i) {
@@ -842,30 +845,98 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
                pVgInfo->vgId);
       vnode.path = path;
 
-      SMeta  *pMeta = NULL;
       int32_t rollback = vnodeShouldRollback(&vnode);
-      if ((code = metaOpen(&vnode, &pMeta, rollback)) != 0) {
+      if ((code = metaOpen(&vnode, &vnode.pMeta, rollback)) != 0) {
         dError("mount:%s, failed to retrieve stbs of vnode:%d for db:%" PRId64 " on dnode:%d since %s, path:%s",
                pReq->mountName, pVgInfo->vgId, pVgInfo->dbId, pReq->dnodeId, tstrerror(code), path);
         TAOS_CHECK_EXIT(code);
       } else {
-        dInfo("mount:%s, success to retrieve stbs of vnode:%d for db:%" PRId64 "on dnode:%d, path:%s", pReq->mountName,
+        dInfo("mount:%s, success to retrieve stbs of vnode:%d for db:%" PRId64 " on dnode:%d, path:%s", pReq->mountName,
               pVgInfo->vgId, pVgInfo->dbId, pReq->dnodeId, path);
-        // if (pMeta->pStables) {
-        //   if (pMountInfo->pStbs == NULL) {
-        //     pMountInfo->pStbs = taosArrayInit_s(sizeof(SStable), 1);
-        //   }
-        //   for (int32_t k = 0; k < pMeta->numOfStables; ++k) {
-        //     SStable *pStb = &pMeta->pStables[k];
-        //     if (!taosArrayPush(pMountInfo->pStbs, pStb)) {
-        //       code = TSDB_CODE_OUT_OF_MEMORY;
-        //       goto _exit;
-        //     }
-        //   }
-        // }
-        metaClose(&pMeta);
+
+        SMetaReader mr = {0};
+        tb_uid_t    suid = 0;
+        SMeta      *pMeta = vnode.pMeta;
+
+        metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
+        if (!suidList && !(suidList = taosArrayInit(1, sizeof(tb_uid_t)))) {
+          TSDB_CHECK_CODE(terrno, lino, _exit);
+        }
+        taosArrayClear(suidList);
+        TAOS_CHECK_EXIT(vnodeGetStbIdList(&vnode, 0, suidList));
+        dInfo("mount:%s, vnode:%d, db:%" PRId64 ", stbs num:%d on dnode:%d", pReq->mountName, pVgInfo->vgId,
+              pVgInfo->dbId, taosArrayGetSize(suidList), pReq->dnodeId);
+        int32_t nStbs = taosArrayGetSize(suidList);
+        for (int32_t i = 0; i < nStbs; ++i) {
+          suid = *(tb_uid_t *)taosArrayGet(suidList, i);
+          dInfo("mount:%s, vnode:%d, db:%" PRId64 ", stb suid:%" PRIu64 " on dnode:%d", pReq->mountName, pVgInfo->vgId,
+                pVgInfo->dbId, suid, pReq->dnodeId);
+          if ((code = metaReaderGetTableEntryByUidCache(&mr, suid)) < 0) {
+            TSDB_CHECK_CODE(code, lino, _exit0);
+          }
+          if (mr.me.uid != suid || mr.me.type != TSDB_SUPER_TABLE ||
+              mr.me.colCmpr.nCols != mr.me.stbEntry.schemaRow.nCols) {
+            dError("mount:%s, vnode:%d, db:%" PRId64 ", stb info not match, suid:%" PRIu64 " expected:%" PRIu64
+                   ", type:%" PRIi8 " expected:%d, nCmprCols:%d nCols:%d on dnode:%d",
+                   pReq->mountName, pVgInfo->vgId, pVgInfo->dbId, mr.me.uid, suid, mr.me.type, TSDB_SUPER_TABLE,
+                   mr.me.colCmpr.nCols, mr.me.stbEntry.schemaRow.nCols, pReq->dnodeId);
+            TSDB_CHECK_CODE(TSDB_CODE_FILE_CORRUPTED, lino, _exit0);
+          }
+          SMCreateStbReq createReq = {
+              .source = TD_REQ_FROM_APP,
+              .suid = suid,
+              .colVer = mr.me.stbEntry.schemaRow.version,
+              .tagVer = mr.me.stbEntry.schemaTag.version,
+              .numOfColumns = mr.me.stbEntry.schemaRow.nCols,
+              .numOfTags = mr.me.stbEntry.schemaTag.nCols,
+          };
+          snprintf(createReq.name, sizeof(createReq.name), "%s", mr.me.name);
+          if (!pCols && !(pCols = taosArrayInit(createReq.numOfColumns, sizeof(SFieldWithOptions)))) {
+            TSDB_CHECK_CODE(terrno, lino, _exit0);
+          }
+          taosArrayClear(pCols);
+          if (!pTags && !(pTags = taosArrayInit(createReq.numOfTags, sizeof(SField)))) {
+            TSDB_CHECK_CODE(terrno, lino, _exit0);
+          }
+          taosArrayClear(pTags);
+          for (int32_t c = 0; c < createReq.numOfColumns; ++c) {
+            SSchema          *pSchema = mr.me.stbEntry.schemaRow.pSchema + c;
+            SColCmpr         *pColComp = mr.me.colCmpr.pColCmpr + c;
+            SFieldWithOptions col = {
+                .type = pSchema->type,
+                .flags = pSchema->flags,
+                .bytes = pSchema->bytes,
+                .compress = pColComp->alg,
+            };
+            snprintf(col.name, sizeof(col.name), "%s", pSchema->name);
+            if (pSchema->colId != pColComp->id) {
+              TAOS_CHECK_GOTO(TSDB_CODE_FILE_CORRUPTED, &lino, _exit0);
+            }
+            if (mr.me.pExtSchemas) {
+              col.typeMod = (mr.me.pExtSchemas + c)->typeMod;
+            }
+            TSDB_CHECK_NULL(taosArrayPush(pCols, &col), code, lino, _exit0, terrno);
+          }
+          for (int32_t t = 0; t < createReq.numOfTags; ++t) {
+            SSchema *pSchema = mr.me.stbEntry.schemaTag.pSchema + t;
+            SField   tag = {
+                  .type = pSchema->type,
+                  .flags = pSchema->flags,
+                  .bytes = pSchema->bytes,
+            };
+            snprintf(tag.name, sizeof(tag.name), "%s", pSchema->name);
+            TSDB_CHECK_NULL(taosArrayPush(pTags, &tag), code, lino, _exit0, terrno);
+          }
+          tDecoderClear(&mr.coder);
+
+          p
+        }
+      _exit0:
+        metaReaderClear(&mr);
+        metaClose(&vnode.pMeta);
+        TAOS_CHECK_EXIT(code);
       }
-      break;  // only retrieve the first vnode stbs
+      break;  // retrieve stbs from 1 vnode is enough
     }
   }
 _exit:
@@ -873,6 +944,9 @@ _exit:
     dError("mount:%s, failed to retrieve mount stbs at line %d on dnode:%d since %s, path:%s", pReq->mountName, lino,
            pReq->dnodeId, tstrerror(code), path);
   }
+  taosArrayDestroy(suidList);
+  taosArrayDestroy(pCols);
+  taosArrayDestroy(pTags);
   TAOS_RETURN(code);
 }
 #endif
