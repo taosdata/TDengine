@@ -6059,10 +6059,17 @@ static const char* jkDatabaseOptionsNumOfVgroups = "NumOfVgroups";
 static const char* jkDatabaseOptionsSingleStable = "SingleStable";
 static const char* jkDatabaseOptionsRetentions = "Retentions";
 static const char* jkDatabaseOptionsSchemaless = "Schemaless";
+
+// shared storage options, the 'S3' ones are for backward compatibility.
 static const char* jkDatabaseOptionsSsChunkSize = "SsChunkSize";
 static const char* jkDatabaseOptionsSsKeepLocalNode = "SsKeepLocalNode";
 static const char* jkDatabaseOptionsSsKeepLocal = "SsKeepLocal";
 static const char* jkDatabaseOptionsSsCompact = "SsCompact";
+static const char* jkDatabaseOptionsS3ChunkSize = "S3ChunkSize";
+static const char* jkDatabaseOptionsS3KeepLocalNode = "S3KeepLocalNode";
+static const char* jkDatabaseOptionsS3KeepLocal = "S3KeepLocal";
+static const char* jkDatabaseOptionsS3Compact = "S3Compact";
+
 static const char* jkDatabaseOptionsCompactIntervalNode = "compactIntervalNode";
 static const char* jkDatabaseOptionsCompactTimeRange = "compactTimeRange";
 static const char* jkDatabaseOptionsCompactTimeOffsetNode = "compactTimeOffsetNode";
@@ -6209,27 +6216,31 @@ static int32_t jsonToDatabaseOptions(const SJson* pJson, void* pObj) {
     code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsSchemaless, &pNode->schemaless);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetIntValue(pJson, jkDatabaseOptionsSsChunkSize, &pNode->ssChunkSize);
-    if (code != TSDB_CODE_SUCCESS) {
-      code = tjsonGetIntValue(pJson, "S3ChunkSize", &pNode->ssChunkSize);
+    if (tjsonGetObjectItem(pJson, jkDatabaseOptionsSsChunkSize) != NULL) {
+      code = tjsonGetIntValue(pJson, jkDatabaseOptionsSsChunkSize, &pNode->ssChunkSize);
+    } else {
+      code = tjsonGetIntValue(pJson, jkDatabaseOptionsS3ChunkSize, &pNode->ssChunkSize);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkDatabaseOptionsSsKeepLocalNode, (SNode**)&pNode->ssKeepLocalStr);
-    if (code != TSDB_CODE_SUCCESS) {
-      code = jsonToNodeObject(pJson, "S3KeepLocalNode", (SNode**)&pNode->ssKeepLocalStr);
+    if (tjsonGetObjectItem(pJson, jkDatabaseOptionsSsKeepLocalNode) != NULL) {
+      code = jsonToNodeObject(pJson, jkDatabaseOptionsSsKeepLocalNode, (SNode**)&pNode->ssKeepLocalStr);
+    } else {
+      code = jsonToNodeObject(pJson, jkDatabaseOptionsSsKeepLocalNode, (SNode**)&pNode->ssKeepLocalStr);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetIntValue(pJson, jkDatabaseOptionsSsKeepLocal, &pNode->ssKeepLocal);
-    if (code != TSDB_CODE_SUCCESS) {
-      code = tjsonGetIntValue(pJson, "S3KeepLocal", &pNode->ssKeepLocal);
+    if (tjsonGetObjectItem(pJson, jkDatabaseOptionsSsKeepLocal) != NULL) {
+      code = tjsonGetIntValue(pJson, jkDatabaseOptionsSsKeepLocal, &pNode->ssKeepLocal);
+    } else {
+      code = tjsonGetIntValue(pJson, jkDatabaseOptionsS3KeepLocal, &pNode->ssKeepLocal);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsSsCompact, &pNode->ssCompact);
-    if (code != TSDB_CODE_SUCCESS) {
-      code = tjsonGetTinyIntValue(pJson, "S3Compact", &pNode->ssCompact);
+    if (tjsonGetObjectItem(pJson, jkDatabaseOptionsSsCompact) != NULL) {
+      code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsSsCompact, &pNode->ssCompact);
+    } else {
+      code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsS3Compact, &pNode->ssCompact);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
