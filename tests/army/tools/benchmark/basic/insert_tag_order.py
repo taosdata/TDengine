@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 import os
+import threading
 from time import sleep
 import frame
 import frame.etool
@@ -22,63 +23,83 @@ from frame import *
 
 
 class TDTestCase(TBase):
-    filePath = "./tools/benchmark/basic/json/insert_tag_order.json"
+    templateFilePath = "./tools/benchmark/basic/json/insert_tag_order.json"
+    fileDirPath = "./tools/benchmark/basic/json/"
     def caseDescription(self):
         """
         [TD-11510] taosBenchmark test cases
         """
 
-    def configJsonFile(self, model, interlace=1, auto_create_table="no"):
-        tdLog.debug(f"configJsonFile {self.filePath} model={model}, interlace={interlace}, auto_create_table={auto_create_table}")
-        with open(self.filePath, 'r') as f:
+    def configJsonFile(self, dbname, model, interlace=1, auto_create_table="no"):
+        tdLog.debug(f"configJsonFile {self.templateFilePath} model={model}, interlace={interlace}, auto_create_table={auto_create_table}")
+        with open(self.templateFilePath, 'r') as f:
             data = json.load(f)
+        data['databases'][0]['dbinfo']['name'] = dbname
         data['databases'][0]['super_tables'][0]['insert_mode'] = model
         data['databases'][0]['super_tables'][0]['interlace_rows'] = interlace
         data['databases'][0]['super_tables'][0]['auto_create_table'] = auto_create_table
         json_data = json.dumps(data)
-        with open(self.filePath, "w") as file:
+        filePath = self.fileDirPath + dbname + ".json"
+        with open(filePath, "w") as file:
             file.write(json_data)
 
         tdLog.debug(f"configJsonFile {json_data}")
 
-    def checkDataCorrect(self, count, table_count):
-        sql = "select count(*) from functiontest.addcolumns"
+    def checkDataCorrect(self, dbname, count, table_count):
+        sql = f"select count(*) from {dbname}.addcolumns"
         rows = tdSql.query(sql)
         tdSql.checkData(0, 0, count)
 
-        sql = "select distinct groupid from functiontest.addcolumns;"
+        sql = f"select distinct groupid from {dbname}.addcolumns;"
         rows = tdSql.query(sql)
         tdSql.checkRows(table_count)
 
-    def executeAndCheck(self, mode, interlace=1, auto_create_table="no"):
-        self.configJsonFile(mode, interlace, auto_create_table)
+    def executeAndCheck(self, dbname, mode, interlace=1, auto_create_table="no"):
+        self.configJsonFile(dbname, mode, interlace, auto_create_table)
         benchmark = frame.etool.benchMarkFile()
-        cmd = f"{benchmark} -f {self.filePath}"
+        filePath = self.fileDirPath + dbname + ".json"
+        cmd = f"{benchmark} -f {filePath}"
         tdLog.info(f"Executing command: {cmd}")
         os.system("%s" % cmd)
-        self.checkDataCorrect(10000, 1000)
+        self.checkDataCorrect(dbname, 10000, 1000)
+        tdSql.execute(f"drop database {dbname};")
+    
+    def testStmt(self):  
+        self.executeAndCheck('stmt1_tag_order1','stmt', 1)
+        self.executeAndCheck('stmt1_tag_order2','stmt', 0)
+        self.executeAndCheck('stmt1_tag_order3','stmt', 0, 'yes')
 
+    def testStmt2(self):
+        self.executeAndCheck('stmt2_tag_order_1', 'stmt2', 1)
+        self.executeAndCheck('stmt2_tag_order_2', 'stmt2', 1, 'yes')
+        self.executeAndCheck('stmt2_tag_order_3', 'stmt2', 0)
+        self.executeAndCheck('stmt2_tag_order_4', 'stmt2', 0, 'yes')
+    def testSml(self):
+        self.executeAndCheck('sml_tag_order1', 'sml', 1)
+        self.executeAndCheck('sml_tag_order2', 'sml', 1, 'yes')
+        self.executeAndCheck('sml_tag_order3', 'sml', 0)
+        self.executeAndCheck('sml_tag_order4', 'sml', 0, 'yes')
+    def testTaosc(self):
+        self.executeAndCheck('taoc_tag_order_1', 'taosc', 1)
+        self.executeAndCheck('taoc_tag_order_2', 'taosc', 1, 'yes')
+        self.executeAndCheck('taoc_tag_order_3', 'taosc', 0)
+        self.executeAndCheck('taoc_tag_order_4', 'taosc', 0, 'yes')
 
     def run(self):
-
-        self.executeAndCheck("stmt", 1)
-        self.executeAndCheck("stmt", 0)
-        self.executeAndCheck("stmt", 0, 'yes')
-        
-        self.executeAndCheck("stmt2", 1)
-        self.executeAndCheck("stmt2", 1, 'yes')
-        self.executeAndCheck("stmt2", 0)
-        self.executeAndCheck("stmt2", 0, 'yes')
-
-        self.executeAndCheck("sml", 1)
-        self.executeAndCheck("sml", 1, 'yes')
-        self.executeAndCheck("sml", 0)
-        self.executeAndCheck("sml", 0, 'yes')
-
-        self.executeAndCheck("taosc", 1)
-        self.executeAndCheck("taosc", 1, 'yes')
-        self.executeAndCheck("taosc", 0)
-        self.executeAndCheck("taosc", 0, 'yes')
+        stmt = threading.Thread(target=self.testStmt)
+        stmt2 = threading.Thread(target=self.testStmt2)
+        sml = threading.Thread(target=self.testSml)
+        taosc = threading.Thread(target=self.testTaosc)
+        tdLog.info("Starting threads for different insert modes...")
+        stmt.start()
+        stmt2.start()
+        sml.start()
+        taosc.start()
+        tdLog.info("Waiting for all threads to complete...")
+        stmt.join()
+        stmt2.join()
+        sml.join()
+        taosc.join()
 
     def stop(self):
         tdSql.close()
