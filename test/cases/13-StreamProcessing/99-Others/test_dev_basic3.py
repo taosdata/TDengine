@@ -152,6 +152,31 @@ class TestStreamDevBasic:
         self.streams.append(stream)
 
         stream = StreamItem(
+            id=5,
+            stream="create stream rdb.s5 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r5 as select _twstart ts, _twend te, _twduration td, _twrownum tw, %%tbname as tb, count(c1) c1, avg(c2) c2 from %%tbname where ts >= _twstart and ts < _twend",
+            res_query="select ts, te, td, tw, tb, c1, c2, tag_tbname from rdb.r5 where tag_tbname='t1';",
+            exp_query="select _wstart, _wend, _wduration, count(c1), 't1', count(c1), avg(c2), 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m) fill(value, 0, 0, null);",
+            check_func=self.check5,
+        )
+        # self.streams.append(stream) basic4
+
+        stream = StreamItem(
+            id=6,
+            stream="create stream rdb.s6 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r6 as select _twstart ts, count(c1), avg(c2) from %%trows where ts >= _twstart and ts < _twend partition by tbname",
+            res_query="select *, tag_tbname from rdb.r6 where tag_tbname='t1'",
+            exp_query="select _wstart, count(c1), avg(c2), 't1', 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m);",
+        )
+        self.streams.append(stream)
+
+        stream = StreamItem(
+            id=7,
+            stream="create stream rdb.s7 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r7 as select _twstart ts, count(c1), avg(c2) from %%tbname where ts >= _twstart and ts < _twend and %%tbname = tbname",
+            res_query="select *, tag_tbname from rdb.r7 where tag_tbname='t1'",
+            exp_query="select _wstart, count(c1), avg(c2), 't1', 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m) fill(value, 0, null);",
+        )
+        self.streams.append(stream)
+
+        stream = StreamItem(
             id=12,
             stream="create stream rdb.s12 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r12 as select _twstart ts, %%tbname tb, %%1, count(*) v1, avg(c1) v2, first(c1) v3, last(c1) v4 from %%trows where c2 > 0;",
             res_query="select ts, tb, `%%1`, v2, v3, v4, tag_tbname from rdb.r12 where tb='t1'",
@@ -308,6 +333,21 @@ class TestStreamDevBasic:
             and tdSql.compareData(0, 1, "2025-01-01 00:15:00.000")
             and tdSql.compareData(0, 2, 300000)
             and tdSql.compareData(0, 3, 10)
+            and tdSql.compareData(0, 4, "t2"),
+        )
+
+    def check5(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from information_schema.ins_tags where db_name='rdb' and stable_name='r5' and tag_name='tag_tbname';",
+            func=lambda: tdSql.getRows() == 2,
+        )
+        tdSql.checkResultsByFunc(
+            sql="select ts, te, td, c1, tag_tbname from rdb.r5 where tag_tbname='t2'",
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "2025-01-01 00:10:00.000")
+            and tdSql.compareData(0, 1, "2025-01-01 00:15:00.000")
+            and tdSql.compareData(0, 2, 300000)
+            and tdSql.compareData(0, 3, 2)
             and tdSql.compareData(0, 4, "t2"),
         )
 
