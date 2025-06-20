@@ -334,7 +334,7 @@ There are many configuration options for connecting, so before establishing a co
 The parameters for establishing a connection with the Java connector are URL and Properties.  
 The JDBC URL format for TDengine is: `jdbc:[TAOS|TAOS-WS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`  
 
-For detailed explanations of URL and Properties parameters and how to use them, see [URL specifications](../../tdengine-reference/client-libraries/java/)
+For detailed explanations of URL and Properties parameters and how to use them, see [URL specifications](../../tdengine-reference/client-libraries/java/#url-specification)
 
 </TabItem>
 
@@ -346,6 +346,8 @@ The Python connector uses the `connect()` method to establish a connection, here
 - user: TDengine username. The default is `root`.  
 - password: TDengine user password. The default is `taosdata`.  
 - timeout: HTTP request timeout in seconds. The default is `socket._GLOBAL_DEFAULT_TIMEOUT`. Generally, no configuration is needed.
+
+For detailed explanations of URL parameters and how to use them, see [URL specifications](../../tdengine-reference/client-libraries/python/#url-specification)
 
 </TabItem>
 
