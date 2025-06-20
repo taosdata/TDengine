@@ -4302,15 +4302,9 @@ int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SColumnNode* pColNode
         break;
       }
       case TSDB_DATA_TYPE_VARCHAR: {
-        datum->kind = FLT_SCL_DATUM_KIND_VARCHAR;
-
-        int32_t len = varDataTLen(valNode->datum.p);
-        datum->pData = taosMemoryCalloc(1, len + 1);
-        if (NULL == datum->pData) {
-          return terrno;
-        }
-
-        memcpy(datum->pData, valNode->datum.p, len);
+        // TODO:: when support varchar type, should change this logic
+        datum->kind = FLT_SCL_DATUM_KIND_INT64;
+        datum->i = taosStr2Int64(valNode->literal, NULL,10);
         break;
       }
       // TODO:varchar/nchar/json
@@ -5095,12 +5089,6 @@ static int32_t fltSclBuildRangePointsForInOper(SFltSclOperator* oper, SArray* po
     if(valueNode->node.resType.type == TSDB_DATA_TYPE_FLOAT || valueNode->node.resType.type == TSDB_DATA_TYPE_DOUBLE) {
       minDatum.i = TMIN(minDatum.i, valDatum.d);
       maxDatum.i = TMAX(maxDatum.i, valDatum.d);
-    } else if(valueNode->node.resType.type == TSDB_DATA_TYPE_VARCHAR) {
-      char   *endPtr = NULL;
-      int64_t tsInt64 = taosStr2Int64(varDataVal(valDatum.pData), &endPtr, 10);
-      minDatum.i = TMIN(minDatum.i, tsInt64);
-      maxDatum.i = TMAX(maxDatum.i, tsInt64);
-      taosMemFree(valDatum.pData);
     } else {
       minDatum.i = TMIN(minDatum.i, valDatum.i);
       maxDatum.i = TMAX(maxDatum.i, valDatum.i);
