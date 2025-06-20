@@ -125,11 +125,11 @@ class TestStreamDevBasic:
             func=lambda: tdSql.getRows() == 2,
         )
         tdSql.checkResultsByFunc(
-            sql="select ts, te, td, c1, tag_tbname from rdb.r4 where tag_tbname='t2'",
+            sql="select ts, te, td, c1, tag_tbname from rdb.r5 where tag_tbname='t2'",
             func=lambda: tdSql.getRows() == 1
             and tdSql.compareData(0, 0, "2025-01-01 00:10:00.000")
             and tdSql.compareData(0, 1, "2025-01-01 00:15:00.000")
             and tdSql.compareData(0, 2, 300000)
-            and tdSql.compareData(0, 3, 10)
+            and tdSql.compareData(0, 3, 2)
             and tdSql.compareData(0, 4, "t2"),
         )

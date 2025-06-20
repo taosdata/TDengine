@@ -189,6 +189,8 @@ class TestStreamSubquerySliding:
         )
         self.streams.append(stream)
 
+        
+        
         id = 4
         # 里面和外面都要分组
         # stream="create stream rdb.s2 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r2 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, %%tbname tb, %%1 tg1, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null and %%tbname is not null and %%1 is not null;",
@@ -231,11 +233,11 @@ class TestStreamSubquerySliding:
         # self.streams.append(stream)
 
         stream = StreamItem(
-            id=6,
-            stream="create stream rdb.s6 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r6 as select _twstart ts, %%tbname tb, %%1, count(*) v1, avg(c1) v2, first(c1) v3, last(c1) v4 from %%trows where c2 > 0;",
-            res_query="select ts, tb, `%%1`, v2, v3, v4, tag_tbname from rdb.r6 where tb='t1'",
+            id=12,
+            stream="create stream rdb.s12 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r12 as select _twstart ts, %%tbname tb, %%1, count(*) v1, avg(c1) v2, first(c1) v3, last(c1) v4 from %%trows where c2 > 0;",
+            res_query="select ts, tb, `%%1`, v2, v3, v4, tag_tbname from rdb.r12 where tb='t1'",
             exp_query="select _wstart, 't1', 't1', avg(c1) v2, first(c1) v3, last(c1) v4, 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m) fill(NULL);",
-            check_func=self.check6,
+            check_func=self.check12,
         )
         self.streams.append(stream)
 
@@ -2153,38 +2155,16 @@ class TestStreamSubquerySliding:
             and tdSql.compareData(0, 4, "t2"),
         )
 
-    def check6(self):
+    def check12(self):
         tdSql.checkTableType(
             dbname="rdb",
-            stbname="r6",
+            stbname="r12",
             columns=7,
             tags=1,
         )
         tdSql.checkTableSchema(
             dbname="rdb",
-            tbname="r6",
-            schema=[
-                ["ts", "TIMESTAMP", 8, ""],
-                ["tb", "VARCHAR", 270, ""],
-                ["%%1", "VARCHAR", 270, ""],
-                ["v1", "BIGINT", 8, ""],
-                ["v2", "DOUBLE", 8, ""],
-                ["v3", "INT", 4, ""],
-                ["v4", "INT", 4, ""],
-                ["tag_tbname", "VARCHAR", 270, "TAG"],
-            ],
-        )
-
-    def check6(self):
-        tdSql.checkTableType(
-            dbname="rdb",
-            stbname="r6",
-            columns=7,
-            tags=1,
-        )
-        tdSql.checkTableSchema(
-            dbname="rdb",
-            tbname="r6",
+            tbname="r12",
             schema=[
                 ["ts", "TIMESTAMP", 8, ""],
                 ["tb", "VARCHAR", 270, ""],
