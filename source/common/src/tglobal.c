@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tglobal.h"
 #include "cJSON.h"
 #include "defines.h"
 #include "os.h"
 #include "osString.h"
 #include "tconfig.h"
+#include "tglobal.h"
 #include "tgrant.h"
 #include "tjson.h"
 #include "tlog.h"
@@ -45,7 +45,11 @@ int32_t       tsVersion = 30000000;
 int32_t       tsForceReadConfig = 0;
 int32_t       tsdmConfigVersion = -1;
 int32_t       tsConfigInited = 0;
-int32_t       tsStatusInterval = 1;  // second
+int32_t       tsStatusInterval = 1;   // second
+int32_t       tsEnableMetrics = 0;    // 0: disable, 1: enable
+int32_t       tsMetricsFlag = 0;      // 0: only high level metrics, 1: full metrics
+int32_t       tsMetricsInterval = 30;  // second
+int32_t       tsMetricsPrintLog = 0;  // 0: disable, 1: enable
 int32_t       tsNumOfSupportVnodes = 256;
 char          tsEncryptAlgorithm[16] = {0};
 char          tsEncryptScope[100] = {0};
@@ -799,7 +803,6 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "compareAsStrInGreatest", tsCompareAsStrInGreatest, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
-
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -894,6 +897,10 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableStrongPassword", tsEnableStrongPassword, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "metricsInterval", tsMetricsInterval, 1, 3600, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "enableMetrics", tsEnableMetrics, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "metricsFlag", tsMetricsFlag, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "metricsPrintLog", tsMetricsPrintLog, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxShellConns", tsMaxShellConns, 10, 50000000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryBufferSize", tsQueryBufferSize, -1, 500000000000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
@@ -1602,6 +1609,18 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "statusInterval");
   tsStatusInterval = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableMetrics");
+  tsEnableMetrics = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "metricsFlag");
+  tsMetricsFlag = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "metricsPrintLog");
+  tsMetricsPrintLog = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "metricsInterval");
+  tsMetricsInterval = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minSlidingTime");
   tsMinSlidingTime = pItem->i32;
@@ -2767,7 +2786,11 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"arbSetAssignedTimeoutSec", &tsArbSetAssignedTimeoutSec},
                                          {"queryNoFetchTimeoutSec", &tsQueryNoFetchTimeoutSec},
                                          {"enableStrongPassword", &tsEnableStrongPassword},
-                                        {"forceKillTrans", &tsForceKillTrans}};
+                                         {"enableMetrics", &tsEnableMetrics},
+                                         {"metricsInterval", &tsMetricsInterval},
+                                         {"metricsFlag", &tsMetricsFlag},
+                                         {"metricsPrintLog", &tsMetricsPrintLog},
+                                         {"forceKillTrans", &tsForceKillTrans}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);

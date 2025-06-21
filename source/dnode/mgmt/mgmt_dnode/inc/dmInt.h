@@ -35,12 +35,15 @@ typedef struct SDnodeMgmt {
   TdThread                     monitorThread;
   TdThread                     auditThread;
   TdThread                     crashReportThread;
+  TdThread                     metricsThread;
   SSingleWorker                mgmtWorker;
   ProcessCreateNodeFp          processCreateNodeFp;
   ProcessAlterNodeTypeFp       processAlterNodeTypeFp;
   ProcessDropNodeFp            processDropNodeFp;
   SendMonitorReportFp          sendMonitorReportFp;
+  SendMetricsReportFp          sendMetricsReportFp;
   MonitorCleanExpiredSamplesFp monitorCleanExpiredSamplesFp;
+  MetricsCleanExpiredSamplesFp metricsCleanExpiredSamplesFp;
   SendAuditRecordsFp           sendAuditRecordsFp;
   GetVnodeLoadsFp              getVnodeLoadsFp;
   GetVnodeLoadsFp              getVnodeLoadsLiteFp;
@@ -80,6 +83,8 @@ void    dmStopMonitorThread(SDnodeMgmt *pMgmt);
 void    dmStopAuditThread(SDnodeMgmt *pMgmt);
 int32_t dmStartCrashReportThread(SDnodeMgmt *pMgmt);
 void    dmStopCrashReportThread(SDnodeMgmt *pMgmt);
+int32_t dmStartMetricsThread(SDnodeMgmt *pMgmt);
+void    dmStopMetricsThread(SDnodeMgmt *pMgmt);
 int32_t dmStartWorker(SDnodeMgmt *pMgmt);
 void    dmStopWorker(SDnodeMgmt *pMgmt);
 

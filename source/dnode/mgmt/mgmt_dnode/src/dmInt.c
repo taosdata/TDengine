@@ -44,6 +44,9 @@ static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   if ((code = dmStartCrashReportThread(pMgmt)) != 0) {
     return code;
   }
+  if ((code = dmStartMetricsThread(pMgmt)) != 0) {
+    return code;
+  }
   return 0;
 }
 
@@ -58,6 +61,7 @@ static void dmStopMgmt(SDnodeMgmt *pMgmt) {
   dmStopNotifyThread(pMgmt);
 #endif
   dmStopCrashReportThread(pMgmt);
+  dmStopMetricsThread(pMgmt);
 }
 
 static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
@@ -76,7 +80,9 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->processAlterNodeTypeFp = pInput->processAlterNodeTypeFp;
   pMgmt->processDropNodeFp = pInput->processDropNodeFp;
   pMgmt->sendMonitorReportFp = pInput->sendMonitorReportFp;
+  pMgmt->sendMetricsReportFp = pInput->sendMetricsReportFp;
   pMgmt->monitorCleanExpiredSamplesFp = pInput->monitorCleanExpiredSamplesFp;
+  pMgmt->metricsCleanExpiredSamplesFp = pInput->metricsCleanExpiredSamplesFp;
   pMgmt->sendAuditRecordsFp = pInput->sendAuditRecordFp;
   pMgmt->getVnodeLoadsFp = pInput->getVnodeLoadsFp;
   pMgmt->getVnodeLoadsLiteFp = pInput->getVnodeLoadsLiteFp;
