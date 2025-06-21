@@ -548,8 +548,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     tstrncpy(dcfgReq.config, "resetlog", 9);
     goto _send_req;
 #ifdef TD_ENTERPRISE
-  } else if (strncasecmp(cfgReq.config, "s3blocksize", 12) == 0) {
-    int32_t optLen = strlen("s3blocksize");
+  } else if (strncasecmp(cfgReq.config, "ssblocksize", 12) == 0) {
+    int32_t optLen = strlen("ssblocksize");
     int32_t flag = -1;
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
     if (code < 0) {
@@ -557,13 +557,13 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     }
 
     if (flag > 1024 * 1024 || (flag > -1 && flag < 1024) || flag < -1) {
-      mError("dnode:%d, failed to config s3blocksize since value:%d. Valid range: -1 or [1024, 1024 * 1024]",
+      mError("dnode:%d, failed to config ssblocksize since value:%d. Valid range: -1 or [1024, 1024 * 1024]",
              cfgReq.dnodeId, flag);
       code = TSDB_CODE_INVALID_CFG;
       goto _err_out;
     }
 
-    tstrncpy(dcfgReq.config, "s3blocksize", 12);
+    tstrncpy(dcfgReq.config, "ssblocksize", 12);
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
 #endif
   } else {

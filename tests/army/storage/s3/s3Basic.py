@@ -38,7 +38,7 @@ from frame.eos import *
 s3EndPoint     http://192.168.1.52:9000
 s3AccessKey    'zOgllR6bSnw2Ah3mCNel:cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX'
 s3BucketName   ci-bucket
-s3UploadDelaySec 60
+ssUploadDelaySec 60
 
 for test:
 "s3AccessKey" : "fGPPyYjzytw05nw44ViA:vK1VcwxgSOykicx6hk8fL1x15uEtyDSFU3w4hTaZ"
@@ -54,10 +54,9 @@ class TDTestCase(TBase):
         's3EndPoint': 'http://192.168.1.52:9000', 
         's3AccessKey': 'zOgllR6bSnw2Ah3mCNel:cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX', 
         's3BucketName': f'{bucketName}',
-        's3PageCacheSize': '10240',
-        "s3UploadDelaySec": "10",
-        's3MigrateIntervalSec': '600',
-        's3MigrateEnabled': '1'
+        'ssPageCacheSize': '10240',
+        "ssUploadDelaySec": "10",
+        'ssAutoMigrateIntervalSec': '600',
     }
 
     tdLog.info(f"assign bucketName is {bucketName}\n")
@@ -83,8 +82,8 @@ class TDTestCase(TBase):
         sql = f"create stream {sname} fill_history 1 into stm1 as select count(*) from {self.db}.{self.stb} interval(10s);"
         tdSql.execute(sql)
 
-    def migrateDbS3(self):
-        sql = f"s3migrate database {self.db}"
+    def migrateDbSs(self):
+        sql = f"ssmigrate database {self.db}"
         tdSql.execute(sql, show=True)
 
     def checkDataFile(self, lines, maxFileSize):
@@ -134,7 +133,7 @@ class TDTestCase(TBase):
                 sc.dnodeStart(1)
             loop += 1
             # migrate
-            self.migrateDbS3()
+            self.migrateDbSs()
                 
         # check can pass
         if overCnt > 0:
@@ -148,7 +147,7 @@ class TDTestCase(TBase):
         #self.compactDb(show=True)
 
         # sleep 70s
-        self.migrateDbS3()
+        self.migrateDbSs()
 
         # check upload to s3
         self.checkUploadToS3()
@@ -170,15 +169,15 @@ class TDTestCase(TBase):
         # keyword
         kw1 = kw2 = kw3 = "" 
         if keepLocal is not None:
-            kw1 = f"s3_keeplocal {keepLocal}"
+            kw1 = f"ss_keeplocal {keepLocal}"
         if chunkSize is not None:
-            kw2 = f"s3_chunkpages {chunkSize}"
+            kw2 = f"ss_chunkpages {chunkSize}"
         if compact is not None:
-            kw3 = f"s3_compact {compact}"    
+            kw3 = f"ss_compact {compact}"    
 
         sql = f" create database db1 vgroups 1 duration 1h {kw1} {kw2} {kw3}"
         tdSql.execute(sql, show=True)
-        #sql = f"select name,s3_keeplocal,s3_chunkpages,s3_compact from information_schema.ins_databases where name='db1';"
+        #sql = f"select name,ss_keeplocal,ss_chunkpages,ss_compact from information_schema.ins_databases where name='db1';"
         sql = f"select * from information_schema.ins_databases where name='db1';"
         tdSql.query(sql)
         # 29 30 31 -> chunksize keeplocal compact
@@ -195,15 +194,15 @@ class TDTestCase(TBase):
     def checkExcept(self):
         # errors
         sqls = [
-            f"create database db2 s3_keeplocal -1",
-            f"create database db2 s3_keeplocal 0",
-            f"create database db2 s3_keeplocal 365001",
-            f"create database db2 s3_chunkpages -1",
-            f"create database db2 s3_chunkpages 0",
-            f"create database db2 s3_chunkpages 900000000",
-            f"create database db2 s3_compact -1",
-            f"create database db2 s3_compact 100",
-            f"create database db2 duration 1d s3_keeplocal 1d"
+            f"create database db2 ss_keeplocal -1",
+            f"create database db2 ss_keeplocal 0",
+            f"create database db2 ss_keeplocal 365001",
+            f"create database db2 ss_chunkpages -1",
+            f"create database db2 ss_chunkpages 0",
+            f"create database db2 ss_chunkpages 900000000",
+            f"create database db2 ss_compact -1",
+            f"create database db2 ss_compact 100",
+            f"create database db2 duration 1d ss_keeplocal 1d"
         ]
         tdSql.errors(sqls)
 
@@ -220,11 +219,11 @@ class TDTestCase(TBase):
                     self.checkCreateDb(keep, chunk, comp)
 
         
-        # --checks3
+        # --checkss
         idx = 1
         taosd = sc.taosdFile(idx)
         cfg   = sc.dnodeCfgPath(idx)
-        cmd = f"{taosd} -c {cfg} --checks3"
+        cmd = f"{taosd} -c {cfg} --checkss"
 
         eos.exe(cmd)
         #output, error = eos.run(cmd)
@@ -241,7 +240,7 @@ class TDTestCase(TBase):
         for tip in tips:
             pos = output.find(tip, pos)
             #if pos == -1:
-            #    tdLog.exit(f"checks3 failed not found {tip}. cmd={cmd} output={output}")
+            #    tdLog.exit(f"checkss failed not found {tip}. cmd={cmd} output={output}")
         '''
         
         # except
