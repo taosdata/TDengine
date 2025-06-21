@@ -4348,7 +4348,12 @@ SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStream
         goto _err;
       }
       pStreamOptions->fillHistory = true;
-      pStreamOptions->pFillHisStartTime = pOptionUnit->pNode;
+      if (pOptionUnit->pNode == NULL) {
+        pCxt->errCode = nodesMakeValueNodeFromInt64(INT64_MIN, &pStreamOptions->pFillHisStartTime);
+        CHECK_MAKE_NODE(pStreamOptions->pFillHisStartTime);
+      } else {
+        pStreamOptions->pFillHisStartTime = pOptionUnit->pNode;
+      }
       break;
     case STREAM_TRIGGER_OPTION_FILL_HISTORY_FIRST:
       if (pStreamOptions->fillHistory) {
@@ -4362,7 +4367,12 @@ SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStream
         goto _err;
       }
       pStreamOptions->fillHistoryFirst = true;
-      pStreamOptions->pFillHisStartTime = pOptionUnit->pNode;
+      if (pOptionUnit->pNode == NULL) {
+        pCxt->errCode = nodesMakeValueNodeFromInt64(INT64_MIN, &pStreamOptions->pFillHisStartTime);
+        CHECK_MAKE_NODE(pStreamOptions->pFillHisStartTime);
+      } else {
+        pStreamOptions->pFillHisStartTime = pOptionUnit->pNode;
+      }
       break;
     case STREAM_TRIGGER_OPTION_IGNORE_DISORDER:
       if (pStreamOptions->ignoreDisorder) {
