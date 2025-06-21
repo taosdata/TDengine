@@ -123,7 +123,7 @@ function prepare_cases() {
 function is_local_host() {
     # $1: host to check
     local check_host="$1"
-    local local_hostnames=("127.0.0.1" "localhost" "$(hostname)" "$(hostname -I | awk '{print $1}')")
+    local local_hostnames=("127.0.0.1" "localhost" "::1" "$(hostname)" "$(hostname -I | awk '{print $1}')")
     for lh in "${local_hostnames[@]}"; do
         if [[ "$check_host" == "$lh" ]]; then
             return 0
@@ -132,18 +132,37 @@ function is_local_host() {
     return 1
 }
 
+function get_remote_scp_command() {
+    # $1: index
+    local index=$1
+    if [ -z "${passwords[index]}" ]; then
+        echo "scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+    else
+        echo "sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+    fi
+}
+
+function get_remote_ssh_command() {
+    # $1: index
+    local index=$1
+    if [ -z "${passwords[index]}" ]; then
+        echo "ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+    else
+        echo "sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+    fi
+}
+
 function clean_tmp() {
     local index=$1
-    local ssh_script=""
-    if ! is_local_host "${hosts[index]}"; then
-        if [ -z "${passwords[index]}" ]; then
-            ssh_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
-        else
-            ssh_script="sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
-        fi
+    local cmd=""
+    if is_local_host "${hosts[index]}"; then
+        cmd="rm -rf ${workdirs[index]}/tmp"
+    else
+        local ssh_script=""
+        ssh_script=$(get_remote_ssh_command "$index")
+        cmd="${ssh_script} rm -rf ${workdirs[index]}/tmp"
     fi
-    local cmd="${ssh_script} rm -rf ${workdirs[index]}/tmp"
-    bash -c "$cmd"
+    "$cmd"
 }
 
 function run_thread() {
@@ -151,11 +170,7 @@ function run_thread() {
     local thread_no=$2
     local runcase_script=""
     if ! is_local_host "${hosts[index]}"; then
-        if [ -z "${passwords[index]}" ]; then
-            runcase_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
-        else
-            runcase_script="sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
-        fi
+        runcase_script=$(get_remote_ssh_command "$index")
     fi
     local count=0
     local script="${workdirs[index]}/TDengine/tests/parallel_test/run_container.sh"
@@ -318,16 +333,13 @@ function run_thread() {
             mkdir -p "${log_dir}"/"${case_file}".coredump
             local remote_coredump_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/coredump"
             if ! is_local_host "${hosts[index]}"; then
-                local scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-                if [ -z "${passwords[index]}" ]; then
-                    scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-                fi
+                scpcmd=$(get_remote_scp_command "$index")
                 cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
             else
                 cmd="cp -rf ${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
             fi
             
-            bash -c "$cmd" # 2>/dev/null
+            bash -c "$cmd" >/dev/null
             local corefile
             corefile=$(ls "$log_dir/${case_file}.coredump/")
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[31m failed\e[0m"
@@ -346,7 +358,7 @@ function run_thread() {
             local remote_build_dir="${workdirs[index]}/${DEBUGPATH}/build"
             local remote_unit_test_log_dir="${workdirs[index]}/${DEBUGPATH}/Testing/Temporary/"
 
-            mkdir "$build_dir" 2>/dev/null
+            mkdir "$build_dir" >/dev/null
             if [ $? -eq 0 ]; then
                 if ! is_local_host "${hosts[index]}"; then
                     cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
@@ -368,11 +380,7 @@ function run_thread() {
             # get remote sim dir
             local remote_sim_dir="${workdirs[index]}/tmp/thread_volume/$thread_no"
             if ! is_local_host "${hosts[index]}"; then
-                local tarcmd="sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-                if [ -z "${passwords[index]}" ]; then
-                    tarcmd="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
-                fi
-                cmd="$tarcmd sh -c \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
+                cmd="$runcase_script sh -c \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
             else
                 cmd="cd $remote_sim_dir; tar -czf sim.tar.gz sim"
             fi
