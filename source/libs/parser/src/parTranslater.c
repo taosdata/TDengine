@@ -1554,6 +1554,24 @@ static bool isInternalPrimaryKey(const SColumnNode* pCol) {
          (0 == strcmp(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME) || 0 == strcmp(pCol->colName, C0_PSEUDO_COLUMN_NAME));
 }
 
+static int32_t createTbnameFunctionNode(SColumnNode* pCol, SFunctionNode** pFuncNode) {
+  int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)pFuncNode);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  tstrncpy((*pFuncNode)->functionName, "tbname", TSDB_FUNC_NAME_LEN);
+  (*pFuncNode)->node.resType.type = TSDB_DATA_TYPE_BINARY;
+  (*pFuncNode)->node.resType.bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
+  (*pFuncNode)->funcType = FUNCTION_TYPE_TBNAME;
+  if (pCol->tableAlias[0] != '\0') {
+    snprintf((*pFuncNode)->node.userAlias, sizeof((*pFuncNode)->node.userAlias), "%s.tbname", pCol->tableAlias);
+  } else {
+    snprintf((*pFuncNode)->node.userAlias, sizeof((*pFuncNode)->node.userAlias), "tbname");
+  }
+
+  tstrncpy((*pFuncNode)->node.aliasName, (*pFuncNode)->functionName, TSDB_COL_NAME_LEN);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** pColRef, STableNode* pTable, bool* pFound) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SColumnNode* pCol = *pColRef;
@@ -1570,6 +1588,19 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
     *pFound = true;
     return TSDB_CODE_SUCCESS;
   }
+  if (TSDB_SUPER_TABLE == pMeta->tableType && pCxt->pCurrStmt->type == QUERY_NODE_INSERT_STMT) {
+    if (0 == strcmp(pCol->colName, "tbname")) {
+      SFunctionNode* tbnameFuncNode = NULL;
+      code = createTbnameFunctionNode(pCol, &tbnameFuncNode);
+      if (TSDB_CODE_SUCCESS != code) return code;
+
+      nodesDestroyNode((SNode*)*pColRef);
+      *pColRef = (SColumnNode*)tbnameFuncNode;
+      *pFound = true;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
   int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
   for (int32_t i = 0; i < nums; ++i) {
     if (0 == strcmp(pCol->colName, pMeta->schema[i].name) &&
@@ -8664,12 +8695,12 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
 static int32_t translateInsertTable(STranslateContext* pCxt, SNode** pTable) {
   int32_t code = translateFrom(pCxt, pTable);
   if (TSDB_CODE_SUCCESS == code && TSDB_CHILD_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType &&
+      TSDB_SUPER_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType &&
       TSDB_NORMAL_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType) {
     code = buildInvalidOperationMsg(&pCxt->msgBuf, "insert data into super table or virtual table is not supported");
   }
   return code;
 }
-
 static int32_t translateInsert(STranslateContext* pCxt, SInsertStmt* pInsert) {
   pCxt->pCurrStmt = (SNode*)pInsert;
   int32_t code = translateInsertTable(pCxt, &pInsert->pTable);
