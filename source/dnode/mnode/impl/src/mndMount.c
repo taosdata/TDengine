@@ -564,64 +564,66 @@ static int32_t mndMountSetVgInfo(SMnode *pMnode, SDnodeObj *pDnode, SMountInfo *
 }
 
 static int32_t mndMountSetStbInfo(SMnode *pMnode, SDnodeObj *pDnode, SMountInfo *pInfo, SDbObj *pDb,
-                                  SMCreateStbReq *pStbInfo, SStbObj *pStb) {
+                                  SMountStbInfo *pStbInfo, SStbObj *pStb) {
+  SMCreateStbReq *pReq = &pStbInfo->req;
   pStb->createdTime = taosGetTimestampMs();
   pStb->updateTime = pStb->createdTime;
-  snprintf(pStb->name, sizeof(pStb->name), "%s.%s", pDb->name, pStbInfo->name);
+  snprintf(pStb->name, sizeof(pStb->name), "%s.%s", pDb->name, pReq->name);
   snprintf(pStb->db, sizeof(pStb->db), "%s", pDb->name);
-  pStb->uid = pStbInfo->suid;
+  pStb->uid = pReq->suid;
   pStb->dbUid = pDb->uid;
-  pStb->tagVer = pStbInfo->tagVer;
-  pStb->colVer = pStbInfo->colVer;
+  pStb->tagVer = pReq->tagVer;
+  pStb->colVer = pReq->colVer;
   pStb->smaVer = 1;
-  pStb->source = pStbInfo->source;
-  pStb->nextColId = pStbInfo->numOfColumns + pStbInfo->numOfTags + 1;
+  pStb->source = pReq->source;
+  pStb->nextColId = pReq->numOfColumns + pReq->numOfTags + 1;
   pStb->keep = 0;
   pStb->ttl = 0;
-  pStb->virtualStb = pStbInfo->virtualStb;
-  pStb->numOfColumns = pStbInfo->numOfColumns;
-  pStb->numOfTags = pStbInfo->numOfTags;
-  pStb->numOfFuncs = pStbInfo->numOfFuncs;
-  pStb->commentLen = pStbInfo->commentLen;
-  if (!(pStb->pColumns = taosMemoryCalloc(pStbInfo->numOfColumns, sizeof(SSchema)))) {
+  pStb->virtualStb = pReq->virtualStb;
+  pStb->numOfColumns = pReq->numOfColumns;
+  pStb->numOfTags = pReq->numOfTags;
+  pStb->numOfFuncs = pReq->numOfFuncs;
+  pStb->commentLen = pReq->commentLen;
+  if (!(pStb->pColumns = taosMemoryCalloc(pReq->numOfColumns, sizeof(SSchema)))) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
-  if (!(pStb->pTags = taosMemoryCalloc(pStbInfo->numOfTags, sizeof(SSchema)))) {
+  if (!(pStb->pTags = taosMemoryCalloc(pReq->numOfTags, sizeof(SSchema)))) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
-  if (pStbInfo->commentLen > 0) {
-    if (!(pStb->comment = taosStrndup(pStbInfo->pComment, pStbInfo->commentLen))) {
+  if (pReq->commentLen > 0) {
+    if (!(pStb->comment = taosStrndup(pReq->pComment, pReq->commentLen))) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
-  if (!(pStb->pCmpr = taosMemoryCalloc(pStbInfo->numOfColumns, sizeof(SColCmpr)))) {
+  if (!(pStb->pCmpr = taosMemoryCalloc(pReq->numOfColumns, sizeof(SColCmpr)))) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
-  if (!(pStb->pExtSchemas = taosMemoryCalloc(pStbInfo->numOfColumns, sizeof(SExtSchema)))) {
+  if (!(pStb->pExtSchemas = taosMemoryCalloc(pReq->numOfColumns, sizeof(SExtSchema)))) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
-  for(int32_t c = 0; c < pStbInfo->numOfColumns; ++c) {
-    SFieldWithOptions *pColInfo = &pStbInfo->pColumns[c];
-    SSchema *pCol = &pStb->pColumns[c];
-    SColCmpr *pCmpr = &pStb->pCmpr[c];
-    SExtSchema *pExt = &pStb->pExtSchemas[c];
+  for (int32_t c = 0; c < pReq->numOfColumns; ++c) {
+    SFieldWithOptions *pColInfo = TARRAY_GET_ELEM(pReq->pColumns, c);
+    void              *pColExt = TARRAY_GET_ELEM(pStbInfo->pColExts, c);
+    SSchema           *pCol = pStb->pColumns + c;
+    SColCmpr          *pCmpr = pStb->pCmpr + c;
+    SExtSchema        *pExt = pStb->pExtSchemas + c;
 
-    pCol->colId = pColInfo->colId;
-    pCol->colType = pColInfo->colType;
-    pCol->colNameLen = pColInfo->colNameLen;
-    }
-  for(int32_t t = 0; t < pStbInfo->numOfTags; ++t) {
-    SSchema *pTag = &pStb->pTags[t];
-    pTag->colId = t + 1;
-    pTag->colType = pStbInfo->pTags[t].colType;
-    pTag->colNameLen = pStbInfo->pTags[t].colNameLen;
-    if (pTag->colNameLen > 0) {
-      if (!(pTag->colName = taosStrndup(pStbInfo->pTags[t].colName, pTag->colNameLen))) {
-        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
-      }
-    }
+    pCol->colId = *(col_id_t *)pColExt;
+    pCol->type = pColInfo->type;
+    pCol->bytes = pColInfo->bytes;
+    pCol->flags = pColInfo->flags;
+    (void)snprintf(pCol->name, sizeof(pCol->name), "%s", pColInfo->name);
   }
-
+  for (int32_t t = 0; t < pReq->numOfTags; ++t) {
+    SField  *pTagInfo = TARRAY_GET_ELEM(pReq->pTags, t);
+    void    *pTagExt = TARRAY_GET_ELEM(pStbInfo->pTagExts, t);
+    SSchema *pTag = pStb->pTags + t;
+    pTag->colId = *(col_id_t *)pTagExt;
+    pTag->type = pTagInfo->type;
+    pTag->bytes = pTagInfo->bytes;
+    pTag->flags = pTagInfo->flags;
+    (void)snprintf(pTag->name, sizeof(pTag->name), "%s", pTagInfo->name);
+  }
   pStb->pAst1 = NULL;
   pStb->pAst2 = NULL;
   taosInitRWLatch(&pStb->lock);
@@ -949,7 +951,7 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
     }
     int32_t nDbStbs = taosArrayGetSize(pDbInfo->pStbs);
     for (int32_t s = 0; s < nDbStbs; ++s) {
-      SMCreateStbReq *pStbInfo = TARRAY_GET_ELEM(pDbInfo->pStbs, s);
+      SMountStbInfo *pStbInfo = TARRAY_GET_ELEM(pDbInfo->pStbs, s);
       TAOS_CHECK_EXIT(mndMountSetStbInfo(pMnode, pDnode, pInfo, pDb, pStbInfo, &pStbs[stbIdx++]));
     }
   }
