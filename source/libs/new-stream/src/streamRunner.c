@@ -323,6 +323,8 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
         ST_TASK_DLOG("runner output block to sink code:%d, rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %"PRId64, code, pBlock->info.rows,
                      pExec->tbname, createTb, pExec->runtimeInfo.funcInfo.groupId);
         printDataBlock(pBlock, "output block to sink", "runner");
+      } else {
+        ST_TASK_ELOG("failed to init tag vals for output block: %s", tstrerror(code));
       }
       taosArrayDestroyEx(pTagVals, stRunnerFreeTagInfo);
     }
@@ -347,7 +349,7 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
 
 static int32_t stRunnerHandleResultBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, SSDataBlock* pBlock, bool *pCreateTb) {
   int32_t code = stRunnerOutputBlock(pTask, pExec, pBlock, *pCreateTb);
-  *pCreateTb = false;
+  //*pCreateTb = false;
   if (code == 0) {
     return streamDoNotification(pTask, pExec, pBlock);
   }
