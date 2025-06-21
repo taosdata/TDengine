@@ -495,7 +495,7 @@ static int32_t scanWal(SVnode* pVnode, void* pTableList, bool isVTable, SSDataBl
 
   while (1) {
     *retVer = walGetLastVer(pWalReader->pWal);
-    STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader) < 0, terrno);
+    STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader) < 0, TSDB_CODE_SUCCESS);
 
     SWalCont* wCont = &pWalReader->pHead->head;
     if (wCont->ingestTs / 1000 > ctime) break;
@@ -520,9 +520,7 @@ static int32_t scanWal(SVnode* pVnode, void* pTableList, bool isVTable, SSDataBl
 
 end:
   walCloseReader(pWalReader);
-  if (code != TSDB_CODE_WAL_LOG_NOT_EXIST) {
-    STREAM_PRINT_LOG_END(code, lino);
-  }
+  STREAM_PRINT_LOG_END(code, lino);
   return code;
 }
 
@@ -1737,7 +1735,9 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   printDataBlock(pBlock, __func__, "");
 
 end:
-  if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
+  if (pBlock->info.rows == 0 || terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
+    code = TSDB_CODE_WAL_LOG_NOT_EXIST;
+    terrno = 0;
     buf = &lastVer;
     size = sizeof(int64_t);
   }
