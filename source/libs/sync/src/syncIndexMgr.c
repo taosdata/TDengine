@@ -54,7 +54,8 @@ void syncIndexMgrClear(SSyncIndexMgr *pIndexMgr) {
   int64_t timeNow = taosGetTimestampMs();
   for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
     pIndexMgr->startTimeArr[i] = 0;
-    pIndexMgr->recvTimeArr[i] = timeNow;
+    pIndexMgr->recvHBTimeArr[i] = timeNow;
+    pIndexMgr->recvHBCountArr[i] = 0;
   }
 }
 
@@ -81,7 +82,8 @@ void syncIndexMgrCopyIfExist(SSyncIndexMgr * pNewIndex, SSyncIndexMgr * pOldInde
         pNewIndex->index[i] = pOldIndex->index[j];
         pNewIndex->privateTerm[i] = pOldIndex->privateTerm[j];
         pNewIndex->startTimeArr[i] = pOldIndex->startTimeArr[j];
-        pNewIndex->recvTimeArr[i] = pOldIndex->recvTimeArr[j];   
+        pNewIndex->recvHBTimeArr[i] = pOldIndex->recvHBTimeArr[j];
+        pNewIndex->recvHBCountArr[i] = pOldIndex->recvHBCountArr[j];   
       }
     }
   }
@@ -146,7 +148,7 @@ int64_t syncIndexMgrGetStartTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftI
 void syncIndexMgrSetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, int64_t recvTime) {
   for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
     if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
-      (pIndexMgr->recvTimeArr)[i] = recvTime;
+      (pIndexMgr->recvHBTimeArr)[i] = recvTime;
       return;
     }
   }
@@ -155,10 +157,21 @@ void syncIndexMgrSetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, i
          DID(pRaftId), CID(pRaftId));
 }
 
+void syncIndexMgrIncRecvCount(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
+  for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
+    if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
+      (pIndexMgr->recvHBCountArr)[i] = (pIndexMgr->recvHBCountArr)[i] + 1;
+      return;
+    }
+  }
+
+  sError("vgId:%d, indexmgr inc recv for dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, DID(pRaftId), CID(pRaftId));
+}
+
 void syncIndexMgrSetSentTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, int64_t sentTime) {
   for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
     if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
-      (pIndexMgr->sentTimeArr)[i] = sentTime;
+      (pIndexMgr->sentHBTimeArr)[i] = sentTime;
       return;
     }
   }
@@ -170,8 +183,21 @@ void syncIndexMgrSetSentTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId, i
 int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
   for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
     if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
-      int64_t recvTime = (pIndexMgr->recvTimeArr)[i];
+      int64_t recvTime = (pIndexMgr->recvHBTimeArr)[i];
       return recvTime;
+    }
+  }
+
+  sError("vgId:%d, indexmgr get recv-time from dnode:%d cluster:%d failed", pIndexMgr->pNode->vgId, DID(pRaftId),
+         CID(pRaftId));
+  return TSDB_CODE_SYN_INVALID_ID;
+}
+
+int64_t syncIndexMgrGetRecvCount(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
+  for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
+    if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
+      int64_t count = (pIndexMgr->recvHBCountArr)[i];
+      return count;
     }
   }
 
@@ -183,7 +209,7 @@ int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId
 int64_t syncIndexMgrGetSentTime(SSyncIndexMgr *pIndexMgr, const SRaftId *pRaftId) {
   for (int i = 0; i < pIndexMgr->totalReplicaNum; ++i) {
     if (syncUtilSameId(&((*(pIndexMgr->replicas))[i]), pRaftId)) {
-      int64_t recvTime = (pIndexMgr->sentTimeArr)[i];
+      int64_t recvTime = (pIndexMgr->sentHBTimeArr)[i];
       return recvTime;
     }
   }
