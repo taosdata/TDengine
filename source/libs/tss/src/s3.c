@@ -191,7 +191,7 @@ static int32_t createInstance(const char* accessString, SSharedStorageS3** ppSS)
     size_t asLen = strlen(accessString) + 1;
     S3Status status = S3_initialize("tdengine", S3_INIT_ALL, NULL);
     if (status != S3StatusOK) {
-        uError("Failed to initialize libs3: %s\n", S3_get_status_name(status));
+        tssError("Failed to initialize libs3: %s", S3_get_status_name(status));
         TAOS_RETURN(TSDB_CODE_FAILED);
     }
 
@@ -371,11 +371,11 @@ static int32_t simpleUpload(SSharedStorageS3* ss, const char* dstPath, SUploadSo
             break;
         }
         ++retry;
-        tssDebug("simpleUpload failed %s: %d, retry: %d", dstPath, ucbd.status, retry);
+        tssDebug("simpleUpload failed %s: %s, retry: %d", dstPath, S3_get_status_name(ucbd.status), retry);
     }
 
     if (ucbd.status != S3StatusOK) {
-        tssError("simpleUpload failed %s: %d/%s", dstPath, ucbd.status, ucbd.errMsg);
+        tssError("simpleUpload failed %s: %s/%s", dstPath, S3_get_status_name(ucbd.status), ucbd.errMsg);
         code = TAOS_SYSTEM_ERROR(EIO);
     } else if (src->size > src->offset) {
         tssError("simpleUpload failed to put remaining %lu bytes", src->size - src->offset);
@@ -442,12 +442,12 @@ static int32_t initMultipartUpload(SSharedStorageS3* ss, const char* dstPath, SU
             break;
         }
         ++retry;
-        tssDebug("initMultipartUpload failed %s: %d, retry: %d", dstPath, ucbd->status, retry);
+        tssDebug("initMultipartUpload failed %s: %s, retry: %d", dstPath, S3_get_status_name(ucbd->status), retry);
     }
 
     int32_t code = 0;
     if (ucbd->uploadId == NULL || ucbd->status != S3StatusOK) {
-        tssError("initMultipartUpload failed %s: %d/%s", dstPath, ucbd->status, ucbd->errMsg);
+        tssError("initMultipartUpload failed %s: %s/%s", dstPath, S3_get_status_name(ucbd->status), ucbd->errMsg);
         code = TAOS_SYSTEM_ERROR(EIO);
     }
 
@@ -490,11 +490,11 @@ static int32_t uploadChunks(SSharedStorageS3* ss, const char* dstPath, SUploadCa
                 break;
             }
             ++retry;
-            tssDebug("uploadChunks failed to upload part %d of %s: %d, retry: %d", ucbd->seq, dstPath, ucbd->status, retry);
+            tssDebug("uploadChunks failed to upload part %d of %s: %s, retry: %d", ucbd->seq, dstPath, S3_get_status_name(ucbd->status), retry);
         }
 
         if (ucbd->status != S3StatusOK) {
-            tssError("uploadChunks failed to upload part %d of %s: %d/%s", ucbd->seq, dstPath, ucbd->status, ucbd->errMsg);
+            tssError("uploadChunks failed to upload part %d of %s: %s/%s", ucbd->seq, dstPath, S3_get_status_name(ucbd->status), ucbd->errMsg);
             code = TAOS_SYSTEM_ERROR(EIO);
             break;
         }
@@ -552,7 +552,7 @@ static int32_t commitMultipartUpload(SSharedStorageS3* ss, const char* dstPath, 
             break;
         }
         ++retry;
-        tssDebug("commitMultipartUpload failed %s: %d, retry: %d", dstPath, ucbd->status, retry);
+        tssDebug("commitMultipartUpload failed %s: %s, retry: %d", dstPath, S3_get_status_name(ucbd->status), retry);
     }
 
     ucbd->src = bakSrc;
@@ -560,7 +560,7 @@ static int32_t commitMultipartUpload(SSharedStorageS3* ss, const char* dstPath, 
 
     int32_t code = 0;
     if (ucbd->status != S3StatusOK) {
-        tssError("commitMultipartUpload failed %s: %d/%s", dstPath, ucbd->status, ucbd->errMsg);
+        tssError("commitMultipartUpload failed %s: %s/%s", dstPath, S3_get_status_name(ucbd->status), ucbd->errMsg);
         code = TAOS_SYSTEM_ERROR(EIO);
     }
 
@@ -618,11 +618,11 @@ static void abortMultipartUpload(SSharedStorageS3* ss, const char* dstPath, SUpl
             break;
         }
         ++retry;
-        tssDebug("abortMultipartUpload failed %s: %d, retry: %d", dstPath, ucbd->status, retry);
+        tssDebug("abortMultipartUpload failed %s: %s, retry: %d", dstPath, S3_get_status_name(ucbd->status), retry);
     }
 
     if (ucbd->status != S3StatusOK) {
-        tssError("abortMultipartUpload failed %s: %d/%s", dstPath, ucbd->status, ucbd->errMsg);
+        tssError("abortMultipartUpload failed %s: %s/%s", dstPath, S3_get_status_name(ucbd->status), ucbd->errMsg);
     }
 }
 
@@ -803,10 +803,10 @@ static int32_t doDownload(SSharedStorageS3* ss, const char* path, int64_t offset
         }
 
         if (dcbd->status == S3StatusErrorNoSuchKey || dcbd->status == S3StatusHttpErrorNotFound) {
-            tssError("failed to download %s: %d/%s", path, dcbd->status, dcbd->errMsg);
+            tssError("failed to download %s: %s/%s", path, S3_get_status_name(dcbd->status), dcbd->errMsg);
             code = TSDB_CODE_NOT_FOUND;
         } else if( dcbd->status != S3StatusOK ) {
-            tssError("failed to download %s: %d/%s", path, dcbd->status, dcbd->errMsg);
+            tssError("failed to download %s: %s/%s", path, S3_get_status_name(dcbd->status), dcbd->errMsg);
             code = TAOS_SYSTEM_ERROR(EIO);
         }
 
@@ -925,7 +925,7 @@ static int32_t listFile(SSharedStorage* pss, const char* prefix, SArray* paths) 
 
     int32_t code = 0;
     if (lcbd.status != S3StatusOK) {
-        tssError("failed to list %s: %d/%s", prefix, lcbd.status, lcbd.errMsg);
+        tssError("failed to list %s: %s/%s", prefix, S3_get_status_name(lcbd.status), lcbd.errMsg);
 
         for(size_t i = 0; i < taosArrayGetSize(paths); i++) {
             char* path = *(char**)taosArrayGet(paths, i);
@@ -963,14 +963,14 @@ static int32_t deleteFile(SSharedStorage* pss, const char* path) {
             break;
         }
         ++retry;
-        tssDebug("deleteFile failed %s: %d, retry: %d", path, cbd.status, retry);
+        tssDebug("deleteFile failed %s: %s, retry: %d", path, S3_get_status_name(cbd.status), retry);
     }
 
     if (cbd.status == S3StatusOK || cbd.status == S3StatusErrorNoSuchKey || cbd.status == S3StatusHttpErrorNotFound) {
         TAOS_RETURN(TSDB_CODE_SUCCESS);
     }
 
-    tssError("deleteFile failed %s: %d/%s", path, cbd.status, cbd.errMsg);
+    tssError("deleteFile failed %s: %s/%s", path, S3_get_status_name(cbd.status), cbd.errMsg);
     TAOS_RETURN(TSDB_CODE_FAILED);
 }
 
@@ -1016,7 +1016,7 @@ static int32_t getFileSize(SSharedStorage* pss, const char* path, int64_t* size)
             break;
         }
         ++retry;
-        tssDebug("getFileSize failed %s: %d, retry: %d", path, scbd.status, retry);
+        tssDebug("getFileSize failed %s: %s, retry: %d", path, S3_get_status_name(scbd.status), retry);
     }
 
     int code = 0;
@@ -1026,7 +1026,7 @@ static int32_t getFileSize(SSharedStorage* pss, const char* path, int64_t* size)
         tssError("getFileSize: file %s does not exist", path);
         code = TSDB_CODE_NOT_FOUND;
     } else {
-        tssError("getFileSize failed %s: %d/%s", path, scbd.status, scbd.errMsg);
+        tssError("getFileSize failed %s: %s/%s", path, S3_get_status_name(scbd.status), scbd.errMsg);
         code = TSDB_CODE_FAILED;
     }
 
@@ -1066,6 +1066,7 @@ static int32_t s3CreateInstance(const char* as, SSharedStorage** ppSS) {
 }
 
 
+#if 0
 // Aliyun OSS
 static int32_t ossCreateInstance(const char* as, SSharedStorage** ppSS);
 
@@ -1128,14 +1129,17 @@ static int32_t cosCreateInstance(const char* as, SSharedStorage** ppSS) {
     *ppSS = (SSharedStorage*)ss;
     return TSDB_CODE_SUCCESS;
 }
+#endif // 0
 
 
 
 // register the S3, OSS and COS types.
 void s3RegisterType() {
     tssRegisterType(&sstS3);
+#if 0
     tssRegisterType(&sstOss);
     tssRegisterType(&sstCos);
+#endif // 0
 }
 
 #endif // USE_S3
