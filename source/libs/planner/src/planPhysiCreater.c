@@ -1013,12 +1013,8 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
   if (pCxt->pPlanCxt->streamCalcQuery) {
     SStreamCalcScan pStreamCalcScan = {0};
     pStreamCalcScan.vgList = taosArrayInit(1, sizeof(int32_t));
-    if (pScanLogicNode->pVgroupList) {
-      for (int32_t i = 0; i < pScanLogicNode->pVgroupList->numOfVgroups; i++) {
-        if (NULL == taosArrayPush(pStreamCalcScan.vgList, &pScanLogicNode->pVgroupList->vgroups[i].vgId)) {
-          PLAN_ERR_RET(terrno);
-        }
-      }
+    if (NULL == taosArrayPush(pStreamCalcScan.vgList, &pSubplan->execNode.nodeId)) {
+      PLAN_ERR_RET(terrno);
     }
     pStreamCalcScan.scanPlan = (void*)pSubplan;
     if (pScanLogicNode->placeholderType == SP_PARTITION_ROWS) {

@@ -211,14 +211,14 @@ class TestStreamDevBasic:
             id=0,
             stream=sql2,
             res_query="select * from test.out2 where tag_tbname='trigger_0';",
-                        expect_query_by_row = "select '{_wstart}','{_twend}', avg(cint), count(cint) from test.st where cts <= '{_wstart}';",
+            expect_query_by_row = "select '{_wstart}','{_twend}', avg(cint), count(cint) from test.st where cts <= '{_wstart}';",
             result_param_mapping = { "_wstart": 0,  "_twend":1}
         )
         stream3 = StreamItem(
             id=0,
             stream=sql3,
             res_query="select * from test.out3 where tag_tbname='trigger_0';",
-                        expect_query_by_row = "select '{_wstart}','{_twend}', avg(cint), count(cint) from test.trigger_0 where cts <= '{_wstart}' and cts <= '{_twend}';",
+            expect_query_by_row = "select '{_wstart}','{_twend}', avg(cint), count(cint) from test.trigger_0 where cts <= '{_wstart}' and cts <= '{_twend}';",
             result_param_mapping = { "_wstart": 0,  "_twend":1}
         )
         stream1.createStream()

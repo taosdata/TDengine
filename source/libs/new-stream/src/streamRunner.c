@@ -490,7 +490,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   int32_t lino = 0;
   SSDataBlock* pForceOutBlock = NULL;
   SStreamRunnerTaskExecution* pExec = NULL;
-  ST_TASK_DLOG("start to handle runner task calc request, topTask: %d", pTask->topTask);
+  ST_TASK_DLOG("[runner cacl]start to handle runner task calc request, topTask: %d", pTask->topTask);
 
   code = stRunnerTaskExecMgrAcquireExec(pTask, pReq->execId, &pExec);
   if (code != 0) {
@@ -547,6 +547,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
             }
             ++nextOutIdx;
           }
+          ST_TASK_DLOG("[runner cacl]result has no data, status:%d", pTask->task.status);
         } else {
           code = stRunnerHandleResultBlock(pTask, pExec, pBlock, &createTable);
           nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx + 1;
@@ -572,6 +573,12 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
 end:
   stRunnerTaskExecMgrReleaseExec(pTask, pExec);
   if (pForceOutBlock != NULL) blockDataDestroy(pForceOutBlock);
+  if(code) {
+    ST_TASK_ELOG("[runner cacl]faild to execute stream task, lino:%d code:%s", lino, tstrerror(code));
+    pTask->task.status = STREAM_STATUS_FAILED;
+  } else {
+    ST_TASK_DLOG("[runner cacl]task executed successfully, status:%d", pTask->task.status);
+  }
   return code;
 }
 
