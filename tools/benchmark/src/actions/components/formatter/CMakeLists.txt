@@ -35,6 +35,7 @@ link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../config/build)
 target_link_libraries(components_formatter PUBLIC
     actions_config
     utils
+    taos
 )
 
 # 添加测试

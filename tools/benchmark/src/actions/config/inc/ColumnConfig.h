@@ -58,6 +58,14 @@ struct ColumnConfig {
     ColumnConfig(const std::string& name, const std::string& type, std::optional<std::string> gen_type, std::optional<double> min, std::optional<double> max);
 
     void calc_type_tag();
+
+    // Check if the column type is variable length
+    bool is_var_length() const noexcept;
+
+    size_t get_fixed_type_size() const;
+
+    // Convert to TDengine internal type
+    int get_taos_type() const noexcept;
 };
 
 using ColumnConfigVector = std::vector<ColumnConfig>;

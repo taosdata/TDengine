@@ -25,7 +25,7 @@ void test_format_insert_data_single_table() {
     FormatResult result = formatter.format(config, col_instances, batch);
 
     assert(std::holds_alternative<SqlInsertData>(result));
-    assert(std::get<SqlInsertData>(result).data == 
+    assert(std::get<SqlInsertData>(result).data.str() == 
            "INSERT INTO `test_db`.`table1` VALUES "
            "(1500000000000,3.14,42,'value1')"
            "(1500000000001,2.71,43,'value2');");
@@ -60,7 +60,7 @@ void test_format_insert_data_multiple_tables() {
     FormatResult result = formatter->format(config, col_instances, batch);
 
     assert(std::holds_alternative<SqlInsertData>(result));
-    assert(std::get<SqlInsertData>(result).data == 
+    assert(std::get<SqlInsertData>(result).data.str() == 
            "INSERT INTO `test_db`.`table1` VALUES "
            "(1500000000000,3.14,42)"
            "(1500000000001,2.71,43) "
@@ -113,7 +113,7 @@ void test_format_insert_data_different_types() {
     FormatResult result = formatter.format(config, col_instances, batch);
 
     assert(std::holds_alternative<SqlInsertData>(result));
-    assert(std::get<SqlInsertData>(result).data == 
+    assert(std::get<SqlInsertData>(result).data.str() == 
            "INSERT INTO `test_db`.`table1` VALUES "
            "(1500000000000,3.14,true,'测试','{\"key\":\"value\"}');");
     std::cout << "test_format_insert_data_different_types passed!" << std::endl;

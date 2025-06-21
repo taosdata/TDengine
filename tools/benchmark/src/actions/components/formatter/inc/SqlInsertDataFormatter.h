@@ -82,10 +82,12 @@ public:
             return FormatResult("");
         } else {
             SqlInsertData sql_data{
-                .start_time = start_time,
-                .end_time = end_time,
-                .total_rows = total_rows,
-                .data = result.str()
+                BaseInsertData{
+                    .start_time = start_time,
+                    .end_time = end_time,
+                    .total_rows = total_rows
+                },
+                .data = SqlData(std::move(result.str()))
             };
             return sql_data;
         }

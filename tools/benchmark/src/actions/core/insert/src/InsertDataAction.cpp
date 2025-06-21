@@ -196,14 +196,14 @@ void InsertDataAction::producer_thread_function(
                           << ": sql data, rows: " << result.total_rows
                           << ", time range: [" << result.start_time 
                           << ", " << result.end_time << "]"
-                          << ", length: " << result.data.length() 
+                          << ", length: " << result.data.str().length() 
                           << " bytes" << std::endl;
             } else if constexpr (std::is_same_v<T, StmtV2InsertData>) {
                 std::cout << "Producer " << producer_id 
                           << ": stmt v2 data, rows: " << result.total_rows
                           << ", time range: [" << result.start_time 
                           << ", " << result.end_time << "]"
-                          << ", length: " << result.data.length() 
+                        //   << ", length: " << result.data.length() 
                           << " bytes" << std::endl;
             } else if constexpr (std::is_same_v<T, std::string>) {
                 std::cout << "Producer " << producer_id 
@@ -261,12 +261,12 @@ void InsertDataAction::consumer_thread_function(
                         std::cout << "Consumer " << consumer_id 
                                  << ": Executed SQL with " << formatted_result.total_rows 
                                  << " rows" << std::endl;
-                        connector->execute(formatted_result.data);
+                        connector->execute(formatted_result.data.str());
                     } else if constexpr (std::is_same_v<T, StmtV2InsertData>) {
                         std::cout << "Consumer " << consumer_id 
                                  << ": Executed STMT with " << formatted_result.total_rows 
                                  << " rows" << std::endl;
-                        connector->execute(formatted_result.data);
+                        // connector->execute(formatted_result.data);
                     } else {
                         throw std::runtime_error("Unknown format result type: " + std::string(typeid(formatted_result).name()));
                     }
