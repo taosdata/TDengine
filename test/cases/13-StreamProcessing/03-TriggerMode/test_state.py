@@ -142,9 +142,9 @@ class TestStreamStateTrigger:
                         stName = f"s{caseIdx}"
                         outTbname = f"{stName}_out"
                         
-                        repaceDict = {"stName":stName, "outTbname":outTbname, "calcTbname":calcTbname, "trigTbname":trigTbname}
+                        replaceDict = {"stName":stName, "outTbname":outTbname, "calcTbname":calcTbname, "trigTbname":trigTbname}
                         self.streamSql = self.createStreamSqls[createStmIdx][0].replace("{querySql}", self.querySqls[queryIdx][0]) \
-                            .format(**repaceDict)
+                            .format(**replaceDict)
                         tdLog.info(f"create stream sql: {self.streamSql}")
                         if trigTbname == "st1" and self.createStreamSqls[createStmIdx][1] is False:
                             tdSql.error(self.streamSql)
