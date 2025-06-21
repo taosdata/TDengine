@@ -30,44 +30,33 @@ class TDTestCase(TBase):
         [TD-11510] taosBenchmark test cases
         """
 
-    def configJsonFile(self, dbname, model, interlace=1, auto_create_table="no"):
-        tdLog.debug(f"configJsonFile {self.templateFilePath} model={model}, interlace={interlace}, auto_create_table={auto_create_table}")
-        with open(self.templateFilePath, 'r') as f:
-            data = json.load(f)
-        data['databases'][0]['dbinfo']['name'] = dbname
-        data['databases'][0]['super_tables'][0]['insert_mode'] = model
-        data['databases'][0]['super_tables'][0]['interlace_rows'] = interlace
-        data['databases'][0]['super_tables'][0]['auto_create_table'] = auto_create_table
-        json_data = json.dumps(data)
-        filePath = self.fileDirPath + dbname + ".json"
-        with open(filePath, "w") as file:
-            file.write(json_data)
-
-        tdLog.debug(f"configJsonFile {json_data}")
-
     def checkDataCorrect(self, dbname, count, table_count):
         sql = f"select count(*) from {dbname}.addcolumns"
-        rows = tdSql.query(sql)
+        tdSql.query(sql)
         tdSql.checkData(0, 0, count)
 
         sql = f"select distinct groupid from {dbname}.addcolumns;"
-        rows = tdSql.query(sql)
+        tdSql.query(sql)
         tdSql.checkRows(table_count)
 
-    def executeAndCheck(self, dbname, mode, interlace=1, auto_create_table="no"):
-        self.configJsonFile(dbname, mode, interlace, auto_create_table)
+        sql = f"select count(*) from {dbname}.addcolumns1"
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, count)
+
+        sql = f"select distinct groupid from {dbname}.addcolumns1;"
+        tdSql.query(sql)
+        tdSql.checkRows(table_count)
+
+    def executeAndCheck(self, dbname):
         benchmark = frame.etool.benchMarkFile()
-        filePath = self.fileDirPath + dbname + ".json"
-        cmd = f"{benchmark} -f {filePath}"
+        cmd = f"{benchmark} -f {self.templateFilePath}"
         tdLog.info(f"Executing command: {cmd}")
         os.system("%s" % cmd)
         self.checkDataCorrect(dbname, 1000, 100)
         tdSql.execute(f"drop database {dbname};")
     
     def run(self):
-        self.executeAndCheck('stmt1_tag_order1','stmt', 1)
-        self.executeAndCheck('stmt1_tag_order2','stmt', 0)
-        self.executeAndCheck('stmt1_tag_order3','stmt', 0, 'yes')
+        self.executeAndCheck('insert_tag_order')
 
         tdLog.success("Successfully executed")
 

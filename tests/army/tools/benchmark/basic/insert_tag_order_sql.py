@@ -37,7 +37,8 @@ class TDTestCase(TBase):
         data['databases'][0]['dbinfo']['name'] = dbname
         data['databases'][0]['super_tables'][0]['insert_mode'] = model
         data['databases'][0]['super_tables'][0]['interlace_rows'] = interlace
-        data['databases'][0]['super_tables'][0]['auto_create_table'] = auto_create_table
+        data['databases'][0]['super_tables'][1]['insert_mode'] = model
+        data['databases'][0]['super_tables'][1]['interlace_rows'] = interlace
         json_data = json.dumps(data)
         filePath = self.fileDirPath + dbname + ".json"
         with open(filePath, "w") as file:
@@ -54,6 +55,14 @@ class TDTestCase(TBase):
         rows = tdSql.query(sql)
         tdSql.checkRows(table_count)
 
+        sql = f"select count(*) from {dbname}.addcolumns1"
+        rows = tdSql.query(sql)
+        tdSql.checkData(0, 0, count)
+
+        sql = f"select distinct groupid from {dbname}.addcolumns1;"
+        rows = tdSql.query(sql)
+        tdSql.checkRows(table_count)
+
     def executeAndCheck(self, dbname, mode, interlace=1, auto_create_table="no"):
         self.configJsonFile(dbname, mode, interlace, auto_create_table)
         benchmark = frame.etool.benchMarkFile()
@@ -66,9 +75,7 @@ class TDTestCase(TBase):
 
     def run(self):
         self.executeAndCheck('taoc_tag_order_1', 'taosc', 1)
-        self.executeAndCheck('taoc_tag_order_2', 'taosc', 1, 'yes')
-        self.executeAndCheck('taoc_tag_order_3', 'taosc', 0)
-        self.executeAndCheck('taoc_tag_order_4', 'taosc', 0, 'yes')
+        self.executeAndCheck('taoc_tag_order_2', 'taosc', 0)
 
         tdLog.success("Successfully executed")
 
