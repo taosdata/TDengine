@@ -1095,6 +1095,11 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
+    if (pVgroup->mountVgId > 0) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+
     int32_t   code = 0;
     SMsgHead *pHead = rpcMallocCont(contLen);
     if (pHead == NULL) {

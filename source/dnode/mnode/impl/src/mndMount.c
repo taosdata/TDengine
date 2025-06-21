@@ -456,12 +456,11 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
   TAOS_RETURN(code);
 }
 #endif
-static int32_t mndSetDbInfo(SMountInfo *pInfo, SMountDbInfo *pDb, SDbObj *pObj) {
+static int32_t mndMountSetDbInfo(SMountInfo *pInfo, SMountDbInfo *pDb, SDbObj *pObj) {
   SDbCfg       *pCfg = &pObj->cfg;
   SMountVgInfo *pVg = taosArrayGet(pDb->pVgs, 0);
 
   // dbObj
-
   int32_t acctId = 0;
   char   *pDbName = strstr(pDb->dbName, ".");
   if (!pDbName) return TSDB_CODE_INVALID_PARA;
@@ -471,7 +470,7 @@ static int32_t mndSetDbInfo(SMountInfo *pInfo, SMountDbInfo *pDb, SDbObj *pObj) 
   tsnprintf(pObj->name, sizeof(pObj->name), "%d.%s_%s", acctId, pInfo->mountName, pDbName + 1);
   tsnprintf(pObj->acct, sizeof(pObj->acct), "%s", TSDB_DEFAULT_USER);
   tsnprintf(pObj->createUser, sizeof(pObj->createUser), "%s", TSDB_DEFAULT_USER);
-  pObj->createdTime = taosGetTimestampMs();  // TODO: get the DB create time from mnode sdb
+  pObj->createdTime = taosGetTimestampMs();
   pObj->updateTime = pObj->createdTime;
   pObj->uid = pDb->dbId;  // TODO: make sure the uid is unique, add check later
   pObj->cfgVersion = 1;
@@ -480,7 +479,7 @@ static int32_t mndSetDbInfo(SMountInfo *pInfo, SMountDbInfo *pDb, SDbObj *pObj) 
   // dbCfg
   pCfg->isMount = 1;
   pCfg->numOfVgroups = taosArrayGetSize(pDb->pVgs);
-  pCfg->numOfStables = TSDB_DEFAULT_DB_SINGLE_STABLE;
+  pCfg->numOfStables = taosArrayGetSize(pDb->pStbs);
   pCfg->buffer = pVg->szBuf / 1048576;  // convert to MB
   pCfg->pageSize = pVg->szPage;
   pCfg->pages = pVg->szCache;
@@ -519,54 +518,49 @@ static int32_t mndSetDbInfo(SMountInfo *pInfo, SMountDbInfo *pDb, SDbObj *pObj) 
   return 0;
 }
 
-static void mndSetVgroupInfo(SMnode * pMnode, SMountInfo * pInfo, SDbObj * pDb, SMountVgInfo * pVg, SVgObj * pObj,
-                             int32_t *maxVgId) {
-  int32_t  allocedVgroups = 0;
-  
-  uint32_t hashMin = 0;
-  uint32_t hashMax = UINT32_MAX;
-  pObj->vgId = (*maxVgId)++;
-  pObj->createdTime = taosGetTimestampMs();
-  pObj->updateTime = pObj->createdTime;
-  pObj->version = 1;
-  pObj->hashBegin = pVg->hashBegin;
-  pObj->hashEnd = pVg->hashEnd;
-  tsnprintf(pObj->dbName, sizeof(pObj->dbName), pDb->name);
-  pObj->dbUid = pDb->uid;
-  pObj->replica = pVg->replications;
-  pObj->mountVgId = pVg->vgId;
+static int32_t mndMountSetVgInfo(SMnode *pMnode, SDnodeObj *pDnode, SMountInfo *pInfo, SDbObj *pDb, SMountVgInfo *pVg,
+                                 SVgObj *pVgroup, int32_t *maxVgId) {
+  pVgroup->vgId = (*maxVgId)++;
+  pVgroup->createdTime = taosGetTimestampMs();
+  pVgroup->updateTime = pVgroup->createdTime;
+  pVgroup->version = 1;
+  pVgroup->hashBegin = pVg->hashBegin;
+  pVgroup->hashEnd = pVg->hashEnd;
+  tsnprintf(pVgroup->dbName, sizeof(pVgroup->dbName), pDb->name);
+  pVgroup->dbUid = pDb->uid;
+  pVgroup->replica = pVg->replications;
+  pVgroup->mountVgId = pVg->vgId;
 
-  for (int32_t v = 0; v < pObj->replica; ++v) {
-    SVnodeGid *pVgid = &pObj->vnodeGid[v];
-    // SDnodeObj *pDnode = taosArrayGet(pArray, v);
-    // if (pDnode == NULL) {
-    //   TAOS_RETURN(TSDB_CODE_MND_NO_ENOUGH_DNODES);
-    // }
-    // if (pDnode->numOfVnodes >= pDnode->numOfSupportVnodes) {
-    //   TAOS_RETURN(TSDB_CODE_MND_NO_ENOUGH_VNODES);
-    // }
-
-    // int64_t vgMem = mndGetVgroupMemory(pMnode, pDb, pVgroup);
-    // if (pDnode->memAvail - vgMem - pDnode->memUsed <= 0) {
-    //   mError("db:%s, vgId:%d, no enough memory:%" PRId64 " in dnode:%d, avail:%" PRId64 " used:%" PRId64,
-    //          pVgroup->dbName, pVgroup->vgId, vgMem, pDnode->id, pDnode->memAvail, pDnode->memUsed);
-    //   TAOS_RETURN(TSDB_CODE_MND_NO_ENOUGH_MEM_IN_DNODE);
-    // } else {
-    //   pDnode->memUsed += vgMem;
-    // }
-
-    pVgid->dnodeId = pInfo->dnodeId;
-    if (pObj->replica == 1) {
-      pVgid->syncState = TAOS_SYNC_STATE_LEADER;
-    } else {
-      assert(pObj->replica == 1);  // TODO: support multi-replica vgroup
-      pVgid->syncState = TAOS_SYNC_STATE_FOLLOWER;
+  for (int32_t v = 0; v < pVgroup->replica; ++v) {
+    SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
+    if (pDnode->numOfVnodes >= pDnode->numOfSupportVnodes) {
+      TAOS_RETURN(TSDB_CODE_MND_NO_ENOUGH_VNODES);
     }
 
-    // mInfo("mount:%s, db:%s, vgId:%d, vn:%d is alloced, memory:%" PRId64 ", dnode:%d avail:%" PRId64 " used:%" PRId64,
-    //       pVgroup->dbName, pVgroup->vgId, v, vgMem, pVgid->dnodeId, pDnode->memAvail, pDnode->memUsed);
-    // pDnode->numOfVnodes++;
+    int64_t vgMem = mndGetVgroupMemory(pMnode, pDb, pVgroup);
+    if (pDnode->memAvail - vgMem - pDnode->memUsed <= 0) {
+      mError("mount:%s, db:%s, vgId:%d, no enough memory:%" PRId64 " in dnode:%d, avail:%" PRId64 " used:%" PRId64,
+             pInfo->mountName, pVgroup->dbName, pVgroup->vgId, vgMem, pDnode->id, pDnode->memAvail, pDnode->memUsed);
+      TAOS_RETURN(TSDB_CODE_MND_NO_ENOUGH_MEM_IN_DNODE);
+    } else {
+      pDnode->memUsed += vgMem;
+    }
+
+    pVgid->dnodeId = pInfo->dnodeId;
+    if (pVgroup->replica == 1) {
+      pVgid->syncState = TAOS_SYNC_STATE_LEADER;
+    } else {
+      pVgid->syncState = TAOS_SYNC_STATE_FOLLOWER;  // TODO: support multi-replica vgroup
+      mError("mount:%s, db:%s, vgId:%d, multi-replica vgroup not supported yet", pInfo->mountName, pVgroup->dbName,
+             pVgroup->vgId);
+      TAOS_RETURN(TSDB_CODE_OPS_NOT_SUPPORT);
+    }
+
+    mInfo("mount:%s, db:%s, vgId:%d is alloced, memory:%" PRId64 ", dnode:%d avail:%" PRId64 " used:%" PRId64,
+          pVgroup->dbName, pVgroup->vgId, vgMem, pVgid->dnodeId, pDnode->memAvail, pDnode->memUsed);
+    pDnode->numOfVnodes++;
   }
+  TAOS_RETURN(0);
 }
 
 static int32_t mndSetCreateMountPrepareActions(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
@@ -814,6 +808,7 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
   SUserObj  newUserObj = {0};
   SMountObj mntObj = {0};
   int32_t   nDbs = 0, nVgs = 0;
+  SDnodeObj *pDnode = NULL;
   SDbObj   *pDbs = NULL;
   SVgObj   *pVgs = NULL;
   STrans   *pTrans = NULL;
@@ -836,11 +831,13 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
   TSDB_CHECK_CONDITION(((nDbs = taosArrayGetSize(pInfo->pDbs)) > 0), code, lino, _exit,
                        TSDB_CODE_MND_INVALID_MOUNT_INFO);
 
+  TSDB_CHECK_NULL((pDnode = mndAcquireDnode(pMnode, pInfo->dnodeId)), code, lino, _exit, terrno);
+
   // check before create db
   for (int32_t i = 0; i < nDbs; ++i) {
     SMountDbInfo *pDb = taosArrayGet(pInfo->pDbs, i);
     SDbObj        dbObj = {0};
-    TAOS_CHECK_EXIT(mndSetDbInfo(pInfo, pDb, &dbObj));
+    TAOS_CHECK_EXIT(mndMountSetDbInfo(pInfo, pDb, &dbObj));
     if ((code = mndCheckDbCfg(pMnode, &dbObj.cfg)) != 0) {
       mError("mount:%s, failed to create db:%s, check db cfg failed, since %s", pInfo->mountName, pDb->dbName,
              tstrerror(code));
@@ -888,11 +885,11 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
   for (int32_t i = 0; i < nDbs; ++i) {
     SMountDbInfo *pDbInfo = taosArrayGet(pInfo->pDbs, i);
     SDbObj       *pDb = &pDbs[i];
-    TAOS_CHECK_EXIT(mndSetDbInfo(pInfo, pDbInfo, pDb));
+    TAOS_CHECK_EXIT(mndMountSetDbInfo(pInfo, pDbInfo, pDb));
     int32_t nDbVgs = taosArrayGetSize(pDbInfo->pVgs);
     for (int32_t v = 0; v < nDbVgs; ++v) {
       SMountVgInfo *pVgInfo = TARRAY_GET_ELEM(pDbInfo->pVgs, v);
-      mndSetVgroupInfo(pMnode, pInfo, pDb, pVgInfo, &pVgs[vgIdx++], &maxVgId);
+      TAOS_CHECK_EXIT(mndMountSetVgInfo(pMnode, pDnode, pInfo, pDb, pVgInfo, &pVgs[vgIdx++], &maxVgId));
     }
   }
 
@@ -933,6 +930,7 @@ _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("mount:%s, failed at line %d to create mount, since %s", mntObj.name, lino, tstrerror(code));
   }
+  mndReleaseDnode(pMnode, pDnode);
   mndMountFreeObj(&mntObj);
   mndUserFreeObj(&newUserObj);
   mndTransDrop(pTrans);
