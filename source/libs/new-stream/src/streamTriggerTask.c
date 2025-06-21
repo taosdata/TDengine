@@ -3397,7 +3397,7 @@ int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
       case STRIGGER_PULL_WAL_CALC_DATA: {
         SSTriggerRealtimeContext *pContext = pTask->pRealtimeCtx;
         QUERY_CHECK_CONDITION(pReq == &pContext->pullReq.base, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-        if (pRsp->code == TSDB_CODE_SUCCESS) {
+        if (pRsp->code == TSDB_CODE_WAL_LOG_NOT_EXIST && pReq->type == STRIGGER_PULL_WAL_META) {
           SSDataBlock *pResBlock = pContext->pullResDataBlock[pReq->type];
           if (pResBlock == NULL) {
             pResBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
@@ -3409,11 +3409,24 @@ int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
               pContext->pullResDataBlock[pReq->type] = NULL;
             }
           }
-          if (pRsp->code == TSDB_CODE_WAL_LOG_NOT_EXIST && pReq->type == STRIGGER_PULL_WAL_META) {
-            QUERY_CHECK_CONDITION(pRsp->contLen == 8, code, lino, _end, TSDB_CODE_INVALID_PARA);
-            blockDataEmpty(pResBlock);
-            pResBlock->info.id.groupId = *(int64_t *)pRsp->pCont;
-          } else if (pRsp->contLen == 0) {
+          QUERY_CHECK_CONDITION(pRsp->contLen == 8, code, lino, _end, TSDB_CODE_INVALID_PARA);
+          blockDataEmpty(pResBlock);
+          pResBlock->info.id.groupId = *(int64_t *)pRsp->pCont;
+          code = strtcProcessPullRsp(pContext, pResBlock);
+          QUERY_CHECK_CODE(code, lino, _end);
+        } else if (pRsp->code == TSDB_CODE_SUCCESS) {
+          SSDataBlock *pResBlock = pContext->pullResDataBlock[pReq->type];
+          if (pResBlock == NULL) {
+            pResBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+            QUERY_CHECK_NULL(pResBlock, code, lino, _end, terrno);
+            pContext->pullResDataBlock[pReq->type] = pResBlock;
+            if (pReq->type == STRIGGER_PULL_WAL_TS_DATA || pReq->type == STRIGGER_PULL_WAL_TRIGGER_DATA ||
+                pReq->type == STRIGGER_PULL_WAL_CALC_DATA) {
+              // ownership of the data block will be transfered to the merger
+              pContext->pullResDataBlock[pReq->type] = NULL;
+            }
+          }
+          if (pRsp->contLen == 0) {
             blockDataEmpty(pResBlock);
           } else if (pReq->type == STRIGGER_PULL_LAST_TS) {
             code = tDeserializeSStreamTsResponse(pRsp->pCont, pRsp->contLen, pResBlock);

@@ -1738,7 +1738,8 @@ end:
   if (pBlock->info.rows == 0 || terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
     code = TSDB_CODE_WAL_LOG_NOT_EXIST;
     terrno = 0;
-    buf = &lastVer;
+    buf = rpcMallocCont(sizeof(int64_t));
+    *(int64_t *)buf = lastVer;
     size = sizeof(int64_t);
   }
   SRpcMsg rsp = {
