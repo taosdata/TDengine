@@ -6,6 +6,7 @@ import { getDBListReq } from '@/api/database';
 export const $IS_TSDBLITE = import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME === "TDengine TSDB-Lite";
 export const $IS_COMMUNITY = (import.meta.env.VITE_APP_COMMUNITY && import.meta.env.VITE_APP_COMMUNITY === "community" || $IS_TSDBLITE) ? true : false;
 export const $INDUSTRY = import.meta.env.VITE_APP_INDUSTRY
+export const $SYSINFO = true // 是否开启系统信息
 export const $IS_OEM = !$IS_TSDBLITE && import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME !== "TDengine"
 export const OEM_NAME =
   import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME !== "TDengine"
