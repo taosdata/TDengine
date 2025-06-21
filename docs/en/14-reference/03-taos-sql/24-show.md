@@ -277,7 +277,6 @@ _block_dist: 3881 ||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 Query OK, 24 row(s) in set (0.002444s)
 ```
 
-
 </details>
 
 The above is a diagram showing the distribution of data rows in blocks. The numbers 0100, 0299, 0498, etc., represent the number of data rows in each block. It means that among the 5 blocks of this table, there is 1 block distributed between 3483 and 3681 rows, accounting for 20% of the total blocks, and 4 blocks are distributed between 3881 and 4096 (maximum number of rows), accounting for 80% of the total blocks, with 0 blocks in other areas.

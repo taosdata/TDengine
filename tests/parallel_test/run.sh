@@ -213,7 +213,7 @@ function run_thread() {
             mkdir -p "$log_dir"/"$case_path"
         fi
         cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir}  -s ${case_build_san} ${timeout_param}"
-        # echo "$thread_no $count $cmd"
+        # echo "thread_no:$thread_no count:$count cmd:$cmd"
         local ret=0
         local redo_count=1
         local case_log_file=$log_dir/${case_file}.txt
@@ -223,7 +223,7 @@ function run_thread() {
         case_index=$(printf "%5d" "$case_index")
         local case_info
         case_info=$(echo "$line" | cut -d, -f 3,4,5)
-        while [ ${redo_count} -lt 6 ]; do
+        while [ ${redo_count} -le "$case_redo_time" ]; do
             if [ -f "$case_log_file" ]; then
                 cp "$case_log_file" "$log_dir"/"$case_file".${redo_count}.redotxt
             fi

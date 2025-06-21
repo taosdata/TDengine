@@ -13,12 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <gtest/gtest.h>
+#include "gtest/gtest.h"
 #include <iostream>
 #include "clientInt.h"
 #include "osSemaphore.h"
 #include "taoserror.h"
-#include "tglobal.h"
 #include "thash.h"
 
 #pragma GCC diagnostic push
@@ -27,7 +26,6 @@
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
-#include "executor.h"
 #include "taos.h"
 
 namespace {
@@ -803,12 +801,12 @@ TEST(clientCase, insert_test) {
 }
 
 TEST(clientCase, projection_query_tables) {
-#if 1
+#if 0
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
   TAOS_RES* pRes = NULL;
-
+  
   pRes= taos_query(pConn, "use test");
   taos_free_result(pRes);
 

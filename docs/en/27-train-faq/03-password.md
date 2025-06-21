@@ -106,33 +106,33 @@ import java.nio.charset.StandardCharsets;
 import com.taosdata.jdbc.TSDBDriver;
 
 public class JdbcPassDemo {
-	public static void main(String[] args) throws Exception {
-		String password = "Ab1!@#$%^&*()-_+=[]{}";
-		String encodedPassword = URLEncoder.encode(password, StandardCharsets.UTF_8.toString());
-		String jdbcUrl = "jdbc:TAOS-WS://localhost:6041";
-		Properties connProps = new Properties();
-		connProps.setProperty(TSDBDriver.PROPERTY_KEY_USER, "user1");
-		connProps.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, encodedPassword);
-		connProps.setProperty(TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT, "true");
-		connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-		connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+ public static void main(String[] args) throws Exception {
+  String password = "Ab1!@#$%^&*()-_+=[]{}";
+  String encodedPassword = URLEncoder.encode(password, StandardCharsets.UTF_8.toString());
+  String jdbcUrl = "jdbc:TAOS-WS://localhost:6041";
+  Properties connProps = new Properties();
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_USER, "user1");
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, encodedPassword);
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT, "true");
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+  connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
 
-		try (Connection conn = DriverManager.getConnection(jdbcUrl, connProps)) {
-			System.out.println("Connected to " + jdbcUrl + " successfully.");
+  try (Connection conn = DriverManager.getConnection(jdbcUrl, connProps)) {
+   System.out.println("Connected to " + jdbcUrl + " successfully.");
 
-			// you can use the connection for execute SQL here
+   // you can use the connection for execute SQL here
 
-		} catch (Exception ex) {
-			// please refer to the JDBC specifications for detailed exceptions info
-			System.out.printf("Failed to connect to %s, %sErrMessage: %s%n",
-					jdbcUrl,
-					ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
-					ex.getMessage());
-			// Print stack trace for context in examples. Use logging in production.
-			ex.printStackTrace();
-			throw ex;
-		}
-	}
+  } catch (Exception ex) {
+   // please refer to the JDBC specifications for detailed exceptions info
+   System.out.printf("Failed to connect to %s, %sErrMessage: %s%n",
+     jdbcUrl,
+     ex instanceof SQLException ? "ErrCode: " + ((SQLException) ex).getErrorCode() + ", " : "",
+     ex.getMessage());
+   // Print stack trace for context in examples. Use logging in production.
+   ex.printStackTrace();
+   throw ex;
+  }
+ }
 }
 ```
 
@@ -194,27 +194,28 @@ Starting from version 3.6.0, Go supports passwords containing special characters
 package main
 
 import (
-	"database/sql"
-	"fmt"
-	"log"
-	"net/url"
+ "database/sql"
+ "fmt"
+ "log"
+ "net/url"
 
-	_ "github.com/taosdata/driver-go/v3/taosWS"
+ _ "github.com/taosdata/driver-go/v3/taosWS"
 )
 
 func main() {
-	var user = "user1"
-	var password = "Ab1!@#$%^&*()-_+=[]{}"
-	var encodedPassword = url.QueryEscape(password)
-	var taosDSN = user + ":" + encodedPassword + "@ws(localhost:6041)/"
-	taos, err := sql.Open("taosWS", taosDSN)
-	if err != nil {
-		log.Fatalln("Failed to connect to " + taosDSN + "; ErrMessage: " + err.Error())
-	}
-	fmt.Println("Connected to " + taosDSN + " successfully.")
-	defer taos.Close()
+ var user = "user1"
+ var password = "Ab1!@#$%^&*()-_+=[]{}"
+ var encodedPassword = url.QueryEscape(password)
+ var taosDSN = user + ":" + encodedPassword + "@ws(localhost:6041)/"
+ taos, err := sql.Open("taosWS", taosDSN)
+ if err != nil {
+  log.Fatalln("Failed to connect to " + taosDSN + "; ErrMessage: " + err.Error())
+ }
+ fmt.Println("Connected to " + taosDSN + " successfully.")
+ defer taos.Close()
 }
 ```
+
 </TabItem>
 
 <TabItem label="Rust" value="rust">
@@ -291,6 +292,74 @@ curl -u'user1:Ab1!@#$%^&*()-_+=[]{}' \
   -d 'show databases' http://localhost:6041/rest/sql
 curl -H 'Authorization: Basic dXNlcjE6QWIxIUAjJCVeJiooKS1fKz1bXXt9' \
   -d 'show databases' http://localhost:6041/rest/sql
+```
+
+</TabItem>
+<TabItem label="ODBC" value="odbc">
+
+No special handling is required for special character passwords in ODBC connector, as shown below:
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <sql.h>
+#include <sqlext.h>
+
+int test_user_connect(const char *dsn, const char *uid, const char *pwd) {
+  SQLHENV   env   = SQL_NULL_HENV;
+  SQLHDBC   dbc   = SQL_NULL_HDBC;
+  SQLHSTMT  stmt  = SQL_NULL_HSTMT;
+  SQLRETURN sr    = SQL_SUCCESS;
+
+  sr = SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &env);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+  sr = SQLSetEnvAttr(env, SQL_ATTR_ODBC_VERSION, (void *)SQL_OV_ODBC3, 0);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+  sr = SQLAllocHandle(SQL_HANDLE_DBC, env, &dbc);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+  sr = SQLConnect(dbc, (SQLCHAR *)dsn, SQL_NTS, (SQLCHAR *)uid, SQL_NTS, (SQLCHAR *)pwd, SQL_NTS);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+  sr = SQLAllocHandle(SQL_HANDLE_STMT, dbc, &stmt);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+  sr = SQLExecDirect(stmt, (SQLCHAR *)"show databases", SQL_NTS);
+  if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
+    goto end;
+
+end:
+  if (stmt != SQL_NULL_HSTMT) {
+    SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+    stmt = SQL_NULL_HSTMT;
+  }
+
+  if (dbc != SQL_NULL_HDBC) {
+    SQLDisconnect(dbc);
+    SQLFreeHandle(SQL_HANDLE_DBC, dbc);
+    dbc = SQL_NULL_HDBC;
+  }
+
+  if (env != SQL_NULL_HENV) {
+    SQLFreeHandle(SQL_HANDLE_ENV, env);
+    env = SQL_NULL_HENV;
+  }
+
+  return (sr == SQL_SUCCESS || sr == SQL_SUCCESS_WITH_INFO) ? 0 : -1;
+}
+
+int main() {
+  int result = test_user_connect("TAOS_ODBC_WS_DSN", "user1", "Ab1!@#$%^&*()-_+=[]{}");
+  printf("test case test_user_connect %s\n", !result ? "pass" : "failed");
+  return 0;
+}
 ```
 
 </TabItem>

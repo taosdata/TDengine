@@ -151,6 +151,7 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
 ```
 
 ## Use the Model in SQL
+
 The model has been preloaded into TDgpt and can be seen in the output of the `SHOW ANODES FULL` statement. Before you can use the model, restart the taosanode service, and then run `UPDATE ALL ANODES` to register the model in the mnode.
 
 - Set the `algo` parameter in your queries to `sample_ad_model`  to instruct TDgpt to use the new algorithm.
