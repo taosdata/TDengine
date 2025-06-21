@@ -1380,6 +1380,14 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
     }
   }
 
+  if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    STableScanInfo* pScanInfo = (STableScanInfo*)downstream->info;
+    SQueryTableDataCond *cond = &pScanInfo->base.cond;
+    cond->type = TIMEWINDOW_RANGE_EXTERNAL;
+    code = getQueryExtWindow(&cond->twindows, &pInfo->win, &cond->twindows, cond->extTwindows);
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
+  
   setOperatorInfo(pOperator, "TimeSliceOperator", QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTimesliceNext, NULL, destroyTimeSliceOperatorInfo,
