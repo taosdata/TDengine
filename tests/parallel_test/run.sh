@@ -143,7 +143,7 @@ function clean_tmp() {
         fi
     fi
     local cmd="${ssh_script} rm -rf ${workdirs[index]}/tmp"
-    $cmd
+    bash -c "$cmd"
 }
 
 function run_thread() {
@@ -256,7 +256,7 @@ function run_thread() {
             # $cmd 2>&1 | tee -a $case_log_file
             # ret=${PIPESTATUS[0]}
             # echo "cmd:${cmd}"
-            eval $cmd >>"$case_log_file" 2>&1
+            bash -c "$cmd" >>"$case_log_file" 2>&1
             ret=$?
             local real_end_time
             real_end_time=$(date +%s)
@@ -322,9 +322,12 @@ function run_thread() {
                 if [ -z "${passwords[index]}" ]; then
                     scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
                 fi
+                cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+            else
+                cmd="cp -rf ${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
             fi
-            cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
-            eval $cmd # 2>/dev/null
+            
+            bash -c "$cmd" # 2>/dev/null
             local corefile
             corefile=$(ls "$log_dir/${case_file}.coredump/")
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[31m failed\e[0m"
@@ -345,12 +348,21 @@ function run_thread() {
 
             mkdir "$build_dir" 2>/dev/null
             if [ $? -eq 0 ]; then
-                cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
-                echo "$cmd"
-                $cmd >/dev/null
-                cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
-                echo "$cmd"
-                eval $cmd >/dev/null
+                if ! is_local_host "${hosts[index]}"; then
+                    cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
+                    echo "$cmd"
+                    bash -c "$cmd" >/dev/null
+                    cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
+                    echo "$cmd"
+                    bash -c "$cmd" >/dev/null
+                else
+                    cmd="cp -rf ${remote_build_dir}/* ${build_dir}/"
+                    echo "$cmd"
+                    bash -c "$cmd" >/dev/null
+                    cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
+                    echo "$cmd"
+                    bash -c "$cmd" >/dev/null
+                fi
             fi
 
             # get remote sim dir
@@ -360,32 +372,37 @@ function run_thread() {
                 if [ -z "${passwords[index]}" ]; then
                     tarcmd="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
                 fi
+                cmd="$tarcmd sh -c \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
+            else
+                cmd="cd $remote_sim_dir; tar -czf sim.tar.gz sim"
             fi
-            cmd="$tarcmd sh -c \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
-            eval $cmd
+            
+            bash -c "$cmd"
             local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
             local remote_case_sql_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${case_sql_file}"
             if ! is_local_host "${hosts[index]}"; then
-                scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-                if [ -z "${passwords[index]}" ]; then
-                    scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-                fi
+                cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
+                bash -c "$cmd"
+                cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
+                bash -c "$cmd"
+            else
+                cmd="cp -f ${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
+                bash -c "$cmd"
+                cmd="cp -f ${remote_case_sql_file} $log_dir/${case_file}.sql"
+                bash -c "$cmd"
             fi
-            cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
-            eval $cmd
-            cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
-            eval $cmd
-            # backup source code (disabled)
-            source_tar_dir=$log_dir/TDengine_${hosts[index]}
-            source_tar_file=TDengine.tar.gz
-            if [ $ent -ne 0 ]; then
-                source_tar_dir=$log_dir/TDinternal_${hosts[index]}
-                source_tar_file=TDinternal.tar.gz
-            fi
-            mkdir "$source_tar_dir" 2>/dev/null
-            if [ $? -eq 0 ]; then
-                cmd="$scpcmd:${workdirs[index]}/$source_tar_file $source_tar_dir"
-            fi
+
+            # # backup source code (disabled)
+            # source_tar_dir=$log_dir/TDengine_${hosts[index]}
+            # source_tar_file=TDengine.tar.gz
+            # if [ $ent -ne 0 ]; then
+            #     source_tar_dir=$log_dir/TDinternal_${hosts[index]}
+            #     source_tar_file=TDinternal.tar.gz
+            # fi
+            # mkdir "$source_tar_dir" 2>/dev/null
+            # if [ $? -eq 0 ]; then
+            #     cmd="$scpcmd:${workdirs[index]}/$source_tar_file $source_tar_dir"
+            # fi
         fi
     done
 }
