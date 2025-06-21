@@ -116,7 +116,7 @@ class TestStreamDevBasic:
         st1.appendSubTables(200, 240)
         st1.append_data(0, 40)
                  
-        sql = f"create stream s7 state_window (cint) from test.trigger options(fill_history_first(1)) into st7  as select _twstart ts, _twend, avg(cint) avg_cint, count(cint) count_cint from test.st where cts <= _twstart;"
+        sql = f"create stream s7 state_window (cint) from test.trigger_0 options(fill_history_first(1)) into st7  as select _twstart ts, _twend, avg(cint) avg_cint, count(cint) count_cint from test.st where cts <= _twstart;"
     
         stream1 = StreamItem(
             id=0,
