@@ -1,7 +1,7 @@
 use std::{
     borrow::Cow,
     collections::HashMap,
-    net::SocketAddr,
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
     path::PathBuf,
     pin::Pin,
     sync::{Arc, atomic::Ordering},
@@ -55,7 +55,7 @@ use taosx_core::{
 use taosx_ipc::types::SampleResponse;
 use taosx_metrics::MetricsEvents;
 
-use crate::serve::controller::StringSender;
+use crate::serve::{TAOSX_GRPC_DEFAULT_PORT, controller::StringSender};
 use crate::serve::{
     controller::{
         TaskDetail,
@@ -69,6 +69,7 @@ use super::{
     controller::{AgentAction, AgentDataSetsSender, DsvSender, Task, TaskControllerRef},
     monitor::Monitor,
     scheduler::agent::{AgentActionsReceiver, AgentId, AgentNotifySender, AgentSpawnSender},
+    utils::ip::is_support_ipv6,
 };
 
 mod put;
@@ -1241,7 +1242,7 @@ pub fn encode_csv_config_file(csv_path: String) -> anyhow::Result<String> {
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 pub struct RpcConfig {
-    pub tcp: Option<SocketAddr>,
+    pub tcp: Vec<SocketAddr>,
     pub unix: Option<PathBuf>,
     pub ssl_cert: Option<String>,
     pub ssl_key: Option<String>,
@@ -1277,8 +1278,12 @@ impl RpcConfig {
             .accept_compressed(tonic::codec::CompressionEncoding::Gzip)
             .max_decoding_message_size(usize::MAX)
             .max_encoding_message_size(usize::MAX);
-        if let Some(tcp) = self.tcp {
+        if !self.tcp.is_empty() {
             let mut builder = Server::builder();
+            builder = builder
+                .max_frame_size(max_frame_size)
+                .http2_keepalive_interval(Some(Duration::from_secs(60 * 2)))
+                .http2_keepalive_timeout(Some(Duration::from_secs(60)));
 
             if let Some(cert_path) = self.ssl_cert {
                 let key_path = self.ssl_key.ok_or_else(|| {
@@ -1302,16 +1307,19 @@ impl RpcConfig {
                     .context("SSL certificate error")?;
             }
 
-            builder
-                .max_frame_size(max_frame_size)
-                .http2_keepalive_interval(Some(Duration::from_secs(60 * 2)))
-                .http2_keepalive_timeout(Some(Duration::from_secs(60)))
-                .add_service(flight_service.clone())
-                .serve_with_shutdown(tcp, async {
-                    let _ = tokio::signal::ctrl_c().await;
-                    tracing::info!("Ctrl+C invoked, shutdown RPC service")
+            let servers = self
+                .tcp
+                .iter()
+                .map(|addr| {
+                    builder
+                        .add_service(flight_service.clone())
+                        .serve_with_shutdown(*addr, async {
+                            let _ = tokio::signal::ctrl_c().await;
+                            tracing::info!("Ctrl+C invoked, shutdown RPC service")
+                        })
                 })
-                .await?;
+                .collect::<Vec<_>>();
+            futures::future::try_join_all(servers).await?;
         }
         #[cfg(unix)]
         if let Some(path) = self.unix {
@@ -1335,8 +1343,19 @@ impl RpcConfig {
 
 impl Default for RpcConfig {
     fn default() -> Self {
+        let tcp = if is_support_ipv6() {
+            vec![SocketAddr::from((
+                Ipv6Addr::UNSPECIFIED,
+                TAOSX_GRPC_DEFAULT_PORT,
+            ))]
+        } else {
+            vec![SocketAddr::from((
+                Ipv4Addr::UNSPECIFIED,
+                TAOSX_GRPC_DEFAULT_PORT,
+            ))]
+        };
         Self {
-            tcp: Some("0.0.0.0:6055".parse().unwrap()),
+            tcp,
             unix: Default::default(),
             ssl_cert: Default::default(),
             ssl_key: Default::default(),

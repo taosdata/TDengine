@@ -18,6 +18,7 @@ use opentelemetry::trace::TracerProvider;
 use serde::{Deserialize, Serialize};
 use serde_with::{FromInto, serde_as};
 use serve::monitor::MonitorCfg;
+use serve::utils::ip::check_address_format;
 use shadow_rs::shadow;
 use taoslog::layer::TaosLayer;
 use taoslog::writer::RollingFileAppender;
@@ -370,6 +371,8 @@ pub enum ArgsError {
     ParseError(#[from] twelf::Error),
     #[error("Argument parsing error: {0}")]
     ClapError(#[from] clap::Error),
+    #[error("Argument parsing error: {0}")]
+    AddressParseError(String),
 }
 
 fn fmt_span_from_str(s: &str) -> Result<FmtSpan, String> {
@@ -485,6 +488,14 @@ impl Args {
             cli.grpc_threads = Some(executor_worker_threads(cli.grpc_threads.unwrap_or(0)));
             cli.scheduler_threads =
                 Some(executor_worker_threads(cli.scheduler_threads.unwrap_or(0)));
+            if let Some(ref addrs) = cli.listen {
+                check_address_format(addrs)
+                    .map_err(|e| ArgsError::AddressParseError(e.to_string()))?;
+            }
+            if let Some(ref addrs) = cli.grpc {
+                check_address_format(addrs)
+                    .map_err(|e| ArgsError::AddressParseError(e.to_string()))?;
+            }
         }
 
         // Set environment variables.
@@ -975,8 +986,7 @@ fn main() -> Result<()> {
 
             let serve = || {
                 let _span = tracing::info_span!("serve").entered();
-                let addr = serve.get_listen_address();
-                let port = addr.split(':').next_back().unwrap();
+                let port = serve.get_listen_port();
                 let scheduler_rt = build_runtime(
                     &format!("{}x-scheduler", build::CUS_PROMPT),
                     serve

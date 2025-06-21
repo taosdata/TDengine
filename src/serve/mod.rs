@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::path::Path;
 use std::{sync::Arc, time::Duration};
 
@@ -23,6 +23,7 @@ use socket2::{Domain, Socket, Type};
 use tracing::{Instrument, info, instrument};
 use tracing_actix_web::TracingLogger;
 use trigger::Strategy;
+use utils::ip::{is_support_ipv6, str_to_socket_addr};
 use utoipa::{OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -66,6 +67,10 @@ pub(crate) mod task;
 
 #[cfg(test)]
 pub mod tests;
+pub mod utils;
+
+const TAOSX_REST_API_DEFAULT_PORT: u16 = 6050;
+const TAOSX_GRPC_DEFAULT_PORT: u16 = 6055;
 
 #[derive(Deserialize, Clone, Debug, Hash, PartialEq, Eq, ToSchema)]
 pub struct DataSetsReq {
@@ -278,10 +283,33 @@ impl Cli {
     }
 
     #[inline]
-    pub fn get_listen_address(&self) -> String {
+    pub fn get_listen_address(&self) -> Result<Vec<SocketAddr>> {
         match self.listen.as_ref() {
-            Some(addr) => addr.clone(),
-            None => "0.0.0.0:6050".to_string(),
+            Some(addr) => Ok(str_to_socket_addr(addr)?),
+            None => {
+                if is_support_ipv6() {
+                    Ok(vec![SocketAddr::from((
+                        Ipv6Addr::UNSPECIFIED,
+                        TAOSX_REST_API_DEFAULT_PORT,
+                    ))])
+                } else {
+                    Ok(vec![SocketAddr::from((
+                        Ipv4Addr::UNSPECIFIED,
+                        TAOSX_REST_API_DEFAULT_PORT,
+                    ))])
+                }
+            }
+        }
+    }
+
+    pub fn get_listen_port(&self) -> u16 {
+        if let Some(addr) = self.listen.as_ref() {
+            addr.split(':')
+                .next_back()
+                .map(|port| port.parse().unwrap_or(TAOSX_REST_API_DEFAULT_PORT))
+                .unwrap_or(TAOSX_REST_API_DEFAULT_PORT)
+        } else {
+            TAOSX_REST_API_DEFAULT_PORT
         }
     }
 
@@ -536,8 +564,7 @@ impl Cli {
         let openapi = ApiDoc::openapi();
         let handle = monitor.init();
         let recorder = Data::new(handle);
-        let addr = self.get_listen_address();
-        let addr = addr.as_str();
+        let addrs = self.get_listen_address()?;
         let tls = self.load_certs()?;
 
         let server = HttpServer::new(move || {
@@ -574,28 +601,50 @@ impl Cli {
                         .route(web::get().to(agent::send_all_agents_activities)),
                 )
         });
-        let server = if let Some(tls) = tls {
-            server.bind_rustls_0_23(addr, tls)
-        } else {
-            server.bind(addr)
-        }
-        .map_err(|err| {
-            tracing::error!("Start HTTP server error: {:?} (addr: {})", err, addr);
-            anyhow::format_err!("Start HTTP server error: {err} (addr: {addr})")
-        })?
-        .workers(
-            self.rest_api_threads
-                .unwrap_or_else(|| executor_worker_threads(0)),
-        )
-        .run();
+
+        let server = {
+            fn handle_error(
+                err: impl std::fmt::Debug,
+                addr: impl std::fmt::Display,
+            ) -> anyhow::Error {
+                tracing::error!("Start HTTP server error: {:?} (addr: {})", err, addr);
+                anyhow::format_err!("Start HTTP server error: {err:?} (addr: {addr})")
+            }
+
+            if let Some(tls) = tls {
+                addrs.into_iter().try_fold(server, |server, addr| {
+                    server
+                        .bind_rustls_0_23(addr, tls.clone())
+                        .map(|s| {
+                            s.workers(
+                                self.rest_api_threads
+                                    .unwrap_or_else(|| executor_worker_threads(0)),
+                            )
+                        })
+                        .map_err(|err| handle_error(err, addr))
+                })?
+            } else {
+                addrs.into_iter().try_fold(server, |server, addr| {
+                    server
+                        .bind(addr)
+                        .map(|s| {
+                            s.workers(
+                                self.rest_api_threads
+                                    .unwrap_or_else(|| executor_worker_threads(0)),
+                            )
+                        })
+                        .map_err(|err| handle_error(err, addr))
+                })?
+            }
+        };
+        let server = server.run();
 
         tokio::select! {
-            _ = server => {
-                tracing::info!("server stopped");
-                // done;
+            rs = server => {
+                tracing::info!("server stopped, stopped by: {:?}", rs);
             },
-            _ = grpc_handle => {
-                tracing::info!("flight RPC service stopped");
+            rs = grpc_handle => {
+                tracing::info!("flight RPC service stopped, stopped by: {:?}", rs);
             }
             _ = tokio::signal::ctrl_c() => {
                 tracing::info!("Ctrl+C triggered");
@@ -616,9 +665,8 @@ impl Cli {
         monitor: monitor::Monitor,
     ) -> Result<()> {
         let mut flight = rpc::RpcConfig::default();
-        if let Some(grpc) = self.grpc.as_ref() {
-            let addr = grpc.parse()?;
-            flight.tcp.replace(addr);
+        if let Some(addr) = self.grpc.as_ref() {
+            flight.tcp = str_to_socket_addr(addr)?;
         }
         if let Some(ssl_cert) = self.grpc_ssl_cert.as_ref().or(self.ssl_cert.as_ref()) {
             flight.ssl_cert = Some(ssl_cert.into());
@@ -630,12 +678,17 @@ impl Cli {
             flight.ssl_ca = Some(ssl_ca.into());
         }
 
-        let addr = flight.tcp.expect("grpc address is required");
+        let addr = flight
+            .tcp
+            .iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
         flight
             .serve_with_controller(controller, channel, spawn_sender, monitor)
             .await
             .map_err(|err| {
-                tracing::error!("grpc(addr:{}) init error: {:?}", addr, err);
+                tracing::error!("grpc(addr:{:?}) init error: {:?}", addr, err);
                 err
             })?;
 
