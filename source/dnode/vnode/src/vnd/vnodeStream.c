@@ -381,8 +381,11 @@ int32_t retrieveWalData(SSubmitTbData* pSubmitTbData, void* pTableList, SSDataBl
           }
         }
         if (colVal.cid == pColData->info.colId) {
-          STREAM_CHECK_RET_GOTO(colDataSetVal(pColData, numOfRows, VALUE_GET_DATUM(&colVal.value, colVal.value.type),
-                                              !COL_VAL_IS_VALUE(&colVal)));
+          if (IS_VAR_DATA_TYPE(colVal.value.type) || colVal.value.type == TSDB_DATA_TYPE_DECIMAL){
+            varColSetVarData(pColData, numOfRows, colVal.value.pData, colVal.value.nData, !COL_VAL_IS_VALUE(&colVal));
+          } else {
+            STREAM_CHECK_RET_GOTO(colDataSetVal(pColData, numOfRows, (const char*)(&(colVal.value.val)), !COL_VAL_IS_VALUE(&colVal)));
+          }
         } else {
           colDataSetNULL(pColData, numOfRows);
         }
@@ -481,7 +484,7 @@ end:
 }
 
 static int32_t scanWal(SVnode* pVnode, void* pTableList, bool isVTable, SSDataBlock* pBlock, int64_t lastVer,
-                       int8_t deleteData, int8_t deleteTb, int64_t ctime) {
+                       int8_t deleteData, int8_t deleteTb, int64_t ctime, int64_t* retVer) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -491,7 +494,8 @@ static int32_t scanWal(SVnode* pVnode, void* pTableList, bool isVTable, SSDataBl
   STREAM_CHECK_RET_GOTO(walReaderSeekVer(pWalReader, lastVer + 1));
 
   while (1) {
-    STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader) < 0, TSDB_CODE_SUCCESS);
+    *retVer = walGetLastVer(pWalReader->pWal);
+    STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader) < 0, 0);
 
     SWalCont* wCont = &pWalReader->pHead->head;
     if (wCont->ingestTs / 1000 > ctime) break;
@@ -649,7 +653,7 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
   SSDataBlock* pBlock2 = NULL;
 
   SSDataBlock* p = trigger ? sStreamInfo->triggerResBlock : sStreamInfo->calcResBlock;
-  STSchema*    schemas = trigger ? sStreamInfo->triggerSchema : sStreamInfo->calcSchema;
+  STSchema*    schemas = sStreamInfo->triggerSchema; // alway use triggerSchema to avoid get data error from wal pRow
   SExprInfo*   pExpr = trigger ? sStreamInfo->pExprInfo : sStreamInfo->pCalcExprInfo;
   int32_t      numOfExpr = trigger ? sStreamInfo->numOfExpr : sStreamInfo->numOfCalcExpr;
 
@@ -1706,6 +1710,7 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   SSDataBlock* pBlock = NULL;
   void*        pTableList = NULL;
   SNodeList*   groupNew = NULL;
+  int64_t      lastVer = 0;
 
   stDebug("vgId:%d %s start, request paras lastVer:%" PRId64 ",ctime:%" PRId64, TD_VID(pVnode), __func__,
           req->walMetaReq.lastVer, req->walMetaReq.ctime);
@@ -1727,7 +1732,7 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   STREAM_CHECK_RET_GOTO(createBlockForWalMeta(&pBlock, isVTable));
   STREAM_CHECK_RET_GOTO(scanWal(pVnode, isVTable ? sStreamReaderInfo->uidHash : pTableList, isVTable, pBlock,
                                 req->walMetaReq.lastVer, sStreamReaderInfo->deleteReCalc,
-                                sStreamReaderInfo->deleteOutTbl, req->walMetaReq.ctime));
+                                sStreamReaderInfo->deleteOutTbl, req->walMetaReq.ctime, &lastVer));
 
   stDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));

@@ -2465,15 +2465,15 @@ static int32_t strtcResumeCheck(SSTriggerRealtimeContext *pContext) {
         QUERY_CHECK_CODE(code, lino, _end);
         taosArrayClearEx(pContext->pNotifyParams, tDestroySSTriggerCalcParam);
       }
-      if (pContext->calcStatus == STRIGGER_REQUEST_TO_RUN) {
+      if (pCurGroup->status == STRIGGER_GROUP_WAITING_TDATA) {
+        goto _end;
+      } else if (pContext->calcStatus == STRIGGER_REQUEST_TO_RUN) {
         code = strtcSendCalcReq(pContext);
         QUERY_CHECK_CODE(code, lino, _end);
-      }
-      if (pContext->calcStatus == STRIGGER_REQUEST_TO_RUN || pCurGroup->status != STRIGGER_GROUP_WAITING_META) {
-        // waiting for trigger data, calc data or calc rsp
         goto _end;
+      } else {
+        TRINGBUF_DEQUEUE(&pContext->groupsToCheck);
       }
-      TRINGBUF_DEQUEUE(&pContext->groupsToCheck);
     }
 
     if ((pContext->curReaderIdx == taosArrayGetSize(pTask->readerList) - 1) && pTask->maxDelay > 0 &&
@@ -2491,14 +2491,10 @@ static int32_t strtcResumeCheck(SSTriggerRealtimeContext *pContext) {
       }
     }
 
-    while (!TRINGBUF_IS_EMPTY(&pContext->groupsMaxDelay)) {
+    if (!TRINGBUF_IS_EMPTY(&pContext->groupsMaxDelay)) {
       SSTriggerRealtimeGroup *pCurGroup = TRINGBUF_FIRST(&pContext->groupsMaxDelay);
 
-      if (pContext->calcStatus != STRIGGER_REQUEST_IDLE) {
-        // calc is running, wait for it to finish
-        pCurGroup->status = STRIGGER_GROUP_WAITING_CALC;
-        goto _end;
-      }
+      QUERY_CHECK_CONDITION(pContext->calcStatus == STRIGGER_REQUEST_IDLE, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerCalcRequest *pReq = &pContext->calcReq;
       pReq->gid = pCurGroup->groupId;
       QUERY_CHECK_CONDITION(taosArrayGetSize(pReq->params) == 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -2526,16 +2522,9 @@ static int32_t strtcResumeCheck(SSTriggerRealtimeContext *pContext) {
       pContext->pCalcGroup = pCurGroup;
       void *px = taosArrayPush(pReq->params, &param);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-
-      if (pContext->calcStatus == STRIGGER_REQUEST_TO_RUN) {
-        code = strtcSendCalcReq(pContext);
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
-      if (pContext->calcStatus == STRIGGER_REQUEST_TO_RUN || pCurGroup->status != STRIGGER_GROUP_WAITING_META) {
-        // waiting for trigger data, calc data or calc rsp
-        goto _end;
-      }
-      TRINGBUF_DEQUEUE(&pContext->groupsMaxDelay);
+      code = strtcSendCalcReq(pContext);
+      QUERY_CHECK_CODE(code, lino, _end);
+      goto _end;
     }
 
     if ((pContext->curReaderIdx == taosArrayGetSize(pTask->readerList) - 1) && !pContext->getWalMeta) {
@@ -2643,15 +2632,18 @@ static int32_t strtcProcessPullRsp(SSTriggerRealtimeContext *pContext, SSDataBlo
         }
       }
 
+      int64_t lastScanVer = 0;
       if (blockDataGetNumOfRows(pResDataBlock) > 0) {
-        SColumnInfoData      *pVerCol = taosArrayGet(pResDataBlock->pDataBlock, 5);
-        SStreamTaskAddr      *pReader = taosArrayGet(pTask->readerList, pContext->curReaderIdx);
-        SSTriggerWalProgress *pProgress =
-            tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
-        QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-        pProgress->lastScanVer = *(int64_t *)colDataGetNumData(pVerCol, numNewMeta - 1);
-        pProgress->latestVer = pResDataBlock->info.id.groupId;
+        SColumnInfoData *pVerCol = taosArrayGet(pResDataBlock->pDataBlock, 5);
+        lastScanVer = *(int64_t *)colDataGetNumData(pVerCol, numNewMeta - 1);
+      } else {
+        lastScanVer = pResDataBlock->info.id.groupId;
       }
+      SStreamTaskAddr      *pReader = taosArrayGet(pTask->readerList, pContext->curReaderIdx);
+      SSTriggerWalProgress *pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
+      QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      pProgress->lastScanVer = lastScanVer;
+      pProgress->latestVer = pResDataBlock->info.id.groupId;
 
       code = strtcResumeCheck(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -2717,10 +2709,20 @@ static int32_t strtcProcessCalcRsp(SSTriggerRealtimeContext *pContext, int32_t r
   }
 
   if (!TRINGBUF_IS_EMPTY(&pContext->groupsMaxDelay)) {
-    SSTriggerRealtimeGroup *pCurGroup = TRINGBUF_FIRST(&pContext->groupsMaxDelay);
-    if (pCurGroup->status == STRIGGER_GROUP_WAITING_CALC) {
+    TRINGBUF_DEQUEUE(&pContext->groupsMaxDelay);
+    if (!TRINGBUF_IS_EMPTY(&pContext->groupsMaxDelay)) {
       code = strtcResumeCheck(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
+    } else {
+      if ((pContext->curReaderIdx == taosArrayGetSize(pTask->readerList) - 1) && !pContext->getWalMeta) {
+        // add the task to wait list since it catches up all readers
+        int64_t resumeTime = taosGetTimestampMs() + STREAM_TRIGGER_WAIT_TIME_MS;
+        code = streamTriggerAddWaitTask(pTask, resumeTime);
+        QUERY_CHECK_CODE(code, lino, _end);
+      } else {
+        code = strtcPullNewMeta(pContext);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
     }
   }
 
@@ -3407,7 +3409,11 @@ int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
               pContext->pullResDataBlock[pReq->type] = NULL;
             }
           }
-          if (pRsp->contLen == 0) {
+          if (pRsp->code == TSDB_CODE_WAL_LOG_NOT_EXIST && pReq->type == STRIGGER_PULL_WAL_META) {
+            QUERY_CHECK_CONDITION(pRsp->contLen == 8, code, lino, _end, TSDB_CODE_INVALID_PARA);
+            blockDataEmpty(pResBlock);
+            pResBlock->info.id.groupId = *(int64_t *)pRsp->pCont;
+          } else if (pRsp->contLen == 0) {
             blockDataEmpty(pResBlock);
           } else if (pReq->type == STRIGGER_PULL_LAST_TS) {
             code = tDeserializeSStreamTsResponse(pRsp->pCont, pRsp->contLen, pResBlock);

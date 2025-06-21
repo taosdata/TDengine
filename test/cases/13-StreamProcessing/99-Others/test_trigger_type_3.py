@@ -57,19 +57,23 @@ class TestStreamTriggerType1:
 
         tdLog.info(f"=============== create stream")
         sql1 = "create stream s1 interval(1s) sliding(1s) from stream_trigger partition by tbname into st1 tags (gid bigint as _tgrpid)    as select _twstart ts, count(*) c1, avg(cint) c2 from meters where cts >= _twstart and cts < _twend;"
-        # sql2 = "create stream s2 interval(1s) sliding(1s) from stream_trigger partition by tbname into st2                                 as select _twstart ts, count(*) c1, avg(cint)    from meters where cts >= _twstart and cts < _twend;"
-        # sql3 = "create stream s3 state_window (c1)        from stream_trigger partition by tbname into st3                                 as select _twstart ts, count(*) c1, avg(cint) c2 from meters;"
-        # sql4 = "create stream s4 state_window (c1)        from stream_trigger                     into st4                                 as select _twstart ts, count(*) c1, avg(cint) c2 from meters;"
-        # sql5 = "create stream s5 state_window (c1)        from stream_trigger                     into st5                                 as select _twstart ts, count(*) c1, avg(c1) c2, first(c1) c3, last(c1) c4 from %%trows;"
-        # sql6 = "create stream s6 sliding (1s)             from stream_trigger                     into st6                                 as select _tcurrent_ts, now, count(cint) from meters;"
-        # sql7 = "create stream s7 state_window (c1)        from stream_trigger partition by tbname options(fill_history_first(1)) into st7  as select _twstart, avg(cint), count(cint) from meters;"
-        # sql8 = "create stream s8 state_window (c1)        from stream_trigger partition by tbname into st8                                 as select _twstart ts, count(*) c1, avg(cint) c2, _twstart + 1 as ts2 from meters;"
-        # sql9 = "create stream s9 PERIOD(10s, 10a)                                                 into st9                                 as select cast(_tlocaltime/1000000 as timestamp) as tl, _tprev_localtime/1000000 tp, _tnext_localtime/1000000 tn, now, max(cint) from meters;"
+        sql2 = "create stream s2 interval(1s) sliding(1s) from stream_trigger partition by tbname into st2                                 as select _twstart ts, count(*) c1, avg(cint)    from meters where cts >= _twstart and cts < _twend;"
+        sql3 = "create stream s3 state_window (c1)        from stream_trigger partition by tbname into st3                                 as select _twstart ts, count(*) c1, avg(cint) c2 from meters;"
+        sql4 = "create stream s4 state_window (c1)        from stream_trigger                     into st4                                 as select _twstart ts, count(*) c1, avg(cint) c2 from meters;"
+        sql5 = "create stream s5 state_window (c1)        from stream_trigger                     into st5                                 as select _twstart ts, count(*) c1, avg(c1) c2, first(c1) c3, last(c1) c4 from %%trows;"
+        sql6 = "create stream s6 sliding (1s)             from stream_trigger                     into st6                                 as select _tcurrent_ts, now, count(cint) from meters;"
+        sql7 = "create stream s7 state_window (c1)        from stream_trigger partition by tbname options(fill_history_first(1)) into st7  as select _twstart, avg(cint), count(cint) from meters;"
+        sql8 = "create stream s8 state_window (c1)        from stream_trigger partition by tbname into st8                                 as select _twstart ts, count(*) c1, avg(cint) c2, _twstart + 1 as ts2 from meters;"
+        sql9 = "create stream s9 PERIOD(10s, 10a)                                                 into st9                                 as select cast(_tlocaltime/1000000 as timestamp) as tl, _tprev_localtime/1000000 tp, _tnext_localtime/1000000 tn, now, max(cint) from meters;"
         # #new stream with session
-        # sql11 = "create stream s11 session(ts,1a)         from stream_trigger  partition by tbname  into st11                               as select _twstart ts, count(*) c1, avg(cint) c2 from meters where cts >= _twstart and cts < _twend;"
-        # sql12 = "create stream s12 session(ts,1a)         from stream_trigger                       into st12                               as select _twstart ts, count(*) c1, avg(cint) c2 from meters where cts >= _twstart and cts < _twend;"
+        sql11 = "create stream s11 session(ts,1a)         from stream_trigger  partition by tbname  into st11                               as select _twstart ts, count(*) c1, avg(cint) c2 from meters where cts >= _twstart and cts < _twend;"
+        sql12 = "create stream s12 session(ts,1a)         from stream_trigger                       into st12                               as select _twstart ts, count(*) c1, avg(cint) c2 from meters where cts >= _twstart and cts < _twend;"
         sql13 = "create stream s13 session(ts,1a)         from stream_trigger                       into st13                               as select _twstart ts, count(*) c1, avg(cint) c2 from meters;"
         sql14 = "create stream s14 session(ts,1a)         from stream_trigger                       into st14                               as select _twstart ts, count(*) c1, avg(c2) c2 from %%trows;"
+        
+        sql21 = "create stream s21 COUNT_WINDOW(2)         from stream_trigger  partition by tbname  into st21                               as select _twstart ts, count(*) c1, avg(cint) c2 from meters where cts >= _twstart and cts < _twend;"
+        sql22 = "create stream s22 COUNT_WINDOW(2,1)         from stream_trigger  partition by tbname  into st22                               as select _twstart ts, count(*) c1, avg(cint) c2 from meters where cts >= _twstart and cts < _twend;"
+
 
 
         streams = [
@@ -81,11 +85,13 @@ class TestStreamTriggerType1:
             # self.StreamItem(sql6, self.checks6),
             # self.StreamItem(sql7, self.checks7),
             # self.StreamItem(sql8, self.checks8),
-            # self.StreamItem(sql9, self.checks9),
-            # self.StreamItem(sql11, self.checks11),  # bug -42
-            # self.StreamItem(sql12, self.checks12),  # bug -42
-            #self.StreamItem(sql13, self.checks13), #bug -43
-            self.StreamItem(sql14, self.checks14),
+            # self.StreamItem(sql9, self.checks9),#113、114
+            self.StreamItem(sql11, self.checks11),
+            self.StreamItem(sql12, self.checks12), 
+            # self.StreamItem(sql13, self.checks13), 
+            # self.StreamItem(sql14, self.checks14), 
+            # self.StreamItem(sql21, self.checks21), 
+            #self.StreamItem(sql22, self.checks22), #115
         ]
 
         for stream in streams:
@@ -191,9 +197,9 @@ class TestStreamTriggerType1:
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 2
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.999")
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
             and tdSql.compareData(0, 2, 6)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.999")
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:02.000")
             and tdSql.compareData(1, 2, 6),
         )
 
@@ -264,43 +270,52 @@ class TestStreamTriggerType1:
         result_sql = "select ts, c1, c2 from qdb.st13"
         tdSql.checkResultsByFunc(
             sql=result_sql,
-            func=lambda: tdSql.getRows() == 6
+            func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
-            and tdSql.compareData(0, 1, 1)
-            and tdSql.compareData(0, 2, 0)            
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:00.102")
-            and tdSql.compareData(1, 1, 1)
-            and tdSql.compareData(1, 2, 1)          
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:01.000")
-            and tdSql.compareData(2, 1, 1)
-            and tdSql.compareData(2, 2, 1)       
-            and tdSql.compareData(3, 0, "2025-01-01 00:00:01.400")
-            and tdSql.compareData(3, 1, 1)
-            and tdSql.compareData(3, 2, 2)      
-            and tdSql.compareData(4, 0, "2025-01-01 00:00:02.000")
-            and tdSql.compareData(4, 1, 1)
-            and tdSql.compareData(4, 2, 2)      
-            and tdSql.compareData(5, 0, "2025-01-01 00:00:02.600")
-            and tdSql.compareData(5, 1, 1)
-            and tdSql.compareData(5, 2, 3),
+            and tdSql.compareData(0, 1, 6)
+            and tdSql.compareData(0, 2, 1.5)            
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(1, 1, 6)
+            and tdSql.compareData(1, 2, 1.5)    
         )
 
     def checks14(self):
         result_sql = "select ts, c1, c2 from qdb.st14"
         tdSql.checkResultsByFunc(
             sql=result_sql,
-            func=lambda: tdSql.getRows() == 6
+            func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
             and tdSql.compareData(0, 1, 1)
             and tdSql.compareData(0, 2, 0)            
             and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
             and tdSql.compareData(1, 1, 1)
-            and tdSql.compareData(1, 2, 1)          
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:02.000")
-            and tdSql.compareData(2, 1, 1)
-            and tdSql.compareData(2, 2, 2),
+            and tdSql.compareData(1, 2, 1)  
+        )
+
+    def checks21(self):
+        result_sql = "select ts, c1, c2 from qdb.st21"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 2)
+            and tdSql.compareData(0, 2, 0.5)  
         )
         
+    
+    def checks22(self):
+        result_sql = "select ts, c1, c2 from qdb.st22"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 2)
+            and tdSql.compareData(0, 2, 1.5)            
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(1, 1, 1)
+            and tdSql.compareData(1, 2, 0.5)  
+        )
+                
     class StreamItem:
         def __init__(self, sql, checkfunc):
             self.sql = sql

@@ -28,6 +28,7 @@ from datetime import datetime
 from enum import Enum
 from new_test_framework.utils import clusterComCheck
 
+
 class StreamTableType(Enum):
     TYPE_SUP_TABLE = "SUP_TABLE"
     TYPE_SUB_TABLE = "SUB_TABLE"
@@ -41,12 +42,12 @@ class StreamTable:
         self.tableType = type
         self.tbName = tbName
         self.db = db
-        
+
         self.precision = "ms"
-        self.start="2025-01-01 00.00.00"
-        self.interval=30
+        self.start = "2025-01-01 00.00.00"
+        self.interval = 30
         self.logOpen = False
-        
+
         self.default_columns = (
             "cts timestamp,"
             "cint int,"
@@ -87,26 +88,28 @@ class StreamTable:
         )
         self.columns = self.default_columns  # 当前使用的列定义（可被自定义覆盖）
         self.tags = self.default_tags
-        
+
         self.custom_generators = {}  # name -> function(row, ts) -> str
         self.created = False
-        
+
     def setInterval(self, interval):
         """
         设置时间间隔
         :param interval: int, 时间间隔，单位为秒
         """
         self.interval = interval
-        
+
     def setPrecision(self, precision):
         """
         设置时间精度
         :param precision: str, 时间精度，支持 "ms", "us", "ns"
         """
         if precision not in ["ms", "us", "ns"]:
-            raise ValueError("Invalid precision. Supported values are 'ms', 'us', 'ns'.")
+            raise ValueError(
+                "Invalid precision. Supported values are 'ms', 'us', 'ns'."
+            )
         self.precision = precision
-        
+
     def setStart(self, start):
         """
         设置起始时间
@@ -117,16 +120,19 @@ class StreamTable:
             self.start = start
         except ValueError:
             raise ValueError("Invalid start time format. Use 'YYYY-MM-DD HH.MM.SS'.")
-        
+
     def setLogOpen(self, logOpen):
         """
         设置日志开关
         :param logOpen: bool, 是否开启日志
         """
         self.logOpen = logOpen
-                   
+
     def createTable(self, subTableCount=200):
-        if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
+        if (
+            self.tableType == StreamTableType.TYPE_SUP_TABLE
+            or self.tableType == StreamTableType.TYPE_SUB_TABLE
+        ):
             tdLog.info(f"create super table {self.db}.{self.tbName}")
             self.__createSupTable()
             self.__createSubTables(0, subTableCount)
@@ -134,28 +140,33 @@ class StreamTable:
             tdLog.info(f"create normal table {self.db}.{self.tbName}")
             self.__createNormalTable()
         self.created = True
-    
+
     def appendSubTables(self, startTbIndex, endTbIndex):
         """
         向超级表中追加子表
         :param startTbIndex: int, 起始子表索引
         :param endTbIndex: int, 结束子表索引
         """
-        if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
-            tdLog.info(f"create sub tables to sub tables from {startTbIndex} to {endTbIndex}")
+        if (
+            self.tableType == StreamTableType.TYPE_SUP_TABLE
+            or self.tableType == StreamTableType.TYPE_SUB_TABLE
+        ):
+            tdLog.info(
+                f"create sub tables to sub tables from {startTbIndex} to {endTbIndex}"
+            )
             self.__createSubTables(startTbIndex, endTbIndex)
-        
+
     def set_columns(self, column_def: str):
         """
         允许用户自定义列定义
         :param column_def: str，例如 "ts timestamp, val int"
         """
         self.columns = column_def
-        
+
     def reset_columns(self):
         """重置为默认列定义"""
         self.columns = self.default_columns
-        
+
     def append_subtable_data(self, tbName, start_row, end_row):
         """
         向指定子表追加数据
@@ -163,33 +174,46 @@ class StreamTable:
         :param start_row: int, 起始行索引
         :param end_row: int, 结束行索引
         """
-        if(self.created != True):
+        if self.created != True:
             self.createTable()
-            
+
         full_table_name = f"{self.db}.{tbName}"
-        
-        if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
-            self.__info(f"append data to sub table {full_table_name} from {start_row} to {end_row}")
+
+        if (
+            self.tableType == StreamTableType.TYPE_SUP_TABLE
+            or self.tableType == StreamTableType.TYPE_SUB_TABLE
+        ):
+            self.__info(
+                f"append data to sub table {full_table_name} from {start_row} to {end_row}"
+            )
             self.__append_data(full_table_name, start_row, end_row)
-        
+
     def append_data(self, start_row, end_row):
         """
         向表中追加数据
         :param start_row: int, 起始行索引
         :param end_row: int, 结束行索引
         """
-        
-        if(self.created != True):
+
+        if self.created != True:
             self.createTable()
-        
+
         full_table_name = f"{self.db}.{self.tbName}"
-        
-        if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
-            tbList = tdSql.query(f"select table_name from information_schema.ins_tables where stable_name='{self.tbName}'", row_tag=True)
+
+        if (
+            self.tableType == StreamTableType.TYPE_SUP_TABLE
+            or self.tableType == StreamTableType.TYPE_SUB_TABLE
+        ):
+            tbList = tdSql.query(
+                f"select table_name from information_schema.ins_tables where stable_name='{self.tbName}'",
+                row_tag=True,
+            )
             for r in range(len(tbList)):
                 tbName = tbList[r][0]
                 fullName = f"{self.db}.{tbName}"
-                self.__info(f"append data to sub table {fullName} from {start_row} to {end_row}")
+                self.__info(
+                    f"append data to sub table {fullName} from {start_row} to {end_row}"
+                )
                 self.__append_data(fullName, start_row, end_row)
         elif self.tableType == StreamTableType.TYPE_NORMAL_TABLE:
             self.__append_data(full_table_name, start_row, end_row)
@@ -201,13 +225,21 @@ class StreamTable:
         :param end_row: int, 结束行索引
         """
         full_table_name = f"{self.db}.{self.tbName}"
-        
-        if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
-            tbList = tdSql.query(f"select table_name from information_schema.ins_tables where stable_name='{self.tbName}'", row_tag=True)
+
+        if (
+            self.tableType == StreamTableType.TYPE_SUP_TABLE
+            or self.tableType == StreamTableType.TYPE_SUB_TABLE
+        ):
+            tbList = tdSql.query(
+                f"select table_name from information_schema.ins_tables where stable_name='{self.tbName}'",
+                row_tag=True,
+            )
             for r in range(len(tbList)):
                 tbName = tbList[r][0]
                 fullName = f"{self.db}.{tbName}"
-                self.__info(f"update data in sub table {fullName} from {start_row} to {end_row}")
+                self.__info(
+                    f"update data in sub table {fullName} from {start_row} to {end_row}"
+                )
                 self.__append_data(fullName, start_row, end_row, offset=10000)
         elif self.tableType == StreamTableType.TYPE_NORMAL_TABLE:
             self.__append_data(full_table_name, start_row, end_row, offset=10000)
@@ -220,11 +252,16 @@ class StreamTable:
         :param end_row: int, 结束行索引
         """
         full_table_name = f"{self.db}.{tbName}"
-        
-        if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
-            self.__info(f"update data in sub table {full_table_name} from {start_row} to {end_row}")
+
+        if (
+            self.tableType == StreamTableType.TYPE_SUP_TABLE
+            or self.tableType == StreamTableType.TYPE_SUB_TABLE
+        ):
+            self.__info(
+                f"update data in sub table {full_table_name} from {start_row} to {end_row}"
+            )
             self.__append_data(full_table_name, start_row, end_row, offset=10000)
-    
+
     def delete_data(self, start_row, end_row):
         """
         删除表中的数据
@@ -232,17 +269,25 @@ class StreamTable:
         :param end_row: int, 结束行索引
         """
         full_table_name = f"{self.db}.{self.tbName}"
-        
-        if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
-            tbList = tdSql.query(f"select table_name from information_schema.ins_tables where stable_name='{self.tbName}'", row_tag=True)
+
+        if (
+            self.tableType == StreamTableType.TYPE_SUP_TABLE
+            or self.tableType == StreamTableType.TYPE_SUB_TABLE
+        ):
+            tbList = tdSql.query(
+                f"select table_name from information_schema.ins_tables where stable_name='{self.tbName}'",
+                row_tag=True,
+            )
             for r in range(len(tbList)):
                 tbName = tbList[r][0]
                 fullName = f"{self.db}.{tbName}"
-                self.__info(f"delete data in sub table {fullName} from {start_row} to {end_row}")
+                self.__info(
+                    f"delete data in sub table {fullName} from {start_row} to {end_row}"
+                )
                 self.__delete_data(fullName, start_row, end_row)
         elif self.tableType == StreamTableType.TYPE_NORMAL_TABLE:
             self.__delete_data(full_table_name, start_row, end_row)
-            
+
     def delete_subtable_data(self, tbName, start_row, end_row):
         """
         删除指定子表中的数据
@@ -251,11 +296,16 @@ class StreamTable:
         :param end_row: int, 结束行索引
         """
         full_table_name = f"{self.db}.{tbName}"
-        
-        if self.tableType == StreamTableType.TYPE_SUP_TABLE or self.tableType == StreamTableType.TYPE_SUB_TABLE:
-            tdLog.info(f"delete data in sub table {full_table_name} from {start_row} to {end_row}")
+
+        if (
+            self.tableType == StreamTableType.TYPE_SUP_TABLE
+            or self.tableType == StreamTableType.TYPE_SUB_TABLE
+        ):
+            tdLog.info(
+                f"delete data in sub table {full_table_name} from {start_row} to {end_row}"
+            )
             self.__delete_data(full_table_name, start_row, end_row)
-            
+
     def register_column_generator(self, column_name: str, generator_func):
         """
         注册某个列名的自定义数据生成函数
@@ -263,8 +313,8 @@ class StreamTable:
         :param generator_func: function(row_index: int, timestamp: int) -> str
         """
         self.custom_generators[column_name] = generator_func
-            
-    def __append_data(self, full_table_name, start_row, end_row, offset = 0):
+
+    def __append_data(self, full_table_name, start_row, end_row, offset=0):
         # 时间精度
         prec = {
             "us": 1_000_000_000,
@@ -287,14 +337,23 @@ class StreamTable:
             for row in range(start, end):
                 values = []
                 for col_name, col_type in columns:
-                    values.append(self._generate_value(col_name, col_type, row + offset, ts_start + row * ts_interval))
+                    values.append(
+                        self._generate_value(
+                            col_name,
+                            col_type,
+                            row + offset,
+                            ts_start + row * ts_interval,
+                        )
+                    )
                 value_list.append(f"({', '.join(values)})")
 
             sql = f"INSERT INTO {full_table_name} VALUES " + ", ".join(value_list)
             tdSql.execute(sql)
             start = end
 
-        self.__info(f"Appended {end_row - start_row} rows to {full_table_name} from {start_row} to {end_row}")
+        self.__info(
+            f"Appended {end_row - start_row} rows to {full_table_name} from {start_row} to {end_row}"
+        )
 
     def __delete_data(self, full_table_name, start_row, end_row):
         """删除指定范围内的数据"""
@@ -308,18 +367,19 @@ class StreamTable:
         dt = datetime.strptime(self.start, "%Y-%m-%d %H.%M.%S")
         ts_start = int(dt.timestamp() * prec)
         ts_interval = self.interval * prec
-        
+
         ts1 = ts_start + start_row * ts_interval
         ts2 = ts_start + end_row * ts_interval
         sql = f"DELETE FROM {full_table_name} WHERE cts >= {ts1} and cts < {ts2}"
         tdSql.execute(sql)
 
-        self.__info(f"Deleted rows from {full_table_name} from {start_row} to {end_row}")
-        
-        
+        self.__info(
+            f"Deleted rows from {full_table_name} from {start_row} to {end_row}"
+        )
+
     def _parse_columns(self, column_str):
         """将列字符串解析为 [(name, type), ...]"""
-        parts = [p.strip() for p in column_str.strip().split(',')]
+        parts = [p.strip() for p in column_str.strip().split(",")]
         columns = []
         for p in parts:
             match = re.match(r"(\w+)\s+([\w()]+(?:\s+unsigned)?)", p)
@@ -364,11 +424,9 @@ class StreamTable:
 
     def __createNormalTable(self):
         self.__info(f"create normal table")
-        tdSql.execute(
-            f"create table {self.db}.{self.tbName} ({self.columns})"
-        )
-    
-    def __createSubTables(self, startTbIndex, endTbIndex):        
+        tdSql.execute(f"create table {self.db}.{self.tbName} ({self.columns})")
+
+    def __createSubTables(self, startTbIndex, endTbIndex):
         dt = datetime.strptime(self.start, "%Y-%m-%d %H.%M.%S")
         if self.precision == "us":
             prec = 1000 * 1000 * 1000
@@ -381,7 +439,7 @@ class StreamTable:
         tsNext = tsStart + 86400 * prec
 
         self.__info(f"create total {endTbIndex-startTbIndex} child tables")
-        
+
         start = startTbIndex
         while start < endTbIndex:
             end = min(start + 100, endTbIndex)
@@ -406,27 +464,30 @@ class StreamTable:
                 sql += f"{self.db}.{self.tbName}_{table} using {self.db}.{self.tbName} tags({tts}, '{tint}', {tuint}, {tbigint}, {tubigint}, {tfloat}, {tdouble}, '{tvarchar}', {tsmallint}, {tusmallint}, {ttinyint}, {tutinyint}, {tbool}, '{tnchar}', '{tvarbinary}', '{tgeometry}') "
             tdSql.execute(sql)
             start = end
-            
+
     def __createSupTable(self):
         self.__info(f"create super table")
-        tdSql.execute(f"create stable {self.db}.{self.tbName} ({self.columns}) tags({self.tags})")
-        
+        tdSql.execute(
+            f"create stable {self.db}.{self.tbName} ({self.columns}) tags({self.tags})"
+        )
+
     def __info(self, info, *args, **kwargs):
         if self.logOpen:
             tdLog.info(info, args, kwargs)
 
+
 class StreamUtil:
     def __init__(self):
         self.vgroups = 1  # 默认分区组数
-    
+
     def init_database(self, db):
         tdLog.info(f"create databases {db}")
         tdSql.prepare(dbname=db, vgroups=self.vgroups)
         clusterComCheck.checkDbReady(db)
 
     def clean(self):
-        self.dropAllStreamsAndDbs() 
-        
+        self.dropAllStreamsAndDbs()
+
     def createSnode(self, index=1):
         sql = f"create snode on dnode {index}"
         tdSql.execute(sql)
@@ -442,13 +503,19 @@ class StreamUtil:
         if stream_name == "":
             tdSql.query(f"select * from information_schema.ins_streams")
         else:
-            tdSql.query(f"select * from information_schema.ins_streams where stream_name = '{stream_name}'")
+            tdSql.query(
+                f"select * from information_schema.ins_streams where stream_name = '{stream_name}'"
+            )
         streamNum = tdSql.getRows()
         for loop in range(60):
             if stream_name == "":
-                tdSql.query(f"select * from information_schema.ins_stream_tasks where type = 'Trigger' and status = 'Running'")
+                tdSql.query(
+                    f"select * from information_schema.ins_stream_tasks where type = 'Trigger' and status = 'Running'"
+                )
             else:
-                tdSql.query(f"select * from information_schema.ins_stream_tasks where type = 'Trigger' and status = 'Running' and stream_name = '{stream_name}'")
+                tdSql.query(
+                    f"select * from information_schema.ins_stream_tasks where type = 'Trigger' and status = 'Running' and stream_name = '{stream_name}'"
+                )
             time.sleep(1)
             if tdSql.getRows() == streamNum:
                 return
@@ -914,8 +981,8 @@ class StreamItem:
         exp_query="",
         exp_rows=[],
         check_func=None,
-        expect_query_by_row = "",
-        result_param_mapping  = {}
+        expect_query_by_row="",
+        result_param_mapping={},
     ):
         self.id = id
         self.stream = stream
@@ -923,7 +990,7 @@ class StreamItem:
         self.exp_query = exp_query
         self.exp_rows = exp_rows
         self.check_func = check_func
-        
+
         self.expect_query_by_row = expect_query_by_row
         self.result_param_mapping = result_param_mapping
 
@@ -932,8 +999,6 @@ class StreamItem:
         tdSql.execute(self.stream)
 
     def checkResults(self):
-        tdLog.info(f"check stream:s{self.id} result")
-
         if self.check_func != None:
             tdLog.info(f"check stream:s{self.id} func")
             self.check_func()
@@ -951,43 +1016,49 @@ class StreamItem:
             tdSql.checkResultsByArray(self.res_query, exp_result, self.exp_query)
 
         tdLog.info(f"check stream:s{self.id} result successfully")
-        
+
     def awaitRowStability(self, stable_rows, waitSeconds=60):
         """
         确保流处理结果的行数与预期的稳定行数一致
         :param stable_rows: int, 预期的稳定行数
         """
         tdLog.info(f"ensure stream:s{self.id} has {stable_rows} stable rows")
-      
+
         for loop in range(waitSeconds):
             if False == tdSql.query(self.res_query, None, 1, None, False, False):
                 tdLog.info(f"{self.res_query} has failed for {loop} times")
                 time.sleep(1)
                 continue
-            
+
             actual_rows = tdSql.getRows()
-            
-            tdLog.info(f"Stream:s{self.id} got {actual_rows} rows, expected:{stable_rows}")
+
+            tdLog.info(
+                f"Stream:s{self.id} got {actual_rows} rows, expected:{stable_rows}"
+            )
 
             if stable_rows < 0 or (stable_rows > 0 and actual_rows == stable_rows):
                 tdLog.info(f"Stream:s{self.id} has {actual_rows} stable rows")
                 return
             time.sleep(1)
-            
-        tdLog.exit(f"Stream:s{self.id} did not stabilize to {stable_rows} rows in {waitSeconds} seconds")
+
+        tdLog.exit(
+            f"Stream:s{self.id} did not stabilize to {stable_rows} rows in {waitSeconds} seconds"
+        )
 
     def awaitStreamRunning(self, waitSeconds=60):
-        tdLog.info(f"wait stream:s{self.id} status become running at most {waitSeconds} seconds")
-      
+        tdLog.info(
+            f"wait stream:s{self.id} status become running at most {waitSeconds} seconds"
+        )
+
         sql = f"select status from information_schema.ins_streams where stream_name='s{self.id}';"
         for loop in range(waitSeconds):
             if False == tdSql.query(sql, None, 1, None, False, False):
                 tdLog.info(f"{sql} has failed for {loop} times")
                 time.sleep(1)
                 continue
-            
+
             actual_rows = tdSql.getRows()
-            
+
             if actual_rows != 1:
                 tdLog.info(f"Stream:s{self.id} status not got")
                 time.sleep(1)
@@ -1002,8 +1073,10 @@ class StreamItem:
                 tdLog.info(f"Stream:s{self.id} status {stream_status} got")
                 return
 
-        tdLog.exit(f"Stream:s{self.id} status not become Running in {waitSeconds} seconds")
-        
+        tdLog.exit(
+            f"Stream:s{self.id} status not become Running in {waitSeconds} seconds"
+        )
+
     def set_result_param_mapping(self, mapping: dict):
         """
         设置参数名与列索引的映射，例如 {"_wstart": 0, "_wend": 1}
@@ -1020,7 +1093,7 @@ class StreamItem:
         rowNum = tdSql.getRows()
         colNum = tdSql.getCols()
         cols = [tdSql.getColData(i) for i in range(colNum)]
-        
+
         for i in range(0, rowNum):
             params = {
                 param_name: cols[col_index][i]
@@ -1029,8 +1102,10 @@ class StreamItem:
             }
             sql = self.expect_query_by_row.format(**params)
             tdLog.info(f"after fomat, sql: {sql}")
-            
+
             tdSql.query(sql)
-            for colIndex in range (0, colNum):
-                print(f"type(elm): {type(cols[colIndex][i])}, type(expect_elm): {type(tdSql.getData(0, colIndex))}")
+            for colIndex in range(0, colNum):
+                print(
+                    f"type(elm): {type(cols[colIndex][i])}, type(expect_elm): {type(tdSql.getData(0, colIndex))}"
+                )
                 tdSql.checkEqual(cols[colIndex][i], tdSql.getData(0, colIndex))
