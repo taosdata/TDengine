@@ -255,8 +255,11 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   pRpc->info.wrapper = pWrapper;
 
   EQItype itype = RPC_QITEM;  // rsp msg is not restricted by tsQueueMemoryUsed
-  if (IsReq(pRpc) && pRpc->msgType != TDMT_SYNC_HEARTBEAT && pRpc->msgType != TDMT_SYNC_HEARTBEAT_REPLY)
-    itype = RPC_QITEM;
+  if (pRpc->msgType == TDMT_SYNC_HEARTBEAT || pRpc->msgType == TDMT_SYNC_HEARTBEAT_REPLY) {
+    itype = DEF_QITEM;
+  } else if (IsReq(pRpc)) {
+    itype = APPLY_QITEM;
+  }
   code = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg);
   if (code) goto _OVER;
 
@@ -532,7 +535,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
-  rpcInit.shareConnLimit = tsShareConnLimit * 8;
+  rpcInit.shareConnLimit = tsShareConnLimit * 2;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
@@ -586,7 +589,7 @@ int32_t dmInitServer(SDnode *pDnode) {
 
   rpcInit.localPort = tsServerPort;
   rpcInit.label = "DND-S";
-  rpcInit.numOfThreads = tsNumOfRpcThreads;
+  rpcInit.numOfThreads = tsNumOfRpcThreads * 2;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = tsMaxShellConns;
   rpcInit.connType = TAOS_CONN_SERVER;
