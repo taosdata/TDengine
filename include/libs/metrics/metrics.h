@@ -16,16 +16,14 @@
 #ifndef _TD_METRICS_H
 #define _TD_METRICS_H
 
-#include "tarray.h"
 #include "tdef.h"
-#include "tlog.h"
-#include "tmsg.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef enum { METRIC_TYPE_INT64 = 1, METRIC_TYPE_DOUBLE = 2, METRIC_TYPE_STRING = 3 } EMetricType;
+// Forward declarations
+typedef struct SHashObj SHashObj;
 
 // Metric collection level
 typedef enum {
@@ -33,25 +31,7 @@ typedef enum {
   METRIC_LEVEL_HIGH = 1  // Disabled by default, can be enabled for debugging
 } EMetricLevel;
 
-// Metric definition structure
-typedef struct {
-  EMetricType  type;
-  EMetricLevel level;
-} SMetricDef;
-
-// Metric value union
-typedef union {
-  int64_t int_val;
-  double  double_val;
-  char   *str_val;
-} SMetricValue;
-
-// Metric instance structure
-typedef struct {
-  SMetricDef   definition;
-  SMetricValue value;
-} SMetric;
-
+// Raw Dnode Metrics Structure (Input data)
 typedef struct {
   int64_t rpcQueueMemoryAllowed;
   int64_t rpcQueueMemoryUsed;
@@ -59,14 +39,7 @@ typedef struct {
   int64_t applyMemoryUsed;
 } SRawDnodeMetrics;
 
-typedef struct {
-  SMetric rpcQueueMemoryAllowed;
-  SMetric rpcQueueMemoryUsed;
-  SMetric applyMemoryAllowed;
-  SMetric applyMemoryUsed;
-} SDnodeMetricsEx;
-
-// Raw Write Metrics Structure (Primitive Types)
+// Raw Write Metrics Structure (Input data)
 typedef struct {
   char    dbname[TSDB_DB_NAME_LEN];  // Database name
   int64_t total_requests;
@@ -90,78 +63,19 @@ typedef struct {
   int64_t last_cache_commit_count;
 } SRawWriteMetrics;
 
-// Write Metrics Extended Structure (Formatted)
-typedef struct {
-  int32_t vgId;
-  int32_t dnodeId;
-  int64_t clusterId;
-  char    dbname[TSDB_DB_NAME_LEN];  // Database name
-  SMetric total_requests;
-  SMetric total_rows;
-  SMetric total_bytes;
-  SMetric fetch_batch_meta_time;
-  SMetric fetch_batch_meta_count;
-  SMetric preprocess_time;
-  SMetric wal_write_bytes;
-  SMetric wal_write_time;
-  SMetric apply_bytes;
-  SMetric apply_time;
-  SMetric commit_count;
-  SMetric commit_time;
-  SMetric memtable_wait_time;
-  SMetric block_commit_count;
-  SMetric blocked_commit_time;
-  SMetric merge_count;
-  SMetric merge_time;
-  SMetric last_cache_commit_time;
-  SMetric last_cache_commit_count;
-} SWriteMetricsEx;
-
-// // Query Metrics Extended Structure
-// typedef struct {
-// } SQueryMetricsEx;
-
-// // Stream Metrics Extended Structure
-// typedef struct {
-// } SStreamMetricsEx;
-
-// Metrics Manager Structure
-typedef struct {
-  SDnodeMetricsEx *pDnodeMetrics;
-  SHashObj      *pWriteMetrics;
-  SHashObj      *pQueryMetrics;
-  SHashObj      *pStreamMetrics;
-} SMetricsManager;
-
-// Metrics management functions
+// Public API functions
 int32_t initMetricsManager();
 void    cleanupMetrics();
 
-// Metric manipulation functions
-void        initMetric(SMetric *pMetric, EMetricType type, EMetricLevel level);
-void        setMetricInt64(SMetric *pMetric, int64_t value);
-void        setMetricDouble(SMetric *pMetric, double value);
-void        setMetricString(SMetric *pMetric, const char *value);
-int64_t     getMetricInt64(const SMetric *pMetric);
-double      getMetricDouble(const SMetric *pMetric);
-const char *getMetricString(const SMetric *pMetric);
-
 // Write metrics functions
-void             initWriteMetricsEx(SWriteMetricsEx *pMetrics);
-int32_t          addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const char *dbname, const SRawWriteMetrics *pRawMetrics);
-SWriteMetricsEx *getWriteMetricsByVgId(int32_t vgId);
+int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const char *dbname,
+                        const SRawWriteMetrics *pRawMetrics);
 
 // Dnode metrics functions
-void             initDnodeMetricsEx(SDnodeMetricsEx *pMetrics);
-int32_t          addDnodeMetrics(const SRawDnodeMetrics *pRawMetrics);
-SDnodeMetricsEx *getDnodeMetrics();
+int32_t addDnodeMetrics(const SRawDnodeMetrics *pRawMetrics);
 
-// Reporting functions
-void reportWriteMetrics();
-void reportDnodeMetrics();
-
-// Cleanup functions for expired metrics
-void cleanExpiredWriteMetrics(SHashObj *pValidVgroups);
+// Utility functions
+int32_t cleanExpiredWriteMetrics(SHashObj *pValidVgroups);
 
 // Metrics collection control macro with priority
 // Only collect metrics when monitoring is disabled or not properly configured

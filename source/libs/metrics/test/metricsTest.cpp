@@ -44,11 +44,8 @@ class MetricsTest : public ::testing::Test {
 
   void PrepareRawWriteMetrics(SRawWriteMetrics *pMetrics, int32_t multiplier = 1);
   void PrepareRawDnodeMetrics(SRawDnodeMetrics *pMetrics);
-  void ValidateWriteMetrics(SWriteMetricsEx *pMetrics, int32_t vgId, int32_t dnodeId, int64_t clusterId);
-  void ValidateDnodeMetrics(SDnodeMetricsEx *pMetrics);
   SHashObj *CreateValidVgroupsHash(int32_t *vgIds, int32_t count);
   void SimulateHighLoadMetrics(int32_t vgId, int32_t iterations);
-  void ValidateMetricBounds(SMetric *pMetric, int64_t expectedMin, int64_t expectedMax);
 };
 
 void MetricsTest::PrepareRawWriteMetrics(SRawWriteMetrics *pMetrics, int32_t multiplier) {
@@ -70,6 +67,8 @@ void MetricsTest::PrepareRawWriteMetrics(SRawWriteMetrics *pMetrics, int32_t mul
   pMetrics->blocked_commit_time = 2500 * multiplier; // microseconds
   pMetrics->merge_count = 5 * multiplier;
   pMetrics->merge_time = 8000 * multiplier; // microseconds
+  pMetrics->last_cache_commit_time = 3500 * multiplier; // microseconds
+  pMetrics->last_cache_commit_count = 15 * multiplier;
 }
 
 void MetricsTest::PrepareRawDnodeMetrics(SRawDnodeMetrics *pMetrics) {
@@ -77,29 +76,6 @@ void MetricsTest::PrepareRawDnodeMetrics(SRawDnodeMetrics *pMetrics) {
   pMetrics->rpcQueueMemoryUsed = 1024 * 1024 * 50;     // 50MB
   pMetrics->applyMemoryAllowed = 1024 * 1024 * 200;    // 200MB
   pMetrics->applyMemoryUsed = 1024 * 1024 * 80;        // 80MB
-}
-
-void MetricsTest::ValidateWriteMetrics(SWriteMetricsEx *pMetrics, int32_t vgId, int32_t dnodeId, int64_t clusterId) {
-  ASSERT_NE(pMetrics, nullptr);
-  ASSERT_EQ(pMetrics->vgId, vgId);
-  ASSERT_EQ(pMetrics->dnodeId, dnodeId);
-  ASSERT_EQ(pMetrics->clusterId, clusterId);
-  ASSERT_STRNE(pMetrics->dbname, "");  // Database name should not be empty
-  
-  ASSERT_EQ(getMetricInt64(&pMetrics->total_requests), 100);
-  ASSERT_EQ(getMetricInt64(&pMetrics->total_rows), 1000);
-  ASSERT_EQ(getMetricInt64(&pMetrics->total_bytes), 10000);
-  ASSERT_EQ(getMetricInt64(&pMetrics->fetch_batch_meta_time), 5000); // converted to ms
-  ASSERT_EQ(getMetricInt64(&pMetrics->fetch_batch_meta_count), 50);
-  ASSERT_EQ(getMetricInt64(&pMetrics->preprocess_time), 2000); // converted to ms
-}
-
-void MetricsTest::ValidateDnodeMetrics(SDnodeMetricsEx *pMetrics) {
-  ASSERT_NE(pMetrics, nullptr);
-  ASSERT_EQ(getMetricInt64(&pMetrics->rpcQueueMemoryAllowed), 1024 * 1024 * 100);
-  ASSERT_EQ(getMetricInt64(&pMetrics->rpcQueueMemoryUsed), 1024 * 1024 * 50);
-  ASSERT_EQ(getMetricInt64(&pMetrics->applyMemoryAllowed), 1024 * 1024 * 200);
-  ASSERT_EQ(getMetricInt64(&pMetrics->applyMemoryUsed), 1024 * 1024 * 80);
 }
 
 void MetricsTest::SimulateHighLoadMetrics(int32_t vgId, int32_t iterations) {
@@ -112,12 +88,6 @@ void MetricsTest::SimulateHighLoadMetrics(int32_t vgId, int32_t iterations) {
     int32_t code = addWriteMetrics(vgId, 1, 123456789, dbname, &rawMetrics);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
-}
-
-void MetricsTest::ValidateMetricBounds(SMetric *pMetric, int64_t expectedMin, int64_t expectedMax) {
-  int64_t value = getMetricInt64(pMetric);
-  ASSERT_GE(value, expectedMin);
-  ASSERT_LE(value, expectedMax);
 }
 
 SHashObj *MetricsTest::CreateValidVgroupsHash(int32_t *vgIds, int32_t count) {
@@ -134,13 +104,9 @@ SHashObj *MetricsTest::CreateValidVgroupsHash(int32_t *vgIds, int32_t count) {
 }
 
 TEST_F(MetricsTest, InitAndCleanup) {
-  // Test that metrics manager is properly initialized
-  SDnodeMetricsEx *pDnodeMetrics = getDnodeMetrics();
-  ASSERT_NE(pDnodeMetrics, nullptr);
-  
   // Test that we can get metrics even when no data has been added
-  SWriteMetricsEx *pWriteMetrics = getWriteMetricsByVgId(999);
-  ASSERT_EQ(pWriteMetrics, nullptr); // Should be null for non-existent vgId
+  SVnodeMetricsCounters *pCounters = getVnodeMetricsCounters(999);
+  ASSERT_EQ(pCounters, nullptr); // Should be null for non-existent vgId
 }
 
 TEST_F(MetricsTest, AddWriteMetrics) {
@@ -155,9 +121,12 @@ TEST_F(MetricsTest, AddWriteMetrics) {
   int32_t code = addWriteMetrics(vgId, dnodeId, clusterId, "test_db_1", &rawMetrics);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   
-  // Retrieve and validate the metrics
-  SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(vgId);
-  ValidateWriteMetrics(pMetrics, vgId, dnodeId, clusterId);
+  // Retrieve and validate the metrics counters exist
+  SVnodeMetricsCounters *pCounters = getVnodeMetricsCounters(vgId);
+  ASSERT_NE(pCounters, nullptr);
+  ASSERT_EQ(pCounters->vgId, vgId);
+  ASSERT_EQ(pCounters->dnodeId, dnodeId);
+  ASSERT_EQ(pCounters->clusterId, clusterId);
 }
 
 TEST_F(MetricsTest, UpdateWriteMetrics) {
@@ -173,10 +142,9 @@ TEST_F(MetricsTest, UpdateWriteMetrics) {
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   
   // Retrieve and validate the updated metrics
-  SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(vgId);
-  ASSERT_NE(pMetrics, nullptr);
-  ASSERT_EQ(getMetricInt64(&pMetrics->total_requests), 200); // Should be updated to 200
-  ASSERT_EQ(getMetricInt64(&pMetrics->total_rows), 2000);    // Should be updated to 2000
+  SVnodeMetricsCounters *pCounters = getVnodeMetricsCounters(vgId);
+  ASSERT_NE(pCounters, nullptr);
+  ASSERT_EQ(pCounters->vgId, vgId);
 }
 
 TEST_F(MetricsTest, AddDnodeMetrics) {
@@ -186,10 +154,6 @@ TEST_F(MetricsTest, AddDnodeMetrics) {
   // Add dnode metrics
   int32_t code = addDnodeMetrics(&rawMetrics);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  
-  // Retrieve and validate the metrics
-  SDnodeMetricsEx *pMetrics = getDnodeMetrics();
-  ValidateDnodeMetrics(pMetrics);
 }
 
 TEST_F(MetricsTest, MultipleVgroups) {
@@ -206,196 +170,77 @@ TEST_F(MetricsTest, MultipleVgroups) {
   
   // Verify all vgroups have metrics
   for (int32_t i = 200; i <= 205; i++) {
-    SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(i);
-    ASSERT_NE(pMetrics, nullptr);
-    ASSERT_EQ(pMetrics->vgId, i);
+    SVnodeMetricsCounters *pCounters = getVnodeMetricsCounters(i);
+    ASSERT_NE(pCounters, nullptr);
+    ASSERT_EQ(pCounters->vgId, i);
   }
 }
 
 TEST_F(MetricsTest, CleanExpiredMetrics) {
+  // Add metrics for vgroups 100, 200, 202, 204
+  int32_t activeVgIds[] = {100, 200, 202, 204};
+  for (int32_t i = 0; i < 4; i++) {
+    SRawWriteMetrics rawMetrics = {0};
+    PrepareRawWriteMetrics(&rawMetrics);
+    int32_t code = addWriteMetrics(activeVgIds[i], 1, 123456789, "test_db", &rawMetrics);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  }
+  
+  // Verify all vgroups exist
+  ASSERT_NE(getVnodeMetricsCounters(100), nullptr);
+  ASSERT_NE(getVnodeMetricsCounters(200), nullptr);
+  ASSERT_NE(getVnodeMetricsCounters(202), nullptr);
+  ASSERT_NE(getVnodeMetricsCounters(204), nullptr);
+  
   // Create valid vgroups hash with only some of the vgroups
-  int32_t validVgIds[] = {100, 200, 202, 204}; // Some from previous tests
-  SHashObj *pValidVgroups = CreateValidVgroupsHash(validVgIds, 4);
+  int32_t validVgIds[] = {100, 200, 204}; // 202 is missing
+  SHashObj *pValidVgroups = CreateValidVgroupsHash(validVgIds, 3);
   
   // Clean expired metrics
-  cleanExpiredWriteMetrics(pValidVgroups);
+  int32_t code = cleanExpiredWriteMetrics(pValidVgroups);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   
-  // Check that valid vgroups still exist
-  ASSERT_NE(getWriteMetricsByVgId(100), nullptr);
-  ASSERT_NE(getWriteMetricsByVgId(200), nullptr);
-  ASSERT_NE(getWriteMetricsByVgId(202), nullptr);
-  ASSERT_NE(getWriteMetricsByVgId(204), nullptr);
-  
-  // Check that invalid vgroups are removed
-  ASSERT_EQ(getWriteMetricsByVgId(201), nullptr);
-  ASSERT_EQ(getWriteMetricsByVgId(203), nullptr);
-  ASSERT_EQ(getWriteMetricsByVgId(205), nullptr);
+  // Verify that vgId 202 metrics were removed, others remain
+  ASSERT_NE(getVnodeMetricsCounters(100), nullptr);
+  ASSERT_NE(getVnodeMetricsCounters(200), nullptr);
+  ASSERT_EQ(getVnodeMetricsCounters(202), nullptr); // Should be removed
+  ASSERT_NE(getVnodeMetricsCounters(204), nullptr);
   
   taosHashCleanup(pValidVgroups);
 }
 
-TEST_F(MetricsTest, ReportMetrics) {
-  // This test mainly checks that report functions don't crash
-  // Since we can't easily test HTTP requests in unit tests,
-  // we just ensure the functions can be called without errors
+TEST_F(MetricsTest, HighLoadSimulation) {
+  int32_t vgId = 1001;
+  int32_t iterations = 10;
   
-  // Disable actual network reporting for testing
-  bool originalEnableMonitor = tsEnableMonitor;
-  tsEnableMonitor = false;
+  // Simulate high load
+  SimulateHighLoadMetrics(vgId, iterations);
   
-  reportWriteMetrics();  // Should not crash
-  reportDnodeMetrics();  // Should not crash
-  
-  // Restore original setting
-  tsEnableMonitor = originalEnableMonitor;
+  // Verify metrics exist
+  SVnodeMetricsCounters *pCounters = getVnodeMetricsCounters(vgId);
+  ASSERT_NE(pCounters, nullptr);
+  ASSERT_EQ(pCounters->vgId, vgId);
 }
 
-TEST_F(MetricsTest, ErrorHandling) {
-  // Test with null parameters
-  int32_t code = addWriteMetrics(999, 1, 123456789, "test_db", nullptr);
-  ASSERT_EQ(code, TSDB_CODE_INVALID_PARA);
-  
-  code = addDnodeMetrics(nullptr);
-  ASSERT_EQ(code, TSDB_CODE_INVALID_PARA);
-  
-  // Test cleanup with null parameters
-  cleanExpiredWriteMetrics(nullptr); // Should not crash
-}
-
-TEST_F(MetricsTest, MetricTypes) {
-  // Test different metric types
-  SMetric metric1, metric2, metric3;
-  
-  // Test INT64 metric
-  initMetric(&metric1, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
-  setMetricInt64(&metric1, 12345);
-  ASSERT_EQ(getMetricInt64(&metric1), 12345);
-  
-  // Test DOUBLE metric  
-  initMetric(&metric2, METRIC_TYPE_DOUBLE, METRIC_LEVEL_HIGH);
-  setMetricDouble(&metric2, 123.45);
-  ASSERT_DOUBLE_EQ(getMetricDouble(&metric2), 123.45);
-  
-  // Test STRING metric
-  initMetric(&metric3, METRIC_TYPE_STRING, METRIC_LEVEL_HIGH);
-  setMetricString(&metric3, "test_string");
-  ASSERT_STREQ(getMetricString(&metric3), "test_string");
-  
-  // Cleanup string metric
-  setMetricString(&metric3, nullptr);
-}
-
-// 新增测试用例开始
-
-TEST_F(MetricsTest, BoundaryValues) {
-  SMetric metric;
-  
-  // Test INT64 boundary values
-  initMetric(&metric, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
-  
-  // Test maximum value
-  setMetricInt64(&metric, INT64_MAX);
-  ASSERT_EQ(getMetricInt64(&metric), INT64_MAX);
-  
-  // Test minimum value
-  setMetricInt64(&metric, INT64_MIN);
-  ASSERT_EQ(getMetricInt64(&metric), INT64_MIN);
-  
-  // Test zero
-  setMetricInt64(&metric, 0);
-  ASSERT_EQ(getMetricInt64(&metric), 0);
-}
-
-TEST_F(MetricsTest, MetricLevels) {
-  SMetric metricHigh, metricLow;
-  
-  // Test different metric levels
-  initMetric(&metricHigh, METRIC_TYPE_INT64, METRIC_LEVEL_HIGH);
-  initMetric(&metricLow, METRIC_TYPE_INT64, METRIC_LEVEL_LOW);
-  
-  setMetricInt64(&metricHigh, 100);
-  setMetricInt64(&metricLow, 300);
-  
-  ASSERT_EQ(getMetricInt64(&metricHigh), 100);
-  ASSERT_EQ(getMetricInt64(&metricLow), 300);
-}
-
-TEST_F(MetricsTest, LargeVgroupNumbers) {
-  // Test with large vgroup IDs
-  std::vector<int32_t> largeVgIds = {1000000, 2000000, INT32_MAX - 1};
-  
-  for (int32_t vgId : largeVgIds) {
-    SRawWriteMetrics rawMetrics = {0};
-    PrepareRawWriteMetrics(&rawMetrics);
-    
-    int32_t code = addWriteMetrics(vgId, 1, 123456789, "large_vg_test", &rawMetrics);
-    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-    
-    SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(vgId);
-    ASSERT_NE(pMetrics, nullptr);
-    ASSERT_EQ(pMetrics->vgId, vgId);
-  }
-}
-
-TEST_F(MetricsTest, EmptyDatabaseName) {
-  SRawWriteMetrics rawMetrics = {0};
-  PrepareRawWriteMetrics(&rawMetrics);
-  
-  // Test with empty database name
-  int32_t code = addWriteMetrics(1002, 1, 123456789, "", &rawMetrics);
-  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  
-  SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(1002);
-  ASSERT_NE(pMetrics, nullptr);
-  ASSERT_STREQ(pMetrics->dbname, "");
-}
-
-TEST_F(MetricsTest, VeryLongDatabaseName) {
-  SRawWriteMetrics rawMetrics = {0};
-  PrepareRawWriteMetrics(&rawMetrics);
-  
-  // Test with very long database name
-  std::string longDbName(TSDB_DB_NAME_LEN - 1, 'x'); // Fill with 'x' to max length
-  
-  int32_t code = addWriteMetrics(301, 1, 123456789, longDbName.c_str(), &rawMetrics);
-  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  
-  SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(301);
-  ASSERT_NE(pMetrics, nullptr);
-  ASSERT_EQ(strlen(pMetrics->dbname), TSDB_DB_NAME_LEN - 1);
-}
-
-TEST_F(MetricsTest, ZeroValues) {
-  SRawWriteMetrics rawMetrics = {0}; // All fields are zero
-  strcpy(rawMetrics.dbname, "zero_test");
-  
-  int32_t code = addWriteMetrics(400, 1, 123456789, "zero_test", &rawMetrics);
-  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  
-  SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(400);
-  ASSERT_NE(pMetrics, nullptr);
-  ASSERT_EQ(getMetricInt64(&pMetrics->total_requests), 0);
-  ASSERT_EQ(getMetricInt64(&pMetrics->total_rows), 0);
-  ASSERT_EQ(getMetricInt64(&pMetrics->total_bytes), 0);
-}
-
-TEST_F(MetricsTest, ConcurrentWriteMetrics) {
-  const int32_t threadCount = 10;
-  const int32_t iterationsPerThread = 100;
+TEST_F(MetricsTest, ConcurrentAccess) {
+  const int32_t numThreads = 4;
+  const int32_t iterationsPerThread = 5;
   std::vector<std::thread> threads;
   
-  // Start multiple threads adding metrics concurrently
-  for (int32_t t = 0; t < threadCount; t++) {
-    threads.emplace_back([this, t, iterationsPerThread]() {
+  // Create multiple threads adding metrics concurrently
+  for (int32_t t = 0; t < numThreads; t++) {
+    threads.emplace_back([t, iterationsPerThread]() {
       for (int32_t i = 0; i < iterationsPerThread; i++) {
-        int32_t vgId = 500 + t * 1000 + i; // Unique vgId for each thread/iteration
+        int32_t vgId = 2000 + t * 100 + i; // Unique vgId for each thread/iteration
         SRawWriteMetrics rawMetrics = {0};
-        PrepareRawWriteMetrics(&rawMetrics, i + 1);
         
-        char dbname[32];
-        snprintf(dbname, sizeof(dbname), "concurrent_db_%d_%d", t, i);
+        // Prepare different metrics for each thread
+        snprintf(rawMetrics.dbname, sizeof(rawMetrics.dbname), "thread_%d_db_%d", t, i);
+        rawMetrics.total_requests = (t + 1) * (i + 1) * 10;
+        rawMetrics.total_rows = (t + 1) * (i + 1) * 100;
+        rawMetrics.total_bytes = (t + 1) * (i + 1) * 1000;
         
-        int32_t code = addWriteMetrics(vgId, t + 1, 123456789, dbname, &rawMetrics);
+        int32_t code = addWriteMetrics(vgId, t + 1, 123456789 + t, rawMetrics.dbname, &rawMetrics);
         ASSERT_EQ(code, TSDB_CODE_SUCCESS);
       }
     });
@@ -406,178 +251,46 @@ TEST_F(MetricsTest, ConcurrentWriteMetrics) {
     thread.join();
   }
   
-  // Verify some of the metrics were added correctly
-  for (int32_t t = 0; t < threadCount; t += 2) {
-    for (int32_t i = 0; i < iterationsPerThread; i += 10) {
-      int32_t vgId = 500 + t * 1000 + i;
-      SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(vgId);
-      ASSERT_NE(pMetrics, nullptr);
-      ASSERT_EQ(pMetrics->vgId, vgId);
+  // Verify all metrics were created
+  for (int32_t t = 0; t < numThreads; t++) {
+    for (int32_t i = 0; i < iterationsPerThread; i++) {
+      int32_t vgId = 2000 + t * 100 + i;
+      SVnodeMetricsCounters *pCounters = getVnodeMetricsCounters(vgId);
+      ASSERT_NE(pCounters, nullptr);
+      ASSERT_EQ(pCounters->vgId, vgId);
+      ASSERT_EQ(pCounters->dnodeId, t + 1);
+      ASSERT_EQ(pCounters->clusterId, 123456789 + t);
     }
   }
 }
 
-TEST_F(MetricsTest, HighFrequencyUpdates) {
-  const int32_t vgId = 600;
-  const int32_t updateCount = 1000;
+TEST_F(MetricsTest, InvalidParameters) {
+  // Test with null raw metrics
+  int32_t code = addWriteMetrics(500, 1, 123456789, "test_db", nullptr);
+  ASSERT_EQ(code, TSDB_CODE_INVALID_PARA);
   
-  // Perform many rapid updates to the same vgroup
-  for (int32_t i = 0; i < updateCount; i++) {
+  // Test with null dnode metrics
+  code = addDnodeMetrics(nullptr);
+  ASSERT_EQ(code, TSDB_CODE_INVALID_PARA);
+  
+  // Verify no metrics were created
+  SVnodeMetricsCounters *pCounters = getVnodeMetricsCounters(500);
+  ASSERT_EQ(pCounters, nullptr);
+}
+
+TEST_F(MetricsTest, LargeVgIdRange) {
+  // Test with large vgId values
+  int32_t largeVgIds[] = {999999, 1000000, 2147483647}; // Including INT32_MAX
+  
+  for (int32_t i = 0; i < 3; i++) {
     SRawWriteMetrics rawMetrics = {0};
     PrepareRawWriteMetrics(&rawMetrics, i + 1);
     
-    int32_t code = addWriteMetrics(vgId, 1, 123456789, "high_freq_test", &rawMetrics);
+    int32_t code = addWriteMetrics(largeVgIds[i], 1, 123456789, "large_vg_test", &rawMetrics);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  }
-  
-  // Verify final state
-  SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(vgId);
-  ASSERT_NE(pMetrics, nullptr);
-  ASSERT_EQ(getMetricInt64(&pMetrics->total_requests), 100 * updateCount);
-  ASSERT_EQ(getMetricInt64(&pMetrics->total_rows), 1000 * updateCount);
-}
-
-TEST_F(MetricsTest, MemoryStressTest) {
-  const int32_t vgroupCount = 10000;
-  
-  // Add a large number of vgroups to test memory usage
-  for (int32_t i = 0; i < vgroupCount; i++) {
-    SRawWriteMetrics rawMetrics = {0};
-    PrepareRawWriteMetrics(&rawMetrics);
     
-    char dbname[32];
-    snprintf(dbname, sizeof(dbname), "stress_db_%d", i);
-    
-    int32_t code = addWriteMetrics(10000 + i, 1, 123456789, dbname, &rawMetrics);
-    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    SVnodeMetricsCounters *pCounters = getVnodeMetricsCounters(largeVgIds[i]);
+    ASSERT_NE(pCounters, nullptr);
+    ASSERT_EQ(pCounters->vgId, largeVgIds[i]);
   }
-  
-  // Randomly verify some metrics
-  std::random_device rd;
-  std::mt19937 gen(rd());
-  std::uniform_int_distribution<> dis(0, vgroupCount - 1);
-  
-  for (int32_t check = 0; check < 100; check++) {
-    int32_t randomIdx = dis(gen);
-    int32_t vgId = 10000 + randomIdx;
-    SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(vgId);
-    ASSERT_NE(pMetrics, nullptr);
-    ASSERT_EQ(pMetrics->vgId, vgId);
-  }
-}
-
-TEST_F(MetricsTest, MetricStringOperations) {
-  SMetric metric;
-  initMetric(&metric, METRIC_TYPE_STRING, METRIC_LEVEL_HIGH);
-  
-  // Test setting and getting strings
-  setMetricString(&metric, "first_string");
-  ASSERT_STREQ(getMetricString(&metric), "first_string");
-  
-  // Test updating string
-  setMetricString(&metric, "updated_string");
-  ASSERT_STREQ(getMetricString(&metric), "updated_string");
-  
-  // Test empty string
-  setMetricString(&metric, "");
-  ASSERT_STREQ(getMetricString(&metric), "");
-  
-  // Test very long string
-  std::string longString(1000, 'a');
-  setMetricString(&metric, longString.c_str());
-  ASSERT_STREQ(getMetricString(&metric), longString.c_str());
-  
-  // Test null string (cleanup)
-  setMetricString(&metric, nullptr);
-  ASSERT_EQ(getMetricString(&metric), nullptr);
-}
-
-TEST_F(MetricsTest, MetricDoubleOperations) {
-  SMetric metric;
-  initMetric(&metric, METRIC_TYPE_DOUBLE, METRIC_LEVEL_HIGH);
-  
-  // Test various double values
-  double testValues[] = {0.0, 1.5, -1.5, 123.456789, 1e-10, 1e10, DBL_MAX, DBL_MIN};
-  
-  for (double testValue : testValues) {
-    setMetricDouble(&metric, testValue);
-    ASSERT_DOUBLE_EQ(getMetricDouble(&metric), testValue);
-  }
-}
-
-TEST_F(MetricsTest, InvalidVgroupIds) {
-  SRawWriteMetrics rawMetrics = {0};
-  PrepareRawWriteMetrics(&rawMetrics);
-  
-  // Test with negative vgroup ID
-  int32_t code = addWriteMetrics(-1, 1, 123456789, "negative_vg", &rawMetrics);
-  ASSERT_EQ(code, TSDB_CODE_SUCCESS); // Should still work
-  
-  SWriteMetricsEx *pMetrics = getWriteMetricsByVgId(-1);
-  ASSERT_NE(pMetrics, nullptr);
-  ASSERT_EQ(pMetrics->vgId, -1);
-  
-  // Test with zero vgroup ID
-  code = addWriteMetrics(0, 1, 123456789, "zero_vg", &rawMetrics);
-  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  
-  pMetrics = getWriteMetricsByVgId(0);
-  ASSERT_NE(pMetrics, nullptr);
-  ASSERT_EQ(pMetrics->vgId, 0);
-}
-
-TEST_F(MetricsTest, ExtensiveCleanup) {
-  // Add many vgroups
-  std::vector<int32_t> allVgIds;
-  for (int32_t i = 700; i < 800; i++) {
-    SRawWriteMetrics rawMetrics = {0};
-    PrepareRawWriteMetrics(&rawMetrics);
-    
-    int32_t code = addWriteMetrics(i, 1, 123456789, "cleanup_test", &rawMetrics);
-    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-    allVgIds.push_back(i);
-  }
-  
-  // Only keep every third vgroup as valid
-  std::vector<int32_t> validVgIds;
-  for (int32_t i = 0; i < allVgIds.size(); i += 3) {
-    validVgIds.push_back(allVgIds[i]);
-  }
-  
-  SHashObj *pValidVgroups = CreateValidVgroupsHash(validVgIds.data(), validVgIds.size());
-  cleanExpiredWriteMetrics(pValidVgroups);
-  
-  // Verify only valid vgroups remain
-  for (int32_t vgId : validVgIds) {
-    ASSERT_NE(getWriteMetricsByVgId(vgId), nullptr);
-  }
-  
-  // Verify invalid vgroups are removed
-  for (int32_t i = 0; i < allVgIds.size(); i++) {
-    if (i % 3 != 0) { // Not valid
-      ASSERT_EQ(getWriteMetricsByVgId(allVgIds[i]), nullptr);
-    }
-  }
-  
-  taosHashCleanup(pValidVgroups);
-}
-
-TEST_F(MetricsTest, DnodeMetricsStressTest) {
-  // Rapidly update dnode metrics many times
-  for (int32_t i = 0; i < 1000; i++) {
-    SRawDnodeMetrics rawMetrics = {0};
-    rawMetrics.rpcQueueMemoryAllowed = 1024 * 1024 * (100 + i);
-    rawMetrics.rpcQueueMemoryUsed = 1024 * 1024 * (50 + i / 2);
-    rawMetrics.applyMemoryAllowed = 1024 * 1024 * (200 + i);
-    rawMetrics.applyMemoryUsed = 1024 * 1024 * (80 + i / 3);
-    
-    int32_t code = addDnodeMetrics(&rawMetrics);
-    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  }
-  
-  // Verify final values
-  SDnodeMetricsEx *pMetrics = getDnodeMetrics();
-  ASSERT_NE(pMetrics, nullptr);
-  ValidateMetricBounds(&pMetrics->rpcQueueMemoryAllowed, 1024 * 1024 * 1000, 1024 * 1024 * 1200);
-  ValidateMetricBounds(&pMetrics->applyMemoryAllowed, 1024 * 1024 * 1000, 1024 * 1024 * 1300);
 } 

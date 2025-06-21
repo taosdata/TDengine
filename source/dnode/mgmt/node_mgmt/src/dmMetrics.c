@@ -55,8 +55,7 @@ void dmSendMetricsReport() {
   collectDnodeMetricsInfo(pDnode);
   collectWriteMetricsInfo(pDnode);
 
-  reportDnodeMetrics();
-  reportWriteMetrics();
+  // monitorfw automatically handles metrics reporting
 }
 
 void dmCleanExpiredMetrics(SDnode *pDnode) {

@@ -187,7 +187,6 @@ void vmCleanExpiredMetrics(SVnodeMgmt *pMgmt) {
   cleanExpiredWriteMetrics(pValidVgroups);
 
   taosHashCleanup(pValidVgroups);
-  return;
 }
 
 static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
