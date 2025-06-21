@@ -27,6 +27,7 @@
 #include "mndDnode.h"
 #include "mndVgroup.h"
 #include "mndSnode.h"
+#include "mndMnode.h"
 
 void msmDestroyActionQ() {
   SStmQNode* pQNode = NULL;
@@ -118,7 +119,7 @@ int32_t msmStopStreamByError(int64_t streamId, SStmStatus* pStatus, int32_t errC
   
   atomic_store_8(&pStatus->stopped, 1);
 
-  MND_STREAM_SET_LAST_TS(STM_EVENT_STREAM_ERROR, currTs);
+  MND_STREAM_SET_LAST_TS(STM_EVENT_STM_TERR, currTs);
 
 _exit:
 
@@ -1271,7 +1272,16 @@ int32_t msmUPAddScanTask(SStmGrpCtx* pCtx, SStreamObj* pStream, char* scanPlan, 
   SStmTaskSrcAddr addr;
   TAOS_CHECK_EXIT(nodesStringToNode(scanPlan, (SNode**)&pSubplan));
   addr.isFromCache = false;
-  addr.epset = mndGetVgroupEpsetById(pCtx->pMnode, vgId);
+  
+  if (MNODE_HANDLE == vgId) {
+    mndGetMnodeEpSet(pCtx->pMnode, &addr.epset);
+  } else if (vgId > MNODE_HANDLE) {
+    addr.epset = mndGetVgroupEpsetById(pCtx->pMnode, vgId);
+  } else {
+    mstsError("invalid vgId %d in scanPlan", vgId);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+  }
+  
   addr.taskId = taskId;
   addr.vgId = vgId;
   addr.groupId = pSubplan->id.groupId;
@@ -1287,6 +1297,8 @@ int32_t msmUPAddScanTask(SStmGrpCtx* pCtx, SStreamObj* pStream, char* scanPlan, 
   } else {
     TSDB_CHECK_NULL(taosArrayPush(*ppRes, &addr), code, lino, _exit, terrno);
   }
+
+  mstsDebug("calcReader %" PRIx64 " added to toUpdateScan, vgId:%d, groupId:%d, subplanId:%d", taskId, vgId, pSubplan->id.groupId, pSubplan->id.subplanId);
   
   atomic_add_fetch_32(&mStreamMgmt.toUpdateScanNum, 1);
   
@@ -1693,6 +1705,10 @@ int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* 
         pDeploy->task.nodeId = pState->id.nodeId;
         pDeploy->task.taskIdx = pState->id.taskIdx;
         TAOS_CHECK_EXIT(msmBuildRunnerDeployInfo(pDeploy, plan, pStream, pInfo->runnerReplica, 0 == i));
+
+        SStreamTask* pTask = &pDeploy->task;
+        msttDebug("runner task deploy built, subplan level:%d, taskIdx:%d, groupId:%d, subplanId:%d",
+            i, pTask->taskIdx, plan->id.groupId, plan->id.subplanId);
       }
 
       mstsDebug("deploy %d level %d initialized, taskNum:%d", deployId, i, taskNum);
@@ -3887,6 +3903,8 @@ int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, 
 }
 
 void msmHandleBecomeLeader(SMnode *pMnode) {
+  streamAddVnodeLeader(MNODE_HANDLE);
+  
   taosWLockLatch(&mStreamMgmt.runtimeLock);
   msmInitRuntimeInfo(pMnode);
   taosWUnLockLatch(&mStreamMgmt.runtimeLock);
@@ -3894,6 +3912,8 @@ void msmHandleBecomeLeader(SMnode *pMnode) {
 }
 
 void msmHandleBecomeNotLeader(SMnode *pMnode) {  
+  streamRemoveVnodeLeader(MNODE_HANDLE);
+
   if (atomic_val_compare_exchange_8(&mStreamMgmt.active, 1, 0)) {
     taosWLockLatch(&mStreamMgmt.runtimeLock);
     msmDestroyRuntimeInfo(pMnode);
@@ -4047,7 +4067,7 @@ void msmCheckLoopStreamMap(SMnode *pMnode) {
         mstsDebug("stream already stopped by error %s, retried times:%" PRId64 ", next time not reached, currTs:%" PRId64 ", nextRetryTs:%" PRId64,
             tstrerror(pStatus->fatalError), pStatus->fatalRetryTimes, mStreamMgmt.hCtx.currentTs, pStatus->fatalRetryTs);
             
-        MND_STREAM_SET_LAST_TS(STM_EVENT_STREAM_ERROR, mStreamMgmt.hCtx.currentTs);
+        MND_STREAM_SET_LAST_TS(STM_EVENT_STM_TERR, mStreamMgmt.hCtx.currentTs);
         continue;
       }
 

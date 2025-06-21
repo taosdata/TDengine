@@ -1994,7 +1994,7 @@ class TDCom:
                     self.record_history_ts = ts_value
 
     def generate_query_result_file(self, test_case, idx, sql):
-        self.query_result_file = f"./temp_{test_case}_{idx}.result"
+        self.query_result_file = f"./{test_case}.{idx}.csv"
         cfgPath = self.getClientCfgPath()
         taosCmd = f"taos -c {cfgPath} -s '{sql}' | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine Command' > {self.query_result_file}  "
         #print(f"taosCmd:{taosCmd}, currentPath:{os.getcwd()}")
