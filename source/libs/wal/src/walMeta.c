@@ -1035,7 +1035,6 @@ _err:
   taosMemoryFree(serialized);
   return code;
 }
-
 int32_t walLoadMeta(SWal* pWal) {
   int32_t   code = 0;
   int       n = 0;

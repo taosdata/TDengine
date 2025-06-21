@@ -611,6 +611,9 @@ typedef struct SVnodeModifyOpStmt {
   struct SCreateTbInfo*     pCreateTbInfo;
   struct SParseFileContext* pParFileCxt;
   FDestroyParseFileContext  destroyParseFileCxt;
+
+  // CSV parser for resuming batch processing
+  struct SCsvParser* pCsvParser;
 } SVnodeModifyOpStmt;
 
 typedef struct SExplainOptions {
