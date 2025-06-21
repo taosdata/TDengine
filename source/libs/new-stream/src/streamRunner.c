@@ -48,25 +48,14 @@ static void stRunnerDestroyTaskExecution(void* pExec) {
 static void stRunnerTaskExecMgrDestroyFinalize(SStreamRunnerTask* pTask) {
   SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
   tdListFreeP(pMgr->pRunningExecs, stRunnerDestroyTaskExecution);
+  tdListFreeP(pMgr->pFreeExecs, stRunnerDestroyTaskExecution);
   taosThreadMutexDestroy(&pMgr->lock);
   pTask->undeployCb(pTask->undeployParam);
-  nodesDestroyList(pTask->output.pTagValExprs);
-}
-
-static void stRunnerDestroyTaskExecMgrAsync(SStreamRunnerTask* pTask) {
-  SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
-  bool hasRunningExec = false;
-  taosThreadMutexLock(&pMgr->lock);
-  pMgr->exit = true;
-  if (pMgr->pFreeExecs->dl_neles_ > 0) {
-    tdListFreeP(pMgr->pFreeExecs, stRunnerDestroyTaskExecution);
-  }
-  if (pMgr->pRunningExecs->dl_neles_ > 0) {
-    hasRunningExec = true;
-  }
-  taosThreadMutexUnlock(&pMgr->lock);
-
-  if (!hasRunningExec) stRunnerTaskExecMgrDestroyFinalize(pTask);
+  NODES_DESTORY_NODE(pTask->pSubTableExpr);
+  NODES_DESTORY_LIST(pTask->output.pTagValExprs);
+  taosMemoryFreeClear(pTask->pPlan);
+  taosArrayDestroyEx(pTask->forceOutCols, destroySStreamOutCols);
+  taosArrayDestroyP(pTask->notification.pNotifyAddrUrls, taosMemFree);
 }
 
 static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t execId, SStreamRunnerTaskExecution** ppExec) {
@@ -116,11 +105,6 @@ static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunn
   if (pMgr->exit) {
     if (pMgr->pRunningExecs->dl_neles_ == 1) {
       amITheLastRunning = true;
-    } else {
-      SListNode* pNode = listNode(pExec);
-      pNode = tdListPopNode(pMgr->pRunningExecs, pNode);
-      stRunnerDestroyTaskExecution(pNode->data);
-      taosMemoryFreeClear(pNode);
     }
   } else {
     SListNode* pNode = listNode(pExec);
@@ -130,10 +114,6 @@ static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunn
   taosThreadMutexUnlock(&pMgr->lock);
 
   if (amITheLastRunning) stRunnerTaskExecMgrDestroyFinalize(pTask);
-}
-
-void init_rt_info(SStreamRuntimeFuncInfo* pRtInfo) {
-  pRtInfo->groupId = 1231231;
 }
 
 static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
@@ -182,16 +162,19 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
 }
 
 int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb) {
-  if ((*ppTask)->execMgr.exit) return 0;
-  NODES_DESTORY_NODE((*ppTask)->pSubTableExpr);
-  NODES_DESTORY_LIST((*ppTask)->output.pTagValExprs);
-  taosMemoryFreeClear((*ppTask)->pPlan);
-  taosArrayDestroyEx((*ppTask)->forceOutCols, destroySStreamOutCols);
-  taosArrayDestroyP((*ppTask)->notification.pNotifyAddrUrls, taosMemFree);
-  (*ppTask)->pSubTableExpr = NULL;
+  bool destroy = false;
+  
+  taosThreadMutexLock(&((*ppTask)->execMgr.lock));
+  (*ppTask)->execMgr.exit = true;
   (*ppTask)->undeployCb = cb;
   (*ppTask)->undeployParam = ppTask;
-  stRunnerDestroyTaskExecMgrAsync(*ppTask);
+  if ((*ppTask)->execMgr.pRunningExecs->dl_neles_ == 0) {
+    destroy = true;
+  }
+  taosThreadMutexUnlock(&((*ppTask)->execMgr.lock));
+  if (destroy) {
+    stRunnerTaskExecMgrDestroyFinalize(*ppTask);
+  }
   return 0;
 }
 
@@ -582,7 +565,6 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
       if (pExec->runtimeInfo.funcInfo.withExternalWindow) break;
     }
   }
-
 
 end:
   stRunnerTaskExecMgrReleaseExec(pTask, pExec);
