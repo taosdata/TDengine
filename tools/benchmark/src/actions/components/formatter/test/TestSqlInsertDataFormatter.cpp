@@ -22,7 +22,7 @@ void test_format_insert_data_single_table() {
     batch.table_batches.push_back({"table1", rows});
 
     SqlInsertDataFormatter formatter(format);
-    FormatResult result = formatter.format(config, col_instances, batch);
+    FormatResult result = formatter.format(config, col_instances, std::move(batch));
 
     assert(std::holds_alternative<SqlInsertData>(result));
     assert(std::get<SqlInsertData>(result).data.str() == 
@@ -57,7 +57,7 @@ void test_format_insert_data_multiple_tables() {
     batch.table_batches.push_back({"table2", rows2});
 
     auto formatter = FormatterFactory::instance().create_formatter<InsertDataConfig>(format);
-    FormatResult result = formatter->format(config, col_instances, batch);
+    FormatResult result = formatter->format(config, col_instances, std::move(batch));
 
     assert(std::holds_alternative<SqlInsertData>(result));
     assert(std::get<SqlInsertData>(result).data.str() == 
@@ -84,7 +84,7 @@ void test_format_insert_data_empty_rows() {
     batch.table_batches.push_back({"table1", {}});
 
     SqlInsertDataFormatter formatter(format);
-    FormatResult result = formatter.format(config, col_instances, batch);
+    FormatResult result = formatter.format(config, col_instances, std::move(batch));
 
     assert(std::holds_alternative<std::string>(result));
     assert(std::get<std::string>(result) == "");
@@ -110,7 +110,7 @@ void test_format_insert_data_different_types() {
     batch.table_batches.push_back({"table1", rows});
 
     SqlInsertDataFormatter formatter(format);
-    FormatResult result = formatter.format(config, col_instances, batch);
+    FormatResult result = formatter.format(config, col_instances, std::move(batch));
 
     assert(std::holds_alternative<SqlInsertData>(result));
     assert(std::get<SqlInsertData>(result).data.str() == 

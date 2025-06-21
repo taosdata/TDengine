@@ -26,12 +26,14 @@ public:
 
 class IChildTableFormatter : public IFormatter {
     public:
-        virtual FormatResult format(const CreateChildTableConfig& config, std::vector<std::string> table_names, std::vector<RowType> tags) const = 0;
+        virtual FormatResult format(const CreateChildTableConfig& config, 
+                                    const std::vector<std::string>& table_names, 
+                                    const std::vector<RowType>& tags) const = 0;
     };
 
 
 class IInsertDataFormatter : public IFormatter {
 public:
-    virtual FormatResult format(const InsertDataConfig&, const ColumnConfigInstanceVector& col_instances, const MultiBatch& batch) const = 0;
+    virtual FormatResult format(const InsertDataConfig&, const ColumnConfigInstanceVector& col_instances, MultiBatch&& batch) const = 0;
 };
 

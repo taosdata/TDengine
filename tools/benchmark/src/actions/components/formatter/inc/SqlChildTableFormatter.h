@@ -10,7 +10,7 @@ public:
     explicit SqlChildTableFormatter(const DataFormat& format) : format_(format) {}
 
 
-    std::string format(const CreateChildTableConfig& config, std::string table_name, RowType tags) const {
+    std::string format(const CreateChildTableConfig& config, const std::string& table_name, RowType tags) const {
         std::ostringstream result;
         result << "CREATE TABLE IF NOT EXISTS `" 
                << config.database_info.name << "`.`"  << table_name << "` USING `"
@@ -35,7 +35,10 @@ public:
         return result.str();
     }
 
-    FormatResult format(const CreateChildTableConfig& config, std::vector<std::string> table_names, std::vector<RowType> tags) const override {
+    FormatResult format(const CreateChildTableConfig& config, 
+                        const std::vector<std::string>& table_names, 
+                        const std::vector<RowType>& tags) const override {
+
         std::ostringstream result;
         for (size_t i = 0; i < table_names.size(); ++i) {
             if (i > 0) {
@@ -43,8 +46,6 @@ public:
             }
             result << format(config, table_names[i], tags[i]);
         }
-    
-
         return result.str();
     }
 

@@ -184,8 +184,11 @@ void InsertDataAction::producer_thread_function(
 
     // 数据生成循环
     while (auto batch = data_manager->next_multi_batch()) {
+        size_t batch_size = batch->table_batches.size();
+        size_t total_rows = batch->total_rows;
+
         // 格式化数据
-        FormatResult formatted_result = formatter->format(config_, col_instances, batch.value());
+        FormatResult formatted_result = formatter->format(config_, col_instances, std::move(batch.value()));
 
         // Debug: 打印格式化结果信息
         std::visit([producer_id](const auto& result) {
@@ -217,13 +220,13 @@ void InsertDataAction::producer_thread_function(
                 throw std::runtime_error("Unknown format result type: " + std::string(typeid(result).name()));
             }
         }, formatted_result);
-        
+
         // 将数据推送到管道
         pipeline.push_data(producer_id, std::move(formatted_result));
 
         std::cout << "Producer " << producer_id << ": Pushed batch for table(s): "
-                << batch->table_batches.size() << ", total rows: " << batch->total_rows 
-                << ", queue size: " << pipeline.total_queued() << std::endl;
+                  << batch_size << ", total rows: " << total_rows 
+                  << ", queue size: " << pipeline.total_queued() << std::endl;
     }
 }
 

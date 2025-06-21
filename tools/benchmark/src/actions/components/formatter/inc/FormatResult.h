@@ -8,6 +8,7 @@
 #include "taos.h"
 #include "taosws.h"
 #include "TableData.h"
+#include "ColumnConfigInstance.h"
 
 
 class SqlData {
@@ -270,4 +271,3 @@ struct StmtV2InsertData : public BaseInsertData {
 
 // 通用格式化结果类型
 using FormatResult = std::variant<std::string, SqlInsertData, StmtV2InsertData>;
-

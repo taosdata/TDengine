@@ -4,3 +4,4 @@
 #include "SqlSuperTableFormatter.h"
 #include "SqlChildTableFormatter.h"
 #include "SqlInsertDataFormatter.h"
+#include "StmtInsertDataFormatter.h"

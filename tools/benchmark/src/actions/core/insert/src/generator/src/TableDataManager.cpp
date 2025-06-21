@@ -88,7 +88,9 @@ std::optional<MultiBatch> TableDataManager::next_multi_batch() {
 
 MultiBatch TableDataManager::collect_batch_data(int64_t max_rows) {
     MultiBatch result;
-    
+    int64_t start_time{std::numeric_limits<int64_t>::max()};
+    int64_t end_time{std::numeric_limits<int64_t>::min()};
+
     while (result.total_rows < max_rows && has_more()) {
         TableState* table_state = get_next_active_table();
         if (!table_state) break;
@@ -113,6 +115,8 @@ MultiBatch TableDataManager::collect_batch_data(int64_t max_rows) {
                     --i;
                     continue;
                 }
+                start_time = std::min(start_time, row->timestamp);
+                end_time = std::max(end_time, row->timestamp);
                 batch.push_back(std::move(*row));
                 table_state->rows_generated++;
                 table_state->interlace_counter++;
@@ -141,7 +145,9 @@ MultiBatch TableDataManager::collect_batch_data(int64_t max_rows) {
             result.table_batches.emplace_back(table_name, std::move(batch));
         }
     }
-    
+
+    result.start_time = start_time;
+    result.end_time = end_time;
     return result;
 }
 
