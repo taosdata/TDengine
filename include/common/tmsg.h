@@ -1876,10 +1876,20 @@ typedef struct {
 } SMountVgInfo;
 
 typedef struct {
+  SMCreateStbReq req;
+  SArray*        pColExts;
+  SArray*        pTagExts;
+} SMountStbInfo;
+
+int32_t tSerializeSMountStbInfo(void* buf, int32_t bufLen, int32_t* pFLen, SMountStbInfo* pInfo);
+int32_t tDeserializeSMountStbInfo(void* buf, int32_t bufLen, int32_t flen, SMountStbInfo* pInfo);
+void    tFreeSMountStbInfo(SMountStbInfo* pInfo);
+
+typedef struct {
   char     dbName[TSDB_DB_FNAME_LEN];
   uint64_t dbId;
-  SArray*  pVgs;   // SMountVgInfo
-  SArray*  pStbs;  // 0 serialized binary of SMCreateStbReq, 1 SMCreateStbReq
+  SArray*  pVgs;      // SMountVgInfo
+  SArray*  pStbs;     // 0 serialized binary of SMountStbInfo, 1 SMountStbInfo
 } SMountDbInfo;
 
 typedef struct {

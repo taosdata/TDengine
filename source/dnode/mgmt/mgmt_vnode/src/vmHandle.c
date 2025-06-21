@@ -793,6 +793,8 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
   SArray *suidList = NULL;
   SArray *pCols = NULL;
   SArray *pTags = NULL;
+  SArray *pColExts = NULL;
+  SArray *pTagExts = NULL;
 
   snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(VNODE));
   for (int32_t i = 0; i < nDb; ++i) {
@@ -885,27 +887,38 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
                    mr.me.colCmpr.nCols, mr.me.stbEntry.schemaRow.nCols, pReq->dnodeId);
             TSDB_CHECK_CODE(TSDB_CODE_FILE_CORRUPTED, lino, _exit0);
           }
-          SMCreateStbReq createReq = {
-              .source = TD_REQ_FROM_APP,
-              .suid = suid,
-              .colVer = mr.me.stbEntry.schemaRow.version,
-              .tagVer = mr.me.stbEntry.schemaTag.version,
-              .numOfColumns = mr.me.stbEntry.schemaRow.nCols,
-              .numOfTags = mr.me.stbEntry.schemaTag.nCols,
+          SMountStbInfo stbInfo = {
+              .req.source = TD_REQ_FROM_APP,
+              .req.suid = suid,
+              .req.colVer = mr.me.stbEntry.schemaRow.version,
+              .req.tagVer = mr.me.stbEntry.schemaTag.version,
+              .req.numOfColumns = mr.me.stbEntry.schemaRow.nCols,
+              .req.numOfTags = mr.me.stbEntry.schemaTag.nCols,
           };
-          snprintf(createReq.name, sizeof(createReq.name), "%s", mr.me.name);
-          if (!pCols && !(pCols = taosArrayInit(createReq.numOfColumns, sizeof(SFieldWithOptions)))) {
+          snprintf(stbInfo.req.name, sizeof(stbInfo.req.name), "%s", mr.me.name);
+          if (!pCols && !(pCols = taosArrayInit(stbInfo.req.numOfColumns, sizeof(SFieldWithOptions)))) {
+            TSDB_CHECK_CODE(terrno, lino, _exit0);
+          }
+          if (!pTags && !(pTags = taosArrayInit(stbInfo.req.numOfTags, sizeof(SField)))) {
+            TSDB_CHECK_CODE(terrno, lino, _exit0);
+          }
+
+          if (!pColExts && !(pColExts = taosArrayInit(stbInfo.req.numOfColumns, sizeof(col_id_t)))) {
+            TSDB_CHECK_CODE(terrno, lino, _exit0);
+          }
+          if (!pTagExts && !(pTagExts = taosArrayInit(stbInfo.req.numOfTags, sizeof(col_id_t)))) {
             TSDB_CHECK_CODE(terrno, lino, _exit0);
           }
           taosArrayClear(pCols);
-          if (!pTags && !(pTags = taosArrayInit(createReq.numOfTags, sizeof(SField)))) {
-            TSDB_CHECK_CODE(terrno, lino, _exit0);
-          }
-          createReq.pColumns = pCols;
-          createReq.pTags = pTags;
-
           taosArrayClear(pTags);
-          for (int32_t c = 0; c < createReq.numOfColumns; ++c) {
+          taosArrayClear(pColExts);
+          taosArrayClear(pTagExts);
+          stbInfo.req.pColumns = pCols;
+          stbInfo.req.pTags = pTags;
+          stbInfo.pColExts = pColExts;
+          stbInfo.pTagExts = pTagExts;
+
+          for (int32_t c = 0; c < stbInfo.req.numOfColumns; ++c) {
             SSchema          *pSchema = mr.me.stbEntry.schemaRow.pSchema + c;
             SColCmpr         *pColComp = mr.me.colCmpr.pColCmpr + c;
             SFieldWithOptions col = {
@@ -922,8 +935,9 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
               col.typeMod = (mr.me.pExtSchemas + c)->typeMod;
             }
             TSDB_CHECK_NULL(taosArrayPush(pCols, &col), code, lino, _exit0, terrno);
+            TSDB_CHECK_NULL(taosArrayPush(pColExts, &pSchema->colId), code, lino, _exit0, terrno);
           }
-          for (int32_t t = 0; t < createReq.numOfTags; ++t) {
+          for (int32_t t = 0; t < stbInfo.req.numOfTags; ++t) {
             SSchema *pSchema = mr.me.stbEntry.schemaTag.pSchema + t;
             SField   tag = {
                   .type = pSchema->type,
@@ -932,22 +946,28 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
             };
             snprintf(tag.name, sizeof(tag.name), "%s", pSchema->name);
             TSDB_CHECK_NULL(taosArrayPush(pTags, &tag), code, lino, _exit0, terrno);
+            TSDB_CHECK_NULL(taosArrayPush(pTagExts, &pSchema->colId), code, lino, _exit0, terrno);
           }
           tDecoderClear(&mr.coder);
 
-          // serialize the create request
-          int32_t msgLen = tSerializeSMCreateStbReq(NULL, 0, &createReq);
+          // serialize the SMountStbInfo
+          int32_t firstPartLen = 0;
+          int32_t msgLen = tSerializeSMountStbInfo(NULL, 0, &firstPartLen, &stbInfo);
           if (msgLen <= 0) {
             TSDB_CHECK_CODE(msgLen < 0 ? msgLen : TSDB_CODE_INTERNAL_ERROR, lino, _exit0);
           }
-          void *pBuf = taosMemoryMalloc(sizeof(int32_t) + msgLen);
+          void *pBuf = taosMemoryMalloc((sizeof(int32_t) << 1) + msgLen);  // totalLen(4)|1stPartLen(4)|1stPart|2ndPart
           if (!pBuf) TSDB_CHECK_CODE(TSDB_CODE_OUT_OF_MEMORY, lino, _exit0);
-          *(int32_t *)pBuf = sizeof(int32_t) + msgLen;
-          if (tSerializeSMCreateStbReq(POINTER_SHIFT(pBuf, sizeof(int32_t)), msgLen, &createReq) <= 0) {
+          *(int32_t *)pBuf = (sizeof(int32_t) << 1) + msgLen;
+          *(int32_t *)POINTER_SHIFT(pBuf, sizeof(int32_t)) = firstPartLen;
+          if (tSerializeSMountStbInfo(POINTER_SHIFT(pBuf, (sizeof(int32_t) << 1)), msgLen, NULL, &stbInfo.req) <= 0) {
             taosMemoryFree(pBuf);
             TSDB_CHECK_CODE(msgLen < 0 ? msgLen : TSDB_CODE_INTERNAL_ERROR, lino, _exit0);
           }
-          TSDB_CHECK_NULL(taosArrayPush(pDbInfo->pStbs, &pBuf), code, lino, _exit0, terrno);
+          if (!taosArrayPush(pDbInfo->pStbs, &pBuf)) {
+            taosMemoryFree(pBuf);
+            TSDB_CHECK_CODE(terrno, lino, _exit0);
+          }
         }
       _exit0:
         metaReaderClear(&mr);

@@ -479,9 +479,9 @@ static int32_t mndMountSetDbInfo(SMountInfo *pInfo, SMountDbInfo *pDb, SDbObj *p
   // dbCfg
   pCfg->isMount = 1;
   pCfg->numOfVgroups = taosArrayGetSize(pDb->pVgs);
-  pCfg->numOfStables = taosArrayGetSize(pDb->pStbs);
+  pCfg->numOfStables = 0;
   pCfg->buffer = pVg->szBuf / 1048576;  // convert to MB
-  pCfg->pageSize = pVg->szPage;
+  pCfg->pageSize = pVg->szPage / 1024;  // convert to KB
   pCfg->pages = pVg->szCache;
   pCfg->daysPerFile = pVg->daysPerFile;
   pCfg->daysToKeep0 = pVg->keep0;
@@ -557,9 +557,75 @@ static int32_t mndMountSetVgInfo(SMnode *pMnode, SDnodeObj *pDnode, SMountInfo *
     }
 
     mInfo("mount:%s, db:%s, vgId:%d is alloced, memory:%" PRId64 ", dnode:%d avail:%" PRId64 " used:%" PRId64,
-          pVgroup->dbName, pVgroup->vgId, vgMem, pVgid->dnodeId, pDnode->memAvail, pDnode->memUsed);
+          pInfo->mountName, pVgroup->dbName, pVgroup->vgId, vgMem, pVgid->dnodeId, pDnode->memAvail, pDnode->memUsed);
     pDnode->numOfVnodes++;
   }
+  TAOS_RETURN(0);
+}
+
+static int32_t mndMountSetStbInfo(SMnode *pMnode, SDnodeObj *pDnode, SMountInfo *pInfo, SDbObj *pDb,
+                                  SMCreateStbReq *pStbInfo, SStbObj *pStb) {
+  pStb->createdTime = taosGetTimestampMs();
+  pStb->updateTime = pStb->createdTime;
+  snprintf(pStb->name, sizeof(pStb->name), "%s.%s", pDb->name, pStbInfo->name);
+  snprintf(pStb->db, sizeof(pStb->db), "%s", pDb->name);
+  pStb->uid = pStbInfo->suid;
+  pStb->dbUid = pDb->uid;
+  pStb->tagVer = pStbInfo->tagVer;
+  pStb->colVer = pStbInfo->colVer;
+  pStb->smaVer = 1;
+  pStb->source = pStbInfo->source;
+  pStb->nextColId = pStbInfo->numOfColumns + pStbInfo->numOfTags + 1;
+  pStb->keep = 0;
+  pStb->ttl = 0;
+  pStb->virtualStb = pStbInfo->virtualStb;
+  pStb->numOfColumns = pStbInfo->numOfColumns;
+  pStb->numOfTags = pStbInfo->numOfTags;
+  pStb->numOfFuncs = pStbInfo->numOfFuncs;
+  pStb->commentLen = pStbInfo->commentLen;
+  if (!(pStb->pColumns = taosMemoryCalloc(pStbInfo->numOfColumns, sizeof(SSchema)))) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  if (!(pStb->pTags = taosMemoryCalloc(pStbInfo->numOfTags, sizeof(SSchema)))) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  if (pStbInfo->commentLen > 0) {
+    if (!(pStb->comment = taosStrndup(pStbInfo->pComment, pStbInfo->commentLen))) {
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+  }
+  if (!(pStb->pCmpr = taosMemoryCalloc(pStbInfo->numOfColumns, sizeof(SColCmpr)))) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  if (!(pStb->pExtSchemas = taosMemoryCalloc(pStbInfo->numOfColumns, sizeof(SExtSchema)))) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  for(int32_t c = 0; c < pStbInfo->numOfColumns; ++c) {
+    SFieldWithOptions *pColInfo = &pStbInfo->pColumns[c];
+    SSchema *pCol = &pStb->pColumns[c];
+    SColCmpr *pCmpr = &pStb->pCmpr[c];
+    SExtSchema *pExt = &pStb->pExtSchemas[c];
+
+    pCol->colId = pColInfo->colId;
+    pCol->colType = pColInfo->colType;
+    pCol->colNameLen = pColInfo->colNameLen;
+    }
+  for(int32_t t = 0; t < pStbInfo->numOfTags; ++t) {
+    SSchema *pTag = &pStb->pTags[t];
+    pTag->colId = t + 1;
+    pTag->colType = pStbInfo->pTags[t].colType;
+    pTag->colNameLen = pStbInfo->pTags[t].colNameLen;
+    if (pTag->colNameLen > 0) {
+      if (!(pTag->colName = taosStrndup(pStbInfo->pTags[t].colName, pTag->colNameLen))) {
+        TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+      }
+    }
+  }
+
+  pStb->pAst1 = NULL;
+  pStb->pAst2 = NULL;
+  taosInitRWLatch(&pStb->lock);
+  mInfo("mount:%s, db:%s, stb:%s is alloced, dnode:%d", pInfo->mountName, pDb->name, pStb->name, pDnode->id);
   TAOS_RETURN(0);
 }
 
@@ -804,14 +870,15 @@ static int32_t mndMountDupDbIdExist(SMnode *pMnode, SMountInfo *pInfo) {
 }
 
 static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInfo, SUserObj * pUser) {
-  int32_t   code = 0, lino = 0;
-  SUserObj  newUserObj = {0};
-  SMountObj mntObj = {0};
-  int32_t   nDbs = 0, nVgs = 0;
+  int32_t    code = 0, lino = 0;
+  SUserObj   newUserObj = {0};
+  SMountObj  mntObj = {0};
+  int32_t    nDbs = 0, nVgs = 0, nStbs = 0;
   SDnodeObj *pDnode = NULL;
-  SDbObj   *pDbs = NULL;
-  SVgObj   *pVgs = NULL;
-  STrans   *pTrans = NULL;
+  SDbObj    *pDbs = NULL;
+  SVgObj    *pVgs = NULL;
+  SStbObj   *pStbs = NULL;
+  STrans    *pTrans = NULL;
 
   tsnprintf(mntObj.name, TSDB_MOUNT_NAME_LEN, "%s", pInfo->mountName);
   tsnprintf(mntObj.acct, TSDB_USER_LEN, "%s", pUser->acct);
@@ -860,27 +927,16 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
     }
 #endif
     nVgs += taosArrayGetSize(pDb->pVgs);
-
-    // int32_t nDbStbs = taosArrayGetSize(pDb->pStbs);
-    // for(int32_t s = 0; s < nDbStbs; ++s) {
-    //   SMountStbInfo *pStb = TARRAY_GET_ELEM(pDb->pStbs, s);
-    //   if (pStb->stbId < 0) {
-    //     mError("mount:%s, db:%s, stbId:%d is invalid", pInfo->mountName, pDb->dbName, pStb->stbId);
-    //     TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_STB_ID);
-    //   }
-    //   if (pStb->stbId >= TSDB_MAX_DB_SINGLE_STABLE) {
-    //     mError("mount:%s, db:%s, stbId:%d is too large", pInfo->mountName, pDb->dbName, pStb->stbId);
-    //     TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_STB_ID);
-    //   }
-    // }
+    nStbs += taosArrayGetSize(pDb->pStbs);
   }
   TAOS_CHECK_EXIT(mndMountDupDbIdExist(pMnode, pInfo));
 
   TSDB_CHECK_NULL((pDbs = taosMemoryCalloc(nDbs, sizeof(SDbObj))), code, lino, _exit, terrno);
   TSDB_CHECK_NULL((pVgs = taosMemoryCalloc(nVgs, sizeof(SVgObj))), code, lino, _exit, terrno);
+  TSDB_CHECK_NULL((pStbs = taosMemoryCalloc(nStbs, sizeof(SStbObj))), code, lino, _exit, terrno);
 
-  // create db and vg
-  int32_t vgIdx = 0;
+  // create db/vg/stb
+  int32_t vgIdx = 0, stbIdx = 0;
   int32_t maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
   for (int32_t i = 0; i < nDbs; ++i) {
     SMountDbInfo *pDbInfo = taosArrayGet(pInfo->pDbs, i);
@@ -891,7 +947,13 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
       SMountVgInfo *pVgInfo = TARRAY_GET_ELEM(pDbInfo->pVgs, v);
       TAOS_CHECK_EXIT(mndMountSetVgInfo(pMnode, pDnode, pInfo, pDb, pVgInfo, &pVgs[vgIdx++], &maxVgId));
     }
+    int32_t nDbStbs = taosArrayGetSize(pDbInfo->pStbs);
+    for (int32_t s = 0; s < nDbStbs; ++s) {
+      SMCreateStbReq *pStbInfo = TARRAY_GET_ELEM(pDbInfo->pStbs, s);
+      TAOS_CHECK_EXIT(mndMountSetStbInfo(pMnode, pDnode, pInfo, pDb, pStbInfo, &pStbs[stbIdx++]));
+    }
   }
+
 
   // add database privileges for user
   // SUserObj *pNewUserDuped = NULL;
@@ -905,6 +967,8 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
   //                   NULL, _exit);
   //   pNewUserDuped = &newUserObj;
   // }
+
+
   TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-mount")), code,
                   lino, _exit, terrno);
   // mndTransSetSerial(pTrans);
@@ -936,6 +1000,10 @@ _exit:
   mndTransDrop(pTrans);
   taosMemFreeClear(pDbs);
   taosMemFreeClear(pVgs);
+  for(int32_t i = 0; i < nStbs; ++i) {
+    mndFreeStb(pStbs + i);
+  }
+  taosMemFreeClear(pStbs);
   TAOS_RETURN(code);
 }
 #if 0
