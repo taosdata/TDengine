@@ -4301,6 +4301,12 @@ int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SColumnNode* pColNode
         datum->d = valNode->datum.d;
         break;
       }
+      case TSDB_DATA_TYPE_VARCHAR: {
+        // TODO:: when support varchar type, should change this logic
+        datum->kind = FLT_SCL_DATUM_KIND_INT64;
+        datum->i = taosStr2Int64(valNode->literal, NULL,10);
+        break;
+      }
       // TODO:varchar/nchar/json
       default: {
         qError("not supported type %d when build datum from value node", valNode->node.resType.type);
