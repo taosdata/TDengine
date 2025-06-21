@@ -54,6 +54,7 @@ int32_t vnodeQuerySsMigrateProgress(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _exit;
   }
 
+  vDebug("vgId:%d, ssMigrateId:%d, processing query ss migrate progress request", req.vgId, req.ssMigrateId);
   code = tsdbQuerySsMigrateProgress(pVnode->pTsdb, req.ssMigrateId, &rspSize, &pRsp);
 
 _exit:

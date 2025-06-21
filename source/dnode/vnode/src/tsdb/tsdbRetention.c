@@ -398,7 +398,7 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool ssMigrate, 
     // TODO: when migrating to S3, skip fset that should not be migrated
     
     if (ssMigrate && fset->lastMigrate/1000 >= now) {
-      tsdbDebug("vgId:%d, fid:%d, skip migration as start time < last migration time", TD_VID(tsdb->pVnode), fset->fid);
+      tsdbInfo("vgId:%d, fid:%d, skip migration as start time < last migration time", TD_VID(tsdb->pVnode), fset->fid);
       continue;
     }
 
