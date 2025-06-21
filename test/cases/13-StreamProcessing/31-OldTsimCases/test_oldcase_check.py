@@ -30,7 +30,7 @@ class TestStreamOldCaseCheck:
         tdStream.createSnode()
 
         self.checkStreamSTable()
-        # self.checkStreamSTable1()
+        self.checkStreamSTable1()
 
     def checkStreamSTable(self):
         tdLog.info(f"checkStreamSTable")
@@ -251,12 +251,12 @@ class TestStreamOldCaseCheck:
         tdSql.execute(f"create database test vgroups 4;")
         tdSql.execute(f"use test;")
         tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
+            f"create stable st(ts timestamp, a bigint, b bigint, c bigint) tags(ta int, tb int, tc int);"
         )
         tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
         tdSql.execute(
-            f"create stream streams1 trigger at_once into streamt1 as select _wstart, count(*) c1, count(a) c2 from st interval(1s) ;"
+            f"create stream streams1 interval(1s) sliding(1s) from st options(max_delay(1s)) into streamt1 as select _twstart, count(*) c1, count(a) c2 from st;"
         )
         tdStream.checkStreamStatus()
 
@@ -274,11 +274,8 @@ class TestStreamOldCaseCheck:
         tdLog.info(f"alter table streamt1 add column c3 double")
         tdSql.execute(f"alter table streamt1 add column c3 double;")
 
-        tdLog.info(
-            f"create stream streams1 trigger at_once into streamt1 as select _wstart, count(*) c1, count(a) c2, avg(b) c3 from st interval(1s) ;"
-        )
         tdSql.execute(
-            f"create stream streams1 trigger at_once into streamt1 as select _wstart, count(*) c1, count(a) c2, avg(b) c3 from st interval(1s) ;"
+            f"create stream streams1 interval(1s) sliding(1s) from st options(max_delay(1s)) into streamt1 as select _twstart, count(*) c1, count(a) c2,  avg(b) c3 from st;"
         )
         tdStream.checkStreamStatus()
 
