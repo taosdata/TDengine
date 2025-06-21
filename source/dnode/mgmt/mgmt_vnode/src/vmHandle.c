@@ -901,6 +901,9 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
           if (!pTags && !(pTags = taosArrayInit(createReq.numOfTags, sizeof(SField)))) {
             TSDB_CHECK_CODE(terrno, lino, _exit0);
           }
+          createReq.pColumns = pCols;
+          createReq.pTags = pTags;
+
           taosArrayClear(pTags);
           for (int32_t c = 0; c < createReq.numOfColumns; ++c) {
             SSchema          *pSchema = mr.me.stbEntry.schemaRow.pSchema + c;
@@ -1051,7 +1054,7 @@ _exit:
     dInfo("mount:%s, success to retrieve mount, nDbs:%d, nVgs:%d, path:%s", req.mountName, nDbs, nVgs, req.mountPath);
   }
   taosMemFreeClear(vndMgmt.path);
-  tFreeMountInfo(&mountInfo);
+  tFreeMountInfo(&mountInfo, false);
   TAOS_RETURN(code);
 }
 #endif  // USE_MOUNT

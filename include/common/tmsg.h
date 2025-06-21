@@ -1879,7 +1879,7 @@ typedef struct {
   char     dbName[TSDB_DB_FNAME_LEN];
   uint64_t dbId;
   SArray*  pVgs;   // SMountVgInfo
-  SArray*  pStbs;  // SMCreateStbReq
+  SArray*  pStbs;  // 0 serialized binary of SMCreateStbReq, 1 SMCreateStbReq
 } SMountDbInfo;
 
 typedef struct {
@@ -1895,15 +1895,14 @@ typedef struct {
 
   // response fields
   SArray* pDbs;   // SMountDbInfo
-  SArray* pStbs;  // SSdbRaw: serialization, filled when mnode/data/sdb.data exists
 
   // memory fields, no serialized
   SArray* pDisks[TFS_MAX_TIERS];
 } SMountInfo;
 
 int32_t tSerializeSMountInfo(void* buf, int32_t bufLen, SMountInfo* pReq);
-int32_t tDeserializeSMountInfo(SDecoder* decoder, SMountInfo* pReq);
-void    tFreeMountInfo(SMountInfo* pReq);
+int32_t tDeserializeSMountInfo(SDecoder* decoder, SMountInfo* pReq, bool extractStb);
+void    tFreeMountInfo(SMountInfo* pReq, bool stbExtracted);
 
 #endif  // USE_MOUNT
 

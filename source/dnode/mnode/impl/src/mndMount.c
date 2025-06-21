@@ -1030,7 +1030,7 @@ static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
 
   // step 1: decode and preprocess in mnode read thread
   tDecoderInit(&decoder, pRsp->pCont, pRsp->contLen);
-  TAOS_CHECK_EXIT(tDeserializeSMountInfo(&decoder, &mntInfo));
+  TAOS_CHECK_EXIT(tDeserializeSMountInfo(&decoder, &mntInfo, false));
   const STraceId *trace = &pRsp->info.traceId;
   SRpcMsg         rsp = {
       // .code = pRsp->code,
@@ -1052,6 +1052,7 @@ static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_DUP_CLUSTER_EXIST);
   }
 
+#if 0
   int32_t nStbs = taosArrayGetSize(mntInfo.pStbs);
   for (int32_t i = 0; i < nStbs; ++i) {
     void    *pStbRaw = taosArrayGet(mntInfo.pStbs, i);
@@ -1064,7 +1065,7 @@ static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp) {
     SStbObj *pStbObj = (SStbObj *)pStbRow->pObj;
     mInfo("mount:%s, retrieve stb[%d]:%s, db:%s", mntInfo.mountName, i, pStbObj->name, pStbObj->db);
   }
-
+#endif
   // step 2: collect the responses from dnodes, process and push to mnode write thread to run as transaction
   // TODO: multiple retrieve dnodes and paths supported later
   TSDB_CHECK_CONDITION((bufLen = tSerializeSMountInfo(NULL, 0, &mntInfo)) >= 0, code, lino, _exit, bufLen);
@@ -1104,7 +1105,7 @@ _exit:
     }
   }
   tDecoderClear(&decoder);
-  tFreeMountInfo(&mntInfo);
+  tFreeMountInfo(&mntInfo, false);
   TAOS_RETURN(code);
 }
 
@@ -1181,11 +1182,11 @@ static int32_t mndProcessExecuteMountReq(SRpcMsg *pReq) {
 
   tDecoderInit(&decoder, pReq->pCont, pReq->contLen);
 
-  TAOS_CHECK_EXIT(tDeserializeSMountInfo(&decoder, &mntInfo));
+  TAOS_CHECK_EXIT(tDeserializeSMountInfo(&decoder, &mntInfo, true));
   rspToClient = true;
   mInfo("mount:%s, start to execute on mnode", mntInfo.mountName);
 
-  if((pDb = mndAcquireDb(pMnode, mntInfo.mountName))) {
+  if ((pDb = mndAcquireDb(pMnode, mntInfo.mountName))) {
     mndReleaseDb(pMnode, pDb);
     TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_DUP_DB_NAME_EXIST);
   }
@@ -1225,6 +1226,7 @@ _exit:
   mndReleaseMount(pMnode, pObj);
   mndReleaseUser(pMnode, pUser);
   tDecoderClear(&decoder);
+  tFreeMountInfo(&mntInfo, true);
 
   TAOS_RETURN(code);
 }
