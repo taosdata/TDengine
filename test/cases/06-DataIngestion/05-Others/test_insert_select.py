@@ -111,7 +111,7 @@ class TestInsertSelect:
 
         """
 
-        tdLog.info(f"======== step1")
+        tdLog.info(f"======== ctb not exists")
         tdSql.prepare(dbname="db2", vgroups=3)
         tdSql.execute(f"use db2;")
         tdSql.execute(
@@ -132,7 +132,7 @@ class TestInsertSelect:
         tdSql.checkData(0, 1, None)
 
 
-        
+        tdLog.info(f"======== ctb exists")
         tdSql.execute(f"INSERT INTO dst_smeters(tbname, ts, current, voltage,location) select concat(tbname,'_', to_char(ts, 'SS')) as sub_table_name,ts+1000, current, voltage, to_char(ts+10000, 'SS') as location from meters partition by tbname;")
         tdSql.query(f"select location, groupId, ts, current, voltage, phase from meters_08;")
         tdSql.checkRows(2)
@@ -149,6 +149,22 @@ class TestInsertSelect:
         tdSql.checkData(1, 4, 2)
         tdSql.checkData(1, 5, None)
 
+        tdLog.info(f"======== ctb not exists and no tags")
+        tdSql.execute(f"INSERT INTO dst_smeters(tbname, ts, current, voltage)select concat(tbname,'_', to_char(ts+10000, 'SS')) as sub_table_name,ts, current, voltage from meters partition by tbname;")
+        tdSql.query(f"select location, groupId, ts, current, voltage, phase from meters_17;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, "2021-04-19 08:00:07")
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 1)
+        tdSql.checkData(0, 5, None)
+
+        tdLog.info(f"======== no tbname")
         tdSql.error(f"INSERT INTO dst_smeters(ts, current, voltage, phase) select ts, current, voltage, phase from meters partition by tbname;")
+
+        tdLog.info(f"======== no pk")
         tdSql.error(f"INSERT INTO dst_smeters(tbname, current, voltage,location) select concat(tbname,'_', to_char(ts, 'SS')) as sub_table_name, current, voltage, to_char(ts+10000, 'SS') as location from meters partition by tbname;")
 
+        tdLog.info(f"======== tbname isn't in first field")
+        tdSql.error(f"INSERT INTO dst_smeters(tbname, current, voltage,location) select concat(tbname,'_', to_char(ts, 'SS')) as sub_table_name, current, voltage, to_char(ts+10000, 'SS') as location from meters partition by tbname;")

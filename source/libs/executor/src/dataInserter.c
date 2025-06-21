@@ -632,14 +632,11 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
     for (int32_t k = 0; k < pTSchema->numOfCols; ++k) {
       int16_t         colIdx = k;
       const STColumn* pCol = &pTSchema->columns[k];
-      if (!pInserter->fullOrderColList) {
-        int16_t* slotId = taosHashGet(pInserter->pCols, &pCol->colId, sizeof(pCol->colId));
-        if (NULL == slotId) {
-          continue;
-        }
-
-        colIdx = *slotId;
+      int16_t*        slotId = taosHashGet(pInserter->pCols, &pCol->colId, sizeof(pCol->colId));
+      if (NULL == slotId) {
+        continue;
       }
+      colIdx = *slotId;
 
       SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, colIdx);
       if (NULL == pColInfoData) {
