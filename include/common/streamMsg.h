@@ -477,6 +477,7 @@ typedef struct {
   int8_t fillHistory;
   int8_t fillHistoryFirst;
   int8_t lowLatencyCalc;
+  int8_t hasPartitionBy;
 
   // notify options
   SArray* pNotifyAddrUrls;
@@ -493,7 +494,7 @@ typedef struct {
   int64_t eventTypes;
   int64_t placeHolderBitmap;
   int16_t tsSlotId;  // only used when using %%trows
-  void*   partitionCols;
+  void*   triggerPrevFilter;  // filter for trigger table
   void*   calcPlan;  // only for virtual table(child/normal/super) trigger
 
   SArray* readerList;  // SArray<SStreamTaskAddr>
@@ -847,15 +848,17 @@ typedef struct SSTriggerCalcRequest {
   int64_t sessionId;
   int32_t triggerType;    // See also: EStreamTriggerType
   int64_t triggerTaskId;  // does not serialize
-  int32_t execId;
-
+  
   int64_t gid;
   SArray* params;        // SArray<SSTriggerCalcParam>
   SArray* groupColVals;  // SArray<SStreamGroupValue>, only provided at the first calculation of the group
-  bool    brandNew;
+
+  // The following fields are not serialized and only used by the runner task
   int8_t  createTable;
-  int32_t curWinIdx; // no serialize
-  void*   pOutBlock; // no serialize
+  bool    brandNew;   // no serialize
+  int32_t execId;     // no serialize
+  int32_t curWinIdx;  // no serialize
+  void*   pOutBlock;  // no serialize
 } SSTriggerCalcRequest;
 
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);

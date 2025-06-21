@@ -34,11 +34,22 @@ extern "C" {
 #define TRINGBUF_IS_EMPTY(rbuf) ((rbuf)->size == 0)
 #define TRINGBUF_IS_FULL(rbuf)  ((rbuf)->size == (rbuf)->capacity)
 #define TRINGBUF_FIRST(rbuf)    ((rbuf)->data[(rbuf)->head])
+#define TRINGBUF_LAST(rbuf)     ((rbuf)->data[(rbuf)->tail > 0 ? ((rbuf)->tail - 1) : ((rbuf)->capacity - 1)])
+#define TRINGBUF_MOVE_NEXT(rbuf, ptr)               \
+  do {                                              \
+    (ptr)++;                                        \
+    if ((ptr) == (rbuf)->data + (rbuf)->capacity) { \
+      (ptr) = (rbuf)->data;                         \
+    }                                               \
+  } while (0)
 
 static FORCE_INLINE int32_t tringbufExtend(void *rbuf, int32_t expSize, int32_t eleSize) {
   TRINGBUF(void) *rb = rbuf;
 
-  int32_t capacity = (rb->capacity > 0) ? (rb->capacity << 1) : 32;
+  int32_t capacity = rb->capacity;
+  if (capacity == 0) {
+    capacity = TMAX(64 / eleSize, 1);  // at least 1 element
+  }
   while (capacity < expSize) {
     capacity <<= 1;
   }
