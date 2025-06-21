@@ -7,7 +7,7 @@ import datetime
 class TestStreamSlidingTrigger:
     caseName = "test_stream_sliding_trigger"
     currentDir = os.path.dirname(os.path.abspath(__file__))
-    runAll = True
+    runAll = False
     dbname = "test1"
     trigTbname = ""
     calcTbname = ""
@@ -25,7 +25,7 @@ class TestStreamSlidingTrigger:
     queryIdx = 0
     slidingList = [1, 10, 100, 1000]
     tableList = []
-    runCaseList = []
+    runCaseList = ["0-0-0-3-7"]
     streamSql = ""
     querySql = ""
     querySqls = [ # (SQL, (minPartitionColNum, partitionByTbname), PositiveCase)
