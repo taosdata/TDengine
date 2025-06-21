@@ -1883,7 +1883,6 @@ typedef struct {
 
 int32_t tSerializeSMountStbInfo(void* buf, int32_t bufLen, int32_t* pFLen, SMountStbInfo* pInfo);
 int32_t tDeserializeSMountStbInfo(void* buf, int32_t bufLen, int32_t flen, SMountStbInfo* pInfo);
-void    tFreeSMountStbInfo(SMountStbInfo* pInfo);
 
 typedef struct {
   char     dbName[TSDB_DB_FNAME_LEN];

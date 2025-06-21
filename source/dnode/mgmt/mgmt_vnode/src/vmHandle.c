@@ -985,6 +985,8 @@ _exit:
   taosArrayDestroy(suidList);
   taosArrayDestroy(pCols);
   taosArrayDestroy(pTags);
+  taosArrayDestroy(pColExts);
+  taosArrayDestroy(pTagExts);
   TAOS_RETURN(code);
 }
 #endif

@@ -681,6 +681,7 @@ _exit:
   return code;
 }
 
+#ifdef USE_MOUNT
 int32_t tSerializeSMountStbInfo(void *buf, int32_t bufLen, int32_t *pFLen, SMountStbInfo *pInfo) {
   SEncoder        encoder = {0};
   int32_t         code = 0, lino = 0;
@@ -696,7 +697,7 @@ int32_t tSerializeSMountStbInfo(void *buf, int32_t bufLen, int32_t *pFLen, SMoun
   if (pFLen) *pFLen = flen;
 
   if (buf) qBuf = POINTER_SHIFT(buf, flen);
-  tEncoderInit(&encoder, qBuf, qlen);
+  tEncoderInit(&encoder, qBuf, qBuf ? bufLen - flen : 0);
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   for (int32_t i = 0; i < pReq->numOfColumns; ++i) {
     void *pColExt = taosArrayGet(pInfo->pColExts, i);
@@ -721,6 +722,7 @@ int32_t tDeserializeSMountStbInfo(void *buf, int32_t bufLen, int32_t flen, SMoun
   TAOS_CHECK_EXIT(tDeserializeSMCreateStbReq(buf, flen, &pInfo->req));
 
   tDecoderInit(&decoder, qBuf, bufLen - flen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
   if ((pInfo->pColExts = taosArrayInit(pInfo->req.numOfColumns, sizeof(col_id_t))) == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
@@ -746,12 +748,7 @@ _exit:
   tDecoderClear(&decoder);
   return code;
 }
-
-void tFreeSMountStbInfo(SMountStbInfo *pInfo) {
-  if (pInfo) {
-    tFreeSMCreateStbReq(&pInfo->req);
-  }
-}
+#endif
 
 int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq) {
   SEncoder encoder = {0};
@@ -6885,7 +6882,10 @@ void tFreeMountInfo(SMountInfo *pReq, bool stbExtracted) {
         taosArrayDestroy(pDbInfo->pVgs);
         if (stbExtracted) {
           for (int32_t j = 0; j < taosArrayGetSize(pDbInfo->pStbs); ++j) {
-            tFreeSMCreateStbReq(TARRAY_GET_ELEM(pDbInfo->pStbs, j));
+            SMountStbInfo *pStbInfo = TARRAY_GET_ELEM(pDbInfo->pStbs, j);
+            tFreeSMCreateStbReq(&pStbInfo->req);
+            taosArrayDestroy(pStbInfo->pColExts);
+            taosArrayDestroy(pStbInfo->pTagExts);
           }
           taosArrayDestroy(pDbInfo->pStbs);
         } else {
