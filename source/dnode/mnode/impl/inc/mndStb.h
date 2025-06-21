@@ -35,6 +35,8 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate);
 SDbObj *mndAcquireDbByStb(SMnode *pMnode, const char *stbName);
 int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreate, SDbObj *pDb);
 int32_t mndAddStbToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb);
+int32_t mndSetCreateStbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb);
+int32_t mndGenIdxNameForFirstTag(char *fullname, char *dbname, char *stbname, char *tagname);
 void    mndFreeStb(SStbObj *pStb);
 int32_t mndBuildSMCreateStbRsp(SMnode *pMnode, char *dbFName, char *stbFName, void **pCont, int32_t *pLen);
 

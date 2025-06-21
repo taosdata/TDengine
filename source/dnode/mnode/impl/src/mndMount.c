@@ -14,7 +14,7 @@
  */
 #ifndef USE_MOUNT
 #define USE_MOUNT
-#endif 
+#endif
 #ifdef USE_MOUNT
 #define _DEFAULT_SOURCE
 #include "audit.h"
@@ -25,6 +25,7 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndIndex.h"
+#include "mndIndexComm.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
@@ -654,10 +655,36 @@ static int32_t mndSetCreateVgPrepareActions(SMnode *pMnode, STrans *pTrans, SVgO
   return 0;
 }
 
-static int32_t mndSetCreateStbPrepareActions(SMnode *pMnode, STrans *pTrans, SStbObj *pStbs, int32_t nStbs) {
-  // for (int32_t i = 0; i < nStbs; ++i) {
-  //   if (mndAddNewVgPrepareAction(pMnode, pTrans, (pStbs + i)) != 0) return -1;
-  // }
+static int32_t mndSetCreateStbCommitActions(SMnode *pMnode, STrans *pTrans, SStbObj *pStbs, int32_t nStbs) {
+  int32_t code = 0, lino = 0;
+  char    fullIdxName[TSDB_INDEX_FNAME_LEN * 2] = {0};
+  for (int32_t i = 0; i < nStbs; ++i) {
+    SStbObj *pStb = pStbs + i;
+    SSchema *pSchema = &(pStb->pTags[0]);
+    if (mndGenIdxNameForFirstTag(fullIdxName, pStb->db, pStb->name, pSchema->name) < 0) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    SSIdx idx = {0};
+    if (mndAcquireGlobalIdx(pMnode, fullIdxName, SDB_IDX, &idx) == 0 && idx.pIdx != NULL) {
+      mndReleaseIdx(pMnode, idx.pIdx);
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST);
+    }
+
+    SIdxObj idxObj = {0};
+    memcpy(idxObj.name, fullIdxName, TSDB_INDEX_FNAME_LEN);
+    memcpy(idxObj.stb, pStb->name, TSDB_TABLE_FNAME_LEN);
+    memcpy(idxObj.db, pStb->db, TSDB_DB_FNAME_LEN);
+    memcpy(idxObj.colName, pSchema->name, TSDB_COL_NAME_LEN);
+    idxObj.createdTime = taosGetTimestampMs();
+    idxObj.uid = mndGenerateUid(fullIdxName, strlen(fullIdxName));
+    idxObj.stbUid = pStb->uid;
+    idxObj.dbUid = pStb->dbUid;
+
+    TAOS_CHECK_EXIT(mndSetCreateIdxCommitLogs(pMnode, pTrans, &idxObj));
+    TAOS_CHECK_EXIT(mndTransCheckConflict(pMnode, pTrans));
+    TAOS_CHECK_EXIT(mndSetCreateStbCommitLogs(pMnode, pTrans, NULL, pStb));
+  }
+_exit:
   return 0;
 }
 
@@ -771,8 +798,8 @@ static int32_t mndSetCreateMountCommitLogs(SMnode *pMnode, STrans *pTrans, SMoun
   TAOS_RETURN(code);
 }
 
-void *mndBuildRetrieveMountPathReq(SMnode *pMnode, SRpcMsg *pMsg, const char *mountName, const char *mountPath, int32_t dnodeId,
-                                   int32_t *pContLen) {
+void *mndBuildRetrieveMountPathReq(SMnode *pMnode, SRpcMsg *pMsg, const char *mountName, const char *mountPath,
+                                   int32_t dnodeId, int32_t *pContLen) {
   int32_t code = 0, lino = 0;
   void   *pBuf = NULL;
 
@@ -805,7 +832,8 @@ _exit:
 //   if (pDnode == NULL) TAOS_RETURN(terrno);
 //   if (pDnode->offlineReason != DND_REASON_ONLINE) {
 //     mndReleaseDnode(pMnode, pDnode);
-//     TAOS_RETURN(TSDB_CODE_DNODE_OFFLINE);  // TODO: check when offline, if it's included when mndAcquireDnode return NULL.
+//     TAOS_RETURN(TSDB_CODE_DNODE_OFFLINE);  // TODO: check when offline, if it's included when mndAcquireDnode return
+//     NULL.
 //   }
 //   action.epSet = mndGetDnodeEpset(pDnode);
 //   mndReleaseDnode(pMnode, pDnode);
@@ -859,7 +887,7 @@ static int32_t mndMountDupDbIdExist(SMnode *pMnode, SMountInfo *pInfo) {
     for (int32_t i = 0; i < nDbs; ++i) {
       SMountDbInfo *pMountDb = TARRAY_GET_ELEM(pInfo->pDbs, i);
       if (pMountDb->dbId == pDb->uid) {
-        mWarn("mount:%s, db:%s, dbId:%"PRId64" is already exist", pInfo->mountName, pMountDb->dbName, pMountDb->dbId);
+        mWarn("mount:%s, db:%s, dbId:%" PRId64 " is already exist", pInfo->mountName, pMountDb->dbName, pMountDb->dbId);
         sdbRelease(pSdb, pDb);
         sdbCancelFetch(pSdb, pIter);
         return TSDB_CODE_MND_MOUNT_DUP_DB_ID_EXIST;
@@ -871,7 +899,7 @@ static int32_t mndMountDupDbIdExist(SMnode *pMnode, SMountInfo *pInfo) {
   return 0;
 }
 
-static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInfo, SUserObj * pUser) {
+static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, SUserObj *pUser) {
   int32_t    code = 0, lino = 0;
   SUserObj   newUserObj = {0};
   SMountObj  mntObj = {0};
@@ -956,7 +984,6 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
     }
   }
 
-
   // add database privileges for user
   // SUserObj *pNewUserDuped = NULL;
   // if (!pUser->superUser) {
@@ -969,7 +996,6 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
   //                   NULL, _exit);
   //   pNewUserDuped = &newUserObj;
   // }
-
 
   TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-mount")), code,
                   lino, _exit, terrno);
@@ -988,6 +1014,7 @@ static int32_t mndCreateMount(SMnode * pMnode, SRpcMsg * pReq, SMountInfo * pInf
   TAOS_CHECK_EXIT(mndSetCreateMountCommitLogs(pMnode, pTrans, &mntObj));
   TAOS_CHECK_EXIT(mndSetCreateDbCommitLogs(pMnode, pTrans, pDbs, nDbs));
   TAOS_CHECK_EXIT(mndSetCreateVgCommitLogs(pMnode, pTrans, pVgs, nVgs));
+  TAOS_CHECK_EXIT(mndSetCreateStbCommitActions(pMnode, pTrans, pStbs, nStbs));
   // TAOS_CHECK_EXIT(mndSetCreateDbUndoActions(pMnode, pTrans, &mntObj, pVgroups));
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 
@@ -1077,7 +1104,8 @@ static int32_t mndRetrieveMountInfo(SMnode *pMnode, SRpcMsg *pMsg, SCreateMountR
   mndReleaseDnode(pMnode, pDnode);
 
   int32_t bufLen = 0;
-  void   *pBuf = mndBuildRetrieveMountPathReq(pMnode, pMsg, pReq->mountName, pReq->mountPaths[0], pReq->dnodeIds[0], &bufLen);
+  void   *pBuf =
+      mndBuildRetrieveMountPathReq(pMnode, pMsg, pReq->mountName, pReq->mountPaths[0], pReq->dnodeIds[0], &bufLen);
   if (pBuf == NULL) TAOS_RETURN(terrno);
 
   SRpcMsg rpcMsg = {.msgType = TDMT_DND_RETRIEVE_MOUNT_PATH, .pCont = pBuf, .contLen = bufLen};
@@ -1191,7 +1219,7 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   mInfo("mount:%s, start to create on dnode %d from %s", createReq.mountName, *createReq.dnodeIds,
         createReq.mountPaths[0]);  // TODO: mutiple mounts
 
-  if((pDb = mndAcquireDb(pMnode, createReq.mountName))) {
+  if ((pDb = mndAcquireDb(pMnode, createReq.mountName))) {
     mndReleaseDb(pMnode, pDb);
     TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_DUP_DB_NAME_EXIST);
   }
