@@ -99,6 +99,7 @@ extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfRpcSessions;
 extern int32_t tsShareConnLimit;
 extern int32_t tsReadTimeout;
+extern int8_t  tsEnableIpv6;
 extern int32_t tsTimeToGetAvailableConn;
 extern int32_t tsNumOfCommitThreads;
 extern int32_t tsNumOfTaskQueueThreads;
@@ -158,7 +159,7 @@ extern int64_t tsDndUpTime;
 // dnode misc
 extern uint32_t tsEncryptionKeyChksum;
 extern int8_t   tsEncryptionKeyStat;
-extern int8_t   tsGrant;
+extern uint32_t tsGrant;
 
 // monitor
 extern bool     tsEnableMonitor;
@@ -331,7 +332,7 @@ struct SConfig *taosGetCfg();
 int32_t taosSetGlobalDebugFlag(int32_t flag);
 int32_t taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal);
 void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
-int8_t  taosGranted(int8_t type);
+int32_t taosGranted(int8_t type);
 int32_t taosSetSlowLogScope(char *pScopeStr, int32_t *pScope);
 
 int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version);

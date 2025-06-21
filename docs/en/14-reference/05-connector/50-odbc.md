@@ -643,4 +643,3 @@ This section summarizes the ODBC API by functionality. For a complete ODBC API r
   - **Support**: Supported
   - **Standard**: ODBC
   - **Function**: Closes the cursor associated with the current statement handle and releases all resources used by the cursor
-
