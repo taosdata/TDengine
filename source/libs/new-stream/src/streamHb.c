@@ -49,6 +49,8 @@ static int32_t streamHbSendRequestMsg(SStreamHbMsg* pMsg, SEpSet* pEpset) {
   
   TAOS_CHECK_EXIT(tmsgSendReq(pEpset, &msg));
 
+  stTrace("stream hb sent");
+
   return code;
 
 _exit:
@@ -106,9 +108,12 @@ void streamHbStart(void* param, void* tmrId) {
   bool    skipHb = false;
   SStreamHbMsg reqMsg = {0};
   SEpSet epSet = {0};
+
+  stTrace("stream hb begin");
   
   TAOS_CHECK_EXIT(streamHbBuildRequestMsg(&reqMsg, &skipHb));
   if (skipHb) {
+    stTrace("stream hb skipped");
     goto _exit;
   }
   
@@ -121,6 +126,8 @@ _exit:
   
   if (code) {
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    stTrace("stream hb end");
   }
 }
 
@@ -149,6 +156,7 @@ int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs) {
   }
   
   gStreamMgmt.hb.lastErrCode = errCode;
+  gStreamMgmt.hb.lastErrTs = currTs;
   stError("stream hb got error:%s, currTs:%" PRId64, tstrerror(errCode), currTs);
 
   return TSDB_CODE_SUCCESS;
@@ -160,18 +168,20 @@ int32_t streamHbProcessRspMsg(SMStreamHbRspMsg* pRsp) {
 
   stDebug("start to process stream hb rsp msg");
 
+  gStreamMgmt.hb.lastErrCode = 0;
+
+  if (pRsp->undeploy.undeployAll) {
+    //STREAMTODO
+  } else if (pRsp->undeploy.taskList) {
+    TAOS_CHECK_EXIT(smUndeployTasks(&pRsp->undeploy));
+  }
+
   if (pRsp->deploy.streamList) {
     TAOS_CHECK_EXIT(smDeployStreams(&pRsp->deploy));
   }
 
   if (pRsp->start.taskList) {
     TAOS_CHECK_EXIT(smStartTasks(&pRsp->start));
-  }
-
-  if (pRsp->undeploy.undeployAll) {
-    //STREAMTODO
-  } else if (pRsp->undeploy.taskList) {
-    TAOS_CHECK_EXIT(smUndeployTasks(&pRsp->undeploy));
   }
 
   if (pRsp->rsps.rspList) {

@@ -1004,8 +1004,7 @@ char* formatTimestampLocal(char* buf, int64_t val, int precision) {
   time_t tt;
   if (precision == TSDB_TIME_PRECISION_MICRO) {
     tt = (time_t)(val / 1000000);
-  }
-  if (precision == TSDB_TIME_PRECISION_NANO) {
+  } else if (precision == TSDB_TIME_PRECISION_NANO) {
     tt = (time_t)(val / 1000000000);
   } else {
     tt = (time_t)(val / 1000);

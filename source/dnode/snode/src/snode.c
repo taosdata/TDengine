@@ -43,7 +43,7 @@ int32_t sndInit(SSnode *pSnode) {
 }
 
 void sndClose(SSnode *pSnode) {
-  streamSetSnodeDisabled();
+  streamSetSnodeDisabled(false);
   taosMemoryFree(pSnode);
 }
 
@@ -154,6 +154,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   SResFetchReq req = {0};
   SSTriggerCalcRequest calcReq = {0};
   SStreamRunnerTask* pTask = NULL;
+  stDebug("handleStreamFetchData, msgType:%d, contLen:%d", pRpcMsg->msgType, pRpcMsg->contLen);
   code = tDeserializeSResFetchReq(pRpcMsg->pCont,pRpcMsg->contLen, &req);
   if (code == 0) {
     //code =  make one strigger calc req
@@ -161,6 +162,8 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
     calcReq.runnerTaskId = req.taskId;
     calcReq.brandNew = req.reset;
     calcReq.execId = req.execId;
+    calcReq.sessionId = req.pStRtFuncInfo->sessionId;
+    calcReq.triggerType = req.pStRtFuncInfo->triggerType;
     TSWAP(calcReq.groupColVals, req.pStRtFuncInfo->pStreamPartColVals);
     TSWAP(calcReq.params, req.pStRtFuncInfo->pStreamPesudoFuncVals);
     calcReq.gid = req.pStRtFuncInfo->groupId;

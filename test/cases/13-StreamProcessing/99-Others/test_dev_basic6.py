@@ -32,8 +32,8 @@ class TestStreamDevBasic:
         self.prepareQueryData()
         self.prepareTriggerTable()
         self.createStreams()
-        self.writeTriggerData()
         self.checkStreamStatus()
+        self.writeTriggerData()
         self.checkResults()
 
     def createSnode(self):
@@ -107,11 +107,11 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=6,
-            stream="create stream rdb.s6 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r6 as select _twstart ts, %%tbname tb, %%1, count(*) v1, avg(c1) v2, first(c1) v3, last(c1) v4 from %%trows where c2 > 0;",
-            res_query="select ts, tb, _placeholder_column, v2, v3, v4, tag_tbname from rdb.r6 where tb='t1'",
-            exp_query="select _wstart, 't1', 't1', avg(c1) v2, first(c1) v3, last(c1) v4, 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m) fill(NULL);",
-            check_func=self.check6,
+            id=11,
+            stream="create stream rdb.s11 sliding(5m) from tdb.n1 into rdb.r11 as select _tprev_ts tp, _tcurrent_ts tc, _tnext_ts tn, _tgrpid tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _tprev_ts and cts < _tcurrent_ts and _tgrpid is not null and _tlocaltime is not null and tbname != 't1';",
+            res_query="select tp, tc, tn, tg, c1, c2 from rdb.r11;",
+            exp_query="select _wstart, _wend, _wend + 5m, 0, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= '2025-01-01 00:25:00.000' and cts < '2025-01-01 00:40:00.000' and tbname != 't1' interval(5m);",
+            check_func=self.check11,
         )
         self.streams.append(stream)
 
@@ -119,24 +119,17 @@ class TestStreamDevBasic:
         for stream in self.streams:
             stream.createStream()
 
-    def check6(self):
-        tdSql.checkTableType(
-            dbname="rdb",
-            stbname="r6",
-            columns=7,
-            tags=1,
-        )
+    def check11(self):
         tdSql.checkTableSchema(
             dbname="rdb",
-            tbname="r6",
+            tbname="r11",
             schema=[
-                ["ts", "TIMESTAMP", 8, ""],
-                ["tb", "VARCHAR", 272, ""],
-                ["_placeholder_column", "VARCHAR", 272, ""],
-                ["v1", "BIGINT", 8, ""],
-                ["v2", "DOUBLE", 8, ""],
-                ["v3", "INT", 4, ""],
-                ["v4", "INT", 4, ""],
-                ["tag_tbname", "VARCHAR", 272, "TAG"],
+                ["tp", "TIMESTAMP", 8, ""],
+                ["tc", "TIMESTAMP", 8, ""],
+                ["tn", "TIMESTAMP", 8, ""],
+                ["tg", "BIGINT", 8, ""],
+                ["tl", "TIMESTAMP", 8, ""],
+                ["c1", "BIGINT", 8, ""],
+                ["c2", "DOUBLE", 8, ""],
             ],
         )

@@ -495,7 +495,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   int32_t         code = makeScanLogicNode(pCxt, pRealTable, pSelect->hasRepeatScanFuncs, (SLogicNode**)&pScan);
 
   pScan->placeholderType = pRealTable->placeholderType;
-  pCxt->pPlanCxt->phTbnameQuery = (pScan->placeholderType == SP_PARTITION_TBNAME && pRealTable->pMeta->tableType == TSDB_SUPER_TABLE);
+  pCxt->pPlanCxt->phTbnameQuery = pRealTable->asChildTable;
   pScan->node.groupAction = GROUP_ACTION_NONE;
   pScan->node.resultDataOrder = (pRealTable->pMeta->tableType == TSDB_SUPER_TABLE) ? DATA_ORDER_LEVEL_IN_BLOCK : DATA_ORDER_LEVEL_GLOBAL;
 
@@ -602,6 +602,9 @@ static int32_t createRefScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   if (TSDB_CODE_SUCCESS == code) {
     code = addDefaultScanCol(pRealTable, &pScan->pScanCols);
   }
+
+  SNode *pTsCol = nodesListGetNode(pScan->pScanCols, 0);
+  ((SColumnNode*)pTsCol)->hasDep = true;
   *pLogicNode = (SLogicNode*)pScan;
   pCxt->hasScan = true;
 
@@ -1141,6 +1144,7 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
     default:
       PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_TABLE_TYPE);
   }
+  pCxt->pPlanCxt->streamVtableCalc = true;
 
   return code;
 _return:

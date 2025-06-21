@@ -149,24 +149,30 @@ typedef struct SSlidingTaskDSMgr {
 } SSlidingTaskDSMgr;
 
 typedef enum {
-  GRP_DATA_WAITTING = 0,
+  GRP_DATA_IDLE = 0,
   GRP_DATA_WRITING = 1,
-  GRP_DATA_READING = 2,
+  GRP_DATA_WIAT_READ = 2,  // finished writing, but not reading
+  GRP_DATA_READING = 3,
+  GRP_DATA_MOVING = 4,
 } EGroupStatus;
+
+typedef enum {
+  GRP_DATA_WAITREAD_MOVING = 0x01,  // waiting for read, can moving data
+} EGroupStatusMode;
 
 typedef struct SSlidingGrpMgr {
   int64_t groupId;
+  int8_t  status;  // EGroupStatus
   int64_t usedMemSize;
   SArray* winDataInMem;  // array SSlidingWindowInMem
   SArray* blocksInFile;  // array SBlocksInfoFile
-  int8_t  status;        // 0 waitting, 1 writing, 2 reading
 } SSlidingGrpMgr;
 
 typedef struct SAlignGrpMgr {
   int64_t groupId;
+  int8_t  status;        // EGroupStatus
   SArray* blocksInMem;   // array SAlignBlocksInMem <address, capacity, dataLen>
   SArray* blocksInFile;  // array SBlocksInfoFile <groupOffset, dataStartOffset, dataLen>
-  int8_t  status;        // 0 waitting, 1 writing, 2 reading
 } SAlignGrpMgr;
 
 typedef enum {
@@ -191,10 +197,15 @@ typedef struct SResultIter {
   int64_t      reqEndTime;
 } SResultIter;
 
+typedef enum {
+  DATA_NORMAL = 0,  // normal data, not moving
+  DATA_MOVING = 1,  // data is moving from mem to file
+} SDataMoveStatus;
 typedef struct SSlidingGrpMemList {
   bool      enabled;
+  int8_t    status;
   SHashObj* pSlidingGrpList;  // hash <SSlidingGrpMgr*, size>
-  int64_t   waitMoveMemSize;   // used memory size in bytes
+  int64_t   waitMoveMemSize;  // used memory size in bytes
 } SSlidingGrpMemList;
 extern SSlidingGrpMemList g_slidigGrpMemList;
 
@@ -271,7 +282,7 @@ int32_t checkAndMoveMemCache(bool forWrite);
 int32_t moveSlidingTaskMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr);
 bool    hasEnoughMemSize();
 int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMgr* pSlidingGrp);
-int32_t moveMemFromWaitList();
+int32_t moveMemFromWaitList(int8_t mode);
 
 void* getWindowDataBuf(SSlidingWindowInMem* pWindowData);
 
@@ -298,12 +309,16 @@ void    releaseDataResult(void** ppResult);
 
 void slidingGrpMgrUsedMemAdd(SSlidingGrpMgr* pSlidingGrpCacheMgr, int64_t size);
 
-void destroyInserterGrpInfo();
+int32_t initInserterGrpInfo();
+void    destroyInserterGrpInfo();
 
 void destroyAlignBlockInMem(void* pData);
 void destroyAlignBlockInMemPP(void* ppData);
 
 void destroyStreamDataSinkFile(SDataSinkFileMgr** ppDaSinkFileMgr);
+
+bool changeMgrStatus(int8_t* pStatus, int8_t status);
+bool changeMgrStatusToMoving(int8_t* pStatus, int8_t mode);
 
 #ifdef __cplusplus
 }

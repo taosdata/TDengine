@@ -1791,39 +1791,42 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
     return TSDB_CODE_TDB_TABLE_NOT_EXIST;
   }
 
+  *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+  if (NULL == *ppRsp) {
+    return terrno;
+  }
+  (*ppRsp)->suid = pSubmitTbData->suid;
+  (*ppRsp)->tuid = pSubmitTbData->uid;
+  (*ppRsp)->sversion = pEntry->stbEntry.schemaRow.version;
+  (*ppRsp)->vgId = pVnode->config.vgId;
+  (*ppRsp)->numOfColumns = pEntry->stbEntry.schemaRow.nCols;
+  (*ppRsp)->numOfTags = pEntry->stbEntry.schemaTag.nCols;
+  (*ppRsp)->pSchemas =
+      taosMemoryCalloc(pEntry->stbEntry.schemaRow.nCols + pEntry->stbEntry.schemaTag.nCols, sizeof(SSchema));
+  if (NULL == (*ppRsp)->pSchemas) {
+    taosMemoryFree(*ppRsp);
+    *ppRsp = NULL;
+    return terrno;
+  }
+  memcpy((*ppRsp)->pSchemas, pEntry->stbEntry.schemaRow.pSchema, pEntry->stbEntry.schemaRow.nCols * sizeof(SSchema));
+  memcpy((*ppRsp)->pSchemas + pEntry->stbEntry.schemaRow.nCols, pEntry->stbEntry.schemaTag.pSchema,
+         pEntry->stbEntry.schemaTag.nCols * sizeof(SSchema));
+  if (pEntry->pExtSchemas != NULL) {
+    (*ppRsp)->pSchemaExt = taosMemoryCalloc(pEntry->stbEntry.schemaRow.nCols, sizeof(SSchemaExt));
+    if (NULL == (*ppRsp)->pSchemaExt) {
+      taosMemoryFree((*ppRsp)->pSchemas);
+      taosMemoryFree(*ppRsp);
+      *ppRsp = NULL;
+      return terrno;
+    }
+    memcpy((*ppRsp)->pSchemaExt, pEntry->pExtSchemas, pEntry->stbEntry.schemaRow.nCols * sizeof(SSchemaExt));
+  }
+
   if (pEntry->stbEntry.schemaRow.version == pSubmitTbData->sver) {
     return TSDB_CODE_SUCCESS;
   } else {
-    *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
-    if (NULL == *ppRsp) {
-      return terrno;
-    }
-    (*ppRsp)->tuid = pEntry->uid;
-    (*ppRsp)->sversion = pEntry->stbEntry.schemaRow.version;
-    (*ppRsp)->numOfColumns = pEntry->stbEntry.schemaRow.nCols;
-    (*ppRsp)->numOfTags = pEntry->stbEntry.schemaTag.nCols;
-    (*ppRsp)->pSchemas =
-        taosMemoryCalloc(pEntry->stbEntry.schemaRow.nCols + pEntry->stbEntry.schemaTag.nCols, sizeof(STSchema));
-    if (NULL == (*ppRsp)->pSchemas) {
-      taosMemoryFree(*ppRsp);
-      return terrno;
-    }
-    memcpy((*ppRsp)->pSchemas, pEntry->stbEntry.schemaRow.pSchema, pEntry->stbEntry.schemaRow.nCols * sizeof(SSchema));
-    memcpy((*ppRsp)->pSchemas + pEntry->stbEntry.schemaRow.nCols, pEntry->stbEntry.schemaTag.pSchema,
-           pEntry->stbEntry.schemaTag.nCols * sizeof(SSchema));
-    if (pEntry->pExtSchemas != NULL) {
-      (*ppRsp)->pSchemaExt = taosMemoryCalloc(pEntry->stbEntry.schemaRow.nCols, sizeof(SSchemaExt));
-      if (NULL == (*ppRsp)->pSchemaExt) {
-        taosMemoryFree((*ppRsp)->pSchemas);
-        taosMemoryFree(*ppRsp);
-        return terrno;
-      }
-      memcpy((*ppRsp)->pSchemaExt, pEntry->pExtSchemas, pEntry->stbEntry.schemaRow.nCols * sizeof(SSchemaExt));
-    }
-
     return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
   }
-  return code;
 }
 
 static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbData, STableMetaRsp **ppRsp) {
@@ -1842,6 +1845,7 @@ static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTb
   }
 
   (*ppRsp)->tuid = pEntry->uid;
+  (*ppRsp)->vgId = pVnode->config.vgId;
   (*ppRsp)->sversion = pEntry->ntbEntry.schemaRow.version;
   (*ppRsp)->numOfColumns = pEntry->ntbEntry.schemaRow.nCols;
   (*ppRsp)->pSchemas = taosMemoryCalloc(pEntry->ntbEntry.schemaRow.nCols, sizeof(SSchema));

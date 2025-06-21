@@ -286,7 +286,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_MNODE_NOT_EXIST,          "Mnode not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_QNODE_ALREADY_EXIST,      "Qnode already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_QNODE_NOT_EXIST,          "Qnode not there")
 //TAOS_DEFINE_ERROR(TSDB_CODE_MND_SNODE_ALREADY_EXIST,      "Snode already exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_SNODE_ALREADY_EXIST,      "Snode can only be created 1")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SNODE_ALREADY_EXIST,      "Only one snode can be created in each dnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SNODE_NOT_EXIST,          "Snode not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_FEW_MNODES,           "The replica of mnode cannot less than 1")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_MNODES,          "The replica of mnode cannot exceed 3")
@@ -772,7 +772,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLS_SELECTFUNC,    "cols function's fir
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLS_ALIAS,         "Invalid using alias for cols function")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIM_KEY_MUST_BE_TS,        "Join primary key col must be timestmap type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REF_COLUMN,         "Invalid virtual table's ref column")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLUMN,             "Invalid table type")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TABLE_TYPE,             "Invalid table type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,    "Invalid ref column type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_MISMATCH_STABLE_TYPE,       "Create child table using virtual super table")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_TAG_REF_BY_STM,         "Col/Tag referenced by stream")
@@ -900,6 +900,19 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NOT_LEADER,              "Stream task not on 
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INPUTQ_FULL,             "Task input queue is full")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVLD_CHKPT,             "Invalid checkpoint trigger msg")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_TASK_TYPE,       "Invalid stream task type")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_TIME_UNIT,       "Invalid time unit in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_SYNTAX,          "Invalid syntax in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_NOTIFY,          "Invalid notify clause in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_TRIGGER,         "Invalid trigger clause in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_QUERY,           "Invalid query clause in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_OUT_TABLE,       "Invalid out table clause in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NO_TRIGGER_TABLE,        "Trigger table not specified in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_PRE_FILTER,      "Invalid pre-filter in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_PARTITION,       "Invalid partition in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_SUBTABLE,        "Invalid subtable in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_OUT_TAGS,        "Invalid out tags in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_NOTIFY_COND,     "Invalid notify condition in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,    "Invalid placeholder in create stream clause")
 
 
 // TDLite
@@ -942,6 +955,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TASK_LOST,           "Stream task lost")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_SNODE_LOST,          "Snode lost")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_DB_IN_USE,           "Db used by stream")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_VTABLE_EXITS,        "Virtual table stream exists, use FORCE when ensure no impact")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_VGROUP_LOST,         "Vgroup lost leader")
+
+
 
 #ifdef TAOS_ERROR_C
 };

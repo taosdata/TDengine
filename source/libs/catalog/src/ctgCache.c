@@ -2568,16 +2568,16 @@ int32_t ctgOpDropStbMeta(SCtgCacheOperation *operation) {
 
   char *stbName = taosHashGet(dbCache->stbCache, &msg->suid, sizeof(msg->suid));
   if (stbName) {
+    if (0 == msg->stbName[0]) {
+      tstrncpy(msg->stbName, stbName, sizeof(msg->stbName));
+    }
+
     uint64_t metaSize = strlen(stbName) + 1 + sizeof(msg->suid);
     if (taosHashRemove(dbCache->stbCache, &msg->suid, sizeof(msg->suid))) {
       ctgDebug("stb:%s, stb not exist in stbCache, may be removed, db:%s, suid:0x%" PRIx64, stbName, msg->dbFName,
                msg->suid);
     } else {
       (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, metaSize);
-    }
-
-    if (0 == msg->stbName[0]) {
-      tstrncpy(msg->stbName, stbName, sizeof(msg->stbName));
     }
   } else if (0 == msg->stbName[0]) {
     ctgDebug("stb with suid:0x%" PRIx64 " already not in cache", msg->suid);

@@ -145,13 +145,17 @@ static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, const SStreamRunnerD
   if (pMsg->outTblType == TSDB_SUPER_TABLE) strncpy(pTask->output.outSTbName, pMsg->outTblName, TSDB_TABLE_NAME_LEN);
 }
 
-int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
+int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMsg) {
   ST_TASK_DLOGL("deploy runner task for %s.%s, runner plan:%s", pMsg->outDBFName, pMsg->outTblName, (char*)(pMsg->pPlan));
-  pTask->pPlan = pMsg->pPlan;
-  pTask->forceOutCols = pMsg->forceOutCols;
+  TSWAP(pTask->pPlan, pMsg->pPlan);
+  TSWAP(pTask->notification.pNotifyAddrUrls, pMsg->pNotifyAddrUrls);
+  TSWAP(pTask->forceOutCols, pMsg->forceOutCols);
   pTask->parallelExecutionNun = pMsg->execReplica;
   pTask->output.outStbVersion = pMsg->outStbSversion;
   pTask->topTask = pMsg->topPlan;
+  pTask->notification.calcNotifyOnly = pMsg->calcNotifyOnly;
+  pTask->notification.notifyErrorHandle = pMsg->notifyErrorHandle;
+
   int32_t code = nodesStringToList(pMsg->tagValueExpr, &pTask->output.pTagValExprs);
   ST_TASK_DLOG("pTagValExprs: %s", (char*)pMsg->tagValueExpr);
   if (code != 0) {
@@ -179,7 +183,11 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, const SStreamRunnerDeployMs
 
 int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb) {
   if ((*ppTask)->execMgr.exit) return 0;
-  nodesDestroyNode((*ppTask)->pSubTableExpr);
+  NODES_DESTORY_NODE((*ppTask)->pSubTableExpr);
+  NODES_DESTORY_LIST((*ppTask)->output.pTagValExprs);
+  taosMemoryFreeClear((*ppTask)->pPlan);
+  taosArrayDestroyEx((*ppTask)->forceOutCols, destroySStreamOutCols);
+  taosArrayDestroyP((*ppTask)->notification.pNotifyAddrUrls, taosMemFree);
   (*ppTask)->pSubTableExpr = NULL;
   (*ppTask)->undeployCb = cb;
   (*ppTask)->undeployParam = ppTask;
@@ -258,6 +266,8 @@ static int32_t stRunnerCalcSubTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTa
     pCol->info.bytes = pType.bytes;
     pCol->info.precision = pType.precision;
     pCol->info.scale = pType.scale;
+    colInfoDataEnsureCapacity(pCol, 1, true);
+
     dst.colAlloced = true;
     dst.numOfRows = 1;
     dst.columnData = pCol;
@@ -304,6 +314,8 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
       if (createTb) code = stRunnerInitTbTagVal(pTask, pExec, &pTagVals);
       if (code == 0) {
         SStreamDataInserterInfo d = {.tbName = pExec->tbname,
+                                     .streamId = pTask->task.streamId,
+                                     .groupId = pExec->runtimeInfo.funcInfo.groupId,
                                      .isAutoCreateTable = createTb, .pTagVals = pTagVals};
         SInputData              input = {.pData = pBlock, .pStreamDataInserterInfo = &d};
         bool                    cont = false;
@@ -323,9 +335,13 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   int32_t lino = 0;
   if (!pBlock || pBlock->info.rows <= 0) return code;
   char* pContent = NULL;
-  int32_t filterColId = taosArrayGetSize(pBlock->pDataBlock) - 1;
-  //code = streamBuildBlockResultNotifyContent(pBlock, &pContent, filterColId, pTask->output.outCols);
-  //code = streamSendNotifyContent(pTask, 0, pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls, pTask->notification.notifyErrorHandle, const SSTriggerCalcParam *pParams, int32_t nParam);
+  code = streamBuildBlockResultNotifyContent(pBlock, &pContent, pTask->output.outCols);
+  if (code == 0){
+    ST_TASK_DLOG("start to send notify:%s", pContent);
+    code = streamSendNotifyContent(&pTask->task, pExec->runtimeInfo.funcInfo.triggerType, pExec->runtimeInfo.funcInfo.groupId, 
+      pTask->notification.pNotifyAddrUrls, pTask->notification.notifyErrorHandle, TARRAY_DATA(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals),
+      taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals));
+  }
   return code;
 }
 
@@ -474,20 +490,21 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   int32_t lino = 0;
   SSDataBlock* pForceOutBlock = NULL;
   SStreamRunnerTaskExecution* pExec = NULL;
-  ST_TASK_DLOG("start to handle runner task calc request, topTask: %d", pTask->topTask);
+  ST_TASK_DLOG("[runner cacl]start to handle runner task calc request, topTask: %d", pTask->topTask);
 
   code = stRunnerTaskExecMgrAcquireExec(pTask, pReq->execId, &pExec);
   if (code != 0) {
     ST_TASK_ELOG("failed to get task exec for stream code:%s", tstrerror(code));
     return code;
   }
-
+  pTask->task.status = STREAM_STATUS_RUNNING;
   pTask->task.sessionId = pReq->sessionId;
   TSWAP(pExec->runtimeInfo.funcInfo.pStreamPartColVals, pReq->groupColVals);
   TSWAP(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, pReq->params);
   pExec->runtimeInfo.funcInfo.groupId = pReq->gid;
   pExec->runtimeInfo.pForceOutputCols = pTask->forceOutCols;
   pExec->runtimeInfo.funcInfo.sessionId = pReq->sessionId;
+  pExec->runtimeInfo.funcInfo.triggerType = pReq->triggerType;
 
   int32_t winNum = taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals);
   STREAM_CHECK_CONDITION_GOTO(winNum > STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST, TSDB_CODE_STREAM_TASK_IVLD_STATUS);
@@ -509,6 +526,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
     SSDataBlock* pBlock = NULL;
     uint64_t     ts = 0;
     STREAM_CHECK_RET_GOTO(streamExecuteTask(pExec->pExecutor, &pBlock, &ts, &finished));
+    printDataBlock(pBlock, __func__, "runner exec");
     if (pTask->topTask) {
       if (pExec->runtimeInfo.funcInfo.withExternalWindow) {
         if (pExec->runtimeInfo.funcInfo.extWinProjMode) {
@@ -529,6 +547,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
             }
             ++nextOutIdx;
           }
+          ST_TASK_DLOG("[runner cacl]result has no data, status:%d", pTask->task.status);
         } else {
           code = stRunnerHandleResultBlock(pTask, pExec, pBlock, &createTable);
           nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx + 1;
@@ -554,6 +573,12 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
 end:
   stRunnerTaskExecMgrReleaseExec(pTask, pExec);
   if (pForceOutBlock != NULL) blockDataDestroy(pForceOutBlock);
+  if(code) {
+    ST_TASK_ELOG("[runner cacl]faild to execute stream task, lino:%d code:%s", lino, tstrerror(code));
+    pTask->task.status = STREAM_STATUS_FAILED;
+  } else {
+    ST_TASK_DLOG("[runner cacl]task executed successfully, status:%d", pTask->task.status);
+  }
   return code;
 }
 

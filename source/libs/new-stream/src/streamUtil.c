@@ -53,12 +53,9 @@ _exit:
   return code;
 }
 
-int32_t stmHbAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamInfo* pStream, int64_t streamId, int32_t gid) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-
-  taosWLockLatch(&pStream->lock);
-
+void stmHandleStreamRemovedTasks(SStreamInfo* pStream, int64_t streamId, int32_t gid) {
+  bool isLastTask = false;
+  
   if (taosArrayGetSize(pStream->undeployReaders) > 0) {
     smHandleRemovedTask(pStream, streamId, gid, true);
   }
@@ -66,6 +63,47 @@ int32_t stmHbAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamInfo* pSt
   if (taosArrayGetSize(pStream->undeployRunners) > 0) {
     smHandleRemovedTask(pStream, streamId, gid, false);
   }
+
+  taosWLockLatch(&pStream->undeployLock);
+  if (0 == pStream->undeployTriggerId) {
+    taosWUnLockLatch(&pStream->undeployLock);
+    return;
+  }
+  
+  if (pStream->triggerTask->task.taskId != pStream->undeployTriggerId) {
+    stsWarn("undeploy trigger task %" PRIx64 " mismatch with current trigger taskId:%" PRIx64, pStream->undeployTriggerId, pStream->triggerTask->task.taskId);
+    pStream->undeployTriggerId = 0;
+    taosWUnLockLatch(&pStream->undeployLock);
+    return;
+  }
+
+  pStream->undeployTriggerId = 0;
+  taosMemoryFreeClear(pStream->triggerTask);
+  smRemoveTaskPostCheck(streamId, pStream, &isLastTask);
+  taosWUnLockLatch(&pStream->undeployLock);
+
+  if (!isLastTask) {
+    return;
+  }
+
+  int32_t code = taosHashRemove(gStreamMgmt.stmGrp[gid], &streamId, sizeof(streamId));
+  if (TSDB_CODE_SUCCESS == code) {
+    stsInfo("stream removed from streamGrpHash %d, remainStream:%d", gid, taosHashGetSize(gStreamMgmt.stmGrp[gid]));
+  } else {
+    stsWarn("stream remove from streamGrpHash %d failed, remainStream:%d, error:%s", 
+        gid, taosHashGetSize(gStreamMgmt.stmGrp[gid]), tstrerror(code));
+  }
+}
+
+int32_t stmHbAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamInfo* pStream, int64_t streamId, int32_t gid) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SListIter iter = {0};
+  SListNode* listNode = NULL;
+
+  taosWLockLatch(&pStream->lock);
+
+  stmHandleStreamRemovedTasks(pStream, streamId, gid);
 
   if (pStream->taskNum <= 0) {
     stsDebug("ignore stream status update since stream taskNum %d is invalid", pStream->taskNum);
@@ -78,17 +116,20 @@ int32_t stmHbAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamInfo* pSt
   }
 
   int32_t origTaskNum = taosArrayGetSize(*ppStatus);
-  int32_t taskNum = taosArrayGetSize(pStream->readerList);
-  for (int32_t i = 0; i < taskNum; ++i) {
-    SStreamReaderTask* pReader = taosArrayGet(pStream->readerList, i);
-    TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pReader->task), code, lino, _exit, terrno);
-    if (pReader->task.pMgmtReq) {
-      TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, ppReq, taosArrayGetSize(*ppStatus) - 1));
+
+  if (pStream->readerList) {
+    tdListInitIter(pStream->readerList, &iter, TD_LIST_FORWARD);
+    while ((listNode = tdListNext(&iter)) != NULL) {
+      SStreamReaderTask* pReader = (SStreamReaderTask*)listNode->data;
+      TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pReader->task), code, lino, _exit, terrno);
+      if (pReader->task.pMgmtReq) {
+        TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, ppReq, taosArrayGetSize(*ppStatus) - 1));
+      }
     }
+
+    stsDebug("%d reader tasks status added to hb", TD_DLIST_NELES(pStream->readerList));
   }
-
-  stsDebug("%d reader tasks status added to hb", taskNum);
-
+  
   if (pStream->triggerTask) {
     TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pStream->triggerTask->task), code, lino, _exit, terrno);
     stsDebug("%d trigger tasks status added to hb", 1);
@@ -97,18 +138,22 @@ int32_t stmHbAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamInfo* pSt
     }
   }
 
-  taskNum = taosArrayGetSize(pStream->runnerList);
-  for (int32_t i = 0; i < taskNum; ++i) {
-    SStreamRunnerTask* pRunner = taosArrayGet(pStream->runnerList, i);
-    TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pRunner->task), code, lino, _exit, terrno);
-    if (pRunner->task.pMgmtReq) {
-      TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, ppReq, taosArrayGetSize(*ppStatus) - 1));
+  if (pStream->runnerList) {
+    memset(&iter, 0, sizeof(iter));
+    
+    tdListInitIter(pStream->runnerList, &iter, TD_LIST_FORWARD);
+    while ((listNode = tdListNext(&iter)) != NULL) {
+      SStreamRunnerTask* pRunner = (SStreamRunnerTask*)listNode->data;
+      TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pRunner->task), code, lino, _exit, terrno);
+      if (pRunner->task.pMgmtReq) {
+        TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, ppReq, taosArrayGetSize(*ppStatus) - 1));
+      }
     }
+
+    stsDebug("%d runner tasks status added to hb", TD_DLIST_NELES(pStream->runnerList));
   }
-
-  stsDebug("%d runner tasks status added to hb", taskNum);
-
-  stsDebug("total %zu:%d tasks status added to hb", taosArrayGetSize(*ppStatus) - origTaskNum, pStream->taskNum);
+  
+  stsDebug("total %d:%d tasks status added to hb", (int32_t)taosArrayGetSize(*ppStatus) - origTaskNum, pStream->taskNum);
 
 _exit:
 
@@ -145,10 +190,10 @@ int32_t stmBuildHbStreamsStatusReq(SArray** ppStatus, SArray** ppReq, int32_t gi
 }
 
 void stmDestroySStreamInfo(SStreamInfo* p) {
-  taosArrayDestroy(p->readerList);
+  tdListFree(p->readerList);
   p->readerList = NULL;
   taosMemoryFreeClear(p->triggerTask);
-  taosArrayDestroy(p->runnerList);
+  tdListFree(p->runnerList);
   p->runnerList = NULL;
   taosArrayDestroy(p->undeployReaders);
   p->undeployReaders = NULL;
@@ -372,25 +417,36 @@ _end:
   return code;
 }
 
-int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent, int32_t filterColIdx, const SArray* pFields) {
+int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent, const SArray* pFields) {
   int32_t code = 0, lino = 0;
   cJSON*  pResult = NULL;
+  cJSON*  pRow = NULL;
   pResult = cJSON_CreateObject();
   QUERY_CHECK_NULL(pResult, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
-  cJSON* pArr = cJSON_AddArrayToObject(pResult, "result");
+  cJSON* pArr = cJSON_AddArrayToObject(pResult, "data");
   QUERY_CHECK_NULL(pArr, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
-  cJSON* pRow = NULL;
-  for (int32_t rowIdx = 0; rowIdx < pBlock->info.rows; ++rowIdx) {
-    const SColumnInfoData* pFilterCol = taosArrayGet(pBlock->pDataBlock, filterColIdx);
-    if (pFilterCol->info.type != TSDB_DATA_TYPE_BOOL) {
-      stError("failed to do notification filtering, col type not bool: %d", pFilterCol->info.type);
-      QUERY_CHECK_CODE(TSDB_CODE_INTERNAL_ERROR, lino, _end);
-    }
-    bool v = *(const bool*)colDataGetNumData(pFilterCol, rowIdx);
-    if (!v) continue;
+  cJSON* size = cJSON_CreateNumber(pBlock->info.rows);
+  QUERY_CHECK_NULL(size, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  if (!cJSON_AddItemToObjectCS(pResult, "curSize", size)){
+    cJSON_Delete(size);
+    goto _end;
+  }
+  cJSON* offset = cJSON_CreateNumber(0);
+  QUERY_CHECK_NULL(offset, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  if (!cJSON_AddItemToObjectCS(pResult, "curOffset", offset)){
+    cJSON_Delete(offset);
+    goto _end;
+  }
+  cJSON* finish = cJSON_CreateTrue();
+  QUERY_CHECK_NULL(finish, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  if (!cJSON_AddItemToObjectCS(pResult, "finish", finish)){
+    cJSON_Delete(finish);
+    goto _end;
+  }
 
+  for (int32_t rowIdx = 0; rowIdx < pBlock->info.rows; ++rowIdx) {
     pRow = cJSON_CreateObject();
     QUERY_CHECK_NULL(pRow, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
@@ -401,6 +457,7 @@ int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** pp
       if (!pField) {
         stError("failed to get field name for notification, colIdx: %d, fields arr size: %" PRId64, colIdx,
                 (int64_t)taosArrayGetSize(pFields));
+                continue;
       }
       colName = pField->name;
       code = jsonAddColumnField(colName, pCol->info.type, colDataIsNull_s(pCol, rowIdx), colDataGetData(pCol, rowIdx),
@@ -416,7 +473,7 @@ int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** pp
 
 _end:
   if (pRow) cJSON_Delete(pRow);
-  if (pArr) cJSON_Delete(pArr);
+  if (pResult) cJSON_Delete(pResult);
   if (code) {
     stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }

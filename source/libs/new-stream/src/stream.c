@@ -28,15 +28,25 @@ void streamSetSnodeEnabled(void) {
   stInfo("snode %d enabled", (*gStreamMgmt.getDnode)(gStreamMgmt.dnode));
 }
 
-void streamSetSnodeDisabled(void) {
+void streamSetSnodeDisabled(bool cleanup) {
   stInfo("snode disabled");
   gStreamMgmt.snodeEnabled = false;
+  smUndeploySnodeTasks(cleanup);
+}
+
+void streamMgmtCleanup() {
+  taosArrayDestroy(gStreamMgmt.vgLeaders);
+  taosHashCleanup(gStreamMgmt.taskMap);
+  taosHashCleanup(gStreamMgmt.vgroupMap);
 }
 
 void streamCleanup(void) {
-  //STREAMTODO
+  streamTimerCleanUp();
+  smUndeployAllTasks();
   streamTriggerEnvCleanup();
   destroyDataSinkMgr();
+  streamMgmtCleanup();
+  destroyInserterGrpInfo();
 }
 
 int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode, getSynEpset_f getSynEpset) {
@@ -65,6 +75,8 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
   TAOS_CHECK_EXIT(streamHbInit(&gStreamMgmt.hb));
 
   TAOS_CHECK_EXIT(streamTriggerEnvInit());
+
+  TAOS_CHECK_EXIT(initInserterGrpInfo());
 
 _exit:
 

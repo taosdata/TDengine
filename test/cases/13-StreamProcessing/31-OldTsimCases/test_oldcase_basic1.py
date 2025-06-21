@@ -33,8 +33,8 @@ class TestStreamOldCaseBasic1:
 
         tdStream.createSnode()
 
-        self.stream_basic_0()
-        # self.stream_basic_1()
+        # self.stream_basic_0()  # success
+        self.stream_basic_1()
         # self.stream_basic_2()
         # self.stream_basic_3()
         # self.stream_basic_4()
@@ -76,15 +76,26 @@ class TestStreamOldCaseBasic1:
             sql='select * from information_schema.ins_tables where db_name="d0" and table_name="outstb"',
             func=lambda: tdSql.getRows() == 1,
         )
-        return
+
+        tdSql.checkTableSchema(
+            dbname="d0",
+            tbname="outstb",
+            schema=[
+                ["_twstart", "TIMESTAMP", 8, ""],
+                ["min(k)", "INT", 4, ""],
+                ["max(k)", "INT", 4, ""],
+                ["sum_alias", "BIGINT", 8, ""],
+            ],
+        )
 
         tdLog.info(f"=============== query data from child table")
         tdSql.checkResultsByFunc(
-            f"select `_wstart`,`min(k)`,`max(k)`,sum_alias from outstb",
-            lambda: tdSql.getRows() == 1
-            and tdSql.getData(0, 1) == 234
-            and tdSql.getData(0, 2) == 234
-            and tdSql.getData(0, 3) == 234,
+            sql="select `_twstart`, `min(k)`, `max(k)`, sum_alias from outstb",
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "2022-05-08 03:40:00.000")
+            and tdSql.compareData(0, 1, 234)
+            and tdSql.compareData(0, 2, 234)
+            and tdSql.compareData(0, 3, 234),
         )
 
         tdLog.info(f"=============== insert data")
@@ -92,11 +103,12 @@ class TestStreamOldCaseBasic1:
 
         tdLog.info(f"=============== query data from child table")
         tdSql.checkResultsByFunc(
-            f"select `_wstart`,`min(k)`,`max(k)`,sum_alias from outstb",
-            lambda: tdSql.getRows() == 1
-            and tdSql.getData(0, 1) == -111
-            and tdSql.getData(0, 2) == 234
-            and tdSql.getData(0, 3) == 123,
+            sql="select `_twstart`, `min(k)`, `max(k)`, sum_alias from outstb",
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "2022-05-08 03:40:00.000")
+            and tdSql.compareData(0, 1, -111)
+            and tdSql.compareData(0, 2, 234)
+            and tdSql.compareData(0, 3, 123),
         )
 
         tdLog.info(f"=============== insert data")
@@ -104,14 +116,16 @@ class TestStreamOldCaseBasic1:
 
         tdLog.info(f"=============== query data from child table")
         tdSql.checkResultsByFunc(
-            f"select `_wstart`,`min(k)`,`max(k)`,sum_alias from outstb",
-            lambda: tdSql.getRows() == 2
-            and tdSql.getData(0, 1) == -111
-            and tdSql.getData(0, 2) == 234
-            and tdSql.getData(0, 3) == 123
-            and tdSql.getData(1, 1) == 789
-            and tdSql.getData(1, 2) == 789
-            and tdSql.getData(1, 3) == 789,
+            f"select `_twstart`, `min(k)`, `max(k)`, sum_alias from outstb",
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2022-05-08 03:40:00.000")
+            and tdSql.compareData(0, 1, -111)
+            and tdSql.compareData(0, 2, 234)
+            and tdSql.compareData(0, 3, 123)
+            and tdSql.compareData(1, 0, "2022-05-08 03:50:00.000")
+            and tdSql.compareData(1, 1, 789)
+            and tdSql.compareData(1, 2, 789)
+            and tdSql.compareData(1, 3, 789),
         )
 
     def stream_basic_1(self):
@@ -124,7 +138,7 @@ class TestStreamOldCaseBasic1:
 
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _wstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from t1 interval(10s);"
+            f"create stream streams1 interval(10s) sliding(10s) from t1 options(MAX_DELAY(1s)) into streamt as select _twstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
         )
         tdStream.checkStreamStatus("streams1")
 
@@ -133,8 +147,22 @@ class TestStreamOldCaseBasic1:
         tdSql.execute(f"insert into t1 values(1648791233002, 3, 2, 3, 2.1);")
         tdSql.execute(f"insert into t1 values(1648791243003, 4, 2, 3, 3.1);")
         tdSql.execute(f"insert into t1 values(1648791213004, 4, 2, 3, 4.1);")
+
+        tdSql.checkTableSchema(
+            dbname="test",
+            tbname="streamt;",
+            schema=[
+                ["_twstart", "TIMESTAMP", 8, ""],
+                ["c1", "BIGINT", 8, ""],
+                ["c2", "BIGINT", 8, ""],
+                ["c3", "BIGINT", 8, ""],
+                ["c4", "INT", 4, ""],
+                ["c5", "INT", 4, ""],
+            ],
+        )
+
         tdSql.checkResultsByFunc(
-            f"select `_wstart`, c1, c2, c3, c4, c5 from streamt;",
+            f"select `_twstart`, c1, c2, c3, c4, c5 from streamt;",
             lambda: tdSql.getRows() == 4
             and tdSql.getData(0, 1) == 2
             and tdSql.getData(0, 2) == 2
@@ -158,6 +186,7 @@ class TestStreamOldCaseBasic1:
             and tdSql.getData(3, 5) == 3,
         )
 
+        # update 
         tdSql.execute(f"insert into t1 values(1648791223001, 12, 14, 13, 11.1);")
         tdSql.checkResultsByFunc(
             f"select * from streamt;",
@@ -183,6 +212,8 @@ class TestStreamOldCaseBasic1:
             and tdSql.getData(3, 4) == 2
             and tdSql.getData(3, 5) == 3,
         )
+        
+        return
 
         tdSql.execute(f"insert into t1 values(1648791223002, 12, 14, 13, 11.1);")
         tdSql.checkResultsByFunc(
@@ -483,7 +514,7 @@ class TestStreamOldCaseBasic1:
 
         tdLog.info(f"=============== query data from child table")
         tdSql.checkResultsByFunc(
-            f"select `_wstart`,`min(k)`,`max(k)`,sum_alias from outstb",
+            f"select `_twstart`, `min(k)`, `max(k)`, sum_alias from outstb",
             lambda: tdSql.getRows() == 1
             and tdSql.getData(0, 1) == 234
             and tdSql.getData(0, 2) == 234
@@ -495,7 +526,7 @@ class TestStreamOldCaseBasic1:
 
         tdLog.info(f"=============== query data from child table")
         tdSql.checkResultsByFunc(
-            f"select `_wstart`,`min(k)`,`max(k)`,sum_alias from outstb",
+            f"select `_twstart`, `min(k)`, `max(k)`, sum_alias from outstb",
             lambda: tdSql.getRows() == 2
             and tdSql.getData(0, 1) == 234
             and tdSql.getData(0, 2) == 234

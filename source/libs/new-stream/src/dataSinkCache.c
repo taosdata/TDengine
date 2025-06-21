@@ -284,14 +284,16 @@ void destroySlidingWindowInMemPP(void* pData) {
   if (pSlidingWinInMem) {
     atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pSlidingWinInMem->dataLen + sizeof(SSlidingWindowInMem));
     taosMemoryFree(pSlidingWinInMem);
+    *(SSlidingWindowInMem**)pData = NULL;
   }
 }
 
 void destroyAlignBlockInMemPP(void* ppData) {
   SAlignBlocksInMem* pAlignBlockInfo = *(SAlignBlocksInMem**)ppData;
   if (pAlignBlockInfo) {
-    taosMemoryFree(pAlignBlockInfo);
     atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, gDSFileBlockDefaultSize + sizeof(SAlignBlocksInMem));
+    taosMemoryFree(pAlignBlockInfo);
+    *(SAlignBlocksInMem**)ppData = NULL;
   }
 }
 
@@ -404,7 +406,7 @@ _end:
   return code;
 }
 
-int32_t moveMemFromWaitList() {
+int32_t moveMemFromWaitList(int8_t mode) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (!g_slidigGrpMemList.enabled) {
@@ -428,10 +430,16 @@ int32_t moveMemFromWaitList() {
     if (hasEnoughMemSize()) {
       break;  // no need to move more mem
     }
+    bool canMove = changeMgrStatusToMoving(&pSlidingGrp->status, mode);
+    if (!canMove) {
+      ppSlidingGrpMgr = taosHashIterate(g_slidigGrpMemList.pSlidingGrpList, ppSlidingGrpMgr);
+      continue;  // another thread is using this group, skip it
+    }
+
     code = moveSlidingGrpMemCache(NULL, pSlidingGrp);
+    changeMgrStatus(&pSlidingGrp->status, GRP_DATA_IDLE);
     if (code != TSDB_CODE_SUCCESS) {
       stError("failed to move sliding group mem cache, code: %d err: %s", code, terrMsg);
-      break;
     }
     ppSlidingGrpMgr = taosHashIterate(g_slidigGrpMemList.pSlidingGrpList, ppSlidingGrpMgr);
   }
@@ -444,7 +452,7 @@ int32_t moveMemFromWaitList() {
 }
 
 int32_t moveSlidingTaskMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr) {
-  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS;
 
   SSlidingGrpMgr** ppSlidingGrpMgr = (SSlidingGrpMgr**)taosHashIterate(pSlidingTaskMgr->pSlidingGrpList, NULL);
   while (ppSlidingGrpMgr != NULL) {
@@ -453,10 +461,15 @@ int32_t moveSlidingTaskMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr) {
       ppSlidingGrpMgr = taosHashIterate(pSlidingTaskMgr->pSlidingGrpList, ppSlidingGrpMgr);
       continue;
     }
+    bool canMove = changeMgrStatusToMoving(&pSlidingGrp->status, GRP_DATA_WAITREAD_MOVING);
+    if (!canMove) {
+      ppSlidingGrpMgr = taosHashIterate(pSlidingTaskMgr->pSlidingGrpList, ppSlidingGrpMgr);
+      continue;  // another thread is using this group, skip it
+    }
     code = moveSlidingGrpMemCache(pSlidingTaskMgr, pSlidingGrp);
+    changeMgrStatus(&pSlidingGrp->status, GRP_DATA_IDLE);
     if (code != TSDB_CODE_SUCCESS) {
       stError("failed to move sliding group mem cache, code: %d err: %s", code, terrMsg);
-      break;
     }
     if (hasEnoughMemSize()) {
       break;

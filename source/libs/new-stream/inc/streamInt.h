@@ -43,20 +43,15 @@ typedef struct SStreamInfo {
   SRWLatch            lock;
   int32_t             taskNum;
   
-  SArray*             readerList;        // SArray<SStreamReaderTask>
-  
-  int8_t              triggerUndeployed;
+  SList*              readerList;        // SStreamReaderTask
   SStreamTriggerTask* triggerTask;
-  
-  SArray*             runnerList;        // SArray<SStreamRunnerTask>
+  SList*              runnerList;        // SArray<SStreamRunnerTask>
 
+  SRWLatch            undeployLock;
 
-  SRWLatch            undeployReadersLock;
   SArray*             undeployReaders;        // SArray<taskId>
-  
-  SRWLatch            undeployRunnersLock;
+  int64_t             undeployTriggerId;
   SArray*             undeployRunners;        // SArray<taskId>
-
 } SStreamInfo;
 
 typedef struct SStreamVgReaderTasks {
@@ -124,13 +119,14 @@ int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, int16_t data
                                       const char* pToState, char** ppContent);
 int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,
                                       char** ppContent);
-int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent, int32_t filterColId,
-                                            const SArray* pFields);
+int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent, const SArray* pFields);
 int32_t streamSendNotifyContent(SStreamTask* pTask, int32_t triggerType, int64_t groupId, const SArray* pNotifyAddrUrls,
                                 int32_t errorHandle, const SSTriggerCalcParam* pParams, int32_t nParam);
 
 int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int64_t groupId, TSKEY start,
                             TSKEY end, void*** pppIter);
+void streamTimerCleanUp();
+void smRemoveTaskPostCheck(int64_t streamId, SStreamInfo* pStream, bool* isLastTask);
 
 #ifdef __cplusplus
 }

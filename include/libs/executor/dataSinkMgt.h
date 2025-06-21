@@ -77,6 +77,7 @@ int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI, void** ppSink
 
 typedef struct SStreamDataInserterInfo {
   bool        isAutoCreateTable;
+  int64_t     streamId;
   int64_t     groupId;
   const char* tbName;
   SArray*     pTagVals;  // SArray<SStreamTagInfo>

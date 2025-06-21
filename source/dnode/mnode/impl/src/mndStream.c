@@ -539,7 +539,7 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pShow->pIter = sdbFetch(pSdb, SDB_STREAM, pShow->pIter, (void **)&pStream);
     if (pShow->pIter == NULL) break;
 
-    code = setStreamAttrInResBlock(pStream, pBlock, numOfRows);
+    code = mstSetStreamAttrResBlock(pMnode, pStream, pBlock, numOfRows);
     if (code == 0) {
       numOfRows++;
     }
@@ -562,6 +562,16 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
   SStreamObj *pStream = NULL;
   int32_t     code = 0;
 
+  while (numOfRows < rowsCapacity) {
+    pShow->pIter = sdbFetch(pSdb, SDB_STREAM, pShow->pIter, (void **)&pStream);
+    if (pShow->pIter == NULL) {
+      break;
+    }
+
+    code = mstSetStreamTasksResBlock(pStream, pBlock, &numOfRows, rowsCapacity);
+
+    sdbRelease(pSdb, pStream);
+  }
 
   pShow->numOfRows += numOfRows;
   return numOfRows;
@@ -619,7 +629,7 @@ static bool mndStreamUpdateTagsFlag(SMnode *pMnode, void *pObj, void *p1, void *
     SColumnNode* pCol = (SColumnNode*)pNode;
     for (int32_t i = 0; i < *tagNum; ++i) {
       if (pCol->colId == pTags[i].colId) {
-        pTags[i].flags &= COL_REF_BY_STM;
+        pTags[i].flags |= COL_REF_BY_STM;
         break;
       }
     }

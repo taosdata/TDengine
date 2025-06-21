@@ -131,6 +131,9 @@ static int32_t mergeAlignedExternalWindowNext(SOperatorInfo* pOperator, SSDataBl
     for (int32_t i = 0; i < size; ++i) {
       SSTriggerCalcParam* pParam = taosArrayGet(pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPesudoFuncVals, i);
       STimeWindow win = {.skey = pParam->wstart, .ekey = pParam->wend};
+      if (pTaskInfo->pStreamRuntimeInfo->funcInfo.triggerType != 1){  // 1 meams STREAM_TRIGGER_SLIDING
+        win.ekey++;
+      }
       (void)taosArrayPush(pExtW->pWins, &win);
 
     }
@@ -544,6 +547,12 @@ static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
   int32_t                  ret = 0;
 
   const STimeWindow* pWin = getExtWindow(pExtW, ts);
+  if (pWin == NULL) {
+    qError("failed to get time window for ts:%" PRId64 ", error:%s", ts, tstrerror(terrno));
+    return;
+  }
+  qDebug("ext window1 start:%" PRId64 ", end:%" PRId64 ", ts:%" PRId64 ", ascScan:%d",
+         pWin->skey, pWin->ekey, ts, ascScan);
   STimeWindow win = *pWin;
   ret = setExtWindowOutputBuf(pResultRowInfo, &win, &pResult, pInputBlock->info.id.groupId, pSup->pCtx,
                               numOfOutput, pSup->rowEntryInfoOffset, &pExtW->aggSup, pTaskInfo);
@@ -566,6 +575,8 @@ static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
       break;
     else
       win = *pWin;
+    qDebug("ext window2 start:%" PRId64 ", end:%" PRId64 ", ts:%" PRId64 ", ascScan:%d",
+           win.skey, win.ekey, ts, ascScan);
     startPos = getNextStartPos(win, &pInputBlock->info, prevEndPos, pExtW->binfo.inputTsOrder);
     if (startPos < 0) break;
     incExtWinCurIdx(pOperator);
@@ -608,6 +619,9 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
     for (int32_t i = 0; i < size; ++i) {
       SSTriggerCalcParam* pParam = taosArrayGet(pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPesudoFuncVals, i);
       STimeWindow win = {.skey = pParam->wstart, .ekey = pParam->wend};
+      if (pTaskInfo->pStreamRuntimeInfo->funcInfo.triggerType != 1){  // 1 meams STREAM_TRIGGER_SLIDING
+        win.ekey++;
+      }
       (void)taosArrayPush(pExtW->pWins, &win);
 
       SBlockList bl = {.pSrcBlock = pExtW->binfo.pRes, .pBlocks = 0, .blockRowNumThreshold = 4096};
@@ -625,6 +639,9 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
     code = setInputDataBlock(pSup, pBlock, pExtW->binfo.inputTsOrder, scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
 
+    printDataBlock(pBlock, __func__, "externalwindow");
+
+    qDebug("ext windowpExtW->scalarMode:%d", pExtW->scalarMode);
     if (!pExtW->scalarMode) {
       hashExternalWindowAgg(pOperator, pBlock);
     } else {
@@ -744,19 +761,22 @@ static int32_t doMergeAlignExtWindowAgg(SOperatorInfo* pOperator, SResultRowInfo
   TSKEY ts = getStartTsKey(&pBlock->info.window, tsCols);
 
   const STimeWindow *pWin = getExtWindow(pExtW, ts);
-
-  STimeWindow win = *pWin;
-
+  if (pWin == NULL) {
+    qError("failed to get time window for ts:%" PRId64 ", error:%s", ts, tstrerror(terrno));
+    T_LONG_JMP(pTaskInfo->env, TSDB_CODE_INVALID_PARA);
+  }
   code = setSingleOutputTupleBuf(pResultRowInfo, pWin, &pMlExtInfo->pResultRow, pSup, &pExtW->aggSup);
   if (code != 0 || pMlExtInfo->pResultRow == NULL) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
   int32_t currPos = startPos;
-
+  pMlExtInfo->curTs = pWin->skey;
   while (++currPos < pBlock->info.rows) {
     if (tsCols[currPos] == pMlExtInfo->curTs) continue;
 
+    qDebug("current ts:%" PRId64 ", startPos:%d, currPos:%d, tsCols[currPos]:%" PRId64,
+      pMlExtInfo->curTs, startPos, currPos, tsCols[currPos]); 
     code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pExtW->twAggSup.timeWindowData, startPos,
                                            currPos - startPos, pBlock->info.rows, pSup->numOfExprs);
     if (code != 0) {
@@ -768,6 +788,7 @@ static int32_t doMergeAlignExtWindowAgg(SOperatorInfo* pOperator, SResultRowInfo
 
     pWin = getExtNextWindow(pExtW, pTaskInfo);
     if (!pWin) break;
+    qDebug("ext window align2 start:%" PRId64 ", end:%" PRId64, pWin->skey, pWin->ekey);
     incExtWinCurIdx(pOperator);
     startPos = currPos;
     code = setSingleOutputTupleBuf(pResultRowInfo, pWin, &pMlExtInfo->pResultRow, pSup, &pExtW->aggSup);
@@ -820,6 +841,10 @@ void doMergeAlignExternalWindow(SOperatorInfo* pOperator) {
     pRes->info.scanFlag = pBlock->info.scanFlag;
     code = setInputDataBlock(pSup, pBlock, pExtW->binfo.inputTsOrder, pBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
+
+    printDataBlock(pBlock, __func__, "externalwindowAlign");
+    qDebug("ext windowpExtWAlign->scalarMode:%d", pExtW->scalarMode);
+
 
     if (pExtW->scalarMode) {
       code = doMergeAlignExtWindowProject(pOperator, &pExtW->binfo.resultRowInfo, pBlock, pRes);

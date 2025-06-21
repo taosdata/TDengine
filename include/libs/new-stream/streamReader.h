@@ -35,7 +35,7 @@ typedef struct SStreamTriggerReaderInfo {
   SSDataBlock* triggerResBlock;
   SSDataBlock* calcResBlock;
   STSchema*    triggerSchema;
-  STSchema*    calcSchema;
+  // STSchema*    calcSchema;
   SExprInfo*   pExprInfo;
   int32_t      numOfExpr;
   SExprInfo*   pCalcExprInfo;
@@ -100,6 +100,7 @@ void    releaseStreamTask(void* p);
 int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* options, SStreamReaderTaskInner** ppTask,
                          SSDataBlock* pResBlock, SHashObj* groupIdMap, SStorageAPI*  api);
 void*   qStreamGetReaderInfo(int64_t streamId, int64_t taskId);
+void    qStreamSetTaskRunning(int64_t streamId, int64_t taskId);
 #ifdef __cplusplus
 }
 #endif

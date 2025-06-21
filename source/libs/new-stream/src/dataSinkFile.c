@@ -102,22 +102,33 @@ static int32_t initStreamDataSinkFile(SSlidingTaskDSMgr* pStreamDataSink) {
 }
 
 static int32_t openFileForWrite(SDataSinkFileMgr* pFileMgr) {
-  if (pFileMgr->writeFilePtr == NULL) {
-    pFileMgr->writeFilePtr = taosOpenFile(pFileMgr->fileName, TD_FILE_CREATE | TD_FILE_WRITE);
-    if (pFileMgr->writeFilePtr == NULL) {
+  void* existing = atomic_load_ptr(&pFileMgr->writeFilePtr);
+  if (existing == NULL) {
+    void* newPtr = taosOpenFile(pFileMgr->fileName, TD_FILE_CREATE | TD_FILE_WRITE);
+    if (newPtr == NULL) {
       stError("open file %s failed, err: %s", pFileMgr->fileName, terrMsg);
       return terrno;
+    }
+    void* prevPtr = atomic_exchange_ptr(&pFileMgr->writeFilePtr, newPtr);
+    if (prevPtr != NULL) {
+      taosCloseFile(newPtr);
     }
   }
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t openFileForRead(SDataSinkFileMgr* pFileMgr) {
-  if (pFileMgr->readFilePtr == NULL) {
-    pFileMgr->readFilePtr = taosOpenFile(pFileMgr->fileName, TD_FILE_CREATE | TD_FILE_READ);
-    if (pFileMgr->readFilePtr == NULL) {
+  void* existing = atomic_load_ptr(&pFileMgr->readFilePtr);
+
+  if (existing == NULL) {
+    void* newPtr  = taosOpenFile(pFileMgr->fileName, TD_FILE_CREATE | TD_FILE_READ);
+    if (newPtr == NULL) {
       stError("open file %s failed, err: %s", pFileMgr->fileName, terrMsg);
       return terrno;
+    }
+    void* prevPtr = atomic_exchange_ptr(&pFileMgr->readFilePtr, newPtr);
+    if (prevPtr != NULL) {
+      taosCloseFile(newPtr);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -204,13 +215,7 @@ static int32_t readFileDataToSlidingWindows(SResultIter* pResult, SSlidingGrpMgr
     }
   }
 
-  int64_t ret = taosLSeekFile(pResult->pFileMgr->readFilePtr, pBlockInfo->groupOffset, SEEK_SET);
-  if (ret < 0) {
-    code = terrno;
-    QUERY_CHECK_CODE(code, lino, _exit);
-  }
-
-  int64_t readLen = taosReadFile(pResult->pFileMgr->readFilePtr, buf, pBlockInfo->dataLen);
+  int64_t readLen = taosPReadFile(pResult->pFileMgr->readFilePtr, buf, pBlockInfo->dataLen, pBlockInfo->groupOffset);
   if (readLen < 0 || readLen != pBlockInfo->dataLen) {
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _exit);

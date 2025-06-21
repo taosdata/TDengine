@@ -740,7 +740,25 @@ class TDSql:
             colDatas.append(self.queryResult[i][col])
         return colDatas
 
-    def getResult(self, sql):
+    def getRowData(self, row):
+        """
+        Retrieves all data from the specified row in the last query result.
+
+        Args:
+            row (int): The row index of the data to be retrieved.
+
+        Returns:
+            list: A list containing all data from the specified row.
+
+        Raises:
+            SystemExit: If the specified row is out of range.
+        """
+        if row >= self.queryRows:
+            return None
+        
+        return self.queryResult[row]
+
+    def getResult(self, sql, exit=True):
         """
         Executes a SQL query and fetches the results.
 
@@ -758,10 +776,13 @@ class TDSql:
             self.cursor.execute(sql)
             self.queryResult = self.cursor.fetchall()
         except Exception as e:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, sql, repr(e))
-            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
-            raise Exception(repr(e))
+            if exit:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                args = (caller.filename, caller.lineno, sql, repr(e))
+                tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+                raise Exception(repr(e))
+            else:
+                return []
         return self.queryResult
 
     def getVariable(self, search_attr):
@@ -835,6 +856,21 @@ class TDSql:
             None
         """
         return self.queryRows
+    
+    def getCols(self):
+        """
+        Retrieves the number of cols fetched by the last query.
+
+        Args:
+            None
+
+        Returns:
+            int: The number of cols fetched by the last query.
+
+        Raises:
+            None
+        """
+        return self.queryCols
 
     # get first value
     def getFirstValue(self, sql):
@@ -2000,6 +2036,20 @@ class TDSql:
     def __check_equal(self, elm, expect_elm):
         if elm == expect_elm:
             return True
+
+        if isinstance(elm, datetime.datetime) and isinstance(expect_elm, str):
+            try:
+                parsed = datetime.datetime.fromisoformat(expect_elm)
+                return elm == parsed
+            except ValueError:
+                return False
+        if isinstance(expect_elm, datetime.datetime) and isinstance(elm, str):
+            try:
+                parsed = datetime.datetime.fromisoformat(elm)
+                return expect_elm == parsed
+            except ValueError:
+                return False
+        
         if type(elm) in (list, tuple) and type(expect_elm) in (list, tuple):
             if len(elm) != len(expect_elm):
                 return False
@@ -2416,13 +2466,13 @@ class TDSql:
             retry = 1
 
         for loop in range(retry):
-            res_result = self.getResult(sql)
-
-            if self.compareResults(res_result, exp_result):
-                self.printResult(
-                    f"check succeed in {loop} seconds", input_result=res_result
-                )
-                return
+            res_result = self.getResult(sql, exit=False)
+            if res_result != []:
+                if self.compareResults(res_result, exp_result):
+                    self.printResult(
+                        f"check succeed in {loop} seconds", input_result=res_result
+                    )
+                    return
 
             if loop != retry - 1:
                 if show:

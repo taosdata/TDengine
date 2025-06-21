@@ -27,12 +27,6 @@ int32_t streamTimerInit(void** ppTimer) {
   return 0;
 }
 
-void streamTimerCleanUp() {
-  stInfo("cleanup stream timer, %p", gStreamMgmt.timer);
-  taosTmrCleanUp(gStreamMgmt.timer);
-  gStreamMgmt.timer = NULL;
-}
-
 int32_t streamTimerGetInstance(tmr_h* pTmr) {
   *pTmr = gStreamMgmt.timer;
   return TSDB_CODE_SUCCESS;
@@ -61,5 +55,13 @@ void streamTmrStop(tmr_h tmrId) {
   if (stop) {
     // todo
   }
+}
+
+
+void streamTimerCleanUp() {
+  stInfo("cleanup stream timer, %p", gStreamMgmt.timer);
+  streamTmrStop(gStreamMgmt.hb.hbTmr);
+  taosTmrCleanUp(gStreamMgmt.timer);
+  gStreamMgmt.timer = NULL;
 }
 
