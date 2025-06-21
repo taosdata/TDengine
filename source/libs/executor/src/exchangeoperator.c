@@ -407,6 +407,8 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
 
 int32_t resetExchangeOperState(SOperatorInfo* pOper) {
   SExchangeInfo* pInfo = pOper->info;
+  SExchangePhysiNode* pPhynode = (SExchangePhysiNode*)pOper->pPhyNode;
+  
   pOper->status = OP_NOT_OPENED;
   pInfo->current = 0;
   pInfo->loadInfo.totalElapsed = 0;
@@ -435,6 +437,9 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
     ((SExchangeSrcIndex *)data)->inUseIdx = -1;
   }
   
+  pInfo->limitInfo = (SLimitInfo){0};
+  initLimitInfo(pPhynode->node.pLimit, pPhynode->node.pSlimit, &pInfo->limitInfo);
+
   return 0;
 }
 
@@ -451,6 +456,7 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
     goto _error;
   }
 
+  pOperator->pPhyNode = pExNode;
   pInfo->dynamicOp = pExNode->node.dynamicOp;
   code = initExchangeOperator(pExNode, pInfo, GET_TASKID(pTaskInfo));
   QUERY_CHECK_CODE(code, lino, _error);
