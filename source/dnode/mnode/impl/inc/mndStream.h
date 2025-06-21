@@ -104,6 +104,7 @@ static const char* gMndStreamAction[] = {"", "DEPLOY", "UNDEPLOY", "", "START", 
 #define MND_STREAM_START_NAME        "stream-start"
 #define MND_STREAM_DROP_NAME         "stream-drop"
 #define MND_STREAM_STOP_NAME         "stream-stop"
+#define MND_STREAM_RECALC_NAME       "stream-recalc"
 
 #define GOT_SNODE(_snodeId) ((_snodeId) != 0)
 #define STREAM_IS_RUNNING(_status) (STREAM_STATUS_RUNNING == (_status))

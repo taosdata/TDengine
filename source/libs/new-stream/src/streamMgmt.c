@@ -748,6 +748,10 @@ int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp) {
       STM_CHK_SET_ERROR_EXIT(stTriggerTaskExecute((SStreamTriggerTask*)pTask, &pRsp->header));
       break;
     }
+    case STREAM_MSG_UPDATE_RUNNER: {
+      STM_CHK_SET_ERROR_EXIT(stTriggerTaskExecute((SStreamTriggerTask*)pTask, &pRsp->header));
+      break;
+    }
     default:
       ST_TASK_ELOG("Invalid mgmtRsp msgType %d", pRsp->header.msgType);
       code = TSDB_CODE_STREAM_INTERNAL_ERROR;
