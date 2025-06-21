@@ -25,7 +25,7 @@ class TestStreamSlidingTrigger:
     queryIdx = 0
     slidingList = [1, 10, 100, 1000]
     tableList = []
-    runCaseList = ["0-0-0-3-7"]
+    runCaseList = ["0-0-0-6-0"]
     streamSql = ""
     querySql = ""
     querySqls = [ # (SQL, (minPartitionColNum, partitionByTbname), PositiveCase)
@@ -68,6 +68,8 @@ class TestStreamSlidingTrigger:
         ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%tbname where cts % 3 != 0 session(cts, 2s)", (1, True), True), #31
         ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%trows event_window start with cbigint = 0 end with cbigint > 1", (0, False), True), #32
         ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%trows partition by cuint count_window(3)", (0, False), True), #33
+
+        ("select cts, cint from %%tbname where ts >= _twstart and ts < _twend", (1, True), True), #34
     ]
 
     queryResults = {
@@ -135,13 +137,17 @@ class TestStreamSlidingTrigger:
         "0-0-0-3-6": [-1, None, True, [], ""],         
         "0-0-0-3-7": [-1, None, True, [], ""],     
 
-        "0-0-0-4-2": [-1, None, True, [], ""],  #FAILED, OFFSET未生效    
+        "0-0-0-4-2": [-1, None, True, [], ""],  #FAILED, SLIDING OFFSET未生效    
         "0-0-0-4-4": [-1, None, True, [], ""],     
         "0-0-0-4-6": [-1, None, True, [], ""],     
 
-        "0-0-0-5-2": [-1, None, True, [], "order by cts, tag_tbname"],     #FAILED, OFFSET未生效
+        "0-0-0-5-2": [-1, None, True, [], "order by cts, tag_tbname"],     #FAILED, SLIDING OFFSET未生效
         "0-0-0-5-4": [-1, None, True, [], ""],     
         "0-0-0-5-6": [-1, None, True, [], ""],  
+
+        "0-0-0-6-0": [-1, None, True, [], ""], #FAILED, 结果表数量不够
+
+        "1-1-0-0-0": [3, None, True, [], ""],  # 触发表子表、计算表子表
     }
 
     def setup_class(cls):
@@ -234,10 +240,11 @@ class TestStreamSlidingTrigger:
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tint, tbname into outTbname as querySql;", (2, True)),
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tvarchar, tbname, tint into outTbname as querySql;", (3, True)),
             (f"create stream stName sliding({self.sliding}s, 1a) from {self.trigTbname} into outTbname as querySql;", (0, False)),
+            
             (f"create stream stName sliding({self.sliding}s, 1a) from {self.trigTbname} partition by tbname into outTbname as querySql;", (1, True)),
             (f"create stream stName interval({self.sliding}s) sliding({self.sliding}s) from {self.trigTbname} partition by tbname into outTbname as querySql;", (1, True)),
             (f"create stream stName interval({self.sliding + 1}s, 1a) sliding({self.sliding}s) from {self.trigTbname} into outTbname as querySql;", (0, False)),
-            (f"create stream stName interval({self.sliding - 1}s, 1a) sliding({self.sliding}s) from {self.trigTbname} partition by tbname into outTbname as querySql;", (1, True)),
+            (f"create stream stName interval({self.sliding - 1}s, 1a) sliding({self.sliding}s, 1a) from {self.trigTbname} partition by tbname into outTbname as querySql;", (1, True)),
         ]
 
         for self.createStmIdx in range(len(createStreamSqls)):
