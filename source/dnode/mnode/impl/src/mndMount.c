@@ -859,7 +859,7 @@ static int32_t mndMountDupDbIdExist(SMnode *pMnode, SMountInfo *pInfo) {
     for (int32_t i = 0; i < nDbs; ++i) {
       SMountDbInfo *pMountDb = TARRAY_GET_ELEM(pInfo->pDbs, i);
       if (pMountDb->dbId == pDb->uid) {
-        mWarn("mount:%s, db:%s, dbId:%d is already exist", pInfo->mountName, pMountDb->dbName, pMountDb->dbId);
+        mWarn("mount:%s, db:%s, dbId:%"PRId64" is already exist", pInfo->mountName, pMountDb->dbName, pMountDb->dbId);
         sdbRelease(pSdb, pDb);
         sdbCancelFetch(pSdb, pIter);
         return TSDB_CODE_MND_MOUNT_DUP_DB_ID_EXIST;
@@ -1002,10 +1002,12 @@ _exit:
   mndTransDrop(pTrans);
   taosMemFreeClear(pDbs);
   taosMemFreeClear(pVgs);
-  for(int32_t i = 0; i < nStbs; ++i) {
-    mndFreeStb(pStbs + i);
+  if (pStbs) {
+    for (int32_t i = 0; i < nStbs; ++i) {
+      mndFreeStb(pStbs + i);
+    }
+    taosMemFreeClear(pStbs);
   }
-  taosMemFreeClear(pStbs);
   TAOS_RETURN(code);
 }
 #if 0
