@@ -446,9 +446,9 @@ static void mndSendFollowerSsMigrateReq(SMnode* pMnode, SFollowerSsMigrateReq *p
   SRpcMsg rpcMsg = {.msgType = TDMT_VND_FOLLOWER_SSMIGRATE, .pCont = pHead, .contLen = contLen};
   int32_t code = tmsgSendReq(&epSet, &rpcMsg);
   if (code != 0) {
-    mError("vgId:%d, failed to send follower-ssmigrate request to vnode since 0x%x", pReq->vgId, code);
+    mError("vgId:%d, ssmigrate:%d, failed to send follower-ssmigrate request to vnode since 0x%x", pReq->vgId, pReq->mnodeMigrateId, code);
   } else {
-    mInfo("vgId:%d, send follower-ssmigrate request to vnode, time:%" PRId64, pReq->vgId, pReq->startTimeSec);
+    mInfo("vgId:%d, ssmigrate:%d, send follower-ssmigrate request to vnode", pReq->vgId, pReq->mnodeMigrateId);
   }
 }
 
@@ -474,7 +474,7 @@ static int32_t mndUpdateSsMigrateProgress(SMnode *pMnode, SRpcMsg *pReq, SQueryS
 
   SSsMigrateObj *pSsMigrate = mndAcquireSsMigrate(pMnode, rsp->mnodeMigrateId);
   if (pSsMigrate == NULL) {
-    mError("ssmigrate:%d, failed to acquire ssmigrate since %s", rsp->mnodeMigrateId, terrstr());
+    mDebug("ssmigrate:%d, failed to acquire ssmigrate in mndUpdateSsMigrateProgress since %s", rsp->mnodeMigrateId, terrstr());
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
     TAOS_RETURN(code);
@@ -525,7 +525,7 @@ static int32_t mndUpdateSsMigrateProgress(SMnode *pMnode, SRpcMsg *pReq, SQueryS
   }
 
   if ((code = mndTransAppendCommitlog(pTrans, pRaw)) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mError("trans:%d, ssmigrate:%d, failed to append commit log since %s", pTrans->id, rsp->mnodeMigrateId, terrstr());
     mndTransDrop(pTrans);
     mndReleaseSsMigrate(pMnode, pSsMigrate);
     TAOS_RETURN(code);
@@ -540,7 +540,7 @@ static int32_t mndUpdateSsMigrateProgress(SMnode *pMnode, SRpcMsg *pReq, SQueryS
   mndReleaseSsMigrate(pMnode, pSsMigrate);
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mError("trans:%d, ssmigrate:%d, failed to prepare since %s", pTrans->id, rsp->mnodeMigrateId, terrstr());
     mndTransDrop(pTrans);
     TAOS_RETURN(code);
   }
@@ -691,7 +691,7 @@ int32_t mndTransProcessSsMigrateVgroupRsp(SRpcMsg *pRsp) {
 
   SSsMigrateObj *pSsMigrate = mndAcquireSsMigrate(pMnode, rsp.ssMigrateId);
   if (pSsMigrate == NULL) {
-    mError("ssmigrate:%d, failed to acquire ssmigrate since %s", rsp.ssMigrateId, terrstr());
+    mError("ssmigrate:%d, failed to acquire ssmigrate in mndTransProcessSsMigrateVgroupRsp since %s", rsp.ssMigrateId, terrstr());
     return mndTransProcessRsp(pRsp);
   }
 
