@@ -92,13 +92,23 @@ void streamOperatorReloadState(SOperatorInfo* pOperator) {
 
 static int32_t resetProjectOperState(SOperatorInfo* pOper) {
   SProjectOperatorInfo* pProject = pOper->info;
+  SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+  pOper->status = OP_NOT_OPENED;
+
   resetBasicOperatorState(&pProject->binfo);
-  pProject->limitInfo.currentGroupId = 0;
-  pProject->limitInfo.numOfOutputGroups = 0;
-  pProject->limitInfo.numOfOutputRows = 0;
-  pProject->limitInfo.remainGroupOffset = pProject->limitInfo.slimit.offset;
-  pProject->limitInfo.remainOffset = pProject->limitInfo.limit.offset;
+  SProjectPhysiNode* pPhynode = (SProjectPhysiNode*)pOper->pPhyNode;
+
+  pProject->limitInfo = (SLimitInfo){0};
+  initLimitInfo(pPhynode->node.pLimit, pPhynode->node.pSlimit, &pProject->limitInfo);
+
   blockDataCleanup(pProject->pFinalRes);
+
+  int32_t code = resetAggSup(&pOper->exprSupp, &pProject->aggSup, pTaskInfo, pPhynode->pProjections, NULL,
+    sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+    &pTaskInfo->storageAPI.functionStore);
+  if (code == 0){
+    code = setFunctionResultOutput(pOper, &pProject->binfo, &pProject->aggSup, MAIN_SCAN, pOper->exprSupp.numOfExprs);
+  }
   return 0;
 }
 
@@ -114,6 +124,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
     goto _error;
   }
 
+  pOperator->pPhyNode = pProjPhyNode;
   pOperator->exprSupp.hasWindowOrGroup = false;
   pOperator->pTaskInfo = pTaskInfo;
 
@@ -443,6 +454,30 @@ _end:
   return code;
 }
 
+static int32_t resetIndefinitOutputOperState(SOperatorInfo* pOper) {
+  SIndefOperatorInfo* pInfo = pOper->info;
+  SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+  SIndefRowsFuncPhysiNode* pPhynode = (SIndefRowsFuncPhysiNode*)pOper->pPhyNode;
+  pOper->status = OP_NOT_OPENED;
+
+  resetBasicOperatorState(&pInfo->binfo);
+
+  pInfo->groupId = 0;
+  pInfo->pNextGroupRes = NULL;
+  int32_t code = resetAggSup(&pOper->exprSupp, &pInfo->aggSup, pTaskInfo, pPhynode->pFuncs, NULL,
+    sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+    &pTaskInfo->storageAPI.functionStore);
+  if (code == 0){
+    code = setFunctionResultOutput(pOper, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, pOper->exprSupp.numOfExprs);
+  }
+
+  if (code == 0) {
+    code = resetExprSupp(&pInfo->scalarSup, pTaskInfo, pPhynode->pExprs, NULL,
+                         &pTaskInfo->storageAPI.functionStore);
+  }
+  return 0;
+}
+
 int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pNode,
                                                  SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -458,6 +493,7 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
     goto _error;
   }
 
+  pOperator->pPhyNode = pNode;
   pOperator->pTaskInfo = pTaskInfo;
 
   SExprSupp* pSup = &pOperator->exprSupp;
@@ -517,7 +553,8 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doApplyIndefinitFunction, NULL, destroyIndefinitOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
-
+                                         
+  setOperatorResetStateFn(pOperator, resetIndefinitOutputOperState);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;

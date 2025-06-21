@@ -3004,6 +3004,42 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
   }
 }
 
+// static int32_t resetSysTableScanOperState(SOperatorInfo* pOper) {
+//   SSysTableScanInfo* pInfo = pOper->info;
+//   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+//   SSystemTableScanPhysiNode* pPhynode = (SSystemTableScanPhysiNode*)pOper->pPhyNode;
+
+//   blockDataEmpty(pInfo->pRes);
+
+//   if (pInfo->name.type == TSDB_TABLE_NAME_T) {
+//     const char* name = tNameGetTableName(&pInfo->name);
+//     if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
+//         strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
+//         strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
+//       if (pInfo->pAPI != NULL && pInfo->pAPI->metaFn.closeTableMetaCursor != NULL) {
+//         pInfo->pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+//       }
+
+//       pInfo->pCur = NULL;
+//     }
+//   } else {
+//     qError("pInfo->name is not initialized");
+//   }
+
+//   if (pInfo->pIdx) {
+//     taosArrayDestroy(pInfo->pIdx->uids);
+//     taosMemoryFree(pInfo->pIdx);
+//     pInfo->pIdx = NULL;
+//   }
+
+//   if (pInfo->pSchema) {
+//     taosHashCleanup(pInfo->pSchema);
+//     pInfo->pSchema = NULL;
+//   }
+
+//   return 0;
+// }
+
 int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode* pScanPhyNode, const char* pUser,
                                        SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -3079,6 +3115,8 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doSysTableScanNext, NULL, destroySysScanOperator,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  // setOperatorResetStateFn(pOperator, resetSysTableScanOperState);
+  
   *pOptrInfo = pOperator;
   return code;
 

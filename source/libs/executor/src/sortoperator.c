@@ -53,15 +53,26 @@ static void calcSortOperMaxTupleLength(SSortOperatorInfo* pSortOperInfo, SNodeLi
 
 static void destroySortOpGroupIdCalc(SSortOpGroupIdCalc* pCalc);
 
-static void resetSortOperState(SOperatorInfo* pOper) {
-  SSortOperatorInfo* pSort = pOper->info;
-  resetBasicOperatorState(&pSort->binfo);
-  tsortDestroySortHandle(pSort->pSortHandle);
-  pSort->pSortHandle = NULL;
-  if (pSort->pGroupIdCalc) {
-    pSort->pGroupIdCalc->lastGroupId = 0;
-    pSort->pGroupIdCalc->lastKeysLen = 0;
+static int32_t resetSortOperState(SOperatorInfo* pOper) {
+  SSortOperatorInfo* pInfo = pOper->info;
+  SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+  pOper->status = OP_NOT_OPENED;
+
+  resetBasicOperatorState(&pInfo->binfo);
+  destroySqlFunctionCtx(pOper->exprSupp.pCtx, pOper->exprSupp.pExprInfo, pOper->exprSupp.numOfExprs);
+  taosMemoryFreeClear(pOper->exprSupp.rowEntryInfoOffset);
+  pOper->exprSupp.pCtx =
+      createSqlFunctionCtx(pOper->exprSupp.pExprInfo, pOper->exprSupp.numOfExprs, &pOper->exprSupp.rowEntryInfoOffset, &pTaskInfo->storageAPI.functionStore);
+
+  tsortDestroySortHandle(pInfo->pSortHandle);
+  pInfo->pSortHandle = NULL;
+
+  if (pInfo->pGroupIdCalc) {
+    pInfo->pGroupIdCalc->lastGroupId = 0;
+    pInfo->pGroupIdCalc->lastKeysLen = 0;
   }
+
+  return 0;
 }
 
 // todo add limit/offset impl
@@ -163,6 +174,7 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
   pOperator->fpSet =
       createOperatorFpSet(doOpenSortOperator, doSort, NULL, destroySortOperatorInfo, optrDefaultBufFn, getExplainExecInfo, optrDefaultGetNextExtFn, NULL);
 
+  setOperatorResetStateFn(pOperator, resetSortOperState);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -819,6 +831,29 @@ void destroyGroupSortOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
+static int32_t resetGroupSortOperState(SOperatorInfo* pOper) {
+  SGroupSortOperatorInfo* pInfo = pOper->info;
+  SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+  pOper->status = OP_NOT_OPENED;
+
+  pInfo->currGroupId = 0;
+  pInfo->hasGroupId = false;
+  pInfo->prefetchedSortInput = NULL;
+  pInfo->childOpStatus = CHILD_OP_NEW_GROUP;
+  pInfo->sortExecInfo = (SSortExecInfo){0};
+  
+  resetBasicOperatorState(&pInfo->binfo);
+  destroySqlFunctionCtx(pOper->exprSupp.pCtx, pOper->exprSupp.pExprInfo, pOper->exprSupp.numOfExprs);
+  taosMemoryFreeClear(pOper->exprSupp.rowEntryInfoOffset);
+  pOper->exprSupp.pCtx =
+      createSqlFunctionCtx(pOper->exprSupp.pExprInfo, pOper->exprSupp.numOfExprs, &pOper->exprSupp.rowEntryInfoOffset, &pTaskInfo->storageAPI.functionStore);
+
+  tsortDestroySortHandle(pInfo->pCurrSortHandle);
+  pInfo->pCurrSortHandle = NULL;
+
+  return 0;
+}
+
 int32_t createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNode* pSortPhyNode,
                                     SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -868,6 +903,8 @@ int32_t createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNo
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doGroupSort, NULL, destroyGroupSortOperatorInfo,
                                          optrDefaultBufFn, getGroupSortExplainExecInfo, optrDefaultGetNextExtFn, NULL);
 
+  setOperatorResetStateFn(pOperator, resetGroupSortOperState);
+                                         
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;

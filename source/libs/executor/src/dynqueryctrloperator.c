@@ -1543,7 +1543,65 @@ _return:
   return code;
 }
 
-static void resetDynQueryCtrlOperState(SOperatorInfo* pOper) {
+static int32_t resetDynQueryCtrlOperState(SOperatorInfo* pOper) {
+  SDynQueryCtrlOperatorInfo* pDyn = pOper->info;
+  pOper->status = OP_NOT_OPENED;
+
+  switch (pDyn->qType) {
+    case DYN_QTYPE_STB_HASH:{
+      pDyn->stbJoin.execInfo = (SDynQueryCtrlExecInfo){0};
+      SStbJoinDynCtrlInfo* pStbJoin = &pDyn->stbJoin;
+      if (pStbJoin->basic.batchFetch) {
+        if (pStbJoin->ctx.prev.leftHash) {
+          tSimpleHashSetFreeFp(pStbJoin->ctx.prev.leftHash, freeVgTableList);
+          tSimpleHashClear(pStbJoin->ctx.prev.leftHash);
+        }
+        if (pStbJoin->ctx.prev.rightHash) {
+          tSimpleHashSetFreeFp(pStbJoin->ctx.prev.rightHash, freeVgTableList);
+          tSimpleHashClear(pStbJoin->ctx.prev.rightHash);
+        }
+      } else {
+        if (pStbJoin->ctx.prev.leftCache) {
+          tSimpleHashClear(pStbJoin->ctx.prev.leftCache);
+        }
+        if (pStbJoin->ctx.prev.rightCache) {
+          tSimpleHashClear(pStbJoin->ctx.prev.rightCache);
+        }
+        if (pStbJoin->ctx.prev.onceTable) {
+          tSimpleHashClear(pStbJoin->ctx.prev.onceTable);
+        }
+      }
+      destroyStbJoinTableList(pStbJoin->ctx.prev.pListHead);
+      pStbJoin->ctx.prev.pListHead = NULL;
+      pStbJoin->ctx.prev.joinBuild = false;
+      pStbJoin->ctx.prev.pListTail = NULL;
+      pStbJoin->ctx.prev.tableNum = 0;
+
+      pStbJoin->ctx.post = (SStbJoinPostJoinCtx){0};
+      break; 
+    }
+    case DYN_QTYPE_VTB_SCAN: {
+      SVtbScanDynCtrlInfo* pVtbScan = &pDyn->vtbScan;
+      
+      if (pVtbScan->orgTbVgColMap) {
+        taosHashSetFreeFp(pVtbScan->orgTbVgColMap, destroyOrgTbInfo);
+        taosHashCleanup(pVtbScan->orgTbVgColMap);
+        pVtbScan->orgTbVgColMap = NULL;
+      }
+      if (pVtbScan->pRsp) {
+        tFreeSUsedbRsp(pVtbScan->pRsp);
+        taosMemoryFreeClear(pVtbScan->pRsp);
+      }
+
+      pVtbScan->curTableIdx = 0;
+      pVtbScan->lastTableIdx = -1;
+      break;
+    }
+    default:
+      qError("unsupported dynamic query ctrl type: %d", pDyn->qType);
+      break;
+  }
+  return 0;
 }
 
 int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
@@ -1602,6 +1660,7 @@ int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numO
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, nextFp, NULL, destroyDynQueryCtrlOperator, optrDefaultBufFn,
                                          NULL, optrDefaultGetNextExtFn, NULL);
 
+  setOperatorResetStateFn(pOperator, resetDynQueryCtrlOperState);
   *pOptrInfo = pOperator;
   return TSDB_CODE_SUCCESS;
 

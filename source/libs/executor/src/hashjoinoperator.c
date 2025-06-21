@@ -1171,11 +1171,34 @@ int32_t hJoinInitResBlocks(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinN
   return TSDB_CODE_SUCCESS;
 }
 
-static void resetHashJoinOperState(SOperatorInfo* pOper) {
+static int32_t resetHashJoinOperState(SOperatorInfo* pOper) {
   SHJoinOperatorInfo* pHjOper = pOper->info;
   pHjOper->keyHashBuilt = false;
   blockDataCleanup(pHjOper->midBlk);
   blockDataCleanup(pHjOper->finBlk);
+  pOper->status = OP_NOT_OPENED;
+
+  pHjOper->execInfo = (SHJoinExecInfo){0};
+
+  void*   pIte = NULL;
+  int32_t iter = 0;
+  while ((pIte = tSimpleHashIterate(pHjOper->pKeyHash, pIte, &iter)) != NULL) {
+    SGroupData* pGroup = pIte;
+    SBufRowInfo* pRow = pGroup->rows;
+    SBufRowInfo* pNext = NULL;
+    while (pRow) {
+      pNext = pRow->next;
+      taosMemoryFree(pRow);
+      pRow = pNext;
+    }
+  }
+  tSimpleHashClear(pHjOper->pKeyHash);
+  taosArrayDestroyEx(pHjOper->pRowBufs, hJoinFreeBufPage);
+  int32_t code = hJoinInitBufPages(pHjOper);
+  int64_t limit = pHjOper->ctx.limit;
+  pHjOper->ctx = (SHJoinCtx){0};
+  pHjOper->ctx.limit = limit;
+  return code;
 }
 
 int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
@@ -1222,6 +1245,7 @@ int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDow
   HJ_ERR_JRET(appendDownstream(pOperator, pDownstream, numOfDownstream));
 
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, hJoinMainProcess, NULL, destroyHashJoinOperator, optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorResetStateFn(pOperator, resetHashJoinOperState);
 
   qDebug("create hash Join operator done");
 
