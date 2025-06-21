@@ -452,7 +452,8 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
     SMultiTableSetSlotIdCxt* pCxt = (SMultiTableSetSlotIdCxt*)pContext;
     char*                    name = NULL;
     int32_t                  len = 0;
-    if (pCxt->isVtb && !((SColumnNode*)pNode)->hasRef) {
+    SColumnNode*             pCol = (SColumnNode*)pNode;
+    if (pCxt->isVtb && !pCol->hasRef && pCol->colType != COLUMN_TYPE_TAG) {
       return DEAL_RES_CONTINUE;
     }
 
@@ -462,8 +463,8 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
     }
     SSlotIndex* pIndex = NULL;
     int32_t idx = 0;
-    if (((SColumnNode*)pNode)->projRefIdx > 0) {
-      sprintf(name + strlen(name), "_%d", ((SColumnNode*)pNode)->projRefIdx);
+    if (pCol->projRefIdx > 0) {
+      sprintf(name + strlen(name), "_%d", pCol->projRefIdx);
       while (!pIndex && idx < LIST_LENGTH(pCxt->pChild)) {
         SHashObj *tmpHash =
             taosArrayGetP(pCxt->projIdxHashArray,
@@ -490,8 +491,8 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
       taosMemoryFree(name);
       return DEAL_RES_ERROR;
     }
-    ((SColumnNode*)pNode)->dataBlockId = pIndex->dataBlockId;
-    ((SColumnNode*)pNode)->slotId = ((SSlotIdInfo*)taosArrayGet(pIndex->pSlotIdsInfo, 0))->slotId;
+    pCol->dataBlockId = pIndex->dataBlockId;
+    pCol->slotId = ((SSlotIdInfo*)taosArrayGet(pIndex->pSlotIdsInfo, 0))->slotId;
     taosMemoryFree(name);
     return DEAL_RES_IGNORE_CHILD;
   }
@@ -524,33 +525,6 @@ static int32_t setNodeSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, i
 
   *pOutput = pRes;
   return TSDB_CODE_SUCCESS;
-}
-
-static int32_t setVtableNodeSlotId(SPhysiPlanContext* pCxt, SNodeList* pChild, SNode* pNode,
-                                   SNode** pOutput) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (NULL == pNode) {
-    PLAN_RET(code);
-  }
-
-  SNode* pRes = NULL;
-  PLAN_ERR_JRET(nodesCloneNode(pNode, &pRes));
-
-  SMultiTableSetSlotIdCxt cxt = {
-      .errCode = TSDB_CODE_SUCCESS,
-      .hashArray = pCxt->pLocationHelper,
-      .projIdxHashArray = pCxt->pProjIdxLocHelper,
-      .pChild = pChild
-  };
-
-  nodesWalkExpr(pRes, doSetMultiTableSlotId, &cxt);
-  PLAN_ERR_JRET(cxt.errCode);
-
-  *pOutput = pRes;
-  return code;
-_return:
-  nodesDestroyNode(pRes);
-  return code;
 }
 
 static int32_t setListSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, int16_t rightDataBlockId,
@@ -944,7 +918,8 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TAGS) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_COLS) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_DISK_USAGE) ||
-      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_FILESETS)) {
+      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_FILESETS) ||
+      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_VC_COLS)) {
     if (pScanLogicNode->pVgroupList) {
       vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
     }
@@ -1950,6 +1925,7 @@ static int32_t updateDynQueryCtrlVtbScanInfo(SPhysiPlanContext* pCxt, SNodeList*
   pDynCtrl->vtbScan.mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
   pDynCtrl->vtbScan.accountId = pCxt->pPlanCxt->acctId;
   tstrncpy(pDynCtrl->vtbScan.dbName, pLogicNode->vtbScan.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pDynCtrl->vtbScan.stbName, pLogicNode->vtbScan.stbName, TSDB_TABLE_NAME_LEN);
 
   return code;
 _return:

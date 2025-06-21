@@ -1911,44 +1911,6 @@ static int32_t insertSelectSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   return code;
 }
 
-typedef struct SStreamVTableSplitInfo {
-  SLogicNode*    pSplitNode;
-  SLogicSubplan* pSubplan;
-} SStreamVTableSplitInfo;
-
-
-static bool streamVTableFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode,
-                                      SStreamVTableSplitInfo* pInfo) {
-//  if (!pCxt->pPlanCxt->streamQuery) {
-//    return false;
-//  }
-  if (1 == LIST_LENGTH(pNode->pChildren) && QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(nodesListGetNode(pNode->pChildren, 0))) {
-    pInfo->pSplitNode = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
-    pInfo->pSubplan = pSubplan;
-    return true;
-  }
-  return false;
-}
-
-static int32_t streamVTableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
-  int32_t                code = TSDB_CODE_SUCCESS;
-  SStreamVTableSplitInfo info = {0};
-  if (!splMatch(pCxt, pSubplan, 0, (FSplFindSplitNode)streamVTableFindSplitNode, &info)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  PLAN_ERR_JRET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType, false));
-  SLogicSubplan *sub = splCreateScanSubplan(pCxt, info.pSplitNode, 0);
-  PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)sub));
-  info.pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
-  ++(pCxt->groupId);
-  
-_return:
-
-  pCxt->split = true;
-  return code;
-}
-
 typedef struct SVirtualTableSplitInfo {
   SVirtualScanLogicNode *pVirtual;
   SLogicSubplan          *pSubplan;
@@ -2171,7 +2133,6 @@ static const SSplitRule splitRuleSet[] = {
   {.pName = "UnionDistinctSplit",     .splitFunc = unionDistinctSplit},
   {.pName = "SmaIndexSplit",          .splitFunc = smaIndexSplit}, // not used yet
   {.pName = "InsertSelectSplit",      .splitFunc = insertSelectSplit},
-  {.pName = "StreamVtableSplit",      .splitFunc = streamVTableSplit},
   {.pName = "VirtualtableSplit",      .splitFunc = virtualTableSplit},
   {.pName = "MergeAggColsSplit",      .splitFunc = mergeAggColsSplit},
   {.pName = "DynVirtualScanSplit",    .splitFunc = dynVirtualScanSplit},

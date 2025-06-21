@@ -192,6 +192,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_USAGE,
   TSDB_MGMT_TABLE_FILESETS,
   TSDB_MGMT_TABLE_TRANSACTION_DETAIL,
+  TSDB_MGMT_TABLE_VC_COL,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -3064,9 +3065,14 @@ typedef struct STableScanOperatorParam {
   STimeWindow    window;
 } STableScanOperatorParam;
 
+typedef struct STagScanOperatorParam {
+  tb_uid_t       vcUid;
+} STagScanOperatorParam;
+
 typedef struct SVTableScanOperatorParam {
-  uint64_t       uid;
-  SArray*        pOpParamArray;  // SArray<SOperatorParam>
+  uint64_t        uid;
+  SOperatorParam* pTagScanOp;
+  SArray*         pOpParamArray;  // SArray<SOperatorParam>
 } SVTableScanOperatorParam;
 
 struct SStreamRuntimeFuncInfo;

@@ -63,6 +63,7 @@ static int32_t doSetScanVgroup(SLogicNode* pNode, const SVgroupInfo* pVgroup, bo
         return terrno;
       }
       memcpy(pCtrl->vtbScan.pVgroupList->vgroups, pVgroup, sizeof(SVgroupInfo));
+      pCtrl->vtbScan.pVgroupList->numOfVgroups = 1;
       *pFound = true;
       return TSDB_CODE_SUCCESS;
     }
