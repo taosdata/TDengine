@@ -58,7 +58,7 @@ class TDTestCase:
             tdSql.checkData(0, 2, 0)
 
         tdSql.query("show dnode 1 variables like '%debugFlag'")
-        tdSql.checkRows(25)
+        tdSql.checkRows(26)
 
         tdSql.query("show dnode 1 variables like '____debugFlag'")
         tdSql.checkRows(2)
@@ -96,7 +96,7 @@ class TDTestCase:
         tdSql.query("show local variables like '____debugFlag'")
         tdSql.checkRows(0)
 
-        tdSql.query("show local variables like 's3MigrateEnab%'")
+        tdSql.query("show local variables like 'ssEnab%'")
         tdSql.checkRows(0)
 
         tdSql.query("show local variables like 'mini%'")
@@ -117,8 +117,8 @@ class TDTestCase:
             #tdSql.query(f"show {zone} variables like 'debugFlag'")
             #tdSql.checkRows(0)
 
-            tdSql.query(f"show {zone} variables like 's3%'")
-            tdSql.checkRows(6)
+            tdSql.query(f"show {zone} variables like 'ss%'")
+            tdSql.checkRows(5)
 
             tdSql.query(f"show {zone} variables like 'Max%'")
             tdSql.checkRows(3)

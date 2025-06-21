@@ -59,7 +59,7 @@ sql select sum(data2) from information_schema.ins_disk_usage
 sql select sum(data3) from information_schema.ins_disk_usage 
 sql select sum(cache_rdb) from information_schema.ins_disk_usage 
 sql select sum(table_meta) from information_schema.ins_disk_usage 
-sql select sum(s3) from information_schema.ins_disk_usage 
+sql select sum(ss) from information_schema.ins_disk_usage 
 sql select sum(raw_data) from information_schema.ins_disk_usage 
 
 print $data00
