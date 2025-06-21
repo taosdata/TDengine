@@ -284,11 +284,13 @@ class TestStreamSubqueryBasic:
         result_sql = "select * from qdb.st6"
         tdSql.checkResultsByFunc(
             sql=result_sql,
-            func=lambda: tdSql.getRows() == 2
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:01")
+            func=lambda: tdSql.getRows() == 3
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
             and tdSql.compareData(0, 2, 6)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:02")
-            and tdSql.compareData(1, 2, 6),
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:01")
+            and tdSql.compareData(1, 2, 6)
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:02")
+            and tdSql.compareData(2, 2, 6),
         )
 
     def checks7(self):
