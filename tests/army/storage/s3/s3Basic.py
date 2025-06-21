@@ -219,11 +219,11 @@ class TDTestCase(TBase):
                     self.checkCreateDb(keep, chunk, comp)
 
         
-        # --checks3
+        # --checkss
         idx = 1
         taosd = sc.taosdFile(idx)
         cfg   = sc.dnodeCfgPath(idx)
-        cmd = f"{taosd} -c {cfg} --checks3"
+        cmd = f"{taosd} -c {cfg} --checkss"
 
         eos.exe(cmd)
         #output, error = eos.run(cmd)
@@ -240,7 +240,7 @@ class TDTestCase(TBase):
         for tip in tips:
             pos = output.find(tip, pos)
             #if pos == -1:
-            #    tdLog.exit(f"checks3 failed not found {tip}. cmd={cmd} output={output}")
+            #    tdLog.exit(f"checkss failed not found {tip}. cmd={cmd} output={output}")
         '''
         
         # except
