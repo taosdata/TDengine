@@ -1012,7 +1012,7 @@ class StreamItem:
                 tmp_result = tdSql.getResult(self.exp_query)
                 for r in self.exp_rows:
                     exp_result.append(tmp_result[r])
-
+            self.awaitRowStability(len(exp_result))
             tdSql.checkResultsByArray(self.res_query, exp_result, self.exp_query)
 
         tdLog.info(f"check stream:s{self.id} result successfully")
