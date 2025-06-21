@@ -33,6 +33,8 @@ INSERT INTO
     [stb2_name [(field1_name, ...)]
         VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
     ...];
+
+INSERT INTO stb_name (tbname, field1_name, ...) subquery
 ```
 
 About Timestamps:
@@ -67,7 +69,7 @@ Standard Syntax Explanation:
 
 1. The USING clause is for automatic table creation syntax. If a user is unsure whether a table exists when writing data, they can use the automatic table creation syntax to create a non-existent table during data writing; if the table already exists, a new table will not be created. Automatic table creation requires using a supertable as a template and specifying the TAGS values for the data table. It is possible to specify only some TAGS column values, with unspecified TAGS columns set to NULL.
 
-1. You can use the `INSERT ... subquery` statement to insert data from TDengine into a specified table. The subquery can be any query statement. This syntax can only be used for subtables and regular tables, and does not support automatic table creation.
+2. You can use the `INSERT ... subquery` statement to insert data from TDengine into a specified table. The subquery can be any query statement. 
 
 Supertable Syntax Explanation:
 
@@ -76,6 +78,8 @@ Supertable Syntax Explanation:
 1. The field_name list supports tag columns. When a subtable already exists, specifying tag values will not trigger a modification of the tag values; when a subtable does not exist, the specified tag values will be used to establish the subtable. If no tag columns are specified, all tag column values are set to NULL.
 
 1. Parameter binding for writing is not supported.
+
+4. You can use the `INSERT ... subquery` statement to insert the data from TDengine into a specified super table. The field_name must be specified, and the first field_name must be tbname, otherwise, it will result in an error. Automatic table creation is supported.
 
 ## Inserting a Record
 
