@@ -1,7 +1,6 @@
 use actix_web::{
-    get,
+    HttpResponse, Responder, get,
     web::{Data, Path},
-    HttpResponse, Responder,
 };
 
 use crate::serve::{controller::TaskControllerRef, task::Failed};

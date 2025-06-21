@@ -103,7 +103,7 @@ impl Parse for Json {
         field: &arrow::datatypes::Field,
         array: &ArrayRef,
     ) -> Result<(RecordBatch, Option<Vec<usize>>), super::ParseError> {
-        if array.len() == 0 {
+        if array.is_empty() {
             // Return empty record batch.
             return Ok((RecordBatch::new_empty(Arc::new(Schema::empty())), None));
         }

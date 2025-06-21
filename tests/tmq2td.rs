@@ -35,7 +35,6 @@ async fn test_sync_database_with_taos() -> anyhow::Result<()> {
     const TOPIC: &str = "test_sync_database";
     const ROWS: u64 = 10;
 
-    // create database
     let taos = taosx_core::utils::sql::connect_taos(&host, ws_enable).await?;
     taos.exec_many(vec![
         format!("DROP TOPIC IF EXISTS force `{TOPIC}`"),

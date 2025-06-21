@@ -8,21 +8,21 @@ use std::{
 use crate::serve::{controller::Activity, scheduler::SchedulerNotify};
 use itertools::Itertools;
 use taosx_core::{
+    DataSet,
     sink::lush::{self, TableTagCache},
     utils::breakpoints::BreakpointDb,
-    DataSet,
 };
 use thiserror::Error;
 use tokio::sync::{Mutex, Notify, RwLock};
 
 use super::{
-    runner::{GlobalState, MultiIndexTaskJobMapRef},
     NotifySender,
+    runner::{GlobalState, MultiIndexTaskJobMapRef},
 };
 
 use anyhow::Result;
 use tokio_cron_scheduler::JobNotification;
-use tracing::{info, Instrument};
+use tracing::{Instrument, info};
 use uuid::Uuid;
 
 pub async fn notify_by_job_id(

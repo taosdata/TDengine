@@ -4,62 +4,62 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
     path::PathBuf,
     pin::Pin,
-    sync::{atomic::Ordering, Arc},
+    sync::{Arc, atomic::Ordering},
     time::Duration,
 };
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use arrow::{
     array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array},
     datatypes::{Field, Fields, Schema},
     record_batch::RecordBatch,
 };
 use arrow_flight::{
+    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
+    HandshakeRequest, HandshakeResponse, PollInfo, PutResult, SchemaResult, Ticket,
     decode::FlightDataDecoder,
     encode::FlightDataEncoderBuilder,
     error::FlightError,
     flight_service_server::{FlightService, FlightServiceServer},
-    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
-    HandshakeRequest, HandshakeResponse, PollInfo, PutResult, SchemaResult, Ticket,
 };
 use async_backtrace::framed;
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use chrono::Utc;
 use futures::{Stream, TryStreamExt};
 use linked_hash_map::LinkedHashMap;
-use metrics::{atomics::AtomicU64, counter, gauge, histogram, IntoLabels};
+use metrics::{IntoLabels, atomics::AtomicU64, counter, gauge, histogram};
 use semver::VersionReq;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use taos::Dsn;
-use taoslog::{utils::QidMetadataSetter, QidManager};
+use taoslog::{QidManager, utils::QidMetadataSetter};
 #[cfg(unix)]
 use tokio::net::UnixListener;
 use tokio::sync::RwLock;
 #[cfg(unix)]
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::{
-    transport::{Identity, Server, ServerTlsConfig},
     Request, Response, Status, Streaming,
+    transport::{Identity, Server, ServerTlsConfig},
 };
-use tracing::{error, info, instrument, warn, Instrument};
+use tracing::{Instrument, error, info, instrument, warn};
 use uuid::Uuid;
 
 use taosx_core::{
+    CheckResponse, HeartbeatResponse, ListResponse, PutFileResp, QueryDataSourceResp,
+    TaskMetricItem,
     core_metrics::get_metrics,
     get_data_dir,
     utils::{dsn::json_to_dsn, get_string_content_from_param_value, trace::Qid},
-    CheckResponse, HeartbeatResponse, ListResponse, PutFileResp, QueryDataSourceResp,
-    TaskMetricItem,
 };
 use taosx_ipc::types::SampleResponse;
 use taosx_metrics::MetricsEvents;
 
-use crate::serve::{controller::StringSender, TAOSX_GRPC_DEFAULT_PORT};
+use crate::serve::{TAOSX_GRPC_DEFAULT_PORT, controller::StringSender};
 use crate::serve::{
     controller::{
-        agent::{Activity, AgentToken, LevelFilter},
         TaskDetail,
+        agent::{Activity, AgentToken, LevelFilter},
     },
     rpc::put::PutStream,
     scheduler::agent::AgentNotify,
@@ -545,7 +545,9 @@ impl FlightService for FlightServiceImpl {
                             Status::internal(format!("Scheduler is not ready: {err:#}", err = err))
                         })?;
 
-                    let outdated = format!("Agent core version {version} is not compatible to server, please upgrade to a newer version");
+                    let outdated = format!(
+                        "Agent core version {version} is not compatible to server, please upgrade to a newer version"
+                    );
                     self.notify_sender
                         .send(AgentNotify::AgentActivity(
                             agent.id,
@@ -1379,17 +1381,17 @@ mod tests {
     };
     use arrow_flight::decode::FlightDataDecoder;
     use arrow_flight::{
+        FlightData, HandshakeRequest,
         encode::{FlightDataEncoder, FlightDataEncoderBuilder},
         error::FlightError,
         flight_service_client::FlightServiceClient,
-        FlightData, HandshakeRequest,
     };
     use futures::TryStreamExt;
     use tempfile::NamedTempFile;
     use tonic::{
+        IntoStreamingRequest,
         codegen::Bytes,
         transport::{Channel, Endpoint},
-        IntoStreamingRequest,
     };
 
     #[tokio::test]
@@ -1398,10 +1400,13 @@ mod tests {
         let dsn = "opcda://192.168.2.16/Matrikon.OPC.Simulation.1?csv_config_file=%40.%2Ftests%2Fopc%2Fopcda-utf8.csv";
         let new_dsn = modify_dsn_params(dsn).await.unwrap();
         let csv_config = new_dsn.params.get("csv_config_file").unwrap();
-        assert_eq!("MCx0YWdfbmFtZSxlbmFibGVkLHN0YWJsZSx0Ym5hbWUsdmFsdWVfY29sLHZhbHVlX3RyYW5zZm9ybSx0eXBlLHF1YWxpdHlfY29sLHRzX2NvbCxyZWNlaXZlZF90c19jb2wsdHNfdHJhbnNmb3JtLHJlY2VpdmVkX3RzX3RyYW5zZm9ybSx0YWc6OlZBUkNIQVIoMjAwKTo6bmFtZQ0KMSxyb290LnBhcmVudC50ZW1wZXJhdHVyZSwxLG9wY197dHlwZX0sdF97dGFnX25hbWV9LHZhbCx2YWwgKjEuOCArIDMyLGludCxxdWFsaXR5LHRzLHJ0cywscnRzICsgOGgs5YWl5bqT5rip5bqmDQoyLHJvb3QucGFyZW50LnByZXNzdXJlLDAsb3BjX3t0eXBlfSx0X3t0YWdfbmFtZX0sdmFsLHZhbCArIDEwLCxxdWFsaXR5LHRzLHJ0cyx0cyArIDhoLCzlh4/ljovpmIDljovlipsNCjMscm9vdC5wYXJlbnQuY3VycmVudCwxLG9wY19kYV9lbGVjLHRfY3VzdG9tX2N1cnJlbnQsdmFsLCwscXVhbGl0eSx0cyxydHMsdHMgLSA2cyxydHMgLSA2cyzmgLvnur/nlLXmtYENCg==", csv_config);
+        assert_eq!(
+            "MCx0YWdfbmFtZSxlbmFibGVkLHN0YWJsZSx0Ym5hbWUsdmFsdWVfY29sLHZhbHVlX3RyYW5zZm9ybSx0eXBlLHF1YWxpdHlfY29sLHRzX2NvbCxyZWNlaXZlZF90c19jb2wsdHNfdHJhbnNmb3JtLHJlY2VpdmVkX3RzX3RyYW5zZm9ybSx0YWc6OlZBUkNIQVIoMjAwKTo6bmFtZQ0KMSxyb290LnBhcmVudC50ZW1wZXJhdHVyZSwxLG9wY197dHlwZX0sdF97dGFnX25hbWV9LHZhbCx2YWwgKjEuOCArIDMyLGludCxxdWFsaXR5LHRzLHJ0cywscnRzICsgOGgs5YWl5bqT5rip5bqmDQoyLHJvb3QucGFyZW50LnByZXNzdXJlLDAsb3BjX3t0eXBlfSx0X3t0YWdfbmFtZX0sdmFsLHZhbCArIDEwLCxxdWFsaXR5LHRzLHJ0cyx0cyArIDhoLCzlh4/ljovpmIDljovlipsNCjMscm9vdC5wYXJlbnQuY3VycmVudCwxLG9wY19kYV9lbGVjLHRfY3VzdG9tX2N1cnJlbnQsdmFsLCwscXVhbGl0eSx0cyxydHMsdHMgLSA2cyxydHMgLSA2cyzmgLvnur/nlLXmtYENCg==",
+            csv_config
+        );
 
         // do not modify the transform_config_file
-        let  dsn = "pi://192.168.0.34/ci_test?transform_config_file=%40.%2Ftaosx-core%2Ftests%2Fpi%2Fpi_singlecol_point.csv";
+        let dsn = "pi://192.168.0.34/ci_test?transform_config_file=%40.%2Ftaosx-core%2Ftests%2Fpi%2Fpi_singlecol_point.csv";
         let new_dsn = modify_dsn_params(dsn).await.unwrap();
         let config_file = new_dsn.params.get("transform_config_file").unwrap();
         assert_eq!("@./taosx-core/tests/pi/pi_singlecol_point.csv", config_file);

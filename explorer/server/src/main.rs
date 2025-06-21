@@ -395,7 +395,7 @@ async fn main() -> anyhow::Result<()> {
                     .index_file("index.html")
                     .default_handler(fn_service(move |req: ServiceRequest| async {
                         let args = req.app_data::<web::Data<Args>>();
-                        if args.map_or(true, |args| args.assets.is_none()) {
+                        if args.is_none_or(|args| args.assets.is_none()) {
                             return Ok(req.error_response(error::ErrorNotFound("File not found")));
                         }
                         let assets = args.unwrap().assets.as_ref().unwrap().clone();
@@ -983,8 +983,7 @@ async fn proxy(
         tokio::task::spawn_local({
             let cancel = cancel.clone();
             async move {
-                let mut client_stream =
-                    payload.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
+                let mut client_stream = payload.map_err(std::io::Error::other);
                 let mut client_read = tokio_util::io::StreamReader::new(&mut client_stream);
                 if let Some(Err(e)) = cancel
                     .run_until_cancelled(tokio::io::copy(&mut client_read, &mut target_tx))

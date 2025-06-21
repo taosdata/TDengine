@@ -1,9 +1,9 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_backtrace::framed;
 use taos::{Dsn, Itertools};
 
 use taosx_core::utils::{license::LicenseKind, mask_dsn};
-use tracing::{instrument, Instrument};
+use tracing::{Instrument, instrument};
 
 /// LicenseValidator is used to validate the license of the source and target data sources.
 pub struct LicenseValidator<'a> {

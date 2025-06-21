@@ -160,11 +160,11 @@ impl FromStr for StopAt {
 /// 2. check each name in topic list.
 /// 3. if the name is in topic list, return topic itself.
 /// 4. if the name is not a topic.
-///     4.1 if the name is a database, create a database topic with meta as is.
-///     4.2 else, if the name is in `database.table` format,
-///     4.3       then if the `table` is STable, create a topic named `database_table` with meta as stable.
-///     4.4            if the `table` is child table or normal, create a topic named `database_table` as select * from table.
-///     4.5            else, bail unexpected input topics error to upstream.
+///    4.1 if the name is a database, create a database topic with meta as is.
+///    4.2 else, if the name is in `database.table` format,
+///    4.3       then if the `table` is STable, create a topic named `database_table` with meta as stable.
+///    4.4            if the `table` is child table or normal, create a topic named `database_table` as select * from table.
+///    4.5            else, bail unexpected input topics error to upstream.
 pub(crate) async fn check_tmq_dsn(
     mut from: Dsn,
 ) -> Result<(Dsn, TaosBuilder, Vec<Topic>, bool, bool)> {
@@ -208,7 +208,7 @@ pub(crate) async fn check_tmq_dsn(
         from.set("experimental.snapshot.enable", "true");
     }
 
-    if !from.get("enable.auto.commit").map_or(false, |s| {
+    if !from.get("enable.auto.commit").is_some_and(|s| {
         matches!(
             s.as_str(),
             "true"

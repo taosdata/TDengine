@@ -93,8 +93,8 @@ impl GenericClient {
 }
 
 pub enum GenericMessagePoller {
-    V3(v3::MessagePoller),
-    V5(v5::MessagePoller),
+    V3(Box<v3::MessagePoller>),
+    V5(Box<v5::MessagePoller>),
 }
 
 impl MessagePoller for GenericMessagePoller {
@@ -113,12 +113,12 @@ impl MessagePoller for GenericMessagePoller {
         I: IntoIterator<Item = (String, u8)> + Send,
     {
         match config.version {
-            Version::V3 => Ok(Self::V3(
+            Version::V3 => Ok(Self::V3(Box::new(
                 v3::MessagePoller::from_config(config, subscriptions).await?,
-            )),
-            Version::V5 => Ok(Self::V5(
+            ))),
+            Version::V5 => Ok(Self::V5(Box::new(
                 v5::MessagePoller::from_config(config, subscriptions).await?,
-            )),
+            ))),
         }
     }
 

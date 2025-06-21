@@ -6,8 +6,8 @@ use std::{borrow::Cow, convert::Infallible, fmt::Display, str::FromStr, sync::On
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
-use sqlx::{encode::IsNull, sqlite::SqliteArgumentValue, Decode, Encode, FromRow, Type};
-use tracing::{debug, Instrument};
+use sqlx::{Decode, Encode, FromRow, Type, encode::IsNull, sqlite::SqliteArgumentValue};
+use tracing::{Instrument, debug};
 use utoipa::{IntoParams, ToSchema};
 
 static GRPC_SSL_CA_CERTIFICATE: OnceLock<String> = OnceLock::new();
@@ -428,7 +428,9 @@ impl super::TaskController {
             order: Some(ActivityOrder::Asc),
         }
         .condition();
-        let sql = format!("select * from (select *, row_number() over (partition by id order by at desc) as rn from agent_activities) r where r.rn<=5 {cond}");
+        let sql = format!(
+            "select * from (select *, row_number() over (partition by id order by at desc) as rn from agent_activities) r where r.rn<=5 {cond}"
+        );
         let items = sqlx::query_as(&sql)
             .fetch_all(&self.pool)
             .in_current_span()
@@ -450,7 +452,9 @@ mod tests {
             order: Some(ActivityOrder::Desc),
         }
         .condition();
-        let sql = format!("select * from (select *, row_number() over (partition by id order by at desc) as rn from agent_activities) r where r.rn<=5 {cond}");
+        let sql = format!(
+            "select * from (select *, row_number() over (partition by id order by at desc) as rn from agent_activities) r where r.rn<=5 {cond}"
+        );
         println!("{}", sql);
     }
 }

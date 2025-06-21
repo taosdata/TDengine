@@ -6,17 +6,17 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::ArgMatches;
-use clap::{parser::ValueSource, CommandFactory, FromArgMatches, Parser, Subcommand};
+use clap::{CommandFactory, FromArgMatches, Parser, Subcommand, parser::ValueSource};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
 use notify::EventKind;
 use notify::{
-    event::{DataChange, ModifyKind},
     Watcher,
+    event::{DataChange, ModifyKind},
 };
 use opentelemetry::trace::TracerProvider;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, FromInto};
+use serde_with::{FromInto, serde_as};
 use serve::monitor::MonitorCfg;
 use serve::utils::ip::check_address_format;
 use shadow_rs::shadow;
@@ -28,17 +28,17 @@ use taosx_core::{
         ENV_LOGS_HOME, ENV_PLUGINS_HOME, ENV_TAOSX_DATA_DIR, ENV_TAOSX_LOGS_HOME,
         ENV_TAOSX_PLUGINS_HOME,
     },
-    utils::trace::{Qid, DEFAULT_INSTANCE_ID, INSTANCE_ID},
+    utils::trace::{DEFAULT_INSTANCE_ID, INSTANCE_ID, Qid},
 };
 use thiserror::Error;
+use tracing::{Instrument, log::LevelFilter};
 use tracing::{debug, instrument};
-use tracing::{log::LevelFilter, Instrument};
 use tracing_subscriber::layer::Layered;
 use tracing_subscriber::{
-    filter::LevelFilter as TracingLevelFilter, fmt::format::FmtSpan, prelude::*, reload, EnvFilter,
-    Registry,
+    EnvFilter, Registry, filter::LevelFilter as TracingLevelFilter, fmt::format::FmtSpan,
+    prelude::*, reload,
 };
-use twelf::{config, Layer};
+use twelf::{Layer, config};
 
 use crate::serve::monitor;
 use taosx_core::utils::timeout::Timeout;
@@ -1144,8 +1144,10 @@ mod tests {
     #[test]
     #[ignore]
     fn test_config_from_toml() -> Result<(), anyhow::Error> {
-        env::set_var("TAOSX_DATA_DIR", "from-env");
-        env::set_var("TAOSX_LOGS_HOME", "from-env");
+        unsafe {
+            env::set_var("TAOSX_DATA_DIR", "from-env");
+            env::set_var("TAOSX_LOGS_HOME", "from-env");
+        }
 
         let args = Args::parse();
         println!("configs: {:?}", args);
@@ -1254,9 +1256,11 @@ mod tests {
 
     #[test]
     fn test_args() {
-        std::env::remove_var("TAOSX_DATA_DIR");
-        std::env::remove_var("TAOSX_LOGS_HOME");
-        std::env::remove_var("DATABASE_URL");
+        unsafe {
+            std::env::remove_var("TAOSX_DATA_DIR");
+            std::env::remove_var("TAOSX_LOGS_HOME");
+            std::env::remove_var("DATABASE_URL");
+        }
 
         let args = shlex::split("taosx serve --data-dir ./tests/cli/data/").unwrap();
         let matches = dbg!(Args::command()).get_matches_from(args);
@@ -1265,17 +1269,21 @@ mod tests {
             assert_eq!(cli.get_database_url(), "sqlite:./tests/cli/data/taosx.db");
         }
 
-        std::env::remove_var("TAOSX_DATA_DIR");
-        std::env::remove_var("TAOSX_LOGS_HOME");
-        std::env::set_var("DATABASE_URL", "sqlite:./tests/cli/data2/taosx.db");
+        unsafe {
+            std::env::remove_var("TAOSX_DATA_DIR");
+            std::env::remove_var("TAOSX_LOGS_HOME");
+            std::env::set_var("DATABASE_URL", "sqlite:./tests/cli/data2/taosx.db");
+        }
         let args = dbg!(Args::init_with_arg_matches(&matches).unwrap());
         if let Commands::Serve(cli) = args.commands.unwrap() {
             assert_eq!(cli.get_database_url(), "sqlite:./tests/cli/data2/taosx.db");
         }
 
-        std::env::remove_var("TAOSX_DATA_DIR");
-        std::env::remove_var("TAOSX_LOGS_HOME");
-        std::env::remove_var("DATABASE_URL");
+        unsafe {
+            std::env::remove_var("TAOSX_DATA_DIR");
+            std::env::remove_var("TAOSX_LOGS_HOME");
+            std::env::remove_var("DATABASE_URL");
+        }
         let args = shlex::split("taosx serve").unwrap();
         let matches = dbg!(Args::command()).get_matches_from(args);
         let args = dbg!(Args::init_with_arg_matches(&matches).unwrap());
@@ -1286,9 +1294,11 @@ mod tests {
                 "sqlite:/var/lib/taos/taosx/taosx.db"
             );
         }
-        std::env::remove_var("TAOSX_LOGS_HOME");
-        std::env::remove_var("DATABASE_URL");
-        std::env::set_var("TAOSX_DATA_DIR", "./tests/cli/data");
+        unsafe {
+            std::env::remove_var("TAOSX_LOGS_HOME");
+            std::env::remove_var("DATABASE_URL");
+            std::env::set_var("TAOSX_DATA_DIR", "./tests/cli/data");
+        }
         let args = dbg!(Args::init_with_arg_matches(&matches).unwrap());
         if let Commands::Serve(cli) = args.commands.unwrap() {
             assert_eq!(cli.get_database_url(), "sqlite:./tests/cli/data/taosx.db");

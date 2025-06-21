@@ -27,9 +27,10 @@ pub enum Error {
     InvalidUtf8 { source: FromUtf8Error },
     #[snafu(display("MQTT subscription not found"))]
     SubscriptionEmpty,
-
     #[snafu(display("MQTT connection error"))]
-    ConnectionFailed { source: rumqttc::ConnectionError },
+    ConnectionFailed {
+        source: Box<rumqttc::ConnectionError>,
+    },
     #[snafu(display("MQTT connect failed with code: {code:?}"))]
     ConnFailedWithCode { code: rumqttc::ConnectReturnCode },
     #[snafu(display("MQTT subscribe {topic:?} failed with code: {code:?}"))]
@@ -38,9 +39,13 @@ pub enum Error {
         code: rumqttc::SubscribeReasonCode,
     },
     #[snafu(display("MQTT connection error"))]
-    UnexpectedPollFailed { source: rumqttc::ConnectionError },
+    UnexpectedPollFailed {
+        source: Box<rumqttc::ConnectionError>,
+    },
     #[snafu(display("MQTT reconnect failed for too many times"))]
-    RetryTooManyTimes { source: rumqttc::ConnectionError },
+    RetryTooManyTimes {
+        source: Box<rumqttc::ConnectionError>,
+    },
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -84,7 +89,12 @@ impl super::MessagePoller for MessagePoller {
             .map_err(|_| TaskExitedSnafu.build())?;
         // sub ack
         loop {
-            match event_loop.poll().await.context(ConnectionFailedSnafu)? {
+            match event_loop
+                .poll()
+                .await
+                .map_err(Box::new)
+                .context(ConnectionFailedSnafu)?
+            {
                 Event::Incoming(Incoming::SubAck(SubAck { return_codes, .. })) => {
                     for (idx, code) in return_codes.into_iter().enumerate() {
                         let topic = filters.get(idx).map(|f| f.path.clone());
@@ -128,7 +138,7 @@ impl super::MessagePoller for MessagePoller {
                     if code != ConnectReturnCode::Success {
                         tracing::error!("MQTT reconnect refused by server with code: {code:?}");
                         return Err(UnexpectedPollFailedSnafu
-                            .into_error(ConnectionError::ConnectionRefused(code)));
+                            .into_error(Box::new(ConnectionError::ConnectionRefused(code))));
                     }
                     // reset retry state
                     retry_interval.take();
@@ -202,7 +212,7 @@ impl super::MessagePoller for MessagePoller {
                         | ConnectionError::NetworkTimeout
                         | ConnectionError::FlushTimeout => {
                             if retry_count >= MAX_RETRY_COUNT {
-                                return Err(RetryTooManyTimesSnafu.into_error(e));
+                                return Err(RetryTooManyTimesSnafu.into_error(Box::new(e)));
                             }
                             retry_count += 1;
                             let duration = match retry_interval {
@@ -220,7 +230,7 @@ impl super::MessagePoller for MessagePoller {
                         | ConnectionError::RequestsDone
                         | ConnectionError::ConnectionRefused(_)
                         | ConnectionError::NotConnAck(_) => {
-                            return Err(UnexpectedPollFailedSnafu.into_error(e));
+                            return Err(UnexpectedPollFailedSnafu.into_error(Box::new(e)));
                         }
                     }
                 }
@@ -257,7 +267,12 @@ async fn try_connect(config: &MqttConnectConfig) -> Result<(AsyncClient, EventLo
 async fn try_connect_inner(config: MqttOptions) -> Result<(AsyncClient, EventLoop, bool)> {
     let (client, mut event_loop) = AsyncClient::new(config, 10);
 
-    match event_loop.poll().await.context(ConnectionFailedSnafu)? {
+    match event_loop
+        .poll()
+        .await
+        .map_err(Box::new)
+        .context(ConnectionFailedSnafu)?
+    {
         Event::Incoming(Incoming::ConnAck(ConnAck {
             session_present,
             code: ConnectReturnCode::Success,

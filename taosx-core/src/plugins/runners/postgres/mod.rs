@@ -63,10 +63,10 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 /// * `dsn` - postgres dsn
 /// # Returns
 /// * `DsSampleIn` - {
-///     "input": [{ "col_name": "xxx", ... }],
-///     "parser": {"parse": {
-///         "col_name": { "as": col_type }, ...
-///     }}
+///   "input": [{ "col_name": "xxx", ... }],
+///   "parser": {"parse": {
+///   "col_name": { "as": col_type }, ...
+///   }}
 ///   }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create postgres query

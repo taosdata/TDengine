@@ -3,18 +3,17 @@ use std::fmt::{Debug, Display, Formatter};
 use std::fs;
 
 use actix_files::NamedFile;
-use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
+use actix_multipart::form::{MultipartForm, tempfile::TempFile, text::Text};
 use actix_web::body::BoxBody;
 use actix_web::rt;
 use actix_web::web::{Json, Payload};
 use actix_web::{
-    delete, get, patch, post,
+    Error, HttpRequest, HttpResponse, Responder, ResponseError, delete, get, patch, post,
     web::{Data, Path, Query},
-    Error, HttpRequest, HttpResponse, Responder, ResponseError,
 };
 use actix_ws::{CloseCode, CloseReason, Session};
-use anyhow::anyhow;
 use anyhow::Context;
+use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -30,8 +29,8 @@ use super::controller::agent::AgentActivityFilter;
 use super::metrics::ws::echo_heartbeat_ws;
 use crate::serve::metrics::{get_task_metrics_string, try_get_metrics_from_task_detail};
 use crate::serve::{
-    controller::{Status, TaskControllerRef},
     NewTask, TaskDecorator, TaskFilter, UpdateTask,
+    controller::{Status, TaskControllerRef},
 };
 
 /// Task endpoint error responses

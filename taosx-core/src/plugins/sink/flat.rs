@@ -3456,7 +3456,7 @@ pub mod tests {
             if let Some(sql) = valid_sql_or_none(slice) {
                 return vec![sql];
             }
-            let p = (slice.len() + 1) / 2;
+            let p = slice.len().div_ceil(2);
             let (left, right) = slice.split_at(p);
             let mut sqls = values_to_sqls(left);
             sqls.extend(values_to_sqls(right));

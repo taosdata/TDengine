@@ -138,7 +138,7 @@ mod test_tmq_to_local {
         let backup_dir = env::var("BACKUP_DIR")
             .ok()
             .map(|p| Path::new(&p).to_path_buf())
-            .unwrap_or_else(|| tempfile::TempDir::new().unwrap().into_path());
+            .unwrap_or_else(|| tempfile::TempDir::new().unwrap().keep());
         const SRC_DB: &str = "backup_few_rows_src";
         const DST_DB: &str = "backup_few_rows_dst";
         const VGROUPS: usize = 10;
@@ -479,7 +479,10 @@ mod test_tmq_to_local {
         // write data to source database
         println!("write data to source database `{DB_SRC}` start");
         for i in 1..=ROWS {
-            taos.exec(format!("INSERT INTO `{DB_SRC}`.t{i} USING `{DB_SRC}`.meters TAGS({i}) VALUES(now, {i}.{i})")).await?;
+            taos.exec(format!(
+                "INSERT INTO `{DB_SRC}`.t{i} USING `{DB_SRC}`.meters TAGS({i}) VALUES(now, {i}.{i})"
+            ))
+            .await?;
         }
         println!("write data to source database `{DB_SRC}` stop");
         // wait for replica
