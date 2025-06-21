@@ -82,7 +82,7 @@ TDengine 要求插入的数据必须要有时间戳，插入数据的时间戳�
 
 3. 不支持参数绑定写入
 
-4. 使用`INSERT ... subquery` 语句将 TDengine 中的数据插入到指定超级表中。field_name必须指定，并且的第一个field_name必须是tbname，否则报错。支持自动建表。
+4. 使用`INSERT ... subquery` 语句将 TDengine 中的数据插入到指定超级表中。field_name 必须指定，并且的第一个 field_name 必须是 tbname，否则报错。支持自动建表。
 
 ## 插入一条记录
 
