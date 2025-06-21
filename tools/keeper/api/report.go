@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -33,8 +32,6 @@ var createList = []string{
 	// CreateSummarySql,
 	// CreateGrantInfoSql,
 	CreateKeeperSql,
-	CreateWriteMetricsSql,
-	CreateDnodeMetricsSql,
 }
 
 type Reporter struct {
@@ -64,10 +61,6 @@ func NewReporter(conf *config.Config) *Reporter {
 
 func (r *Reporter) Init(c gin.IRouter) {
 	c.POST("report", r.handlerFunc())
-	c.POST("metrics", r.metricsHandlerFunc())
-	c.POST("metrics-batch", r.metricsBatchHandlerFunc())
-	c.POST("dnode-metrics", r.dnodeMetricsHandlerFunc())
-	c.POST("dnode-metrics-batch", r.dnodeMetricsBatchHandlerFunc())
 	r.createDatabase()
 	r.creatTables()
 	// todo: it can delete in the future.
@@ -384,146 +377,6 @@ func (r *Reporter) GetTotalRep() *atomic.Value {
 	return &r.totalRep
 }
 
-func (r *Reporter) metricsHandlerFunc() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		qid := util.GetQid(c.GetHeader("X-QID"))
-
-		logger := logger.WithFields(
-			logrus.Fields{config.ReqIDKey: qid},
-		)
-
-		data, err := c.GetRawData()
-		if err != nil {
-			logger.Errorf("receiving metrics data error, msg:%s", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		var metricsInfo WriteMetricsInfo
-		if e := json.Unmarshal(data, &metricsInfo); e != nil {
-			logger.Errorf("error occurred while unmarshal metrics request, data:%s, error:%v", data, e)
-			c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
-			return
-		}
-
-		// Log metrics info with database name
-		logger.Infof("Received write metrics for VgId:%d DnodeId:%d DB:%s Requests:%d Rows:%d Bytes:%d", 
-			metricsInfo.VgId, metricsInfo.DnodeId, metricsInfo.DbName, 
-			metricsInfo.TotalRequests, metricsInfo.TotalRows, metricsInfo.TotalBytes)
-
-		sql := r.insertWriteMetricsSql(metricsInfo)
-		conn, err := db.NewConnectorWithDb(r.username, r.password, r.host, r.port, r.dbname, r.usessl)
-		if err != nil {
-			logger.Errorf("connect to database error, msg:%s", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		defer r.closeConn(conn)
-
-		ctx := context.Background()
-		if _, err := conn.Exec(ctx, sql, qid); err != nil {
-			logger.Errorf("execute sql error, sql:%s, error:%s", sql, err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{})
-	}
-}
-
-func (r *Reporter) metricsBatchHandlerFunc() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		qid := util.GetQid(c.GetHeader("X-QID"))
-
-		logger := logger.WithFields(
-			logrus.Fields{config.ReqIDKey: qid},
-		)
-
-		data, err := c.GetRawData()
-		if err != nil {
-			logger.Errorf("receiving metrics batch data error, msg:%s", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		var batchReport WriteMetricsReport
-		if e := json.Unmarshal(data, &batchReport); e != nil {
-			logger.Errorf("error occurred while unmarshal metrics batch request, data:%s, error:%v", data, e)
-			c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
-			return
-		}
-
-		// Log batch metrics info with database names
-		logger.Infof("Received batch write metrics: %d records", len(batchReport.WriteMetrics))
-		
-		var sqls []string
-		for _, metrics := range batchReport.WriteMetrics {
-			logger.Debugf("Batch metrics - VgId:%d DnodeId:%d DB:%s Requests:%d Rows:%d", 
-				metrics.VgId, metrics.DnodeId, metrics.DbName, metrics.TotalRequests, metrics.TotalRows)
-			sqls = append(sqls, r.insertWriteMetricsSql(metrics))
-		}
-
-		conn, err := db.NewConnectorWithDb(r.username, r.password, r.host, r.port, r.dbname, r.usessl)
-		if err != nil {
-			logger.Errorf("connect to database error, msg:%s", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		defer r.closeConn(conn)
-
-		ctx := context.Background()
-		for _, sql := range sqls {
-			if _, err := conn.Exec(ctx, sql, qid); err != nil {
-				logger.Errorf("execute sql error, sql:%s, error:%s", sql, err)
-			}
-		}
-
-		c.JSON(http.StatusOK, gin.H{})
-	}
-}
-
-func (r *Reporter) insertWriteMetricsSql(metrics WriteMetricsInfo) string {
-	return fmt.Sprintf("insert into write_metrics_%d_%d_%s using write_metrics tags (%d, %d, '%s', '%s') values (now, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
-		metrics.DnodeId, metrics.VgId, metrics.ClusterId, metrics.VgId, metrics.DnodeId, metrics.ClusterId, metrics.DbName,
-		metrics.TotalRequests, metrics.TotalRows, metrics.TotalBytes,
-		metrics.FetchBatchMetaTime, metrics.FetchBatchMetaCount, metrics.PreprocessTime,
-		metrics.WalWriteBytes, metrics.WalWriteTime, metrics.ApplyBytes, metrics.ApplyTime,
-		metrics.CommitCount, metrics.CommitTime, metrics.MemtableWaitTime, 
-		metrics.BlockCommitCount, metrics.BlockedCommitTime, metrics.MergeCount, metrics.MergeTime,
-		metrics.LastCacheCommitTime, metrics.LastCacheCommitCount)
-}
-
-func (r *Reporter) executeQueryAndRespond(c *gin.Context, sql string) {
-	qid := util.GetQid(c.GetHeader("X-QID"))
-	
-	logger := logger.WithFields(
-		logrus.Fields{config.ReqIDKey: qid},
-	)
-
-	conn, err := db.NewConnectorWithDb(r.username, r.password, r.host, r.port, r.dbname, r.usessl)
-	if err != nil {
-		logger.Errorf("connect to database error, msg:%s", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	defer r.closeConn(conn)
-
-	ctx := context.Background()
-	result, err := conn.Query(ctx, sql, qid)
-	if err != nil {
-		logger.Errorf("execute query error, sql:%s, error:%s", sql, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
-		"message": "success",
-		"data": result.Data,
-		"rows": len(result.Data),
-	})
-}
-
 func insertClusterInfoSql(info ClusterInfo, ClusterID string, protocol int, ts string) []string {
 	var sqls []string
 	var dtotal, dalive, mtotal, malive int
@@ -622,93 +475,4 @@ func insertLogSummary(log LogInfo, DnodeID int, DnodeEp string, ClusterID string
 func insertGrantSql(g GrantInfo, DnodeID int, ClusterID string, ts string) string {
 	return fmt.Sprintf("insert into grants_info_%s using grants_info tags ('%s') (ts, expire_time, "+
 		"timeseries_used, timeseries_total) values ('%s', %d, %d, %d)", ClusterID+strconv.Itoa(DnodeID), ClusterID, ts, g.ExpireTime, g.TimeseriesUsed, g.TimeseriesTotal)
-}
-
-func (r *Reporter) dnodeMetricsHandlerFunc() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		qid := util.GetQid(c.GetHeader("X-QID"))
-		
-		logger := logger.WithFields(
-			logrus.Fields{config.ReqIDKey: qid},
-		)
-
-		var report DnodeMetricsReport
-		if err := c.ShouldBindJSON(&report); err != nil {
-			logger.Errorf("bind json error, msg:%s", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		conn, err := db.NewConnectorWithDb(r.username, r.password, r.host, r.port, r.dbname, r.usessl)
-		if err != nil {
-			logger.Errorf("connect to database error, msg:%s", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		defer r.closeConn(conn)
-
-		sql := r.insertDnodeMetricsSql(report.DnodeMetrics, 1, "localhost:6030", "cluster1")
-		
-		ctx := context.Background()
-		_, err = conn.Exec(ctx, sql, qid)
-		if err != nil {
-			logger.Errorf("execute sql error, sql:%s, error:%s", sql, err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		r.recordTotalRep()
-		c.JSON(http.StatusOK, gin.H{})
-	}
-}
-
-func (r *Reporter) insertDnodeMetricsSql(metrics DnodeMetricsInfo, dnodeId int, dnodeEp string, clusterId string) string {
-	return fmt.Sprintf("insert into dnode_metrics_%d using dnode_metrics tags (%d, '%s', '%s') values (now, %d, %d, %d, %d)",
-		dnodeId, dnodeId, dnodeEp, clusterId,
-		metrics.RpcQueueMemoryAllowed, metrics.RpcQueueMemoryUsed, 
-		metrics.ApplyMemoryAllowed, metrics.ApplyMemoryUsed)
-}
-
-func (r *Reporter) dnodeMetricsBatchHandlerFunc() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		qid := util.GetQid(c.GetHeader("X-QID"))
-
-		logger := logger.WithFields(
-			logrus.Fields{config.ReqIDKey: qid},
-		)
-
-		data, err := c.GetRawData()
-		if err != nil {
-			logger.Errorf("receiving dnode metrics batch data error, msg:%s", err)
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		var batchReport DnodeMetricsReport
-		if e := json.Unmarshal(data, &batchReport); e != nil {
-			logger.Errorf("error occurred while unmarshal dnode metrics batch request, data:%s, error:%v", data, e)
-			c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
-			return
-		}
-
-		sql := r.insertDnodeMetricsSql(batchReport.DnodeMetrics, 1, "localhost:6030", "cluster1")
-
-		conn, err := db.NewConnectorWithDb(r.username, r.password, r.host, r.port, r.dbname, r.usessl)
-		if err != nil {
-			logger.Errorf("connect to database error, msg:%s", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		defer r.closeConn(conn)
-
-		ctx := context.Background()
-		if _, err := conn.Exec(ctx, sql, qid); err != nil {
-			logger.Errorf("execute sql error, sql:%s, error:%s", sql, err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		r.recordTotalRep()
-		c.JSON(http.StatusOK, gin.H{})
-	}
 }
