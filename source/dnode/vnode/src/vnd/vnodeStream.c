@@ -1735,9 +1735,8 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   printDataBlock(pBlock, __func__, "");
 
 end:
-  if (pBlock->info.rows == 0 || terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
+  if (pBlock->info.rows == 0) {
     code = TSDB_CODE_WAL_LOG_NOT_EXIST;
-    terrno = 0;
     buf = rpcMallocCont(sizeof(int64_t));
     *(int64_t *)buf = lastVer;
     size = sizeof(int64_t);
