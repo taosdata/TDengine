@@ -14978,12 +14978,14 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
       code = translateAlterSuperTable(pCxt, (SAlterTableStmt*)pNode);
       break;
+#ifdef USE_MOUNT
     case QUERY_NODE_CREATE_MOUNT_STMT:
       code = translateCreateMount(pCxt, (SCreateMountStmt*)pNode);
       break;
     case QUERY_NODE_DROP_MOUNT_STMT:
       code = translateDropMount(pCxt, (SDropMountStmt*)pNode);
       break;
+#endif
     case QUERY_NODE_CREATE_USER_STMT:
       code = translateCreateUser(pCxt, (SCreateUserStmt*)pNode);
       break;

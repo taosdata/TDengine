@@ -2323,26 +2323,29 @@ _err:
 
 SNode* createCreateMountStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pMountName, SToken* pDnodeId,
                              SToken* pMountPath) {
-// #ifdef USE_MOUNT
-//   CHECK_PARSER_STATUS(pCxt);
-//   CHECK_NAME(checkDbName(pCxt, pMountName, false));
-//   CHECK_NAME(checkMountPath(pCxt, pMountPath));
-//   SCreateMountStmt* pStmt = NULL;
-//   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_MOUNT_STMT, (SNode**)&pStmt);
-//   CHECK_MAKE_NODE(pStmt);
-//   COPY_STRING_FORM_ID_TOKEN(pStmt->mountName, pMountName);
-//   COPY_STRING_FORM_STR_TOKEN(pStmt->mountPath, pMountPath);
-//   pStmt->ignoreExists = ignoreExists;
-//   if (TK_NK_INTEGER == pDnodeId->type) {
-//     pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
-//   } else {
-//     goto _err;
-//   }
-//   return (SNode*)pStmt;
-// _err:
-//   nodesDestroyNode((SNode*)pStmt);
-// #endif
+#ifdef USE_MOUNT
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkDbName(pCxt, pMountName, false));
+  CHECK_NAME(checkMountPath(pCxt, pMountPath));
+  SCreateMountStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_MOUNT_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->mountName, pMountName);
+  COPY_STRING_FORM_STR_TOKEN(pStmt->mountPath, pMountPath);
+  pStmt->ignoreExists = ignoreExists;
+  if (TK_NK_INTEGER == pDnodeId->type) {
+    pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
+  } else {
+    goto _err;
+  }
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
   return NULL;
+#else
+  pCxt->errCode = TSDB_CODE_OPS_NOT_SUPPORT;
+  return NULL;
+#endif
 }
 
 SNode* createDropMountStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pMountName) {
@@ -2356,8 +2359,11 @@ SNode* createDropMountStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken
   pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 _err:
-#endif
   return NULL;
+#else
+  pCxt->errCode = TSDB_CODE_OPS_NOT_SUPPORT;
+  return NULL;
+#endif
 }
 
 SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,
