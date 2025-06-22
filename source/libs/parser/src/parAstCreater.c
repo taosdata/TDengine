@@ -2323,27 +2323,30 @@ _err:
 
 SNode* createCreateMountStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pMountName, SToken* pDnodeId,
                              SToken* pMountPath) {
-  CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkDbName(pCxt, pMountName, false));
-  CHECK_NAME(checkMountPath(pCxt, pMountPath));
-  SCreateMountStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_MOUNT_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->mountName, pMountName);
-  COPY_STRING_FORM_STR_TOKEN(pStmt->mountPath, pMountPath);
-  pStmt->ignoreExists = ignoreExists;
-  if (TK_NK_INTEGER == pDnodeId->type) {
-    pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
-  } else {
-    goto _err;
-  }
-  return (SNode*)pStmt;
-_err:
-  nodesDestroyNode((SNode*)pStmt);
+// #ifdef USE_MOUNT
+//   CHECK_PARSER_STATUS(pCxt);
+//   CHECK_NAME(checkDbName(pCxt, pMountName, false));
+//   CHECK_NAME(checkMountPath(pCxt, pMountPath));
+//   SCreateMountStmt* pStmt = NULL;
+//   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_MOUNT_STMT, (SNode**)&pStmt);
+//   CHECK_MAKE_NODE(pStmt);
+//   COPY_STRING_FORM_ID_TOKEN(pStmt->mountName, pMountName);
+//   COPY_STRING_FORM_STR_TOKEN(pStmt->mountPath, pMountPath);
+//   pStmt->ignoreExists = ignoreExists;
+//   if (TK_NK_INTEGER == pDnodeId->type) {
+//     pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
+//   } else {
+//     goto _err;
+//   }
+//   return (SNode*)pStmt;
+// _err:
+//   nodesDestroyNode((SNode*)pStmt);
+// #endif
   return NULL;
 }
 
 SNode* createDropMountStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pMountName) {
+#ifdef USE_MOUNT
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, pMountName, false));
   SDropMountStmt* pStmt = NULL;
@@ -2353,6 +2356,7 @@ SNode* createDropMountStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken
   pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 _err:
+#endif
   return NULL;
 }
 

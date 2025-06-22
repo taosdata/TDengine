@@ -340,6 +340,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
   if (pReplica->id != pMgmt->pData->dnodeId || pReplica->port != tsServerPort ||
       strcmp(pReplica->fqdn, tsLocalFqdn) != 0) {
+    (void)tFreeSCreateVnodeReq(&req);
     code = TSDB_CODE_INVALID_MSG;
     dError("vgId:%d, dnodeId:%d ep:%s:%u not matched with local dnode, reason:%s", req.vgId, pReplica->id,
            pReplica->fqdn, pReplica->port, tstrerror(code));
@@ -348,6 +349,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   if (req.encryptAlgorithm == DND_CA_SM4) {
     if (strlen(tsEncryptKey) == 0) {
+      (void)tFreeSCreateVnodeReq(&req);
       code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       dError("vgId:%d, failed to create vnode since encrypt key is empty, reason:%s", req.vgId, tstrerror(code));
       return code;
@@ -759,10 +761,6 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
           .walLevel = pVgCfg->config.walCfg.level,
           .encryptAlgorithm = pVgCfg->config.walCfg.encryptAlgorithm,
       };
-      char *pDir = taosArrayGet(pMountInfo->pDisks[0], vgInfo.diskPrimary);
-      if (!pDir) TAOS_CHECK_EXIT(TSDB_CODE_INTERNAL_ERROR);
-      (void)snprintf(vgInfo.diskPath, sizeof(vgInfo.diskPath), "%s", "%s%svnode%svnode%d", *(char **)pDir, TD_DIRSEP,
-                     TD_DIRSEP, vgInfo.vgId);
       TSDB_CHECK_NULL(taosArrayPush(pDbInfo->pVgs, &vgInfo), code, lino, _exit, terrno);
     }
   }
@@ -1094,6 +1092,140 @@ _exit:
   tFreeMountInfo(&mountInfo, false);
   TAOS_RETURN(code);
 }
+
+int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t         code = 0, lino = 0;
+  SCreateVnodeReq req = {0};
+  SVnodeCfg       vnodeCfg = {0};
+  SWrapperCfg     wrapperCfg = {0};
+  char            path[TSDB_FILENAME_LEN] = {0};
+
+  if (tDeserializeSCreateVnodeReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
+    dError("vgId:%d, failed to mount vnode since deserialize request error", req.vgId);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  if (req.learnerReplica == 0) {
+    req.learnerSelfIndex = -1;
+  }
+
+  // dInfo(
+  //     "vgId:%d, vnode management handle msgType:%s, start to create vnode, page:%d pageSize:%d buffer:%d szPage:%d "
+  //     "szBuf:%" PRIu64 ", cacheLast:%d cacheLastSize:%d sstTrigger:%d tsdbPageSize:%d %d dbname:%s dbId:%" PRId64
+  //     ", days:%d keep0:%d keep1:%d keep2:%d keepTimeOffset%d s3ChunkSize:%d s3KeepLocal:%d s3Compact:%d tsma:%d "
+  //     "precision:%d compression:%d minRows:%d maxRows:%d"
+  //     ", wal fsync:%d level:%d retentionPeriod:%d retentionSize:%" PRId64 " rollPeriod:%d segSize:%" PRId64
+  //     ", hash method:%d begin:%u end:%u prefix:%d surfix:%d replica:%d selfIndex:%d "
+  //     "learnerReplica:%d learnerSelfIndex:%d strict:%d changeVersion:%d encryptAlgorithm:%d",
+  //     req.vgId, TMSG_INFO(pMsg->msgType), req.pages, req.pageSize, req.buffer, req.pageSize * 1024,
+  //     (uint64_t)req.buffer * 1024 * 1024, req.cacheLast, req.cacheLastSize, req.sstTrigger, req.tsdbPageSize,
+  //     req.tsdbPageSize * 1024, req.db, req.dbUid, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
+  //     req.keepTimeOffset, req.s3ChunkSize, req.s3KeepLocal, req.s3Compact, req.isTsma, req.precision, req.compression,
+  //     req.minRows, req.maxRows, req.walFsyncPeriod, req.walLevel, req.walRetentionPeriod, req.walRetentionSize,
+  //     req.walRollPeriod, req.walSegmentSize, req.hashMethod, req.hashBegin, req.hashEnd, req.hashPrefix, req.hashSuffix,
+  //     req.replica, req.selfIndex, req.learnerReplica, req.learnerSelfIndex, req.strict, req.changeVersion,
+  //     req.encryptAlgorithm);
+
+  for (int32_t i = 0; i < req.replica; ++i) {
+    dInfo("mount:%s, vgId:%d, replica:%d ep:%s:%u dnode:%d", req.mountPath, req.vgId, i, req.replicas[i].fqdn,
+          req.replicas[i].port, req.replicas[i].id);
+  }
+  for (int32_t i = 0; i < req.learnerReplica; ++i) {
+    dInfo("mount:%s, vgId:%d, learnerReplica:%d ep:%s:%u dnode:%d", req.mountPath, req.vgId, i,
+          req.learnerReplicas[i].fqdn, req.learnerReplicas[i].port, req.replicas[i].id);
+  }
+
+  SReplica *pReplica = NULL;
+  if (req.selfIndex != -1) {
+    pReplica = &req.replicas[req.selfIndex];
+  } else {
+    pReplica = &req.learnerReplicas[req.learnerSelfIndex];
+  }
+  if (pReplica->id != pMgmt->pData->dnodeId || pReplica->port != tsServerPort ||
+      strcmp(pReplica->fqdn, tsLocalFqdn) != 0) {
+    (void)tFreeSCreateVnodeReq(&req);
+    code = TSDB_CODE_INVALID_MSG;
+    dError("vgId:%d, dnodeId:%d ep:%s:%u not matched with local dnode, reason:%s", req.vgId, pReplica->id,
+           pReplica->fqdn, pReplica->port, tstrerror(code));
+    return code;
+  }
+  vmGenerateVnodeCfg(&req, &vnodeCfg);
+  vmGenerateWrapperCfg(pMgmt, &req, &wrapperCfg);
+
+  SVnodeObj *pVnode = vmAcquireVnodeImpl(pMgmt, req.vgId, false);
+  if (pVnode != NULL && (req.replica == 1 || !pVnode->failed)) {
+    dError("vgId:%d, already exist", req.vgId);
+    (void)tFreeSCreateVnodeReq(&req);
+    vmReleaseVnode(pMgmt, pVnode);
+    code = TSDB_CODE_VND_ALREADY_EXIST;
+    return 0;
+  }
+
+  wrapperCfg.diskPrimary = req.diskPrimary;
+
+  snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
+
+  if ((code = vnodeCreate(path, &vnodeCfg, wrapperCfg.diskPrimary, pMgmt->pTfs)) < 0) {
+    dError("vgId:%d, failed to create vnode since %s", req.vgId, tstrerror(code));
+    vmReleaseVnode(pMgmt, pVnode);
+    vmCleanPrimaryDisk(pMgmt, req.vgId);
+    (void)tFreeSCreateVnodeReq(&req);
+    return code;
+  }
+
+  SVnode *pImpl = vnodeOpen(path, wrapperCfg.diskPrimary, pMgmt->pTfs, pMgmt->msgCb, true);
+  if (pImpl == NULL) {
+    dError("vgId:%d, failed to open vnode since %s", req.vgId, terrstr());
+    code = terrno != 0 ? terrno : -1;
+    goto _OVER;
+  }
+
+  code = vmOpenVnode(pMgmt, &wrapperCfg, pImpl);
+  if (code != 0) {
+    dError("vgId:%d, failed to open vnode since %s", req.vgId, terrstr());
+    code = terrno != 0 ? terrno : code;
+    goto _OVER;
+  }
+
+#if 0
+  code = vmTsmaProcessCreate(pImpl, &req);
+  if (code != 0) {
+    dError("vgId:%d, failed to create tsma since %s", req.vgId, terrstr());
+    code = terrno;
+    goto _OVER;
+  }
+#endif
+
+  code = vnodeStart(pImpl);
+  if (code != 0) {
+    dError("vgId:%d, failed to start sync since %s", req.vgId, terrstr());
+    goto _OVER;
+  }
+
+  code = vmWriteVnodeListToFile(pMgmt);
+  if (code != 0) {
+    code = terrno != 0 ? terrno : code;
+    goto _OVER;
+  }
+
+_OVER:
+  vmCleanPrimaryDisk(pMgmt, req.vgId);
+
+  if (code != 0) {
+    vmCloseFailedVnode(pMgmt, req.vgId);
+
+    vnodeClose(pImpl);
+    vnodeDestroy(0, path, pMgmt->pTfs, 0);
+  } else {
+    dInfo("vgId:%d, vnode management handle msgType:%s, end to create vnode, vnode is created", req.vgId,
+          TMSG_INFO(pMsg->msgType));
+  }
+
+  (void)tFreeSCreateVnodeReq(&req);
+  terrno = code;
+  return code;
+}
+
 #endif  // USE_MOUNT
 
 // alter replica doesn't use this, but restore dnode still use this

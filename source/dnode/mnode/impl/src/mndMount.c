@@ -61,7 +61,7 @@ static void    mndCancelGetNextMount(SMnode *pMnode, void *pIter);
 typedef struct {
   SVgObj  vg;
   SDbObj *pDb;
-  char    remotePath[TSDB_MOUNT_FPATH_LEN];
+  int32_t diskPrimary;
 } SMountVgObj;
 
 int32_t mndInitMount(SMnode *pMnode) {
@@ -529,7 +529,6 @@ static int32_t mndMountSetVgInfo(SMnode *pMnode, SDnodeObj *pDnode, SMountInfo *
                                  SMountVgObj *pMountVg, int32_t *maxVgId) {
   SVgObj *pVgroup = &pMountVg->vg;
   pMountVg->pDb = pDb;
-  (void)snprintf(pMountVg->remotePath, sizeof(pMountVg->remotePath), "%s", pVg->diskPath);
   pVgroup->vgId = (*maxVgId)++;
   pVgroup->createdTime = taosGetTimestampMs();
   pVgroup->updateTime = pVgroup->createdTime;
@@ -876,7 +875,7 @@ static int32_t mndAddMountVnodeAction(SMnode *pMnode, STrans *pTrans, SMountObj 
   mndReleaseDnode(pMnode, pDnode);
 
   int32_t contLen = 0;
-  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVg, &contLen);
+  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVg, pObj->paths[0], pMountVg->diskPrimary,  &contLen);
   if (pReq == NULL) return -1;
 
   action.pCont = pReq;

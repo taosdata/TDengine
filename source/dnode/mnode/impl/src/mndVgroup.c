@@ -277,7 +277,8 @@ void mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup) {
   sdbRelease(pSdb, pVgroup);
 }
 
-void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen) {
+void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, const char *path,
+                             int32_t diskPrimary, int32_t *pContLen) {
   SCreateVnodeReq createReq = {0};
   createReq.vgId = pVgroup->vgId;
   memcpy(createReq.db, pDb->name, TSDB_DB_FNAME_LEN);
@@ -370,6 +371,10 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   }
 
   createReq.changeVersion = pVgroup->syncConfChangeVer;
+  if (path) {
+    snprintf(createReq.mountPath, sizeof(createReq.mountPath), "%s", path);
+  }
+  createReq.diskPrimary = diskPrimary;
 
   mInfo(
       "vgId:%d, build create vnode req, replica:%d selfIndex:%d learnerReplica:%d learnerSelfIndex:%d strict:%d "
@@ -1686,7 +1691,7 @@ int32_t mndAddCreateVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVg
   mndReleaseDnode(pMnode, pDnode);
 
   int32_t contLen = 0;
-  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
+  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, NULL, 0, &contLen);
   if (pReq == NULL) return -1;
 
   action.pCont = pReq;
@@ -1711,7 +1716,7 @@ int32_t mndRestoreAddCreateVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *p
   action.epSet = mndGetDnodeEpset(pDnode);
 
   int32_t contLen = 0;
-  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
+  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, NULL, 0, &contLen);
   if (pReq == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;

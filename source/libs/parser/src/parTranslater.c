@@ -9840,6 +9840,7 @@ static int32_t translateS3MigrateDatabase(STranslateContext* pCxt, SS3MigrateDat
   return buildCmdMsg(pCxt, TDMT_MND_S3MIGRATE_DB, (FSerializeFunc)tSerializeSS3MigrateDbReq, &req);
 }
 
+#ifdef USE_MOUNT
 static int32_t translateCreateMount(STranslateContext* pCxt, SCreateMountStmt* pStmt) {
   int32_t         code = 0, lino = 0;
   SCreateMountReq createReq = {0};
@@ -9883,6 +9884,7 @@ static int32_t translateDropMount(STranslateContext* pCxt, SDropMountStmt* pStmt
   tFreeSDropMountReq(&dropReq);
   return code;
 }
+#endif
 
 static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calBytes, bool virtualTable) {
   *pArray = taosArrayInit(LIST_LENGTH(pList), sizeof(SFieldWithOptions));
