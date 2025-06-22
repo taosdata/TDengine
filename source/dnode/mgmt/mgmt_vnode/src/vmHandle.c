@@ -1216,7 +1216,7 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SCreateVnodeReq req = {0};
   SVnodeCfg       vnodeCfg = {0};
   SWrapperCfg     wrapperCfg = {0};
-  STfs *pTfs = NULL;
+  STfs           *pTfs = NULL;
   char            path[TSDB_FILENAME_LEN] = {0};
 
   if (tDeserializeSCreateVnodeReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
@@ -1227,24 +1227,6 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (req.learnerReplica == 0) {
     req.learnerSelfIndex = -1;
   }
-
-  // dInfo(
-  //     "vgId:%d, vnode management handle msgType:%s, start to create vnode, page:%d pageSize:%d buffer:%d szPage:%d "
-  //     "szBuf:%" PRIu64 ", cacheLast:%d cacheLastSize:%d sstTrigger:%d tsdbPageSize:%d %d dbname:%s dbId:%" PRId64
-  //     ", days:%d keep0:%d keep1:%d keep2:%d keepTimeOffset%d s3ChunkSize:%d s3KeepLocal:%d s3Compact:%d tsma:%d "
-  //     "precision:%d compression:%d minRows:%d maxRows:%d"
-  //     ", wal fsync:%d level:%d retentionPeriod:%d retentionSize:%" PRId64 " rollPeriod:%d segSize:%" PRId64
-  //     ", hash method:%d begin:%u end:%u prefix:%d surfix:%d replica:%d selfIndex:%d "
-  //     "learnerReplica:%d learnerSelfIndex:%d strict:%d changeVersion:%d encryptAlgorithm:%d",
-  //     req.vgId, TMSG_INFO(pMsg->msgType), req.pages, req.pageSize, req.buffer, req.pageSize * 1024,
-  //     (uint64_t)req.buffer * 1024 * 1024, req.cacheLast, req.cacheLastSize, req.sstTrigger, req.tsdbPageSize,
-  //     req.tsdbPageSize * 1024, req.db, req.dbUid, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
-  //     req.keepTimeOffset, req.s3ChunkSize, req.s3KeepLocal, req.s3Compact, req.isTsma, req.precision, req.compression,
-  //     req.minRows, req.maxRows, req.walFsyncPeriod, req.walLevel, req.walRetentionPeriod, req.walRetentionSize,
-  //     req.walRollPeriod, req.walSegmentSize, req.hashMethod, req.hashBegin, req.hashEnd, req.hashPrefix, req.hashSuffix,
-  //     req.replica, req.selfIndex, req.learnerReplica, req.learnerSelfIndex, req.strict, req.changeVersion,
-  //     req.encryptAlgorithm);
-
   for (int32_t i = 0; i < req.replica; ++i) {
     dInfo("mount:%s, vgId:%d, replica:%d ep:%s:%u dnode:%d", req.mountPath, req.vgId, i, req.replicas[i].fqdn,
           req.replicas[i].port, req.replicas[i].id);
@@ -1281,10 +1263,7 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   wrapperCfg.diskPrimary = req.diskPrimary;
-
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
-
-  
   TAOS_CHECK_EXIT(vmGetMountTfs(pMgmt, req.mountPath, &pTfs));
 
   if ((code = vnodeCreate(path, &vnodeCfg, wrapperCfg.diskPrimary, pTfs)) < 0) {
@@ -1294,48 +1273,20 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     (void)tFreeSCreateVnodeReq(&req);
     return code;
   }
-
-  SVnode *pImpl = vnodeOpen(path, wrapperCfg.diskPrimary, pMgmt->pTfs, pMgmt->msgCb, true);
+  SVnode *pImpl = vnodeOpen(path, wrapperCfg.diskPrimary, pTfs, pMgmt->msgCb, true);
   if (pImpl == NULL) {
-    dError("vgId:%d, failed to open vnode since %s", req.vgId, terrstr());
-    code = terrno != 0 ? terrno : -1;
-    goto _OVER;
+    TAOS_CHECK_EXIT(terrno != 0 ? terrno : -1);
   }
-
-  code = vmOpenVnode(pMgmt, &wrapperCfg, pImpl);
-  if (code != 0) {
-    dError("vgId:%d, failed to open vnode since %s", req.vgId, terrstr());
-    code = terrno != 0 ? terrno : code;
-    goto _OVER;
+  if ((code = vmOpenVnode(pMgmt, &wrapperCfg, pImpl)) != 0) {
+    TAOS_CHECK_EXIT(terrno != 0 ? terrno : code);
   }
-
-#if 0
-  code = vmTsmaProcessCreate(pImpl, &req);
-  if (code != 0) {
-    dError("vgId:%d, failed to create tsma since %s", req.vgId, terrstr());
-    code = terrno;
-    goto _OVER;
-  }
-#endif
-
-  code = vnodeStart(pImpl);
-  if (code != 0) {
-    dError("vgId:%d, failed to start sync since %s", req.vgId, terrstr());
-    goto _OVER;
-  }
-
-  code = vmWriteVnodeListToFile(pMgmt);
-  if (code != 0) {
-    code = terrno != 0 ? terrno : code;
-    goto _OVER;
-  }
-
-_OVER:
+  TAOS_CHECK_EXIT(vnodeStart(pImpl));
+  TAOS_CHECK_EXIT(vmWriteVnodeListToFile(pMgmt));
+_exit:
   vmCleanPrimaryDisk(pMgmt, req.vgId);
 
   if (code != 0) {
     vmCloseFailedVnode(pMgmt, req.vgId);
-
     vnodeClose(pImpl);
     vnodeDestroy(0, path, pMgmt->pTfs, 0);
   } else {

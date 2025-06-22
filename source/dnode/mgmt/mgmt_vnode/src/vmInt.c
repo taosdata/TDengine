@@ -342,7 +342,7 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   vmUnRegisterClosedState(pMgmt, pVnode);
   (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal, bool keepClosed) {
