@@ -1019,7 +1019,6 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, 
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 
 _exit:
-  // taosMemoryFree(pVgroups);
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("mount:%s, failed at line %d to create mount, since %s", mntObj.name, lino, tstrerror(code));
   }

@@ -483,7 +483,7 @@ static int32_t vmRetrieveMountDnode(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pR
   char     *content = NULL;
   SJson    *pJson = NULL;
   int64_t   size = 0;
-  int64_t   clusterId = 0, dropped = 0;
+  int64_t   clusterId = 0, dropped = 0, encryptScope = 0;
   char      file[TSDB_MOUNT_PATH_LEN + 64] = {0};
   // step 1: fetch clusterId from dnode.json
   (void)snprintf(file, sizeof(file), "%s%s%s%sdnode.json", pReq->mountPath, TD_DIRSEP, dmNodeName(DNODE), TD_DIRSEP);
@@ -502,6 +502,11 @@ static int32_t vmRetrieveMountDnode(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pR
   TAOS_CHECK_EXIT(code);
   if (dropped == 1) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_DNODE_DROPPED);
+  }
+  tjsonGetNumberValue(pJson, "encryptScope", encryptScope, code);
+  TAOS_CHECK_EXIT(code);
+  if (encryptScope != 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG);
   }
   tjsonGetNumberValue(pJson, "clusterId", clusterId, code);
   TAOS_CHECK_EXIT(code);
@@ -654,6 +659,12 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
       dError("mount:%s, vnode path:%s, vgId:%d not match:%d", pReq->mountName, pCfg->path, pInfo->config.vgId,
              pCfg->vgId);
       TAOS_CHECK_EXIT(TSDB_CODE_FILE_CORRUPTED);
+    } else if (pInfo->config.tdbEncryptAlgorithm || pInfo->config.tsdbCfg.encryptAlgorithm ||
+               pInfo->config.walCfg.encryptAlgorithm) {
+      dError("mount:%s, vnode path:%s, invalid encrypt algorithm, tdb:%d wal:%d tsdb:%d", pReq->mountName, pCfg->path,
+             pInfo->config.tdbEncryptAlgorithm, pInfo->config.walCfg.encryptAlgorithm,
+             pInfo->config.tsdbCfg.encryptAlgorithm);
+      TAOS_CHECK_EXIT(TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG);
     }
     SMountDbVgId dbVgId = {.dbId = pInfo->config.dbId, .vgId = pInfo->config.vgId, .diskPrimary = pCfg->diskPrimary};
     TSDB_CHECK_NULL(taosArrayPush(pDiskPrimarys, &dbVgId), code, lino, _exit, terrno);
