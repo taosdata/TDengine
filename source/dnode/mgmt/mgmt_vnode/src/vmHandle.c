@@ -484,7 +484,7 @@ static int32_t vmRetrieveMountDnode(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pR
   SJson    *pJson = NULL;
   int64_t   size = 0;
   int64_t   clusterId = 0, dropped = 0, encryptScope = 0;
-  char      file[TSDB_MOUNT_PATH_LEN + 64] = {0};
+  char      file[TSDB_MOUNT_FPATH_LEN] = {0};
   // step 1: fetch clusterId from dnode.json
   (void)snprintf(file, sizeof(file), "%s%s%s%sdnode.json", pReq->mountPath, TD_DIRSEP, dmNodeName(DNODE), TD_DIRSEP);
   TAOS_CHECK_EXIT(taosStatFile(file, &size, NULL, NULL) < 0);
@@ -544,7 +544,7 @@ static int32_t vmRetrieveMountDnode(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pR
   }
   int32_t nDataDir = tjsonGetArraySize(pDataDir);
   for (int32_t i = 0; i < nDataDir; ++i) {
-    char   dir[TSDB_MOUNT_PATH_LEN] = {0};
+    char   dir[TSDB_MOUNT_FPATH_LEN] = {0};
     SJson *pItem = tjsonGetArrayItem(pDataDir, i);
     if (pItem == NULL) {
       TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
@@ -618,7 +618,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
   int32_t       code = 0, lino = 0;
   SWrapperCfg  *pCfgs = NULL;
   int32_t       numOfVnodes = 0;
-  char          path[TSDB_MOUNT_PATH_LEN + 128] = {0};
+  char          path[TSDB_MOUNT_FPATH_LEN] = {0};
   TdDirPtr      pDir = NULL;
   TdDirEntryPtr de = NULL;
   SVnodeMgmt    vnodeMgmt = {0};
@@ -634,11 +634,11 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
   TSDB_CHECK_NULL((pDiskPrimarys = taosArrayInit(numOfVnodes, sizeof(SMountDbVgId))), code, lino, _exit, terrno);
 
   int32_t nDiskLevel0 = taosArrayGetSize(pMountInfo->pDisks[0]);
-  int32_t nVgDropped = 0;
+  int32_t nVgDropped = 0, j = 0;
   for (int32_t i = 0; i < numOfVnodes; ++i) {
     SWrapperCfg *pCfg = &pCfgs[i];
     // in order to support multi-tier disk, the pCfg->path should be adapted according to the diskPrimary firstly
-    if ((nDiskLevel0 > 1) {
+    if (nDiskLevel0 > 1) {
       char *pDir = taosArrayGet(pMountInfo->pDisks[0], pCfg->diskPrimary);
       if (!pDir) TAOS_CHECK_EXIT(TSDB_CODE_INTERNAL_ERROR);
       (void)snprintf(pCfg->path, sizeof(pCfg->path), "%s%svnode%svnode%d", *(char **)pDir, TD_DIRSEP, TD_DIRSEP,
@@ -649,7 +649,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
       ++nVgDropped;
       continue;
     }
-    SVnodeInfo *pInfo = TARRAY_GET_ELEM(pVgCfgs, i);
+    SVnodeInfo *pInfo = TARRAY_GET_ELEM(pVgCfgs, j++);
     TAOS_CHECK_EXIT(vnodeLoadInfo(pCfg->path, pInfo));
     if (pInfo->config.syncCfg.replicaNum > 1) {
       dError("mount:%s, vnode path:%s, invalid replica:%d", pReq->mountName, pCfg->path,
@@ -759,6 +759,10 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
           .walLevel = pVgCfg->config.walCfg.level,
           .encryptAlgorithm = pVgCfg->config.walCfg.encryptAlgorithm,
       };
+      char *pDir = taosArrayGet(pMountInfo->pDisks[0], vgInfo.diskPrimary);
+      if (!pDir) TAOS_CHECK_EXIT(TSDB_CODE_INTERNAL_ERROR);
+      (void)snprintf(vgInfo.diskPath, sizeof(vgInfo.diskPath), "%s", "%s%svnode%svnode%d", *(char **)pDir, TD_DIRSEP,
+                     TD_DIRSEP, vgInfo.vgId);
       TSDB_CHECK_NULL(taosArrayPush(pDbInfo->pVgs, &vgInfo), code, lino, _exit, terrno);
     }
   }
@@ -799,7 +803,7 @@ _exit:
  */
 static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pReq, SMountInfo *pMountInfo) {
   int32_t code = 0, lino = 0;
-  char    path[TSDB_MOUNT_PATH_LEN + 128] = {0};
+  char    path[TSDB_MOUNT_FPATH_LEN] = {0};
   int32_t nDb = taosArrayGetSize(pMountInfo->pDbs);
   SArray *suidList = NULL;
   SArray *pCols = NULL;
@@ -1004,7 +1008,7 @@ _exit:
 
 static int32_t vmRetrieveMountPreCheck(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pReq, SMountInfo *pMountInfo) {
   int32_t code = 0, lino = 0;
-  char    path[TSDB_MOUNT_PATH_LEN + 16] = {0};
+  char    path[TSDB_MOUNT_FPATH_LEN] = {0};
   TSDB_CHECK_CONDITION(taosCheckAccessFile(pReq->mountPath, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
   snprintf(path, sizeof(path), "%s%s%s%sdnode.json", pReq->mountPath, TD_DIRSEP, dmNodeName(DNODE), TD_DIRSEP);
   TSDB_CHECK_CONDITION(taosCheckAccessFile(path, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));

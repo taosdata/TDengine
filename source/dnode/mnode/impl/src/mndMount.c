@@ -61,7 +61,7 @@ static void    mndCancelGetNextMount(SMnode *pMnode, void *pIter);
 typedef struct {
   SVgObj  vg;
   SDbObj *pDb;
-  char    remotePath[TSDB_MOUNT_PATH_LEN];
+  char    remotePath[TSDB_MOUNT_FPATH_LEN];
 } SMountVgObj;
 
 int32_t mndInitMount(SMnode *pMnode) {
@@ -529,13 +529,14 @@ static int32_t mndMountSetVgInfo(SMnode *pMnode, SDnodeObj *pDnode, SMountInfo *
                                  SMountVgObj *pMountVg, int32_t *maxVgId) {
   SVgObj *pVgroup = &pMountVg->vg;
   pMountVg->pDb = pDb;
+  (void)snprintf(pMountVg->remotePath, sizeof(pMountVg->remotePath), "%s", pVg->diskPath);
   pVgroup->vgId = (*maxVgId)++;
   pVgroup->createdTime = taosGetTimestampMs();
   pVgroup->updateTime = pVgroup->createdTime;
   pVgroup->version = 1;
   pVgroup->hashBegin = pVg->hashBegin;
   pVgroup->hashEnd = pVg->hashEnd;
-  tsnprintf(pVgroup->dbName, sizeof(pVgroup->dbName), pDb->name);
+  (void)snprintf(pVgroup->dbName, sizeof(pVgroup->dbName), pDb->name);
   pVgroup->dbUid = pDb->uid;
   pVgroup->replica = pVg->replications;
   pVgroup->mountVgId = pVg->vgId;
@@ -2496,11 +2497,6 @@ static bool mndGetTablesOfDbFp(SMnode *pMnode, void *pObj, void *p1, void *p2, v
   return true;
 }
 #endif
-
-// {.name = "name", .bytes = TSDB_MOUNT_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
-// {.name = "dnode", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
-// {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
-// {.name = "path", .bytes = TSDB_MOUNT_PATH_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 
 static int32_t mndRetrieveMounts(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
   SMnode          *pMnode = pReq->info.node;

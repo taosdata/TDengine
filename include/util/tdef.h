@@ -339,6 +339,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MOUNT_NAME_LEN TSDB_DB_FNAME_LEN
 #define TSDB_MOUNT_PATH_LEN 256
+#define TSDB_MOUNT_FPATH_LEN (TSDB_MOUNT_PATH_LEN + 32)
 
 #define TSDB_MAX_EP_NUM 10
 
