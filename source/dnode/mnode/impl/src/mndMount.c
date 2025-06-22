@@ -1007,6 +1007,7 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, 
   // create db/vg/stb
   int32_t vgIdx = 0, stbIdx = 0;
   int32_t maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
+  if (maxVgId < 2) maxVgId = 2;
   for (int32_t i = 0; i < nDbs; ++i) {
     SMountDbInfo *pDbInfo = taosArrayGet(pInfo->pDbs, i);
     SDbObj       *pDb = &pDbs[i];
@@ -1036,7 +1037,7 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, 
   //   pNewUserDuped = &newUserObj;
   // }
 
-  TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-mount")), code,
+  TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "create-mount")), code,
                   lino, _exit, terrno);
   // mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to create mount:%s", pTrans->id, pInfo->mountName);
