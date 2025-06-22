@@ -1830,6 +1830,7 @@ int32_t tDeserializeSRetrieveMountPathReq(void* buf, int32_t bufLen, SRetrieveMo
 typedef struct {
   // path
   int32_t diskPrimary;
+  char    diskPath[TSDB_MOUNT_PATH_LEN];
 
   // vgInfo
   int32_t  vgId;
@@ -2400,6 +2401,7 @@ typedef struct {
   SReplica learnerReplicas[TSDB_MAX_LEARNER_REPLICA];
   int32_t  changeVersion;
   int8_t   encryptAlgorithm;
+  char     mountPath[TSDB_MOUNT_PATH_LEN + 32];
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);

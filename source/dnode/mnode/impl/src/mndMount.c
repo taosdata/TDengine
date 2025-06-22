@@ -58,6 +58,12 @@ static int32_t mndProcessRetrieveMountPathRsp(SRpcMsg *pRsp);
 static int32_t mndRetrieveMounts(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity);
 static void    mndCancelGetNextMount(SMnode *pMnode, void *pIter);
 
+typedef struct {
+  SVgObj  vg;
+  SDbObj *pDb;
+  char    remotePath[TSDB_MOUNT_PATH_LEN];
+} SMountVgObj;
+
 int32_t mndInitMount(SMnode *pMnode) {
   SSdbTable table = {
       .sdbType = SDB_MOUNT,
@@ -520,7 +526,9 @@ static int32_t mndMountSetDbInfo(SMountInfo *pInfo, SMountDbInfo *pDb, SDbObj *p
 }
 
 static int32_t mndMountSetVgInfo(SMnode *pMnode, SDnodeObj *pDnode, SMountInfo *pInfo, SDbObj *pDb, SMountVgInfo *pVg,
-                                 SVgObj *pVgroup, int32_t *maxVgId) {
+                                 SMountVgObj *pMountVg, int32_t *maxVgId) {
+  SVgObj *pVgroup = &pMountVg->vg;
+  pMountVg->pDb = pDb;
   pVgroup->vgId = (*maxVgId)++;
   pVgroup->createdTime = taosGetTimestampMs();
   pVgroup->updateTime = pVgroup->createdTime;
@@ -648,9 +656,9 @@ static int32_t mndSetCreateDbPrepareActions(SMnode *pMnode, STrans *pTrans, SDbO
   return 0;
 }
 
-static int32_t mndSetCreateVgPrepareActions(SMnode *pMnode, STrans *pTrans, SVgObj *pVgs, int32_t nVgs) {
+static int32_t mndSetCreateVgPrepareActions(SMnode *pMnode, STrans *pTrans, SMountVgObj *pVgs, int32_t nVgs) {
   for (int32_t i = 0; i < nVgs; ++i) {
-    if (mndAddNewVgPrepareAction(pMnode, pTrans, (pVgs + i)) != 0) return -1;
+    if (mndAddNewVgPrepareAction(pMnode, pTrans, &((pVgs + i)->vg)) != 0) return -1;
   }
   return 0;
 }
@@ -701,10 +709,10 @@ static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetCreateVgCommitLogs(SMnode *pMnode, STrans *pTrans, SVgObj *pVgs, int32_t nVgs) {
+static int32_t mndSetCreateVgCommitLogs(SMnode *pMnode, STrans *pTrans, SMountVgObj *pVgs, int32_t nVgs) {
   int32_t code = 0;
   for (int32_t i = 0; i < nVgs; ++i) {
-    SSdbRaw *pDbRaw = mndVgroupActionEncode(pVgs + i);
+    SSdbRaw *pDbRaw = mndVgroupActionEncode(&((pVgs + i)->vg));
     if (pDbRaw == NULL) {
       TAOS_RETURN(terrno);
     }
@@ -854,10 +862,41 @@ _exit:
 //   TAOS_RETURN(code);
 // }
 
-static int32_t mndSetCreateMountRedoActions(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
-  // for (int32_t i = 0; i < pObj->nMounts; ++i) {
-  //   TAOS_CHECK_RETURN(mndAddCreateMountRetrieveDbAction(pMnode, pTrans, pObj, i));
-  // }
+static int32_t mndAddMountVnodeAction(SMnode *pMnode, STrans *pTrans, SMountObj *pObj, SMountVgObj *pMountVg) {
+  int32_t      code = 0;
+  STransAction action = {0};
+  SVgObj      *pVg = &pMountVg->vg;
+  SDbObj      *pDb = pMountVg->pDb;
+  SVnodeGid   *pVgid = &pVg->vnodeGid[0];
+
+  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+  if (pDnode == NULL) TAOS_RETURN(terrno);
+  action.epSet = mndGetDnodeEpset(pDnode);
+  mndReleaseDnode(pMnode, pDnode);
+
+  int32_t contLen = 0;
+  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVg, &contLen);
+  if (pReq == NULL) return -1;
+
+  action.pCont = pReq;
+  action.contLen = contLen;
+  action.msgType = TDMT_DND_MOUNT_VNODE;
+  action.acceptableCode = TSDB_CODE_VND_ALREADY_EXIST;
+  action.groupId = pVg->vgId;
+
+  if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
+    taosMemoryFree(pReq);
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
+static int32_t mndSetCreateMountRedoActions(SMnode *pMnode, STrans *pTrans, SMountObj *pObj, SMountVgObj *pVgs,
+                                            int32_t nVgs) {
+  for (int32_t i = 0; i < nVgs; ++i) {
+    TAOS_CHECK_RETURN(mndAddMountVnodeAction(pMnode, pTrans, pObj, pVgs + i));
+  }
   // TODO: create soft link in mount dnode/vnode
   TAOS_RETURN(0);
 }
@@ -900,15 +939,15 @@ static int32_t mndMountDupDbIdExist(SMnode *pMnode, SMountInfo *pInfo) {
 }
 
 static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, SUserObj *pUser) {
-  int32_t    code = 0, lino = 0;
-  SUserObj   newUserObj = {0};
-  SMountObj  mntObj = {0};
-  int32_t    nDbs = 0, nVgs = 0, nStbs = 0;
-  SDnodeObj *pDnode = NULL;
-  SDbObj    *pDbs = NULL;
-  SVgObj    *pVgs = NULL;
-  SStbObj   *pStbs = NULL;
-  STrans    *pTrans = NULL;
+  int32_t      code = 0, lino = 0;
+  SUserObj     newUserObj = {0};
+  SMountObj    mntObj = {0};
+  int32_t      nDbs = 0, nVgs = 0, nStbs = 0;
+  SDnodeObj   *pDnode = NULL;
+  SDbObj      *pDbs = NULL;
+  SMountVgObj *pVgs = NULL;
+  SStbObj     *pStbs = NULL;
+  STrans      *pTrans = NULL;
 
   tsnprintf(mntObj.name, TSDB_MOUNT_NAME_LEN, "%s", pInfo->mountName);
   tsnprintf(mntObj.acct, TSDB_USER_LEN, "%s", pUser->acct);
@@ -962,7 +1001,7 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, 
   TAOS_CHECK_EXIT(mndMountDupDbIdExist(pMnode, pInfo));
 
   TSDB_CHECK_NULL((pDbs = taosMemoryCalloc(nDbs, sizeof(SDbObj))), code, lino, _exit, terrno);
-  TSDB_CHECK_NULL((pVgs = taosMemoryCalloc(nVgs, sizeof(SVgObj))), code, lino, _exit, terrno);
+  TSDB_CHECK_NULL((pVgs = taosMemoryCalloc(nVgs, sizeof(SMountVgObj))), code, lino, _exit, terrno);
   TSDB_CHECK_NULL((pStbs = taosMemoryCalloc(nStbs, sizeof(SStbObj))), code, lino, _exit, terrno);
 
   // create db/vg/stb
@@ -1005,11 +1044,11 @@ static int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, 
   mndTransSetDbName(pTrans, mntObj.name, NULL);
   TAOS_CHECK_EXIT(mndTransCheckConflict(pMnode, pTrans));
 
-  mndTransSetOper(pTrans, MND_OPER_CREATE_DB);
+  mndTransSetOper(pTrans, MND_OPER_CREATE_MOUNT);
   TAOS_CHECK_EXIT(mndSetCreateMountPrepareActions(pMnode, pTrans, &mntObj));
-  // TAOS_CHECK_EXIT(mndSetCreateMountRedoActions(pMnode, pTrans, &mntObj));
   TAOS_CHECK_EXIT(mndSetCreateDbPrepareActions(pMnode, pTrans, pDbs, nDbs));
   TAOS_CHECK_EXIT(mndSetCreateVgPrepareActions(pMnode, pTrans, pVgs, nVgs));
+  TAOS_CHECK_EXIT(mndSetCreateMountRedoActions(pMnode, pTrans, &mntObj, pVgs, nVgs));
   // TAOS_CHECK_EXIT(mndSetCreateMountUndoLogs(pMnode, pTrans, &mntObj));
   TAOS_CHECK_EXIT(mndSetCreateMountCommitLogs(pMnode, pTrans, &mntObj));
   TAOS_CHECK_EXIT(mndSetCreateDbCommitLogs(pMnode, pTrans, pDbs, nDbs));
@@ -1036,6 +1075,7 @@ _exit:
   }
   TAOS_RETURN(code);
 }
+
 #if 0
 static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
   int32_t    code = 0;
@@ -1240,7 +1280,7 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
     }
   }
   // mount operation share the privileges of db
-  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, (SDbObj *)pObj));
+  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_MOUNT, (SDbObj *)pObj));
   TAOS_CHECK_EXIT(grantCheck(TSDB_GRANT_MOUNT));  // TODO: implement when the plan is ready
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
   TAOS_CHECK_EXIT(mndRetrieveMountInfo(pMnode, pReq, &createReq));

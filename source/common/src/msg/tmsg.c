@@ -6713,6 +6713,7 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
     TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nVg));
     for (int32_t j = 0; j < nVg; ++j) {
       SMountVgInfo *pVgInfo = TARRAY_GET_ELEM(pDbInfo->pVgs, j);
+      TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pVgInfo->diskPath));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->vgId));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->cacheLastSize));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->szPage));
@@ -6794,6 +6795,7 @@ int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo, bool extrac
         TSDB_CHECK_NULL((pDbInfo->pVgs = taosArrayInit_s(sizeof(SMountVgInfo), nVg)), code, lino, _exit, terrno);
         for (int32_t j = 0; j < nVg; ++j) {
           SMountVgInfo *pVgInfo = TARRAY_GET_ELEM(pDbInfo->pVgs, j);
+          TAOS_CHECK_EXIT(tDecodeCStrTo(decoder, pVgInfo->diskPath));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->vgId));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->cacheLastSize));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->szPage));
@@ -8235,6 +8237,8 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->s3KeepLocal));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->s3Compact));
 
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->mountPath));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -8343,6 +8347,8 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->s3KeepLocal));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->s3Compact));
   }
+
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->mountPath));
 
   tEndDecode(&decoder);
 

@@ -42,6 +42,9 @@ static void vmProcessMultiMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_RETRIEVE_MOUNT_PATH:
       code = vmProcessRetrieveMountPathReq(pMgmt, pMsg);
       break;
+    case TDMT_DND_MOUNT_VNODE:
+      //TODO
+      break;
 #endif
   }
 
@@ -70,6 +73,9 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     case TDMT_DND_DROP_VNODE:
       code = vmProcessDropVnodeReq(pMgmt, pMsg);
+      break;
+    case TDMT_DNT_UMOUNT_VNODE:
+      // TODO
       break;
     case TDMT_VND_ALTER_REPLICA:
       code = vmProcessAlterVnodeReplicaReq(pMgmt, pMsg);
