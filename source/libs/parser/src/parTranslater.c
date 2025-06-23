@@ -13131,10 +13131,12 @@ static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const ch
   if (pSubtable) {
     PAR_ERR_JRET(nodesCloneNode(pSubtable, &pSubtableExpr));
   } else {
+    // default rule : '_t' + md5(stream_full_name) + '_' + cast (_grpid() as varchar(20))
     SFunctionNode* pConcatFunc = NULL;
     SFunctionNode* pGrpIdFunc = NULL;
     SFunctionNode* pCastFunc = NULL;
     SFunctionNode* pMd5Func = NULL;
+    SValueNode*    pNameValue = NULL;
     SValueNode*    pPrefixValue = NULL;
     SValueNode*    pDashValue = NULL;
     SValueNode*    pGrpFuncVal = NULL;
@@ -13143,6 +13145,9 @@ static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const ch
     pConcatFunc->funcId = fmGetFuncId("concat");
     pConcatFunc->funcType = FUNCTION_TYPE_CONCAT;
     snprintf(pConcatFunc->functionName, TSDB_FUNC_NAME_LEN, "concat");
+
+    PAR_ERR_JRET(nodesMakeValueNodeFromString("_t", &pPrefixValue));
+    PAR_ERR_JRET(nodesListMakeStrictAppend(&pConcatFunc->pParameterList, (SNode*)pPrefixValue));
 
     PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pMd5Func));
     pMd5Func->funcId = fmGetFuncId("md5");
@@ -13156,8 +13161,8 @@ static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const ch
     TAOS_STRNCAT(streamFName, streamDb, TSDB_TABLE_FNAME_LEN);
     TAOS_STRNCAT(streamFName, ".", 2);
     TAOS_STRNCAT(streamFName, streamName, TSDB_TABLE_FNAME_LEN);
-    PAR_ERR_JRET(nodesMakeValueNodeFromString(streamFName, &pPrefixValue));
-    PAR_ERR_JRET(nodesListMakeStrictAppend(&pMd5Func->pParameterList, (SNode*)pPrefixValue));
+    PAR_ERR_JRET(nodesMakeValueNodeFromString(streamFName, &pNameValue));
+    PAR_ERR_JRET(nodesListMakeStrictAppend(&pMd5Func->pParameterList, (SNode*)pNameValue));
     PAR_ERR_JRET(nodesListMakeStrictAppend(&pConcatFunc->pParameterList, (SNode*)pMd5Func));
 
     PAR_ERR_JRET(nodesMakeValueNodeFromString("_", &pDashValue));
