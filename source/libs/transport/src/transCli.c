@@ -2125,6 +2125,7 @@ static void cliAsyncCb(uv_async_t* handle) {
 
   // batch process to avoid to lock/unlock frequently
   queue wq;
+  QUEUE_INIT(&wq);
   if (taosThreadMutexLock(&item->mtx) != 0) {
     tError("failed to lock mutex since %s", tstrerror(terrno));
   }
