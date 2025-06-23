@@ -162,7 +162,7 @@ function clean_tmp() {
         ssh_script=$(get_remote_ssh_command "$index")
         cmd="${ssh_script} rm -rf ${workdirs[index]}/tmp"
     fi
-    "$cmd"
+    $cmd
 }
 
 function run_thread() {
