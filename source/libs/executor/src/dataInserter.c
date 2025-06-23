@@ -67,8 +67,8 @@ typedef struct SDataInserterHandle {
   AUTO_CREATE_TABLE_MODE autoCreateTableMode;
   SSchemaWrapper*        pTagSchema;
   const char*            dbFName;
-  SHashObj*              dbVgInfoMap;    // 存储数据库和vgroup信息的映射
-  SUseDbRsp*             pRsp;           // 用于存储数据库信息响应
+  SHashObj*              dbVgInfoMap;  // 存储数据库和vgroup信息的映射
+  SUseDbRsp*             pRsp;         // 用于存储数据库信息响应
   // SExecTaskInfo*      pTaskInfo;    // 用于存储任务信息
 } SDataInserterHandle;
 
@@ -181,7 +181,7 @@ static bool TagsIsSupported(const STableMetaRsp* pTableMetaRsp, const SStreamIns
     return false;
   }
 
-  int32_t tagIndexOffset = -1;
+  int32_t            tagIndexOffset = -1;
   SFieldWithOptions* pField = taosArrayGet(pCreatingTags, 0);
   if (NULL == pField) {
     stError("isSupportedSTableSchema: failed to get field from array");
@@ -196,7 +196,6 @@ static bool TagsIsSupported(const STableMetaRsp* pTableMetaRsp, const SStreamIns
   if (tagIndexOffset == -1) {
     stError("isSupportedSTableSchema: failed to get tag index");
     return false;
-  
   }
 
   for (int32_t i = 0; i < pTableMetaRsp->numOfTags; ++i) {
@@ -231,7 +230,8 @@ static bool isSupportedNTableSchema(const STableMetaRsp* pTableMetaRsp, const SS
   return colsIsSupported(pTableMetaRsp, pInserterParam);
 }
 
-static int32_t checkAndSaveCreateGrpTableInfo(SDataInserterHandle* pInserthandle, SStreamDataInserterInfo* pInserterInfo) {
+static int32_t checkAndSaveCreateGrpTableInfo(SDataInserterHandle*     pInserthandle,
+                                              SStreamDataInserterInfo* pInserterInfo) {
   SSubmitRes* pSubmitRes = &pInserthandle->submitRes;
   int8_t      tbType = pInserthandle->pParam->streamInserterParam->tbType;
 
@@ -1128,7 +1128,8 @@ static int32_t buildTSchmaFromInserter(SStreamInserterParam* pInsertParam, STSch
     return terrno;
   }
   if (pInsertParam->tbType == TSDB_NORMAL_TABLE) {
-    pTSchema->version = 1; // normal table version start from 1, if has exist table, it will be reset by resetInserterTbVersion
+    pTSchema->version =
+        1;  // normal table version start from 1, if has exist table, it will be reset by resetInserterTbVersion
   } else {
     pTSchema->version = pInsertParam->sver;
   }
@@ -1144,7 +1145,6 @@ static int32_t buildTSchmaFromInserter(SStreamInserterParam* pInsertParam, STSch
   pTSchema->columns[0].flags = pField->flags | COL_IS_KEY;
   pTSchema->columns[0].bytes = TYPE_BYTES[pField->type];
   pTSchema->columns[0].offset = -1;
-
 
   pTSchema->tlen = 0;
   pTSchema->flen = 0;
@@ -1185,7 +1185,8 @@ _end:
   return code;
 }
 
-static int32_t getTagValsFromStreamInserterInfo(SStreamDataInserterInfo* pInserterInfo, int32_t preCols, SArray** ppTagVals) {
+static int32_t getTagValsFromStreamInserterInfo(SStreamDataInserterInfo* pInserterInfo, int32_t preCols,
+                                                SArray** ppTagVals) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t nTags = pInserterInfo->pTagVals->size;
   *ppTagVals = taosArrayInit(nTags, sizeof(STagVal));
@@ -1194,23 +1195,25 @@ static int32_t getTagValsFromStreamInserterInfo(SStreamDataInserterInfo* pInsert
   }
   for (int32_t i = 0; i < pInserterInfo->pTagVals->size; ++i) {
     SStreamTagInfo* pTagInfo = taosArrayGet(pInserterInfo->pTagVals, i);
-    STagVal tagVal = {
-        .cid = preCols + i + 1,
-        .type = pTagInfo->val.data.type,
+    STagVal         tagVal = {
+                .cid = preCols + i + 1,
+                .type = pTagInfo->val.data.type,
     };
-    if (IS_VAR_DATA_TYPE(pTagInfo->val.data.type)) {
-      tagVal.nData = pTagInfo->val.data.nData;
-      tagVal.pData = pTagInfo->val.data.pData;
-    } else {
-      tagVal.i64 = pTagInfo->val.data.val;
-    }
-    
-    if (NULL == taosArrayPush(*ppTagVals, &tagVal)) {
-      code = terrno;
-      goto _end;
+    if (!pTagInfo->val.isNull) {
+      if (IS_VAR_DATA_TYPE(pTagInfo->val.data.type)) {
+        tagVal.nData = pTagInfo->val.data.nData;
+        tagVal.pData = pTagInfo->val.data.pData;
+      } else {
+        tagVal.i64 = pTagInfo->val.data.val;
+      }
+
+      if (NULL == taosArrayPush(*ppTagVals, &tagVal)) {
+        code = terrno;
+        goto _end;
+      }
     }
   }
-  _end:
+_end:
   if (code != TSDB_CODE_SUCCESS) {
     taosArrayDestroy(*ppTagVals);
     *ppTagVals = NULL;
@@ -1290,8 +1293,8 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
     qError("failed to create tag, error:%s", tstrerror(code));
     goto _end;
   }
-  code = inserterBuildCreateTbReq(tbData->pCreateTbReq, pInserterInfo->tbName, pTag, tbData->suid, pInsertParam->stbname,
-                           TagNames, nTags, TSDB_DEFAULT_TABLE_TTL);
+  code = inserterBuildCreateTbReq(tbData->pCreateTbReq, pInserterInfo->tbName, pTag, tbData->suid,
+                                  pInsertParam->stbname, TagNames, nTags, TSDB_DEFAULT_TABLE_TTL);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to build create table request, error:%s", tstrerror(code));
     goto _end;

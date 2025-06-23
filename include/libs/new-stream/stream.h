@@ -112,6 +112,13 @@ typedef struct SStreamCacheReadInfo {
   SSDataBlock *pBlock;
 } SStreamCacheReadInfo;
 
+typedef struct SSTriggerRecalcProgress {
+  int32_t recalcId;  // same as RecalcRequest in stTriggerTaskExecute
+  int32_t progress;  // 0-100, 0 means not started, 100 means finished
+} SSTriggerRecalcProgress;
+
+#define STRIGGER_RECALC_RANGE_MAX_HOURS 24
+
 #define STM_CHK_SET_ERROR(CMD)        \
     do {                              \
       code = (CMD);                   \
@@ -244,6 +251,7 @@ bool    streamCheckpointIsReady(int64_t streamId);
 int32_t streamSyncAllCheckpoints(SEpSet* epSet);
 void    streamDeleteAllCheckpoints();
 void smUndeploySnodeTasks(bool cleanup);
+int32_t stTriggerTaskGetRecalcProgress(SStreamTask *pTask, SArray *pProgress);
 
 #define STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST 4096
 

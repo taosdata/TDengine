@@ -3504,3 +3504,8 @@ _end:
   }
   return code;
 }
+
+int32_t stTriggerTaskGetRecalcProgress(SStreamTask *pTask, SArray *pProgress) {
+  // todo(kjq): implement how to get recalculation progress
+  return TSDB_CODE_SUCCESS;
+}
