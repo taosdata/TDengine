@@ -35,7 +35,6 @@ exe:
 
 clean:
 	rm $(ROOT)batchprepare
-	rm $(ROOT)stmt2-test
 	rm $(ROOT)stopquery
 	rm $(ROOT)dbTableRoute
 	rm $(ROOT)insertSameTs
@@ -44,11 +43,8 @@ clean:
 	rm $(ROOT)insert_stb
 	rm $(ROOT)tmqViewTest
 	rm $(ROOT)stmtQuery
-	rm $(ROOT)stmt
 	rm $(ROOT)stmt2
 	rm $(ROOT)stmt2-example
-	rm $(ROOT)stmt2-get-fields
-	rm $(ROOT)stmt2-nohole
 	rm $(ROOT)stmt-crash
 	rm $(ROOT)stmt-insert-dupkeys
 	rm $(ROOT)stmt2-insert-dupkeys

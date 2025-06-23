@@ -929,15 +929,22 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
     } else {
       pBind = bind + c;
     }
+    int8_t  isBlob = 0;
     int32_t bytes = -1;
     if (IS_VAR_DATA_TYPE(pColSchema->type)) {
       if (IS_STR_DATA_BLOB(pColSchema->type)) {
+        isBlob = 1;
         bytes = BLOB_MAX_LEN;
       } else {
         bytes = pColSchema->bytes - VARSTR_HEADER_SIZE;
       }
     }
-    code = tColDataAddValueByBind2(pCol, pBind, bytes, initCtxAsText, checkWKB);
+    if (isBlob == 0) {
+      code = tColDataAddValueByBind2(pCol, pBind, bytes, initCtxAsText, checkWKB);
+    } else {
+      code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobRow);
+    }
+
     if (code) {
       goto _return;
     }
@@ -989,16 +996,23 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
   }
 
   int32_t bytes = -1;
+  int8_t  hasBlob = 0;
   if (IS_VAR_DATA_TYPE(pColSchema->type)) {
     if (IS_STR_DATA_BLOB(pColSchema->type)) {
       bytes = BLOB_MAX_LEN;
+      hasBlob = 1;
     } else {
       bytes = pColSchema->bytes - VARSTR_HEADER_SIZE;
     }
   } else {
     bytes = -1;
   }
-  code = tColDataAddValueByBind2(pCol, pBind, bytes, initCtxAsText, checkWKB);
+
+  if (hasBlob) {
+    code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobRow);
+  } else {
+    code = tColDataAddValueByBind2(pCol, pBind, bytes, initCtxAsText, checkWKB);
+  }
 
   parserDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 
@@ -1299,12 +1313,21 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
       }
       if (deepClear) {
         tColDataDeepClear(pCol);
+
       } else {
         tColDataClear(pCol);
       }
+
     } else {
       pBlock->pData->aRowP = taosArrayInit(20, POINTER_BYTES);
     }
+  }
+  if (pBlock->pData->pBlobRow) {
+    tBlobRowDestroy(pBlock->pData->pBlobRow);
+    pBlock->pData->pBlobRow = NULL;
+    tBlobRowCreate(1024, &pBlock->pData->pBlobRow);
+  } else {
+    tBlobRowCreate(1024, &pBlock->pData->pBlobRow);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1356,12 +1379,15 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
 
     memcpy(pNewTb, pCxt->pData, sizeof(*pCxt->pData));
     pNewTb->pCreateTbReq = NULL;
+    pNewTb->pBlobRow = NULL;
 
     pNewTb->aCol = taosArrayDup(pCxt->pData->aCol, NULL);
     if (NULL == pNewTb->aCol) {
       insDestroyTableDataCxt(*pDst);
       return terrno;
     }
+
+    tBlobRowCreate(10, &pNewTb->pBlobRow);
 
     pNewCxt->pData = pNewTb;
 

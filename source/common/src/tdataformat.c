@@ -848,6 +848,9 @@ _exit:
   return code;
 }
 int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pItem, uint64_t *seq, int8_t nextRow) {
+  if (pBlobRow == NULL || pItem == NULL || seq == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  } 
   int32_t  lino = 0;
   int32_t  code = 0;
   uint64_t offset;
@@ -917,6 +920,7 @@ int32_t tBlobRowSize(SBlobRow2 *pBlobRow) {
 }
 
 int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow) {
+  if (pBlowRow == NULL) return 0;
   int32_t code = 0;
   uInfo("destroy blob row, seqTable size %p", pBlowRow);
   taosMemoryFree(pBlowRow->data);
@@ -3029,6 +3033,368 @@ static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pDa
 
     //       VALUE                  NONE                     NULL
 };
+
+static FORCE_INLINE int32_t tColDataPutValueBlob(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t  code = 0;
+  uint8_t  buf[sizeof(uint64_t) + 1] = {0};
+  uint64_t seq = 0;
+
+  int32_t offset = 0;
+  if (IS_STR_DATA_BLOB(pColData->type)) {
+    code = tRealloc((uint8_t **)(&pColData->aOffset), ((int64_t)(pColData->nVal + 1)) << 2);
+    if (code) goto _exit;
+    pColData->aOffset[pColData->nVal] = pColData->nData;
+    if (nData) {
+      SBlobItem item = {.seqOffsetInRow = seq, .dataLen = nData, .data = pData};
+      code = tBlobRowPush(pArg, &item, &seq, 0);
+      if (code != 0) return code;
+
+      offset = tPutU64(buf, seq);
+      code = tRealloc(&pColData->pData, pColData->nData + offset);
+      if (code != 0) return code;
+      memcpy(pColData->pData + pColData->nData, buf, offset);
+      pColData->nData += offset;
+    }
+  }
+  pColData->nVal++;
+
+_exit:
+  return code;
+}
+
+static FORCE_INLINE int32_t tColDataAppendValueBlob00(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  pColData->flag = HAS_VALUE;
+  pColData->numOfValue++;
+  return tColDataPutValueBlob(pArg, pColData, pData, nData);
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob01(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  pColData->flag = HAS_NONE;
+  pColData->numOfNone++;
+  pColData->nVal++;
+  return 0;
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob02(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  pColData->flag = HAS_NULL;
+  pColData->numOfNull++;
+  pColData->nVal++;
+  return 0;
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob10(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  int32_t nBit = BIT1_SIZE(pColData->nVal + 1);
+  code = tRealloc(&pColData->pBitMap, nBit);
+  if (code) return code;
+
+  memset(pColData->pBitMap, 0, nBit);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 1);
+
+  pColData->flag |= HAS_VALUE;
+  pColData->numOfValue++;
+
+  if (pColData->nVal) {
+    if (IS_VAR_DATA_TYPE(pColData->type)) {
+      int32_t nOffset = sizeof(int32_t) * pColData->nVal;
+      code = tRealloc((uint8_t **)(&pColData->aOffset), nOffset);
+      if (code) return code;
+      memset(pColData->aOffset, 0, nOffset);
+    } else {
+      pColData->nData = tDataTypes[pColData->type].bytes * pColData->nVal;
+      code = tRealloc(&pColData->pData, pColData->nData);
+      if (code) return code;
+      memset(pColData->pData, 0, pColData->nData);
+    }
+  }
+
+  return tColDataPutValueBlob(pArg, pColData, pData, nData);
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob11(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  pColData->nVal++;
+  pColData->numOfNone++;
+  return 0;
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob12(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  int32_t nBit = BIT1_SIZE(pColData->nVal + 1);
+  code = tRealloc(&pColData->pBitMap, nBit);
+  if (code) return code;
+
+  memset(pColData->pBitMap, 0, nBit);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 1);
+
+  pColData->flag |= HAS_NULL;
+  pColData->numOfNull++;
+  pColData->nVal++;
+
+  return code;
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob20(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  int32_t nBit = BIT1_SIZE(pColData->nVal + 1);
+  code = tRealloc(&pColData->pBitMap, nBit);
+  if (code) return code;
+
+  memset(pColData->pBitMap, 0, nBit);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 1);
+
+  pColData->flag |= HAS_VALUE;
+  pColData->numOfValue++;
+
+  if (pColData->nVal) {
+    if (IS_VAR_DATA_TYPE(pColData->type)) {
+      int32_t nOffset = sizeof(int32_t) * pColData->nVal;
+      code = tRealloc((uint8_t **)(&pColData->aOffset), nOffset);
+      if (code) return code;
+      memset(pColData->aOffset, 0, nOffset);
+    } else {
+      pColData->nData = tDataTypes[pColData->type].bytes * pColData->nVal;
+      code = tRealloc(&pColData->pData, pColData->nData);
+      if (code) return code;
+      memset(pColData->pData, 0, pColData->nData);
+    }
+  }
+
+  return tColDataPutValueBlob(pArg, pColData, pData, nData);
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob21(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  int32_t nBit = BIT1_SIZE(pColData->nVal + 1);
+  code = tRealloc(&pColData->pBitMap, nBit);
+  if (code) return code;
+
+  memset(pColData->pBitMap, 255, nBit);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 0);
+
+  pColData->flag |= HAS_NONE;
+  pColData->numOfNone++;
+  pColData->nVal++;
+
+  return code;
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob22(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  pColData->nVal++;
+  pColData->numOfNull++;
+  return 0;
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob30(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  pColData->flag |= HAS_VALUE;
+  pColData->numOfValue++;
+
+  uint8_t *pBitMap = NULL;
+  code = tRealloc(&pBitMap, BIT2_SIZE(pColData->nVal + 1));
+  if (code) return code;
+
+  for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+    SET_BIT2_EX(pBitMap, iVal, GET_BIT1(pColData->pBitMap, iVal));
+  }
+  SET_BIT2_EX(pBitMap, pColData->nVal, 2);
+
+  tFree(pColData->pBitMap);
+  pColData->pBitMap = pBitMap;
+
+  if (pColData->nVal) {
+    if (IS_VAR_DATA_TYPE(pColData->type)) {
+      int32_t nOffset = sizeof(int32_t) * pColData->nVal;
+      code = tRealloc((uint8_t **)(&pColData->aOffset), nOffset);
+      if (code) return code;
+      memset(pColData->aOffset, 0, nOffset);
+    } else {
+      pColData->nData = tDataTypes[pColData->type].bytes * pColData->nVal;
+      code = tRealloc(&pColData->pData, pColData->nData);
+      if (code) return code;
+      memset(pColData->pData, 0, pColData->nData);
+    }
+  }
+
+  return tColDataPutValueBlob(pArg, pColData, pData, nData);
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob31(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
+  if (code) return code;
+
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 0);
+  pColData->numOfNone++;
+  pColData->nVal++;
+
+  return code;
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob32(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
+  if (code) return code;
+
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 1);
+  pColData->numOfNull++;
+  pColData->nVal++;
+
+  return code;
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob40(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  pColData->numOfValue++;
+  return tColDataPutValueBlob(pArg, pColData, pData, nData);
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob41(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  pColData->flag |= HAS_NONE;
+  pColData->numOfNone++;
+
+  int32_t nBit = BIT1_SIZE(pColData->nVal + 1);
+  code = tRealloc(&pColData->pBitMap, nBit);
+  if (code) return code;
+
+  memset(pColData->pBitMap, 255, nBit);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 0);
+
+  return tColDataPutValueBlob(pArg, pColData, NULL, 0);
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob42(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  pColData->flag |= HAS_NULL;
+  pColData->numOfNull++;
+
+  int32_t nBit = BIT1_SIZE(pColData->nVal + 1);
+  code = tRealloc(&pColData->pBitMap, nBit);
+  if (code) return code;
+
+  memset(pColData->pBitMap, 255, nBit);
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 0);
+
+  return tColDataPutValueBlob(pArg, pColData, NULL, 0);
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob50(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
+  if (code) return code;
+
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 1);
+  pColData->numOfValue++;
+
+  return tColDataPutValueBlob(pArg, pColData, pData, nData);
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob51(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
+  if (code) return code;
+
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 0);
+  pColData->numOfNone++;
+
+  return tColDataPutValueBlob(pArg, pColData, NULL, 0);
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob52(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  pColData->flag |= HAS_NULL;
+  pColData->numOfNull++;
+
+  uint8_t *pBitMap = NULL;
+  code = tRealloc(&pBitMap, BIT2_SIZE(pColData->nVal + 1));
+  if (code) return code;
+
+  for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+    SET_BIT2_EX(pBitMap, iVal, GET_BIT1(pColData->pBitMap, iVal) ? 2 : 0);
+  }
+  SET_BIT2_EX(pBitMap, pColData->nVal, 1);
+
+  tFree(pColData->pBitMap);
+  pColData->pBitMap = pBitMap;
+
+  return tColDataPutValueBlob(pArg, pColData, NULL, 0);
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob60(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
+  if (code) return code;
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 1);
+  pColData->numOfValue++;
+
+  return tColDataPutValueBlob(pArg, pColData, pData, nData);
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob61(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  pColData->flag |= HAS_NONE;
+  pColData->numOfNone++;
+
+  uint8_t *pBitMap = NULL;
+  code = tRealloc(&pBitMap, BIT2_SIZE(pColData->nVal + 1));
+  if (code) return code;
+
+  for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+    SET_BIT2_EX(pBitMap, iVal, GET_BIT1(pColData->pBitMap, iVal) ? 2 : 1);
+  }
+  SET_BIT2_EX(pBitMap, pColData->nVal, 0);
+
+  tFree(pColData->pBitMap);
+  pColData->pBitMap = pBitMap;
+
+  return tColDataPutValueBlob(pArg, pColData, NULL, 0);
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob62(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  code = tRealloc(&pColData->pBitMap, BIT1_SIZE(pColData->nVal + 1));
+  if (code) return code;
+  SET_BIT1_EX(pColData->pBitMap, pColData->nVal, 0);
+  pColData->numOfNull++;
+
+  return tColDataPutValueBlob(pArg, pColData, NULL, 0);
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob70(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  code = tRealloc(&pColData->pBitMap, BIT2_SIZE(pColData->nVal + 1));
+  if (code) return code;
+  SET_BIT2_EX(pColData->pBitMap, pColData->nVal, 2);
+  pColData->numOfValue++;
+
+  return tColDataPutValueBlob(pArg, pColData, pData, nData);
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob71(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  code = tRealloc(&pColData->pBitMap, BIT2_SIZE(pColData->nVal + 1));
+  if (code) return code;
+  SET_BIT2_EX(pColData->pBitMap, pColData->nVal, 0);
+  pColData->numOfNone++;
+
+  return tColDataPutValueBlob(pArg, pColData, NULL, 0);
+}
+static FORCE_INLINE int32_t tColDataAppendValueBlob72(void *pArg, SColData *pColData, uint8_t *pData, uint32_t nData) {
+  int32_t code = 0;
+
+  code = tRealloc(&pColData->pBitMap, BIT2_SIZE(pColData->nVal + 1));
+  if (code) return code;
+  SET_BIT2_EX(pColData->pBitMap, pColData->nVal, 1);
+  pColData->numOfNull++;
+
+  return tColDataPutValueBlob(pArg, pColData, NULL, 0);
+}
+
+static int32_t (*tColDataAppendValueBlobImpl[8][3])(void *pDst, SColData *pColData, uint8_t *pData, uint32_t nData) = {
+    {tColDataAppendValueBlob00, tColDataAppendValueBlob01, tColDataAppendValueBlob02},  // 0
+    {tColDataAppendValueBlob10, tColDataAppendValueBlob11, tColDataAppendValueBlob12},  // HAS_NONE
+    {tColDataAppendValueBlob20, tColDataAppendValueBlob21, tColDataAppendValueBlob22},  // HAS_NULL
+    {tColDataAppendValueBlob30, tColDataAppendValueBlob31, tColDataAppendValueBlob32},  // HAS_NULL|HAS_NONE
+    {tColDataAppendValueBlob40, tColDataAppendValueBlob41, tColDataAppendValueBlob42},  // HAS_VALUE
+    {tColDataAppendValueBlob50, tColDataAppendValueBlob51, tColDataAppendValueBlob52},  // HAS_VALUE|HAS_NONE
+    {tColDataAppendValueBlob60, tColDataAppendValueBlob61, tColDataAppendValueBlob62},  // HAS_VALUE|HAS_NULL
+    {tColDataAppendValueBlob70, tColDataAppendValueBlob71, tColDataAppendValueBlob72}   // HAS_VALUE|HAS_NULL|HAS_NONE
+    //       VALUE                  NONE                     NULL
+};
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
   if (!(pColData->cid == pColVal->cid && pColData->type == pColVal->value.type)) {
     return TSDB_CODE_INVALID_PARA;
@@ -4023,6 +4389,42 @@ int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int3
 _exit:
   return code;
 }
+int32_t tColDataAddValueByBind2WithBlob(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen,
+                                        SBlobRow2 *pBlobRow) {
+  int32_t code = 0;
+
+  if (!(pBind->num == 1 && pBind->is_null && *pBind->is_null)) {
+    if (!(pColData->type == pBind->buffer_type)) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+  }
+
+  if (IS_STR_DATA_BLOB(pColData->type)) {  // var-length data type
+    uint8_t *buf = pBind->buffer;
+    for (int32_t i = 0; i < pBind->num; ++i) {
+      if (pBind->is_null && pBind->is_null[i]) {
+        if (pColData->cflag & COL_IS_KEY) {
+          code = TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+          goto _exit;
+        }
+        if (pBind->is_null[i] == 1) {
+          code = tColDataAppendValueBlobImpl[pColData->flag][CV_FLAG_NULL](pBlobRow, pColData, NULL, 0);
+          if (code) goto _exit;
+        } else {
+          code = tColDataAppendValueBlobImpl[pColData->flag][CV_FLAG_NONE](pBlobRow, pColData, NULL, 0);
+          if (code) goto _exit;
+        }
+      } else if (pBind->length[i] > buffMaxLen) {
+        return TSDB_CODE_PAR_VALUE_TOO_LONG;
+      } else {
+        code = tColDataAppendValueBlobImpl[pColData->flag][CV_FLAG_VALUE](pBlobRow, pColData, buf, pBind->length[i]);
+        buf += pBind->length[i];
+      }
+    }
+  }
+_exit:
+  return code;
+}
 
 /* build rows to `rowArray` from bind
  * `infos` is the bind information array
@@ -4437,6 +4839,74 @@ _exit:
 }
 
 int32_t tColDataSortMerge(SArray **arr) {
+  SArray   *colDataArr = *arr;
+  int32_t   nColData = TARRAY_SIZE(colDataArr);
+  SColData *aColData = (SColData *)TARRAY_DATA(colDataArr);
+
+  if (!(aColData[0].type == TSDB_DATA_TYPE_TIMESTAMP)) {
+    return TSDB_CODE_PAR_INVALID_FIRST_COLUMN;
+  }
+  if (!(aColData[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID)) {
+    return TSDB_CODE_PAR_INVALID_FIRST_COLUMN;
+  }
+  if (!(aColData[0].flag == HAS_VALUE)) {
+    return TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
+  }
+
+  if (aColData[0].nVal <= 1) goto _exit;
+
+  int8_t doSort = 0;
+  int8_t doMerge = 0;
+  // scan -------
+  SRowKey lastKey;
+  tColDataArrGetRowKey(aColData, nColData, 0, &lastKey);
+  for (int32_t iVal = 1; iVal < aColData[0].nVal; ++iVal) {
+    SRowKey key;
+    tColDataArrGetRowKey(aColData, nColData, iVal, &key);
+
+    int32_t c = tRowKeyCompare(&lastKey, &key);
+    if (c < 0) {
+      lastKey = key;
+      continue;
+    } else if (c > 0) {
+      doSort = 1;
+      break;
+    } else {
+      doMerge = 1;
+    }
+  }
+
+  // sort -------
+  if (doSort) {
+    TAOS_CHECK_RETURN(tColDataSort(aColData, nColData));
+  }
+
+  if (doMerge != 1) {
+    tColDataArrGetRowKey(aColData, nColData, 0, &lastKey);
+    for (int32_t iVal = 1; iVal < aColData[0].nVal; ++iVal) {
+      SRowKey key;
+      tColDataArrGetRowKey(aColData, nColData, iVal, &key);
+
+      int32_t c = tRowKeyCompare(&lastKey, &key);
+      if (c == 0) {
+        doMerge = 1;
+        break;
+      }
+      lastKey = key;
+    }
+  }
+
+  // merge -------
+  if (doMerge) {
+    int32_t code = tColDataMerge(arr);
+    if (code) return code;
+  }
+
+_exit:
+  return 0;
+}
+
+int32_t tColDataSortMergeWithBlob(SArray **arr, SBlobRow2 *pBlob) {
   SArray   *colDataArr = *arr;
   int32_t   nColData = TARRAY_SIZE(colDataArr);
   SColData *aColData = (SColData *)TARRAY_DATA(colDataArr);

@@ -234,6 +234,7 @@ int32_t tColDataDecompress(void *input, SColDataCompressInfo *info, SColData *co
 int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
                                checkWKBGeometryFn cgeos);
 int32_t tColDataSortMerge(SArray **arr);
+int32_t tColDataSortMergeWithBlob(SArray **arr, SBlobRow2 *pBlob);
 
 // for raw block
 int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
@@ -461,6 +462,9 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
 // stmt2 binding
 int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
                                 checkWKBGeometryFn cgeos);
+
+int32_t tColDataAddValueByBind2WithBlob(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen,
+                                        SBlobRow2 *pBlobRow);
 
 typedef struct {
   int32_t          columnId;

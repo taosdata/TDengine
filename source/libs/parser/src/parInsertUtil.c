@@ -21,9 +21,11 @@
 #include "querynodes.h"
 #include "tRealloc.h"
 #include "taoserror.h"
+#include "tarray.h"
 #include "tdatablock.h"
 #include "tdataformat.h"
 #include "tmisce.h"
+#include "ttypes.h"
 
 void qDestroyBoundColInfo(void* pInfo) {
   if (NULL == pInfo) {
@@ -337,6 +339,11 @@ static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
           code = terrno;
           taosMemoryFree(pTmp);
         }
+        code = tBlobRowCreate(4096 * 4, &pTmp->pBlobRow);
+        if (code != 0) {
+          taosArrayDestroy(pTmp->aCol);
+          taosMemoryFree(pTmp);
+        }
       } else {
         pTmp->aRowP = taosArrayInit(128, POINTER_BYTES);
         if (NULL == pTmp->aRowP) {
@@ -480,6 +487,7 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
   }
 
   // push data to submit, rebuild empty data for next submit
+  uInfo("blob row transfer %p, pData %p", pTableCxt->pData->pBlobRow, pTableCxt->pData);
   if (NULL == taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData)) {
     return terrno;
   }
@@ -758,6 +766,12 @@ int32_t tbNum) { SHashObj* pVgroupHash = taosHashInit(128, taosGetDefaultHashFun
 }
 */
 
+static int8_t colDataHasBlob(SColData* pCol) {
+  if (IS_STR_DATA_BLOB(pCol->type)) {
+    return 1;
+  }
+  return 0;
+}
 int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool isRebuild) {
   SHashObj* pVgroupHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   SArray*   pVgroupList = taosArrayInit(8, POINTER_BYTES);
@@ -769,13 +783,14 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
 
   int32_t code = TSDB_CODE_SUCCESS;
   bool    colFormat = false;
+  int8_t  isBlob = 0;
 
   void* p = taosHashIterate(pTableHash, NULL);
   if (p) {
     STableDataCxt* pTableCxt = *(STableDataCxt**)p;
     colFormat = (0 != (pTableCxt->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT));
   }
-   
+
   while (TSDB_CODE_SUCCESS == code && NULL != p) {
     STableDataCxt* pTableCxt = *(STableDataCxt**)p;
     if (colFormat) {
@@ -789,11 +804,15 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
         pTableCxt->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
       }
 
-      taosArraySort(pTableCxt->pData->aCol, insColDataComp);
-
-       
-      code = tColDataSortMerge(&pTableCxt->pData->aCol);
-       
+      isBlob = colDataHasBlob(pCol);
+      if (isBlob == 0) {
+        taosArraySort(pTableCxt->pData->aCol, insColDataComp);
+        code = tColDataSortMerge(&pTableCxt->pData->aCol);
+      } else {
+        taosArraySort(pTableCxt->pData->aCol, insColDataComp);
+        code = tColDataSortMergeWithBlob(&pTableCxt->pData->aCol, pTableCxt->pData->pBlobRow);
+      }
+      isBlob = 0;
     } else {
       // skip the table has no data to insert
       // eg: import a csv without valid data
