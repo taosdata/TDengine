@@ -1188,6 +1188,8 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
     PLAN_ERR_JRET(terrno);
   }
 
+  PLAN_ERR_JRET(addVtbPrimaryTsCol(pVirtualTable, &pVtableScan->pScanCols));
+
   PLAN_ERR_JRET(eliminateDupScanCols(pVtableScan->pScanCols));
 
   FOREACH(pNode, pVtableScan->pScanCols) {
