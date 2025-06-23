@@ -495,17 +495,17 @@ static int32_t mndUpdateSsMigrateProgress(SMnode *pMnode, SRpcMsg *pReq, SQueryS
 
   STrans *pTrans = NULL;
   if (inProgress) {
-    pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq, "update-ssmigrate");
+    pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-ssmigrate");
     if (pTrans == NULL) {
-      mError("failed to create update-ssmigrate trans since %s", terrstr());
+      mError("ssmigrate:%d, failed to create update-ssmigrate trans since %s", rsp->mnodeMigrateId, terrstr());
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
       if (terrno != 0) code = terrno;
       TAOS_RETURN(code);
     }
   } else {
-    pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq, "drop-ssmigrate");
+    pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "drop-ssmigrate");
     if (pTrans == NULL) {
-      mError("failed to create drop-ssmigrate trans since %s", terrstr());
+      mError("ssmigrate:%d, failed to create drop-ssmigrate trans since %s", rsp->mnodeMigrateId, terrstr());
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
       if (terrno != 0) code = terrno;
       TAOS_RETURN(code);
@@ -531,7 +531,7 @@ static int32_t mndUpdateSsMigrateProgress(SMnode *pMnode, SRpcMsg *pReq, SQueryS
     TAOS_RETURN(code);
   }
 
-  if ((code = sdbSetRawStatus(pRaw, inProgress ? SDB_STATUS_UPDATE : SDB_STATUS_DROPPED)) != 0) {
+  if ((code = sdbSetRawStatus(pRaw, inProgress ? SDB_STATUS_READY : SDB_STATUS_DROPPED)) != 0) {
     mndTransDrop(pTrans);
     mndReleaseSsMigrate(pMnode, pSsMigrate);
     TAOS_RETURN(code);
@@ -682,17 +682,23 @@ static int32_t mndProcessQuerySsMigrateProgressTimer(SRpcMsg *pReq) {
 }
 
 int32_t mndTransProcessSsMigrateVgroupRsp(SRpcMsg *pRsp) {
-  int32_t code = 0;
+  int32_t ret = 0, code = 0;
   SMnode *pMnode = pRsp->info.node;
 
   SSsMigrateVgroupRsp rsp = {0};
   code = tDeserializeSSsMigrateVgroupRsp(pRsp->pCont, pRsp->contLen, &rsp);
-  mInfo("vgId:%d, ssmigrate:%d, nodeId:%d", rsp.vgId, rsp.ssMigrateId, rsp.nodeId);
+  ret = mndTransProcessRsp(pRsp);
+  if (code != 0) {
+    mError("failed to deserialize ssmigrate-vgroup-rsp, ret:%d, len:%d", code, pRsp->contLen);
+    return ret;
+  }
+  mInfo("mndTransProcessSsmigrateVgroupRsp, vgId:%d, ssmigrate:%d, nodeId:%d", rsp.vgId, rsp.ssMigrateId, rsp.nodeId);
+
 
   SSsMigrateObj *pSsMigrate = mndAcquireSsMigrate(pMnode, rsp.ssMigrateId);
   if (pSsMigrate == NULL) {
     mError("ssmigrate:%d, failed to acquire ssmigrate in mndTransProcessSsMigrateVgroupRsp since %s", rsp.ssMigrateId, terrstr());
-    return mndTransProcessRsp(pRsp);
+    return ret;
   }
 
   for(int32_t i = 0; i < taosArrayGetSize(pSsMigrate->vgroups); i++) {
@@ -703,10 +709,10 @@ int32_t mndTransProcessSsMigrateVgroupRsp(SRpcMsg *pRsp) {
     }
   }
 
-  STrans* pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, NULL, "update-ssmigrate-nodeid");
+  STrans* pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, NULL, "update-ssmigrate-nodeid");
   if (pTrans == NULL) {
     mError("failed to create update-ssmigrate-nodeid trans since %s", terrstr());
-    return mndTransProcessRsp(pRsp);
+    return ret;
   }
 
   mndTransSetDbName(pTrans, pSsMigrate->dbname, NULL);
@@ -716,20 +722,20 @@ int32_t mndTransProcessSsMigrateVgroupRsp(SRpcMsg *pRsp) {
   if (pRaw == NULL) {
     mndTransDrop(pTrans);
     mndReleaseSsMigrate(pMnode, pSsMigrate);
-    return mndTransProcessRsp(pRsp);
+    return ret;
   }
 
   if ((code = mndTransAppendCommitlog(pTrans, pRaw)) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     mndReleaseSsMigrate(pMnode, pSsMigrate);
-    return mndTransProcessRsp(pRsp);
+    return ret;
   }
 
-  if ((code = sdbSetRawStatus(pRaw, SDB_STATUS_UPDATE)) != 0) {
+  if ((code = sdbSetRawStatus(pRaw, SDB_STATUS_READY)) != 0) {
     mndTransDrop(pTrans);
     mndReleaseSsMigrate(pMnode, pSsMigrate);
-    return mndTransProcessRsp(pRsp);
+    return ret;
   }
 
   mndReleaseSsMigrate(pMnode, pSsMigrate);
@@ -737,9 +743,9 @@ int32_t mndTransProcessSsMigrateVgroupRsp(SRpcMsg *pRsp) {
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return mndTransProcessRsp(pRsp);
+    return ret;
   }
 
   mndTransDrop(pTrans);
-  return mndTransProcessRsp(pRsp);
+  return ret;
 }
