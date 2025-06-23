@@ -3078,6 +3078,20 @@ static int32_t translateForbidSysTableFunc(STranslateContext* pCxt, SFunctionNod
   return TSDB_CODE_SUCCESS;
 }
 
+static bool fromSingleTable(SNode* table) {
+  if (NULL == table) return false;
+  if (table->type == QUERY_NODE_REAL_TABLE && ((SRealTableNode*)table)->pMeta) {
+    int8_t type = ((SRealTableNode*)table)->pMeta->tableType;
+    if (type == TSDB_CHILD_TABLE || type == TSDB_NORMAL_TABLE || type == TSDB_SYSTEM_TABLE) {
+      return true;
+    }
+    if (((SRealTableNode*)table)->asChildTable) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
   if (!fmIsRepeatScanFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
@@ -3089,9 +3103,7 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
   SNode*       pTable = pSelect->pFromTable;
   // select percentile() without from clause is also valid
-  if ((NULL != pTable && (QUERY_NODE_REAL_TABLE != nodeType(pTable) ||
-                          (TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
-                           TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType)))) {
+  if (!fromSingleTable(pTable)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
                                    "%s is only supported in single table query", pFunc->functionName);
   }
@@ -4124,20 +4136,6 @@ static bool hasTbnameFunction(SNodeList* pPartitionByList) {
   SNode* pPartKey = NULL;
   FOREACH(pPartKey, pPartitionByList) {
     if (isTbnameFuction(pPartKey)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-static bool fromSingleTable(SNode* table) {
-  if (NULL == table) return false;
-  if (table->type == QUERY_NODE_REAL_TABLE && ((SRealTableNode*)table)->pMeta) {
-    int8_t type = ((SRealTableNode*)table)->pMeta->tableType;
-    if (type == TSDB_CHILD_TABLE || type == TSDB_NORMAL_TABLE || type == TSDB_SYSTEM_TABLE) {
-      return true;
-    }
-    if (((SRealTableNode*)table)->asChildTable) {
       return true;
     }
   }
