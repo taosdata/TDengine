@@ -777,8 +777,8 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
       T_LONG_JMP(pTaskInfo->env, ret);
     }
   }
-  qDebug("hashIntervalAgg1 window skey: %lld, ekey:%lld, startPos: %d, forwardRows: %d",
-    win.skey, win.ekey, startPos, forwardRows);
+  // qDebug("hashIntervalAgg1 window skey: %lld, ekey:%lld, startPos: %d, forwardRows: %d",
+  //   win.skey, win.ekey, startPos, forwardRows);
   updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &win, 1);
   ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startPos, forwardRows,
                                   pBlock->info.rows, numOfOutput);
@@ -803,8 +803,8 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
-    qDebug("hashIntervalAgg2 window skey: %lld, ekey:%lld, startPos: %d, forwardRows: %d",
-      nextWin.skey, nextWin.ekey, startPos, forwardRows);
+    // qDebug("hashIntervalAgg2 window skey: %lld, ekey:%lld, startPos: %d, forwardRows: %d",
+      // nextWin.skey, nextWin.ekey, startPos, forwardRows);
 
     ekey = ascScan ? nextWin.ekey : nextWin.skey;
     forwardRows = getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL,
