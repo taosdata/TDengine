@@ -1151,6 +1151,12 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
     pItem->stype = stype;
   }
 
+  pItem = cfgGetItem(pCfg, "disableStream");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    pItem->bval = tsDisableStream;
+    pItem->stype = stype;
+  }
+
   pItem = cfgGetItem(pCfg, "numOfVnodeFetchThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     tsNumOfVnodeFetchThreads = numOfCores / 4;

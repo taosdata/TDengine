@@ -136,5 +136,3 @@ TDengine 经过特别优化，以适应时间序列数据的独特需求，引�
 - [TDengine VS InfluxDB，写入性能大 PK！](https://www.taosdata.com/2021/11/05/3248.html)
 - [TDengine 和 InfluxDB 查询性能对比测试报告](https://www.taosdata.com/2022/02/22/5969.html)
 - [TDengine 与 InfluxDB、OpenTSDB、Cassandra、MySQL、ClickHouse 等数据库的对比测试报告](https://www.taosdata.com/downloads/TDengine_Testing_Report_cn.pdf)
-
-

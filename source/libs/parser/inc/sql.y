@@ -598,6 +598,7 @@ col_name_list(A) ::= col_name(B).                                               
 col_name_list(A) ::= col_name_list(B) NK_COMMA col_name(C).                       { A = addNodeToList(pCxt, B, C); }
 
 col_name(A) ::= column_name(B).                                                   { A = createColumnNode(pCxt, NULL, &B); }
+col_name(A) ::= TBNAME(B).                                                        { A = createColumnNode(pCxt, NULL, &B); }
 
 /************************************************ show ****************************************************************/
 cmd ::= SHOW DNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DNODES_STMT); }
