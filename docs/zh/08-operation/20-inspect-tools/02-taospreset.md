@@ -100,7 +100,7 @@ root hard stack=65536
 | **关闭 SElinux 服务**   | 关闭系统 SElinux 服务 |
 | **配置系统参数**   | 配置用户预设定的系统参数 |   
 | **配置 coredump**   | 配置 coredump 生成目录并开启服务 | 
-| **修改机器 Hostname**   | 当机器 Hostanme 为默认的 localhost 时更新为配置文件中预设定的 FQDN | 
+| **修改机器 Hostname**   | 当机器 Hostname 为默认的 localhost 时更新为配置文件中预设定的 FQDN | 
 | **配置域名解析**   | 将配置文件中安装节点的 FQDN 和 IP 配置到 /etd/hosts 文件 | 
 
 ## 结果文件

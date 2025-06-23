@@ -31,11 +31,13 @@ priv_level : {
 
 Database access permissions include read and write permissions, which can be granted separately or simultaneously.
 
-Note
+:::note
 
 - In the priv_level format, the "." before represents the database name, and the "." after represents the table name, meaning table-level authorization control. If "*" follows the ".", it means all tables in the database specified before the "."
 - "dbname.*" means all tables in the database named "dbname"
 - "*.*" means all tables in all database names
+
+:::
 
 ### Database Permission Description
 
@@ -147,7 +149,7 @@ priv_level : {
 }
 ```
 
-2. Revoke data subscription authorization
+1. Revoke data subscription authorization
 
 ```sql
 REVOKE privileges ON priv_level FROM user_name
