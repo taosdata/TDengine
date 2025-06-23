@@ -7377,10 +7377,9 @@ static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelec
   PAR_ERR_JRET(extractCondFromCountWindow(pCxt, (SCountWindowNode*)pSelect->pWindow, &pLogicCond));
 
   if (pLogicCond) {
+    PAR_ERR_JRET(translateExpr(pCxt, &pLogicCond));
     PAR_ERR_JRET(insertCondIntoSelectStmt(pSelect, &pLogicCond));
   }
-
-  PAR_ERR_JRET(translateExpr(pCxt, &pSelect->pWhere));
 
   return checkCountWindow(pCxt, (SCountWindowNode*)pSelect->pWindow);
 
