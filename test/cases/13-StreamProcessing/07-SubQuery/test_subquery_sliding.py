@@ -767,7 +767,7 @@ class TestStreamSubquerySliding:
             res_query="select * from rdb.r76 limit 1 offset 3",
             exp_query="select cast('2025-01-01 00:15:00.000' as timestamp), ST_GeomFromText('POINT (2.000000 2.000000)'), ST_AsText(cgeometry), ST_Contains(cgeometry, cgeometry), ST_ContainsProperly(cgeometry, cgeometry), ST_Covers(cgeometry, cgeometry), ST_Equals(cgeometry, cgeometry), ST_Intersects(cgeometry, cgeometry), ST_Touches(cgeometry, cgeometry), 1, '1' from qdb.t4 where cts='2025-01-01 00:15:00.000';",
         )
-        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug5.py
+        # self.streams.append(stream) JIRA TD-35766
 
         stream = StreamItem(
             id=77,
@@ -1809,19 +1809,19 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=203,
-            stream="create stream rdb.s0 sliding(5m) from tdb.n1 into rdb.r0 as select _twstart, sum(cint), FIRST(cint) from qdb.meters interval(2m)",
-            res_query="select ts, c1, c2 from rdb.r1",
-            exp_query="select _wstart ts, count(cint) c1, avg(cint) c2 from qdb.meters interval(5m)",
+            stream="create stream rdb.s203 sliding(5m) from tdb.n1 into rdb.r203 as select _wstart, sum(cint), FIRST(cint) from qdb.meters interval(2m)",
+            res_query="select * from rdb.r203",
+            exp_query="select _wstart, sum(cint), FIRST(cint) from qdb.meters interval(2m)",
         )
-        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug1.py
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=204,
-            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers into rdb.r0 as select _twstart, sum(cint), FIRST(cint) from qdb.meters interval(2m)",
-            res_query="select ts, c1, c2 from rdb.r1",
-            exp_query="select _wstart ts, count(cint) c1, avg(cint) c2 from qdb.meters interval(5m)",
+            stream="create stream rdb.s204 interval(5m) sliding(5m) from tdb.triggers into rdb.r204 as select _wstart, sum(cint), FIRST(cint) from qdb.meters interval(5m)",
+            res_query="select * from rdb.r204",
+            exp_query="select _wstart, sum(cint), FIRST(cint) from qdb.meters interval(5m)",
         )
-        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug1.py
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=205,

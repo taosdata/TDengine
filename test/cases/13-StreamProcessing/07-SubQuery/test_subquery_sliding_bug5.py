@@ -107,10 +107,10 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=76,
-            stream="create stream rdb.s76 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r76 as select _twstart ts, ST_GeomFromText('POINT (2.000000 2.000000)'), ST_AsText(cgeometry), ST_Contains(cgeometry, cgeometry), ST_ContainsProperly(cgeometry, cgeometry), ST_Covers(cgeometry, cgeometry), ST_Equals(cgeometry, cgeometry), ST_Intersects(cgeometry, cgeometry), ST_Touches(cgeometry, cgeometry) from qdb.meters where tbname='t4' and cts >=_tprev_ts and cts <= _tcurrent_ts order by cts limit 1;",
-            res_query="select * from rdb.r76 limit 1 offset 3",
-            exp_query="select cast('2025-01-01 00:15:00.000' as timestamp), ST_GeomFromText('POINT (2.000000 2.000000)'), ST_AsText(cgeometry), ST_Contains(cgeometry, cgeometry), ST_ContainsProperly(cgeometry, cgeometry), ST_Covers(cgeometry, cgeometry), ST_Equals(cgeometry, cgeometry), ST_Intersects(cgeometry, cgeometry), ST_Touches(cgeometry, cgeometry), 1, '1' from qdb.t4 where cts='2025-01-01 00:15:00.000';",
+            id=206,
+            stream="create stream rdb.s206 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r206 tags(t1 int as %%1, t2 int as cast(%%2 as int)) as select _twstart c1, first(tw) c2, last(te) c3, count(tb) c4, sum(cnt) c5 from (select _wstart tw, _wend te, tbname tb, count(*) cnt from qdb.meters where cts >= _twstart and cts <_twend and tint=%%1 partition by tbname count_window(1000))",
+            res_query="select * from rdb.r206",
+            exp_query="select first(tw), first(tw), last(te), count(tb), sum(cnt) from (select _wstart tw, _wend te, tbname tb, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and tint=1 partition by tbname count_window(1000));",
         )
         self.streams.append(stream)
 
