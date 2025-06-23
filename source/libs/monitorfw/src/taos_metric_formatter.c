@@ -152,22 +152,20 @@ int taos_metric_formatter_load_l_value(taos_metric_formatter_t *self, const char
 }
 int32_t taos_metric_formatter_get_vgroup_id(char *key) {
   char *start, *end;
+  const size_t MAX_VGROUP_ID_LEN = 31;
+
   start = strstr(key, "vgroup_id=\"");
   if (start) {
     start += strlen("vgroup_id=\"");
     end = strchr(start, '\"');
     if (end) {
       size_t len = end - start;
-      if (len > 20) {
+      if (len > MAX_VGROUP_ID_LEN) {
         return 0;
       }
-
-      char vgroupid[32];
-      int  ret = snprintf(vgroupid, sizeof(vgroupid), "%.*s", (int)len, start);
-      if (ret >= sizeof(vgroupid)) {
-        return 0;
-      }
-
+      char vgroupid[MAX_VGROUP_ID_LEN + 1];
+      strncpy(vgroupid, start, len);
+      vgroupid[len] = '\0';
       return strtol(vgroupid, NULL, 10);
     }
   }
