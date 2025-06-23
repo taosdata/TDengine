@@ -106,78 +106,20 @@ class TestStreamDevBasic:
     def createStreams(self):
         self.streams = []
 
-        # stream = StreamItem(
-        #     id=19,
-        #     stream="create stream rdb.s19 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r19 as select _twend tw, sum(c1) sumcnt from (select tbname, count(*) c1 from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and tint=%%1 partition by tbname)",
-        #     res_query="select tw, sumcnt from rdb.r19 where id = 1",
-        #     exp_query="select _wend, count(*) from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tint=1 interval(5m)",
-        # )
-        
-        # stream = StreamItem(
-        #     id=20,
-        #     stream="create stream rdb.s20 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r20 as select _twend tw, count(*) c1, _tgrpid tg, _tlocaltime tl from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and tint=%%1;",
-        #     res_query="select tw, c1, id, name from rdb.r20 where id=1",
-        #     exp_query="select _wend, count(*) cnt, 1, '1' from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tint=1 interval(5m)",
-        # )
-        
-        # stream = StreamItem(
-        #     id=21,
-        #     stream="create stream rdb.s21 sliding(5m) from tdb.n1 into rdb.r21 as select _tprev_ts tw, count(*) c1, _tgrpid tg, _tlocaltime tl from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
-        #     res_query="select tw, c1, tg from rdb.r21",
-        #     exp_query="select _wend, count(*) cnt, 0 from qdb.meters where cts >= '2025-01-01 00:20:00.000' and cts < '2025-01-01 00:35:00.000' interval(5m);",
-        # )
-        
-        # stream = StreamItem(
-        #     id=22,
-        #     stream="create stream rdb.s22 interval(5m) sliding(5m) from tdb.triggers into rdb.r22 as select _twend tw, sum(cint) c1, _tgrpid tg, _tlocaltime tl from qdb.meters where cts >= _twstart and cts < _twend",
-        #     res_query="select tw, c1 from rdb.r22;",
-        #     exp_query="select _wend, sum(cint) from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' interval(5m);",
-        # )     
-        
-        # stream = StreamItem(
-        #     id=23,
-        #     stream="create stream rdb.s23 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r23 as select _twend tw, sum(cint) c1, _tgrpid tg, _tlocaltime tl from qdb.meters where cts >= _twstart and cts < _twend and tbname=%%tbname partition by tbname",
-        #     res_query="select tw, c1, tag_tbname from rdb.r23 where tag_tbname='t1';",
-        #     exp_query="select _wend, sum(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
-        # )
-        
-        # stream = StreamItem(
-        #     id=24,
-        #     stream="create stream rdb.s24 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r24 as select _twend tw, sum(cint) c1, %%1 c2 from qdb.meters where cts >= _twstart and cts < _twend and tint=%%1 partition by tint",
-        #     res_query="select tw, c1, c2, id from rdb.r24 where id=1;",
-        #     exp_query="select _wend, sum(cint), tint, tint from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tint=1 partition by tint interval(5m);",
-        # )
-        
-        # stream = StreamItem(
-        #     id=26,
-        #     stream="create stream rdb.s26 interval(5m) sliding(5m) from tdb.triggers into rdb.r26 as select _twstart tw, sum(cint) c1, tbname from qdb.meters where cts >= _twstart and cts < _twend and tbname='t18' partition by tbname",
-        #     res_query="select * from rdb.r26",
-        #     exp_query="select _wstart, sum(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t18' partition by tbname interval(5m);",
-        # )
-        
         stream = StreamItem(
-            id=205,
-            stream="create stream rdb.s205 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r205 as select _twstart, sum(cint), FIRST(cint) from qdb.meters interval(2m)",
-            res_query="select * from rdb.r205",
-            exp_query="select sum(cint) cnt from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
+            id=54,
+            stream="create stream rdb.s54 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r54 as select _twstart ts, CAST(cint as varchar), TO_CHAR(cts, 'yyyy-mm-dd'), TO_ISO8601(cts), TO_TIMESTAMP(TO_CHAR(cts, 'yyyy-mm-dd'), 'yyyy-mm-dd'), TO_UNIXTIMESTAMP(TO_CHAR(cts, 'yyyy-mm-dd')) from qdb.v1 where cts >= _twstart and cts <_twend and _tlocaltime > '2024-12-30' order by cts limit 1",
+            res_query="select * from rdb.r54 limit 1 offset 3;",
+            exp_query="select cast('2025-01-01 00:15:00.000' as timestamp), CAST(cint as varchar), TO_CHAR(cts, 'yyyy-mm-dd'), TO_ISO8601(cts), TO_TIMESTAMP(TO_CHAR(cts, 'yyyy-mm-dd'), 'yyyy-mm-dd'), TO_UNIXTIMESTAMP(TO_CHAR(cts, 'yyyy-mm-dd')) from qdb.v1 where cts='2025-01-01 00:15:00.000';",
         )
         self.streams.append(stream)
+
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()
 
-    def check11(self):
-        tdSql.checkTableSchema(
-            dbname="rdb",
-            tbname="r11",
-            schema=[
-                ["tp", "TIMESTAMP", 8, ""],
-                ["tc", "TIMESTAMP", 8, ""],
-                ["tn", "TIMESTAMP", 8, ""],
-                ["tg", "BIGINT", 8, ""],
-                ["tl", "TIMESTAMP", 8, ""],
-                ["c1", "BIGINT", 8, ""],
-                ["c2", "DOUBLE", 8, ""],
-            ],
+    def check205(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from rdb.r205;", func=lambda: tdSql.getRows() > 0, retry=20
         )
