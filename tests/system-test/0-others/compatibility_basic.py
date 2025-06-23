@@ -139,9 +139,13 @@ class CompatibilityBase:
         os.system(f" cd {packagePath} && tar xvf {packageName} && cd {packageTPath} && ./install.sh -e no")
         
         os.system(f"pkill -9 taosd")
+        self.checkProcessPid("taosd")
+
         print(f"start taosd: rm -rf {dataPath}/* && nohup /usr/bin/taosd -c {cPath} &")
         os.system(f"rm -rf {dataPath}/* && nohup /usr/bin/taosd -c {cPath} &")
         os.system(f"killall taosadapter")
+        self.checkProcessPid("taosadapter")
+        
         os.system(f"cp /etc/taos/taosadapter.toml {cPath}/taosadapter.toml")
         taosadapter_cfg = cPath + "/taosadapter.toml"
         taosadapter_log_path = cPath + "/../log/"

@@ -24,7 +24,7 @@ table_option: {
 }
 ```
 
-**Instructions**
+Instructions:
 
 1. The maximum number of columns in a supertable is 4096, including tag columns, with a minimum of 3 columns: a timestamp primary key, one tag column, and one data column.
 2. Besides the timestamp primary key column, a second column can be designated as an additional composite primary key using the COMPOSITE KEY keyword. This second composite primary key column must be of integer or string type (varchar).
@@ -155,7 +155,7 @@ alter_table_option: {
 
 ```
 
-**Usage Instructions**
+Usage Instructions:
 
 Modifying the structure of a supertable affects all its subtables. It is not possible to modify the table structure for a specific subtable. Modifications to the tag structure need to be issued to the supertable, and TDengine will automatically apply them to all subtables of this supertable.
 

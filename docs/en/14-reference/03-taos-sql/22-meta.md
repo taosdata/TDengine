@@ -325,7 +325,6 @@ Note: Users with SYSINFO property set to 0 cannot view this table.
 | 4    |   table_name    | VARCHAR(193)   | Table name                           |
 | 5    |    condition    | VARCHAR(49152) | Subtable permission filter condition |
 
-
 ## INS_DISK_USAGE
 
 | # | **Column Name** | **Data type** | **Description**|
@@ -335,17 +334,17 @@ Note: Users with SYSINFO property set to 0 cannot view this table.
 | 3   | wal        | BIGINT      | WAL file size, in KB                       |
 | 4   | data1      | BIGINT      | Data file size on primary storage, in KB   |
 | 5   | data2      | BIGINT      | Data file size on secondary storage, in KB |
-| 6   | data3      | BIGINT      | Data file size on tertiary storage, in KB  | 
+| 6   | data3      | BIGINT      | Data file size on tertiary storage, in KB  |
 | 7   | cache_rdb  | BIGINT      | Size of last/last_row files, in KB         |
-| 8   | table_meta | BIGINT      | Size of meta files, in KB                  | 
+| 8   | table_meta | BIGINT      | Size of meta files, in KB                  |
 | 9   | s3         | BIGINT      | Size occupied on S3, in KB                 |
 | 10  | raw_data   | BIGINT      | Estimated size of raw data, in KB          |
 
-note: 
+note:
 
 ## INS_FILESETS
 
-Provides information about file sets. 
+Provides information about file sets.
 
 | #   |   **Column**   | **Data Type** | **Description**                                      |
 | --- | :------------: | ------------- | ---------------------------------------------------- |
