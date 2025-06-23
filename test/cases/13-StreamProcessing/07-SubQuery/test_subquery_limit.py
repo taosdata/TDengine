@@ -105,7 +105,10 @@ class TestStreamDevBasic:
         tdSql.error(
             "create stream rdb.s63 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r63 as select _twstart ts, APERCENTILE(cint, 25), AVG(cuint), SUM(cint), COUNT(cbigint), ELAPSED(cts), HYPERLOGLOG(cdouble) from qdb.meters where tbname=%%tbname and cts >= _twstart and cts < _twend;"
         )
-        
+        tdSql.error(
+            "create stream rdb.s54 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r54 as select _twstart ts, CAST(cint as varchar), TO_CHAR(cts, 'yyyy-mm-dd'), TO_ISO8601(cts), TO_TIMESTAMP(TO_CHAR(cts, 'yyyy-mm-dd'), 'yyyy-mm-dd'), TO_UNIXTIMESTAMP(TO_CHAR(cts, 'yyyy-mm-dd')) from qdb.v1 where cts >= _twstart and cts <_twend and _tlocaltime > '2024-12-30' order by cts limit 1"
+        )
+
         # 创建这样的语句不正确
         # , SUM(cdecimal8) Invalid datataype
         # sum (bool)
