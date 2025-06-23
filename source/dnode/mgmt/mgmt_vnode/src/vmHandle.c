@@ -651,6 +651,10 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
       ++nVgDropped;
       continue;
     }
+    if (!taosCheckAccessFile(pCfg->path, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
+      dError("mount:%s, vnode path:%s, no r/w authority", pReq->mountName, pCfg->path);
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_NO_RIGHTS);
+    }
     SVnodeInfo *pInfo = TARRAY_GET_ELEM(pVgCfgs, j++);
     TAOS_CHECK_EXIT(vnodeLoadInfo(pCfg->path, pInfo));
     if (pInfo->config.syncCfg.replicaNum > 1) {
@@ -1223,11 +1227,13 @@ static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg
     return code;
   }
 
-  if ((code = taosMkDir(path))) {
-    vError("vgId:%d, failed to prepare vnode dir since %s, mount path: %s", pCfg->vgId, tstrerror(code), path);
+  vnodeGetPrimaryDir(path, 0, pMgmt->pTfs, hostDir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(path, diskPrimary, pMountTfs, mountDir, TSDB_FILENAME_LEN);
+
+  if ((code = taosMkDir(hostDir))) {
+    vError("vgId:%d, failed to prepare vnode dir since %s, host path: %s", pCfg->vgId, tstrerror(code), hostDir);
     return code;
   }
-  vnodeGetPrimaryDir(path, 0, pMgmt->pTfs, hostDir, TSDB_FILENAME_LEN);
 
   if (pCfg) {
     info.config = *pCfg;
@@ -1241,28 +1247,43 @@ static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg
 
   SVnodeInfo oldInfo = {0};
   oldInfo.config = vnodeCfgDefault;
-  if (vnodeLoadInfo(dir, &oldInfo) == 0) {
-    code = (oldInfo.config.dbId == info.config.dbId) ? 0 : TSDB_CODE_VND_ALREADY_EXIST_BUT_NOT_MATCH;
-    if (code == 0) {
-      vWarn("vgId:%d, mount:vnode config info already exists at %s.", oldInfo.config.vgId, dir);
-    } else {
+  if (vnodeLoadInfo(hostDir, &oldInfo) == 0) {
+    if (oldInfo.config.dbId != info.config.dbId) {
+      code = TSDB_CODE_VND_ALREADY_EXIST_BUT_NOT_MATCH;
       vError("vgId:%d, mount:vnode config info already exists at %s. oldDbId:%" PRId64 "(%s) at cluster:%" PRId64
              ", newDbId:%" PRId64 "(%s) at cluser:%" PRId64 ", code:%s",
-             oldInfo.config.vgId, dir, oldInfo.config.dbId, oldInfo.config.dbname,
+             oldInfo.config.vgId, hostDir, oldInfo.config.dbId, oldInfo.config.dbname,
              oldInfo.config.syncCfg.nodeInfo[oldInfo.config.syncCfg.myIndex].clusterId, info.config.dbId,
              info.config.dbname, info.config.syncCfg.nodeInfo[info.config.syncCfg.myIndex].clusterId, tstrerror(code));
+
+    } else {
+      vWarn("vgId:%d, mount:vnode config info already exists at %s.", oldInfo.config.vgId, hostDir);
     }
     return code;
   }
 
   vInfo("vgId:%d, mount:save vnode config while create", info.config.vgId);
-  if ((code = vnodeSaveInfo(dir, &info)) < 0 || (code = vnodeCommitInfo(dir)) < 0) {
+  if ((code = vnodeSaveInfo(hostDir, &info)) < 0 || (code = vnodeCommitInfo(hostDir)) < 0) {
     vError("vgId:%d, failed to save vnode config since %s, mount path: %s", pCfg ? pCfg->vgId : 0, tstrerror(code),
-           path);
+           hostDir);
     return code;
   }
 
-  vInfo("vgId:%d, vnode is mounted, path:%s", info.config.vgId, path);
+  char hostSubDir[TSDB_FILENAME_LEN] = {0};
+  char mountSubDir[TSDB_FILENAME_LEN] = {0};
+
+  static const char *vndSubDirs[] = {"meta", "sync", "tq", "tsdb", "wal"};
+  for (int32_t i = 0; i < tListLen(vndSubDirs); ++i) {
+    (void)snprintf(hostSubDir, sizeof(hostSubDir), "%s%s%s", hostDir, TD_DIRSEP, vndSubDirs[i]);
+    (void)snprintf(mountSubDir, sizeof(mountSubDir), "%s%s%s", mountDir, TD_DIRSEP, vndSubDirs[i]);
+    if ((code = taosSymLink(hostSubDir, mountSubDir)) != 0) {
+      vError("vgId:%d, failed to create vnode symlink %s -> %s since %s", info.config.vgId, mountSubDir, hostSubDir,
+             tstrerror(code));
+      return code;
+    }
+  }
+
+  vInfo("vgId:%d, vnode is mounted from %s to %s", info.config.vgId, mountDir, hostDir);
   return 0;
 }
 
