@@ -7,7 +7,7 @@ import datetime
 class TestStreamSlidingTrigger:
     caseName = "test_stream_sliding_trigger"
     currentDir = os.path.dirname(os.path.abspath(__file__))
-    runAll = True
+    runAll = False
     dbname = "test1"
     trigTbname = ""
     calcTbname = ""
@@ -25,7 +25,7 @@ class TestStreamSlidingTrigger:
     queryIdx = 0
     slidingList = [1, 10, 100, 1000]
     tableList = []
-    runCaseList = []
+    runCaseList = ["0-0-0-0-27"]
     streamSql = ""
     querySql = ""
     querySqls = [ # (SQL, (minPartitionColNum, partitionByTbname), PositiveCase)
@@ -82,6 +82,8 @@ class TestStreamSlidingTrigger:
         "0-0-0-0-4": [40, None, True, [], ""],
         "0-0-0-0-6": [-1, None, True, [], ""], #FAILED
 
+        "0-0-0-0-27": [-1, None, True, [], ""], #FAILED, crash
+
         "0-0-0-1-0": [3, None, True, [], ""], 
         "0-0-0-1-1": [-1, None, True, [], ""], #FAILED
         "0-0-0-1-2": [-1, None, True, [], ""], #FAILED
@@ -99,6 +101,8 @@ class TestStreamSlidingTrigger:
         "0-0-0-1-14": [-1, None, True, [], ""], #FAILED
         "0-0-0-1-16": [120, None, True, [], "order by cts, tag_tbname"],
         "0-0-0-1-18": [-1, None, True, [], "order by `_tcurrent_ts`, tag_tbname"], #FAILED
+
+
         "0-0-0-2-0": [3, None, True, [], "order by cts, tag_tbname"],
         "0-0-0-2-1": [-1, None, True, [], ""], #FAILED, 结果子表数不够
 
@@ -126,6 +130,7 @@ class TestStreamSlidingTrigger:
         
         "0-0-0-2-17": [-1, None, True, [], ""],
         "0-0-0-2-18": [-1, None, True, [], ""],   
+
         "0-0-0-3-0": [-1, None, True, [], "order by cts, tag_tbname"], #FAILED, 预期3行，结果子表TAG值错误
         "0-0-0-3-1": [-1, None, True, [], "order by cts, tag_tbname"], #FAILED, 结果子表TAG值错误      
         "0-0-0-3-2": [-1, None, True, [], "order by cts, tag_tbname"], #FAILED, 预期120行，结果子表TAG值错误      
