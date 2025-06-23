@@ -32,7 +32,7 @@ extern "C" {
 #endif
 
 #define VNODE_WRITE_METRIC "write_metrics"
-#define DNODE_METRIC       "dnode_metrics"
+#define DNODE_METRIC       "dnodes_metrics"
 
 // Metric name definitions following monFramework.c pattern
 #define WRITE_TABLE                   "taosd_write_metrics"
@@ -56,7 +56,7 @@ extern "C" {
 #define WRITE_LAST_CACHE_COMMIT_TIME  WRITE_TABLE ":last_cache_commit_time"
 #define WRITE_LAST_CACHE_COMMIT_COUNT WRITE_TABLE ":last_cache_commit_count"
 
-#define DNODE_TABLE                    "taosd_dnode_metrics"
+#define DNODE_TABLE                    "taosd_dnodes_metrics"
 #define DNODE_RPC_QUEUE_MEMORY_ALLOWED DNODE_TABLE ":rpc_queue_memory_allowed"
 #define DNODE_RPC_QUEUE_MEMORY_USED    DNODE_TABLE ":rpc_queue_memory_used"
 #define DNODE_APPLY_MEMORY_ALLOWED     DNODE_TABLE ":apply_memory_allowed"
