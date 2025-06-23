@@ -108,12 +108,12 @@ class TestStreamDevBasic:
         tdSql.error(
             "create stream rdb.s54 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r54 as select _twstart ts, CAST(cint as varchar), TO_CHAR(cts, 'yyyy-mm-dd'), TO_ISO8601(cts), TO_TIMESTAMP(TO_CHAR(cts, 'yyyy-mm-dd'), 'yyyy-mm-dd'), TO_UNIXTIMESTAMP(TO_CHAR(cts, 'yyyy-mm-dd')) from qdb.v1 where cts >= _twstart and cts <_twend and _tlocaltime > '2024-12-30' order by cts limit 1"
         )
-
-        # 创建这样的语句不正确
-        # , SUM(cdecimal8) Invalid datataype
-        # sum (bool)
-        # PERCENTILE(cusmallint, 90) 使用分组
-        # HISTOGRAM(cfloat, 'user_input', '[1, 3, 5, 7]', 1),
+        tdSql.error(
+            "create stream rdb.s36 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r36 as select _tcurrent_ts tc,  _tlocaltime - _tcurrent_ts tx1, _tcurrent_ts-_tprev_ts tx2, _tnext_ts-_tcurrent_ts tx3, sum(cint) c1, avg(v1) c2, _tnext_ts + 1 as ts2, _tgrpid from qdb.meters where tbname=%%tbname and cts >= _twstart and cts < _twend partition by tbname;"
+        )
+        tdSql.error(
+            "create stream rdb.s36 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r36 as select _tcurrent_ts tc,  _tlocaltime - _tcurrent_ts tx1, _tcurrent_ts-_tprev_ts tx2, _tnext_ts-_tcurrent_ts tx3, sum(cint) c1, avg(v1) c2, _tnext_ts + 1 as ts2, _tgrpid from qdb.meters where tint=%%1 and cts >= _twstart and cts < _twend partition by tint;"
+        )
 
     def checkStreamStatus(self):
         tdLog.info(f"wait total:{len(self.streams)} streams run finish")
