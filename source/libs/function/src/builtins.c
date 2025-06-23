@@ -1265,7 +1265,8 @@ static int32_t translateSampleTail(SFunctionNode* pFunc, char* pErrBuf, int32_t 
 
   // set result type
   pFunc->node.resType =
-      (SDataType){.bytes = IS_STR_DATA_TYPE(colType) ? pSDataType->bytes : tDataTypes[colType].bytes, .type = colType};
+      (SDataType){.bytes = IS_STR_DATA_TYPE(colType) ? pSDataType->bytes : tDataTypes[colType].bytes, .type = colType,
+                  .precision = pSDataType->precision, .scale = pSDataType->scale};
   return TSDB_CODE_SUCCESS;
 }
 
