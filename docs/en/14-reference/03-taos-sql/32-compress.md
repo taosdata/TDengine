@@ -46,14 +46,14 @@ In this document, it specifically refers to the internal levels of the second-le
 CREATE [dbname.]tabname (colName colType [ENCODE 'encode_type'] [COMPRESS 'compress_type' [LEVEL 'level'], [, other create_definition]...])
 ```
 
-**Parameter Description**
+Parameter Description:
 
 - tabname: Name of the supertable or basic table
 - encode_type: First-level compression, see the list above
 - compress_type: Second-level compression, see the list above
 - level: Specifically refers to the level of second-level compression, default is medium, supports abbreviation as 'h'/'l'/'m'
 
-**Function Description**
+Function Description:
 
 - Specify the compression method for columns when creating a table
 
@@ -64,12 +64,12 @@ ALTER TABLE [db_name.]tabName MODIFY COLUMN colName [ENCODE 'ecode_type'] [COMPR
 
 ```
 
-**Parameter Description**
+Parameter Description:
 
 - tabName: Table name, can be a supertable or a basic table
 - colName: Column for which the compression algorithm is to be changed, can only be a normal column
 
-**Function Description**
+Function Description:
 
 - Change the compression method of a column
 
@@ -79,7 +79,7 @@ ALTER TABLE [db_name.]tabName MODIFY COLUMN colName [ENCODE 'ecode_type'] [COMPR
 DESCRIBE [dbname.]tabName
 ```
 
-**Function Description**
+Function Description:
 
 - Displays basic information of the column, including type and compression method
 

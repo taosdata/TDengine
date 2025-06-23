@@ -330,6 +330,8 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   if (curl_easy_setopt(curl, CURLOPT_POST, 1) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, bufLen) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_POSTFIELDS, buf) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L) != 0) goto _OVER;
 
   uDebugL("curl post request will sent, url:%s len:%d content:%s", url, bufLen, buf);
   code = curl_easy_perform(curl);

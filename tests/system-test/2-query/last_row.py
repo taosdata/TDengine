@@ -19,12 +19,13 @@ class TDTestCase:
         self.row_nums = 20
         self.ts = 1434938400000
         self.time_step = 1000
+        self.keep_duration = 36500  # days
 
     def insert_datas_and_check_abs(self, tbnums, rownums, time_step, cache_value, dbname="test"):
         tdSql.execute(f"drop database if exists {dbname} ")
         tdLog.info("prepare datas for auto check abs function ")
 
-        tdSql.execute(f"create database {dbname} cachemodel {cache_value} ")
+        tdSql.execute(f"create database {dbname} keep {self.keep_duration} cachemodel {cache_value} ")
         tdSql.execute(f"use {dbname} ")
         tdSql.execute(f"create stable {dbname}.stb (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint,\
              c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp) tags (t1 int)")
@@ -61,7 +62,7 @@ class TDTestCase:
 
     def prepare_datas(self ,cache_value, dbname="db"):
         tdSql.execute(f"drop database if exists {dbname} ")
-        create_db_sql = f"create database if not exists {dbname} keep 3650 duration 100 cachemodel {cache_value}"
+        create_db_sql = f"create database if not exists {dbname} keep 36500 duration 100 cachemodel {cache_value}"
         tdSql.execute(create_db_sql)
 
         tdSql.execute(f"use {dbname}")
@@ -129,7 +130,7 @@ class TDTestCase:
 
         tdSql.execute(f"drop database if exists {dbname} ")
         # prepare datas
-        tdSql.execute(f"create database if not exists {dbname} keep 3650 duration 100 cachemodel {cache_value}")
+        tdSql.execute(f"create database if not exists {dbname} keep 36500 duration 100 cachemodel {cache_value}")
 
         tdSql.execute(f"use {dbname} ")
 
@@ -883,7 +884,7 @@ class TDTestCase:
 
     def initLastRowDelayTest(self, dbname="db"):
         tdSql.execute(f"drop database if exists {dbname} ")
-        create_db_sql = f"create database if not exists {dbname} keep 3650 duration 100 cachemodel 'NONE' REPLICA 1"
+        create_db_sql = f"create database if not exists {dbname} keep 36500 duration 100 cachemodel 'NONE' REPLICA 1"
         tdSql.execute(create_db_sql)
 
         time.sleep(3)

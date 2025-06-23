@@ -16,7 +16,7 @@ Before starting, please make sure that the R language environment is already ins
 
 1. Install Java Development Kit (JDK): The RJDBC library depends on the Java environment. Please download the JDK suitable for your operating system from the Oracle official website and follow the installation guide.
 
-2. Install the RJDBC library: Execute the following command in the R console to install the RJDBC library.
+1. Install the RJDBC library: Execute the following command in the R console to install the RJDBC library.
 
 ```r
 install.packages("RJDBC", repos='http://cran.us.r-project.org')
@@ -25,14 +25,14 @@ install.packages("RJDBC", repos='http://cran.us.r-project.org')
 :::note
 
 1. The R language software version 4.2 that comes with the Ubuntu system has a non-responsive bug when calling the RJDBC library, please install the installation package from the R language [official website](https://www.r-project.org/).
-2. Installing the RJDBC package on Linux may require installing components needed for compilation, for example on Ubuntu execute the command `apt install -y libbz2-dev libpcre2-dev libicu-dev`.
-3. On Windows systems, you need to set the JAVA_HOME environment variable.
+1. Installing the RJDBC package on Linux may require installing components needed for compilation, for example on Ubuntu execute the command `apt install -y libbz2-dev libpcre2-dev libicu-dev`.
+1. On Windows systems, you need to set the JAVA_HOME environment variable.
 
 :::
 
-3. Download the TDengine JDBC driver: Visit the maven.org website and download the TDengine JDBC driver (taos-jdbcdriver-X.X.X-dist.jar).
+1. Download the TDengine JDBC driver: Visit the maven.org website and download the TDengine JDBC driver (taos-jdbcdriver-X.X.X-dist.jar).
 
-4. Place the TDengine JDBC driver in an appropriate location: Choose a suitable location on your computer and save the TDengine JDBC driver file (taos-jdbcdriver-X.X.X-dist.jar) there.
+1. Place the TDengine JDBC driver in an appropriate location: Choose a suitable location on your computer and save the TDengine JDBC driver file (taos-jdbcdriver-X.X.X-dist.jar) there.
 
 ## Configuration Process
 
@@ -46,7 +46,7 @@ library(rJava)
 library(RJDBC)
 ```
 
-2. Set the JDBC driver path and JDBC URL:
+1. Set the JDBC driver path and JDBC URL:
 
 ```r
 # Set the JDBC driver path (modify according to the actual location you saved)
@@ -56,23 +56,23 @@ driverPath <- "/path/to/taos-jdbcdriver-X.X.X-dist.jar"
 url <- "jdbc:TAOS://localhost:6030/?user=root&password=taosdata"
 ```
 
-3. Load the JDBC driver:
+1. Load the JDBC driver:
 
 ```r
 # Load the JDBC driver
 drv <- JDBC("com.taosdata.jdbc.TSDBDriver", driverPath)
 ```
 
-4. Create a TDengine database connection:
+1. Create a TDengine database connection:
 
 ```r
 # Create a database connection
 conn <- dbConnect(drv, url)
 ```
 
-5. After the connection is successful, you can use the conn object for various database operations, such as querying data, inserting data, etc.
+1. After the connection is successful, you can use the conn object for various database operations, such as querying data, inserting data, etc.
 
-6. Finally, do not forget to close the database connection after use:
+1. Finally, do not forget to close the database connection after use:
 
 ```r
 # Close the database connection
