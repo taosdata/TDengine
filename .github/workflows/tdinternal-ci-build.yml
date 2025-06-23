@@ -77,7 +77,8 @@ jobs:
             -DBUILD_TEST=true \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_TAOSX=false \
-            -DBUILD_DEPENDENCY_TESTS=false
+            -DBUILD_DEPENDENCY_TESTS=false \
+            -DTAOSADAPTER_GIT_TAG:STRING=${{ github.base_ref }}
           make -j 4
           sudo make install
           which taosd
