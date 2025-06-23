@@ -298,8 +298,8 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   char tmpPass[TSDB_PASSWORD_LEN] = {0};
   tstrncpy(tmpPass, connReq.passwd, TSDB_PASSWORD_LEN);
 
-  if (pUser->passEncryptAlgorythm != 0) {
-    if (pUser->passEncryptAlgorythm != tsiEncryptPassAlgorithm) {
+  if (pUser->passEncryptAlgorithm != 0) {
+    if (pUser->passEncryptAlgorithm != tsiEncryptPassAlgorithm) {
       code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       goto _OVER;
     }

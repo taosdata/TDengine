@@ -1225,7 +1225,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_BINARY(pRaw, dataPos, buf, len, _OVER);
 
   SDB_SET_INT64(pRaw, dataPos, pUser->ipWhiteListVer, _OVER);
-  SDB_SET_INT8(pRaw, dataPos, pUser->passEncryptAlgorythm, _OVER);
+  SDB_SET_INT8(pRaw, dataPos, pUser->passEncryptAlgorithm, _OVER);
 
   SDB_SET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -1570,7 +1570,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     pUser->ipWhiteListVer = taosGetTimestampMs();
   }
 
-  SDB_GET_INT8(pRaw, dataPos, &pUser->passEncryptAlgorythm, _OVER);
+  SDB_GET_INT8(pRaw, dataPos, &pUser->passEncryptAlgorithm, _OVER);
 
   SDB_GET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pUser->lock);
@@ -1839,12 +1839,12 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
 
   if (pCreate->passIsMd5 == 1) {
     memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN - 1);
-    TAOS_CHECK_RETURN(mndEncryptPass(userObj.pass, &userObj.passEncryptAlgorythm));
+    TAOS_CHECK_RETURN(mndEncryptPass(userObj.pass, &userObj.passEncryptAlgorithm));
   } else {
     if (pCreate->isImport != 1) {
       taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
       userObj.pass[TSDB_PASSWORD_LEN - 1] = 0;
-      TAOS_CHECK_RETURN(mndEncryptPass(userObj.pass, &userObj.passEncryptAlgorythm));
+      TAOS_CHECK_RETURN(mndEncryptPass(userObj.pass, &userObj.passEncryptAlgorithm));
     } else {
       memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
     }
@@ -2572,7 +2572,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), newUser.pass);
     }
 
-    TAOS_CHECK_GOTO(mndEncryptPass(newUser.pass, &newUser.passEncryptAlgorythm), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndEncryptPass(newUser.pass, &newUser.passEncryptAlgorithm), &lino, _OVER);
 
     if (0 != strncmp(pUser->pass, newUser.pass, TSDB_PASSWORD_LEN)) {
       ++newUser.passVersion;

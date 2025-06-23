@@ -231,4 +231,4 @@ Updating the key configuration requires stopping taosd first, and using the exac
 
 ### encrypt user password
 
-The user password is stored as MD5 string format. The behavior can be changed by configurating encryptPassAlgorithm. encryptPassAlgorithm is unset as default value. When encryptPassAlgorithm is set as SM4, the user password is stored as encrypted string via SM4 encryption algorithm. The key need be Configured before encryptPassAlgorithm is set.
+The user password is stored as an MD5 string by default. This behavior can be changed by configuring the `encryptPassAlgorithm` parameter. By default, `encryptPassAlgorithm` is unset. When `encryptPassAlgorithm` is set to `SM4`, user passwords are stored as encrypted strings using the SM4 encryption algorithm. The encryption key must be configured before setting `encryptPassAlgorithm`.
