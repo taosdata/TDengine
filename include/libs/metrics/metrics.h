@@ -66,11 +66,11 @@ int32_t initMetricsManager();
 void    cleanupMetrics();
 
 // Write metrics functions
-int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const char *dbname,
+int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const char *dnodeEp, const char *dbname,
                         const SRawWriteMetrics *pRawMetrics);
 
 // Dnode metrics functions
-int32_t addDnodeMetrics(const SRawDnodeMetrics *pRawMetrics, int32_t clusterId, int32_t dnodeId);
+int32_t addDnodeMetrics(const SRawDnodeMetrics *pRawMetrics, int32_t clusterId, int32_t dnodeId, const char *dnodeEp);
 
 // Clean expired metrics based on valid vgroups (similar to vmCleanExpriedSamples)
 int32_t cleanupExpiredMetrics(SHashObj *pValidVgroups);

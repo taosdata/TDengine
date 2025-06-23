@@ -25,7 +25,7 @@ static void collectDnodeMetricsInfo(SDnode *pDnode) {
   rawMetrics.applyMemoryAllowed = tsApplyMemoryAllowed;
   rawMetrics.applyMemoryUsed = atomic_load_64(&tsApplyMemoryUsed);
 
-  int32_t code = addDnodeMetrics(&rawMetrics, dmGetClusterId(), pDnode->data.dnodeId);
+  int32_t code = addDnodeMetrics(&rawMetrics, dmGetClusterId(), pDnode->data.dnodeId, tsLocalEp);
   if (code != TSDB_CODE_SUCCESS) {
     dError("Failed to add dnode metrics, code: %d", code);
   }
