@@ -413,7 +413,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   }
 
   // try to filter data block according to sma info
-  if (pOperator->exprSupp.pFilterInfo != NULL && filterNeedSma(pOperator->exprSupp.pFilterInfo) && (!loadSMA)) {
+  if (pOperator->exprSupp.pFilterInfo != NULL && (!loadSMA)) {
     bool success = true;
     code = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo, &success);
     if (code) {
