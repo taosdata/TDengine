@@ -1,0 +1,79 @@
+{
+  "filetype": "insert",
+  "cfgdir": "/etc/taos",
+  "host": "node232",
+  "port": 6030,
+  "rest_port": 6041,
+  "user": "root",
+  "password": "taosdata",
+  "thread_count": 40,
+  "create_table_thread_count": 40,
+  "result_file": "/tmp/taosBenchmark_2025-06-16_10:58:23.log",
+  "confirm_parameter_prompt": "no",
+  "insert_interval": 0,
+  "num_of_records_per_req": 1000,
+  "max_sql_len": 1024000,
+  "databases": [
+    {
+      "dbinfo": {
+        "name": "test",
+        "drop": "yes",
+        "replica": 1,
+        "vgroups": 10,
+        "stt_trigger": 8
+      },
+      "super_tables": [
+        {
+          "name": "stb",
+          "child_table_exists": "no",
+          "childtable_count": 10000,
+          "childtable_prefix": "ctb",
+          "escape_character": "no",
+          "auto_create_table": "no",
+          "batch_create_tbl_num": 10,
+          "data_source": "rand",
+          "insert_mode": "taosc",
+          "rollup": null,
+          "interlace_rows": 0,
+          "line_protocol": null,
+          "tcp_transfer": "no",
+          "insert_rows": 1000,
+          "partial_col_num": 0,
+          "rows_per_tbl": 0,
+          "max_sql_len": 1024000,
+          "disorder_ratio": 0,
+          "disorder_range": 1000,
+          "keep_trying": -1,
+          "timestamp_step": 10,
+          "trying_interval": 10,
+          "start_timestamp": 1750003200000,
+          "sample_format": "csv",
+          "sample_file": "./sample.csv",
+          "tags_file": "",
+          "columns": [
+            {
+              "type": "BIGINT",
+              "count": 1,
+              "gen": "order",
+              "fillNull": "false"
+            },
+            {
+              "type": "INT",
+              "count": 2
+            }
+          ],
+          "tags": [
+            {
+              "type": "INT",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "prepare_rand": 10000,
+  "chinese": "no",
+  "test_log": "/root/testlog/",
+  "streams": false
+}
