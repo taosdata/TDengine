@@ -799,6 +799,7 @@ typedef struct {
   SCMCreateStreamReq* pCreate;
 
   // dynamic info
+  SArray* recalcTimeRange;
   int32_t mainSnodeId;
   int8_t  userDropped;  // no need to serialize
   int8_t  userStopped;

@@ -1345,7 +1345,7 @@ _end:
 
 static int32_t resetInterval(SOperatorInfo* pOper, SIntervalAggOperatorInfo* pIntervalInfo){
   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
-  SMergeIntervalPhysiNode* pPhynode = (SMergeIntervalPhysiNode*)pOper->pPhyNode;
+  SIntervalPhysiNode* pPhynode = (SIntervalPhysiNode*)pOper->pPhyNode;
   pOper->status = OP_NOT_OPENED;
 
   resetBasicOperatorState(&pIntervalInfo->binfo);
@@ -1368,7 +1368,12 @@ static int32_t resetInterval(SOperatorInfo* pOper, SIntervalAggOperatorInfo* pIn
     tdListEmpty(pIntervalInfo->binfo.resultRowInfo.openWindow);
   }
 
+  if (pPhynode->window.node.pSlimit && ((SLimitNode*)pPhynode->window.node.pSlimit)->limit) {
+    pIntervalInfo->curGroupId = UINT64_MAX;
+  }
+
   pIntervalInfo->cleanGroupResInfo = false;
+  pIntervalInfo->handledGroupNum = 0;
 
   taosArrayDestroy(pIntervalInfo->pInterpCols);
   pIntervalInfo->pInterpCols = NULL;

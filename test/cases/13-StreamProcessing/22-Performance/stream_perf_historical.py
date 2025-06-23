@@ -11,25 +11,25 @@ import signal
 import sys
 import datetime
 
-"""TDengine Real Time Data Stream Performance Testing Tool
-TDengine 实时数据流计算性能测试工具
+"""TDengine Historical Data Stream Computing Performance Test
+TDengine 历史数据流计算性能测试
 
 Purpose/用途:
-    A performance testing tool for TDengine stream computing functionality.
-    用于测试 TDengine 实时数据流计算功能的性能测试工具。
+    Performance testing tool for TDengine historical data stream computing.
+    用于测试 TDengine 历史数据流计算功能的性能测试工具。
 
 Catalog/目录:
     - Performance:Stream Computing
-    - 性能测试:流计算
+    - 性能测试:历史数据流计算
 
 Features/功能:
     - Multiple stream computing modes support
-    - Continuous data writing and computing
+    - Load a large amount of historical data for calculation
     - System resource monitoring
     - Performance data collection
     
     - 支持多种流计算模式测试
-    - 持续数据写入和计算
+    - 加载大量历史数据计算
     - 系统资源监控
     - 性能数据收集
 
@@ -60,9 +60,11 @@ Usage/用法:
 
 Parameters/参数:
     -m, --mode: Test mode / 测试模式
-        1: Create stream / 写入数据并执行实时数据流计算
-        2: Query and insert / 持续查询写入
-        
+        1: Stream test / 写入数据并执行历史数据流计算
+        11: Restore data and execute stream test / 恢复数据并执行历史数据流计算
+        2: Query and insert test / 查询写入
+        22: Restore data and execute query / 恢复数据并执行查询写入
+    
     --table-count: Number of tables / 表数量
     --insert-rows: Number of rows per table / 每个表的行数
     --vgroups : Number of vgroups / vgroup数量
@@ -74,6 +76,8 @@ Parameters/参数:
 Authors/作者:
     - Guo Xiaoyang / 郭向阳
 """
+
+
 
 class MonitorSystemLoad:
 
@@ -434,122 +438,59 @@ def do_multi_insert(index, total, host, user, passwd, conf, tz):
             count += 1
     conn.close()
 
-
 class StreamSQLTemplates:
     """流计算 SQL 模板集合"""
     
-    s2_2 = """
-    create stream s2_2 trigger at_once 
-        ignore expired 0 ignore update 0 into stream_to.stb 
+    s1_2 = """
+    create stream s1_2 trigger at_once 
+        fill_history 1 ignore expired 0 ignore update 0 into stream_to.stb 
         as select _wstart as wstart,
         avg(c0), avg(c1),avg(c2), avg(c3),
         max(c0), max(c1), max(c2), max(c3),
         min(c0), min(c1), min(c2), min(c3)
-        from stream_from.stb partition by tbname interval(15s);
+        from stream_from.stb partition by tbname interval(300s);
     """
     
-    s2_3 = """
-    create stream s2_3 trigger window_close 
-        ignore expired 0 ignore update 0 into stream_to.stb 
+    s1_3 = """
+    create stream s1_3 trigger window_close 
+        fill_history 1 ignore expired 0 ignore update 0 into stream_to.stb 
         as select _wstart as wstart,
         avg(c0), avg(c1),avg(c2), avg(c3),
         max(c0), max(c1), max(c2), max(c3),
         min(c0), min(c1), min(c2), min(c3)
-        from stream_from.stb partition by tbname interval(15s);
+        from stream_from.stb partition by tbname interval(300s);
     """
     
-    s2_4 = """
-    create stream s2_4 trigger max_delay 5s 
-        ignore expired 0 ignore update 0 into stream_to.stb 
+    s1_4 = """
+    create stream s1_4 trigger continuous_window_close 
+        fill_history 1 ignore expired 0 ignore update 0 into stream_to.stb 
         as select _wstart as wstart,
         avg(c0), avg(c1),avg(c2), avg(c3),
         max(c0), max(c1), max(c2), max(c3),
         min(c0), min(c1), min(c2), min(c3)
-        from stream_from.stb partition by tbname interval(15s);
+        from stream_from.stb partition by tbname interval(300s);
     """
     
-    s2_5 = """
-    create stream s2_5 trigger FORCE_WINDOW_CLOSE into stream_to.stb 
-        as select _wstart as wstart,
-        avg(c0), avg(c1),avg(c2), avg(c3),
+    s1_5 = """
+    create stream stream_from.s1_5 INTERVAL(60s) SLIDING(60s)
+        from stream_from.stb 
+        OPTIONS(FILL_HISTORY('2025-01-01 00:00:00')) 
+        into stream_to.stb
+        as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
         max(c0), max(c1), max(c2), max(c3),
         min(c0), min(c1), min(c2), min(c3)
-        from stream_from.stb partition by tbname interval(15s);
+        from stream_from.stb partition by tbname interval(300s);
     """
     
-    s2_6 = """
-    create stream s2_6 trigger CONTINUOUS_WINDOW_CLOSE 
-        ignore expired 0 ignore update 0 into stream_to.stb 
-        as select _wstart as wstart,
-        avg(c0), avg(c1),avg(c2), avg(c3),
+    s1_6 = """
+    create stream stream_from.s1_6 count_window(60) 
+        from stream_from.stb 
+        OPTIONS(FILL_HISTORY('2025-01-01 00:00:00')) 
+        into stream_to.stb
+        as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
         max(c0), max(c1), max(c2), max(c3),
         min(c0), min(c1), min(c2), min(c3)
-        from stream_from.stb partition by tbname interval(15s);
-    """
-    
-    s2_7 = """
-    create stream stream_from.s2_7 INTERVAL(15s) SLIDING(15s)
-            from stream_from.stb 
-            partition by tbname 
-            into stream_to.stb
-            as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
-            max(c0), max(c1), max(c2), max(c3),
-            min(c0), min(c1), min(c2), min(c3)
-            from %%tbname where ts >= _twstart and ts < _twend;
-    """
-    
-    s2_8 = """
-    create stream stream_from.s2_8 INTERVAL(15s) SLIDING(15s)
-            from stream_from.stb 
-            partition by tbname 
-            into stream_to.stb
-            as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
-            max(c0), max(c1), max(c2), max(c3),
-            min(c0), min(c1), min(c2), min(c3)
-            from %%trows ;
-    """
-    
-    s2_9 = """
-    create stream stream_from.s2_9 INTERVAL(15s) SLIDING(15s)
-            from stream_from.stb 
-            OPTIONS(MAX_DELAY(5s)) 
-            into stream_to.stb
-            as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
-            max(c0), max(c1), max(c2), max(c3),
-            min(c0), min(c1), min(c2), min(c3)
-            from %%tbname where ts >= _twstart and ts < _twend;
-    """
-    
-    s2_10 = """
-    create stream stream_from.s2_10 INTERVAL(15s) SLIDING(15s) 
-            from stream_from.stb 
-            OPTIONS(MAX_DELAY(5s))
-            into stream_to.stb
-            as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
-            max(c0), max(c1), max(c2), max(c3),
-            min(c0), min(c1), min(c2), min(c3)
-            from %%trows ;
-    """
-    
-    s2_11 = """
-    create stream stream_from.s2_11 period(15s) 
-            from stream_from.stb 
-            into stream_to.stb
-            as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
-            max(c0), max(c1), max(c2), max(c3),
-            min(c0), min(c1), min(c2), min(c3)
-            from %%tbname where ts >= _twstart and ts < _twend;
-    """    
-    
-    s2_12 = """
-    create stream stream_from.s2_7 INTERVAL(15s) SLIDING(15s)
-            from stream_from.stb 
-            partition by tbname 
-            into stream_to.stb
-            as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
-            max(c0), max(c1), max(c2), max(c3),
-            min(c0), min(c1), min(c2), min(c3)
-            from %%tbname where ts >= _twstart and ts < _twend;
+        from stream_from.stb partition by tbname interval(300s);
     """
     
     @classmethod
@@ -562,30 +503,23 @@ class StreamSQLTemplates:
             对应的 SQL 模板
         """
         sql_map = {
-            's2_2': cls.s2_2,
-            's2_3': cls.s2_3,
-            's2_4': cls.s2_4,
-            's2_5': cls.s2_5,
-            's2_6': cls.s2_6,
-            's2_7': cls.s2_7,
-            's2_8': cls.s2_8,
-            's2_9': cls.s2_9,
-            's2_10': cls.s2_10,
-            's2_11': cls.s2_11,
-            's2_12': cls.s2_12,
+            's1_2': cls.s1_2,
+            's1_3': cls.s1_3,
+            's1_4': cls.s1_4,
+            's1_5': cls.s1_5,
+            's1_6': cls.s1_6,
         }
-        return sql_map.get(sql_type, cls.s2_2)  # 默认返回s2_2
+        return sql_map.get(sql_type, cls.s1_2)  # 默认返回s1_2
     
 class StreamStarter:
     def __init__(self, runtime=None, perf_file=None, table_count=500, 
-                insert_rows=1, next_insert_rows=250, disorder_ratio=0, vgroups=4,
-                stream_sql=None, sql_type='s2_2', cluster_root=None, monitor_interval=1,
+                insert_rows=50000, disorder_ratio=0, vgroups=4,
+                stream_sql=None, sql_type='s1_2', cluster_root=None, monitor_interval=1,
                 create_data=False, restore_data=False) -> None:
         # 设置集群根目录,默认使用/home/taos_stream_cluster
         self.cluster_root = cluster_root if cluster_root else '/home/taos_stream_cluster'        
         self.table_count = table_count      # 子表数量
         self.insert_rows = insert_rows      # 插入记录数
-        self.next_insert_rows = next_insert_rows      # 后续每轮插入记录数
         self.disorder_ratio = disorder_ratio # 数据乱序率
         self.vgroups = vgroups # vgroups数量
         self.monitor_interval = monitor_interval
@@ -648,29 +582,28 @@ class StreamStarter:
         self.perf_file = perf_file if perf_file else '/tmp/perf.log'
         self.sql_type = sql_type
         self.stream_sql = stream_sql if stream_sql else StreamSQLTemplates.get_sql(sql_type)
-        
         # 新增测试参数
         # # stream2
         # self.stream_sql = stream_sql if stream_sql else """
         # create stream s1_2 trigger at_once 
-        #     ignore expired 0 ignore update 0 into stream_to.stb 
+        #     fill_history 1 ignore expired 0 ignore update 0 into stream_to.stb 
         #     as select _wstart as wstart,
         #     avg(c0), avg(c1),avg(c2), avg(c3),
         #     max(c0), max(c1), max(c2), max(c3),
         #     min(c0), min(c1), min(c2), min(c3)
-        #     from stream_from.stb partition by tbname interval(15s);
+        #     from stream_from.stb partition by tbname interval(300s);
         # """
         # # stream3
         # self.stream_sql = stream_sql if stream_sql else """
         # create stream s1_3 trigger window_close 
-        #     ignore expired 0 ignore update 0 into stream_to.stb 
+        #     fill_history 1 ignore expired 0 ignore update 0 into stream_to.stb 
         #     as select _wstart as wstart,
         #     avg(c0), avg(c1),avg(c2), avg(c3),
         #     max(c0), max(c1), max(c2), max(c3),
         #     min(c0), min(c1), min(c2), min(c3)
-        #     from stream_from.stb partition by tbname interval(15s);
+        #     from stream_from.stb partition by tbname interval(300s);
         # """
-        # # stream4
+        # stream4
         # self.stream_sql = stream_sql if stream_sql else """
         # create stream s1_4 trigger continuous_window_close 
         #     fill_history 1 ignore expired 0 ignore update 0 into stream_to.stb 
@@ -1162,11 +1095,11 @@ EOF
             "rest_port": 6041,
             "user": "root",
             "password": "taosdata",
-            "thread_count": 50,
+            "thread_count": 5,
             "create_table_thread_count": 5,
             "result_file": "/tmp/taosBenchmark_result.log",
             "confirm_parameter_prompt": "no",
-            "insert_interval": 10,
+            "insert_interval": 1000,
             "num_of_records_per_req": 1000,
             "max_sql_len": 102400,
             "databases": [
@@ -1183,7 +1116,7 @@ EOF
                         "comp": 2,
                         "dnodes": "1",
                         "vgroups": self.vgroups,
-                        "stt_trigger": 2,
+                        "stt_trigger": 1,
                         "WAL_RETENTION_PERIOD": 86400
                     },
                     "super_tables": [
@@ -1197,7 +1130,7 @@ EOF
                             "batch_create_tbl_num": 1000,
                             "data_source": "rand",
                             "insert_mode": "taosc",
-                            "interlace_rows": 1,
+                            "interlace_rows": 400,
                             "tcp_transfer": "no",
                             "insert_rows": self.insert_rows,
                             "partial_col_num": 0,
@@ -1208,7 +1141,7 @@ EOF
                             "disorder_ratio": self.disorder_ratio,
                             "disorder_range": 1000,
                             "keep_trying": -1,
-                            "timestamp_step": 50,
+                            "timestamp_step": 1000,
                             "trying_interval": 10,
                             "start_timestamp": "2025-06-01 00:00:00",
                             "sample_format": "csv",
@@ -1240,7 +1173,7 @@ EOF
                                 {
                                     "type": "VARCHAR",
                                     "count": 1,
-                                    "len": 32
+                                    "len": 16
                                 }
                             ]
                         }
@@ -1256,177 +1189,7 @@ EOF
             json.dump(json_data, f, indent=4)
             
 
-    def insert_source_from_data(self) -> dict:
-        json_data = {
-            "filetype": "insert",
-            "cfgdir": f"{self.cluster_root}/dnode1/conf",
-            "host": "localhost",
-            "port": 6030,
-            "rest_port": 6041,
-            "user": "root",
-            "password": "taosdata",
-            "thread_count": 50,
-            "create_table_thread_count": 5,
-            "result_file": "/tmp/taosBenchmark_result.log",
-            "confirm_parameter_prompt": "no",
-            "insert_interval": 1,
-            "num_of_records_per_req": 1000,
-            "max_sql_len": 102400,
-            "databases": [
-                {
-                    "dbinfo": {
-                        "name": "stream_from",
-                        "drop": "no",
-                        "replica": 1,
-                        "duration": 10,
-                        "precision": "ms",
-                        "keep": 3650,
-                        "minRows": 100,
-                        "maxRows": 4096,
-                        "comp": 2,
-                        "dnodes": "1",
-                        "vgroups": self.vgroups,
-                        "stt_trigger": 2,
-                        "WAL_RETENTION_PERIOD": 86400
-                    },
-                    "super_tables": [
-                        {
-                            "name": "stb",
-                            "child_table_exists": "yes",
-                            "childtable_count": self.table_count,
-                            "childtable_prefix": "ctb0_",
-                            "escape_character": "no",
-                            "auto_create_table": "yes",
-                            "batch_create_tbl_num": 1000,
-                            "data_source": "rand",
-                            "insert_mode": "taosc",
-                            "interlace_rows": 1,
-                            "tcp_transfer": "no",
-                            "insert_rows": self.next_insert_rows,
-                            "partial_col_num": 0,
-                            "childtable_limit": 0,
-                            "childtable_offset": 0,
-                            "rows_per_tbl": 0,
-                            "max_sql_len": 1024000,
-                            "disorder_ratio": self.disorder_ratio,
-                            "disorder_range": 1000,
-                            "keep_trying": -1,
-                            "timestamp_step": 50,
-                            "trying_interval": 10,
-                            "start_timestamp": "2025-06-01 00:00:00",
-                            "sample_format": "csv",
-                            "sample_file": "./sample.csv",
-                            "tags_file": "",
-                            "columns": [
-                                {
-                                    "type": "INT",
-                                    "count": 1
-                                },
-                                {
-                                    "type": "BIGINT",
-                                    "count": 1
-                                },
-                                {
-                                    "type": "DOUBLE",
-                                    "count": 1
-                                },
-                                {
-                                    "type": "FLOAT",
-                                    "count": 1
-                                }
-                            ],
-                            "tags": [
-                                {
-                                    "type": "INT",
-                                    "count": 1
-                                },
-                                {
-                                    "type": "VARCHAR",
-                                    "count": 1,
-                                    "len": 32
-                                }
-                            ]
-                        }
-                    ]
-                }
-            ],
-            "prepare_rand": 10000,
-            "chinese": "no",
-            "test_log": "/tmp/testlog/"
-        }
 
-        with open('/tmp/stream_from_insertdata.json', 'w+') as f:
-            json.dump(json_data, f, indent=4)
-            
-    def update_insert_config(self):
-        """
-        更新数据插入配置
-        Args:
-            next_insert_rows: 下一轮要插入的数据行数
-        """
-        try:
-            print("\n=== 更新数据插入配置 ===")
-            #print(f"当前SQL类型: {self.sql_type}")
-            
-            # 获取最新时间戳
-            conn = taos.connect(
-                host=self.host,
-                user=self.user,
-                password=self.passwd,
-                config=self.conf
-            )
-            cursor = conn.cursor()
-            
-            try:
-                # 根据 SQL 类型决定时间戳更新方式
-                if self.sql_type == 's2_5' or self.sql_type == 's2_11':
-                    next_start_time = time.strftime("%Y-%m-%d %H:%M:%S")
-                    print(f"流类型为{self.sql_type}，使用当前时间作为起始时间: {next_start_time}")
-                
-                else:
-                    # 查询最新时间戳
-                    cursor.execute("select last(ts) from stream_from.stb")
-                    last_ts = cursor.fetchall()[0][0]
-                
-                    if not last_ts:
-                        raise Exception("未能获取到最新时间戳")
-                        
-                    # 将时间戳转换为字符串格式，并加上1秒
-                    next_start_time = (last_ts + datetime.timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S")
-                    print(f"当前最新时间戳: {last_ts}")
-                    print(f"更新起始时间为: {next_start_time}")
-                
-                # 读取现有配置
-                config_file = '/tmp/stream_from_insertdata.json'
-                with open(config_file, 'r') as f:
-                    content = f.read()
-                
-                # 使用正则表达式替换时间戳
-                import re
-                new_content = re.sub(
-                    r'"start_timestamp":\s*"[^"]*"',
-                    f'"start_timestamp": "{next_start_time}"',
-                    content,
-                    count=1  # 只替换第一次出现的时间戳
-                )
-                
-                # 格式化写入以确保 JSON 格式正确
-                with open(config_file, 'w') as f:
-                    f.write(new_content)
-                
-                print("配置时间戳已更新")
-                return True
-                
-            except Exception as e:
-                print(f"更新配置时出错: {str(e)}")
-                return False
-            finally:
-                cursor.close()
-                conn.close()
-                
-        except Exception as e:
-            print(f"执行更新配置时出错: {str(e)}")
-            return False
 
     def wait_for_data_ready(self, cursor, expected_tables, expected_records):
         """等待数据写入完成   
@@ -1505,119 +1268,6 @@ EOF
     def do_start(self):
         self.prepare_env()
         self.prepare_source_from_data()
-        self.insert_source_from_data()
-        
-        conn = taos.connect(
-            host=self.host,
-            user=self.user,
-            password=self.passwd,
-            config=self.conf
-        )
-        cursor = conn.cursor()
-
-        try:
-            # 运行source_from的数据生成
-            subprocess.Popen('taosBenchmark --f /tmp/stream_from.json', 
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
-            
-            # 创建stream_to数据库
-            if not self.create_database('stream_to'):
-                raise Exception("创建stream_to数据库失败")
-            
-            time.sleep(5)
-            print("数据库已创建,等待数据写入...")
-            
-            # 等待数据准备就绪
-            if not self.wait_for_data_ready(cursor, self.table_count, self.insert_rows):
-                print("数据准备失败，退出测试")
-                return
-            
-            # 获取新连接执行流式查询
-            conn, cursor = self.get_connection()
-            
-            print("开始连接数据库")
-            cursor.execute('use stream_from')
-            
-            # 执行流式查询
-            print(f"执行流式查询SQL:\n{self.stream_sql}")
-            cursor.execute(self.stream_sql)
-            
-            print("流式查询已创建,开始监控系统负载")
-            cursor.close()
-            conn.close()
-            
-            # 监控系统负载 - 同时监控三个节点
-            loader = MonitorSystemLoad(
-                name_pattern='taosd -c', 
-                count=self.runtime * 60,
-                perf_file='/tmp/perf-taosd.log',  # 基础文件名,会自动添加dnode编号
-                interval=self.monitor_interval
-            )
-                        
-            # 在新线程中运行监控
-            monitor_thread = threading.Thread(
-                target=loader.get_proc_status,
-                name="TaosdMonitor"
-            )
-            monitor_thread.daemon = True
-            monitor_thread.start()
-            print("开始监控taosd进程资源使用情况...")
-          
-            try:            
-                # 循环执行写入和计算
-                cycle_count = 0
-                start_time = time.time()
-                
-                while True:
-                    cycle_count += 1
-                    print(f"\n=== 开始第 {cycle_count} 轮写入和计算 ===")
-                    
-                    if cycle_count > 1:
-                        # 从第二轮开始，先写入新数据
-                        print("\n写入新一批测试数据...")
-                        if not self.update_insert_config():
-                            raise Exception("写入新数据失败")
-                        
-                        cmd = "taosBenchmark -f /tmp/stream_from_insertdata.json"
-                        if subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True).returncode != 0:
-                            raise Exception("写入新数据失败")
-                                           
-                    # 检查是否达到运行时间限制
-                    if time.time() - start_time >= self.runtime * 60:
-                        print(f"\n\n已达到运行时间限制 ({self.runtime} 分钟)，停止执行")
-                        break
-                        
-                    print(f"\n=== 第 {cycle_count} 轮处理完成 ===")
-             
-            except Exception as e:
-                print(f"查询写入操作出错: {str(e)}")
-            finally:
-                cursor.close()
-                conn.close()
-                print("查询写入操作完成")
-                
-            # 等待监控线程结束
-            print("等待监控数据收集完成...")
-            monitor_thread.join()
-                
-            try:
-                loader.get_proc_status()
-            except KeyboardInterrupt:
-                print("\n监控被中断")
-            finally:
-                # 检查taosd进程
-                result = subprocess.run('ps -ef | grep taosd | grep -v grep', 
-                                    shell=True, capture_output=True, text=True)
-                if result.stdout:
-                    print("\ntaosd进程仍在运行")
-                    print("如需停止taosd进程，请手动执行: pkill taosd")
-                
-        except Exception as e:
-            print(f"执行错误: {str(e)}")            
-
-    def do_start_bak(self):
-        self.prepare_env()
-        self.prepare_source_from_data()
         
         conn = taos.connect(
             host=self.host,
@@ -1679,22 +1329,12 @@ EOF
                     print("如需停止taosd进程，请手动执行: pkill taosd")
                 
         except Exception as e:
-            print(f"执行错误: {str(e)}")            
-                                    
-    def format_timestamp(self, ts):
-        """格式化时间戳为可读字符串
-        Args:
-            ts: 毫秒级时间戳
-        Returns:
-            str: 格式化后的时间字符串 (YYYY-MM-DD HH:mm:ss)
-        """
-        return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(ts/1000))
-
-         
-    def do_query_then_insert(self):
-        self.prepare_env()
-        self.prepare_source_from_data()
-        self.insert_source_from_data()
+            print(f"执行错误: {str(e)}")
+            
+    def do_start_restore_data(self):
+        # 恢复数据
+        if not self.restore_cluster_data():
+            raise Exception("恢复集群数据失败")
         
         conn = taos.connect(
             host=self.host,
@@ -1704,23 +1344,87 @@ EOF
         )
         cursor = conn.cursor()
 
+        # 创建stream_to数据库
+        if not self.create_database('stream_to'):
+            raise Exception("创建stream_to数据库失败")
+
         try:
-            # 运行source_from的数据生成
-            subprocess.Popen('taosBenchmark --f /tmp/stream_from.json', 
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True)
-        except subprocess.CalledProcessError as e:
-            print(f"Error running Bash command: {e}")
+            
+            # 获取新连接执行流式查询
+            conn, cursor = self.get_connection()
+              
+            #old            
+            cursor.execute('drop snode on dnode 1')
+            time.sleep(5)
+            cursor.execute('create snode on dnode 3;')
+            time.sleep(5)
+            
+            # #new         
+            # cursor.execute('create snode on dnode 3;')
+            # time.sleep(5)   
+            # cursor.execute('drop snode on dnode 1')
+            # time.sleep(5)
+            
+            print("开始连接数据库")
+            cursor.execute('use stream_from')
+            
+            # 执行流式查询
+            print(f"执行流式查询SQL:\n{self.stream_sql}")
+            cursor.execute(self.stream_sql)
+            
+            print("流式查询已创建,开始监控系统负载")
+            cursor.close()
+            conn.close()
+            
+            # 监控系统负载 - 同时监控三个节点
+            loader = MonitorSystemLoad(
+                name_pattern='taosd -c', 
+                count=self.runtime * 60,
+                perf_file='/tmp/perf-taosd.log',  # 基础文件名,会自动添加dnode编号
+                interval=self.monitor_interval
+            )
+        
+            try:
+                loader.get_proc_status()
+            except KeyboardInterrupt:
+                print("\n监控被中断")
+            finally:
+                # 检查taosd进程
+                result = subprocess.run('ps -ef | grep taosd | grep -v grep', 
+                                    shell=True, capture_output=True, text=True)
+                if result.stdout:
+                    print("\ntaosd进程仍在运行")
+                    print("如需停止taosd进程，请手动执行: pkill taosd")
+                
+        except Exception as e:
+            print(f"执行错误: {str(e)}")
+                        
+    def format_timestamp(self, ts):
+        """格式化时间戳为可读字符串
+        Args:
+            ts: 毫秒级时间戳
+        Returns:
+            str: 格式化后的时间字符串 (YYYY-MM-DD HH:mm:ss)
+        """
+        return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(ts/1000))
+            
+    def do_query_then_insert_restore_data(self):
+        # 恢复数据
+        if not self.restore_cluster_data():
+            raise Exception("恢复集群数据失败")
+        
+        conn = taos.connect(
+            host=self.host,
+            user=self.user,
+            password=self.passwd,
+            config=self.conf
+        )
+        cursor = conn.cursor()
 
         # 创建stream_to数据库
         if not self.create_database('stream_to'):
             raise Exception("创建stream_to数据库失败")
         
-        time.sleep(5)
-        print("数据库已创建,等待数据写入...")
-        # 等待数据准备就绪
-        if not self.wait_for_data_ready(cursor, self.table_count, self.insert_rows):
-            print("数据准备失败，退出测试")
-            return
         
         try:
             # 启动性能监控线程
@@ -1770,102 +1474,77 @@ EOF
             print("there are %d tables" % len(list))
 
             try:
-                # 循环执行写入和计算
-                cycle_count = 0
-                start_time = time.time()
-                
-                while True:
-                    cycle_count += 1
-                    print(f"\n=== 开始第 {cycle_count} 轮写入和计算 ===")
+                for index, table in enumerate(list):
+                    table_name = table[0]
+                    print(f"\n开始处理表 {table_name} ({index+1}/{len(list)})")
+                    window_count = 0
                     
-                    if cycle_count > 1:
-                        # 从第二轮开始，先写入新数据
-                        print("\n写入新一批测试数据...")
-                        if not self.update_insert_config():
-                            raise Exception("写入新数据失败")
+                    count_sql = f"select count(*) from stream_from.{table_name}"
+                    cursor.execute(count_sql)
+                    count_res = cursor.fetchall()
+                    if count_res and count_res[0][0] >= 0:
+                        print(f"表 {table_name} 包含 {count_res[0][0]} 条记录")
+                        cursor.execute(f"create table if not exists stream_to.{table_name}_1 using stream_to.stb_result tags(1)")
                         
-                        cmd = "taosBenchmark -f /tmp/stream_from_insertdata.json"
-                        if subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, text=True).returncode != 0:
-                            raise Exception("写入新数据失败")
-                
-                    for index, table in enumerate(list):
-                        table_name = table[0]
-                        print(f"\n开始处理表 {table_name} ({index+1}/{len(list)})")
-                        window_count = 0
+                        # 查询表的时间范围
+                        range_sql = f"select first(ts), last(ts) from stream_from.{table_name}"
+                        print(f"查询时间范围SQL: {range_sql}")
+                        cursor.execute(range_sql)
+                        time_range = cursor.fetchall()
                         
-                        count_sql = f"select count(*) from stream_from.{table_name}"
-                        cursor.execute(count_sql)
-                        count_res = cursor.fetchall()
-                        if count_res and count_res[0][0] >= 0:
-                            print(f"表 {table_name} 包含 {count_res[0][0]} 条记录")
-                            cursor.execute(f"create table if not exists stream_to.{table_name}_1 using stream_to.stb_result tags(1)")
+                        if time_range and len(time_range) > 0 and time_range[0][0]:
+                            start_ts = int(time_range[0][0].timestamp() * 1000)
+                            end_ts = int(time_range[0][1].timestamp() * 1000)
+                            step = 300 * 1000  # 5分钟间隔(毫秒)
                             
-                            # 查询表的时间范围
-                            range_sql = f"select first(ts), last(ts) from stream_from.{table_name}"
-                            print(f"查询时间范围SQL: {range_sql}")
-                            cursor.execute(range_sql)
-                            time_range = cursor.fetchall()
+                            # 计算总时间窗口数
+                            total_windows = ((end_ts - start_ts) // step) + 1
+                            print(f"数据时间范围: {self.format_timestamp(start_ts)} -> {self.format_timestamp(end_ts)}")
+                            print(f"预计处理 {total_windows} 个时间窗口")
                             
-                            if time_range and len(time_range) > 0 and time_range[0][0]:
-                                start_ts = int(time_range[0][0].timestamp() * 1000)
-                                end_ts = int(time_range[0][1].timestamp() * 1000)
-                                step = 15 * 1000  # 15秒
-                                
-                                # 计算总时间窗口数
-                                total_windows = ((end_ts - start_ts) // step) + 1
-                                print(f"数据时间范围: {self.format_timestamp(start_ts)} -> {self.format_timestamp(end_ts)}")
-                                print(f"预计处理 {total_windows} 个时间窗口")
-                                
-                                # 使用列表保存所有时间窗口
-                                time_windows = []
-                                current_ts = start_ts
-                                while current_ts < end_ts:
-                                    next_ts = min(current_ts + step, end_ts)
-                                    time_windows.append((current_ts, next_ts))
-                                    current_ts = next_ts
-                            
-                                for window_idx, (window_start, window_end) in enumerate(time_windows, 1):                                
-                                    window_sql = (f"select cast({current_ts} as timestamp), "
-                                        f"avg(c0), avg(c1), avg(c2), avg(c3), "
-                                        f"max(c0), max(c1), max(c2), max(c3), "
-                                        f"min(c0), min(c1), min(c2), min(c3) "
-                                        f"from stream_from.{table_name} "
-                                        f"where ts >= {window_start} and ts < {window_end}")
-                                    
-                                    #print(f"执行SQL查询: {window_sql}")
-                                    cursor.execute(window_sql)
-                                    window_data = cursor.fetchall()
-                                    
-                                    if window_data and len(window_data) > 0:
-                                        # 写入数据
-                                        insert_sql = f"insert into stream_to.{table_name}_1 values ({current_ts}, {window_data[0][1]}, {window_data[0][2]}, {window_data[0][3]}, {window_data[0][4]}, {window_data[0][5]}, {window_data[0][6]}, {window_data[0][7]}, {window_data[0][8]}, {window_data[0][9]}, {window_data[0][10]}, {window_data[0][11]}, {window_data[0][12]})"
-                                        
-                                        cursor.execute(insert_sql)
-                                        window_count += 1
-                                        
-                                        # 显示进度
-                                        print(f"\r进度: {(window_count/total_windows)*100:.2f}% - "
-                                            f"窗口 [{window_count}/{total_windows}]: "
-                                            f"{self.format_timestamp(current_ts)} -> "
-                                            f"{self.format_timestamp(window_end)}", end='')
-                                    else:
-                                        print(f" stream_from.{table_name} 没有查询到数据，时间范围: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_ts/1000))} -> {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(query_end/1000))}")
-                                        break
-                                    
-                                    # 移动到下一个时间窗口
-                                    current_ts = window_end
-                                    
-                                print(f"表 {table_name} 处理完成, 共写入 {window_count} 个时间窗口的数据")
-                                
-                            else:
-                                print(f"表 {table_name} 无数据记录，跳过处理")
-                
-                    # 检查是否达到运行时间限制
-                    if time.time() - start_time >= self.runtime * 60:
-                        print(f"\n\n已达到运行时间限制 ({self.runtime} 分钟)，停止执行")
-                        break
+                            # 使用列表保存所有时间窗口
+                            time_windows = []
+                            current_ts = start_ts
+                            while current_ts < end_ts:
+                                next_ts = min(current_ts + step, end_ts)
+                                time_windows.append((current_ts, next_ts))
+                                current_ts = next_ts
                         
-                    print(f"\n=== 第 {cycle_count} 轮处理完成 ===")
+                            for window_idx, (window_start, window_end) in enumerate(time_windows, 1):                                
+                                window_sql = (f"select cast({current_ts} as timestamp), "
+                                    f"avg(c0), avg(c1), avg(c2), avg(c3), "
+                                    f"max(c0), max(c1), max(c2), max(c3), "
+                                    f"min(c0), min(c1), min(c2), min(c3) "
+                                    f"from stream_from.{table_name} "
+                                    f"where ts >= {window_start} and ts < {window_end}")
+                                
+                                #print(f"执行SQL查询: {window_sql}")
+                                cursor.execute(window_sql)
+                                window_data = cursor.fetchall()
+                                
+                                if window_data and len(window_data) > 0:
+                                    # 写入数据
+                                    insert_sql = f"insert into stream_to.{table_name}_1 values ({current_ts}, {window_data[0][1]}, {window_data[0][2]}, {window_data[0][3]}, {window_data[0][4]}, {window_data[0][5]}, {window_data[0][6]}, {window_data[0][7]}, {window_data[0][8]}, {window_data[0][9]}, {window_data[0][10]}, {window_data[0][11]}, {window_data[0][12]})"
+                                    
+                                    cursor.execute(insert_sql)
+                                    window_count += 1
+                                    
+                                    # 显示进度
+                                    print(f"\r进度: {(window_count/total_windows)*100:.2f}% - "
+                                        f"窗口 [{window_count}/{total_windows}]: "
+                                        f"{self.format_timestamp(current_ts)} -> "
+                                        f"{self.format_timestamp(window_end)}", end='')
+                                else:
+                                    print(f" stream_from.{table_name} 没有查询到数据，时间范围: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_ts/1000))} -> {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(query_end/1000))}")
+                                    break
+                                
+                                # 移动到下一个时间窗口
+                                current_ts = window_end
+                                
+                            print(f"表 {table_name} 处理完成, 共写入 {window_count} 个时间窗口的数据")
+                            
+                        else:
+                            print(f"表 {table_name} 无数据记录，跳过处理")
                         
             except Exception as e:
                 print(f"查询写入操作出错: {str(e)}")
@@ -1888,8 +1567,8 @@ EOF
             print("监控数据已保存到: /tmp/perf-taosd-query-*.log")
             print("可以使用以下命令查看监控数据:")
             print("cat /tmp/perf-taosd-query-all.log")
-                     
-    def do_query_then_insert_bak(self):
+            
+    def do_query_then_insert(self):
         self.prepare_env()
         self.prepare_source_from_data()
         
@@ -1988,7 +1667,7 @@ EOF
                         if time_range and len(time_range) > 0 and time_range[0][0]:
                             start_ts = int(time_range[0][0].timestamp() * 1000)
                             end_ts = int(time_range[0][1].timestamp() * 1000)
-                            step = 15 * 1000  # 15秒
+                            step = 300 * 1000  # 5分钟间隔(毫秒)
                             
                             # 计算总时间窗口数
                             total_windows = ((end_ts - start_ts) // step) + 1
@@ -2130,6 +1809,58 @@ EOF
                 count += 1
         conn.close()
 
+    def do_query_then_insert_old(self):
+        self.prepare_env()
+        self.prepare_source_from_data()
+
+        try:
+            subprocess.Popen('taosBenchmark --f /tmp/stream_from.json', stdout=subprocess.PIPE, shell=True, text=True)
+            subprocess.Popen('taosBenchmark --f /tmp/stream_to.json', stdout=subprocess.PIPE, shell=True, text=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error running Bash command: {e}")
+
+        time.sleep(50)
+
+        conn = taos.connect(
+            host=self.host, user=self.user, password=self.passwd, config=self.conf, timezone=self.tz
+        )
+
+        cursor = conn.cursor()
+        cursor.execute('use stream_from')
+
+        start_ts = 1609430400000
+        step = 5
+
+        cursor.execute("create stable if not exists stb_result(wstart timestamp, minx float, maxx float, countx bigint) tags(gid bigint unsigned)")
+
+        try:
+            t = threading.Thread(target=do_monitor, args=(self.runtime * 60, self.perf_file))
+            t.start()
+        except Exception as e:
+            print("Error: unable to start thread, %s" % e)
+
+        print("start to query")
+
+        list = get_table_list(cursor)
+        print("there are %d tables" % len(list))
+
+        for index, n in enumerate(list):
+            cursor.execute(f"create table if not exists {n[0]}_1 using stb_result tags(1)")
+            count = 1
+            while True:
+                sql = (f"select cast({start_ts + step * 1000 * (count - 1)} as timestamp), min(c1), max(c2), count(c3) from stream_from.{n[0]} "
+                       f"where ts >= {start_ts + step * 1000 * (count - 1)} and ts < {start_ts + step * 1000 * count}")
+                cursor.execute(sql)
+
+                res = cursor.fetchall()
+                if res[0][3] == 0:
+                    break
+
+                insert = f"insert into {n[0]}_1 values ({start_ts + step * 1000 * (count - 1)}, {res[0][1]}, {res[0][2]}, {res[0][3]})"
+                cursor.execute(insert)
+                count += 1
+        conn.close()
+        
     def multi_insert(self):
         self.prepare_env()
         self.prepare_source_from_data()
@@ -2171,23 +1902,21 @@ def main():
     parser.add_argument('--restore-data', action='store_true',
                         help='从备份恢复测试数据')
     parser.add_argument('-m', '--mode', type=int, default=0,
-                        help='1: do_start, 2: do_query_then_insert, 3: multi_insert')
+                        help='1: do_start, 11: do_start_restore_data, 2: do_query_then_insert, 22: do_query_then_insert_restore_data 3: multi_insert')
     parser.add_argument('-t', '--time', type=int, default=10,
                         help='运行时间(分钟),默认10分钟')
     parser.add_argument('-f', '--file', type=str, default='/tmp/perf.log',
                         help='性能数据输出文件路径,默认/tmp/perf.log')
     parser.add_argument('--table-count', type=int, default=500,
                         help='子表数量,默认500')
-    parser.add_argument('--insert-rows', type=int, default=1,
-                        help='初始插入记录数,默认1')
-    parser.add_argument('--next-insert-rows', type=int, default=250,
-                       help='后续每轮插入记录数')
+    parser.add_argument('--insert-rows', type=int, default=500,
+                        help='插入记录数,默认50000')
     parser.add_argument('--disorder-ratio', type=int, default=0,
                         help='数据乱序率,默认0')
     parser.add_argument('--vgroups', type=int, default=4,
                         help='vgroups,默认4')
-    parser.add_argument('--sql-type', type=str, default='s2_2',
-                       choices=['s2_2', 's2_3', 's2_4', 's2_5', 's2_6', 's2_7', 's2_8', 's2_9', 's2_10'],
+    parser.add_argument('--sql-type', type=str, default='s1_2',
+                       choices=['s1_2', 's1_3', 's1_4', 's1_5', 's1_6'],
                        help='实时流计算SQL-CASE-ID')
     parser.add_argument('--stream-sql', type=str,
                         help='自定义流计算SQL(优先级高于sql-type)')
@@ -2206,8 +1935,7 @@ def main():
     print(f"运行时间: {args.time}分钟")
     print(f"性能文件: {args.file}")
     print(f"子表数量: {args.table_count}")
-    print(f"初始插入记录数: {args.insert_rows}")
-    print(f"后续每轮插入记录数: {args.next_insert_rows}")
+    print(f"插入记录: {args.insert_rows}")
     print(f"数据乱序: {args.disorder_ratio}")
     print(f"vgroups数: {args.vgroups}")
     print(f"集群目录: {args.cluster_root}")
@@ -2236,7 +1964,6 @@ def main():
             perf_file=args.file,
             table_count=args.table_count,
             insert_rows=args.insert_rows,
-            next_insert_rows=args.next_insert_rows,
             disorder_ratio=args.disorder_ratio,
             vgroups=args.vgroups,
             stream_sql=stream_sql,
@@ -2266,9 +1993,15 @@ def main():
         if args.mode == 1:
             print("执行模式: do_start")
             starter.do_start()
+        elif args.mode == 11:
+            print("执行模式: do_start_restore_data")
+            starter.do_start_restore_data()
         elif args.mode == 2:
             print("执行模式: do_query_then_insert")
             starter.do_query_then_insert()
+        elif args.mode == 22:
+            print("执行模式: do_query_then_insert_restore_data")
+            starter.do_query_then_insert_restore_data()
         elif args.mode == 3:
             print("执行模式: multi_insert")
             starter.multi_insert()

@@ -25,7 +25,7 @@ class TestStreamSlidingTrigger:
     queryIdx = 0
     slidingList = [1, 10, 100, 1000]
     tableList = []
-    runCaseList = ["0-0-0-6-0"]
+    runCaseList = ["0-0-0-0-27"]
     streamSql = ""
     querySql = ""
     querySqls = [ # (SQL, (minPartitionColNum, partitionByTbname), PositiveCase)
@@ -82,8 +82,9 @@ class TestStreamSlidingTrigger:
         "0-0-0-0-4": [40, None, True, [], ""],
         "0-0-0-0-6": [-1, None, True, [], ""], #FAILED
 
-        
-        "0-0-0-1-0": [-1, None, True, [], ""], #FAILED
+        "0-0-0-0-27": [-1, None, True, [], ""], #FAILED, crash
+
+        "0-0-0-1-0": [3, None, True, [], ""], 
         "0-0-0-1-1": [-1, None, True, [], ""], #FAILED
         "0-0-0-1-2": [-1, None, True, [], ""], #FAILED
         "0-0-0-1-4": [-1, None, True, [], "order by cts, tag_tbname"],  #FAILED
@@ -100,7 +101,9 @@ class TestStreamSlidingTrigger:
         "0-0-0-1-14": [-1, None, True, [], ""], #FAILED
         "0-0-0-1-16": [120, None, True, [], "order by cts, tag_tbname"],
         "0-0-0-1-18": [-1, None, True, [], "order by `_tcurrent_ts`, tag_tbname"], #FAILED
-        "0-0-0-2-0": [-1, None, True, [], ""], #FAILED, 结果子表数不够
+
+
+        "0-0-0-2-0": [3, None, True, [], "order by cts, tag_tbname"],
         "0-0-0-2-1": [-1, None, True, [], ""], #FAILED, 结果子表数不够
 
         
@@ -127,8 +130,9 @@ class TestStreamSlidingTrigger:
         
         "0-0-0-2-17": [-1, None, True, [], ""],
         "0-0-0-2-18": [-1, None, True, [], ""],   
-        "0-0-0-3-0": [-1, None, True, [], "order by cts, tag_tbname"], #FAILED, 预期3行，结果子表数不够
-        "0-0-0-3-1": [-1, None, True, [], "order by cts, tag_tbname"], #FAILED, 结果子表数不够      
+
+        "0-0-0-3-0": [-1, None, True, [], "order by cts, tag_tbname"], #FAILED, 预期3行，结果子表TAG值错误
+        "0-0-0-3-1": [-1, None, True, [], "order by cts, tag_tbname"], #FAILED, 结果子表TAG值错误      
         "0-0-0-3-2": [-1, None, True, [], "order by cts, tag_tbname"], #FAILED, 预期120行，结果子表TAG值错误      
 
         "0-0-0-3-3": [-1, None, True, [], ""],
@@ -145,7 +149,7 @@ class TestStreamSlidingTrigger:
         "0-0-0-5-4": [-1, None, True, [], ""],     
         "0-0-0-5-6": [-1, None, True, [], ""],  
 
-        "0-0-0-6-0": [-1, None, True, [], ""], #FAILED, 结果表数量不够
+        "0-0-0-6-0": [3, None, True, [], "order by cts, tag_tbname"],
 
         "1-1-0-0-0": [3, None, True, [], ""],  # 触发表子表、计算表子表
     }
@@ -245,6 +249,8 @@ class TestStreamSlidingTrigger:
             (f"create stream stName interval({self.sliding}s) sliding({self.sliding}s) from {self.trigTbname} partition by tbname into outTbname as querySql;", (1, True)),
             (f"create stream stName interval({self.sliding + 1}s, 1a) sliding({self.sliding}s) from {self.trigTbname} into outTbname as querySql;", (0, False)),
             (f"create stream stName interval({self.sliding - 1}s, 1a) sliding({self.sliding}s, 1a) from {self.trigTbname} partition by tbname into outTbname as querySql;", (1, True)),
+
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} options(watermark(10s)|expired_time(40s)|ignore_disorder|delete_recalc|delete_output_table) into outTbname as querySql;", (3, True)),
         ]
 
         for self.createStmIdx in range(len(createStreamSqls)):

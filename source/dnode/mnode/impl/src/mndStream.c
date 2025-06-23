@@ -1016,6 +1016,79 @@ _OVER:
   return code;
 }
 
+static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
+  SMnode     *pMnode = pReq->info.node;
+  SStreamObj *pStream = NULL;
+  int32_t     code = 0;
+
+  SMRecalcStreamReq recalcReq = {0};
+  if (tDeserializeSMRecalcStreamReq(pReq->pCont, pReq->contLen, &recalcReq) < 0) {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  code = mndAcquireStream(pMnode, recalcReq.name, &pStream);
+  if (pStream == NULL || code != 0) {
+    mError("stream:%s not exist, failed to recalc stream", recalcReq.name);
+    TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
+  }
+
+  int64_t streamId = pStream->pCreate->streamId;
+  
+  mstsInfo("start to recalc stream %s", recalcReq.name);
+
+  code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
+  if (code != TSDB_CODE_SUCCESS) {
+    mstsError("user %s failed to recalc stream %s since %s", pReq->info.conn.user, recalcReq.name, tstrerror(code));
+    sdbRelease(pMnode->pSdb, pStream);
+    return code;
+  }
+
+  if (WINDOW_TYPE_PERIOD == pStream->pCreate->triggerType) {
+    code = TSDB_CODE_OPS_NOT_SUPPORT;
+    mstsError("failed to recalc stream %s since %s", recalcReq.name, tstrerror(code));
+    sdbRelease(pMnode->pSdb, pStream);
+    return code;
+  }
+
+  STrans *pTrans = NULL;
+  code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_RECALC_NAME, &pTrans);
+  if (pTrans == NULL || code) {
+    mstsError("failed to recalc stream %s since %s", recalcReq.name, tstrerror(code));
+    sdbRelease(pMnode->pSdb, pStream);
+    return code;
+  }
+
+  pStream->updateTime = taosGetTimestampMs();
+
+  atomic_store_8(&pStream->userStopped, 1);
+
+  MND_STREAM_SET_LAST_TS(STM_EVENT_STOP_STREAM, pStream->updateTime);
+
+  msmUndeployStream(pMnode, streamId, pStream->pCreate->name);
+
+  // stop stream
+  code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_READY);
+  if (code != TSDB_CODE_SUCCESS) {
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return code;
+  }
+
+  code = mndTransPrepare(pMnode, pTrans);
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("trans:%d, failed to prepare stop stream trans since %s", pTrans->id, tstrerror(code));
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return code;
+  }
+
+  sdbRelease(pMnode->pSdb, pStream);
+  mndTransDrop(pTrans);
+
+  return TSDB_CODE_ACTION_IN_PROGRESS;
+}
+
+
 int32_t mndInitStream(SMnode *pMnode) {
   SSdbTable table = {
       .sdbType = SDB_STREAM,
@@ -1042,6 +1115,7 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_START_STREAM, mndProcessStartStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_STOP_STREAM, mndProcessStopStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_STREAM_HEARTBEAT, mndProcessStreamHb);  
+  mndSetMsgHandle(pMnode, TDMT_MND_RECALC_STREAM, mndProcessRecalcStreamReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndRetrieveStream);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndCancelGetNextStream);
