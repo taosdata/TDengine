@@ -534,7 +534,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.connLimitLock = 1;
   rpcInit.supportBatch = 1;
-  rpcInit.shareConnLimit = tsShareConnLimit * 2;
+  rpcInit.shareConnLimit = tsShareConnLimit * 8;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
