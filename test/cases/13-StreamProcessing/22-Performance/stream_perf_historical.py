@@ -74,7 +74,7 @@ Parameters/参数:
     --monitor-interval: Monitoring interval in seconds / 监控间隔(秒)
 
 Authors/作者:
-    - Guo Xiaoyang / 郭向阳
+    - Guo Xiangyang / 郭向阳
 """
 
 
