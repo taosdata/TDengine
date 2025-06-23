@@ -585,7 +585,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   tstrncpy(rpcInit.localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   rpcInit.localPort = tsServerPort;
   rpcInit.label = "DND-S";
-  rpcInit.numOfThreads = tsNumOfRpcThreads * 2;
+  rpcInit.numOfThreads = tsNumOfRpcThreads;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = tsMaxShellConns;
   rpcInit.connType = TAOS_CONN_SERVER;
