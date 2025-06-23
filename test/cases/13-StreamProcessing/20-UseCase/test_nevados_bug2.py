@@ -160,7 +160,7 @@ class Test_Nevados:
             "  tags("
             "    group_id bigint as _tgrpid"
             "  )"
-            "  as select _twstart window_start, _twend as window_hourly, max(windspeed_hourly_maximum) as windspeed_daily_maximum, %%1 as site, %%2 as id from %%trows"
+            "  as select _twstart window_start, _twend as window_hourly, _tprev_ts, _tcurrent_ts, _twrownum, max(windspeed_hourly_maximum) as windspeed_daily_maximum, %%1 as site, %%2 as id from windspeeds_hourly where site=%%1 and id=%%2 and window_start >= _twstart and window_start < _twend"
         )
         tdStream.checkStreamStatus()
 
@@ -179,6 +179,15 @@ class Test_Nevados:
 
         tdSql.checkResultsByFunc(
             "select count(*) from information_schema.ins_tables where db_name='dev' and stable_name='windspeeds_daily';",
-            lambda: tdSql.getData(0, 0) > 10,
-            retry=60
+            lambda: tdSql.getData(0, 0) == 10,
+            retry=60,
+        )
+
+        tdSql.checkResultsByFunc(
+            "select window_start, window_hourly, `_tprev_ts`, `_tcurrent_ts` from windspeeds_daily where id='id_1';",
+            lambda: tdSql.getRows() == 3
+            and tdSql.compareData(0, 0, "2025-05-31 05:00:00.000")
+            and tdSql.compareData(1, 0, "2025-06-01 05:00:00.000")
+            and tdSql.compareData(2, 0, "2025-06-02 05:00:00.000"),
+            retry=20,
         )
