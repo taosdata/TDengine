@@ -162,6 +162,7 @@ typedef struct {
   void         *charsetCxt;
   char          userApp[TSDB_APP_NAME_LEN];
   uint32_t      userIp;
+  SIpRange      userDualIp;  // user ip range
 }SOptionInfo;
 
 typedef struct STscObj {

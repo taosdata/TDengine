@@ -590,7 +590,7 @@ static int32_t mndSetDropSnodeRedoLogs(STrans *pTrans, SSnodeObj *pObj) {
     if (terrno != 0) code = terrno;
     TAOS_RETURN(code);
   }
-  TAOS_CHECK_RETURN(mndTransAppendRedolog(pTrans, pRedoRaw));
+  TAOS_CHECK_RETURN(mndTransAppendGroupRedolog(pTrans, pRedoRaw, -1));
   TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING));
   TAOS_RETURN(code);
 }
@@ -630,6 +630,7 @@ static int32_t mndSetDropSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSn
   action.contLen = contLen;
   action.msgType = TDMT_DND_DROP_SNODE;
   action.acceptableCode = TSDB_CODE_SNODE_NOT_DEPLOYED;
+  action.groupId = 1;
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);

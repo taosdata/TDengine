@@ -437,6 +437,7 @@ function install_anode_venv() {
   ${csudo}${venvDir}/bin/pip3 install taospy
   ${csudo}${venvDir}/bin/pip3 install transformers==4.40.0
   ${csudo}${venvDir}/bin/pip3 install accelerate
+  ${csudo}${venvDir}/bin/pip3 install tensorflow
 
   echo -e "Install python library for venv completed!"
 }

@@ -584,6 +584,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_order.py
 ,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join.py
 ,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join2.py
+,,y,.,./ci/pytest.sh pytest cases/29-JoinQueries/test_join_ns_db.py
+
 # 30-DataCompression
 ,,y,.,./ci/pytest.sh pytest cases/30-DataCompression/test_compress_alter_option.py
 ,,y,.,./ci/pytest.sh pytest cases/30-DataCompression/test_compress_disable.py

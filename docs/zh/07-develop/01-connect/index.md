@@ -115,7 +115,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
             ```
         - 指定某个特定版本安装
             ```
-            pip3 install taospy==2.3.0
+            pip3 install taospy==2.8.1
             ```
         - 从 GitHub 安装
             ```
@@ -194,7 +194,7 @@ taos = { version = "*", default-features = false, features = ["ws"] }
 <TabItem label="Node.js" value="node">
 
 - **安装前准备**
-    - 安装 Node.js 开发环境，使用 14 以上版本。下载链接：https://nodejs.org/en/download/
+    - 安装 Node.js 开发环境，使用 14 以上版本。下载链接：[Download Node.js](https://nodejs.org/en/download)
 
 - **安装**
     - 使用 npm 安装 Node.js 连接器
@@ -343,15 +343,20 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
 
     - **protocol**: 使用 websocket 协议建立连接。例如`ws://localhost:6041`
     - **username/password**: 数据库的用户名和密码。
-    - **host/port**: 主机地址和端口号。例如`localhost:6041`
+    - **host/port**: 参数支持合法的域名或 IP 地址。`@tdengine/websocket` 同时支持 IPV4 和 IPV6 两种地址格式，对于 IPv6 地址，必须使用中括号括起来（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。
     - **database**: 数据库名称。
     - **params**: 其他参数。例如 token。
 
     - 完整 DSN 示例：
-
+    
     ```js
+        // IPV4:
         ws://root:taosdata@localhost:6041
+    
+        // IPV6:
+        ws://root:taosdata@[::1]:6041
     ``` 
+
     </TabItem>
 
     <TabItem label="C#" value="csharp">
