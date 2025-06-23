@@ -23,7 +23,7 @@ class TestMqttCases:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_mqtt_async_write(self):
+    def test_mqtt_soak(self):
         """ Mqtt soak testing
 
         Soak testing for 72 hours to assess taosmqtt's behavior under prolonged stress.
