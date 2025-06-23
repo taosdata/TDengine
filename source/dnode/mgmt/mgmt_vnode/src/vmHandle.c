@@ -1211,12 +1211,67 @@ _exit:
   TAOS_RETURN(code);
 }
 
+static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg, int32_t diskPrimary,
+                            STfs *pMountTfs) {
+  int32_t    code = 0;
+  SVnodeInfo info = {0};
+  char       hostDir[TSDB_FILENAME_LEN] = {0};
+  char       mountDir[TSDB_FILENAME_LEN] = {0};
+
+  if ((code = vnodeCheckCfg(pCfg)) < 0) {
+    vError("vgId:%d, failed to mount vnode since:%s", pCfg->vgId, tstrerror(code));
+    return code;
+  }
+
+  if ((code = taosMkDir(path))) {
+    vError("vgId:%d, failed to prepare vnode dir since %s, mount path: %s", pCfg->vgId, tstrerror(code), path);
+    return code;
+  }
+  vnodeGetPrimaryDir(path, 0, pMgmt->pTfs, hostDir, TSDB_FILENAME_LEN);
+
+  if (pCfg) {
+    info.config = *pCfg;
+  } else {
+    info.config = vnodeCfgDefault;
+  }
+  // TODO: use the real value from vnode.json ???
+  // info.state.committed = -1;
+  // info.state.applied = -1;
+  // info.state.commitID = 0;
+
+  SVnodeInfo oldInfo = {0};
+  oldInfo.config = vnodeCfgDefault;
+  if (vnodeLoadInfo(dir, &oldInfo) == 0) {
+    code = (oldInfo.config.dbId == info.config.dbId) ? 0 : TSDB_CODE_VND_ALREADY_EXIST_BUT_NOT_MATCH;
+    if (code == 0) {
+      vWarn("vgId:%d, mount:vnode config info already exists at %s.", oldInfo.config.vgId, dir);
+    } else {
+      vError("vgId:%d, mount:vnode config info already exists at %s. oldDbId:%" PRId64 "(%s) at cluster:%" PRId64
+             ", newDbId:%" PRId64 "(%s) at cluser:%" PRId64 ", code:%s",
+             oldInfo.config.vgId, dir, oldInfo.config.dbId, oldInfo.config.dbname,
+             oldInfo.config.syncCfg.nodeInfo[oldInfo.config.syncCfg.myIndex].clusterId, info.config.dbId,
+             info.config.dbname, info.config.syncCfg.nodeInfo[info.config.syncCfg.myIndex].clusterId, tstrerror(code));
+    }
+    return code;
+  }
+
+  vInfo("vgId:%d, mount:save vnode config while create", info.config.vgId);
+  if ((code = vnodeSaveInfo(dir, &info)) < 0 || (code = vnodeCommitInfo(dir)) < 0) {
+    vError("vgId:%d, failed to save vnode config since %s, mount path: %s", pCfg ? pCfg->vgId : 0, tstrerror(code),
+           path);
+    return code;
+  }
+
+  vInfo("vgId:%d, vnode is mounted, path:%s", info.config.vgId, path);
+  return 0;
+}
+
 int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t         code = 0, lino = 0;
   SCreateVnodeReq req = {0};
   SVnodeCfg       vnodeCfg = {0};
   SWrapperCfg     wrapperCfg = {0};
-  STfs           *pTfs = NULL;
+  STfs           *pMountTfs = NULL;
   char            path[TSDB_FILENAME_LEN] = {0};
 
   if (tDeserializeSCreateVnodeReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
@@ -1264,16 +1319,16 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   wrapperCfg.diskPrimary = req.diskPrimary;
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
-  TAOS_CHECK_EXIT(vmGetMountTfs(pMgmt, req.mountPath, &pTfs));
+  TAOS_CHECK_EXIT(vmGetMountTfs(pMgmt, req.mountPath, &pMountTfs));
 
-  if ((code = vnodeCreate(path, &vnodeCfg, wrapperCfg.diskPrimary, pTfs)) < 0) {
+  if ((code = vmMountVnode(pMgmt, path, &vnodeCfg, wrapperCfg.diskPrimary, pMountTfs)) < 0) {
     dError("vgId:%d, failed to create vnode since %s", req.vgId, tstrerror(code));
     vmReleaseVnode(pMgmt, pVnode);
     vmCleanPrimaryDisk(pMgmt, req.vgId);
     (void)tFreeSCreateVnodeReq(&req);
     return code;
   }
-  SVnode *pImpl = vnodeOpen(path, wrapperCfg.diskPrimary, pTfs, pMgmt->msgCb, true);
+  SVnode *pImpl = vnodeOpen(path, wrapperCfg.diskPrimary, pMountTfs, pMgmt->msgCb, true);
   if (pImpl == NULL) {
     TAOS_CHECK_EXIT(terrno != 0 ? terrno : -1);
   }

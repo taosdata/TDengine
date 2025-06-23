@@ -41,7 +41,7 @@ typedef struct SVnodeMgmt {
   SHashObj             *runngingHash;
   SHashObj             *closedHash;
   SHashObj             *creatingHash;
-  SHashObj             *mountTfsHash;  // key: path, value: STfs
+  SHashObj             *mountTfsHash;  // key: mount path, value: STfs Pointer
   TdThreadRwlock        hashLock;
   TdThreadMutex         mutex;
   SVnodesStat           state;
