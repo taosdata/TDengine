@@ -64,7 +64,7 @@ int32_t transCompressMsg(char* msg, int32_t len) {
   taosMemoryFree(buf);
 
   int64_t elapse = taosGetTimestampMs() - start;
-  if (elapse >= 50) {
+  if (elapse >= 100) {
     tWarn("compress msg cost %dms", (int)(elapse));
   }
   return ret;
@@ -103,7 +103,7 @@ int32_t transDecompressMsg(char** msg, int32_t* len) {
   *msg = buf;
 
   int64_t elapse = taosGetTimestampMs() - start;
-  if (elapse >= 50) {
+  if (elapse >= 100) {
     tWarn("dcompress msg cost %dms", (int)(elapse));
   }
   return 0;
@@ -138,7 +138,7 @@ int32_t transDecompressMsgExt(char const* msg, int32_t len, char** out, int32_t*
   pNewHead->comp = 0;
 
   int64_t elapse = taosGetTimestampMs() - start;
-  if (elapse >= 50) {
+  if (elapse >= 100) {
     tWarn("dcompress msg cost %dms", (int)(elapse));
   }
   return 0;
