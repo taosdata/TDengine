@@ -1601,9 +1601,7 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
     *pFound = true;
     return TSDB_CODE_SUCCESS;
   }
-  // 处理超级表
-  if (TSDB_SUPER_TABLE == pMeta->tableType) {
-    // 处理tbname列
+  if (TSDB_SUPER_TABLE == pMeta->tableType && pCxt->pCurrStmt->type == QUERY_NODE_INSERT_STMT) {
     if (0 == strcmp(pCol->colName, "tbname")) {
       SFunctionNode* tbnameFuncNode = NULL;
       code = createTbnameFunctionNode(pCol, &tbnameFuncNode);
@@ -5874,6 +5872,7 @@ static int32_t translateJoinTable(STranslateContext* pCxt, SNode** pTable, bool 
   }
   pJoinTable->table.precision = calcJoinTablePrecision(pJoinTable);
   pJoinTable->table.singleTable = joinTableIsSingleTable(pJoinTable);
+  pCurrSmt->precision = pJoinTable->table.precision;
   PAR_ERR_JRET(translateExpr(pCxt, &pJoinTable->pOnCond));
   pJoinTable->hasSubQuery = (nodeType(pJoinTable->pLeft) != QUERY_NODE_REAL_TABLE) ||
                             (nodeType(pJoinTable->pRight) != QUERY_NODE_REAL_TABLE);
@@ -9289,12 +9288,12 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
 static int32_t translateInsertTable(STranslateContext* pCxt, SNode** pTable) {
   int32_t code = translateFrom(pCxt, pTable);
   if (TSDB_CODE_SUCCESS == code && TSDB_CHILD_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType &&
+      TSDB_SUPER_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType &&
       TSDB_NORMAL_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType) {
     // code = buildInvalidOperationMsg(&pCxt->msgBuf, "insert data into super table is not supported");
   }
   return code;
 }
-
 static int32_t translateInsert(STranslateContext* pCxt, SInsertStmt* pInsert) {
   pCxt->pCurrStmt = (SNode*)pInsert;
   int32_t code = translateInsertTable(pCxt, &pInsert->pTable);
@@ -11775,11 +11774,18 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
 
   createReq.numIpRanges = pStmt->numIpRanges;
   if (pStmt->numIpRanges > 0) {
-    createReq.pIpRanges = taosMemoryMalloc(createReq.numIpRanges * sizeof(SIpV4Range));
+    createReq.pIpRanges = taosMemoryCalloc(1, createReq.numIpRanges * sizeof(SIpV4Range));
     if (!createReq.pIpRanges) {
       return terrno;
     }
-    memcpy(createReq.pIpRanges, pStmt->pIpRanges, sizeof(SIpV4Range) * createReq.numIpRanges);
+
+    createReq.pIpDualRanges = taosMemoryMalloc(createReq.numIpRanges * sizeof(SIpRange));
+    if (!createReq.pIpDualRanges) {
+      tFreeSCreateUserReq(&createReq);
+      return terrno;
+    }
+
+    memcpy(createReq.pIpDualRanges, pStmt->pIpRanges, sizeof(SIpRange) * createReq.numIpRanges);
   }
   code = buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
   tFreeSCreateUserReq(&createReq);
@@ -11827,11 +11833,18 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
 
   alterReq.numIpRanges = pStmt->numIpRanges;
   if (pStmt->numIpRanges > 0) {
-    alterReq.pIpRanges = taosMemoryMalloc(alterReq.numIpRanges * sizeof(SIpV4Range));
+    alterReq.pIpRanges = taosMemoryCalloc(1, alterReq.numIpRanges * sizeof(SIpV4Range));
     if (!alterReq.pIpRanges) {
+      tFreeSAlterUserReq(&alterReq);
       return terrno;
     }
-    memcpy(alterReq.pIpRanges, pStmt->pIpRanges, sizeof(SIpV4Range) * alterReq.numIpRanges);
+
+    alterReq.pIpDualRanges = taosMemoryMalloc(alterReq.numIpRanges * sizeof(SIpRange));
+    if (!alterReq.pIpDualRanges) {
+      tFreeSAlterUserReq(&alterReq);
+      return terrno;
+    }
+    memcpy(alterReq.pIpDualRanges, pStmt->pIpRanges, sizeof(SIpRange) * alterReq.numIpRanges);
   }
   code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &alterReq);
   tFreeSAlterUserReq(&alterReq);

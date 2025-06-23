@@ -100,6 +100,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3 -M 3
 ,,y,army,./pytest.sh python3 ./test.py -f create/create_ctb_using_csv_file.py
 ,,y,army,./pytest.sh python3 ./test.py -f create/create_ctb_using_csv_file.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f insert/insert_csv_file_with_row_split.py 
 
 ,,y,army,./pytest.sh python3 ./test.py -f stream/test_stream_vtable.py
 
@@ -1343,6 +1344,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f eco-system/manager/schema_change.py -N 3 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_window_true_for.py
+,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 
 #tsim test
 ,,y,script,./test.sh -f tsim/query/timeline.sim
@@ -1887,4 +1889,4 @@
 # new test
 ,,y,test_new,./pytest.sh python3 ./test.py -f storage/compact/test_compact_meta.py
 
-,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
+
