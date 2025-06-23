@@ -3766,6 +3766,13 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     }
   }
 
+  if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(nodesListGetNode(pNode->pChildren, 0))) {
+    SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+    if (LIST_LENGTH(((SScanLogicNode *)pChild)->pScanPseudoCols) != 0) {
+      return false;
+    }
+  }
+
   SProjectLogicNode* pProjectNode = (SProjectLogicNode*)pNode;
   if (NULL != pProjectNode->node.pLimit || NULL != pProjectNode->node.pSlimit ||
       NULL != pProjectNode->node.pConditions) {

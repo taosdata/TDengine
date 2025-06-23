@@ -48,25 +48,14 @@ static void stRunnerDestroyTaskExecution(void* pExec) {
 static void stRunnerTaskExecMgrDestroyFinalize(SStreamRunnerTask* pTask) {
   SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
   tdListFreeP(pMgr->pRunningExecs, stRunnerDestroyTaskExecution);
+  tdListFreeP(pMgr->pFreeExecs, stRunnerDestroyTaskExecution);
   taosThreadMutexDestroy(&pMgr->lock);
   pTask->undeployCb(pTask->undeployParam);
-  nodesDestroyList(pTask->output.pTagValExprs);
-}
-
-static void stRunnerDestroyTaskExecMgrAsync(SStreamRunnerTask* pTask) {
-  SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
-  bool hasRunningExec = false;
-  taosThreadMutexLock(&pMgr->lock);
-  pMgr->exit = true;
-  if (pMgr->pFreeExecs->dl_neles_ > 0) {
-    tdListFreeP(pMgr->pFreeExecs, stRunnerDestroyTaskExecution);
-  }
-  if (pMgr->pRunningExecs->dl_neles_ > 0) {
-    hasRunningExec = true;
-  }
-  taosThreadMutexUnlock(&pMgr->lock);
-
-  if (!hasRunningExec) stRunnerTaskExecMgrDestroyFinalize(pTask);
+  NODES_DESTORY_NODE(pTask->pSubTableExpr);
+  NODES_DESTORY_LIST(pTask->output.pTagValExprs);
+  taosMemoryFreeClear(pTask->pPlan);
+  taosArrayDestroyEx(pTask->forceOutCols, destroySStreamOutCols);
+  taosArrayDestroyP(pTask->notification.pNotifyAddrUrls, taosMemFree);
 }
 
 static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t execId, SStreamRunnerTaskExecution** ppExec) {
@@ -116,11 +105,6 @@ static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunn
   if (pMgr->exit) {
     if (pMgr->pRunningExecs->dl_neles_ == 1) {
       amITheLastRunning = true;
-    } else {
-      SListNode* pNode = listNode(pExec);
-      pNode = tdListPopNode(pMgr->pRunningExecs, pNode);
-      stRunnerDestroyTaskExecution(pNode->data);
-      taosMemoryFreeClear(pNode);
     }
   } else {
     SListNode* pNode = listNode(pExec);
@@ -130,10 +114,6 @@ static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunn
   taosThreadMutexUnlock(&pMgr->lock);
 
   if (amITheLastRunning) stRunnerTaskExecMgrDestroyFinalize(pTask);
-}
-
-void init_rt_info(SStreamRuntimeFuncInfo* pRtInfo) {
-  pRtInfo->groupId = 1231231;
 }
 
 static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
@@ -182,22 +162,26 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
 }
 
 int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb) {
-  if ((*ppTask)->execMgr.exit) return 0;
-  NODES_DESTORY_NODE((*ppTask)->pSubTableExpr);
-  NODES_DESTORY_LIST((*ppTask)->output.pTagValExprs);
-  taosMemoryFreeClear((*ppTask)->pPlan);
-  taosArrayDestroyEx((*ppTask)->forceOutCols, destroySStreamOutCols);
-  taosArrayDestroyP((*ppTask)->notification.pNotifyAddrUrls, taosMemFree);
-  (*ppTask)->pSubTableExpr = NULL;
+  bool destroy = false;
+  
+  taosThreadMutexLock(&((*ppTask)->execMgr.lock));
+  (*ppTask)->execMgr.exit = true;
   (*ppTask)->undeployCb = cb;
   (*ppTask)->undeployParam = ppTask;
-  stRunnerDestroyTaskExecMgrAsync(*ppTask);
+  if ((*ppTask)->execMgr.pRunningExecs->dl_neles_ == 0) {
+    destroy = true;
+  }
+  taosThreadMutexUnlock(&((*ppTask)->execMgr.lock));
+  if (destroy) {
+    stRunnerTaskExecMgrDestroyFinalize(*ppTask);
+  }
   return 0;
 }
 
 static int32_t streamResetTaskExec(SStreamRunnerTaskExecution* pExec, bool ignoreTbName) {
   int32_t code = 0;
   if (!ignoreTbName) pExec->tbname[0] = '\0';
+  stDebug("streamResetTaskExec:%p, ignoreTbName:%d tbname: %s", pExec, ignoreTbName, pExec->tbname);
   code = streamClearStatesForOperators(pExec->pExecutor);
   return code;
 }
@@ -305,8 +289,10 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
   if (pTask->notification.calcNotifyOnly) return 0;
   bool needCalcTbName = pExec->tbname[0] == '\0';
   if (pBlock && pBlock->info.rows > 0) {
-    if (needCalcTbName)
+    if (needCalcTbName){
       code = streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, &pExec->runtimeInfo.funcInfo);
+      stDebug("stRunnerOutputBlock tbname: %s", pExec->tbname);
+    }
     if (code != 0) {
       ST_TASK_ELOG("failed to calc output tbname: %s", tstrerror(code));
     } else {
@@ -323,6 +309,8 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
         ST_TASK_DLOG("runner output block to sink code:%d, rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %"PRId64, code, pBlock->info.rows,
                      pExec->tbname, createTb, pExec->runtimeInfo.funcInfo.groupId);
         printDataBlock(pBlock, "output block to sink", "runner");
+      } else {
+        ST_TASK_ELOG("failed to init tag vals for output block: %s", tstrerror(code));
       }
       taosArrayDestroyEx(pTagVals, stRunnerFreeTagInfo);
     }
@@ -347,7 +335,7 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
 
 static int32_t stRunnerHandleResultBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, SSDataBlock* pBlock, bool *pCreateTb) {
   int32_t code = stRunnerOutputBlock(pTask, pExec, pBlock, *pCreateTb);
-  *pCreateTb = false;
+  //*pCreateTb = false;
   if (code == 0) {
     return streamDoNotification(pTask, pExec, pBlock);
   }
@@ -526,9 +514,12 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
     SSDataBlock* pBlock = NULL;
     uint64_t     ts = 0;
     STREAM_CHECK_RET_GOTO(streamExecuteTask(pExec->pExecutor, &pBlock, &ts, &finished));
-    printDataBlock(pBlock, __func__, "runner exec");
+    printDataBlock(pBlock, __func__, "streamExecuteTask block");
     if (pTask->topTask) {
       if (pExec->runtimeInfo.funcInfo.withExternalWindow) {
+        ST_TASK_DLOG("[runner calc] external window: %d, curIdx: %d, curOutIdx: %d, nextOutIdx: %d",
+                     pExec->runtimeInfo.funcInfo.withExternalWindow, pExec->runtimeInfo.funcInfo.curIdx,
+                     pExec->runtimeInfo.funcInfo.curOutIdx, nextOutIdx);
         if (pExec->runtimeInfo.funcInfo.extWinProjMode) {
           code =
               stRunnerTopTaskHandleOutputBlockProj(pTask, pExec, pBlock, &pForceOutBlock, &nextOutIdx, &createTable);
@@ -549,12 +540,18 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
           }
           ST_TASK_DLOG("[runner cacl]result has no data, status:%d", pTask->task.status);
         } else {
+          ST_TASK_DLOG("[runner calc] non external window: %d, curIdx: %d, curOutIdx: %d, nextOutIdx: %d",
+            pExec->runtimeInfo.funcInfo.withExternalWindow, pExec->runtimeInfo.funcInfo.curIdx,
+            pExec->runtimeInfo.funcInfo.curOutIdx, nextOutIdx);
           code = stRunnerHandleResultBlock(pTask, pExec, pBlock, &createTable);
           nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx + 1;
         }
         if (finished) {
           ++pExec->runtimeInfo.funcInfo.curIdx;
           ++pExec->runtimeInfo.funcInfo.curOutIdx;
+          ST_TASK_DLOG("[runner calc] finished: %d, curIdx: %d, curOutIdx: %d, nextOutIdx: %d",
+            pExec->runtimeInfo.funcInfo.withExternalWindow, pExec->runtimeInfo.funcInfo.curIdx,
+            pExec->runtimeInfo.funcInfo.curOutIdx, nextOutIdx);
         }
       }
     } else {
@@ -568,7 +565,6 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
       if (pExec->runtimeInfo.funcInfo.withExternalWindow) break;
     }
   }
-
 
 end:
   stRunnerTaskExecMgrReleaseExec(pTask, pExec);

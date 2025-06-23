@@ -254,6 +254,7 @@ typedef struct SDynQueryCtrlStbJoin {
 typedef struct SDynQueryCtrlVtbScan {
   bool          scanAllCols;
   char          dbName[TSDB_DB_NAME_LEN];
+  char          stbName[TSDB_TABLE_NAME_LEN];
   uint64_t      suid;
   SVgroupsInfo* pVgroupList;
 } SDynQueryCtrlVtbScan;
@@ -652,6 +653,7 @@ typedef struct SStbJoinDynCtrlBasic {
 typedef struct SVtbScanDynCtrlBasic {
   bool       scanAllCols;
   char       dbName[TSDB_DB_NAME_LEN];
+  char       stbName[TSDB_TABLE_NAME_LEN];
   uint64_t   suid;
   int32_t    accountId;
   SEpSet     mgmtEpSet;

@@ -37,6 +37,29 @@ class StreamTableType(Enum):
     TYPE_SYSTEM_TABLE = "SYSTEM_TABLE"
 
 
+class StreamResultCheckMode(Enum):
+    CHHECK_DEFAULT = "CHECK_DEFAULT"
+    CHECK_ARRAY_BY_SQL = "CHECK_ARRAY_BY_SQL"
+    CHECK_ROW_BY_SQL = "CHECK_ROW_BY_SQL"
+    CHECK_BY_FILE = "CHECK_BY_FILE"
+
+
+class QuerySqlCase:
+    def __init__(
+        self,
+        query_sql,
+        expected_sql="",
+        check_mode=StreamResultCheckMode.CHHECK_DEFAULT,
+        generate_file=False,
+        exp_sql_param_mapping={},
+    ):
+        self.query_sql = query_sql
+        self.expected_sql = expected_sql
+        self.check_mode = check_mode
+        self.generate_file = generate_file
+        self.exp_sql_param_mapping = exp_sql_param_mapping
+
+
 class StreamTable:
     def __init__(self, db, tbName, type):
         self.tableType = type
@@ -981,8 +1004,12 @@ class StreamItem:
         exp_query="",
         exp_rows=[],
         check_func=None,
-        expect_query_by_row="",
-        result_param_mapping={},
+        check_mode=StreamResultCheckMode.CHHECK_DEFAULT,
+        exp_query_param_mapping={},
+        caseName="",
+        result_idx="",
+        calc_tbname="",
+        out_tb_tags=(),
     ):
         self.id = id
         self.stream = stream
@@ -991,8 +1018,14 @@ class StreamItem:
         self.exp_rows = exp_rows
         self.check_func = check_func
 
-        self.expect_query_by_row = expect_query_by_row
-        self.result_param_mapping = result_param_mapping
+        self.exp_query_param_mapping = exp_query_param_mapping
+        self.check_mode = check_mode
+        self.caseName = caseName
+        self.result_idx = result_idx
+        self.result_file = ""
+        self.calc_tbname = calc_tbname
+        self.generate_file = False
+        self.out_tb_tags = out_tb_tags
 
     def createStream(self):
         tdLog.info(self.stream)
@@ -1077,16 +1110,17 @@ class StreamItem:
             f"Stream:s{self.id} status not become Running in {waitSeconds} seconds"
         )
 
-    def set_result_param_mapping(self, mapping: dict):
+    def set_exp_query_param_mapping(self, mapping: dict):
         """
         设置参数名与列索引的映射，例如 {"_wstart": 0, "_wend": 1}
         """
         if not isinstance(mapping, dict):
             raise ValueError("参数映射必须是字典类型")
-        self.result_param_mapping = mapping
+        self.exp_query_param_mapping = mapping
+        self.check_mode = StreamResultCheckMode.CHECK_ROW_BY_SQL
 
     def checkResultsByRow(self):
-        if self.expect_query_by_row == "":
+        if self.check_mode != StreamResultCheckMode.CHECK_ROW_BY_SQL:
             return
         tdSql.query(self.res_query)
 
@@ -1097,10 +1131,10 @@ class StreamItem:
         for i in range(0, rowNum):
             params = {
                 param_name: cols[col_index][i]
-                for param_name, col_index in self.result_param_mapping.items()
+                for param_name, col_index in self.exp_query_param_mapping.items()
                 if col_index < colNum
             }
-            sql = self.expect_query_by_row.format(**params)
+            sql = self.exp_query.format(**params)
             tdLog.info(f"after fomat, sql: {sql}")
 
             tdSql.query(sql)
@@ -1109,3 +1143,115 @@ class StreamItem:
                     f"type(elm): {type(cols[colIndex][i])}, type(expect_elm): {type(tdSql.getData(0, colIndex))}"
                 )
                 tdSql.checkEqual(cols[colIndex][i], tdSql.getData(0, colIndex))
+
+    def checkResultsByMode(self):
+        if (
+            self.check_mode == StreamResultCheckMode.CHHECK_DEFAULT
+            or self.check_mode == StreamResultCheckMode.CHECK_ARRAY_BY_SQL
+        ):
+            tdLog.info(f"check stream:s{self.result_idx} results by array")
+            self.checkResults()
+        elif self.check_mode == StreamResultCheckMode.CHECK_ROW_BY_SQL:
+            tdLog.info(f"check stream:s{self.result_idx} results by row")
+            self.awaitResultHasRows()
+            self.checkResultsByRow()
+        elif self.check_mode == StreamResultCheckMode.CHECK_BY_FILE:
+            tdLog.info(f"check stream:s{self.result_idx} results by file")
+            self.checkResultWithResultFile()
+
+    def awaitResultHasRows(self, waitSeconds=60):
+        """
+        确保流处理已有结果，不确认最终结果行数时使用
+        """
+        tdLog.info(f"await stream:s{self.id} stable rows stabilize")
+
+        last_rows = 0
+        rows = 0
+
+        for loop in range(waitSeconds):
+            if False == tdSql.query(self.res_query, None, 1, None, False, False):
+                tdLog.info(f"{self.res_query} has failed for {loop} times")
+                time.sleep(1)
+                continue
+
+            rows = tdSql.getRows()
+
+            if rows > 0 and rows == last_rows:
+                tdLog.info(f"Stream:s{self.id} has {rows} stable rows")
+                return
+            last_rows = rows
+            time.sleep(2)
+
+        tdLog.exit(
+            f"Stream:s{self.id} did not stabilize rows in {waitSeconds} seconds, rows now: {rows}, last rows: {last_rows}"
+        )
+
+    def setResultFile(self, file):
+        """
+        设置结果文件路径
+        """
+        self.result_file = file
+
+    def addQuerySqlCase(
+        self,
+        query_sql_case: QuerySqlCase,
+    ):
+        """
+        添加查询SQL用例
+        """
+        self.check_mode = query_sql_case.check_mode
+
+        if (
+            query_sql_case.check_mode == StreamResultCheckMode.CHECK_ARRAY_BY_SQL
+            or query_sql_case.check_mode == StreamResultCheckMode.CHECK_ROW_BY_SQL
+            or query_sql_case.check_mode == StreamResultCheckMode.CHHECK_DEFAULT
+        ):
+            self.exp_query = query_sql_case.expected_sql
+            if len(self.out_tb_tags) > 0:
+                s = ", " + ", ".join(f"{item}" for item in self.out_tb_tags)
+                self.exp_query = self.exp_query.replace("{outTbTags}", s)
+            tdLog.info(f"set exp query format reslut: {self.exp_query}")
+            self.exp_query = self.exp_query.format_map(
+                SafeDict({"calcTbname": self.calc_tbname})
+            )
+        else:
+            pass
+
+        if query_sql_case.check_mode == StreamResultCheckMode.CHECK_ARRAY_BY_SQL:
+            self.exp_query = self.exp_query.format_map(
+                SafeDict({"calcTbname": self.calc_tbname})
+            )
+        elif query_sql_case.check_mode == StreamResultCheckMode.CHECK_ROW_BY_SQL:
+            self.exp_query = self.exp_query.format_map(
+                SafeDict({"calcTbname": self.calc_tbname})
+            )
+            self.set_exp_query_param_mapping(query_sql_case.exp_sql_param_mapping)
+        elif query_sql_case.check_mode == StreamResultCheckMode.CHECK_BY_FILE:
+            self.generate_file = query_sql_case.generate_file
+        else:
+            self.exp_query = self.exp_query.format_map(
+                SafeDict({"calcTbname": self.calc_tbname})
+            )
+
+    def checkResultWithResultFile(self):
+        tdLog.info(f"check result with sql: {self.res_query}")
+        if self.generate_file:
+            tdLog.info(
+                f"generate query result file for stream:s{self.caseName} with index {self.result_idx}"
+            )
+            tdCom.generate_query_result_file(
+                self.caseName, self.result_idx, self.res_query
+            )
+        else:
+            tdCom.compare_query_with_result_file(
+                self.result_idx,
+                self.res_query,
+                self.result_file,
+                self.caseName,
+            )
+            tdLog.info("check result with result file succeed")
+
+
+class SafeDict(dict):
+    def __missing__(self, key):
+        return "{" + key + "}"

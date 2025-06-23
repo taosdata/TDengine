@@ -396,6 +396,14 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
         return terrno;
       }
+
+      code = initQueriedTableSchemaInfo(pHandle, &pTagScanPhyNode->scan, dbname, pTaskInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        pTaskInfo->code = code;
+        tableListDestroy(pTableListInfo);
+        return code;
+      }
+
       if (!pTagScanPhyNode->onlyMetaCtbIdx) {
         code = createScanTableListInfo((SScanPhysiNode*)pTagScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,
                                        pTagIndexCond, pTaskInfo, NULL);
@@ -406,6 +414,13 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
           return code;
         }
       }
+
+      if (pTagScanPhyNode->scan.node.dynamicOp) {
+        pTaskInfo->dynamicTask = true;
+        pTableListInfo->idInfo.suid = pTagScanPhyNode->scan.suid;
+        pTableListInfo->idInfo.tableType = pTagScanPhyNode->scan.tableType;
+      }
+
       code = createTagScanOperatorInfo(pHandle, pTagScanPhyNode, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo,
                                        &pOperator);
       if (code) {
@@ -497,16 +512,8 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     } else if (QUERY_NODE_PHYSICAL_PLAN_PROJECT == type) {
       code = createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
     } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == type && model != OPTR_EXEC_MODEL_STREAM) {
-      SVirtualScanPhysiNode* pVirtualTableScanNode = (SVirtualScanPhysiNode*)pPhyNode;
       // NOTE: this is an patch to fix the physical plan
-
-      code = initQueriedTableSchemaInfo(pHandle, &pVirtualTableScanNode->scan, dbname, pTaskInfo);
-      if (code) {
-        pTaskInfo->code = code;
-        return code;
-      }
-
-      code = createVirtualTableMergeOperatorInfo(NULL, pHandle, NULL, 0, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
+      code = createVirtualTableMergeOperatorInfo(NULL, NULL, 0, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
     } else {
       code = TSDB_CODE_INVALID_PARA;
       pTaskInfo->code = code;
@@ -592,7 +599,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
   } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE == type) {
     code = createGroupCacheOperatorInfo(ops, size, (SGroupCachePhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL == type) {
-    code = createDynQueryCtrlOperatorInfo(ops, size, (SDynQueryCtrlPhysiNode*)pPhyNode, pTaskInfo, pHandle, &pOptr);
+    code = createDynQueryCtrlOperatorInfo(ops, size, (SDynQueryCtrlPhysiNode*)pPhyNode, pTaskInfo, pHandle->pMsgCb, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT == type) {
     code = createCountwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY == type) {
@@ -603,12 +610,6 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
 
     if (pVirtualTableScanNode->scan.node.pLimit != NULL) {
       pVirtualTableScanNode->groupSort = true;
-    }
-
-    code = initQueriedTableSchemaInfo(pHandle, &pVirtualTableScanNode->scan, dbname, pTaskInfo);
-    if (code) {
-      pTaskInfo->code = code;
-      return code;
     }
 
     STableListInfo* pTableListInfo = tableListCreate();
@@ -627,27 +628,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       return code;
     }
 
-    code = createVirtualTableMergeOperatorInfo(ops, pHandle, pTableListInfo, size, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == type && model == OPTR_EXEC_MODEL_STREAM) {
-    SVirtualScanPhysiNode* pVirtualTableScanNode = (SVirtualScanPhysiNode*)pPhyNode;
-    STableListInfo*        pTableListInfo = tableListCreate();
-    if (!pTableListInfo) {
-      pTaskInfo->code = terrno;
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-      return terrno;
-    }
-
-    code = createScanTableListInfo(&pVirtualTableScanNode->scan, pVirtualTableScanNode->pGroupTags,
-                                   pVirtualTableScanNode->groupSort, pHandle, pTableListInfo, pTagCond, pTagIndexCond,
-                                   pTaskInfo, NULL);
-    if (code) {
-      pTaskInfo->code = code;
-      tableListDestroy(pTableListInfo);
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-      return code;
-    }
-
-    code = createStreamVtableMergeOperatorInfo(ops[0], pHandle, pVirtualTableScanNode, pTagCond, pTableListInfo, pTaskInfo, &pOptr);
+    code = createVirtualTableMergeOperatorInfo(ops, pTableListInfo, size, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL == type) {
     code = createExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL == type) {

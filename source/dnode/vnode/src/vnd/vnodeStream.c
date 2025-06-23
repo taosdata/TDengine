@@ -495,7 +495,7 @@ static int32_t scanWal(SVnode* pVnode, void* pTableList, bool isVTable, SSDataBl
 
   while (1) {
     *retVer = walGetLastVer(pWalReader->pWal);
-    STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader) < 0, 0);
+    STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader) < 0, TSDB_CODE_SUCCESS);
 
     SWalCont* wCont = &pWalReader->pHead->head;
     if (wCont->ingestTs / 1000 > ctime) break;
@@ -520,10 +520,6 @@ static int32_t scanWal(SVnode* pVnode, void* pTableList, bool isVTable, SSDataBl
 
 end:
   walCloseReader(pWalReader);
-  if (code == TSDB_CODE_WAL_LOG_NOT_EXIST) {
-    code = TSDB_CODE_SUCCESS;
-    terrno = TSDB_CODE_SUCCESS;
-  }
   STREAM_PRINT_LOG_END(code, lino);
   return code;
 }
@@ -1739,11 +1735,19 @@ static int32_t vnodeProcessStreamWalMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
   printDataBlock(pBlock, __func__, "");
 
 end:
-  STREAM_PRINT_LOG_END(code, lino);
+  if (pBlock->info.rows == 0) {
+    code = TSDB_CODE_WAL_LOG_NOT_EXIST;
+    buf = rpcMallocCont(sizeof(int64_t));
+    *(int64_t *)buf = lastVer;
+    size = sizeof(int64_t);
+  }
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
-
+  if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
+    code = 0;
+  }
+  STREAM_PRINT_LOG_END(code, lino);
   nodesDestroyList(groupNew);
   blockDataDestroy(pBlock);
   qStreamDestroyTableList(pTableList);

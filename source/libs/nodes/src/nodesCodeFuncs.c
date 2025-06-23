@@ -3995,6 +3995,7 @@ static const char* jkDynQueryCtrlPhysiPlanSrcScan1 = "SrcScan[1]";
 static const char* jkDynQueryCtrlPhysiPlanDynTbname = "DynTbname";
 static const char* jkDynQueryCtrlPhysiPlanScanAllCols = "ScanAllCols";
 static const char* jkDynQueryCtrlPhysiPlanDbName= "DbName";
+static const char* jkDynQueryCtrlPhysiPlanStbName= "StbName";
 static const char* jkDynQueryCtrlPhysiPlanSuid= "Suid";
 static const char* jkDynQueryCtrlPhysiPlanAccountId= "AccountId";
 static const char* jkDynQueryCtrlPhysiPlanEpSet = "EpSet";
@@ -4041,6 +4042,9 @@ static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
         code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlanScanAllCols, pNode->vtbScan.scanAllCols);
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonAddStringToObject(pJson, jkDynQueryCtrlPhysiPlanDbName, pNode->vtbScan.dbName);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonAddStringToObject(pJson, jkDynQueryCtrlPhysiPlanStbName, pNode->vtbScan.stbName);
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanSuid, pNode->vtbScan.suid);
@@ -4104,6 +4108,9 @@ static int32_t jsonToPhysiDynQueryCtrlNode(const SJson* pJson, void* pObj) {
         code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlanScanAllCols, &pNode->vtbScan.scanAllCols);
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonGetStringValue(pJson, jkDynQueryCtrlPhysiPlanDbName, pNode->vtbScan.dbName);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonGetStringValue(pJson, jkDynQueryCtrlPhysiPlanStbName, pNode->vtbScan.stbName);
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonGetUBigIntValue(pJson, jkDynQueryCtrlPhysiPlanSuid, &pNode->vtbScan.suid);
