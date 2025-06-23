@@ -90,6 +90,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   const SVnodeCfg *pCfg = (SVnodeCfg *)pObj;
 
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "vgId", pCfg->vgId));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "mountVgId", pCfg->mountVgId));
   TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, "dbname", pCfg->dbname));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "dbId", pCfg->dbId));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "szPage", pCfg->szPage));
@@ -198,6 +199,8 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
 
   int32_t code;
   tjsonGetNumberValue(pJson, "vgId", pCfg->vgId, code);
+  if (code) return code;
+  tjsonGetNumberValue(pJson, "mountVgId", pCfg->mountVgId, code);
   if (code) return code;
   if ((code = tjsonGetStringValue(pJson, "dbname", pCfg->dbname))) return code;
   tjsonGetNumberValue(pJson, "dbId", pCfg->dbId, code);

@@ -160,6 +160,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   memcpy(pCfg, &vnodeCfgDefault, sizeof(SVnodeCfg));
 
   pCfg->vgId = pCreate->vgId;
+  pCfg->mountVgId = pCreate->mountVgId;
   tstrncpy(pCfg->dbname, pCreate->db, sizeof(pCfg->dbname));
   pCfg->dbId = pCreate->dbUid;
   pCfg->szPage = pCreate->pageSize * 1024;
@@ -1234,11 +1235,7 @@ static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg
     return code;
   }
 
-  if (pCfg) {
-    info.config = *pCfg;
-  } else {
-    info.config = vnodeCfgDefault;
-  }
+  info.config = *pCfg; // copy the config
   // TODO: use the real value from vnode.json ???
   // info.state.committed = -1;
   // info.state.applied = -1;

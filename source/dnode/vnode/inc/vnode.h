@@ -336,6 +336,7 @@ typedef struct {
 
 struct SVnodeCfg {
   int32_t     vgId;
+  int32_t     mountVgId;
   char        dbname[TSDB_DB_FNAME_LEN];
   uint64_t    dbId;
   int32_t     cacheLastSize;

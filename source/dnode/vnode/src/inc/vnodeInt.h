@@ -475,10 +475,12 @@ struct SVnode {
   SVStatis  statis;
   char*     path;
   STfs*     pTfs;
+  STfs*     pMountTfs;
   int32_t   diskPrimary;
   SVnodeCfg config;
   SMsgCb    msgCb;
   bool      disableWrite;
+  bool      mounted;
 
   // Buffer Pool
   TdThreadMutex mutex;

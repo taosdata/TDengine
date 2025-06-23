@@ -30,6 +30,19 @@ void vnodeGetPrimaryDir(const char *relPath, int32_t diskPrimary, STfs *pTfs, ch
   buf[bufLen - 1] = '\0';
 }
 
+void vnodeGetPrimaryPath(SVnode *pVnode, bool mount, char *buf, size_t bufLen) {
+  if (pVnode->mounted && mount) {
+    SDiskID diskId = {0};
+    diskId.id = pVnode->diskPrimary;
+    snprintf(buf, bufLen - 1, "%s%svnode%svnode%d", tfsGetDiskPath(pVnode->pMountTfs, diskId), TD_DIRSEP, TD_DIRSEP,
+             pVnode->config.mountVgId);
+    buf[bufLen - 1] = '\0';
+
+  } else {
+    vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, buf, bufLen);
+  }
+}
+
 static int32_t vnodeMkDir(STfs *pTfs, const char *path) {
   if (pTfs) {
     return tfsMkdirRecur(pTfs, path);
@@ -368,7 +381,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   char       dir[TSDB_FILENAME_LEN] = {0};
   char       tdir[TSDB_FILENAME_LEN * 2] = {0};
   int32_t    ret = 0;
-  bool       isMount = (pMountTfs != NULL);
+  bool       mounted = (pMountTfs != NULL);
   terrno = TSDB_CODE_SUCCESS;
 
   if (vnodeCheckDisk(diskPrimary, pTfs)) {
@@ -388,7 +401,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
     return NULL;
   }
 
-  if (!isMount && vnodeMkDir(pTfs, path)) {
+  if (!mounted && vnodeMkDir(pTfs, path)) {
     vError("vgId:%d, failed to prepare vnode dir since %s, path: %s", info.config.vgId, strerror(ERRNO), path);
     return NULL;
   }
@@ -428,7 +441,9 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   pVnode->state.commitID = info.state.commitID;
   pVnode->state.applied = info.state.committed;
   pVnode->state.applyTerm = info.state.commitTerm;
-  pVnode->pTfs = pMountTfs ? pMountTfs : pTfs;
+  pVnode->pTfs = pTfs;
+  pVnode->pMountTfs = pMountTfs;
+  pVnode->mounted = mounted;
   pVnode->diskPrimary = diskPrimary;
   pVnode->msgCb = msgCb;
   (void)taosThreadMutexInit(&pVnode->lock, NULL);
@@ -460,7 +475,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   }
 
   vInfo("vgId:%d, start to upgrade meta", TD_VID(pVnode));
-  if (!isMount && metaUpgrade(pVnode, &pVnode->pMeta) < 0) {
+  if (!mounted && metaUpgrade(pVnode, &pVnode->pMeta) < 0) {
     vError("vgId:%d, failed to upgrade meta since %s", TD_VID(pVnode), tstrerror(terrno));
   }
 
