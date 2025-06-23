@@ -355,35 +355,35 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=25,
-            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r0 as select _wend tw, sum(cint) c1, _tgrpid tg, _tlocaltime tl from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' partition by %%1",
-            res_query="select sum(cint) cnt from rdb.r1 interval(5m)",
-            exp_query="select sum(cint) cnt from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
+            stream="create stream rdb.s25 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r25 as select _twstart tw, sum(cint) c1, %%1 c2, %%2 c3 from qdb.meters where cts >= _twstart and cts < _twend and tint=%%1",
+            res_query="select tw, c1, c2, c3, id, name from rdb.r25 where id=1;",
+            exp_query="select _wstart, sum(cint), tint, tint, tint, tint from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tint=1 partition by tint interval(5m);",
         )
-        # self.streams.append(stream)
+        # self.streams.append(stream) basic4
 
         stream = StreamItem(
             id=26,
-            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers into rdb.r0 as select _wend tw, sum(cint) c1, _tgrpid tg, _tlocaltime tl from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' partition by %%1",
-            res_query="select sum(cint) cnt from rdb.r1 interval(5m)",
-            exp_query="select sum(cint) cnt from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
+            stream="create stream rdb.s26 interval(5m) sliding(5m) from tdb.triggers into rdb.r26 as select _twstart tw, sum(cint) c1, tbname from qdb.meters where cts >= _twstart and cts < _twend and tbname='t18' partition by tbname",
+            res_query="select * from rdb.r26",
+            exp_query="select _wstart, sum(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t18' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=27,
-            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r0 as select _wend tw, sum(cint) c1, _tgrpid tg, _tlocaltime tl from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' partition by %%1",
-            res_query="select sum(cint) cnt from rdb.r1 interval(5m)",
-            exp_query="select sum(cint) cnt from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
+            stream="create stream rdb.s27 sliding(5m) from tdb.triggers partition by tbname into rdb.r27 as select _tprev_ts tw, sum(cint) c1, count(cint) c2 from qdb.meters where cts >= _tprev_ts and cts < _tcurrent_ts and tbname=%%1",
+            res_query="select * from rdb.r27 where tag_tbname='t1'",
+            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=28,
-            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r0 as select _wtstart ts, name, create_time, %%tbname information_schema.ins_users",
-            res_query="select sum(cint) cnt from rdb.r1 interval(5m)",
+            stream="create stream rdb.s28 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r0 as select _twstart ts, name, create_time, %%1 from information_schema.ins_users",
+            res_query="select * from rdb.r28",
             exp_query="select sum(cint) cnt from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
         )
-        # self.streams.append(stream)
+        # self.streams.append(stream) basic5
 
         stream = StreamItem(
             id=29,
@@ -1812,7 +1812,7 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=203,
-            stream="create stream rdb.s0 sliding(5m) from tdb.n1 into rdb.r0 as select _twstart, sum(cts), FIRST(cint) from qdb.meters interval(2m)",
+            stream="create stream rdb.s0 sliding(5m) from tdb.n1 into rdb.r0 as select _twstart, sum(cint), FIRST(cint) from qdb.meters interval(2m)",
             res_query="select ts, c1, c2 from rdb.r1",
             exp_query="select _wstart ts, count(cint) c1, avg(cint) c2 from qdb.meters interval(5m)",
         )
@@ -1820,7 +1820,7 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=204,
-            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers into rdb.r0 as select _twstart, sum(cts), FIRST(cint) from qdb.meters interval(2m)",
+            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers into rdb.r0 as select _twstart, sum(cint), FIRST(cint) from qdb.meters interval(2m)",
             res_query="select ts, c1, c2 from rdb.r1",
             exp_query="select _wstart ts, count(cint) c1, avg(cint) c2 from qdb.meters interval(5m)",
         )
@@ -1828,8 +1828,8 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=205,
-            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r0 as select _twstart, sum(cts), FIRST(cint) from qdb.meters interval(2m)",
-            res_query="select sum(cint) cnt from rdb.r1 interval(5m)",
+            stream="create stream rdb.s205 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r205 as select _twstart, sum(cint), FIRST(cint) from qdb.meters interval(2m)",
+            res_query="select * from rdb.r205",
             exp_query="select sum(cint) cnt from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
         )
         # self.streams.append(stream)
