@@ -537,7 +537,7 @@ static void *vmOpenVnodeInThread(void *param) {
     int32_t diskPrimary = pCfg->diskPrimary;
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pCfg->vgId);
 
-    SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb, false);
+    SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, NULL, pMgmt->msgCb, false);
 
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d since %s", pCfg->vgId, pThread->threadIndex, terrstr());
@@ -586,6 +586,13 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
     dError("failed to init vnode creatingHash hash since %s", terrstr());
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+#ifdef USE_MOUNT
+  if (!(pMgmt->mountTfsHash =
+            taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
+    dError("failed to init mountTfsHash since %s", terrstr());
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+#endif
 
   SWrapperCfg *pCfgs = NULL;
   int32_t      numOfVnodes = 0;
@@ -801,6 +808,11 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
     taosHashCleanup(pMgmt->creatingHash);
     pMgmt->creatingHash = NULL;
   }
+
+#ifdef USE_MOUNT
+  taosHashCleanup(pMgmt->mountTfsHash);
+  pMgmt->mountTfsHash = NULL;
+#endif
 
   dInfo("total vnodes:%d are all closed", numOfVnodes);
 }

@@ -2402,6 +2402,7 @@ typedef struct {
   int8_t   encryptAlgorithm;
   char     mountPath[TSDB_MOUNT_FPATH_LEN];
   int32_t  diskPrimary;
+  int32_t  mountVgId;
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);

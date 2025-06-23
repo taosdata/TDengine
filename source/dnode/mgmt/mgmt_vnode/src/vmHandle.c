@@ -390,7 +390,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return code;
   }
 
-  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb, true);
+  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, NULL, pMgmt->msgCb, true);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode since %s", req.vgId, terrstr());
     code = terrno != 0 ? terrno : -1;
@@ -1216,11 +1216,12 @@ _exit:
 }
 
 static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg, int32_t diskPrimary,
-                            STfs *pMountTfs) {
+                            int32_t mountVgId, STfs *pMountTfs) {
   int32_t    code = 0;
   SVnodeInfo info = {0};
   char       hostDir[TSDB_FILENAME_LEN] = {0};
   char       mountDir[TSDB_FILENAME_LEN] = {0};
+  char       mountVnode[32] = {0};
 
   if ((code = vnodeCheckCfg(pCfg)) < 0) {
     vError("vgId:%d, failed to mount vnode since:%s", pCfg->vgId, tstrerror(code));
@@ -1228,8 +1229,6 @@ static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg
   }
 
   vnodeGetPrimaryDir(path, 0, pMgmt->pTfs, hostDir, TSDB_FILENAME_LEN);
-  vnodeGetPrimaryDir(path, diskPrimary, pMountTfs, mountDir, TSDB_FILENAME_LEN);
-
   if ((code = taosMkDir(hostDir))) {
     vError("vgId:%d, failed to prepare vnode dir since %s, host path: %s", pCfg->vgId, tstrerror(code), hostDir);
     return code;
@@ -1262,27 +1261,26 @@ static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg
     return code;
   }
 
+  char hostSubDir[TSDB_FILENAME_LEN] = {0};
+  char mountSubDir[TSDB_FILENAME_LEN] = {0};
+  snprintf(mountVnode, sizeof(mountVnode), "vnode%svnode%d", TD_DIRSEP, mountVgId);
+  vnodeGetPrimaryDir(mountVnode, diskPrimary, pMountTfs, mountDir, TSDB_FILENAME_LEN);
+  static const char *vndSubDirs[] = {"meta", "sync", "tq", "tsdb", "wal"};
+  for (int32_t i = 0; i < tListLen(vndSubDirs); ++i) {
+    (void)snprintf(hostSubDir, sizeof(hostSubDir), "%s%s%s", hostDir, TD_DIRSEP, vndSubDirs[i]);
+    (void)snprintf(mountSubDir, sizeof(mountSubDir), "%s%s%s", mountDir, TD_DIRSEP, vndSubDirs[i]);
+    if ((code = taosSymLink(mountSubDir, hostSubDir)) != 0) {
+      vError("vgId:%d, failed to create vnode symlink %s -> %s since %s", info.config.vgId, mountSubDir, hostSubDir,
+             tstrerror(code));
+      return code;
+    }
+  }
   vInfo("vgId:%d, mount:save vnode config while create", info.config.vgId);
   if ((code = vnodeSaveInfo(hostDir, &info)) < 0 || (code = vnodeCommitInfo(hostDir)) < 0) {
     vError("vgId:%d, failed to save vnode config since %s, mount path: %s", pCfg ? pCfg->vgId : 0, tstrerror(code),
            hostDir);
     return code;
   }
-
-  char hostSubDir[TSDB_FILENAME_LEN] = {0};
-  char mountSubDir[TSDB_FILENAME_LEN] = {0};
-
-  static const char *vndSubDirs[] = {"meta", "sync", "tq", "tsdb", "wal"};
-  for (int32_t i = 0; i < tListLen(vndSubDirs); ++i) {
-    (void)snprintf(hostSubDir, sizeof(hostSubDir), "%s%s%s", hostDir, TD_DIRSEP, vndSubDirs[i]);
-    (void)snprintf(mountSubDir, sizeof(mountSubDir), "%s%s%s", mountDir, TD_DIRSEP, vndSubDirs[i]);
-    if ((code = taosSymLink(hostSubDir, mountSubDir)) != 0) {
-      vError("vgId:%d, failed to create vnode symlink %s -> %s since %s", info.config.vgId, mountSubDir, hostSubDir,
-             tstrerror(code));
-      return code;
-    }
-  }
-
   vInfo("vgId:%d, vnode is mounted from %s to %s", info.config.vgId, mountDir, hostDir);
   return 0;
 }
@@ -1342,14 +1340,14 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
   TAOS_CHECK_EXIT(vmGetMountTfs(pMgmt, req.mountPath, &pMountTfs));
 
-  if ((code = vmMountVnode(pMgmt, path, &vnodeCfg, wrapperCfg.diskPrimary, pMountTfs)) < 0) {
+  if ((code = vmMountVnode(pMgmt, path, &vnodeCfg, wrapperCfg.diskPrimary, req.mountVgId, pMountTfs)) < 0) {
     dError("vgId:%d, failed to create vnode since %s", req.vgId, tstrerror(code));
     vmReleaseVnode(pMgmt, pVnode);
     vmCleanPrimaryDisk(pMgmt, req.vgId);
     (void)tFreeSCreateVnodeReq(&req);
     return code;
   }
-  SVnode *pImpl = vnodeOpen(path, wrapperCfg.diskPrimary, pMountTfs, pMgmt->msgCb, true);
+  SVnode *pImpl = vnodeOpen(path, 0, pMgmt->pTfs, pMountTfs, pMgmt->msgCb, true);
   if (pImpl == NULL) {
     TAOS_CHECK_EXIT(terrno != 0 ? terrno : -1);
   }
@@ -1477,7 +1475,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("vgId:%d, begin to open vnode", vgId);
-  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb, false);
+  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, NULL, pMgmt->msgCb, false);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode at %s since %s", vgId, path, terrstr());
     return -1;
@@ -1627,7 +1625,7 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("vgId:%d, open vnode", dstVgId);
-  SVnode *pImpl = vnodeOpen(dstPath, diskPrimary, pMgmt->pTfs, pMgmt->msgCb, false);
+  SVnode *pImpl = vnodeOpen(dstPath, diskPrimary, pMgmt->pTfs, NULL, pMgmt->msgCb, false);
 
   if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode at %s since %s", dstVgId, dstPath, terrstr());
@@ -1734,7 +1732,7 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("vgId:%d, begin to open vnode", vgId);
-  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb, false);
+  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, NULL, pMgmt->msgCb, false);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode at %s since %s", vgId, path, terrstr());
     return -1;

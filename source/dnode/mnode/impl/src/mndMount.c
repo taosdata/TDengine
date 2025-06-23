@@ -875,7 +875,7 @@ static int32_t mndAddMountVnodeAction(SMnode *pMnode, STrans *pTrans, SMountObj 
   mndReleaseDnode(pMnode, pDnode);
 
   int32_t contLen = 0;
-  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVg, pObj->paths[0], pMountVg->diskPrimary,  &contLen);
+  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVg, pObj->paths[0], pMountVg->diskPrimary, pVg->mountVgId, &contLen);
   if (pReq == NULL) return -1;
 
   action.pCont = pReq;
