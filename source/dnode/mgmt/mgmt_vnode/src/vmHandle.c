@@ -1141,8 +1141,13 @@ void vmUpdateMetricsInfo(SVnodeMgmt *pMgmt, int64_t clusterId) {
       SRawWriteMetrics metrics = {0};
       if (vnodeGetRawWriteMetrics(pVnode->pImpl, &metrics) == 0) {
         // Add the metrics to the global metrics system with cluster ID
-        int32_t code =
-            addWriteMetrics(pVnode->vgId, pMgmt->pData->dnodeId, clusterId, pVnode->pImpl->config.dbname, &metrics);
+        SName   name = {0};
+        int32_t code = tNameFromString(&name, pVnode->pImpl->config.dbname, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+        if (code < 0) {
+          dError("failed to get db name since %s", tstrerror(code));
+          continue;
+        }
+        code = addWriteMetrics(pVnode->vgId, pMgmt->pData->dnodeId, clusterId, name.dbname, &metrics);
         if (code != TSDB_CODE_SUCCESS) {
           dError("Failed to add write metrics for vgId: %d, code: %d", pVnode->vgId, code);
         } else {
