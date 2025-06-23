@@ -151,7 +151,7 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
 
 int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SDynQueryCtrlPhysiNode* pPhyciNode, SExecTaskInfo* pTaskInfo, SMsgCb* pMsgCb, SOperatorInfo** pInfo);
 
-int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, STableListInfo* pTableListInfo, int32_t numOfDownstream, SVirtualScanPhysiNode * pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo);
+int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SVirtualScanPhysiNode * pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo);
 
 int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrOut);
 int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** ppOptrOut);
