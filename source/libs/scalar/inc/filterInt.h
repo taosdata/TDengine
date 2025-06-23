@@ -268,6 +268,7 @@ struct SFilterInfo {
   void             *pTable;
   SArray           *blkList;
   bool             isStrict;
+  bool             checkSma;
 
   SFilterPCtx pctx;
 };

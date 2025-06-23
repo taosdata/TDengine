@@ -4301,12 +4301,6 @@ int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SColumnNode* pColNode
         datum->d = valNode->datum.d;
         break;
       }
-      case TSDB_DATA_TYPE_VARCHAR: {
-        // TODO:: when support varchar type, should change this logic
-        datum->kind = FLT_SCL_DATUM_KIND_INT64;
-        datum->i = taosStr2Int64(valNode->literal, NULL,10);
-        break;
-      }
       // TODO:varchar/nchar/json
       default: {
         qError("not supported type %d when build datum from value node", valNode->node.resType.type);
@@ -5243,12 +5237,22 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
 // TODO: process DNF composed of CNF
 static int32_t fltSclProcessCNF(SFilterInfo *pInfo, SArray *sclOpListCNF, SArray *colRangeList) {
   pInfo->isStrict = true;
+  pInfo->checkSma = true;
   size_t sz = taosArrayGetSize(sclOpListCNF);
   for (int32_t i = 0; i < sz; ++i) {
     SFltSclOperator    *sclOper = taosArrayGet(sclOpListCNF, i);
     if (NULL == sclOper) {
       FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
     }
+
+    SNode* nodeItem = NULL;
+    FOREACH(nodeItem, ((SNodeListNode *)sclOper->valNode)->pNodeList) {
+      if (((SValueNode *)nodeItem)->node.resType.type == TSDB_DATA_TYPE_VARCHAR) {
+        pInfo->checkSma = false;
+        break;
+      }
+    }
+
     SFltSclColumnRange *colRange = NULL;
     FLT_ERR_RET(fltSclGetOrCreateColumnRange(sclOper->colNode, colRangeList, &colRange));
     SArray             *points = taosArrayInit(4, sizeof(SFltSclPoint));
@@ -5837,4 +5841,12 @@ int32_t filterPartitionCond(SNode **pCondition, SNode **pPrimaryKeyCond, SNode *
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+bool filterNeedSma(SFilterInfo *info) {
+  if(info == NULL) {
+    return false;
+  }
+
+  return info->checkSma;
 }
