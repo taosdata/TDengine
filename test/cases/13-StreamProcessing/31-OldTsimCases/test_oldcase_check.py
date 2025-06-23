@@ -10,7 +10,7 @@ class TestStreamOldCaseCheck:
     def test_stream_oldcase_check(self):
         """Stream check stable
 
-        1. -
+        Verify the computation results of streams when triggered by different windows.
 
         Catalog:
             - Streams:OldTsimCases

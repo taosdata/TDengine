@@ -10,7 +10,7 @@ class TestStreamOldCaseConcat:
     def test_stream_oldcase_concat(self):
         """Stream concat
 
-        1. -
+        Test the use of the concat function in output_subtable and tags statements.
 
         Catalog:
             - Streams:OldTsimCases
@@ -34,7 +34,7 @@ class TestStreamOldCaseConcat:
         self.udTableAndCol0()
         self.udTableAndTag0()
         self.udTableAndTag1()
-        # self.udTableAndTag2()
+        self.udTableAndTag2()
 
     def udTableAndCol0(self):
         tdLog.info("udTableAndCol0")
