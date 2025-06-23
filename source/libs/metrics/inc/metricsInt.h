@@ -21,6 +21,7 @@
 #include "osThread.h"
 #include "taos_collector_registry.h"
 #include "taos_counter.h"
+#include "taos_gauge.h"
 #include "taoserror.h"
 #include "tglobal.h"
 #include "thash.h"
@@ -83,10 +84,10 @@ extern taos_counter_t *write_last_cache_commit_time;
 extern taos_counter_t *write_last_cache_commit_count;
 
 // Global dnode metrics counters
-extern taos_counter_t *dnode_rpc_queue_memory_allowed;
-extern taos_counter_t *dnode_rpc_queue_memory_used;
-extern taos_counter_t *dnode_apply_memory_allowed;
-extern taos_counter_t *dnode_apply_memory_used;
+extern taos_gauge_t *dnode_rpc_queue_memory_allowed;
+extern taos_gauge_t *dnode_rpc_queue_memory_used;
+extern taos_gauge_t *dnode_apply_memory_allowed;
+extern taos_gauge_t *dnode_apply_memory_used;
 
 // Macro for deleting a counter key with error logging
 #define METRICS_DELETE_COUNTER(counter, key)                                     \

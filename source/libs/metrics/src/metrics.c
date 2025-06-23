@@ -36,10 +36,10 @@ taos_counter_t *write_last_cache_commit_time = NULL;
 taos_counter_t *write_last_cache_commit_count = NULL;
 
 // Global dnode metrics counters
-taos_counter_t *dnode_rpc_queue_memory_allowed = NULL;
-taos_counter_t *dnode_rpc_queue_memory_used = NULL;
-taos_counter_t *dnode_apply_memory_allowed = NULL;
-taos_counter_t *dnode_apply_memory_used = NULL;
+taos_gauge_t *dnode_rpc_queue_memory_allowed = NULL;
+taos_gauge_t *dnode_rpc_queue_memory_used = NULL;
+taos_gauge_t *dnode_apply_memory_allowed = NULL;
+taos_gauge_t *dnode_apply_memory_used = NULL;
 
 // Helper function to clean expired metrics from a counter
 static void cleanExpiredCounterMetrics(taos_counter_t *counter, SHashObj *pValidVgroups, const char *counterName) {
@@ -118,13 +118,13 @@ int32_t initMetricsManager() {
   // Initialize global dnode counters
   const char *dnode_labels[] = {"metric_type", "cluster_id", "dnode_id"};
   dnode_rpc_queue_memory_allowed = taos_collector_registry_must_register_metric(
-      taos_counter_new(DNODE_RPC_QUEUE_MEMORY_ALLOWED, "RPC queue memory allowed", 3, dnode_labels));
+      taos_gauge_new(DNODE_RPC_QUEUE_MEMORY_ALLOWED, "RPC queue memory allowed", 3, dnode_labels));
   dnode_rpc_queue_memory_used = taos_collector_registry_must_register_metric(
-      taos_counter_new(DNODE_RPC_QUEUE_MEMORY_USED, "RPC queue memory used", 3, dnode_labels));
+      taos_gauge_new(DNODE_RPC_QUEUE_MEMORY_USED, "RPC queue memory used", 3, dnode_labels));
   dnode_apply_memory_allowed = taos_collector_registry_must_register_metric(
-      taos_counter_new(DNODE_APPLY_MEMORY_ALLOWED, "Apply memory allowed", 3, dnode_labels));
+      taos_gauge_new(DNODE_APPLY_MEMORY_ALLOWED, "Apply memory allowed", 3, dnode_labels));
   dnode_apply_memory_used = taos_collector_registry_must_register_metric(
-      taos_counter_new(DNODE_APPLY_MEMORY_USED, "Apply memory used", 3, dnode_labels));
+      taos_gauge_new(DNODE_APPLY_MEMORY_USED, "Apply memory used", 3, dnode_labels));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -182,10 +182,10 @@ int32_t addDnodeMetrics(const SRawDnodeMetrics *pRawMetrics, int32_t clusterId, 
   const char *label_values[] = {DNODE_METRIC, clusterIdStr, dnodeIdStr};
 
   // Update counters using monitorfw
-  taos_counter_add(dnode_rpc_queue_memory_allowed, (double)pRawMetrics->rpcQueueMemoryAllowed, label_values);
-  taos_counter_add(dnode_rpc_queue_memory_used, (double)pRawMetrics->rpcQueueMemoryUsed, label_values);
-  taos_counter_add(dnode_apply_memory_allowed, (double)pRawMetrics->applyMemoryAllowed, label_values);
-  taos_counter_add(dnode_apply_memory_used, (double)pRawMetrics->applyMemoryUsed, label_values);
+  taos_gauge_set(dnode_rpc_queue_memory_allowed, (double)pRawMetrics->rpcQueueMemoryAllowed, label_values);
+  taos_gauge_set(dnode_rpc_queue_memory_used, (double)pRawMetrics->rpcQueueMemoryUsed, label_values);
+  taos_gauge_set(dnode_apply_memory_allowed, (double)pRawMetrics->applyMemoryAllowed, label_values);
+  taos_gauge_set(dnode_apply_memory_used, (double)pRawMetrics->applyMemoryUsed, label_values);
 
   return TSDB_CODE_SUCCESS;
 }
