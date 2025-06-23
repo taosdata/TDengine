@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "metrics.h"
 #include "taos_monitor.h"
 #include "vmInt.h"
 #include "vnodeInt.h"
@@ -184,7 +185,10 @@ void vmCleanExpiredMetrics(SVnodeMgmt *pMgmt) {
   (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
 
   // Clean expired metrics by removing metrics for non-existent vgroups
-  cleanExpiredWriteMetrics(pValidVgroups);
+  int32_t code = cleanupExpiredMetrics(pValidVgroups);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to clean expired metrics, code:%d", code);
+  }
 
   taosHashCleanup(pValidVgroups);
 }

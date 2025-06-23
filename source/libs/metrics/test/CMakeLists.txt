@@ -6,6 +6,7 @@ DEP_ext_gtest(metricsTest)
 target_link_libraries(
   metricsTest
   PUBLIC metrics
+  PUBLIC monitorfw
 )
 
 add_test(

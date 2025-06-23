@@ -17,13 +17,11 @@
 #define _TD_METRICS_H
 
 #include "tdef.h"
+#include "thash.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-// Forward declarations
-typedef struct SHashObj SHashObj;
 
 // Metric collection level
 typedef enum {
@@ -72,10 +70,10 @@ int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const 
                         const SRawWriteMetrics *pRawMetrics);
 
 // Dnode metrics functions
-int32_t addDnodeMetrics(const SRawDnodeMetrics *pRawMetrics);
+int32_t addDnodeMetrics(const SRawDnodeMetrics *pRawMetrics, int32_t clusterId, int32_t dnodeId);
 
-// Utility functions
-int32_t cleanExpiredWriteMetrics(SHashObj *pValidVgroups);
+// Clean expired metrics based on valid vgroups (similar to vmCleanExpriedSamples)
+int32_t cleanupExpiredMetrics(SHashObj *pValidVgroups);
 
 // Metrics collection control macro with priority
 // Only collect metrics when monitoring is disabled or not properly configured
