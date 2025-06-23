@@ -36,9 +36,7 @@ static int32_t epToJson(const void* pObj, SJson* pJson) {
 void smUpdateSnodeInfo(SDCreateSnodeReq* pReq) {
   taosWLockLatch(&gSnode.snodeLock);
   gSnode.snodeId = pReq->snodeId;
-  if (gSnode.snodeLeaders[0].nodeId != pReq->leaders[0].nodeId ||
-      gSnode.snodeLeaders[1].nodeId != pReq->leaders[1].nodeId ||
-      pReq->replica.nodeId != gSnode.snodeReplica.nodeId) {
+  if (pReq->replica.nodeId != gSnode.snodeReplica.nodeId) {
     int32_t ret = streamSyncAllCheckpoints(&pReq->replica.epSet);
     dInfo("sync all checkpoint from snode %d to replicaId:%d, return:%d", pReq->snodeId, pReq->replica.nodeId, ret);
   }

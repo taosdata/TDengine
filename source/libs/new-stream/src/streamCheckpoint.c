@@ -5,8 +5,7 @@ TdThreadMutex mtx;
 SHashObj* checkpointReadyMap = NULL;
 
 static int32_t getFilePath(char* filepath) {
-  if (snprintf(filepath, PATH_MAX, "%s%ssnode%scheckpoint%s", tsDataDir, TD_DIRSEP, TD_DIRSEP,
-               TD_DIRSEP) < 0) {
+  if (snprintf(filepath, PATH_MAX, "%ssnode%scheckpoint", tsDataDir, TD_DIRSEP) < 0) {
     stError("failed to generate checkpoint path for");
     return TSDB_CODE_FAILED;
   }
@@ -14,7 +13,7 @@ static int32_t getFilePath(char* filepath) {
 }
 
 static int32_t getFileName(char* filepath, int64_t streamId) {
-  if (snprintf(filepath, PATH_MAX, "%s%ssnode%scheckpoint%s%" PRId64 ".ck", tsDataDir, TD_DIRSEP, TD_DIRSEP,
+  if (snprintf(filepath, PATH_MAX, "%ssnode%scheckpoint%s%" PRId64 ".ck", tsDataDir, TD_DIRSEP,
                TD_DIRSEP, streamId) < 0) {
     stError("failed to generate checkpoint file name for streamId:%" PRId64, streamId);
     return TSDB_CODE_FAILED;
@@ -23,7 +22,7 @@ static int32_t getFileName(char* filepath, int64_t streamId) {
 }
 
 static int32_t getFileNameTmp(char* filepath, int64_t streamId) {
-  if (snprintf(filepath, PATH_MAX, "%s%ssnode%scheckpoint%s%" PRId64 ".tmp", tsDataDir, TD_DIRSEP, TD_DIRSEP,
+  if (snprintf(filepath, PATH_MAX, "%ssnode%scheckpoint%s%" PRId64 ".tmp", tsDataDir, TD_DIRSEP,
                TD_DIRSEP, streamId) < 0) {
     stError("failed to generate checkpoint file name for streamId:%" PRId64, streamId);
     return TSDB_CODE_FAILED;
@@ -52,6 +51,10 @@ int32_t streamWriteCheckPoint(int64_t streamId, void* data, int64_t dataLen) {
   char    filepath[PATH_MAX] = {0};
   STREAM_CHECK_NULL_GOTO(data, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_CONDITION_GOTO(dataLen <= 0, TSDB_CODE_INVALID_PARA);
+  
+  STREAM_CHECK_RET_GOTO(getFilePath(filepath));
+  STREAM_CHECK_RET_GOTO(taosMkDir(filepath));
+
   STREAM_CHECK_RET_GOTO(getFileName(filepath, streamId));
   bool exist = taosCheckExistFile(filepath);
   if (exist) {
