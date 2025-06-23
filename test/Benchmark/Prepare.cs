@@ -1,4 +1,5 @@
-﻿using TDengine.Driver;
+﻿using System;
+using TDengine.Driver;
 using NativeMethods = TDengine.Driver.Impl.NativeMethods.NativeMethods;
 
 namespace Benchmark
@@ -38,6 +39,7 @@ namespace Benchmark
                                     ",t_d64 double" +
                                     ",t_bnr binary(50)" +
                                     ",t_nchr nchar(50));";
+
         readonly string createJtb = "create table if not exists jtb(ts timestamp" +
                                     ", bl bool" +
                                     ", i8 tinyint" +
@@ -53,6 +55,7 @@ namespace Benchmark
                                     ", bnr binary(50)" +
                                     ",nchr nchar(50))" +
                                     "tags(json_tag json);";
+
         readonly string createStb1 = "create table if not exists stb_2 using stb tags(true" +
                                      ",-1" +
                                      ",-2" +
@@ -66,7 +69,9 @@ namespace Benchmark
                                      ",3.14159265358979" +
                                      ",'bnr_tag_1'" +
                                      ",'ncr_tag_1');";
-        readonly string createJtb1 = "create table if not exists jtb_2 using jtb tags('{\"jtag_bool\":false,\"jtag_num\":3.141592653,\"jtag_str\":\"beijing\",\"jtag_null\":null}');";
+
+        readonly string createJtb1 =
+            "create table if not exists jtb_2 using jtb tags('{\"jtag_bool\":false,\"jtag_num\":3.141592653,\"jtag_str\":\"beijing\",\"jtag_null\":null}');";
 
         public Prepare(string host, string userName, string passwd, ushort port)
         {
@@ -75,6 +80,7 @@ namespace Benchmark
             Password = passwd;
             Port = port;
         }
+
         public void Run(string type)
         {
             // Console.WriteLine("Prepare {0}... ", type);
@@ -91,6 +97,7 @@ namespace Benchmark
                     SQLExe(conn, createStb);
                     SQLExe(conn, createStb1);
                 }
+
                 if (type == "json")
                 {
                     SQLExe(conn, createJtb);
@@ -101,6 +108,7 @@ namespace Benchmark
             {
                 throw new Exception("create TD connection failed");
             }
+
             NativeMethods.Close(conn);
         }
 
@@ -111,7 +119,6 @@ namespace Benchmark
             res = NativeMethods.Query(conn, sql);
             IfTaosQuerySucc(res, sql);
             NativeMethods.FreeResult(res);
-
         }
 
         public bool IfTaosQuerySucc(IntPtr res, string sql)
@@ -122,7 +129,8 @@ namespace Benchmark
             }
             else
             {
-                throw new Exception($"execute {sql} failed,reason {NativeMethods.Error(res)}, code{NativeMethods.ErrorNo(res)}");
+                throw new Exception(
+                    $"execute {sql} failed,reason {NativeMethods.Error(res)}, code{NativeMethods.ErrorNo(res)}");
             }
         }
     }

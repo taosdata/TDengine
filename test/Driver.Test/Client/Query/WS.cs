@@ -295,7 +295,7 @@ namespace Driver.Test.Client.Query
         public void GetUrl_ShouldHandleNullBuilder()
         {
             // Arrange
-            ConnectionStringBuilder? builder = null;
+            ConnectionStringBuilder builder = null;
 
             // Act & Assert
             Assert.Throws<NullReferenceException>(() => WSClient.GetUrl(builder));

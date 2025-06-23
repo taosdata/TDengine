@@ -21,6 +21,7 @@ namespace Benchmark
         double DoubleVal { get; set; }
         int StringColLength { get; set; } = 20;
         int MaxSqlLength { get; set; } = 5000;
+
         public InsertGenerator(long begineTime, int maxSqlLength)
         {
             BeginTime = begineTime;
@@ -42,12 +43,12 @@ namespace Benchmark
                     TinyIntVal = (sbyte)random.Next(sbyte.MinValue, sbyte.MaxValue);
                     SmallIntVal = (short)random.Next(short.MinValue, short.MaxValue);
                     IntVal = random.Next(int.MinValue, int.MaxValue);
-                    BigIntVal = random.NextInt64(long.MinValue, long.MaxValue);
+                    BigIntVal = NextInt64(random, long.MinValue, long.MaxValue);
                     UTinyIntVal = (byte)random.Next(byte.MaxValue);
                     USmallIntVal = (ushort)random.Next(ushort.MaxValue);
-                    UIntVal = (uint)random.NextInt64(uint.MaxValue);
-                    UBigIntVal = (ulong)random.NextInt64(long.MaxValue);
-                    FloatVal = random.NextSingle();
+                    UIntVal = (uint)NextInt64(random, long.MinValue, long.MaxValue);
+                    UBigIntVal = (ulong)NextInt64(random, long.MinValue, long.MaxValue);
+                    FloatVal = (float)random.NextDouble();
                     DoubleVal = random.NextDouble();
                     sqlBuilder.Append('(');
                     sqlBuilder.Append(BeginTime);
@@ -93,6 +94,15 @@ namespace Benchmark
             }
         }
 
+        static long NextInt64(Random random, long minValue, long maxValue)
+        {
+            byte[] buf = new byte[8];
+            random.NextBytes(buf);
+            long longRand = BitConverter.ToInt64(buf, 0);
+            return Math.Abs(longRand % (maxValue - minValue)) + minValue;
+        }
+
+
         public string RandomString(int length)
         {
             StringBuilder randomStr = new StringBuilder();
@@ -102,9 +112,10 @@ namespace Benchmark
             {
                 randomStr.Append(Convert.ToChar(random.Next(97, 122)));
             }
+
             return randomStr.ToString();
         }
- 
+
 
         public bool IfTaosQuerySucc(IntPtr res, string sql)
         {
@@ -114,10 +125,10 @@ namespace Benchmark
             }
             else
             {
-                throw new Exception($"execute {sql} failed,reason {NativeMethods.Error(res)}, code{NativeMethods.ErrorNo(res)}");
+                throw new Exception(
+                    $"execute {sql} failed,reason {NativeMethods.Error(res)}, code{NativeMethods.ErrorNo(res)}");
             }
         }
-
     }
 
     public struct RunContext
@@ -126,18 +137,18 @@ namespace Benchmark
         public int numOfRows { get; set; }
         public int numOfTables { get; set; }
         public IntPtr conn { get; set; }
+
         public RunContext(string name, int rows, int tables, IntPtr connection)
         {
             tableName = name;
             numOfRows = rows;
             numOfTables = tables;
             conn = connection;
-
         }
+
         public string Display()
         {
             return $"tablename:{tableName} numOfRow:{numOfRows} numOfTable:{numOfTables}";
         }
-
     }
 }

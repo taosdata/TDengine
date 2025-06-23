@@ -17,6 +17,7 @@ namespace Function.Test.Taosc
     {
         readonly DatabaseFixture database;
         private readonly ITestOutputHelper _output;
+
         public Query(DatabaseFixture fixture, ITestOutputHelper output)
         {
             this.database = fixture;
@@ -60,8 +61,24 @@ namespace Function.Test.Taosc
             for (int i = 0; i < columns.Count; i++)
             {
                 //_output.WriteLine("{0},{1},{2}",i, columns[i], actualResData[i]);
-                Assert.Equal(columns[i], actualResData[i]);
+                var val = actualResData[i];
+                var expectVal = columns[i];
+                if (val is float floatVal)
+                {
+                    Assert.IsType<float>(expectVal);
+                    Assert.Equal((float)expectVal, floatVal, 7);
+                }
+                else if (val is double doubleVal)
+                {
+                    Assert.IsType<double>(expectVal);
+                    Assert.Equal((double)expectVal, doubleVal, 15);
+                }
+                else
+                {
+                    Assert.Equal(expectVal, val);
+                }
             }
+
             Tools.FreeResult(res);
         }
 
@@ -105,8 +122,25 @@ namespace Function.Test.Taosc
             for (int i = 0; i < expectResData.Count; i++)
             {
                 //_output.WriteLine("{0},{1},{2}", i, expectResData[i], actualResData[i]);
-                Assert.Equal(expectResData[i], actualResData[i]);
+                var val = actualResData[i];
+                var expectVal = expectResData[i];
+                if (val is float floatVal)
+                {
+                    Assert.IsType<float>(expectVal);
+                    Assert.Equal((float)expectVal, floatVal, 7);
+                }
+                else if (val is double doubleVal)
+                {
+                    Assert.IsType<double>(expectVal);
+                    Assert.Equal((double)expectVal, doubleVal, 15);
+                }
+                else
+                {
+                    Assert.Equal(expectVal, val);
+                }
             }
+
+            Tools.FreeResult(res);
         }
 
         /// <author>xiaolei</author>
@@ -149,11 +183,27 @@ namespace Function.Test.Taosc
             for (int i = 0; i < expectResData.Count; i++)
             {
                 //_output.WriteLine("{0},{1},{2}", i, expectResData[i], actualResData[i]);
-                Assert.Equal(expectResData[i], actualResData[i]);
+                var val = actualResData[i];
+                var expectVal = expectResData[i];
+                if (val is float floatVal)
+                {
+                    Assert.IsType<float>(expectVal);
+                    Assert.Equal((float)expectVal, floatVal, 7);
+                }
+                else if (val is double doubleVal)
+                {
+                    Assert.IsType<double>(expectVal);
+                    Assert.Equal((double)expectVal, doubleVal, 15);
+                }
+                else
+                {
+                    Assert.Equal(expectVal, val);
+                }
             }
 
+            Tools.FreeResult(res);
         }
-        
+
         [Fact(DisplayName = "Query.ReqId"), TestExeOrder(4), Trait("Category", "ReqId")]
         public void ReqId()
         {
@@ -170,7 +220,7 @@ namespace Function.Test.Taosc
             Tools.ExecuteUpdate(conn, insertSql, _output);
 
             // assert 
-            IntPtr res = Tools.ExecuteQueryWithReqId(conn, selectSql, _output,TDengine.Driver.ReqId.GetReqId());
+            IntPtr res = Tools.ExecuteQueryWithReqId(conn, selectSql, _output, TDengine.Driver.ReqId.GetReqId());
             List<TDengineMeta> actualResMeta = NativeMethods.FetchFields(res);
             List<object> actualResData = Tools.GetData(res);
 
@@ -186,8 +236,24 @@ namespace Function.Test.Taosc
             for (int i = 0; i < columns.Count; i++)
             {
                 //_output.WriteLine("{0},{1},{2}",i, columns[i], actualResData[i]);
-                Assert.Equal(columns[i], actualResData[i]);
+                var val = actualResData[i];
+                var expectVal = columns[i];
+                if (val is float floatVal)
+                {
+                    Assert.IsType<float>(expectVal);
+                    Assert.Equal((float)expectVal, floatVal, 7);
+                }
+                else if (val is double doubleVal)
+                {
+                    Assert.IsType<double>(expectVal);
+                    Assert.Equal((double)expectVal, doubleVal, 15);
+                }
+                else
+                {
+                    Assert.Equal(expectVal, val);
+                }
             }
+
             Tools.FreeResult(res);
         }
     }

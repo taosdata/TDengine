@@ -12,7 +12,7 @@ namespace Driver.Test.Client.Query
         private readonly ITestOutputHelper _output;
         private readonly string _nativeConnectString;
         private readonly string _wsConnectString;
-        private readonly string? _cloudConnectString;
+        private readonly string _cloudConnectString;
 
         public Client(ITestOutputHelper output)
         {
@@ -34,7 +34,7 @@ namespace Driver.Test.Client.Query
                 $"protocol=WebSocket;host={host};port=443;useSSL=true;token={token};enableCompression=true";
         }
 
-        private object?[][] GenerateValue(TDenginePrecision precision, out string sql)
+        private object[][] GenerateValue(TDenginePrecision precision, out string sql)
         {
             Random rand = new Random();
             bool v1 = true;
@@ -75,7 +75,7 @@ namespace Driver.Test.Client.Query
                 ts,
                 v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11,
                 nextSecond);
-            return new object?[][]
+            return new object[][]
             {
                 new object[]
                 {
@@ -88,7 +88,7 @@ namespace Driver.Test.Client.Query
                         0x00, 0x00, 0x00, 0x00, 0x59, 0x40
                     }
                 },
-                new object?[]
+                new object[]
                 {
                     TDengineConstant.ConvertTimeToDatetime(nextSecond, precision), null, null, null, null, null, null,
                     null, null, null, null, null, null, null, null, null
@@ -119,24 +119,24 @@ namespace Driver.Test.Client.Query
             return createTableSql;
         }
 
-        private static Array[] TransposeToTypedArrays(object?[][] data)
+        private static Array[] TransposeToTypedArrays(object[][] data)
         {
-            var aTs = new DateTime[] { (DateTime)data[0][0]!, (DateTime)data[1][0]! };
-            var a1 = new bool?[] { (bool)data[0][1]!, (bool?)data[1][1], };
-            var a2 = new sbyte?[] { (sbyte)data[0][2]!, (sbyte?)data[1][2] };
-            var a3 = new short?[] { (short)data[0][3]!, (short?)data[1][3] };
-            var a4 = new int?[] { (int)data[0][4]!, (int?)data[1][4] };
-            var a5 = new long?[] { (long)data[0][5]!, (long?)data[1][5] };
-            var a6 = new byte?[] { (byte)data[0][6]!, (byte?)data[1][6] };
-            var a7 = new ushort?[] { (ushort)data[0][7]!, (ushort?)data[1][7] };
-            var a8 = new uint?[] { (uint)data[0][8]!, (uint?)data[1][8] };
-            var a9 = new ulong?[] { (ulong)data[0][9]!, (ulong?)data[1][9] };
-            var a10 = new float?[] { (float)data[0][10]!, (float?)data[1][10] };
-            var a11 = new double?[] { (double)data[0][11]!, (double?)data[1][11] };
-            var aBinary = new byte[]?[] { (byte[]?)data[0][12]!, (byte[]?)data[1][12] };
-            var aNchar = new string?[] { (string?)data[0][13]!, (string?)data[1][13] };
-            var aVarBinary = new byte[]?[] { (byte[]?)data[0][14]!, (byte[]?)data[1][14] };
-            var aGeometry = new byte[]?[] { (byte[]?)data[0][15]!, (byte[]?)data[1][15] };
+            var aTs = new DateTime[] { (DateTime)data[0][0], (DateTime)data[1][0] };
+            var a1 = new bool?[] { (bool)data[0][1], (bool?)data[1][1], };
+            var a2 = new sbyte?[] { (sbyte)data[0][2], (sbyte?)data[1][2] };
+            var a3 = new short?[] { (short)data[0][3], (short?)data[1][3] };
+            var a4 = new int?[] { (int)data[0][4], (int?)data[1][4] };
+            var a5 = new long?[] { (long)data[0][5], (long?)data[1][5] };
+            var a6 = new byte?[] { (byte)data[0][6], (byte?)data[1][6] };
+            var a7 = new ushort?[] { (ushort)data[0][7], (ushort?)data[1][7] };
+            var a8 = new uint?[] { (uint)data[0][8], (uint?)data[1][8] };
+            var a9 = new ulong?[] { (ulong)data[0][9], (ulong?)data[1][9] };
+            var a10 = new float?[] { (float)data[0][10], (float?)data[1][10] };
+            var a11 = new double?[] { (double)data[0][11], (double?)data[1][11] };
+            var aBinary = new byte[][] { (byte[])data[0][12], (byte[])data[1][12] };
+            var aNchar = new string[] { (string)data[0][13], (string)data[1][13] };
+            var aVarBinary = new byte[][] { (byte[])data[0][14], (byte[])data[1][14] };
+            var aGeometry = new byte[][] { (byte[])data[0][15], (byte[])data[1][15] };
             return new Array[]
                 { aTs, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, aBinary, aNchar, aVarBinary, aGeometry };
         }
@@ -304,7 +304,7 @@ namespace Driver.Test.Client.Query
                     stmt.Prepare($"select * from {superTableName} where ts >= ? order by ts asc");
                     isInsert = stmt.IsInsert();
                     Assert.False(isInsert);
-                    stmt.BindRow(new object[] { data[0][0]! });
+                    stmt.BindRow(new object[] { data[0][0] });
                     stmt.AddBatch();
                     stmt.Exec();
                     using (var rows = stmt.Result())
@@ -378,7 +378,7 @@ namespace Driver.Test.Client.Query
                     stmt.Prepare($"select * from {superTableName} where ts >= ? order by ts asc");
                     isInsert = stmt.IsInsert();
                     Assert.False(isInsert);
-                    stmt.BindRow(new object[] { data[0][0]! });
+                    stmt.BindRow(new object[] { data[0][0] });
                     stmt.AddBatch();
                     stmt.Exec();
                     using (var rows = stmt.Result())
@@ -444,7 +444,7 @@ namespace Driver.Test.Client.Query
                     stmt.Prepare($"select * from {superTableName} where ts >= ? order by ts asc");
                     isInsert = stmt.IsInsert();
                     Assert.False(isInsert);
-                    stmt.BindRow(new object[] { data[0][0]! });
+                    stmt.BindRow(new object[] { data[0][0] });
                     stmt.AddBatch();
                     stmt.Exec();
                     using (var result = stmt.Result())
@@ -558,7 +558,7 @@ namespace Driver.Test.Client.Query
 request_histogram_latency_seconds_max,aaa=bb,api_range=all,host=host161,url=http://192.168.17.148:8080/actuator/prometheus gauge=0 1648090640000000000
 process_files_max_files,host=host161,url=http://192.168.17.148:8080/actuator/prometheus gauge=10240 1648090640000000000
 request_timer_seconds,host=host161,quantile=0.5,url=http://192.168.17.148:8080/actuator/prometheus count=0,sum=0 1648090640000000000
-request_timer_seconds,host=host161,quantile=0.9,url=http://192.168.17.148:8080/actuator/prometheus count=0,sum=0 1648090640000000000
+request_timer_seconds,host=host161,quantile=0.9,url=http://192.168.17.148:8080/actuator/prometheus count=0,sum=0 1648090640000000000 
 request_timer_seconds,host=host161,quantile=0.95,url=http://192.168.17.148:8080/actuator/prometheus count=0,sum=0 1648090640000000000
 request_timer_seconds,host=host161,quantile=0.99,url=http://192.168.17.148:8080/actuator/prometheus count=0,sum=0 1648090640000000000
 request_timer_seconds,host=host161,url=http://192.168.17.148:8080/actuator/prometheus 0.223696211=0,0.016777216=0,0.178956969=0,0.156587348=0,0.2=0,0.626349396=0,0.015379112=0,5=0,0.089478485=0,0.357913941=0,5.726623061=0,0.008388607=0,0.894784851=0,0.006990506=0,3.937053352=0,0.001=0,0.061516456=0,0.134217727=0,1.431655765=0,0.005592405=0,0.984263336=0,0.001398101=0,3.22122547=0,0.033554431=0,0.805306366=0,0.002446676=0,0.003844776=0,0.20132659=0,1.073741824=0,0.022369621=0,1=0,0.002796201=0,1.789569706=0,0.001048576=0,0.246065832=0,0.050331646=0,4.294967296=0,8.589934591=0,0.536870911=0,0.447392426=0,2.505397588=0,10=0,0.013981011=0,0.003495251=0,0.044739241=0,2.863311529=0,0.039146836=0,0.268435456=0,sum=0,3.579139411=0,7.158278826=0,0.011184809=0,0.01258291=0,0.1=0,0.003145726=0,0.055924051=0,0.067108864=0,0.004194304=0,0.001747626=0,0.002097151=0,2.147483647=0,count=0,0.715827881=0,0.009786708=0,0.111848106=0,0.027962026=0,+Inf=0 1648090640000000000
@@ -772,7 +772,7 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
             Assert.Equal(-1, result.AffectRows);
         }
 
-        private void AssertValue(IRows rows, object?[][] data)
+        private void AssertValue(IRows rows, object[][] data)
         {
             for (int i = 0; i < data.Length; i++)
             {
@@ -781,7 +781,22 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                 for (int j = 0; j < data[i].Length; j++)
                 {
                     // this._output.WriteLine($"{data[i][j]}:{rows.GetValue(j)}");
-                    Assert.Equal(data[i][j], rows.GetValue(j));
+                    var val = rows.GetValue(j);
+                    var expectVal = data[i][j];
+                    if (val is float floatVal)
+                    {
+                        Assert.IsType<float>(expectVal);
+                        Assert.Equal((float)expectVal, floatVal, 7);
+                    }
+                    else if (val is double doubleVal)
+                    {
+                        Assert.IsType<double>(expectVal);
+                        Assert.Equal((double)expectVal, doubleVal, 15);
+                    }
+                    else
+                    {
+                        Assert.Equal(expectVal, val);
+                    }
                 }
 
                 Assert.Equal(Encoding.UTF8.GetBytes("{\"a\":\"b\"}"), rows.GetValue(data[i].Length));
@@ -795,6 +810,7 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
             var inCloud = IsCloudTest(builder);
             var client = DbDriver.Open(builder);
             var count = 30;
+            var tableName = $"test_concurrency_{DateTime.Now.Ticks}";
             try
             {
                 if (!inCloud)
@@ -804,7 +820,7 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                 }
 
                 client.Exec($"use {db}");
-                client.Exec("create table if not exists t1 (ts timestamp, a int, b float, c binary(10))");
+                client.Exec($"create table if not exists {tableName} (ts timestamp, a int, b float, c binary(10))");
                 var ts = new long[count];
                 var dateTime = DateTime.Now;
                 var tsv = new DateTime[count];
@@ -821,12 +837,12 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                     valuesStr += $"({ts[i]}, {i}, {i}, '中文')";
                 }
 
-                client.Exec($"insert into t1 values {valuesStr}");
+                client.Exec($"insert into {tableName} values {valuesStr}");
                 var tasks = new System.Collections.Generic.List<System.Threading.Tasks.Task>();
                 for (var i = 0; i < count; i++)
                 {
                     int localI = i;
-                    string query = "select * from t1 where ts = " + ts[localI];
+                    string query = $"select * from {tableName} where ts = " + ts[localI];
                     tasks.Add(System.Threading.Tasks.Task.Run(() =>
                     {
                         using (var rows = client.Query(query))
@@ -842,7 +858,7 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                             Assert.True(haveNext);
                             Assert.Equal(tsv[localI], rows.GetValue(0));
                             Assert.Equal(localI, rows.GetValue(1));
-                            Assert.Equal((float)localI, rows.GetValue(2));
+                            Assert.Equal((float)localI, (float)rows.GetValue(2), 7);
                             Assert.Equal(Encoding.UTF8.GetBytes("中文"), rows.GetValue(3));
                         }
                     }));
@@ -857,7 +873,7 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
             }
             finally
             {
-                client.Exec($"drop table if exists t1");
+                client.Exec($"drop table if exists {tableName}");
                 if (!inCloud)
                 {
                     client.Exec($"drop database if exists {db}");

@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Net;
 using System.Net.Http;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using TDengine.Driver;
@@ -17,7 +17,7 @@ namespace Driver.Test.Client.TMQ
         private Process NewTaosAdapter(string port)
         {
             string exec;
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            if (Environment.OSVersion.Platform == PlatformID.Win32NT)
             {
                 exec = "C:\\TDengine\\taosadapter.exe";
             }

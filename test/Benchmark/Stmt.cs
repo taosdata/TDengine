@@ -1,3 +1,4 @@
+using System;
 using TDengine.Driver;
 using TDengine.Driver.Impl.NativeMethods;
 using NativeMethods = TDengine.Driver.Impl.NativeMethods.NativeMethods;
@@ -14,6 +15,7 @@ namespace Benchmark
         string sql = "insert into ? values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
         string jtable = "jtb_1";
         string stable = "stb_1";
+
         public Stmt(string host, string userName, string passwd, ushort port)
         {
             Host = host;
@@ -21,6 +23,7 @@ namespace Benchmark
             Password = passwd;
             Port = port;
         }
+
         public void Run(string types, int times)
         {
             IntPtr res;
@@ -39,39 +42,42 @@ namespace Benchmark
                     while (i < times)
                     {
                         if (types == "normal")
-                        { 
-                            StmtBindBatch(stmt,sql,stable); 
+                        {
+                            StmtBindBatch(stmt, sql, stable);
                         }
-                        if(types == "json")
-                        { 
-                            StmtBindBatch(stmt,sql,jtable); 
-                        } 
+
+                        if (types == "json")
+                        {
+                            StmtBindBatch(stmt, sql, jtable);
+                        }
+
                         i++;
                     }
-
                 }
                 else
                 {
                     throw new Exception("init stmt failed.");
                 }
+
                 NativeMethods.StmtClose(stmt);
             }
             else
             {
                 throw new Exception("create TD connection failed");
             }
+
             NativeMethods.Close(conn);
         }
 
-        public void StmtBindBatch(IntPtr stmt, string sql,string table)
+        public void StmtBindBatch(IntPtr stmt, string sql, string table)
         {
             int stmtRes = NativeMethods.StmtPrepare(stmt, sql);
-            IfStmtSucc(stmtRes,stmt, "StmtPrepare");
+            IfStmtSucc(stmtRes, stmt, "StmtPrepare");
 
-            stmtRes = NativeMethods.StmtSetTbname(stmt,table);
+            stmtRes = NativeMethods.StmtSetTbname(stmt, table);
             IfStmtSucc(stmtRes, stmt, "StmtSetTbname");
 
-            TAOS_MULTI_BIND[] dataBind =StmtData();
+            TAOS_MULTI_BIND[] dataBind = StmtData();
 
             stmtRes = NativeMethods.StmtBindParamBatch(stmt, dataBind);
             IfStmtSucc(stmtRes, stmt, "StmtBindParamBatch");
@@ -96,7 +102,8 @@ namespace Benchmark
             }
             else
             {
-                throw new Exception($"execute {sql} failed,reason {NativeMethods.Error(res)}, code{NativeMethods.ErrorNo(res)}");
+                throw new Exception(
+                    $"execute {sql} failed,reason {NativeMethods.Error(res)}, code{NativeMethods.ErrorNo(res)}");
             }
         }
 
@@ -115,15 +122,15 @@ namespace Benchmark
             long[] tsArr = new long[1] { 1659283200000 };
             bool?[] boolArr = new bool?[1] { true };
             sbyte?[] tinyIntArr = new sbyte?[1] { -1 };
-            short?[] shortArr = new short?[1] {-2 };
+            short?[] shortArr = new short?[1] { -2 };
             int?[] intArr = new int?[1] { -3 };
             long?[] longArr = new long?[1] { -4 };
-            byte?[] uTinyIntArr = new byte?[1] { 1};
+            byte?[] uTinyIntArr = new byte?[1] { 1 };
             ushort?[] uShortArr = new ushort?[1] { 2 };
             uint?[] uIntArr = new uint?[1] { 3 };
             ulong?[] uLongArr = new ulong?[1] { 4 };
             float?[] floatArr = new float?[1] { 3.1415f };
-            double?[] doubleArr = new double?[1] { 3.14159265358979d };   
+            double?[] doubleArr = new double?[1] { 3.14159265358979d };
             string[] binaryArr = new string[1] { "bnr_col_1" };
             string[] ncharArr = new string[1] { "ncr_col_1" };
 
@@ -139,8 +146,8 @@ namespace Benchmark
             mBinds[9] = MultiBind.MultiBindUBigInt(uLongArr);
             mBinds[10] = MultiBind.MultiBindFloat(floatArr);
             mBinds[11] = MultiBind.MultiBindDouble(doubleArr);
-            mBinds[12] = MultiBind.MultiBindStringArray(binaryArr,TDengineDataType.TSDB_DATA_TYPE_BINARY);
-            mBinds[13] = MultiBind.MultiBindStringArray(ncharArr,TDengineDataType.TSDB_DATA_TYPE_NCHAR);
+            mBinds[12] = MultiBind.MultiBindStringArray(binaryArr, TDengineDataType.TSDB_DATA_TYPE_BINARY);
+            mBinds[13] = MultiBind.MultiBindStringArray(ncharArr, TDengineDataType.TSDB_DATA_TYPE_NCHAR);
 
             return mBinds;
         }

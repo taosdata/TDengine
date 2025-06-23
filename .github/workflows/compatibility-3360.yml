@@ -15,7 +15,14 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        dotnet: [ '6.0.x' ]
+        dotnet: [ '6.0.x', '5.0.x', '3.1.x' ]
+        include:
+          - dotnet: '6.0.x'
+            tfm: 'net6'
+          - dotnet: '5.0.x'
+            tfm: 'net5'
+          - dotnet: '3.1.x'
+            tfm: 'netcoreapp3.1'
     name: test unit ${{ matrix.dotnet }}
     steps:
       - name: get TDengine
@@ -66,7 +73,7 @@ jobs:
           TDENGINE_CLOUD_ENDPOINT: ${{ secrets.TDENGINE_CLOUD_ENDPOINT }}
           TDENGINE_CLOUD_TOKEN: ${{ secrets.TDENGINE_CLOUD_TOKEN }}
         run: |
-          dotnet test --logger "console;verbosity=detailed" --collect:"XPlat Code Coverage" --results-directory:./testresults
+          dotnet test -f ${{ matrix.tfm }} --logger "console;verbosity=detailed" --collect:"XPlat Code Coverage" --results-directory:./testresults
         timeout-minutes: 15
 
       - uses: actions/upload-artifact@v4
@@ -74,3 +81,106 @@ jobs:
         with:
           name: ${{ runner.os }}-${{ matrix.dotnet }}-log
           path: /var/log/taos/
+  
+  
+  test_windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        dotnet: [ '6.0.x', '5.0.x', '3.1.x' ]
+        include:
+          - dotnet: '6.0.x'
+            tfm: 'net6'
+          - dotnet: '5.0.x'
+            tfm: 'net5'
+          - dotnet: '3.1.x'
+            tfm: 'netcoreapp3.1'
+          - dotnet: ''
+            tfm: 'net46'
+    name: test windows unit ${{ matrix.tfm }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        
+      - name: cache package
+        id: cache-package
+        uses: actions/cache@v4
+        with:
+          path: tdengine.exe
+          key: tdengine-3360-windows
+
+      - name: Download TDengine
+        if: steps.cache-package.outputs.cache-hit != 'true'
+        run: |
+          $url = "${{ secrets.TD_3360_WINDOWS_URL }}"
+          Invoke-WebRequest -Uri $url -OutFile tdengine.exe
+
+      - name: Install TDengine
+        run: |
+          if (Test-Path -Path "tdengine.exe") {
+            Write-Host "Installing TDengine..."
+            Start-Process -FilePath "tdengine.exe" -ArgumentList "/silent" -Wait
+          } else {
+            Write-Host "TDengine installer not found."
+            exit 1
+          }
+      - name: Verify TDengine installation
+        run: |
+          $taosdPath = "C:\TDengine\taosd.exe"
+          if (Test-Path -Path $taosdPath) {
+            Write-Host "TDengine installed successfully."
+            & $taosdPath -V
+          } else {
+            Write-Host "TDengine installation failed."
+            exit 1
+          }
+
+      - name: copy taos cfg
+        run: |
+          cp .\.github\workflows\taos.cfg C:\TDengine\cfg\taos.cfg
+          cp .\.github\workflows\taosadapter.toml C:\TDengine\cfg\taosadapter.toml
+
+      - name: Start TDengine service
+        run: |
+          $serviceName = "taosd"
+          $taosadapterServiceName = "taosadapter"
+          if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
+            Start-Service -Name $serviceName
+            Write-Host "TDengine service started."
+          } else {
+            Write-Host "TDengine service not found."
+            exit 1
+          }
+          if (Get-Service -Name $taosadapterServiceName -ErrorAction SilentlyContinue) {
+            Start-Service -Name $taosadapterServiceName
+            Write-Host "taosAdapter service started."
+          } else {
+            Write-Host "TDengine service not found."
+            exit 1
+          }
+      - name: Check TDengine status
+        run: |
+          $taosPath = "C:\TDengine\taos.exe"
+          & $taosPath -Z 0 -s "show databases"
+          & $taosPath -Z 1 -s "show databases"
+
+
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@v4
+        if: matrix.dotnet != ''
+        with:
+          dotnet-version: ${{ matrix.dotnet }}
+
+      - name: Restore dependencies
+        run: |
+          ls
+          dotnet restore
+
+      - name: test
+        id: test
+        env:
+          TDENGINE_CLOUD_ENDPOINT: ${{ secrets.TDENGINE_CLOUD_ENDPOINT }}
+          TDENGINE_CLOUD_TOKEN: ${{ secrets.TDENGINE_CLOUD_TOKEN }}
+        run: |
+          dotnet test -f ${{ matrix.tfm }} --logger "console;verbosity=detailed" --collect:"XPlat Code Coverage" --results-directory:./testresults
+        timeout-minutes: 15

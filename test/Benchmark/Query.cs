@@ -1,4 +1,5 @@
-﻿using TDengine.Driver;
+﻿using System;
+using TDengine.Driver;
 using TDengine.Driver.Impl;
 using NativeMethods = TDengine.Driver.Impl.NativeMethods.NativeMethods;
 
@@ -12,6 +13,7 @@ namespace Benchmark
         string Password { get; set; }
         readonly string db = "benchmark";
         readonly string queryStb = "select * from stb;";
+
         readonly string queryJtb = "select " +
                                    "ts " +
                                    ",bl " +
@@ -27,9 +29,9 @@ namespace Benchmark
                                    ",d64" +
                                    ",bnr" +
                                    ",nchr" +
-                                   ",jtag->\"k0\""+
-                                   ",jtag->\"k1\""+
-                                   ",jtag->\"k2\""+
+                                   ",jtag->\"k0\"" +
+                                   ",jtag->\"k1\"" +
+                                   ",jtag->\"k2\"" +
                                    ",jtag->\"k3\"" +
                                    "from jtb;";
 
@@ -41,6 +43,7 @@ namespace Benchmark
             Password = passwd;
             Port = port;
         }
+
         public void Run(string types, int times)
         {
             // Console.WriteLine("Query {0} ... ", types);
@@ -56,6 +59,7 @@ namespace Benchmark
                 {
                     QueryLoop(conn, times, queryStb);
                 }
+
                 if (types == "json")
                 {
                     QueryLoop(conn, times, queryJtb);
@@ -65,9 +69,10 @@ namespace Benchmark
             {
                 throw new Exception("create TD connection failed");
             }
-            NativeMethods.Close(conn);
 
+            NativeMethods.Close(conn);
         }
+
         public void QueryLoop(IntPtr conn, int times, string sql)
         {
             IntPtr res;
@@ -92,7 +97,8 @@ namespace Benchmark
             }
             else
             {
-                throw new Exception($"execute {sql} failed,reason {NativeMethods.Error(res)}, code{NativeMethods.ErrorNo(res)}");
+                throw new Exception(
+                    $"execute {sql} failed,reason {NativeMethods.Error(res)}, code{NativeMethods.ErrorNo(res)}");
             }
         }
     }

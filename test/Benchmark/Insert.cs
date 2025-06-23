@@ -30,6 +30,7 @@ namespace Benchmark
             Port = port;
             MaxSqlLength = maxSqlLength;
         }
+
         public void Run(string types, int tableCnt)
         {
             IntPtr conn = NativeMethods.Connect(Host, Username, Password, db, Port);
@@ -46,11 +47,11 @@ namespace Benchmark
                 {
                     InsertLoop(conn, tableCnt, recordNum, stb, loopTime);
                 }
+
                 if (types == "json")
                 {
                     InsertLoop(conn, tableCnt, recordNum, jtb, loopTime);
                 }
-
             }
             else
             {
@@ -63,13 +64,13 @@ namespace Benchmark
 
         public void InsertLoop(IntPtr conn, int tableCnt, int recordCnt, string prefix, int times)
         {
-
             _numOfThreadsNotYetCompleted = tableCnt;
-            for (int i = 0; i <tableCnt; i++)
+            for (int i = 0; i < tableCnt; i++)
             {
                 RunContext context = new RunContext($"{prefix}_{i}", recordCnt, tableCnt, conn);
-                ThreadPool.QueueUserWorkItem(RunInsertSQL!, context);
+                ThreadPool.QueueUserWorkItem(RunInsertSQL, context);
             }
+
             _doneEvent.WaitOne();
         }
 
@@ -81,7 +82,8 @@ namespace Benchmark
             }
             else
             {
-                throw new Exception($"execute {sql} failed,reason {NativeMethods.Error(res)}, code{NativeMethods.ErrorNo(res)}");
+                throw new Exception(
+                    $"execute {sql} failed,reason {NativeMethods.Error(res)}, code{NativeMethods.ErrorNo(res)}");
             }
         }
 
@@ -91,7 +93,8 @@ namespace Benchmark
 
             try
             {
-                string sql = $"insert into {context.tableName} values({begineTime},true,-1,-2,-3,-4,1,2,3,4,3.1415,3.14159265358979,'bnr_col_1','ncr_col_1')";
+                string sql =
+                    $"insert into {context.tableName} values({begineTime},true,-1,-2,-3,-4,1,2,3,4,3.1415,3.14159265358979,'bnr_col_1','ncr_col_1')";
                 // Console.WriteLine("sql:{0}", sql);
                 IntPtr res = NativeMethods.Query(context.conn, sql);
                 IfTaosQuerySucc(res, sql);
@@ -99,11 +102,9 @@ namespace Benchmark
             }
             finally
             {
-
                 if (Interlocked.Decrement(ref _numOfThreadsNotYetCompleted) == 0)
                     _doneEvent.Set();
             }
-
         }
     }
 

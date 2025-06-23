@@ -6,9 +6,8 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net6.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    <!--    <Nullable>enable</Nullable>-->
+    <TargetFrameworks>net5;net6;net46;netcoreapp3.1</TargetFrameworks>
   </PropertyGroup>
 
 </Project>

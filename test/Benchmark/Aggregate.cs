@@ -1,4 +1,5 @@
-﻿using TDengine.Driver.Impl.NativeMethods;
+﻿using System;
+using TDengine.Driver.Impl.NativeMethods;
 
 namespace Benchmark
 {
@@ -20,6 +21,7 @@ namespace Benchmark
             Password = passwd;
             Port = port;
         }
+
         public void Run(string types, int times)
         {
             //Console.WriteLine("Aggregate {0} ...", types);
@@ -36,6 +38,7 @@ namespace Benchmark
                 {
                     AggregateLoop(conn, times, avgStb);
                 }
+
                 if (types == "json")
                 {
                     AggregateLoop(conn, times, avgJtb);
@@ -45,9 +48,10 @@ namespace Benchmark
             {
                 throw new Exception("create TD connection failed");
             }
-            NativeMethods.Close(conn);
 
+            NativeMethods.Close(conn);
         }
+
         public void AggregateLoop(IntPtr conn, int times, string sql)
         {
             IntPtr res;
@@ -72,7 +76,8 @@ namespace Benchmark
             }
             else
             {
-                throw new Exception($"execute {sql} failed,reason {NativeMethods.Error(res)}, code{NativeMethods.ErrorNo(res)}");
+                throw new Exception(
+                    $"execute {sql} failed,reason {NativeMethods.Error(res)}, code{NativeMethods.ErrorNo(res)}");
             }
         }
     }

@@ -86,17 +86,17 @@ namespace Driver.Test.Function.Test
             var ai64 = new long?[] { v5, null, vv5 };
             var af = new float?[] { v10, null, vv10 };
             var ad = new double?[] { v11, null, vv11 };
-            var av = new string?[] { "test1", null, "中文" };
+            var av = new string[] { "test1", null, "中文" };
             var au8 = new byte?[] { v6, null, vv6 };
             var au16 = new ushort?[] { v7, null, vv7 };
             var au32 = new uint?[] { v8, null, vv8 };
             var au64 = new ulong?[] { v9, null, vv9 };
             var at = new long[] { 1692754030419, 1692754031419, 1692754032419 };
-            var an = new string?[] { "中文n", null, "n中文" };
-            var aj = new string?[] { "{\"a\":\"b\"}", null, "{\"a\":\"b\"}" };
-            var aVarBinary = new byte[]?[]
+            var an = new string[] { "中文n", null, "n中文" };
+            var aj = new string[] { "{\"a\":\"b\"}", null, "{\"a\":\"b\"}" };
+            var aVarBinary = new byte[][]
                 { Encoding.UTF8.GetBytes("test_varbinary"), null, Encoding.UTF8.GetBytes("test_varbinary") };
-            var aGeometry = new byte[]?[]
+            var aGeometry = new byte[][]
             {
                 new byte[]
                 {

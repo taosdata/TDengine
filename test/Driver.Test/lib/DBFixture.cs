@@ -11,9 +11,9 @@ namespace Test.Fixture
     {
         public IntPtr Conn { get; set; }
         readonly string db = "csharp_test";
+
         public DatabaseFixture()
         {
-
             string user = "root";
             string password = "taosdata";
             string ip;
@@ -24,13 +24,14 @@ namespace Test.Fixture
             NativeMethods.Options((int)TDengineInitOption.TSDB_OPTION_SHELL_ACTIVITY_TIMER, "90");
             NativeMethods.Options((int)TDengineInitOption.TSDB_OPTION_LOCALE, "C");
             NativeMethods.Options((int)TDengineInitOption.TSDB_OPTION_CHARSET, "UTF-8");
-            string? ENV_HOST = Environment.GetEnvironmentVariable("TEST_HOST");
+            var ENV_HOST = Environment.GetEnvironmentVariable("TEST_HOST");
             ip = string.IsNullOrEmpty(ENV_HOST) == true ? "127.0.0.1" : ENV_HOST;
             this.Conn = NativeMethods.Connect(ip, user, password, "", port);
             IntPtr res;
             if (Conn != IntPtr.Zero)
             {
-                if ((res = NativeMethods.Query(Conn, $"create database if not exists {db} keep 3650 WAL_RETENTION_PERIOD 86400")) != IntPtr.Zero)
+                if ((res = NativeMethods.Query(Conn,
+                        $"create database if not exists {db} keep 3650 WAL_RETENTION_PERIOD 86400")) != IntPtr.Zero)
                 {
                     if ((res = NativeMethods.Query(Conn, $"use {db}")) != IntPtr.Zero)
                     {
@@ -50,7 +51,6 @@ namespace Test.Fixture
             {
                 throw new Exception("Get TDConnection failed");
             }
-
         }
 
         // public IntPtr TDConnection { get;  }
@@ -67,7 +67,6 @@ namespace Test.Fixture
                 {
                     NativeMethods.Close(Conn);
                     Console.WriteLine("close connection success");
-
                 }
                 else
                 {
@@ -79,23 +78,24 @@ namespace Test.Fixture
             {
                 throw new Exception("connection if already null");
             }
-
         }
+
         private string GetConfigPath()
         {
             string configDir = "";
-            if (OperatingSystem.IsOSPlatform("Windows"))
+            if (Environment.OSVersion.Platform == PlatformID.Win32NT)
             {
                 configDir = "C:/TDengine/cfg";
             }
-            else if (OperatingSystem.IsOSPlatform("Linux"))
+            else if (Environment.OSVersion.Platform == PlatformID.Unix)
             {
                 configDir = "/etc/taos";
             }
-            else if (OperatingSystem.IsOSPlatform("macOS"))
+            else if (Environment.OSVersion.Platform == PlatformID.MacOSX)
             {
                 configDir = "/usr/local/etc/taos";
             }
+
             return configDir;
         }
     }

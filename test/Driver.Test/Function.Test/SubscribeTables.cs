@@ -340,8 +340,8 @@ namespace Function.Test.TMQ
         public ulong u8 { get; set; }
         public float f4 { get; set; }
         public double f8 { get; set; }
-        public byte[]? bin { get; set; }
-        public string? nchr { get; set; }
+        public byte[] bin { get; set; }
+        public string nchr { get; set; }
         public bool b { get; set; }
     }
 }

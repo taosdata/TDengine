@@ -1,4 +1,6 @@
-﻿namespace Benchmark
+﻿using System;
+
+namespace Benchmark
 {
     public class EntryPoint
     {
@@ -11,11 +13,12 @@
         string TableTypes = "normal";
         int NumOfTable = 1;
         int NumOfRecords = 1;
+
         int MaxSqlLength = 5000;
+
         // private string Rest;
         static void Main(string[] args)
         {
-
             EntryPoint entryPoint = new EntryPoint();
             entryPoint.ReadArgs(args);
             entryPoint.RunBenchMark(entryPoint.benchmarkOptions, entryPoint.TableTypes, entryPoint.RunTimes);
@@ -23,19 +26,19 @@
 
         public void PrintHelp()
         {
-
             string indent = "\t\t\t";
             string indent2 = "\t\t";
 
-            Console.WriteLine("\t -s {0}{1}", indent, "Benchmark stage, \"connect\",\"insert\",\"query\",\"avg\",\"batch\",\"clean\",default \"connect\"");
-            Console.WriteLine("\t -t {0}{1}", indent, "Benchmark data type, table with\"json\" tag,table with \"normal\" column type,default \"normal\"");
+            Console.WriteLine("\t -s {0}{1}", indent,
+                "Benchmark stage, \"connect\",\"insert\",\"query\",\"avg\",\"batch\",\"clean\",default \"connect\"");
+            Console.WriteLine("\t -t {0}{1}", indent,
+                "Benchmark data type, table with\"json\" tag,table with \"normal\" column type,default \"normal\"");
             Console.WriteLine("\t -n {0}{1}", indent, "number of times to run.Default 1 time.");
             Console.WriteLine("\t -r {0}{1}", indent, "number of record per table,only for insert.Default 1 records");
             Console.WriteLine("\t -b {0}{1}", indent, "number of target tables,only for insert.Default 1 tables");
             Console.WriteLine("\t -l {0}{1}", indent, "Max length of SQL string,only for insert.default 5000.");
             Console.WriteLine("\t --help {0}{1}", indent2, "Print help info");
             System.Environment.Exit(0);
-
         }
 
         public void ReadArgs(string[] args)
@@ -98,7 +101,7 @@
                     break;
                 case "batch":
                     Batch batch = new Batch(this.Host, this.User, this.Passwd, this.Port, this.MaxSqlLength);
-                    batch.Run(TableTypes, NumOfRecords,NumOfTable,times);
+                    batch.Run(TableTypes, NumOfRecords, NumOfTable, times);
                     break;
                 // case "batchcol":
                 //     BatchColumn batchCol = new BatchColumn(this.Host, this.User, this.Passwd, this.Port);
@@ -122,4 +125,3 @@
         }
     }
 }
-

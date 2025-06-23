@@ -1,3 +1,4 @@
+using System;
 using TDengine.Driver;
 using TDengine.Driver.Impl.NativeMethods;
 using NativeMethods = TDengine.Driver.Impl.NativeMethods.NativeMethods;

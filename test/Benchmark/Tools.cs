@@ -1,4 +1,6 @@
-﻿using System.Runtime.InteropServices;
+﻿using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using TDengine.Driver;
 using TDengine.Driver.Impl.NativeMethods;
 
@@ -21,12 +23,14 @@ namespace Benchmark
                 {
                     colType[i] = metaList[i].type;
                 }
+
                 while (true)
                 {
                     int code = NativeMethods.FetchRawBlock(taosRes, numOfRowsPrt, pDataPtr);
                     if (code != 0)
                     {
-                        throw new Exception($"fetch_raw_block failed,code {code} reason:{NativeMethods.Error(taosRes)}");
+                        throw new Exception(
+                            $"fetch_raw_block failed,code {code} reason:{NativeMethods.Error(taosRes)}");
                     }
 
                     int numOfRows = Marshal.ReadInt32(numOfRowsPrt);
@@ -37,7 +41,6 @@ namespace Benchmark
 
                     pData = Marshal.ReadIntPtr(pDataPtr);
                     list.AddRange(ReadRawBlock(pData, metaList, numOfRows));
-
                 }
 
                 return list;
@@ -48,6 +51,7 @@ namespace Benchmark
                 Marshal.FreeHGlobal(pDataPtr);
             }
         }
+
         public static List<object> ReadRawBlock(IntPtr pData, List<TDengineMeta> metaList, int numOfRows)
         {
             var list = new List<object>(metaList.Count * numOfRows);
@@ -56,13 +60,14 @@ namespace Benchmark
             {
                 colType[i] = metaList[i].type;
             }
-            var br = new BlockReader(0,metaList.Count,colType);
-            br.SetBlockPtr(pData,numOfRows);
+
+            var br = new BlockReader(0, metaList.Count, colType);
+            br.SetBlockPtr(pData, numOfRows);
             for (int rowIndex = 0; rowIndex < numOfRows; rowIndex++)
             {
                 for (int colIndex = 0; colIndex < metaList.Count; colIndex++)
                 {
-                    list.Add(br.Read(rowIndex,colIndex));
+                    list.Add(br.Read(rowIndex, colIndex));
                 }
             }
 

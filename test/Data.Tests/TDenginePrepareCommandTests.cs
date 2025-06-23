@@ -40,27 +40,29 @@ namespace Data.Tests
         [Fact]
         public void PrepareCommandTest()
         {
-            using var command = new TDengineCommand();
-            string db = "test_prepare_command";
-            string table = "test_table01";
-            CreateDatabaseAndTable(db, table);
-            try
+            using (var command = new TDengineCommand())
             {
-                var connection =
-                    new TDengineConnection(
-                        $"host=localhost;port=6030;username=root;password=taosdata;protocol=Native;db={db};");
-                connection.Open();
+                string db = "test_prepare_command";
+                string table = "test_table01";
+                CreateDatabaseAndTable(db, table);
+                try
+                {
+                    var connection =
+                        new TDengineConnection(
+                            $"host=localhost;port=6030;username=root;password=taosdata;protocol=Native;db={db};");
+                    connection.Open();
 
-                command.CommandText = $"select * from {db}.{table}";
-                command.Connection = connection;
+                    command.CommandText = $"select * from {db}.{table}";
+                    command.Connection = connection;
 
-                var dbDataReader = command.ExecuteReader();
+                    var dbDataReader = command.ExecuteReader();
 
-                Assert.True(dbDataReader.HasRows);
-            }
-            finally
-            {
-                DropDatabase(db);
+                    Assert.True(dbDataReader.HasRows);
+                }
+                finally
+                {
+                    DropDatabase(db);
+                }
             }
         }
 
@@ -77,13 +79,15 @@ namespace Data.Tests
                     new TDengineConnection(
                         $"host=localhost;port=6030;username=root;password=taosdata;protocol=Native;db={db};");
                 connection.Open();
-                using var command = new TDengineCommand(connection);
-                command.CommandText = $"select * from {db}.{table}";
-                command.Connection = connection;
+                using (var command = new TDengineCommand(connection))
+                {
+                    command.CommandText = $"select * from {db}.{table}";
+                    command.Connection = connection;
 
-                var dbDataReader = command.ExecuteReader();
+                    var dbDataReader = command.ExecuteReader();
 
-                Assert.True(dbDataReader.HasRows);
+                    Assert.True(dbDataReader.HasRows);
+                }
             }
             finally
             {

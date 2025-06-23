@@ -77,7 +77,7 @@ namespace Test.Utils
             return $"drop database if exists {db}";
         }
 
-        public static string DropTable(string? db, string table)
+        public static string DropTable(string db, string table)
         {
             if (string.IsNullOrEmpty(db))
             {
@@ -91,7 +91,7 @@ namespace Test.Utils
 
         // Generate insert SQL for the with the columns' data and tags' data 
         public static string ConstructInsertSql(string table, string stable, List<Object> colData,
-            List<Object>? tagData, int numOfRows)
+            List<Object> tagData, int numOfRows)
         {
             int numOfFields = colData.Count / numOfRows;
             StringBuilder insertSql;
@@ -104,7 +104,7 @@ namespace Test.Utils
             {
                 insertSql = new StringBuilder($"insert into {table} using {stable} tags(");
 
-                for (int j = 0; j < tagData!.Count; j++)
+                for (int j = 0; j < tagData.Count; j++)
                 {
                     switch (tagData[j])
                     {
@@ -314,11 +314,11 @@ namespace Test.Utils
             String[] dllStrElements = subDllStr.Split(stableSeparators, StringSplitOptions.RemoveEmptyEntries);
             //(ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT)
             dllStrElements[0] = dllStrElements[0].Substring(1, dllStrElements[0].Length - 2);
-            String[] finalStr1 = dllStrElements[0].Split(',', StringSplitOptions.RemoveEmptyEntries);
+            string[] finalStr1 = dllStrElements[0].Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
             foreach (string item in finalStr1)
             {
                 //ts TIMESTAMP
-                string[] itemArr = item.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+                string[] itemArr = item.Split(new[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
                 // Console.WriteLine("GetMetaFromDLL():{0},{1}",itemArr[0],itemArr[1]);
                 expectResMeta.Add(Tools.ConstructTDengineMeta(itemArr[0], itemArr[1]));
             }
@@ -328,11 +328,11 @@ namespace Test.Utils
                 //location BINARY(30), groupId INT
                 dllStrElements[1] = dllStrElements[1].Substring(1, dllStrElements[1].Length - 2);
                 //location BINARY(30)  groupId INT
-                String[] finalStr2 = dllStrElements[1].Split(',', StringSplitOptions.RemoveEmptyEntries);
+                String[] finalStr2 = dllStrElements[1].Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
                 foreach (string item in finalStr2)
                 {
                     //location BINARY(30)
-                    string[] itemArr = item.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+                    string[] itemArr = item.Split(new[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
                     // Console.WriteLine("GetMetaFromDLL():{0},{1}",itemArr[0],itemArr[1]);
                     expectResMeta.Add(Tools.ConstructTDengineMeta(itemArr[0], itemArr[1]));
                 }
@@ -374,7 +374,7 @@ namespace Test.Utils
                 columns.Add((uint)(i + 2));
                 columns.Add((ulong)(i + 3));
                 columns.Add((float)(3.1415F + i));
-                columns.Add((double)(3.1415926535897932D + i));
+                columns.Add((double)(3.14159265358979D + i));
                 columns.Add(Encoding.UTF8.GetBytes("binary_col_列_" + i));
                 columns.Add("nchar_col_列_" + i);
                 columns.Add((i & 1) == 1 ? true : false);
@@ -397,13 +397,16 @@ namespace Test.Utils
                 switch (seq)
                 {
                     case 1:
-                        jTags.Add(Encoding.UTF8.GetBytes( "{\"key1\":\"taosdata\",\"key2\":null,\"key3\":\"TDengine涛思数据\",\"key4\":1,\"key5\":true}"));
+                        jTags.Add(Encoding.UTF8.GetBytes(
+                            "{\"key1\":\"taosdata\",\"key2\":null,\"key3\":\"TDengine涛思数据\",\"key4\":1,\"key5\":true}"));
                         break;
                     case 2:
-                        jTags.Add(Encoding.UTF8.GetBytes(  "{\"key1\":\"taosdata\",\"key2\":null,\"key3\":\"TDengine涛思数据\",\"key4\":2,\"key5\":false}"));
+                        jTags.Add(Encoding.UTF8.GetBytes(
+                            "{\"key1\":\"taosdata\",\"key2\":null,\"key3\":\"TDengine涛思数据\",\"key4\":2,\"key5\":false}"));
                         break;
                     case 3:
-                        jTags.Add(Encoding.UTF8.GetBytes(  "{\"key1\":\"taosdata\",\"key2\":null,\"key3\":\"TDengine涛思数据\",\"key4\":3,\"key5\":true}"));
+                        jTags.Add(Encoding.UTF8.GetBytes(
+                            "{\"key1\":\"taosdata\",\"key2\":null,\"key3\":\"TDengine涛思数据\",\"key4\":3,\"key5\":true}"));
                         break;
                     default:
                         throw new IndexOutOfRangeException("seq should in range 1-3");
@@ -423,7 +426,7 @@ namespace Test.Utils
                 tags.Add((uint)(2 + seq));
                 tags.Add((ulong)(3 + seq));
                 tags.Add((float)(3.1415F + seq));
-                tags.Add((double)(3.1415926535897932D + seq));
+                tags.Add((double)(3.14159265358979D + seq));
                 tags.Add(Encoding.UTF8.GetBytes("binary_tag_标签_" + seq));
                 tags.Add("nchar_tag_标签_" + seq);
 

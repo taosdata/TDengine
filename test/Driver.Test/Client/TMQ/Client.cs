@@ -16,12 +16,12 @@ namespace Driver.Test.Client.TMQ
         private readonly string _nativeConnectString;
         private readonly string _wsConnectString;
         private readonly string _createTableSql;
-        private readonly string? _cloudConnectString;
+        private readonly string _cloudConnectString;
         private readonly Dictionary<string, string> _nativeTMQCfg;
         private readonly Dictionary<string, string> _nativeTMQCfgAutoCommit;
         private readonly Dictionary<string, string> _wsTMQCfg;
         private readonly Dictionary<string, string> _wsTMQCfgAutoCommit;
-        private readonly Dictionary<string, string>? _cloudTMQCfg;
+        private readonly Dictionary<string, string> _cloudTMQCfg;
 
 
         public Consumer(ITestOutputHelper output)
@@ -214,7 +214,8 @@ namespace Driver.Test.Client.TMQ
                         using (var result = consumer.Consume(500))
                         {
                             _output.WriteLine($"{result}");
-                            if (messageCount == 3)
+                            // cloud may insert data by other process
+                            if (messageCount >= 3)
                             {
                                 break;
                             }
@@ -249,7 +250,8 @@ namespace Driver.Test.Client.TMQ
                         }
                     }
 
-                    Assert.Equal(3, messageCount);
+                    // cloud may insert data by other process
+                    Assert.True(messageCount >= 3);
                     consumer.Unsubscribe();
                     consumer.Close();
                 }
@@ -266,6 +268,23 @@ namespace Driver.Test.Client.TMQ
                         DoRequest(client, $"drop topic if exists {topic}");
                         Thread.Sleep(3000);
                         DoRequest(client, $"drop database if exists {db}");
+                    }
+                    else
+                    {
+                        var groupId = cfg["group.id"];
+                        for (int i = 0; i < 20; i++)
+                        {
+                            Thread.Sleep(1000);
+                            try
+                            {
+                                DoRequest(client, $"DROP CONSUMER GROUP IF EXISTS {groupId} on {topic}");
+                                break;
+                            }
+                            catch (TDengineError e)
+                            {
+                                _output.WriteLine(e.ToString());
+                            }
+                        }
                     }
                 }
             }
