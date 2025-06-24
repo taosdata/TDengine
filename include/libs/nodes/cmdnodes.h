@@ -358,7 +358,7 @@ typedef struct SCreateUserStmt {
   int8_t      createDb;
   int8_t      isImport;
   int32_t     numIpRanges;
-  SIpV4Range* pIpRanges;
+  SIpRange*   pIpRanges;
 
   SNodeList* pNodeListIpRanges;
 } SCreateUserStmt;
@@ -372,7 +372,7 @@ typedef struct SAlterUserStmt {
   int8_t      sysinfo;
   int8_t      createdb;
   int32_t     numIpRanges;
-  SIpV4Range* pIpRanges;
+  SIpRange*   pIpRanges;
 
   SNodeList* pNodeListIpRanges;
 } SAlterUserStmt;

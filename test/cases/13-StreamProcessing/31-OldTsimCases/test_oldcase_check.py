@@ -10,7 +10,7 @@ class TestStreamOldCaseCheck:
     def test_stream_oldcase_check(self):
         """Stream check stable
 
-        1. -
+        Verify the computation results of streams when triggered by different windows.
 
         Catalog:
             - Streams:OldTsimCases
@@ -59,11 +59,11 @@ class TestStreamOldCaseCheck:
         tdSql.execute(f"insert into t2 values(1648791213000, 2, 2, 3);")
 
         tdSql.checkResultsBySql(
-            sql=" select * from  result.streamt0 where tag_tbname='t1'",
+            sql="select * from  result.streamt0 where tag_tbname='t1'",
             exp_sql="select _wstart, count(*) c1, max(a) c2, tbname, ta, tb, tc from st where tbname='t1' partition by tbname interval(10s)",
         )
         tdSql.checkResultsBySql(
-            sql=" select * from  result.streamt0 where tag_tbname='t2'",
+            sql="select * from  result.streamt0 where tag_tbname='t2'",
             exp_sql="select _wstart, count(*) c1, max(a) c2, tbname, ta, tb, tc from st where tbname='t2' partition by tbname interval(10s)",
         )
         tdSql.checkResultsByFunc(

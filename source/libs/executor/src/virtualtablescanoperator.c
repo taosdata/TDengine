@@ -41,6 +41,7 @@ typedef struct SVirtualTableScanInfo {
   int32_t        tagDownStreamId;
   bool           scanAllCols;
   SArray*        pSortCtxList;
+  tb_uid_t       vtableUid;  // virtual table uid, used to identify the vtable scan operator
 } SVirtualTableScanInfo;
 
 typedef struct SVirtualScanMergeOperatorInfo {
@@ -658,13 +659,9 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
     if (pOperator->pOperatorGetParam) {
       uint64_t uid = ((SVTableScanOperatorParam*)pOperator->pOperatorGetParam->value)->uid;
-      STableKeyInfo* tbInfo = tableListGetInfo(pVirtualScanInfo->base.pTableListInfo, tableListFind(pVirtualScanInfo->base.pTableListInfo, uid, 0));
-      QUERY_CHECK_NULL(tbInfo, code, lino, _return, terrno);
-      (*pResBlock)->info.id.uid = tbInfo->uid;
+      (*pResBlock)->info.id.uid = uid;
     } else {
-      STableKeyInfo* tbInfo = tableListGetInfo(pVirtualScanInfo->base.pTableListInfo, 0);
-      QUERY_CHECK_NULL(tbInfo, code, lino, _return, terrno);
-      (*pResBlock)->info.id.uid = tbInfo->uid;
+      (*pResBlock)->info.id.uid = pInfo->virtualScanInfo.vtableUid;
     }
 
     VTS_ERR_JRET(doSetTagColumnData(pVirtualScanInfo, pInfo->pSavedTagBlock, (*pResBlock), pTaskInfo, (*pResBlock)->info.rows));
@@ -696,7 +693,6 @@ static void destroyTableScanBase(STableScanBase* pBase, TsdReader* pAPI) {
     taosArrayDestroy(pBase->matchInfo.pList);
   }
 
-  tableListDestroy(pBase->pTableListInfo);
   taosLRUCacheCleanup(pBase->metaCache.pTableMetaEntryCache);
   cleanupExprSupp(&pBase->pseudoSup);
 }
@@ -812,8 +808,8 @@ _return:
   return code;
 }
 
-int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, STableListInfo* pTableListInfo,
-                                            int32_t numOfDownstream, SVirtualScanPhysiNode* pVirtualScanPhyNode,
+int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
+                                            SVirtualScanPhysiNode* pVirtualScanPhyNode,
                                             SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   SPhysiNode*                    pPhyNode = (SPhysiNode*)pVirtualScanPhyNode;
   int32_t                        lino = 0;
@@ -837,7 +833,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, STableL
   TSDB_CHECK_NULL(pInputBlock, code, lino, _return, terrno);
   pVirtualScanInfo->pInputBlock = pInputBlock;
   pVirtualScanInfo->tagDownStreamId = -1;
-
+  pVirtualScanInfo->vtableUid = (tb_uid_t)pVirtualScanPhyNode->scan.uid;
   if (pVirtualScanPhyNode->scan.pScanPseudoCols != NULL) {
     SExprSupp* pSup = &pVirtualScanInfo->base.pseudoSup;
     pSup->pExprInfo = NULL;
@@ -874,7 +870,6 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, STableL
 
   pVirtualScanInfo->base.metaCache.pTableMetaEntryCache = taosLRUCacheInit(1024 * 128, -1, .5);
   QUERY_CHECK_NULL(pVirtualScanInfo->base.metaCache.pTableMetaEntryCache, code, lino, _return, terrno);
-  pVirtualScanInfo->base.pTableListInfo = pTableListInfo;
 
   setOperatorInfo(pOperator, "VirtualTableScanOperator", QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN, false,
                   OP_NOT_OPENED, pInfo, pTaskInfo);

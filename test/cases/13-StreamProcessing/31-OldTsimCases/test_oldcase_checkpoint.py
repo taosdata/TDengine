@@ -10,7 +10,7 @@ class TestStreamOldCaseCheckPoint:
     def test_stream_oldcase_checkpoint(self):
         """Stream checkpoint
 
-        1. -
+        Test if the stream continues to run after a restart.
 
         Catalog:
             - Streams:OldTsimCases

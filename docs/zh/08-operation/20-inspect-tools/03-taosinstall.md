@@ -23,35 +23,37 @@ TDengine 的安装包自带安装脚本，但无法基于集群进行自动化�
 工具支持通过 help 参数查看支持的语法
 
 ```install help
-./taosinstall install --help
+usage: taosinstall install [-h] [--model {local,ssh}] [--config CONFIG] [--backend] [--check-md5] [--list LIST] [--log-level {debug,info}]
+                           [--workers WORKERS] [--set-hostname] [--set-ips]
 
-Usage: taosinstall install [OPTIONS]
-
-  Install Database
-
-Options:
-  -m, --model [local|ssh]  connection model, default: local
-  -f, --config TEXT        Full path of test config file  [required]
-  -b, --backend BOOLEAN    Run process in backend. default: False
-  -cm, --check-md5 BOOLEAN  check md5 of package, default is True
-  -l, --list TEXT          list of test hostnames, Separate with commas. None
-                           by default
-  -w, --workers INTEGER    concurrency, default is 50
-  -sh, --set-hostname      set hostname
-  -si, --set-ips           set ips to /etc/hosts
-  --help                   Show this message and exit
+optional arguments:
+  -h, --help            show this help message and exit
+  --model {local,ssh}, -m {local,ssh}
+                        connection model
+  --config CONFIG, -f CONFIG
+                        Full path of config file
+  --backend, -b         Run process in backend
+  --check-md5, -cm      Check md5 of package
+  --list LIST, -L LIST  Comma-separated list of hostnames
+  --log-level {debug,info}, -l {debug,info}
+                        Set log level, default: info (options: debug, info)
+  --workers WORKERS, -w WORKERS
+                        Concurrency
+  --set-hostname, -sh   Set hostname
+  --set-ips, -si        Set IP/FQDN in /etc/hosts
 ```
 
 #### 参数详细说明
 
 - `model`：安装工具运行模式，分为 local 和 ssh。安装环境的多节点间支持 SSH 通信，可选择 ssh 模式，在任意节点上运行安装工具，会依次对所有节点环境完成安装操作。反之，节点间不支持 SSH 通信时，可选择 local 模式，仅对工具运行所在机器完成安装操作，默认为 local 模式。
 - `config`：安装工具加载的配置文件，其具体配置方式详见 **配置文件使用说明** 章节。不配置 config 参数时配置文件默认路径为工具运行当前目录。
-- `backend`：后台运行安装工具，选择 True 后安装工具在自动在后台运行，默认为 False。
-- `check-md5`: 安装前检查安装包的 MD5 值，默认为 True.
+- `backend`：后台运行预配置工具，默认为前台运行。
+- `check-md5`: 安装前检查安装包的 MD5 值，默认为检查 MD5 值。
 - `workers`：集群安装部署时的并发数量，会影响同时向多节点服务文件的并发数，需根据机器资源情况调整，默认是 50。
 - `list`：指定部署 TDengine 的机器，前提是配置文件中指定的 firstep 安装完成并服务运行部正常，该参数是预留给安装中断后继续安装剩余节点的场景使用，默认值为 None。
-- `set-hostname`：根据配置文件的 FQDN 更新集群节点的 hostname。不配置则不更新 hostname。
-- `set-ips`：根据配置文件的 FQDN 对应 IP 更新集群节点的 /etc/hosts。不配置则不更新 hosts 文件。
+- `set-hostname`：根据配置文件的 FQDN 更新集群节点的 hostname。默认不更新 hostname。
+- `set-ips`：根据配置文件的 FQDN 对应 IP 更新集群节点的 /etc/hosts。默认不更新 hosts 文件。
+- `log-level`: 输出日志级别，目前支持 debug 和 info，模式为 info。
 - `version`：打印安装工具版本信息。
 
 #### 安装流程
@@ -83,19 +85,22 @@ Options:
 工具支持通过 help 参数查看支持的语法
 
 ```upgrade help
-./taosinstall upgrade --help
+usage: taosinstall upgrade [-h] [--model {local,ssh}] [--config CONFIG] [--backend] [--check-md5] [--list LIST] [--log-level {debug,info}]
+                           [--rolling-upgrade]
 
-Usage: taosinstall upgrade [OPTIONS]
-
-  Upgrade Database
-
-Options:
-  -m, --model [local|ssh]  connection model, default: local
-  -f, --config TEXT        Full path of test config file  [required]
-  -b, --backend BOOLEAN    Run process in backend. default: False
-  -l, --list TEXT          list of test hostnames, Separate with commas. default: None
-  -r, --rolling-upgrade    Rolling upgrade Database
-  --help                   Show this message and exit
+optional arguments:
+  -h, --help            show this help message and exit
+  --model {local,ssh}, -m {local,ssh}
+                        connection model
+  --config CONFIG, -f CONFIG
+                        Full path of config file
+  --backend, -b         Run process in backend
+  --check-md5, -cm      Check md5 of package
+  --list LIST, -L LIST  Comma-separated list of hostnames
+  --log-level {debug,info}, -l {debug,info}
+                        Set log level, default: info (options: debug, info)
+  --rolling-upgrade, -r
+                        Rolling upgrade
 ```
 
 #### 参数详细说明
@@ -104,7 +109,8 @@ Options:
 - `config`：安装工具加载的配置文件，其具体配置方式详见 **配置文件使用说明** 章节。不配置 config 参数时配置文件默认路径为工具运行当前目录。
 - `backend`：后台运行安装工具，选择 True 后安装工具在自动在后台运行，默认为 False。
 - `list`：指定部署 TDengine 的机器，前提是配置文件中指定的 firstep 安装完成并服务运行部正常，该参数是预留给安装中断后继续安装剩余节点的场景使用，默认值为 None。
-- `rolling-upgrade`：滚动不停服升级，目前仅推荐测试环境使用。默认为普通停服升级
+- `rolling-upgrade`：滚动不停服升级，目前仅推荐测试环境使用。默认为普通停服升级。
+- `log-level`: 输出日志级别，目前支持 debug 和 info，模式为 info。
 - `version`：打印安装工具版本信息。
 
 #### 升级流程
@@ -203,6 +209,14 @@ cfg_file=explorer.toml
 [monitor_user]
 username=monitor
 password=Taosmonitor_125#
+
+[td_services]
+taosd
+taos
+taosadapter
+taoskeeper
+taosx
+taos-explorer
 ```
 
 ## 应用示例
@@ -211,9 +225,9 @@ password=Taosmonitor_125#
 ```
 ./taosinstall install -m local
 ```
-在集群所有节点安装数据库
+在集群所有节点安装数据库，日志级别配置为 debug
 ```
-./taosinstall install -m ssh
+./taosinstall install -m ssh -l debug
 ```
 指定配置文件并在集群所有节点安装数据库
 ```

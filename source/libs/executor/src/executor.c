@@ -16,6 +16,7 @@
 #include "executor.h"
 #include <stdint.h>
 #include "cmdnodes.h"
+#include "dataSinkInt.h"
 #include "executorInt.h"
 #include "libs/new-stream/stream.h"
 #include "operator.h"
@@ -24,14 +25,13 @@
 #include "planner.h"
 #include "query.h"
 #include "querytask.h"
+#include "storageapi.h"
 #include "streamexecutorInt.h"
 #include "tdatablock.h"
 #include "tref.h"
 #include "trpc.h"
 #include "tudf.h"
 #include "wal.h"
-#include "dataSinkInt.h"
-#include "storageapi.h"
 
 static TdThreadOnce initPoolOnce = PTHREAD_ONCE_INIT;
 int32_t             exchangeObjRefPool = -1;
@@ -44,8 +44,8 @@ void gExecInfoInit(void* pDnode, getDnodeId_f getDnodeId, getMnodeEpset_f getMno
   return;
 }
 
-int32_t getCurrentMnodeEpset(SEpSet *pEpSet) {
-  if(gExecInfo.dnode == NULL || gExecInfo.getMnode == NULL) {
+int32_t getCurrentMnodeEpset(SEpSet* pEpSet) {
+  if (gExecInfo.dnode == NULL || gExecInfo.getMnode == NULL) {
     qError("gExecInfo is not initialized");
     return TSDB_CODE_APP_ERROR;
   }
@@ -261,7 +261,7 @@ static int32_t checkInsertParam(SStreamInserterParam* streamInserterParam) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  if ( streamInserterParam->dbFName == NULL || strlen(streamInserterParam->dbFName) == 0) {
+  if (streamInserterParam->dbFName == NULL || strlen(streamInserterParam->dbFName) == 0) {
     stError("insertParam: invalid db/table name");
     return TSDB_CODE_INVALID_PARA;
   }
@@ -334,11 +334,11 @@ _error:
   return code;
 }
 
-int32_t qResetTableScan(qTaskInfo_t* pInfo, STimeWindow range){
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)pInfo;
-  SOperatorInfo* pOperator = pTaskInfo->pRoot;
-  STableScanInfo*  pScanInfo = pOperator->info;
-  STableScanBase*  pScanBaseInfo = &pScanInfo->base;
+int32_t qResetTableScan(qTaskInfo_t* pInfo, STimeWindow range) {
+  SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)pInfo;
+  SOperatorInfo*  pOperator = pTaskInfo->pRoot;
+  STableScanInfo* pScanInfo = pOperator->info;
+  STableScanBase* pScanBaseInfo = &pScanInfo->base;
 
   if (range.skey != 0 && range.ekey != 0) {
     pScanBaseInfo->cond.twindows = range;
@@ -362,7 +362,9 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
     return code;
   }
   // todo: add stream inserter param
-  code = qCreateStreamExecTask(readers, vgId, taskId, pPlan, pTaskInfo, pInserterParams ? &pInserterParams->pSinkHandle : NULL, 0, NULL, OPTR_EXEC_MODEL_STREAM, pInserterParams);
+  code = qCreateStreamExecTask(readers, vgId, taskId, pPlan, pTaskInfo,
+                               pInserterParams ? &pInserterParams->pSinkHandle : NULL, 0, NULL, OPTR_EXEC_MODEL_STREAM,
+                               pInserterParams);
   if (code != TSDB_CODE_SUCCESS) {
     qDestroyTask(*pTaskInfo);
     return code;
@@ -1113,9 +1115,9 @@ _end:
 }
 
 int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange* pVerRange, STimeWindow* pWindow) {
-  int32_t        code = TSDB_CODE_SUCCESS;
-  int32_t        lino = 0;
-  if (tinfo == NULL){
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  if (tinfo == NULL) {
     return TSDB_CODE_INTERNAL_ERROR;
   }
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
@@ -1801,7 +1803,8 @@ int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t ui
   SReadHandle    pHandle = {.vnode = pVnode};
   SExecTaskInfo  pTaskInfo = {.id.str = "", .storageAPI = *storageAPI};
 
-  int32_t code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, pTagCond, pTagIndexCond, &pTaskInfo, groupIdMap);
+  int32_t code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, pTagCond, pTagIndexCond,
+                                         &pTaskInfo, groupIdMap);
   if (code != 0) {
     tableListDestroy(pList);
     qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
@@ -1866,12 +1869,12 @@ bool qStreamUidInTableList(void* pTableListInfo, uint64_t uid) {
 void streamDestroyExecTask(qTaskInfo_t tInfo) {}
 
 int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams) {
-  int32_t    code = 0;
-  SNode*     pNode = 0;
-  SNodeList* pList = NULL;
-  SExprInfo* pExprInfo = NULL;
-  int32_t    numOfExprs = 1;
-  int32_t*   offset = 0;
+  int32_t      code = 0;
+  SNode*       pNode = 0;
+  SNodeList*   pList = NULL;
+  SExprInfo*   pExprInfo = NULL;
+  int32_t      numOfExprs = 1;
+  int32_t*     offset = 0;
   STargetNode* pTargetNode = NULL;
   code = nodesMakeNode(QUERY_NODE_TARGET, (SNode**)&pTargetNode);
   if (code == 0) code = nodesCloneNode(pExpr, &pNode);
@@ -1907,7 +1910,7 @@ int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamR
         code = TSDB_CODE_OPS_NOT_SUPPORT;
         break;
     }
-    SArray* pBlockList = taosArrayInit(2, POINTER_BYTES);
+    SArray*     pBlockList = taosArrayInit(2, POINTER_BYTES);
     SSDataBlock block = {0};
     block.info.rows = 1;
     SSDataBlock* pBlock = &block;
@@ -1982,14 +1985,21 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
   // execute the expr
   switch (pExpr->type) {
     case QUERY_NODE_VALUE: {
-      int32_t type = pExpr->type;
+      SValueNode* pValue = (SValueNode*)pExpr;
+      int32_t     type = pValue->node.resType.type;
       if (!IS_STR_DATA_TYPE(type)) {
         qError("invalid sub tb expr with non-str type");
         code = TSDB_CODE_INVALID_PARA;
         break;
       }
-      pVal = nodesGetValueFromNode((SValueNode*)pExpr);
-      len = strlen(pVal);
+      void* pTmp = nodesGetValueFromNode((SValueNode*)pExpr);
+      if (pTmp == NULL) {
+        qError("invalid sub tb expr with null value");
+        code = TSDB_CODE_INVALID_PARA;
+        break;
+      }
+      pVal = varDataVal(pTmp);
+      len = varDataLen(pTmp);
     } break;
     case QUERY_NODE_FUNCTION: {
       SFunctionNode* pFunc = (SFunctionNode*)pExpr;
@@ -1998,7 +2008,7 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
         code = TSDB_CODE_INVALID_PARA;
         break;
       }
-      SColumnInfoData *pCol = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+      SColumnInfoData* pCol = taosMemoryCalloc(1, sizeof(SColumnInfoData));
       if (!pCol) {
         code = terrno;
         qError("failed to allocate col info data at: %s, %d", __func__, __LINE__);
@@ -2098,7 +2108,7 @@ int32_t cloneStreamInserterParam(SStreamInserterParam** ppDst, SStreamInserterPa
     code = terrno;
     goto _err;
   }
-  (*ppDst)->pSinkHandle = pSrc->pSinkHandle;   // don't need clone and free
+  (*ppDst)->pSinkHandle = pSrc->pSinkHandle;  // don't need clone and free
 
   if (pSrc->pFields && pSrc->pFields->size > 0) {
     (*ppDst)->pFields = taosArrayDup(pSrc->pFields, NULL);

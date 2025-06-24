@@ -24,6 +24,9 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 | Node.js 连接器 版本 |          主要变化         |   TDengine 版本    |
 | ------------------| ----------------------| ----------------|
+|        3.1.8       | 修复当网络异常时，连接池返回的连接不可用 | - | 
+|        3.1.7       | 修复云服务 TMQ 连接参数问题 | - | 
+|        3.1.6       | 1. 检测连接器是否支持数据库的版本 <br/> 2. 连接器支持新增订阅参数 | - |  
 |        3.1.5       | 密码支持特殊字符 |  - |
 |        3.1.4       | 修改 readme |  - |
 |        3.1.3       | 升级了 es5-ext 版本，解决低版本的漏洞 |  - |
@@ -50,8 +53,10 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 | 106     | authentication fail                                             | 认证失败，请检查用户名，密码是否正确。                                 |
 | 107     | unknown sql type in tdengine                                    | 请检查 TDengine 支持的 Data Type 类型。                                 |
 | 108     | connection has been closed                                      | 连接已经关闭，请检查 Connection 是否关闭后再次使用，或是连接是否正常。  |
-| 109     | fetch block data parse fail                                     | 获取到的查询数据，解析失败                    |
-| 110     | websocket connection has reached its maximum limit              | WebSocket 连接达到上限                                                   |
+| 109     | fetch block data parse fail                                     | 获取到的查询数据，解析失败。                    |
+| 110     | websocket connection has reached its maximum limit              | WebSocket 连接达到上限。                                                   |
+| 111     | topic partitions and positions are not equal in length          | 获取给定分区当前的偏移量的数据与主题分区不匹配。    |
+| 112     | version mismatch. The minimum required TDengine version is 3.3.2.0 | TDengine 的版本低于 3.3.2.0 连接器不支持，用户需要升级到 3.3.2.0 以上版本。    |
 - [TDengine Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
 - TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/error-code)    
 
@@ -119,15 +124,20 @@ Node.js 连接器（`@tdengine/websocket`）, 其通过 taosAdapter 提供的 We
 
 - **protocol**：使用 websocket 协议建立连接。例如`ws://localhost:6041`
 - **username/password**：数据库的用户名和密码。
-- **host/port**：主机地址和端口号。例如`localhost:6041`
+- **host/port**：参数支持合法的域名或 IP 地址。`@tdengine/websocket` 同时支持 IPV4 和 IPV6 两种地址格式，对于 IPv6 地址，必须使用中括号括起来（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。
 - **database**：数据库名称。
 - **params**：其他参数。例如 token。
 
-- 完整 URL 示例：
+- 完整 DSN 示例：
 
 ```js
-    ws://root:taosdata@localhost:6041
-```
+// IPV4:
+ws://root:taosdata@localhost:6041
+
+// IPV6:
+ws://root:taosdata@[::1]:6041
+``` 
+
 ### WSConfig
 
 除了通过指定的 URL 获取连接，还可以使用 WSConfig 指定建立连接时的参数。

@@ -87,7 +87,7 @@ commit_prefix=community
 echo "$curr"|grep -q TDinternalCI
 if [ $? -eq 0 ]; then
     internal=1
-    commit_prefix=tdinternal
+    commit_prefix=TDinternal
 fi
 
 curr_line=`echo "$curr"|cut -d: -f1`
@@ -96,10 +96,11 @@ if [ ! -z "$next" ]; then
     next_line=`echo "$next"|cut -d: -f1`
     next_line=$(( next_line - 1 ))
 fi
-# echo "$curr_line, $next_line"
-
+# echo "curr:$curr_line, next:$next_line"
 details=`sed -n "${curr_line},${next_line}p" $JENKINS_LOG`
-merge_line=`echo "$details"|grep -A 10 "$commit_prefix log merged: "|grep "Merge .* into"|head -n1`
+# echo "$details" > details.log
+merge_line=`echo "$details"|grep -i -A 10 "$commit_prefix log merged: "|grep "Merge .* into"|head -n1`
+# echo "$merge_line" > merge.log
 if [ -z "$merge_line" ]; then
     echo "merge commit not found"
     exit 1
@@ -156,4 +157,3 @@ else
     echo "* build files are located in /home/TDinternal/debug/build"
 fi
 echo "* source files are located in /home/TDinternal"
-

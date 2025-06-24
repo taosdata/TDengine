@@ -7,7 +7,7 @@ set -e
 
 verMode=edge
 osType=$(uname)
-
+entMode=full
 RED='\033[0;31m'
 GREEN='\033[1;32m'
 NC='\033[0m'
@@ -58,7 +58,11 @@ service_config_dir="/etc/systemd/system"
 config_dir="/etc/${PREFIX}"
 
 if [ "${verMode}" == "cluster" ]; then
-  services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper")
+  if [ "${entMode}" == "full" ]; then
+    services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper")
+  else
+    services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper" ${PREFIX}"-explorer")
+  fi
   tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" ${PREFIX}"inspect" ${PREFIX}"udf" set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
 else
   tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" ${PREFIX}"udf" set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)

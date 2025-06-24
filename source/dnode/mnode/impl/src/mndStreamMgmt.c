@@ -825,6 +825,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->fillHistory = pStream->pCreate->fillHistory;
   pMsg->fillHistoryFirst = pStream->pCreate->fillHistoryFirst;
   pMsg->lowLatencyCalc = pStream->pCreate->lowLatencyCalc;
+  pMsg->hasPartitionBy = (pStream->pCreate->partitionCols != NULL);
 
   pMsg->pNotifyAddrUrls = pStream->pCreate->pNotifyAddrUrls;
   pMsg->notifyEventTypes = pStream->pCreate->notifyEventTypes;
@@ -840,10 +841,10 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->eventTypes = pStream->pCreate->eventTypes;
   pMsg->placeHolderBitmap = pStream->pCreate->placeHolderBitmap;
   pMsg->tsSlotId = pStream->pCreate->tsSlotId;
-  pMsg->partitionCols = pStream->pCreate->partitionCols;
   if (STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags)) {
     pMsg->calcPlan = pStream->pCreate->calcPlan;
   }
+  pMsg->triggerPrevFilter = pStream->pCreate->triggerPrevFilter;
 
   SStreamTaskAddr addr;
   int32_t triggerReaderNum = taosArrayGetSize(pInfo->trigReaders);
