@@ -1,7 +1,7 @@
 ---
 sidebar_label: IOT Platforms
 title: Integrate with IOT Platforms
-slug: /third-party-tools/management
+toc_max_heading_level: 4
 ---
 
 ```mdx-code-block
