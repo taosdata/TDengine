@@ -140,13 +140,14 @@ class TestMqttCases:
         topics = [
             topicNames[0],
             topicNames[0],
+            topicNames[0],
             topicNames[1],
             topicNames[2],
         ]
         
         for i in range(dnodes_count):
         #for i in range(1):
-            for ci in range(4):
+            for ci in range(len(topics)):
                 gid = "g" + str(ci)
                 topic = topics[ci]
                 conf = {
