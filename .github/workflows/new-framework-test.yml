@@ -23,6 +23,6 @@ concurrency:
 
 jobs:
   test-new-cases:
-    uses: taosdata/.github/.github/workflows/new-framework-test.yml@main
+    uses: taosdata/.github/.github/workflows/new-framework-test.yml@tomchon-patch-6
     with:
       tdinternal: false
