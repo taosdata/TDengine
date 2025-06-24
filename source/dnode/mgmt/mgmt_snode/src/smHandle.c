@@ -15,33 +15,121 @@
 
 #define _DEFAULT_SOURCE
 #include "smInt.h"
+#include "stream.h"
+
+SSnodeInfo gSnode = {0};
+
 
 void smGetMonitorInfo(SSnodeMgmt *pMgmt, SMonSmInfo *smInfo) {}
 
+static int32_t epToJson(const void* pObj, SJson* pJson) {
+  const SEp* pNode = (const SEp*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, "fqdn", pNode->fqdn);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "port", pNode->port);
+  }
+
+  return code;
+}
+
+void smUpdateSnodeInfo(SDCreateSnodeReq* pReq) {
+  taosWLockLatch(&gSnode.snodeLock);
+  gSnode.snodeId = pReq->snodeId;
+  if (pReq->replica.nodeId != gSnode.snodeReplica.nodeId) {
+    int32_t ret = streamSyncAllCheckpoints(&pReq->replica.epSet);
+    dInfo("sync all checkpoint from snode %d to replicaId:%d, return:%d", pReq->snodeId, pReq->replica.nodeId, ret);
+  }
+  gSnode.snodeLeaders[0] = pReq->leaders[0];
+  gSnode.snodeLeaders[1] = pReq->leaders[1];  
+  gSnode.snodeReplica = pReq->replica;
+  taosWUnLockLatch(&gSnode.snodeLock);
+}
+
+SEpSet* dmGetSynEpset(int32_t leaderId) {
+  if (gSnode.snodeId == leaderId && gSnode.snodeReplica.nodeId > 0) {
+    return &gSnode.snodeReplica.epSet;
+  } 
+  for (int32_t i = 0; i < 2; ++i) {
+    if (gSnode.snodeLeaders[i].nodeId == leaderId) {
+      return &gSnode.snodeLeaders[i].epSet;
+    }
+  }
+  return NULL;
+}
+
 int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   int32_t          code = 0;
+  int32_t          lino = 0;
   SDCreateSnodeReq createReq = {0};
-  if (tDeserializeSCreateDropMQSNodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
+  if (tDeserializeSDCreateSNodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     return code;
   }
 
-  if (pInput->pData->dnodeId != 0 && createReq.dnodeId != pInput->pData->dnodeId) {
+  if (pInput->pData->dnodeId != 0 && createReq.snodeId != pInput->pData->dnodeId) {
     code = TSDB_CODE_INVALID_OPTION;
     dError("failed to create snode since %s", tstrerror(code));
-    tFreeSMCreateQnodeReq(&createReq);
-    return code;
+    goto _exit;
   }
 
   bool deployed = true;
-  if ((code = dmWriteFile(pInput->path, pInput->name, deployed)) != 0) {
-    dError("failed to write snode file since %s", tstrerror(code));
-    tFreeSMCreateQnodeReq(&createReq);
-    return code;
+  SJson *pJson = tjsonCreateObject();
+  if (pJson == NULL) {
+    code = terrno;
+    dError("failed to create json object since %s", tstrerror(code));
+    goto _exit;
   }
 
-  tFreeSMCreateQnodeReq(&createReq);
-  return 0;
+  TAOS_CHECK_EXIT(tjsonAddDoubleToObject(pJson, "deployed", deployed));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(pJson, "snodeId", createReq.snodeId));
+
+  SJson *leader0 = tjsonCreateObject();
+  TAOS_CHECK_EXIT(tjsonAddItemToObject(pJson, "leader0", leader0));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(leader0, "nodeId", createReq.leaders[0].nodeId));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(leader0, "inUse", createReq.leaders[0].epSet.inUse));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(leader0, "numOfEps", createReq.leaders[0].epSet.numOfEps));
+  TAOS_CHECK_EXIT(tjsonAddArray(leader0, "eps", epToJson, createReq.leaders[0].epSet.eps, sizeof(SEp), createReq.leaders[0].epSet.numOfEps));
+
+  SJson *leader1 = tjsonCreateObject();
+  TAOS_CHECK_EXIT(tjsonAddItemToObject(pJson, "leader1", leader1));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(leader1, "nodeId", createReq.leaders[1].nodeId));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(leader1, "inUse", createReq.leaders[1].epSet.inUse));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(leader1, "numOfEps", createReq.leaders[1].epSet.numOfEps));
+  TAOS_CHECK_EXIT(tjsonAddArray(leader1, "eps", epToJson, createReq.leaders[1].epSet.eps, sizeof(SEp), createReq.leaders[1].epSet.numOfEps));
+
+  SJson *replica = tjsonCreateObject();
+  TAOS_CHECK_EXIT(tjsonAddItemToObject(pJson, "replica", replica));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(replica, "nodeId", createReq.replica.nodeId));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(replica, "inUse", createReq.replica.epSet.inUse));
+  TAOS_CHECK_EXIT(tjsonAddIntegerToObject(replica, "numOfEps", createReq.replica.epSet.numOfEps));
+  TAOS_CHECK_EXIT(tjsonAddArray(replica, "eps", epToJson, createReq.replica.epSet.eps, sizeof(SEp), createReq.replica.epSet.numOfEps));
+
+  char path[TSDB_FILENAME_LEN];
+  snprintf(path, TSDB_FILENAME_LEN, "%s%ssnode%d", pInput->path, TD_DIRSEP, createReq.snodeId);
+
+  if (taosMulMkDir(path) != 0) {
+    code = terrno;
+    dError("failed to create dir:%s since %s", path, tstrerror(code));
+    goto _exit;
+  }
+
+  dInfo("path %s created", path);
+  
+  if ((code = dmWriteFileJson(path, pInput->name, pJson)) != 0) {
+    dError("failed to write snode file since %s", tstrerror(code));
+    goto _exit;
+  }
+
+  smUpdateSnodeInfo(&createReq);
+
+  dInfo("snode %d created, replicaId:%d", createReq.snodeId, createReq.replica.nodeId);
+
+_exit:
+
+  tFreeSDCreateSnodeReq(&createReq);
+  
+  return code;
 }
 
 int32_t smProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
@@ -60,12 +148,19 @@ int32_t smProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     return code;
   }
 
+  char path[TSDB_FILENAME_LEN];
+  snprintf(path, TSDB_FILENAME_LEN, "%s%ssnode%d", pInput->path, TD_DIRSEP, dropReq.dnodeId);
+
+  streamDeleteAllCheckpoints();
+
   bool deployed = false;
-  if ((code = dmWriteFile(pInput->path, pInput->name, deployed)) != 0) {
+  if ((code = dmWriteFile(path, pInput->name, deployed)) != 0) {
     dError("failed to write snode file since %s", tstrerror(code));
     tFreeSMCreateQnodeReq(&dropReq);
     return code;
   }
+
+  smUndeploySnodeTasks(true);
 
   tFreeSMCreateQnodeReq(&dropReq);
   return 0;
@@ -76,36 +171,20 @@ SArray *smGetMsgHandles() {
   SArray *pArray = taosArrayInit(4, sizeof(SMgmtHandle));
   if (pArray == NULL) goto _OVER;
 
-  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_UPDATE, smPutNodeMsgToMgmtQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DEPLOY, smPutNodeMsgToMgmtQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_UPDATE_CHKPT, smPutNodeMsgToMgmtQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_CONSEN_CHKPT, smPutNodeMsgToMgmtQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DROP, smPutNodeMsgToMgmtQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_RUN, smPutNodeMsgToStreamQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DISPATCH, smPutNodeMsgToStreamQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DISPATCH_RSP, smPutNodeMsgToStreamQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_RETRIEVE, smPutNodeMsgToStreamQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_RETRIEVE_RSP, smPutNodeMsgToStreamQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_PAUSE, smPutNodeMsgToMgmtQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_RESUME, smPutNodeMsgToMgmtQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_STOP, smPutNodeMsgToMgmtQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_START, smPutNodeMsgToMgmtQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_CHECKPOINT_READY, smPutNodeMsgToStreamQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_CHECKPOINT_READY_RSP, smPutNodeMsgToStreamQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_RETRIEVE_TRIGGER, smPutNodeMsgToStreamQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_RETRIEVE_TRIGGER_RSP, smPutNodeMsgToStreamQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_CHECK, smPutNodeMsgToStreamQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_CHECK_RSP, smPutNodeMsgToStreamQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_TASK_RESET, smPutNodeMsgToMgmtQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_STREAM_ALL_STOP, smPutNodeMsgToMgmtQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_GET_STREAM_PROGRESS, smPutNodeMsgToStreamQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_HEARTBEAT_RSP, smPutNodeMsgToStreamQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_REQ_CHKPT_RSP, smPutNodeMsgToStreamQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_CHKPT_REPORT_RSP, smPutNodeMsgToStreamQueue, 1) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_SYNC_CHECKPOINT, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_SYNC_CHECKPOINT_RSP, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
+  
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_DELETE_CHECKPOINT, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
 
-  if (dmSetMgmtHandle(pArray, TDMT_STREAM_CHKPT_EXEC, smPutNodeMsgToStreamQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_CALC, smPutMsgToRunnerQueue, 1) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH_FROM_RUNNER, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH_FROM_CACHE, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
+
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL_RSP, smPutMsgToTriggerQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_CALC_RSP, smPutMsgToTriggerQueue, 0) == NULL) goto _OVER;
 
   code = 0;
+  
 _OVER:
   if (code != 0) {
     taosArrayDestroy(pArray);

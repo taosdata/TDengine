@@ -71,6 +71,8 @@ static int32_t doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfO
 static void functionCtxSave(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus);
 static void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus);
 
+static int32_t resetAggregateOperatorState(SOperatorInfo* pOper);
+
 int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo,
                                     SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -113,7 +115,8 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
   code = initExprSupp(&pInfo->scalarExprSup, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = filterInitFromNode((SNode*)pAggNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  code = filterInitFromNode((SNode*)pAggNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
+                            &pTaskInfo->pStreamRuntimeInfo);
   TSDB_CHECK_CODE(code, lino, _error);
 
   pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
@@ -129,6 +132,9 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
                   !pAggNode->node.forceCreateNonBlockingOptr, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, getAggregateResultNext, NULL, destroyAggOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorResetStateFn(pOperator, resetAggregateOperatorState);
+
+  pOperator->pPhyNode = pAggNode;
 
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pTableScanInfo = downstream->info;
@@ -167,7 +173,7 @@ void destroyAggOperatorInfo(void* param) {
     pInfo->pOperator = NULL;
   }
   cleanupAggSup(&pInfo->aggSup);
-  cleanupExprSupp(&pInfo->scalarExprSup);
+  cleanupExprSuppWithoutFilter(&pInfo->scalarExprSup);
   cleanupGroupResInfo(&pInfo->groupResInfo);
   taosMemoryFreeClear(param);
 }
@@ -232,7 +238,7 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
     if (pAggInfo->scalarExprSup.pExprInfo != NULL && !blockAllocated) {
       SExprSupp* pSup1 = &pAggInfo->scalarExprSup;
-      code = projectApplyFunctions(pSup1->pExprInfo, pBlock, pBlock, pSup1->pCtx, pSup1->numOfExprs, NULL);
+      code = projectApplyFunctions(pSup1->pExprInfo, pBlock, pBlock, pSup1->pCtx, pSup1->numOfExprs, NULL, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
       if (code != TSDB_CODE_SUCCESS) {
         destroyDataBlockForEmptyInput(blockAllocated, &pBlock);
         T_LONG_JMP(pTaskInfo->env, code);
@@ -726,6 +732,7 @@ void cleanupAggSup(SAggSupporter* pAggSup) {
   taosMemoryFreeClear(pAggSup->keyBuf);
   tSimpleHashCleanup(pAggSup->pResultRowHashTable);
   destroyDiskbasedBuf(pAggSup->pResultBuf);
+  memset(pAggSup, 0, sizeof(SAggSupporter));
 }
 
 int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
@@ -771,7 +778,33 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
       pCtx[k].input.colDataSMAIsSet = false;
     }
 
-    if (pCtx[k].isPseudoFunc) {
+    if (fmIsPlaceHolderFunc(pCtx[k].functionId)) {
+      SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
+      char* p = GET_ROWCELL_INTERBUF(pEntryInfo);
+
+      SColumnInfoData idata = {0};
+      idata.info.type = pCtx[k].pExpr->base.resSchema.type;
+      idata.info.bytes = pCtx[k].pExpr->base.resSchema.bytes;
+      idata.info.precision = pCtx[k].pExpr->base.resSchema.precision;
+      idata.info.scale = pCtx[k].pExpr->base.resSchema.scale;
+      idata.pData = p;
+
+      if (IS_VAR_DATA_TYPE(idata.info.type)) {   //stream todo
+        // void* data = NULL; stream todo
+        // int32_t size = 0;
+        // fmGetStreamPesudoFuncValTbname(pCtx[k].functionId, &taskInfo->pStreamRuntimeInfo->funcInfo, &data, &size);
+        // code = varColSetVarData(&idata, 0, data, size, false);
+      } else {
+        const void* val = fmGetStreamPesudoFuncVal(pCtx[k].functionId, &taskInfo->pStreamRuntimeInfo->funcInfo);
+        colDataSetInt64(&idata, 0, (void*)val);
+      }
+      if (code != 0) {
+        qError("col set data failed at %d, code: %s", __LINE__, tstrerror(code));
+        taskInfo->code = code;
+        return code;
+      }
+      pEntryInfo->numOfRes = 1;
+    } else if (pCtx[k].isPseudoFunc) {
       SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
 
       char* p = GET_ROWCELL_INTERBUF(pEntryInfo);
@@ -826,4 +859,30 @@ void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus) {
   pCtx->input.colDataSMAIsSet = pStatus->hasAgg;
   pCtx->input.numOfRows = pStatus->numOfRows;
   pCtx->input.startRowIndex = pStatus->startOffset;
+}
+
+static int32_t resetAggregateOperatorState(SOperatorInfo* pOper) {
+  SAggOperatorInfo* pAgg = pOper->info;
+  SAggPhysiNode*   pAggNode = (SAggPhysiNode*)pOper->pPhyNode;
+  
+  pOper->status = OP_NOT_OPENED;
+  size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
+  SExecTaskInfo*  pTaskInfo = pOper->pTaskInfo;
+  cleanupResultInfo(pTaskInfo, &pOper->exprSupp, &pAgg->groupResInfo, &pAgg->aggSup,
+                      pAgg->cleanGroupResInfo);
+  cleanupGroupResInfo(&pAgg->groupResInfo);
+  resetBasicOperatorState(&pAgg->binfo);
+  
+  int32_t code = resetAggSup(&pOper->exprSupp, &pAgg->aggSup, pTaskInfo, pAggNode->pAggFuncs, pAggNode->pGroupKeys,
+    keyBufSize, pTaskInfo->id.str, pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
+
+  if (code == 0) {
+    code = resetExprSupp(&pAgg->scalarExprSup, pTaskInfo, pAggNode->pExprs, NULL,
+                          &pTaskInfo->storageAPI.functionStore);
+  }
+
+  pAgg->groupId = UINT64_MAX;
+  pAgg->cleanGroupResInfo = false;
+  pAgg->hasValidBlock = false;
+  return 0;
 }

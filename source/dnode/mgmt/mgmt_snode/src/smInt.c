@@ -18,10 +18,11 @@
 #include "libs/function/function.h"
 #include "libs/function/tudf.h"
 
-#ifdef USE_STREAM
-
 static int32_t smRequire(const SMgmtInputOpt *pInput, bool *required) {
-  return dmReadFile(pInput->path, pInput->name, required);
+  char path[TSDB_FILENAME_LEN];
+  snprintf(path, TSDB_FILENAME_LEN, "%s%ssnode%d", pInput->path, TD_DIRSEP, pInput->dnodeId);
+
+  return dmReadFile(path, pInput->name, required);
 }
 
 static void smInitOption(SSnodeMgmt *pMgmt, SSnodeOpt *pOption) { pOption->msgCb = pMgmt->msgCb; }
@@ -86,7 +87,9 @@ int32_t smOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   return 0;
 }
 
-static int32_t smStartSnodes(SSnodeMgmt *pMgmt) { return sndInit(pMgmt->pSnode); }
+static int32_t smStartSnodes(SSnodeMgmt *pMgmt) { 
+  return sndInit(pMgmt->pSnode); 
+}
 
 SMgmtFunc smGetMgmtFunc() {
   SMgmtFunc mgmtFunc = {0};
@@ -100,4 +103,3 @@ SMgmtFunc smGetMgmtFunc() {
 
   return mgmtFunc;
 }
-#endif

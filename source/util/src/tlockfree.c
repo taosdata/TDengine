@@ -94,18 +94,21 @@ void taosRLockLatch(SRWLatch *pLatch) {
 // no reentrant
 int32_t taosRTryLockLatch(SRWLatch *pLatch) {
   SRWLatch oLatch, nLatch;
-  oLatch = atomic_load_32(pLatch);
-  if (oLatch) {
-    return -1;
+  int32_t  nLoops = 0;
+
+  while (1) {
+    oLatch = atomic_load_32(pLatch);
+    if (oLatch & TD_RWLATCH_WRITE_FLAG) {
+      return -1;
+    }
+
+    nLatch = oLatch + 1;
+    if (atomic_val_compare_exchange_32(pLatch, oLatch, nLatch) == oLatch) {
+      break;
+    }
   }
 
-  nLatch = oLatch + 1;
-  if (atomic_val_compare_exchange_32(pLatch, oLatch, nLatch) == oLatch) {
-    return 0;
-  }
-
-  return -1;
+  return 0;
 }
-
 
 void taosRUnLockLatch(SRWLatch *pLatch) { (void)atomic_fetch_sub_32(pLatch, 1); }

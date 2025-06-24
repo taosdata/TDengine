@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
+#include "streamMsg.h"
 
 #define PROCESS_THRESHOLD (2000 * 1000)
 
@@ -98,6 +99,21 @@ static void mmProcessSyncMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
+static void mmProcessStreamHbMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
+  SMnodeMgmt *pMgmt = pInfo->ahandle;
+  pMsg->info.node = pMgmt->pMnode;
+
+  const STraceId *trace = &pMsg->info.traceId;
+  dGTrace("msg:%p, get from mnode-stream-mgmt queue", pMsg);
+
+  (void)mndProcessStreamHb(pMsg);
+
+  dTrace("msg:%p, is freed", pMsg);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
+}
+
+
 static inline int32_t mmPutMsgToWorker(SMnodeMgmt *pMgmt, SSingleWorker *pWorker, SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
   int32_t         code = 0;
@@ -159,6 +175,26 @@ int32_t mmPutMsgToFetchQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->fetchWorker, pMsg);
 }
 
+int32_t mmPutMsgToStreamMgmtQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return tAddTaskIntoDispatchWorkerPool(&pMgmt->streamMgmtWorkerPool, pMsg);
+}
+
+int32_t mmPutMsgToStreamReaderQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  const STraceId *trace = &pMsg->info.traceId;
+  int32_t         code = 0;
+  if ((code = mmAcquire(pMgmt)) == 0) {
+    dGTrace("msg:%p, put into %s queue, type:%s", pMsg, pMgmt->streamReaderPool.name, TMSG_INFO(pMsg->msgType));
+    code = taosWriteQitem(pMgmt->pStreamReaderQ, pMsg);
+    mmRelease(pMgmt);
+    return code;
+  } else {
+    dGTrace("msg:%p, failed to put into %s queue since %s, type:%s", pMsg, pMgmt->streamReaderPool.name, tstrerror(code),
+            TMSG_INFO(pMsg->msgType));
+    return code;
+  }
+}
+
+
 int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   int32_t code;
 
@@ -211,6 +247,62 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   }
   return code;
 }
+
+int32_t mmDispatchStreamHbMsg(struct SDispatchWorkerPool* pPool, void* pParam, int32_t *pWorkerIdx) {
+  SRpcMsg* pMsg = (SRpcMsg*)pParam;
+  SStreamMsgGrpHeader* pHeader = (SStreamMsgGrpHeader*)pMsg->pCont;
+  *pWorkerIdx = pHeader->streamGid % tsNumOfMnodeStreamMgmtThreads;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mmProcessStreamFetchMsg(SMnodeMgmt *pMgmt, SRpcMsg* pMsg) {
+  // STREAMTODO
+  return TSDB_CODE_APP_ERROR;
+}
+
+int32_t mmProcessStreamReaderMsg(SMnodeMgmt *pMgmt, SRpcMsg* pMsg) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  pMsg->info.node = pMgmt->pMnode;
+
+  const STraceId *trace = &pMsg->info.traceId;
+  dGTrace("msg:%p, get from mnode-stream-mgmt queue", pMsg);
+
+  if (pMsg->msgType == TDMT_STREAM_FETCH) {
+    return mmProcessStreamFetchMsg(pMgmt, pMsg);
+  } else {
+    dError("unknown msg type:%d in stream reader queue", pMsg->msgType);
+    TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
+  }
+
+_exit:
+
+  if (code != 0) {                                                         
+    dError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  
+  return code;
+}
+
+
+static void mmProcessStreamReaderQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
+  SMnodeMgmt *pMnode = pInfo->ahandle;
+  SRpcMsg   *pMsg = NULL;
+
+  for (int32_t i = 0; i < numOfMsgs; ++i) {
+    if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
+    const STraceId *trace = &pMsg->info.traceId;
+    dGTrace("msg:%p, get from mnode-stream-reader queue", pMsg);
+
+    terrno = 0;
+    int32_t code = mmProcessStreamReaderMsg(pMnode, pMsg);
+
+    dGTrace("msg:%p, is freed, code:0x%x [mmProcessStreamReaderQueue]", pMsg, code);
+    rpcFreeCont(pMsg->pCont);
+    taosFreeQitem(pMsg);
+  }
+}
+
 
 int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
   int32_t          code = 0;
@@ -313,6 +405,27 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     return code;
   }
 
+  SDispatchWorkerPool* pPool = &pMgmt->streamMgmtWorkerPool;
+  pPool->max = tsNumOfMnodeStreamMgmtThreads;
+  pPool->name = "mnode-stream-mgmt";
+  code = tDispatchWorkerInit(pPool);
+  if (code != 0) {
+    dError("failed to start mnode stream-mgmt worker since %s", tstrerror(code));
+    return code;
+  }
+  code = tDispatchWorkerAllocQueue(pPool, pMgmt, (FItem)mmProcessStreamHbMsg, mmDispatchStreamHbMsg);
+  if (code != 0) {
+    dError("failed to start mnode stream-mgmt worker since %s", tstrerror(code));
+    return code;
+  }
+
+  SWWorkerPool *pStreamReaderPool = &pMgmt->streamReaderPool;
+  pStreamReaderPool->name = "mnode-st-reader";
+  pStreamReaderPool->max = 2;
+  if ((code = tWWorkerInit(pStreamReaderPool)) != 0) return code;
+
+  pMgmt->pStreamReaderQ = tWWorkerAllocQueue(&pMgmt->streamReaderPool, pMgmt, mmProcessStreamReaderQueue);
+
   dDebug("mnode workers are initialized");
   return code;
 }
@@ -328,5 +441,6 @@ void mmStopWorker(SMnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->arbWorker);
   tSingleWorkerCleanup(&pMgmt->syncWorker);
   tSingleWorkerCleanup(&pMgmt->syncRdWorker);
+  tDispatchWorkerCleanup(&pMgmt->streamMgmtWorkerPool);
   dDebug("mnode workers are closed");
 }

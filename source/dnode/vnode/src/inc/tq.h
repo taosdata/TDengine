@@ -105,7 +105,6 @@ struct STQ {
   TTB*            pExecStore;
   TTB*            pCheckStore;
   TTB*            pOffsetStore;
-  SStreamMeta*    pStreamMeta;
 };
 
 int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);
@@ -146,24 +145,16 @@ int32_t tqBuildFName(char** data, const char* path, char* name);
 int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name);
 
 // tq util
-int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int32_t type, EStreamType blockType);
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
 int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever);
 int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset);
-void    tqUpdateNodeStage(STQ* pTq, bool isLeader);
 int32_t tqSetDstTableDataPayload(uint64_t suid, const STSchema* pTSchema, int32_t blockIndex, SSDataBlock* pDataBlock,
                                  SSubmitTbData* pTableData, int64_t earlyTs, const char* id);
 int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, const char* id);
 
 int32_t buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t numOfCols, SSDataBlock* pDataBlock,
                                 SArray* pTagArray, bool newSubTableRule, SVCreateTbReq** pReq, const char* id);
-int32_t tqExtractDropCtbDataBlock(const void* data, int32_t len, int64_t ver, void** pRefBlock, int32_t type);
-
-// tq send notifications
-int32_t tqInitNotifyHandleMap(SStreamNotifyHandleMap** ppMap);
-void    tqDestroyNotifyHandleMap(SStreamNotifyHandleMap** ppMap);
-int32_t tqSendAllNotifyEvents(const SArray* pBlocks, SStreamTask* pTask, SVnode* pVnode);
 
 #define TQ_ERR_GO_TO_END(c)          \
   do {                               \

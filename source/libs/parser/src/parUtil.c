@@ -204,6 +204,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Not supported window join having expr";
     case TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT:
       return "Invalid WINDOW_OFFSET unit \"%c\"";
+    case TSDB_CODE_PAR_INVALID_PERIOD_UNIT:
+      return "Invalid PERIOD unit \"%c\"";
     case TSDB_CODE_PAR_VALID_PRIM_TS_REQUIRED:
       return "Valid primary timestamp required";
     case TSDB_CODE_PAR_NOT_WIN_FUNC:
@@ -240,6 +242,32 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid virtual table's ref column type";
     case TSDB_CODE_PAR_MISMATCH_STABLE_TYPE:
       return "Create child table using virtual super table";
+    case TSDB_CODE_STREAM_INVALID_TIME_UNIT:
+      return "Invalid time unit in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_SYNTAX:
+      return "Invalid syntax in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_NOTIFY:
+      return "Invalid notify clause in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_TRIGGER:
+      return "Invalid trigger clause in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_QUERY:
+      return "Invalid query clause in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_OUT_TABLE:
+      return "Invalid out table clause in create stream clause";
+    case TSDB_CODE_STREAM_NO_TRIGGER_TABLE:
+      return "trigger table not specified in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_PRE_FILTER:
+      return "Invalid pre-filter in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_PARTITION:
+      return "Invalid partition in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_SUBTABLE:
+      return "Invalid subtable in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_OUT_TAGS:
+      return "Invalid out tags in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_NOTIFY_COND:
+      return "Invalid notify condition in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_PLACE_HOLDER:
+      return "Invalid placeholder in create stream clause";
     default:
       return "Unknown error";
   }
@@ -872,7 +900,6 @@ int32_t buildCatalogReq(SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
   }
 #endif
 
-  TSWAP(pCatalogReq->pVSubTable, pMetaCache->pVSubTables);
   TSWAP(pCatalogReq->pVStbRefDbs, pMetaCache->pVStbRefDbs);
   pCatalogReq->dNodeRequired = pMetaCache->dnodeRequired;
   pCatalogReq->forceFetchViewMeta = pMetaCache->forceFetchViewMeta;
@@ -896,6 +923,7 @@ int32_t createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode*
   TAOS_SET_OBJ_ALIGNED(&select->timeRange, TSWINDOW_INITIALIZER); 
   select->pHint = pHint;
   select->lastProcessByRowFuncId = -1;
+  select->hasProject = true;
   *ppSelect = (SNode*)select;
   return code;
 }
@@ -1035,9 +1063,6 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, SMetaData* pMetaData,
     code = putDbTableDataToCache(pCatalogReq->pView, pMetaData->pView, &pMetaCache->pViews);
   }
 #endif
-
-  pMetaCache->pVSubTables = pMetaData->pVSubTables;
-  pMetaData->pVSubTables = NULL;
 
   pMetaCache->pVStbRefDbs = pMetaData->pVStbRefDbs;
   pMetaData->pVStbRefDbs = NULL;
@@ -1380,23 +1405,6 @@ int32_t reserveTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTsm
   return reserveTableReqInDbCache(acctId, pDb, pTsmaName, &pMetaCache->pTSMAs);
 }
 
-int32_t reserveVSubTableInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
-  SName fullName = {0};
-  toName(acctId, pDb, pTable, &fullName);
-  
-  if (NULL == pMetaCache->pVSubTables) {
-    pMetaCache->pVSubTables = taosArrayInit(1, sizeof(fullName));
-    if (NULL == pMetaCache->pVSubTables) {
-      return terrno;
-    }
-  }
-  if (NULL == taosArrayPush(pMetaCache->pVSubTables, &fullName)) {
-    return terrno;
-  }
-  
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t reserveVStbRefDbsInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t line = 0;
@@ -1598,7 +1606,6 @@ void destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
   taosHashCleanup(pMetaCache->pTableIndex);
   taosHashCleanup(pMetaCache->pTableCfg);
   taosHashCleanup(pMetaCache->pTableTSMAs);
-  taosArrayDestroyEx(pMetaCache->pVSubTables, tDestroySVSubTablesRsp);
   taosArrayDestroyEx(pMetaCache->pVStbRefDbs, tDestroySVStbRefDbsRsp);
 }
 

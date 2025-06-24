@@ -539,12 +539,6 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
           qWarn("vnodeGetBatchMeta failed, msgType:%d", req->msgType);
         }
         break;
-      case TDMT_VND_GET_STREAM_PROGRESS:
-        // error code has been set into reqMsg, no need to handle it here.
-        if (TSDB_CODE_SUCCESS != vnodeGetStreamProgress(pVnode, &reqMsg, false)) {
-          qWarn("vnodeGetBatchMeta failed, msgType:%d", req->msgType);
-        }
-        break;
       case TDMT_VND_VSUBTABLES_META:
         // error code has been set into reqMsg, no need to handle it here.
         if (TSDB_CODE_SUCCESS != vnodeGetVSubtablesMeta(pVnode, &reqMsg)) {
@@ -1326,8 +1320,8 @@ void *vnodeGetIvtIdx(void *pVnode) {
   return metaGetIvtIdx(((SVnode *)pVnode)->pMeta);
 }
 
-int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid) {
-  return tsdbGetTableSchema(((SVnode *)pVnode)->pMeta, uid, pSchema, suid);
+int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid, SSchemaWrapper **pTagSchema) {
+  return tsdbGetTableSchema(((SVnode *)pVnode)->pMeta, uid, pSchema, suid, pTagSchema);
 }
 
 static FORCE_INLINE int32_t vnodeGetDBPrimaryInfo(SVnode *pVnode, SDbSizeStatisInfo *pInfo) {
@@ -1369,63 +1363,5 @@ int32_t vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo) {
 
   code = tsdbGetFsSize(pVnodeObj->pTsdb, pInfo);
 _exit:
-  return code;
-}
-
-int32_t vnodeGetStreamProgress(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
-  int32_t            code = 0;
-  SStreamProgressReq req;
-  SStreamProgressRsp rsp = {0};
-  SRpcMsg            rpcMsg = {.info = pMsg->info, .code = 0};
-  char              *buf = NULL;
-  int32_t            rspLen = 0;
-  code = tDeserializeStreamProgressReq(pMsg->pCont, pMsg->contLen, &req);
-
-  if (code == TSDB_CODE_SUCCESS) {
-    rsp.fetchIdx = req.fetchIdx;
-    rsp.subFetchIdx = req.subFetchIdx;
-    rsp.vgId = req.vgId;
-    rsp.streamId = req.streamId;
-    rspLen = tSerializeStreamProgressRsp(0, 0, &rsp);
-    if (rspLen < 0) {
-      code = terrno;
-      goto _OVER;
-    }
-    if (direct) {
-      buf = rpcMallocCont(rspLen);
-    } else {
-      buf = taosMemoryCalloc(1, rspLen);
-    }
-    if (!buf) {
-      code = terrno;
-      goto _OVER;
-    }
-  }
-
-  if (code == TSDB_CODE_SUCCESS) {
-    code = tqGetStreamExecInfo(pVnode, req.streamId, &rsp.progressDelay, &rsp.fillHisFinished);
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-    rspLen = tSerializeStreamProgressRsp(buf, rspLen, &rsp);
-    if (rspLen < 0) {
-      code = terrno;
-      goto _OVER;
-    }
-    rpcMsg.pCont = buf;
-    buf = NULL;
-    rpcMsg.contLen = rspLen;
-    rpcMsg.code = code;
-    rpcMsg.msgType = pMsg->msgType;
-    if (direct) {
-      tmsgSendRsp(&rpcMsg);
-    } else {
-      *pMsg = rpcMsg;
-    }
-  }
-
-_OVER:
-  if (buf) {
-    taosMemoryFree(buf);
-  }
   return code;
 }

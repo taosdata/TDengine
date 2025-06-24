@@ -626,28 +626,6 @@ static int32_t ctgInitGetTbNamesTask(SCtgJob* pJob, int32_t taskId, void* param)
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgInitGetVSubTablesTask(SCtgJob* pJob, int32_t taskId, void* param) {
-  SCtgTask task = {0};
-  task.type = CTG_TASK_GET_V_SUBTABLES;
-  task.taskId = taskId;
-  task.pJob = pJob;
-
-  SCtgVSubTablesCtx* pTaskCtx = taosMemoryCalloc(1, sizeof(SCtgVSubTablesCtx));
-  if (NULL == pTaskCtx) {
-    CTG_ERR_RET(terrno);
-  }
-
-  task.taskCtx = pTaskCtx;
-  pTaskCtx->pNames = param;
-
-  if (NULL == taosArrayPush(pJob->pTasks, &task)) {
-    ctgFreeTask(&task, true);
-    CTG_ERR_RET(terrno);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t ctgInitGetVStbRefDbsTask(SCtgJob* pJob, int32_t taskId, void* param) {
   SCtgTask task = {0};
   task.type = CTG_TASK_GET_V_STBREFDBS;
@@ -826,7 +804,7 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
 
   SName* name = taosHashIterate(pTb, NULL);
   while (name) {
-    CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, name));
+    CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, name, false));
     name = taosHashIterate(pTb, name);
   }
 
@@ -906,11 +884,10 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   int32_t tbTsmaNum = tsQuerySmaOptimize ? (int32_t)taosArrayGetSize(pReq->pTableTSMAs) : 0;
   int32_t tsmaNum = (int32_t)taosArrayGetSize(pReq->pTSMAs);
   int32_t tbNameNum = (int32_t)ctgGetTablesReqNum(pReq->pTableName);
-  int32_t vsubTbNum = (int32_t)taosArrayGetSize(pReq->pVSubTable);
   int32_t vstbRefDbsNum = (int32_t)taosArrayGetSize(pReq->pVStbRefDbs);
 
   int32_t taskNum = tbMetaNum + dbVgNum + udfNum + tbHashNum + qnodeNum + dnodeNum + svrVerNum + dbCfgNum + indexNum +
-                    userNum + dbInfoNum + tbIndexNum + tbCfgNum + tbTagNum + viewNum + tbTsmaNum + tbNameNum + vsubTbNum;
+                    userNum + dbInfoNum + tbIndexNum + tbCfgNum + tbTagNum + viewNum + tbTsmaNum + tbNameNum;
   int32_t taskNumWithSubTasks = tbMetaNum * gCtgAsyncFps[CTG_TASK_GET_TB_META].subTaskFactor + dbVgNum * gCtgAsyncFps[CTG_TASK_GET_DB_VGROUP].subTaskFactor +
                                 udfNum * gCtgAsyncFps[CTG_TASK_GET_UDF].subTaskFactor + tbHashNum * gCtgAsyncFps[CTG_TASK_GET_TB_HASH].subTaskFactor +
                                 qnodeNum * gCtgAsyncFps[CTG_TASK_GET_QNODE].subTaskFactor + dnodeNum * gCtgAsyncFps[CTG_TASK_GET_DNODE].subTaskFactor +
@@ -919,8 +896,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
                                 dbInfoNum * gCtgAsyncFps[CTG_TASK_GET_DB_INFO].subTaskFactor + tbIndexNum * gCtgAsyncFps[CTG_TASK_GET_TB_SMA_INDEX].subTaskFactor +
                                 tbCfgNum * gCtgAsyncFps[CTG_TASK_GET_TB_CFG].subTaskFactor + tbTagNum * gCtgAsyncFps[CTG_TASK_GET_TB_TAG].subTaskFactor +
                                 viewNum * gCtgAsyncFps[CTG_TASK_GET_VIEW].subTaskFactor + tbTsmaNum * gCtgAsyncFps[CTG_TASK_GET_TB_TSMA].subTaskFactor +
-                                tsmaNum * gCtgAsyncFps[CTG_TASK_GET_TSMA].subTaskFactor + tbNameNum * gCtgAsyncFps[CTG_TASK_GET_TB_NAME].subTaskFactor + 
-                                vsubTbNum * gCtgAsyncFps[CTG_TASK_GET_V_SUBTABLES].subTaskFactor +
+                                tsmaNum * gCtgAsyncFps[CTG_TASK_GET_TSMA].subTaskFactor + tbNameNum * gCtgAsyncFps[CTG_TASK_GET_TB_NAME].subTaskFactor +
                                 vstbRefDbsNum * gCtgAsyncFps[CTG_TASK_GET_V_STBREFDBS].subTaskFactor;
 
   *job = taosMemoryCalloc(1, sizeof(SCtgJob));
@@ -957,7 +933,6 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   pJob->tbTsmaNum = tbTsmaNum;
   pJob->tsmaNum = tsmaNum;
   pJob->tbNameNum = tbNameNum;
-  pJob->vsubTbNum = vsubTbNum;
   pJob->vstbRefDbNum = vstbRefDbsNum;
 
 #if CTG_BATCH_FETCH
@@ -1103,9 +1078,6 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   }
   if (svrVerNum) {
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_SVR_VER, NULL, NULL));
-  }
-  if (vsubTbNum) {
-    CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_V_SUBTABLES, pReq->pVSubTable, NULL));
   }
   if (vstbRefDbsNum) {
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_V_STBREFDBS, pReq->pVStbRefDbs, NULL));
@@ -1501,40 +1473,6 @@ int32_t ctgDumpViewsRes(SCtgTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgDumpVSubTablesRes(SCtgTask* pTask) {
-  if (pTask->subTask) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SCtgVSubTablesCtx* pCtx = (SCtgVSubTablesCtx*)pTask->taskCtx;
-  SCatalog*          pCtg = pTask->pJob->pCtg;
-
-  if (NULL == pCtx->pResList) {
-    return TSDB_CODE_SUCCESS;
-  }
-  
-  SCtgJob* pJob = pTask->pJob;
-  int32_t resVgNum = (TSDB_SUPER_TABLE == pCtx->pMeta->tableType) ? pCtx->vgNum : 1;
-  pJob->jobRes.pVSubTables = taosArrayInit(resVgNum, sizeof(SVSubTablesRsp));
-  if (NULL == pJob->jobRes.pVSubTables) {
-    ctgError("taosArrayInit %d SVSubTablesRsp failed, error:%d", resVgNum, terrno);
-    return terrno;
-  }
-
-  SVSubTablesRsp* pVg = NULL;
-  for (int32_t i = 0; i < resVgNum; ++i) {
-    pVg = (SVSubTablesRsp*)pCtx->pResList + i;
-    if (NULL == taosArrayPush(pJob->jobRes.pVSubTables, pVg)) {
-      ctgError("taosArrayPush failed, error:%d", terrno);
-      return terrno;
-    }
-    
-    pVg->pTables = NULL;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t ctgDumpVStbRefDbsRes(SCtgTask* pTask) {
   if (pTask->subTask) {
     return TSDB_CODE_SUCCESS;
@@ -1736,7 +1674,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
         }
 
         ctgError("no tbmeta got, tbName:%s", tNameGetTableName(pName));
-        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false);  // update cache not fatal error
+        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false, false);  // update cache not fatal error
 
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
@@ -1754,7 +1692,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
 
       if (CTG_IS_META_NULL(pOut->metaType)) {
         ctgError("no tbmeta got, tbName:%s", tNameGetTableName(pName));
-        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false);  // update cache not fatal error
+        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false, false);  // update cache not fatal error
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
 
@@ -1944,7 +1882,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
         }
 
         ctgTaskError("no tbmeta got, tbName:%s", tNameGetTableName(pName));
-        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false);  // cache update not fatal error
+        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false, false);  // cache update not fatal error
 
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
@@ -1962,7 +1900,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
 
       if (CTG_IS_META_NULL(pOut->metaType)) {
         ctgTaskError("no tbmeta got, tbName:%s", tNameGetTableName(pName));
-        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false);  // cache update not fatal error
+        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false, false);  // cache update not fatal error
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
 
@@ -2209,7 +2147,7 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
         }
 
         ctgTaskError("no tbmeta got, tbName:%s", tNameGetTableName(pName));
-        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false);  // cache update not fatal error
+        (void)ctgRemoveTbMetaFromCache(pCtg, pName, false, false);  // cache update not fatal error
 
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
@@ -3139,7 +3077,7 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
 
       if (CTG_IS_META_NULL(pOut->metaType)) {
         ctgTaskError("no tbmeta found when fetching tsma source tb meta:%s.%s", pTbName->dbname, pTbName->tname);
-        (void)ctgRemoveTbMetaFromCache(pCtg, pTbName, false);  // ignore cache error
+        (void)ctgRemoveTbMetaFromCache(pCtg, pTbName, false, false);  // ignore cache error
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
 
@@ -3204,36 +3142,6 @@ _return:
     if (newCode && TSDB_CODE_SUCCESS == code) {
       code = newCode;
     }
-  }
-
-  CTG_RET(code);
-}
-
-
-int32_t ctgHandleGetVSubTablesRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* pMsg, int32_t rspCode) {
-  int32_t   code = 0;
-  SCtgTask* pTask = tReq->pTask;
-  int32_t   newCode = TSDB_CODE_SUCCESS;
-  SCtgVSubTablesCtx* pCtx = (SCtgVSubTablesCtx*)pTask->taskCtx;
-  int32_t   resIdx = atomic_fetch_add_32(&pCtx->resIdx, 1);
-
-  code = ctgProcessRspMsg(pCtx->pResList + resIdx, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target);
-  if (code) {
-    pCtx->resCode = code;
-  }
-
-  int32_t doneNum =  atomic_add_fetch_32(&pCtx->resDoneNum, 1);
-  if (doneNum < pCtx->vgNum) {
-    return code;
-  }
-
-  code = pCtx->resCode;
-  
-_return:
-
-  newCode = ctgHandleTaskEnd(pTask, code);
-  if (newCode && TSDB_CODE_SUCCESS == code) {
-    code = newCode;
   }
 
   CTG_RET(code);
@@ -4327,122 +4235,6 @@ static int32_t ctgLaunchGetTbNamesTask(SCtgTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgLaunchGetVSubTablesTask(SCtgTask* pTask) {
-  SCatalog*          pCtg = pTask->pJob->pCtg;
-  SRequestConnInfo*  pConn = &pTask->pJob->conn;
-  SCtgVSubTablesCtx* pCtx = (SCtgVSubTablesCtx*)pTask->taskCtx;
-  SCtgJob*           pJob = pTask->pJob;
-  SName*             pName = NULL;
-  char               dbFName[TSDB_DB_FNAME_LEN];
-  SCtgDBCache*       dbCache = NULL;
-  int32_t            code = TSDB_CODE_SUCCESS;
-  SCtgMsgCtx*        pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
-  if (NULL == pMsgCtx) {
-    ctgError("fail to get the %dth pMsgCtx", -1);
-    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
-  }
-
-  if (NULL == pMsgCtx->pBatchs) {
-    pMsgCtx->pBatchs = pJob->pBatchs;
-  }
-
-  int32_t tbNum = taosArrayGetSize(pCtx->pNames);
-  if (tbNum > 1) {
-    ctgError("only 1 virtual table supported now, tbnum:%d", tbNum);
-    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
-  }
-  
-  pName = taosArrayGet(pCtx->pNames, 0);
-  if (NULL == pName) {
-    ctgError("fail to get SName in VSubtables req, num:%d", tbNum);
-    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
-  }
-
-  if (NULL == pMsgCtx->target) {
-    pMsgCtx->target = taosMemoryMalloc(TSDB_TABLE_FNAME_LEN);
-    if (NULL == pMsgCtx->target) {
-      ctgError("taosMemoryMalloc %d failed", TSDB_TABLE_FNAME_LEN);
-      CTG_ERR_RET(terrno);
-    }
-    
-    tNameExtractFullName(pName, pMsgCtx->target);
-  }
-
-  (void)tNameGetFullDbName(pName, dbFName);
-
-  if (NULL == pCtx->pMeta) {
-    SCtgTbMetaCtx metaCtx = {0};
-    metaCtx.pName = pName;
-    CTG_ERR_RET(ctgReadTbMetaFromCache(pCtg, &metaCtx, &pCtx->pMeta));
-    if (NULL == pCtx->pMeta) {
-      SCtgTbMetaParam param;
-      param.pName = pName;
-      param.flag = 0;
-      CTG_ERR_RET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_TB_META, ctgGetVSubTablesCb, &param));
-      return TSDB_CODE_SUCCESS;
-    }
-  }
-
-  if (TSDB_VIRTUAL_CHILD_TABLE == pCtx->pMeta->tableType || TSDB_VIRTUAL_NORMAL_TABLE == pCtx->pMeta->tableType) {
-    CTG_ERR_RET(ctgBuildNormalChildVtbList(pCtx));
-    CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
-    return TSDB_CODE_SUCCESS;
-  }
-  
-  if (TSDB_SUPER_TABLE != pCtx->pMeta->tableType || !pCtx->pMeta->virtualStb) {
-    CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (NULL == pCtx->pVgroups) {
-    CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, dbFName, &dbCache));
-    if (NULL == dbCache) {
-      CTG_ERR_RET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_DB_VGROUP, ctgGetVSubTablesCb, dbFName));
-      return TSDB_CODE_SUCCESS;
-    }
-    
-    pCtx->pVgroups = dbCache->vgCache.vgInfo->vgArray;
-  }
-
-  pCtx->vgNum = taosArrayGetSize(pCtx->pVgroups);
-  pCtx->pResList = taosMemoryCalloc(pCtx->vgNum, sizeof(SVSubTablesRsp));
-  if (NULL == pCtx->pResList) {
-    ctgError("taosMemoryMalloc %d SVSubTablesRsp failed", pCtx->vgNum);
-    CTG_ERR_JRET(terrno);
-  }
-  
-  for (int32_t i = 0; i < pCtx->vgNum; ++i) {
-    SVgroupInfo* pVg = (SVgroupInfo*)taosArrayGet(pCtx->pVgroups, i);
-    ctgDebug("will try to get vsubtable from vg %d", pVg->vgId);
-
-    SCtgTaskReq tReq;
-    tReq.pTask = pTask;
-    tReq.msgIdx = -1;    
-    CTG_ERR_JRET(ctgGetVSubTablesFromVnode(pCtg, pConn, pCtx->pMeta->suid, pVg, &tReq));
-  }
-
-  if (dbCache) {
-    ctgReleaseVgInfoToCache(pCtg, dbCache);
-  }
-
-  return TSDB_CODE_SUCCESS;
-  
-_return:
-
-  if (dbCache) {
-    ctgReleaseVgInfoToCache(pCtg, dbCache);
-  }
-
-  if (CTG_TASK_LAUNCHED == pTask->status) {
-    int32_t newCode = ctgHandleTaskEnd(pTask, code);
-    if (newCode && TSDB_CODE_SUCCESS == code) {
-      code = newCode;
-    }
-  }
-
-  CTG_RET(code);
-}
-
 int32_t ctgLaunchGetVStbRefDbsTask(SCtgTask* pTask) {
   SCatalog*          pCtg = pTask->pJob->pCtg;
   SRequestConnInfo*  pConn = &pTask->pJob->conn;
@@ -4602,32 +4394,6 @@ _return:
   CTG_RET(ctgHandleTaskEnd(pTask, pTask->subRes.code));
 }
 
-int32_t ctgGetVSubTablesCb(SCtgTask* pTask) {
-  int32_t code = 0;
-
-  CTG_ERR_JRET(pTask->subRes.code);
-
-  SCtgVSubTablesCtx* pCtx = (SCtgVSubTablesCtx*)pTask->taskCtx;
-  if (CTG_TASK_GET_TB_META == pTask->subRes.type) {
-    TSWAP(pCtx->pMeta, pTask->subRes.res);
-  } else if (CTG_TASK_GET_DB_VGROUP == pTask->subRes.type) {
-    SDBVgInfo* pDb = (SDBVgInfo*)pTask->subRes.res;
-
-    pCtx->pVgroups = taosArrayDup(pDb->vgArray, NULL);
-    if (NULL == pCtx->pVgroups) {
-      CTG_ERR_JRET(terrno);
-    }
-
-    pCtx->clonedVgroups = true;
-  }
-
-  CTG_RET(ctgLaunchGetVSubTablesTask(pTask));
-
-_return:
-
-  CTG_RET(ctgHandleTaskEnd(pTask, pTask->subRes.code));
-}
-
 int32_t ctgGetVStbRefDbsCb(SCtgTask* pTask) {
   int32_t code = 0;
 
@@ -4746,7 +4512,6 @@ SCtgAsyncFps gCtgAsyncFps[] = {
     {ctgInitGetTbTSMATask, ctgLaunchGetTbTSMATask, ctgHandleGetTbTSMARsp, ctgDumpTbTSMARes, NULL, NULL, 1},
     {ctgInitGetTSMATask, ctgLaunchGetTSMATask, ctgHandleGetTSMARsp, ctgDumpTSMARes, NULL, NULL, 1},
     {ctgInitGetTbNamesTask, ctgLaunchGetTbNamesTask, ctgHandleGetTbNamesRsp, ctgDumpTbNamesRes, NULL, NULL, 1},
-    {ctgInitGetVSubTablesTask, ctgLaunchGetVSubTablesTask, ctgHandleGetVSubTablesRsp, ctgDumpVSubTablesRes, NULL, NULL, 2},
     {ctgInitGetVStbRefDbsTask, ctgLaunchGetVStbRefDbsTask, ctgHandleGetVStbRefDbsRsp, ctgDumpVStbRefDbsRes, NULL, NULL, 2},
 };
 

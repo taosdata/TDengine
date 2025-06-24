@@ -130,7 +130,7 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
   SExprSupp*         pSup = &pOperator->exprSupp;
   code = setInputDataBlock(pSup, pBlock, order, scanFlag, false);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs, NULL);
+  code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs, NULL, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
   // reset the row value before applying the no-fill functions to the input data block, which is "pBlock" in this case.
@@ -140,7 +140,7 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
   QUERY_CHECK_CODE(code, lino, _end);
 
   code = projectApplyFunctions(pNoFillSupp->pExprInfo, pInfo->pRes, pBlock, pNoFillSupp->pCtx, pNoFillSupp->numOfExprs,
-                               NULL);
+                               NULL, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
   if (pInfo->fillNullExprSupp.pExprInfo) {
@@ -148,7 +148,7 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
     code = setInputDataBlock(&pInfo->fillNullExprSupp, pBlock, order, scanFlag, false);
     QUERY_CHECK_CODE(code, lino, _end);
     code = projectApplyFunctions(pInfo->fillNullExprSupp.pExprInfo, pInfo->pRes, pBlock, pInfo->fillNullExprSupp.pCtx,
-        pInfo->fillNullExprSupp.numOfExprs, NULL);
+        pInfo->fillNullExprSupp.numOfExprs, NULL, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
   }
 
   pInfo->pRes->info.id.groupId = pBlock->info.id.groupId;
@@ -555,6 +555,66 @@ static int32_t createPrimaryTsExprIfNeeded(SFillOperatorInfo* pInfo, SFillPhysiN
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t resetFillOperState(SOperatorInfo* pOper) {
+  SFillOperatorInfo* pFill = pOper->info;
+  SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+  pOper->status = OP_NOT_OPENED;
+  SFillPhysiNode* pPhyNode = (SFillPhysiNode*)pOper->pPhyNode;
+
+  pFill->curGroupId = 0;
+  pFill->totalInputRows = 0;
+  blockDataCleanup(pFill->pRes);
+  blockDataCleanup(pFill->pFinalRes);
+
+  int64_t startKey = (pFill->pFillInfo->order == TSDB_ORDER_ASC) ? pPhyNode->timeRange.skey : pPhyNode->timeRange.ekey;
+  pFill->pFillInfo->start = startKey;
+  pFill->pFillInfo->currentKey = startKey;
+  pFill->pFillInfo->end = startKey;
+
+  pFill->pFillInfo->numOfRows = 0;
+  pFill->pFillInfo->index = -1;
+  pFill->pFillInfo->numOfTotal = 0;
+  pFill->pFillInfo->numOfCurrent = 0;
+  pFill->pFillInfo->isFilled = false;
+  pFill->pFillInfo->prev.key = 0;
+  pFill->pFillInfo->next.key = 0;
+  int32_t size = taosArrayGetSize(pFill->pFillInfo->prev.pRowVal);
+  for (int32_t i = 0; i < size; ++i) {
+    SGroupKeys* pKey = taosArrayGet(pFill->pFillInfo->prev.pRowVal, i);
+    pKey->isNull = true;
+  }
+  size = taosArrayGetSize(pFill->pFillInfo->next.pRowVal);
+  for (int32_t i = 0; i < size; ++i) {
+    SGroupKeys* pKey = taosArrayGet(pFill->pFillInfo->next.pRowVal, i);
+    pKey->isNull = true;
+  }
+
+  taosMemoryFreeClear(pFill->pFillInfo->pTags);
+  taosArrayDestroy(pFill->pFillInfo->pColFillProgress);
+  pFill->pFillInfo->pColFillProgress = NULL;
+
+  tdListFreeP(pFill->pFillInfo->pFillSavedBlockList, destroyFillBlock);
+  pFill->pFillInfo->pFillSavedBlockList = NULL;
+
+  int32_t code = resetExprSupp(&pFill->noFillExprSupp, pTaskInfo, pPhyNode->pNotFillExprs, NULL,
+    &pTaskInfo->storageAPI.functionStore);
+  if (code == 0) {
+    code = resetExprSupp(&pFill->fillNullExprSupp, pTaskInfo, pPhyNode->pFillNullExprs, NULL,
+      &pTaskInfo->storageAPI.functionStore);
+  }
+
+  int32_t order = (pPhyNode->node.inputTsOrder == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
+  if (order == TSDB_ORDER_ASC) {
+    pFill->win.skey = pPhyNode->timeRange.skey;
+    pFill->win.ekey = pPhyNode->timeRange.ekey;
+  } else {
+    pFill->win.skey = pPhyNode->timeRange.ekey;
+    pFill->win.ekey = pPhyNode->timeRange.skey;
+  }
+
+  return code;
+}
+
 int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode,
                                       SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -568,6 +628,7 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
     goto _error;
   }
 
+  pOperator->pPhyNode = pPhyFillNode;
   pInfo->pRes = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
   SExprInfo* pExprInfo = NULL;
@@ -644,7 +705,8 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
     goto _error;
   }
 
-  code = filterInitFromNode((SNode*)pPhyFillNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  code = filterInitFromNode((SNode*)pPhyFillNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
+                            &pTaskInfo->pStreamRuntimeInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -652,6 +714,7 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
   setOperatorInfo(pOperator, "FillOperator", QUERY_NODE_PHYSICAL_PLAN_FILL, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doFillNext, NULL, destroyFillOperatorInfo, optrDefaultBufFn, NULL,
                                          optrDefaultGetNextExtFn, NULL);
+  setOperatorResetStateFn(pOperator, resetFillOperState);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {

@@ -1,0 +1,19 @@
+create snode on dnode 1;
+drop database if exists test;
+create database test;
+use test;
+
+create table stream_query (ts timestamp, id int);
+create table stream_trigger (ts timestamp, id int);
+create table stream_trigger_st (ts timestamp, id int) tags (gid int);
+create table stream_trigger_ct0 using stream_trigger_st (gid) tags (0);
+create table stream_trigger_ct1 using stream_trigger_st (gid) tags (1);
+create table stream_trigger_ct2 using stream_trigger_st (gid) tags (2);
+
+create stream s1 %WINDOW% from %TRIGGER_SOURCE% %OPTIONS% into stream_out as select _twstart, avg(id) from %CALC_SOURCE%;
+
+insert into stream_trigger values ('2025-01-01 00:00:00', 0), ('2025-01-01 00:00:01', 1), ('2025-01-01 00:00:02', 2);
+insert into stream_query values ('2025-01-01 00:00:00', 0), ('2025-01-01 00:00:01', 1), ('2025-01-01 00:00:02', 2);
+insert into stream_trigger_ct0 values ('2025-01-01 00:00:00', 0), ('2025-01-01 00:00:01', 1), ('2025-01-01 00:00:02', 2);
+insert into stream_trigger_ct1 values ('2025-01-01 00:00:00', 0), ('2025-01-01 00:00:01', 1), ('2025-01-01 00:00:02', 2);
+insert into stream_trigger_ct2 values ('2025-01-01 00:00:00', 0), ('2025-01-01 00:00:01', 1), ('2025-01-01 00:00:02', 2);

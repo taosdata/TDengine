@@ -16,6 +16,7 @@
 #ifndef _TD_COMMON_EP_H_
 #define _TD_COMMON_EP_H_
 
+#include <stdint.h>
 #include "tcommon.h"
 #include "tcompression.h"
 #include "tmsg.h"
@@ -298,6 +299,12 @@ int32_t buildSinkDestTableName(char* parTbName, const char* stbFullName, uint64_
 int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
 
 int32_t copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
+
+int32_t blockGetEncodeSizeOfRows(const SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
+int32_t blockEncodeAsRows(const SSDataBlock* pBlock, char* data, size_t dataLen, int32_t numOfCols, int32_t startIndex,
+                          int32_t endIndex, int32_t* pLen);
+int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int32_t tsColSlotId, TSKEY start, TSKEY end);
+int32_t getStreamBlockTS(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t row, TSKEY* ts);
 
 #ifdef __cplusplus
 }
