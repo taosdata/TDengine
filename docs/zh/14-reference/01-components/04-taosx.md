@@ -244,9 +244,13 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 - `log_level`：日志等级，可选级别包括 `error`、`warn`、`info`、`debug`、`trace`，默认值为 `info`。已弃用，请使用 `log.level` 代替。
 - `log_keep_days`：日志的最大存储天数，`taosX` 日志将按天划分为不同的文件。已弃用，请使用 `log.keepDays` 代替。
 - `jobs`：每个运行时的最大线程数。在服务模式下，线程总数为 `jobs*2`，默认线程数为`当前服务器内核*2`。
-- `serve.listen`：是 `taosX` REST API 监听地址，默认值为 `0.0.0.0:6050`。
+- `serve.listen`：是 `taosX` REST API 监听地址，默认值为 `0.0.0.0:6050`。支持 IPv6 协议的地址，同时支持多地址，多地址需保证端口一致，且使用英文逗号，作为分割。
+- `serve.ssl_cert`：是 SSL/TLS 证书。
+- `serve.ssl_key`：是 SSL/TLS 秘钥。
+- `serve.ssl_ca`：是 SSL/TLS 根证书。
 - `serve.database_url`：`taosX` 数据库的地址，格式为 `sqlite:<path>`。
 - `serve.request_timeout`：全局接口 API 超时时间。
+- `serve.grpc`：是 `taosX` gRPC 服务监听地址，默认值为 `0.0.0.0:6055`。支持 IPv6 协议的地址，同时支持多地址，多地址需保证端口一致，且使用英文逗号，作为分割。
 - `monitor.fqdn`：`taosKeeper` 服务的 FQDN，没有默认值，置空则关闭监控功能。
 - `monitor.port`：`taosKeeper` 服务的端口，默认`6043`。
 - `monitor.interval`：向 `taosKeeper` 发送指标的频率，默认为每 10 秒一次，只有 1 到 10 之间的值才有效。
@@ -282,8 +286,30 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 # listen to ip:port address
 #listen = "0.0.0.0:6050"
 
+# TLS/SSL certificate
+#ssl_cert = "/path/to/tls/server.pem"
+# TLS/SSL certificate key
+#ssl_key = "/path/to/tls/server.key"
+# TLS/SSL CA certificate
+#ssl_ca = "/path/to/tls/ca.pem"
+
+# database url
+#database_url = "sqlite:taosx.db"
+
 # default global request timeout which unit is second. This parameter takes effect for certain interfaces that require a timeout setting
 #request_timeout = 30
+
+# GRPC listen address，use ip:port like `0.0.0.0:6055`.
+#
+# When use this in explorer, please set explorer grpc configuration to **Public** IP or
+# FQDN with correct port, which might be changed exposing to Public network.
+#
+# - Example 1: "http://192.168.111.111:6055" 
+# - Example 2: "http://node1.company.domain:6055" 
+#
+# Please also make sure the above address is not blocked if firewall is enabled.
+#
+#grpc = "0.0.0.0:6055"
 
 [monitor]
 # FQDN of taosKeeper service, no default value
