@@ -76,6 +76,7 @@ static int32_t handleSyncDeleteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
 static int32_t handleSyncWriteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   int32_t ver = *(int32_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead));
   int64_t streamId = *(int64_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead) + INT_BYTES);
+  SRpcMsg rsp = {.code = 0, .msgType = TDMT_STREAM_SYNC_CHECKPOINT_RSP, .info = pRpcMsg->info};
 
   stDebug("[checkpoint] handleSyncWriteCheckPointReq streamId:%" PRIx64 ",ver:%d", streamId, ver);
   void*   data = NULL;
@@ -94,7 +95,8 @@ static int32_t handleSyncWriteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
     taosMemoryFreeClear(data);
   }
 end:
-  SRpcMsg rsp = {.code = 0, .msgType = TDMT_STREAM_SYNC_CHECKPOINT_RSP, .contLen = dataLen, .pCont = data, .info = pRpcMsg->info};
+  rsp.pCont = data;
+  rsp.contLen = dataLen;
   rpcSendResponse(&rsp);
   return 0;
 }
