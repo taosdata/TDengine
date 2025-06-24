@@ -4768,6 +4768,11 @@ static const char* jkColumnSlotId = "SlotId";
 static const char* jkColumnTableHasPk = "TableHasPk";
 static const char* jkColumnIsPk = "IsPk";
 static const char* jkColumnNumOfPKs = "NumOfPKs";
+static const char* jkColumnHasRef = "HasRef";
+static const char* jkColumnHasDep = "HasDep";
+static const char* jkColumnRefDb = "RefDb";
+static const char* jkColumnRefTable = "RefTable";
+static const char* jkColumnRefCol = "RefCol";
 
 static int32_t columnNodeToJson(const void* pObj, SJson* pJson) {
   const SColumnNode* pNode = (const SColumnNode*)pObj;
@@ -4814,6 +4819,21 @@ static int32_t columnNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkColumnNumOfPKs, pNode->numOfPKs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkColumnHasDep, pNode->hasDep);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkRefColHasRef, pNode->hasRef);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkColumnRefDb, pNode->refDbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkColumnRefTable, pNode->refTableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkColumnRefCol, pNode->refColName);
   }
   return code;
 }
@@ -4863,6 +4883,21 @@ static int32_t jsonToColumnNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetSmallIntValue(pJson, jkColumnNumOfPKs, &pNode->numOfPKs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkColumnHasDep, &pNode->hasDep);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkColumnHasRef, &pNode->hasRef);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkColumnRefDb, pNode->refDbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkColumnRefTable, pNode->refTableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkColumnRefCol, pNode->refColName);
   }
   return code;
 }
