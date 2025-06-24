@@ -96,11 +96,11 @@ if [ ! -z "$next" ]; then
     next_line=`echo "$next"|cut -d: -f1`
     next_line=$(( next_line - 1 ))
 fi
-# echo "curr:$curr_line, next:$next_line"
+echo "curr:$curr_line, next:$next_line"
 details=`sed -n "${curr_line},${next_line}p" $JENKINS_LOG`
-# echo "$details" > details.log
+echo "$details" > details.log
 merge_line=`echo "$details"|grep -i -A 10 "$commit_prefix log merged: "|grep "Merge .* into"|head -n1`
-# echo "$merge_line" > merge.log
+echo "$merge_line" > merge.log
 
 if [ -z "$merge_line" ]; then
     echo "merge commit not found"
