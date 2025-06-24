@@ -2742,7 +2742,7 @@ static int32_t stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *bu
 
   code = tEncodeI32(&encoder, 0);  // version
   QUERY_CHECK_CODE(code, lino, _end);
-  code = tEncodeI32(&encoder, pTask->task.streamId);
+  code = tEncodeI64(&encoder, pTask->task.streamId);
   QUERY_CHECK_CODE(code, lino, _end);
   code = tEncodeI32(&encoder, tSimpleHashGetSize(pContext->pReaderWalProgress));
   QUERY_CHECK_CODE(code, lino, _end);
