@@ -749,7 +749,7 @@ class TDTestCase(TBase):
                     "float_col float, "
                     "double_col double, "
                     "bool_col bool, "
-                    "binary_16_col binary(18),"
+                    "binary_16_col binary(16),"
                     "binary_32_col binary(32),"
                     "nchar_16_col nchar(16),"
                     "nchar_32_col nchar(32),"
