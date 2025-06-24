@@ -77,14 +77,16 @@ static int32_t handleSyncWriteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   int32_t ver = *(int32_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead));
   int64_t streamId = *(int64_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead) + INT_BYTES);
 
+  stDebug("[checkpoint] handleSyncWriteCheckPointReq streamId:%" PRIx64 ",ver:%d", streamId, ver);
   void*   data = NULL;
   int64_t dataLen = 0;
   int32_t code = streamReadCheckPoint(streamId, &data, &dataLen);
   if (code == TAOS_SYSTEM_ERROR(ENOENT) || (code == 0 && ver > *(int32_t*)data)) {
     code = streamWriteCheckPoint(streamId, pRpcMsg->pCont, pRpcMsg->contLen);
-    stDebug("streamId:%" PRId64 ", checkpoint updated, ver:%d, dataLen:%" PRId64, streamId, ver, dataLen);
+    stDebug("[checkpoint] streamId:%" PRIx64 ", checkpoint updated, ver:%d, dataLen:%" PRId64, streamId, ver, dataLen);
   }
   if (code != 0 || ver >= *(int32_t*)data) {
+    stDebug("[checkpoint] streamId:%" PRIx64 ", checkpoint no updated, ver:%d, dataLen:%" PRId64, streamId, ver, dataLen);
     dataLen = 0;
     taosMemoryFreeClear(data);
   }
@@ -96,6 +98,7 @@ static int32_t handleSyncWriteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
 static int32_t handleSyncWriteCheckPointRsp(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   void* data = POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead));
   int32_t dataLen = pRpcMsg->contLen - sizeof(SMsgHead);
+  stDebug("[checkpoint] handleSyncWriteCheckPointRsp, dataLen:%d", dataLen);
   if (dataLen <= 0) {
     return TSDB_CODE_SUCCESS;
   }
