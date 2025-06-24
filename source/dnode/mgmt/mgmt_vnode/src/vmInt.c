@@ -13,7 +13,6 @@
  * along with this program. If not, see <http:www.gnu.org/licenses/>.
  */
 
-#include "dmUtil.h"
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 #include "libs/function/tudf.h"
