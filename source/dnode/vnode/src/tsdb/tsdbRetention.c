@@ -442,10 +442,14 @@ int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
 int32_t tsdbAsyncSsMigrate(STsdb *tsdb, SSsMigrateVgroupReq *pReq) {
   int32_t code = 0;
 
-  void tsdbStartSsMigrateMonitor(STsdb *tsdb, int32_t ssMigrateId);
+  bool tsdbResetSsMigrateMonitor(STsdb *tsdb, int32_t ssMigrateId);
 
   (void)taosThreadMutexLock(&tsdb->mutex);
-  tsdbStartSsMigrateMonitor(tsdb, pReq->ssMigrateId);
+  if (!tsdbResetSsMigrateMonitor(tsdb, pReq->ssMigrateId)) {
+    (void)taosThreadMutexUnlock(&tsdb->mutex);
+    tsdbInfo("vgId:%d, skip ss migration as there's an in progress one", TD_VID(tsdb->pVnode));
+    return 0;
+  }
   code = tsdbAsyncRetentionImpl(tsdb, pReq->timestamp, true, pReq->nodeId);
   (void)taosThreadMutexUnlock(&tsdb->mutex);
 
