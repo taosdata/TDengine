@@ -248,7 +248,7 @@ bool tmq_ctx_topic_exists(struct tmq_ctx* context, const char* topic_name, const
 
   snprintf(consumer_client_id, sizeof(consumer_client_id), "_cid-%s-%d", cid, global.dnode_id);
   // snprintf(group_id, sizeof(group_id), "_xnd-gid-%d", global.dnode_id);
-  snprintf(group_id, sizeof(group_id), "_xnd-gid-%s", sn ? sn : consumer_client_id);
+  snprintf(group_id, sizeof(group_id), "_bnd-gid-%s", sn ? sn : consumer_client_id);
   snprintf(port_str, sizeof(port_str), "%d", global.mgmtEp.epSet.eps[0].port);
 
   ConsumerConfig config = {.enable_auto_commit = "true",

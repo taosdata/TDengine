@@ -87,30 +87,44 @@ class MqttUtil:
 
     def asyncSubscribe(self, conf):
         self.subRows = 0
-        self.mqttConf = conf
 
-        cid = "tmq_sub_client_id" + str(self.mqttConf['client_id'])
+        cid = "tmq_sub_client_id" + str(conf['client_id'])
         if paho.mqtt.__version__[0] > '1':
-            client = mqttClient.Client(mqttClient.CallbackAPIVersion.VERSION2, client_id=cid, userdata=None, protocol=mqttClient.MQTTv5)
+            client = mqttClient.Client(mqttClient.CallbackAPIVersion.VERSION2, client_id=cid, userdata=conf, protocol=mqttClient.MQTTv5)
         else:
-            client = mqttClient.Client(client_id=cid, userdata=None, protocol=mqttClient.MQTTv5)
+            client = mqttClient.Client(client_id=cid, userdata=conf, protocol=mqttClient.MQTTv5)
 
-        client.on_connect = self.on_connect
+        client.on_connect = self.on_connect_async
         client.on_disconnect = self.on_disconnect_async
-        client.on_subscribe = self.on_subscribe
-        client.on_message = self.on_message
+        client.on_subscribe = self.on_subscribe_async
+        client.on_message = self.on_message_async
 
-        client.username_pw_set(self.mqttConf['user'], self.mqttConf['passwd'])
-        client.connect(self.mqttConf['host'], self.mqttConf['port'])
+        client.on_log = self.on_log
+
+        client.username_pw_set(conf['user'], conf['passwd'])
+        client.connect(conf['host'], conf['port'])
         client.loop_start()
 
         tdLog.info(f"=============== subscription loop started.")
+
+    def on_connect_async(self, client, userdata, flags, rc, properties=None):
+        print("\nCONNACK received with code %s." % rc)
+
+        print("sub: ", userdata['topic'])
+        client.subscribe(userdata['topic'], qos=userdata['qos'], properties=userdata['sub_prop'])
+
+    def on_subscribe_async(self, client, userdata, mid, granted_qos, properties=None):
+        print("Subscribed: " + str(mid) + " " + str(granted_qos))
+
+    def on_message_async(self, client, userdata, msg):
+        # print(msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
+        print("msg: ", len(msg.payload))
 
     def on_log(client, userdata, level, buf):
         tdLog.debug("log: ", buf)
         print("log: ", buf)
 
-    def on_disconnect_async(client, userdata,rc=0):
+    def on_disconnect_async(client, userdata, rc=0):
         tdLog.debug("DisConnected result code: "+str(rc))
         print("DisConnected result code: "+str(rc))
         #client.loop_stop()

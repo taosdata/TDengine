@@ -145,15 +145,26 @@ class TestMqttCases:
         ]
         
         for i in range(dnodes_count):
-            if i > 0:
-                self.mqttConf['port'] += 100
-            print(f"4 {i} {self.mqttConf['port']}")
-
+        #for i in range(1):
             for ci in range(4):
-                self.mqttConf['client_id'] = ci
-                self.mqttConf['topic'] = topics[ci]
+                gid = "g" + str(ci)
+                topic = topics[ci]
+                conf = {
+                    'user': "root",
+                    'passwd': "taosdata",
+                    'host': "127.0.0.1",
+                    'port': self.mqttConf['port'] + i * 100,
+                    'qos': 2,
+                    'topic': f'$share/{gid}/{topic}',
+                    'loop_time': .1,
+                    'loop_count': 3*24*60*60*10,
+                    'rows': stb_rows,
+                    'client_id': ci,
+                    'sub_prop': self.mqttConf['sub_prop'],
+                }
 
-                tdMqtt.asyncSubscribe(self.mqttConf)
+                print(f"4 {i} {conf['port']} {conf['topic']}")
+                tdMqtt.asyncSubscribe(conf)
 
         # 4, launch benchmark to start table creating and data inserting
         tdLog.info(f"=============== write sub data")
