@@ -536,6 +536,7 @@ struct SVnode {
 #define TSDB_CACHE_NO(c)       ((c).cacheLast == 0)
 #define TSDB_CACHE_LAST_ROW(c) (((c).cacheLast & 1) > 0)
 #define TSDB_CACHE_LAST(c)     (((c).cacheLast & 2) > 0)
+#define TSDB_TFS(v)            ((v)->pMountTfs ? (v)->pMountTfs : (v)->pTfs)
 
 struct STbUidStore {
   tb_uid_t  suid;

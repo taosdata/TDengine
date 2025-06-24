@@ -65,8 +65,8 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
   }
 
   // create dir
-  if (pVnode->pTfs) {
-    code = tfsMkdir(pVnode->pTfs, pTsdb->path);
+  if (TSDB_TFS(pVnode)) {
+    code = tfsMkdir(TSDB_TFS(pVnode), pTsdb->path);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     code = taosMkDir(pTsdb->path);

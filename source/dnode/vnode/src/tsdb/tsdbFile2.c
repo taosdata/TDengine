@@ -239,7 +239,7 @@ int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
   fobj[0]->state = TSDB_FSTATE_LIVE;
   fobj[0]->ref = 1;
   tsdbTFileName(pTsdb, f, fobj[0]->fname);
-  // fobj[0]->nlevel = tfsGetLevel(pTsdb->pVnode->pTfs);
+  // fobj[0]->nlevel = tfsGetLevel(TSDB_TFS(pTsdb->pVnode));
   fobj[0]->nlevel = vnodeNodeId(pTsdb->pVnode);
   return 0;
 }
@@ -373,7 +373,7 @@ int32_t tsdbTFileObjRemoveUpdateLC(STFileObj *fobj) {
 
 void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
   SVnode *pVnode = pTsdb->pVnode;
-  STfs   *pTfs = pVnode->pTfs;
+  STfs   *pTfs = TSDB_TFS(pVnode);
 
   if (pTfs) {
     snprintf(fname,                              //
@@ -402,7 +402,7 @@ void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
 
 void tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
   SVnode *pVnode = pTsdb->pVnode;
-  STfs   *pTfs = pVnode->pTfs;
+  STfs   *pTfs = TSDB_TFS(pVnode);
 
   if (pTfs) {
     snprintf(fname,                                 //

@@ -1834,7 +1834,7 @@ int32_t tsdbAllocateDisk(STsdb *tsdb, const char *label, int32_t expLevel, SDisk
   int32_t code = 0;
   int32_t lino = 0;
   SDiskID did = {0};
-  STfs   *tfs = tsdb->pVnode->pTfs;
+  STfs   *tfs = TSDB_TFS(tsdb->pVnode);
 
   code = tfsAllocDisk(tfs, expLevel, label, &did);
   if (code) {
@@ -1857,7 +1857,7 @@ int32_t tsdbAllocateDisk(STsdb *tsdb, const char *label, int32_t expLevel, SDisk
 int32_t tsdbAllocateDiskAtLevel(STsdb *tsdb, int32_t level, const char *label, SDiskID *diskId) {
   int32_t code = 0;
   SDiskID did = {0};
-  STfs   *tfs = tsdb->pVnode->pTfs;
+  STfs   *tfs = TSDB_TFS(tsdb->pVnode);
 
   code = tfsAllocDiskAtLevel(tfs, level, label, &did);
   if (code) {
