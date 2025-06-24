@@ -4643,6 +4643,41 @@ static bool msmUpdateProfileStreams(SMnode *pMnode, void *pObj, void *p1, void *
   return true;
 }
 
+int32_t msmGetTriggerTaskAddr(SMnode *pMnode, int64_t streamId, SStreamTaskAddr* pAddr) {
+  int32_t code = 0;
+  
+  mstWaitLock(&mStreamMgmt.runtimeLock, true);
+  
+  SStmStatus* pStatus = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+  if (NULL == pStatus) {
+    mstsError("stream not exists in streamMap, streamRemains:%d", taosHashGetSize(mStreamMgmt.streamMap));
+    code = TSDB_CODE_MND_STREAM_NOT_RUNNING;
+    goto _exit;
+  }
+
+  if (atomic_load_8(&pStatus->stopped)) {
+    mstsError("stream already stopped, stopped:%d", atomic_load_8(&pStatus->stopped));
+    code = TSDB_CODE_MND_STREAM_NOT_RUNNING;
+    goto _exit;
+  }
+
+  if (pStatus->triggerTask && STREAM_STATUS_RUNNING == pStatus->triggerTask->status) {
+    pAddr->taskId = pStatus->triggerTask->id.taskId;
+    pAddr->nodeId = pStatus->triggerTask->id.nodeId;
+    pAddr->epset = mndGetDnodeEpsetById(pMnode, pAddr->nodeId);
+    mstsDebug("stream trigger task %" PRIx64 " got with nodeId %d", pAddr->taskId, pAddr->nodeId);
+    goto _exit;
+  }
+
+  mstsError("trigger task %p not running, status:%s", pStatus->triggerTask, pStatus->triggerTask ? gStreamStatusStr[pStatus->triggerTask->status] : "unknown");
+  code = TSDB_CODE_MND_STREAM_NOT_RUNNING;
+
+_exit:
+  
+  taosRUnLockLatch(&mStreamMgmt.runtimeLock);
+
+  return code;
+}
 
 int32_t msmInitRuntimeInfo(SMnode *pMnode) {
   int32_t code = TSDB_CODE_SUCCESS;

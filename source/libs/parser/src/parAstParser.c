@@ -137,6 +137,7 @@ static EDealRes collectMetaKeyFromFunction(SCollectMetaKeyFromExprCxt* pCxt, SFu
 }
 
 static bool needGetTableIndex(SNode* pStmt) {
+  return false;
   if (QUERY_SMA_OPTIMIZE_ENABLE == tsQuerySmaOptimize && QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     SSelectStmt* pSelect = (SSelectStmt*)pStmt;
     return (NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow));
