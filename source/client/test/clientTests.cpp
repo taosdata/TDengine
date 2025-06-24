@@ -807,10 +807,11 @@ TEST(clientCase, projection_query_tables) {
 
   TAOS_RES* pRes = NULL;
   
-  pRes= taos_query(pConn, "use test");
+  pRes= taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "select imputation(a) from t1 where ts<='2024-11-15 1:7:44'");
+  pRes = taos_query(pConn, "select imputation(a) from (select _wstart, count(*) a from t1 where ts<='2025-3-6 11:17:44' interval(1s));");
+  // pRes = taos_query(pConn, "select imputation(a) from t1 where ts<='2024-11-15 1:7:44'");
   if (taos_errno(pRes) != 0) {
     (void)printf("failed to do forecast query, reason:%s\n", taos_errstr(pRes));
   }
