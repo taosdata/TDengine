@@ -3,7 +3,7 @@ sidebar_label: Looker
 title: 与 Looker Studio 的集成
 toc_max_heading_level: 4
 ---
-Looker Studio，作为 Google 旗下的一个功能强大的报表和商业智能工具，前身名为 Google Looker Studio。在 2022 年的 Google Cloud Next 大会上，Google 将其更名为 Looker Studio。这个工具凭借其丰富的数据可视化选项和多样化的数据连接能力，为用户提供了便捷的数据报表生成体验。用户可以根据预设的模板轻松创建数据报表，满足各种数据分析需求。
+Looker Studio，作为 Google 旗下的一个功能强大的报表和商业智能工具，前身名为 Google Data Studio。在 2022 年的 Google Cloud Next 大会上，Google 将其更名为 Looker Studio。这个工具凭借其丰富的数据可视化选项和多样化的数据连接能力，为用户提供了便捷的数据报表生成体验。用户可以根据预设的模板轻松创建数据报表，满足各种数据分析需求。
 
 由于其简单易用的操作界面和庞大的生态系统支持，Looker Studio 在数据分析领域受到众多数据科学家和专业人士的青睐。无论是初学者还是资深分析师，都可以利用 Looker Studio 快速构建美观且实用的数据报表，从而更好地洞察业务趋势、优化决策过程并提升整体运营效率。
 
