@@ -239,7 +239,7 @@ int32_t tsdbTFileObjInit(STsdb *pTsdb, const STFile *f, STFileObj **fobj) {
   fobj[0]->state = TSDB_FSTATE_LIVE;
   fobj[0]->ref = 1;
   tsdbTFileName(pTsdb, f, fobj[0]->fname);
-  // fobj[0]->nlevel = tfsGetLevel(TSDB_TFS(pTsdb->pVnode));
+  // fobj[0]->nlevel = tfsGetLevel(pTsdb->pVnode->pTfs);
   fobj[0]->nlevel = vnodeNodeId(pTsdb->pVnode);
   return 0;
 }
@@ -373,7 +373,7 @@ int32_t tsdbTFileObjRemoveUpdateLC(STFileObj *fobj) {
 
 void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
   SVnode *pVnode = pTsdb->pVnode;
-  STfs   *pTfs = TSDB_TFS(pVnode);
+  STfs   *pTfs = pTsdb->pVnode->pTfs;
 
   if (pTfs) {
     snprintf(fname,                              //
@@ -383,7 +383,7 @@ void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
              TD_DIRSEP,                          //
              pTsdb->path,                        //
              TD_DIRSEP,                          //
-             TD_VID(pVnode),                     //
+             TSDB_VID(pVnode),                   //
              f->fid,                             //
              f->cid,                             //
              g_tfile_info[f->type].suffix);
@@ -393,7 +393,7 @@ void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
              "%s%sv%df%dver%" PRId64 ".%s",  //
              pTsdb->path,                    //
              TD_DIRSEP,                      //
-             TD_VID(pVnode),                 //
+             TSDB_VID(pVnode),               //
              f->fid,                         //
              f->cid,                         //
              g_tfile_info[f->type].suffix);
@@ -402,7 +402,7 @@ void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
 
 void tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
   SVnode *pVnode = pTsdb->pVnode;
-  STfs   *pTfs = TSDB_TFS(pVnode);
+  STfs   *pTfs = pTsdb->pVnode->pTfs;
 
   if (pTfs) {
     snprintf(fname,                                 //
@@ -412,7 +412,7 @@ void tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
              TD_DIRSEP,                             //
              pTsdb->path,                           //
              TD_DIRSEP,                             //
-             TD_VID(pVnode),                        //
+             TSDB_VID(pVnode),                      //
              f->fid,                                //
              f->cid,                                //
              f->lcn,                                //
@@ -423,7 +423,7 @@ void tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
              "%s%sv%df%dver%" PRId64 ".%d.%s",  //
              pTsdb->path,                       //
              TD_DIRSEP,                         //
-             TD_VID(pVnode),                    //
+             TSDB_VID(pVnode),                  //
              f->fid,                            //
              f->cid,                            //
              f->lcn,                            //

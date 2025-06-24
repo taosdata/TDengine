@@ -94,7 +94,7 @@ static int32_t tGetSmaFile(uint8_t *p, SSmaFile *pSmaFile) {
 
 // EXPOSED APIS ==================================================
 static char *getFileNamePrefix(STsdb *pTsdb, SDiskID did, int32_t fid, uint64_t commitId, char fname[]) {
-  const char *p1 = tfsGetDiskPath(TSDB_TFS(pTsdb->pVnode), did);
+  const char *p1 = tfsGetDiskPath(pTsdb->pVnode->pTfs, did);
   int32_t     len = strlen(p1);
 
   char *p = memcpy(fname, p1, len);
