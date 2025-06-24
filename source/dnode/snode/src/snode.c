@@ -80,7 +80,7 @@ static int32_t handleSyncWriteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   void*   data = NULL;
   int64_t dataLen = 0;
   int32_t code = streamReadCheckPoint(streamId, &data, &dataLen);
-  if (code == 0 && ver > *(int32_t*)data) {
+  if (code == TAOS_SYSTEM_ERROR(ENOENT) || (code == 0 && ver > *(int32_t*)data)) {
     code = streamWriteCheckPoint(streamId, pRpcMsg->pCont, pRpcMsg->contLen);
     stDebug("streamId:%" PRId64 ", checkpoint updated, ver:%d, dataLen:%" PRId64, streamId, ver, dataLen);
   }
