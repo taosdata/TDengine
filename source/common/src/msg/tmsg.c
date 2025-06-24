@@ -13023,15 +13023,15 @@ _exit:
 static int32_t tPreCheckSubmitTbData(const SSubmitTbData *pSubmitData, int8_t *hasBlog) {
   int32_t code = 0;
   int32_t line = 0;
-  if (pSubmitData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-    return 0;
-  } else {
-    if (tBlobRowSize(pSubmitData->pBlobRow) > 0) {
-      *hasBlog = 1;
-      return code;
+  // if (pSubmitData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+  //   return 0;
+  // } else {
+  if (tBlobRowSize(pSubmitData->pBlobRow) > 0) {
+    *hasBlog = 1;
+    return code;
     }
-  }
-  return 0;
+    //}
+    return 0;
 }
 static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubmitTbData) {
   int32_t code = 0;
