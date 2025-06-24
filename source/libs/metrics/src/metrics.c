@@ -77,43 +77,43 @@ int32_t initMetricsManager() {
   // Initialize global shared write metrics counters
   const char *write_labels[] = {"metric_type", "cluster_id", "dnode_id", "dnode_ep", "vgroup_id", "database_name"};
   write_total_requests = taos_collector_registry_must_register_metric(
-      taos_counter_new(WRITE_TOTAL_REQUESTS, "Total write requests", 5, write_labels));
+      taos_counter_new(WRITE_TOTAL_REQUESTS, "Total write requests", 6, write_labels));
   write_total_rows = taos_collector_registry_must_register_metric(
-      taos_counter_new(WRITE_TOTAL_ROWS, "Total rows written", 5, write_labels));
+      taos_counter_new(WRITE_TOTAL_ROWS, "Total rows written", 6, write_labels));
   write_total_bytes = taos_collector_registry_must_register_metric(
-      taos_counter_new(WRITE_TOTAL_BYTES, "Total bytes written", 5, write_labels));
+      taos_counter_new(WRITE_TOTAL_BYTES, "Total bytes written", 6, write_labels));
   write_fetch_batch_meta_time = taos_collector_registry_must_register_metric(
-      taos_counter_new(WRITE_FETCH_BATCH_META_TIME, "Fetch batch meta time", 5, write_labels));
+      taos_counter_new(WRITE_FETCH_BATCH_META_TIME, "Fetch batch meta time", 6, write_labels));
   write_fetch_batch_meta_count = taos_collector_registry_must_register_metric(
-      taos_counter_new(WRITE_FETCH_BATCH_META_COUNT, "Fetch batch meta count", 5, write_labels));
+      taos_counter_new(WRITE_FETCH_BATCH_META_COUNT, "Fetch batch meta count", 6, write_labels));
   write_preprocess_time = taos_collector_registry_must_register_metric(
-      taos_counter_new(WRITE_PREPROCESS_TIME, "Preprocess time", 5, write_labels));
+      taos_counter_new(WRITE_PREPROCESS_TIME, "Preprocess time", 6, write_labels));
   write_wal_write_bytes = taos_collector_registry_must_register_metric(
-      taos_counter_new(WRITE_WAL_WRITE_BYTES, "WAL write bytes", 5, write_labels));
+      taos_counter_new(WRITE_WAL_WRITE_BYTES, "WAL write bytes", 6, write_labels));
   write_wal_write_time = taos_collector_registry_must_register_metric(
-      taos_counter_new(WRITE_WAL_WRITE_TIME, "WAL write time", 5, write_labels));
+      taos_counter_new(WRITE_WAL_WRITE_TIME, "WAL write time", 6, write_labels));
   write_apply_bytes =
-      taos_collector_registry_must_register_metric(taos_counter_new(WRITE_APPLY_BYTES, "Apply bytes", 5, write_labels));
+      taos_collector_registry_must_register_metric(taos_counter_new(WRITE_APPLY_BYTES, "Apply bytes", 6, write_labels));
   write_apply_time =
-      taos_collector_registry_must_register_metric(taos_counter_new(WRITE_APPLY_TIME, "Apply time", 5, write_labels));
+      taos_collector_registry_must_register_metric(taos_counter_new(WRITE_APPLY_TIME, "Apply time", 6, write_labels));
   write_commit_count = taos_collector_registry_must_register_metric(
-      taos_counter_new(WRITE_COMMIT_COUNT, "Commit count", 5, write_labels));
+      taos_counter_new(WRITE_COMMIT_COUNT, "Commit count", 6, write_labels));
   write_commit_time =
-      taos_collector_registry_must_register_metric(taos_counter_new(WRITE_COMMIT_TIME, "Commit time", 5, write_labels));
+      taos_collector_registry_must_register_metric(taos_counter_new(WRITE_COMMIT_TIME, "Commit time", 6, write_labels));
   write_memtable_wait_time = taos_collector_registry_must_register_metric(
-      taos_counter_new(WRITE_MEMTABLE_WAIT_TIME, "Memtable wait time", 5, write_labels));
+      taos_counter_new(WRITE_MEMTABLE_WAIT_TIME, "Memtable wait time", 6, write_labels));
   write_block_commit_count = taos_collector_registry_must_register_metric(
-      taos_counter_new(WRITE_BLOCK_COMMIT_COUNT, "Block commit count", 5, write_labels));
+      taos_counter_new(WRITE_BLOCK_COMMIT_COUNT, "Block commit count", 6, write_labels));
   write_blocked_commit_time = taos_collector_registry_must_register_metric(
-      taos_counter_new(WRITE_BLOCKED_COMMIT_TIME, "Blocked commit time", 5, write_labels));
+      taos_counter_new(WRITE_BLOCKED_COMMIT_TIME, "Blocked commit time", 6, write_labels));
   write_merge_count =
-      taos_collector_registry_must_register_metric(taos_counter_new(WRITE_MERGE_COUNT, "Merge count", 5, write_labels));
+      taos_collector_registry_must_register_metric(taos_counter_new(WRITE_MERGE_COUNT, "Merge count", 6, write_labels));
   write_merge_time =
-      taos_collector_registry_must_register_metric(taos_counter_new(WRITE_MERGE_TIME, "Merge time", 5, write_labels));
+      taos_collector_registry_must_register_metric(taos_counter_new(WRITE_MERGE_TIME, "Merge time", 6, write_labels));
   write_last_cache_commit_time = taos_collector_registry_must_register_metric(
-      taos_counter_new(WRITE_LAST_CACHE_COMMIT_TIME, "Last cache commit time", 5, write_labels));
+      taos_counter_new(WRITE_LAST_CACHE_COMMIT_TIME, "Last cache commit time", 6, write_labels));
   write_last_cache_commit_count = taos_collector_registry_must_register_metric(
-      taos_counter_new(WRITE_LAST_CACHE_COMMIT_COUNT, "Last cache commit count", 5, write_labels));
+      taos_counter_new(WRITE_LAST_CACHE_COMMIT_COUNT, "Last cache commit count", 6, write_labels));
 
   // Initialize global dnode counters
   const char *dnode_labels[] = {"metric_type", "cluster_id", "dnode_id", "dnode_ep"};
