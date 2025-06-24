@@ -249,7 +249,7 @@ function run_thread() {
         case_index=$(printf "%5d" "$case_index")
         local case_info
         case_info=$(echo "$line" | cut -d, -f 3,4,5)
-        while [ ${redo_count} -lt 6 ]; do
+        while [ ${redo_count} -le "$case_redo_time"  ]; do
             if [ -f "$case_log_file" ]; then
                 cp "$case_log_file" "$log_dir"/"$case_file".${redo_count}.redotxt
             fi
