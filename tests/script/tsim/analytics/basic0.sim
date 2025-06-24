@@ -228,6 +228,12 @@ sql_error select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[1, 1, 1],r
 sql_error select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=["abc"],rows=1,dynamic_real_1_col=c1') from pk_stb_ct1;
 sql_error select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[1 110 31.92],rows=abc,dynamic_real_x_col=c1') from pk_stb_ct1;
 
+print  ============== future dynamic real column test
+sql select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[1 1 1],rows=3,dynamic_real_100_col=c3') from pk_stb_ct1;
+
+print  ============== too long parameter test
+sql select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000],rows=100,dynamic_real_100_col=c3') from pk_stb_ct1;
+
 sql drop anode 1
 sql show anodes
 
