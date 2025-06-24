@@ -40,6 +40,9 @@ typedef struct SMnodeMgmt {
   bool           stopped;
   int32_t        refCount;
   TdThreadRwlock lock;
+  SWWorkerPool        streamReaderPool;  
+  STaosQueue         *pStreamReaderQ;
+  SDispatchWorkerPool streamMgmtWorkerPool;
 } SMnodeMgmt;
 
 // mmFile.c
@@ -63,6 +66,10 @@ int32_t mmPutMsgToStatusQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToFetchQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc);
+int32_t mmPutMsgToStreamMgmtQueue(SMnodeMgmt* pMgmt, SRpcMsg* pMsg);
+int32_t mmPutMsgToStreamReaderQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+
+int32_t mndProcessStreamHb(SRpcMsg *pReq);
 
 #ifdef __cplusplus
 }

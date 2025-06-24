@@ -31,6 +31,7 @@
 #include "tthread.h"
 #include "ttime.h"
 #include "tworker.h"
+#include "tjson.h"
 
 #include "dnode.h"
 #include "mnode.h"
@@ -114,6 +115,7 @@ typedef enum {
 } EDndEnvStatus;
 
 typedef int32_t (*ProcessCreateNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
+typedef int32_t (*ProcessAlterNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef int32_t (*ProcessDropNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef void (*SendMonitorReportFp)();
 typedef void (*MonitorCleanExpiredSamplesFp)();
@@ -148,12 +150,14 @@ typedef struct {
 } SDnodeData;
 
 typedef struct {
+  int32_t                      dnodeId;
   const char                  *path;
   const char                  *name;
   STfs                        *pTfs;
   SDnodeData                  *pData;
   SMsgCb                       msgCb;
   ProcessCreateNodeFp          processCreateNodeFp;
+  ProcessAlterNodeFp           processAlterNodeFp;
   ProcessAlterNodeTypeFp       processAlterNodeTypeFp;
   ProcessDropNodeFp            processDropNodeFp;
   SendMonitorReportFp          sendMonitorReportFp;
@@ -210,6 +214,7 @@ void        dmGetMonitorSystemInfo(SMonSysInfo *pInfo);
 // dmFile.c
 int32_t dmReadFile(const char *path, const char *name, bool *pDeployed);
 int32_t dmWriteFile(const char *path, const char *name, bool deployed);
+int32_t dmWriteFileJson(const char *path, const char *name, SJson *pJson);
 int32_t dmCheckRunning(const char *dataDir, TdFilePtr *pFile);
 // int32_t dmCheckRunningWrapper(const char *dataDir, TdFilePtr *pFile);
 
@@ -222,7 +227,7 @@ int32_t dmGetDnodeId(SDnodeData *pData);
 int32_t dmReadEps(SDnodeData *pData);
 int32_t dmWriteEps(SDnodeData *pData);
 void    dmUpdateEps(SDnodeData *pData, SArray *pDnodeEps);
-void    dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
+void    dmGetMnodeEpSet(void *pData, SEpSet *pEpSet);
 void    dmEpSetToStr(char *buf, int32_t len, SEpSet *epSet);
 void    dmRotateMnodeEpSet(SDnodeData *pData);
 void    dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet);
@@ -232,6 +237,8 @@ void    dmRemoveDnodePairs(SDnodeData *pData);
 void    dmGetDnodeEp(void *pData, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
 int32_t dmUpdateEncryptKey(char *key, bool toLogFile);
 int32_t dmGetEncryptKey();
+
+SEpSet* dmGetSynEpset(int32_t leaderId);
 #ifdef __cplusplus
 }
 #endif

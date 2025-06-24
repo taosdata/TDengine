@@ -15,6 +15,7 @@
 
 #include "query.h"
 #include "queryInt.h"
+#include "streamMsg.h"
 #include "systable.h"
 #include "tmsg.h"
 #include "trpc.h"

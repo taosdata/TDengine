@@ -1773,7 +1773,7 @@ int main(int argc, char **argv){
   }
   memset(&lem, 0, sizeof(lem));
   lem.errorcnt = 0;
-  qsort(azDefine, nDefine, sizeof(azDefine[0]), defineCmp);
+  if (azDefine) qsort(azDefine, nDefine, sizeof(azDefine[0]), defineCmp);
 
   /* Initialize the machine */
   Strsafe_init();

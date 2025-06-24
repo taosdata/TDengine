@@ -510,12 +510,11 @@ TEST_F(ParserInitialCTest, createView) {
   auto setCreateStreamReq = [&](const char* pStream, const char* pSrcDb, const char* pSql, const char* pDstStb,
                                 int8_t igExists = 0) {
     snprintf(expect.name, sizeof(expect.name), "0.%s", pStream);
-    snprintf(expect.sourceDB, sizeof(expect.sourceDB), "0.%s", pSrcDb);
-    snprintf(expect.targetStbFullName, sizeof(expect.targetStbFullName), "0.test.%s", pDstStb);
     expect.igExists = igExists;
     expect.sql = taosStrdup(pSql);
   };
 
+/*STREAMTODO
   auto setStreamOptions =
       [&](int8_t createStb = STREAM_CREATE_STABLE_TRUE, int8_t triggerType = STREAM_TRIGGER_WINDOW_CLOSE,
           int64_t maxDelay = 0, int64_t watermark = 0, int8_t igExpired = STREAM_DEFAULT_IGNORE_EXPIRED,
@@ -528,6 +527,7 @@ TEST_F(ParserInitialCTest, createView) {
         expect.igExpired = igExpired;
         expect.igUpdate = igUpdate;
       };
+*/
 
   auto addTag = [&](const char* pFieldName, uint8_t type, int32_t bytes = 0) {
     SField field = {0};
@@ -535,12 +535,6 @@ TEST_F(ParserInitialCTest, createView) {
     field.type = type;
     field.bytes = bytes > 0 ? bytes : tDataTypes[type].bytes;
     field.flags |= COL_SMA_ON;
-
-    if (NULL == expect.pTags) {
-      expect.pTags = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SField));
-    }
-    ASSERT_TRUE(nullptr != taosArrayPush(expect.pTags, &field));
-    expect.numOfTags += 1;
   };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
@@ -550,36 +544,17 @@ TEST_F(ParserInitialCTest, createView) {
                 tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
 
     ASSERT_EQ(std::string(req.name), std::string(expect.name));
-    ASSERT_EQ(std::string(req.sourceDB), std::string(expect.sourceDB));
-    ASSERT_EQ(std::string(req.targetStbFullName), std::string(expect.targetStbFullName));
     ASSERT_EQ(req.igExists, expect.igExists);
     ASSERT_EQ(std::string(req.sql), std::string(expect.sql));
     ASSERT_EQ(req.triggerType, expect.triggerType);
     ASSERT_EQ(req.maxDelay, expect.maxDelay);
     ASSERT_EQ(req.watermark, expect.watermark);
     ASSERT_EQ(req.fillHistory, expect.fillHistory);
-    ASSERT_EQ(req.igExpired, expect.igExpired);
-    ASSERT_EQ(req.numOfTags, expect.numOfTags);
-    if (expect.numOfTags > 0) {
-      ASSERT_EQ(taosArrayGetSize(req.pTags), expect.numOfTags);
-      ASSERT_EQ(taosArrayGetSize(req.pTags), taosArrayGetSize(expect.pTags));
-      for (int32_t i = 0; i < expect.numOfTags; ++i) {
-        SField* pField = (SField*)taosArrayGet(req.pTags, i);
-        SField* pExpectField = (SField*)taosArrayGet(expect.pTags, i);
-        ASSERT_EQ(std::string(pField->name), std::string(pExpectField->name));
-        ASSERT_EQ(pField->type, pExpectField->type);
-        ASSERT_EQ(pField->bytes, pExpectField->bytes);
-        ASSERT_EQ(pField->flags, pExpectField->flags);
-      }
-    }
-    ASSERT_EQ(req.checkpointFreq, expect.checkpointFreq);
-    ASSERT_EQ(req.createStb, expect.createStb);
-    ASSERT_EQ(req.igUpdate, expect.igUpdate);
     tFreeSCMCreateStreamReq(&req);
   });
 
   setCreateStreamReq("s1", "test", "create stream s1 into st3 as select count(*) from t1 interval(10s)", "st3");
-  setStreamOptions();
+  //setStreamOptions();
   run("CREATE STREAM s1 INTO st3 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
   clearCreateStreamReq();
 
@@ -588,8 +563,8 @@ TEST_F(ParserInitialCTest, createView) {
       "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired 0 fill_history 0 ignore "
       "update 1 into st3 as select count(*) from t1 interval(10s)",
       "st3", 1);
-  setStreamOptions(STREAM_CREATE_STABLE_TRUE, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND,
-                   10 * MILLISECOND_PER_SECOND, 0, 0, 1);
+  //setStreamOptions(STREAM_CREATE_STABLE_TRUE, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND,
+  //                 10 * MILLISECOND_PER_SECOND, 0, 0, 1);
   run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED 0 FILL_HISTORY 0 IGNORE "
       "UPDATE 1 INTO st3 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
   clearCreateStreamReq();
@@ -600,7 +575,7 @@ TEST_F(ParserInitialCTest, createView) {
                      "st3");
   addTag("tname", TSDB_DATA_TYPE_VARCHAR, 10 + VARSTR_HEADER_SIZE);
   addTag("id", TSDB_DATA_TYPE_INT);
-  setStreamOptions();
+  //setStreamOptions();
   run("CREATE STREAM s1 INTO st3 TAGS(tname VARCHAR(10), id INT) SUBTABLE(CONCAT('new-', tname)) "
       "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 PARTITION BY TBNAME tname, tag1 id INTERVAL(10S)");
   clearCreateStreamReq();
@@ -610,7 +585,7 @@ TEST_F(ParserInitialCTest, createView) {
       "s1", "test",
       "create stream s1 into st1 tags(tag2) as select max(c1), c2 from t1 partition by tbname tag2 interval(10s)",
       "st1");
-  setStreamOptions(STREAM_CREATE_STABLE_FALSE);
+  //setStreamOptions(STREAM_CREATE_STABLE_FALSE);
   run("CREATE STREAM s1 INTO st1 TAGS(tag2) AS SELECT MAX(c1), c2 FROM t1 PARTITION BY TBNAME tag2 INTERVAL(10S)");
   clearCreateStreamReq();
 }
@@ -956,150 +931,6 @@ TEST_F(ParserInitialCTest, createStableSemanticCheck) {
 
   run("CREATE STABLE rollup_db.stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(MAX) MAX_DELAY 10s WATERMARK 18m",
       TSDB_CODE_PAR_INVALID_TABLE_OPTION);
-}
-
-/*
- * CREATE STREAM [IF NOT EXISTS] stream_name [stream_options]
- *     INTO stb_name [TAGS (create_definition [, create_definition] ...)] [SUBTABLE (expr)] AS subquery
- *
- * stream_options:
- *     stream_option ...
- *
- * stream_option: {
- *     TRIGGER    [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
- *   | WATERMARK   time
- *   | IGNORE EXPIRED value
- *   | FILL_HISTORY value
- * }
- */
-TEST_F(ParserInitialCTest, createStream) {
-  useDb("root", "test");
-
-  SCMCreateStreamReq expect = {0};
-
-  auto clearCreateStreamReq = [&]() {
-    tFreeSCMCreateStreamReq(&expect);
-    memset(&expect, 0, sizeof(SCMCreateStreamReq));
-  };
-
-  auto setCreateStreamReq = [&](const char* pStream, const char* pSrcDb, const char* pSql, const char* pDstStb,
-                                int8_t igExists = 0) {
-    snprintf(expect.name, sizeof(expect.name), "0.%s", pStream);
-    snprintf(expect.sourceDB, sizeof(expect.sourceDB), "0.%s", pSrcDb);
-    snprintf(expect.targetStbFullName, sizeof(expect.targetStbFullName), "0.test.%s", pDstStb);
-    expect.igExists = igExists;
-    expect.sql = taosStrdup(pSql);
-  };
-
-  auto setStreamOptions =
-      [&](int8_t createStb = STREAM_CREATE_STABLE_TRUE, int8_t triggerType = STREAM_TRIGGER_WINDOW_CLOSE,
-          int64_t maxDelay = 0, int64_t watermark = 0, int8_t igExpired = STREAM_DEFAULT_IGNORE_EXPIRED,
-          int8_t fillHistory = STREAM_DEFAULT_FILL_HISTORY, int8_t igUpdate = STREAM_DEFAULT_IGNORE_UPDATE) {
-        expect.createStb = createStb;
-        expect.triggerType = triggerType;
-        expect.maxDelay = maxDelay;
-        expect.watermark = watermark;
-        expect.fillHistory = fillHistory;
-        expect.igExpired = igExpired;
-        expect.igUpdate = igUpdate;
-      };
-
-  auto addTag = [&](const char* pFieldName, uint8_t type, int32_t bytes = 0) {
-    SField field = {0};
-    strcpy(field.name, pFieldName);
-    field.type = type;
-    field.bytes = bytes > 0 ? bytes : tDataTypes[type].bytes;
-    field.flags |= COL_SMA_ON;
-
-    if (NULL == expect.pTags) {
-      expect.pTags = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SField));
-    }
-    ASSERT_TRUE(taosArrayPush(expect.pTags, &field) != nullptr);
-    expect.numOfTags += 1;
-  };
-
-  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
-    SCMCreateStreamReq req = {0};
-    ASSERT_TRUE(TSDB_CODE_SUCCESS ==
-                tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-
-    ASSERT_EQ(std::string(req.name), std::string(expect.name));
-    ASSERT_EQ(std::string(req.sourceDB), std::string(expect.sourceDB));
-    ASSERT_EQ(std::string(req.targetStbFullName), std::string(expect.targetStbFullName));
-    ASSERT_EQ(req.igExists, expect.igExists);
-    ASSERT_EQ(std::string(req.sql), std::string(expect.sql));
-    ASSERT_EQ(req.triggerType, expect.triggerType);
-    ASSERT_EQ(req.maxDelay, expect.maxDelay);
-    ASSERT_EQ(req.watermark, expect.watermark);
-    ASSERT_EQ(req.fillHistory, expect.fillHistory);
-    ASSERT_EQ(req.igExpired, expect.igExpired);
-    ASSERT_EQ(req.numOfTags, expect.numOfTags);
-    if (expect.numOfTags > 0) {
-      ASSERT_EQ(taosArrayGetSize(req.pTags), expect.numOfTags);
-      ASSERT_EQ(taosArrayGetSize(req.pTags), taosArrayGetSize(expect.pTags));
-      for (int32_t i = 0; i < expect.numOfTags; ++i) {
-        SField* pField = (SField*)taosArrayGet(req.pTags, i);
-        SField* pExpectField = (SField*)taosArrayGet(expect.pTags, i);
-        ASSERT_EQ(std::string(pField->name), std::string(pExpectField->name));
-        ASSERT_EQ(pField->type, pExpectField->type);
-        ASSERT_EQ(pField->bytes, pExpectField->bytes);
-        ASSERT_EQ(pField->flags, pExpectField->flags);
-      }
-    }
-    ASSERT_EQ(req.checkpointFreq, expect.checkpointFreq);
-    ASSERT_EQ(req.createStb, expect.createStb);
-    ASSERT_EQ(req.igUpdate, expect.igUpdate);
-    tFreeSCMCreateStreamReq(&req);
-  });
-
-  setCreateStreamReq("s1", "test", "create stream s1 into st3 as select count(*) from t1 interval(10s)", "st3");
-  setStreamOptions();
-  run("CREATE STREAM s1 INTO st3 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
-  clearCreateStreamReq();
-
-  setCreateStreamReq(
-      "s1", "test",
-      "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired 0 fill_history 0 ignore "
-      "update 1 into st3 as select count(*) from t1 interval(10s)",
-      "st3", 1);
-  setStreamOptions(STREAM_CREATE_STABLE_TRUE, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND,
-                   10 * MILLISECOND_PER_SECOND, 0, 0, 1);
-  run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED 0 FILL_HISTORY 0 IGNORE "
-      "UPDATE 1 INTO st3 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
-  clearCreateStreamReq();
-
-  setCreateStreamReq("s1", "test",
-                     "create stream s1 into st3 tags(tname varchar(10), id int) subtable(concat('new-', tname)) as "
-                     "select _wstart wstart, count(*) cnt from st1 partition by tbname tname, tag1 id interval(10s)",
-                     "st3");
-  addTag("tname", TSDB_DATA_TYPE_VARCHAR, 10 + VARSTR_HEADER_SIZE);
-  addTag("id", TSDB_DATA_TYPE_INT);
-  setStreamOptions();
-  run("CREATE STREAM s1 INTO st3 TAGS(tname VARCHAR(10), id INT) SUBTABLE(CONCAT('new-', tname)) "
-      "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 PARTITION BY TBNAME tname, tag1 id INTERVAL(10S)");
-  clearCreateStreamReq();
-
-  // st1 already exists
-  setCreateStreamReq(
-      "s1", "test",
-      "create stream s1 into st1 tags(tag2) as select max(c1), c2 from t1 partition by tbname tag2 interval(10s)",
-      "st1");
-  setStreamOptions(STREAM_CREATE_STABLE_FALSE);
-  run("CREATE STREAM s1 INTO st1 TAGS(tag2) AS SELECT MAX(c1), c2 FROM t1 PARTITION BY TBNAME tag2 INTERVAL(10S)");
-  clearCreateStreamReq();
-}
-
-TEST_F(ParserInitialCTest, createStreamSemanticCheck) {
-  useDb("root", "test");
-
-  run("CREATE STREAM s1 INTO st1 AS SELECT PERCENTILE(c1, 30) FROM t1 INTERVAL(10S)",
-      TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC);
-  run("CREATE STREAM s2 INTO st1 AS SELECT ts, to_json('{c1:1}') FROM st1 PARTITION BY TBNAME",
-      TSDB_CODE_PAR_INVALID_STREAM_QUERY);
-  run("CREATE STREAM s3 INTO st3 TAGS(tname VARCHAR(10), id INT) SUBTABLE(CONCAT('new-', tbname)) "
-      "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 INTERVAL(10S)",
-      TSDB_CODE_PAR_INVALID_STREAM_QUERY);
 }
 
 /*

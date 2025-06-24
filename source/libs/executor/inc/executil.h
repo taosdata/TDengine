@@ -116,7 +116,7 @@ struct SqlFunctionCtx;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
-                                SExecTaskInfo* pTaskInfo);
+                                SExecTaskInfo* pTaskInfo, SHashObj* groupIdMap);
 
 STableListInfo* tableListCreate();
 void            tableListDestroy(STableListInfo* pTableListInfo);
@@ -165,7 +165,6 @@ bool hasRemainResults(SGroupResInfo* pGroupResInfo);
 
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 
-SSDataBlock* createDataBlockFromDescNode(SDataBlockDescNode* pNode);
 int32_t      prepareDataBlockBuf(SSDataBlock* pDataBlock, SColMatchInfo* pMatchInfo);
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
@@ -180,8 +179,8 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
 
 int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId);
 int32_t createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode);
-int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** pExprInfo, int32_t* numOfExprs);
 
+void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOfOutput);
 SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset,
                                      SFunctionStateStore* pStore);
 int32_t relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols, bool outputEveryColumn);
@@ -200,7 +199,7 @@ int32_t convertFillType(int32_t mode);
 int32_t resultrowComparAsc(const void* p1, const void* p2);
 int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified, SStorageAPI* pAPI);
 char*   getStreamOpName(uint16_t opType);
-void    printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr);
+
 void    printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr);
 
 TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols);

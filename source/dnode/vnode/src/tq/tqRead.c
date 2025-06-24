@@ -366,81 +366,6 @@ int32_t tqReaderSeek(STqReader* pReader, int64_t ver, const char* id) {
   return 0;
 }
 
-int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, const char* id) {
-  int32_t code = 0;
-
-  while (1) {
-    TAOS_CHECK_RETURN(walNextValidMsg(pReader));
-
-    SWalCont* pCont = &pReader->pHead->head;
-    int64_t   ver = pCont->version;
-    if (ver > maxVer) {
-      tqDebug("maxVer in WAL:%" PRId64 " reached, current:%" PRId64 ", do not scan wal anymore, %s", maxVer, ver, id);
-      return TSDB_CODE_SUCCESS;
-    }
-
-    if (pCont->msgType == TDMT_VND_SUBMIT) {
-      void*   pBody = POINTER_SHIFT(pCont->body, sizeof(SSubmitReq2Msg));
-      int32_t len = pCont->bodyLen - sizeof(SSubmitReq2Msg);
-
-      void* data = taosMemoryMalloc(len);
-      if (data == NULL) {
-        // todo: for all stream in this vnode, keep this offset in the offset files, and wait for a moment, and then
-        // retry
-        tqError("vgId:%d, failed to copy submit data for stream processing, since out of memory", 0);
-        return terrno;
-      }
-
-      (void)memcpy(data, pBody, len);
-      SPackedData data1 = (SPackedData){.ver = ver, .msgLen = len, .msgStr = data};
-
-      code = streamDataSubmitNew(&data1, STREAM_INPUT__DATA_SUBMIT, (SStreamDataSubmit**)pItem);
-      if (code != 0) {
-        tqError("%s failed to create data submit for stream since out of memory", id);
-        return code;
-      }
-    } else if (pCont->msgType == TDMT_VND_DELETE) {
-      void*       pBody = POINTER_SHIFT(pCont->body, sizeof(SMsgHead));
-      int32_t     len = pCont->bodyLen - sizeof(SMsgHead);
-      EStreamType blockType = STREAM_DELETE_DATA;
-      code = tqExtractDelDataBlock(pBody, len, ver, (void**)pItem, 0, blockType);
-      if (code == TSDB_CODE_SUCCESS) {
-        if (*pItem == NULL) {
-          tqDebug("s-task:%s empty delete msg, discard it, len:%d, ver:%" PRId64, id, len, ver);
-          // we need to continue check next data in the wal files.
-          continue;
-        } else {
-          tqDebug("s-task:%s delete msg extract from WAL, len:%d, ver:%" PRId64, id, len, ver);
-        }
-      } else {
-        terrno = code;
-        tqError("s-task:%s extract delete msg from WAL failed, code:%s", id, tstrerror(code));
-        return code;
-      }
-
-    } else if (pCont->msgType == TDMT_VND_DROP_TABLE && pReader->cond.scanDropCtb) {
-      void*   pBody = POINTER_SHIFT(pCont->body, sizeof(SMsgHead));
-      int32_t len = pCont->bodyLen - sizeof(SMsgHead);
-      code = tqExtractDropCtbDataBlock(pBody, len, ver, (void**)pItem, 0);
-      if (TSDB_CODE_SUCCESS == code) {
-        if (!*pItem) {
-          continue;
-        } else {
-          tqDebug("s-task:%s drop ctb msg extract from WAL, len:%d, ver:%" PRId64, id, len, ver);
-        }
-      } else {
-        terrno = code;
-        return code;
-      }
-    } else {
-      tqError("s-task:%s invalid msg type:%d, ver:%" PRId64, id, pCont->msgType, ver);
-      return TSDB_CODE_STREAM_INTERNAL_ERROR;
-    }
-
-    return code;
-  }
-}
-
 bool tqNextBlockInWal(STqReader* pReader, const char* id, int sourceExcluded) {
   if (pReader == NULL) {
     return false;
@@ -1309,6 +1234,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   taosWUnLockLatch(&pTq->lock);
 
   // update the table list handle for each stream scanner/wal reader
+/* STREAMTODO
   streamMetaWLock(pTq->pStreamMeta);
   while (1) {
     pIter = taosHashIterate(pTq->pStreamMeta->pTasksMap, pIter);
@@ -1335,6 +1261,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   }
 
   streamMetaWUnLock(pTq->pStreamMeta);
+*/  
   return 0;
 }
 

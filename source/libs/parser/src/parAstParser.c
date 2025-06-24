@@ -109,7 +109,6 @@ typedef struct SCollectMetaKeyCxt {
   SParseContext*   pParseCxt;
   SParseMetaCache* pMetaCache;
   SNode*           pStmt;
-  bool             collectVSubTables;
   bool             collectVStbRefDbs;
 } SCollectMetaKeyCxt;
 
@@ -192,8 +191,8 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
   }
   if (TSDB_CODE_SUCCESS == code &&
       (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS) || 0 == strcmp(pTable, TSDB_INS_TABLE_TABLES) ||
-       0 == strcmp(pTable, TSDB_INS_TABLE_COLS) || 0 == strcmp(pTable, TSDB_INS_DISK_USAGE) ||
-       0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)) &&
+       0 == strcmp(pTable, TSDB_INS_TABLE_COLS) || 0 == strcmp(pTable, TSDB_INS_TABLE_VC_COLS) ||
+       0 == strcmp(pTable, TSDB_INS_DISK_USAGE) || 0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)) &&
       QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
     code = collectMetaKeyFromInsTags(pCxt);
   }
@@ -207,9 +206,6 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
 static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SRealTableNode* pRealTable) {
   pCxt->errCode = collectMetaKeyFromRealTableImpl(pCxt->pComCxt, pRealTable->table.dbName, pRealTable->table.tableName,
                                                   AUTH_TYPE_READ);
-  if (TSDB_CODE_SUCCESS == pCxt->errCode && pCxt->pComCxt->collectVSubTables) {
-    pCxt->errCode = reserveVSubTableInCache(pCxt->pComCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, pCxt->pComCxt->pMetaCache);
-  }
   if (TSDB_CODE_SUCCESS == pCxt->errCode && pCxt->pComCxt->collectVStbRefDbs) {
     pCxt->errCode = reserveVStbRefDbsInCache(pCxt->pComCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, pCxt->pComCxt->pMetaCache);
   }
@@ -527,6 +523,12 @@ static int32_t collectMetaKeyFromDropVtable(SCollectMetaKeyCxt* pCxt, SDropVirtu
 
 static int32_t collectMetaKeyFromAlterTable(SCollectMetaKeyCxt* pCxt, SAlterTableStmt* pStmt) {
   int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code && (TSDB_ALTER_TABLE_UPDATE_TAG_VAL == pStmt->alterType || TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL == pStmt->alterType)) {
+    SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
+    tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
+    tstrncpy(name.tname, pStmt->tableName, TSDB_TABLE_NAME_LEN);
+    code = catalogRemoveTableRelatedMeta(pCxt->pParseCxt->pCatalog, &name);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
   }
@@ -554,6 +556,12 @@ static int32_t collectMetaKeyFromAlterStable(SCollectMetaKeyCxt* pCxt, SAlterTab
 
 static int32_t collectMetaKeyFromAlterVtable(SCollectMetaKeyCxt* pCxt, SAlterTableStmt* pStmt) {
   PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache));
+  if (TSDB_ALTER_TABLE_UPDATE_TAG_VAL == pStmt->alterType || TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL == pStmt->alterType) {
+    SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
+    tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
+    tstrncpy(name.tname, pStmt->tableName, TSDB_TABLE_NAME_LEN);
+    PAR_ERR_RET(catalogRemoveTableRelatedMeta(pCxt->pParseCxt->pCatalog, &name));
+  }
   PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache));
   PAR_ERR_RET(reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache));
   PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
@@ -606,7 +614,7 @@ static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStm
   SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
   tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
   tstrncpy(name.tname, pStmt->tableName, TSDB_TABLE_NAME_LEN);
-  int32_t code = catalogRemoveTableMeta(pCxt->pParseCxt->pCatalog, &name);
+  int32_t code = catalogRemoveTableRelatedMeta(pCxt->pParseCxt->pCatalog, &name);
 #ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code) {
     char dbFName[TSDB_DB_FNAME_LEN];
@@ -621,26 +629,34 @@ static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStm
 }
 
 static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateStreamStmt* pStmt) {
-  pCxt->collectVSubTables = true;
-  
-  int32_t code =
-      reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache);
-  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pSubtable && NULL != pStmt->pQuery) {
-    SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
-    int32_t      code = nodesCloneNode(pStmt->pSubtable, &pSelect->pSubtable);
-    if (NULL == pSelect->pSubtable) {
-      return code;
-    }
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (strcmp(pStmt->targetTabName, "") != 0) {
+    PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache));
+    reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pStmt->targetTabName, pCxt->pMetaCache);
+    PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pCxt->pMetaCache));
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = collectMetaKeyFromQuery(pCxt, pStmt->pQuery);
+  PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->streamDbName, pCxt->pMetaCache));
+  SRealTableNode *pTriggerTable = (SRealTableNode*)((SStreamTriggerNode*)pStmt->pTrigger)->pTrigerTable;
+  if (pTriggerTable) {
+    SCollectMetaKeyFromExprCxt cxt = {.pComCxt = pCxt, .hasLastRowOrLast = false, .tbnameCollect = true, .errCode = TSDB_CODE_SUCCESS};
+    cxt.pComCxt->collectVStbRefDbs = true;
+    EDealRes res = collectMetaKeyFromRealTable(&cxt, pTriggerTable);
+    PAR_ERR_RET(cxt.errCode);
+    PAR_ERR_RET(reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, pTriggerTable->table.dbName, pCxt->pMetaCache));
+    PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pTriggerTable->table.dbName, pCxt->pMetaCache));
   }
-  if (TSDB_CODE_SUCCESS == code && pStmt->pOptions->fillHistory) {
-    SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
-    code = reserveDbCfgForLastRow(pCxt, pSelect->pFromTable);
+  if (pStmt->pQuery) {
+    PAR_ERR_RET(collectMetaKeyFromQuery(pCxt, pStmt->pQuery));
   }
+
   return code;
 }
+
+static int32_t collectMetaKeyFromRecalculateStream(SCollectMetaKeyCxt* pCxt, SRecalcStreamStmt* pStmt) {
+  return reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->streamDbName, pCxt->pMetaCache);
+}
+
 
 static int32_t collectMetaKeyFromShowDnodes(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   if (pCxt->pParseCxt->enableSysInfo) {
@@ -1099,7 +1115,7 @@ static int32_t collectMetaKeyFromShowTSMASStmt(SCollectMetaKeyCxt* pCxt, SShowSt
 static int32_t collectMetaKeyFromShowAlive(SCollectMetaKeyCxt* pCxt, SShowAliveStmt* pStmt) {
   int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VGROUPS,
                                          pCxt->pMetaCache);
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && pStmt->dbName[0]) {
     // just to verify whether the database exists
     code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   }
@@ -1155,6 +1171,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromCompactVgroups(pCxt, (SCompactVgroupsStmt*)pStmt);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return collectMetaKeyFromCreateStream(pCxt, (SCreateStreamStmt*)pStmt);
+    case QUERY_NODE_RECALCULATE_STREAM_STMT:
+      return collectMetaKeyFromRecalculateStream(pCxt, (SRecalcStreamStmt*)pStmt);
     case QUERY_NODE_GRANT_STMT:
       return collectMetaKeyFromGrant(pCxt, (SGrantStmt*)pStmt);
     case QUERY_NODE_REVOKE_STMT:

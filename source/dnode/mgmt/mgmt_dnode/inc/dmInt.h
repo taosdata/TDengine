@@ -37,6 +37,7 @@ typedef struct SDnodeMgmt {
   TdThread                     crashReportThread;
   SSingleWorker                mgmtWorker;
   ProcessCreateNodeFp          processCreateNodeFp;
+  ProcessAlterNodeFp           processAlterNodeFp;
   ProcessAlterNodeTypeFp       processAlterNodeTypeFp;
   ProcessDropNodeFp            processDropNodeFp;
   SendMonitorReportFp          sendMonitorReportFp;
@@ -47,6 +48,7 @@ typedef struct SDnodeMgmt {
   GetMnodeLoadsFp              getMnodeLoadsFp;
   GetQnodeLoadsFp              getQnodeLoadsFp;
   int32_t                      statusSeq;
+  SDispatchWorkerPool          streamMgmtWorker;
 } SDnodeMgmt;
 
 // dmHandle.c
@@ -82,6 +84,8 @@ int32_t dmStartCrashReportThread(SDnodeMgmt *pMgmt);
 void    dmStopCrashReportThread(SDnodeMgmt *pMgmt);
 int32_t dmStartWorker(SDnodeMgmt *pMgmt);
 void    dmStopWorker(SDnodeMgmt *pMgmt);
+int32_t dmPutMsgToStreamMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t dmProcessStreamHbRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }
