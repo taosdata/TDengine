@@ -93,6 +93,7 @@ if [[ -d ${WORKDIR}/debugSan ]] ;then
     echo "delete  ${WORKDIR}/debugSan"
     rm -rf  ${WORKDIR}/debugSan
 fi
+
 if [[ -d ${WORKDIR}/debugRelease ]] ;then
     echo "delete  ${WORKDIR}/debugRelease"
     rm -rf  ${WORKDIR}/debugRelease
