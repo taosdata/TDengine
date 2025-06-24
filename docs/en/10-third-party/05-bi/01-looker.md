@@ -3,7 +3,7 @@ title: Looker Studio
 slug: /third-party-tools/analytics/looker-studio
 ---
 
-Looker Studio, a powerful reporting and business intelligence tool under Google, was formerly known as Google Data Studio. At the Google Cloud Next conference in 2022, Google renamed it to Looker Studio. This tool offers a convenient data reporting experience with its rich data visualization options and diverse data connection capabilities. Users can easily create data reports based on preset templates to meet various data analysis needs.
+Looker Studio, a powerful reporting and business intelligence tool under Google, was formerly known as Google Looker Studio. At the Google Cloud Next conference in 2022, Google renamed it to Looker Studio. This tool offers a convenient data reporting experience with its rich data visualization options and diverse data connection capabilities. Users can easily create data reports based on preset templates to meet various data analysis needs.
 
 Due to its easy-to-use interface and extensive ecosystem support, Looker Studio is favored by many data scientists and professionals in the field of data analysis. Whether a beginner or a seasoned analyst, users can quickly build attractive and practical data reports with Looker Studio, thereby better understanding business trends, optimizing decision-making processes, and enhancing overall operational efficiency.
 
