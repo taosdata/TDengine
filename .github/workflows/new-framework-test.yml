@@ -24,6 +24,6 @@ concurrency:
 
 jobs:
   test-new-cases:
-    uses: taosdata/.github/.github/workflows/new-framework-test.yml@fix/jenkins-log
+    uses: taosdata/.github/.github/workflows/new-framework-test.yml@main
     with:
       tdinternal: false
