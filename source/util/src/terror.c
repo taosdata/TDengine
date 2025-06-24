@@ -949,13 +949,15 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN,     "Not a table scan pl
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_SNODE_IN_USE,        "Snode still in use with streams")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_PLAN_ERROR,          "Stream plan error")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NODE_NOT_EXISTS,     "Dnode/snode not exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NOT_IN_DEPLOY,       "Stream not deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NOT_RUNNING,         "Stream not running")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_STOPPED,             "Stream stopped")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TASK_LOST,           "Stream task lost")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_SNODE_LOST,          "Snode lost")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_DB_IN_USE,           "Db used by stream")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_VTABLE_EXITS,        "Virtual table stream exists, use FORCE when ensure no impact")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_VGROUP_LOST,         "Vgroup lost leader")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NOT_AVAILABLE,       "Mnode stream not available now")
+
 
 
 

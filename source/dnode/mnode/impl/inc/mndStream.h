@@ -83,12 +83,11 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 #define STREAM_RUNNER_MAX_DEPLOYS 
 #define STREAM_RUNNER_MAX_REPLICA 
 
-#define STREAM_ACT_DEPLOY   (1 << 0)
-#define STREAM_ACT_UNDEPLOY (1 << 1)
-#define STREAM_ACT_START    (1 << 2)
+#define STREAM_ACT_DEPLOY     (1 << 0)
+#define STREAM_ACT_UNDEPLOY   (1 << 1)
+#define STREAM_ACT_START      (1 << 2)
 #define STREAM_ACT_UPDATE_TRIGGER (1 << 3)
-
-static const char* gMndStreamAction[] = {"", "DEPLOY", "UNDEPLOY", "", "START", "", "", "", "UPDATE TRIGGER"};
+#define STREAM_ACT_RECALC     (1 << 4)
 
 #define MND_STREAM_RESERVE_SIZE      64
 #define MND_STREAM_VER_NUMBER        6
@@ -107,9 +106,9 @@ static const char* gMndStreamAction[] = {"", "DEPLOY", "UNDEPLOY", "", "START", 
 #define MND_STREAM_RECALC_NAME       "stream-recalc"
 
 #define GOT_SNODE(_snodeId) ((_snodeId) != 0)
-#define STREAM_IS_RUNNING(_status) (STREAM_STATUS_RUNNING == (_status))
+#define STREAM_IS_RUNNING(_ss) ((_ss)->triggerTask && STREAM_STATUS_RUNNING == (_ss)->triggerTask->status)
 #define STREAM_IS_VIRTUAL_TABLE(_type, _flags) (TSDB_VIRTUAL_CHILD_TABLE == (_type) || TSDB_VIRTUAL_NORMAL_TABLE == (_type) || (TSDB_SUPER_TABLE == (_type) && BIT_FLAG_TEST_MASK((_flags), CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB)))
-
+#define MST_IS_RUNNER_GETTING_READY(_t) (STREAM_STATUS_INIT == (_t)->status && STREAM_RUNNER_TASK == (_t)->type)
 
 // clang-format off
 #define mstFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("MSTM FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }} while(0)
@@ -162,6 +161,7 @@ static const char* gMndStreamAction[] = {"", "DEPLOY", "UNDEPLOY", "", "START", 
 typedef struct SStmStreamAction {
   int64_t              streamId;
   char                 streamName[TSDB_STREAM_FNAME_LEN];
+  void*                actionParam;
 } SStmStreamAction;
 
 
@@ -253,8 +253,9 @@ typedef struct SStmStatus {
   int32_t           runnerDeploys;
   int32_t           runnerReplica;
 
+  int8_t            stopped;         // 1:runtime error stopped, 2:user stopped, 3:user dropped
+
   int64_t           deployTimes;
-  int8_t            stopped;         // 1:runtime error stopped, 2:user stopped
   int64_t           lastActionTs;
   int32_t           fatalError;
   int64_t           fatalRetryDuration;
@@ -266,9 +267,16 @@ typedef struct SStmStatus {
   SStmTaskStatus*   triggerTask;
   SArray*           runners[MND_STREAM_RUNNER_DEPLOY_NUM];  // SArray<SStmTaskStatus>
 
+  int8_t            triggerNeedUpdate;
+  
+  SRWLatch          userRecalcLock;
+  SArray*           userRecalcList; // SArray<SStreamRecalcReq>
+
   SStmStat          stat;
 } SStmStatus;
 
+#define MST_IS_USER_STOPPED(_s) (2 == (_s) || 3 == (_s))
+#define MST_IS_ERROR_STOPPED(_s) (1 == (_s))
 
 typedef struct SStmTaskStatusExt{
   int64_t         streamId;
@@ -327,11 +335,17 @@ typedef struct SStmStreamStart {
   SStmTaskId      triggerId;
 } SStmStreamStart;
 
+typedef struct SStmStreamRecalc {
+  SArray*     recalcList;     // SArray<SStreamRecalcReq>
+} SStmStreamRecalc;
+
+
 typedef struct SStmAction {
   int32_t            actions;
   SStmStreamStart    start;
   SStmStreamDeploy   deploy;
   SStmStreamUndeploy undeploy;
+  SStmStreamRecalc   recalc;
 } SStmAction;
 
 typedef struct SStmGrpCtx {
@@ -467,6 +481,7 @@ int32_t mndStreamTransAppend(SStreamObj *pStream, STrans *pTrans, int32_t status
 int32_t mndStreamCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name, STrans **ppTrans);
 int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
 int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t* numOfRows, int32_t rowsCapacity);
+int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWindow* pRange);
 int32_t mstCheckSnodeExists(SMnode *pMnode);
 void mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg);
 void msmClearStreamToDeployMaps(SStreamHbMsg* pHb);
@@ -478,22 +493,23 @@ bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param);
 void msmHandleBecomeLeader(SMnode *pMnode);
 void msmHandleBecomeNotLeader(SMnode *pMnode);
 int32_t msmUndeployStream(SMnode* pMnode, int64_t streamId, char* streamName);
+int32_t msmRecalcStream(SMnode* pMnode, int64_t streamId, STimeWindow* timeRange);
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped);
 bool mstWaitLock(SRWLatch* pLock, bool readLock);
 void msmHealthCheck(SMnode *pMnode);
-void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, int32_t action);
-void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action);
+void mstPostStreamAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, void* param, int32_t action);
+void mstPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action);
 int32_t msmAssignRandomSnodeId(SMnode* pMnode, int64_t streamId);
 int32_t msmCheckSnodeReassign(SMnode *pMnode, SSnodeObj* pSnode, SArray** ppRes);
-void mndStreamLogSStreamObj(char* tips, SStreamObj* p);
-void mndStreamLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p);
+void mstLogSStreamObj(char* tips, SStreamObj* p);
+void mstLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p);
 void mstDestroySStmVgStreamStatus(void* p);
 void mstDestroyVgroupStatus(SStmVgroupStatus* pVgStatus);
 void mstDestroySStmSnodeStreamStatus(void* p);
-int32_t mndStreamBuildDBVgroupsMap(SMnode* pMnode, SSHashObj** ppRes);
-int32_t mndStreamGetTableVgId(SSHashObj* pDbVgroups, char* dbFName, char *tbName, int32_t* vgId);
+int32_t mstBuildDBVgroupsMap(SMnode* pMnode, SSHashObj** ppRes);
+int32_t mstGetTableVgId(SSHashObj* pDbVgroups, char* dbFName, char *tbName, int32_t* vgId);
 void mndStreamDestroySStreamMgmtRsp(SStreamMgmtRsp* p);
-void mndStreamDestroyDbVgroupsHash(SSHashObj *pDbVgs);
+void mstDestroyDbVgroupsHash(SSHashObj *pDbVgs);
 void mndStreamUpdateTagsRefFlag(SMnode *pMnode, int64_t suid, SSchema* pTags, int32_t tagNum);
 void mstCheckDbInUse(SMnode *pMnode, char *dbFName, bool *dbStream, bool *vtableStream, bool ignoreCurrDb);
 void mstDestroySStmSnodeTasksDeploy(void* param);

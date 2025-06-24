@@ -98,7 +98,7 @@ int32_t smHandleMgmtRsp(SStreamMgmtRsps* rsps);
 int32_t smStartTasks(SStreamStartActions* actions);
 void smUndeployAllTasks(void);
 void streamTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* pParam, void* pHandle, tmr_h* pTmrId, const char* pMsg);
-int32_t stmBuildHbStreamsStatusReq(SArray** ppStatus, SArray** ppReq, int32_t gid);
+int32_t stmBuildHbStreamsStatusReq(SStreamHbMsg* pMsg);
 int32_t stmAddFetchStreamGid(void);
 
 // initialize global request limit of stream triggers

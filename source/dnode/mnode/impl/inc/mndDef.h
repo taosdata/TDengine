@@ -798,8 +798,9 @@ typedef struct {
   char                name[TSDB_STREAM_NAME_LEN];
   SCMCreateStreamReq* pCreate;
 
+  SRWLatch lock;
+  
   // dynamic info
-  SArray* recalcTimeRange;
   int32_t mainSnodeId;
   int8_t  userDropped;  // no need to serialize
   int8_t  userStopped;

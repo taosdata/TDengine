@@ -843,7 +843,7 @@ cmd ::= STOP STREAM exists_opt(A) full_stream_name(B).                          
 cmd ::= START STREAM exists_opt(A) ignore_opt(C) full_stream_name(B).             { pCxt->pRootNode = createResumeStreamStmt(pCxt, A, C, B); }
 cmd ::= RECALCULATE STREAM full_stream_name(A) recalculate_range(B).              { pCxt->pRootNode = createRecalcStreamStmt(pCxt, A, B); }
 
-recalculate_range(A) ::= ALL.                                                     { A = createRecalcRange(pCxt, NULL, NULL); }
+/* recalculate_range(A) ::= ALL.                                                     { A = createRecalcRange(pCxt, NULL, NULL); } */
 recalculate_range(A) ::= FROM time_point(B).                                      { A = createRecalcRange(pCxt, B, NULL); }
 recalculate_range(A) ::= FROM time_point(B) TO time_point(C).                     { A = createRecalcRange(pCxt, B, C); }
 

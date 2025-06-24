@@ -748,7 +748,8 @@ int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp) {
       STM_CHK_SET_ERROR_EXIT(stTriggerTaskExecute((SStreamTriggerTask*)pTask, &pRsp->header));
       break;
     }
-    case STREAM_MSG_UPDATE_RUNNER: {
+    case STREAM_MSG_UPDATE_RUNNER:
+    case STREAM_MSG_USER_RECALC: {
       STM_CHK_SET_ERROR_EXIT(stTriggerTaskExecute((SStreamTriggerTask*)pTask, &pRsp->header));
       break;
     }

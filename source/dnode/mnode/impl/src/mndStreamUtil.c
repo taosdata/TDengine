@@ -426,6 +426,8 @@ char* mstGetStreamActionString(int32_t action) {
       return "START";
     case STREAM_ACT_UPDATE_TRIGGER:
       return "UPDATE TRIGGER";
+    case STREAM_ACT_RECALC:
+      return "USER RECALC";
     default:
       break;
   }
@@ -433,9 +435,10 @@ char* mstGetStreamActionString(int32_t action) {
   return "UNKNOWN";
 }
 
-void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, int32_t action) {
+void mstPostStreamAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, void* param, int32_t action) {
   SStmQNode *pNode = taosMemoryMalloc(sizeof(SStmQNode));
   if (NULL == pNode) {
+    taosMemoryFreeClear(param);
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, __LINE__, tstrerror(terrno));
     return;
   }
@@ -444,6 +447,7 @@ void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* str
   pNode->streamAct = true;
   pNode->action.stream.streamId = streamId;
   TAOS_STRCPY(pNode->action.stream.streamName, streamName);
+  pNode->action.stream.actionParam = param;
   
   pNode->next = NULL;
 
@@ -452,7 +456,7 @@ void mndStreamPostAction(SStmActionQ*       actionQ, int64_t streamId, char* str
   mstsDebug("stream action %s posted enqueue", mstGetStreamActionString(action));
 }
 
-void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action) {
+void mstPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action) {
   SStmQNode *pNode = taosMemoryMalloc(sizeof(SStmQNode));
   if (NULL == pNode) {
     int64_t streamId = pAction->streamId;
@@ -469,7 +473,7 @@ void mndStreamPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pActio
   mndStreamActionEnqueue(actionQ, pNode);
 }
 
-void mndStreamDestroyDbVgroupsHash(SSHashObj *pDbVgs) {
+void mstDestroyDbVgroupsHash(SSHashObj *pDbVgs) {
   int32_t iter = 0;
   SDBVgHashInfo* pVg = NULL;
   void* p = NULL;
@@ -482,7 +486,7 @@ void mndStreamDestroyDbVgroupsHash(SSHashObj *pDbVgs) {
 }
 
 
-int32_t mndStreamBuildDBVgroupsMap(SMnode* pMnode, SSHashObj** ppRes) {
+int32_t mstBuildDBVgroupsMap(SMnode* pMnode, SSHashObj** ppRes) {
   void*   pIter = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -574,7 +578,7 @@ int32_t mstTableHashValueComp(void const* lp, void const* rp) {
 }
 
 
-int32_t mndStreamGetTableVgId(SSHashObj* pDbVgroups, char* dbFName, char *tbName, int32_t* vgId) {
+int32_t mstGetTableVgId(SSHashObj* pDbVgroups, char* dbFName, char *tbName, int32_t* vgId) {
   int32_t code = 0;
   int32_t lino = 0;
   SVgroupInfo* vgInfo = NULL;
@@ -614,7 +618,7 @@ _exit:
 }
 
 
-void mndStreamLogSStreamObj(char* tips, SStreamObj* p) {
+void mstLogSStreamObj(char* tips, SStreamObj* p) {
   if (!(stDebugFlag & DEBUG_DEBUG)) {
     return;
   }
@@ -697,13 +701,13 @@ void mndStreamLogSStreamObj(char* tips, SStreamObj* p) {
       
 }
 
-void mndStreamLogSStmTaskStatus(char* name, int64_t streamId, SStmTaskStatus* pTask, int32_t idx) {
+void mstLogSStmTaskStatus(char* name, int64_t streamId, SStmTaskStatus* pTask, int32_t idx) {
   mstsDebug("%s[%d]: task %" PRIx64 " deployId:%d SID:%" PRId64 " nodeId:%d tidx:%d type:%s flags:%" PRIx64 " status:%s lastUpTs:%" PRId64, 
       name, idx, pTask->id.taskId, pTask->id.deployId, pTask->id.seriousId, pTask->id.nodeId, pTask->id.taskIdx,
       gStreamTaskTypeStr[pTask->type], pTask->flags, gStreamStatusStr[pTask->status], pTask->lastUpTs);
 }
 
-void mndStreamLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
+void mstLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
   if (!(stDebugFlag & DEBUG_DEBUG)) {
     return;
   }
@@ -731,16 +735,16 @@ void mndStreamLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
   SStmTaskStatus* pTask = NULL;
   for (int32_t i = 0; i < trigReaderNum; ++i) {
     pTask = taosArrayGet(p->trigReaders, i);
-    mndStreamLogSStmTaskStatus("trigReader task", streamId, pTask, i);
+    mstLogSStmTaskStatus("trigReader task", streamId, pTask, i);
   }
 
   for (int32_t i = 0; i < calcReaderNum; ++i) {
     pTask = taosArrayGet(p->calcReaders, i);
-    mndStreamLogSStmTaskStatus("calcReader task", streamId, pTask, i);
+    mstLogSStmTaskStatus("calcReader task", streamId, pTask, i);
   }
 
   if (triggerNum > 0) {
-    mndStreamLogSStmTaskStatus("trigger task", streamId, p->triggerTask, 0);
+    mstLogSStmTaskStatus("trigger task", streamId, p->triggerTask, 0);
   }
 
   for (int32_t i = 0; i < p->runnerDeploys; ++i) {
@@ -752,7 +756,7 @@ void mndStreamLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
     mstsDebug("the %dth deploy runners status", i);
     for (int32_t m = 0; m < num; ++m) {
       pTask = taosArrayGet(p->runners[i], m);
-      mndStreamLogSStmTaskStatus("runner task", streamId, pTask, m);
+      mstLogSStmTaskStatus("runner task", streamId, pTask, m);
     }
   }
       
@@ -1163,6 +1167,46 @@ _exit:
 
   if (code) {
     mError("error happens when build stream tasks result block, lino:%d, code:%s", lino, tstrerror(code));
+  }
+  
+  return code;
+}
+
+
+int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWindow* pRange) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  bool    locked = false;
+
+  SStreamRecalcReq req = {.recalcId = 0, .start = pRange->skey, .end = pRange->ekey};
+  TAOS_CHECK_EXIT(taosGetSystemUUIDU64(&req.recalcId));
+  
+  taosWLockLatch(&pStream->userRecalcLock);
+  locked = true;
+  
+  if (NULL == pStream->userRecalcList) {
+    SArray* userRecalcList = taosArrayInit(2, sizeof(SStreamRecalcReq));
+    if (NULL == userRecalcList) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+
+    TSDB_CHECK_NULL(taosArrayPush(userRecalcList, &req), code, lino, _exit, terrno);
+
+    atomic_store_ptr(&pStream->userRecalcList, userRecalcList);
+  } else {
+    TSDB_CHECK_NULL(taosArrayPush(pStream->userRecalcList, &req), code, lino, _exit, terrno);
+  }
+  
+  mstsInfo("stream recalc ID:%" PRIx64 " range:%" PRId64 " - %" PRId64 " added", req.recalcId, pRange->skey, pRange->ekey);
+
+_exit:
+
+  if (locked) {
+    taosWUnLockLatch(&pStream->userRecalcLock);
+  }
+  
+  if (code) {
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
   
   return code;
