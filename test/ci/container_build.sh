@@ -88,6 +88,7 @@ if [[ -d ${WORKDIR}/debugNoSan  ]] ;then
     echo "delete  ${WORKDIR}/debugNoSan"
     rm -rf  ${WORKDIR}/debugNoSan
 fi
+
 if [[ -d ${WORKDIR}/debugSan ]] ;then
     echo "delete  ${WORKDIR}/debugSan"
     rm -rf  ${WORKDIR}/debugSan
