@@ -920,8 +920,10 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
         }
 
         uint32_t copyLen = TMIN(size - len - 1, tmp);
-        (void)memcpy(str + len, row[i], copyLen);
+        (void)memcpy(str + len, data, copyLen);
         len += copyLen;
+
+        taosMemoryFree(data);
       } break;
 
       case TSDB_DATA_TYPE_TIMESTAMP:

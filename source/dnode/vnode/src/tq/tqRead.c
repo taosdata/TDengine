@@ -711,6 +711,26 @@ static int32_t buildResSDataBlock(STqReader* pReader, SSchemaWrapper* pSchema, c
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t doSetBlobVal(SColumnInfoData* pColumnInfoData, int32_t rowIndex, SColVal* pColVal,
+                            SBlobRow2* pBlobRow2) {
+  int32_t code = 0;
+  if (pColumnInfoData == NULL || pColVal == NULL || pBlobRow2 == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  // TODO(yhDeng)
+  if (COL_VAL_IS_VALUE(pColVal)) {
+    char* val = taosMemCalloc(1, pColVal->value.nData + sizeof(BlobDataLenT));
+    if (pColVal->value.pData != NULL) {
+      (void)memcpy(blobDataVal(val), pBlobRow2->data, pColVal->value.nData);
+    }
+    blobDataSetLen(val, pColVal->value.nData);
+    code = colDataSetVal(pColumnInfoData, rowIndex, val, false);
+    taosMemoryFree(val);
+  } else {
+    colDataSetNULL(pColumnInfoData, rowIndex);
+  }
+  return code;
+}
 static int32_t doSetVal(SColumnInfoData* pColumnInfoData, int32_t rowIndex, SColVal* pColVal) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -751,6 +771,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
   int32_t        code = 0;
   int32_t        line = 0;
   STSchema*      pTSchema = NULL;
+  int8_t         isBlob = 0;
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk++);
   TSDB_CHECK_NULL(pSubmitTbData, code, line, END, terrno);
   SSDataBlock* pBlock = pReader->pResBlock;
@@ -824,6 +845,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
         targetIdx++;
         continue;
       }
+      isBlob = IS_STR_DATA_BLOB(pColData->info.type);
 
       SColData* pCol = taosArrayGet(pCols, sourceIdx);
       TSDB_CHECK_NULL(pCol, code, line, END, terrno);
@@ -836,7 +858,11 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
         for (int32_t i = 0; i < pCol->nVal; i++) {
           code = tColDataGetValue(pCol, i, &colVal);
           TSDB_CHECK_CODE(code, line, END);
-          code = doSetVal(pColData, i, &colVal);
+          if (!isBlob) {
+            code = doSetVal(pColData, i, &colVal);
+          } else {
+            code = doSetBlobVal(pColData, i, &colVal, pSubmitTbData->pBlobRow);
+          }
           TSDB_CHECK_CODE(code, line, END);
         }
         sourceIdx++;
@@ -845,6 +871,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
         colDataSetNNULL(pColData, 0, numOfRows);
         targetIdx++;
       }
+      isBlob = 0;
     }
   } else {
     SArray*         pRows = pSubmitTbData->aRowP;
@@ -859,6 +886,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
       for (int32_t j = 0; j < colActual; j++) {
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, j);
         TSDB_CHECK_NULL(pColData, code, line, END, terrno);
+        isBlob = IS_STR_DATA_BLOB(pColData->info.type);
 
         while (1) {
           SColVal colVal = {0};
@@ -869,8 +897,14 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
             sourceIdx++;
             continue;
           } else if (colVal.cid == pColData->info.colId) {
-            code = doSetVal(pColData, i, &colVal);
+            if (!isBlob) {
+              code = doSetVal(pColData, i, &colVal);
+            } else {
+              code = doSetBlobVal(pColData, i, &colVal, pSubmitTbData->pBlobRow);
+            }
+
             TSDB_CHECK_CODE(code, line, END);
+
             sourceIdx++;
             break;
           } else {
@@ -878,6 +912,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
             break;
           }
         }
+        isBlob = 0;
       }
     }
   }

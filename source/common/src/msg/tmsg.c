@@ -13074,14 +13074,13 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
       TAOS_CHECK_EXIT(tEncodeColData(SUBMIT_REQUEST_VERSION, pCoder, &aColData[i]));
     }
   } else {
-    uError("encode %d row data", (int32_t)(TARRAY_SIZE(pSubmitTbData->aRowP)));
+    uTrace("encode %d row data", (int32_t)(TARRAY_SIZE(pSubmitTbData->aRowP)));
     TAOS_CHECK_EXIT(tEncodeU64v(pCoder, TARRAY_SIZE(pSubmitTbData->aRowP)));
 
     SRow **rows = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
     for (int32_t iRow = 0; iRow < TARRAY_SIZE(pSubmitTbData->aRowP); ++iRow) {
       TAOS_CHECK_EXIT(tEncodeRow(pCoder, rows[iRow]));
     }
-    uError("encode row data size %d", (int32_t)(TARRAY_SIZE(pSubmitTbData->aRowP)));
   }
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->ctimeMs));
 
