@@ -535,6 +535,18 @@ _end:
   return code;
 }
 
+static bool existInList(SForecastSupp* pSupp, int32_t slotId) {
+  for (int32_t j = 0; j < taosArrayGetSize(pSupp->pCovariateSlotList); ++j) {
+    SColumn* pCol = taosArrayGet(pSupp->pCovariateSlotList, j);
+
+    if (pCol->slotId == slotId) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs, const char* id) {
   int32_t code = 0;
   SNode*  pNode = NULL;
@@ -619,6 +631,15 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs, const
             SColumnNode* p = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, i);
             if ((nodeType(p) != QUERY_NODE_COLUMN) || (nodeType(p) == QUERY_NODE_COLUMN && p->isPrimTs)) {
               break;
+            }
+
+            if (p->slotId == pSupp->targetValSlot) {
+              continue; // duplicate the target column, ignore it
+            }
+
+            bool exist = existInList(pSupp, p->slotId);
+            if (exist) {
+              continue;  // duplicate column, ignore it
             }
 
             SColumn col = {.slotId = p->slotId,
@@ -791,8 +812,11 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
 
       void* pCol = taosHashGet(pHashMap, nameBuf, strlen(nameBuf));
       if (pCol == NULL) {
-        qError("%s dynamic real column related:%s column name:%s not specified", id, pKey, nameBuf);
-        code = TSDB_CODE_ANA_INTERNAL_ERROR;
+        char* pTmp = taosStrndupi(pKey, keyLen);
+        qError("%s dynamic real column related:%s column name:%s not specified", id, pTmp, nameBuf);
+        
+        taosMemoryFree(pTmp);
+        code = TSDB_CODE_INVALID_PARA;
         goto _end;
       } else {
         // build dynamic_real_feature
@@ -814,7 +838,8 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
 
         if (index == -1) {
           qError("%s not found the required future dynamic real column:%s", id, d.pName);
-          code = TSDB_CODE_ANA_INTERNAL_ERROR;
+          code = TSDB_CODE_INVALID_PARA;
+          taosMemoryFree(d.pName);
           goto _end;
         }
 
@@ -832,7 +857,9 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
         if (num != pSupp->forecastRows) {
           qError("%s the rows:%d of future dynamic real column data is not equalled to the forecasting rows:%" PRId64,
                  id, num, pSupp->forecastRows);
-          code = TSDB_CODE_ANA_INTERNAL_ERROR;
+          code = TSDB_CODE_INVALID_PARA;
+
+          taosMemoryFree(d.pName);
           taosMemoryFree(pList);
           taosMemoryFree(buf);
           goto _end;
