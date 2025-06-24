@@ -144,6 +144,7 @@ else
     echo "community checkout: $community_id"
     docker exec $container_name sh -c "cd /home/TDinternal/community; git checkout $community_id"
 fi
+
 echo
 echo "* run the following command to enter the container:"
 echo "  docker exec -it $container_name bash"
