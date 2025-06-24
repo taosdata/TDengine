@@ -144,6 +144,13 @@ class TestMqttCases:
             topicNames[1],
             topicNames[2],
         ]
+        qos = [
+            0,
+            1,
+            2,
+            0,
+            0,
+        ]
         
         for i in range(dnodes_count):
         #for i in range(1):
@@ -155,7 +162,7 @@ class TestMqttCases:
                     'passwd': "taosdata",
                     'host': "127.0.0.1",
                     'port': self.mqttConf['port'] + i * 100,
-                    'qos': 2,
+                    'qos': qos[ci],
                     'topic': f'$share/{gid}/{topic}',
                     'loop_time': .1,
                     'loop_count': 3*24*60*60*10,
