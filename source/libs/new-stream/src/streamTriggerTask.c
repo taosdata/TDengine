@@ -2759,8 +2759,8 @@ static int32_t stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *bu
   SEncoder                  encoder = {0};
   int32_t                   iter = 0;
   tEncoderInit(&encoder, buf, *pLen);
-
-  code = tEncodeI32(&encoder, 0);  // version
+  static int32_t ver = 0;
+  code = tEncodeI32(&encoder, ver);  // version
   QUERY_CHECK_CODE(code, lino, _end);
   code = tEncodeI64(&encoder, pTask->task.streamId);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -2791,6 +2791,7 @@ static int32_t stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *bu
   tEndEncode(&encoder);
 
   *pLen = encoder.pos;
+  stDebug("[checkpoint] gen checkpoint for task, ver %d, len:%"PRId64, ver, *pLen);
 
 _end:
   tEncoderClear(&encoder);
@@ -2945,7 +2946,8 @@ int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, const SStreamUndeploy
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = *ppTask;
-
+  stDebug("[checkpoint] stTriggerTaskUndeploy, taskId: %"PRId64", streamId: %"PRId64", doCheckpoint: %d, doCleanup: %d",
+                pTask->task.taskId, pTask->task.streamId, pMsg->doCheckpoint, pMsg->doCleanup);
   if (pMsg->doCheckpoint && pTask->pRealtimeContext) {
     uint8_t *buf = NULL;
     int64_t  len = 0;

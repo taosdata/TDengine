@@ -5,7 +5,7 @@ TdThreadMutex mtx;
 SHashObj* checkpointReadyMap = NULL;
 
 static int32_t getFilePath(char* filepath) {
-  if (snprintf(filepath, PATH_MAX, "%ssnode%scheckpoint", tsDataDir, TD_DIRSEP) < 0) {
+  if (snprintf(filepath, PATH_MAX, "%s%ssnode%scheckpoint", tsDataDir, TD_DIRSEP, TD_DIRSEP) < 0) {
     stError("failed to generate checkpoint path for");
     return TSDB_CODE_FAILED;
   }
@@ -13,18 +13,18 @@ static int32_t getFilePath(char* filepath) {
 }
 
 static int32_t getFileName(char* filepath, int64_t streamId) {
-  if (snprintf(filepath, PATH_MAX, "%ssnode%scheckpoint%s%" PRId64 ".ck", tsDataDir, TD_DIRSEP,
+  if (snprintf(filepath, PATH_MAX, "%s%ssnode%scheckpoint%s%" PRIx64 ".ck", tsDataDir, TD_DIRSEP, TD_DIRSEP,
                TD_DIRSEP, streamId) < 0) {
-    stError("failed to generate checkpoint file name for streamId:%" PRId64, streamId);
+    stError("failed to generate checkpoint file name for streamId:%" PRIx64, streamId);
     return TSDB_CODE_FAILED;
   }
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t getFileNameTmp(char* filepath, int64_t streamId) {
-  if (snprintf(filepath, PATH_MAX, "%ssnode%scheckpoint%s%" PRId64 ".tmp", tsDataDir, TD_DIRSEP,
+  if (snprintf(filepath, PATH_MAX, "%s%ssnode%scheckpoint%s%" PRIx64 ".tmp", tsDataDir, TD_DIRSEP, TD_DIRSEP,
                TD_DIRSEP, streamId) < 0) {
-    stError("failed to generate checkpoint file name for streamId:%" PRId64, streamId);
+    stError("failed to generate checkpoint file name for streamId:%" PRIx64, streamId);
     return TSDB_CODE_FAILED;
   }
   return TSDB_CODE_SUCCESS;
@@ -58,19 +58,19 @@ int32_t streamWriteCheckPoint(int64_t streamId, void* data, int64_t dataLen) {
   STREAM_CHECK_RET_GOTO(getFileName(filepath, streamId));
   bool exist = taosCheckExistFile(filepath);
   if (exist) {
-    stDebug("checkpoint file already exists for streamId:%" PRId64 ", file:%s", streamId, filepath);
+    stDebug("[checkpoint] checkpoint file already exists for streamId:%" PRIx64 ", file:%s, overwrite", streamId, filepath);
     char filepathTmp[PATH_MAX] = {0};
     STREAM_CHECK_RET_GOTO(getFileNameTmp(filepathTmp, streamId));
     STREAM_CHECK_RET_GOTO(writeFile(filepathTmp, data, dataLen));
     if (taosRenameFile(filepathTmp, filepath) != 0) {
-      stError("failed to rename checkpoint file from %s to %s for streamId:%" PRId64, filepathTmp,
+      stError("failed to rename checkpoint file from %s to %s for streamId:%" PRIx64, filepathTmp,
               filepath, streamId);
       STREAM_CHECK_CONDITION_GOTO(taosRemoveFile(filepathTmp) != 0, terrno);
       code = terrno;
       goto end;
     }
   } else {
-    stDebug("writing checkpoint file for streamId:%" PRId64 ", file:%s", streamId, filepath);
+    stDebug("[checkpoint] write checkpoint file for streamId:%" PRIx64 ", file:%s, len:%"PRId64, streamId, filepath, dataLen);
     STREAM_CHECK_RET_GOTO(writeFile(filepath, data, dataLen));
   }
 
@@ -96,6 +96,7 @@ int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen) {
   STREAM_CHECK_NULL_GOTO(*data, terrno);
 
   STREAM_CHECK_CONDITION_GOTO(taosReadFile(pFile, *data, *dataLen) != *dataLen, terrno);
+  stDebug("[checkpoint] read checkpoint file for streamId:%" PRIx64 ", file:%s, len:%"PRId64, streamId, filepath, *dataLen);
 
 end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -134,10 +135,10 @@ void streamDeleteCheckPoint(int64_t streamId) {
   STREAM_CHECK_RET_GOTO(getFileName(filepath, streamId));
 
   if (taosCheckExistFile(filepath)) {
-    stDebug("deleting checkpoint file for streamId:%" PRId64 ", file:%s", streamId, filepath);
+    stDebug("[checkpoint] delete file for streamId:%" PRIx64 ", file:%s", streamId, filepath);
     STREAM_CHECK_CONDITION_GOTO(taosRemoveFile(filepath) != 0, terrno);
   } else {
-    stDebug("checkpoint file does not exist for streamId:%" PRId64 ", file:%s", streamId, filepath);
+    stDebug("[checkpoint] file does not exist for streamId:%" PRIx64 ", file:%s", streamId, filepath);
   }
 
 end:
@@ -195,7 +196,7 @@ int32_t streamCheckpointSetNotReady(int64_t streamId) {
   }
   bool checkpointReady = false;
   STREAM_CHECK_RET_GOTO(taosHashPut(checkpointReadyMap, &streamId, sizeof(streamId), &checkpointReady, sizeof(checkpointReady)));
-  stDebug("checkpoint set not ready for streamId:%" PRId64, streamId);
+  stDebug("[checkpoint] set not ready for streamId:%" PRIx64, streamId);
 end:
   STREAM_PRINT_LOG_END(code, lino);
   return code;
@@ -205,10 +206,10 @@ int32_t streamCheckpointSetReady(int64_t streamId) {
   bool checkpointReady = true;
   int32_t code = taosHashPut(checkpointReadyMap, &streamId, sizeof(streamId), &checkpointReady, sizeof(checkpointReady));
   if (code != 0) {
-    stError("failed to set checkpoint ready for streamId:%" PRId64 ", error:%s", streamId, tstrerror(code));
+    stError("failed to set checkpoint ready for streamId:%" PRIx64 ", error:%s", streamId, tstrerror(code));
     return code;
   }
-  stDebug("checkpoint set ready for streamId:%" PRId64, streamId);
+  stDebug("[checkpoint] set ready for streamId:%" PRIx64, streamId);
   return code;
 }
 
@@ -218,14 +219,14 @@ bool streamCheckpointIsReady(int64_t streamId) {
   }
   void* data = taosHashGet(checkpointReadyMap, &streamId, sizeof(streamId));
   if (data == NULL) {
-    stDebug("checkpoint not generated for streamId:%" PRId64, streamId);
+    stDebug("[checkpoint] not generated for streamId:%" PRIx64, streamId);
     return true;
   }
   bool ready = *(bool*)data;
   if (ready) {
-    stDebug("checkpoint is ready for streamId:%" PRId64, streamId);
+    stDebug("[checkpoint] is ready for streamId:%" PRIx64, streamId);
   } else {
-    stDebug("checkpoint is not ready for streamId:%" PRId64, streamId);
+    stDebug("[checkpoint] is not ready for streamId:%" PRIx64, streamId);
   }
   return ready;
 }
@@ -238,7 +239,7 @@ int32_t streamSyncWriteCheckpoint(int64_t streamId, SEpSet* epSet, void* data, i
     STREAM_CHECK_RET_GOTO(streamReadCheckPoint(streamId, &data, &dataLen));
   }
   STREAM_CHECK_RET_GOTO(sendSyncMsg(data, dataLen, epSet));
-  stDebug("sync checkpoint for streamId:%" PRId64 ", dataLen:%" PRId64, streamId, dataLen);
+  stDebug("[checkpoint] sync checkpoint for streamId:%" PRIx64 ", dataLen:%" PRId64, streamId, dataLen);
 end:
   taosMemoryFreeClear(data);
   STREAM_PRINT_LOG_END(code, lino);
@@ -250,7 +251,7 @@ int32_t streamSyncDeleteCheckpoint(int64_t streamId, SEpSet* epSet) {
   int32_t lino = 0;
 
   STREAM_CHECK_RET_GOTO(sendDeleteMsg(streamId, epSet));
-  stDebug("delete checkpoint for streamId:%" PRId64, streamId);
+  stDebug("[checkpoint] delete checkpoint for streamId:%" PRIx64, streamId);
 end:
   STREAM_PRINT_LOG_END(code, lino);
   return code;
@@ -278,20 +279,16 @@ int32_t streamSyncAllCheckpoints(SEpSet* epSet) {
       continue;
     }
 
-    int64_t streamId = 0;
-    if (taosStr2int64(name, &streamId) != 0) {
-      stError("failed to convert file name:%s to streamId", name);
-      continue;
-    }
+    int64_t streamId = taosStr2Int64(name, NULL, 16);
     code = streamSyncWriteCheckpoint(streamId, epSet, NULL, 0);
     if (code != TSDB_CODE_SUCCESS) {
-      stError("failed to sync checkpoint for streamId:%" PRId64 ", code:%d", streamId, code);
+      stError("failed to sync checkpoint for streamId:%" PRIx64 ", code:%d", streamId, code);
       continue;
     }
   }
 
   STREAM_CHECK_RET_GOTO(taosCloseDir(&pDir));
-  stDebug("sync all checkpoints to snodes successfully");
+  stDebug("[checkpoint] sync all checkpoints to snodes successfully");
 end:
   STREAM_PRINT_LOG_END(code, lino);
   return code;
