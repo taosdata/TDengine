@@ -949,9 +949,9 @@ Decimal128 tmpDecimal128Impl(Field* field, int32_t angle, int32_t k) {
 static int generateRandDataSQL(SSuperTable *stbInfo, char *sampleDataBuf,
                      int64_t bufLen,
                       int lenOfOneRow, BArray * fields, int64_t loop,
-                      bool tag, int64_t loopBengin) {
+                      bool tag, int64_t loopBegin) {
                         
-    int64_t index = loopBengin;
+    int64_t index = loopBegin;
     int angle = stbInfo->startTimestamp % 360; // 0 ~ 360
     for (int64_t k = 0; k < loop; ++k, ++index) {
         int64_t pos = k * lenOfOneRow;
@@ -1127,10 +1127,10 @@ static int fillStmt(
     char *sampleDataBuf,
     int64_t bufLen,
     int lenOfOneRow, BArray *fields,
-    int64_t loop, bool tag, BArray *childCols, int64_t loopBengin) {
+    int64_t loop, bool tag, BArray *childCols, int64_t loopBegin) {
     int angle = stbInfo->startTimestamp % 360; // 0 ~ 360
     debugPrint("fillStml stbname=%s loop=%"PRId64" istag=%d  fieldsSize=%d\n", stbInfo->stbName, loop, tag, (int32_t)fields->size);
-    int64_t index = loopBengin;
+    int64_t index = loopBegin;
     for (int64_t k = 0; k < loop; ++k, ++index) {
         int64_t pos = k * lenOfOneRow;
         char* line = sampleDataBuf + pos;
@@ -1359,7 +1359,7 @@ static int generateRandDataStmtForChildTable(
     char *sampleDataBuf,
     int64_t bufLen,
     int lenOfOneRow, BArray *fields,
-    int64_t loop, BArray *childCols, int64_t loopBengin) {
+    int64_t loop, BArray *childCols, int64_t loopBegin) {
     //  generateRandDataStmtForChildTable()
     for (int i = 0; i < fields->size; ++i) {
         Field *field = benchArrayGet(fields, i);
@@ -1387,7 +1387,7 @@ static int generateRandDataStmtForChildTable(
         sampleDataBuf,
         bufLen,
         lenOfOneRow, fields,
-        loop, false, childCols, loopBengin);
+        loop, false, childCols, loopBegin);
 }
 
 static int generateRandDataStmt(
@@ -1395,7 +1395,7 @@ static int generateRandDataStmt(
     char *sampleDataBuf,
     int64_t bufLen,
     int lenOfOneRow, BArray *fields,
-    int64_t loop, bool tag, int64_t loopBengin) {
+    int64_t loop, bool tag, int64_t loopBegin) {
     // generateRandDataStmt()
     for (int i = 0; i < fields->size; ++i) {
         Field *field = benchArrayGet(fields, i);
@@ -1423,14 +1423,14 @@ static int generateRandDataStmt(
         sampleDataBuf,
         bufLen,
         lenOfOneRow, fields,
-        loop, tag, NULL, loopBengin);
+        loop, tag, NULL, loopBegin);
 }
 
 static int generateRandDataSmlTelnet(SSuperTable *stbInfo, char *sampleDataBuf,
                      int bufLen,
                       int lenOfOneRow, BArray * fields, int64_t loop,
-                      bool tag, int64_t loopBengin) {
-    int64_t index = loopBengin;
+                      bool tag, int64_t loopBegin) {
+    int64_t index = loopBegin;
     int angle = stbInfo->startTimestamp % 360; // 0 ~ 360
     for (int64_t k = 0; k < loop; ++k, ++index) {
         int64_t pos = k * lenOfOneRow;
@@ -1677,8 +1677,8 @@ skip_telnet:
 static int generateRandDataSmlJson(SSuperTable *stbInfo, char *sampleDataBuf,
                      int bufLen,
                       int lenOfOneRow, BArray * fields, int64_t loop,
-                      bool tag, int64_t loopBengin) {
-    int64_t index = loopBengin;
+                      bool tag, int64_t loopBegin) {
+    int64_t index = loopBegin;
     int angle = stbInfo->startTimestamp % 360; // 0 ~ 360
     for (int64_t k = 0; k < loop; ++k, ++index) {
         int64_t pos = k * lenOfOneRow;
@@ -1800,8 +1800,8 @@ skip_json:
 static int generateRandDataSmlLine(SSuperTable *stbInfo, char *sampleDataBuf,
                      int bufLen,
                       int lenOfOneRow, BArray * fields, int64_t loop,
-                      bool tag, int64_t loopBengin) {
-    int64_t index = loopBengin;
+                      bool tag, int64_t loopBegin) {
+    int64_t index = loopBegin;
     int angle = stbInfo->startTimestamp % 360; // 0 ~ 360                    
     for (int64_t k = 0; k < loop; ++k, ++index) {
         int64_t pos = k * lenOfOneRow;
@@ -1968,19 +1968,19 @@ skip_line:
 static int generateRandDataSml(SSuperTable *stbInfo, char *sampleDataBuf,
                      int64_t bufLen,
                       int lenOfOneRow, BArray * fields, int64_t loop,
-                      bool tag, int64_t loopBengin) {
+                      bool tag, int64_t loopBegin) {
     int     protocol = stbInfo->lineProtocol;
 
     switch (protocol) {
         case TSDB_SML_LINE_PROTOCOL:
             return generateRandDataSmlLine(stbInfo, sampleDataBuf,
-                                    bufLen, lenOfOneRow, fields, loop, tag, loopBengin);
+                                    bufLen, lenOfOneRow, fields, loop, tag, loopBegin);
         case TSDB_SML_TELNET_PROTOCOL:
             return generateRandDataSmlTelnet(stbInfo, sampleDataBuf,
-                                    bufLen, lenOfOneRow, fields, loop, tag, loopBengin);
+                                    bufLen, lenOfOneRow, fields, loop, tag, loopBegin);
         default:
             return generateRandDataSmlJson(stbInfo, sampleDataBuf,
-                                    bufLen, lenOfOneRow, fields, loop, tag, loopBengin);
+                                    bufLen, lenOfOneRow, fields, loop, tag, loopBegin);
     }
 
     return -1;
@@ -1990,31 +1990,31 @@ int generateRandData(SSuperTable *stbInfo, char *sampleDataBuf,
                      int64_t bufLen,
                      int lenOfOneRow, BArray *fields,
                      int64_t loop,
-                     bool tag, BArray *childCols, int64_t loopBengin) {
+                     bool tag, BArray *childCols, int64_t loopBegin) {
     int     iface = stbInfo->iface;
     switch (iface) {
         case TAOSC_IFACE:
             return generateRandDataSQL(stbInfo, sampleDataBuf,
-                                    bufLen, lenOfOneRow, fields, loop, tag, loopBengin);
+                                    bufLen, lenOfOneRow, fields, loop, tag, loopBegin);
         // REST
         case REST_IFACE:
             return generateRandDataSQL(stbInfo, sampleDataBuf,
-                                    bufLen, lenOfOneRow, fields, loop, tag, loopBengin);
+                                    bufLen, lenOfOneRow, fields, loop, tag, loopBegin);
         case STMT_IFACE:
         case STMT2_IFACE:
             if (childCols) {
                 return generateRandDataStmtForChildTable(stbInfo,
                                                          sampleDataBuf,
                                     bufLen, lenOfOneRow, fields, loop,
-                                                         childCols, loopBengin);
+                                                         childCols, loopBegin);
             } else {
                 return generateRandDataStmt(stbInfo, sampleDataBuf,
-                                    bufLen, lenOfOneRow, fields, loop, tag, loopBengin);
+                                    bufLen, lenOfOneRow, fields, loop, tag, loopBegin);
             }
         case SML_IFACE:
         case SML_REST_IFACE: // REST
             return generateRandDataSml(stbInfo, sampleDataBuf,
-                                    bufLen, lenOfOneRow, fields, loop, tag, loopBengin);
+                                    bufLen, lenOfOneRow, fields, loop, tag, loopBegin);
         default:
             errorPrint("Unknown iface: %d\n", iface);
             break;
@@ -2642,7 +2642,7 @@ void generateSmlTaosJsonCols(tools_cJSON *array, tools_cJSON *tag,
 }
 
 // generateTag data from random or csv file
-bool generateTagData(SSuperTable *stbInfo, char *buf, int64_t cnt, FILE* csv, BArray* tagsStmt, int64_t loopBengine) {
+bool generateTagData(SSuperTable *stbInfo, char *buf, int64_t cnt, FILE* csv, BArray* tagsStmt, int64_t loopBegin) {
     if(csv) {
         if (generateSampleFromCsv(
                 buf, NULL, csv,
@@ -2656,7 +2656,7 @@ bool generateTagData(SSuperTable *stbInfo, char *buf, int64_t cnt, FILE* csv, BA
                             cnt * stbInfo->lenOfTags,
                             stbInfo->lenOfTags,
                             tagsStmt ? tagsStmt : stbInfo->tags,
-                            cnt, true, NULL, loopBengine)) {
+                            cnt, true, NULL, loopBegin)) {
             errorPrint("Generate Tag Rand Data Failed. stb=%s\n", stbInfo->stbName);
             return false;
         }
