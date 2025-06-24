@@ -1942,6 +1942,9 @@ int32_t streamDataBlocksToSubmitReq(SDataInserterHandle* pInserter, SStreamDataI
   code = submitReqToMsg(vgId, pReq, pMsg, msgLen);
   tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
   taosMemoryFree(pReq);
+  stDebug("[data inserter]submit req, vgid:%d, TREAM:0x%" PRIx64 " GROUP:%" PRId64 " tbname:%s autoCreate:%d code:%d ",
+          vgId, pInserterInfo->streamId, pInserterInfo->groupId, pInserterInfo->tbName,
+          pInserterInfo->isAutoCreateTable, code);
 
   return code;
 }
