@@ -600,7 +600,7 @@ void mndSendQuerySsMigrateProgressReq(SMnode *pMnode, SSsMigrateObj *pSsMigrate)
 
     for(int32_t i = 0; i < taosArrayGetSize(pSsMigrate->vgroups); i++) {
       SVgroupSsMigrateDetail *pDetail = taosArrayGet(pSsMigrate->vgroups, i);
-      if (pDetail->nodeId != pDnode->id) {
+      if (pDetail->nodeId != pDnode->id || pDetail->done) {
         continue;
       }
 

@@ -70,12 +70,19 @@ void tsdbCloseSsMigrateMonitor(STsdb *tsdb) {
   tsdb->pSsMigrateMonitor = NULL;
 }
 
-void tsdbStartSsMigrateMonitor(STsdb *tsdb, int32_t ssMigrateId) {
+bool tsdbResetSsMigrateMonitor(STsdb *tsdb, int32_t ssMigrateId) {
   SSsMigrateMonitor* pmm = tsdb->pSsMigrateMonitor;
+  for (int32_t i = 0; i < taosArrayGetSize(pmm->state.pFileSetStates); i++) {
+    SFileSetSsMigrateState *pState = taosArrayGet(pmm->state.pFileSetStates, i);
+    if (pState->state == FILE_SET_MIGRATE_STATE_IN_PROGRESS) {
+      return false;
+    }
+  }
   pmm->state.mnodeMigrateId = 0;
   pmm->state.vnodeMigrateId = ssMigrateId;
   pmm->state.startTimeSec = taosGetTimestampSec();
   taosArrayClear(pmm->state.pFileSetStates);
+  return true;
 }
 
 void tsdbSsMigrateMonitorAddFileSet(STsdb *tsdb, int32_t fid) {
