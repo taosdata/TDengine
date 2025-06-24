@@ -687,6 +687,12 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
     return code;
   }
 
+  if (taosHashGetSize(pHashMap) == 0) {
+    code = TSDB_CODE_INVALID_PARA;
+    qError("%s no valid options for forecast, failed to exec", id);
+    return code;
+  }
+
   code = taosAnalysisParseAlgo(pSupp->pOptions, pSupp->algoName, pSupp->algoUrl, ANALY_ALGO_TYPE_FORECAST,
                                tListLen(pSupp->algoUrl), pHashMap, id);
   TSDB_CHECK_CODE(code, lino, _end);
