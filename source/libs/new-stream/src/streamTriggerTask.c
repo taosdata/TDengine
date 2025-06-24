@@ -2880,6 +2880,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeplo
     }
   }
 
+  pTask->leaderSnodeId = pMsg->leaderSnodeId;
   pTask->calcTsIndex = pMsg->tsSlotId;
   pTask->maxDelay = pMsg->maxDelay * NANOSECOND_PER_MSEC;
   pTask->fillHistoryStartTime = pMsg->fillHistoryStartTime;
