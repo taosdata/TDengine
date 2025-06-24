@@ -41,7 +41,6 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
                                      SRpcMsg *pOriginRpc);
 static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                      SRpcMsg *pOriginalMsg);
-static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -705,10 +704,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       break;
     case TDMT_VND_S3MIGRATE:
       code = vnodeProcessS3MigrateReq(pVnode, ver, pReq, len, pRsp);
-      TSDB_CHECK_CODE(code, lino, _err);
-      break;
-    case TDMT_VND_CREATE_SMA:
-      code = vnodeProcessCreateTSmaReq(pVnode, ver, pReq, len, pRsp);
       TSDB_CHECK_CODE(code, lino, _err);
       break;
     /* TSDB */
@@ -2211,59 +2206,6 @@ _exit:
   tDecoderClear(&dc);
 
   return code;
-}
-
-static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
-#ifdef USE_TSMA
-  SVCreateTSmaReq req = {0};
-  SDecoder        coder = {0};
-
-  if (pRsp) {
-    pRsp->msgType = TDMT_VND_CREATE_SMA_RSP;
-    pRsp->code = TSDB_CODE_SUCCESS;
-    pRsp->pCont = NULL;
-    pRsp->contLen = 0;
-  }
-
-  // decode and process req
-  tDecoderInit(&coder, pReq, len);
-
-  if (tDecodeSVCreateTSmaReq(&coder, &req) < 0) {
-    terrno = TSDB_CODE_MSG_DECODE_ERROR;
-    if (pRsp) pRsp->code = terrno;
-    goto _err;
-  }
-
-  if (tdProcessTSmaCreate(pVnode->pSma, ver, (const char *)&req) < 0) {
-    if (pRsp) pRsp->code = terrno;
-    goto _err;
-  }
-
-  tDecoderClear(&coder);
-  vDebug("vgId:%d, success to create tsma %s:%" PRIi64 " version %" PRIi64 " for table %" PRIi64, TD_VID(pVnode),
-         req.indexName, req.indexUid, ver, req.tableUid);
-  return 0;
-
-_err:
-  tDecoderClear(&coder);
-  vError("vgId:%d, failed to create tsma %s:%" PRIi64 " version %" PRIi64 "for table %" PRIi64 " since %s",
-         TD_VID(pVnode), req.indexName, req.indexUid, ver, req.tableUid, terrstr());
-  return terrno;
-#else
-  return TSDB_CODE_INTERNAL_ERROR;
-#endif
-}
-
-/**
- * @brief specific for smaDstVnode
- *
- * @param pVnode
- * @param pCont
- * @param contLen
- * @return int32_t
- */
-int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen) {
-  return vnodeProcessCreateTSmaReq(pVnode, 1, pCont, contLen, NULL);
 }
 
 static int32_t vnodeConsolidateAlterHashRange(SVnode *pVnode, int64_t ver) {
