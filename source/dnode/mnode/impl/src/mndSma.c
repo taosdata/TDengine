@@ -74,7 +74,6 @@ typedef struct SCreateTSMACxt {
   SMDropStreamReq    *pDropStreamReq;
   const char         *streamName;
   const char         *targetStbFullName;
-  SNodeList          *pProjects;
 } SCreateTSMACxt;
 
 int32_t mndInitSma(SMnode *pMnode) {
@@ -116,7 +115,7 @@ static SSdbRaw *mndSmaActionEncode(SSmaObj *pSma) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t size =
-      sizeof(SSmaObj) + pSma->exprLen + pSma->tagsFilterLen + pSma->sqlLen + pSma->astLen + TSDB_SMA_RESERVE_SIZE;
+      sizeof(SSmaObj) + pSma->exprLen + pSma->sqlLen + pSma->astLen + TSDB_SMA_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_SMA, TSDB_SMA_VER_NUMBER, size);
   if (pRaw == NULL) goto _OVER;
 
@@ -131,23 +130,15 @@ static SSdbRaw *mndSmaActionEncode(SSmaObj *pSma) {
   SDB_SET_INT64(pRaw, dataPos, pSma->dbUid, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pSma->dstTbUid, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pSma->intervalUnit, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pSma->slidingUnit, _OVER)
-  SDB_SET_INT8(pRaw, dataPos, pSma->timezone, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pSma->dstVgId, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pSma->interval, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pSma->offset, _OVER)
-  SDB_SET_INT64(pRaw, dataPos, pSma->sliding, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pSma->exprLen, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pSma->tagsFilterLen, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pSma->sqlLen, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pSma->astLen, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pSma->version, _OVER)
 
   if (pSma->exprLen > 0) {
     SDB_SET_BINARY(pRaw, dataPos, pSma->expr, pSma->exprLen, _OVER)
-  }
-  if (pSma->tagsFilterLen > 0) {
-    SDB_SET_BINARY(pRaw, dataPos, pSma->tagsFilter, pSma->tagsFilterLen, _OVER)
   }
   if (pSma->sqlLen > 0) {
     SDB_SET_BINARY(pRaw, dataPos, pSma->sql, pSma->sqlLen, _OVER)
@@ -206,14 +197,9 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pSma->dbUid, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pSma->dstTbUid, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pSma->intervalUnit, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pSma->slidingUnit, _OVER)
-  SDB_GET_INT8(pRaw, dataPos, &pSma->timezone, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pSma->dstVgId, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pSma->interval, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pSma->offset, _OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pSma->sliding, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pSma->exprLen, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pSma->tagsFilterLen, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pSma->sqlLen, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pSma->astLen, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pSma->version, _OVER)
@@ -222,12 +208,6 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
     pSma->expr = taosMemoryCalloc(pSma->exprLen, 1);
     if (pSma->expr == NULL) goto _OVER;
     SDB_GET_BINARY(pRaw, dataPos, pSma->expr, pSma->exprLen, _OVER)
-  }
-
-  if (pSma->tagsFilterLen > 0) {
-    pSma->tagsFilter = taosMemoryCalloc(pSma->tagsFilterLen, 1);
-    if (pSma->tagsFilter == NULL) goto _OVER;
-    SDB_GET_BINARY(pRaw, dataPos, pSma->tagsFilter, pSma->tagsFilterLen, _OVER)
   }
 
   if (pSma->sqlLen > 0) {
@@ -252,7 +232,6 @@ _OVER:
     if (pSma != NULL) {
       mError("sma:%s, failed to decode from raw:%p since %s", pSma->name, pRaw, terrstr());
       taosMemoryFreeClear(pSma->expr);
-      taosMemoryFreeClear(pSma->tagsFilter);
       taosMemoryFreeClear(pSma->sql);
       taosMemoryFreeClear(pSma->ast);
     }
@@ -271,7 +250,6 @@ static int32_t mndSmaActionInsert(SSdb *pSdb, SSmaObj *pSma) {
 
 static int32_t mndSmaActionDelete(SSdb *pSdb, SSmaObj *pSma) {
   mTrace("sma:%s, perform delete action, row:%p", pSma->name, pSma);
-  taosMemoryFreeClear(pSma->tagsFilter);
   taosMemoryFreeClear(pSma->expr);
   taosMemoryFreeClear(pSma->sql);
   taosMemoryFreeClear(pSma->ast);
@@ -310,21 +288,9 @@ static void *mndBuildVCreateSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSm
 
   SVCreateTSmaReq req = {0};
   req.version = 0;
-  req.intervalUnit = pSma->intervalUnit;
-  req.slidingUnit = pSma->slidingUnit;
-  //  req.timezoneInt = pSma->timezone;
   tstrncpy(req.indexName, (char *)tNameGetTableName(&name), TSDB_INDEX_NAME_LEN);
-  req.exprLen = pSma->exprLen;
-  req.tagsFilterLen = pSma->tagsFilterLen;
   req.indexUid = pSma->uid;
-  req.tableUid = pSma->stbUid;
   req.dstVgId = pSma->dstVgId;
-  req.dstTbUid = pSma->dstTbUid;
-  req.interval = pSma->interval;
-  req.offset = pSma->offset;
-  req.sliding = pSma->sliding;
-  req.expr = pSma->expr;
-  req.tagsFilter = pSma->tagsFilter;
   req.schemaRow = pSma->schemaRow;
   req.schemaTag = pSma->schemaTag;
   req.dstTbName = pSma->dstTbName;
@@ -589,196 +555,17 @@ static void mndDestroySmaObj(SSmaObj *pSmaObj) {
   }
 }
 
-#if 0
-static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCreate, SDbObj *pDb, SStbObj *pStb,
-                            const char *streamName) {
-  int32_t code = 0;
-  if (pDb->cfg.replications > 1) {
-    code = TSDB_CODE_MND_INVALID_SMA_OPTION;
-    mError("sma:%s, failed to create since not support multiple replicas", pCreate->name);
-    TAOS_RETURN(code);
-  }
-  SSmaObj smaObj = {0};
-  memcpy(smaObj.name, pCreate->name, TSDB_TABLE_FNAME_LEN);
-  memcpy(smaObj.stb, pStb->name, TSDB_TABLE_FNAME_LEN);
-  memcpy(smaObj.db, pDb->name, TSDB_DB_FNAME_LEN);
-  smaObj.createdTime = taosGetTimestampMs();
-  smaObj.uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
-
-  char resultTbName[TSDB_TABLE_FNAME_LEN + 16] = {0};
-  snprintf(resultTbName, TSDB_TABLE_FNAME_LEN + 16, "%s_td_tsma_rst_tb", pCreate->name);
-  memcpy(smaObj.dstTbName, resultTbName, TSDB_TABLE_FNAME_LEN);
-  smaObj.dstTbUid = mndGenerateUid(smaObj.dstTbName, TSDB_TABLE_FNAME_LEN);
-  smaObj.stbUid = pStb->uid;
-  smaObj.dbUid = pStb->dbUid;
-  smaObj.intervalUnit = pCreate->intervalUnit;
-  smaObj.slidingUnit = pCreate->slidingUnit;
-#if 0
-//  smaObj.timezone = pCreate->timezone;
-#endif
-  //  smaObj.timezone = taosGetLocalTimezoneOffset();  // use timezone of server
-  smaObj.interval = pCreate->interval;
-  smaObj.offset = pCreate->offset;
-  smaObj.sliding = pCreate->sliding;
-  smaObj.exprLen = pCreate->exprLen;
-  smaObj.tagsFilterLen = pCreate->tagsFilterLen;
-  smaObj.sqlLen = pCreate->sqlLen;
-  smaObj.astLen = pCreate->astLen;
-  if (smaObj.exprLen > 0) {
-    smaObj.expr = pCreate->expr;
-  }
-  if (smaObj.tagsFilterLen > 0) {
-    smaObj.tagsFilter = pCreate->tagsFilter;
-  }
-  if (smaObj.sqlLen > 0) {
-    smaObj.sql = pCreate->sql;
-  }
-  if (smaObj.astLen > 0) {
-    smaObj.ast = pCreate->ast;
-  }
-
-  SStreamObj streamObj = {0};
-  tstrncpy(streamObj.name, streamName, TSDB_STREAM_FNAME_LEN);
-  tstrncpy(streamObj.sourceDb, pDb->name, TSDB_DB_FNAME_LEN);
-  tstrncpy(streamObj.targetDb, streamObj.sourceDb, TSDB_DB_FNAME_LEN);
-  streamObj.createTime = taosGetTimestampMs();
-  streamObj.updateTime = streamObj.createTime;
-  streamObj.uid = mndGenerateUid(streamName, strlen(streamName));
-  streamObj.sourceDbUid = pDb->uid;
-  streamObj.targetDbUid = pDb->uid;
-  streamObj.version = 1;
-  streamObj.sql = taosStrdup(pCreate->sql);
-  if (!streamObj.sql) {
-    return terrno;
-  }
-  streamObj.smaId = smaObj.uid;
-  streamObj.conf.watermark = pCreate->watermark;
-  streamObj.deleteMark = pCreate->deleteMark;
-  streamObj.conf.fillHistory = STREAM_FILL_HISTORY_ON;
-  streamObj.conf.trigger = STREAM_TRIGGER_WINDOW_CLOSE;
-  streamObj.conf.triggerParam = pCreate->maxDelay;
-  streamObj.ast = taosStrdup(smaObj.ast);
-  if (!streamObj.ast) {
-    taosMemoryFree(streamObj.sql);
-    return terrno;
-  }
-  streamObj.indexForMultiAggBalance = -1;
-
-  // check the maxDelay
-  if (streamObj.conf.triggerParam < TSDB_MIN_ROLLUP_MAX_DELAY) {
-    int64_t msInterval = -1;
-    int32_t code =
-        convertTimeFromPrecisionToUnit(pCreate->interval, pDb->cfg.precision, TIME_UNIT_MILLISECOND, &msInterval);
-    if (TSDB_CODE_SUCCESS != code) {
-      mError("sma:%s, failed to create since convert time failed: %s", smaObj.name, tstrerror(code));
-      return code;
-    }
-    streamObj.conf.triggerParam = msInterval > TSDB_MIN_ROLLUP_MAX_DELAY ? msInterval : TSDB_MIN_ROLLUP_MAX_DELAY;
-  }
-  if (streamObj.conf.triggerParam > TSDB_MAX_ROLLUP_MAX_DELAY) {
-    streamObj.conf.triggerParam = TSDB_MAX_ROLLUP_MAX_DELAY;
-  }
-
-  if ((code = mndAllocSmaVgroup(pMnode, pDb, &streamObj.fixedSinkVg)) != 0) {
-    mError("sma:%s, failed to create since %s", smaObj.name, tstrerror(code));
-    TAOS_RETURN(code);
-  }
-  smaObj.dstVgId = streamObj.fixedSinkVg.vgId;
-  streamObj.fixedSinkVgId = smaObj.dstVgId;
-
-  SNode *pAst = NULL;
-  if (nodesStringToNode(streamObj.ast, &pAst) < 0) {
-    code = TSDB_CODE_MND_INVALID_SMA_OPTION;
-    mError("sma:%s, failed to create since parse ast error", smaObj.name);
-    TAOS_RETURN(code);
-  }
-
-  // extract output schema from ast
-  if (qExtractResultSchema(pAst, (int32_t *)&streamObj.outputSchema.nCols, &streamObj.outputSchema.pSchema) != 0) {
-    code = TSDB_CODE_MND_INVALID_SMA_OPTION;
-    mError("sma:%s, failed to create since extract result schema error", smaObj.name);
-    TAOS_RETURN(code);
-  }
-
-  SQueryPlan  *pPlan = NULL;
-  SPlanContext cxt = {
-      .pAstRoot = pAst,
-      .topicQuery = false,
-      .streamQuery = true,
-      .triggerType = streamObj.conf.trigger,
-      .watermark = streamObj.conf.watermark,
-      .deleteMark = streamObj.deleteMark,
-  };
-
-  if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
-    code = TSDB_CODE_MND_INVALID_SMA_OPTION;
-    mError("sma:%s, failed to create since create query plan error", smaObj.name);
-    TAOS_RETURN(code);
-  }
-
-  // save physcial plan
-  if (nodesNodeToString((SNode *)pPlan, false, &streamObj.physicalPlan, NULL) != 0) {
-    code = TSDB_CODE_MND_INVALID_SMA_OPTION;
-    mError("sma:%s, failed to create since save physcial plan error", smaObj.name);
-    TAOS_RETURN(code);
-  }
-
-  if (pAst != NULL) nodesDestroyNode(pAst);
-  nodesDestroyNode((SNode *)pPlan);
-
-  code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-sma");
-  if (pTrans == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    goto _OVER;
-  }
-  mndTransSetDbName(pTrans, pDb->name, NULL);
-  TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
-
-  mndTransSetSerial(pTrans);
-  mInfo("trans:%d, used to create sma:%s stream:%s", pTrans->id, pCreate->name, streamObj.name);
-  TAOS_CHECK_GOTO(mndAddNewVgPrepareAction(pMnode, pTrans, &streamObj.fixedSinkVg), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateSmaRedoLogs(pMnode, pTrans, &smaObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateSmaVgroupRedoLogs(pMnode, pTrans, &streamObj.fixedSinkVg), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateSmaCommitLogs(pMnode, pTrans, &smaObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateSmaVgroupCommitLogs(pMnode, pTrans, &streamObj.fixedSinkVg), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetUpdateSmaStbCommitLogs(pMnode, pTrans, pStb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateSmaVgroupRedoActions(pMnode, pTrans, pDb, &streamObj.fixedSinkVg, &smaObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndScheduleStream(pMnode, &streamObj, 1685959190000, NULL), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndPersistStream(pTrans, &streamObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
-
-  mInfo("sma:%s, uid:%" PRIi64 " create on stb:%" PRIi64 ", dstSuid:%" PRIi64 " dstTb:%s dstVg:%d", pCreate->name,
-        smaObj.uid, smaObj.stbUid, smaObj.dstTbUid, smaObj.dstTbName, smaObj.dstVgId);
-
-  code = 0;
-
-_OVER:
-  tFreeStreamObj(&streamObj);
-  mndDestroySmaObj(&smaObj);
-  mndTransDrop(pTrans);
-  TAOS_RETURN(code);
-}
-#endif
-
 static int32_t mndCheckCreateSmaReq(SMCreateSmaReq *pCreate) {
   int32_t code = TSDB_CODE_MND_INVALID_SMA_OPTION;
   if (pCreate->name[0] == 0) TAOS_RETURN(code);
   if (pCreate->stb[0] == 0) TAOS_RETURN(code);
   if (pCreate->igExists < 0 || pCreate->igExists > 1) TAOS_RETURN(code);
   if (pCreate->intervalUnit < 0) TAOS_RETURN(code);
-  if (pCreate->slidingUnit < 0) TAOS_RETURN(code);
-  if (pCreate->timezone < 0) TAOS_RETURN(code);
   if (pCreate->interval < 0) TAOS_RETURN(code);
-  if (pCreate->offset < 0) TAOS_RETURN(code);
-  if (pCreate->sliding < 0) TAOS_RETURN(code);
   if (pCreate->exprLen < 0) TAOS_RETURN(code);
-  if (pCreate->tagsFilterLen < 0) TAOS_RETURN(code);
   if (pCreate->sqlLen < 0) TAOS_RETURN(code);
   if (pCreate->astLen < 0) TAOS_RETURN(code);
   if (pCreate->exprLen != 0 && strlen(pCreate->expr) + 1 != pCreate->exprLen) TAOS_RETURN(code);
-  if (pCreate->tagsFilterLen != 0 && strlen(pCreate->tagsFilter) + 1 != pCreate->tagsFilterLen) TAOS_RETURN(code);
   if (pCreate->sqlLen != 0 && strlen(pCreate->sql) + 1 != pCreate->sqlLen) TAOS_RETURN(code);
   if (pCreate->astLen != 0 && strlen(pCreate->ast) + 1 != pCreate->astLen) TAOS_RETURN(code);
 
@@ -1259,10 +1046,7 @@ int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool 
     }
 
     info.intervalUnit = pSma->intervalUnit;
-    info.slidingUnit = pSma->slidingUnit;
     info.interval = pSma->interval;
-    info.offset = pSma->offset;
-    info.sliding = pSma->sliding;
     info.dstTbUid = pSma->dstTbUid;
     info.dstVgId = pSma->dstVgId;
 
@@ -1542,7 +1326,6 @@ static void initSMAObj(SCreateTSMACxt *pCxt) {
   pCxt->pSma->dbUid = pCxt->pDb->uid;
   pCxt->pSma->interval = pCxt->pCreateSmaReq->interval;
   pCxt->pSma->intervalUnit = pCxt->pCreateSmaReq->intervalUnit;
-  //  pCxt->pSma->timezone = taosGetLocalTimezoneOffset();
   pCxt->pSma->version = 1;
 
   pCxt->pSma->exprLen = pCxt->pCreateSmaReq->exprLen;
@@ -1553,99 +1336,6 @@ static void initSMAObj(SCreateTSMACxt *pCxt) {
   pCxt->pSma->ast = pCxt->pCreateSmaReq->ast;
 }
 
-static int32_t mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
-  int32_t           code = 0;
-  //STREAMTODO
-  /*
-  tstrncpy(pCxt->pCreateStreamReq->name, pCxt->streamName, TSDB_STREAM_FNAME_LEN);
-  tstrncpy(pCxt->pCreateStreamReq->sourceDB, pCxt->pDb->name, TSDB_DB_FNAME_LEN);
-  tstrncpy(pCxt->pCreateStreamReq->targetStbFullName, pCxt->targetStbFullName, TSDB_TABLE_FNAME_LEN);
-  pCxt->pCreateStreamReq->igExists = false;
-  pCxt->pCreateStreamReq->triggerType = STREAM_TRIGGER_MAX_DELAY;
-  pCxt->pCreateStreamReq->igExpired = false;
-  pCxt->pCreateStreamReq->fillHistory = STREAM_FILL_HISTORY_ON;
-  pCxt->pCreateStreamReq->maxDelay = 10000;
-  pCxt->pCreateStreamReq->watermark = 0;
-  pCxt->pCreateStreamReq->numOfTags = pCxt->pSrcStb ? pCxt->pSrcStb->numOfTags + 1 : 1;
-  pCxt->pCreateStreamReq->checkpointFreq = 0;
-  pCxt->pCreateStreamReq->createStb = 1;
-  pCxt->pCreateStreamReq->targetStbUid = 0;
-  pCxt->pCreateStreamReq->fillNullCols = NULL;
-  pCxt->pCreateStreamReq->igUpdate = 0;
-  pCxt->pCreateStreamReq->deleteMark = pCxt->pCreateSmaReq->deleteMark;
-  pCxt->pCreateStreamReq->lastTs = pCxt->pCreateSmaReq->lastTs;
-  pCxt->pCreateStreamReq->smaId = pCxt->pSma->uid;
-  pCxt->pCreateStreamReq->ast = taosStrdup(pCxt->pCreateSmaReq->ast);
-  if (!pCxt->pCreateStreamReq->ast) {
-    return terrno;
-  }
-  pCxt->pCreateStreamReq->sql = taosStrdup(pCxt->pCreateSmaReq->sql);
-  if (!pCxt->pCreateStreamReq->sql) {
-    return terrno;
-  }
-
-  // construct tags
-  pCxt->pCreateStreamReq->pTags = taosArrayInit(pCxt->pCreateStreamReq->numOfTags, sizeof(SField));
-  if (!pCxt->pCreateStreamReq->pTags) {
-    return terrno;
-  }
-  SFieldWithOptions f = {0};
-  if (pCxt->pSrcStb) {
-    for (int32_t idx = 0; idx < pCxt->pCreateStreamReq->numOfTags - 1; ++idx) {
-      SSchema *pSchema = &pCxt->pSrcStb->pTags[idx];
-      f.bytes = pSchema->bytes;
-      f.type = pSchema->type;
-      f.flags = pSchema->flags;
-      tstrncpy(f.name, pSchema->name, TSDB_COL_NAME_LEN);
-      if (NULL == taosArrayPush(pCxt->pCreateStreamReq->pTags, &f)) {
-        code = terrno;
-        break;
-      }
-    }
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    f.bytes = TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE;
-    f.flags = COL_SMA_ON;
-    f.type = TSDB_DATA_TYPE_BINARY;
-    tstrncpy(f.name, "tbname", strlen("tbname") + 1);
-    if (NULL == taosArrayPush(pCxt->pCreateStreamReq->pTags, &f)) {
-      code = terrno;
-    }
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    // construct output cols
-    SNode *pNode;
-    FOREACH(pNode, pCxt->pProjects) {
-      SExprNode *pExprNode = (SExprNode *)pNode;
-      f.bytes = pExprNode->resType.bytes;
-      f.type = pExprNode->resType.type;
-      f.flags = COL_SMA_ON;
-      tstrncpy(f.name, pExprNode->userAlias, TSDB_COL_NAME_LEN);
-      if (IS_DECIMAL_TYPE(f.type)) {
-        f.typeMod = decimalCalcTypeMod(pExprNode->resType.precision, pExprNode->resType.scale);
-        f.flags |= COL_HAS_TYPE_MOD;
-      }
-      if (NULL == taosArrayPush(pCxt->pCreateStreamReq->pCols, &f)) {
-        code = terrno;
-        break;
-      }
-    }
-  }
-  */
-  return code;
-}
-
-static int32_t mndCreateTSMABuildDropStreamReq(SCreateTSMACxt *pCxt) {
-  tstrncpy(pCxt->pDropStreamReq->name, pCxt->streamName, TSDB_STREAM_FNAME_LEN);
-  pCxt->pDropStreamReq->igNotExists = false;
- // pCxt->pDropStreamReq->sql = taosStrdup(pCxt->pDropSmaReq->name);
- // if (!pCxt->pDropStreamReq->sql) {
- //   return terrno;
-  //}
-  return TSDB_CODE_SUCCESS;
-}
 
 static int32_t mndSetUpdateDbTsmaVersionPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
   int32_t  code = 0;
@@ -1778,39 +1468,12 @@ static int32_t mndCreateTSMA(SCreateTSMACxt *pCxt) {
   pCxt->pSma = &sma;
   initSMAObj(pCxt);
 
-  SNodeList *pProjects = NULL;
-  code = nodesStringToList(pCxt->pCreateSmaReq->expr, &pProjects);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto _OVER;
-  }
-  pCxt->pProjects = pProjects;
 
   pCxt->pCreateStreamReq = &createStreamReq;
-/*  STREAMTODO
-  if (pCxt->pCreateSmaReq->pVgroupVerList) {
-    pCxt->pCreateStreamReq->pVgroupVerList = taosArrayDup(pCxt->pCreateSmaReq->pVgroupVerList, NULL);
-    if (!pCxt->pCreateStreamReq->pVgroupVerList) {
-      code = terrno;
-      goto _OVER;
-    }
-  }
-  if (LIST_LENGTH(pProjects) > 0) {
-    createStreamReq.pCols = taosArrayInit(LIST_LENGTH(pProjects), sizeof(SFieldWithOptions));
-    if (!createStreamReq.pCols) {
-      code = terrno;
-      goto _OVER;
-    }
-  }
-*/  
+
   pCxt->pDropStreamReq = &dropStreamReq;
-  code = mndCreateTSMABuildCreateStreamReq(pCxt);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto _OVER;
-  }
-  code = mndCreateTSMABuildDropStreamReq(pCxt);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto _OVER;
-  }
+
+  // TODO(smj) : deserialize req from create tsma
 
   if (TSDB_CODE_SUCCESS != (code = mndCreateTSMATxnPrepare(pCxt))) {
     goto _OVER;
@@ -1824,8 +1487,6 @@ _OVER:
   tFreeSCMCreateStreamReq(pCxt->pCreateStreamReq);
   if (pCxt->pDropStreamReq) tFreeMDropStreamReq(pCxt->pDropStreamReq);
   pCxt->pCreateStreamReq = NULL;
-  if (pProjects) nodesDestroyList(pProjects);
-  pCxt->pProjects = NULL;
   TAOS_RETURN(code);
 }
 
@@ -1980,10 +1641,9 @@ static int32_t mndDropTSMA(SCreateTSMACxt *pCxt) {
   }
   SMDropStreamReq dropStreamReq = {0};
   pCxt->pDropStreamReq = &dropStreamReq;
-  code = mndCreateTSMABuildDropStreamReq(pCxt);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto _OVER;
-  }
+  // TODO(smj) : deserialize req from create tsma
+
+
   mndTransSetDbName(pTrans, pCxt->pDb->name, NULL);
   if (mndTransCheckConflict(pCxt->pMnode, pTrans) != 0) goto _OVER;
   mndTransSetSerial(pTrans);
@@ -2065,6 +1725,7 @@ static int32_t mndProcessDropTSMAReq(SRpcMsg *pReq) {
   SMDropSmaReq dropReq = {0};
   SSmaObj     *pSma = NULL;
   SDbObj      *pDb = NULL;
+  SStbObj     *pStb = NULL;
   SMnode      *pMnode = pReq->info.node;
   if (tDeserializeSMDropSmaReq(pReq->pCont, pReq->contLen, &dropReq) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_INVALID_MSG;
@@ -2078,7 +1739,7 @@ static int32_t mndProcessDropTSMAReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  SStbObj *pStb = mndAcquireStb(pMnode, streamTargetStbFullName);
+  pStb = mndAcquireStb(pMnode, streamTargetStbFullName);
 
   pSma = mndAcquireSma(pMnode, dropReq.name);
   if (!pSma && dropReq.igNotExists) {
@@ -2304,7 +1965,6 @@ int32_t dumpTSMAInfoFromSmaObj(const SSmaObj *pSma, const SStbObj *pDestStb, STa
   pInfo->unit = pSma->intervalUnit;
   pInfo->tsmaId = pSma->uid;
   pInfo->version = pSma->version;
-  pInfo->tsmaId = pSma->uid;
   pInfo->destTbUid = pDestStb->uid;
   SName sName = {0};
   code = tNameFromString(&sName, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);

@@ -951,18 +951,9 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
         }
         memcpy((void *)pTSma->expr, mr.me.smaEntry.tsma->expr, pTSma->exprLen);
       }
-      if (pTSma->tagsFilterLen > 0) {
-        if (!(pTSma->tagsFilter = taosMemoryCalloc(1, pTSma->tagsFilterLen))) {
-          terrno = TSDB_CODE_OUT_OF_MEMORY;
-          goto _err;
-        }
-      }
-      memcpy((void *)pTSma->tagsFilter, mr.me.smaEntry.tsma->tagsFilter, pTSma->tagsFilterLen);
     } else {
       pTSma->exprLen = 0;
       pTSma->expr = NULL;
-      pTSma->tagsFilterLen = 0;
-      pTSma->tagsFilter = NULL;
     }
 
     ++smaIdx;

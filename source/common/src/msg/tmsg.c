@@ -1138,23 +1138,13 @@ int32_t tSerializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pReq
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->stb));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->igExists));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->intervalUnit));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->slidingUnit));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->timezone));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->dstVgId));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->interval));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->offset));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->sliding));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->watermark));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->maxDelay));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->exprLen));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->tagsFilterLen));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->sqlLen));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->astLen));
   if (pReq->exprLen > 0) {
     TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->expr, pReq->exprLen));
-  }
-  if (pReq->tagsFilterLen > 0) {
-    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->tagsFilter, pReq->tagsFilterLen));
   }
   if (pReq->sqlLen > 0) {
     TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->sql, pReq->sqlLen));
@@ -1163,15 +1153,8 @@ int32_t tSerializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pReq
     TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->ast, pReq->astLen));
   }
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->deleteMark));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->lastTs));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->normSourceTbUid));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, taosArrayGetSize(pReq->pVgroupVerList)));
 
-  for (int32_t i = 0; i < taosArrayGetSize(pReq->pVgroupVerList); ++i) {
-    SVgroupVer *p = taosArrayGet(pReq->pVgroupVerList, i);
-    TAOS_CHECK_EXIT(tEncodeI32(&encoder, p->vgId));
-    TAOS_CHECK_EXIT(tEncodeI64(&encoder, p->ver));
-  }
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->recursiveTsma));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->baseTsmaName));
   tEndEncode(&encoder);
@@ -1197,16 +1180,9 @@ int32_t tDeserializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pR
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->stb));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igExists));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->intervalUnit));
-  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->slidingUnit));
-  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->timezone));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->dstVgId));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->interval));
-  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->offset));
-  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->sliding));
-  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->watermark));
-  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->maxDelay));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->exprLen));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->tagsFilterLen));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->sqlLen));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->astLen));
   if (pReq->exprLen > 0) {
@@ -1215,13 +1191,6 @@ int32_t tDeserializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pR
       TAOS_CHECK_EXIT(terrno);
     }
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->expr));
-  }
-  if (pReq->tagsFilterLen > 0) {
-    pReq->tagsFilter = taosMemoryMalloc(pReq->tagsFilterLen);
-    if (pReq->tagsFilter == NULL) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tagsFilter));
   }
   if (pReq->sqlLen > 0) {
     pReq->sql = taosMemoryMalloc(pReq->sqlLen);
@@ -1238,26 +1207,8 @@ int32_t tDeserializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pR
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->ast));
   }
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->deleteMark));
-  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->lastTs));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->normSourceTbUid));
 
-  int32_t numOfVgVer;
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numOfVgVer));
-  if (numOfVgVer > 0) {
-    pReq->pVgroupVerList = taosArrayInit(numOfVgVer, sizeof(SVgroupVer));
-    if (pReq->pVgroupVerList == NULL) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-
-    for (int32_t i = 0; i < numOfVgVer; ++i) {
-      SVgroupVer v = {0};
-      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &v.vgId));
-      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &v.ver));
-      if (taosArrayPush(pReq->pVgroupVerList, &v) == NULL) {
-        TAOS_CHECK_EXIT(terrno);
-      }
-    }
-  }
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->recursiveTsma));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->baseTsmaName));
   tEndDecode(&decoder);
@@ -1269,10 +1220,8 @@ _exit:
 
 void tFreeSMCreateSmaReq(SMCreateSmaReq *pReq) {
   taosMemoryFreeClear(pReq->expr);
-  taosMemoryFreeClear(pReq->tagsFilter);
   taosMemoryFreeClear(pReq->sql);
   taosMemoryFreeClear(pReq->ast);
-  taosArrayDestroy(pReq->pVgroupVerList);
 }
 
 int32_t tSerializeSMDropSmaReq(void *buf, int32_t bufLen, SMDropSmaReq *pReq) {
@@ -10913,26 +10862,11 @@ int tDecodeSVCreateTbBatchRsp(SDecoder *pCoder, SVCreateTbBatchRsp *pRsp) {
 
 int32_t tEncodeTSma(SEncoder *pCoder, const STSma *pSma) {
   TAOS_CHECK_RETURN(tEncodeI8(pCoder, pSma->version));
-  TAOS_CHECK_RETURN(tEncodeI8(pCoder, pSma->intervalUnit));
-  TAOS_CHECK_RETURN(tEncodeI8(pCoder, pSma->slidingUnit));
-  TAOS_CHECK_RETURN(tEncodeI8(pCoder, pSma->timezoneInt));
   TAOS_CHECK_RETURN(tEncodeI32(pCoder, pSma->dstVgId));
   TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pSma->indexName));
-  TAOS_CHECK_RETURN(tEncodeI32(pCoder, pSma->exprLen));
-  TAOS_CHECK_RETURN(tEncodeI32(pCoder, pSma->tagsFilterLen));
   TAOS_CHECK_RETURN(tEncodeI64(pCoder, pSma->indexUid));
-  TAOS_CHECK_RETURN(tEncodeI64(pCoder, pSma->tableUid));
   TAOS_CHECK_RETURN(tEncodeI64(pCoder, pSma->dstTbUid));
   TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pSma->dstTbName));
-  TAOS_CHECK_RETURN(tEncodeI64(pCoder, pSma->interval));
-  TAOS_CHECK_RETURN(tEncodeI64(pCoder, pSma->offset));
-  TAOS_CHECK_RETURN(tEncodeI64(pCoder, pSma->sliding));
-  if (pSma->exprLen > 0) {
-    TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pSma->expr));
-  }
-  if (pSma->tagsFilterLen > 0) {
-    TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pSma->tagsFilter));
-  }
 
   TAOS_CHECK_RETURN(tEncodeSSchemaWrapper(pCoder, &pSma->schemaRow));
   TAOS_CHECK_RETURN(tEncodeSSchemaWrapper(pCoder, &pSma->schemaTag));
@@ -10945,15 +10879,9 @@ int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma, bool deepCopy) {
   int32_t lino;
 
   TAOS_CHECK_EXIT(tDecodeI8(pCoder, &pSma->version));
-  TAOS_CHECK_EXIT(tDecodeI8(pCoder, &pSma->intervalUnit));
-  TAOS_CHECK_EXIT(tDecodeI8(pCoder, &pSma->slidingUnit));
-  TAOS_CHECK_EXIT(tDecodeI8(pCoder, &pSma->timezoneInt));
   TAOS_CHECK_EXIT(tDecodeI32(pCoder, &pSma->dstVgId));
   TAOS_CHECK_EXIT(tDecodeCStrTo(pCoder, pSma->indexName));
-  TAOS_CHECK_EXIT(tDecodeI32(pCoder, &pSma->exprLen));
-  TAOS_CHECK_EXIT(tDecodeI32(pCoder, &pSma->tagsFilterLen));
   TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSma->indexUid));
-  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSma->tableUid));
   TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSma->dstTbUid));
   if (deepCopy) {
     TAOS_CHECK_EXIT(tDecodeCStrAlloc(pCoder, &pSma->dstTbName));
@@ -10961,27 +10889,6 @@ int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma, bool deepCopy) {
     TAOS_CHECK_EXIT(tDecodeCStr(pCoder, &pSma->dstTbName));
   }
 
-  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSma->interval));
-  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSma->offset));
-  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSma->sliding));
-  if (pSma->exprLen > 0) {
-    if (deepCopy) {
-      TAOS_CHECK_EXIT(tDecodeCStrAlloc(pCoder, &pSma->expr));
-    } else {
-      TAOS_CHECK_EXIT(tDecodeCStr(pCoder, &pSma->expr));
-    }
-  } else {
-    pSma->expr = NULL;
-  }
-  if (pSma->tagsFilterLen > 0) {
-    if (deepCopy) {
-      TAOS_CHECK_EXIT(tDecodeCStrAlloc(pCoder, &pSma->tagsFilter));
-    } else {
-      TAOS_CHECK_EXIT(tDecodeCStr(pCoder, &pSma->tagsFilter));
-    }
-  } else {
-    pSma->tagsFilter = NULL;
-  }
   // only needed in dstVgroup
   TAOS_CHECK_EXIT(tDecodeSSchemaWrapperEx(pCoder, &pSma->schemaRow));
   TAOS_CHECK_EXIT(tDecodeSSchemaWrapperEx(pCoder, &pSma->schemaTag));

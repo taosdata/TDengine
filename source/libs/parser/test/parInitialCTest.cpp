@@ -708,11 +708,9 @@ TEST_F(ParserInitialCTest, createSmaIndex) {
     ASSERT_EQ(req.watermark, expect.watermark);
     ASSERT_EQ(req.deleteMark, expect.deleteMark);
     ASSERT_GT(req.exprLen, 0);
-    ASSERT_EQ(req.tagsFilterLen, 0);
     ASSERT_GT(req.sqlLen, 0);
     ASSERT_GT(req.astLen, 0);
     ASSERT_NE(req.expr, nullptr);
-    ASSERT_EQ(req.tagsFilter, nullptr);
     ASSERT_NE(req.sql, nullptr);
     ASSERT_NE(req.ast, nullptr);
     tFreeSMCreateSmaReq(&req);
