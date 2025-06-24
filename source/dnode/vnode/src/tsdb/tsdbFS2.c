@@ -542,7 +542,7 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
 
   {  // clear unreferenced files
     STfsDir *dir = NULL;
-    TAOS_CHECK_GOTO(tfsOpendir(TSDB_TFS(fs->tsdb->pVnode), fs->tsdb->path, &dir), &lino, _exit);
+    TAOS_CHECK_GOTO(tfsOpendir(fs->tsdb->pVnode->pTfs, fs->tsdb->path, &dir), &lino, _exit);
 
     STFileHash fobjHash = {0};
     code = tsdbFSCreateFileObjHash(fs, &fobjHash);
