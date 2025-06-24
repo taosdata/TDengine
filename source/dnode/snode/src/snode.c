@@ -81,29 +81,34 @@ static int32_t handleSyncWriteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   void*   data = NULL;
   int64_t dataLen = 0;
   int32_t code = streamReadCheckPoint(streamId, &data, &dataLen);
-  if (code == TAOS_SYSTEM_ERROR(ENOENT) || (code == 0 && ver > *(int32_t*)data)) {
-    code = streamWriteCheckPoint(streamId, pRpcMsg->pCont, pRpcMsg->contLen);
-    stDebug("[checkpoint] streamId:%" PRIx64 ", checkpoint updated, ver:%d, dataLen:%" PRId64, streamId, ver, dataLen);
+  if ((errno == ENOENT && ver == -1) || code != 0){
+    goto end;
   }
-  if (code != 0 || ver >= *(int32_t*)data) {
-    stDebug("[checkpoint] streamId:%" PRIx64 ", checkpoint no updated, ver:%d, dataLen:%" PRId64, streamId, ver, dataLen);
+  if (errno == ENOENT || ver > *(int32_t*)data) {
+    int32_t ret = streamWriteCheckPoint(streamId, POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead));
+    stDebug("[checkpoint] streamId:%" PRIx64 ", checkpoint local updated, ver:%d, dataLen:%" PRId64 ", ret:%d", streamId, ver, dataLen, ret);
+  }
+  if (errno == ENOENT || ver >= *(int32_t*)data) {
+    stDebug("[checkpoint] streamId:%" PRIx64 ", checkpoint no need send back, ver:%d, dataLen:%" PRId64, streamId, ver, dataLen);
     dataLen = 0;
     taosMemoryFreeClear(data);
   }
+end:
   SRpcMsg rsp = {.code = 0, .msgType = TDMT_STREAM_SYNC_CHECKPOINT_RSP, .contLen = dataLen, .pCont = data, .info = pRpcMsg->info};
   rpcSendResponse(&rsp);
   return 0;
 }
 
 static int32_t handleSyncWriteCheckPointRsp(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+  if (pRpcMsg->contLen <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
   void* data = POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead));
   int32_t dataLen = pRpcMsg->contLen - sizeof(SMsgHead);
   stDebug("[checkpoint] handleSyncWriteCheckPointRsp, dataLen:%d", dataLen);
-  if (dataLen <= 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-  int64_t streamId = *(int64_t*)(POINTER_SHIFT(data, dataLen - LONG_BYTES));
-  int32_t code = streamWriteCheckPoint(streamId, data, dataLen - LONG_BYTES);
+  
+  int64_t streamId = *(int64_t*)(POINTER_SHIFT(data, INT_BYTES));
+  int32_t code = streamWriteCheckPoint(streamId, data, dataLen);
   if (code == 0) {
     code = streamCheckpointSetReady(streamId);
   }  

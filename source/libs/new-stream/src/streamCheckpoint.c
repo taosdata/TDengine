@@ -89,7 +89,7 @@ int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen) {
   STREAM_CHECK_RET_GOTO(getFileName(filepath, streamId));
 
   pFile = taosOpenFile(filepath, TD_FILE_READ);
-  STREAM_CHECK_NULL_GOTO(pFile, terrno);
+  STREAM_CHECK_NULL_GOTO(pFile, 0);
 
   STREAM_CHECK_RET_GOTO(taosFStatFile(pFile, dataLen, NULL));
   *data = taosMemoryMalloc(*dataLen);
@@ -236,7 +236,14 @@ int32_t streamSyncWriteCheckpoint(int64_t streamId, SEpSet* epSet, void* data, i
   int32_t lino = 0;
 
   if (data == NULL) {
-    STREAM_CHECK_RET_GOTO(streamReadCheckPoint(streamId, &data, &dataLen));
+    int32_t ret = streamReadCheckPoint(streamId, &data, &dataLen);
+    if (errno == ENOENT || ret != TSDB_CODE_SUCCESS) {
+      dataLen = INT_BYTES + LONG_BYTES;
+      data = taosMemoryCalloc(1, INT_BYTES + LONG_BYTES);
+      STREAM_CHECK_NULL_GOTO(data, terrno);
+      *(int32_t*)data = -1;
+      *(int64_t*)(POINTER_SHIFT(data, INT_BYTES)) = streamId;
+    }
   }
   STREAM_CHECK_RET_GOTO(sendSyncMsg(data, dataLen, epSet));
   stDebug("[checkpoint] sync checkpoint for streamId:%" PRIx64 ", dataLen:%" PRId64, streamId, dataLen);
@@ -265,7 +272,7 @@ int32_t streamSyncAllCheckpoints(SEpSet* epSet) {
   char snodePath[PATH_MAX] = {0};
   STREAM_CHECK_RET_GOTO(getFilePath(snodePath));
   pDir = taosOpenDir(snodePath);
-  STREAM_CHECK_NULL_GOTO(pDir, terrno);
+  STREAM_CHECK_NULL_GOTO(pDir, 0);
 
   TdDirEntryPtr de = NULL;
   while ((de = taosReadDir(pDir)) != NULL) {
