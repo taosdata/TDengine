@@ -45,18 +45,15 @@ def moment():
             'error': 'Invalid input, please provide "input" field in JSON'
         }), 400
 
-    input_data = data['data']
+    input_data = data['input']
     input_ts = data['ts']
-    time_precision = data['time_precision']
+    time_precision = data['precision']
+    freq = data['freq']
 
-    ts, val, mask = do_handle_input_data(input_data, input_ts, time_precision, 'H')
+    res = do_handle_input_data(input_data, input_ts, time_precision, freq)
 
-    return {
-        'status': 'success',
-        'val': val.tolist(),
-        'mask':mask.tolist(),
-        'ts': ts.tolist()
-    }
+    res["status"] = "success"
+    return res
 
 
 class InputDataset(torch.utils.data.Dataset):
@@ -71,22 +68,24 @@ class InputDataset(torch.utils.data.Dataset):
         self.seq_len = data_stride_len
         self.data_stride_len = data_stride_len
         self.time_precision = time_precision
-        self.input_data = input_data
         self.input_ts = input_ts
         self.scaler = StandardScaler()
 
         self.n_channels = 1
         self.length_timeseries_original = len(input_data)
 
-        complete_df, self.mask = complete_timeseries(self.input_ts, self.input_data, freq)
+        complete_df, self.mask = complete_timeseries(self.input_ts, input_data, self.time_precision, freq)
 
-        self.length_timeseries_full = complete_df.shape[0]
-        self.length_timeseries = ((complete_df.shape[0] // self.seq_len) + 1) * self.seq_len
-        inc = self.length_timeseries - complete_df.shape[0]
+        self.timeseries_complete_length = complete_df.shape[0]
+        self.timeseries_padding_length = ((complete_df.shape[0] // self.seq_len) + 1) * self.seq_len
 
-        self.data, self.input_mask, self.mask = padding_data_list(complete_df, np.min(input_data), inc, self.mask, freq)
-        self.data, self.ts = self._transform_data(self.data)
+        inc = self.timeseries_padding_length - complete_df.shape[0]
+        data, self.input_mask, self.mask = padding_data_list(complete_df, np.min(input_data), inc, self.mask, freq)
 
+        self.data, self.ts = self._transform_data(data)
+
+    def get_complete_data(self):
+        return self.data[:self.timeseries_complete_length]
 
     def _transform_data(self, input_data):
         self.scaler.fit(input_data.values)
@@ -96,8 +95,8 @@ class InputDataset(torch.utils.data.Dataset):
         seq_start = self.data_stride_len * index
         seq_end = seq_start + self.seq_len
 
-        if seq_end > self.length_timeseries:
-            seq_end = self.length_timeseries
+        if seq_end > self.timeseries_padding_length:
+            seq_end = self.timeseries_padding_length
             # seq_end = seq_end - self.seq_len
 
         timeseries = self.data[seq_start:seq_end, :].T
@@ -106,7 +105,7 @@ class InputDataset(torch.utils.data.Dataset):
         return timeseries, mask
 
     def __len__(self):
-        return (self.length_timeseries // self.data_stride_len)
+        return (self.timeseries_padding_length // self.data_stride_len)
 
 
 def padding_data_list(df, val, n_rows, mask, freq):
@@ -116,6 +115,14 @@ def padding_data_list(df, val, n_rows, mask, freq):
     delta = None
     if freq == 'H':
         delta = timedelta(hours=1)
+    elif freq == 's':
+        delta = timedelta(seconds=1)
+    elif freq == 'T':
+        delta = timedelta(minutes=1)
+    elif freq == 'D':
+        delta = timedelta(days=1)
+    else:
+        raise ValueError(f"Unsupported frequency: {freq}")
 
     # generate the increase timestamps series
     if isinstance(last_time, (np.datetime64, pd.Timestamp)):
@@ -136,8 +143,18 @@ def padding_data_list(df, val, n_rows, mask, freq):
 
     return pd.concat([df, new_df]), input_mask, np.append(mask, np.ones(n_rows, dtype=int))
 
+def draw_imputation_stride_result(trues, preds, masks):
+    fig, axs = plt.subplots(2, 1, figsize=(10, 5))
+    axs[0].set_title(f"Channel=0")
+    axs[0].plot(trues[0, 0, :].squeeze(), label='Ground Truth', c='darkblue')
+    axs[0].plot(preds[0, 0, :].squeeze(), label='Predictions', c='red')
+    axs[0].legend(fontsize=14)
 
-def complete_timeseries(timestamps, values, freq='T'):
+    axs[1].imshow(np.tile(masks[np.newaxis, 0, 0], reps=(8, 1)), cmap='binary')
+    plt.savefig("moment.png")
+
+
+def complete_timeseries(timestamps, values, precision, freq='T'):
     """
     处理独立时间戳和数值列的时间序列补全
     :param timestamps: 时间戳列(可迭代对象)
@@ -147,7 +164,7 @@ def complete_timeseries(timestamps, values, freq='T'):
     """
     # 创建初始DataFrame
     df = pd.DataFrame({
-        'timestamp': pd.to_datetime(timestamps, unit='s', errors='coerce'),
+        'timestamp': pd.to_datetime(timestamps, unit=precision, errors='coerce'),
         'value': values
     }).set_index('timestamp')
 
@@ -211,37 +228,27 @@ def do_handle_input_data(value_list, ts_list, precision, freq):
 
     print(f"Shapes: preds={preds.shape} | trues={trues.shape} | masks={masks.shape}")
 
-    fig, axs = plt.subplots(2, 1, figsize=(10, 5))
-    axs[0].set_title(f"Channel=0")
-    axs[0].plot(trues[1, 0, :].squeeze(), label='Ground Truth', c='darkblue')
-    axs[0].plot(preds[1, 0, :].squeeze(), label='Predictions', c='red')
-    axs[0].legend(fontsize=14)
+    draw_imputation_stride_result(trues, preds, masks)
 
-    axs[1].imshow(np.tile(masks[np.newaxis, 1, 0], reps=(8, 1)), cmap='binary')
-    plt.show()
-    plt.savefig("moment.png")
-
-    len = input_data.length_timeseries
+    padding_len = input_data.timeseries_padding_length
+    comp_len = input_data.timeseries_complete_length
 
     # discard the padding data
-    return input_data.ts, input_data.scaler.inverse_transform(preds.reshape(len, 1)), masks.reshape(len)
+    ts_list = input_data.ts[:comp_len]
+    res_data_list = preds.reshape(padding_len, 1)[:comp_len]
+    res_mask_list = masks.reshape(padding_len)[:comp_len]
+
+    data = input_data.get_complete_data()
+
+    index = np.where(res_mask_list == 0)[0]
+    data[index] = res_data_list[index]
+    data = input_data.scaler.inverse_transform(data)
+
+    return {
+        "ts": ts_list.tolist(),
+        "target":data.reshape(comp_len).tolist(),
+        "mask":(1-res_mask_list).tolist()
+    }
 
 if __name__ == '__main__':
-    full_file_path_and_name = "../data/ETTh1.csv"
-
-    df_data = pd.read_csv(full_file_path_and_name)
-    df_data.drop(columns=["HULL", "HUFL", "MULL", "LUFL", "LULL", "OT"], inplace=True)
-
-    remove_list = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
-    first = df_data[0:601].drop(remove_list)
-
-    ts_list = (pd.to_datetime(first['date']).astype('int64') // 10 ** 9).tolist()
-    value_list = first['MUFL'].tolist()
-
-    rsp_ts_list, rsp_val_list, rsp_mask = do_handle_input_data(value_list, ts_list, 's', 'H')
-    print(rsp_ts_list)
-    print(rsp_val_list.reshape(rsp_val_list.shape[0]))
-    print(rsp_mask)
-
-    # moment()
-    # app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5005)
