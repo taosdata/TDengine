@@ -38,9 +38,6 @@ if [ -z "$WORKDIR" ]; then
     usage
     exit 1
 fi
-# if [ -z "$THREAD_COUNT" ]; then
-#     THREAD_COUNT=1
-# fi
 
 ulimit -c unlimited
 
