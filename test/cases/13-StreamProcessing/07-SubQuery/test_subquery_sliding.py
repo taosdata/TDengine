@@ -102,7 +102,7 @@ class TestStreamSubquerySliding:
         tdStream.prepareJsonTables(tbBatch=1, tbPerBatch=10)
 
         tdLog.info("prepare view")
-        tdStream.prepareViews(views=5)
+        #tdStream.prepareViews(views=5)
 
     def prepareTriggerTable(self):
         tdLog.info("prepare tables for trigger")

@@ -2598,7 +2598,7 @@ SNode* qptCreateStreamEventPhysiNode(int32_t nodeType) {
 SNode* qptCreateCountWindowPhysiNode(int32_t nodeType) {
   SPhysiNode* pPhysiNode = qptCreatePhysiNode(nodeType);
 
-  SCountWinodwPhysiNode* pCount = (SCountWinodwPhysiNode*)pPhysiNode;
+  SCountWindowPhysiNode* pCount = (SCountWindowPhysiNode*)pPhysiNode;
 
   qptCreateWindowPhysiNode(&pCount->window);
 
