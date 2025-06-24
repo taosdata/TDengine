@@ -493,6 +493,7 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   // SKIP SESSIONID
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->taskIdx));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->status));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->detailStatus));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTask->errorCode));
   if (pTask->pMgmtReq) {
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, 1));
@@ -522,6 +523,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   // SKIP SESSIONID
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->taskIdx));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, (int32_t*)&pTask->status));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->detailStatus));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->errorCode));
   int32_t req = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &req));
@@ -529,6 +531,87 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
     pTask->pMgmtReq = taosMemoryCalloc(1, sizeof(SStreamMgmtReq));
     TSDB_CHECK_NULL(pTask->pMgmtReq, code, lino, _exit, terrno);
     TAOS_CHECK_EXIT(tDecodeSStreamMgmtReq(pDecoder, pTask->pMgmtReq));
+  }
+
+_exit:
+
+  return code;
+}
+
+int32_t tEncodeSSTriggerRecalcProgress(SEncoder* pEncoder, const SSTriggerRecalcProgress* pProgress) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pProgress->recalcId));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pProgress->progress));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pProgress->start));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pProgress->end));
+
+_exit:
+
+  return code;
+}
+
+int32_t tDecodeSSTriggerRecalcProgress(SDecoder* pDecoder, SSTriggerRecalcProgress* pProgress) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pProgress->recalcId));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pProgress->progress));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pProgress->start));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pProgress->end));
+
+_exit:
+
+  return code;
+}
+
+
+int32_t tEncodeSSTriggerRuntimeStatus(SEncoder* pEncoder, const SSTriggerRuntimeStatus* pStatus) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pStatus->autoRecalcNum));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pStatus->realtimeSessionNum));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pStatus->historySessionNum));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pStatus->recalcSessionNum));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pStatus->histroyProgress));
+
+  int32_t recalcNum = (int32_t)taosArrayGetSize(pStatus->userRecalcs);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, recalcNum));
+  for (int32_t i = 0; i < recalcNum; ++i) {
+    SSTriggerRecalcProgress* pProgress = taosArrayGet(pStatus->userRecalcs, i);
+    TAOS_CHECK_EXIT(tEncodeSSTriggerRecalcProgress(pEncoder, pProgress));
+  }
+
+_exit:
+
+  return code;
+}
+
+int32_t tDecodeSSTriggerRuntimeStatus(SDecoder* pDecoder, SSTriggerRuntimeStatus* pStatus) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pStatus->autoRecalcNum));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pStatus->realtimeSessionNum));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pStatus->historySessionNum));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pStatus->realtimeSessionNum));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pStatus->histroyProgress));
+
+  int32_t recalcNum = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &recalcNum));
+  if (recalcNum > 0) {
+    pStatus->userRecalcs = taosArrayInit_s(sizeof(SSTriggerRecalcProgress), recalcNum);
+    if (NULL == pStatus->userRecalcs) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+
+  for (int32_t i = 0; i < recalcNum; ++i) {
+    SSTriggerRecalcProgress* pProgress = taosArrayGet(pStatus->userRecalcs, i);
+    TAOS_CHECK_EXIT(tDecodeSSTriggerRecalcProgress(pDecoder, pProgress));
   }
 
 _exit:
@@ -553,12 +636,28 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     int32_t* vgId = taosArrayGet(pReq->pVgLeaders, i);
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, *vgId));
   }
+  
   int32_t statusNum = taosArrayGetSize(pReq->pStreamStatus);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, statusNum));
   for (int32_t i = 0; i < statusNum; ++i) {
     SStmTaskStatusMsg* pStatus = taosArrayGet(pReq->pStreamStatus, i);
     TAOS_CHECK_EXIT(tEncodeStreamTask(pEncoder, (SStreamTask*)pStatus));
   }
+
+  int32_t reqNum = taosArrayGetSize(pReq->pStreamReq);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, reqNum));
+  for (int32_t i = 0; i < reqNum; ++i) {
+    int32_t* idx = taosArrayGet(pReq->pStreamReq, i);
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, *idx));
+  }
+
+  int32_t triggerNum = taosArrayGetSize(pReq->pTriggerStatus);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, triggerNum));
+  for (int32_t i = 0; i < triggerNum; ++i) {
+    SSTriggerRuntimeStatus* pTrigger = taosArrayGet(pReq->pTriggerStatus, i);
+    TAOS_CHECK_EXIT(tEncodeSSTriggerRuntimeStatus(pEncoder, pTrigger));
+  }
+  
   tEndEncode(pEncoder);
 
 _exit:
@@ -597,6 +696,7 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     }
   }
 
+
   int32_t statusNum = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &statusNum));
   if (statusNum > 0) {
@@ -614,6 +714,45 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     }
     TAOS_CHECK_EXIT(tDecodeStreamTask(pDecoder, (SStreamTask*)pTask));
   }
+
+
+  int32_t reqNum = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &reqNum));
+  if (reqNum > 0) {
+    pReq->pStreamReq = taosArrayInit_s(sizeof(int32_t), reqNum);
+    if (NULL == pReq->pStreamReq) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+  for (int32_t i = 0; i < reqNum; ++i) {
+    int32_t* pIdx = taosArrayGet(pReq->pStreamReq, i);
+    if (NULL == pIdx) {
+      code = terrno;
+      goto _exit;
+    }
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, pIdx));
+  }
+
+
+  int32_t triggerNum = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &triggerNum));
+  if (triggerNum > 0) {
+    pReq->pTriggerStatus = taosArrayInit_s(sizeof(SSTriggerRuntimeStatus), triggerNum);
+    if (NULL == pReq->pTriggerStatus) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+  for (int32_t i = 0; i < triggerNum; ++i) {
+    SSTriggerRuntimeStatus* pStatus = taosArrayGet(pReq->pTriggerStatus, i);
+    if (NULL == pStatus) {
+      code = terrno;
+      goto _exit;
+    }
+    TAOS_CHECK_EXIT(tDecodeSSTriggerRuntimeStatus(pDecoder, pStatus));
+  }
+
   
   tEndDecode(pDecoder);
 
