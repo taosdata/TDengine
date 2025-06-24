@@ -18,15 +18,20 @@ class _MomentImputationService(AbstractImputationService):
         self.headers = {'Content-Type': 'application/json'}
         self.service_host = conf.get_tsfm_service(self.name)
 
+        self.freq = 'H'
+        self.precision = 'ms'
+
+        if  self.service_host is None:
+            self.service_host = 'http://127.0.0.1:5005/imputation'
+
 
     def execute(self):
-        # if self.list is None or len(self.list) < self.period:
-        #     raise ValueError("number of input data is less than the periods")
-
         # let's request the gpt service
         data = {
             "input": self.list,
             "ts": self.ts_list,
+            'precision': self.precision,
+            'freq':self.freq,
         }
 
         try:
@@ -45,11 +50,7 @@ class _MomentImputationService(AbstractImputationService):
         resp_json = response.json()
         app_logger.log_inst.debug(f"recv rsp, {resp_json}")
 
-        res = {
-            "res": [resp_json["output"]],
-        }
-
-        return res
+        return resp_json
 
     def set_params(self, params):
         super().set_params(params)
@@ -64,4 +65,13 @@ class _MomentImputationService(AbstractImputationService):
 
         app_logger.log_inst.info("%s specify gpt host service: %s", self.__class__.__name__,
                                  self.service_host)
+
+        if "freq" in params:
+            self.freq = params["freq"]
+
+        if "precision" in params:
+            self.precision = params["precision"]
+
+        app_logger.log_inst.info("%s specify freq: %s, precision: %s", self.__class__.__name__,
+                                 self.freq, self.precision)
 

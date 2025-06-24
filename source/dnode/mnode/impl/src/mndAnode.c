@@ -840,15 +840,15 @@ _OVER:
 }
 
 static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
-  SMnode              *pMnode = pReq->info.node;
-  SSdb                *pSdb = pMnode->pSdb;
-  int32_t              code = -1;
-  SAnodeObj           *pObj = NULL;
+  SMnode *                  pMnode = pReq->info.node;
+  SSdb *                    pSdb = pMnode->pSdb;
+  int32_t                   code = -1;
+  SAnodeObj *               pObj = NULL;
   SAnalyticsUrl             url;
-  int32_t              nameLen;
-  char                 name[TSDB_ANALYTIC_ALGO_KEY_LEN];
+  int32_t                   nameLen;
+  char                      name[TSDB_ANALYTIC_ALGO_KEY_LEN];
   SRetrieveAnalyticsAlgoReq req = {0};
-  SRetrieveAnalyticAlgoRsp rsp = {0};
+  SRetrieveAnalyticAlgoRsp  rsp = {0};
 
   TAOS_CHECK_GOTO(tDeserializeRetrieveAnalyticAlgoReq(pReq->pCont, pReq->contLen, &req), NULL, _OVER);
 
@@ -872,8 +872,8 @@ static int32_t mndProcessAnalAlgoReq(SRpcMsg *pReq) {
         SArray *algos = pAnode->algos[t];
         url.type = t;
 
-        for (int32_t a = 0; a < taosArrayGetSize(algos); ++a) {
-          SAnodeAlgo *algo = taosArrayGet(algos, a);
+        for (int32_t i = 0; i < taosArrayGetSize(algos); ++i) {
+          SAnodeAlgo *algo = taosArrayGet(algos, i);
           nameLen = 1 + tsnprintf(name, sizeof(name) - 1, "%d:%s", url.type, algo->name);
 
           SAnalyticsUrl *pOldUrl = taosHashAcquire(rsp.hash, name, nameLen);

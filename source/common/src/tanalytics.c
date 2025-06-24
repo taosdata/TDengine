@@ -43,6 +43,8 @@ const char *taosAnalysisAlgoType(EAnalAlgoType type) {
       return "anomaly-detection";
     case ANALY_ALGO_TYPE_FORECAST:
       return "forecast";
+    case ANALY_ALGO_TYPE_IMPUTATION:
+      return "imputation";
     default:
       return "unknown";
   }
@@ -54,6 +56,8 @@ const char *taosAnalyAlgoUrlStr(EAnalAlgoType type) {
       return "anomaly-detect";
     case ANALY_ALGO_TYPE_FORECAST:
       return "forecast";
+    case ANALY_ALGO_TYPE_IMPUTATION:
+      return "imputation";
     default:
       return "unknown";
   }

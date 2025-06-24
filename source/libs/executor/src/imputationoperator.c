@@ -53,16 +53,16 @@ typedef struct {
   SColumn         targetCol;
   int32_t         resTsSlot;
   int32_t         resTargetSlot;
-  int32_t         resmarkSlot;
+  int32_t         resMarkSlot;
   SImputationSupp imputatSup;
 } SImputationOperatorInfo;
 
 static void    imputatDestroyOperatorInfo(void* param);
 static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
-static int32_t doImputation(SOperatorInfo* pOperator);
+static int32_t doImputation(SImputationOperatorInfo* pInfo, SExecTaskInfo* pTaskInfo);
 static int32_t doCacheBlock(SImputationSupp* pSupp, SSDataBlock* pBlock, const char* id);
 static int32_t doParseInput(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, SNodeList* pFuncs, const char* id);
-static int32_t doParseOutput(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, SExprSupp* pExprSup);
+static int32_t doSetResSlot(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, SExprSupp* pExprSup);
 static int32_t doParseOption(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, const char* id);
 static int32_t doCreateBuf(SImputationSupp* pSupp);
 
@@ -114,7 +114,7 @@ int32_t createImputationOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phys
   code = doParseInput(pInfo, pSupp, pImputatNode->pFuncs, id);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  code = doParseOutput(pInfo, pSupp, pExprSup);
+  code = doSetResSlot(pInfo, pSupp, pExprSup);
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = doParseOption(pInfo, pSupp, id);
@@ -178,20 +178,18 @@ static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (pSupp->groupId == 0 || pSupp->groupId == pBlock->info.id.groupId) {
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks++;
-      pSupp->numOfRows += pBlock->info.rows;
+      code = doCacheBlock(pSupp, pBlock, idstr);
 
       qDebug("group:%" PRId64 ", blocks:%d, rows:%" PRId64 ", total rows:%d", pSupp->groupId, numOfBlocks,
              pBlock->info.rows, pSupp->numOfRows);
-      code = doCacheBlock(pSupp, pBlock, idstr);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
       qDebug("group:%" PRId64 ", read completed for new group coming, blocks:%d", pSupp->groupId, numOfBlocks);
-      code = doImputation(pOperator);
+      code = doImputation(pInfo, pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
 
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks = 1;
-      pSupp->numOfRows = pBlock->info.rows;
       qDebug("group:%" PRId64 ", new group, rows:%" PRId64 ", total rows:%d", pSupp->groupId, pBlock->info.rows,
              pSupp->numOfRows);
       code = doCacheBlock(pSupp, pBlock, idstr);
@@ -207,7 +205,7 @@ static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
   if (numOfBlocks > 0) {
     qDebug("group:%" PRId64 ", read finish, blocks:%d", pInfo->imputatSup.groupId, numOfBlocks);
-    code = doImputation(pOperator);
+    code = doImputation(pInfo, pTaskInfo);
   }
 
   int64_t cost = taosGetTimestampUs() - st;
@@ -404,8 +402,8 @@ static int32_t doImputationImpl(SImputationOperatorInfo* pInfo, SImputationSupp*
   double        tmpDouble = 0;
   int32_t       code = 0;
 
-  SColumnInfoData* pResValCol = taosArrayGet(pBlock->pDataBlock, pInfo->resTargetSlot);
-  if (NULL == pResValCol) {
+  SColumnInfoData* pResTargetCol = taosArrayGet(pBlock->pDataBlock, pInfo->resTargetSlot);
+  if (NULL == pResTargetCol) {
     return terrno;
   }
 
@@ -460,7 +458,7 @@ static int32_t doImputationImpl(SImputationOperatorInfo* pInfo, SImputationSupp*
     SJson* valJson = tjsonGetArrayItem(valJsonArray, i);
     tjsonGetObjectValueDouble(valJson, &tmpDouble);
 
-    colDataSetDouble(pResValCol, resCurRow, &tmpDouble);
+    colDataSetDouble(pResTargetCol, resCurRow, &tmpDouble);
     resCurRow++;
   }
 
@@ -479,19 +477,16 @@ _OVER:
   return code;
 }
 
-static int32_t doImputation(SOperatorInfo* pOperator) {
+static int32_t doImputation(SImputationOperatorInfo* pInfo, SExecTaskInfo* pTaskInfo) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
-  SImputationOperatorInfo* pInfo = pOperator->info;
-  SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
   char*                    id = GET_TASKID(pTaskInfo);
   SSDataBlock*             pRes = pInfo->binfo.pRes;
   SImputationSupp*         pSupp = &pInfo->imputatSup;
 
-  int32_t numOfBlocks = (int32_t)taosArrayGetSize(pSupp->blocks);
-  if (numOfBlocks == 0) goto _OVER;
+  if (pSupp->numOfRows <= 0) goto _OVER;
 
-  qDebug("%s group:%" PRId64 ", aggregate blocks, blocks:%d", id, pSupp->groupId, numOfBlocks);
+  qDebug("%s group:%" PRId64 ", do imputation, rows:%d", id, pSupp->groupId, pSupp->numOfRows);
   pRes->info.id.groupId = pSupp->groupId;
 
   code = finishBuildRequest(pInfo, pSupp, id);
@@ -520,12 +515,6 @@ _end:
   return code;
 
 _OVER:
-  for (int32_t i = 0; i < numOfBlocks; ++i) {
-    SSDataBlock* pBlock = taosArrayGetP(pSupp->blocks, i);
-    qDebug("%s, clear block, pBlock:%p pBlock->pDataBlock:%p", __func__, pBlock, pBlock->pDataBlock);
-    blockDataDestroy(pBlock);
-  }
-
   taosArrayClear(pSupp->blocks);
   pSupp->numOfRows = 0;
   return code;
@@ -555,13 +544,13 @@ static int32_t doParseInput(SImputationOperatorInfo* pInfo, SImputationSupp* pSu
 
         if (numOfParam == 2) {
           // column, ts
-          SColumnNode* pValNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+          SColumnNode* pTargetNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
           SColumnNode* pTsNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 1);
 
           pSupp->tsSlot = pTsNode->slotId;
           pSupp->tsPrecision = pTsNode->node.resType.precision;
-          pSupp->targetSlot = pValNode->slotId;
-          pSupp->targetType = pValNode->node.resType.type;
+          pSupp->targetSlot = pTargetNode->slotId;
+          pSupp->targetType = pTargetNode->node.resType.type;
 
           // let's set the moment as the default imputation algorithm
           pInfo->options = taosStrdup("algo=moment-imputation");
@@ -615,17 +604,21 @@ static int32_t doParseInput(SImputationOperatorInfo* pInfo, SImputationSupp* pSu
   return code;
 }
 
-static int32_t doParseOutput(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, SExprSupp* pExprSup) {
+static int32_t doSetResSlot(SImputationOperatorInfo* pInfo, SImputationSupp* pSupp, SExprSupp* pExprSup) {
   pInfo->resTsSlot = -1;
   pInfo->resTargetSlot = -1;
+  pInfo->resMarkSlot = -1;
 
   for (int32_t j = 0; j < pExprSup->numOfExprs; ++j) {
     SExprInfo* pExprInfo = &pExprSup->pExprInfo[j];
     int32_t    dstSlot = pExprInfo->base.resSchema.slotId;
-    if (pExprInfo->pExpr->_function.functionType == FUNCTION_TYPE_FORECAST) {
+    int32_t    functionType = pExprInfo->pExpr->_function.functionType;
+    if (functionType == FUNCTION_TYPE_IMPUTATION) {
       pInfo->resTargetSlot = dstSlot;
-    } else if (pExprInfo->pExpr->_function.functionType == FUNCTION_TYPE_FORECAST_ROWTS) {
+    } else if (functionType == FUNCTION_TYPE_IMPUTATION_ROWTS) {
       pInfo->resTsSlot = dstSlot;
+    } else if (functionType == FUNCTION_TYPE_IMPUTATION_MARKS) {
+      pInfo->resMarkSlot = dstSlot;
     }
   }
 

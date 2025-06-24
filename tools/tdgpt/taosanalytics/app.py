@@ -2,13 +2,14 @@
 # pylint: disable=c0103
 """the main route definition for restful service"""
 import os.path, sys
-
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
 from flask import Flask, request
 
+from taosanalytics.algo.imputation import do_imputation, do_set_params
 from taosanalytics.algo.anomaly import do_ad_check
 from taosanalytics.algo.forecast import do_forecast, do_add_fc_params
+
 from taosanalytics.conf import conf
 from taosanalytics.model import get_avail_model
 from taosanalytics.servicemgmt import loader
@@ -114,21 +115,14 @@ def handle_ad_request():
         return result
 
 
-@app.route("/forecast", methods=['POST'])
-def handle_forecast_req():
-    """handle the fc request """
-    app_logger.log_inst.info('recv fc from %s', request.remote_addr)
-
+def do_check_before_exec(request):
     try:
         req_json = request.json
     except Exception as e:
-        app_logger.log_inst.error('forecast recv invalid json format, %s, %s', e, request.data)
+        app_logger.log_inst.error('recv invalid json req, %s, %s', e, request.data)
         raise ValueError(e)
 
     app_logger.log_inst.debug('req payload: %s', req_json)
-
-    # holt-winters by default
-    algo = req_json['algo'].lower() if 'algo' in req_json else 'holtwinters'
 
     # 1. validate the input data in json format
     try:
@@ -148,12 +142,22 @@ def handle_forecast_req():
         try:
             data = payload[data_index]
             if is_white_noise(data):
-                app_logger.log_inst.debug("%s wn data, not process", data)
-                return {"msg": "white noise can not be check", "rows": -1}
+                app_logger.log_inst.debug("%s white-noise data, not process", data)
+                raise ValueError("white-noise data not processed")
         except Exception as e:
-            return {"msg": str(e), "rows": -1}
+            app_logger.log_inst.error("failed to check white-noise data, %s", str(e))
+            raise Exception(e)
 
     options = req_json["option"] if "option" in req_json else None
+
+    return req_json, payload, options, data_index, ts_index
+
+@app.route("/forecast", methods=['POST'])
+def handle_forecast_req():
+    """handle the fc request """
+    app_logger.log_inst.info('recv fc from %s', request.remote_addr)
+    req_json, payload, options, data_index, ts_index = do_check_before_exec(request.json)
+
     params = parse_options(options)
 
     try:
@@ -161,6 +165,9 @@ def handle_forecast_req():
     except ValueError as e:
         app_logger.log_inst.error("invalid fc params: %s", e)
         return {"msg": f"{e}", "rows": -1}
+
+    # holt-winters by default
+    algo = req_json['algo'].lower() if 'algo' in req_json else 'holtwinters'
 
     try:
         res1 = do_forecast(payload[data_index], payload[ts_index], algo, params,
@@ -171,12 +178,43 @@ def handle_forecast_req():
         res.update(res1)
 
         app_logger.log_inst.debug("forecast result: %s", res)
-
         return res
     except Exception as e:
         app_logger.log_inst.error('forecast failed, %s', str(e))
         return {"msg": str(e), "rows": -1}
 
+
+@app.route("/imputation", methods=['POST'])
+def handle_imputation_req():
+    """handle the imputation request """
+    app_logger.log_inst.info('recv imputation from %s', request.remote_addr)
+    try:
+        req_json, payload, options, data_index, ts_index = do_check_before_exec(request)
+    except Exception as e:
+        return {"msg": str(e), "rows": -1}
+
+    params = parse_options(options)
+
+    try:
+        do_set_params(params, req_json)
+    except ValueError as e:
+        app_logger.log_inst.error("invalid fc params: %s", e)
+        return {"msg": f"{e}", "rows": -1}
+
+    algo = req_json['algo'].lower() if 'algo' in req_json else 'moment-imputation'
+
+    try:
+        res1 = do_imputation(payload[data_index], payload[ts_index], algo, params)
+
+        res = {"option": options, "rows": len(res1["ts"])}
+        res.update(res1)
+
+        app_logger.log_inst.debug("imputation result: %s", res)
+
+        return res
+    except Exception as e:
+        app_logger.log_inst.error('impu failed, %s', str(e))
+        return {"msg": str(e), "rows": -1}
 
 if __name__ == '__main__':
     app.run(port=6090)
