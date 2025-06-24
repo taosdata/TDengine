@@ -36,21 +36,6 @@ Plugin data sources are configured in the node properties using the [Node.js con
    - Click the dictionary icon in the upper-right area for detailed documentation.
 4. After configuration, click the "Deploy" button in the upper right. Green node status indicates successful connection.
 
-## Verification Methods
-
-### tdengine-operator
-1. Configure database connection properties for tdengine-operator node.
-2. Add an inject node before it, setting msg.topic to the desired SQL statement.
-3. Click the inject node's trigger button to execute SQL.
-4. Use taos-CLI to verify existence of written data.
-
-### tdengine-consumer
-1. Configure subscription properties for tdengine-consumer node.
-2. Add a debug node after it.
-3. In node properties, check "Node Status" and select "Message Count".
-4. Write a test record using taos-CLI.
-5. Observe the debug node count increment.
-6. Verify payload matches written data.
 
 ## Usage Examples
 
