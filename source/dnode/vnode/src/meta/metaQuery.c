@@ -1410,7 +1410,7 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
 
     valid = tdbTbcGet(pCursor->pCur, (const void **)&entryKey, &nEntryKey, (const void **)&entryVal, &nEntryVal);
     if (valid < 0) {
-      code = valid;
+      break;
     }
     if (count > TRY_ERROR_LIMIT) {
       break;
