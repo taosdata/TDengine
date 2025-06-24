@@ -3,11 +3,9 @@
 """forecast helper methods"""
 import time
 
-import numpy as np
-import pandas as pd
 from matplotlib import pyplot as plt
 
-from taosanalytics.conf import app_logger, conf
+from taosanalytics.conf import app_logger
 from taosanalytics.servicemgmt import loader
 
 
@@ -31,7 +29,10 @@ def do_imputation(input_list, ts_list, algo_name, params):
 
     app_logger.log_inst.debug("imputation done, elapsed time:%.2fms", (time.time() - start) * 1000)
 
+    # add the imputation model in the result
     res["algo"] = algo_name
+
+    # draw the imputation result
     draw_imputation_final_result(res["target"], res["mask"])
 
     return res

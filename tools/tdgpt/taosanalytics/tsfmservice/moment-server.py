@@ -8,7 +8,6 @@ from sklearn.preprocessing import StandardScaler
 import torch
 from flask import Flask, request, jsonify
 
-from momentfm.utils.forecasting_metrics import mse, mae
 from momentfm.utils.utils import control_randomness
 from momentfm import MOMENTPipeline
 
@@ -84,8 +83,17 @@ class InputDataset(torch.utils.data.Dataset):
 
         self.data, self.ts = self._transform_data(data)
 
-    def get_complete_data(self):
-        return self.data[:self.timeseries_complete_length]
+    def get_data(self):
+        return self.data
+
+    def get_mask(self):
+        return self.mask
+
+    def get_ts(self):
+        return self.ts
+
+    def get_length_info(self):
+        return  self.timeseries_padding_length, self.timeseries_complete_length
 
     def _transform_data(self, input_data):
         self.scaler.fit(input_data.values)
@@ -105,7 +113,7 @@ class InputDataset(torch.utils.data.Dataset):
         return timeseries, mask
 
     def __len__(self):
-        return (self.timeseries_padding_length // self.data_stride_len)
+        return self.timeseries_padding_length // self.data_stride_len
 
 
 def padding_data_list(df, val, n_rows, mask, freq):
@@ -134,7 +142,6 @@ def padding_data_list(df, val, n_rows, mask, freq):
     else:
         new_timestamp = [last_time + i + 1 for i in range(n_rows)]
 
-    # 创建新数据
     new_df = pd.DataFrame({'value': [val] * n_rows, }, index=new_timestamp)
 
     # append the new rows
@@ -156,13 +163,19 @@ def draw_imputation_stride_result(trues, preds, masks):
 
 def complete_timeseries(timestamps, values, precision, freq='T'):
     """
-    处理独立时间戳和数值列的时间序列补全
-    :param timestamps: 时间戳列(可迭代对象)
-    :param values: 数值列(可迭代对象)
-    :param freq: 目标频率('T'-分钟, 'H'-小时, 'D'-天)
-    :return: (完整DataFrame, 缺失索引数组, 缺失时间戳数组)
+    Complete the time series data by generating a DataFrame with a full time range and marking missing values.
+
+    Args:
+        timestamps (list): A list of timestamps.
+        values (list): A list of values corresponding to the timestamps.
+        precision (str): The precision of the timestamps, e.g., 's' for seconds.
+        freq (str, optional): The frequency of the time series, default is 'T' (minutes).
+
+    Returns:
+        tuple: A tuple containing the completed DataFrame and an array of missing value masks.
     """
-    # 创建初始DataFrame
+
+    # Create an initial DataFrame, convert timestamps to pandas datetime type and set as index
     df = pd.DataFrame({
         'timestamp': pd.to_datetime(timestamps, unit=precision, errors='coerce'),
         'value': values
@@ -195,14 +208,16 @@ def do_handle_input_data(value_list, ts_list, precision, freq):
 
     input_data = InputDataset(value_list, ts_list, precision, freq, data_stride_len=stride_len)
 
-    fold = input_data.input_mask.shape[0] // stride_len
-    input_masks = torch.from_numpy(input_data.input_mask).reshape(fold, stride_len)
+    padding_len, comp_len = input_data.get_length_info()
 
-    eval_dataloader = DataLoader(input_data, batch_size=64, shuffle=False)
+    dim = padding_len // stride_len
+    input_masks = torch.from_numpy(input_data.get_mask()).reshape(dim, stride_len)
+
+    loader = DataLoader(input_data, batch_size=64, shuffle=False)
 
     trues, preds, masks = [], [], []
     with torch.no_grad():
-        for batch_x, mask in eval_dataloader:
+        for batch_x, mask in loader:
             trues.append(batch_x.numpy())
 
             batch_x = batch_x.to(device).float()
@@ -234,21 +249,47 @@ def do_handle_input_data(value_list, ts_list, precision, freq):
     comp_len = input_data.timeseries_complete_length
 
     # discard the padding data
-    ts_list = input_data.ts[:comp_len]
+    ts_list = input_data.get_ts()[:comp_len]
     res_data_list = preds.reshape(padding_len, 1)[:comp_len]
     res_mask_list = masks.reshape(padding_len)[:comp_len]
 
-    data = input_data.get_complete_data()
-
-    index = np.where(res_mask_list == 0)[0]
-    data[index] = res_data_list[index]
-    data = input_data.scaler.inverse_transform(data)
-
+    data = merge_imputation_res(input_data, res_data_list, res_mask_list)
+    
     return {
-        "ts": ts_list.tolist(),
-        "target":data.reshape(comp_len).tolist(),
+        "ts": convert_ts(ts_list, precision),
+        "target":data,
         "mask":(1-res_mask_list).tolist()
     }
 
+def merge_imputation_res(input_data, res_data_list, res_mask_list):
+    _, comp_len = input_data.get_length_info()
+    
+    data = input_data.get_data()[:comp_len]
+
+    index = np.where(res_mask_list == 0)[0]
+    data[index] = res_data_list[index]
+    
+    # restore the previous value
+    data = input_data.scaler.inverse_transform(data)
+
+    return data.reshape(comp_len).tolist()
+
+def convert_ts(ts_list, precision):
+    if precision == 'ms':
+        ts_list = ts_list.astype('int64') // 10e6
+    elif precision == 'us':
+        ts_list = ts_list.astype('int64') // 10e3
+    elif precision == 'ns':
+        ts_list = ts_list
+    else:
+        raise ValueError(f"Unsupported precision: {precision}")
+
+    return ts_list.tolist()
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5005)
+    app.run(
+        host='0.0.0.0',
+        port=5005,
+        threaded=True,
+        debug=False
+    )

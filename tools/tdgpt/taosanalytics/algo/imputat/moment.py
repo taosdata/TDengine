@@ -18,6 +18,7 @@ class _MomentImputationService(AbstractImputationService):
         self.headers = {'Content-Type': 'application/json'}
         self.service_host = conf.get_tsfm_service(self.name)
 
+        # set the default frequency and time precision
         self.freq = 'H'
         self.precision = 'ms'
 
