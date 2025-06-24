@@ -252,6 +252,15 @@ static STimeWindow stTriggerTaskGetIntervalWindow(const SInterval *pInterval, in
   return win;
 }
 
+static void stTriggerTaskPrevIntervalWindow(const SInterval *pInterval, STimeWindow *pWindow) {
+  TSKEY prevStart =
+      taosTimeAdd(pWindow->skey, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
+  prevStart = taosTimeAdd(prevStart, -1 * pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
+  prevStart = taosTimeAdd(prevStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
+  pWindow->skey = prevStart;
+  pWindow->ekey = taosTimeGetIntervalEnd(prevStart, pInterval);
+}
+
 static void stTriggerTaskNextIntervalWindow(const SInterval *pInterval, STimeWindow *pWindow) {
   TSKEY nextStart =
       taosTimeAdd(pWindow->skey, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
@@ -682,9 +691,14 @@ static int32_t stRealtimeGroupOpenWindow(SSTriggerRealtimeGroup *pGroup, int64_t
         newWindow.range = pGroup->nextWindow;
         stTriggerTaskNextIntervalWindow(pInterval, &pGroup->nextWindow);
         if (needCalc || needNotify) {
+          STimeWindow prevWindow = newWindow.range;
+          stTriggerTaskPrevIntervalWindow(&pTask->interval, &prevWindow);
           param.wstart = newWindow.range.skey;
           param.wend = newWindow.range.ekey;
           param.wduration = param.wend - param.wstart;
+          param.prevTs = prevWindow.skey;
+          param.currentTs = newWindow.range.skey;
+          param.nextTs = pGroup->nextWindow.skey;
         }
         break;
       }
@@ -797,6 +811,12 @@ static int32_t stRealtimeGroupCloseWindow(SSTriggerRealtimeGroup *pGroup, char *
         param.prevTs = pCurWindow->range.skey - 1;
         param.currentTs = pCurWindow->range.ekey;
         param.nextTs = pGroup->nextWindow.ekey;
+      } else {
+        STimeWindow prevWindow = pCurWindow->range;
+        stTriggerTaskPrevIntervalWindow(&pTask->interval, &prevWindow);
+        param.prevTs = prevWindow.ekey + 1;
+        param.currentTs = pCurWindow->range.ekey + 1;
+        param.nextTs = pGroup->nextWindow.ekey + 1;
       }
       // fill the param the same way as other window trigger
     }
