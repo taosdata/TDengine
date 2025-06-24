@@ -32,7 +32,6 @@ class MetricsTest : public ::testing::Test {
     strcpy(tsMonitorFqdn, "localhost");
     tsMonitorPort = 8080;
     tsEnableMetrics = true;
-    tsMetricsPrintLog = false;
     
     // Initialize metrics manager
     int32_t code = initMetricsManager();
@@ -117,12 +116,12 @@ bool MetricsTest::CheckVgroupMetricsExist(int32_t vgId, int64_t clusterId, int32
   // Since we're testing the cleanup functionality, we mainly need to simulate
   // the existence check based on whether metrics were added and then cleaned up
   
-  if (write_total_requests == NULL) {
+  if (write_total_rows == NULL) {
     return false;
   }
   
   // Check if counter has any entries at all
-  int key_count = taos_counter_get_keys_size(write_total_requests);
+  int key_count = taos_counter_get_keys_size(write_total_rows);
   if (key_count == 0) {
     return false;
   }
@@ -132,7 +131,7 @@ bool MetricsTest::CheckVgroupMetricsExist(int32_t vgId, int64_t clusterId, int32
   char **keys = NULL;
   int list_size = key_count;
   
-  int ret = taos_counter_get_vgroup_ids(write_total_requests, &keys, &vgroup_ids, &list_size);
+  int ret = taos_counter_get_vgroup_ids(write_total_rows, &keys, &vgroup_ids, &list_size);
   if (ret != 0) {
     return false;
   }

@@ -148,25 +148,29 @@ int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const 
                                 dnodeEp ? dnodeEp : "", vgIdStr,      dbname ? dbname : ""};
 
   // Update global shared counters using monitorfw
-  taos_counter_add(write_total_requests, (double)pRawMetrics->total_requests, label_values);
   taos_counter_add(write_total_rows, (double)pRawMetrics->total_rows, label_values);
-  taos_counter_add(write_total_bytes, (double)pRawMetrics->total_bytes, label_values);
-  taos_counter_add(write_fetch_batch_meta_time, (double)pRawMetrics->fetch_batch_meta_time, label_values);
-  taos_counter_add(write_fetch_batch_meta_count, (double)pRawMetrics->fetch_batch_meta_count, label_values);
-  taos_counter_add(write_preprocess_time, (double)pRawMetrics->preprocess_time, label_values);
-  taos_counter_add(write_wal_write_bytes, (double)pRawMetrics->wal_write_bytes, label_values);
   taos_counter_add(write_wal_write_time, (double)pRawMetrics->wal_write_time, label_values);
-  taos_counter_add(write_apply_bytes, (double)pRawMetrics->apply_bytes, label_values);
-  taos_counter_add(write_apply_time, (double)pRawMetrics->apply_time, label_values);
   taos_counter_add(write_commit_count, (double)pRawMetrics->commit_count, label_values);
   taos_counter_add(write_commit_time, (double)pRawMetrics->commit_time, label_values);
-  taos_counter_add(write_memtable_wait_time, (double)pRawMetrics->memtable_wait_time, label_values);
   taos_counter_add(write_blocked_commit_count, (double)pRawMetrics->blocked_commit_count, label_values);
   taos_counter_add(write_blocked_commit_time, (double)pRawMetrics->blocked_commit_time, label_values);
   taos_counter_add(write_merge_count, (double)pRawMetrics->merge_count, label_values);
   taos_counter_add(write_merge_time, (double)pRawMetrics->merge_time, label_values);
   taos_counter_add(write_last_cache_commit_time, (double)pRawMetrics->last_cache_commit_time, label_values);
   taos_counter_add(write_last_cache_commit_count, (double)pRawMetrics->last_cache_commit_count, label_values);
+
+  // Update low level metrics when tsMetricsFlag is 1
+  if (tsMetricsFlag == 1) {
+    taos_counter_add(write_total_requests, (double)pRawMetrics->total_requests, label_values);
+    taos_counter_add(write_total_bytes, (double)pRawMetrics->total_bytes, label_values);
+    taos_counter_add(write_fetch_batch_meta_time, (double)pRawMetrics->fetch_batch_meta_time, label_values);
+    taos_counter_add(write_fetch_batch_meta_count, (double)pRawMetrics->fetch_batch_meta_count, label_values);
+    taos_counter_add(write_preprocess_time, (double)pRawMetrics->preprocess_time, label_values);
+    taos_counter_add(write_apply_bytes, (double)pRawMetrics->apply_bytes, label_values);
+    taos_counter_add(write_apply_time, (double)pRawMetrics->apply_time, label_values);
+    taos_counter_add(write_wal_write_bytes, (double)pRawMetrics->wal_write_bytes, label_values);
+    taos_counter_add(write_memtable_wait_time, (double)pRawMetrics->memtable_wait_time, label_values);
+  }
 
   return TSDB_CODE_SUCCESS;
 }

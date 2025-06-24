@@ -62,10 +62,6 @@ extern int32_t       tsForceReadConfig;
 extern int32_t       tsdmConfigVersion;
 extern int32_t       tsConfigInited;
 extern int32_t       tsStatusInterval;
-extern int32_t       tsEnableMetrics;
-extern int32_t       tsMetricsInterval;
-extern int32_t       tsMetricsFlag;
-extern int32_t       tsMetricsPrintLog;
 extern int32_t       tsNumOfSupportVnodes;
 extern char          tsEncryptAlgorithm[];
 extern char          tsEncryptScope[];
@@ -175,6 +171,9 @@ extern uint16_t tsMonitorPort;
 extern int32_t  tsMonitorMaxLogs;
 extern bool     tsMonitorComp;
 extern bool     tsMonitorLogProtocol;
+extern int32_t  tsEnableMetrics;
+extern int32_t  tsMetricsInterval;
+extern int32_t  tsMetricsFlag;
 extern bool     tsMonitorForceV2;
 
 // audit

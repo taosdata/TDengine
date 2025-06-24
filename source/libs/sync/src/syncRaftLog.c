@@ -230,7 +230,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
     code = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen,
                         &pEntry->originRpcTraceId);
   });
-  METRICS_UPDATE(pData->pSyncNode->wal_write_bytes, METRIC_LEVEL_HIGH, (int64_t)pEntry->bytes);
+  METRICS_UPDATE(pData->pSyncNode->wal_write_bytes, METRIC_LEVEL_LOW, (int64_t)pEntry->bytes);
 
   if (code != 0) {
     int32_t     err = terrno;
