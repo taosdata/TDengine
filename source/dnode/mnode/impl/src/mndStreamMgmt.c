@@ -2034,17 +2034,95 @@ _exit:
 }
 
 
-static int32_t msmLaunchStreamDepolyAction(SStmGrpCtx* pCtx, SStmStreamAction* pAction) {
+static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  void* pIter = NULL;
+  
+  while ((pIter = taosHashIterate(mStreamMgmt.snodeMap, pIter))) {
+    SStmSnodeStatus* pSnode = (SStmSnodeStatus*)pIter;
+    code = taosHashRemove(pSnode->streamTasks, &streamId, sizeof(streamId));
+    if (TSDB_CODE_SUCCESS == code) {
+      mstsDebug("stream removed from snodeMap %d, remainStreams:%d", *(int32_t*)taosHashGetKey(pIter, NULL), (int32_t)taosHashGetSize(pSnode->streamTasks));
+    }
+  }
+
+  while ((pIter = taosHashIterate(mStreamMgmt.vgroupMap, pIter))) {
+    SStmVgroupStatus* pVg = (SStmVgroupStatus*)pIter;
+    code = taosHashRemove(pVg->streamTasks, &streamId, sizeof(streamId));
+    if (TSDB_CODE_SUCCESS == code) {
+      mstsDebug("stream removed from vgroupMap %d, remainStreams:%d", *(int32_t*)taosHashGetKey(pIter, NULL), (int32_t)taosHashGetSize(pVg->streamTasks));
+    }
+  }
+
+  size_t keyLen = 0;
+  while ((pIter = taosHashIterate(mStreamMgmt.taskMap, pIter))) {
+    int64_t* pStreamId = taosHashGetKey(pIter, &keyLen);
+    if (*pStreamId == streamId) {
+      int64_t taskId = *(pStreamId + 1);
+      code = taosHashRemove(mStreamMgmt.taskMap, pStreamId, keyLen);
+      if (code) {
+        mstsError("TASK:%" PRId64 " remove from taskMap failed, error:%s", taskId, tstrerror(code));
+      } else {
+        mstsDebug("TASK:%" PRId64 " removed from taskMap", taskId);
+      }
+    }
+  }
+
+  if (fromStreamMap) {
+    code = taosHashRemove(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+    if (code) {
+      mstsError("stream remove from streamMap failed, error:%s", tstrerror(code));
+    } else {
+      mstsDebug("stream removed from streamMap, remains:%d", taosHashGetSize(mStreamMgmt.streamMap));
+    }
+  }
+  
+  return code;
+}
+
+static void msmResetStreamForRedeploy(int64_t streamId, SStmStatus* pStatus) {
+  mstsInfo("try to reset stream for redeploy, stopped:%d, current deployTimes:%" PRId64, atomic_load_8(&pStatus->stopped), pStatus->deployTimes);
+  
+  msmSTRemoveStream(streamId, false);  
+
+  taosArrayDestroy(pStatus->trigReaders);
+  pStatus->trigReaders = NULL;
+  taosArrayDestroy(pStatus->calcReaders);
+  pStatus->calcReaders = NULL;
+  taosMemoryFreeClear(pStatus->triggerTask);
+  for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
+    taosArrayDestroy(pStatus->runners[i]);
+    pStatus->runners[i] = NULL;
+  }
+
+  pStatus->deployTimes++;
+}
+
+static int32_t msmLaunchStreamDeployAction(SStmGrpCtx* pCtx, SStmStreamAction* pAction) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int64_t streamId = pAction->streamId;
   char* streamName = pAction->streamName;
   SStreamObj* pStream = NULL;
+  int8_t stopped = 0;
 
   SStmStatus* pStatus = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
-  if (pStatus && 0 == pStatus->deployTimes) {
-    mstsError("stream %s already in streamMap", pAction->streamName);
-    TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
+  if (pStatus) {
+    stopped = atomic_load_8(&pStatus->stopped);
+    if (0 == stopped) {
+      mstsDebug("stream %s already running and in streamMap, ignore deploy it", pAction->streamName);
+      return code;
+    }
+
+    if (MST_IS_USER_STOPPED(stopped) && !pAction->userAction) {
+      mstsWarn("stream %s already stopped by user, stopped:%d, ignore deploy it", pAction->streamName, stopped);
+      return code;
+    }
+    
+    if (stopped == atomic_val_compare_exchange_8(&pStatus->stopped, stopped, 0)) {
+      mstsDebug("stream %s will try to reset and redeploy it", pAction->streamName);
+      msmResetStreamForRedeploy(streamId, pStatus);
+    }
   }
 
   code = mndAcquireStream(pCtx->pMnode, streamName, &pStream);
@@ -2216,7 +2294,7 @@ _exit:
 }
 
 
-static int32_t msmLaunchTaskDepolyAction(SStmGrpCtx* pCtx, SStmTaskAction* pAction) {
+static int32_t msmLaunchTaskDeployAction(SStmGrpCtx* pCtx, SStmTaskAction* pAction) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int64_t streamId = pAction->streamId;
@@ -2337,52 +2415,6 @@ static int32_t msmTDRemoveStream(int64_t streamId) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  void* pIter = NULL;
-  
-  while ((pIter = taosHashIterate(mStreamMgmt.snodeMap, pIter))) {
-    SStmSnodeStatus* pSnode = (SStmSnodeStatus*)pIter;
-    code = taosHashRemove(pSnode->streamTasks, &streamId, sizeof(streamId));
-    if (TSDB_CODE_SUCCESS == code) {
-      mstsDebug("stream removed from snodeMap %d, remainStreams:%d", *(int32_t*)taosHashGetKey(pIter, NULL), (int32_t)taosHashGetSize(pSnode->streamTasks));
-    }
-  }
-
-  while ((pIter = taosHashIterate(mStreamMgmt.vgroupMap, pIter))) {
-    SStmVgroupStatus* pVg = (SStmVgroupStatus*)pIter;
-    code = taosHashRemove(pVg->streamTasks, &streamId, sizeof(streamId));
-    if (TSDB_CODE_SUCCESS == code) {
-      mstsDebug("stream removed from vgroupMap %d, remainStreams:%d", *(int32_t*)taosHashGetKey(pIter, NULL), (int32_t)taosHashGetSize(pVg->streamTasks));
-    }
-  }
-
-  size_t keyLen = 0;
-  while ((pIter = taosHashIterate(mStreamMgmt.taskMap, pIter))) {
-    int64_t* pStreamId = taosHashGetKey(pIter, &keyLen);
-    if (*pStreamId == streamId) {
-      int64_t taskId = *(pStreamId + 1);
-      code = taosHashRemove(mStreamMgmt.taskMap, pStreamId, keyLen);
-      if (code) {
-        mstsError("TASK:%" PRId64 " remove from taskMap failed, error:%s", taskId, tstrerror(code));
-      } else {
-        mstsDebug("TASK:%" PRId64 " removed from taskMap", taskId);
-      }
-    }
-  }
-
-  if (fromStreamMap) {
-    code = taosHashRemove(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
-    if (code) {
-      mstsError("stream remove from streamMap failed, error:%s", tstrerror(code));
-    } else {
-      mstsDebug("stream removed from streamMap, remains:%d", taosHashGetSize(mStreamMgmt.streamMap));
-    }
-  }
-  
-  return code;
-}
-
 static int32_t msmRemoveStreamFromMaps(SMnode* pMnode, int64_t streamId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -2473,10 +2505,10 @@ static int32_t msmHandleStreamActions(SStmGrpCtx* pCtx) {
       case STREAM_ACT_DEPLOY:
         if (pQNode->streamAct) {
           mstDebug("start to handle stream deploy action");
-          msmLaunchStreamDepolyAction(pCtx, &pQNode->action.stream);
+          msmLaunchStreamDeployAction(pCtx, &pQNode->action.stream);
         } else {
           mstDebug("start to handle task deploy action");
-          msmLaunchTaskDepolyAction(pCtx, &pQNode->action.task);
+          msmLaunchTaskDeployAction(pCtx, &pQNode->action.task);
         }
         break;
       default:
@@ -3194,6 +3226,20 @@ void msmChkHandleTriggerOperations(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask, S
     if (userRecalcList) {
       TAOS_CHECK_EXIT(msmGrpAddActionRecalc(pCtx, pTask->streamId, userRecalcList));
     }
+  }
+
+  if (pTask->detailStatus >= 0 && pCtx->pReq->pTriggerStatus) {
+    mstWaitLock(&pStatus->detailStatusLock, false);
+    if (NULL == pStatus->detailStatus) {
+      pStatus->detailStatus = taosMemoryCalloc(1, sizeof(SSTriggerRuntimeStatus));
+      if (NULL == pStatus->detailStatus) {
+        taosWUnLockLatch(&pStatus->detailStatusLock);
+        TSDB_CHECK_NULL(pStatus->detailStatus, code, lino, _exit, terrno);
+      }
+    }
+    
+    memcpy(pStatus->detailStatus, taosArrayGet(pCtx->pReq->pTriggerStatus, pTask->detailStatus), sizeof(SSTriggerRuntimeStatus));
+    taosWUnLockLatch(&pStatus->detailStatusLock);
   }
 
 _exit:
@@ -4062,26 +4108,13 @@ void msmHandleBecomeNotLeader(SMnode *pMnode) {
   }
 }
 
-static void msmResetAndRedeployStream(int64_t streamId, SStmStatus* pStatus) {
-  msmSTRemoveStream(streamId, false);  
 
-  taosArrayDestroy(pStatus->trigReaders);
-  pStatus->trigReaders = NULL;
-  taosArrayDestroy(pStatus->calcReaders);
-  pStatus->calcReaders = NULL;
-  taosMemoryFreeClear(pStatus->triggerTask);
-  for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
-    taosArrayDestroy(pStatus->runners[i]);
-    pStatus->runners[i] = NULL;
-  }
-
-  pStatus->deployTimes++;
-  
+static void msmRedeployStream(int64_t streamId, SStmStatus* pStatus) {
   if (1 == atomic_val_compare_exchange_8(&pStatus->stopped, 1, 0)) {
     mstsInfo("try to reset and redeploy stream, deployTimes:%" PRId64, pStatus->deployTimes);
-    mstPostStreamAction(mStreamMgmt.actionQ, streamId, pStatus->streamName, NULL, STREAM_ACT_DEPLOY);
+    mstPostStreamAction(mStreamMgmt.actionQ, streamId, pStatus->streamName, NULL, false, STREAM_ACT_DEPLOY);
   } else {
-    mstsWarn("stream stopped %d changed", atomic_load_8(&pStatus->stopped));
+    mstsWarn("stream stopped %d already changed", atomic_load_8(&pStatus->stopped));
   }
 }
 
@@ -4172,7 +4205,7 @@ static bool msmCheckLoopStreamSdb(SMnode *pMnode, void *pObj, void *p1, void *p2
     return true;
   }
 
-  mstPostStreamAction(mStreamMgmt.actionQ, streamId, pStream->pCreate->name, NULL, STREAM_ACT_DEPLOY);
+  mstPostStreamAction(mStreamMgmt.actionQ, streamId, pStream->pCreate->name, NULL, false, STREAM_ACT_DEPLOY);
 
   return true;
 }
@@ -4214,7 +4247,7 @@ void msmCheckLoopStreamMap(SMnode *pMnode) {
         continue;
       }
 
-      msmResetAndRedeployStream(*(int64_t*)taosHashGetKey(pIter, NULL), pStatus);
+      mstPostStreamAction(mStreamMgmt.actionQ, *(int64_t*)taosHashGetKey(pIter, NULL), pStatus->streamName, NULL, false, STREAM_ACT_DEPLOY);
     }
   }
 }

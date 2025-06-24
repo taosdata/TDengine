@@ -472,6 +472,34 @@ static void mndCancelGetNextStreamTask(SMnode *pMnode, void *pIter) {
   sdbCancelFetchByType(pSdb, pIter, SDB_STREAM);
 }
 
+static int32_t mndRetrieveStreamRecalculates(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
+  SMnode     *pMnode = pReq->info.node;
+  SSdb       *pSdb = pMnode->pSdb;
+  int32_t     numOfRows = 0;
+  SStreamObj *pStream = NULL;
+  int32_t     code = 0;
+
+  while (numOfRows < rowsCapacity) {
+    pShow->pIter = sdbFetch(pSdb, SDB_STREAM, pShow->pIter, (void **)&pStream);
+    if (pShow->pIter == NULL) {
+      break;
+    }
+
+    code = mstSetStreamRecalculatesResBlock(pStream, pBlock, &numOfRows, rowsCapacity);
+
+    sdbRelease(pSdb, pStream);
+  }
+
+  pShow->numOfRows += numOfRows;
+  return numOfRows;
+}
+
+static void mndCancelGetNextStreamRecalculates(SMnode *pMnode, void *pIter) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetchByType(pSdb, pIter, SDB_STREAM);
+}
+
+
 static bool mndStreamUpdateTagsFlag(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
   SStreamObj *pStream = pObj;
   if (atomic_load_8(&pStream->userDropped)) {
@@ -558,6 +586,13 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
     return code;
   }
 
+  if (atomic_load_8(&pStream->userDropped)) {
+    code = TSDB_CODE_MND_STREAM_DROPPING;
+    mstsError("user %s failed to stop stream %s since %s", pReq->info.conn.user, pauseReq.name, tstrerror(code));
+    sdbRelease(pMnode->pSdb, pStream);
+    return code;
+  }
+
   STrans *pTrans = NULL;
   code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_STOP_NAME, &pTrans);
   if (pTrans == NULL || code) {
@@ -623,8 +658,6 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
     }
   }
 
-  pStream->updateTime = taosGetTimestampMs();
-
   int64_t streamId = pStream->pCreate->streamId;
 
   mstsInfo("start to start stream %s from stopped", resumeReq.name);
@@ -636,9 +669,23 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
     return code;
   }
 
-  pStream->updateTime = taosGetTimestampMs();
+  if (atomic_load_8(&pStream->userDropped)) {
+    code = TSDB_CODE_MND_STREAM_DROPPING;
+    mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, resumeReq.name, tstrerror(code));
+    sdbRelease(pMnode->pSdb, pStream);
+    return code;
+  }
 
+  if (0 == atomic_load_8(&pStream->userStopped)) {
+    code = TSDB_CODE_MND_STREAM_NOT_STOPPED;
+    mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, resumeReq.name, tstrerror(code));
+    sdbRelease(pMnode->pSdb, pStream);
+    return code;
+  }
+  
   atomic_store_8(&pStream->userStopped, 0);
+
+  pStream->updateTime = taosGetTimestampMs();
 
   MND_STREAM_SET_LAST_TS(STM_EVENT_START_STREAM, pStream->updateTime);
 
@@ -666,7 +713,7 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
     return code;
   }
 
-  mstPostStreamAction(mStreamMgmt.actionQ, streamId, pStream->pCreate->name, NULL, STREAM_ACT_DEPLOY);
+  mstPostStreamAction(mStreamMgmt.actionQ, streamId, pStream->pCreate->name, NULL, true, STREAM_ACT_DEPLOY);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
@@ -877,7 +924,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   MND_STREAM_SET_LAST_TS(STM_EVENT_CREATE_STREAM, taosGetTimestampMs());
 
-  mstPostStreamAction(mStreamMgmt.actionQ, streamId, pStream->pCreate->name, NULL, STREAM_ACT_DEPLOY);
+  mstPostStreamAction(mStreamMgmt.actionQ, streamId, pStream->pCreate->name, NULL, true, STREAM_ACT_DEPLOY);
 
 _OVER:
 
@@ -916,6 +963,20 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
 
   code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
   if (code != TSDB_CODE_SUCCESS) {
+    mstsError("user %s failed to recalc stream %s since %s", pReq->info.conn.user, recalcReq.name, tstrerror(code));
+    sdbRelease(pMnode->pSdb, pStream);
+    return code;
+  }
+
+  if (atomic_load_8(&pStream->userDropped)) {
+    code = TSDB_CODE_MND_STREAM_DROPPING;
+    mstsError("user %s failed to recalc stream %s since %s", pReq->info.conn.user, recalcReq.name, tstrerror(code));
+    sdbRelease(pMnode->pSdb, pStream);
+    return code;
+  }
+
+  if (atomic_load_8(&pStream->userStopped)) {
+    code = TSDB_CODE_MND_STREAM_STOPPED;
     mstsError("user %s failed to recalc stream %s since %s", pReq->info.conn.user, recalcReq.name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
@@ -1005,6 +1066,8 @@ int32_t mndInitStream(SMnode *pMnode) {
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndCancelGetNextStream);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAM_TASKS, mndRetrieveStreamTask);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAM_TASKS, mndCancelGetNextStreamTask);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAM_RECALCULATES, mndRetrieveStreamRecalculates);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAM_RECALCULATES, mndCancelGetNextStreamRecalculates);
 
   int32_t code = sdbSetTable(pMnode->pSdb, table);
   if (code) {
