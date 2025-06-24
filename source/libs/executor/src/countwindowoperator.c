@@ -299,7 +299,7 @@ _end:
 static int32_t resetCountWindowOperatorState(SOperatorInfo* pOper) {
   SCountWindowOperatorInfo* pCount = pOper->info;
   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
-  SCountWinodwPhysiNode* pPhynode = (SCountWinodwPhysiNode*)pOper->pPhyNode;
+  SCountWindowPhysiNode* pPhynode = (SCountWindowPhysiNode*)pOper->pPhyNode;
   pOper->status = OP_NOT_OPENED;
   
   resetBasicOperatorState(&pCount->binfo);
@@ -340,7 +340,7 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   pOperator->pPhyNode = physiNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
 
-  SCountWinodwPhysiNode* pCountWindowNode = (SCountWinodwPhysiNode*)physiNode;
+  SCountWindowPhysiNode* pCountWindowNode = (SCountWindowPhysiNode*)physiNode;
 
   pInfo->tsSlotId = ((SColumnNode*)pCountWindowNode->window.pTspk)->slotId;
 
