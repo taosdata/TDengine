@@ -31,11 +31,15 @@ void vnodeGetPrimaryDir(const char *relPath, int32_t diskPrimary, STfs *pTfs, ch
 }
 
 void vnodeGetPrimaryPath(SVnode *pVnode, bool mount, char *buf, size_t bufLen) {
-  if (pVnode->mounted && mount) {
-    SDiskID diskId = {0};
-    diskId.id = pVnode->diskPrimary;
-    snprintf(buf, bufLen - 1, "%s%svnode%svnode%d", tfsGetDiskPath(pVnode->pMountTfs, diskId), TD_DIRSEP, TD_DIRSEP,
-             pVnode->config.mountVgId);
+  if (pVnode->mounted) {
+    if (mount) {  // mount path
+      SDiskID diskId = {0};
+      diskId.id = pVnode->diskPrimary;
+      snprintf(buf, bufLen - 1, "%s%svnode%svnode%d", tfsGetDiskPath(pVnode->pMountTfs, diskId), TD_DIRSEP, TD_DIRSEP,
+               pVnode->config.mountVgId);
+    } else {  // host path
+      vnodeGetPrimaryDir(pVnode->path, 0, pVnode->pTfs, buf, bufLen);
+    }
     buf[bufLen - 1] = '\0';
 
   } else {
@@ -381,7 +385,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   char       dir[TSDB_FILENAME_LEN] = {0};
   char       tdir[TSDB_FILENAME_LEN * 2] = {0};
   int32_t    ret = 0;
-  bool       mounted = (pMountTfs != NULL);
+  bool       mounted = pMountTfs != NULL;
   terrno = TSDB_CODE_SUCCESS;
 
   if (vnodeCheckDisk(diskPrimary, pTfs)) {
