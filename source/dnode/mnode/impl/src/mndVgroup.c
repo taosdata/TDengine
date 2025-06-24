@@ -278,7 +278,8 @@ void mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup) {
 }
 
 void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, const char *path,
-                             int32_t diskPrimary, int32_t mountVgId, int32_t *pContLen) {
+                             int32_t diskPrimary, int32_t mountVgId, int64_t committed, int64_t commitID,
+                             int64_t commitTerm, int32_t *pContLen) {
   SCreateVnodeReq createReq = {0};
   createReq.vgId = pVgroup->vgId;
   memcpy(createReq.db, pDb->name, TSDB_DB_FNAME_LEN);
@@ -376,6 +377,9 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   }
   createReq.diskPrimary = diskPrimary;
   createReq.mountVgId = mountVgId;
+  createReq.committed = committed;
+  createReq.commitID = commitID;
+  createReq.commitTerm = commitTerm;
 
   mInfo(
       "vgId:%d, build create vnode req, replica:%d selfIndex:%d learnerReplica:%d learnerSelfIndex:%d strict:%d "

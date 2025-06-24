@@ -62,6 +62,9 @@ typedef struct {
   SVgObj  vg;
   SDbObj *pDb;
   int32_t diskPrimary;
+  int64_t committed;
+  int64_t commitID;
+  int64_t commitTerm;
 } SMountVgObj;
 
 int32_t mndInitMount(SMnode *pMnode) {
@@ -528,7 +531,6 @@ static int32_t mndMountSetDbInfo(SMountInfo *pInfo, SMountDbInfo *pDb, SDbObj *p
 static int32_t mndMountSetVgInfo(SMnode *pMnode, SDnodeObj *pDnode, SMountInfo *pInfo, SDbObj *pDb, SMountVgInfo *pVg,
                                  SMountVgObj *pMountVg, int32_t *maxVgId) {
   SVgObj *pVgroup = &pMountVg->vg;
-  pMountVg->pDb = pDb;
   pVgroup->vgId = (*maxVgId)++;
   pVgroup->createdTime = taosGetTimestampMs();
   pVgroup->updateTime = pVgroup->createdTime;
@@ -539,6 +541,11 @@ static int32_t mndMountSetVgInfo(SMnode *pMnode, SDnodeObj *pDnode, SMountInfo *
   pVgroup->dbUid = pDb->uid;
   pVgroup->replica = pVg->replications;
   pVgroup->mountVgId = pVg->vgId;
+
+  pMountVg->pDb = pDb;
+  pMountVg->committed = pVg->committed;
+  pMountVg->commitID = pVg->commitID;
+  pMountVg->commitTerm = pVg->commitTerm;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
@@ -875,7 +882,8 @@ static int32_t mndAddMountVnodeAction(SMnode *pMnode, STrans *pTrans, SMountObj 
   mndReleaseDnode(pMnode, pDnode);
 
   int32_t contLen = 0;
-  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVg, pObj->paths[0], pMountVg->diskPrimary, pVg->mountVgId, &contLen);
+  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVg, pObj->paths[0], pMountVg->diskPrimary, pVg->mountVgId,
+                                        pMountVg->committed, pMountVg->commitID, pMountVg->commitTerm, &contLen);
   if (pReq == NULL) return -1;
 
   action.pCont = pReq;

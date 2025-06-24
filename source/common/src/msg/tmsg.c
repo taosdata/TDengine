@@ -6749,6 +6749,9 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
       TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pVgInfo->walSegSize));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->walLevel));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->encryptAlgorithm));
+      TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pVgInfo->committed));
+      TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pVgInfo->commitID));
+      TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pVgInfo->commitTerm));
       TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pVgInfo->dbId));
     }
     nStb = taosArrayGetSize(pDbInfo->pStbs);
@@ -6831,6 +6834,9 @@ int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo, bool extrac
           TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pVgInfo->walSegSize));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->walLevel));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->encryptAlgorithm));
+          TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pVgInfo->committed));
+          TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pVgInfo->commitID));
+          TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pVgInfo->commitTerm));
           TAOS_CHECK_EXIT(tDecodeU64v(decoder, &pVgInfo->dbId));
         }
       }
@@ -8240,6 +8246,9 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->mountPath));
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->diskPrimary));
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->mountVgId));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->committed));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->commitID));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->commitTerm));
 
   tEndEncode(&encoder);
 
@@ -8353,6 +8362,9 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->mountPath));
     TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->diskPrimary));
     TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->mountVgId));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->committed));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->commitID));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->commitTerm));
   }
 
   tEndDecode(&decoder);

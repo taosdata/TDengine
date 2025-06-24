@@ -1217,7 +1217,7 @@ _exit:
 }
 
 static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg, int32_t diskPrimary,
-                            int32_t mountVgId, STfs *pMountTfs) {
+                            SCreateVnodeReq *req, STfs *pMountTfs) {
   int32_t    code = 0;
   SVnodeInfo info = {0};
   char       hostDir[TSDB_FILENAME_LEN] = {0};
@@ -1235,11 +1235,13 @@ static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg
     return code;
   }
 
-  info.config = *pCfg; // copy the config
+  info.config = *pCfg;  // copy the config
   // TODO: use the real value from vnode.json ???
-  // info.state.committed = -1;
-  // info.state.applied = -1;
-  // info.state.commitID = 0;
+  info.state.committed = req->committed;
+  info.state.commitID = req->commitID;
+  info.state.commitTerm = req->commitTerm;
+  info.state.applied = req->committed;
+  info.state.applyTerm = req->commitTerm;
 
   SVnodeInfo oldInfo = {0};
   oldInfo.config = vnodeCfgDefault;
@@ -1337,7 +1339,7 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
   TAOS_CHECK_EXIT(vmGetMountTfs(pMgmt, req.mountPath, &pMountTfs));
 
-  if ((code = vmMountVnode(pMgmt, path, &vnodeCfg, wrapperCfg.diskPrimary, req.mountVgId, pMountTfs)) < 0) {
+  if ((code = vmMountVnode(pMgmt, path, &vnodeCfg, wrapperCfg.diskPrimary, req, pMountTfs)) < 0) {
     dError("vgId:%d, failed to create vnode since %s", req.vgId, tstrerror(code));
     vmReleaseVnode(pMgmt, pVnode);
     vmCleanPrimaryDisk(pMgmt, req.vgId);

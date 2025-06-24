@@ -1871,6 +1871,10 @@ typedef struct {
   int32_t walLevel;
   // encryptInfo
   int32_t encryptAlgorithm;
+  // SVState
+  int64_t committed;
+  int64_t commitID;
+  int64_t commitTerm;
   // dbInfo
   uint64_t dbId;
 } SMountVgInfo;
@@ -2403,6 +2407,9 @@ typedef struct {
   char     mountPath[TSDB_MOUNT_FPATH_LEN];
   int32_t  diskPrimary;
   int32_t  mountVgId;
+  int64_t  committed;
+  int64_t  commitID;
+  int64_t  commitTerm;
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
