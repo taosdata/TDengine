@@ -607,6 +607,14 @@ func get_sub_table_name(stbName string, tagMap map[string]string) string {
 			return fmt.Sprintf("taosdsql_%s_%s_%s_%s_vgroup_%s_cluster_%s", tagMap["username"],
 				tagMap["sql_type"], tagMap["result"], tagMap["dnode_id"], tagMap["vgroup_id"], tagMap["cluster_id"])
 		}
+	case "taosd_write_metrics":
+		if checkKeysExist(tagMap, "database_name", "vgroup_id", "cluster_id") {
+			return fmt.Sprintf("taosd_write_metric_%s_vgroup_%s_cluster_%s", tagMap["database_name"], tagMap["vgroup_id"], tagMap["cluster_id"])
+		}
+	case "taosd_dnodes_metrics":
+		if checkKeysExist(tagMap, "dnode_ep", "cluster_id") {
+			return fmt.Sprintf("dnode_metric_%s_cluster_%s", tagMap["dnode_ep"], tagMap["cluster_id"])
+		}
 	case "taos_sql_req":
 		if checkKeysExist(tagMap, "username", "sql_type", "result", "cluster_id") {
 			return fmt.Sprintf("taossql_%s_%s_%s_cluster_%s", tagMap["username"],
