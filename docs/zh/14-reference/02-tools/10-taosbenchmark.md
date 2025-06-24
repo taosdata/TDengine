@@ -87,7 +87,7 @@ taosBenchmark -f <json file>
 | -v/--vgroups \<NUMBER>           | 创建数据库时指定 vgroups 数，仅对 TDengine v3.0+ 有效|
 | -V/--version                     | 显示版本信息并退出。不能与其它参数混用|
 | -?/--help                        | 显示帮助信息并退出。不能与其它参数混用|
-| -Z/--connect-mode \<NUMBER>      | 指定连接方式, 0 表示采用原生连接方式，1 表示采用 WebSocket 连接方式，默认采用原生连接方式。|
+| -Z/--connect-mode \<NUMBER>      | 指定连接方式，0 表示采用原生连接方式，1 表示采用 WebSocket 连接方式，默认采用原生连接方式。|
 
 ## 配置文件参数
 
