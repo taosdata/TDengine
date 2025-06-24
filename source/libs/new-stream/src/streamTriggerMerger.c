@@ -167,6 +167,7 @@ int32_t stTimestampSorterSetMetaDatas(SSTriggerTimestampSorter *pSorter, SSTrigg
     pNode->pMeta = pMeta;
   }
 
+  nMetas = TARRAY_SIZE(pMetaNodeBuf);
   for (int32_t i = 0; i < nMetas; i++) {
     SSTriggerMetaDataNode *pNode = TARRAY_GET_ELEM(pMetaNodeBuf, i);
     SSTriggerMetaDataList *pList = NULL;
