@@ -50,7 +50,7 @@ extern "C" {
 #define WRITE_COMMIT_COUNT            WRITE_TABLE ":commit_count"
 #define WRITE_COMMIT_TIME             WRITE_TABLE ":commit_time"
 #define WRITE_MEMTABLE_WAIT_TIME      WRITE_TABLE ":memtable_wait_time"
-#define WRITE_BLOCK_COMMIT_COUNT      WRITE_TABLE ":block_commit_count"
+#define WRITE_BLOCKED_COMMIT_COUNT    WRITE_TABLE ":blocked_commit_count"
 #define WRITE_BLOCKED_COMMIT_TIME     WRITE_TABLE ":blocked_commit_time"
 #define WRITE_MERGE_COUNT             WRITE_TABLE ":merge_count"
 #define WRITE_MERGE_TIME              WRITE_TABLE ":merge_time"
@@ -76,7 +76,7 @@ extern taos_counter_t *write_apply_time;
 extern taos_counter_t *write_commit_count;
 extern taos_counter_t *write_commit_time;
 extern taos_counter_t *write_memtable_wait_time;
-extern taos_counter_t *write_block_commit_count;
+extern taos_counter_t *write_blocked_commit_count;
 extern taos_counter_t *write_blocked_commit_time;
 extern taos_counter_t *write_merge_count;
 extern taos_counter_t *write_merge_time;

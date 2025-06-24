@@ -28,7 +28,7 @@ taos_counter_t *write_apply_time = NULL;
 taos_counter_t *write_commit_count = NULL;
 taos_counter_t *write_commit_time = NULL;
 taos_counter_t *write_memtable_wait_time = NULL;
-taos_counter_t *write_block_commit_count = NULL;
+taos_counter_t *write_blocked_commit_count = NULL;
 taos_counter_t *write_blocked_commit_time = NULL;
 taos_counter_t *write_merge_count = NULL;
 taos_counter_t *write_merge_time = NULL;
@@ -102,8 +102,8 @@ int32_t initMetricsManager() {
       taos_collector_registry_must_register_metric(taos_counter_new(WRITE_COMMIT_TIME, "Commit time", 6, write_labels));
   write_memtable_wait_time = taos_collector_registry_must_register_metric(
       taos_counter_new(WRITE_MEMTABLE_WAIT_TIME, "Memtable wait time", 6, write_labels));
-  write_block_commit_count = taos_collector_registry_must_register_metric(
-      taos_counter_new(WRITE_BLOCK_COMMIT_COUNT, "Block commit count", 6, write_labels));
+  write_blocked_commit_count = taos_collector_registry_must_register_metric(
+      taos_counter_new(WRITE_BLOCKED_COMMIT_COUNT, "Blocked commit count", 6, write_labels));
   write_blocked_commit_time = taos_collector_registry_must_register_metric(
       taos_counter_new(WRITE_BLOCKED_COMMIT_TIME, "Blocked commit time", 6, write_labels));
   write_merge_count =
@@ -161,7 +161,7 @@ int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const 
   taos_counter_add(write_commit_count, (double)pRawMetrics->commit_count, label_values);
   taos_counter_add(write_commit_time, (double)pRawMetrics->commit_time, label_values);
   taos_counter_add(write_memtable_wait_time, (double)pRawMetrics->memtable_wait_time, label_values);
-  taos_counter_add(write_block_commit_count, (double)pRawMetrics->block_commit_count, label_values);
+  taos_counter_add(write_blocked_commit_count, (double)pRawMetrics->blocked_commit_count, label_values);
   taos_counter_add(write_blocked_commit_time, (double)pRawMetrics->blocked_commit_time, label_values);
   taos_counter_add(write_merge_count, (double)pRawMetrics->merge_count, label_values);
   taos_counter_add(write_merge_time, (double)pRawMetrics->merge_time, label_values);
@@ -207,7 +207,7 @@ int32_t cleanupExpiredMetrics(SHashObj *pValidVgroups) {
   cleanExpiredCounterMetrics(write_commit_count, pValidVgroups, "write_commit_count");
   cleanExpiredCounterMetrics(write_commit_time, pValidVgroups, "write_commit_time");
   cleanExpiredCounterMetrics(write_memtable_wait_time, pValidVgroups, "write_memtable_wait_time");
-  cleanExpiredCounterMetrics(write_block_commit_count, pValidVgroups, "write_block_commit_count");
+  cleanExpiredCounterMetrics(write_blocked_commit_count, pValidVgroups, "write_blocked_commit_count");
   cleanExpiredCounterMetrics(write_blocked_commit_time, pValidVgroups, "write_blocked_commit_time");
   cleanExpiredCounterMetrics(write_merge_count, pValidVgroups, "write_merge_count");
   cleanExpiredCounterMetrics(write_merge_time, pValidVgroups, "write_merge_time");

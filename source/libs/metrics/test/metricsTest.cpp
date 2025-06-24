@@ -72,7 +72,7 @@ void MetricsTest::PrepareRawWriteMetrics(SRawWriteMetrics *pMetrics, int32_t mul
   pMetrics->commit_count = 20 * multiplier;
   pMetrics->commit_time = 6000 * multiplier; // microseconds
   pMetrics->memtable_wait_time = 1000 * multiplier; // microseconds
-  pMetrics->block_commit_count = 10 * multiplier;
+  pMetrics->blocked_commit_count = 10 * multiplier;
   pMetrics->blocked_commit_time = 2500 * multiplier; // microseconds
   pMetrics->merge_count = 5 * multiplier;
   pMetrics->merge_time = 8000 * multiplier; // microseconds

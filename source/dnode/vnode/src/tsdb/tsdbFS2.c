@@ -920,7 +920,7 @@ void tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
     });
   }
   if (blockCommit) {
-    METRICS_UPDATE(tsdb->pVnode->writeMetrics.block_commit_count, METRIC_LEVEL_HIGH, 1);
+    METRICS_UPDATE(tsdb->pVnode->writeMetrics.blocked_commit_count, METRIC_LEVEL_HIGH, 1);
   }
   (void)taosThreadMutexUnlock(&tsdb->mutex);
   return;

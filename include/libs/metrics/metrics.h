@@ -53,7 +53,7 @@ typedef struct {
   int64_t commit_count;
   int64_t commit_time;
   int64_t memtable_wait_time;
-  int64_t block_commit_count;
+  int64_t blocked_commit_count;
   int64_t blocked_commit_time;
   int64_t merge_count;
   int64_t merge_time;
