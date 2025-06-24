@@ -2929,20 +2929,23 @@ int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, const SStreamUndeploy
   if (pMsg->doCheckpoint && pTask->pRealtimeContext) {
     uint8_t *buf = NULL;
     int64_t  len = 0;
-    code = stTriggerTaskGenCheckpoint(pTask, buf, &len);
-    QUERY_CHECK_CODE(code, lino, _end);
-    buf = taosMemoryMalloc(len);
-    code = stTriggerTaskGenCheckpoint(pTask, buf, &len);
-    QUERY_CHECK_CODE(code, lino, _end);
-    code = streamWriteCheckPoint(pTask->task.streamId, buf, len);
-    QUERY_CHECK_CODE(code, lino, _end);
-    int32_t leaderSid = (*ppTask)->leaderSnodeId;
-    SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
-    if (epSet != NULL) {
-      code = streamSyncWriteCheckpoint((*ppTask)->task.streamId, epSet, buf, len);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
+    do {
+      code = stTriggerTaskGenCheckpoint(pTask, buf, &len);
+      if (code != 0) break;
+      buf = taosMemoryMalloc(len);
+      code = stTriggerTaskGenCheckpoint(pTask, buf, &len);
+      if (code != 0) break;
+      code = streamWriteCheckPoint(pTask->task.streamId, buf, len);
+      if (code != 0) break;
+      int32_t leaderSid = (*ppTask)->leaderSnodeId;
+      SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
+      if (epSet != NULL) {
+        code = streamSyncWriteCheckpoint((*ppTask)->task.streamId, epSet, buf, len);
+        buf = NULL;
+      }
+    } while (0);
     taosMemoryFree(buf);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
   if (pMsg->doCleanup) {
     streamDeleteCheckPoint((*ppTask)->task.streamId);
