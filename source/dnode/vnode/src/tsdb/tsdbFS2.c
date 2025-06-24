@@ -75,7 +75,8 @@ void current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype) {
 
   vnodeGetPrimaryPath(pTsdb->pVnode, false, fname, TSDB_FILENAME_LEN);
   offset = strlen(fname);
-  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, gCurrentFname[ftype]);
+  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%s%s", TD_DIRSEP, VNODE_TSDB_DIR, TD_DIRSEP,
+           gCurrentFname[ftype]);
 }
 
 static int32_t save_json(const cJSON *json, const char *fname) {

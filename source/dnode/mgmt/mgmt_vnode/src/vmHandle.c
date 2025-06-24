@@ -765,6 +765,9 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
           .walSegSize = pVgCfg->config.walCfg.segSize,
           .walLevel = pVgCfg->config.walCfg.level,
           .encryptAlgorithm = pVgCfg->config.walCfg.encryptAlgorithm,
+          .committed = pVgCfg->state.committed,
+          .commitID = pVgCfg->state.commitID,
+          .commitTerm = pVgCfg->state.commitTerm,
       };
       TSDB_CHECK_NULL(taosArrayPush(pDbInfo->pVgs, &vgInfo), code, lino, _exit, terrno);
     }
@@ -1262,7 +1265,7 @@ static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg
 
   char hostSubDir[TSDB_FILENAME_LEN] = {0};
   char mountSubDir[TSDB_FILENAME_LEN] = {0};
-  snprintf(mountVnode, sizeof(mountVnode), "vnode%svnode%d", TD_DIRSEP, mountVgId);
+  snprintf(mountVnode, sizeof(mountVnode), "vnode%svnode%d", TD_DIRSEP, req->mountVgId);
   vnodeGetPrimaryDir(mountVnode, diskPrimary, pMountTfs, mountDir, TSDB_FILENAME_LEN);
   static const char *vndSubDirs[] = {"meta", "sync", "tq", "tsdb", "wal"};
   for (int32_t i = 0; i < tListLen(vndSubDirs); ++i) {
@@ -1339,7 +1342,7 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
   TAOS_CHECK_EXIT(vmGetMountTfs(pMgmt, req.mountPath, &pMountTfs));
 
-  if ((code = vmMountVnode(pMgmt, path, &vnodeCfg, wrapperCfg.diskPrimary, req, pMountTfs)) < 0) {
+  if ((code = vmMountVnode(pMgmt, path, &vnodeCfg, wrapperCfg.diskPrimary, &req, pMountTfs)) < 0) {
     dError("vgId:%d, failed to create vnode since %s", req.vgId, tstrerror(code));
     vmReleaseVnode(pMgmt, pVnode);
     vmCleanPrimaryDisk(pMgmt, req.vgId);
