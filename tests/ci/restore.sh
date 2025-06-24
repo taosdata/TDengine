@@ -101,6 +101,7 @@ details=`sed -n "${curr_line},${next_line}p" $JENKINS_LOG`
 # echo "$details" > details.log
 merge_line=`echo "$details"|grep -i -A 10 "$commit_prefix log merged: "|grep "Merge .* into"|head -n1`
 # echo "$merge_line" > merge.log
+
 if [ -z "$merge_line" ]; then
     echo "merge commit not found"
     exit 1
