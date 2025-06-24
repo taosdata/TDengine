@@ -3065,7 +3065,7 @@ int32_t msmGrpAddActionRecalc(SStmGrpCtx* pCtx, int64_t streamId, SArray* recalc
   } else {
     SStmAction newAction = {0};
     newAction.actions = action;
-    pAction->recalc.recalcList = recalcList;
+    newAction.recalc.recalcList = recalcList;
     
     TAOS_CHECK_EXIT(taosHashPut(pCtx->actionStm, &streamId, sizeof(streamId), &newAction, sizeof(newAction)));
     
