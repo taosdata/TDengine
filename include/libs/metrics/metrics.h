@@ -81,7 +81,7 @@ int32_t cleanupExpiredMetrics(SHashObj *pValidVgroups);
 #define METRICS_UPDATE(field, priority, value)                                                 \
   do {                                                                                         \
     if ((tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && tsEnableMetrics) && \
-        ((priority) == METRIC_LEVEL_HIGH || tsMetricsFlag == 1)) {                             \
+        ((priority) == METRIC_LEVEL_HIGH || tsMetricsLevel == 1)) {                             \
       atomic_add_fetch_64(&(field), (value));                                                  \
     }                                                                                          \
   } while (0)
@@ -91,7 +91,7 @@ int32_t cleanupExpiredMetrics(SHashObj *pValidVgroups);
 #define METRICS_TIMING_BLOCK(field, priority, code_block)                                      \
   do {                                                                                         \
     if ((tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && tsEnableMetrics) && \
-        ((priority) == METRIC_LEVEL_HIGH || tsMetricsFlag == 1)) {                             \
+        ((priority) == METRIC_LEVEL_HIGH || tsMetricsLevel == 1)) {                             \
       int64_t start_time = taosGetTimestampMs();                                               \
       code_block;                                                                              \
       int64_t end_time = taosGetTimestampMs();                                                 \

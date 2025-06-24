@@ -160,7 +160,7 @@ int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const 
   taos_counter_add(write_last_cache_commit_count, (double)pRawMetrics->last_cache_commit_count, label_values);
 
   // Update low level metrics when tsMetricsFlag is 1
-  if (tsMetricsFlag == 1) {
+  if (tsMetricsLevel == 1) {
     taos_counter_add(write_total_requests, (double)pRawMetrics->total_requests, label_values);
     taos_counter_add(write_total_bytes, (double)pRawMetrics->total_bytes, label_values);
     taos_counter_add(write_fetch_batch_meta_time, (double)pRawMetrics->fetch_batch_meta_time, label_values);

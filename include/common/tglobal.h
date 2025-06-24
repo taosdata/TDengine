@@ -173,7 +173,7 @@ extern bool     tsMonitorComp;
 extern bool     tsMonitorLogProtocol;
 extern int32_t  tsEnableMetrics;
 extern int32_t  tsMetricsInterval;
-extern int32_t  tsMetricsFlag;
+extern int32_t  tsMetricsLevel;
 extern bool     tsMonitorForceV2;
 
 // audit
