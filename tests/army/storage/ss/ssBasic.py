@@ -31,29 +31,40 @@ from frame.eos import *
 
 
 #  
-# 192.168.1.52 MINIO S3 
+# 192.168.1.52 MINIO
 #
 
 '''
-s3EndPoint     http://192.168.1.52:9000
-s3AccessKey    'zOgllR6bSnw2Ah3mCNel:cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX'
-s3BucketName   ci-bucket
-ssUploadDelaySec 60
+Common:
+    ssPageCacheSize         : 10240,
+    ssUploadDelaySec        : 10,
+    ssAutoMigrateIntervalSec: 600,
 
-for test:
-"s3AccessKey" : "fGPPyYjzytw05nw44ViA:vK1VcwxgSOykicx6hk8fL1x15uEtyDSFU3w4hTaZ"
-"s3BucketName": "test-bucket"
+ssAccessString Common:
+    Endpoint        : 192.168.1.52:9000
+    Protocol        : http
+    UriStyle        : path
+    ChunkSize       : 64MB
+    MaxChunks       : 10000
+    MaxRetry        : 3
+
+ssAccessTring For CI:
+    Bucket          : ci-bucket
+    AccessKeyId     : zOgllR6bSnw2Ah3mCNel
+    SecretAccessKey : cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX
+
+ssAccessString For Test:
+    Bucket          : test-bucket
+    AccessKeyId     : fGPPyYjzytw05nw44ViA
+    SecretAccessKey : vK1VcwxgSOykicx6hk8fL1x15uEtyDSFU3w4hTaZ
 '''
-
 
 class TDTestCase(TBase):
     index = eutil.cpuRand(40) + 1
     bucketName = f"ci-bucket{index}"
     updatecfgDict = {
         "supportVnodes":"1000",
-        's3EndPoint': 'http://192.168.1.52:9000', 
-        's3AccessKey': 'zOgllR6bSnw2Ah3mCNel:cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX', 
-        's3BucketName': f'{bucketName}',
+        "ssAccessString": f's3:endpoint=192.168.1.52:9000;accessKey=zOgllR6bSnw2Ah3mCNel;bucket={bucketName};uriStyle=path;protocol=http;accessKeyId=zOgllR6bSnw2Ah3mCNel;secretAccessKey=cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX;chunkSize=64;maxChunks=10000;maxRetry=3',
         'ssPageCacheSize': '10240',
         "ssUploadDelaySec": "10",
         'ssAutoMigrateIntervalSec': '600',
@@ -69,11 +80,11 @@ class TDTestCase(TBase):
     def insertData(self):
         tdLog.info(f"insert data.")
         # taosBenchmark run
-        json = etool.curFile(__file__, "s3Basic.json")
+        json = etool.curFile(__file__, "ssBasic.json")
         etool.benchMark(json=json)
 
         tdSql.execute(f"use {self.db}")
-        # come from s3_basic.json
+        # come from ss_basic.json
         self.childtable_count = 6
         self.insert_rows = 2000000
         self.timestamp_step = 100
@@ -103,7 +114,7 @@ class TDTestCase(TBase):
                 
         return overCnt
 
-    def checkUploadToS3(self):
+    def checkUploadToSs(self):
         rootPath = sc.clusterRootPath()
         cmd = f"ls -l {rootPath}/dnode*/data/vnode/vnode*/tsdb/*.data"
         tdLog.info(cmd)
@@ -113,7 +124,7 @@ class TDTestCase(TBase):
         while loop < 150:
             time.sleep(2)
 
-            # check upload to s3
+            # check upload to ss
             rets = eos.runRetList(cmd)
             cnt = len(rets)
             if cnt == 0:
@@ -123,7 +134,7 @@ class TDTestCase(TBase):
             overCnt = self.checkDataFile(rets, self.maxFileSize)
             if overCnt == 0:
                 uploadOK = True
-                tdLog.info(f"All data files({len(rets)}) size bellow {self.maxFileSize}, check upload to s3 ok.")
+                tdLog.info(f"All data files({len(rets)}) size bellow {self.maxFileSize}, check upload to ss ok.")
                 break
 
             tdLog.info(f"loop={loop} no upload {overCnt} data files wait 3s retry ...")
@@ -137,7 +148,7 @@ class TDTestCase(TBase):
                 
         # check can pass
         if overCnt > 0:
-            self.exit(f"s3 have {overCnt} files over size.")
+            self.exit(f"ss have {overCnt} files over size.")
 
 
     def doAction(self):
@@ -149,8 +160,8 @@ class TDTestCase(TBase):
         # sleep 70s
         self.migrateDbSs()
 
-        # check upload to s3
-        self.checkUploadToS3()
+        # check upload to ss
+        self.checkUploadToSs()
 
     def checkStreamCorrect(self):
         sql = f"select count(*) from {self.db}.stm1"
@@ -231,10 +242,10 @@ class TDTestCase(TBase):
 
         '''
         tips = [
-            "put object s3test.txt: success",
+            "put object sstest.txt: success",
             "listing bucket ci-bucket: success",
-            "get object s3test.txt: success",
-            "delete object s3test.txt: success"
+            "get object sstest.txt: success",
+            "delete object sstest.txt: success"
         ]
         pos = 0
         for tip in tips:
@@ -260,10 +271,10 @@ class TDTestCase(TBase):
     def insertHistory(self):
         tdLog.info(f"insert history data.")
         # taosBenchmark run
-        json = etool.curFile(__file__, "s3Basic1.json")
+        json = etool.curFile(__file__, "ssBasic1.json")
         etool.benchMark(json=json)
 
-        # come from s3_basic.json
+        # come from ss_basic.json
         self.insert_rows += self.insert_rows/4
         self.timestamp_step = 50
 
@@ -351,7 +362,7 @@ class TDTestCase(TBase):
             self.checkDelete()
             self.doAction()
 
-            # drop database and free s3 file
+            # drop database and free ss file
             self.dropDb()
 
 
