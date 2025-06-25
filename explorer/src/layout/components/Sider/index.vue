@@ -43,7 +43,7 @@ const permission_routes = ref([
     title: 'route.dataIn',
     icon: 'dataIn',
     meta: {
-      show: true //目前oem暂时不支持datain，后续根据taosx修改需要开放
+      show: store.state.app.sysinfo //目前oem暂时不支持datain，后续根据taosx修改需要开放
     }
   },
   {
@@ -130,7 +130,7 @@ onMounted(() => {
   }
 
   if (!$IS_TSDBLITE && $IS_COMMUNITY) {
-    store.commit('app/SET_SHOW_SYSTEM_MES', true)
+    store.commit('app/SET_SHOW_SYSTEM_MES', true);
   }
 });
 </script>

@@ -207,7 +207,7 @@ impl RestoreWorker {
                     join_set.spawn(async move {
                         for f in files {
                             tracing::debug!("worker[{idx}] restore files: {:?}", f);
-                            restore(
+                            let res = restore(
                                 idx,
                                 f.clone(),
                                 &taos,
@@ -216,14 +216,11 @@ impl RestoreWorker {
                                 retry_max,
                                 retry_interval,
                             )
-                            .await
-                            .inspect_err(|err| {
-                                tracing::error!(
-                                    "worker[{idx}] restore file error: {:#}, file: {:?}",
-                                    err,
-                                    f
-                                );
-                            })?;
+                            .await;
+                            if let Err(err) = res {
+                                tracing::error!("worker[{idx}] restore file error: {:#}", err);
+                                return Err(err);
+                            }
 
                             match post_action {
                                 None => {
@@ -276,6 +273,40 @@ impl RestoreWorker {
     }
 }
 
+async fn open_file_with_retry(
+    path: impl AsRef<Path>,
+    retry_max: u32,
+    retry_interval: Duration,
+) -> anyhow::Result<tokio::fs::File> {
+    let path = path.as_ref();
+    let mut retry = retry_max;
+    loop {
+        match tokio::fs::File::open(path).await {
+            Ok(file) => {
+                tracing::debug!("Opened file: {:?}", path.display());
+                return Ok(file);
+            }
+            Err(err) => {
+                if retry == 0 {
+                    tracing::error!(
+                        "Failed to open file: {:?}, error: {:#}",
+                        path.display(),
+                        err
+                    );
+                    return Err(err.into());
+                }
+                retry -= 1;
+                tracing::warn!(
+                    "Failed to open file: {:?}, retrying... {} times left",
+                    path.display(),
+                    retry
+                );
+                tokio::time::sleep(retry_interval).await;
+            }
+        }
+    }
+}
+
 #[async_backtrace::framed]
 async fn restore(
     idx: usize,
@@ -288,7 +319,8 @@ async fn restore(
 ) -> anyhow::Result<()> {
     let path = path.as_ref();
     tracing::info!("[{idx}] restore with file: {:?}", path.display());
-    let reader = tokio::fs::File::open(path).await?;
+
+    let reader = open_file_with_retry(path, retry_max, retry_interval).await?;
     let reader = tokio::io::BufReader::new(reader);
     let reader = async_compression::tokio::bufread::ZstdDecoder::new(reader);
     let mut reader = ZCodec::new(reader);

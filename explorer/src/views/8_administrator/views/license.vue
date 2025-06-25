@@ -16,7 +16,7 @@
       }}</el-button>
     </div>
     <title-bar :name="$t('topic.basicDatabaseFeatures')" />
-    <el-descriptions style="margin-bottom: 30px;" :column="3">
+    <el-descriptions style="margin-bottom: 30px" :column="3">
       <el-descriptions-item :label="$t('topic.clusterId')" :label-style="style">
         <span>{{ clusterId }}</span>
       </el-descriptions-item>
@@ -42,7 +42,12 @@
       <title-bar :name="$t('topic.advancedDatabaseFeatures')" />
       <el-table style="margin-bottom: 30px" :data="advancedTableData" size="small">
         <el-table-column :label="$t('topic.advancedFeatures')" prop="display_name"></el-table-column>
-        <el-table-column :label="$t('topic.number')" prop="limits">
+        <el-table-column :label="$t('topic.used')" prop="limits">
+          <template #default="scope">
+            <span>{{ usedNumber(scope.row.limits) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('topic.limit')" prop="limits">
           <template #default="scope">
             <span>{{ formatLimits(scope.row.limits) }}</span>
           </template>
@@ -286,9 +291,33 @@ function expireTime(data: any) {
     return parsinginZone(data, 'YYYY-MM-DD hh:mm:ss');
   }
 }
-function formatLimits(data: string) {
+
+const EMPTY_NUMBER = 'n/a';
+function usedNumber(data: string) {
   if (data) {
-    return data == 'unlimited' ? 'unlimited' : data.split('/')[1];
+    if (data.indexOf('/') > 0) {
+      const split = data.split('/');
+      return split[0];
+    } else {
+      return EMPTY_NUMBER;
+    }
+  } else {
+    return EMPTY_NUMBER;
+  }
+}
+function formatLimits(data: string) {
+  console.log('formatLimits', data);
+  if (data) {
+    if (data.indexOf('/') > 0) {
+      const split = data.split('/');
+      if (split.length > 2) {
+        return data;
+      } else {
+        return split[1];
+      }
+    } else {
+      return data;
+    }
   } else {
     return 'n/a';
   }

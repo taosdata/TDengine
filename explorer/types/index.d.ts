@@ -68,6 +68,7 @@ declare type ProfileResult = {
 
 declare type GlobalCustomProperties = {
   $IS_COMMUNITY: boolean;
+  $IS_TSDBLITE: boolean;
   $INDUSTRY: string;
   $IS_OEM: boolean;
   OEM_NAME: string;

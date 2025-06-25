@@ -1297,8 +1297,61 @@ impl Worker {
             tracing::info!(error = format!("{err:#}"), "Write raw data error: {err:#}");
             let code = *err.code().deref();
             if message.meta.is_none() && message.data.is_none() {
-                tracing::error!("Write raw into target error: {err:#}");
-                tokio::time::sleep(Duration::from_millis(500)).await;
+                if code == 0x0118 {
+                    // Invalid parameters,detail:table:t_1e2f01eda79dc691cf0e7e3f3730d43b, err:column var data bytes error, name:field2, schema type:VARCHAR, bytes:10, data type:VARCHAR, bytes:18
+                    let errstr = err.to_string();
+                    lazy_static::lazy_static! {
+                        static ref RE: regex::Regex = regex::Regex::new(r"table:(?P<table>\S+),").unwrap();
+                    }
+                    if let Some(table) = RE.captures(&errstr).and_then(|caps| caps.name("table")) {
+                        let source_table_name = table.as_str();
+                        tracing::warn!(
+                            "Invalid parameters for table {source_table_name}, try to sync schema."
+                        );
+                        let from = self.source.get().await?;
+                        let database = self.topic.database.as_str();
+                        if self.topic.is_query() {
+                            // sync as normal table.
+                            sync_normal_table_schema(&from, source_table_name, &[], None, conn)
+                                .await
+                                .context("Create table error")?;
+                        }
+                        let super_table_name =
+                            get_stable_name(&from, Some(database), source_table_name).await?;
+                        // if let Some(stable) = from.query_one::<_, String>(format!("select stable_name from information_schema.ins_tables where db_name = '{database}' and table_name = '{source_table_name}'")).await?.and_then(|s| if s.is_empty() { None } else { Some(s) }) {
+                        if let Some(stable) = super_table_name {
+                            let target_opts = Default::default();
+                            sync_super_table_schema(&from, &stable, conn, None, &target_opts, &[])
+                                .await
+                                .context("Create super table error")?;
+                            // 临时代码，保证编译通过
+                            let metrics_arc =
+                                Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::default()));
+                            sync_super_table_schema_with_subs(
+                                &from,
+                                &stable,
+                                &[source_table_name],
+                                conn,
+                                None,
+                                &target_opts,
+                                true,
+                                true,
+                                &[],
+                                &metrics_arc,
+                            )
+                            .await
+                            .context("Create sub table error")?;
+                        } else {
+                            // normal table
+                            sync_normal_table_schema(&from, source_table_name, &[], None, conn)
+                                .await
+                                .context("Create table error")?;
+                        }
+                    }
+                } else {
+                    tracing::error!("Write raw into target error: {err:#}");
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
                 if let Err(err2) = conn.write_raw_meta(&message.raw).await.inspect_err(|err| {
                     tracing::debug!(
                         error = format!("{err:#}"),

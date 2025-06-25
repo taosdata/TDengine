@@ -1053,7 +1053,7 @@ pub async fn sync_super_table_schema(
                             "ALTER TABLE `{}` MODIFY {} {}",
                             target_name,
                             c_or_t,
-                            l.sql_repr(),
+                            l.short_sql_repr(), // FIXME: use `short_sql_repr` to not attach compression options.
                         ),
                         remap,
                     ))
