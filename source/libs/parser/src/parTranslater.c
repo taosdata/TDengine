@@ -20,6 +20,7 @@
 #include "query.h"
 #include "querynodes.h"
 #include "taoserror.h"
+#include "tarray.h"
 #include "tdatablock.h"
 
 #include "catalog.h"
@@ -16633,6 +16634,18 @@ static int32_t rewriteShow(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
+static int32_t rewriteShowStreams(STranslateContext* pCxt, SQuery* pQuery) {
+  SNode* pDbNode = ((SShowStmt*)pQuery->pRoot)->pDbName;
+  if (nodeType(pDbNode) == QUERY_NODE_VALUE) {
+    SArray* pVgs = NULL;
+    int32_t code = getDBVgInfo(pCxt, ((SValueNode*)pDbNode)->literal, &pVgs);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+  return rewriteShow(pCxt, pQuery);
+}
+
 static int32_t rewriteShowVtables(STranslateContext* pCxt, SQuery* pQuery) {
   return rewriteShow(pCxt, pQuery);
 }
@@ -19969,7 +19982,6 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:
-    case QUERY_NODE_SHOW_STREAMS_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
@@ -19989,6 +20001,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
       code = rewriteShow(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_STREAMS_STMT:
+      code = rewriteShowStreams(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_VTABLES_STMT:
       code = rewriteShowVtables(pCxt, pQuery);
