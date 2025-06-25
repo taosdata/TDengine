@@ -227,11 +227,11 @@ cmd ::= CREATE SNODE ON DNODE NK_INTEGER(A).                                    
 cmd ::= DROP SNODE ON DNODE NK_INTEGER(A).                                        { pCxt->pRootNode = createDropComponentNodeStmt(pCxt, QUERY_NODE_DROP_SNODE_STMT, &A); }
 
 /************************************************ create/drop bnode ***************************************/
-cmd ::= CREATE BNODE ON DNODE NK_INTEGER(A) xnode_options(B).                     { pCxt->pRootNode = createCreateXnodeStmt(pCxt, &A, B); }
-cmd ::= DROP BNODE ON DNODE NK_INTEGER(A).                                        { pCxt->pRootNode = createDropXnodeStmt(pCxt, &A); }
+cmd ::= CREATE BNODE ON DNODE NK_INTEGER(A) bnode_options(B).                     { pCxt->pRootNode = createCreateBnodeStmt(pCxt, &A, B); }
+cmd ::= DROP BNODE ON DNODE NK_INTEGER(A).                                        { pCxt->pRootNode = createDropBnodeStmt(pCxt, &A); }
 
-xnode_options(A) ::= .                                                            { A = createDefaultXnodeOptions(pCxt); }
-xnode_options(A) ::= xnode_options(B) PROTOCOL NK_STRING(C).                      { A = setXnodeOption(pCxt, B, XNODE_OPTION_PROTOCOL, &C); }
+bnode_options(A) ::= .                                                            { A = createDefaultBnodeOptions(pCxt); }
+bnode_options(A) ::= bnode_options(B) PROTOCOL NK_STRING(C).                      { A = setBnodeOption(pCxt, B, BNODE_OPTION_PROTOCOL, &C); }
 
 /************************************************ create/drop/restore mnode ***************************************************/
 cmd ::= CREATE MNODE ON DNODE NK_INTEGER(A).                                      { pCxt->pRootNode = createCreateComponentNodeStmt(pCxt, QUERY_NODE_CREATE_MNODE_STMT, &A); }

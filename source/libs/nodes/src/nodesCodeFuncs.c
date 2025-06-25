@@ -176,9 +176,9 @@ const char* nodesNodeName(ENodeType type) {
     case QUERY_NODE_UPDATE_ANODE_STMT:
       return "UpdateAnodeStmt";
     case QUERY_NODE_CREATE_BNODE_STMT:
-      return "CreateXnodeStmt";
+      return "CreateBnodeStmt";
     case QUERY_NODE_DROP_BNODE_STMT:
-      return "DropXnodeStmt";
+      return "DropBnodeStmt";
     case QUERY_NODE_CREATE_SNODE_STMT:
       return "CreateSnodeStmt";
     case QUERY_NODE_DROP_SNODE_STMT:
@@ -7743,26 +7743,26 @@ static int32_t jsonToDropAnodeStmt(const SJson* pJson, void* pObj) {
   return tjsonGetIntValue(pJson, jkUpdateDropANodeStmtId, &pNode->anodeId);
 }
 
-static const char* jkUpdateDropXNodeStmtId = "DnodeId";
+static const char* jkUpdateDropBNodeStmtId = "DnodeId";
 
-static int32_t createXnodeStmtToJson(const void* pObj, SJson* pJson) {
+static int32_t createBnodeStmtToJson(const void* pObj, SJson* pJson) {
   const SCreateBnodeStmt* pNode = (const SCreateBnodeStmt*)pObj;
   return tjsonAddIntegerToObject(pJson, jkCreateComponentNodeStmtDnodeId, pNode->dnodeId);
 }
 
-static int32_t jsonToCreateXnodeStmt(const SJson* pJson, void* pObj) {
+static int32_t jsonToCreateBnodeStmt(const SJson* pJson, void* pObj) {
   SCreateBnodeStmt* pNode = (SCreateBnodeStmt*)pObj;
   return tjsonGetIntValue(pJson, jkCreateComponentNodeStmtDnodeId, &pNode->dnodeId);
 }
 
-static int32_t dropXnodeStmtToJson(const void* pObj, SJson* pJson) {
+static int32_t dropBnodeStmtToJson(const void* pObj, SJson* pJson) {
   const SDropBnodeStmt* pNode = (const SDropBnodeStmt*)pObj;
-  return tjsonAddIntegerToObject(pJson, jkUpdateDropXNodeStmtId, pNode->dnodeId);
+  return tjsonAddIntegerToObject(pJson, jkUpdateDropBNodeStmtId, pNode->dnodeId);
 }
 
-static int32_t jsonToDropXnodeStmt(const SJson* pJson, void* pObj) {
+static int32_t jsonToDropBnodeStmt(const SJson* pJson, void* pObj) {
   SDropBnodeStmt* pNode = (SDropBnodeStmt*)pObj;
-  return tjsonGetIntValue(pJson, jkUpdateDropXNodeStmtId, &pNode->dnodeId);
+  return tjsonGetIntValue(pJson, jkUpdateDropBNodeStmtId, &pNode->dnodeId);
 }
 
 static int32_t createSnodeStmtToJson(const void* pObj, SJson* pJson) {
@@ -8993,9 +8993,9 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_UPDATE_ANODE_STMT:
       return updateAnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_BNODE_STMT:
-      return createXnodeStmtToJson(pObj, pJson);
+      return createBnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_BNODE_STMT:
-      return dropXnodeStmtToJson(pObj, pJson);
+      return dropBnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_SNODE_STMT:
       return createSnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_SNODE_STMT:

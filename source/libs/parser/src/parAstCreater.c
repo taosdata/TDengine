@@ -3690,7 +3690,7 @@ _err:
   return NULL;
 }
 
-SNode* createCreateXnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId, SNode* pOptions) {
+SNode* createCreateBnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateBnodeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_BNODE_STMT, (SNode**)&pStmt);
@@ -3704,7 +3704,7 @@ _err:
   return NULL;
 }
 
-SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId) {
+SNode* createDropBnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId) {
   CHECK_PARSER_STATUS(pCxt);
   SUpdateBnodeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_BNODE_STMT, (SNode**)&pStmt);
@@ -3716,7 +3716,7 @@ _err:
   return NULL;
 }
 
-SNode* createDefaultXnodeOptions(SAstCreateContext* pCxt) {
+SNode* createDefaultBnodeOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   SBnodeOptions* pOptions = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_BNODE_OPTIONS, (SNode**)&pOptions);
@@ -3730,12 +3730,12 @@ _err:
   return NULL;
 }
 
-static SNode* setXnodeOptionImpl(SAstCreateContext* pCxt, SNode* pXnodeOptions, EXnodeOptionType type, void* pVal,
+static SNode* setXnodeOptionImpl(SAstCreateContext* pCxt, SNode* pXnodeOptions, EBnodeOptionType type, void* pVal,
                                     bool alter) {
   CHECK_PARSER_STATUS(pCxt);
   SBnodeOptions* pOptions = (SBnodeOptions*)pXnodeOptions;
   switch (type) {
-    case XNODE_OPTION_PROTOCOL:
+    case BNODE_OPTION_PROTOCOL:
       COPY_STRING_FORM_STR_TOKEN(pOptions->protoStr, (SToken*)pVal);
       break;
     default:
@@ -3748,7 +3748,7 @@ _err:
   return NULL;
 }
 
-SNode* setXnodeOption(SAstCreateContext* pCxt, SNode* pOptions, EXnodeOptionType type, void* pVal) {
+SNode* setBnodeOption(SAstCreateContext* pCxt, SNode* pOptions, EBnodeOptionType type, void* pVal) {
   return setXnodeOptionImpl(pCxt, pOptions, type, pVal, false);
 }
 

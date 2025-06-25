@@ -77,7 +77,7 @@ const char *sdbTableName(ESdbType type) {
     case SDB_ANODE:
       return "anode";
     case SDB_BNODE:
-      return "xnode";
+      return "bnode";
     case SDB_CFG:
       return "config";
     default:

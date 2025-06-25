@@ -572,7 +572,7 @@ _OVER:
   if (code != 0) mError("failed to dump snode info at line:%d since %s", lino, tstrerror(code));
 }
 
-void dumpXnode(SSdb *pSdb, SJson *json) {
+void dumpBnode(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void   *pIter = NULL;
@@ -591,7 +591,7 @@ void dumpXnode(SSdb *pSdb, SJson *json) {
     sdbRelease(pSdb, pObj);
   }
 _OVER:
-  if (code != 0) mError("failed to dump snode info at line:%d since %s", lino, tstrerror(code));
+  if (code != 0) mError("failed to dump bnode info at line:%d since %s", lino, tstrerror(code));
 }
 
 void dumpQnode(SSdb *pSdb, SJson *json) {
@@ -783,7 +783,7 @@ int32_t mndDumpSdb() {
   dumpUser(pSdb, json);
   dumpDnode(pSdb, json);
   dumpSnode(pSdb, json);
-  dumpXnode(pSdb, json);
+  dumpBnode(pSdb, json);
   dumpQnode(pSdb, json);
   dumpMnode(pSdb, json);
   dumpCluster(pSdb, json);

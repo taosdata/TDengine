@@ -95,9 +95,9 @@ typedef enum EColumnOptionType {
   COLUMN_OPTION_PRIMARYKEY,
 } EColumnOptionType;
 
-typedef enum EXnodeOptionType {
-  XNODE_OPTION_PROTOCOL = 1,
-} EXnodeOptionType;
+typedef enum EBnodeOptionType {
+  BNODE_OPTION_PROTOCOL = 1,
+} EBnodeOptionType;
 
 typedef struct SAlterOption {
   int32_t    type;
@@ -299,10 +299,10 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
 SNode* createCreateAnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl);
 SNode* createDropAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode);
 SNode* createUpdateAnodeStmt(SAstCreateContext* pCxt, const SToken* pAnode, bool updateAll);
-SNode* createCreateXnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId, SNode* pOptions);
-SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeID);
-SNode* createDefaultXnodeOptions(SAstCreateContext* pCxt);
-SNode* setXnodeOption(SAstCreateContext* pCxt, SNode* pOptions, EXnodeOptionType type, void* pVal);
+SNode* createCreateBnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId, SNode* pOptions);
+SNode* createDropBnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeID);
+SNode* createDefaultBnodeOptions(SAstCreateContext* pCxt);
+SNode* setBnodeOption(SAstCreateContext* pCxt, SNode* pOptions, EBnodeOptionType type, void* pVal);
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue);
 SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName);
 SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool ignoreExists, SNode* pIndexName,

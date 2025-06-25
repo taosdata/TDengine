@@ -11293,7 +11293,7 @@ static int32_t translateUpdateAnode(STranslateContext* pCxt, SUpdateAnodeStmt* p
   return code;
 }
 
-static int32_t checkCreateXnode(STranslateContext* pCxt, SCreateBnodeStmt* pStmt) {
+static int32_t checkCreateBnode(STranslateContext* pCxt, SCreateBnodeStmt* pStmt) {
   SBnodeOptions* pOptions = pStmt->pOptions;
 
   if ('\0' != pOptions->protoStr[0]) {
@@ -11307,10 +11307,10 @@ static int32_t checkCreateXnode(STranslateContext* pCxt, SCreateBnodeStmt* pStmt
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateBnodeStmt* pStmt) {
+static int32_t translateCreateBnode(STranslateContext* pCxt, SCreateBnodeStmt* pStmt) {
   SMCreateBnodeReq createReq = {.dnodeId = pStmt->dnodeId};
 
-  int32_t code = checkCreateXnode(pCxt, pStmt);
+  int32_t code = checkCreateBnode(pCxt, pStmt);
   if (TSDB_CODE_SUCCESS == code) {
     createReq.bnodeProto = pStmt->pOptions->proto;
 
@@ -11321,7 +11321,7 @@ static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateBnodeStmt* p
   return code;
 }
 
-static int32_t translateDropXnode(STranslateContext* pCxt, SDropBnodeStmt* pStmt) {
+static int32_t translateDropBnode(STranslateContext* pCxt, SDropBnodeStmt* pStmt) {
   SMDropBnodeReq dropReq = {0};
   dropReq.dnodeId = pStmt->dnodeId;
 
@@ -14985,10 +14985,10 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       code = translateUpdateAnode(pCxt, (SUpdateAnodeStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_BNODE_STMT:
-      code = translateCreateXnode(pCxt, (SCreateBnodeStmt*)pNode);
+      code = translateCreateBnode(pCxt, (SCreateBnodeStmt*)pNode);
       break;
     case QUERY_NODE_DROP_BNODE_STMT:
-      code = translateDropXnode(pCxt, (SDropBnodeStmt*)pNode);
+      code = translateDropBnode(pCxt, (SDropBnodeStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = translateCreateIndex(pCxt, (SCreateIndexStmt*)pNode);
