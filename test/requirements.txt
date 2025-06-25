@@ -70,3 +70,4 @@ wcwidth==0.2.13
 xmltodict==0.14.2
 zipp==3.21.0
 decorator==5.2.1
+paho-mqtt==2.1.0
