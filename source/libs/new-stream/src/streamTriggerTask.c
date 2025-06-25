@@ -2910,6 +2910,10 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeplo
       pInterval->sliding = pSliding->sliding > 0 ? pSliding->sliding : pSliding->interval;
       pInterval->offset = pSliding->offset;
       pInterval->timeRange = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MIN};
+      if (pSliding->interval == 0) {
+        pInterval->offset = pSliding->soffset;
+        pInterval->offsetUnit = pSliding->soffsetUnit;
+      }
       break;
     }
     case WINDOW_TYPE_SESSION: {
@@ -2980,7 +2984,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeplo
   pTask->fillHistoryFirst = pMsg->fillHistoryFirst;
   pTask->lowLatencyCalc = pMsg->lowLatencyCalc;
   pTask->hasPartitionBy = pMsg->hasPartitionBy;
-  pTask->isVirtualTable = false;  // todo(kjq): set virtual table flag
+  pTask->isVirtualTable = (pMsg->triggerTblType == TSDB_VIRTUAL_NORMAL_TABLE || pMsg->triggerTblType == TSDB_VIRTUAL_CHILD_TABLE);
   pTask->placeHolderBitmap = pMsg->placeHolderBitmap;
   code = nodesStringToNode(pMsg->triggerPrevFilter, &pTask->triggerFilter);
   QUERY_CHECK_CODE(code, lino, _end);
