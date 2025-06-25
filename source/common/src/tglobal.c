@@ -1612,7 +1612,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableMetrics");
   tsEnableMetrics = pItem->bval;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "metricsFlag");
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "metricsLevel");
   tsMetricsLevel = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "metricsInterval");
