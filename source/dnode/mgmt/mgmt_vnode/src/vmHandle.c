@@ -161,7 +161,9 @@ void vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {
 }
 
 void vmCleanExpiredMetrics(SVnodeMgmt *pMgmt) {
-  if (!tsEnableMetrics) return;
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0 || !tsEnableMetrics) {
+    return;
+  }
 
   (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
   void     *pIter = taosHashIterate(pMgmt->runngingHash, NULL);

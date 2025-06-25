@@ -25,8 +25,8 @@ extern "C" {
 
 // Metric collection level
 typedef enum {
-  METRIC_LEVEL_LOW = 0,  // Always collected
-  METRIC_LEVEL_HIGH = 1  // Disabled by default, can be enabled for debugging
+  METRIC_LEVEL_LOW = 0,  // Disabled by default, can be enabled for debugging
+  METRIC_LEVEL_HIGH = 1  // Always collected
 } EMetricLevel;
 
 // Raw Dnode Metrics Structure (Input data)
