@@ -176,6 +176,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_VNODES,
   TSDB_MGMT_TABLE_APPS,
   TSDB_MGMT_TABLE_STREAM_TASKS,
+  TSDB_MGMT_TABLE_STREAM_RECALCULATES,
   TSDB_MGMT_TABLE_PRIVILEGES,
   TSDB_MGMT_TABLE_VIEWS,
   TSDB_MGMT_TABLE_TSMAS,
@@ -3265,48 +3266,6 @@ typedef struct SVgroupVer {
   int32_t vgId;
   int64_t ver;
 } SVgroupVer;
-
-#if 0
-typedef struct {
-  char    name[TSDB_STREAM_FNAME_LEN];
-  char    sourceDB[TSDB_DB_FNAME_LEN];
-  char    targetStbFullName[TSDB_TABLE_FNAME_LEN];
-  char*   sql;
-  char*   ast;
-  int8_t  igExists;
-  int8_t  triggerType;
-  int8_t  igExpired;
-  int8_t  fillHistory;  // process data inserted before creating stream
-  int64_t maxDelay;
-  int64_t watermark;
-  int32_t numOfTags;
-  SArray* pTags;  // array of SField
-  // 3.0.20
-  int64_t checkpointFreq;  // ms
-  // 3.0.2.3
-  int8_t   createStb;
-  uint64_t targetStbUid;
-  SArray*  fillNullCols;  // array of SColLocation
-  int64_t  deleteMark;
-  int8_t   igUpdate;
-  int64_t  lastTs;
-  SArray*  pVgroupVerList;
-  // 3.3.0.0
-  SArray* pCols;  // array of SField
-  int64_t smaId;
-  // 3.3.6.0
-  SArray* pNotifyAddrUrls;
-  int32_t notifyEventTypes;
-  int32_t notifyErrorHandle;
-  int8_t  notifyHistory;
-  int64_t recalculateInterval;
-  char    pWstartName[TSDB_COL_NAME_LEN];
-  char    pWendName[TSDB_COL_NAME_LEN];
-  char    pGroupIdName[TSDB_COL_NAME_LEN];
-  char    pIsWindowFilledName[TSDB_COL_NAME_LEN];
-  SArray* pVSubTables;  // array of SVSubTablesRsp
-} SCMCreateStreamReq;
-#endif
 
 typedef struct STaskNotifyEventStat {
   int64_t notifyEventAddTimes;     // call times of add function

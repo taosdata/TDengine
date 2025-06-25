@@ -385,6 +385,7 @@ typedef struct SStreamTask {
   int32_t       taskIdx;
 
   EStreamStatus status;
+  int32_t       detailStatus; // status index in pTriggerStatus
   int32_t       errorCode;
 
   SStreamMgmtReq* pMgmtReq;  // request that should be handled by stream mgmt thread
@@ -423,6 +424,8 @@ typedef struct SStreamRecalcReq {
 typedef struct SSTriggerRecalcProgress {
   int64_t recalcId;  // same with SStreamRecalcReq in stTriggerTaskExecute
   int32_t progress;  // 0-100, 0 means not started, 100 means finished
+  TSKEY   start;
+  TSKEY   end;
 } SSTriggerRecalcProgress;
 
 typedef struct SSTriggerRuntimeStatus {
@@ -443,8 +446,8 @@ typedef struct SStreamHbMsg {
   int32_t snodeId;
   int32_t runnerThreadNum;
   SArray* pVgLeaders;     // SArray<int32_t>
-  SArray* pStreamStatus;  // SArray<SStmTaskStatusMsg>, not including req
-  SArray* pStreamReq;     // SArray<SStmTaskStatusMsg>, including req
+  SArray* pStreamStatus;  // SArray<SStmTaskStatusMsg>
+  SArray* pStreamReq;     // SArray<int32_t>, task index in pStreamStatus
   SArray* pTriggerStatus; // SArray<SSTriggerRuntimeStatus>
 } SStreamHbMsg;
 
@@ -505,6 +508,7 @@ typedef struct {
   int8_t fillHistoryFirst;
   int8_t lowLatencyCalc;
   int8_t hasPartitionBy;
+  int8_t triggerTblType;
 
   // notify options
   SArray* pNotifyAddrUrls;

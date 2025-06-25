@@ -111,6 +111,8 @@ typedef struct SSTriggerRealtimeContext {
   SHashObj *pCalcDataCacheIters;
 
   bool        retryPull;
+  bool        haveReadCheckpoint;
+  int64_t     lastCheckpointTime;
   STimeWindow periodWindow;  // for period trigger
 } SSTriggerRealtimeContext;
 
@@ -196,6 +198,9 @@ typedef struct SStreamTriggerTask {
   SRWLatch   calcPoolLock;
   SArray    *pCalcNodes;     // SArray<SSTriggerCalcNode>
   SSHashObj *pGroupRunning;  // SSHashObj<gid, bool[]>
+  
+  // checkpoint
+  bool isCheckpointReady;
 } SStreamTriggerTask;
 
 // interfaces called by stream trigger thread
