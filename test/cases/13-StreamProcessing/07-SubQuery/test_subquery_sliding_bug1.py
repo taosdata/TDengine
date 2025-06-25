@@ -109,8 +109,8 @@ class TestStreamDevBasic:
         stream = StreamItem(
             id=46,
             stream="create stream rdb.s46 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r46 as select _twstart ts, count(c1), sum(c2) from %%trows where ts >= _twstart and ts < _twend interval(1m) fill(prev)",
-            res_query="select * from rdb.r46",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            res_query="select * from rdb.r46 where tbname='t1'",
+            exp_query="select _wstart, count(c1), sum(c2), 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(1m) fill(prev);",
         )
         
         self.streams.append(stream)
