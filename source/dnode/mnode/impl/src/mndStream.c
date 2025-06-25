@@ -229,7 +229,7 @@ static int32_t mndStreamCreateOutStb(SMnode *pMnode, STrans *pTrans, const SCMCr
   for (int32_t i = 0; i < createReq.numOfColumns; i++) {
     SFieldWithOptions *pField = taosArrayGet(createReq.pColumns, i);
     TSDB_CHECK_NULL(pField, code, lino, _OVER, terrno);
-    TAOS_FIELD_E *pSrc = taosArrayGet(pStream->outCols, i);
+    SFieldWithOptions *pSrc = taosArrayGet(pStream->outCols, i);
 
     tstrncpy(pField->name, pSrc->name, TSDB_COL_NAME_LEN);
     pField->flags = 0;
@@ -237,7 +237,8 @@ static int32_t mndStreamCreateOutStb(SMnode *pMnode, STrans *pTrans, const SCMCr
     pField->bytes = pSrc->bytes;
     pField->compress = createDefaultColCmprByType(pField->type);
     if (IS_DECIMAL_TYPE(pField->type)) {
-      pField->typeMod = decimalCalcTypeMod(pSrc->precision, pSrc->scale);
+      pField->typeMod = pSrc->typeMod;
+      pField->flags |= COL_HAS_TYPE_MOD;
     }
   }
 

@@ -180,19 +180,18 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
       }
 
       if (TSDB_CODE_SUCCESS == code) {
-        code = stTriggerTaskDeploy(pStream->triggerTask, &pDeploy->triggerTask->msg.trigger);
-/*
-        if (code == 0){
-          int32_t leaderSid = pDeploy->triggerTask->msg.trigger.leaderSnodeId;
-          SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
-          if (epSet != NULL){
-            code = streamSyncWriteCheckpoint(streamId, epSet, NULL, 0);
-            if (code == 0) {
-              code = streamCheckpointSetNotReady(streamId);
-            }
+        int32_t leaderSid = pDeploy->triggerTask->msg.trigger.leaderSnodeId;
+        SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
+        if (epSet != NULL){
+          stDebug("[checkpoint] trigger task deploy, sync checkpoint streamId:%" PRIx64 ", leaderSnodeId:%d", streamId, leaderSid);
+          code = streamSyncWriteCheckpoint(streamId, epSet, NULL, 0);
+          if (code == 0) {
+            code = streamCheckpointSetNotReady(streamId);
           }
         }
-*/
+        if (code == 0){
+          code = stTriggerTaskDeploy(pStream->triggerTask, &pDeploy->triggerTask->msg.trigger);
+        }
         if (code) {
           ST_TASK_ELOG("trigger task fail to deploy, error:%s", tstrerror(code));
           taosHashRemove(gStreamMgmt.taskMap, &pTask->streamId, sizeof(pTask->streamId) + sizeof(pTask->taskId));

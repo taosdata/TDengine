@@ -38,7 +38,7 @@ void smUpdateSnodeInfo(SDCreateSnodeReq* pReq) {
   gSnode.snodeId = pReq->snodeId;
   if (pReq->replica.nodeId != gSnode.snodeReplica.nodeId) {
     int32_t ret = streamSyncAllCheckpoints(&pReq->replica.epSet);
-    dInfo("sync all checkpoint from snode %d to replicaId:%d, return:%d", pReq->snodeId, pReq->replica.nodeId, ret);
+    dInfo("[checkpoint] sync all checkpoint from snode %d to replicaId:%d, return:%d", pReq->snodeId, pReq->replica.nodeId, ret);
   }
   gSnode.snodeLeaders[0] = pReq->leaders[0];
   gSnode.snodeLeaders[1] = pReq->leaders[1];  

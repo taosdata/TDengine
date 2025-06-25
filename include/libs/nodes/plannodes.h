@@ -780,11 +780,11 @@ typedef struct SEventWinodwPhysiNode {
   int64_t          trueForLimit;
 } SEventWinodwPhysiNode;
 
-typedef struct SCountWinodwPhysiNode {
+typedef struct SCountWindowPhysiNode {
   SWindowPhysiNode window;
   int64_t          windowCount;
   int64_t          windowSliding;
-} SCountWinodwPhysiNode;
+} SCountWindowPhysiNode;
 
 typedef struct SAnomalyWindowPhysiNode {
   SWindowPhysiNode window;
