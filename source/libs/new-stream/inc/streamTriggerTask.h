@@ -111,6 +111,8 @@ typedef struct SSTriggerRealtimeContext {
   SHashObj *pCalcDataCacheIters;
 
   bool        retryPull;
+  bool        haveReadCheckpoint;
+  int64_t     lastCheckpointTime;
   STimeWindow periodWindow;  // for period trigger
 } SSTriggerRealtimeContext;
 

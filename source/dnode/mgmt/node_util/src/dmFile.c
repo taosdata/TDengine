@@ -107,6 +107,77 @@ _OVER:
   return code;
 }
 
+int32_t dmReadFileJson(const char *path, const char *name, SJson **ppJson, bool* deployed) {
+  int32_t   code = -1;
+  TdFilePtr pFile = NULL;
+  char     *content = NULL;
+  char      file[PATH_MAX] = {0};
+  int32_t   nBytes = snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
+  if (nBytes <= 0 || nBytes >= PATH_MAX) {
+    code = TSDB_CODE_OUT_OF_BUFFER;
+    goto _OVER;
+  }
+
+  if (taosStatFile(file, NULL, NULL, NULL) < 0) {
+    dInfo("file:%s not exist", file);
+    code = 0;
+    goto _OVER;
+  }
+
+  pFile = taosOpenFile(file, TD_FILE_READ);
+  if (pFile == NULL) {
+    code = terrno;
+    dError("failed to open file:%s since %s", file, tstrerror(code));
+    goto _OVER;
+  }
+
+  int64_t size = 0;
+  code = taosFStatFile(pFile, &size, NULL);
+  if (code != 0) {
+    dError("failed to fstat file:%s since %s", file, tstrerror(code));
+    goto _OVER;
+  }
+
+  content = taosMemoryMalloc(size + 1);
+  if (content == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  if (taosReadFile(pFile, content, size) != size) {
+    code = terrno;
+    dError("failed to read file:%s since %s", file, tstrerror(code));
+    goto _OVER;
+  }
+
+  content[size] = '\0';
+
+  *ppJson = tjsonParse(content);
+  if (*ppJson == NULL) {
+    code = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
+
+  if (dmDecodeFile(*ppJson, deployed) < 0) {
+    code = TSDB_CODE_INVALID_JSON_FORMAT;
+    goto _OVER;
+  }
+
+  code = 0;
+  dInfo("succceed to read mnode file %s", file);
+
+_OVER:
+  if (content != NULL) taosMemoryFree(content);
+  if (pFile != NULL) taosCloseFile(&pFile);
+
+  if (code != 0) {
+    if (*ppJson != NULL) cJSON_Delete(*ppJson);
+    dError("failed to read dnode file:%s since %s", file, tstrerror(code));
+  }
+  return code;
+}
+
+
 static int32_t dmEncodeFile(SJson *pJson, bool deployed) {
   if (tjsonAddDoubleToObject(pJson, "deployed", deployed) < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
   return 0;

@@ -21,8 +21,24 @@
 static int32_t smRequire(const SMgmtInputOpt *pInput, bool *required) {
   char path[TSDB_FILENAME_LEN];
   snprintf(path, TSDB_FILENAME_LEN, "%s%ssnode%d", pInput->path, TD_DIRSEP, pInput->dnodeId);
+  SJson    *pJson = NULL;
 
-  return dmReadFile(path, pInput->name, required);
+  int32_t code = dmReadFileJson(path, pInput->name, &pJson, required);
+  if (code) {
+    return code;
+  }
+
+  SDCreateSnodeReq req = {0};
+  code = smBuildCreateReqFromJson(pJson, &req);
+  if (code) {
+    if (pJson != NULL) cJSON_Delete(pJson);
+    return code;
+  }
+
+  smUpdateSnodeInfo(&req);
+
+  if (pJson != NULL) cJSON_Delete(pJson);
+  return code;
 }
 
 static void smInitOption(SSnodeMgmt *pMgmt, SSnodeOpt *pOption) { pOption->msgCb = pMgmt->msgCb; }
