@@ -12807,9 +12807,9 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
                                          "The stream name cannot contain '.'"));
   }
 
-  if (pStmt->pQuery && !isSelectStmt(pStmt->pQuery)) {
+  if (pStmt->pQuery && !isSelectStmt(pStmt->pQuery) && !isSetOperator(pStmt->pQuery)) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
-                                         "Stream query must be a select statement"));
+                                         "Stream query must be a select or union statement"));
   }
 
   if (pTrigger->pTrigerTable == NULL && nodeType(pTrigger->pTriggerWindow) != QUERY_NODE_PERIOD_WINDOW) {
@@ -14248,7 +14248,7 @@ static int32_t getExtWindowBorder(STranslateContext* pCxt, SNode* pTriggerWindow
 }
 
 static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTriggerPartition, SNode* pTriggerTbl,
-                                        SSelectStmt* pStreamCalcQuery, SNode* pNotifyCond, SNode* pTriggerWindow, bool* withExtWindow) {
+                                        SNode* pStreamCalcQuery, SNode* pNotifyCond, SNode* pTriggerWindow, bool* withExtWindow) {
   int32_t    code = TSDB_CODE_SUCCESS;
   ESqlClause currClause = pCxt->currClause;
   SNode*     pCurrStmt = pCxt->pCurrStmt;
@@ -14270,10 +14270,24 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTri
     if (!checkNotifyCondCxt.valid) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_NOTIFY_COND, "notify condition can only contain expr from query clause"));
     }
-    PAR_ERR_JRET(nodesListMakeAppend(&pStreamCalcQuery->pProjectionList, pNotifyCond));
+
+    switch (nodeType(pStreamCalcQuery)) {
+      case QUERY_NODE_SET_OPERATOR: {
+        PAR_ERR_JRET(nodesListMakeAppend(&((SSetOperator*)pStreamCalcQuery)->pProjectionList, pNotifyCond));
+        break;
+      }
+      case QUERY_NODE_SELECT_STMT: {
+        PAR_ERR_JRET(nodesListMakeAppend(&((SSelectStmt*)pStreamCalcQuery)->pProjectionList, pNotifyCond));
+        break;
+      }
+      default: {
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY, "Stream query must be a select or union statement"));
+      }
+    }
+
   }
 
-  PAR_ERR_JRET(translateSelect(pCxt, pStreamCalcQuery));
+  PAR_ERR_JRET(translateQuery(pCxt, pStreamCalcQuery));
   pCxt->createStreamCalc = false;
   pCxt->createStreamTriggerTbl = NULL;
   pCxt->createStreamTriggerPartitionList = NULL;
@@ -14299,7 +14313,7 @@ static bool findNodeInList(SNode* pTarget, SNodeList* pList) {
   return false;
 }
 
-static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreateStreamReq* pReq, int32_t placeHolderBitmap, SNodeList *pTriggerPartition, SSelectStmt* pTriggerSelect) {
+static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreateStreamReq* pReq, int32_t placeHolderBitmap, SNodeList *pTriggerPartition) {
   int32_t  code = TSDB_CODE_SUCCESS;
   if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_CURRENT_TS) ||
       BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PREV_TS) ||
@@ -14479,17 +14493,17 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   SArray*      pVgArray = NULL;
   SHashObj*    pDbs = NULL;
   bool         withExtWindow = false;
-
+  SNodeList*   pProjectionList = NULL;
+  
   if (!pStmt->pQuery) {
     return code;
   }
 
-  PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, (SSelectStmt*)pStmt->pQuery, pNotifyCond, pTriggerWindow, &withExtWindow));
-
+  PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerPartition, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, pStmt->pQuery, pNotifyCond, pTriggerWindow, &withExtWindow));
 
   pReq->placeHolderBitmap = pCxt->placeHolderBitmap;
 
-  PAR_ERR_JRET(createStreamReqCheckPlaceHolder(pCxt, pReq, pReq->placeHolderBitmap, pTriggerPartition, (SSelectStmt*)pStmt->pQuery));
+  PAR_ERR_JRET(createStreamReqCheckPlaceHolder(pCxt, pReq, pReq->placeHolderBitmap, pTriggerPartition));
 
   pVgArray = taosArrayInit(1, sizeof(SStreamCalcScan));
   pDbs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
@@ -14497,7 +14511,11 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
     PAR_ERR_JRET(terrno);
   }
 
-  PAR_ERR_JRET(createStreamReqSetDefaultOutCols(pCxt, pStmt, ((SSelectStmt*)pStmt->pQuery)->pProjectionList, pReq));
+  pProjectionList = nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT ?
+                    ((SSelectStmt*)pStmt->pQuery)->pProjectionList :
+                    ((SSetOperator*)pStmt->pQuery)->pProjectionList;
+
+  PAR_ERR_JRET(createStreamReqSetDefaultOutCols(pCxt, pStmt, pProjectionList, pReq));
 
   PAR_ERR_JRET(createStreamReqBuildForceOutput(pCxt, pStmt, pReq));
 
