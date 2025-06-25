@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_XNODE_H_
-#define _TD_MND_XNODE_H_
+#ifndef _TD_MND_BNODE_H_
+#define _TD_MND_BNODE_H_
 
 #include "mndInt.h"
 
@@ -22,15 +22,15 @@
 extern "C" {
 #endif
 
-int32_t    mndInitXnode(SMnode *pMnode);
-void       mndCleanupXnode(SMnode *pMnode);
-SXnodeObj *mndAcquireXnode(SMnode *pMnode, int32_t qnodeId);
-void       mndReleaseXnode(SMnode *pMnode, SXnodeObj *pObj);
-SEpSet     mndAcquireEpFromXnode(SMnode *pMnode, const SXnodeObj *pBnode);
-int32_t    mndSetDropXnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SXnodeObj *pObj, bool force);
+int32_t    mndInitBnode(SMnode *pMnode);
+void       mndCleanupBnode(SMnode *pMnode);
+SBnodeObj *mndAcquireBnode(SMnode *pMnode, int32_t qnodeId);
+void       mndReleaseBnode(SMnode *pMnode, SBnodeObj *pObj);
+SEpSet     mndAcquireEpFromBnode(SMnode *pMnode, const SBnodeObj *pBnode);
+int32_t    mndSetDropBnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SBnodeObj *pObj, bool force);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MND_XNODE_H_*/
+#endif /*_TD_MND_BNODE_H_*/

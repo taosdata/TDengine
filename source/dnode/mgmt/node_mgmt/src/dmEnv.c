@@ -252,7 +252,7 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
       case SNODE:
         code = TSDB_CODE_SNODE_ALREADY_DEPLOYED;
         break;
-      case XNODE:
+      case BNODE:
         code = TSDB_CODE_BNODE_ALREADY_DEPLOYED;
         break;
       default:
@@ -379,7 +379,7 @@ static int32_t dmProcessDropNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
       case SNODE:
         code = TSDB_CODE_SNODE_NOT_DEPLOYED;
         break;
-      case XNODE:
+      case BNODE:
         code = TSDB_CODE_BNODE_NOT_DEPLOYED;
         break;
       default:

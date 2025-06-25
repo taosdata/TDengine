@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_XNODE_INT_H_
-#define _TD_DND_XNODE_INT_H_
+#ifndef _TD_DND_BNODE_INT_H_
+#define _TD_DND_BNODE_INT_H_
 
 #include "dmUtil.h"
 
@@ -24,25 +24,25 @@
 extern "C" {
 #endif
 
-typedef struct SXnodeMgmt {
+typedef struct SBnodeMgmt {
   SDnodeData *pData;
   SBnode     *pBnode;
   SMsgCb      msgCb;
   const char *path;
   const char *name;
-} SXnodeMgmt;
+} SBnodeMgmt;
 
-// xmHandle.c
-SArray *xmGetMsgHandles();
-int32_t xmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
-int32_t xmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
+// bmHandle.c
+SArray *bmGetMsgHandles();
+int32_t bmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
+int32_t bmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
 
-// xmWorker.c
-int32_t xmPutRpcMsgToQueue(SXnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pMsg);
-int32_t xmGetQueueSize(SXnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype);
+// bmWorker.c
+int32_t bmPutRpcMsgToQueue(SBnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pMsg);
+int32_t bmGetQueueSize(SBnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DND_XNODE_INT_H_*/
+#endif /*_TD_DND_BNODE_INT_H_*/

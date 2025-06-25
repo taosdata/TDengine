@@ -11293,12 +11293,12 @@ static int32_t translateUpdateAnode(STranslateContext* pCxt, SUpdateAnodeStmt* p
   return code;
 }
 
-static int32_t checkCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* pStmt) {
-  SXnodeOptions* pOptions = pStmt->pOptions;
+static int32_t checkCreateXnode(STranslateContext* pCxt, SCreateBnodeStmt* pStmt) {
+  SBnodeOptions* pOptions = pStmt->pOptions;
 
   if ('\0' != pOptions->protoStr[0]) {
-    if (0 == strcasecmp(pOptions->protoStr, TSDB_XNODE_OPT_PROTO_STR_MQTT)) {
-      pOptions->proto = TSDB_XNODE_OPT_PROTO_MQTT;
+    if (0 == strcasecmp(pOptions->protoStr, TSDB_BNODE_OPT_PROTO_STR_MQTT)) {
+      pOptions->proto = TSDB_BNODE_OPT_PROTO_MQTT;
     } else {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_BNODE_OPTION, "Invalid option protocol: %s",
                                      pOptions->protoStr);
@@ -11307,7 +11307,7 @@ static int32_t checkCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* pStmt
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* pStmt) {
+static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateBnodeStmt* pStmt) {
   SMCreateBnodeReq createReq = {.dnodeId = pStmt->dnodeId};
 
   int32_t code = checkCreateXnode(pCxt, pStmt);
@@ -11321,7 +11321,7 @@ static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* p
   return code;
 }
 
-static int32_t translateDropXnode(STranslateContext* pCxt, SDropXnodeStmt* pStmt) {
+static int32_t translateDropXnode(STranslateContext* pCxt, SDropBnodeStmt* pStmt) {
   SMDropBnodeReq dropReq = {0};
   dropReq.dnodeId = pStmt->dnodeId;
 
@@ -14985,10 +14985,10 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       code = translateUpdateAnode(pCxt, (SUpdateAnodeStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_BNODE_STMT:
-      code = translateCreateXnode(pCxt, (SCreateXnodeStmt*)pNode);
+      code = translateCreateXnode(pCxt, (SCreateBnodeStmt*)pNode);
       break;
     case QUERY_NODE_DROP_BNODE_STMT:
-      code = translateDropXnode(pCxt, (SDropXnodeStmt*)pNode);
+      code = translateDropXnode(pCxt, (SDropBnodeStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = translateCreateIndex(pCxt, (SCreateIndexStmt*)pNode);

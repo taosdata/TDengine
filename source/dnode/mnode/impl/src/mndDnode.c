@@ -1175,7 +1175,7 @@ int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq) { return 0; }
 #endif
 
 static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMnodeObj *pMObj, SQnodeObj *pQObj,
-                            SSnodeObj *pSObj, SXnodeObj *pXObj, int32_t numOfVnodes, bool force, bool unsafe) {
+                            SSnodeObj *pSObj, SBnodeObj *pXObj, int32_t numOfVnodes, bool force, bool unsafe) {
   int32_t  code = -1;
   SSdbRaw *pRaw = NULL;
   STrans  *pTrans = NULL;
@@ -1228,7 +1228,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
 
   if (pXObj != NULL) {
     mInfo("trans:%d, xnode on dnode:%d will be dropped", pTrans->id, pDnode->id);
-    TAOS_CHECK_GOTO(mndSetDropXnodeInfoToTrans(pMnode, pTrans, pXObj, force), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndSetDropBnodeInfoToTrans(pMnode, pTrans, pXObj, force), NULL, _OVER);
   }
 
   if (numOfVnodes > 0) {
@@ -1280,7 +1280,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   SMnodeObj    *pMObj = NULL;
   SQnodeObj    *pQObj = NULL;
   SSnodeObj    *pSObj = NULL;
-  SXnodeObj    *pXObj = NULL;
+  SBnodeObj    *pXObj = NULL;
   SDropDnodeReq dropReq = {0};
 
   TAOS_CHECK_GOTO(tDeserializeSDropDnodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
@@ -1308,7 +1308,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
   pQObj = mndAcquireQnode(pMnode, dropReq.dnodeId);
   pSObj = mndAcquireSnode(pMnode, dropReq.dnodeId);
-  pXObj = mndAcquireXnode(pMnode, dropReq.dnodeId);
+  pXObj = mndAcquireBnode(pMnode, dropReq.dnodeId);
   pMObj = mndAcquireMnode(pMnode, dropReq.dnodeId);
   if (pMObj != NULL) {
     if (sdbGetSize(pMnode->pSdb, SDB_MNODE) <= 1) {
@@ -1326,7 +1326,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
   if (isonline && force) {
     code = TSDB_CODE_DNODE_ONLY_USE_WHEN_OFFLINE;
-    mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d xnode:%d", pDnode->id,
+    mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d bnode:%d", pDnode->id,
            tstrerror(code), numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL, pXObj != NULL);
     goto _OVER;
   }

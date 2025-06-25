@@ -30,7 +30,7 @@ int32_t bndOpen(const SBnodeOpt *pOption, SBnode **pBnode) {
   (*pBnode)->dnodeId = pOption->dnodeId;
   (*pBnode)->protocol = (int8_t)pOption->proto;
 
-  if (TSDB_XNODE_OPT_PROTO_MQTT == (*pBnode)->protocol) {
+  if (TSDB_BNODE_OPT_PROTO_MQTT == (*pBnode)->protocol) {
     if ((code = mqttMgmtStartMqttd((*pBnode)->dnodeId)) != 0) {
       bndError("failed to start taosudf since %s", tstrerror(code));
 

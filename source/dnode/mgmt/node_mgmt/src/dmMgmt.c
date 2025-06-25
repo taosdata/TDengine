@@ -55,7 +55,7 @@ int32_t dmInitDnode(SDnode *pDnode) {
   pDnode->wrappers[VNODE].func = vmGetMgmtFunc();
   pDnode->wrappers[QNODE].func = qmGetMgmtFunc();
   pDnode->wrappers[SNODE].func = smGetMgmtFunc();
-  pDnode->wrappers[XNODE].func = xmGetMgmtFunc();
+  pDnode->wrappers[BNODE].func = xmGetMgmtFunc();
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
@@ -322,7 +322,7 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
       case SNODE:
         code = TSDB_CODE_SNODE_NOT_FOUND;
         break;
-      case XNODE:
+      case BNODE:
         code = TSDB_CODE_BNODE_NOT_FOUND;
         break;
       case VNODE:

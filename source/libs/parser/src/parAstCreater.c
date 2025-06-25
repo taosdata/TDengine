@@ -3692,12 +3692,12 @@ _err:
 
 SNode* createCreateXnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
-  SCreateXnodeStmt* pStmt = NULL;
+  SCreateBnodeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_BNODE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
 
-  pStmt->pOptions = (SXnodeOptions*)pOptions;
+  pStmt->pOptions = (SBnodeOptions*)pOptions;
 
   return (SNode*)pStmt;
 _err:
@@ -3706,7 +3706,7 @@ _err:
 
 SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId) {
   CHECK_PARSER_STATUS(pCxt);
-  SUpdateXnodeStmt* pStmt = NULL;
+  SUpdateBnodeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_BNODE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
@@ -3718,12 +3718,12 @@ _err:
 
 SNode* createDefaultXnodeOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
-  SXnodeOptions* pOptions = NULL;
+  SBnodeOptions* pOptions = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_BNODE_OPTIONS, (SNode**)&pOptions);
   CHECK_MAKE_NODE(pOptions);
 
-  tstrncpy(pOptions->protoStr, TSDB_XNODE_OPT_PROTO_DFT_STR, TSDB_XNODE_OPT_PROTO_STR_LEN);
-  pOptions->proto = TSDB_XNODE_OPT_PROTO_DEFAULT;
+  tstrncpy(pOptions->protoStr, TSDB_BNODE_OPT_PROTO_DFT_STR, TSDB_BNODE_OPT_PROTO_STR_LEN);
+  pOptions->proto = TSDB_BNODE_OPT_PROTO_DEFAULT;
 
   return (SNode*)pOptions;
 _err:
@@ -3733,7 +3733,7 @@ _err:
 static SNode* setXnodeOptionImpl(SAstCreateContext* pCxt, SNode* pXnodeOptions, EXnodeOptionType type, void* pVal,
                                     bool alter) {
   CHECK_PARSER_STATUS(pCxt);
-  SXnodeOptions* pOptions = (SXnodeOptions*)pXnodeOptions;
+  SBnodeOptions* pOptions = (SBnodeOptions*)pXnodeOptions;
   switch (type) {
     case XNODE_OPTION_PROTOCOL:
       COPY_STRING_FORM_STR_TOKEN(pOptions->protoStr, (SToken*)pVal);

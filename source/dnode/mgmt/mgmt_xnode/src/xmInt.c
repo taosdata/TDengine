@@ -21,12 +21,12 @@ static int32_t xmRequire(const SMgmtInputOpt *pInput, bool *required) {
   return dmReadFile(pInput->path, pInput->name, required);
 }
 
-static void xmInitOption(SXnodeMgmt *pMgmt, SBnodeOpt *pOption) {
+static void xmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
   pOption->msgCb = pMgmt->msgCb;
   pOption->dnodeId = pMgmt->pData->dnodeId;
 }
 
-static void xmClose(SXnodeMgmt *pMgmt) {
+static void xmClose(SBnodeMgmt *pMgmt) {
   if (pMgmt->pBnode != NULL) {
     // xmStopWorker(pMgmt);
     bndClose(pMgmt->pBnode);
@@ -41,7 +41,7 @@ static int32_t xndOpenWrapper(SBnodeOpt *pOption, SBnode **pBnode) {
   return code;
 }
 
-int32_t xmPutMsgToQueue(SXnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
+int32_t xmPutMsgToQueue(SBnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   int32_t  code;
   SRpcMsg *pMsg;
 
@@ -55,7 +55,7 @@ int32_t xmPutMsgToQueue(SXnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   SBnode *pBnode = pMgmt->pBnode;
   if (pBnode == NULL) {
     code = terrno;
-    dError("msg:%p failed to put into xnode queue since %s, type:%s qtype:%d len:%d", pMsg, tstrerror(code),
+    dError("msg:%p failed to put into bnode queue since %s, type:%s qtype:%d len:%d", pMsg, tstrerror(code),
            TMSG_INFO(pMsg->msgType), qtype, pRpc->contLen);
     taosFreeQitem(pMsg);
     rpcFreeCont(pRpc->pCont);
@@ -162,7 +162,7 @@ _OVER:
 
 static int32_t xmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   int32_t     code = 0;
-  SXnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SXnodeMgmt));
+  SBnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SBnodeMgmt));
   if (pMgmt == NULL) {
     return terrno;
   }
@@ -179,26 +179,26 @@ static int32_t xmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 
   code = xmReadFile(pInput->path, pInput->name, &option.proto);
   if (code != 0) {
-    dError("failed to read xnode since %s", tstrerror(code));
+    dError("failed to read bnode since %s", tstrerror(code));
     xmClose(pMgmt);
     return code;
   }
 
   code = xndOpenWrapper(&option, &pMgmt->pBnode);
   if (code != 0) {
-    dError("failed to open xnode since %s", tstrerror(code));
+    dError("failed to open bnode since %s", tstrerror(code));
     xmClose(pMgmt);
     return code;
   }
-  tmsgReportStartup("xnode-impl", "initialized");
+  tmsgReportStartup("bnode-impl", "initialized");
 
   /*
   if ((code = xmStartWorker(pMgmt)) != 0) {
-    dError("failed to start xnode worker since %s", tstrerror(code));
+    dError("failed to start bnode worker since %s", tstrerror(code));
     xmClose(pMgmt);
     return code;
   }
-  tmsgReportStartup("xnode-worker", "initialized");
+  tmsgReportStartup("bnode-worker", "initialized");
   */
   pOutput->pMgmt = pMgmt;
   return code;
@@ -285,7 +285,7 @@ _OVER:
   return code;
 }
 
-int32_t xmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
+int32_t bmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   int32_t          code = 0;
   SDCreateBnodeReq createReq = {0};
   if (tDeserializeSMCreateBnodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
@@ -295,7 +295,7 @@ int32_t xmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
 
   if (pInput->pData->dnodeId != 0 && createReq.dnodeId != pInput->pData->dnodeId) {
     code = TSDB_CODE_INVALID_OPTION;
-    dError("failed to create xnode since %s", tstrerror(code));
+    dError("failed to create bnode since %s", tstrerror(code));
 
     tFreeSMCreateBnodeReq(&createReq);
     return code;
@@ -303,7 +303,7 @@ int32_t xmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
 
   bool deployed = true;
   if ((code = xmWriteFile(pInput->path, pInput->name, deployed, createReq.bnodeProto)) != 0) {
-    dError("failed to write xnode file since %s", tstrerror(code));
+    dError("failed to write bnode file since %s", tstrerror(code));
 
     tFreeSMCreateBnodeReq(&createReq);
     return code;
@@ -314,7 +314,7 @@ int32_t xmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   return 0;
 }
 
-int32_t xmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
+int32_t bmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   int32_t        code = 0;
   SDDropBnodeReq dropReq = {0};
   if (tDeserializeSMDropBnodeReq(pMsg->pCont, pMsg->contLen, &dropReq) != 0) {
@@ -325,7 +325,7 @@ int32_t xmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
 
   if (pInput->pData->dnodeId != 0 && dropReq.dnodeId != pInput->pData->dnodeId) {
     code = TSDB_CODE_INVALID_OPTION;
-    dError("failed to drop xnode since %s", tstrerror(code));
+    dError("failed to drop bnode since %s", tstrerror(code));
 
     tFreeSMDropBnodeReq(&dropReq);
     return code;
@@ -333,7 +333,7 @@ int32_t xmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
 
   bool deployed = false;
   if ((code = dmWriteFile(pInput->path, pInput->name, deployed)) != 0) {
-    dError("failed to write xnode file since %s", tstrerror(code));
+    dError("failed to write bnode file since %s", tstrerror(code));
 
     tFreeSMDropBnodeReq(&dropReq);
     return code;
@@ -344,7 +344,7 @@ int32_t xmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   return 0;
 }
 
-SArray *xmGetMsgHandles() {
+SArray *bmGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(4, sizeof(SMgmtHandle));
   if (pArray == NULL) goto _OVER;
@@ -363,10 +363,10 @@ SMgmtFunc xmGetMgmtFunc() {
   SMgmtFunc mgmtFunc = {0};
   mgmtFunc.openFp = xmOpen;
   mgmtFunc.closeFp = (NodeCloseFp)xmClose;
-  mgmtFunc.createFp = (NodeCreateFp)xmProcessCreateReq;
-  mgmtFunc.dropFp = (NodeDropFp)xmProcessDropReq;
+  mgmtFunc.createFp = (NodeCreateFp)bmProcessCreateReq;
+  mgmtFunc.dropFp = (NodeDropFp)bmProcessDropReq;
   mgmtFunc.requiredFp = xmRequire;
-  mgmtFunc.getHandlesFp = xmGetMsgHandles;
+  mgmtFunc.getHandlesFp = bmGetMsgHandles;
 
   return mgmtFunc;
 }

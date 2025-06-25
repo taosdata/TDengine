@@ -7746,22 +7746,22 @@ static int32_t jsonToDropAnodeStmt(const SJson* pJson, void* pObj) {
 static const char* jkUpdateDropXNodeStmtId = "DnodeId";
 
 static int32_t createXnodeStmtToJson(const void* pObj, SJson* pJson) {
-  const SCreateXnodeStmt* pNode = (const SCreateXnodeStmt*)pObj;
+  const SCreateBnodeStmt* pNode = (const SCreateBnodeStmt*)pObj;
   return tjsonAddIntegerToObject(pJson, jkCreateComponentNodeStmtDnodeId, pNode->dnodeId);
 }
 
 static int32_t jsonToCreateXnodeStmt(const SJson* pJson, void* pObj) {
-  SCreateXnodeStmt* pNode = (SCreateXnodeStmt*)pObj;
+  SCreateBnodeStmt* pNode = (SCreateBnodeStmt*)pObj;
   return tjsonGetIntValue(pJson, jkCreateComponentNodeStmtDnodeId, &pNode->dnodeId);
 }
 
 static int32_t dropXnodeStmtToJson(const void* pObj, SJson* pJson) {
-  const SDropXnodeStmt* pNode = (const SDropXnodeStmt*)pObj;
+  const SDropBnodeStmt* pNode = (const SDropBnodeStmt*)pObj;
   return tjsonAddIntegerToObject(pJson, jkUpdateDropXNodeStmtId, pNode->dnodeId);
 }
 
 static int32_t jsonToDropXnodeStmt(const SJson* pJson, void* pObj) {
-  SDropXnodeStmt* pNode = (SDropXnodeStmt*)pObj;
+  SDropBnodeStmt* pNode = (SDropBnodeStmt*)pObj;
   return tjsonGetIntValue(pJson, jkUpdateDropXNodeStmtId, &pNode->dnodeId);
 }
 

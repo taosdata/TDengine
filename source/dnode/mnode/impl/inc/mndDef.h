@@ -81,8 +81,8 @@ typedef enum {
   MND_OPER_CREATE_ANODE,
   MND_OPER_UPDATE_ANODE,
   MND_OPER_DROP_ANODE,
-  MND_OPER_CREATE_XNODE,
-  MND_OPER_DROP_XNODE
+  MND_OPER_CREATE_BNODE,
+  MND_OPER_DROP_BNODE
 } EOperType;
 
 typedef enum {
@@ -300,7 +300,7 @@ typedef struct {
   int64_t    createdTime;
   int64_t    updateTime;
   SDnodeObj* pDnode;
-} SXnodeObj;
+} SBnodeObj;
 
 typedef struct {
   int32_t dnodeId;

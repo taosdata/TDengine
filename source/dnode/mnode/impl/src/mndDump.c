@@ -579,8 +579,8 @@ void dumpXnode(SSdb *pSdb, SJson *json) {
   SJson  *items = tjsonAddArrayToObject(json, "xnodes");
 
   while (1) {
-    SXnodeObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_XNODE, pIter, (void **)&pObj);
+    SBnodeObj *pObj = NULL;
+    pIter = sdbFetch(pSdb, SDB_BNODE, pIter, (void **)&pObj);
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
