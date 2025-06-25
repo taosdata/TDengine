@@ -1849,8 +1849,8 @@ async fn consume_point_record(
                                     }
                                 }
                                 for column_meta in desc {
-                                    if (column_meta.ty == Ty::VarChar
-                                        || column_meta.ty == Ty::NChar)
+                                    if (column_meta.ty() == Ty::VarChar
+                                        || column_meta.ty() == Ty::NChar)
                                         && column_meta.field()
                                             == sql_insertion.modify.value_column_name
                                         && sql_insertion.modify.value_column_length

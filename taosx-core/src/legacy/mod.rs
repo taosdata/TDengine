@@ -499,13 +499,13 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
                     .describe(new_table_name)
                     .await
                     .map_err(|err| anyhow::format_err!("Describe table {table} error: {err}"))?;
-                let fields: HashMap<_, Ty> = block
+                let fields: HashMap<_, _> = block
                     .field_names()
                     .iter()
                     .map(|name| {
                         desc.iter()
                             .find(|f| f.field() == name)
-                            .map(|f| (name, f.ty()))
+                            .map(|f| (name, f.data_type()))
                             .ok_or_else(|| anyhow::format_err!("Column does not exist {name}"))
                     })
                     .try_collect()?;
@@ -513,7 +513,7 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
                     .column_views()
                     .iter()
                     .zip(block.field_names())
-                    .map(|(view, name)| view.cast(fields[name]))
+                    .map(|(view, name)| view.cast_with_schema(fields[name]))
                     .try_collect()
                     .map_err(RawError::from_any)?;
                 let mut new = RawBlock::from_views(views.as_slice(), block.precision());

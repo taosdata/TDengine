@@ -81,8 +81,8 @@ actix-web = { version = "4.9.0", features = ["rustls-0_23"] }
 actix-ws = "0.3.0"
 
 [workspace.dependencies.taos]
-# path = "../taos-connector-rust/taos"
-rev = "e93f352c"
+#path = "../taos-connector-rust/taos"
+rev = "399d3ec9"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]

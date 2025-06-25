@@ -608,7 +608,7 @@ fn handle_point_message<R: Read, W: Write>(
                                             } else if column_meta.field() == "point_name" && point_name.len() > column_meta.length() {
                                                 column_type = "tag";
                                                 length = point_name.len();
-                                            } else if (column_meta.ty == Ty::VarChar || column_meta.ty == Ty::NChar)
+                                            } else if (column_meta.ty() == Ty::VarChar || column_meta.ty() == Ty::NChar)
                                                 && column_meta.field() == value_column_name && value_column_length > column_meta.length() {
                                                 column_type = "column";
                                                 length = value_column_length;
