@@ -186,7 +186,7 @@ insert into db.tb using db.meters tags(1) values(now, 1);
 create bnode on dnode 1;
 ```
 
-在命令行工具 taos 中执行上面的 SQL 语句，创建数据库，超级表，主题 `topic_meters`，bnode 节点, 写入一条数据供下一步订阅使用。
+在命令行工具 taos 中执行上面的 SQL 语句，创建数据库，超级表，主题 `topic_meters` ，bnode 节点，写入一条数据供下一步订阅使用。
 
 #### 客户端订阅
 
