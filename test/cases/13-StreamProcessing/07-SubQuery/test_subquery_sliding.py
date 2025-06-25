@@ -476,19 +476,20 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=40,
-            stream="create stream rdb.s40 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r40 as show tags from st_json_104",
-            res_query="select * from rdb.r40",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s40 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r40 as select _twstart, table_name, db_name, stable_name, tag_name, tag_value from ins_tags where table_name='j0' and stable_name='jmeters' and tag_name='tjson'",
+            res_query="select * from rdb.r40 limit 1",
+            exp_query="select cast('2025-01-01 00:00:00.000' as timestamp), table_name, db_name, stable_name, tag_name, tag_value from ins_tags where table_name='j0' and stable_name='jmeters' and tag_name='tjson';",
         )
-        # self.streams.append(stream)
+        # self.streams.append(stream) cases/13-StreamProcessing/99-Others/test_dev_basic5.py
 
         stream = StreamItem(
             id=41,
-            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r41 as select ts,jtag from {dbname}.jsons1 order by ts limit 2,3",
-            res_query="select * from rdb.r41",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s41 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r41 as select cts, cint, cbool, cast(tjson->'k1' as varchar(8)) cjson, _twstart from qdb.j0 where cts >= _twstart and cts < _twend and cbool = %%1 order by cts limit 2, 3",
+            res_query="select * from rdb.r41 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and id = 1",
+            exp_query="select cts, cint, cbool, cast(tjson->'k1' as varchar(8)) cjson, cast('2025-01-01 00:00:00.000' as timestamp) from qdb.j0 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and cbool = 1 order by cts limit 2, 3",
+            check_func=self.check41,
         )
-        # self.streams.append(stream)
+        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug4.py
 
         stream = StreamItem(
             id=42,
@@ -496,7 +497,7 @@ class TestStreamSubquerySliding:
             res_query="select * from rdb.r42",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream)
+        # self.streams.append(stream) cases/13-StreamProcessing/99-Others/test_dev_basic4.py 
 
         stream = StreamItem(
             id=43,
@@ -504,7 +505,7 @@ class TestStreamSubquerySliding:
             res_query="select * from rdb.r43",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream)
+        # self.streams.append(stream) cases/13-StreamProcessing/99-Others/test_dev_basic4.py 
 
         stream = StreamItem(
             id=44,
@@ -1384,6 +1385,20 @@ class TestStreamSubquerySliding:
                 ["v3", "INT", 4, ""],
                 ["v4", "INT", 4, ""],
                 ["tag_tbname", "VARCHAR", 270, "TAG"],
+            ],
+        )
+
+    def check41(self):
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r41",
+            schema=[
+                ["cts", "TIMESTAMP", 8, ""],
+                ["cint", "INT", 4, ""],
+                ["cbool", "BOOL", 1, ""],
+                ["cjson", "VARCHAR", 8, ""],
+                ["_twstart", "TIMESTAMP", 8, ""],
+                ["id", "INT", 4, "TAG"],
             ],
         )
 
