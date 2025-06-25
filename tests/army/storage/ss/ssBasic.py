@@ -271,7 +271,7 @@ class TDTestCase(TBase):
     def insertHistory(self):
         tdLog.info(f"insert history data.")
         # taosBenchmark run
-        json = etool.curFile(__file__, "ssBasic1.json")
+        json = etool.curFile(__file__, "ssBasic_History.json")
         etool.benchMark(json=json)
 
         # come from ss_basic.json
