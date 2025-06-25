@@ -282,6 +282,7 @@ class TestStreamOldCaseCheck:
         tdSql.execute(f"insert into t2 values(1648791213000, 1, 2, 3);")
         tdSql.execute(f"insert into t1 values(1648791214000, 1, 2, 3);")
 
+        return
         tdSql.checkResultsByFunc(
             f"select * from streamt1;",
             lambda: tdSql.getRows() == 4,

@@ -28,11 +28,12 @@
 ## 23-Compatibility 
 
 ## 24-OldCases
+../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py 
 # ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_check.py
 # ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_checkpoint.py
 # ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
-# ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py 
-# ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
+../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py 
+../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
 
 ## 99-Others
 
