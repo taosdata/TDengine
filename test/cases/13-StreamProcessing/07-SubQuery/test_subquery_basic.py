@@ -33,6 +33,7 @@ class TestStreamSubqueryBasic:
     def basic1(self):
         tdLog.info(f"basic test 1")
         tdSql.error("show streams")
+        tdSql.error("show xx.streams")
         tdStream.dropAllStreamsAndDbs()
 
         tdLog.info(f"=============== create database")
