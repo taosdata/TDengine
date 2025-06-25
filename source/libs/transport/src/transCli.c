@@ -1611,7 +1611,11 @@ int32_t cliBuildSockByIpType(SIpAddr* ipAddr, struct sockaddr* addr) {
     struct sockaddr_in6* addr6 = (struct sockaddr_in6*)addr;
     addr6->sin6_family = AF_INET6;
     addr6->sin6_port = htons(ipAddr->port);
-    inet_pton(AF_INET6, ipAddr->ipv6, &addr6->sin6_addr);
+    int32_t ret = inet_pton(AF_INET6, ipAddr->ipv6, &addr6->sin6_addr);
+    if (ret <= 0) {
+      tError("failed to convert ipv6 %s to binary since %s", ipAddr->ipv6, strerror(errno));
+      return TSDB_CODE_INVALID_PARA;
+    }
   }
   return 0;
 }
