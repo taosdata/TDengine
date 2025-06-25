@@ -88,25 +88,15 @@ class TestStreamStateTrigger:
         
         tdLog.info(f"=============== create stream")
         sql1 = "create stream s1 state_window(cint) from ct1 into res_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
-    #     sql2 = "create stream s2 state_window(cint) from ct2 into res_ct2 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
-    #     sql3 = "create stream s3 state_window(cint) from stb partition by tbname into stb_res OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname;"
-    #   # sqlx = "create stream sx state_window(cint) from stb partition by tint into stb_stag_res OUTPUT_SUBTABLE(CONCAT('res_stb_stag_', %%1)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tint;"  # state_window must include partition by tbname
-    #     sql4 = "create stream s4 state_window(cint) from stb partition by tbname, tint options() into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', %%1, %%2)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname, tint;"
-        
-    #     # add control options
-    #     sql5 = "create stream s1 state_window(cint) from ct1 into res_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
-        
-    #     sql6 = "create stream s5 state_window(cint) from stb partition by tbname, tint into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', %%1, %%2)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname, tint;"
-     
-     
-     
-     
+        sql2 = "create stream s2 state_window(cint) from ct2 into res_ct2 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        sql3 = "create stream s3 state_window(cint) from stb partition by tbname into stb_res OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname;"
+        sql4 = "create stream s4 state_window(cint) from stb partition by tbname, tint into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', tbname, '_', cast(tint as varchar))) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by %%1, %%2;"
+         
         streams = [
             self.StreamItem(sql1, self.checks1),
-            # self.StreamItem(sql2, self.checks2),
-            # self.StreamItem(sql3, self.checks3),
-            # self.StreamItem(sql4, self.checks4),
-            # self.StreamItem(sql5, self.checks5),
+            self.StreamItem(sql2, self.checks2),
+            self.StreamItem(sql3, self.checks3),
+            self.StreamItem(sql4, self.checks4),
         ]
 
         for stream in streams:
@@ -116,6 +106,38 @@ class TestStreamStateTrigger:
         tdLog.info(f"=============== check stream result")
         for stream in streams:
             stream.check()
+
+
+        ############ true_for 
+        sql5 = "create stream s5 state_window(cint) true_for(5s) from ct1 into res_truefor_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+         
+        tdSql.execute(sql5)
+        tdStream.checkStreamStatus("s5")
+        # self.checks5(0)
+                
+        tdLog.info(f"=============== continue write data into ct1 for true_for(5s)")
+        sqls = [
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:10', 4, 0);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:11', 4, 0);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:15', 4, 1);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:16', 5, 1);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:17', 5, 1);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:18', 5, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:20', 5, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:22', 6, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:26', 6, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:30', 7, 3);",
+        ]
+        tdSql.executes(sqls)
+        self.checks5(1)
+        
+        ############ option: fill history         
+        
+        ############ option: max_delay
+        
+        ############ option: watermark
+        
+        return
 
     def checks1(self):
         result_sql = "select firstts, count, avg from res_ct1"
@@ -222,7 +244,7 @@ class TestStreamStateTrigger:
         tdSql.checkData(5, 3, "TAG")
 
     def checks4(self):
-        result_sql = "select firstts, count, avg from res_stb_mtag_ct1"
+        result_sql = "select firstts, count, avg from res_stb_mtag_ct1_1"
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 3
@@ -260,8 +282,30 @@ class TestStreamStateTrigger:
         tdSql.checkData(5, 2, "8")
         tdSql.checkData(4, 3, "TAG")
         tdSql.checkData(5, 3, "TAG")
-   
-                
+
+    def checks5(self, check_idx):
+        result_sql = "select firstts, count, avg from res_truefor_ct1"
+        if 0 == check_idx: 
+            tdSql.checkResultsByFunc(
+                sql=result_sql,
+                func=lambda: tdSql.getRows() == 0,
+            )
+        elif 1 == check_idx:
+            tdSql.checkResultsByFunc(
+                sql=result_sql,
+                func=lambda: tdSql.getRows() == 3
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+                and tdSql.compareData(0, 1, 2)
+                and tdSql.compareData(0, 2, 2)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:02.000")
+                and tdSql.compareData(1, 1, 3)
+                and tdSql.compareData(1, 2, 3)
+                and tdSql.compareData(2, 0, "2025-01-01 00:00:05.000")
+                and tdSql.compareData(2, 1, 4)
+                and tdSql.compareData(2, 2, 4),
+            )                    
+        return
+
     class StreamItem:
         def __init__(self, sql, checkfunc):
             self.sql = sql
