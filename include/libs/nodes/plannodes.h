@@ -539,11 +539,6 @@ typedef struct STableScanPhysiNode {
   bool           needCountEmptyTable;
   bool           paraTablesSort;
   bool           smallDataTsSort;
-  char           pStbFullName[TSDB_TABLE_FNAME_LEN];
-  char           pWstartName[TSDB_COL_NAME_LEN];
-  char           pWendName[TSDB_COL_NAME_LEN];
-  char           pGroupIdName[TSDB_COL_NAME_LEN];
-  char           pIsWindowFilledName[TSDB_COL_NAME_LEN];
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -728,7 +723,6 @@ typedef struct SWindowPhysiNode {
   int64_t    watermark;
   int64_t    deleteMark;
   int8_t     igExpired;
-  int8_t     destHasPrimaryKey;
   bool       mergeDataBlock;
   int64_t    recalculateInterval;
 } SWindowPhysiNode;
