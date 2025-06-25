@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TMQTT_H_
-#define _TD_TMQTT_H_
+#ifndef _TD_TMQTT_INT_H_
+#define _TD_TMQTT_INT_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -360,4 +360,4 @@ int                   tmqtt_string_to_property_info(const char *propname, int *i
 }
 #endif
 
-#endif /*_TD_TMQTT_H_*/
+#endif /*_TD_TMQTT_INT_H_*/

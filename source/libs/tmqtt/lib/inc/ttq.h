@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TMQTT_INT_H_
-#define _TD_TMQTT_INT_H_
+#ifndef _TD_TTQ_H_
+#define _TD_TTQ_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -241,4 +241,4 @@ void do_client_disconnect(struct tmqtt *ttq, int reason_code, const tmqtt_proper
 }
 #endif
 
-#endif /*_TD_TMQTT_INT_H_*/
+#endif /*_TD_TTQ_H_*/

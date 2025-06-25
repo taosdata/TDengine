@@ -24,7 +24,7 @@
 #include "taos.h"
 #include "thash.h"
 #include "tmisce.h"
-#include "tmqttMgmt.h"
+#include "tmqtt.h"
 // clang-format on
 
 #ifdef __cplusplus

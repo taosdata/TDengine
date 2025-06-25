@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "libs/tmqtt/tmqttMgmt.h"
+#include "libs/tmqtt/tmqtt.h"
 #include "bndInt.h"
 
 int32_t bndOpen(const SBnodeOpt *pOption, SBnode **pBnode) {

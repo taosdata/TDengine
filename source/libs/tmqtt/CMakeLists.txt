@@ -1,4 +1,4 @@
-aux_source_directory(src/bnode_mgmt_mqtt bnode_mgmt_mqtt_SRC)
+aux_source_directory(src/mgmt bnode_mgmt_mqtt_SRC)
 aux_source_directory(src TAOSMQTT_SRC)
 aux_source_directory(lib TMQTT_SRC)
 

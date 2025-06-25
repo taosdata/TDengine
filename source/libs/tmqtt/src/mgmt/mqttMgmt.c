@@ -18,7 +18,7 @@
 #include "os.h"
 #include "tarray.h"
 #include "tglobal.h"
-#include "tmqttMgmt.h"
+#include "tmqtt.h"
 
 #ifdef _TD_DARWIN_64
 #include <mach-o/dyld.h>
