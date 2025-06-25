@@ -8,21 +8,8 @@ if (HAVE_SYS_EPOLL_H)
 endif()
 
 aux_source_directory(mqtt/src MQTT_SRC)
-add_executable(taosmqtt ${MQTT_SRC}
-  ttq/src/ttqNet.c
-  ttq/src/packetDataTypes.c
-  ttq/src/ttqPacket.c
-  ttq/src/ttqSend.c
-  ttq/src/sendPublish.c
-  ttq/src/ttqProperty.c
-  ttq/src/ttqMemory.c
-  ttq/src/ttqMisc.c
-  ttq/src/ttqUtil.c
-  ttq/src/ttqTime.c
-  ttq/src/ttqStrings.c
-  ttq/src/ttqUtf8.c
-  ttq/src/utilTopic.c
-)
+aux_source_directory(ttq/src TTQ_SRC)
+add_executable(taosmqtt ${MQTT_SRC} ${TTQ_SRC})
 
 DEP_ext_cjson(taosmqtt)
 DEP_ext_libuv(taosmqtt)
