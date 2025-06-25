@@ -391,6 +391,91 @@ static int32_t downloadFile(SRTNer* rtner, STFileObj* fobj) {
 }
 
 
+static void tsdbRemoveSsGarbageFiles(int32_t vid, STFileSet* fset) {
+  char prefix[TSDB_FILENAME_LEN];
+  snprintf(prefix, sizeof(prefix), "vnode%d/f%d/", vid, fset->fid);
+
+  SArray* paths = taosArrayInit(10, sizeof(char*));
+  int32_t code = tssListFileOfDefault(prefix, paths);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("vgId:%d, fid:%d, failed to list files in shared storage since %s", vid, fset->fid, tstrerror(code));
+    taosArrayDestroy(paths);
+    return;
+  }
+
+  for(int i = 0; i < taosArrayGetSize(paths); i++) {
+      char* p = *(char**)taosArrayGet(paths, i);
+      const char* ext = strrchr(p, '.');
+      const char* rname = strrchr(p, '/') + 1;
+      bool remove = true;
+      int32_t vgId = 0, fid = 0, mid = 0, cn = 0;
+      int64_t cid = 0;
+  
+      // NOTE: when compare file name, don't use strcmp(fobj->fname, rname) because 'fobj->fname' may not
+      // contain the migration id. that's why we use sscanf to parse the file name.
+
+      if (ext == NULL) {
+        // no extension, remove
+      } else if (taosStrcasecmp(ext, ".head") == 0) {
+        STFileObj* fobj = fset->farr[TSDB_FTYPE_HEAD];
+        int n = sscanf(rname, "v%df%dver%" PRId64 ".m%d.head", &vgId, &fid, &cid, &mid);
+        remove = (n != 4 || vgId != vid || fid != fset->fid || cid != fobj->f->cid || mid != fobj->f->mid);
+      } else if (taosStrcasecmp(ext, ".sma") == 0) {
+        STFileObj* fobj = fset->farr[TSDB_FTYPE_SMA];
+        int n = sscanf(rname, "v%df%dver%" PRId64 ".m%d.sma", &vgId, &fid, &cid, &mid);
+        remove = (n != 4 || vgId != vid || fid != fset->fid || cid != fobj->f->cid || mid != fobj->f->mid);
+      } else if (taosStrcasecmp(ext, ".tomb") == 0) {
+        STFileObj* fobj = fset->farr[TSDB_FTYPE_TOMB];
+        if (fobj) {
+          int n = sscanf(rname, "v%df%dver%" PRId64 ".m%d.tomb", &vgId, &fid, &cid, &mid);
+          remove = (n != 4 || vgId != vid || fid != fset->fid || cid != fobj->f->cid || mid != fobj->f->mid);
+        }
+      } else if (taosStrcasecmp(ext, ".stt") == 0) {
+        SSttLvl* lvl = NULL;
+        TARRAY2_FOREACH(fset->lvlArr, lvl) {
+          STFileObj* fobj;
+          TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+            int n = sscanf(rname, "v%df%dver%" PRId64 ".m%d.stt", &vgId, &fid, &cid, &mid);
+            if (n == 4 && vgId == vid && fid == fset->fid && cid == fobj->f->cid && mid == fobj->f->mid) {
+              remove = false;
+              break;
+            }
+          }
+          if (!remove) {
+            break;
+          }
+        }
+      } else if (taosStrcasecmp(ext, ".data") == 0) {
+        STFileObj* fobj = fset->farr[TSDB_FTYPE_DATA];
+        int n = sscanf(rname, "v%df%dver%" PRId64 ".%d.data", &vgId, &fid, &cid, &cn);
+        if (n == 4) {
+          if (vgId == vid && fid == fset->fid && cn >= 1 && cn < fobj->f->lcn) {
+            remove = false; // not the last chunk, keep it
+          }
+        } else {
+          n = sscanf(rname, "v%df%dver%" PRId64 ".m%d.%d.data", &vgId, &fid, &cid, &mid, &cn);
+          remove = (n != 5 || vgId != vid || fid != fset->fid || cid != fobj->f->cid || mid != fobj->f->mid || cn != fobj->f->lcn);
+        }
+      } else {
+        remove = (taosStrcasecmp(rname, "manifests.json") != 0); // keep manifest, remove all other files
+      }
+
+      if (remove) {
+        int32_t code = tssDeleteFileFromDefault(p);
+        if (code != TSDB_CODE_SUCCESS) {
+          tsdbError("vgId:%d, fid:%d, failed to remove garbage file %s from shared storage since %s", vid, fset->fid, p, tstrerror(code));
+        } else {
+          tsdbInfo("vgId:%d, fid:%d, garbage file %s is removed from shared storage", vid, fset->fid, p);
+        }
+      }
+
+      taosMemFree(p);
+  }
+
+  taosArrayDestroy(paths);
+}
+
+
 // download the last chunk of a data file
 // remote file name is like:
 //      vnode2/f1736/v2f1736ver16.m13552343.4.data
@@ -484,7 +569,7 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
 
   // manifest must be uploaded before copy last chunk, otherwise, failed to upload manifest
   // will result in a broken migration
-  tsdbInfo("vgId:%d, fid:%d, data file migrated, begin generate & upload manifest file", vid, f->fid);
+  tsdbInfo("vgId:%d, fid:%d, data file migrated, begin generate & upload manifest", vid, f->fid);
 
   // manifest, this also commit the migration
   code = uploadManifest(vnodeNodeId(rtner->tsdb->pVnode), vid, rtner->fset, getSsMigrateId(rtner->tsdb));
@@ -493,8 +578,11 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
     return code;
   }
 
+  tsdbInfo("vgId:%d, fid:%d, manifest uploaded, begin remove garbage files", vid, f->fid);
+  tsdbRemoveSsGarbageFiles(vid, rtner->fset);
+
   tsdbSsMigrateMonitorSetFileSetState(rtner->tsdb, f->fid, FILE_SET_MIGRATE_STATE_SUCCEEDED);
-  tsdbInfo("vgId:%d, fid:%d, manifest file uploaded, leader migration succeeded", vid, f->fid);
+  tsdbInfo("vgId:%d, fid:%d, leader migration succeeded", vid, f->fid);
 
   // no new chunks generated, no need to copy the last chunk
   if (totalChunks == lcn) {
@@ -652,7 +740,7 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
   SFileSetSsMigrateState *pState = NULL;
   int32_t fsIdx = 0;
 
-  tsdbInfo("vgId:%d, fid:%d, vnode is follower, waiting leader migration to be finished", vid, fset->fid);
+  tsdbInfo("vgId:%d, fid:%d, vnode is follower, waiting leader on node %d to upload.", vid, fset->fid, rtner->nodeId);
 
   code = taosThreadMutexLock(&rtner->tsdb->mutex);
   if (code != TSDB_CODE_SUCCESS) {
@@ -691,6 +779,14 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
   if (code == TSDB_CODE_NOT_FOUND) {
     tsdbTFileSetClear(&pRemoteFset);
     return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  // this often happens in the catch up process of a new node, it is ok to continue, but will
+  // result in download same files more than once, which is a waste of time and bandwidth.
+  if (pRemoteFset->farr[TSDB_FTYPE_HEAD]->f->mid != getSsMigrateId(rtner->tsdb)) {
+    tsdbTFileSetClear(&pRemoteFset);
+    tsdbWarn("vgId:%d, fid:%d, follower migration cancelled, migration id mismatch", vid, fset->fid);
+    return 0;
   }
 
   tsdbInfo("vgId:%d, fid:%d, manifest downloaded, begin downloading head file", vid, fset->fid);
