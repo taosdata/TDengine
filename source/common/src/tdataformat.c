@@ -844,7 +844,7 @@ _exit:
     taosMemoryFree(p->data);
     taosMemoryFree(p);
   }
-  uInfo("create blob row %p", p);
+  uTrace("create blob row %p", p);
   return code;
 }
 int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pItem, uint64_t *seq, int8_t nextRow) {
@@ -3143,16 +3143,13 @@ static FORCE_INLINE int32_t tColDataAppendValueBlob20(void *pArg, SColData *pCol
   pColData->numOfValue++;
 
   if (pColData->nVal) {
-    if (IS_VAR_DATA_TYPE(pColData->type)) {
+    if (IS_STR_DATA_BLOB(pColData->type)) {
       int32_t nOffset = sizeof(int32_t) * pColData->nVal;
       code = tRealloc((uint8_t **)(&pColData->aOffset), nOffset);
       if (code) return code;
       memset(pColData->aOffset, 0, nOffset);
     } else {
-      pColData->nData = tDataTypes[pColData->type].bytes * pColData->nVal;
-      code = tRealloc(&pColData->pData, pColData->nData);
-      if (code) return code;
-      memset(pColData->pData, 0, pColData->nData);
+      return TSDB_CODE_INVALID_MSG;
     }
   }
 
@@ -3198,16 +3195,13 @@ static FORCE_INLINE int32_t tColDataAppendValueBlob30(void *pArg, SColData *pCol
   pColData->pBitMap = pBitMap;
 
   if (pColData->nVal) {
-    if (IS_VAR_DATA_TYPE(pColData->type)) {
+    if (IS_STR_DATA_BLOB(pColData->type)) {
       int32_t nOffset = sizeof(int32_t) * pColData->nVal;
       code = tRealloc((uint8_t **)(&pColData->aOffset), nOffset);
       if (code) return code;
       memset(pColData->aOffset, 0, nOffset);
     } else {
-      pColData->nData = tDataTypes[pColData->type].bytes * pColData->nVal;
-      code = tRealloc(&pColData->pData, pColData->nData);
-      if (code) return code;
-      memset(pColData->pData, 0, pColData->nData);
+      return TSDB_CODE_INVALID_MSG;
     }
   }
 

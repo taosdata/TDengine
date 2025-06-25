@@ -845,6 +845,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
         targetIdx++;
         continue;
       }
+
       isBlob = IS_STR_DATA_BLOB(pColData->info.type);
 
       SColData* pCol = taosArrayGet(pCols, sourceIdx);
@@ -858,6 +859,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
         for (int32_t i = 0; i < pCol->nVal; i++) {
           code = tColDataGetValue(pCol, i, &colVal);
           TSDB_CHECK_CODE(code, line, END);
+
           if (!isBlob) {
             code = doSetVal(pColData, i, &colVal);
           } else {
@@ -886,8 +888,8 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
       for (int32_t j = 0; j < colActual; j++) {
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, j);
         TSDB_CHECK_NULL(pColData, code, line, END, terrno);
-        isBlob = IS_STR_DATA_BLOB(pColData->info.type);
 
+        isBlob = IS_STR_DATA_BLOB(pColData->info.type);
         while (1) {
           SColVal colVal = {0};
           code = tRowGet(pRow, pTSchema, sourceIdx, &colVal);
