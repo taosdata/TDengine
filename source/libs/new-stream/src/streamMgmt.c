@@ -765,6 +765,8 @@ _exit:
   } else {
     ST_TASK_ILOG("task undeploy succeed, tidx:%d", pTask->taskIdx);
   }
+
+  taosHashRelease(gStreamMgmt.taskMap, ppTask);
   
   return code;
 }

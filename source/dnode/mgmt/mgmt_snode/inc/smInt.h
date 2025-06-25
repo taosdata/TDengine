@@ -45,6 +45,8 @@ typedef struct SSnodeInfo {
 SArray *smGetMsgHandles();
 int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
 int32_t smProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
+int32_t smBuildCreateReqFromJson(SJson *pJson, SDCreateSnodeReq *pReq);
+void smUpdateSnodeInfo(SDCreateSnodeReq* pReq);
 
 // smWorker.c
 int32_t smStartWorker(SSnodeMgmt *pMgmt);
