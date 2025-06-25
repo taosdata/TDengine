@@ -70,7 +70,7 @@ int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const 
                         const SRawWriteMetrics *pRawMetrics);
 
 // Dnode metrics functions
-int32_t addDnodeMetrics(const SRawDnodeMetrics *pRawMetrics, int32_t clusterId, int32_t dnodeId, const char *dnodeEp);
+int32_t addDnodeMetrics(const SRawDnodeMetrics *pRawMetrics, int64_t clusterId, int32_t dnodeId, const char *dnodeEp);
 
 // Clean expired metrics based on valid vgroups (similar to vmCleanExpriedSamples)
 int32_t cleanupExpiredMetrics(SHashObj *pValidVgroups);

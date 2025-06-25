@@ -175,14 +175,14 @@ int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t addDnodeMetrics(const SRawDnodeMetrics *pRawMetrics, int32_t clusterId, int32_t dnodeId, const char *dnodeEp) {
+int32_t addDnodeMetrics(const SRawDnodeMetrics *pRawMetrics, int64_t clusterId, int32_t dnodeId, const char *dnodeEp) {
   if (pRawMetrics == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
 
   // Prepare label values
   char clusterIdStr[32], dnodeIdStr[32];
-  snprintf(clusterIdStr, sizeof(clusterIdStr), "%d", clusterId);
+  snprintf(clusterIdStr, sizeof(clusterIdStr), "%" PRId64, clusterId);
   snprintf(dnodeIdStr, sizeof(dnodeIdStr), "%d", dnodeId);
   const char *label_values[] = {DNODE_METRIC, clusterIdStr, dnodeIdStr, dnodeEp ? dnodeEp : ""};
 
