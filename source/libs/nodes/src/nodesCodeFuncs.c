@@ -250,7 +250,7 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowAnodesFullStmt";
     case QUERY_NODE_SHOW_SNODES_STMT:
       return "ShowSnodesStmt";
-    case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
       return "ShowBnodesStmt";
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
       return "ShowArbGroupsStmt";

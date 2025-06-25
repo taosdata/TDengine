@@ -595,13 +595,13 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SDropIndexStmt), &pNode);
       break;
     case QUERY_NODE_CREATE_QNODE_STMT:
-    case QUERY_NODE_CREATE_BNODE_STMT:
+    case QUERY_NODE_CREATE_BACKUP_NODE_STMT:
     case QUERY_NODE_CREATE_SNODE_STMT:
     case QUERY_NODE_CREATE_MNODE_STMT:
       code = makeNode(type, sizeof(SCreateComponentNodeStmt), &pNode);
       break;
     case QUERY_NODE_DROP_QNODE_STMT:
-    case QUERY_NODE_DROP_BNODE_STMT:
+    case QUERY_NODE_DROP_BACKUP_NODE_STMT:
     case QUERY_NODE_DROP_SNODE_STMT:
     case QUERY_NODE_DROP_MNODE_STMT:
       code = makeNode(type, sizeof(SDropComponentNodeStmt), &pNode);
@@ -694,7 +694,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
     case QUERY_NODE_SHOW_XNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
-    case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
@@ -1541,8 +1541,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_DROP_INDEX_STMT:    // no pointer field
     case QUERY_NODE_CREATE_QNODE_STMT:  // no pointer field
     case QUERY_NODE_DROP_QNODE_STMT:    // no pointer field
-    case QUERY_NODE_CREATE_BNODE_STMT:  // no pointer field
-    case QUERY_NODE_DROP_BNODE_STMT:    // no pointer field
+    case QUERY_NODE_CREATE_BACKUP_NODE_STMT:  // no pointer field
+    case QUERY_NODE_DROP_BACKUP_NODE_STMT:    // no pointer field
     case QUERY_NODE_CREATE_SNODE_STMT:  // no pointer field
     case QUERY_NODE_DROP_SNODE_STMT:    // no pointer field
     case QUERY_NODE_CREATE_MNODE_STMT:  // no pointer field
@@ -1626,7 +1626,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
-    case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:

@@ -137,9 +137,9 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pShowCols = {"*"}
   },
   {
-    .showType = QUERY_NODE_SHOW_BNODES_STMT,
+    .showType = QUERY_NODE_SHOW_BACKUP_NODES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
-    .pTableName = TSDB_INS_TABLE_BNODES,
+    .pTableName = TSDB_INS_TABLE_BACKUP_NODES,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
@@ -11719,8 +11719,8 @@ static int16_t getCreateComponentNodeMsgType(ENodeType type) {
   switch (type) {
     case QUERY_NODE_CREATE_QNODE_STMT:
       return TDMT_MND_CREATE_QNODE;
-    case QUERY_NODE_CREATE_BNODE_STMT:
-      return TDMT_MND_CREATE_BNODE;
+    case QUERY_NODE_CREATE_BACKUP_NODE_STMT:
+      return TDMT_MND_CREATE_BACKUP_NODE;
     case QUERY_NODE_CREATE_SNODE_STMT:
       return TDMT_MND_CREATE_SNODE;
     case QUERY_NODE_CREATE_MNODE_STMT:
@@ -11743,8 +11743,8 @@ static int16_t getDropComponentNodeMsgType(ENodeType type) {
   switch (type) {
     case QUERY_NODE_DROP_QNODE_STMT:
       return TDMT_MND_DROP_QNODE;
-    case QUERY_NODE_DROP_BNODE_STMT:
-      return TDMT_MND_DROP_BNODE;
+    case QUERY_NODE_DROP_BACKUP_NODE_STMT:
+      return TDMT_MND_DROP_BACKUP_NODE;
     case QUERY_NODE_DROP_SNODE_STMT:
       return TDMT_MND_DROP_SNODE;
     case QUERY_NODE_DROP_MNODE_STMT:
@@ -14997,13 +14997,13 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       code = translateDropIndex(pCxt, (SDropIndexStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_QNODE_STMT:
-    case QUERY_NODE_CREATE_BNODE_STMT:
+    case QUERY_NODE_CREATE_BACKUP_NODE_STMT:
     case QUERY_NODE_CREATE_SNODE_STMT:
     case QUERY_NODE_CREATE_MNODE_STMT:
       code = translateCreateComponentNode(pCxt, (SCreateComponentNodeStmt*)pNode);
       break;
     case QUERY_NODE_DROP_QNODE_STMT:
-    case QUERY_NODE_DROP_BNODE_STMT:
+    case QUERY_NODE_DROP_BACKUP_NODE_STMT:
     case QUERY_NODE_DROP_SNODE_STMT:
     case QUERY_NODE_DROP_MNODE_STMT:
       code = translateDropComponentNode(pCxt, (SDropComponentNodeStmt*)pNode);
@@ -19290,7 +19290,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:
     case QUERY_NODE_SHOW_STREAMS_STMT:
-    case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_XNODES_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
