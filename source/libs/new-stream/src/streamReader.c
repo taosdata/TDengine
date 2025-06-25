@@ -456,7 +456,7 @@ end:
   return code;
 }
 
-int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb) {
+int32_t stReaderTaskUndeployImpl(SStreamReaderTask** ppTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb) {
   int32_t code = 0;
   int32_t lino = 0;
   STREAM_CHECK_NULL_GOTO(ppTask, TSDB_CODE_INVALID_PARA);
@@ -474,16 +474,31 @@ end:
 
   return code;
 }
+
+
+int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, bool force) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SStreamReaderTask *pTask = *ppTask;
+  
+  if (!force && taosWTryForceLockLatch(&pTask->task.entryLock)) {
+    ST_TASK_DLOG("ignore undeploy reader task since working, entryLock:%x", pTask->task.entryLock);
+    return code;
+  }
+
+  return stReaderTaskUndeployImpl(ppTask, &pTask->task.undeployMsg, pTask->task.undeployCb);
+}
 // int32_t stReaderTaskExecute(SStreamReaderTask* pTask, SStreamMsg* pMsg);
 // void qStreamSetGroupId(void* pTableListInfo, SSDataBlock* pBlock) {
 //   pBlock->ino.id.groupId = tableListGetTableGroupId(pTableListInfo, pBlock->info.id.uid);
 // }
 
-void* qStreamGetReaderInfo(int64_t streamId, int64_t taskId) {
+void* qStreamGetReaderInfo(int64_t streamId, int64_t taskId, void** taskAddr) {
   int32_t      code = 0;
   int32_t      lino = 0;
   SStreamTask* pTask = NULL;
-  STREAM_CHECK_RET_GOTO(streamGetTask(streamId, taskId, &pTask));
+  STREAM_CHECK_RET_GOTO(streamAcquireTask(streamId, taskId, &pTask, taskAddr));
+
+  pTask->status = STREAM_STATUS_RUNNING;
 
 end:
   STREAM_PRINT_LOG_END(code, lino);
@@ -496,11 +511,3 @@ end:
   return NULL;
 }
 
-void qStreamSetTaskRunning(int64_t streamId, int64_t taskId) {
-  int32_t      code = 0;
-  int32_t      lino = 0;
-  SStreamTask* pTask = NULL;
-  if (streamGetTask(streamId, taskId, &pTask) == TSDB_CODE_SUCCESS) {
-    ((SStreamReaderTask*)pTask)->task.status = STREAM_STATUS_RUNNING;
-  }
-}

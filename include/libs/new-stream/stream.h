@@ -81,7 +81,6 @@ typedef struct SStreamRunnerTaskExecMgr {
   SList*        pFreeExecs;
   SList*        pRunningExecs;
   TdThreadMutex lock;
-  bool          exit;
 } SStreamRunnerTaskExecMgr;
 
 typedef struct SStreamTagInfo {
@@ -100,8 +99,6 @@ typedef struct SStreamRunnerTask {
   void*                         pSubTableExpr;
   SArray*                       forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
   bool                          topTask;
-  taskUndeplyCallback           undeployCb;
-  void*                         undeployParam;
 } SStreamRunnerTask;
 
 typedef struct SStreamCacheReadInfo {
@@ -230,7 +227,8 @@ int32_t streamHbProcessRspMsg(SMStreamHbRspMsg *pRsp);
 int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs);
 int32_t streamInit(void *pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode, getSynEpset_f getSynEpset);
 void    streamCleanup(void);
-int32_t streamGetTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask);
+int32_t streamAcquireTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask, void** ppAddr);
+void    streamReleaseTask(void* taskAddr);
 int32_t streamGetTriggerTask(int64_t streamId, SStreamTask** ppTask);
 void    streamHandleTaskError(int64_t streamId, int64_t taskId, int32_t errCode);
 int32_t streamTriggerKickCalc();

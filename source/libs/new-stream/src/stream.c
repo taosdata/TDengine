@@ -137,18 +137,51 @@ void streamAddVnodeLeader(int32_t vgId) {
   }
 }
 
-int32_t streamGetTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask) {
+int32_t streamAcquireTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask, void** ppAddr) {
   int64_t key[2] = {streamId, taskId};
 
-  SStreamTask** task = taosHashGet(gStreamMgmt.taskMap, key, sizeof(key));
+  SStreamTask** task = taosHashAcquire(gStreamMgmt.taskMap, key, sizeof(key));
   if (NULL == task) {
-    stError("stream %" PRIx64 " task %" PRIx64 " not exists in taskMap", streamId, taskId);
+    stsError("task %" PRIx64 " not exists in taskMap", taskId);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 
-  *ppTask = *task;
+  SStreamTask* pTask = *task;
+  if (taosRTryLockLatch(&pTask->entryLock)) {
+    ST_TASK_DLOG("task entry lock failed since task dropping, entryLock:%x", pTask->entryLock);
+    taosHashRelease(gStreamMgmt.taskMap, task);
+    return TSDB_CODE_STREAM_TASK_NOT_EXIST;
+  }
+
+  *ppTask = pTask;
+  *ppAddr = (void*)task;
 
   return TSDB_CODE_SUCCESS;
+}
+
+void streamReleaseTask(void* taskAddr) {
+  if (NULL == taskAddr) {
+    return;
+  }
+  
+  SStreamTask* pTask = *(SStreamTask**)taskAddr;
+  SRWLatch lock = taosRUnLockLatch(&pTask->entryLock);
+  if (taosIsOnlyWLocked(&lock)) {
+    switch (pTask->type) {
+      case STREAM_READER_TASK:
+        stReaderTaskUndeploy((SStreamReaderTask**)taskAddr, true);
+        break;
+      case STREAM_TRIGGER_TASK:
+        stTriggerTaskUndeploy((SStreamTriggerTask**)taskAddr, true);
+        break;
+      case STREAM_RUNNER_TASK:
+        stRunnerTaskUndeploy((SStreamRunnerTask**)taskAddr, true);
+        break;
+      default:
+        break;
+    }
+  }
+  taosHashRelease(gStreamMgmt.taskMap, taskAddr);
 }
 
 int32_t streamGetTriggerTask(int64_t streamId, SStreamTask** ppTask) {

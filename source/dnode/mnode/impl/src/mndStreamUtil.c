@@ -1326,6 +1326,7 @@ int32_t mstSetStreamRecalculatesResBlock(SStreamObj* pStream, SSDataBlock* pBloc
     code = blockDataEnsureCapacity(pBlock, *numOfRows + count);
     if (code) {
       mstError("failed to prepare the result block buffer, rows:%d", *numOfRows + count);
+      taosRUnLockLatch(&pStatus->triggerTask->detailStatusLock);
       TAOS_CHECK_EXIT(code);
     }
   }
@@ -1338,6 +1339,8 @@ int32_t mstSetStreamRecalculatesResBlock(SStreamObj* pStream, SSDataBlock* pBloc
       (*numOfRows)++;
     }
   }
+
+  taosRUnLockLatch(&pStatus->triggerTask->detailStatusLock);
   
   pBlock->info.rows = *numOfRows;
 
