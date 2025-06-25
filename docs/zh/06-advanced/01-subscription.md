@@ -114,6 +114,8 @@ TDengine 提供了全面且丰富的数据订阅 API，旨在满足不同编程�
 
 值得一提的是，TDengine 的数据订阅 API 与业界流行的 Kafka 订阅 API 保持了高度的一致性，以便于开发者能够快速上手并利用现有的知识经验。为了方便用户了解和参考，TDengine 的官方文档详细介绍了各种 API 的使用方法和示例代码，具体内容可访问 TDengine 官方网站的连接器部分。通过这些 API，开发者可以高效地实现数据的实时订阅和处理，从而满足各种复杂场景下的数据处理需求。
 
+TDengine v3.3.7.0 版本提供了 MQTT 订阅功能，可以通过 MQTT 客户端直接订阅数据，具体内容请参考 MQTT 数据订阅部分。
+
 ### 回放功能
 
 TDengine 的数据订阅功能支持回放（replay）功能，允许用户按照数据的实际写入时间顺序重新播放数据流。这一功能基于 TDengine 的高效 WAL 机制实现，确保了数据的一致性和可靠性。
@@ -133,3 +135,104 @@ TDengine 的数据订阅功能支持回放（replay）功能，允许用户按�
 - 数据订阅的回放功能仅查询订阅支持数据回放，超级表和库订阅不支持回放。
 - 回放不支持进度保存。
 - 因为数据回放本身需要处理时间，所以回放的精度存在几十毫秒的误差。
+
+## MQTT 数据订阅
+
+TDengine v3.3.7.0 版本开始提供 MQTT 订阅功能，通过 MQTT 客户端连接 TDengine Bnode 服务，可直接订阅系统中已有主题的数据；目前仅支持查询类型的主题。
+
+### Bnode 节点管理
+
+用户可通过 TDengine 的命令行工具 taos 进行 Bnode 的管理。执行下述命令都需要确保命令行工具 taos 工作正常。 
+
+#### 创建 Bnode
+
+```sql
+CREATE BNODE ON DNODE {dnode_id}
+```
+
+一个 dnode 上只能创建一个 bnode。bnode 创建成功后，会自动启动 bnode 子进程 `taosmqtt`，默认在 6083 端口对外提供 MQTT 订阅服务，端口可在文件 taos.cfg 中通过参数 `mqttPort` 配置。例如：`create bnode on dnode 1`。
+
+#### 查看 Bnode
+
+列出集群中所有的数据订阅节点，包括其 `id`, `endpoint`, `create_time`等属性。
+
+```sql
+SHOW BNODES;
+
+taos> show bnodes;
+     id    |   endpoint       |    protocol    |       create_time    | 
+======================================================================
+     1     | 192.168.0.1:6083 | mqtt        | 2024-11-28 18:44:27.089 | 
+Query OK, 1 row(s) in set (0.037205s)
+```
+
+#### 删除 Bnode
+
+```sql
+DROP BNODE ON DNODE {dnode_id}
+```
+
+删除 bnode 将把 bnode 从 TDengine 集群中移除，同时停止 taosmqtt 服务。
+
+### 订阅数据示例
+
+#### 环境准备
+
+```sql
+create database db vgroups 1;
+create table db.meters (ts timestamp, f1 int) tags(t1 int);
+create topic topic_meters as select ts, tbname, f1, t1 from db.meters;
+insert into db.tb using db.meters tags(1) values(now, 1);
+create bnode on dnode 1;
+```
+
+在命令行工具 taos 中执行上面的 SQL 语句，创建数据库，超级表，主题 `topic_meters` ，bnode 节点, 写入一条数据供下一步订阅使用。
+
+#### 客户端订阅
+
+可以使用兼容 MQTT 协议 v5.0 版本的客户端来订阅前一步环境中的数据，这里使用 Python paho-mqtt 来举例说明：
+
+在操作系统命令行界面中依次执行下面这些命令，便可以订阅到上一步中写入的数据；订阅成功后，如果 `topic_meters` 主题中有新增的写入数据，则会自动通过 MQTT 协议推送到客户端。
+
+```shell
+python3 -m venv .test-env
+source .test-env/bin/activate
+pip3 install paho-mqtt==2.1.0
+python3 ./sub.py
+```
+
+其中 sub.py 文件的内容如下：
+
+```python
+import time
+import paho.mqtt
+import paho.mqtt.properties as p
+import paho.mqtt.packettypes as pt
+import paho.mqtt.client as mqttClient
+
+def on_connect(client, userdata, flags, rc, properties=None):
+    print("CONNACK received with code %s." % rc)
+    sub_properties = p.Properties(pt.PacketTypes.SUBSCRIBE)
+    sub_properties.UserProperty = ('sub-offset', 'earliest')
+    client.subscribe("$share/g1/topic_meters", qos=1, properties=sub_properties)
+
+def on_subscribe(client, userdata, mid, granted_qos, properties=None):
+    print("Subscribed: " + str(mid) + " " + str(granted_qos))
+
+def on_message(client, userdata, msg):
+    print(msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
+
+if paho.mqtt.__version__[0] > '1':
+    client = mqttClient.Client(mqttClient.CallbackAPIVersion.VERSION2, client_id="tmq_sub_cid", userdata=None, protocol=mqttClient.MQTTv5)
+else:
+    client = mqttClient.Client(client_id="tmq_sub_cid", userdata=None, protocol=mqttClient.MQTTv5)
+
+client.on_connect = on_connect
+client.username_pw_set("root", "taosdata")
+client.connect("127.0.1.1", 6083)
+
+client.on_subscribe = on_subscribe
+client.on_message = on_message
+
+client.loop_forever()
+```
