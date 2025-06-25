@@ -23,10 +23,9 @@ TDengine 使用 SQL 创建的主题共有 3 种类型，下面分别介绍。
 订阅一条 SQL 查询的结果，本质上是连续查询，每次查询仅返回最新值，创建语法如下：
 
 ```sql
-
 CREATE TOPIC [IF NOT EXISTS] topic_name as subquery
-
 ```
+
 该 SQL 通过 SELECT 语句订阅（包括 SELECT *，或 SELECT ts, c1 等指定查询订阅，可以带条件过滤、标量函数计算，但不支持聚合函数、不支持时间窗口聚合）。需要注意的是：
 
 1. 该类型 TOPIC 一旦创建则订阅数据的结构确定。
@@ -37,9 +36,7 @@ CREATE TOPIC [IF NOT EXISTS] topic_name as subquery
 假设需要订阅所有智能电表中电压值大于 200 的数据，且仅仅返回时间戳、电流、电压 3 个采集量（不返回相位），那么可以通过下面的 SQL 创建 power_topic 这个主题。
 
 ```sql
-
 CREATE TOPIC power_topic AS SELECT ts, current, voltage FROM power.meters WHERE voltage > 200;
-
 ```
 
 ### 超级表主题
@@ -47,9 +44,7 @@ CREATE TOPIC power_topic AS SELECT ts, current, voltage FROM power.meters WHERE 
 订阅一个超级表中的所有数据，语法如下：
 
 ```sql
-
 CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS STABLE stb_name [where_condition]
-
 ```
 
 与使用 `SELECT * from stbName` 订阅的区别是：
@@ -65,9 +60,7 @@ CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS STABLE stb_name [where_co
 订阅一个数据库里所有数据，其语法如下：
 
 ```sql
-
 CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS DATABASE db_name;
-
 ```
 
 通过该语句可创建一个包含数据库所有表数据的订阅：
@@ -80,17 +73,13 @@ CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS DATABASE db_name;
 如果不再需要订阅数据，可以删除 topic，如果当前 topic 被消费者订阅，通过 FORCE 语法可强制删除，强制删除后订阅的消费者会消费数据会出错（FORCE 语法从 v3.3.6.0 开始支持）。
 
 ```sql
-
 DROP TOPIC [IF EXISTS] [FORCE] topic_name;
-
 ```
 
 ## 查看主题
 
 ```sql
-
 SHOW TOPICS;
-
 ```
 
 上面的 SQL 会显示当前数据库下的所有主题的信息。
@@ -104,9 +93,7 @@ SHOW TOPICS;
 ### 查看消费者
 
 ```sql
-
 SHOW CONSUMERS;
-
 ```
 
 显示当前数据库下所有消费者的信息，会显示消费者的状态，创建时间等信息。
@@ -116,9 +103,7 @@ SHOW CONSUMERS;
 消费者创建的时候，会给消费者指定一个消费者组，消费者不能显式的删除，但是可以删除消费者组。如果当前消费者组里有消费者在消费，通过 FORCE 语法可强制删除，强制删除后订阅的消费者会消费数据会出错（FORCE 语法从 v3.3.6.0 开始支持）。
 
 ```sql
-
 DROP CONSUMER GROUP [IF EXISTS] [FORCE] cgroup_name ON topic_name;
-
 ```
 
 ## 数据订阅
@@ -171,9 +156,7 @@ TDengine v3.3.7.0 版本开始提供 MQTT 订阅功能，通过 MQTT 客户端�
 #### 创建 Bnode
 
 ```sql
-
 CREATE BNODE ON DNODE {dnode_id}
-
 ```
 
 一个 dnode 上只能创建一个 bnode。bnode 创建成功后，会自动启动 bnode 子进程 `taosmqtt`，默认在 6083 端口对外提供 MQTT 订阅服务，端口可在文件 taos.cfg 中通过参数 `mqttPort` 配置。例如：`create bnode on dnode 1`。
@@ -183,7 +166,6 @@ CREATE BNODE ON DNODE {dnode_id}
 列出集群中所有的数据订阅节点，包括其 `id`, `endpoint`, `create_time`等属性。
 
 ```sql
-
 SHOW BNODES;
 
 taos> show bnodes;
@@ -191,15 +173,12 @@ taos> show bnodes;
 ======================================================================
      1     | 192.168.0.1:6083 | mqtt        | 2024-11-28 18:44:27.089 | 
 Query OK, 1 row(s) in set (0.037205s)
-
 ```
 
 #### 删除 Bnode
 
 ```sql
-
 DROP BNODE ON DNODE {dnode_id}
-
 ```
 
 删除 bnode 将把 bnode 从 TDengine 集群中移除，同时停止 taosmqtt 服务。
@@ -209,13 +188,11 @@ DROP BNODE ON DNODE {dnode_id}
 #### 环境准备
 
 ```sql
-
 create database db vgroups 1;
 create table db.meters (ts timestamp, f1 int) tags(t1 int);
 create topic topic_meters as select ts, tbname, f1, t1 from db.meters;
 insert into db.tb using db.meters tags(1) values(now, 1);
 create bnode on dnode 1;
-
 ```
 
 在命令行工具 taos 中执行上面的 SQL 语句，创建数据库，超级表，主题 `topic_meters` ，bnode 节点，写入一条数据供下一步订阅使用。
@@ -227,18 +204,15 @@ create bnode on dnode 1;
 在操作系统命令行界面中依次执行下面这些命令，便可以订阅到上一步中写入的数据；订阅成功后，如果 `topic_meters` 主题中有新增的写入数据，则会自动通过 MQTT 协议推送到客户端。
 
 ```shell
-
 python3 -m venv .test-env
 source .test-env/bin/activate
 pip3 install paho-mqtt==2.1.0
 python3 ./sub.py
-
 ```
 
 其中 sub.py 文件的内容如下：
 
 ```python
-
 import time
 import paho.mqtt
 import paho.mqtt.properties as p
@@ -270,5 +244,4 @@ client.on_subscribe = on_subscribe
 client.on_message = on_message
 
 client.loop_forever()
-
 ```
