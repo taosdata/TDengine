@@ -413,7 +413,7 @@ fn fmt_span_from_str(s: &str) -> Result<FmtSpan, String> {
 #[cfg(windows)]
 fn get_default_config_path() -> PathBuf {
     std::path::Path::new("C:\\")
-        .join(build::CUS_NAME)
+        .join(build::CANONICAL_CUS_NAME)
         .join("cfg")
         .join(format!("{}x.toml", build::CUS_PROMPT))
 }
@@ -795,7 +795,7 @@ fn get_env_log_dir() -> String {
     }
 
     if cfg!(windows) {
-        format!("C:\\{}\\log", build::CUS_NAME)
+        format!("C:\\{}\\log", build::CANONICAL_CUS_NAME)
     } else {
         format!("/var/log/{}", build::CUS_PROMPT)
     }
@@ -807,7 +807,11 @@ fn get_env_data_dir() -> String {
     }
 
     if cfg!(windows) {
-        format!("C:\\{}\\data\\{}x", build::CUS_NAME, build::CUS_PROMPT)
+        format!(
+            "C:\\{}\\data\\{}x",
+            build::CANONICAL_CUS_NAME,
+            build::CUS_PROMPT
+        )
     } else {
         format!("/var/lib/{0}/{0}x", build::CUS_PROMPT)
     }
@@ -822,7 +826,7 @@ fn get_env_plugin_dir() -> String {
     }
 
     if cfg!(windows) {
-        format!("C:\\{}\\plugins", build::CUS_NAME)
+        format!("C:\\{}\\plugins", build::CANONICAL_CUS_NAME)
     } else {
         format!("/usr/local/{}/plugins", build::CUS_PROMPT)
     }

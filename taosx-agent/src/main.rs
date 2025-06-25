@@ -335,7 +335,7 @@ fn get_effective_config_path(args: &ArgsParser) -> PathBuf {
 #[cfg(windows)]
 fn get_default_config_path() -> PathBuf {
     std::path::Path::new("C:\\")
-        .join(build::CUS_NAME)
+        .join(build::CANONICAL_CUS_NAME)
         .join("cfg")
         .join("agent.toml")
 }
@@ -356,7 +356,7 @@ fn get_env_log_dir() -> String {
     }
 
     if cfg!(windows) {
-        format!("C:\\{}\\log", build::CUS_NAME)
+        format!("C:\\{}\\log", build::CANONICAL_CUS_NAME)
     } else {
         format!("/var/log/{}", build::CUS_PROMPT)
     }
@@ -368,7 +368,11 @@ fn get_env_data_dir() -> String {
     }
 
     if cfg!(windows) {
-        format!("C:\\{}\\data\\{}xagent", build::CUS_NAME, build::CUS_PROMPT)
+        format!(
+            "C:\\{}\\data\\{}xagent",
+            build::CANONICAL_CUS_NAME,
+            build::CUS_PROMPT
+        )
     } else {
         format!("/var/lib/{0}/{0}xagent", build::CUS_PROMPT)
     }
@@ -383,7 +387,7 @@ fn get_env_plugin_dir() -> String {
     }
 
     if cfg!(windows) {
-        format!("C:\\{}\\plugins", build::CUS_NAME)
+        format!("C:\\{}\\plugins", build::CANONICAL_CUS_NAME)
     } else {
         format!("/usr/local/{}/plugins", build::CUS_PROMPT)
     }
