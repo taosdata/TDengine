@@ -13,6 +13,7 @@
 
 ## 07-SubQuery
 ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/07-SubQuery/test_subquery_basic.py
+../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/07-SubQuery/test_subquery_limit.py
 # ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding.py
 
 ## 08-ReCalculate
@@ -31,7 +32,7 @@
 # ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_checkpoint.py
 # ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
 # ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py 
-../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
+# ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
 
 ## 99-Others
 

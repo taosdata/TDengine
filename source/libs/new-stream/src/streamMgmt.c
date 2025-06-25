@@ -185,9 +185,9 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
         if (epSet != NULL){
           stDebug("[checkpoint] trigger task deploy, sync checkpoint streamId:%" PRIx64 ", leaderSnodeId:%d", streamId, leaderSid);
           code = streamSyncWriteCheckpoint(streamId, epSet, NULL, 0);
-          if (code == 0) {
-            code = streamCheckpointSetNotReady(streamId);
-          }
+          pStream->triggerTask->isCheckpointReady = false;
+        } else {
+          pStream->triggerTask->isCheckpointReady = true;
         }
         if (code == 0){
           code = stTriggerTaskDeploy(pStream->triggerTask, &pDeploy->triggerTask->msg.trigger);
@@ -765,6 +765,8 @@ _exit:
   } else {
     ST_TASK_ILOG("task undeploy succeed, tidx:%d", pTask->taskIdx);
   }
+
+  taosHashRelease(gStreamMgmt.taskMap, ppTask);
   
   return code;
 }

@@ -2726,7 +2726,7 @@ void cliRetryUpdateRule(SReqCtx* pCtx, int8_t noDelay) {
 
     int64_t factor = pow(pCtx->retryStepFactor, pCtx->retryStep - 1);
     pCtx->retryNextInterval = factor * pCtx->retryMinInterval;
-    if (pCtx->retryNextInterval >= pCtx->retryMaxInterval) {
+    if (pCtx->retryNextInterval < 0 || pCtx->retryNextInterval >= pCtx->retryMaxInterval) {
       pCtx->retryNextInterval = pCtx->retryMaxInterval;
     }
   } else {

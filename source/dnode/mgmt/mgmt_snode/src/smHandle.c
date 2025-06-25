@@ -33,13 +33,21 @@ static int32_t epToJson(const void* pObj, SJson* pJson) {
   return code;
 }
 
+static int32_t jsonToEp(const SJson* pJson, void* pObj) {
+  SEp* pNode = (SEp*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, "fqdn", pNode->fqdn);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetSmallIntValue(pJson, "port", &pNode->port);
+  }
+
+  return code;
+}
+
+
 void smUpdateSnodeInfo(SDCreateSnodeReq* pReq) {
   taosWLockLatch(&gSnode.snodeLock);
   gSnode.snodeId = pReq->snodeId;
-  if (pReq->replica.nodeId != gSnode.snodeReplica.nodeId) {
-    int32_t ret = streamSyncAllCheckpoints(&pReq->replica.epSet);
-    dInfo("[checkpoint] sync all checkpoint from snode %d to replicaId:%d, return:%d", pReq->snodeId, pReq->replica.nodeId, ret);
-  }
   gSnode.snodeLeaders[0] = pReq->leaders[0];
   gSnode.snodeLeaders[1] = pReq->leaders[1];  
   gSnode.snodeReplica = pReq->replica;
@@ -56,6 +64,62 @@ SEpSet* dmGetSynEpset(int32_t leaderId) {
     }
   }
   return NULL;
+}
+
+int32_t smBuildCreateReqFromJson(SJson *pJson, SDCreateSnodeReq *pReq) {
+  SJson* pLeader0 = NULL;
+  SJson* pLeader1 = NULL;
+  SJson* pReplica = NULL;
+  int32_t code = tjsonGetIntValue(pJson, "snodeId", &pReq->snodeId);
+  if (TSDB_CODE_SUCCESS == code) {
+    pLeader0 = tjsonGetObjectItem(pJson, "leader0");
+    if (pLeader0) {
+      code = tjsonGetIntValue(pLeader0, "nodeId", &pReq->leaders[0].nodeId);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonGetTinyIntValue(pLeader0, "inUse", &pReq->leaders[0].epSet.inUse);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonGetTinyIntValue(pLeader0, "numOfEps", &pReq->leaders[0].epSet.numOfEps);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonToArray(pLeader0, "eps", jsonToEp, pReq->leaders[0].epSet.eps, sizeof(SEp));
+      }
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pLeader1 = tjsonGetObjectItem(pJson, "leader1");
+    if (pLeader1) {
+      code = tjsonGetIntValue((pLeader1), "nodeId", &pReq->leaders[1].nodeId);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonGetTinyIntValue((pLeader1), "inUse", &pReq->leaders[1].epSet.inUse);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonGetTinyIntValue((pLeader1), "numOfEps", &pReq->leaders[1].epSet.numOfEps);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonToArray(pLeader1, "eps", jsonToEp, pReq->leaders[1].epSet.eps, sizeof(SEp));
+      }
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pReplica = tjsonGetObjectItem(pJson, "replica");
+    if (pReplica) {
+      code = tjsonGetIntValue((pReplica), "nodeId", &pReq->replica.nodeId);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonGetTinyIntValue((pReplica), "inUse", &pReq->replica.epSet.inUse);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonGetTinyIntValue((pReplica), "numOfEps", &pReq->replica.epSet.numOfEps);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonToArray(pReplica, "eps", jsonToEp, pReq->replica.epSet.eps, sizeof(SEp));
+      }
+    }
+  }
+
+  return code;
 }
 
 int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
@@ -121,6 +185,10 @@ int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     goto _exit;
   }
 
+  if (createReq.replica.nodeId != gSnode.snodeReplica.nodeId && createReq.replica.nodeId != 0) {
+    int32_t ret = streamSyncAllCheckpoints(&createReq.replica.epSet);
+    dInfo("[checkpoint] sync all checkpoint from snode %d to replicaId:%d, return:%d", createReq.snodeId, createReq.replica.nodeId, ret);
+  }
   smUpdateSnodeInfo(&createReq);
 
   dInfo("snode %d created, replicaId:%d", createReq.snodeId, createReq.replica.nodeId);

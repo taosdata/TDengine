@@ -213,6 +213,7 @@ void        dmGetMonitorSystemInfo(SMonSysInfo *pInfo);
 
 // dmFile.c
 int32_t dmReadFile(const char *path, const char *name, bool *pDeployed);
+int32_t dmReadFileJson(const char *path, const char *name, SJson **ppJson, bool* deployed);
 int32_t dmWriteFile(const char *path, const char *name, bool deployed);
 int32_t dmWriteFileJson(const char *path, const char *name, SJson *pJson);
 int32_t dmCheckRunning(const char *dataDir, TdFilePtr *pFile);

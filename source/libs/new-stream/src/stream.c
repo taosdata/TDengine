@@ -151,6 +151,24 @@ int32_t streamGetTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t streamGetTriggerTask(int64_t streamId, SStreamTask** ppTask) {
+  int32_t gid = STREAM_GID(streamId);
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SHashObj* pGrp = gStreamMgmt.stmGrp[gid];
+
+  SStreamInfo* pStream = taosHashGet(pGrp, &streamId, sizeof(streamId));
+  if (NULL == pStream) {
+    stError("stream %" PRIx64 " not exists", streamId);
+    return TSDB_CODE_MND_STREAM_NOT_EXIST;
+  }
+
+  *ppTask = (SStreamTask*)pStream->triggerTask;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 void streamHandleTaskError(int64_t streamId, int64_t taskId, int32_t errCode) {
   int64_t key[2] = {streamId, taskId};
 

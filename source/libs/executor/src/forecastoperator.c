@@ -19,11 +19,13 @@
 #include "operator.h"
 #include "querytask.h"
 #include "tanalytics.h"
+#include "taoserror.h"
 #include "tcommon.h"
-#include "tcompare.h"
+// #include "tcompare.h"
 #include "tdatablock.h"
-#include "tfill.h"
-#include "ttime.h"
+// #include "tfill.h"
+#include "tmsg.h"
+// #include "ttime.h"
 
 #ifdef USE_ANALYTICS
 
@@ -485,48 +487,61 @@ static int32_t forecastParseOutput(SForecastSupp* pSupp, SExprSupp* pExprSup) {
 
 static int32_t validInputParams(SFunctionNode* pFunc, const char* id) {
   int32_t code = 0;
-  int32_t lino = 0;
   int32_t num = LIST_LENGTH(pFunc->pParameterList);
 
-  TSDB_CHECK_CONDITION(num > 1, code, lino, _end, TSDB_CODE_PLAN_INTERNAL_ERROR);
+  if (num <= 1) {
+    qError("%s invalid number of parameters:%d", id, num);
+    code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+    goto _end;
+  }
 
   for (int32_t i = 0; i < num; ++i) {
     SNode* p = nodesListGetNode(pFunc->pParameterList, i);
-    TSDB_CHECK_NULL(p, code, lino, _end, TSDB_CODE_PLAN_INTERNAL_ERROR)
+    if (p == NULL) {
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      qError("%s %d-th parameter in forecast function is NULL, code:%s", id, i, tstrerror(code));
+      goto _end;
+    }
   }
 
   if (num == 2) {  // column_name, timestamp_column_name
     SNode* p1 = nodesListGetNode(pFunc->pParameterList, 0);
     SNode* p2 = nodesListGetNode(pFunc->pParameterList, 1);
 
-    TSDB_CHECK_CONDITION(p1->type == QUERY_NODE_COLUMN, code, lino, _end, TSDB_CODE_PLAN_INTERNAL_ERROR);
-    TSDB_CHECK_CONDITION(p2->type == QUERY_NODE_COLUMN, code, lino, _end, TSDB_CODE_PLAN_INTERNAL_ERROR);
-  } else if (num >= 3) {  // column_name_#1, column_name_#2...., analytics_options, timestamp_column_name
-    for (int32_t i = 0; i < num - 2; ++i) {
-      SNode* p1 = nodesListGetNode(pFunc->pParameterList, i);
-      if (p1->type != QUERY_NODE_COLUMN) {
-        code = TSDB_CODE_PLAN_INTERNAL_ERROR;
-        goto _end;
-      }
+    if (nodeType(p1) != QUERY_NODE_COLUMN || nodeType(p2) != QUERY_NODE_COLUMN) {
+      qError("%s invalid column type, column 1:%d, column 2:%d", id, nodeType(p1), nodeType(p2));
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      goto _end;
+    }
+  } else if (num >= 3) {
+    // column_name_#1, column_name_#2...., analytics_options, timestamp_column_name, primary_key_column if exists
+    // column_name_#1, timestamp_column_name, primary_key_column if exists
+    // column_name_#1, analytics_options, timestamp_column_name
+    SNode* pTarget = nodesListGetNode(pFunc->pParameterList, 0);
+    if (nodeType(pTarget) != QUERY_NODE_COLUMN) {
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      qError("%s first parameter is not valid column in forecast function", id);
+      goto _end;
     }
 
-    SNode* p2 = nodesListGetNode(pFunc->pParameterList, num - 2);
-    SNode* p3 = nodesListGetNode(pFunc->pParameterList, num - 1);
-
-    TSDB_CHECK_CONDITION(p2->type == QUERY_NODE_VALUE, code, lino, _end, TSDB_CODE_PLAN_INTERNAL_ERROR);
-    TSDB_CHECK_CONDITION(p3->type == QUERY_NODE_COLUMN, code, lino, _end, TSDB_CODE_PLAN_INTERNAL_ERROR);
+    SNode* pNode = nodesListGetNode(pFunc->pParameterList, num - 1);
+    if (nodeType(pNode) != QUERY_NODE_COLUMN) {
+      qError("%s last parameter is not valid column, actual:%d", id, nodeType(pNode));
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
   }
 
 _end:
   if (code) {
-    qError("%s valid the parameters failed, line:%d, code:%s", id, lino, tstrerror(code));
+    qError("%s valid the parameters failed, code:%s", id, tstrerror(code));
   }
   return code;
 }
 
 static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs, const char* id) {
   int32_t code = 0;
-  SNode* pNode = NULL;
+  SNode*  pNode = NULL;
+  
   pSupp->inputTsSlot = -1;
   pSupp->targetValSlot = -1;
   pSupp->targetValType = -1;
@@ -547,57 +562,80 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs, const
 
         if (numOfParam == 2) {
           // column, ts
-          SColumnNode* pValNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+          SColumnNode* pTarget = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
           SColumnNode* pTsNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 1);
 
           pSupp->inputTsSlot = pTsNode->slotId;
           pSupp->inputPrecision = pTsNode->node.resType.precision;
-          pSupp->targetValSlot = pValNode->slotId;
-          pSupp->targetValType = pValNode->node.resType.type;
+          pSupp->targetValSlot = pTarget->slotId;
+          pSupp->targetValType = pTarget->node.resType.type;
 
           // let's add the holtwinters as the default forecast algorithm
           tstrncpy(pSupp->algoOpt, "algo=holtwinters", TSDB_ANALYTIC_ALGO_OPTION_LEN);
-        } else if (numOfParam == 3) {
-          // column, options, ts
-          SColumnNode* pValNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
-          SValueNode*  pOptNode = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
-          SColumnNode* pTsNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 2);
-
-          pSupp->inputTsSlot = pTsNode->slotId;
-          pSupp->inputPrecision = pTsNode->node.resType.precision;
-          pSupp->targetValSlot = pValNode->slotId;
-          pSupp->targetValType = pValNode->node.resType.type;
-          tstrncpy(pSupp->algoOpt, pOptNode->literal, sizeof(pSupp->algoOpt));
         } else {
-          SColumnNode* pValNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
-          SValueNode*  pOptNode = (SValueNode*)nodesListGetNode(pFunc->pParameterList, numOfParam - 2);
-          SColumnNode* pTsNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, numOfParam - 1);
+          SColumnNode* pTarget = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+          bool         assignTs = false;
+          bool         assignOpt = false;
 
-          pSupp->inputTsSlot = pTsNode->slotId;
-          pSupp->inputPrecision = pTsNode->node.resType.precision;
+          pSupp->targetValSlot = pTarget->slotId;
+          pSupp->targetValType = pTarget->node.resType.type;
 
-          pSupp->targetValSlot = pValNode->slotId;
-          pSupp->targetValType = pValNode->node.resType.type;
-          tstrncpy(pSupp->algoOpt, pOptNode->literal, sizeof(pSupp->algoOpt));
+          // set the primary ts column and option info
+          for (int32_t i = 0; i < numOfParam; ++i) {
+            SNode* pNode = nodesListGetNode(pFunc->pParameterList, i);
+            if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+              SColumnNode* pColNode = (SColumnNode*)pNode;
+              if (pColNode->isPrimTs && (!assignTs)) {
+                pSupp->inputTsSlot = pColNode->slotId;
+                pSupp->inputPrecision = pColNode->node.resType.precision;
+                assignTs = true;
+                continue;
+              }
+            } else if (nodeType(pNode) == QUERY_NODE_VALUE) {
+              if (!assignOpt) {
+                SValueNode* pOptNode = (SValueNode*)pNode;
+                tstrncpy(pSupp->algoOpt, pOptNode->literal, sizeof(pSupp->algoOpt));
+                assignOpt = true;
+                continue;
+              }
+            }
+          }
+
+          if (!assignOpt) {
+            // set the default forecast option
+            tstrncpy(pSupp->algoOpt, "algo=holtwinters", TSDB_ANALYTIC_ALGO_OPTION_LEN);
+          }
 
           pSupp->pCovariateSlotList = taosArrayInit(4, sizeof(SColumn));
           pSupp->pDynamicRealList = taosArrayInit(4, sizeof(SColFutureData));
 
-          for(int32_t i = 1; i < numOfParam - 2; ++i) {
+          // the first is the target column
+          for (int32_t i = 1; i < numOfParam; ++i) {
             SColumnNode* p = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, i);
-            SColumn col = {.slotId = p->slotId, .colType = p->colType, .type = p->node.resType.type, .bytes = p->node.resType.bytes};
-            tstrncpy(col.name, p->colName, tListLen(col.name));
+            if ((nodeType(p) != QUERY_NODE_COLUMN) || (nodeType(p) == QUERY_NODE_COLUMN && p->isPrimTs)) {
+              break;
+            }
 
-            taosArrayPush(pSupp->pCovariateSlotList, &col);
+            SColumn col = {.slotId = p->slotId,
+                           .colType = p->colType,
+                           .type = p->node.resType.type,
+                           .bytes = p->node.resType.bytes};
+
+            tstrncpy(col.name, p->colName, tListLen(col.name));
+            void* pRet = taosArrayPush(pSupp->pCovariateSlotList, &col);
+            if (pRet == NULL) {
+              code = terrno;
+              qError("failed to record the covariate slot index, since %s", tstrerror(code));
+            }
           }
 
-          pSupp->numOfInputCols += (numOfParam - 3);
+          pSupp->numOfInputCols += taosArrayGetSize(pSupp->pCovariateSlotList);
         }
       }
     }
   }
 
-  return 0;
+  return code;
 }
 
 static void initForecastOpt(SForecastSupp* pSupp) {
@@ -635,6 +673,12 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
 
   code = taosAnalyGetOpts(pSupp->algoOpt, &pHashMap);
   if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (taosHashGetSize(pHashMap) == 0) {
+    code = TSDB_CODE_INVALID_PARA;
+    qError("%s no valid options for forecast, failed to exec", id);
     return code;
   }
 

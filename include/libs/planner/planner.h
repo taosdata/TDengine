@@ -46,15 +46,8 @@ typedef struct SPlanContext {
   const char* pUser;
   bool        sysInfo;
   int64_t     allocatorId;
-  bool        destHasPrimaryKey;
-  bool        sourceHasPrimaryKey;
   void*       timezone;
   int64_t     recalculateInterval;
-  char        pStbFullName[TSDB_TABLE_FNAME_LEN];
-  char        pWstartName[TSDB_COL_NAME_LEN];
-  char        pWendName[TSDB_COL_NAME_LEN];
-  char        pGroupIdName[TSDB_COL_NAME_LEN];
-  char        pIsWindowFilledName[TSDB_COL_NAME_LEN];
   bool        virtualStableQuery;
   bool        phTbnameQuery;
   bool        streamVtableCalc;

@@ -568,7 +568,8 @@ int32_t vtableAddTagPseudoColumnData(SVirtualTableScanInfo *pInfo, const SExprIn
   }
 
   if (tagBlock->info.rows != 1) {
-    return TSDB_CODE_FAILED;
+    qError("tag block should have only one row, current rows:%" PRId64, tagBlock->info.rows);
+    VTS_ERR_JRET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
   }
 
   backupRows = pBlock->info.rows;
@@ -578,21 +579,26 @@ int32_t vtableAddTagPseudoColumnData(SVirtualTableScanInfo *pInfo, const SExprIn
     int32_t          dstSlotId = pExpr1->base.resSchema.slotId;
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);
+    TSDB_CHECK_NULL(pColInfoData, code, lino, _return, terrno);
     colInfoDataCleanup(pColInfoData, pBlock->info.rows);
 
     SColumnInfoData* pTagInfoData = taosArrayGet(tagBlock->pDataBlock, j);
+    TSDB_CHECK_NULL(pTagInfoData, code, lino, _return, terrno);
+
+    if (colDataIsNull_s(pTagInfoData, 0) || IS_JSON_NULL(pTagInfoData->info.type, colDataGetData(pTagInfoData, 0))) {
+      colDataSetNNULL(pColInfoData, 0, pBlock->info.rows);
+      continue;
+    }
+
     char* data = colDataGetData(pTagInfoData, 0);
 
-    bool isNullVal = (data == NULL) || (pColInfoData->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data));
-    if (isNullVal) {
-      colDataSetNNULL(pColInfoData, 0, pBlock->info.rows);
-    } else if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) {
+    if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) {
       code = colDataSetNItems(pColInfoData, 0, data, pBlock->info.rows, false);
-      QUERY_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, _return);
     } else {  // todo opt for json tag
       for (int32_t i = 0; i < pBlock->info.rows; ++i) {
         code = colDataSetVal(pColInfoData, i, data, false);
-        QUERY_CHECK_CODE(code, lino, _end);
+        QUERY_CHECK_CODE(code, lino, _return);
       }
     }
   }
@@ -600,7 +606,7 @@ int32_t vtableAddTagPseudoColumnData(SVirtualTableScanInfo *pInfo, const SExprIn
   // restore the rows
   pBlock->info.rows = backupRows;
 
-_end:
+_return:
 
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
