@@ -27,7 +27,7 @@ RUN yum makecache fast && yum install -y wget perl-IPC-Cmd libatomic openssl-dev
 # Rust
 ENV RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
 ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"
-ENV RUST_VERSION=1.83.0
+ENV RUST_VERSION=1.87.0
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --verbose --profile minimal --component clippy,rustfmt --default-toolchain $RUST_VERSION
 ENV PATH=/root/.cargo/bin:$PATH
 
@@ -36,7 +36,7 @@ ENV PATH=/root/.cargo/bin:$PATH
 ENV TINI_VERSION=v0.19.0
 RUN . /etc/environment && wget -O /bin/tini https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${TINI_ARCH} && chmod +x /bin/tini
 
-ENV MOLD_VERSION=2.34.1
+ENV MOLD_VERSION=2.40.1
 RUN cat /etc/environment
 RUN . /etc/environment && wget https://github.com/rui314/mold/releases/download/v${MOLD_VERSION}/mold-${MOLD_VERSION}-${MOLD_ARCH}-linux.tar.gz \
   && tar -xvf mold-${MOLD_VERSION}-${MOLD_ARCH}-linux.tar.gz  \
