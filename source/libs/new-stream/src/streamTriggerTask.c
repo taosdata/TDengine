@@ -1601,6 +1601,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
         }
         code = stRealtimeGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true);
         QUERY_CHECK_CODE(code, lino, _end);
+        memcpy(pStateData, newVal, bytes);
       }
     }
   }
@@ -2519,9 +2520,9 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       SStreamTaskAddr *pReader = taosArrayGet(pTask->readerList, pContext->curReaderIdx);
       QUERY_CHECK_NULL(pReader, code, lino, _end, terrno);
       int64_t latestVer = pDataBlock->info.id.groupId;
-      void   *px = tSimpleHashGet(pTask->pRealtimeStartVer, &pReader->nodeId, sizeof(int64_t));
+      void   *px = tSimpleHashGet(pTask->pRealtimeStartVer, &pReader->nodeId, sizeof(int32_t));
       QUERY_CHECK_CONDITION(px == NULL, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-      code = tSimpleHashPut(pTask->pRealtimeStartVer, &pReader->nodeId, sizeof(int64_t), &latestVer, sizeof(int64_t));
+      code = tSimpleHashPut(pTask->pRealtimeStartVer, &pReader->nodeId, sizeof(int32_t), &latestVer, sizeof(int64_t));
       QUERY_CHECK_CODE(code, lino, _end);
       int32_t nrows = blockDataGetNumOfRows(pDataBlock);
       if (nrows > 0) {
@@ -2548,6 +2549,16 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_LAST_TS);
         QUERY_CHECK_CODE(code, lino, _end);
       } else {
+        if (!pTask->fillHistory && !pTask->fillHistoryFirst) {
+          int32_t               iter = 0;
+          SSTriggerWalProgress *pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, NULL, &iter);
+          while (pProgress != NULL) {
+            void *px = tSimpleHashGet(pTask->pRealtimeStartVer, &pProgress->pTaskAddr->nodeId, sizeof(int32_t));
+            QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+            pProgress->lastScanVer = pProgress->latestVer = *(int64_t *)px;
+            pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, pProgress, &iter);
+          }
+        }
         pContext->status = STRIGGER_CONTEXT_IDLE;
         code = stRealtimeContextCheck(pContext);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -2984,7 +2995,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeplo
   pTask->fillHistoryFirst = pMsg->fillHistoryFirst;
   pTask->lowLatencyCalc = pMsg->lowLatencyCalc;
   pTask->hasPartitionBy = pMsg->hasPartitionBy;
-  pTask->isVirtualTable = (pMsg->triggerTblType == TSDB_VIRTUAL_NORMAL_TABLE || pMsg->triggerTblType == TSDB_VIRTUAL_CHILD_TABLE);
+  pTask->isVirtualTable =
+      (pMsg->triggerTblType == TSDB_VIRTUAL_NORMAL_TABLE || pMsg->triggerTblType == TSDB_VIRTUAL_CHILD_TABLE);
   pTask->placeHolderBitmap = pMsg->placeHolderBitmap;
   code = nodesStringToNode(pMsg->triggerPrevFilter, &pTask->triggerFilter);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -3002,7 +3014,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeplo
   pTask->readerList = pMsg->readerList;
   pTask->runnerList = pMsg->runnerList;
 
-  pTask->pRealtimeStartVer = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  pTask->pRealtimeStartVer = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
   QUERY_CHECK_NULL(pTask->pRealtimeStartVer, code, lino, _end, terrno);
   pTask->pHistoryCutoffTime = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   QUERY_CHECK_NULL(pTask->pHistoryCutoffTime, code, lino, _end, terrno);
