@@ -1,46 +1,27 @@
-aux_source_directory(src/mgmt bnode_mgmt_mqtt_SRC)
-aux_source_directory(src TAOSMQTT_SRC)
-aux_source_directory(lib TMQTT_SRC)
+add_subdirectory(mgmt)
 
-# _bnode_mgmt_mqtt
-add_library(_bnode_mgmt_mqtt STATIC ${bnode_mgmt_mqtt_SRC})
-
-target_include_directories(
-    _bnode_mgmt_mqtt
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/tmqtt"
-    "${TD_SOURCE_DIR}/include/util"
-    "${TD_SOURCE_DIR}/include/common"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
-
-target_link_libraries(
-    _bnode_mgmt_mqtt
-    PRIVATE os util common nodes transport
-)
-
-# taosmqtt
 if(TD_LINUX)
+
 find_path(HAVE_SYS_EPOLL_H sys/epoll.h)
 if (HAVE_SYS_EPOLL_H)
 	add_definitions("-DWITH_EPOLL")
 endif()
 
-
-add_executable(taosmqtt ${TAOSMQTT_SRC}
-  lib/ttqNet.c
-  lib/packetDataTypes.c
-  lib/ttqPacket.c
-  lib/ttqSend.c
-  lib/sendPublish.c
-  lib/ttqProperty.c
-  lib/ttqMemory.c
-  lib/ttqMisc.c
-  lib/ttqUtil.c
-  lib/ttqTime.c
-  lib/ttqStrings.c
-  lib/ttqUtf8.c
-  lib/utilTopic.c
+aux_source_directory(mqtt/src MQTT_SRC)
+add_executable(taosmqtt ${MQTT_SRC}
+  ttq/src/ttqNet.c
+  ttq/src/packetDataTypes.c
+  ttq/src/ttqPacket.c
+  ttq/src/ttqSend.c
+  ttq/src/sendPublish.c
+  ttq/src/ttqProperty.c
+  ttq/src/ttqMemory.c
+  ttq/src/ttqMisc.c
+  ttq/src/ttqUtil.c
+  ttq/src/ttqTime.c
+  ttq/src/ttqStrings.c
+  ttq/src/ttqUtf8.c
+  ttq/src/utilTopic.c
 )
 
 DEP_ext_cjson(taosmqtt)
@@ -63,8 +44,8 @@ target_include_directories(
     "${TD_SOURCE_DIR}/include/dnode/bnode"
     PRIVATE "${TD_SOURCE_DIR}/include/libs/tmqtt"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/lib/inc"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/inc"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mqtt/inc"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/ttq/inc"
 )
 
 target_link_libraries(
@@ -73,21 +54,8 @@ target_link_libraries(
 )
 
 # topic tool
-aux_source_directory(tools TOPICTOOL_SRC)
+add_subdirectory(tools)
 
-add_executable(topic-test-tool ${TOPICTOOL_SRC})
-
-target_link_libraries(
-    topic-test-tool
-    PRIVATE pthread util common ${TAOS_NATIVE_LIB_STATIC}
-)
-
-target_include_directories(
-    topic-test-tool
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
-
-SET_TARGET_PROPERTIES(topic-test-tool PROPERTIES OUTPUT_NAME topic-producer)
 endif()
 
 # test

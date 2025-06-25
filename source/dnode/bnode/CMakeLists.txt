@@ -11,5 +11,5 @@ target_link_libraries(
     PRIVATE os
     PRIVATE common
     PRIVATE util
-    PRIVATE _bnode_mgmt_mqtt
+    PRIVATE tmqtt_mgmt
 )
