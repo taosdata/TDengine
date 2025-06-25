@@ -1611,7 +1611,11 @@ int32_t cliBuildSockByIpType(SIpAddr* ipAddr, struct sockaddr* addr) {
     struct sockaddr_in6* addr6 = (struct sockaddr_in6*)addr;
     addr6->sin6_family = AF_INET6;
     addr6->sin6_port = htons(ipAddr->port);
-    inet_pton(AF_INET6, ipAddr->ipv6, &addr6->sin6_addr);
+    int32_t ret = inet_pton(AF_INET6, ipAddr->ipv6, &addr6->sin6_addr);
+    if (ret <= 0) {
+      tError("failed to convert ipv6 %s to binary since %s", ipAddr->ipv6, strerror(errno));
+      return TSDB_CODE_INVALID_PARA;
+    }
   }
   return 0;
 }
@@ -2125,6 +2129,8 @@ static void cliAsyncCb(uv_async_t* handle) {
 
   // batch process to avoid to lock/unlock frequently
   queue wq;
+  QUEUE_INIT(&wq);
+
   if (taosThreadMutexLock(&item->mtx) != 0) {
     tError("failed to lock mutex since %s", tstrerror(terrno));
   }
@@ -2537,7 +2543,7 @@ static FORCE_INLINE void cliPerfLog_schedMsg(SCliReq* pReq, char* label) {
     return;
   }
 
-  tGDebug("%s retry on next node,use:%s, step:%d,timeout:%" PRId64, label, tbuf, pCtx->retryStep,
+  tGTrace("%s retry on next node,use:%s, step:%d,timeout:%" PRId64, label, tbuf, pCtx->retryStep,
           pCtx->retryNextInterval);
   return;
 }
@@ -2708,7 +2714,11 @@ void cliRetryMayInitCtx(STrans* pInst, SCliReq* pReq) {
 
 int32_t cliRetryIsTimeout(STrans* pInst, SCliReq* pReq) {
   SReqCtx* pCtx = pReq->ctx;
-  if (pCtx->retryMaxTimeout != -1 && taosGetTimestampMs() - pCtx->retryInitTimestamp >= pCtx->retryMaxTimeout) {
+  int64_t  now = taosGetTimestampMs();
+  tDebug("cliRetryIsTimeout, retryInit:%d, retryMaxTimeout:%" PRId64 ", retryInitTimestamp:%" PRId64, pCtx->retryInit,
+         pCtx->retryMaxTimeout, pCtx->retryInitTimestamp);
+  if (pCtx->retryMaxTimeout != -1 && ((now - pCtx->retryInitTimestamp) >= pCtx->retryMaxTimeout)) {
+    tDebug("msg already timeout, not retry");
     return 1;
   }
   return 0;
@@ -2786,11 +2796,16 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
     tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
     noDelay = cliResetEpset(pCtx, pResp, true);
     transFreeMsg(pResp->pCont);
+  } else if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY || code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE) {
+    noDelay = 0;
+    tTrace("do retry on next node since %s", tstrerror(code));
+    transFreeMsg(pResp->pCont);
   } else {
     tTrace("code str %s, contlen:%d 0", tstrerror(code), pResp->contLen);
     noDelay = cliResetEpset(pCtx, pResp, false);
     transFreeMsg(pResp->pCont);
   }
+
   pResp->pCont = NULL;
   pResp->info.hasEpSet = 0;
   if (code != TSDB_CODE_RPC_BROKEN_LINK && code != TSDB_CODE_RPC_NETWORK_UNAVAIL && code != TSDB_CODE_SUCCESS) {
