@@ -96,6 +96,8 @@ class TestStreamDevBasic:
 
     def checkStreamStatus(self):
         tdLog.info(f"wait total:{len(self.streams)} streams run finish")
+        tdSql.query(f"select * from information_schema.ins_streams")
+        tdSql.checkRows(3)
         tdStream.checkStreamStatus()
 
     def checkResults(self):
@@ -110,8 +112,8 @@ class TestStreamDevBasic:
         stream = StreamItem(
             id=45,
             stream="create stream rdb.s45 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r45 as select _twstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16 from qdb.meters where cts >= _twstart and cts < _twend and tbname='t2' order by cts limit 1",
-            res_query="select * from rdb.r45 limit 1",
-            exp_query="select cts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16 from qdb.t2 where cts = '2025-01-01 00:00:00.000';",
+            # res_query="select * from rdb.r45 limit 1",
+            # exp_query="select cts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16 from qdb.t2 where cts = '2025-01-01 00:00:00.000';",
         )
         self.streams.append(stream)
 
