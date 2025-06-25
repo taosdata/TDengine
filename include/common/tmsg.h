@@ -4828,6 +4828,7 @@ int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 #define SUBMIT_REQ_COLUMN_DATA_FORMAT 0x2
 #define SUBMIT_REQ_FROM_FILE          0x4
 #define TD_REQ_FROM_TAOX              0x8
+#define TD_REQ_FROM_SML               0x10
 #define SUBMIT_REQUEST_VERSION        (1)
 
 #define TD_REQ_FROM_TAOX_OLD 0x1  // for compatibility
