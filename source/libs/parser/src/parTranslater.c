@@ -6870,7 +6870,7 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
     return TSDB_CODE_SUCCESS;
   }
 
-  if (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_INITIALIZER)) {
+  if (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_INITIALIZER) && !pCxt->createStreamCalc) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
   }
 
@@ -6897,7 +6897,7 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
   } else {
     intervalRange = pInterval->datum.i;
   }
-  if ((timeRange / intervalRange) >= MAX_INTERVAL_TIME_WINDOW) {
+  if ((timeRange / intervalRange) >= MAX_INTERVAL_TIME_WINDOW && !pCxt->createStreamCalc) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
   }
 
