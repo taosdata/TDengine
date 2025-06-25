@@ -4529,9 +4529,8 @@ static int32_t dnodeToVgroupsInfo(SArray* pDnodes, SVgroupsInfo** pVgsInfo) {
 
 static bool sysTableFromVnode(const char* pTable) {
   return ((0 == strcmp(pTable, TSDB_INS_TABLE_TABLES)) || (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)) ||
-          (0 == strcmp(pTable, TSDB_INS_TABLE_COLS)) || (0 == strcmp(pTable, TSDB_INS_TABLE_VC_COLS)) ||
-          (0 == strcmp(pTable, TSDB_INS_DISK_USAGE)) || (0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)) ||
-          (0 == strcmp(pTable, TSDB_INS_TABLE_STREAMS)));
+          (0 == strcmp(pTable, TSDB_INS_TABLE_COLS)) || 0 == strcmp(pTable, TSDB_INS_TABLE_VC_COLS) ||
+          0 == strcmp(pTable, TSDB_INS_DISK_USAGE) || (0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)));
 }
 
 static bool sysTableFromDnode(const char* pTable) { return 0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES); }
