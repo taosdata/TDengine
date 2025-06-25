@@ -1,0 +1,114 @@
+settings:
+  - name: taosd
+    fqdn: [node230]
+    spec:
+      version: 3.1.1.45  # Default latest version
+      config: # common config for all dnodes
+        firstEP: node230:6030
+      dnodes:
+        - endpoint: node230:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            supportVnodes: 128
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            qDebugFlag: 131
+            asyncLog: 0
+            numOfLogLines: 2000000000
+
+  - name: taosBenchmark
+    fqdn: [node230]
+    spec:
+      version: 3.1.1.45
+      taos_version: 3.1.1.45
+      config_dir: /root/jayden/config/dnode1
+      taos_config:
+        firstEP: node230:6030
+        logDir: /root/jayden/log/taos/dnode1
+        debugFlag: 131
+
+  - name: taospy
+    fqdn: [node230]
+    spec:
+      version: 3.1.1.45
+      client_version: 3.1.1.45
+      config:
+        firstEP: node230:6030
+        dataDir: /root/jayden/lib/taos/dnode1
+        logDir: /root/jayden/log/taos/dnode1
+        debugFlag: 131
+        asynclog: 0
+
+  - name: jmeter
+    fqdn: [node230]
+    spec:
+      server:
+        version: "5.6.3"
+        offline: false
+        local_package_path: "/tmp"
+        install_java: false
+        run_dir: /opt
+
+        # JMX template and SQL file configuration
+        jmx_template: "jmetest.jmx"
+        sql_file: "test_sqls.sql"
+
+        # Global variable configuration
+        global_variables:
+          # Database connection configuration
+          db_host: "192.168.1.230"
+          db_port: "6041"
+          username: "root"
+          password: "taosdata"
+
+          # Default performance test parameters
+          query_timeout: "10"
+          pool_max: "32"
+          connection_timeout: "36000"
+          ramp_time: "0"
+
+        # Concurrency level configuration - each SQL will be tested at these concurrency levels
+        concurrency_levels:
+          - name: "low"
+            thread_count: "10"
+            loop_count: "10"
+            description: "Low concurrency test"
+
+          - name: "medium"
+            thread_count: "50"
+            loop_count: "10"
+            description: "Medium concurrency test"
+
+          - name: "high"
+            thread_count: "100"
+            loop_count: "10"
+            description: "High concurrency test"
+
+        # Preserve test scenario configuration for backward compatibility
+        # test_scenarios:
+        #   # Light-weight test
+        #   - name: "light_load"
+        #     thread_count: "10"
+        #     loop_count: "20"
+        #     ramp_time: "0"
+
+        #   # Medium load test
+        #   - name: "medium_load"
+        #     thread_count: "100"
+        #     loop_count: "50"
+        #     ramp_time: "0"
+
+        # Result collection configuration
+        result_config:
+          collect_jtl: true
+          collect_html_report: true
+          collect_logs: true
+
+          # Performance metric thresholds
+          performance_thresholds:
+            avg_response_time_ms: 1000    # Average response time threshold (milliseconds)
+            max_response_time_ms: 5000    # Maximum response time threshold (milliseconds)
+            error_rate_percent: 1.0       # Error rate threshold (percentage)
+
+      jdbc-driver:
+        version: 3.4.0

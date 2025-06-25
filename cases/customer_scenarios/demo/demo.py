@@ -61,6 +61,7 @@ class Demo(TDCase):
         self.date_time = int(datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()*self.offset)
         self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
         self.json_file = os.path.join(self.env_root, "pocs/gyrx/test.json")
+        self.run_test_log_dir = "/root/testlog/"
 
         self.column_info_list = [
             {
@@ -118,7 +119,10 @@ class Demo(TDCase):
     def insert_with_load_json(self):
         json_filename_list = [self.json_file_name]
         json_info = self.tdCom.load_json(self.json_file)
+        json_info["test_log"] = self.run_test_log_dir
+        self.tdCom.dump_json(f'{self.run_log_dir}/{self.json_file_name}', json_info)
         self.json_data_list = [json_info]
+        self.tdCom.put_file(self._remote, self.taosBenchmark_iplist, self.json_data_list, json_filename_list, self.run_log_dir)
         self.result_filename = self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, self.json_data_list, json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
         self.tdSql.execute(f'flush database {self.dbname}')
 
