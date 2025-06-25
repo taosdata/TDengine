@@ -37,7 +37,7 @@ extern "C" {
 
 #include "ttqTime.h"
 #include "tmqCtx.h"
-#include "tmqtt.h"
+#include "tmqttInt.h"
 #ifdef WITH_BROKER
 #ifdef __linux__
 #include <netdb.h>

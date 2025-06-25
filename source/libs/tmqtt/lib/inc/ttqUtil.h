@@ -23,8 +23,8 @@ extern "C" {
 #include <stdio.h>
 
 #include "ttqTls.h"
-#include "tmqtt.h"
 #include "tmqttInt.h"
+#include "ttq.h"
 #ifdef WITH_BROKER
 #include "tmqttBrokerInt.h"
 #endif

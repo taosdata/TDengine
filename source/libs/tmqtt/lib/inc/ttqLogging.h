@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "tmqtt.h"
+#include "tmqttInt.h"
 
 #ifndef __GNUC__
 #define __attribute__(attrib)

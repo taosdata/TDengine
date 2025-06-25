@@ -16,7 +16,7 @@
 #include "ttqAlias.h"
 
 #include "ttqMemory.h"
-#include "tmqtt.h"
+#include "tmqttInt.h"
 
 int alias__add(struct tmqtt *ttq, const char *topic, uint16_t alias) {
   int                  i;

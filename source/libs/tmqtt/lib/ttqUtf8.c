@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tmqtt.h"
+#include "tmqttInt.h"
 
 #include <stdio.h>
 

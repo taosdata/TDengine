@@ -34,7 +34,7 @@
 #include "tmqttBrokerInt.h"
 #endif
 
-#include "tmqtt.h"
+#include "tmqttInt.h"
 #include "ttqMemory.h"
 #include "ttqNet.h"
 #include "ttqSend.h"

@@ -24,9 +24,9 @@ extern "C" {
 
 #include "ttqLogging.h"
 //#include "password_ttq.h"
-#include "tmqtt.h"
-#include "tmqttBroker.h"
 #include "tmqttInt.h"
+#include "tmqttBroker.h"
+#include "ttq.h"
 #include "ttqTls.h"
 //#include "tmqtt_plugin.h"
 #include "tthash.h"

@@ -24,8 +24,8 @@
 #include "ttqNet.h"
 #include "ttqPacket.h"
 #include "ttqProperty.h"
-#include "tmqtt.h"
 #include "tmqttInt.h"
+#include "ttq.h"
 #include "tmqttProto.h"
 #include "ttqSystree.h"
 

@@ -17,7 +17,7 @@
 
 #include <unistd.h>
 
-#include "tmqtt.h"
+#include "tmqttInt.h"
 
 #if _POSIX_TIMERS > 0 && defined(_POSIX_MONOTONIC_CLOCK)
 static clockid_t time_clock;

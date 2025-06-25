@@ -15,9 +15,9 @@
 
 #include "ttqSend.h"
 
-#include "tmqtt.h"
-#include "tmqttBrokerInt.h"
 #include "tmqttInt.h"
+#include "tmqttBrokerInt.h"
+#include "ttq.h"
 #include "tmqttProto.h"
 #include "ttqLogging.h"
 #include "ttqMemory.h"

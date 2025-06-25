@@ -28,7 +28,7 @@
 #include "ttqSend.h"
 #include "ttqTime.h"
 #include "ttqTls.h"
-#include "tmqtt.h"
+#include "tmqttInt.h"
 
 /* Check that a topic used for publishing is valid.
  * Search for + or # in a topic. Return TTQ_ERR_INVAL if found.

@@ -20,8 +20,8 @@
 extern "C" {
 #endif
 
-#include "tmqtt.h"
 #include "tmqttInt.h"
+#include "ttq.h"
 
 int  packet__alloc(struct tmqtt__packet *packet);
 void packet__cleanup(struct tmqtt__packet *packet);

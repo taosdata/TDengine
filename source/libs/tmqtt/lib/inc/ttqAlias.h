@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "tmqttInt.h"
+#include "ttq.h"
 
 int  alias__add(struct tmqtt *ttq, const char *topic, uint16_t alias);
 int  alias__find(struct tmqtt *ttq, char **topic, uint16_t alias);

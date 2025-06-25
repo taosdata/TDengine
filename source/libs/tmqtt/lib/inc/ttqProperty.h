@@ -20,8 +20,8 @@
 extern "C" {
 #endif
 
-#include "tmqtt.h"
 #include "tmqttInt.h"
+#include "ttq.h"
 
 struct mqtt__string {
   char    *v;

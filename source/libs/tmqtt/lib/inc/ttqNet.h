@@ -23,8 +23,8 @@ extern "C" {
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include "tmqtt.h"
 #include "tmqttInt.h"
+#include "ttq.h"
 
 #define COMPAT_CLOSE(a)    close(a)
 #define COMPAT_ECONNRESET  ECONNRESET

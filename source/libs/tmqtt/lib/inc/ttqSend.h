@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "ttqProperty.h"
-#include "tmqtt.h"
+#include "tmqttInt.h"
 
 int send__simple_command(struct tmqtt *ttq, uint8_t command);
 int send__command_with_mid(struct tmqtt *ttq, uint8_t command, uint16_t mid, bool dup, uint8_t reason_code,
