@@ -151,7 +151,7 @@ TDengine v3.3.7.0 版本开始提供 MQTT 订阅功能，通过 MQTT 客户端�
 
 ### Bnode 节点管理
 
-用户可通过 TDengine 的命令行工具 taos 进行 Bnode 的管理。执行下述命令都需要确保命令行工具 taos 工作正常。 
+用户可通过 TDengine 的命令行工具 taos 进行 Bnode 的管理。执行下述命令都需要确保命令行工具 taos 工作正常。
 
 #### 创建 Bnode
 
