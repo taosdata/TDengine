@@ -1,7 +1,10 @@
 package com.taosdata;
 
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+import java.security.Security;
 
 /**
  * 程序启动入口
@@ -12,6 +15,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class StartApplication {
 
     public static void main(String[] args) {
+        {
+            Security.addProvider(new BouncyCastleProvider());
+        }
+
         SpringApplication.run(StartApplication.class, args);
     }
 }
