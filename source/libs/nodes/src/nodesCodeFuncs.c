@@ -2342,21 +2342,6 @@ static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkTableScanPhysiPlanSmallDataTsSort, pNode->smallDataTsSort);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddStringToObject(pJson, jkTableScanPhysiPlanStreamResInfoStbFullName, pNode->pStbFullName);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddStringToObject(pJson, jkTableScanPhysiPlanStreamResInfoWstartName, pNode->pWstartName);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddStringToObject(pJson, jkTableScanPhysiPlanStreamResInfoWendName, pNode->pWendName);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddStringToObject(pJson, jkTableScanPhysiPlanStreamResInfoGroupIdName, pNode->pGroupIdName);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddStringToObject(pJson, jkTableScanPhysiPlanStreamResInfoIsWindowFilledName, pNode->pIsWindowFilledName);
-  }
   return code;
 }
 
@@ -2441,21 +2426,6 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkTableScanPhysiPlanSmallDataTsSort, &pNode->smallDataTsSort);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetStringValue(pJson, jkTableScanPhysiPlanStreamResInfoStbFullName, pNode->pStbFullName);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetStringValue(pJson, jkTableScanPhysiPlanStreamResInfoWstartName, pNode->pWstartName);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetStringValue(pJson, jkTableScanPhysiPlanStreamResInfoWendName, pNode->pWendName);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetStringValue(pJson, jkTableScanPhysiPlanStreamResInfoGroupIdName, pNode->pGroupIdName);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetStringValue(pJson, jkTableScanPhysiPlanStreamResInfoIsWindowFilledName, pNode->pIsWindowFilledName);
   }
   return code;
 }
@@ -3224,9 +3194,6 @@ static int32_t physiWindowNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddBoolToObject(pJson, jkWindowPhysiPlanMergeDataBlock, pNode->mergeDataBlock);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkWindowPhysiPlanDestHasPrimaryKey, pNode->destHasPrimaryKey);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkWindowPhysiPlanRecalculateInterval, pNode->recalculateInterval);
   }
 
@@ -3266,9 +3233,6 @@ static int32_t jsonToPhysiWindowNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkWindowPhysiPlanMergeDataBlock, &pNode->mergeDataBlock);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetTinyIntValue(pJson, jkWindowPhysiPlanDestHasPrimaryKey, &pNode->destHasPrimaryKey);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkWindowPhysiPlanRecalculateInterval, &pNode->recalculateInterval);

@@ -478,7 +478,6 @@ typedef struct SSteamOpBasicInfo {
   void*                  pDelIterator;
   SSDataBlock*           pDelRes;
   SArray*                pUpdated;
-  bool                   destHasPrimaryKey;
   STableTsDataState*     pTsDataState;
   int32_t                numOfRecv;
 } SSteamOpBasicInfo;
@@ -509,22 +508,6 @@ typedef struct SStreamFillSupporter {
   void*          pEmptyRow;
   SArray*        pResultRange;
 } SStreamFillSupporter;
-
-typedef struct SStreamRecParam {
-  char       pSql[2048];
-  int32_t    sqlCapcity;
-  char       pUrl[TSDB_EP_LEN + 17];  // "http://localhost:6041/rest/sql"
-  char       pAuth[512 + 22];         // Authorization: Basic token
-  char       pStbFullName[TSDB_TABLE_FNAME_LEN];
-  char       pWstartName[TSDB_COL_NAME_LEN];
-  char       pWendName[TSDB_COL_NAME_LEN];
-  char       pGroupIdName[TSDB_COL_NAME_LEN];
-  char       pIsWindowFilledName[TSDB_COL_NAME_LEN];
-  void*      pIteData;
-  int32_t    iter;
-  TSKEY      gap;
-  SSHashObj* pColIdMap;
-} SStreamRecParam;
 
 typedef struct SStreamScanInfo {
   SSteamOpBasicInfo basic;
@@ -603,7 +586,6 @@ typedef struct SStreamScanInfo {
   bool                   scanAllTables;
   SSHashObj*             pRecRangeMap;
   SArray*                pRecRangeRes;
-  SStreamRecParam        recParam;
 } SStreamScanInfo;
 
 typedef struct {
@@ -672,53 +654,6 @@ typedef struct SOpCheckPointInfo {
   SHashObj* children;  // key:child id
 } SOpCheckPointInfo;
 
-typedef struct SStreamIntervalOperatorInfo {
-  SOptrBasicInfo      binfo;  // basic info
-  SSteamOpBasicInfo   basic;
-  SAggSupporter       aggSup;          // aggregate supporter
-  SExprSupp           scalarSupp;      // supporter for perform scalar function
-  SGroupResInfo       groupResInfo;    // multiple results build supporter
-  SInterval           interval;        // interval info
-  int32_t             primaryTsIndex;  // primary time stamp slot id from result of downstream operator.
-  STimeWindowAggSupp  twAggSup;
-  bool                invertible;
-  bool                ignoreExpiredData;
-  bool                ignoreExpiredDataSaved;
-  SArray*             pDelWins;  // SWinRes
-  int32_t             delIndex;
-  SSDataBlock*        pDelRes;
-  SPhysiNode*         pPhyNode;  // create new child
-  SHashObj*           pPullDataMap;
-  SArray*             pPullWins;  // SPullWindowInfo
-  int32_t             pullIndex;
-  SSDataBlock*        pPullDataRes;
-  SArray*             pChildren;
-  int32_t             numOfChild;
-  SStreamState*       pState;  // void
-  SWinKey             delKey;
-  uint64_t            numOfDatapack;
-  SArray*             pUpdated;
-  SSHashObj*          pUpdatedMap;
-  int64_t             dataVersion;
-  SStateStore         stateStore;
-  bool                recvGetAll;
-  SHashObj*           pFinalPullDataMap;
-  SOpCheckPointInfo   checkPointInfo;
-  bool                reCkBlock;
-  SSDataBlock*        pCheckpointRes;
-  struct SUpdateInfo* pUpdateInfo;
-  bool                recvRetrive;
-  SSDataBlock*        pMidRetriveRes;
-  bool                recvPullover;
-  SSDataBlock*        pMidPulloverRes;
-  bool                clearState;
-  SArray*             pMidPullDatas;
-  int32_t             midDelIndex;
-  SSHashObj*          pDeletedMap;
-  bool                destHasPrimaryKey;
-  struct SOperatorInfo* pOperator;
-} SStreamIntervalOperatorInfo;
-
 typedef struct SDataGroupInfo {
   uint64_t groupId;
   int64_t  numOfRows;
@@ -736,19 +671,6 @@ typedef struct SWindowRowsSup {
 } SWindowRowsSup;
 
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
-
-typedef struct SNonBlockAggSupporter {
-  int32_t         numOfKeep;
-  TSKEY           tsOfKeep;
-  AggImplFn       pWindowAggFn;
-  SArray*         pPullWins;
-  int32_t         pullIndex;
-  SSDataBlock*    pPullDataRes;
-  SSHashObj*      pHistoryGroup;
-  SSHashObj*      pPullDataMap;
-  int32_t         numOfChild;
-  SStreamRecParam recParam;
-} SNonBlockAggSupporter;
 
 typedef struct SSessionAggOperatorInfo {
   SOptrBasicInfo        binfo;
@@ -797,227 +719,6 @@ typedef struct SEventWindowOperatorInfo {
   struct SOperatorInfo*     pOperator;
   int64_t            trueForLimit;
 } SEventWindowOperatorInfo;
-
-typedef struct SStreamSessionAggOperatorInfo {
-  SOptrBasicInfo      binfo;
-  SSteamOpBasicInfo   basic;
-  SStreamAggSupporter streamAggSup;
-  SExprSupp           scalarSupp;  // supporter for perform scalar function
-  SGroupResInfo       groupResInfo;
-  int32_t             primaryTsIndex;  // primary timestamp slot id
-  int32_t             endTsIndex;      // window end timestamp slot id
-  int32_t             order;           // current SSDataBlock scan order
-  STimeWindowAggSupp  twAggSup;
-  SSDataBlock*        pWinBlock;   // window result
-  SSDataBlock*        pDelRes;     // delete result, refactor
-  SSDataBlock*        pUpdateRes;  // update window
-  bool                returnUpdate;
-  SSHashObj*          pStDeleted;
-  void*               pDelIterator;
-  SArray*             pChildren;  // cache for children's result; final stream operator
-  SPhysiNode*         pPhyNode;   // create new child
-  bool                ignoreExpiredData;
-  bool                ignoreExpiredDataSaved;
-  SArray*             pUpdated;
-  SSHashObj*          pStUpdated;
-  int64_t             dataVersion;
-  SArray*             historyWins;
-  bool                isHistoryOp;
-  bool                reCkBlock;
-  SSDataBlock*        pCheckpointRes;
-  bool                clearState;
-  bool                recvGetAll;
-  bool                destHasPrimaryKey;
-  SSHashObj*          pPkDeleted;
-  struct SOperatorInfo* pOperator;
-  SNonBlockAggSupporter nbSup;
-} SStreamSessionAggOperatorInfo;
-
-typedef struct SStreamStateAggOperatorInfo {
-  SOptrBasicInfo      binfo;
-  SSteamOpBasicInfo   basic;
-  SStreamAggSupporter streamAggSup;
-  SExprSupp           scalarSupp;  // supporter for perform scalar function
-  SGroupResInfo       groupResInfo;
-  int32_t             primaryTsIndex;  // primary timestamp slot id
-  STimeWindowAggSupp  twAggSup;
-  SColumn             stateCol;
-  SSDataBlock*        pDelRes;
-  SSHashObj*          pSeDeleted;
-  void*               pDelIterator;
-  SArray*             pChildren;  // cache for children's result;
-  bool                ignoreExpiredData;
-  bool                ignoreExpiredDataSaved;
-  SArray*             pUpdated;
-  SSHashObj*          pSeUpdated;
-  int64_t             dataVersion;
-  bool                isHistoryOp;
-  SArray*             historyWins;
-  bool                reCkBlock;
-  SSDataBlock*        pCheckpointRes;
-  bool                recvGetAll;
-  SSHashObj*          pPkDeleted;
-  bool                destHasPrimaryKey;
-  struct SOperatorInfo* pOperator;
-  int64_t              trueForLimit;
-  SNonBlockAggSupporter nbSup;
-} SStreamStateAggOperatorInfo;
-
-typedef struct SStreamEventAggOperatorInfo {
-  SOptrBasicInfo      binfo;
-  SSteamOpBasicInfo   basic;
-  SStreamAggSupporter streamAggSup;
-  SExprSupp           scalarSupp;  // supporter for perform scalar function
-  SGroupResInfo       groupResInfo;
-  int32_t             primaryTsIndex;  // primary timestamp slot id
-  STimeWindowAggSupp  twAggSup;
-  SSDataBlock*        pDelRes;
-  SSHashObj*          pSeDeleted;
-  void*               pDelIterator;
-  SArray*             pChildren;  // cache for children's result;
-  bool                ignoreExpiredData;
-  bool                ignoreExpiredDataSaved;
-  SArray*             pUpdated;
-  SSHashObj*          pSeUpdated;
-  SSHashObj*          pAllUpdated;
-  int64_t             dataVersion;
-  bool                isHistoryOp;
-  SArray*             historyWins;
-  bool                reCkBlock;
-  bool                recvGetAll;
-  SSDataBlock*        pCheckpointRes;
-  SFilterInfo*        pStartCondInfo;
-  SFilterInfo*        pEndCondInfo;
-  SSHashObj*          pPkDeleted;
-  bool                destHasPrimaryKey;
-  struct SOperatorInfo* pOperator;
-  SNodeList*            pStartCondCols;
-  SNodeList*            pEndCondCols;
-  int64_t               trueForLimit;
-  SNonBlockAggSupporter nbSup;
-} SStreamEventAggOperatorInfo;
-
-typedef struct SStreamCountAggOperatorInfo {
-  SOptrBasicInfo      binfo;
-  SSteamOpBasicInfo   basic;
-  SStreamAggSupporter streamAggSup;
-  SExprSupp           scalarSupp;  // supporter for perform scalar function
-  SGroupResInfo       groupResInfo;
-  int32_t             primaryTsIndex;  // primary timestamp slot id
-  STimeWindowAggSupp  twAggSup;
-  SSDataBlock*        pDelRes;
-  SSHashObj*          pStDeleted;
-  void*               pDelIterator;
-  bool                ignoreExpiredData;
-  bool                ignoreExpiredDataSaved;
-  SArray*             pUpdated;
-  SSHashObj*          pStUpdated;
-  int64_t             dataVersion;
-  SArray*             historyWins;
-  bool                reCkBlock;
-  bool                recvGetAll;
-  SSDataBlock*        pCheckpointRes;
-  SSHashObj*          pPkDeleted;
-  bool                destHasPrimaryKey;
-  struct SOperatorInfo* pOperator;
-} SStreamCountAggOperatorInfo;
-
-typedef struct SStreamPartitionOperatorInfo {
-  SOptrBasicInfo        binfo;
-  SSteamOpBasicInfo     basic;
-  SPartitionBySupporter partitionSup;
-  SExprSupp             scalarSup;
-  SExprSupp             tbnameCalSup;
-  SExprSupp             tagCalSup;
-  SHashObj*             pPartitions;
-  void*                 parIte;
-  void*                 pTbNameIte;
-  SSDataBlock*          pInputDataBlock;
-  int32_t               tsColIndex;
-  SSDataBlock*          pDelRes;
-  SSDataBlock*          pCreateTbRes;
-} SStreamPartitionOperatorInfo;
-
-typedef struct SStreamFillOperatorInfo {
-  SSteamOpBasicInfo     basic;
-  SStreamFillSupporter* pFillSup;
-  SSDataBlock*          pRes;
-  SSDataBlock*          pSrcBlock;
-  int32_t               srcRowIndex;
-  SSDataBlock*          pSrcDelBlock;
-  int32_t               srcDelRowIndex;
-  SSDataBlock*          pDelRes;
-  SColMatchInfo         matchInfo;
-  int32_t               primaryTsCol;
-  int32_t               primarySrcSlotId;
-  SStreamFillInfo*      pFillInfo;
-  SArray*               pCloseTs;
-  SArray*               pUpdated;
-  SGroupResInfo         groupResInfo;
-  SStreamState*         pState;
-  SStateStore           stateStore;
-  SNonBlockAggSupporter nbSup;
-} SStreamFillOperatorInfo;
-
-typedef struct SStreamTimeSliceOperatorInfo {
-  SSteamOpBasicInfo     basic;
-  STimeWindowAggSupp    twAggSup;
-  SStreamAggSupporter   streamAggSup;
-  SStreamFillSupporter* pFillSup;
-  SStreamFillInfo*      pFillInfo;
-  SSDataBlock*          pRes;
-  SSDataBlock*          pDelRes;
-  bool                  recvCkBlock;
-  SSDataBlock*          pCheckpointRes;
-  int32_t               fillType;
-  SResultRowData        leftRow;
-  SResultRowData        valueRow;
-  SResultRowData        rightRow;
-  int32_t               primaryTsIndex;
-  SExprSupp             scalarSup;  // scalar calculation
-  bool                  ignoreExpiredData;
-  bool                  ignoreExpiredDataSaved;
-  bool                  destHasPrimaryKey;
-  SArray*               historyPoints;
-  SArray*               pUpdated;  // SWinKey
-  SArray*               historyWins;
-  SSHashObj*            pUpdatedMap;
-  int32_t               delIndex;
-  SArray*               pDelWins;  // SWinKey
-  SSHashObj*            pDeletedMap;
-  uint64_t              numOfDatapack;
-  SGroupResInfo         groupResInfo;
-  bool                  ignoreNull;
-  bool                  isHistoryOp;
-  SArray*               pCloseTs;
-  struct SOperatorInfo* pOperator;
-} SStreamTimeSliceOperatorInfo;
-
-typedef struct SStreamIntervalSliceOperatorInfo {
-  SSteamOpBasicInfo     basic;
-  SOptrBasicInfo        binfo;
-  STimeWindowAggSupp    twAggSup;
-  SStreamAggSupporter   streamAggSup;
-  SExprSupp             scalarSup;
-  SInterval             interval;
-  bool                  recvCkBlock;
-  SSDataBlock*          pCheckpointRes;
-  int32_t               primaryTsIndex;
-  SSHashObj*            pUpdatedMap;  // SWinKey
-  SArray*               pUpdated;     // SWinKey
-  SSHashObj*            pDeletedMap;
-  SArray*               pDelWins;
-  SSDataBlock*          pDelRes;
-  int32_t               delIndex;
-  bool                  destHasPrimaryKey;
-  int64_t               endTs;
-  SGroupResInfo         groupResInfo;
-  struct SOperatorInfo* pOperator;
-  bool                  hasFill;
-  bool                  hasInterpoFunc;
-  int32_t*              pOffsetInfo;
-  SNonBlockAggSupporter nbSup;
-} SStreamIntervalSliceOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
 #define OPTR_SET_OPENED(_optr) ((_optr)->status |= OP_OPENED)
