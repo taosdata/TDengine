@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_XNODE_MGMT_MQTT_H
-#define TDENGINE_XNODE_MGMT_MQTT_H
+#ifndef TDENGINE_BNODE_MGMT_MQTT_H
+#define TDENGINE_BNODE_MGMT_MQTT_H
 
 #undef malloc
 #define malloc malloc
@@ -111,4 +111,4 @@ void mqttMgmtStopMqttd(void);
 }
 #endif
 
-#endif  // TDENGINE_XNODE_MGMT_MQTT_H
+#endif  // TDENGINE_BNODE_MGMT_MQTT_H

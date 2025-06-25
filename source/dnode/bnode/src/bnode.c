@@ -38,7 +38,7 @@ int32_t bndOpen(const SBnodeOpt *pOption, SBnode **pBnode) {
       TAOS_RETURN(code);
     }
   } else {
-    bndError("Unknown xnode proto: %hhd.", (*pBnode)->protocol);
+    bndError("Unknown bnode proto: %hhd.", (*pBnode)->protocol);
 
     taosMemoryFree(*pBnode);
     TAOS_RETURN(code);

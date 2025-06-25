@@ -576,7 +576,7 @@ void dumpBnode(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void   *pIter = NULL;
-  SJson  *items = tjsonAddArrayToObject(json, "xnodes");
+  SJson  *items = tjsonAddArrayToObject(json, "bnodes");
 
   while (1) {
     SBnodeObj *pObj = NULL;

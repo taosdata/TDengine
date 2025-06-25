@@ -25,7 +25,7 @@ extern "C" {
 SMgmtFunc dmGetMgmtFunc();
 SMgmtFunc qmGetMgmtFunc();
 SMgmtFunc smGetMgmtFunc();
-SMgmtFunc xmGetMgmtFunc();
+SMgmtFunc bmGetMgmtFunc();
 SMgmtFunc vmGetMgmtFunc();
 SMgmtFunc mmGetMgmtFunc();
 

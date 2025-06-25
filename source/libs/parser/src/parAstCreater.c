@@ -3730,10 +3730,10 @@ _err:
   return NULL;
 }
 
-static SNode* setXnodeOptionImpl(SAstCreateContext* pCxt, SNode* pXnodeOptions, EBnodeOptionType type, void* pVal,
+static SNode* setBnodeOptionImpl(SAstCreateContext* pCxt, SNode* pBodeOptions, EBnodeOptionType type, void* pVal,
                                     bool alter) {
   CHECK_PARSER_STATUS(pCxt);
-  SBnodeOptions* pOptions = (SBnodeOptions*)pXnodeOptions;
+  SBnodeOptions* pOptions = (SBnodeOptions*)pBodeOptions;
   switch (type) {
     case BNODE_OPTION_PROTOCOL:
       COPY_STRING_FORM_STR_TOKEN(pOptions->protoStr, (SToken*)pVal);
@@ -3742,14 +3742,14 @@ static SNode* setXnodeOptionImpl(SAstCreateContext* pCxt, SNode* pXnodeOptions, 
       break;
   }
 
-  return pXnodeOptions;
+  return pBodeOptions;
 _err:
-  nodesDestroyNode(pXnodeOptions);
+  nodesDestroyNode(pBodeOptions);
   return NULL;
 }
 
 SNode* setBnodeOption(SAstCreateContext* pCxt, SNode* pOptions, EBnodeOptionType type, void* pVal) {
-  return setXnodeOptionImpl(pCxt, pOptions, type, pVal, false);
+  return setBnodeOptionImpl(pCxt, pOptions, type, pVal, false);
 }
 
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue) {

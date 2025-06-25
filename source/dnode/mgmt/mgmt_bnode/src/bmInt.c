@@ -17,18 +17,18 @@
 #include "bmInt.h"
 #include "tjson.h"
 
-static int32_t xmRequire(const SMgmtInputOpt *pInput, bool *required) {
+static int32_t bmRequire(const SMgmtInputOpt *pInput, bool *required) {
   return dmReadFile(pInput->path, pInput->name, required);
 }
 
-static void xmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
+static void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
   pOption->msgCb = pMgmt->msgCb;
   pOption->dnodeId = pMgmt->pData->dnodeId;
 }
 
-static void xmClose(SBnodeMgmt *pMgmt) {
+static void bmClose(SBnodeMgmt *pMgmt) {
   if (pMgmt->pBnode != NULL) {
-    // xmStopWorker(pMgmt);
+    // bmStopWorker(pMgmt);
     bndClose(pMgmt->pBnode);
     pMgmt->pBnode = NULL;
   }
@@ -36,12 +36,12 @@ static void xmClose(SBnodeMgmt *pMgmt) {
   taosMemoryFree(pMgmt);
 }
 
-static int32_t xndOpenWrapper(SBnodeOpt *pOption, SBnode **pBnode) {
+static int32_t bndOpenWrapper(SBnodeOpt *pOption, SBnode **pBnode) {
   int32_t code = bndOpen(pOption, pBnode);
   return code;
 }
 
-int32_t xmPutMsgToQueue(SBnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
+int32_t bmPutMsgToQueue(SBnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   int32_t  code;
   SRpcMsg *pMsg;
 
@@ -71,7 +71,7 @@ int32_t xmPutMsgToQueue(SBnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
 
   switch (qtype) {
     case WRITE_QUEUE:
-      // code = xmPutNodeMsgToWriteQueue(pMgmt, pMsg);
+      // code = bmPutNodeMsgToWriteQueue(pMgmt, pMsg);
       // break;
     default:
       code = TSDB_CODE_INVALID_PARA;
@@ -82,14 +82,14 @@ int32_t xmPutMsgToQueue(SBnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   return code;
 }
 
-static int32_t xmDecodeFile(SJson *pJson, int32_t *proto) {
+static int32_t bmDecodeFile(SJson *pJson, int32_t *proto) {
   int32_t code = 0;
 
   code = tjsonGetIntValue(pJson, "proto", proto);
   return code;
 }
 
-static int32_t xmReadFile(const char *path, const char *name, int32_t *proto) {
+static int32_t bmReadFile(const char *path, const char *name, int32_t *proto) {
   int32_t   code = -1;
   TdFilePtr pFile = NULL;
   char     *content = NULL;
@@ -141,13 +141,13 @@ static int32_t xmReadFile(const char *path, const char *name, int32_t *proto) {
     goto _OVER;
   }
 
-  if (xmDecodeFile(pJson, proto) < 0) {
+  if (bmDecodeFile(pJson, proto) < 0) {
     code = TSDB_CODE_INVALID_JSON_FORMAT;
     goto _OVER;
   }
 
   code = 0;
-  dInfo("succceed to read mnode file %s", file);
+  dInfo("succceed to read bnode file %s", file);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);
@@ -155,12 +155,12 @@ _OVER:
   if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
-    dError("failed to read dnode file:%s since %s", file, tstrerror(code));
+    dError("failed to read bnode file:%s since %s", file, tstrerror(code));
   }
   return code;
 }
 
-static int32_t xmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
+static int32_t bmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   int32_t     code = 0;
   SBnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SBnodeMgmt));
   if (pMgmt == NULL) {
@@ -171,31 +171,31 @@ static int32_t xmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
   pMgmt->msgCb = pInput->msgCb;
-  pMgmt->msgCb.putToQueueFp = (PutToQueueFp)xmPutMsgToQueue;
+  pMgmt->msgCb.putToQueueFp = (PutToQueueFp)bmPutMsgToQueue;
   pMgmt->msgCb.mgmt = pMgmt;
 
   SBnodeOpt option = {0};
-  xmInitOption(pMgmt, &option);
+  bmInitOption(pMgmt, &option);
 
-  code = xmReadFile(pInput->path, pInput->name, &option.proto);
+  code = bmReadFile(pInput->path, pInput->name, &option.proto);
   if (code != 0) {
     dError("failed to read bnode since %s", tstrerror(code));
-    xmClose(pMgmt);
+    bmClose(pMgmt);
     return code;
   }
 
-  code = xndOpenWrapper(&option, &pMgmt->pBnode);
+  code = bndOpenWrapper(&option, &pMgmt->pBnode);
   if (code != 0) {
     dError("failed to open bnode since %s", tstrerror(code));
-    xmClose(pMgmt);
+    bmClose(pMgmt);
     return code;
   }
   tmsgReportStartup("bnode-impl", "initialized");
 
   /*
-  if ((code = xmStartWorker(pMgmt)) != 0) {
+  if ((code = bmStartWorker(pMgmt)) != 0) {
     dError("failed to start bnode worker since %s", tstrerror(code));
-    xmClose(pMgmt);
+    bmClose(pMgmt);
     return code;
   }
   tmsgReportStartup("bnode-worker", "initialized");
@@ -204,7 +204,7 @@ static int32_t xmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   return code;
 }
 
-static int32_t xmEncodeFile(SJson *pJson, bool deployed, int32_t proto) {
+static int32_t bmEncodeFile(SJson *pJson, bool deployed, int32_t proto) {
   if (tjsonAddDoubleToObject(pJson, "deployed", deployed) < 0) {
     return TSDB_CODE_INVALID_JSON_FORMAT;
   }
@@ -216,7 +216,7 @@ static int32_t xmEncodeFile(SJson *pJson, bool deployed, int32_t proto) {
   return 0;
 }
 
-static int32_t xmWriteFile(const char *path, const char *name, bool deployed, int32_t proto) {
+static int32_t bmWriteFile(const char *path, const char *name, bool deployed, int32_t proto) {
   int32_t   code = -1;
   char     *buffer = NULL;
   SJson    *pJson = NULL;
@@ -242,7 +242,7 @@ static int32_t xmWriteFile(const char *path, const char *name, bool deployed, in
     goto _OVER;
   }
 
-  if ((code = xmEncodeFile(pJson, deployed, proto)) != 0) goto _OVER;
+  if ((code = bmEncodeFile(pJson, deployed, proto)) != 0) goto _OVER;
 
   buffer = tjsonToString(pJson);
   if (buffer == NULL) {
@@ -302,7 +302,7 @@ int32_t bmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   }
 
   bool deployed = true;
-  if ((code = xmWriteFile(pInput->path, pInput->name, deployed, createReq.bnodeProto)) != 0) {
+  if ((code = bmWriteFile(pInput->path, pInput->name, deployed, createReq.bnodeProto)) != 0) {
     dError("failed to write bnode file since %s", tstrerror(code));
 
     tFreeSMCreateBnodeReq(&createReq);
@@ -359,13 +359,13 @@ _OVER:
   }
 }
 
-SMgmtFunc xmGetMgmtFunc() {
+SMgmtFunc bmGetMgmtFunc() {
   SMgmtFunc mgmtFunc = {0};
-  mgmtFunc.openFp = xmOpen;
-  mgmtFunc.closeFp = (NodeCloseFp)xmClose;
+  mgmtFunc.openFp = bmOpen;
+  mgmtFunc.closeFp = (NodeCloseFp)bmClose;
   mgmtFunc.createFp = (NodeCreateFp)bmProcessCreateReq;
   mgmtFunc.dropFp = (NodeDropFp)bmProcessDropReq;
-  mgmtFunc.requiredFp = xmRequire;
+  mgmtFunc.requiredFp = bmRequire;
   mgmtFunc.getHandlesFp = bmGetMsgHandles;
 
   return mgmtFunc;
