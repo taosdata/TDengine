@@ -41,6 +41,7 @@ use tracing_subscriber::{
 use twelf::{Layer, config};
 
 use crate::serve::monitor;
+use crate::serve::utils::report;
 use taosx_core::utils::timeout::Timeout;
 use taosx_core::{
     get_data_dir,
@@ -206,6 +207,9 @@ struct Global {
 
     #[clap(long, env = "SQL_TAG_CACHE_CAPACITY", global = true, hide = true)]
     sql_tag_cache_capacity: Option<usize>,
+
+    #[clap(flatten)]
+    telemetry: Option<Telemetry>,
 }
 
 #[serde_as]
@@ -348,6 +352,25 @@ impl From<bool> for CompressType {
     }
 }
 
+#[derive(Parser, Debug, Clone, Default, Serialize, Deserialize)]
+struct Telemetry {
+    /// telemetry server address
+    #[clap(id = "telemetry.server", default_value = "telemetry.taosdata.com")]
+    #[serde(default = "default_telemetry_server")]
+    server: String,
+    #[clap(id = "telemetry.port", default_value_t = 80)]
+    #[serde(default = "default_telemetry_port")]
+    port: u16,
+}
+
+fn default_telemetry_server() -> String {
+    "telemetry.taosdata.com".to_string()
+}
+
+fn default_telemetry_port() -> u16 {
+    80
+}
+
 #[derive(Parser, Debug)]
 #[clap(name = build::CUS_CLI_NAME, author, version = CLAP_SHORT_VERSION, about = build::CUS_CLI_ABOUT, long_about = build::CUS_CLI_ABOUT)]
 struct Args {
@@ -455,6 +478,10 @@ impl Args {
             }
             _ => {}
         }
+        args.global.telemetry = args
+            .global
+            .telemetry
+            .or(configurable_opts.global.telemetry.clone());
         args.global.merge_from(configurable_opts.global, matches);
         args.global.instance_id = Some(
             *INSTANCE_ID.get_or_init(|| args.global.instance_id.unwrap_or(DEFAULT_INSTANCE_ID)),
@@ -846,6 +873,11 @@ fn print_effective_config(level_filter: &LevelFilter, args: &Args) {
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.fqdn", args.monitor.fqdn.as_ref().unwrap_or(&"".to_string())).as_str();
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.port", args.monitor.port).as_str();
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.interval", args.monitor.interval).as_str();
+        if let Some(telemetry) = &args.global.telemetry {
+            s += format!("{:<w$}{:<w2$}{}\n", ' ', "telemetry.server", telemetry.server).as_str();
+            s += format!("{:<w$}{:<w2$}{}\n", ' ', "telemetry.port", telemetry.port).as_str();
+        }
+        
     }
     s += "===================================================================================";
     tracing::info!("{}", s);
@@ -983,6 +1015,11 @@ fn main() -> Result<()> {
             trace::qid_db_init()?;
 
             Timeout::set_default_timeout(serve.request_timeout);
+
+            if let Some(telemetry) = args.global.telemetry {
+                let url = format!("http://{}:{}/report", telemetry.server, telemetry.port);
+                report::report(url);
+            }
 
             let serve = || {
                 let _span = tracing::info_span!("serve").entered();
