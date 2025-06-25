@@ -227,6 +227,18 @@ This document details the server error codes that may be encountered when using 
 | 0x80000483 | index already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x80000484 | index not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |
 
+## Bnode
+
+| Error Code | Description                | Possible Error Scenarios or Reasons | Recommended Actions                       |
+| ---------- | -------------------------- | ----------------------------------- | ----------------------------------------- |
+| 0x80000450 | Bnode already exists       | Already created                     | Check node status                         |
+| 0x80000451 | Bnode already deployed     | Already deployed                    | Confirm if correct                        |
+| 0x80000452 | Bnode not deployed         | Internal error                      | Report issue                              |
+| 0x80000453 | Bnode not there            | Offline                             | Confirm if correct                        |
+| 0x80000454 | Bnode not found            | Internal error                      | Report issue                              |
+| 0x80000455 | Bnode exec launch failed   | Internal error                      | Report issue                              |
+| 0x8000261C | Invalid Bnode option       | Illegal Bnode option value          | Check and correct the Bnode option values |
+
 ## dnode
 
 | Error Code | Description            | Possible Error Scenarios or Reasons | Recommended Actions |

@@ -410,6 +410,28 @@ typedef struct {
   int32_t   anodeId;
 } SUpdateAnodeStmt;
 
+typedef struct SBnodeOptions {
+  ENodeType type;
+  char      protoStr[TSDB_BNODE_OPT_PROTO_STR_LEN];
+  int8_t    proto;
+} SBnodeOptions;
+
+typedef struct {
+  ENodeType      type;
+  int32_t        dnodeId;
+  SBnodeOptions* pOptions;
+} SCreateBnodeStmt;
+
+typedef struct {
+  ENodeType type;
+  int32_t   dnodeId;
+} SDropBnodeStmt;
+
+typedef struct {
+  ENodeType type;
+  int32_t   dnodeId;
+} SUpdateBnodeStmt;
+
 typedef struct SShowStmt {
   ENodeType     type;
   SNode*        pDbName;  // SValueNode
