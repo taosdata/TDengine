@@ -95,26 +95,44 @@ static int32_t handleSyncWriteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
     taosMemoryFreeClear(data);
   }
 end:
-  rsp.pCont = data;
-  rsp.contLen = dataLen;
+  if (data == NULL) {
+    rsp.contLen = INT_BYTES + LONG_BYTES;
+    rsp.pCont = rpcMallocCont(rsp.contLen);
+    if (rsp.pCont == NULL) {
+      rsp.code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      *(int32_t*)rsp.pCont = -1;  // no checkpoint
+      *(int64_t*)(POINTER_SHIFT(rsp.pCont, INT_BYTES)) = streamId;
+    }
+  } else {
+    rsp.pCont = rpcMallocCont(dataLen);
+    if (rsp.pCont == NULL) {
+      rsp.code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      memcpy(rsp.pCont, data, dataLen);
+      rsp.contLen = dataLen;
+      taosMemoryFreeClear(data); 
+    } 
+  }
   rpcSendResponse(&rsp);
   return 0;
 }
 
 static int32_t handleSyncWriteCheckPointRsp(SSnode* pSnode, SRpcMsg* pRpcMsg) {
-  if (pRpcMsg->contLen <= 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-  void* data = POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead));
-  int32_t dataLen = pRpcMsg->contLen - sizeof(SMsgHead);
+  if (pRpcMsg->code != 0) {
+    stError("[checkpoint] handleSyncWriteCheckPointRsp, code:%d, msgType:%d", pRpcMsg->code, pRpcMsg->msgType);
+    return pRpcMsg->code;
+  } 
+  void* data = pRpcMsg->pCont;
+  int32_t dataLen = pRpcMsg->contLen;
   stDebug("[checkpoint] handleSyncWriteCheckPointRsp, dataLen:%d", dataLen);
   
+  int32_t ver = *(int32_t*)data;
   int64_t streamId = *(int64_t*)(POINTER_SHIFT(data, INT_BYTES));
-  int32_t code = streamWriteCheckPoint(streamId, data, dataLen);
-  if (code == 0) {
-    code = streamCheckpointSetReady(streamId);
-  }  
-  return code;
+  if (ver != -1){
+    (void)streamWriteCheckPoint(streamId, data, dataLen);
+  }
+  return streamCheckpointSetReady(streamId);
 }
 
 static int32_t buildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8_t precision) {

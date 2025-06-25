@@ -2172,7 +2172,8 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
 
   if (!pContext->haveReadCheckpoint) {
     stDebug("[checkpoint] read checkpoint for stream %" PRIx64, pTask->task.streamId);
-    if (streamCheckpointIsReady(pTask->task.streamId)) {
+    // if (streamCheckpointIsReady(pTask->task.streamId)) {
+    if (pTask->isCheckpointReady) {  
       void   *buf = NULL;
       int64_t len = 0;
       code = streamReadCheckPoint(pTask->task.streamId, &buf, &len);

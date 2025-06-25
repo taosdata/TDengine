@@ -48,10 +48,6 @@ static int32_t jsonToEp(const SJson* pJson, void* pObj) {
 void smUpdateSnodeInfo(SDCreateSnodeReq* pReq) {
   taosWLockLatch(&gSnode.snodeLock);
   gSnode.snodeId = pReq->snodeId;
-  if (pReq->replica.nodeId != gSnode.snodeReplica.nodeId) {
-    int32_t ret = streamSyncAllCheckpoints(&pReq->replica.epSet);
-    dInfo("[checkpoint] sync all checkpoint from snode %d to replicaId:%d, return:%d", pReq->snodeId, pReq->replica.nodeId, ret);
-  }
   gSnode.snodeLeaders[0] = pReq->leaders[0];
   gSnode.snodeLeaders[1] = pReq->leaders[1];  
   gSnode.snodeReplica = pReq->replica;
@@ -189,6 +185,10 @@ int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     goto _exit;
   }
 
+  if (createReq.replica.nodeId != gSnode.snodeReplica.nodeId && createReq.replica.nodeId != 0) {
+    int32_t ret = streamSyncAllCheckpoints(&createReq.replica.epSet);
+    dInfo("[checkpoint] sync all checkpoint from snode %d to replicaId:%d, return:%d", createReq.snodeId, createReq.replica.nodeId, ret);
+  }
   smUpdateSnodeInfo(&createReq);
 
   dInfo("snode %d created, replicaId:%d", createReq.snodeId, createReq.replica.nodeId);

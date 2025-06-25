@@ -198,6 +198,9 @@ typedef struct SStreamTriggerTask {
   SRWLatch   calcPoolLock;
   SArray    *pCalcNodes;     // SArray<SSTriggerCalcNode>
   SSHashObj *pGroupRunning;  // SSHashObj<gid, bool[]>
+  
+  // checkpoint
+  bool isCheckpointReady;
 } SStreamTriggerTask;
 
 // interfaces called by stream trigger thread
