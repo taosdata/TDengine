@@ -140,6 +140,54 @@ class TestStreamStateTrigger:
         self.checks5(1)
         
         ############ option: fill history
+        # no set start_time
+        sql6 = "create stream s6 state_window(cint) from ct1 options(fill_history) into res_fill_all_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+         
+        tdSql.execute(sql6)
+        # tdStream.checkStreamStatus("s6")
+        time.sleep(3)
+        # self.checks6(0)
+                
+        tdLog.info(f"=============== continue write data into ct1 for new real data ")
+        sqls = [
+            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:10', 4, 0);",
+            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:11', 4, 0);",
+            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:15', 4, 1);",
+            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:16', 5, 1);",
+            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:17', 5, 1);",
+            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:18', 5, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:21', 5, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:22', 6, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:29', 6, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:30', 7, 3);",
+        ]
+        tdSql.executes(sqls)
+        self.checks6(1)
+        
+        # set start_time
+        sql7 = "create stream s7 state_window(cint) true_for(5s) from ct1 options(fill_history('2025-01-02 00:00:10')) into res_fill_part_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        tdSql.execute(sql7)
+        # tdStream.checkStreamStatus("s7")
+        time.sleep(3)
+        # self.checks7(0)
+                
+        tdLog.info(f"=============== continue write data into ct1 for new real data ")
+        sqls = [
+            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:10', 4, 0);",
+            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:11', 4, 0);",
+            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:15', 4, 1);",
+            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:16', 5, 1);",
+            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:17', 5, 1);",
+            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:18', 5, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:21', 5, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:22', 6, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:29', 6, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:30', 7, 3);",
+        ]
+        tdSql.executes(sqls)
+        self.checks6(2)
+        
+        
         
         ############ option: max_delay
         
@@ -322,6 +370,46 @@ class TestStreamStateTrigger:
                 and tdSql.compareData(2, 2, 2),
             )    
             tdLog.info(f"=============== check s5-1 result success !!!!!!!! =====================")
+                        
+        return
+
+    def checks6(self, check_idx):
+        result_sql = "select firstts, num_v, cnt_v, avg_v from res_fill_all_ct1"
+        if 0 == check_idx: 
+            tdSql.checkResultsByFunc(
+                sql=result_sql,
+                func=lambda: tdSql.getRows() == 0,
+            )
+            tdLog.info(f"=============== check s6-0 result success !!!!!!!! =====================")
+        elif 1 == check_idx:
+            tdSql.checkResultsByFunc(
+                sql=result_sql,
+                func=lambda: tdSql.getRows() == 11
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+                and tdSql.compareData(0, 1, 2)
+                and tdSql.compareData(0, 2, 2)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:02.000")
+                and tdSql.compareData(1, 1, 3)
+                and tdSql.compareData(1, 2, 3)
+                and tdSql.compareData(2, 0, "2025-01-01 00:00:05.000")
+                and tdSql.compareData(2, 1, 4)
+                and tdSql.compareData(2, 2, 4),
+            )    
+            tdLog.info(f"=============== check s6-1 result success !!!!!!!! =====================")
+        elif 2 == check_idx:
+            tdSql.checkResultsByFunc(
+                sql=result_sql,
+                func=lambda: tdSql.getRows() == 7
+                and tdSql.compareData(0, 0, "2025-01-02 00:00:10.000")
+                and tdSql.compareData(0, 1, 3)
+                and tdSql.compareData(0, 2, 3)
+                and tdSql.compareData(1, 0, "2025-01-02 00:00:16.000")
+                and tdSql.compareData(1, 1, 4)
+                and tdSql.compareData(1, 2, 4)
+                and tdSql.compareData(2, 0, "2025-01-02 00:00:22.000")
+                and tdSql.compareData(2, 1, 2)
+                and tdSql.compareData(2, 2, 2),
+            )    
                         
         return
 
