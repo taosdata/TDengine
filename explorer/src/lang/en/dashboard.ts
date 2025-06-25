@@ -5,7 +5,7 @@ export default {
     tables: "Tables",
     stables: "STables",
     totalUsage: "Total Usage (From Date)",
-
+    limited: "You are limited to view this cluster's dnodes.",
     cluster: "Cluster",
     hosts: "Server Hosts",
     endpoint: "Endpoint",

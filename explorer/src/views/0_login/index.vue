@@ -40,7 +40,7 @@
                 v-model="dynamicValidateForm.username"
                 :placeholder="$t('login.usernamePlaceholder')"
               ></el-input>
-              </el-form-item>
+            </el-form-item>
           </div>
           <div>
             <p class="lable-form">
@@ -88,12 +88,20 @@
                 :placeholder="$t('register.nameTips')"
               ></el-input>
             </el-form-item>
-            <div v-else style="display: flex; justify-content: space-between;">
-              <el-form-item prop="firstname" style="width: 49%;">
-                <el-input ref="firstname" v-model="registerValidateForm.firstname" :placeholder="$t('register.firstnameTips')"></el-input>
+            <div v-else style="display: flex; justify-content: space-between">
+              <el-form-item prop="firstname" style="width: 49%">
+                <el-input
+                  ref="firstname"
+                  v-model="registerValidateForm.firstname"
+                  :placeholder="$t('register.firstnameTips')"
+                ></el-input>
               </el-form-item>
-              <el-form-item prop="lastname" style="width: 49%;">
-                <el-input ref="lastname" v-model="registerValidateForm.lastname" :placeholder="$t('register.lastnameTips')"></el-input>
+              <el-form-item prop="lastname" style="width: 49%">
+                <el-input
+                  ref="lastname"
+                  v-model="registerValidateForm.lastname"
+                  :placeholder="$t('register.lastnameTips')"
+                ></el-input>
               </el-form-item>
             </div>
           </div>
@@ -210,7 +218,9 @@ const { t } = useI18n();
 const store = useStore();
 const router = useRouter();
 const { getGrantsFull } = useLicense();
-const { $IS_COMMUNITY, $IS_TSDBLITE, $IS_OEM, $INDUSTRY, $error } = inject('globalCustomProperties') as GlobalCustomProperties;
+const { $IS_COMMUNITY, $IS_TSDBLITE, $IS_OEM, $INDUSTRY, $error } = inject(
+  'globalCustomProperties'
+) as GlobalCustomProperties;
 const usernameRef = ref<HTMLElement | null>();
 const phoneEmailRef = ref<HTMLElement | null>();
 const captchaRef = ref<HTMLElement | null>();
@@ -322,17 +332,17 @@ const registerFormRules = reactive({
     {
       required: true,
       max: 80,
-      message: t("register.firstnameTips"),
-      trigger: "change",
-    },
+      message: t('register.firstnameTips'),
+      trigger: 'change'
+    }
   ],
   lastname: [
     {
       required: true,
       max: 80,
-      message: t("register.lastnameTips"),
-      trigger: "change",
-    },
+      message: t('register.lastnameTips'),
+      trigger: 'change'
+    }
   ],
   verification_code: [
     {
@@ -365,7 +375,7 @@ async function init() {
   await getClusterAndDashboardUrl();
   localStorage.setItem('supportWebsite', dataJson.supportWebsite);
   localStorage.setItem('documentWebsite', dataJson.documentWebsite);
-  console.log("IS_TSDBLITE", $IS_TSDBLITE);
+  console.log('IS_TSDBLITE', $IS_TSDBLITE);
   if ($IS_COMMUNITY && !$IS_TSDBLITE) {
     await getIsbinding();
   }
@@ -404,10 +414,21 @@ async function getTaosdInfo() {
       const id = res.data[0][0].toString();
       localStorage.setItem('local_clusterID', id);
       return [id, res.data[0][1]];
+    } else {
+      console.error('Failed to get taosd info:', res?.desc || 'Unknown error');
+      return ['', ''];
     }
-  } catch (error) {
+  } catch (error: any) {
+    if (error.includes && error.includes('Permission denied')) {
+      console.log('User login without sysinfo', error);
+      console.log(`app: ${store.state.app.sysinfo}`);
+      store.state.app.sysinfo = false;
+      console.log(`app: ${store.state.app.sysinfo}`);
+      return ['', ''];
+    }
     localStorage.removeItem('TDengine-Token');
     console.log(error);
+    return Promise.reject(error);
   }
 }
 async function login() {
@@ -426,10 +447,19 @@ async function login() {
 
     if (res && res.code == 0 && !res.desc) {
       localStorage.setItem('TDengine-Token', token);
+      const server_version = res.data[0][0];
       await getUserAuthority();
       await getGrantsFull();
 
-      const [cluster_id, taosd_version] = await getTaosdInfo();
+      let [cluster_id, taosd_version] = await getTaosdInfo();
+      if (!cluster_id) {
+        cluster_id = 'unknown';
+        localStorage.setItem('local_clusterID', cluster_id);
+      }
+      if (!taosd_version) {
+        taosd_version = server_version;
+        localStorage.setItem('td_version', taosd_version);
+      }
       const phone_email = sessionStorage.getItem('registerKey');
       const lang = localStorage.getItem('local_language') || '';
       if (phone_email) {
@@ -475,16 +505,15 @@ async function getClusterAndDashboardUrl() {
       for (const key in res.grafana.dashboards) {
         grafana_dashboards.push({
           key,
-          url: res.grafana.dashboards[key].replace(/^https?:\/\/[^/]+/, "")
+          url: res.grafana.dashboards[key].replace(/^https?:\/\/[^/]+/, '')
         });
       }
       if (grafana_dashboards.length > 0) {
-        localStorage.setItem("local_grafana", JSON.stringify(grafana_dashboards));
+        localStorage.setItem('local_grafana', JSON.stringify(grafana_dashboards));
       } else {
-        localStorage.removeItem("local_grafana");
+        localStorage.removeItem('local_grafana');
       }
     }
-
 
     if (res && res.grpc) {
       localStorage.setItem('local_endpoint', res.grpc);
@@ -516,6 +545,7 @@ async function getUserAuthority() {
           })
         );
       });
+      store.state.app.sysinfo = true;
       if (result.length > 0 && ['official', 'trial', 'community'].includes(result[0].version)) {
         router.push({
           path: '/explorer'
@@ -524,11 +554,15 @@ async function getUserAuthority() {
         $error(t('login.versiontip'));
       }
     }
-  } catch (err) {
+  } catch (err: any) {
     loading.value = false;
 
-    if (err && err.code == 11) {
-      $error(t('login.servTaosdTip'));
+    if (err && err.includes('Permission denied')) {
+      console.log('User login without sysinfo');
+      store.state.app.sysinfo = false;
+      router.push({
+        path: '/explorer'
+      });
       return;
     }
     $error(err?.desc);
@@ -638,7 +672,7 @@ function submitRegisterForm(formEl: FormInstance | undefined) {
         lang: getLocalLang(),
         phone_email: registerValidateForm.phone_email,
         verification_code: registerValidateForm.verification_code
-      }
+      };
       if (!isLocaleLanguageEn.value) {
         formData['name'] = registerValidateForm.name;
       } else {
@@ -687,11 +721,10 @@ function switchLanguage() {
     setLocale('zh');
   }
   buttonTextOfGetVerificationCode.value = t('register.getVerificationCode');
-  
+
   dynamicValidateFormRef.value?.resetFields();
   registerValidateFormRef.value?.resetFields();
-  formRules.username[0].message = t('login.usernameTips')
-
+  formRules.username[0].message = t('login.usernameTips');
 }
 </script>
 <style lang="scss" scoped>

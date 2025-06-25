@@ -496,6 +496,14 @@ impl Args {
             cli.grpc_threads = Some(executor_worker_threads(cli.grpc_threads.unwrap_or(0)));
             cli.scheduler_threads =
                 Some(executor_worker_threads(cli.scheduler_threads.unwrap_or(0)));
+            if let Some(ref addrs) = cli.listen {
+                check_address_format(addrs)
+                    .map_err(|e| ArgsError::AddressParseError(e.to_string()))?;
+            }
+            if let Some(ref addrs) = cli.grpc {
+                check_address_format(addrs)
+                    .map_err(|e| ArgsError::AddressParseError(e.to_string()))?;
+            }
         }
 
         // Set environment variables.
