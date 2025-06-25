@@ -524,7 +524,7 @@ class StreamUtil:
 
     def checkStreamStatus(self, stream_name=""):
         if stream_name == "":
-            tdSql.query(f"show streams")
+            tdSql.query(f"select * from information_schema.ins_streams")
         else:
             tdSql.query(
                 f"select * from information_schema.ins_streams where stream_name = '{stream_name}'"
