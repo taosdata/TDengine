@@ -3,12 +3,12 @@ import math
 from new_test_framework.utils import tdLog, tdSql, tdStream
 
 
-class TestStreamStateTrigger:
+class TestStreamCountTrigger:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stream_state_trigger(self):
+    def test_stream_count_trigger(self):
         """basic qdb 2
 
         Verification testing during the development process.
@@ -35,18 +35,24 @@ class TestStreamStateTrigger:
 
         tdLog.info(f"=============== create super table")
         tdSql.execute(f"create stable stb (cts timestamp, cint int, cuint int unsigned) tags(tint int);")
+
+        tdLog.info(f"=============== create sub table")
+        tdSql.execute(f"create table ct1 using stb tags(1);")
+        tdSql.execute(f"create table ct2 using stb tags(2);")
+        tdSql.execute(f"create table ct3 using stb tags(1);")
+        tdSql.execute(f"create table ct4 using stb tags(2);")
         
         tdLog.info(f"=============== create stream")
-        sql1 = "create stream s1 state_window(cint) from ct1 into res_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
-        sql2 = "create stream s2 state_window(cint) from ct2 into res_ct2 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
-        sql3 = "create stream s3 state_window(cint) from stb partition by tbname into stb_res OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname;"
-        sql4 = "create stream s4 state_window(cint) from stb partition by tbname, tint into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', tbname, '_', cast(tint as varchar))) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by %%1, %%2;"
+        sql1 = "create stream s1 count_window(3, 3, cint) from ct1 into res_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        # sql2 = "create stream s2 count_window(cint) from ct2 into res_ct2 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        # sql3 = "create stream s3 count_window(cint) from stb partition by tbname into stb_res OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname;"
+        # sql4 = "create stream s4 count_window(cint) from stb partition by tbname, tint into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', tbname, '_', cast(tint as varchar))) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by %%1, %%2;"
          
         streams = [
             self.StreamItem(sql1, self.checks1),
-            self.StreamItem(sql2, self.checks2),
-            self.StreamItem(sql3, self.checks3),
-            self.StreamItem(sql4, self.checks4),
+            # self.StreamItem(sql2, self.checks2),
+            # self.StreamItem(sql3, self.checks3),
+            # self.StreamItem(sql4, self.checks4),
         ]
 
         for stream in streams:
@@ -55,49 +61,49 @@ class TestStreamStateTrigger:
 
         tdLog.info(f"=============== write query data")
         sqls = [
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:00', 0, 0);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:01', 0, 0);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:02', 1, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:03', 1, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:04', 1, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:05', 2, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:06', 2, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:07', 2, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:08', 2, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:09', 3, 3);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:00', 1, 0);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:01', 2, 0);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:02', 3, 1);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:03', 4, 1);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:04', 5, 1);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:05', 6, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:06', 7, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:07', 8, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:08', 9, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:09', 10, 3);",
             
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:00', 0, 0);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:01', 0, 0);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:02', 1, 1);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:03', 1, 1);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:04', 1, 1);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:05', 2, 2);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:06', 2, 2);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:07', 2, 2);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:08', 2, 2);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:09', 3, 3);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:00', 1, 0);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:01', 2, 0);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:02', 3, 1);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:03', 4, 1);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:04', 5, 1);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:05', 6, 2);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:06', 7, 2);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:07', 8, 2);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:08', 9, 2);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:09', 10, 3);",
             
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:00', 0, 0);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:01', 0, 0);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:02', 1, 1);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:03', 1, 1);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:04', 1, 1);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:05', 2, 2);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:06', 2, 2);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:07', 2, 2);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:08', 2, 2);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:09', 3, 3);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:00', 1, 0);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:01', 2, 0);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:02', 3, 1);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:03', 4, 1);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:04', 5, 1);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:05', 6, 2);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:06', 7, 2);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:07', 8, 2);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:08', 9, 2);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:09', 10, 3);",
             
-            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:00', 0, 0);",
-            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:01', 0, 0);",
-            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:02', 1, 1);",
-            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:03', 1, 1);",
-            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:04', 1, 1);",
-            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:05', 2, 2);",
-            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:06', 2, 2);",
-            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:07', 2, 2);",
-            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:08', 2, 2);",
-            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:09', 3, 3);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:00', 1, 0);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:01', 2, 0);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:02', 3, 1);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:03', 4, 1);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:04', 5, 1);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:05', 6, 2);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:06', 7, 2);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:07', 8, 2);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:08', 9, 2);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:09', 10, 3);",
         ]
         tdSql.executes(sqls)
         tdSql.query("select _wstart, count(cint), avg(cint) from stb partition by tbname state_window(cint)")
@@ -105,31 +111,10 @@ class TestStreamStateTrigger:
 
         tdLog.info(f"=============== check stream result")
         for stream in streams:
-            stream.check()
-
-
-        ############ true_for 
-        sql5 = "create stream s5 state_window(cint) true_for(5s) from ct1 into res_truefor_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
-         
-        tdSql.execute(sql5)
-        tdStream.checkStreamStatus("s5")
-        # self.checks5(0)
-                
-        tdLog.info(f"=============== continue write data into ct1 for true_for(5s)")
-        sqls = [
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:10', 4, 0);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:11', 4, 0);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:15', 4, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:16', 5, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:17', 5, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:18', 5, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:20', 5, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:22', 6, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:26', 6, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:30', 7, 3);",
-        ]
-        tdSql.executes(sqls)
-        self.checks5(1)
+            stream.check()   
+            
+        # contiue write data, but cint have null
+             
         
         ############ option: fill history
         
@@ -145,14 +130,14 @@ class TestStreamStateTrigger:
             sql=result_sql,
             func=lambda: tdSql.getRows() == 3
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
-            and tdSql.compareData(0, 1, 2)
-            and tdSql.compareData(0, 2, 2)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:02.000")
+            and tdSql.compareData(0, 1, 3)
+            and tdSql.compareData(0, 2, 3)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:03.000")
             and tdSql.compareData(1, 1, 3)
             and tdSql.compareData(1, 2, 3)
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:05.000")
-            and tdSql.compareData(2, 1, 4)
-            and tdSql.compareData(2, 2, 4),
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:06.000")
+            and tdSql.compareData(2, 1, 3)
+            and tdSql.compareData(2, 2, 3),
         )
 
         tdSql.query("desc sdb.res_ct1")
