@@ -1276,7 +1276,7 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
           TRINGBUF_FIRST(&pGroup->winBuf).wrownum += nrows;
         }
         if (ts == nextStart) {
-          code = stRealtimeGroupOpenWindow(pGroup, ts, NULL, true, pTsData[r - 1] == nextStart);
+          code = stRealtimeGroupOpenWindow(pGroup, ts, NULL, true, r > 0 && pTsData[r - 1] == nextStart);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         QUERY_CHECK_CONDITION(IS_REALTIME_GROUP_OPEN_WINDOW(pGroup), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -2279,7 +2279,8 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         QUERY_CHECK_CODE(code, lino, _end);
         goto _end;
       } else if (pContext->pMetaToFetch != NULL) {
-        if (pTask->triggerType == STREAM_TRIGGER_SESSION || pTask->triggerType == STREAM_TRIGGER_COUNT) {
+        if (pTask->triggerType == STREAM_TRIGGER_SLIDING || pTask->triggerType == STREAM_TRIGGER_SESSION ||
+            pTask->triggerType == STREAM_TRIGGER_COUNT) {
           code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_TS_DATA);
           QUERY_CHECK_CODE(code, lino, _end);
         } else {
