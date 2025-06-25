@@ -3923,7 +3923,7 @@ int32_t tDeserializeSMUpdateAnodeReq(void *buf, int32_t bufLen, SMUpdateAnodeReq
 
 void tFreeSMUpdateAnodeReq(SMUpdateAnodeReq *pReq) { tFreeSMDropAnodeReq(pReq); }
 
-int32_t tSerializeSMCreateXnodeReq(void *buf, int32_t bufLen, SMCreateXnodeReq *pReq) {
+int32_t tSerializeSMCreateBnodeReq(void *buf, int32_t bufLen, SMCreateBnodeReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -3932,7 +3932,7 @@ int32_t tSerializeSMCreateXnodeReq(void *buf, int32_t bufLen, SMCreateXnodeReq *
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->dnodeId));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->xnodeProto));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->bnodeProto));
 
   ENCODESQL();
   tEndEncode(&encoder);
@@ -3947,7 +3947,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSMCreateXnodeReq(void *buf, int32_t bufLen, SMCreateXnodeReq *pReq) {
+int32_t tDeserializeSMCreateBnodeReq(void *buf, int32_t bufLen, SMCreateBnodeReq *pReq) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -3956,7 +3956,7 @@ int32_t tDeserializeSMCreateXnodeReq(void *buf, int32_t bufLen, SMCreateXnodeReq
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->dnodeId));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->xnodeProto));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->bnodeProto));
 
   DECODESQL();
   tEndDecode(&decoder);
@@ -3966,12 +3966,12 @@ _exit:
   return code;
 }
 
-void tFreeSMCreateXnodeReq(SMCreateXnodeReq *pReq) {
+void tFreeSMCreateBnodeReq(SMCreateBnodeReq *pReq) {
   // May free options
   FREESQL();
 }
 
-int32_t tSerializeSMDropXnodeReq(void *buf, int32_t bufLen, SMDropXnodeReq *pReq) {
+int32_t tSerializeSMDropBnodeReq(void *buf, int32_t bufLen, SMDropBnodeReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -3993,7 +3993,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSMDropXnodeReq(void *buf, int32_t bufLen, SMDropXnodeReq *pReq) {
+int32_t tDeserializeSMDropBnodeReq(void *buf, int32_t bufLen, SMDropBnodeReq *pReq) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -4010,7 +4010,7 @@ _exit:
   return code;
 }
 
-void tFreeSMDropXnodeReq(SMDropXnodeReq *pReq) { FREESQL(); }
+void tFreeSMDropBnodeReq(SMDropBnodeReq *pReq) { FREESQL(); }
 
 int32_t tSerializeSCreateDnodeReq(void *buf, int32_t bufLen, SCreateDnodeReq *pReq) {
   SEncoder encoder = {0};

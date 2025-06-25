@@ -523,7 +523,7 @@ static const SSysTableMeta infosMeta[] = {
     // {TSDB_INS_TABLE_MODULES, modulesSchema, tListLen(modulesSchema), true},
     {TSDB_INS_TABLE_QNODES, qnodesSchema, tListLen(qnodesSchema), true},
     {TSDB_INS_TABLE_SNODES, snodesSchema, tListLen(snodesSchema), true},
-    {TSDB_INS_TABLE_XNODES, xnodesSchema, tListLen(xnodesSchema), true},
+    {TSDB_INS_TABLE_BNODES, xnodesSchema, tListLen(xnodesSchema), true},
     {TSDB_INS_TABLE_CLUSTER, clusterSchema, tListLen(clusterSchema), true},
     {TSDB_INS_TABLE_DATABASES, userDBSchema, tListLen(userDBSchema), false},
     {TSDB_INS_TABLE_FUNCTIONS, userFuncSchema, tListLen(userFuncSchema), false},

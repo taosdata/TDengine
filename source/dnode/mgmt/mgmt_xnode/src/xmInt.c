@@ -287,8 +287,8 @@ _OVER:
 
 int32_t xmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   int32_t          code = 0;
-  SDCreateXnodeReq createReq = {0};
-  if (tDeserializeSMCreateXnodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
+  SDCreateBnodeReq createReq = {0};
+  if (tDeserializeSMCreateBnodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     return code;
   }
@@ -297,27 +297,27 @@ int32_t xmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     code = TSDB_CODE_INVALID_OPTION;
     dError("failed to create xnode since %s", tstrerror(code));
 
-    tFreeSMCreateXnodeReq(&createReq);
+    tFreeSMCreateBnodeReq(&createReq);
     return code;
   }
 
   bool deployed = true;
-  if ((code = xmWriteFile(pInput->path, pInput->name, deployed, createReq.xnodeProto)) != 0) {
+  if ((code = xmWriteFile(pInput->path, pInput->name, deployed, createReq.bnodeProto)) != 0) {
     dError("failed to write xnode file since %s", tstrerror(code));
 
-    tFreeSMCreateXnodeReq(&createReq);
+    tFreeSMCreateBnodeReq(&createReq);
     return code;
   }
 
-  tFreeSMCreateXnodeReq(&createReq);
+  tFreeSMCreateBnodeReq(&createReq);
 
   return 0;
 }
 
 int32_t xmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   int32_t        code = 0;
-  SDDropXnodeReq dropReq = {0};
-  if (tDeserializeSMDropXnodeReq(pMsg->pCont, pMsg->contLen, &dropReq) != 0) {
+  SDDropBnodeReq dropReq = {0};
+  if (tDeserializeSMDropBnodeReq(pMsg->pCont, pMsg->contLen, &dropReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;
 
     return code;
@@ -327,7 +327,7 @@ int32_t xmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     code = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop xnode since %s", tstrerror(code));
 
-    tFreeSMDropXnodeReq(&dropReq);
+    tFreeSMDropBnodeReq(&dropReq);
     return code;
   }
 
@@ -335,11 +335,11 @@ int32_t xmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   if ((code = dmWriteFile(pInput->path, pInput->name, deployed)) != 0) {
     dError("failed to write xnode file since %s", tstrerror(code));
 
-    tFreeSMDropXnodeReq(&dropReq);
+    tFreeSMDropBnodeReq(&dropReq);
     return code;
   }
 
-  tFreeSMDropXnodeReq(&dropReq);
+  tFreeSMDropBnodeReq(&dropReq);
 
   return 0;
 }

@@ -659,7 +659,7 @@ cmd ::= SHOW LOCAL VARIABLES like_pattern_opt(B).                               
 cmd ::= SHOW DNODE NK_INTEGER(A) VARIABLES like_pattern_opt(B).                   { pCxt->pRootNode = createShowDnodeVariablesStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A), B); }
 // cmd ::= SHOW BNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_BACKUP_NODES_STMT); }
 cmd ::= SHOW SNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SNODES_STMT); }
-cmd ::= SHOW BNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_XNODES_STMT); }
+cmd ::= SHOW BNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_BNODES_STMT); }
 cmd ::= SHOW CLUSTER.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CLUSTER_STMT); }
 cmd ::= SHOW TRANSACTIONS.                                                        { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TRANSACTIONS_STMT); }
 cmd ::= SHOW TRANSACTION NK_INTEGER(A).                                           { pCxt->pRootNode = createShowTransactionDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }

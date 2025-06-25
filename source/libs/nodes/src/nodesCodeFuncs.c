@@ -175,9 +175,9 @@ const char* nodesNodeName(ENodeType type) {
       return "DropAnodeStmt";
     case QUERY_NODE_UPDATE_ANODE_STMT:
       return "UpdateAnodeStmt";
-    case QUERY_NODE_CREATE_XNODE_STMT:
+    case QUERY_NODE_CREATE_BNODE_STMT:
       return "CreateXnodeStmt";
-    case QUERY_NODE_DROP_XNODE_STMT:
+    case QUERY_NODE_DROP_BNODE_STMT:
       return "DropXnodeStmt";
     case QUERY_NODE_CREATE_SNODE_STMT:
       return "CreateSnodeStmt";
@@ -8992,9 +8992,9 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return dropAnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_UPDATE_ANODE_STMT:
       return updateAnodeStmtToJson(pObj, pJson);
-    case QUERY_NODE_CREATE_XNODE_STMT:
+    case QUERY_NODE_CREATE_BNODE_STMT:
       return createXnodeStmtToJson(pObj, pJson);
-    case QUERY_NODE_DROP_XNODE_STMT:
+    case QUERY_NODE_DROP_BNODE_STMT:
       return dropXnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_SNODE_STMT:
       return createSnodeStmtToJson(pObj, pJson);

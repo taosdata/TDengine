@@ -164,7 +164,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_USAGE,
   TSDB_MGMT_TABLE_FILESETS,
   TSDB_MGMT_TABLE_TRANSACTION_DETAIL,
-  TSDB_MGMT_TABLE_XNODE,
+  TSDB_MGMT_TABLE_BNODE,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -277,7 +277,7 @@ typedef enum ENodeType {
   QUERY_NODE_RANGE_AROUND,
   QUERY_NODE_STREAM_NOTIFY_OPTIONS,
   QUERY_NODE_VIRTUAL_TABLE,
-  QUERY_NODE_XNODE_OPTIONS,
+  QUERY_NODE_BNODE_OPTIONS,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -377,8 +377,8 @@ typedef enum ENodeType {
   QUERY_NODE_ASSIGN_LEADER_STMT,
   QUERY_NODE_SHOW_CREATE_TSMA_STMT,
   QUERY_NODE_SHOW_CREATE_VTABLE_STMT,
-  QUERY_NODE_CREATE_XNODE_STMT,
-  QUERY_NODE_DROP_XNODE_STMT,
+  QUERY_NODE_CREATE_BNODE_STMT,
+  QUERY_NODE_DROP_BNODE_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -426,7 +426,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_FILESETS_STMT,
   QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT,
   QUERY_NODE_SHOW_VTABLES_STMT,
-  QUERY_NODE_SHOW_XNODES_STMT,
+  QUERY_NODE_SHOW_BNODES_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -2770,24 +2770,24 @@ void    tFreeSMUpdateAnodeReq(SMUpdateAnodeReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
-  int32_t xnodeProto;
+  int32_t bnodeProto;
   int32_t sqlLen;
   char*   sql;
-} SMCreateXnodeReq, SDCreateXnodeReq;
+} SMCreateBnodeReq, SDCreateBnodeReq;
 
-int32_t tSerializeSMCreateXnodeReq(void* buf, int32_t bufLen, SMCreateXnodeReq* pReq);
-int32_t tDeserializeSMCreateXnodeReq(void* buf, int32_t bufLen, SMCreateXnodeReq* pReq);
-void    tFreeSMCreateXnodeReq(SMCreateXnodeReq* pReq);
+int32_t tSerializeSMCreateBnodeReq(void* buf, int32_t bufLen, SMCreateBnodeReq* pReq);
+int32_t tDeserializeSMCreateBnodeReq(void* buf, int32_t bufLen, SMCreateBnodeReq* pReq);
+void    tFreeSMCreateBnodeReq(SMCreateBnodeReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
   int32_t sqlLen;
   char*   sql;
-} SMDropXnodeReq, SDDropXnodeReq;
+} SMDropBnodeReq, SDDropBnodeReq;
 
-int32_t tSerializeSMDropXnodeReq(void* buf, int32_t bufLen, SMDropXnodeReq* pReq);
-int32_t tDeserializeSMDropXnodeReq(void* buf, int32_t bufLen, SMDropXnodeReq* pReq);
-void    tFreeSMDropXnodeReq(SMDropXnodeReq* pReq);
+int32_t tSerializeSMDropBnodeReq(void* buf, int32_t bufLen, SMDropBnodeReq* pReq);
+int32_t tDeserializeSMDropBnodeReq(void* buf, int32_t bufLen, SMDropBnodeReq* pReq);
+void    tFreeSMDropBnodeReq(SMDropBnodeReq* pReq);
 
 typedef struct {
   int32_t vgId;
