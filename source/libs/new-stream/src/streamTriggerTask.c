@@ -324,6 +324,56 @@ static void stTriggerTaskNextPeriodWindow(const SInterval *pInterval, STimeWindo
   }
 }
 
+static int32_t stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, int64_t *pLen) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   lino = 0;
+  SSTriggerRealtimeContext *pContext = pTask->pRealtimeContext;
+  SEncoder                  encoder = {0};
+  int32_t                   iter = 0;
+  tEncoderInit(&encoder, buf, *pLen);
+  static int32_t ver = 0;
+  code = tEncodeI32(&encoder, ver);  // version
+  QUERY_CHECK_CODE(code, lino, _end);
+  code = tEncodeI64(&encoder, pTask->task.streamId);
+  QUERY_CHECK_CODE(code, lino, _end);
+  code = tEncodeI32(&encoder, tSimpleHashGetSize(pContext->pReaderWalProgress));
+  QUERY_CHECK_CODE(code, lino, _end);
+  iter = 0;
+  SSTriggerWalProgress *pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, NULL, &iter);
+  while (pProgress != NULL) {
+    code = tEncodeI32(&encoder, pProgress->pTaskAddr->nodeId);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = tEncodeI64(&encoder, pProgress->latestVer);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = tEncodeI64(&encoder, pProgress->lastScanVer);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, pProgress, &iter);
+  }
+
+  code = tEncodeI32(&encoder, tSimpleHashGetSize(pContext->pGroups));
+  QUERY_CHECK_CODE(code, lino, _end);
+  iter = 0;
+  void *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
+  while (px != NULL) {
+    SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
+    code = tEncodeI64(&encoder, pGroup->gid);
+    QUERY_CHECK_CODE(code, lino, _end);
+    px = tSimpleHashIterate(pContext->pGroups, px, &iter);
+  }
+
+  tEndEncode(&encoder);
+
+  *pLen = encoder.pos;
+  stDebug("[checkpoint] gen checkpoint for task, ver %d, len:%" PRId64, ver, *pLen);
+
+_end:
+  tEncoderClear(&encoder);
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static void stRealtimeGroupDestroyTableInfo(void *ptr) {
   SSTriggerVirTableInfo *pTableInfo = ptr;
   if (pTableInfo == NULL) {
@@ -1425,7 +1475,7 @@ static int32_t stRealtimeGroupDoCountCheck(SSTriggerRealtimeGroup *pGroup) {
         }
         continue;
       }
-      if (skipped == nrowsNextWstart) {
+      if (nrowsCurWin + skipped == nrowsNextWstart) {
         code = stRealtimeGroupOpenWindow(pGroup, lastTs, NULL, false, true);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -2113,8 +2163,6 @@ _end:
   }
   return code;
 }
-
-static int32_t stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, int64_t *pLen);
 
 static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   int32_t             code = TSDB_CODE_SUCCESS;
@@ -2841,56 +2889,6 @@ _end:
   return code;
 }
 
-static int32_t stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, int64_t *pLen) {
-  int32_t                   code = TSDB_CODE_SUCCESS;
-  int32_t                   lino = 0;
-  SSTriggerRealtimeContext *pContext = pTask->pRealtimeContext;
-  SEncoder                  encoder = {0};
-  int32_t                   iter = 0;
-  tEncoderInit(&encoder, buf, *pLen);
-  static int32_t ver = 0;
-  code = tEncodeI32(&encoder, ver);  // version
-  QUERY_CHECK_CODE(code, lino, _end);
-  code = tEncodeI64(&encoder, pTask->task.streamId);
-  QUERY_CHECK_CODE(code, lino, _end);
-  code = tEncodeI32(&encoder, tSimpleHashGetSize(pContext->pReaderWalProgress));
-  QUERY_CHECK_CODE(code, lino, _end);
-  iter = 0;
-  SSTriggerWalProgress *pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, NULL, &iter);
-  while (pProgress != NULL) {
-    code = tEncodeI32(&encoder, pProgress->pTaskAddr->nodeId);
-    QUERY_CHECK_CODE(code, lino, _end);
-    code = tEncodeI64(&encoder, pProgress->latestVer);
-    QUERY_CHECK_CODE(code, lino, _end);
-    code = tEncodeI64(&encoder, pProgress->lastScanVer);
-    QUERY_CHECK_CODE(code, lino, _end);
-    pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, pProgress, &iter);
-  }
-
-  code = tEncodeI32(&encoder, tSimpleHashGetSize(pContext->pGroups));
-  QUERY_CHECK_CODE(code, lino, _end);
-  iter = 0;
-  void *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
-  while (px != NULL) {
-    SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
-    code = tEncodeI64(&encoder, pGroup->gid);
-    QUERY_CHECK_CODE(code, lino, _end);
-    px = tSimpleHashIterate(pContext->pGroups, px, &iter);
-  }
-
-  tEndEncode(&encoder);
-
-  *pLen = encoder.pos;
-  stDebug("[checkpoint] gen checkpoint for task, ver %d, len:%" PRId64, ver, *pLen);
-
-_end:
-  tEncoderClear(&encoder);
-  if (code != TSDB_CODE_SUCCESS) {
-    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
 int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeployMsg *pMsg) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -3173,7 +3171,7 @@ _end:
   return code;
 }
 
-int32_t streamTriggerProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t *pErrTaskId) {
+int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t *pErrTaskId) {
   int32_t             code = 0;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = (SStreamTriggerTask *)pStreamTask;

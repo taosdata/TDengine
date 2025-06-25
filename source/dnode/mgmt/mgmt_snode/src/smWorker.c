@@ -80,7 +80,7 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 
   if (code == TSDB_CODE_SUCCESS) {
     int64_t errTaskId = 0;
-    code = streamTriggerProcessRsp(pTask, pMsg, &errTaskId);
+    code = stTriggerTaskProcessRsp(pTask, pMsg, &errTaskId);
     if (code != TSDB_CODE_SUCCESS) {
       streamHandleTaskError(pTask->streamId, errTaskId, code);
     }
