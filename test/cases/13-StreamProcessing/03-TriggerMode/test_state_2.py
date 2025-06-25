@@ -89,14 +89,14 @@ class TestStreamStateTrigger:
         tdLog.info(f"=============== create stream")
         sql1 = "create stream s1 state_window(cint) from ct1 into res_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
     #     sql2 = "create stream s2 state_window(cint) from ct2 into res_ct2 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
-    #     sql3 = "create stream s3 state_window(cint) from stb partition by tbname into stb_res OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from stb partition by tbname;"
-    #   # sqlx = "create stream sx state_window(cint) from stb partition by tint into stb_stag_res OUTPUT_SUBTABLE(CONCAT('res_stb_stag_', %%1)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from stb partition by tint;"  # state_window must include partition by tbname
-    #     sql4 = "create stream s4 state_window(cint) from stb partition by tbname, tint options() into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', %%1, %%2)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from stb partition by tbname, tint;"
+    #     sql3 = "create stream s3 state_window(cint) from stb partition by tbname into stb_res OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname;"
+    #   # sqlx = "create stream sx state_window(cint) from stb partition by tint into stb_stag_res OUTPUT_SUBTABLE(CONCAT('res_stb_stag_', %%1)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tint;"  # state_window must include partition by tbname
+    #     sql4 = "create stream s4 state_window(cint) from stb partition by tbname, tint options() into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', %%1, %%2)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname, tint;"
         
     #     # add control options
-    #     sql5 = "create stream s1 state_window(cint) from ct1 into res_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from ct1;"
+    #     sql5 = "create stream s1 state_window(cint) from ct1 into res_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
         
-    #     sql6 = "create stream s5 state_window(cint) from stb partition by tbname, tint into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', %%1, %%2)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from stb partition by tbname, tint;"
+    #     sql6 = "create stream s5 state_window(cint) from stb partition by tbname, tint into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', %%1, %%2)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname, tint;"
      
      
      
