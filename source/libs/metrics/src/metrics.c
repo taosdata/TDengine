@@ -54,6 +54,8 @@ static void cleanExpiredCounterMetrics(taos_counter_t *counter, SHashObj *pValid
   char   **keys = NULL;
   int      r = taos_counter_get_vgroup_ids(counter, &keys, &vgroup_ids, &list_size);
   if (r) {
+    if (keys) taosMemoryFree(keys);
+    if (vgroup_ids) taosMemoryFree(vgroup_ids);
     uError("failed to get vgroup ids for counter %s", counterName);
     return;
   }
