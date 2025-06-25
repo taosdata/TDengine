@@ -98,6 +98,8 @@ class TestMqttCases:
         self.mqttConf['sub_prop'] = p.Properties(pt.PacketTypes.SUBSCRIBE)
         self.mqttConf['sub_prop'].UserProperty = ('sub-offset', 'earliest')
         self.mqttConf['sub_prop'].UserProperty = ('proto', 'fbv')
+        self.mqttConf['conn_prop'] = p.Properties(pt.PacketTypes.CONNECT)
+        self.mqttConf['conn_prop'].SessionExpiryInterval = 60
         # ---- global parameters end ----#
 
         # 1, create 6 bnodes on 6 dnodes
@@ -169,6 +171,7 @@ class TestMqttCases:
                     'rows': stb_rows,
                     'client_id': ci,
                     'sub_prop': self.mqttConf['sub_prop'],
+                    'conn_prop': self.mqttConf['conn_prop'],
                 }
 
                 print(f"4 {i} {conf['port']} {conf['topic']}")

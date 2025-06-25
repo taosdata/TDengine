@@ -102,7 +102,7 @@ class MqttUtil:
         client.on_log = self.on_log
 
         client.username_pw_set(conf['user'], conf['passwd'])
-        client.connect(conf['host'], conf['port'])
+        client.connect(conf['host'], conf['port'], properties=conf['conn_prop'], keepalive=60)
         client.loop_start()
 
         tdLog.info(f"=============== subscription loop started.")
@@ -125,8 +125,10 @@ class MqttUtil:
         print("log: ", buf)
 
     def on_disconnect_async(client, userdata, rc=0):
-        tdLog.debug("DisConnected result code: "+str(rc))
-        print("DisConnected result code: "+str(rc))
+        tdLog.debug("DisConnected result code: "+ str(rc))
+        print("DisConnected result code: "+ str(rc))
+
+        client.reconnect()
         #client.loop_stop()
 
     def subscribe(self, conf):
@@ -143,7 +145,7 @@ class MqttUtil:
         client.on_message = self.on_message
 
         client.username_pw_set(self.mqttConf['user'], self.mqttConf['passwd'])
-        client.connect(self.mqttConf['host'], self.mqttConf['port'])
+        client.connect(self.mqttConf['host'], self.mqttConf['port'], properties=conf['conn_prop'], keepalive=60)
         client.loop_start()
 
         self.loop_count = 0
