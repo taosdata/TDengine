@@ -268,7 +268,7 @@ _exit:
     }
 
     xndError("taosmqtt thread exit with code:%d lino:%d", terrno, __LINE__);
-    terrno = TSDB_CODE_XNODE_UV_EXEC_FAILURE;
+    terrno = TSDB_CODE_BNODE_UV_EXEC_FAILURE;
   }
 }
 

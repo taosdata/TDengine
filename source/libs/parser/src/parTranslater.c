@@ -11300,7 +11300,7 @@ static int32_t checkCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* pStmt
     if (0 == strcasecmp(pOptions->protoStr, TSDB_XNODE_OPT_PROTO_STR_MQTT)) {
       pOptions->proto = TSDB_XNODE_OPT_PROTO_MQTT;
     } else {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_XNODE_OPTION, "Invalid option protocol: %s",
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_BNODE_OPTION, "Invalid option protocol: %s",
                                      pOptions->protoStr);
     }
   }

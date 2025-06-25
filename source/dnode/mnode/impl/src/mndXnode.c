@@ -187,7 +187,7 @@ static int32_t mndSetCreateXnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_DND_CREATE_BNODE;
-  action.acceptableCode = TSDB_CODE_XNODE_ALREADY_DEPLOYED;
+  action.acceptableCode = TSDB_CODE_BNODE_ALREADY_DEPLOYED;
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);
@@ -218,7 +218,7 @@ static int32_t mndSetCreateXnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_DND_DROP_BNODE;
-  action.acceptableCode = TSDB_CODE_XNODE_NOT_DEPLOYED;
+  action.acceptableCode = TSDB_CODE_BNODE_NOT_DEPLOYED;
 
   if ((code = mndTransAppendUndoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);
@@ -275,9 +275,9 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
 
   pObj = mndAcquireXnode(pMnode, createReq.dnodeId);
   if (pObj != NULL) {
-    code = terrno = TSDB_CODE_MND_XNODE_ALREADY_EXIST;
+    code = terrno = TSDB_CODE_MND_BNODE_ALREADY_EXIST;
     goto _OVER;
-  } else if (terrno != TSDB_CODE_MND_XNODE_NOT_EXIST) {
+  } else if (terrno != TSDB_CODE_MND_BNODE_NOT_EXIST) {
     code = terrno;
     goto _OVER;
   }
@@ -350,7 +350,7 @@ static int32_t mndSetDropXnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SXn
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_DND_DROP_BNODE;
-  action.acceptableCode = TSDB_CODE_XNODE_NOT_DEPLOYED;
+  action.acceptableCode = TSDB_CODE_BNODE_NOT_DEPLOYED;
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);
@@ -508,7 +508,7 @@ SEpSet mndAcquireEpFromXnode(SMnode *pMnode, const SXnodeObj *pXnode) {
 SXnodeObj *mndAcquireXnode(SMnode *pMnode, int32_t dnodeId) {
   SXnodeObj *pObj = sdbAcquire(pMnode->pSdb, SDB_XNODE, &dnodeId);
   if (pObj == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
-    terrno = TSDB_CODE_MND_XNODE_NOT_EXIST;
+    terrno = TSDB_CODE_MND_BNODE_NOT_EXIST;
   }
   return pObj;
 }

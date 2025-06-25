@@ -253,7 +253,7 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
         code = TSDB_CODE_SNODE_ALREADY_DEPLOYED;
         break;
       case XNODE:
-        code = TSDB_CODE_XNODE_ALREADY_DEPLOYED;
+        code = TSDB_CODE_BNODE_ALREADY_DEPLOYED;
         break;
       default:
         code = TSDB_CODE_APP_ERROR;
@@ -380,7 +380,7 @@ static int32_t dmProcessDropNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
         code = TSDB_CODE_SNODE_NOT_DEPLOYED;
         break;
       case XNODE:
-        code = TSDB_CODE_XNODE_NOT_DEPLOYED;
+        code = TSDB_CODE_BNODE_NOT_DEPLOYED;
         break;
       default:
         code = TSDB_CODE_APP_ERROR;

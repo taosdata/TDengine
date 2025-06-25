@@ -323,7 +323,7 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
         code = TSDB_CODE_SNODE_NOT_FOUND;
         break;
       case XNODE:
-        code = TSDB_CODE_XNODE_NOT_FOUND;
+        code = TSDB_CODE_BNODE_NOT_FOUND;
         break;
       case VNODE:
         code = TSDB_CODE_VND_STOPPED;

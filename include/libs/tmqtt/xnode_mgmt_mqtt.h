@@ -45,8 +45,8 @@ extern "C" {
 #define TAOS_UV_LIB_ERROR_RET(ret)              \
   do {                                          \
     if (0 != ret) {                             \
-      terrno = TSDB_CODE_XNODE_UV_EXEC_FAILURE; \
-      return TSDB_CODE_XNODE_UV_EXEC_FAILURE;   \
+      terrno = TSDB_CODE_BNODE_UV_EXEC_FAILURE; \
+      return TSDB_CODE_BNODE_UV_EXEC_FAILURE;   \
     }                                           \
   } while (0)
 

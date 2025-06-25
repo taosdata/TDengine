@@ -222,7 +222,7 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
   msgInfo->param = udf;
   if (uv_sem_init(&msgInfo->resultSem, 0) != 0) {
     taosMemoryFree(msgInfo);
-    return TSDB_CODE_XNODE_UV_EXEC_FAILURE;
+    return TSDB_CODE_BNODE_UV_EXEC_FAILURE;
   }
 
   SRpcMsg rpcMsg = {0};
@@ -695,7 +695,7 @@ static int32_t udfdGlobalDataInit() {
 
   if (uv_mutex_init(&global.udfsMutex) != 0) {
     xndError("udfd init udfs mutex failed");
-    return TSDB_CODE_XNODE_UV_EXEC_FAILURE;
+    return TSDB_CODE_BNODE_UV_EXEC_FAILURE;
   }
 
   return 0;
