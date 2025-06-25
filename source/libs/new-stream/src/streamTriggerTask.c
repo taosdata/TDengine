@@ -829,6 +829,14 @@ static int32_t stRealtimeGroupCloseWindow(SSTriggerRealtimeGroup *pGroup, char *
 
   pCurWindow = &TRINGBUF_FIRST(&pGroup->winBuf);
 
+  if ((pTask->triggerType == STREAM_TRIGGER_STATE &&
+       pCurWindow->range.ekey - pCurWindow->range.skey < pTask->stateTrueFor) ||
+      (pTask->triggerType == STREAM_TRIGGER_EVENT &&
+       pCurWindow->range.ekey - pCurWindow->range.skey < pTask->eventTrueFor)) {
+    // check TRUE FOR condition
+    needCalc = needNotify = false;
+  }
+
   switch (pTask->triggerType) {
     case STREAM_TRIGGER_PERIOD: {
       SInterval *pInterval = &pTask->interval;
@@ -903,8 +911,8 @@ static int32_t stRealtimeGroupCloseWindow(SSTriggerRealtimeGroup *pGroup, char *
   } else if (needNotify) {
     void *px = taosArrayPush(pContext->pNotifyParams, &param);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-  } else {
-    QUERY_CHECK_CONDITION(ppExtraNotifyContent == NULL, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  } else if (ppExtraNotifyContent != NULL && *ppExtraNotifyContent != NULL) {
+    taosMemoryFreeClear(*ppExtraNotifyContent);
   }
 
   if (ppExtraNotifyContent) {
