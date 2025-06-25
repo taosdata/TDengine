@@ -105,20 +105,31 @@ class TestStreamDevBasic:
 
     def createStreams(self):
         self.streams = []
-        
+
         stream = StreamItem(
-            id=36,
-            stream="create stream rdb.s36 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r36 as select _tprev_ts t1, _tcurrent_ts t2, _tnext_ts + 1 as t3, TIMEDIFF(_tcurrent_ts, _tprev_ts) tx1, TIMEDIFF(_tnext_ts, _tcurrent_ts) tx2, sum(cint) c1, avg(cuint) c2, _tgrpid from qdb.meters where tint=%%1 and cts >= _twstart and cts < _twend;",
-            res_query="select t1, t2, t3, tx1, tx2, c1, c2 from rdb.r36 where id = 1",
-            exp_query="select _wstart, _wend, _wend + 5m + 1, TIMEDIFF(_wend, _wstart), TIMEDIFF(_wend, _wstart), sum(cint), avg(cuint) from qdb.meters where tint=1 and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' interval(5m)",
+            id=41,
+            stream="create stream rdb.s41 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r41 as select cts, cint, cbool, cast(tjson->'k1' as varchar(8)) cjson, _twstart from qdb.j0 where cts >= _twstart and cts < _twend and cbool = %%1 order by cts limit 2, 3",
+            res_query="select * from rdb.r41 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and id = 1",
+            exp_query="select cts, cint, cbool, cast(tjson->'k1' as varchar(8)) cjson, cast('2025-01-01 00:00:00.000' as timestamp) from qdb.j0 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and cbool = 1 order by cts limit 2, 3",
+            check_func=self.check41,
         )
+
         self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()
 
-    def check205(self):
-        tdSql.checkResultsByFunc(
-            sql="select * from rdb.r205;", func=lambda: tdSql.getRows() > 0, retry=20
+    def check41(self):
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r41",
+            schema=[
+                ["cts", "TIMESTAMP", 8, ""],
+                ["cint", "INT", 4, ""],
+                ["cbool", "BOOL", 1, ""],
+                ["cjson", "VARCHAR", 8, ""],
+                ["_twstart", "TIMESTAMP", 8, ""],
+                ["id", "INT", 4, "TAG"],
+            ],
         )
