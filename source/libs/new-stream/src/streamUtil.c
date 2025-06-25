@@ -821,10 +821,11 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask* pTask = NULL;
+  void* taskAddr = NULL;
 
   *pppIter = NULL;
 
-  code = streamGetTask(streamId, taskId, (SStreamTask**)&pTask);
+  code = streamAcquireTask(streamId, taskId, (SStreamTask**)&pTask, &taskAddr);
   QUERY_CHECK_CODE(code, lino, _end);
 
   QUERY_CHECK_CONDITION(pTask->task.type == STREAM_TRIGGER_TASK, code, lino, _end, TSDB_CODE_STREAM_TASK_NOT_EXIST);
@@ -854,6 +855,9 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
   }
 
 _end:
+
+  streamReleaseTask(taskAddr);
+
   if (code != TSDB_CODE_SUCCESS) {
     stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }

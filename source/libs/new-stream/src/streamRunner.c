@@ -45,53 +45,35 @@ static void stRunnerDestroyTaskExecution(void* pExec) {
   streamDestroyExecTask(pExecution->pExecutor);
 }
 
-static void stRunnerTaskExecMgrDestroyFinalize(SStreamRunnerTask* pTask) {
-  SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
-  tdListFreeP(pMgr->pRunningExecs, stRunnerDestroyTaskExecution);
-  tdListFreeP(pMgr->pFreeExecs, stRunnerDestroyTaskExecution);
-  taosThreadMutexDestroy(&pMgr->lock);
-  pTask->undeployCb(pTask->undeployParam);
-  NODES_DESTORY_NODE(pTask->pSubTableExpr);
-  NODES_DESTORY_LIST(pTask->output.pTagValExprs);
-  taosMemoryFreeClear(pTask->pPlan);
-  taosArrayDestroyEx(pTask->forceOutCols, destroySStreamOutCols);
-  taosArrayDestroyP(pTask->notification.pNotifyAddrUrls, taosMemFree);
-}
-
 static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t execId,
                                               SStreamRunnerTaskExecution** ppExec) {
   SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
   int32_t                   code = 0;
   taosThreadMutexLock(&pMgr->lock);
-  if (pMgr->exit) {
-    code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
-    ST_TASK_WLOG("task has been undeployed: %s", tstrerror(code));
-  } else {
-    if (execId == -1) {
-      if (pMgr->pFreeExecs->dl_neles_ > 0) {
-        SListNode* pNode = tdListPopHead(pMgr->pFreeExecs);
-        tdListAppendNode(pTask->execMgr.pRunningExecs, pNode);
-        *ppExec = (SStreamRunnerTaskExecution*)pNode->data;
-      } else {
-        code = TSDB_CODE_STREAM_TASK_IVLD_STATUS;
-        ST_TASK_ELOG("too many exec tasks scheduled: %s", tstrerror(code));
-      }
+  if (execId == -1) {
+    if (pMgr->pFreeExecs->dl_neles_ > 0) {
+      SListNode* pNode = tdListPopHead(pMgr->pFreeExecs);
+      tdListAppendNode(pTask->execMgr.pRunningExecs, pNode);
+      *ppExec = (SStreamRunnerTaskExecution*)pNode->data;
     } else {
-      SListNode* pNode = tdListGetHead(pMgr->pFreeExecs);
-      while (pNode) {
-        SStreamRunnerTaskExecution* pExec = (SStreamRunnerTaskExecution*)pNode->data;
-        if (pExec->runtimeInfo.execId == execId) {
-          tdListPopNode(pMgr->pFreeExecs, pNode);
-          tdListAppendNode(pMgr->pRunningExecs, pNode);
-          *ppExec = pExec;
-          break;
-        }
-        pNode = pNode->dl_next_;
+      code = TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+      ST_TASK_ELOG("too many exec tasks scheduled: %s", tstrerror(code));
+    }
+  } else {
+    SListNode* pNode = tdListGetHead(pMgr->pFreeExecs);
+    while (pNode) {
+      SStreamRunnerTaskExecution* pExec = (SStreamRunnerTaskExecution*)pNode->data;
+      if (pExec->runtimeInfo.execId == execId) {
+        tdListPopNode(pMgr->pFreeExecs, pNode);
+        tdListAppendNode(pMgr->pRunningExecs, pNode);
+        *ppExec = pExec;
+        break;
       }
-      if (!*ppExec) {
-        code = TSDB_CODE_STREAM_TASK_IVLD_STATUS;
-        ST_TASK_ELOG("failed to get task exec, invalid execId:%d", execId);
-      }
+      pNode = pNode->dl_next_;
+    }
+    if (!*ppExec) {
+      code = TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+      ST_TASK_ELOG("failed to get task exec, invalid execId:%d", execId);
     }
   }
   taosThreadMutexUnlock(&pMgr->lock);
@@ -101,20 +83,11 @@ static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t 
 
 static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec) {
   SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
-  bool                      amITheLastRunning = false;
   taosThreadMutexLock(&pMgr->lock);
-  if (pMgr->exit) {
-    if (pMgr->pRunningExecs->dl_neles_ == 1) {
-      amITheLastRunning = true;
-    }
-  } else {
-    SListNode* pNode = listNode(pExec);
-    pNode = tdListPopNode(pMgr->pRunningExecs, pNode);
-    tdListAppendNode(pMgr->pFreeExecs, pNode);
-  }
+  SListNode* pNode = listNode(pExec);
+  pNode = tdListPopNode(pMgr->pRunningExecs, pNode);
+  tdListAppendNode(pMgr->pFreeExecs, pNode);
   taosThreadMutexUnlock(&pMgr->lock);
-
-  if (amITheLastRunning) stRunnerTaskExecMgrDestroyFinalize(pTask);
 }
 
 static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
@@ -164,22 +137,35 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
   return 0;
 }
 
-int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb) {
-  bool destroy = false;
+int32_t stRunnerTaskUndeployImpl(SStreamRunnerTask** ppTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb) {
+  SStreamRunnerTask* pTask = *ppTask;
+  SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
+  tdListFreeP(pMgr->pRunningExecs, stRunnerDestroyTaskExecution);
+  tdListFreeP(pMgr->pFreeExecs, stRunnerDestroyTaskExecution);
+  taosThreadMutexDestroy(&pMgr->lock);
+  NODES_DESTORY_NODE(pTask->pSubTableExpr);
+  NODES_DESTORY_LIST(pTask->output.pTagValExprs);
+  taosMemoryFreeClear(pTask->pPlan);
+  taosArrayDestroyEx(pTask->forceOutCols, destroySStreamOutCols);
+  taosArrayDestroyP(pTask->notification.pNotifyAddrUrls, taosMemFree);
 
-  taosThreadMutexLock(&((*ppTask)->execMgr.lock));
-  (*ppTask)->execMgr.exit = true;
-  (*ppTask)->undeployCb = cb;
-  (*ppTask)->undeployParam = ppTask;
-  if ((*ppTask)->execMgr.pRunningExecs->dl_neles_ == 0) {
-    destroy = true;
-  }
-  taosThreadMutexUnlock(&((*ppTask)->execMgr.lock));
-  if (destroy) {
-    stRunnerTaskExecMgrDestroyFinalize(*ppTask);
-  }
+  cb(ppTask);
+  
   return 0;
 }
+
+int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, bool force) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  SStreamRunnerTask *pTask = *ppTask;
+  
+  if (!force && taosWTryForceLockLatch(&pTask->task.entryLock)) {
+    ST_TASK_DLOG("ignore undeploy runner task since working, entryLock:%x", pTask->task.entryLock);
+    return code;
+  }
+
+  return stRunnerTaskUndeployImpl(ppTask, &pTask->task.undeployMsg, pTask->task.undeployCb);
+}
+
 
 static int32_t streamResetTaskExec(SStreamRunnerTaskExecution* pExec, bool ignoreTbName) {
   int32_t code = 0;

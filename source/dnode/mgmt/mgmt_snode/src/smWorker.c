@@ -46,6 +46,7 @@ static void smProcessRunnerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SSnodeMgmt *pMgmt = pInfo->ahandle;
   STraceId   *trace = &pMsg->info.traceId;
+  void       *taskAddr = NULL;
   dGTrace("msg:%p, get from snode-stream-trigger queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
 
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -58,7 +59,7 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
         dError("msg:%p, invalid pull request in snode-stream-trigger queue", pMsg);
         break;
       }
-      code = streamGetTask(pReq->streamId, pReq->triggerTaskId, &pTask);
+      code = streamAcquireTask(pReq->streamId, pReq->triggerTaskId, &pTask, &taskAddr);
       break;
     }
     case TDMT_STREAM_TRIGGER_CALC_RSP: {
@@ -68,7 +69,7 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
         dError("msg:%p, invalid calc request in snode-stream-trigger queue", pMsg);
         break;
       }
-      code = streamGetTask(pReq->streamId, pReq->triggerTaskId, &pTask);
+      code = streamAcquireTask(pReq->streamId, pReq->triggerTaskId, &pTask, &taskAddr);
       break;
     }
     default: {
@@ -85,6 +86,8 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       streamHandleTaskError(pTask->streamId, errTaskId, code);
     }
   }
+
+  streamReleaseTask(taskAddr);
 
   dTrace("msg:%p, is freed, code:%d", pMsg, code);
   rpcFreeCont(pMsg->pCont);

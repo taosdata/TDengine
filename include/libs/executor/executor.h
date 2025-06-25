@@ -284,7 +284,6 @@ void    streamSetTaskRuntimeInfo(qTaskInfo_t tinfo, SStreamRuntimeInfo* pRuntime
 
 typedef void (*getMnodeEpset_f)(void *pDnode, SEpSet *pEpset);
 typedef int32_t (*getDnodeId_f)(void *pData);
-typedef void (*taskUndeplyCallback)(void*);
 typedef SEpSet* (*getSynEpset_f)(int32_t leaderId);
 
 typedef struct SGlobalExecInfo {
