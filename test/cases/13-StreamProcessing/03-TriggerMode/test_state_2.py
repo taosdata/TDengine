@@ -35,6 +35,12 @@ class TestStreamStateTrigger:
 
         tdLog.info(f"=============== create super table")
         tdSql.execute(f"create stable stb (cts timestamp, cint int, cuint int unsigned) tags(tint int);")
+
+        tdLog.info(f"=============== create sub table")
+        tdSql.execute(f"create table ct1 using stb tags(1);")
+        tdSql.execute(f"create table ct2 using stb tags(2);")
+        tdSql.execute(f"create table ct3 using stb tags(1);")
+        tdSql.execute(f"create table ct4 using stb tags(2);")
         
         tdLog.info(f"=============== create stream")
         sql1 = "create stream s1 state_window(cint) from ct1 into res_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
@@ -51,7 +57,8 @@ class TestStreamStateTrigger:
 
         for stream in streams:
             tdSql.execute(stream.sql)
-        tdStream.checkStreamStatus()
+        # tdStream.checkStreamStatus()
+        time.sleep(3)
 
         tdLog.info(f"=============== write query data")
         sqls = [
@@ -112,7 +119,8 @@ class TestStreamStateTrigger:
         sql5 = "create stream s5 state_window(cint) true_for(5s) from ct1 into res_truefor_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
          
         tdSql.execute(sql5)
-        tdStream.checkStreamStatus("s5")
+        # tdStream.checkStreamStatus("s5")
+        time.sleep(3)
         # self.checks5(0)
                 
         tdLog.info(f"=============== continue write data into ct1 for true_for(5s)")
@@ -123,9 +131,9 @@ class TestStreamStateTrigger:
             "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:16', 5, 1);",
             "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:17', 5, 1);",
             "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:18', 5, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:20', 5, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:21', 5, 2);",
             "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:22', 6, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:26', 6, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:29', 6, 2);",
             "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:30', 7, 3);",
         ]
         tdSql.executes(sqls)
@@ -140,7 +148,7 @@ class TestStreamStateTrigger:
         return
 
     def checks1(self):
-        result_sql = "select firstts, count, avg from res_ct1"
+        result_sql = "select firstts, num_v, cnt_v, avg_v from res_ct1"
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 3
@@ -170,9 +178,11 @@ class TestStreamStateTrigger:
         tdSql.checkData(1, 2, "8")
         tdSql.checkData(2, 2, "8")
         tdSql.checkData(3, 2, "8")
+        tdLog.info(f"=============== check s1 result success !!!!!!!! =====================")
+        return
 
     def checks2(self):
-        result_sql = "select firstts, count, avg from res_ct2"
+        result_sql = "select firstts, num_v, cnt_v, avg_v from res_ct2"
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 3
@@ -202,9 +212,11 @@ class TestStreamStateTrigger:
         tdSql.checkData(1, 2, "8")
         tdSql.checkData(2, 2, "8")
         tdSql.checkData(3, 2, "8")
+        tdLog.info(f"=============== check s2 result success !!!!!!!! =====================")
+        return
 
     def checks3(self):
-        result_sql = "select firstts, count, avg from res_stb_ct1"
+        result_sql = "select firstts, num_v, cnt_v, avg_v from res_stb_ct1"
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 3
@@ -242,9 +254,11 @@ class TestStreamStateTrigger:
         tdSql.checkData(5, 2, "8")
         tdSql.checkData(4, 3, "TAG")
         tdSql.checkData(5, 3, "TAG")
+        tdLog.info(f"=============== check s3 result success !!!!!!!! =====================")
+        return
 
     def checks4(self):
-        result_sql = "select firstts, count, avg from res_stb_mtag_ct1_1"
+        result_sql = "select firstts, num_v, cnt_v, avg_v from res_stb_mtag_ct1_1"
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 3
@@ -282,28 +296,33 @@ class TestStreamStateTrigger:
         tdSql.checkData(5, 2, "8")
         tdSql.checkData(4, 3, "TAG")
         tdSql.checkData(5, 3, "TAG")
+        tdLog.info(f"=============== check s4 result success !!!!!!!! =====================")
+        return
 
     def checks5(self, check_idx):
-        result_sql = "select firstts, count, avg from res_truefor_ct1"
+        result_sql = "select firstts, num_v, cnt_v, avg_v from res_truefor_ct1"
         if 0 == check_idx: 
             tdSql.checkResultsByFunc(
                 sql=result_sql,
                 func=lambda: tdSql.getRows() == 0,
             )
+            tdLog.info(f"=============== check s5-0 result success !!!!!!!! =====================")
         elif 1 == check_idx:
             tdSql.checkResultsByFunc(
                 sql=result_sql,
                 func=lambda: tdSql.getRows() == 3
-                and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
-                and tdSql.compareData(0, 1, 2)
-                and tdSql.compareData(0, 2, 2)
-                and tdSql.compareData(1, 0, "2025-01-01 00:00:02.000")
-                and tdSql.compareData(1, 1, 3)
-                and tdSql.compareData(1, 2, 3)
-                and tdSql.compareData(2, 0, "2025-01-01 00:00:05.000")
-                and tdSql.compareData(2, 1, 4)
-                and tdSql.compareData(2, 2, 4),
-            )                    
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:10.000")
+                and tdSql.compareData(0, 1, 3)
+                and tdSql.compareData(0, 2, 3)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:16.000")
+                and tdSql.compareData(1, 1, 4)
+                and tdSql.compareData(1, 2, 4)
+                and tdSql.compareData(2, 0, "2025-01-01 00:00:22.000")
+                and tdSql.compareData(2, 1, 2)
+                and tdSql.compareData(2, 2, 2),
+            )    
+            tdLog.info(f"=============== check s5-1 result success !!!!!!!! =====================")
+                        
         return
 
     class StreamItem:

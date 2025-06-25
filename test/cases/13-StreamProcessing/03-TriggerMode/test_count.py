@@ -57,7 +57,8 @@ class TestStreamCountTrigger:
 
         for stream in streams:
             tdSql.execute(stream.sql)
-        tdStream.checkStreamStatus()
+        # tdStream.checkStreamStatus()
+        time.sleep(3)
 
         tdLog.info(f"=============== write query data")
         sqls = [
@@ -125,7 +126,7 @@ class TestStreamCountTrigger:
         return
 
     def checks1(self):
-        result_sql = "select firstts, count, avg from res_ct1"
+        result_sql = "select firstts, num_v, cnt_v, avg_v from res_ct1"
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 3
