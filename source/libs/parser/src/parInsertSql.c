@@ -56,6 +56,7 @@ typedef struct SInsertParseContext {
   bool           needRequest;  // whether or not request server
   bool           isStmtBind;   // whether is stmt bind
   uint8_t        stmtTbNameFlag;
+  int32_t        numOfMissCache;
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);

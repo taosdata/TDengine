@@ -267,6 +267,9 @@ int32_t tsMinIntervalTime = 1;
 // maximum batch rows numbers imported from a single csv load
 int32_t tsMaxInsertBatchRows = 1000000;
 
+// maximum number of miss cache tables
+int32_t  tsMaxMissCacheTableNums = 100;
+
 float   tsSelectivityRatio = 1.0;
 int32_t tsTagFilterResCacheSize = 1024 * 10;
 char    tsTagFilterCache = 0;
@@ -738,6 +741,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "minIntervalTime", tsMinIntervalTime, 1, 1000000, CFG_SCOPE_CLIENT,
                                 CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxInsertBatchRows", tsMaxInsertBatchRows, 1, INT32_MAX, CFG_SCOPE_CLIENT,
+                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL) != 0);
+ TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxMissCacheTableNums", tsMaxMissCacheTableNums, 1, 100000, CFG_SCOPE_CLIENT,
                                 CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL) != 0);
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxRetryWaitTime", tsMaxRetryWaitTime, 3000, 86400000, CFG_SCOPE_SERVER,
                                 CFG_DYN_BOTH_LAZY, CFG_CATEGORY_GLOBAL));
@@ -1468,6 +1473,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "maxInsertBatchRows");
   tsMaxInsertBatchRows = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "maxMissCacheTableNums");
+  tsMaxMissCacheTableNums = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "shellActivityTimer");
   tsShellActivityTimer = pItem->i32;
@@ -3003,6 +3011,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"keepColumnName", &tsKeepColumnName},
                                          {"logKeepDays", &tsLogKeepDays},
                                          {"maxInsertBatchRows", &tsMaxInsertBatchRows},
+                                         {"maxMissCacheTableNums", &tsMaxMissCacheTableNums},
                                          {"minSlidingTime", &tsMinSlidingTime},
                                          {"minIntervalTime", &tsMinIntervalTime},
                                          {"numOfLogLines", &tsNumOfLogLines},
