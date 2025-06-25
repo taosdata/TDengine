@@ -147,7 +147,9 @@ TDengine v3.3.7.0 版本开始提供 MQTT 订阅功能，通过 MQTT 客户端�
 #### 创建 Bnode
 
 ```sql
+
 CREATE BNODE ON DNODE {dnode_id}
+
 ```
 
 一个 dnode 上只能创建一个 bnode。bnode 创建成功后，会自动启动 bnode 子进程 `taosmqtt`，默认在 6083 端口对外提供 MQTT 订阅服务，端口可在文件 taos.cfg 中通过参数 `mqttPort` 配置。例如：`create bnode on dnode 1`。
@@ -157,6 +159,7 @@ CREATE BNODE ON DNODE {dnode_id}
 列出集群中所有的数据订阅节点，包括其 `id`, `endpoint`, `create_time`等属性。
 
 ```sql
+
 SHOW BNODES;
 
 taos> show bnodes;
@@ -164,12 +167,15 @@ taos> show bnodes;
 ======================================================================
      1     | 192.168.0.1:6083 | mqtt        | 2024-11-28 18:44:27.089 | 
 Query OK, 1 row(s) in set (0.037205s)
+
 ```
 
 #### 删除 Bnode
 
 ```sql
+
 DROP BNODE ON DNODE {dnode_id}
+
 ```
 
 删除 bnode 将把 bnode 从 TDengine 集群中移除，同时停止 taosmqtt 服务。
@@ -179,11 +185,13 @@ DROP BNODE ON DNODE {dnode_id}
 #### 环境准备
 
 ```sql
+
 create database db vgroups 1;
 create table db.meters (ts timestamp, f1 int) tags(t1 int);
 create topic topic_meters as select ts, tbname, f1, t1 from db.meters;
 insert into db.tb using db.meters tags(1) values(now, 1);
 create bnode on dnode 1;
+
 ```
 
 在命令行工具 taos 中执行上面的 SQL 语句，创建数据库，超级表，主题 `topic_meters` ，bnode 节点，写入一条数据供下一步订阅使用。
@@ -195,15 +203,18 @@ create bnode on dnode 1;
 在操作系统命令行界面中依次执行下面这些命令，便可以订阅到上一步中写入的数据；订阅成功后，如果 `topic_meters` 主题中有新增的写入数据，则会自动通过 MQTT 协议推送到客户端。
 
 ```shell
+
 python3 -m venv .test-env
 source .test-env/bin/activate
 pip3 install paho-mqtt==2.1.0
 python3 ./sub.py
+
 ```
 
 其中 sub.py 文件的内容如下：
 
 ```python
+
 import time
 import paho.mqtt
 import paho.mqtt.properties as p
@@ -235,4 +246,5 @@ client.on_subscribe = on_subscribe
 client.on_message = on_message
 
 client.loop_forever()
+
 ```
