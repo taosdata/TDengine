@@ -1,12 +1,12 @@
-aux_source_directory(src/xnode_mgmt_mqtt XNODE_MGMT_MQTT_SRC)
+aux_source_directory(src/bnode_mgmt_mqtt bnode_mgmt_mqtt_SRC)
 aux_source_directory(src TAOSMQTT_SRC)
 aux_source_directory(lib TMQTT_SRC)
 
-# _xnode_mgmt_mqtt
-add_library(_xnode_mgmt_mqtt STATIC ${XNODE_MGMT_MQTT_SRC})
+# _bnode_mgmt_mqtt
+add_library(_bnode_mgmt_mqtt STATIC ${bnode_mgmt_mqtt_SRC})
 
 target_include_directories(
-    _xnode_mgmt_mqtt
+    _bnode_mgmt_mqtt
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/tmqtt"
     "${TD_SOURCE_DIR}/include/util"
@@ -15,7 +15,7 @@ target_include_directories(
 )
 
 target_link_libraries(
-    _xnode_mgmt_mqtt
+    _bnode_mgmt_mqtt
     PRIVATE os util common nodes transport
 )
 
@@ -60,7 +60,7 @@ target_include_directories(
     "${TD_SOURCE_DIR}/include/common"
     "${TD_SOURCE_DIR}/include/libs/transport"
     "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/include/dnode/xnode"
+    "${TD_SOURCE_DIR}/include/dnode/bnode"
     PRIVATE "${TD_SOURCE_DIR}/include/libs/tmqtt"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/lib/inc"

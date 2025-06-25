@@ -24,7 +24,7 @@
 #include "taos.h"
 #include "thash.h"
 #include "tmisce.h"
-#include "xnode_mgmt_mqtt.h"
+#include "bnode_mgmt_mqtt.h"
 // clang-format on
 
 #ifdef __cplusplus

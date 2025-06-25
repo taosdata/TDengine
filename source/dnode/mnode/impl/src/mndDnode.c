@@ -27,7 +27,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
-#include "mndXnode.h"
+#include "mndBnode.h"
 #include "taos_monitor.h"
 #include "tconfig.h"
 #include "tjson.h"

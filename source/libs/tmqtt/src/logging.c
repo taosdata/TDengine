@@ -169,7 +169,7 @@ DltLogLevelType get_dlt_level(unsigned int priority) {
 }
 #endif
 
-#include "xnode.h"
+#include "bnode.h"
 
 static ELogLevel get_xnd_level(unsigned int priority) {
   switch (priority) {

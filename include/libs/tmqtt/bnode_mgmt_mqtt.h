@@ -25,7 +25,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "dnode/xnode/xnode.h"
+#include "dnode/bnode/bnode.h"
 #include "tcommon.h"
 #include "tdatablock.h"
 #include "tmsg.h"

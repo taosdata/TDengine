@@ -16,8 +16,8 @@
 // clang-format off
 #include "uv.h"
 #include "os.h"
-#include "xnode.h"
-#include "xnode_mgmt_mqtt.h"
+#include "bnode.h"
+#include "bnode_mgmt_mqtt.h"
 #include "version.h"
 #include "tdatablock.h"
 #include "tdataformat.h"

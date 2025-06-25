@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "xmInt.h"
+#include "bmInt.h"
 #include "tjson.h"
 
 static int32_t xmRequire(const SMgmtInputOpt *pInput, bool *required) {

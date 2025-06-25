@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "libs/tmqtt/xnode_mgmt_mqtt.h"
-#include "xndInt.h"
+#include "libs/tmqtt/bnode_mgmt_mqtt.h"
+#include "bndInt.h"
 
 int32_t bndOpen(const SBnodeOpt *pOption, SBnode **pBnode) {
   int32_t code = 0;

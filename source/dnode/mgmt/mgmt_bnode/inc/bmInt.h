@@ -18,7 +18,7 @@
 
 #include "dmUtil.h"
 
-#include "xnode.h"
+#include "bnode.h"
 
 #ifdef __cplusplus
 extern "C" {
