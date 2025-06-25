@@ -130,7 +130,7 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   }
 
   if (pMsg->code != TSDB_CODE_SUCCESS) {
-    xndError("udfd rpc error. code: %s", tstrerror(pMsg->code));
+    bndError("udfd rpc error. code: %s", tstrerror(pMsg->code));
     msgInfo->code = pMsg->code;
     goto _return;
   }
@@ -138,7 +138,7 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   if (msgInfo->rpcType == UDFD_RPC_MNODE_CONNECT) {
     SConnectRsp connectRsp = {0};
     if (tDeserializeSConnectRsp(pMsg->pCont, pMsg->contLen, &connectRsp) < 0) {
-      xndError("udfd deserialize connect response failed");
+      bndError("udfd deserialize connect response failed");
       goto _return;
     }
 
@@ -161,7 +161,7 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   } else if (msgInfo->rpcType == UDFD_RPC_RETRIVE_FUNC) {
     SRetrieveFuncRsp retrieveRsp = {0};
     if (tDeserializeSRetrieveFuncRsp(pMsg->pCont, pMsg->contLen, &retrieveRsp) < 0) {
-      xndError("udfd deserialize retrieve func response failed");
+      bndError("udfd deserialize retrieve func response failed");
       goto _return;
     }
 
@@ -285,7 +285,7 @@ int initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSe
 
     int32_t code = taosGetFqdnPortFromEp(secondEp, &mgmtEpSet->eps[mgmtEpSet->numOfEps]);
     if (code != TSDB_CODE_SUCCESS) {
-      xndError("invalid ep %s", secondEp);
+      bndError("invalid ep %s", secondEp);
     } else {
       mgmtEpSet->numOfEps++;
     }
@@ -320,23 +320,23 @@ int32_t udfdOpenClientRpc() {
   TAOS_CHECK_RETURN(taosVersionStrToInt(td_version, &rpcInit.compatibilityVer));
   global.clientRpc = rpcOpen(&rpcInit);
   if (global.clientRpc == NULL) {
-    xndError("failed to init dnode rpc client");
+    bndError("failed to init dnode rpc client");
     return terrno;
   }
   return 0;
 }
 
 void udfdCloseClientRpc() {
-  xndInfo("udfd begin closing rpc");
+  bndInfo("udfd begin closing rpc");
   rpcClose(global.clientRpc);
-  xndInfo("udfd finish closing rpc");
+  bndInfo("udfd finish closing rpc");
 }
 
 void udfdOnWrite(uv_write_t *req, int status) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(req);
   SUvUdfWork *work = (SUvUdfWork *)req->data;
   if (status < 0) {
-    xndError("udfd send response error, length: %zu code: %s", work->output.len, uv_err_name(status));
+    bndError("udfd send response error, length: %zu code: %s", work->output.len, uv_err_name(status));
   }
   // remove work from the connection work list
   if (work->conn != NULL) {
@@ -346,7 +346,7 @@ void udfdOnWrite(uv_write_t *req, int status) {
     if (*ppWork == work) {
       *ppWork = work->pWorkNext;
     } else {
-      xndError("work not in conn any more");
+      bndError("work not in conn any more");
     }
   }
   taosMemoryFree(work->output.base);
@@ -361,14 +361,14 @@ void udfdSendResponse(uv_work_t *work, int status) {
   if (udfWork->conn != NULL) {
     uv_write_t *write_req = taosMemoryMalloc(sizeof(uv_write_t));
     if (write_req == NULL) {
-      xndError("udfd send response error, malloc failed");
+      bndError("udfd send response error, malloc failed");
       taosMemoryFree(work);
       return;
     }
     write_req->data = udfWork;
     int32_t code = uv_write(write_req, udfWork->conn->client, &udfWork->output, 1, udfdOnWrite);
     if (code != 0) {
-      xndError("udfd send response error %s", uv_strerror(code));
+      bndError("udfd send response error %s", uv_strerror(code));
       taosMemoryFree(write_req);
     }
   }
@@ -389,7 +389,7 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
       buf->base = ctx->inputBuf;
       buf->len = ctx->inputCap;
     } else {
-      xndError("udfd can not allocate enough memory");
+      bndError("udfd can not allocate enough memory");
       buf->base = NULL;
       buf->len = 0;
     }
@@ -404,7 +404,7 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
       buf->base = ctx->inputBuf + ctx->inputLen;
       buf->len = ctx->inputCap - ctx->inputLen;
     } else {
-      xndError("udfd can not allocate enough memory");
+      bndError("udfd can not allocate enough memory");
       buf->base = NULL;
       buf->len = 0;
     }
@@ -413,14 +413,14 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
 
 bool isUdfdUvMsgComplete(SUdfdUvConn *pipe) {
   if (pipe == NULL) {
-    xndError("udfd pipe is NULL, LINE:%d", __LINE__);
+    bndError("udfd pipe is NULL, LINE:%d", __LINE__);
     return false;
   }
   if (pipe->inputTotal == -1 && pipe->inputLen >= sizeof(int32_t)) {
     pipe->inputTotal = *(int32_t *)(pipe->inputBuf);
   }
   if (pipe->inputLen == pipe->inputCap && pipe->inputTotal == pipe->inputCap) {
-    xndDebug("receive request complete. length %d", pipe->inputLen);
+    bndDebug("receive request complete. length %d", pipe->inputLen);
     return true;
   }
   return false;
@@ -433,12 +433,12 @@ void udfdHandleRequest(SUdfdUvConn *conn) {
 
   uv_work_t *work = taosMemoryMalloc(sizeof(uv_work_t));
   if (work == NULL) {
-    xndError("udfd malloc work failed");
+    bndError("udfd malloc work failed");
     return;
   }
   SUvUdfWork *udfWork = taosMemoryMalloc(sizeof(SUvUdfWork));
   if (udfWork == NULL) {
-    xndError("udfd malloc udf work failed");
+    bndError("udfd malloc udf work failed");
     taosMemoryFree(work);
     return;
   }
@@ -452,7 +452,7 @@ void udfdHandleRequest(SUdfdUvConn *conn) {
   conn->inputTotal = -1;
   work->data = udfWork;
   if (uv_queue_work(global.loop, work, udfdProcessRequest, udfdSendResponse) != 0) {
-    xndError("udfd queue work failed");
+    bndError("udfd queue work failed");
     taosMemoryFree(work);
     taosMemoryFree(udfWork);
   }
@@ -474,7 +474,7 @@ void udfdPipeCloseCb(uv_handle_t *pipe) {
 
 void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(client, buf);
-  xndDebug("udfd read %zd bytes from client", nread);
+  bndDebug("udfd read %zd bytes from client", nread);
   if (nread == 0) return;
 
   SUdfdUvConn *conn = client->data;
@@ -491,9 +491,9 @@ void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
 
   if (nread < 0) {
     if (nread == UV_EOF) {
-      xndInfo("udfd pipe read EOF");
+      bndInfo("udfd pipe read EOF");
     } else {
-      xndError("Receive error %s", uv_err_name(nread));
+      bndError("Receive error %s", uv_err_name(nread));
     }
     // udfdUvHandleError(conn);
   }
@@ -502,26 +502,26 @@ void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
 void udfdOnNewConnection(uv_stream_t *server, int status) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(server);
   if (status < 0) {
-    xndError("udfd new connection error. code: %s", uv_strerror(status));
+    bndError("udfd new connection error. code: %s", uv_strerror(status));
     return;
   }
   int32_t code = 0;
 
   uv_pipe_t *client = (uv_pipe_t *)taosMemoryMalloc(sizeof(uv_pipe_t));
   if (client == NULL) {
-    xndError("udfd pipe malloc failed");
+    bndError("udfd pipe malloc failed");
     return;
   }
   code = uv_pipe_init(global.loop, client, 0);
   if (code) {
-    xndError("udfd pipe init error %s", uv_strerror(code));
+    bndError("udfd pipe init error %s", uv_strerror(code));
     taosMemoryFree(client);
     return;
   }
   if (uv_accept(server, (uv_stream_t *)client) == 0) {
     SUdfdUvConn *ctx = taosMemoryMalloc(sizeof(SUdfdUvConn));
     if (ctx == NULL) {
-      xndError("udfd conn malloc failed");
+      bndError("udfd conn malloc failed");
       goto _exit;
     }
     ctx->pWorkList = NULL;
@@ -533,7 +533,7 @@ void udfdOnNewConnection(uv_stream_t *server, int status) {
     ctx->client = (uv_stream_t *)client;
     code = uv_read_start((uv_stream_t *)client, udfdAllocBuffer, udfdPipeRead);
     if (code) {
-      xndError("udfd read start error %s", uv_strerror(code));
+      bndError("udfd read start error %s", uv_strerror(code));
       // udfdUvHandleError(ctx);
       taosMemoryFree(ctx);
       taosMemoryFree(client);
@@ -547,15 +547,15 @@ _exit:
 
 void udfdIntrSignalHandler(uv_signal_t *handle, int signum) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(handle);
-  xndInfo("udfd signal received: %d\n", signum);
+  bndInfo("udfd signal received: %d\n", signum);
   uv_fs_t req;
   int32_t code = uv_fs_unlink(global.loop, &req, global.listenPipeName, NULL);
   if (code) {
-    xndError("remove listening pipe %s failed, reason:%s, lino:%d", global.listenPipeName, uv_strerror(code), __LINE__);
+    bndError("remove listening pipe %s failed, reason:%s, lino:%d", global.listenPipeName, uv_strerror(code), __LINE__);
   }
   code = uv_signal_stop(handle);
   if (code) {
-    xndError("stop signal handler failed, reason:%s", uv_strerror(code));
+    bndError("stop signal handler failed, reason:%s", uv_strerror(code));
   }
   uv_stop(global.loop);
 }
@@ -566,13 +566,13 @@ static int32_t mqttdParseArgs(int32_t argc, char *argv[]) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
           (void)printf("config file path overflow");
-          xndError("config file path too long:%s", argv[i]);
+          bndError("config file path too long:%s", argv[i]);
           return -1;
         }
         tstrncpy(configDir, argv[i], PATH_MAX);
       } else {
         (void)printf("'-c' requires config parameter, default is %s\n", configDir);
-        xndError("'-c' requires config parameter, default is %d\n", 1);
+        bndError("'-c' requires config parameter, default is %d\n", 1);
         return -1;
       }
     } else if (strcmp(argv[i], "-d") == 0) {
@@ -580,7 +580,7 @@ static int32_t mqttdParseArgs(int32_t argc, char *argv[]) {
         global.dnode_id = atoi(argv[++i]);
       } else {
         (void)printf("'-d' requires dnode_id parameter, default is %d\n", 1);
-        xndError("'-d' requires dnode_id parameter, default is %d\n", 1);
+        bndError("'-d' requires dnode_id parameter, default is %d\n", 1);
         return -1;
       }
     } else if (strcmp(argv[i], "-V") == 0) {
@@ -608,7 +608,7 @@ void udfdCtrlAllocBufCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *bu
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(buf);
   buf->base = taosMemoryMalloc(suggested_size);
   if (buf->base == NULL) {
-    xndError("udfd ctrl pipe alloc buffer failed");
+    bndError("udfd ctrl pipe alloc buffer failed");
     return;
   }
   buf->len = suggested_size;
@@ -617,13 +617,13 @@ void udfdCtrlAllocBufCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *bu
 void udfdCtrlReadCb(uv_stream_t *q, ssize_t nread, const uv_buf_t *buf) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(q, buf);
   if (nread < 0) {
-    xndError("udfd ctrl pipe read error. %s", uv_err_name(nread));
+    bndError("udfd ctrl pipe read error. %s", uv_err_name(nread));
     taosMemoryFree(buf->base);
     uv_close((uv_handle_t *)q, NULL);
     uv_stop(global.loop);
     return;
   }
-  xndError("udfd ctrl pipe read %zu bytes", nread);
+  bndError("udfd ctrl pipe read %zu bytes", nread);
   taosMemoryFree(buf->base);
 }
 
@@ -632,7 +632,7 @@ static void removeListeningPipe() {
   int     err = uv_fs_unlink(global.loop, &req, global.listenPipeName, NULL);
   uv_fs_req_cleanup(&req);
   if (err) {
-    xndInfo("remove listening pipe %s : %s, lino:%d", global.listenPipeName, uv_strerror(err), __LINE__);
+    bndInfo("remove listening pipe %s : %s, lino:%d", global.listenPipeName, uv_strerror(err), __LINE__);
   }
 }
 
@@ -654,14 +654,14 @@ static int32_t udfdUvInit() {
   TAOS_CHECK_RETURN(uv_signal_start(&global.intrSignal, udfdIntrSignalHandler, SIGINT));
 
   int r;
-  xndInfo("bind to pipe %s", global.listenPipeName);
+  bndInfo("bind to pipe %s", global.listenPipeName);
   if ((r = uv_pipe_bind(&global.listeningPipe, global.listenPipeName))) {
-    xndError("Bind error %s", uv_err_name(r));
+    bndError("Bind error %s", uv_err_name(r));
     removeListeningPipe();
     return -2;
   }
   if ((r = uv_listen((uv_stream_t *)&global.listeningPipe, 128, udfdOnNewConnection))) {
-    xndError("Listen error %s", uv_err_name(r));
+    bndError("Listen error %s", uv_err_name(r));
     removeListeningPipe();
     return -3;
   }
@@ -677,13 +677,13 @@ static void udfdCloseWalkCb(uv_handle_t *handle, void *arg) {
 static int32_t udfdGlobalDataInit() {
   uv_loop_t *loop = taosMemoryMalloc(sizeof(uv_loop_t));
   if (loop == NULL) {
-    xndError("udfd init uv loop failed, mem overflow");
+    bndError("udfd init uv loop failed, mem overflow");
     return terrno;
   }
   global.loop = loop;
   /*
   if (uv_mutex_init(&global.scriptPluginsMutex) != 0) {
-    xndError("udfd init script plugins mutex failed");
+    bndError("udfd init script plugins mutex failed");
     return TSDB_CODE_MQTT_MGMT_UV_EXEC_FAILURE;
   }
   */
@@ -694,7 +694,7 @@ static int32_t udfdGlobalDataInit() {
   // taosHashSetFreeFp(global.udfsHash, udfdFreeUdf);
 
   if (uv_mutex_init(&global.udfsMutex) != 0) {
-    xndError("udfd init udfs mutex failed");
+    bndError("udfd init udfs mutex failed");
     return TSDB_CODE_BNODE_UV_EXEC_FAILURE;
   }
 
@@ -705,23 +705,23 @@ static void udfdGlobalDataDeinit() {
   uv_mutex_destroy(&global.udfsMutex);
   // uv_mutex_destroy(&global.scriptPluginsMutex);
   taosMemoryFreeClear(global.loop);
-  xndInfo("udfd global data deinit");
+  bndInfo("udfd global data deinit");
 }
 
 static void udfdRun() {
-  xndInfo("start udfd event loop");
+  bndInfo("start udfd event loop");
   int32_t code = uv_run(global.loop, UV_RUN_DEFAULT);
   if (code != 0) {
-    xndError("udfd event loop still has active handles or requests.");
+    bndError("udfd event loop still has active handles or requests.");
   }
-  xndInfo("udfd event loop stopped.");
+  bndInfo("udfd event loop stopped.");
 
   (void)uv_loop_close(global.loop);
 
   uv_walk(global.loop, udfdCloseWalkCb, NULL);
   code = uv_run(global.loop, UV_RUN_DEFAULT);
   if (code != 0) {
-    xndError("udfd event loop still has active handles or requests.");
+    bndError("udfd event loop still has active handles or requests.");
   }
   (void)uv_loop_close(global.loop);
 }
@@ -733,13 +733,13 @@ int32_t udfdCreateUdfSourceDir() {
     snprintf(global.mqttDataDir, PATH_MAX, "%s/.mqttd", tsTempDir);
     code = taosMkDir(global.mqttDataDir);
   }
-  xndInfo("udfd create udf source directory %s. result: %s", global.mqttDataDir, tstrerror(code));
+  bndInfo("udfd create udf source directory %s. result: %s", global.mqttDataDir, tstrerror(code));
 
   return code;
 }
 
 void udfdDestroyUdfSourceDir() {
-  xndInfo("destory udf source directory %s", global.mqttDataDir);
+  bndInfo("destory udf source directory %s", global.mqttDataDir);
   taosRemoveDir(global.mqttDataDir);
 }
 
@@ -755,12 +755,12 @@ int main(int argc, char *argv[]) {
   // bool globalDataInited = false;
 
   if (!taosCheckSystemIsLittleEnd()) {
-    xndError("failed to start since on non-little-end machines\n");
+    bndError("failed to start since on non-little-end machines\n");
     return -1;
   }
 
   if (mqttdParseArgs(argc, argv) != 0) {
-    xndError("failed to start since parse args error\n");
+    bndError("failed to start since parse args error\n");
     return -1;
   }
 
@@ -772,60 +772,60 @@ int main(int argc, char *argv[]) {
   if (mqttdInitLog() != 0) {
     // ignore create log failed, because this error doesnot matter
     //(void)printf("failed to init mqttd log.");
-    xndError("failed to init mqttd log.");
+    bndError("failed to init mqttd log.");
   } else {
     logInitialized = true;
   }
 
   if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0) != 0) {
-    xndError("failed to start since read config error");
+    bndError("failed to start since read config error");
     code = -2;
     goto _exit;
   }
   cfgInitialized = true;
-  xndInfo("mqttd start with config file %s", configDir);
+  bndInfo("mqttd start with config file %s", configDir);
 
   if (initEpSetFromCfg(tsFirst, tsSecond, &global.mgmtEp) != 0) {
-    xndError("init ep set from cfg failed");
+    bndError("init ep set from cfg failed");
     code = -3;
     goto _exit;
   }
-  xndInfo("mqttd start with mnode ep %s:%hu", global.mgmtEp.epSet.eps[0].fqdn, global.mgmtEp.epSet.eps[0].port);
+  bndInfo("mqttd start with mnode ep %s:%hu", global.mgmtEp.epSet.eps[0].fqdn, global.mgmtEp.epSet.eps[0].port);
 
   ttq_main(argc, argv);
 
-  xndInfo("mqttd exit normally");
+  bndInfo("mqttd exit normally");
   /*
   if (udfdOpenClientRpc() != 0) {
-    xndError("open rpc connection to mnode failed");
+    bndError("open rpc connection to mnode failed");
     code = -4;
     goto _exit;
   }
-  xndInfo("udfd rpc client is opened");
+  bndInfo("udfd rpc client is opened");
   openClientRpcFinished = true;  // rpc is opened
 
   if (udfdCreateUdfSourceDir() != 0) {
-    xndError("create udf source directory failed");
+    bndError("create udf source directory failed");
     code = -5;
     goto _exit;
   }
   udfSourceDirInited = true;  // udf source dir is created
-  xndInfo("udfd udf source directory is created");
+  bndInfo("udfd udf source directory is created");
 
   if (udfdGlobalDataInit() != 0) {
-    xndError("init global data failed");
+    bndError("init global data failed");
     code = -6;
     goto _exit;
   }
   globalDataInited = true;  // global data is inited
-  xndInfo("udfd global data is inited");
+  bndInfo("udfd global data is inited");
 
   if (udfdUvInit() != 0) {
-    xndError("uv init failure");
+    bndError("uv init failure");
     code = -7;
     goto _exit;
   }
-  xndInfo("udfd uv is inited");
+  bndInfo("udfd uv is inited");
 
   udfdRun();
 

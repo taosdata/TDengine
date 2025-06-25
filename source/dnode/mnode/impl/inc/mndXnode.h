@@ -26,7 +26,7 @@ int32_t    mndInitXnode(SMnode *pMnode);
 void       mndCleanupXnode(SMnode *pMnode);
 SXnodeObj *mndAcquireXnode(SMnode *pMnode, int32_t qnodeId);
 void       mndReleaseXnode(SMnode *pMnode, SXnodeObj *pObj);
-SEpSet     mndAcquireEpFromXnode(SMnode *pMnode, const SXnodeObj *pXnode);
+SEpSet     mndAcquireEpFromXnode(SMnode *pMnode, const SXnodeObj *pBnode);
 int32_t    mndSetDropXnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SXnodeObj *pObj, bool force);
 
 #ifdef __cplusplus

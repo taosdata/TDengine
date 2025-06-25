@@ -21,23 +21,23 @@ static int32_t xmRequire(const SMgmtInputOpt *pInput, bool *required) {
   return dmReadFile(pInput->path, pInput->name, required);
 }
 
-static void xmInitOption(SXnodeMgmt *pMgmt, SXnodeOpt *pOption) {
+static void xmInitOption(SXnodeMgmt *pMgmt, SBnodeOpt *pOption) {
   pOption->msgCb = pMgmt->msgCb;
   pOption->dnodeId = pMgmt->pData->dnodeId;
 }
 
 static void xmClose(SXnodeMgmt *pMgmt) {
-  if (pMgmt->pXnode != NULL) {
+  if (pMgmt->pBnode != NULL) {
     // xmStopWorker(pMgmt);
-    xndClose(pMgmt->pXnode);
-    pMgmt->pXnode = NULL;
+    bndClose(pMgmt->pBnode);
+    pMgmt->pBnode = NULL;
   }
 
   taosMemoryFree(pMgmt);
 }
 
-static int32_t xndOpenWrapper(SXnodeOpt *pOption, SXnode **pXnode) {
-  int32_t code = xndOpen(pOption, pXnode);
+static int32_t xndOpenWrapper(SBnodeOpt *pOption, SBnode **pBnode) {
+  int32_t code = bndOpen(pOption, pBnode);
   return code;
 }
 
@@ -52,8 +52,8 @@ int32_t xmPutMsgToQueue(SXnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
     return code = terrno;
   }
 
-  SXnode *pXnode = pMgmt->pXnode;
-  if (pXnode == NULL) {
+  SBnode *pBnode = pMgmt->pBnode;
+  if (pBnode == NULL) {
     code = terrno;
     dError("msg:%p failed to put into xnode queue since %s, type:%s qtype:%d len:%d", pMsg, tstrerror(code),
            TMSG_INFO(pMsg->msgType), qtype, pRpc->contLen);
@@ -174,7 +174,7 @@ static int32_t xmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->msgCb.putToQueueFp = (PutToQueueFp)xmPutMsgToQueue;
   pMgmt->msgCb.mgmt = pMgmt;
 
-  SXnodeOpt option = {0};
+  SBnodeOpt option = {0};
   xmInitOption(pMgmt, &option);
 
   code = xmReadFile(pInput->path, pInput->name, &option.proto);
@@ -184,7 +184,7 @@ static int32_t xmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     return code;
   }
 
-  code = xndOpenWrapper(&option, &pMgmt->pXnode);
+  code = xndOpenWrapper(&option, &pMgmt->pBnode);
   if (code != 0) {
     dError("failed to open xnode since %s", tstrerror(code));
     xmClose(pMgmt);

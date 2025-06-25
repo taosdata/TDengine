@@ -26,7 +26,7 @@ extern "C" {
 
 typedef struct SXnodeMgmt {
   SDnodeData *pData;
-  SXnode     *pXnode;
+  SBnode     *pBnode;
   SMsgCb      msgCb;
   const char *path;
   const char *name;

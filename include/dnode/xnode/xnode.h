@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_XNODE_H_
-#define _TD_XNODE_H_
+#ifndef _TD_BNODE_H_
+#define _TD_BNODE_H_
 
 #include "tmsgcb.h"
 
@@ -24,43 +24,43 @@ extern "C" {
 
 // clang-format off
 
-#define xndFatal(...) do {  if (bndDebugFlag & DEBUG_FATAL) { taosPrintLog("BND FATAL ", DEBUG_FATAL, bndDebugFlag, __VA_ARGS__);}} while (0)
-#define xndError(...) do {  if (bndDebugFlag & DEBUG_ERROR) { taosPrintLog("BND ERROR ", DEBUG_ERROR, bndDebugFlag, __VA_ARGS__);}} while (0)
-#define xndWarn(...)  do {  if (bndDebugFlag & DEBUG_WARN)  { taosPrintLog("BND WARN  ", DEBUG_WARN,  bndDebugFlag, __VA_ARGS__);}} while (0)
-#define xndInfo(...)  do {  if (bndDebugFlag & DEBUG_INFO)  { taosPrintLog("BND INFO  ", DEBUG_INFO,  bndDebugFlag, __VA_ARGS__);}} while (0)
-#define xndDebug(...) do {  if (bndDebugFlag & DEBUG_DEBUG) { taosPrintLog("BND DEBUG ", DEBUG_DEBUG, bndDebugFlag, __VA_ARGS__);}} while (0)
-#define xndTrace(...) do {  if (bndDebugFlag & DEBUG_TRACE) { taosPrintLog("BND TRACE ", DEBUG_TRACE, bndDebugFlag, __VA_ARGS__);}} while (0)
+#define bndFatal(...) do {  if (bndDebugFlag & DEBUG_FATAL) { taosPrintLog("BND FATAL ", DEBUG_FATAL, bndDebugFlag, __VA_ARGS__);}} while (0)
+#define bndError(...) do {  if (bndDebugFlag & DEBUG_ERROR) { taosPrintLog("BND ERROR ", DEBUG_ERROR, bndDebugFlag, __VA_ARGS__);}} while (0)
+#define bndWarn(...)  do {  if (bndDebugFlag & DEBUG_WARN)  { taosPrintLog("BND WARN  ", DEBUG_WARN,  bndDebugFlag, __VA_ARGS__);}} while (0)
+#define bndInfo(...)  do {  if (bndDebugFlag & DEBUG_INFO)  { taosPrintLog("BND INFO  ", DEBUG_INFO,  bndDebugFlag, __VA_ARGS__);}} while (0)
+#define bndDebug(...) do {  if (bndDebugFlag & DEBUG_DEBUG) { taosPrintLog("BND DEBUG ", DEBUG_DEBUG, bndDebugFlag, __VA_ARGS__);}} while (0)
+#define bndTrace(...) do {  if (bndDebugFlag & DEBUG_TRACE) { taosPrintLog("BND TRACE ", DEBUG_TRACE, bndDebugFlag, __VA_ARGS__);}} while (0)
 
 // clang-format on
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
-typedef struct SXnode SXnode;
+typedef struct SBnode SBnode;
 
 typedef struct {
   SMsgCb  msgCb;
   int32_t dnodeId;
   int32_t proto;
-} SXnodeOpt;
+} SBnodeOpt;
 
-/* ------------------------ SXnode ------------------------ */
+/* ------------------------ SBnode ------------------------ */
 /**
- * @brief Start one Xnode in Dnode.
+ * @brief Start one Bnode in Dnode.
  *
  * @param pOption Option of the qnode.
- * @param pXnode The qnode object.
+ * @param pBnode The qnode object.
  * @return int32_t The error code.
  */
-int32_t xndOpen(const SXnodeOpt *pOption, SXnode **pXnode);
+int32_t bndOpen(const SBnodeOpt *pOption, SBnode **pBnode);
 
 /**
- * @brief Stop Xnode in Dnode.
+ * @brief Stop Bnode in Dnode.
  *
- * @param pXnode The qnode object to close.
+ * @param pBnode The qnode object to close.
  */
-void xndClose(SXnode *pXnode);
+void bndClose(SBnode *pBnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_XNODE_H_*/
+#endif /*_TD_BNODE_H_*/

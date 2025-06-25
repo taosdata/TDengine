@@ -498,10 +498,10 @@ static void mndCancelGetNextXnode(SMnode *pMnode, void *pIter) {
   sdbCancelFetchByType(pSdb, pIter, SDB_XNODE);
 }
 
-SEpSet mndAcquireEpFromXnode(SMnode *pMnode, const SXnodeObj *pXnode) {
+SEpSet mndAcquireEpFromXnode(SMnode *pMnode, const SXnodeObj *pBnode) {
   SEpSet epSet = {.numOfEps = 1, .inUse = 0};
-  memcpy(epSet.eps[0].fqdn, pXnode->pDnode->fqdn, TSDB_FQDN_LEN);
-  epSet.eps[0].port = pXnode->pDnode->port;
+  memcpy(epSet.eps[0].fqdn, pBnode->pDnode->fqdn, TSDB_FQDN_LEN);
+  epSet.eps[0].port = pBnode->pDnode->port;
   return epSet;
 }
 

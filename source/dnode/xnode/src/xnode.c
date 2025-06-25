@@ -16,43 +16,43 @@
 #include "libs/tmqtt/xnode_mgmt_mqtt.h"
 #include "xndInt.h"
 
-int32_t xndOpen(const SXnodeOpt *pOption, SXnode **pXnode) {
+int32_t bndOpen(const SBnodeOpt *pOption, SBnode **pBnode) {
   int32_t code = 0;
 
-  *pXnode = taosMemoryCalloc(1, sizeof(SXnode));
-  if (NULL == *pXnode) {
-    xndError("calloc SXnode failed");
+  *pBnode = taosMemoryCalloc(1, sizeof(SBnode));
+  if (NULL == *pBnode) {
+    bndError("calloc SBnode failed");
     code = terrno;
     TAOS_RETURN(code);
   }
 
-  (*pXnode)->msgCb = pOption->msgCb;
-  (*pXnode)->dnodeId = pOption->dnodeId;
-  (*pXnode)->protocol = (int8_t)pOption->proto;
+  (*pBnode)->msgCb = pOption->msgCb;
+  (*pBnode)->dnodeId = pOption->dnodeId;
+  (*pBnode)->protocol = (int8_t)pOption->proto;
 
-  if (TSDB_XNODE_OPT_PROTO_MQTT == (*pXnode)->protocol) {
-    if ((code = mqttMgmtStartMqttd((*pXnode)->dnodeId)) != 0) {
-      xndError("failed to start taosudf since %s", tstrerror(code));
+  if (TSDB_XNODE_OPT_PROTO_MQTT == (*pBnode)->protocol) {
+    if ((code = mqttMgmtStartMqttd((*pBnode)->dnodeId)) != 0) {
+      bndError("failed to start taosudf since %s", tstrerror(code));
 
-      taosMemoryFree(*pXnode);
+      taosMemoryFree(*pBnode);
       TAOS_RETURN(code);
     }
   } else {
-    xndError("Unknown xnode proto: %hhd.", (*pXnode)->protocol);
+    bndError("Unknown xnode proto: %hhd.", (*pBnode)->protocol);
 
-    taosMemoryFree(*pXnode);
+    taosMemoryFree(*pBnode);
     TAOS_RETURN(code);
   }
 
-  xndInfo("Xnode opened.");
+  bndInfo("Bnode opened.");
 
   return TSDB_CODE_SUCCESS;
 }
 
-void xndClose(SXnode *pXnode) {
+void bndClose(SBnode *pBnode) {
   mqttMgmtStopMqttd();
 
-  taosMemoryFree(pXnode);
+  taosMemoryFree(pBnode);
 
-  xndInfo("Xnode closed.");
+  bndInfo("Bnode closed.");
 }

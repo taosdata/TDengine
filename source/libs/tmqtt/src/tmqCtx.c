@@ -43,7 +43,7 @@ bool tmq_ctx_auth(struct tmq_ctx* context, const char* username, const char* pas
   }
 
   if (!conn) {
-    xndError("failed to connect to %s:%hu, error: 0x%x(%s)", host, port, taos_errno(NULL), taos_errstr(NULL));
+    bndError("failed to connect to %s:%hu, error: 0x%x(%s)", host, port, taos_errno(NULL), taos_errstr(NULL));
 
     return false;
   }
@@ -137,7 +137,7 @@ static bool tmq_ctx_init_consumer(struct tmq_ctx* context, const char* cid, Cons
   if (!context->tmq) {
     context->tmq = tmq_ctx_build_consumer(config);
     if (!context->tmq) {
-      xndError("failed to build consumer: %s %s", config->client_id, config->group_id);
+      bndError("failed to build consumer: %s %s", config->client_id, config->group_id);
 
       return false;
     }
@@ -152,7 +152,7 @@ static bool tmq_ctx_init_consumer(struct tmq_ctx* context, const char* cid, Cons
     // create a empty topic list
     context->topic_list = tmq_list_new();
     if (!context->topic_list) {
-      xndError("failed to init topic list: %s %s", config->client_id, config->group_id);
+      bndError("failed to init topic list: %s %s", config->client_id, config->group_id);
 
       return false;
     }
@@ -169,7 +169,7 @@ static tmq_list_t* tmq_ctx_append_topic(struct tmq_ctx* context, const char* top
   // append topic name to the list
   tmq_list_t* topic_list = tmq_list_new();
   if (!topic_list) {
-    xndError("failed to update topic list: %s %s", config->client_id, config->group_id);
+    bndError("failed to update topic list: %s %s", config->client_id, config->group_id);
 
     return NULL;
   }
@@ -179,7 +179,7 @@ static tmq_list_t* tmq_ctx_append_topic(struct tmq_ctx* context, const char* top
     // failed, destroy the list and return NULL
     tmq_list_destroy(topic_list);
 
-    xndError("Failed to create topic_list, topic: %s, groupId: %s, clientId: %s, error: 0x%x(%s)", topic_name,
+    bndError("Failed to create topic_list, topic: %s, groupId: %s, clientId: %s, error: 0x%x(%s)", topic_name,
              config->group_id, config->client_id, code, tmq_err2str(code));
     return NULL;
   }
@@ -193,7 +193,7 @@ static tmq_list_t* tmq_ctx_append_topic(struct tmq_ctx* context, const char* top
       if (code) {
         tmq_list_destroy(topic_list);
 
-        xndError("Failed to create topic_list, topic: %s, groupId: %s, clientId: %s, error: 0x%x(%s)", topic_name,
+        bndError("Failed to create topic_list, topic: %s, groupId: %s, clientId: %s, error: 0x%x(%s)", topic_name,
                  config->group_id, config->client_id, code, tmq_err2str(code));
         return NULL;
       }
@@ -211,7 +211,7 @@ static tmq_list_t* tmq_ctx_remove_topic(struct tmq_ctx* context, const char* top
   // append topic name to the list
   tmq_list_t* topic_list = tmq_list_new();
   if (!topic_list) {
-    xndError("failed to remove topic: %s", topic_name);
+    bndError("failed to remove topic: %s", topic_name);
 
     return NULL;
   }
@@ -229,7 +229,7 @@ static tmq_list_t* tmq_ctx_remove_topic(struct tmq_ctx* context, const char* top
       if (code) {
         tmq_list_destroy(topic_list);
 
-        xndError("Failed to create topic_list, topic: %s, error: 0x%x(%s)", topic_name, code, tmq_err2str(code));
+        bndError("Failed to create topic_list, topic: %s, error: 0x%x(%s)", topic_name, code, tmq_err2str(code));
         return NULL;
       }
     }
@@ -268,14 +268,14 @@ bool tmq_ctx_topic_exists(struct tmq_ctx* context, const char* topic_name, const
   // topic exists? and subscribe this topic
   topic_list = tmq_ctx_append_topic(context, topic_name, &config);
   if (NULL == topic_list) {
-    xndError("Failed to append topic, topic: %s, groupId: %s, clientId: %s.\n", topic_name, config.group_id,
+    bndError("Failed to append topic, topic: %s, groupId: %s, clientId: %s.\n", topic_name, config.group_id,
              config.client_id);
 
     return false;
   }
 
   if (code = tmq_subscribe(context->tmq, topic_list)) {
-    xndError("Failed to subscribe topic_list, topic: %s, groupId: %s, clientId: %s, error: 0x%x(%s)", topic_name,
+    bndError("Failed to subscribe topic_list, topic: %s, groupId: %s, clientId: %s, error: 0x%x(%s)", topic_name,
              config.group_id, config.client_id, code, tmq_err2str(code));
 
     tmq_list_destroy(topic_list);
@@ -290,7 +290,7 @@ bool tmq_ctx_topic_exists(struct tmq_ctx* context, const char* topic_name, const
     return false;
   }
 
-  xndInfo("subscribed topic: %s.", topic_name);
+  bndInfo("subscribed topic: %s.", topic_name);
 
   if (context->topic_list) {
     tmq_list_destroy(context->topic_list);
@@ -340,13 +340,13 @@ bool tmq_ctx_unsub_topic(struct tmq_ctx* context, const char* topic_name, const 
 
   topic_list = tmq_ctx_remove_topic(context, topic_name);
   if (NULL == topic_list) {
-    xndError("Failed to remove topic, topic: %s.", topic_name);
+    bndError("Failed to remove topic, topic: %s.", topic_name);
 
     return false;
   }
 
   if (code = tmq_subscribe(context->tmq, topic_list)) {
-    xndError("Failed to unsubscribe topic_list, topic: %s, error: 0x%x(%s)", topic_name, code, tmq_err2str(code));
+    bndError("Failed to unsubscribe topic_list, topic: %s, error: 0x%x(%s)", topic_name, code, tmq_err2str(code));
 
     tmq_list_destroy(topic_list);
 
@@ -359,7 +359,7 @@ bool tmq_ctx_unsub_topic(struct tmq_ctx* context, const char* topic_name, const 
     return false;
   }
 
-  xndInfo("unsubscribed topic: %s.", topic_name);
+  bndInfo("unsubscribed topic: %s.", topic_name);
 
   if (context->topic_list) {
     tmq_list_destroy(context->topic_list);
@@ -449,19 +449,19 @@ static cJSON* tmq_ctx_do_topic(const char* topic_name, const char* db_name, cons
 
   cJSON* json = cJSON_CreateObject();
   if (!json) {
-    xndError("json msg: out of memory.");
+    bndError("json msg: out of memory.");
     return NULL;
   }
 
   if (NULL == cJSON_AddStringToObject(json, json_topic_name_key, topic_name)) {
-    xndError("json msg: out of memory.");
+    bndError("json msg: out of memory.");
     cJSON_Delete(json);
     return NULL;
   }
 
   if (db_name) {
     if (NULL == cJSON_AddStringToObject(json, json_db_name_key, db_name)) {
-      xndError("json msg: out of memory.");
+      bndError("json msg: out of memory.");
       cJSON_Delete(json);
       return NULL;
     }
@@ -469,21 +469,21 @@ static cJSON* tmq_ctx_do_topic(const char* topic_name, const char* db_name, cons
 
   if (tbl_name) {
     if (NULL == cJSON_AddStringToObject(json, json_tbl_name_key, tbl_name)) {
-      xndError("json msg: out of memory.");
+      bndError("json msg: out of memory.");
       cJSON_Delete(json);
       return NULL;
     }
   }
 
   if (NULL == cJSON_AddNumberToObject(json, json_vid_name_key, vid)) {
-    xndError("json msg: out of memory.");
+    bndError("json msg: out of memory.");
     cJSON_Delete(json);
     return NULL;
   }
 
   *ajson = cJSON_AddArrayToObject(json, json_rows_key);
   if (!ajson) {
-    xndError("json msg: out of memory.");
+    bndError("json msg: out of memory.");
     cJSON_Delete(json);
     return NULL;
   }
@@ -585,12 +585,12 @@ static int tmq_ctx_do_fields(cJSON* item, TAOS_FIELD* fields, int32_t field_coun
         if (fields[i].type == TSDB_DATA_TYPE_BINARY || fields[i].type == TSDB_DATA_TYPE_VARBINARY ||
             fields[i].type == TSDB_DATA_TYPE_GEOMETRY) {
           if (charLen > fields[i].bytes || charLen < 0) {
-            xndError("json msg error: binary. charLen:%d, fields[i].bytes:%d", charLen, fields[i].bytes);
+            bndError("json msg error: binary. charLen:%d, fields[i].bytes:%d", charLen, fields[i].bytes);
             break;
           }
         } else {
           if (charLen > fields[i].bytes * TSDB_NCHAR_SIZE || charLen < 0) {
-            xndError("json msg error: charLen:%d, fields[i].bytes:%d", charLen, fields[i].bytes);
+            bndError("json msg error: charLen:%d, fields[i].bytes:%d", charLen, fields[i].bytes);
             break;
           }
         }
@@ -636,7 +636,7 @@ static int tmq_ctx_do_fields(cJSON* item, TAOS_FIELD* fields, int32_t field_coun
         }
       } break;
       default:
-        xndError("json do_fields: invalid data type: %hhd", fields[i].type);
+        bndError("json do_fields: invalid data type: %hhd", fields[i].type);
 
         // ignore invalid data types rc = TTQ_ERR_INVAL;
         break;
@@ -654,21 +654,21 @@ static int tmq_ctx_do_props(tmqtt_property** props) {
 
   rc = tmqtt_property_add_int32(props, MQTT_PROP_MESSAGE_EXPIRY_INTERVAL, expire_interval);
   if (rc != TTQ_ERR_SUCCESS) {
-    xndError("json msg/add property expiry interval: out of memory.");
+    bndError("json msg/add property expiry interval: out of memory.");
 
     return rc;
   }
 
   rc = tmqtt_property_add_byte(props, MQTT_PROP_PAYLOAD_FORMAT_INDICATOR, payload_format_indicator);
   if (rc != TTQ_ERR_SUCCESS) {
-    xndError("json msg/add property payload format indicator: out of memory.");
+    bndError("json msg/add property payload format indicator: out of memory.");
 
     return rc;
   }
 
   rc = tmqtt_property_add_string(props, MQTT_PROP_CONTENT_TYPE, content_type);
   if (rc != TTQ_ERR_SUCCESS) {
-    xndError("json msg/add property content type: out of memory.");
+    bndError("json msg/add property content type: out of memory.");
 
     return rc;
   }
@@ -690,7 +690,7 @@ static void tmq_ctx_do_msg(struct tmqtt* ctxt, TAOS_RES* msg) {
 
   cJSON* json = tmq_ctx_do_topic(topic_name, db_name, tb_name, vgroup_id, &ajson);
   if (!json) {
-    xndError("json msg: out of memory.");
+    bndError("json msg: out of memory.");
     return;
   }
 
@@ -698,33 +698,33 @@ static void tmq_ctx_do_msg(struct tmqtt* ctxt, TAOS_RES* msg) {
   while ((row = taos_fetch_row(msg)) != NULL) {
     int32_t field_count = taos_num_fields(msg);
     if (!field_count) {
-      xndError("json msg: out of memory.");
+      bndError("json msg: out of memory.");
       cJSON_Delete(json);
       return;
     }
 
     TAOS_FIELD* fields = taos_fetch_fields(msg);
     if (!fields) {
-      xndError("json msg: out of memory.");
+      bndError("json msg: out of memory.");
       cJSON_Delete(json);
       return;
     }
 
     cJSON* item = cJSON_CreateObject();
     if (!item) {
-      xndError("json msg: out of memory.");
+      bndError("json msg: out of memory.");
       cJSON_Delete(json);
       return;
     }
     if (!cJSON_AddItemToArray(ajson, item)) {
-      xndError("json msg: out of memory.");
+      bndError("json msg: out of memory.");
       cJSON_Delete(json);
       return;
     }
 
     int rc = tmq_ctx_do_fields(item, fields, field_count, row);
     if (rc) {
-      xndError("json msg: out of memory.");
+      bndError("json msg: out of memory.");
       cJSON_Delete(json);
       return;
     }
@@ -734,7 +734,7 @@ static void tmq_ctx_do_msg(struct tmqtt* ctxt, TAOS_RES* msg) {
 
   char* data = cJSON_PrintUnformatted(json);
   if (!data) {
-    xndError("json msg: out of memory.");
+    bndError("json msg: out of memory.");
     cJSON_Delete(json);
     return;
   }
@@ -744,7 +744,7 @@ static void tmq_ctx_do_msg(struct tmqtt* ctxt, TAOS_RES* msg) {
 
   rc = tmq_ctx_do_props(&props);
   if (rc != TTQ_ERR_SUCCESS) {
-    xndError("json msg/add properties: out of memory.");
+    bndError("json msg/add properties: out of memory.");
     ttq_free(data);
     return;
   }
@@ -755,7 +755,7 @@ static void tmq_ctx_do_msg(struct tmqtt* ctxt, TAOS_RES* msg) {
 
   rc = ttq_broker_publish(context->cid, topic_name, data_len, data, qos, retain, props);
   if (rc != TTQ_ERR_SUCCESS) {
-    xndError("json msg/add property: out of memory.");
+    bndError("json msg/add property: out of memory.");
     ttq_free(data);
   }
 }
@@ -767,7 +767,7 @@ static void tmq_ctx_do_msg_meta(struct tmqtt* ctxt, TAOS_RES* msg) {
 
   char* data = tmq_get_json_meta(msg);
   if (!data) {
-    xndError("json msg: out of memory.");
+    bndError("json msg: out of memory.");
     return;
   }
 
@@ -775,7 +775,7 @@ static void tmq_ctx_do_msg_meta(struct tmqtt* ctxt, TAOS_RES* msg) {
 
   rc = tmq_ctx_do_props(&props);
   if (rc != TTQ_ERR_SUCCESS) {
-    xndError("json msg/add properties: out of memory.");
+    bndError("json msg/add properties: out of memory.");
     tmq_free_json_meta(data);
     return;
   }
@@ -786,7 +786,7 @@ static void tmq_ctx_do_msg_meta(struct tmqtt* ctxt, TAOS_RES* msg) {
 
   rc = ttq_broker_publish(context->cid, topic_name, data_len, data, qos, retain, props);
   if (rc != TTQ_ERR_SUCCESS) {
-    xndError("json msg/add property: out of memory.");
+    bndError("json msg/add property: out of memory.");
     tmq_free_json_meta(data);
   }
 }

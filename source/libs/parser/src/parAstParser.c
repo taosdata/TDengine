@@ -700,7 +700,7 @@ static int32_t collectMetaKeyFromShowXnodes(SCollectMetaKeyCxt* pCxt, SShowStmt*
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t collectMetaKeyFromShowBnodes(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+static int32_t collectMetaKeyFromShowBackupNodes(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   if (pCxt->pParseCxt->enableSysInfo) {
     return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_BACKUP_NODES,
                                    pCxt->pMetaCache);
@@ -1184,7 +1184,7 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_BNODES_STMT:
       return collectMetaKeyFromShowXnodes(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
-      return collectMetaKeyFromShowBnodes(pCxt, (SShowStmt*)pStmt);
+      return collectMetaKeyFromShowBackupNodes(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
       return collectMetaKeyFromShowArbGroups(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_CLUSTER_STMT:

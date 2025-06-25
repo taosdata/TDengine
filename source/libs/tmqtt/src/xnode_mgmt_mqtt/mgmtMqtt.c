@@ -54,7 +54,7 @@ extern char **environ;
 static void mqttMgmtMqttdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal);
 
 static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
-  xndInfo("start to init taosmqtt");
+  bndInfo("start to init taosmqtt");
   TAOS_MQTT_MGMT_CHECK_PTR_RCODE(pData);
 
   int32_t              err = 0;
@@ -109,7 +109,7 @@ static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
   float   numCpuCores = 4;
   int32_t code = taosGetCpuCores(&numCpuCores, false);
   if (code != 0) {
-    xndError("failed to get cpu cores, code:0x%x", code);
+    bndError("failed to get cpu cores, code:0x%x", code);
   }
   numCpuCores = TMAX(numCpuCores, 2);
   snprintf(thrdPoolSizeEnvItem, 32, "%s=%d", "UV_THREADPOOL_SIZE", (int32_t)numCpuCores * 2);
@@ -123,9 +123,9 @@ static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
     if (taosFqdnEnvItem != NULL) {
       tstrncpy(taosFqdnEnvItem, "TAOS_FQDN=", len);
       TAOS_STRNCAT(taosFqdnEnvItem, taosFqdn, subLen);
-      xndInfo("[MQTTD]Success to set TAOS_FQDN:%s", taosFqdn);
+      bndInfo("[MQTTD]Success to set TAOS_FQDN:%s", taosFqdn);
     } else {
-      xndError("[MQTTD]Failed to allocate memory for TAOS_FQDN");
+      bndError("[MQTTD]Failed to allocate memory for TAOS_FQDN");
       return terrno;
     }
   }
@@ -179,9 +179,9 @@ static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
   err = uv_spawn(&pData->loop, &pData->process, &options);
   pData->process.data = (void *)pData;
   if (err != 0) {
-    xndError("can not spawn taosmqtt. path: %s, error: %s", path, uv_strerror(err));
+    bndError("can not spawn taosmqtt. path: %s, error: %s", path, uv_strerror(err));
   } else {
-    xndInfo("taosmqtt is initialized");
+    bndInfo("taosmqtt is initialized");
   }
 
 _OVER:
@@ -205,23 +205,23 @@ _OVER:
 
 static void mqttMgmtMqttdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(process);
-  xndInfo("taosmqtt process exited with status %" PRId64 ", signal %d", exitStatus, termSignal);
+  bndInfo("taosmqtt process exited with status %" PRId64 ", signal %d", exitStatus, termSignal);
   SMqttdData *pData = process->data;
   if (pData == NULL) {
-    xndError("taosmqtt process data is NULL");
+    bndError("taosmqtt process data is NULL");
     return;
   }
   if (exitStatus == 0 && termSignal == 0 || atomic_load_32(&pData->stopCalled)) {
-    xndInfo("taosmqtt process exit due to SIGINT or dnode-mgmt called stop");
+    bndInfo("taosmqtt process exit due to SIGINT or dnode-mgmt called stop");
     if (uv_async_send(&pData->stopAsync) != 0) {
-      xndError("stop taosmqtt: failed to send stop async");
+      bndError("stop taosmqtt: failed to send stop async");
     }
 
   } else {
-    xndInfo("taosmqtt process restart");
+    bndInfo("taosmqtt process restart");
     int32_t code = mqttMgmtSpawnMqttd(pData);
     if (code != 0) {
-      xndError("taosmqtt process restart failed with code:%d", code);
+      bndError("taosmqtt process restart failed with code:%d", code);
     }
   }
 }
@@ -249,13 +249,13 @@ static void mqttMgmtWatchMqttd(void *args) {
   atomic_store_32(&pData->spawnErr, 0);
   (void)uv_barrier_wait(&pData->barrier);
   int32_t num = uv_run(&pData->loop, UV_RUN_DEFAULT);
-  xndInfo("taosmqtt loop exit with %d active handles, line:%d", num, __LINE__);
+  bndInfo("taosmqtt loop exit with %d active handles, line:%d", num, __LINE__);
 
   uv_walk(&pData->loop, mqttMgmtMqttdCloseWalkCb, NULL);
   num = uv_run(&pData->loop, UV_RUN_DEFAULT);
-  xndInfo("taosmqtt loop exit with %d active handles, line:%d", num, __LINE__);
+  bndInfo("taosmqtt loop exit with %d active handles, line:%d", num, __LINE__);
   if (uv_loop_close(&pData->loop) != 0) {
-    xndError("taosmqtt loop close failed, lino:%d", __LINE__);
+    bndError("taosmqtt loop close failed, lino:%d", __LINE__);
   }
   return;
 
@@ -264,10 +264,10 @@ _exit:
     (void)uv_barrier_wait(&pData->barrier);
     atomic_store_32(&pData->spawnErr, terrno);
     if (uv_loop_close(&pData->loop) != 0) {
-      xndError("taosmqtt loop close failed, lino:%d", __LINE__);
+      bndError("taosmqtt loop close failed, lino:%d", __LINE__);
     }
 
-    xndError("taosmqtt thread exit with code:%d lino:%d", terrno, __LINE__);
+    bndError("taosmqtt thread exit with code:%d lino:%d", terrno, __LINE__);
     terrno = TSDB_CODE_BNODE_UV_EXEC_FAILURE;
   }
 }
@@ -277,7 +277,7 @@ int32_t mqttMgmtStartMqttd(int32_t startDnodeId) {
 
   SMqttdData *pData = &mqttdGlobal;
   if (pData->startCalled) {
-    xndInfo("dnode start taosmqtt already called");
+    bndInfo("dnode start taosmqtt already called");
     return 0;
   }
   pData->startCalled = true;
@@ -293,13 +293,13 @@ int32_t mqttMgmtStartMqttd(int32_t startDnodeId) {
   if (err != 0) {
     uv_barrier_destroy(&pData->barrier);
     if (uv_async_send(&pData->stopAsync) != 0) {
-      xndError("start taosmqtt: failed to send stop async");
+      bndError("start taosmqtt: failed to send stop async");
     }
     if (uv_thread_join(&pData->thread) != 0) {
-      xndError("start taosmqtt: failed to join taosmqtt thread");
+      bndError("start taosmqtt: failed to join taosmqtt thread");
     }
     pData->needCleanUp = false;
-    xndInfo("taosmqtt is cleaned up after spawn err");
+    bndInfo("taosmqtt is cleaned up after spawn err");
     TAOS_CHECK_GOTO(err, &lino, _exit);
   } else {
     pData->needCleanUp = true;
@@ -307,14 +307,14 @@ int32_t mqttMgmtStartMqttd(int32_t startDnodeId) {
   }
 _exit:
   if (code != 0) {
-    xndError("taosmqtt start failed with code:%d, lino:%d", code, lino);
+    bndError("taosmqtt start failed with code:%d, lino:%d", code, lino);
   }
   return code;
 }
 
 void mqttMgmtStopMqttd() {
   SMqttdData *pData = &mqttdGlobal;
-  xndInfo("taosmqtt start to stop, need cleanup:%d, spawn err:%d", pData->needCleanUp, pData->spawnErr);
+  bndInfo("taosmqtt start to stop, need cleanup:%d, spawn err:%d", pData->needCleanUp, pData->spawnErr);
   if (!pData->needCleanUp || atomic_load_32(&pData->stopCalled)) {
     return;
   }
@@ -324,9 +324,9 @@ void mqttMgmtStopMqttd() {
   uv_barrier_destroy(&pData->barrier);
 
   if (uv_thread_join(&pData->thread) != 0) {
-    xndError("stop taosmqtt: failed to join taosmqtt thread");
+    bndError("stop taosmqtt: failed to join taosmqtt thread");
   }
-  xndInfo("taosmqtt is cleaned up");
+  bndInfo("taosmqtt is cleaned up");
 
   pData->startCalled = false;
 

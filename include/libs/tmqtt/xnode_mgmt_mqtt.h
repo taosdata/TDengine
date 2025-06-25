@@ -64,7 +64,7 @@ extern "C" {
     const void *ptrs[] = {__VA_ARGS__};                                             \
     for (int i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); ++i) {                      \
       if (ptrs[i] == NULL) {                                                        \
-        xndError("taosmqtt %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
+        bndError("taosmqtt %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
         return TSDB_CODE_INVALID_PARA;                                              \
       }                                                                             \
     }                                                                               \
@@ -75,7 +75,7 @@ extern "C" {
     const void *ptrs[] = {__VA_ARGS__};                                             \
     for (int i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); ++i) {                      \
       if (ptrs[i] == NULL) {                                                        \
-        xndError("taosmqtt %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
+        bndError("taosmqtt %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
         return;                                                                     \
       }                                                                             \
     }                                                                               \
@@ -84,7 +84,7 @@ extern "C" {
 #define TAOS_MQTT_MGMT_CHECK_CONDITION(o, code)        \
   do {                                                 \
     if ((o) == false) {                                \
-      xndError("Condition not met.line:%d", __LINE__); \
+      bndError("Condition not met.line:%d", __LINE__); \
       return code;                                     \
     }                                                  \
   } while (0)
