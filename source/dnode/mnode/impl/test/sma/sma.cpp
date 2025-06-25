@@ -149,10 +149,16 @@ void* MndTestSma::BuildCreateTSmaReq(const char* smaname, const char* stbname, i
   strcpy(createReq.stb, stbname);
   createReq.igExists = igExists;
   createReq.intervalUnit = 1;
+  createReq.slidingUnit = 2;
+  createReq.timezone = 3;
   createReq.dstVgId = 4;
   createReq.interval = 10;
+  createReq.offset = 5;
+  createReq.sliding = 6;
   createReq.expr = (char*)expr;
   createReq.exprLen = strlen(createReq.expr) + 1;
+  createReq.tagsFilter = (char*)tagsFilter;
+  createReq.tagsFilterLen = strlen(createReq.tagsFilter) + 1;
   createReq.sql = (char*)sql;
   createReq.sqlLen = strlen(createReq.sql) + 1;
   createReq.ast = (char*)ast;

@@ -541,13 +541,19 @@ typedef struct {
   int64_t        dbUid;
   int64_t        dstTbUid;
   int8_t         intervalUnit;
+  int8_t         slidingUnit;
+  int8_t         timezone;  // int8_t is not enough, timezone is unit of second
   int32_t        dstVgId;   // for stream
   int64_t        interval;
+  int64_t        offset;
+  int64_t        sliding;
   int32_t        exprLen;  // strlen + 1
+  int32_t        tagsFilterLen;
   int32_t        sqlLen;
   int32_t        astLen;
   int32_t        version;
   char*          expr;
+  char*          tagsFilter;
   char*          sql;
   char*          ast;
   SSchemaWrapper schemaRow;  // for dstVgroup

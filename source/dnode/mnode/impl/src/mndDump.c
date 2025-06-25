@@ -270,10 +270,15 @@ void dumpSma(SSdb *pSdb, SJson *json) {
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "dbUid", i642str(pObj->dbUid)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "dstTbUid", i642str(pObj->dstTbUid)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "intervalUnit", i642str(pObj->intervalUnit)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "slidingUnit", i642str(pObj->slidingUnit)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "timezone", i642str(pObj->timezone)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "dstVgId", i642str(pObj->dstVgId)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "interval", i642str(pObj->interval)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "offset", i642str(pObj->offset)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "sliding", i642str(pObj->sliding)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "exprLen", i642str(pObj->exprLen)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "tagsFilterLen", i642str(pObj->tagsFilterLen)), pObj, &lino,
+                        _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "sqlLen", i642str(pObj->sqlLen)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "astLen", i642str(pObj->astLen)), pObj, &lino, _OVER);
     sdbRelease(pSdb, pObj);

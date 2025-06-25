@@ -4247,16 +4247,26 @@ typedef struct {
   char    stb[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
   int8_t  intervalUnit;
+  int8_t  slidingUnit;
+  int8_t  timezone;  // int8_t is not enough, timezone is unit of second
   int32_t dstVgId;   // for stream
   int64_t interval;
+  int64_t offset;
+  int64_t sliding;
+  int64_t maxDelay;
+  int64_t watermark;
   int32_t exprLen;        // strlen + 1
+  int32_t tagsFilterLen;  // strlen + 1
   int32_t sqlLen;         // strlen + 1
   int32_t astLen;         // strlen + 1
   char*   expr;
+  char*   tagsFilter;
   char*   sql;
   char*   ast;
   int64_t deleteMark;
+  int64_t lastTs;
   int64_t normSourceTbUid;  // the Uid of source tb if its a normal table, otherwise 0
+  SArray* pVgroupVerList;
   int8_t  recursiveTsma;
   char    baseTsmaName[TSDB_TABLE_FNAME_LEN];  // base tsma name for recursively created tsma
 } SMCreateSmaReq;
@@ -4291,11 +4301,22 @@ int32_t tDeserializeSDropTagIdxReq(void* buf, int32_t bufLen, SDropTagIndexReq* 
 
 typedef struct {
   int8_t         version;       // for compatibility(default 0)
+  int8_t         intervalUnit;  // MACRO: TIME_UNIT_XXX
+  int8_t         slidingUnit;   // MACRO: TIME_UNIT_XXX
+  int8_t         timezoneInt;   // sma data expired if timezone changes.
   int32_t        dstVgId;
   char           indexName[TSDB_INDEX_NAME_LEN];
+  int32_t        exprLen;
+  int32_t        tagsFilterLen;
   int64_t        indexUid;
+  tb_uid_t       tableUid;  // super/child/common table uid
   tb_uid_t       dstTbUid;  // for dstVgroup
+  int64_t        interval;
+  int64_t        offset;  // use unit by precision of DB
+  int64_t        sliding;
   char*          dstTbName;  // for dstVgroup
+  char*          expr;       // sma expression
+  char*          tagsFilter;
   SSchemaWrapper schemaRow;  // for dstVgroup
   SSchemaWrapper schemaTag;  // for dstVgroup
 } STSma;                     // Time-range-wise SMA
@@ -4303,9 +4324,19 @@ typedef struct {
 typedef STSma SVCreateTSmaReq;
 
 typedef struct {
+  int8_t  type;  // 0 status report, 1 update data
+  int64_t indexUid;
+  int64_t skey;  // start TS key of interval/sliding window
+} STSmaMsg;
+
+typedef struct {
   int64_t indexUid;
   char    indexName[TSDB_INDEX_NAME_LEN];
 } SVDropTSmaReq;
+
+typedef struct {
+  int tmp;  // TODO: to avoid compile error
+} SVCreateTSmaRsp, SVDropTSmaRsp;
 
 #if 0
 int32_t tSerializeSVCreateTSmaReq(void** buf, SVCreateTSmaReq* pReq);
@@ -4327,6 +4358,8 @@ typedef struct {
 static FORCE_INLINE void tDestroyTSma(STSma* pSma) {
   if (pSma) {
     taosMemoryFreeClear(pSma->dstTbName);
+    taosMemoryFreeClear(pSma->expr);
+    taosMemoryFreeClear(pSma->tagsFilter);
   }
 }
 
