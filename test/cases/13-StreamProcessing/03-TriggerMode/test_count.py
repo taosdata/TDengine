@@ -57,8 +57,8 @@ class TestStreamCountTrigger:
 
         for stream in streams:
             tdSql.execute(stream.sql)
-        # tdStream.checkStreamStatus()
-        time.sleep(3)
+        tdStream.checkStreamStatus()
+        time.sleep(5)
 
         tdLog.info(f"=============== write query data")
         sqls = [

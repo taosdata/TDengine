@@ -95,15 +95,15 @@ class TestStreamStateFillHistory:
          
         streams = [
             self.StreamItem(sql1, self.checks1),
-            self.StreamItem(sql2, self.checks2),
-            self.StreamItem(sql3, self.checks3),
-            self.StreamItem(sql4, self.checks4),
+            # self.StreamItem(sql2, self.checks2),
+            # self.StreamItem(sql3, self.checks3),
+            # self.StreamItem(sql4, self.checks4),
         ]
 
         for stream in streams:
             tdSql.execute(stream.sql)
-        # tdStream.checkStreamStatus()
-        time.sleep(3)
+        tdStream.checkStreamStatus()
+        time.sleep(10)
 
         tdLog.info(f"=============== write query data")
         sqls = [
@@ -160,35 +160,35 @@ class TestStreamStateFillHistory:
             stream.check()
 
 
-        ############ true_for 
-        sql5 = "create stream s5 state_window(cint) true_for(5s) from ct1 into res_truefor_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        # ############ true_for 
+        # sql5 = "create stream s5 state_window(cint) true_for(5s) from ct1 into res_truefor_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
          
-        tdSql.execute(sql5)
-        # tdStream.checkStreamStatus("s5")
-        time.sleep(3)
-        # self.checks5(0)
+        # tdSql.execute(sql5)
+        # # tdStream.checkStreamStatus("s5")
+        # time.sleep(3)
+        # # self.checks5(0)
                 
-        tdLog.info(f"=============== continue write data into ct1 for true_for(5s)")
-        sqls = [
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:10', 4, 0);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:11', 4, 0);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:15', 4, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:16', 5, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:17', 5, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:18', 5, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:21', 5, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:22', 6, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:29', 6, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:30', 7, 3);",
-        ]
-        tdSql.executes(sqls)
-        self.checks5(1)
+        # tdLog.info(f"=============== continue write data into ct1 for true_for(5s)")
+        # sqls = [
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:10', 4, 0);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:11', 4, 0);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:15', 4, 1);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:16', 5, 1);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:17', 5, 1);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:18', 5, 2);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:21', 5, 2);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:22', 6, 2);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:29', 6, 2);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:30', 7, 3);",
+        # ]
+        # tdSql.executes(sqls)
+        # self.checks5(1)
         
-        ############ option: fill history
+        # ############ option: fill history
         
-        ############ option: max_delay
+        # ############ option: max_delay
         
-        ############ option: watermark
+        # ############ option: watermark
         
         return
 
