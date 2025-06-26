@@ -1,6 +1,7 @@
 package com.taosdata;
 
 import com.alibaba.fastjson.JSONObject;
+import com.influxdb.client.JSON;
 import com.influxdb.client.domain.HealthCheck;
 import com.taosdata.caches.BucketCache;
 import com.taosdata.caches.StatisticCache;
@@ -160,7 +161,8 @@ public class PreLoading implements CommandLineRunner {
                 loadToml(args[0].trim());
             }
             // 创建influxdb连接池
-            if (StringUtils.isEmpty(this.influxdbConfig.getVersion()) || this.influxdbConfig.getVersion().matches("2.*")) {
+            if (StringUtils.isEmpty(this.influxdbConfig.getVersion()) ||
+                    this.influxdbConfig.getVersion().matches("2.*")) {
                 this.influxdbPool.createInluxdbClientPool();
             } else {
                 this.influxdbV1Pool.createInluxdbV1ClientPool();
@@ -254,10 +256,12 @@ public class PreLoading implements CommandLineRunner {
             this.taskConfig.setBeginTime(tomlParseResult.getString("task.beginTime", String::new));
             this.taskConfig.setEndTime(tomlParseResult.getString("task.endTime", String::new));
             // 判断时间配置，错误则退出
-            if (StringUtils.isEmpty(this.taskConfig.getBeginTime()) || !this.taskConfig.getBeginTime().matches(DateUtils.PATTERN_YMDHMS_TZ)) {
+            if (StringUtils.isEmpty(this.taskConfig.getBeginTime()) ||
+                    !this.taskConfig.getBeginTime().matches(DateUtils.PATTERN_YMDHMS_TZ)) {
                 throw new Exception("parameter beginTime configuration error.");
             }
-            if (StringUtils.isNotEmpty(this.taskConfig.getEndTime()) && !this.taskConfig.getEndTime().matches(DateUtils.PATTERN_YMDHMS_TZ)) {
+            if (StringUtils.isNotEmpty(this.taskConfig.getEndTime()) &&
+                    !this.taskConfig.getEndTime().matches(DateUtils.PATTERN_YMDHMS_TZ)) {
                 throw new Exception("parameter endTime configuration error.");
             }
             String breakpoints = tomlParseResult.getString("task.breakpoints", String::new);
@@ -368,13 +372,19 @@ public class PreLoading implements CommandLineRunner {
         String healthUrl = "health";
         // 云服务的接口列表（因为它是公开访问的）
         String cloudApi = "api/v2";
+
+        // http://host:port/ping
+        String ping = "ping";
+
         // 拼接请求url
         if (influxdbConfig.getUrl().endsWith("/")) {
             healthUrl = influxdbConfig.getUrl() + healthUrl;
             cloudApi = influxdbConfig.getUrl() + cloudApi;
+            ping = influxdbConfig.getUrl() + ping;
         } else {
             healthUrl = influxdbConfig.getUrl() + "/" + healthUrl;
             cloudApi = influxdbConfig.getUrl() + "/" + cloudApi;
+            ping = influxdbConfig.getUrl() + "/" + ping;
         }
         try {
             // 一般情况下使用health接口获取服务状态
@@ -395,7 +405,19 @@ public class PreLoading implements CommandLineRunner {
                     return true;
                 }
             } catch (Exception ex) {
-                logger.error("Check connectivity failed, normal exception: {}, cloud exception: {}", e.getMessage(), ex.getMessage());
+                try {
+                    Map<String, String> res = HttpUtils.sendGetHeaders(ping, "");
+                    logger.info("InfluxDB ping response:");
+                    for (Map.Entry<String, String> entry : res.entrySet()) {
+                        logger.info("{}: {}", entry.getKey(), entry.getValue());
+                    }
+                    if (res.containsKey("X-Influxdb-Build") && res.containsKey("X-Influxdb-Version")) {
+                        return true;
+                    }
+                } catch (Exception exc) {
+                    logger.error("failed to check InfluxDB connectivity, cause: {}", exc.getCause().toString());
+                }
+
             }
         }
         return false;
@@ -430,7 +452,8 @@ public class PreLoading implements CommandLineRunner {
             result.put("valid", true);
             result.put("support", true);
             result.put("version", version.trim());
-            result.put("message", "Your data source is availabe, its version is " + version.trim() + ", which is supported, you can proceed to transfer your data to TDengine.");
+            result.put("message", "Your data source is available, its version is " + version.trim() +
+                    ", which is supported, you can proceed to transfer your data to TDengine.");
         } catch (Exception e) {
             result.put("valid", false);
             result.put("support", false);
@@ -448,10 +471,12 @@ public class PreLoading implements CommandLineRunner {
             // 记录Influxdb信息
             StatusCache.noteInfluxdb(influxdbConfig.getUrl());
             // 获取所有bucket
-            List<InfluxdbBucketEntity> influxdbBucketEntityList = influxdbService.selectAllBuckets(influxdbConfig.getOrgId());
+            List<InfluxdbBucketEntity> influxdbBucketEntityList = influxdbService.selectAllBuckets(
+                    influxdbConfig.getOrgId());
             // 跟据参数中的orgId与buckets进行过滤
             influxdbBucketEntityList.stream().filter(influxdbBucketEntity -> {
-                if (StringUtils.isEmpty(influxdbConfig.getOrgId()) || influxdbBucketEntity.getOrgId().equals(influxdbConfig.getOrgId())) {
+                if (StringUtils.isEmpty(influxdbConfig.getOrgId()) ||
+                        influxdbBucketEntity.getOrgId().equals(influxdbConfig.getOrgId())) {
                     return true;
                 }
                 return false;
@@ -475,24 +500,34 @@ public class PreLoading implements CommandLineRunner {
                         createDbrp(influxdbBucketEntity);
                     }
                     // 查询bucket中所有measurement信息
-                    List<InfluxdbMeasurementEntity> influxdbMeasurementEntityList = influxdbService.selectAllMeasurements(influxdbBucketEntity.getBucketName());
+                    List<InfluxdbMeasurementEntity> influxdbMeasurementEntityList = influxdbService.selectAllMeasurements(
+                            influxdbBucketEntity.getBucketName());
                     // 放入缓存中
                     for (InfluxdbMeasurementEntity influxdbMeasurementEntity : influxdbMeasurementEntityList) {
-                        BucketCache.measurementMap.put(BucketCache.generateBucketDataThreadKey(influxdbMeasurementEntity.getBucket(), influxdbMeasurementEntity.getMeasurement()), influxdbMeasurementEntity);
+                        BucketCache.measurementMap.put(
+                                BucketCache.generateBucketDataThreadKey(influxdbMeasurementEntity.getBucket(),
+                                        influxdbMeasurementEntity.getMeasurement()), influxdbMeasurementEntity);
                     }
                     // 通过first函数获取每个measurement的最早时间戳
                     for (InfluxdbMeasurementEntity influxdbMeasurementEntity : influxdbMeasurementEntityList) {
                         try {
-                            Instant firstTimestamp = influxdbService.getFirstTimestampInRange(influxdbConfig.getOrgId(), influxdbMeasurementEntity.getBucket(), influxdbMeasurementEntity.getMeasurement(), taskConfig.getBeginTime());
+                            Instant firstTimestamp = influxdbService.getFirstTimestampInRange(influxdbConfig.getOrgId(),
+                                    influxdbMeasurementEntity.getBucket(), influxdbMeasurementEntity.getMeasurement(),
+                                    taskConfig.getBeginTime());
                             // 写入内存中
-                            BucketCache.measurementFirstTimestampMap.put(BucketCache.generateBucketDataThreadKey(influxdbMeasurementEntity.getBucket(), influxdbMeasurementEntity.getMeasurement()), firstTimestamp);
-                            logger.info("Auto update startTime: bucket: {}, measurement: {}, first: {}", influxdbMeasurementEntity.getBucket(), influxdbMeasurementEntity.getMeasurement(), firstTimestamp);
+                            BucketCache.measurementFirstTimestampMap.put(
+                                    BucketCache.generateBucketDataThreadKey(influxdbMeasurementEntity.getBucket(),
+                                            influxdbMeasurementEntity.getMeasurement()), firstTimestamp);
+                            logger.info("Auto update startTime: bucket: {}, measurement: {}, first: {}",
+                                    influxdbMeasurementEntity.getBucket(), influxdbMeasurementEntity.getMeasurement(),
+                                    firstTimestamp);
                         } catch (Exception e) {
                             logger.error("An exception occurred during getting first  timestamp", e);
                         }
                     }
                     // 启动BucketThread
-                    BucketThread bucket = new BucketThread(influxdbConfig.getOrgId(), influxdbBucketEntity.getBucketName());
+                    BucketThread bucket = new BucketThread(influxdbConfig.getOrgId(),
+                            influxdbBucketEntity.getBucketName());
                     Thread bucketThread = new Thread(bucket);
                     bucketThread.setName("BucketThread-" + influxdbBucketEntity.getBucketName());
                     bucketThread.start();
