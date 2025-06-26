@@ -3645,10 +3645,6 @@ int64_t obtainTableCount(SDataBase* database, SSuperTable* stbInfo) {
 
 // assign table to thread with vgroups, return assign thread count
 int32_t assignTableToThread(SDataBase* database, SSuperTable* stbInfo) {
-    SBenchConn* conn = initBenchConn();
-    if (NULL == conn) {
-        return 0;
-    }
     int32_t threads = 0;
 
     // calc table count per vgroup
@@ -3688,7 +3684,6 @@ int32_t assignTableToThread(SDataBase* database, SSuperTable* stbInfo) {
         vg->childTblArray[vg->tbOffset] = stbInfo->childTblArray[i];
         vg->tbOffset++;
     }
-    closeBenchConn(conn);
     return threads;
 }
 
