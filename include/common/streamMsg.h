@@ -301,6 +301,7 @@ typedef enum SStreamMsgType {
   STREAM_MSG_UNDEPLOY,
   STREAM_MSG_ORIGTBL_READER_INFO,
   STREAM_MSG_UPDATE_RUNNER,
+  STREAM_MSG_USER_RECALC,
 } SStreamMsgType;
 
 typedef struct SStreamMsg {
@@ -367,6 +368,8 @@ typedef union SStreamMgmtReq {
   SStreamMgmtReqCont cont;
 } SStreamMgmtReq;
 
+typedef void (*taskUndeplyCallback)(void*);
+
 
 typedef struct SStreamTask {
   EStreamTaskType type;
@@ -384,19 +387,31 @@ typedef struct SStreamTask {
   int32_t       taskIdx;
 
   EStreamStatus status;
+  int32_t       detailStatus; // status index in pTriggerStatus
   int32_t       errorCode;
 
   SStreamMgmtReq* pMgmtReq;  // request that should be handled by stream mgmt thread
 
   int64_t         runningStartTs;
+
+  SRWLatch        entryLock;       
+
+  SStreamUndeployTaskMsg undeployMsg;
+  taskUndeplyCallback    undeployCb;
   
   int8_t          deployed;      // concurrent undeloy
 } SStreamTask;
 
 typedef struct SStreamMgmtRspCont {
+  // FOR STREAM_MSG_ORIGTBL_READER_INFO
   SArray*    vgIds;       // SArray<int32_t>, same size and order as fullTableNames in SStreamMgmtReqCont
   SArray*    readerList;  // SArray<SStreamTaskAddr>, each SStreamTaskAddr has an unique nodeId
+
+  // FOR STREAM_MSG_UPDATE_RUNNER
   SArray*    runnerList;  // SArray<SStreamRunnerTarget>, full runner list
+
+  // FOR STREAM_MSG_USER_RECALC
+  SArray*    recalcList;  // SArray<SStreamRecalcReq>
 } SStreamMgmtRspCont;
 
 typedef union SStreamMgmtRsp {
@@ -407,6 +422,27 @@ typedef union SStreamMgmtRsp {
   SStreamMgmtRspCont cont;
 } SStreamMgmtRsp;
 
+typedef struct SStreamRecalcReq {
+  int64_t recalcId;
+  TSKEY   start;
+  TSKEY   end;
+} SStreamRecalcReq;
+
+typedef struct SSTriggerRecalcProgress {
+  int64_t recalcId;  // same with SStreamRecalcReq in stTriggerTaskExecute
+  int32_t progress;  // 0-100, 0 means not started, 100 means finished
+  TSKEY   start;
+  TSKEY   end;
+} SSTriggerRecalcProgress;
+
+typedef struct SSTriggerRuntimeStatus {
+  int32_t autoRecalcNum;
+  int32_t realtimeSessionNum;
+  int32_t historySessionNum;
+  int32_t recalcSessionNum;
+  int32_t histroyProgress; // 0-100, 0 means not started, 100 means finished
+  SArray* userRecalcs;  // SArray<SSTriggerRecalcProgress>
+} SSTriggerRuntimeStatus;
 
 
 typedef SStreamTask SStmTaskStatusMsg;
@@ -417,8 +453,9 @@ typedef struct SStreamHbMsg {
   int32_t snodeId;
   int32_t runnerThreadNum;
   SArray* pVgLeaders;     // SArray<int32_t>
-  SArray* pStreamStatus;  // SArray<SStmTaskStatusMsg>, not including req
-  SArray* pStreamReq;     // SArray<SStmTaskStatusMsg>, including req
+  SArray* pStreamStatus;  // SArray<SStmTaskStatusMsg>
+  SArray* pStreamReq;     // SArray<int32_t>, task index in pStreamStatus
+  SArray* pTriggerStatus; // SArray<SSTriggerRuntimeStatus>
 } SStreamHbMsg;
 
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq);
@@ -478,6 +515,7 @@ typedef struct {
   int8_t fillHistoryFirst;
   int8_t lowLatencyCalc;
   int8_t hasPartitionBy;
+  int8_t triggerTblType;
 
   // notify options
   SArray* pNotifyAddrUrls;

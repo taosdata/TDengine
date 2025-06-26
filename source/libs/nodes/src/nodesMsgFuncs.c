@@ -3398,7 +3398,6 @@ enum {
   PHY_WINDOW_CODE_INPUT_TS_ORDER,
   PHY_WINDOW_CODE_OUTPUT_TS_ORDER,
   PHY_WINDOW_CODE_MERGE_DATA_BLOCK,
-  PHY_WINDOW_CODE_DEST_HAS_PRIMARY_KEY,
 };
 
 static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3431,9 +3430,6 @@ static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_WINDOW_CODE_MERGE_DATA_BLOCK, pNode->mergeDataBlock);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI8(pEncoder, PHY_WINDOW_CODE_DEST_HAS_PRIMARY_KEY, pNode->destHasPrimaryKey);
   }
 
   return code;
@@ -3475,9 +3471,6 @@ static int32_t msgToPhysiWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_WINDOW_CODE_MERGE_DATA_BLOCK:
         code = tlvDecodeBool(pTlv, &pNode->mergeDataBlock);
-        break;
-      case PHY_WINDOW_CODE_DEST_HAS_PRIMARY_KEY:
-        code = tlvDecodeI8(pTlv, &pNode->destHasPrimaryKey);
         break;
       default:
         break;
@@ -3769,7 +3762,7 @@ static int32_t msgToPhysiEventWindowNode(STlvDecoder* pDecoder, void* pObj) {
 enum { PHY_COUNT_CODE_WINDOW = 1, PHY_COUNT_CODE_WINDOW_COUNT, PHY_COUNT_CODE_WINDOW_SLIDING };
 
 static int32_t physiCountWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
-  const SCountWinodwPhysiNode* pNode = (const SCountWinodwPhysiNode*)pObj;
+  const SCountWindowPhysiNode* pNode = (const SCountWindowPhysiNode*)pObj;
 
   int32_t code = tlvEncodeObj(pEncoder, PHY_COUNT_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
   if (TSDB_CODE_SUCCESS == code) {
@@ -3783,7 +3776,7 @@ static int32_t physiCountWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder
 }
 
 static int32_t msgToPhysiCountWindowNode(STlvDecoder* pDecoder, void* pObj) {
-  SCountWinodwPhysiNode* pNode = (SCountWinodwPhysiNode*)pObj;
+  SCountWindowPhysiNode* pNode = (SCountWindowPhysiNode*)pObj;
 
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;

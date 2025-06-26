@@ -32,7 +32,7 @@ class Test_Nevados:
         tdStream.createSnode()
         self.prepare()
         self.windspeeds_hourly()
-        # self.windspeeds_daily()
+        self.windspeeds_daily()
         # self.kpi_db_test()
 
     def prepare(self):
@@ -139,7 +139,6 @@ class Test_Nevados:
             "select count(*) from information_schema.ins_tables where db_name='dev' and stable_name='windspeeds_hourly';",
             lambda: tdSql.compareData(0, 0, 10),
         )
-        return
 
         sql = "select window_start, window_hourly, site, id, windspeed_hourly_maximum from dev.windspeeds_hourly where id='id_1';"
         exp_sql = "select _wstart, _wend, site, id, max(speed) from t1 interval(1h);"

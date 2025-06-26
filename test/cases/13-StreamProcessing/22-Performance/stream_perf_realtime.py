@@ -440,7 +440,7 @@ class StreamSQLTemplates:
     
     s2_2 = """
     create stream s2_2 trigger at_once 
-        ignore expired 0 ignore update 0 into stream_to.stb 
+        ignore expired 0 ignore update 0 into stream_to.stb2_2 
         as select _wstart as wstart,
         avg(c0), avg(c1),avg(c2), avg(c3),
         max(c0), max(c1), max(c2), max(c3),
@@ -450,7 +450,7 @@ class StreamSQLTemplates:
     
     s2_3 = """
     create stream s2_3 trigger window_close 
-        ignore expired 0 ignore update 0 into stream_to.stb 
+        ignore expired 0 ignore update 0 into stream_to.stb2_3 
         as select _wstart as wstart,
         avg(c0), avg(c1),avg(c2), avg(c3),
         max(c0), max(c1), max(c2), max(c3),
@@ -460,7 +460,7 @@ class StreamSQLTemplates:
     
     s2_4 = """
     create stream s2_4 trigger max_delay 5s 
-        ignore expired 0 ignore update 0 into stream_to.stb 
+        ignore expired 0 ignore update 0 into stream_to.stb2_4 
         as select _wstart as wstart,
         avg(c0), avg(c1),avg(c2), avg(c3),
         max(c0), max(c1), max(c2), max(c3),
@@ -469,7 +469,7 @@ class StreamSQLTemplates:
     """
     
     s2_5 = """
-    create stream s2_5 trigger FORCE_WINDOW_CLOSE into stream_to.stb 
+    create stream s2_5 trigger FORCE_WINDOW_CLOSE into stream_to.stb2_5 
         as select _wstart as wstart,
         avg(c0), avg(c1),avg(c2), avg(c3),
         max(c0), max(c1), max(c2), max(c3),
@@ -479,7 +479,7 @@ class StreamSQLTemplates:
     
     s2_6 = """
     create stream s2_6 trigger CONTINUOUS_WINDOW_CLOSE 
-        ignore expired 0 ignore update 0 into stream_to.stb 
+        ignore expired 0 ignore update 0 into stream_to.stb2_6 
         as select _wstart as wstart,
         avg(c0), avg(c1),avg(c2), avg(c3),
         max(c0), max(c1), max(c2), max(c3),
@@ -491,7 +491,7 @@ class StreamSQLTemplates:
     create stream stream_from.s2_7 INTERVAL(15s) SLIDING(15s)
             from stream_from.stb 
             partition by tbname 
-            into stream_to.stb
+            into stream_to.stb2_7
             as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
             max(c0), max(c1), max(c2), max(c3),
             min(c0), min(c1), min(c2), min(c3)
@@ -502,7 +502,7 @@ class StreamSQLTemplates:
     create stream stream_from.s2_8 INTERVAL(15s) SLIDING(15s)
             from stream_from.stb 
             partition by tbname 
-            into stream_to.stb
+            into stream_to.stb2_8
             as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
             max(c0), max(c1), max(c2), max(c3),
             min(c0), min(c1), min(c2), min(c3)
@@ -511,9 +511,9 @@ class StreamSQLTemplates:
     
     s2_9 = """
     create stream stream_from.s2_9 INTERVAL(15s) SLIDING(15s)
-            from stream_from.stb 
+            from stream_from.stb partition by tbname 
             OPTIONS(MAX_DELAY(5s)) 
-            into stream_to.stb
+            into stream_to.stb2_9
             as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
             max(c0), max(c1), max(c2), max(c3),
             min(c0), min(c1), min(c2), min(c3)
@@ -524,7 +524,7 @@ class StreamSQLTemplates:
     create stream stream_from.s2_10 INTERVAL(15s) SLIDING(15s) 
             from stream_from.stb 
             OPTIONS(MAX_DELAY(5s))
-            into stream_to.stb
+            into stream_to.stb2_10
             as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
             max(c0), max(c1), max(c2), max(c3),
             min(c0), min(c1), min(c2), min(c3)
@@ -533,12 +533,12 @@ class StreamSQLTemplates:
     
     s2_11 = """
     create stream stream_from.s2_11 period(15s) 
-            from stream_from.stb 
-            into stream_to.stb
-            as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
+            from stream_from.stb partition by tbname  
+            into stream_to.stb2_11
+            as select cast(_tlocaltime/1000000 as timestamp) ts, avg(c0), avg(c1), avg(c2), avg(c3),
             max(c0), max(c1), max(c2), max(c3),
             min(c0), min(c1), min(c2), min(c3)
-            from %%tbname where ts >= _twstart and ts < _twend;
+            from %%tbname ;
     """    
     
     s2_12 = """

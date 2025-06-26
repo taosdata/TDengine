@@ -443,7 +443,7 @@ class StreamSQLTemplates:
     
     s1_2 = """
     create stream s1_2 trigger at_once 
-        fill_history 1 ignore expired 0 ignore update 0 into stream_to.stb 
+        fill_history 1 ignore expired 0 ignore update 0 into stream_to.stb1_2 
         as select _wstart as wstart,
         avg(c0), avg(c1),avg(c2), avg(c3),
         max(c0), max(c1), max(c2), max(c3),
@@ -453,7 +453,7 @@ class StreamSQLTemplates:
     
     s1_3 = """
     create stream s1_3 trigger window_close 
-        fill_history 1 ignore expired 0 ignore update 0 into stream_to.stb 
+        fill_history 1 ignore expired 0 ignore update 0 into stream_to.stb1_3 
         as select _wstart as wstart,
         avg(c0), avg(c1),avg(c2), avg(c3),
         max(c0), max(c1), max(c2), max(c3),
@@ -463,7 +463,7 @@ class StreamSQLTemplates:
     
     s1_4 = """
     create stream s1_4 trigger continuous_window_close 
-        fill_history 1 ignore expired 0 ignore update 0 into stream_to.stb 
+        fill_history 1 ignore expired 0 ignore update 0 into stream_to.stb1_4 
         as select _wstart as wstart,
         avg(c0), avg(c1),avg(c2), avg(c3),
         max(c0), max(c1), max(c2), max(c3),
@@ -475,7 +475,7 @@ class StreamSQLTemplates:
     create stream stream_from.s1_5 INTERVAL(60s) SLIDING(60s)
         from stream_from.stb 
         OPTIONS(FILL_HISTORY('2025-01-01 00:00:00')) 
-        into stream_to.stb
+        into stream_to.stb1_5
         as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
         max(c0), max(c1), max(c2), max(c3),
         min(c0), min(c1), min(c2), min(c3)
@@ -484,9 +484,9 @@ class StreamSQLTemplates:
     
     s1_6 = """
     create stream stream_from.s1_6 count_window(60) 
-        from stream_from.stb 
+        from stream_from.stb partition by tbname 
         OPTIONS(FILL_HISTORY('2025-01-01 00:00:00')) 
-        into stream_to.stb
+        into stream_to.stb1_6
         as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
         max(c0), max(c1), max(c2), max(c3),
         min(c0), min(c1), min(c2), min(c3)

@@ -2444,6 +2444,7 @@ class TDSql:
             retry = 1
 
         for loop in range(retry):
+            self.clearResult()
             if self.query(sql, queryTimes=1, exit=False):
                 if func():
                     self.printResult(f"check succeed in {loop} seconds")
@@ -2466,6 +2467,7 @@ class TDSql:
             retry = 1
 
         for loop in range(retry):
+            self.clearResult()
             res_result = self.getResult(sql, exit=False)
             if res_result != []:
                 if self.compareResults(res_result, exp_result):
@@ -2489,6 +2491,7 @@ class TDSql:
         tdLog.exit(f"{caller.filename}(caller.lineno)  check result failed")
 
     def checkResultsBySql(self, sql, exp_sql, delay=0.0, retry=60, show=False):
+        self.clearResult()
         exp_result = self.getResult(exp_sql)
         self.checkResultsByArray(sql, exp_result, exp_sql, delay, retry, show)
 
@@ -2595,5 +2598,9 @@ class TDSql:
 
         return True
 
+    def clearResult(self):
+        self.queryCols = 0
+        self.queryRows = 0
+        self.queryResult = []
 
 tdSql = TDSql()

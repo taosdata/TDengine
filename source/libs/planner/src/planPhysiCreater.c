@@ -893,11 +893,6 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->needCountEmptyTable = pScanLogicNode->isCountByTag;
   pTableScan->paraTablesSort = pScanLogicNode->paraTablesSort;
   pTableScan->smallDataTsSort = pScanLogicNode->smallDataTsSort;
-  tstrncpy(pTableScan->pStbFullName, pCxt->pPlanCxt->pStbFullName, TSDB_TABLE_FNAME_LEN);
-  tstrncpy(pTableScan->pWstartName, pCxt->pPlanCxt->pWstartName, TSDB_COL_NAME_LEN);
-  tstrncpy(pTableScan->pWendName, pCxt->pPlanCxt->pWendName, TSDB_COL_NAME_LEN);
-  tstrncpy(pTableScan->pGroupIdName, pCxt->pPlanCxt->pGroupIdName, TSDB_COL_NAME_LEN);
-  tstrncpy(pTableScan->pIsWindowFilledName, pCxt->pPlanCxt->pIsWindowFilledName, TSDB_COL_NAME_LEN);
 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);;
 }
@@ -2459,11 +2454,6 @@ static int32_t createStreamScanPhysiNodeByExchange(SPhysiPlanContext* pCxt, SExc
   if (TSDB_CODE_SUCCESS == code) {
     SStreamScanPhysiNode* pTableScan = (SStreamScanPhysiNode*)pScan;
     pTableScan->triggerType = pCxt->pPlanCxt->triggerType;
-    tstrncpy(pTableScan->pStbFullName, pCxt->pPlanCxt->pStbFullName, TSDB_TABLE_FNAME_LEN);
-    tstrncpy(pTableScan->pWstartName, pCxt->pPlanCxt->pWstartName, TSDB_COL_NAME_LEN);
-    tstrncpy(pTableScan->pWendName, pCxt->pPlanCxt->pWendName, TSDB_COL_NAME_LEN);
-    tstrncpy(pTableScan->pGroupIdName, pCxt->pPlanCxt->pGroupIdName, TSDB_COL_NAME_LEN);
-    tstrncpy(pTableScan->pIsWindowFilledName, pCxt->pPlanCxt->pIsWindowFilledName, TSDB_COL_NAME_LEN);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -2696,7 +2686,7 @@ static int32_t createCountWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
                                           SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   ENodeType type = QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT;
 
-  SCountWinodwPhysiNode* pCount = (SCountWinodwPhysiNode*)makePhysiNode(
+  SCountWindowPhysiNode* pCount = (SCountWindowPhysiNode*)makePhysiNode(
       pCxt, (SLogicNode*)pWindowLogicNode, type);
   if (NULL == pCount) {
     return terrno;

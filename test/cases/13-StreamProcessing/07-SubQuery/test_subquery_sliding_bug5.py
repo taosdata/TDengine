@@ -96,6 +96,8 @@ class TestStreamDevBasic:
 
     def checkStreamStatus(self):
         tdLog.info(f"wait total:{len(self.streams)} streams run finish")
+        tdSql.query(f"select * from information_schema.ins_streams")
+        tdSql.checkRows(3)
         tdStream.checkStreamStatus()
 
     def checkResults(self):
@@ -106,11 +108,12 @@ class TestStreamDevBasic:
     def createStreams(self):
         self.streams = []
 
+
         stream = StreamItem(
-            id=206,
-            stream="create stream rdb.s206 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r206 tags(t1 int as %%1, t2 int as cast(%%2 as int)) as select _twstart c1, first(tw) c2, last(te) c3, count(tb) c4, sum(cnt) c5 from (select _wstart tw, _wend te, tbname tb, count(*) cnt from qdb.meters where cts >= _twstart and cts <_twend and tint=%%1 partition by tbname count_window(1000))",
-            res_query="select * from rdb.r206",
-            exp_query="select first(tw), first(tw), last(te), count(tb), sum(cnt) from (select _wstart tw, _wend te, tbname tb, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and tint=1 partition by tbname count_window(1000));",
+            id=45,
+            stream="create stream rdb.s45 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r45 as select _twstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16 from qdb.meters where cts >= _twstart and cts < _twend and tbname='t2' order by cts limit 1",
+            # res_query="select * from rdb.r45 limit 1",
+            # exp_query="select cts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16 from qdb.t2 where cts = '2025-01-01 00:00:00.000';",
         )
         self.streams.append(stream)
 

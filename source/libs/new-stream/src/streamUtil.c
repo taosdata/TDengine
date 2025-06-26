@@ -51,6 +51,27 @@ _exit:
   return code;
 }
 
+int32_t stmAddPeriodReport(int64_t streamId, SArray** ppReport, SStreamTriggerTask* triggerTask) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (NULL == *ppReport) {
+    *ppReport = taosArrayInit(5, sizeof(SSTriggerRuntimeStatus));
+    TSDB_CHECK_NULL(*ppReport, code, lino, _exit, terrno);
+  }
+
+  SSTriggerRuntimeStatus status = {0};
+  stTriggerTaskGetStatus((SStreamTask*)triggerTask, &status);
+
+  TSDB_CHECK_NULL(taosArrayPush(*ppReport, &status), code, lino, _exit, terrno);
+
+  stsDebug("trigger task period report added, recalcNum:%d", (int32_t)taosArrayGetSize(status.userRecalcs));
+
+_exit:
+
+  return code;
+}
+
 void stmHandleStreamRemovedTasks(SStreamInfo* pStream, int64_t streamId, int32_t gid) {
   bool isLastTask = false;
 
@@ -94,35 +115,35 @@ void stmHandleStreamRemovedTasks(SStreamInfo* pStream, int64_t streamId, int32_t
   }
 }
 
-int32_t stmHbAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamInfo* pStream, int64_t streamId, int32_t gid) {
-  int32_t    code = TSDB_CODE_SUCCESS;
-  int32_t    lino = 0;
-  SListIter  iter = {0};
+int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t streamId, bool reportPeriod) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SListIter iter = {0};
   SListNode* listNode = NULL;
 
   taosWLockLatch(&pStream->lock);
 
-  stmHandleStreamRemovedTasks(pStream, streamId, gid);
+  stmHandleStreamRemovedTasks(pStream, streamId, pMsg->streamGId);
 
   if (pStream->taskNum <= 0) {
     stsDebug("ignore stream status update since stream taskNum %d is invalid", pStream->taskNum);
     goto _exit;
   }
-
-  if (NULL == *ppStatus) {
-    *ppStatus = taosArrayInit(pStream->taskNum, sizeof(SStmTaskStatusMsg));
-    TSDB_CHECK_NULL(*ppStatus, code, lino, _exit, terrno);
+  
+  if (NULL == pMsg->pStreamStatus) {
+    pMsg->pStreamStatus = taosArrayInit(pStream->taskNum, sizeof(SStmTaskStatusMsg));
+    TSDB_CHECK_NULL(pMsg->pStreamStatus, code, lino, _exit, terrno);
   }
 
-  int32_t origTaskNum = taosArrayGetSize(*ppStatus);
+  int32_t origTaskNum = taosArrayGetSize(pMsg->pStreamStatus);
 
   if (pStream->readerList) {
     tdListInitIter(pStream->readerList, &iter, TD_LIST_FORWARD);
     while ((listNode = tdListNext(&iter)) != NULL) {
       SStreamReaderTask* pReader = (SStreamReaderTask*)listNode->data;
-      TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pReader->task), code, lino, _exit, terrno);
+      TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, &pReader->task), code, lino, _exit, terrno);
       if (pReader->task.pMgmtReq) {
-        TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, ppReq, taosArrayGetSize(*ppStatus) - 1));
+        TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
       }
     }
 
@@ -130,10 +151,16 @@ int32_t stmHbAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamInfo* pSt
   }
 
   if (pStream->triggerTask) {
-    TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pStream->triggerTask->task), code, lino, _exit, terrno);
+    if (reportPeriod) {
+      TAOS_CHECK_EXIT(stmAddPeriodReport(streamId, &pMsg->pTriggerStatus, pStream->triggerTask));
+      pStream->triggerTask->task.detailStatus = taosArrayGetSize(pMsg->pTriggerStatus) - 1;
+    } else {
+      pStream->triggerTask->task.detailStatus = -1;
+    }
+    TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, &pStream->triggerTask->task), code, lino, _exit, terrno);
     stsDebug("%d trigger tasks status added to hb", 1);
     if (pStream->triggerTask->task.pMgmtReq) {
-      TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, ppReq, taosArrayGetSize(*ppStatus) - 1));
+      TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
     }
   }
 
@@ -143,17 +170,16 @@ int32_t stmHbAddStreamStatus(SArray** ppStatus, SArray** ppReq, SStreamInfo* pSt
     tdListInitIter(pStream->runnerList, &iter, TD_LIST_FORWARD);
     while ((listNode = tdListNext(&iter)) != NULL) {
       SStreamRunnerTask* pRunner = (SStreamRunnerTask*)listNode->data;
-      TSDB_CHECK_NULL(taosArrayPush(*ppStatus, &pRunner->task), code, lino, _exit, terrno);
+      TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, &pRunner->task), code, lino, _exit, terrno);
       if (pRunner->task.pMgmtReq) {
-        TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, ppReq, taosArrayGetSize(*ppStatus) - 1));
+        TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
       }
     }
 
     stsDebug("%d runner tasks status added to hb", TD_DLIST_NELES(pStream->runnerList));
   }
-
-  stsDebug("total %d:%d tasks status added to hb", (int32_t)taosArrayGetSize(*ppStatus) - origTaskNum,
-           pStream->taskNum);
+  
+  stsDebug("total %d:%d tasks status added to hb", (int32_t)taosArrayGetSize(pMsg->pStreamStatus) - origTaskNum, pStream->taskNum);
 
 _exit:
 
@@ -166,8 +192,14 @@ _exit:
   return code;
 }
 
-int32_t stmBuildHbStreamsStatusReq(SArray** ppStatus, SArray** ppReq, int32_t gid) {
-  SHashObj* pHash = gStreamMgmt.stmGrp[gid];
+int32_t stmBuildHbStreamsStatusReq(SStreamHbMsg* pMsg) {
+  static bool reportPeriod = true;
+
+  if (0 == pMsg->streamGId) {
+    reportPeriod = !reportPeriod;
+  }
+  
+  SHashObj* pHash = gStreamMgmt.stmGrp[pMsg->streamGId];
   if (NULL == pHash) {
     return TSDB_CODE_SUCCESS;
   }
@@ -183,7 +215,7 @@ int32_t stmBuildHbStreamsStatusReq(SArray** ppStatus, SArray** ppReq, int32_t gi
     SStreamInfo* pStream = (SStreamInfo*)pIter;
     int64_t*     streamId = taosHashGetKey(pIter, NULL);
 
-    stmHbAddStreamStatus(ppStatus, ppReq, pStream, *streamId, gid);
+    stmHbAddStreamStatus(pMsg, pStream, *streamId, reportPeriod);
   }
 
   return code;
@@ -789,10 +821,11 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask* pTask = NULL;
+  void* taskAddr = NULL;
 
   *pppIter = NULL;
 
-  code = streamGetTask(streamId, taskId, (SStreamTask**)&pTask);
+  code = streamAcquireTask(streamId, taskId, (SStreamTask**)&pTask, &taskAddr);
   QUERY_CHECK_CODE(code, lino, _end);
 
   QUERY_CHECK_CONDITION(pTask->task.type == STREAM_TRIGGER_TASK, code, lino, _end, TSDB_CODE_STREAM_TASK_NOT_EXIST);
@@ -822,6 +855,9 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
   }
 
 _end:
+
+  streamReleaseTask(taskAddr);
+
   if (code != TSDB_CODE_SUCCESS) {
     stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }

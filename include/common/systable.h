@@ -53,6 +53,7 @@ extern "C" {
 #define TSDB_INS_TABLE_TOPICS            "ins_topics"
 #define TSDB_INS_TABLE_STREAMS           "ins_streams"
 #define TSDB_INS_TABLE_STREAM_TASKS      "ins_stream_tasks"
+#define TSDB_INS_TABLE_STREAM_RECALCULATES "ins_stream_recalculates"
 #define TSDB_INS_TABLE_USER_PRIVILEGES   "ins_user_privileges"
 #define TSDB_INS_TABLE_VIEWS             "ins_views"
 #define TSDB_INS_TABLE_COMPACTS          "ins_compacts"

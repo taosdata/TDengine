@@ -180,19 +180,18 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
       }
 
       if (TSDB_CODE_SUCCESS == code) {
-        code = stTriggerTaskDeploy(pStream->triggerTask, &pDeploy->triggerTask->msg.trigger);
-/*
-        if (code == 0){
-          int32_t leaderSid = pDeploy->triggerTask->msg.trigger.leaderSnodeId;
-          SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
-          if (epSet != NULL){
-            code = streamSyncWriteCheckpoint(streamId, epSet, NULL, 0);
-            if (code == 0) {
-              code = streamCheckpointSetNotReady(streamId);
-            }
-          }
+        int32_t leaderSid = pDeploy->triggerTask->msg.trigger.leaderSnodeId;
+        SEpSet* epSet = gStreamMgmt.getSynEpset(leaderSid);
+        if (epSet != NULL){
+          stDebug("[checkpoint] trigger task deploy, sync checkpoint streamId:%" PRIx64 ", leaderSnodeId:%d", streamId, leaderSid);
+          code = streamSyncWriteCheckpoint(streamId, epSet, NULL, 0);
+          pStream->triggerTask->isCheckpointReady = false;
+        } else {
+          pStream->triggerTask->isCheckpointReady = true;
         }
-*/
+        if (code == 0){
+          code = stTriggerTaskDeploy(pStream->triggerTask, &pDeploy->triggerTask->msg.trigger);
+        }
         if (code) {
           ST_TASK_ELOG("trigger task fail to deploy, error:%s", tstrerror(code));
           taosHashRemove(gStreamMgmt.taskMap, &pTask->streamId, sizeof(pTask->streamId) + sizeof(pTask->taskId));
@@ -496,19 +495,22 @@ int32_t smUndeployTask(SStreamTaskUndeploy* pUndeploy, bool rmFromVg) {
   pTask= &task;
 
   (void)taosHashRemove(gStreamMgmt.taskMap, key, sizeof(key));
+
+  (*ppTask)->undeployMsg = pUndeploy->undeployMsg;
+  (*ppTask)->undeployCb = smRemoveTaskCb;
   
   switch (pTask->type) {
     case STREAM_READER_TASK:
       if (rmFromVg) {
         smRemoveReaderFromVgMap(pTask);
       }
-      code = stReaderTaskUndeploy((SStreamReaderTask**)ppTask, &pUndeploy->undeployMsg, smRemoveTaskCb);
+      code = stReaderTaskUndeploy((SStreamReaderTask**)ppTask, false);
       break;
     case STREAM_TRIGGER_TASK:
-      code = stTriggerTaskUndeploy((SStreamTriggerTask**)ppTask, &pUndeploy->undeployMsg, smRemoveTaskCb);
+      code = stTriggerTaskUndeploy((SStreamTriggerTask**)ppTask, false);
       break;
     case STREAM_RUNNER_TASK:
-      code = stRunnerTaskUndeploy((SStreamRunnerTask**)ppTask, &pUndeploy->undeployMsg, smRemoveTaskCb);
+      code = stRunnerTaskUndeploy((SStreamRunnerTask**)ppTask, false);
       break;
     default:
       code = TSDB_CODE_STREAM_INTERNAL_ERROR;
@@ -748,7 +750,8 @@ int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp) {
       STM_CHK_SET_ERROR_EXIT(stTriggerTaskExecute((SStreamTriggerTask*)pTask, &pRsp->header));
       break;
     }
-    case STREAM_MSG_UPDATE_RUNNER: {
+    case STREAM_MSG_UPDATE_RUNNER:
+    case STREAM_MSG_USER_RECALC: {
       STM_CHK_SET_ERROR_EXIT(stTriggerTaskExecute((SStreamTriggerTask*)pTask, &pRsp->header));
       break;
     }
@@ -765,6 +768,8 @@ _exit:
   } else {
     ST_TASK_ILOG("task undeploy succeed, tidx:%d", pTask->taskIdx);
   }
+
+  taosHashRelease(gStreamMgmt.taskMap, ppTask);
   
   return code;
 }

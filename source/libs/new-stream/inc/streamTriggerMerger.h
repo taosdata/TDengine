@@ -38,10 +38,7 @@ typedef struct SSTriggerTableMeta {
   int64_t tbUid;
   int32_t vgId;
   SArray *pMetas;  // SArray<SSTriggerMetaData>
-  TD_DLIST_NODE(SSTriggerTableMeta);
 } SSTriggerTableMeta;
-
-typedef TD_DLIST(SSTriggerTableMeta) SSTriggerTableMetaList;
 
 typedef enum ETriggerMetaDataMask {
   TRIGGER_META_MASK_SKEY_INACCURATE = BIT_FLAG_MASK(0),

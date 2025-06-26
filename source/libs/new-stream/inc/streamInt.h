@@ -98,7 +98,7 @@ int32_t smHandleMgmtRsp(SStreamMgmtRsps* rsps);
 int32_t smStartTasks(SStreamStartActions* actions);
 void smUndeployAllTasks(void);
 void streamTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* pParam, void* pHandle, tmr_h* pTmrId, const char* pMsg);
-int32_t stmBuildHbStreamsStatusReq(SArray** ppStatus, SArray** ppReq, int32_t gid);
+int32_t stmBuildHbStreamsStatusReq(SStreamHbMsg* pMsg);
 int32_t stmAddFetchStreamGid(void);
 
 // initialize global request limit of stream triggers
@@ -107,7 +107,7 @@ void    streamTriggerEnvStop(); // todo(kjq): call it when stop dnode
 void    streamTriggerEnvCleanup();
 
 int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMsg* pMsg);
-int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, const SStreamUndeployTaskMsg* pMsg, taskUndeplyCallback cb);
+int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, bool force);
 int32_t stReaderTaskExecute(SStreamReaderTask* pTask, SStreamMsg* pMsg);
 
 void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, bool isReader);

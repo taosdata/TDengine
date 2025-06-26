@@ -124,6 +124,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_APPS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_STREAM_TASKS, len) == 0) {
     type = TSDB_MGMT_TABLE_STREAM_TASKS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_STREAM_RECALCULATES, len) == 0) {
+    type = TSDB_MGMT_TABLE_STREAM_RECALCULATES;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_PRIVILEGES, len) == 0) {
     type = TSDB_MGMT_TABLE_PRIVILEGES;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VIEWS, len) == 0) {

@@ -81,7 +81,6 @@ typedef struct SStreamRunnerTaskExecMgr {
   SList*        pFreeExecs;
   SList*        pRunningExecs;
   TdThreadMutex lock;
-  bool          exit;
 } SStreamRunnerTaskExecMgr;
 
 typedef struct SStreamTagInfo {
@@ -100,8 +99,6 @@ typedef struct SStreamRunnerTask {
   void*                         pSubTableExpr;
   SArray*                       forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
   bool                          topTask;
-  taskUndeplyCallback           undeployCb;
-  void*                         undeployParam;
 } SStreamRunnerTask;
 
 typedef struct SStreamCacheReadInfo {
@@ -111,11 +108,6 @@ typedef struct SStreamCacheReadInfo {
   TSKEY        end;
   SSDataBlock *pBlock;
 } SStreamCacheReadInfo;
-
-typedef struct SSTriggerRecalcProgress {
-  int32_t recalcId;  // same as RecalcRequest in stTriggerTaskExecute
-  int32_t progress;  // 0-100, 0 means not started, 100 means finished
-} SSTriggerRecalcProgress;
 
 #define STRIGGER_RECALC_RANGE_MAX_HOURS 24
 
@@ -235,10 +227,11 @@ int32_t streamHbProcessRspMsg(SMStreamHbRspMsg *pRsp);
 int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs);
 int32_t streamInit(void *pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode, getSynEpset_f getSynEpset);
 void    streamCleanup(void);
-int32_t streamGetTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask);
+int32_t streamAcquireTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask, void** ppAddr);
+void    streamReleaseTask(void* taskAddr);
+int32_t streamGetTriggerTask(int64_t streamId, SStreamTask** ppTask);
 void    streamHandleTaskError(int64_t streamId, int64_t taskId, int32_t errCode);
 int32_t streamTriggerKickCalc();
-int32_t streamTriggerProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErrTaskId);
 void smUndeploySnodeTasks(bool cleanup);
 int32_t streamWriteCheckPoint(int64_t streamId, void* data, int64_t dataLen);
 int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen);
@@ -246,12 +239,13 @@ void    streamDeleteCheckPoint(int64_t streamId);
 int32_t streamSyncWriteCheckpoint(int64_t streamId, SEpSet* epSet, void* data, int64_t dataLen);
 int32_t streamSyncDeleteCheckpoint(int64_t streamId, SEpSet* epSet);
 int32_t streamCheckpointSetReady(int64_t streamId);
-int32_t streamCheckpointSetNotReady(int64_t streamId);
-bool    streamCheckpointIsReady(int64_t streamId);
+// int32_t streamCheckpointSetNotReady(int64_t streamId);
+// bool    streamCheckpointIsReady(int64_t streamId);
 int32_t streamSyncAllCheckpoints(SEpSet* epSet);
 void    streamDeleteAllCheckpoints();
-void smUndeploySnodeTasks(bool cleanup);
-int32_t stTriggerTaskGetRecalcProgress(SStreamTask *pTask, SArray *pProgress);
+void    smUndeploySnodeTasks(bool cleanup);
+int32_t stTriggerTaskProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErrTaskId);
+int32_t stTriggerTaskGetStatus(SStreamTask *pTask, SSTriggerRuntimeStatus *pStatus);
 
 #define STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST 4096
 

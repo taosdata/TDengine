@@ -2385,7 +2385,6 @@ void qptCreateWindowPhysiNode(SWindowPhysiNode* pWindow) {
   pWindow->watermark = taosRand();
   pWindow->deleteMark = taosRand();
   pWindow->igExpired = taosRand();
-  pWindow->destHasPrimaryKey = taosRand();
   pWindow->mergeDataBlock = QPT_RAND_BOOL_V;
 }
 
@@ -2598,7 +2597,7 @@ SNode* qptCreateStreamEventPhysiNode(int32_t nodeType) {
 SNode* qptCreateCountWindowPhysiNode(int32_t nodeType) {
   SPhysiNode* pPhysiNode = qptCreatePhysiNode(nodeType);
 
-  SCountWinodwPhysiNode* pCount = (SCountWinodwPhysiNode*)pPhysiNode;
+  SCountWindowPhysiNode* pCount = (SCountWindowPhysiNode*)pPhysiNode;
 
   qptCreateWindowPhysiNode(&pCount->window);
 

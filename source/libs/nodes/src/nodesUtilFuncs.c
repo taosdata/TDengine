@@ -955,7 +955,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SEventWinodwPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
-      code = makeNode(type, sizeof(SCountWinodwPhysiNode), &pNode);
+      code = makeNode(type, sizeof(SCountWindowPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
       code = makeNode(type, sizeof(SAnomalyWindowPhysiNode), &pNode);
@@ -2067,7 +2067,7 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT: {
-      SCountWinodwPhysiNode* pPhyNode = (SCountWinodwPhysiNode*)pNode;
+      SCountWindowPhysiNode* pPhyNode = (SCountWindowPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;
     }
