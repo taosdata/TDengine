@@ -70,7 +70,7 @@ class TestStreamCountTrigger:
          
         streams = [
             self.StreamItem(sql1, self.checks1),
-            # self.StreamItem(sql2, self.checks2),
+            self.StreamItem(sql2, self.checks2),
             # self.StreamItem(sql3, self.checks3),
             # self.StreamItem(sql4, self.checks4),
         ]
@@ -101,7 +101,7 @@ class TestStreamCountTrigger:
         tdSql.executes(sqls)
         time.sleep(5)
 
-        tdLog.info(f"=============== start write disorder but not expired data")
+        tdLog.info(f"=============== start write disorder but not expired data: ct1/ct3/ct4 - add disorder data, ct2 - update data")
         sqls = [
             "insert into ct1 using stb tags(1) values ('2023-01-01 00:00:00', 0, 0)('2023-01-01 00:00:01', 0, 0)('2023-01-01 00:00:02', 1, 1)('2023-01-01 00:00:03', 1, 1);",
             "insert into ct1 using stb tags(1) values ('2023-01-01 00:00:04', 1, 1)('2023-01-01 00:00:05', 2, 2)('2023-01-01 00:00:06', 2, 2)('2023-01-01 00:00:07', 2, 2);",
@@ -123,9 +123,9 @@ class TestStreamCountTrigger:
             "insert into ct1 using stb tags(1) values ('2024-01-01 00:00:09', 1, 1)('2024-01-01 00:00:11', 2, 2)('2024-01-01 00:00:13', 2, 2)('2024-01-01 00:00:15', 2, 2);",
             "insert into ct1 using stb tags(1) values ('2024-01-01 00:00:17', 2, 2)('2024-01-01 00:00:19', 2, 2)('2024-01-01 00:00:21', 3, 3);",
             
-            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:01', 0, 0)('2024-01-01 00:00:03', 0, 0)('2024-01-01 00:00:05', 1, 1)('2024-01-01 00:00:07', 1, 1);",
-            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:09', 1, 1)('2024-01-01 00:00:11', 2, 2)('2024-01-01 00:00:13', 2, 2)('2024-01-01 00:00:15', 2, 2);",
-            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:17', 2, 2)('2024-01-01 00:00:19', 2, 2)('2024-01-01 00:00:21', 3, 3);",
+            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:00', 0, 0)('2024-01-01 00:00:02', 0, 0)('2024-01-01 00:00:04', 1, 1)('2024-01-01 00:00:06', 1, 1);",
+            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:08', 1, 1)('2024-01-01 00:00:10', 2, 2)('2024-01-01 00:00:12', 2, 2)('2024-01-01 00:00:14', 2, 2);",
+            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:16', 2, 2)('2024-01-01 00:00:18', 2, 2)('2024-01-01 00:00:20', 3, 3);",
             
             "insert into ct3 using stb tags(1) values ('2024-01-01 00:00:01', 0, 0)('2024-01-01 00:00:03', 0, 0)('2024-01-01 00:00:05', 1, 1)('2024-01-01 00:00:07', 1, 1);",
             "insert into ct3 using stb tags(1) values ('2024-01-01 00:00:09', 1, 1)('2024-01-01 00:00:11', 2, 2)('2024-01-01 00:00:13', 2, 2)('2024-01-01 00:00:15', 2, 2);",
