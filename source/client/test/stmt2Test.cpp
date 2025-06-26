@@ -1551,6 +1551,31 @@ TEST(stmt2Case, stmt2_insert_duplicate) {
   ASSERT_EQ(getRecordCounts, 2);
   taos_free_result(pRes);
 
+  // no interlace mode
+  option = {0, false, false, NULL, NULL};
+  stmt = taos_stmt2_init(taos, &option);
+  code = taos_stmt2_prepare(stmt, sql, 0);
+  checkError(stmt, code);
+
+  for (int i = 0; i < 3; i++) {
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code);
+  }
+  code = taos_stmt2_exec(stmt, &affected_rows);
+  ASSERT_EQ(affected_rows, 2);
+  checkError(stmt, code);  // ASSERT_STREQ(taos_stmt2_error(stmt), "Table name duplicated");
+  taos_stmt2_close(stmt);
+
+  pRes = taos_query(taos, "select * from `stmt2_testdb_18`.`tb1`");
+  ASSERT_NE(pRes, nullptr);
+
+  getRecordCounts = 0;
+  while ((taos_fetch_row(pRes))) {
+    getRecordCounts++;
+  }
+  ASSERT_EQ(getRecordCounts, 2);
+  taos_free_result(pRes);
+
   // do_query(taos, "drop database if exists stmt2_testdb_18");
   taos_close(taos);
 }

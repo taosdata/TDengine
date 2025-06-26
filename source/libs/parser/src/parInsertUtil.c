@@ -622,7 +622,9 @@ int32_t checkAndMergeSVgroupDataCxtByUid(STableDataCxt* pTbCtx, SVgroupDataCxt* 
   int32_t code = TSDB_CODE_SUCCESS;
   for (int32_t i = 0; i < taosArrayGetSize(pVgCxt->pData->aSubmitTbData); i++) {
     SSubmitTbData* pSubmitTbData = taosArrayGet(pVgCxt->pData->aSubmitTbData, i);
-    if (pSubmitTbData->uid == pTbCtx->pData->uid) {
+    if ((pSubmitTbData->uid == pTbCtx->pData->uid && pTbCtx->pData->uid != 0) ||
+        (pTbCtx->pData->pCreateTbReq != NULL && pSubmitTbData->pCreateTbReq != NULL &&
+         pSubmitTbData->pCreateTbReq->name == pTbCtx->pData->pCreateTbReq->name)) {
       // merge same table data
       if (pSubmitTbData->aRowP && pTbCtx->pData->aRowP) {
         for (int32_t j = 0; j < taosArrayGetSize(pTbCtx->pData->aRowP); ++j) {
@@ -680,6 +682,8 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     uid = 0;
     pTbCtx->pMeta->vgId = (int32_t)ctbReq->uid;
     ctbReq->uid = 0;
+    pTbCtx->pMeta->uid = 0;
+    pTbCtx->pData->uid = 0;
     pTbCtx->pData->pCreateTbReq = ctbReq;
     code = TSDB_CODE_SUCCESS;
   } else {
