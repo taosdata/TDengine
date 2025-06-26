@@ -77,7 +77,7 @@ class TDTestCase(TBase):
     def insertData(self):
         tdLog.info(f"insert data.")
         # taosBenchmark run
-        json = etool.curFile(__file__, "s3Basic.json")
+        json = etool.curFile(__file__, "ssBasic.json")
         etool.benchMark(json=json)
 
         tdSql.execute(f"use {self.db}")
@@ -371,6 +371,6 @@ class TDTestCase(TBase):
 
             tdLog.success(f"{__file__} successfully executed")
 
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())
+# we don't support Azure API for now
+# tdCases.addLinux(__file__, TDTestCase())
+# tdCases.addWindows(__file__, TDTestCase())
