@@ -76,6 +76,7 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
+|0.5.3 | Support IPv6 address format | - |
 |0.5.2 | Upgrade Rust connector to fix dsn token param issue                                                                     | - |
 |0.5.1 | Support WebSocket STMT2 writing and querying                                                                            | - |
 |0.4.0 | Support dynamic add tmq attribute                                                                                       | - |
@@ -179,7 +180,7 @@ Feel free to [ask questions or report issues](https://github.com/taosdata/taos-c
 
 - **protocol**: Establish a connection using the websocket protocol. For example, `ws://localhost:6041`
 - **username/password**: Username and password for the database.
-- **host/port**: Host address and port number. For example, `localhost:6041`
+- **host/port**: The host_name parameter supports valid domain names or IP addresses. The `taos-ws-py` supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number parsing conflicts.
 - **database**: Database name.
 - **params**: Other parameters. For example, token.
 
