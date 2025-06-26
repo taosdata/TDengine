@@ -25,7 +25,7 @@ class TestStreamSlidingTrigger:
     queryIdx = 0
     slidingList = [1, 10, 100, 1000]
     tableList = []
-    runCaseList = ["0-0-0-2-2"]
+    runCaseList = ["0-0-0-10-39" ]
     streamSql = ""
     querySql = ""
     querySqls = [ # (SQL, (minPartitionColNum, partitionByTbname), PositiveCase)
@@ -58,11 +58,11 @@ class TestStreamSlidingTrigger:
         ("select _tcurrent_ts, avg(cint), max(cint) from {calcTbname} partition by tbname", (0, False), True), #23
         ("select _tcurrent_ts, avg(cint), sum(cint) from %%tbname group by cint", (1, True), True), #24
 
-        # ("select _wstart, _tcurrent_ts, avg(cint), max(cint) from {calcTbname} partition by tbname interval(5s)", (0, False), True), #25
-        # ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} interval(10s)", (0, False), True), #26
-        # ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} where cts >= _tprev_ts and cts < _tcurrent_ts interval(10s)", (0, False), True), #27
-        # ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%trows where cts >= _tprev_ts + 1s and cts < _tcurrent_ts - 1s interval(1s)", (0, False), True), #28
-        # ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%trows", (0, False), True), #29
+        ("select _wstart, _tcurrent_ts, avg(cint), max(cint) from {calcTbname} partition by tbname interval(5s)", (0, False), True), #25
+        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} interval(10s)", (0, False), True), #26
+        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} where cts >= _tprev_ts and cts < _tcurrent_ts interval(10s)", (0, False), True), #27
+        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%trows where cts >= _tprev_ts + 1s and cts < _tcurrent_ts - 1s interval(1s)", (0, False), True), #28
+        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%trows", (0, False), True), #29
 
         ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} partition by cint state_window(cuint)", (0, False), True), #30
         ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%tbname where cts % 3 != 0 session(cts, 2s)", (1, True), True), #31
@@ -70,22 +70,28 @@ class TestStreamSlidingTrigger:
         ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%trows partition by cuint count_window(3)", (0, False), True), #33
 
         ("select cts, cint from %%tbname where ts >= _twstart and ts < _twend", (1, True), True), #34
+        #add
+        ("select _tcurrent_ts, avg(cint), max(cint) from {calcTbname} partition by cint order by cint", (0, False), True), #35
+        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} interval(60s)", (0, False), True), #36
+        ("select _wstart,sum({calcTbname}.cint), max({calcTbname}.cint) from {calcTbname} ,{calcTbname} as t2 where {calcTbname}.cts=t2.cts  interval(120s)", (0, False), True), #37
+        ("select _wstart, avg(cint) c, max(cint) from {calcTbname} partition by cint interval(60s) union all select _wstart, avg(cint) c, max(cint) from {calcTbname} partition by cint interval(60s) order by _wstart,c", (0, False), True), #38
+        ("select last(cts), avg(cint), sum(cint) from %%tbname group by tbname", (1, True), True), #39
     ]
 
     queryResults = {
         #{"trigTbIdx-calcTbIdx-slidIdx-createStmIdx-queryIdx":[expectedRows, compareFunc, hasResultFile, [{rowIdx:[col0Value, col1Value...]}, order by clause]]}
 
         
-        "0-0-0-0-0": [1, None, False, [{0:(datetime.datetime(2025, 1, 1, 0, 0), 0)}], ""],
-        "0-0-0-0-1": [2, None, False, [{0:(datetime.datetime(2025, 1, 1, 0, 19), 38)}, {1:(datetime.datetime(2025, 1, 1, 0, 19, 30), 39)}], ""],
-        "0-0-0-0-2": [40, None, True, [], ""],
-        "0-0-0-0-4": [40, None, True, [], ""],
+        "0-0-0-0-0": [1, None, False, [{0:(datetime.datetime(2025, 1, 1, 0, 0), 0)}], ""], #success
+        "0-0-0-0-1": [2, None, False, [{0:(datetime.datetime(2025, 1, 1, 0, 19), 38)}, {1:(datetime.datetime(2025, 1, 1, 0, 19, 30), 39)}], ""],#success
+        "0-0-0-0-2": [40, None, True, [], ""], #success
+        "0-0-0-0-4": [40, None, True, [], ""], #success
         "0-0-0-0-6": [-1, None, True, [], ""], #FAILED
 
         "0-0-0-0-27": [-1, None, True, [], ""], #FAILED, crash
 
-        "0-0-0-1-0": [3, None, True, [], ""], 
-        "0-0-0-1-1": [-1, None, True, [], ""], #FAILED
+        "0-0-0-1-0": [3, None, True, [], ""], #success
+        "0-0-0-1-1": [6, None, True, [], ""], #success
         "0-0-0-1-2": [-1, None, True, [], ""], #FAILED
         "0-0-0-1-4": [-1, None, True, [], "order by cts, tag_tbname"],  #FAILED
         "0-0-0-1-6": [-1, None, True, [], ""], #FAILED
@@ -93,17 +99,17 @@ class TestStreamSlidingTrigger:
         
         "0-0-0-1-7": [-1, None, True, [], ""], #FAILED
         "0-0-0-1-8": [-1, None, True, [], ""], #FAILED
-        "0-0-0-1-10": [120, None, True, [], "order by cts, tag_tbname limit 150"],
+        "0-0-0-1-10": [120, None, True, [], "order by cts, tag_tbname limit 150"],#success,ans原先 sql 缺少 limit 150
         "0-0-0-1-12": [-1, None, True, [], ""], #FAILED
-        "0-0-0-1-13": [120, None, True, [], "order by cts, tag_tbname limit 150"],
+        "0-0-0-1-13": [120, None, True, [], "order by cts, tag_tbname limit 150"],#success,ans原先 sql 缺少 limit 150
 
         
         "0-0-0-1-14": [-1, None, True, [], ""], #FAILED
-        "0-0-0-1-16": [120, None, True, [], "order by cts, tag_tbname limit 150"],
+        "0-0-0-1-16": [120, None, True, [], "order by cts, tag_tbname limit 150"],#success,ans原先 sql 缺少 limit 150
         "0-0-0-1-18": [-1, None, True, [], "order by `_tcurrent_ts`, tag_tbname"], #FAILED
 
 
-        "0-0-0-2-0": [3, None, True, [], "order by cts, tag_tbname"],
+        "0-0-0-2-0": [3, None, True, [], "order by cts, tag_tbname"],#FAILED, 某个子表结果计算为 NULL，应该为 0 
         "0-0-0-2-1": [-1, None, True, [], ""], #FAILED, 结果子表数不够
 
         
@@ -116,42 +122,53 @@ class TestStreamSlidingTrigger:
         
         "0-0-0-2-7": [-1, None, True, [], ""], #FAILED, 结果子表数不够
         "0-0-0-2-8": [-1, None, True, [], ""], #FAILED, 预期120行，结果子表TAG值错误
-        "0-0-0-2-9": [-1, None, True, [], ""],
-        "0-0-0-2-10": [-1, None, True, [], ""],
-        "0-0-0-2-11": [-1, None, True, [], ""],
+        "0-0-0-2-9": [120, None, True, [], ""], #success
+        "0-0-0-2-10": [120, None, True, [], ""],#success
+        "0-0-0-2-11": [40, None, True, [], ""],#success
 
         
-        "0-0-0-2-12": [-1, None, True, [], ""],
-        "0-0-0-2-13": [-1, None, True, [], ""],
-        "0-0-0-2-14": [-1, None, True, [], ""],
-        "0-0-0-2-15": [-1, None, True, [], ""],
-        "0-0-0-2-16": [-1, None, True, [], ""],
+        "0-0-0-2-12": [-1, None, True, [], ""],#success
+        "0-0-0-2-13": [-1, None, True, [], ""],#success
+        "0-0-0-2-14": [-1, None, True, [], ""],#success
+        "0-0-0-2-15": [-1, None, True, [], ""],#success
+        "0-0-0-2-16": [-1, None, True, [], ""],#success
 
         
-        "0-0-0-2-17": [-1, None, True, [], ""],
-        "0-0-0-2-18": [-1, None, True, [], ""],   
+        "0-0-0-2-17": [40, None, True, [], ""],#FAILED ,_tgrpid每次执行可能变化不一致
+        "0-0-0-2-18": [3513, None, True, [], ""], #success
+        "0-0-0-2-23": [-1, None, True, [], ""], 
 
-        "0-0-0-3-0": [-1, None, True, [], "order by cts, tag_tbname"], #FAILED, 预期3行，结果子表TAG值错误
-        "0-0-0-3-1": [-1, None, True, [], "order by cts, tag_tbname"], #FAILED, 结果子表TAG值错误      
-        "0-0-0-3-2": [-1, None, True, [], "order by cts, tag_tbname"], #FAILED, 预期120行，结果子表TAG值错误      
 
-        "0-0-0-3-3": [-1, None, True, [], ""],
-        "0-0-0-3-4": [-1, None, True, [], ""], 
-        "0-0-0-3-5": [-1, None, True, [], ""], 
-        "0-0-0-3-6": [-1, None, True, [], ""],         
-        "0-0-0-3-7": [-1, None, True, [], ""],     
+        "0-0-0-3-0": [3, None, True, [], "order by cts, tag_tbname"], #success
+        "0-0-0-3-1": [6, None, True, [], "order by cts, tag_tbname"], #success    
+        "0-0-0-3-2": [120, None, True, [], "order by cts, tag_tbname"], #success      
 
-        "0-0-0-4-2": [-1, None, True, [], ""],  #FAILED, SLIDING OFFSET未生效    
-        "0-0-0-4-4": [-1, None, True, [], ""],     
-        "0-0-0-4-6": [-1, None, True, [], ""],     
+        "0-0-0-3-3": [120, None, True, [], ""],#success 
+        "0-0-0-3-4": [120, None, True, [], ""], #success
+        "0-0-0-3-5": [40, None, True, [], ""], #success
+        "0-0-0-3-6": [3515, None, True, [], ""],    #success     
+        "0-0-0-3-7": [9, None, True, [], ""],   #success   
 
-        "0-0-0-5-2": [-1, None, True, [], "order by cts, tag_tbname"],     #FAILED, SLIDING OFFSET未生效
-        "0-0-0-5-4": [-1, None, True, [], ""],     
-        "0-0-0-5-6": [-1, None, True, [], ""],  
+        "0-0-0-4-2": [-1, None, True, [], ""],  #success    
+        "0-0-0-4-4": [-1, None, True, [], ""],  #success，不满足写目标表条件，不会产生目标子表   
+        "0-0-0-4-6": [-1, None, True, [], ""],  #success
 
-        "0-0-0-6-0": [3, None, True, [], "order by cts, tag_tbname"],
+        "0-0-0-5-2": [120, None, True, [], "order by cts, tag_tbname"],     #success
+        "0-0-0-5-4": [0, None, True, [], ""],     #success,目标超级表建立出来了，但是子表不会建立
+        "0-0-0-5-6": [3510, None, True, [], ""],    #success
 
-        "1-1-0-0-0": [3, None, True, [], ""],  # 触发表子表、计算表子表
+        "0-0-0-6-0": [3, None, True, [], "order by cts, tag_tbname"],#success 
+        
+        "0-0-0-10-2": [-1, None, True, [], ""],
+        "0-0-0-10-24": [-1, None, True, [], ""],
+        "0-0-0-10-39": [-1, None, True, [], ""],
+
+        "1-1-0-0-0": [3, None, True, [], ""],  # 触发表子表、计算表子表 #success
+        "1-1-0-0-26": [40, None, True, [], ""],#success
+        "1-1-0-0-35": [1171, None, True, [], ""], #success
+        "1-1-0-0-36": [20, None, True, [], ""], #success
+        "1-1-0-0-37": [10, None, True, [], ""], #success 
+        "1-1-0-0-38": [20, None, True, [], ""],  #success
     }
 
     def setup_class(cls):
@@ -200,7 +217,7 @@ class TestStreamSlidingTrigger:
         st1.append_data(0, self.tblRowNum)
         
         self.tableList.append("st1")
-        for i in range(1, self.subTblNum + 1):
+        for i in range(0, self.subTblNum + 1):
             self.tableList.append(f"st1_{i}")
         
         ntb = StreamTable(self.dbname, "ntb1", StreamTableType.TYPE_NORMAL_TABLE)
@@ -251,6 +268,7 @@ class TestStreamSlidingTrigger:
             (f"create stream stName interval({self.sliding - 1}s, 1a) sliding({self.sliding}s, 1a) from {self.trigTbname} partition by tbname into outTbname as querySql;", (1, True)),
 
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} options(watermark(10s)|expired_time(40s)|ignore_disorder|delete_recalc|delete_output_table) into outTbname as querySql;", (3, True)),
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(delete_recalc) into outTbname as querySql ;", (1, True)),
         ]
 
         for self.createStmIdx in range(len(createStreamSqls)):
@@ -305,6 +323,7 @@ class TestStreamSlidingTrigger:
                 )
                 stream1.createStream()
                 stream1.awaitStreamRunning()
+                time.sleep(5)
                 if not self.runAll:
                     stream1.awaitRowStability(self.queryResult[0])
                     if stream1.check_func is not None:

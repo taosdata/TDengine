@@ -391,17 +391,15 @@ static SStreamTriggerReaderCalcInfo* createStreamReaderCalcInfo(const SStreamRea
 
   STREAM_CHECK_RET_GOTO(nodesStringToNode(pMsg->msg.calc.calcScanPlan, (SNode**)(&sStreamReaderCalcInfo->calcAst)));
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo->calcAst, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
-  STREAM_CHECK_CONDITION_GOTO(
-      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN != nodeType(sStreamReaderCalcInfo->calcAst->pNode) &&
-          QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN != nodeType(sStreamReaderCalcInfo->calcAst->pNode),
-      TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
-
-  SNodeList* pScanCols = ((STableScanPhysiNode*)(sStreamReaderCalcInfo->calcAst->pNode))->scan.pScanCols;
-  SNode*     nodeItem = NULL;
-  FOREACH(nodeItem, pScanCols) {
-    SColumnNode* valueNode = (SColumnNode*)((STargetNode*)nodeItem)->pExpr;
-    if (valueNode->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-      sStreamReaderCalcInfo->pTargetNodeTs = (STargetNode*)nodeItem;
+  if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(sStreamReaderCalcInfo->calcAst->pNode) &&
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == nodeType(sStreamReaderCalcInfo->calcAst->pNode)){
+    SNodeList* pScanCols = ((STableScanPhysiNode*)(sStreamReaderCalcInfo->calcAst->pNode))->scan.pScanCols;
+    SNode*     nodeItem = NULL;
+    FOREACH(nodeItem, pScanCols) {
+      SColumnNode* valueNode = (SColumnNode*)((STargetNode*)nodeItem)->pExpr;
+      if (valueNode->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        sStreamReaderCalcInfo->pTargetNodeTs = (STargetNode*)nodeItem;
+      }
     }
   }
 
