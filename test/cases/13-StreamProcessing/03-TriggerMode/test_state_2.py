@@ -121,7 +121,6 @@ class TestStreamStateTrigger:
         tdSql.execute(sql5)
         # tdStream.checkStreamStatus("s5")
         time.sleep(3)
-        # self.checks5(0)
                 
         tdLog.info(f"=============== continue write data into ct1 for true_for(5s)")
         sqls = [
@@ -146,7 +145,6 @@ class TestStreamStateTrigger:
         tdSql.execute(sql6)
         # tdStream.checkStreamStatus("s6")
         time.sleep(3)
-        # self.checks6(0)
                 
         tdLog.info(f"=============== continue write data into ct1 for new real data ")
         sqls = [
@@ -169,7 +167,6 @@ class TestStreamStateTrigger:
         tdSql.execute(sql7)
         # tdStream.checkStreamStatus("s7")
         time.sleep(3)
-        # self.checks7(0)
                 
         tdLog.info(f"=============== continue write data into ct1 for new real data ")
         sqls = [
@@ -185,11 +182,46 @@ class TestStreamStateTrigger:
             "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:30', 7, 3);",
         ]
         tdSql.executes(sqls)
-        self.checks6(2)
-        
-        
+        # self.checks6(2)       
         
         ############ option: max_delay
+        # no  true_for
+        tdLog.info(f"=============== create sub table")
+        tdSql.execute(f"create table ct5 using stb tags(1);")
+        
+        sql8 = "create stream s8 state_window(cint) from ct5 options(max_delay(3s)) into res_max_delay_ct1 (lastts, firstts, num_v, cnt_v, avg_v) as select last_row(_c0), first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+         
+        tdSql.execute(sql8)
+        # tdStream.checkStreamStatus("s8")
+        time.sleep(3)
+                
+        tdLog.info(f"=============== continue write data into ct5 for new real data ")
+        sqls = [
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:10', 1, 0);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:11', 1, 0);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:12', 1, 1);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:13', 1, 1);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:14', 1, 1);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:15', 2, 2);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:16', 2, 2);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:17', 2, 2);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:18', 2, 2);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:19', 2, 3);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:20', 1, 0);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:21', 1, 0);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:22', 1, 1);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:23', 1, 1);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:24', 1, 1);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:25', 2, 2);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:26', 2, 2);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:27', 2, 2);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:28', 2, 2);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:29', 2, 3);",
+        ]
+        tdSql.executes(sqls)
+        self.checks6(3)  #  max_delay 觸發的結果時間戳 ，與 最後窗口關閉 的結果時間戳 是一樣的嗎？ 如果是，需要配合 通知 來測試。
+        
+        # max_delay + true_for
         
         ############ option: watermark
         
@@ -374,14 +406,16 @@ class TestStreamStateTrigger:
         return
 
     def checks6(self, check_idx):
-        result_sql = "select firstts, num_v, cnt_v, avg_v from res_fill_all_ct1"
+        
         if 0 == check_idx: 
+            result_sql = "select firstts, num_v, cnt_v, avg_v from res_fill_all_ct1"
             tdSql.checkResultsByFunc(
                 sql=result_sql,
                 func=lambda: tdSql.getRows() == 0,
             )
             tdLog.info(f"=============== check s6-0 result success !!!!!!!! =====================")
         elif 1 == check_idx:
+            result_sql = "select firstts, num_v, cnt_v, avg_v from res_fill_all_ct1"
             tdSql.checkResultsByFunc(
                 sql=result_sql,
                 func=lambda: tdSql.getRows() == 11
@@ -396,7 +430,8 @@ class TestStreamStateTrigger:
                 and tdSql.compareData(2, 2, 4),
             )    
             tdLog.info(f"=============== check s6-1 result success !!!!!!!! =====================")
-        elif 2 == check_idx:
+        elif 2 == check_idx:   #  fill history start time from 2025-01-02 00:00:10
+            result_sql = "select firstts, num_v, cnt_v, avg_v from res_fill_part_ct1"
             tdSql.checkResultsByFunc(
                 sql=result_sql,
                 func=lambda: tdSql.getRows() == 7
@@ -409,7 +444,24 @@ class TestStreamStateTrigger:
                 and tdSql.compareData(2, 0, "2025-01-02 00:00:22.000")
                 and tdSql.compareData(2, 1, 2)
                 and tdSql.compareData(2, 2, 2),
-            )    
+            )     
+            tdLog.info(f"=============== check s6-2 result success !!!!!!!! =====================")
+        elif 3 == check_idx:
+            result_sql = "select lastts, firstts, num_v, cnt_v, avg_v from res_max_delay_ct1"
+            tdSql.checkResultsByFunc(
+                sql=result_sql,
+                func=lambda: tdSql.getRows() == 6
+                and tdSql.compareData(0, 0, "2025-01-02 00:00:10.000")
+                and tdSql.compareData(0, 1, 3)
+                and tdSql.compareData(0, 2, 3)
+                and tdSql.compareData(1, 0, "2025-01-02 00:00:15.000")
+                and tdSql.compareData(1, 1, 5)
+                and tdSql.compareData(1, 2, 5)
+                and tdSql.compareData(2, 0, "2025-01-02 00:00:22.000")
+                and tdSql.compareData(2, 1, 2)
+                and tdSql.compareData(2, 2, 2),
+            )     
+            tdLog.info(f"=============== check s6-3 result success !!!!!!!! =====================")
                         
         return
 
