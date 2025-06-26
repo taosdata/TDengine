@@ -320,10 +320,11 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   code = streamBuildBlockResultNotifyContent(pBlock, &pContent, pTask->output.outCols);
   if (code == 0) {
     ST_TASK_DLOG("start to send notify:%s", pContent);
+    SSTriggerCalcParam* pTriggerCalcParams = TARRAY_DATA(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals);
+    pTriggerCalcParams->resultNotifyContent = pContent;
     code = streamSendNotifyContent(&pTask->task, pExec->runtimeInfo.funcInfo.triggerType,
                                    pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
-                                   pTask->notification.notifyErrorHandle,
-                                   TARRAY_DATA(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals),
+                                   pTask->notification.notifyErrorHandle, pTriggerCalcParams,
                                    taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals));
   }
   return code;
