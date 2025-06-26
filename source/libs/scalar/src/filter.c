@@ -4306,7 +4306,6 @@ int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SColumnNode* pColNode
         datum->d = valNode->datum.d;
         break;
       }
-      case TSDB_DATA_TYPE_VARBINARY:
       case TSDB_DATA_TYPE_VARCHAR: {
           datum->kind = FLT_SCL_DATUM_KIND_VARCHAR;
           datum->i = taosStr2Int64(valNode->literal, NULL, 10);
@@ -4360,8 +4359,6 @@ int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, voi
       datum->kind = FLT_SCL_DATUM_KIND_DECIMAL;
       datum->dec = *(Decimal *)val;
       break;
-
-    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_VARCHAR: {
       datum->kind = FLT_SCL_DATUM_KIND_VARCHAR;
       datum->i = *(int64_t*)val;
