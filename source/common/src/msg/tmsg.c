@@ -13162,7 +13162,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
 
       TAOS_CHECK_EXIT(tDecodeRow(pCoder, ppRow));
     }
-    uInfo("decode row data size %d", (int32_t)(TARRAY_SIZE(pSubmitTbData->aRowP)));
+    uTrace("decode row data size %d", (int32_t)(TARRAY_SIZE(pSubmitTbData->aRowP)));
   }
 
   pSubmitTbData->ctimeMs = 0;

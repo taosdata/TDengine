@@ -747,7 +747,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
   SArray* pVals = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
   pTableData->aRowP = taosArrayInit(numOfRows, sizeof(SRow*));
 
-  code = tBlobRowCreate(4096 * 4, &pTableData->pBlobRow);
+  code = tBlobRowCreate(4096 * 4, 0, &pTableData->pBlobRow);
 
   if (pTableData->aRowP == NULL || pVals == NULL || code != 0) {
     tBlobRowDestroy(pTableData->pBlobRow);

@@ -76,9 +76,9 @@ void do_stmt(TAOS* taos) {
     v.ts[i] = ts++;
     t64_len[i] = sizeof(int64_t);
   }
-  strcpy(v.b, "abcdefg");
+  strcpy(v.b, "aaa");
   b_len[0] = (int)strlen(v.b);
-  strcpy(v.b + b_len[0], "xyz");
+  strcpy(v.b + b_len[0], "bbb");
   b_len[1] = 3;
 
   taos_stmt2_bind_param(stmt, &bindv, -1);

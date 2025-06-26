@@ -286,6 +286,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
       pTableCxt->pData->uid = pTableMeta->uid;
       pTableCxt->pData->sver = pTableMeta->sversion;
       pTableCxt->pData->pCreateTbReq = pCreateTbReq != NULL ? *pCreateTbReq : NULL;
+      int8_t flag = pTableCxt->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT;
       if (pCreateTbReq != NULL) *pCreateTbReq = NULL;
       if (pTableCxt->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
         pTableCxt->pData->aCol = taosArrayInit(128, sizeof(SColData));
@@ -300,7 +301,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
       }
 
       if (code == TSDB_CODE_SUCCESS) {
-        code = tBlobRowCreate(4096 * 4, &pTableCxt->pData->pBlobRow);
+        code = tBlobRowCreate(4096 * 4, flag, &pTableCxt->pData->pBlobRow);
       }
     }
   }
@@ -339,7 +340,7 @@ static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
           code = terrno;
           taosMemoryFree(pTmp);
         }
-        code = tBlobRowCreate(4096 * 4, &pTmp->pBlobRow);
+        code = tBlobRowCreate(4096 * 4, 1, &pTmp->pBlobRow);
         if (code != 0) {
           taosArrayDestroy(pTmp->aCol);
           taosMemoryFree(pTmp);
@@ -350,13 +351,13 @@ static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
           code = terrno;
           taosMemoryFree(pTmp);
         }
-
-        code = tBlobRowCreate(4096 * 4, &pTmp->pBlobRow);
+        code = tBlobRowCreate(4096 * 4, 0, &pTmp->pBlobRow);
         if (code != 0) {
           taosArrayDestroy(pTmp->aRowP);
           taosMemoryFree(pTmp);
         }
       }
+
     } else {
       taosMemoryFree(pTmp);
     }

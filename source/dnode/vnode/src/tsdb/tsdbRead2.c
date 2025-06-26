@@ -1161,7 +1161,7 @@ static int32_t doReallocBuf(SBlockLoadSuppInfo* pSup, int32_t colIndex, SColumnI
 static int32_t doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int32_t colIndex, SColVal* pColVal,
                             SBlockLoadSuppInfo* pSup) {
   int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
+int32_t lino = 0;
 
   uint8_t* pValue = 0;
   int32_t  len = 0;

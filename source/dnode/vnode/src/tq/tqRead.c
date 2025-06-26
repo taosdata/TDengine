@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tdataformat.h"
+#include "tencode.h"
 #include "tmsg.h"
 #include "tq.h"
 
@@ -711,8 +713,7 @@ static int32_t buildResSDataBlock(STqReader* pReader, SSchemaWrapper* pSchema, c
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doSetBlobVal(SColumnInfoData* pColumnInfoData, int32_t rowIndex, SColVal* pColVal,
-                            SBlobRow2* pBlobRow2) {
+static int32_t doSetBlobVal(SColumnInfoData* pColumnInfoData, int32_t idx, SColVal* pColVal, SBlobRow2* pBlobRow2) {
   int32_t code = 0;
   if (pColumnInfoData == NULL || pColVal == NULL || pBlobRow2 == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -720,14 +721,32 @@ static int32_t doSetBlobVal(SColumnInfoData* pColumnInfoData, int32_t rowIndex, 
   // TODO(yhDeng)
   if (COL_VAL_IS_VALUE(pColVal)) {
     char* val = taosMemCalloc(1, pColVal->value.nData + sizeof(BlobDataLenT));
+    uint64_t seq = 0;
+    int32_t  len = 0;
     if (pColVal->value.pData != NULL) {
-      (void)memcpy(blobDataVal(val), pBlobRow2->data, pColVal->value.nData);
+      tGetU64(pColVal->value.pData, &seq);
+      SBlobItem item = {0};
+      code = tBlobRowGet(pBlobRow2, seq, &item);
+      if (code != 0) {
+        taosMemoryFree(val);
+        terrno = code;
+        uError("tq set blob val, idx:%d, get blob item failed, seq:%" PRIu64 ", code:%d", idx, seq, code);
+        return code;
+      }
+      (void)memcpy(blobDataVal(val), item.data, item.dataLen);
+      len = item.dataLen;
     }
-    blobDataSetLen(val, pColVal->value.nData);
-    code = colDataSetVal(pColumnInfoData, rowIndex, val, false);
+
+    char buf[1024] = {0};
+    memcpy(buf, pBlobRow2->data, pBlobRow2->len);
+    uInfo("tq set blob val,seq:%" PRId64 ", idx:%d, data:%s, len:%d", seq, idx, buf, (int)(pBlobRow2->len));
+
+    blobDataSetLen(val, len);
+    code = colDataSetVal(pColumnInfoData, idx, val, false);
+
     taosMemoryFree(val);
   } else {
-    colDataSetNULL(pColumnInfoData, rowIndex);
+    colDataSetNULL(pColumnInfoData, idx);
   }
   return code;
 }
@@ -736,22 +755,12 @@ static int32_t doSetVal(SColumnInfoData* pColumnInfoData, int32_t rowIndex, SCol
 
   if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
     if (COL_VAL_IS_VALUE(pColVal)) {
-      if (IS_STR_DATA_BLOB(pColVal->value.type)) {
-        char* val = taosMemCalloc(1, pColVal->value.nData + sizeof(BlobDataLenT));
-        if (pColVal->value.pData != NULL) {
-          (void)memcpy(blobDataVal(val), pColVal->value.pData, pColVal->value.nData);
-        }
-        blobDataSetLen(val, pColVal->value.nData);
-        code = colDataSetVal(pColumnInfoData, rowIndex, val, false);
-        taosMemoryFree(val);
-      } else {
-        char val[65535 + 2] = {0};
-        if (pColVal->value.pData != NULL) {
-          (void)memcpy(varDataVal(val), pColVal->value.pData, pColVal->value.nData);
-        }
-        varDataSetLen(val, pColVal->value.nData);
-        code = colDataSetVal(pColumnInfoData, rowIndex, val, false);
+      char val[65535 + 2] = {0};
+      if (pColVal->value.pData != NULL) {
+        (void)memcpy(varDataVal(val), pColVal->value.pData, pColVal->value.nData);
       }
+      varDataSetLen(val, pColVal->value.nData);
+      code = colDataSetVal(pColumnInfoData, rowIndex, val, false);
     } else {
       colDataSetNULL(pColumnInfoData, rowIndex);
     }

@@ -160,9 +160,10 @@ typedef struct {
   void    *data;
   int32_t  dataLen;
 } SBlobItem;
-int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow);
+int32_t tBlobRowCreate(int64_t cap, int8_t type, SBlobRow2 **ppBlobRow);
 int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pBlobItem, uint64_t *seq, int8_t nextRow);
 int32_t tBlobRowUpdate(SBlobRow2 *pBlobRow, uint64_t seq, SBlobItem *pBlobItem);
+int32_t tBlobRowGet(SBlobRow2 *pBlobRow, uint64_t seq, SBlobItem *pItem); 
 int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow);
 int32_t tBlobRowSize(SBlobRow2 *pBlobRow);
 
@@ -290,6 +291,7 @@ struct SBlobRow {
 };
 
 struct SBlobRow2 {
+  int8_t    type;
   SHashObj *pSeqToffset;
   int64_t  seq;
   int64_t  len;

@@ -37,6 +37,7 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
     return terrno;
   }
 
+  int8_t         flag = 1;
   SSubmitTbData* pNew = *pData;
 
   *pNew = *pDataBlock->pData;
@@ -55,6 +56,7 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
 
   int32_t colNum = taosArrayGetSize(pNew->aCol);
   for (int32_t i = 0; i < colNum; ++i) {
+    flag = pDataBlock->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT;
     if (pDataBlock->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       SColData* pCol = (SColData*)taosArrayGet(pNew->aCol, i);
       tColDataDeepClear(pCol);
@@ -63,7 +65,7 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
     }
   }
 
-  code = tBlobRowCreate(4096, &pNew->pBlobRow);
+  code = tBlobRowCreate(4096, flag, &pNew->pBlobRow);
 
   return code;
 }
@@ -1304,7 +1306,9 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
   STableDataCxt* pBlock = (STableDataCxt*)block;
   int32_t        colNum = taosArrayGetSize(pBlock->pData->aCol);
 
+  int8_t flag = 0;
   for (int32_t i = 0; i < colNum; ++i) {
+    flag = pBlock->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT;
     if (pBlock->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       SColData* pCol = (SColData*)taosArrayGet(pBlock->pData->aCol, i);
       if (pCol == NULL) {
@@ -1322,12 +1326,13 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
       pBlock->pData->aRowP = taosArrayInit(20, POINTER_BYTES);
     }
   }
+
   if (pBlock->pData->pBlobRow) {
     tBlobRowDestroy(pBlock->pData->pBlobRow);
     pBlock->pData->pBlobRow = NULL;
-    tBlobRowCreate(1024, &pBlock->pData->pBlobRow);
+    tBlobRowCreate(1024, flag, &pBlock->pData->pBlobRow);
   } else {
-    tBlobRowCreate(1024, &pBlock->pData->pBlobRow);
+    tBlobRowCreate(1024, flag, &pBlock->pData->pBlobRow);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1371,6 +1376,7 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
   }
 
   if (pCxt->pData) {
+    int8_t         flag = 1;
     SSubmitTbData* pNewTb = (SSubmitTbData*)taosMemoryMalloc(sizeof(SSubmitTbData));
     if (NULL == pNewTb) {
       insDestroyTableDataCxt(*pDst);
@@ -1379,6 +1385,9 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
 
     memcpy(pNewTb, pCxt->pData, sizeof(*pCxt->pData));
     pNewTb->pCreateTbReq = NULL;
+    if (pNewTb->pBlobRow != NULL) {
+      flag = pNewTb->pBlobRow->type;
+    }
     pNewTb->pBlobRow = NULL;
 
     pNewTb->aCol = taosArrayDup(pCxt->pData->aCol, NULL);
@@ -1387,7 +1396,7 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
       return terrno;
     }
 
-    tBlobRowCreate(10, &pNewTb->pBlobRow);
+    tBlobRowCreate(10, flag, &pNewTb->pBlobRow);
 
     pNewCxt->pData = pNewTb;
 
