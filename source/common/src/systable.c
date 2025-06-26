@@ -642,7 +642,7 @@ static const SSysTableMeta perfsMeta[] = {
     {TSDB_PERFS_TABLE_CONSUMERS, consumerSchema, tListLen(consumerSchema), false},
     // {TSDB_PERFS_TABLE_OFFSETS, offsetSchema, tListLen(offsetSchema)},
     {TSDB_PERFS_TABLE_TRANS, transSchema, tListLen(transSchema), false},
-    {TSDB_PERFS_TABLE_SMAS, smaSchema, tListLen(smaSchema), false},
+    // {TSDB_PERFS_TABLE_SMAS, smaSchema, tListLen(smaSchema), false},
     {TSDB_PERFS_TABLE_APPS, appSchema, tListLen(appSchema), false}};
 // clang-format on
 
