@@ -537,6 +537,10 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SSDat
 
   QUERY_CHECK_NULL(pDataMeta, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
+  if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
+    pGroup->oldThreshold = INT64_MIN;
+  }
+
   pGroup->newThreshold = pGroup->oldThreshold;
 
   int32_t          iCol = 0;
@@ -670,6 +674,11 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SSDat
         TARRAY_SIZE(pTableMeta->pMetas)--;
       }
     }
+  }
+
+  if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
+    pGroup->newThreshold = INT64_MAX;
+    goto _end;
   }
 
   // update the group threshold
@@ -1226,6 +1235,7 @@ static int32_t stRealtimeGroupDoPeriodCheck(SSTriggerRealtimeGroup *pGroup) {
   pGroup->newThreshold = INT64_MAX;
 
   QUERY_CHECK_CONDITION(!IS_REALTIME_GROUP_OPEN_WINDOW(pGroup), code, lino, _end, TSDB_CODE_INVALID_PARA);
+  pGroup->nextWindow = pContext->periodWindow;
   code = stRealtimeGroupOpenWindow(pGroup, pContext->periodWindow.ekey, NULL, false, false);
   QUERY_CHECK_CODE(code, lino, _end);
   STimeWindow *pCurWin = &TRINGBUF_FIRST(&pGroup->winBuf).range;
@@ -2198,7 +2208,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   if (!pContext->haveReadCheckpoint) {
     stDebug("[checkpoint] read checkpoint for stream %" PRIx64, pTask->task.streamId);
     // if (streamCheckpointIsReady(pTask->task.streamId)) {
-    if (pTask->isCheckpointReady) {  
+    if (pTask->isCheckpointReady) {
       void   *buf = NULL;
       int64_t len = 0;
       code = streamReadCheckPoint(pTask->task.streamId, &buf, &len);
