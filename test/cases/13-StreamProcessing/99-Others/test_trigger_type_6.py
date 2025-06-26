@@ -102,6 +102,8 @@ class TestStreamTriggerType1:
         tdLog.info(f"=============== write trigger data")
         sql = "insert into stream_trigger values ('2025-01-01 00:00:00', 0, 0), ('2025-01-01 00:00:01', 1, 1), ('2025-01-01 00:00:02', 2, 2);"
         tdSql.execute(sql)
+
+
         
         tdLog.info(f"=============== create vtable")
         sql = """create vtable v1 (
