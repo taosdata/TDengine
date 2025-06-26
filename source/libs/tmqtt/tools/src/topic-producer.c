@@ -549,14 +549,101 @@ int topic_prep(void) {
   return 0;
 }
 
+int topic_consume(void) {
+  const char* host = "localhost";
+  const char* user = "root";
+  const char* password = "taosdata";
+  uint16_t    port = 6030;
+  int         code = 0;
+  int         rc;
+
+  fprintf(stdout, "start to connect taosd.\n");
+
+  TAOS* pConn = taos_connect(host, user, password, NULL, port);
+  if (pConn == NULL) {
+    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
+            taos_errstr(NULL));
+    taos_cleanup();
+    return -1;
+  }
+
+  config.auto_offset_reset = "earliest";
+
+  tmq_t* tmq = build_consumer(&config);
+  if (NULL == tmq) {
+    fprintf(stderr, "Failed to create native consumer, host: %s, groupId: %s, , clientId: %s.\n",
+            config.td_connect_host, config.group_id, config.client_id);
+    return -1;
+  } else {
+    fprintf(stdout, "Create consumer successfully, host: %s, groupId: %s, clientId: %s.\n", config.td_connect_host,
+            config.group_id, config.client_id);
+  }
+
+  tmq_list_t* topic_list = build_topic_list();
+  if (NULL == topic_list) {
+    fprintf(stderr, "Failed to create topic_list, topic: %s, groupId: %s, clientId: %s.\n", topic_name, config.group_id,
+            config.client_id);
+    return -1;
+  }
+
+  if ((rc = tmq_subscribe(tmq, topic_list))) {
+    fprintf(stderr,
+            "Failed to subscribe topic_list, topic: %s, groupId: %s, clientId: %s, ErrCode: 0x%x, ErrMessage: %s.\n",
+            topic_name, config.group_id, config.client_id, rc, tmq_err2str(rc));
+  } else {
+    fprintf(stdout, "Subscribe topics successfully.\n");
+  }
+
+  tmq_list_destroy(topic_list);
+
+  basic_consume_loop(tmq);
+  //  ANCHOR_END: subscribe_3
+
+  // consume_repeatly(tmq);
+
+  // manual_commit(tmq);
+
+  // unsubscribe the topic
+  rc = tmq_unsubscribe(tmq);
+  if (rc) {
+    fprintf(stderr,
+            "Failed to unsubscribe consumer, topic: %s, groupId: %s, clientId: %s, ErrCode: 0x%x, ErrMessage: %s.\n",
+            topic_name, config.group_id, config.client_id, rc, tmq_err2str(rc));
+  } else {
+    fprintf(stdout, "Consumer unsubscribed successfully.\n");
+  }
+
+  // close the consumer
+  rc = tmq_consumer_close(tmq);
+  if (rc) {
+    fprintf(stderr, "Failed to close consumer, topic: %s, groupId: %s, clientId: %s, ErrCode: 0x%x, ErrMessage: %s.\n",
+            topic_name, config.group_id, config.client_id, rc, tmq_err2str(rc));
+  } else {
+    fprintf(stdout, "Consumer closed successfully.\n");
+  }
+
+  thread_stop = 1;
+
+  if (drop_topic_without_connect(pConn) < 0) {
+    fprintf(stderr, "Failed to drop topic.\n");
+    return -1;
+  }
+
+  deinit_env(pConn);
+
+  return 0;
+}
+
 int main(int argc, char* argv[]) {
   int rc;
 
-  if (argc == 2) {
+  if (argc >= 2) {
     if (!strcmp(argv[1], "create")) {
       return topic_create();
     } else if (!strcmp(argv[1], "drop")) {
       return topic_drop();
+    } else if (!strcmp(argv[1], "consume")) {
+      return topic_consume();
     } else if (!strcmp(argv[1], "prep")) {
       return topic_prep();
     }
