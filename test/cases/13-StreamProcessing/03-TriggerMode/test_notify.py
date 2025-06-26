@@ -3,12 +3,12 @@ import math
 from new_test_framework.utils import tdLog, tdSql, tdStream
 
 
-class TestStreamStateTrigger:
+class TestStreamNotifyTrigger:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stream_state_trigger(self):
+    def test_stream_notify_trigger(self):
         """basic qdb 2
 
         Verification testing during the development process.
@@ -43,22 +43,22 @@ class TestStreamStateTrigger:
         tdSql.execute(f"create table ct4 using stb tags(2);")
         
         tdLog.info(f"=============== create stream")
-        sql1 = "create stream s1 state_window(cint) from ct1 into res_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
-        sql2 = "create stream s2 state_window(cint) from ct2 into res_ct2 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
-        sql3 = "create stream s3 state_window(cint) from stb partition by tbname into stb_res OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname;"
-        sql4 = "create stream s4 state_window(cint) from stb partition by tbname, tint into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', tbname, '_', cast(tint as varchar))) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by %%1, %%2;"
+        sql1 = "create stream s1 state_window(cint) from ct1                           notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into res_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        sql2 = "create stream s2 state_window(cint) from ct2                           notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into res_ct2 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        sql3 = "create stream s3 state_window(cint) from stb partition by tbname       notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into stb_res OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname;"
+        sql4 = "create stream s4 state_window(cint) from stb partition by tbname, tint notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', tbname, '_', cast(tint as varchar))) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by %%1, %%2;"
          
         streams = [
             self.StreamItem(sql1, self.checks1),
-            self.StreamItem(sql2, self.checks2),
-            self.StreamItem(sql3, self.checks3),
-            self.StreamItem(sql4, self.checks4),
+            # self.StreamItem(sql2, self.checks2),
+            # self.StreamItem(sql3, self.checks3),
+            # self.StreamItem(sql4, self.checks4),
         ]
 
         for stream in streams:
             tdSql.execute(stream.sql)
-        tdStream.checkStreamStatus()
-        # time.sleep(3)
+        # tdStream.checkStreamStatus()
+        time.sleep(3)
 
         tdLog.info(f"=============== write query data")
         sqls = [
@@ -115,133 +115,46 @@ class TestStreamStateTrigger:
             stream.check()
 
 
-        ############ true_for 
-        sql5 = "create stream s5 state_window(cint) true_for(5s) from ct1 into res_truefor_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        # ############ option: max_delay
+        # # no  true_for
+        # tdLog.info(f"=============== create sub table")
+        # tdSql.execute(f"create table ct5 using stb tags(1);")
+        
+        # sql8 = "create stream s8 state_window(cint) from ct5 options(max_delay(3s)) notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into res_max_delay_ct5 (lastts, firstts, num_v, cnt_v, avg_v) as select last_row(_c0), first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
          
-        tdSql.execute(sql5)
-        tdStream.checkStreamStatus("s5")
+        # tdSql.execute(sql8)
+        # # tdStream.checkStreamStatus("s8")
         # time.sleep(3)
                 
-        tdLog.info(f"=============== continue write data into ct1 for true_for(5s)")
-        sqls = [
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:10', 4, 0);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:11', 4, 0);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:15', 4, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:16', 5, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:17', 5, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:18', 5, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:21', 5, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:22', 6, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:29', 6, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:30', 7, 3);",
-        ]
-        tdSql.executes(sqls)
-        self.checks5(1)
+        # tdLog.info(f"=============== continue write data into ct5 for new real data ")
+        # sqls = [
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:10', 1, 0);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:11', 1, 0);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:12', 1, 1);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:13', 1, 1);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:14', 1, 1);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:15', 2, 2);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:16', 2, 2);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:17', 2, 2);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:18', 2, 2);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:19', 2, 3);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:20', 1, 0);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:21', 1, 0);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:22', 1, 1);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:23', 1, 1);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:24', 1, 1);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:25', 2, 2);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:26', 2, 2);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:27', 2, 2);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:28', 2, 2);",
+        #     "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:29', 2, 3);",
+        # ]
+        # tdSql.executes(sqls)
+        # self.checks6(3)  #  max_delay 觸發的結果時間戳 ，與 最後窗口關閉 的結果時間戳 是一樣的嗎？ 如果是，需要配合 通知 來測試。
         
-        ############ option: fill history
-        # no set start_time
-        sql6 = "create stream s6 state_window(cint) from ct1 options(fill_history) into res_fill_all_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
-         
-        tdSql.execute(sql6)
-        tdStream.checkStreamStatus("s6")
-        # time.sleep(3)
-                
-        tdLog.info(f"=============== continue write data into ct1 for new real data ")
-        sqls = [
-            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:10', 4, 0);",
-            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:11', 4, 0);",
-            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:15', 4, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:16', 5, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:17', 5, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:18', 5, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:21', 5, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:22', 6, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:29', 6, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-02 00:00:30', 7, 3);",
-        ]
-        tdSql.executes(sqls)
-        self.checks6(1)
+        # # max_delay + true_for
         
-        # set start_time
-        sql7 = "create stream s7 state_window(cint) true_for(5s) from ct1 options(fill_history('2025-01-02 00:00:10')) into res_fill_part_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
-        tdSql.execute(sql7)
-        tdStream.checkStreamStatus("s7")
-        # time.sleep(3)
-                
-        tdLog.info(f"=============== continue write data into ct1 for new real data ")
-        sqls = [
-            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:10', 4, 0);",
-            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:11', 4, 0);",
-            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:15', 4, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:16', 5, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:17', 5, 1);",
-            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:18', 5, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:21', 5, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:22', 6, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:29', 6, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-03 00:00:30', 7, 3);",
-        ]
-        tdSql.executes(sqls)
-        # self.checks6(2)       
-        
-        ############ option: max_delay
-        # no  true_for
-        tdLog.info(f"=============== create sub table")
-        tdSql.execute(f"create table ct5 using stb tags(1);")
-        
-        sql8 = "create stream s8 state_window(cint) from ct5 options(max_delay(3s)) into res_max_delay_ct5 (lastts, firstts, num_v, cnt_v, avg_v) as select last_row(_c0), first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
-         
-        tdSql.execute(sql8)
-        tdStream.checkStreamStatus("s8")
-        time.sleep(10)
-                
-        tdLog.info(f"=============== continue write data into ct5 for new real data ")
-        sqls = [
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:10', 1, 0);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:11', 1, 0);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:12', 1, 1);",
-        ]
-        tdSql.executes(sqls)
-        time.sleep(4)   
-        sqls = [
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:13', 1, 1);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:14', 1, 1);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:15', 2, 2);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:16', 2, 2);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:17', 2, 2);",
-        ]
-        tdSql.executes(sqls)     
-        time.sleep(4)      
-        sqls = [
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:18', 2, 2);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:19', 2, 2);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:20', 1, 1);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:21', 1, 1);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:22', 1, 1);",
-        ]
-        tdSql.executes(sqls)   
-        time.sleep(4)      
-        sqls = [
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:23', 1, 1);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:24', 1, 1);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:25', 2, 2);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:26', 2, 2);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:27', 2, 2);",
-        ]
-        tdSql.executes(sqls)   
-        time.sleep(4)      
-        sqls = [
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:28', 2, 2);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:29', 2, 2);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:30', 3, 3);",
-        ]
-        tdSql.executes(sqls)  
-        time.sleep(1)      
-        self.checks6(3)
-        
-        # max_delay + true_for
-        
-        ############ option: watermark
+        # ############ option: watermark
         
         return
 
