@@ -105,15 +105,29 @@ class TestStreamDevBasic:
 
     def createStreams(self):
         self.streams = []
-
         stream = StreamItem(
-            id=64,
-            stream="create stream rdb.s64 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r64 as select _twstart ts, PERCENTILE(c1, 90) tp from %%tbname where ts >= _twstart and ts < _twend;",
-            res_query="select ts, tp from rdb.r64 where tag_tbname='t1'",
-            exp_query="select _wstart, count(c1) from tdb.t1 where ts >='2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(5m) fill(null);",
+            id=0,
+            stream="create stream rdb.s0 interval(5m) sliding(5m) from tdb.triggers into rdb.r0 as select _twstart ts, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twend;",
+            res_query="select ts, c1, c2 from rdb.r0;",
+            exp_query="select _wstart ts, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+            check_func=self.check0,
         )
         self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()
+
+    def check0(self):
+        tdSql.checkTableType(
+            dbname="rdb", tbname="r0", typename="NORMAL_TABLE", columns=3
+        )
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r0",
+            schema=[
+                ["ts", "TIMESTAMP", 8, ""],
+                ["c1", "BIGINT", 8, ""],
+                ["c2", "DOUBLE", 8, ""],
+            ],
+        )
