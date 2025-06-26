@@ -626,25 +626,20 @@ int32_t getExistVgInfo(SDataInserterHandle* pInserter, SStreamInserterParam* pIn
   SUseDbOutput* output = NULL;
   SDBVgInfo*    dbVgInfo = NULL;
 
-  if (pInserter->dbVgInfoMap == NULL) {
-    qError("dbVgInfoMap is NULL, dbFName:%s", pInsertParam->dbFName);
-    return TSDB_CODE_CTG_INTERNAL_ERROR;
-  }
-  SUseDbOutput** find =
-      (SUseDbOutput**)taosHashGet(pInserter->dbVgInfoMap, pInsertParam->dbFName, strlen(pInsertParam->dbFName));
-  if (find == NULL) {
-    qError("dbVgInfoMap not found dbFName:%s", pInsertParam->dbFName);
-    return TSDB_CODE_CTG_INTERNAL_ERROR;
-  } else {
-    output = *find;
+  SDBVgInfo* dbInfo = NULL;
+  code = inserterGetDbVgInfo(pInserter, pInsertParam->dbFName, &dbInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
-  dbVgInfo = output->dbVgroup;
-
-  char tbFullName[TSDB_TABLE_FNAME_LEN];
+   char tbFullName[TSDB_TABLE_FNAME_LEN];
   snprintf(tbFullName, TSDB_TABLE_FNAME_LEN, "%s.%s", pInsertParam->dbFName, pInserterInfo->tbName);
 
-  return inserterGetVgInfo(dbVgInfo, tbFullName, pVgInfo);
+  code = inserterGetVgInfo(dbInfo, tbFullName, pVgInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 void resetDbVgInfo(SDataInserterHandle* pInserter, const char* dbFName) {
