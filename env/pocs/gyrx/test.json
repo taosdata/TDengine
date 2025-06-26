@@ -1,7 +1,7 @@
 {
   "filetype": "insert",
   "cfgdir": "/etc/taos",
-  "host": "node232",
+  "host": "node230",
   "port": 6030,
   "rest_port": 6041,
   "user": "root",

@@ -18,13 +18,15 @@ from taostest import TDCase
 from taostest.performance.result_reduction import Perf_Base_func
 from taostest.util.remote import Remote
 import random
+from taostest.util.playwright_util import PlaywrightUtil
+from taostest.util.jmeter_util import JMeterUtil
 
 
 class Demo(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
-        self.perf = Perf_Base_func(self.logger, self.run_log_dir)
+        self.perf = Perf_Base_func(self._remote._logger, self.run_log_dir)
         self.taosd_setting = self.tdCom.get_components_setting(
             self.env_setting["settings"], "taosd"
         )
@@ -62,6 +64,20 @@ class Demo(TDCase):
         self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
         self.json_file = os.path.join(self.env_root, "pocs/gyrx/test.json")
         self.run_test_log_dir = "/root/testlog/"
+        self.playwright = PlaywrightUtil(self.envMgr)
+
+        # Initialize JMeter if configured
+        self.jmeter_setting = None
+        self.jmeter_util = None
+        try:
+            self.jmeter_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "jmeter")
+            if self.jmeter_setting:
+                self.jmeter_util = JMeterUtil(self.envMgr)
+                self.logger.info("JMeter component found and initialized")
+        except Exception as e:
+            self.logger.info(f"JMeter component not configured or failed to initialize: {e}")
+            self.jmeter_setting = None
+            self.jmeter_util = None
 
         self.column_info_list = [
             {
@@ -85,6 +101,9 @@ class Demo(TDCase):
         self.json_data_list = list()
         self.taosBenchmark_iplist = self.get_fqdn("taosBenchmark")
         self.taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
+        self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
+        self.json_file = os.path.join(self.env_root, "pocs/gyrx/test.json")
+
 
     def insert_with_python_connector(self):
         # Using pre-packaged functions
@@ -126,6 +145,94 @@ class Demo(TDCase):
         self.result_filename = self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, self.json_data_list, json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
         self.tdSql.execute(f'flush database {self.dbname}')
 
+    def jmeter_demo_test(self):
+        """Run JMeter demo test if JMeter is configured"""
+        if not self.jmeter_util or not self.jmeter_setting:
+            self.logger.info("JMeter not configured, skipping JMeter demo test")
+            return None
+
+        try:
+            self.logger.info("=== Starting JMeter Demo Test ===")
+
+            # Setup JMeter environment
+            if not self.jmeter_util.setup_jmeter(self.jmeter_setting):
+                self.logger.error("Failed to setup JMeter environment")
+                return None
+
+            # Get configuration
+            server_config = self.jmeter_setting.get("spec", {}).get("server", {})
+            sql_file = server_config.get("sql_file")
+            jmx_template = server_config.get("jmx_template")
+
+            if not sql_file or not jmx_template:
+                self.logger.error("SQL file or JMX template not specified in JMeter configuration")
+                return None
+
+            # Copy JMX template from env/jmeter to current run directory
+            template_jmx_path = os.path.join(os.environ['TEST_ROOT'], f"env/jmeter/{jmx_template}")
+            work_jmx_path = os.path.join(self.run_log_dir, jmx_template)
+
+            if not os.path.exists(template_jmx_path):
+                self.logger.error(f"JMX template not found: {template_jmx_path}")
+                return None
+
+            # Copy template to work directory
+            import shutil
+            shutil.copy2(template_jmx_path, work_jmx_path)
+            self.logger.info(f"Copied JMX template from {template_jmx_path} to {work_jmx_path}")
+
+            sql_file_path = os.path.join(os.environ['TEST_ROOT'], f"env/demo/{sql_file}")
+
+            # Create JMeter results directory
+            jmeter_results_dir = os.path.join(self.run_log_dir, "jmeter_demo_results")
+            os.makedirs(jmeter_results_dir, exist_ok=True)
+
+            # Modify JMeter setting to use work directory JMX
+            import copy
+            modified_jmeter_setting = copy.deepcopy(self.jmeter_setting)
+            modified_jmeter_setting["spec"]["server"]["jmx_template_path"] = work_jmx_path
+
+            # Temporarily replace the util's setting
+            original_setting = self.jmeter_util._jmeter_setting
+            self.jmeter_util._jmeter_setting = modified_jmeter_setting
+
+            try:
+                # Run JMeter test using utility
+                results = self.jmeter_util.run_multi_concurrency_test(
+                    sql_file_path=sql_file_path,
+                    results_dir=jmeter_results_dir,
+                    test_root=os.environ['TEST_ROOT']
+                )
+            finally:
+                # Restore original setting
+                self.jmeter_util._jmeter_setting = original_setting
+
+            if results:
+                self.logger.info(f"JMeter demo test completed with {len(results)} test runs")
+
+                # Copy demo files to run directory for preservation
+                demo_files_dir = os.path.join(self.run_log_dir, "demo_files")
+                os.makedirs(demo_files_dir, exist_ok=True)
+
+                # Copy SQL and JMX files
+                if os.path.exists(sql_file_path):
+                    shutil.copy2(sql_file_path, demo_files_dir)
+                if os.path.exists(work_jmx_path):
+                    shutil.copy2(work_jmx_path, demo_files_dir)
+
+                self.logger.info(f"Demo files saved to: {demo_files_dir}")
+                return jmeter_results_dir
+            else:
+                self.logger.warning("JMeter demo test failed to produce results")
+                return None
+
+        except Exception as e:
+            self.logger.error(f"JMeter demo test failed: {e}")
+            return None
+        finally:
+            if self.jmeter_util:
+                self.jmeter_util.cleanup()
+
 
     def desc(self):
         pass
@@ -137,7 +244,8 @@ class Demo(TDCase):
         pass
 
     def cleanup(self):
-        pass
+        if hasattr(self, 'jmeter_util') and self.jmeter_util:
+            self.jmeter_util.cleanup()
 
     def run(self):
         # Insert
@@ -160,3 +268,62 @@ class Demo(TDCase):
         self.perf.get_node_exporter_info(self.prom_env_setting, 1, timestamp_start, timestamp_end)
 
         print(result_file_name)
+
+        # Playwright screenshot test
+        self._remote._logger.info("Starting Playwright screenshot test...")
+
+        # 1. Test screenshot of url
+        self._remote._logger.info("Testing URL screenshot...")
+        self.playwright.take_screenshot(
+            target="https://www.baidu.com",
+            output_file="baidu_homepage.png"
+        )
+
+        # 2. Test screenshot of text file
+        self._remote._logger.info("Testing text file screenshot...")
+        self.playwright.take_screenshot_text(
+            text_file=result_file_name,
+            output_file=f"{os.path.basename(result_file_name)}.png",
+            title="Playwright Demo Test Results"
+        )
+
+        self._remote._logger.info("Collecting screenshots...")
+        # JMeter demo test
+        jmeter_results_dir = self.jmeter_demo_test()
+
+        # Take screenshots of JMeter results if available
+        if jmeter_results_dir and os.path.exists(jmeter_results_dir):
+            self._remote._logger.info("Taking screenshots of JMeter results...")
+
+            # Screenshot test_summary.txt - search in subdirectories
+            summary_file = None
+            for root, _, files in os.walk(jmeter_results_dir):
+                if "test_summary.txt" in files:
+                    summary_file = os.path.join(root, "test_summary.txt")
+                    break
+            
+            if summary_file and os.path.exists(summary_file):
+                self._remote._logger.info(f"Found test_summary.txt at: {summary_file}")
+                self.playwright.take_screenshot_text(
+                    text_file=summary_file,
+                    output_file="jmeter_test_summary.png",
+                    title="JMeter Demo Test Summary"
+                )
+            else:
+                self._remote._logger.warning("test_summary.txt not found in JMeter results")
+
+            # Screenshot HTML reports
+            for root, _, files in os.walk(jmeter_results_dir):
+                for file in files:
+                    if file == "index.html":
+                        html_file = os.path.join(root, file)
+                        self.playwright.take_screenshot(
+                            target=html_file,
+                            output_file=f"jmeter_html_report_{os.path.basename(root)}.png"
+                        )
+
+            self._remote._logger.info("JMeter result screenshots completed")
+
+        self.playwright.collect_screenshots(self.run_log_dir)
+        self.playwright.reset()
+        self._remote._logger.info("Playwright screenshot test completed successfully!")
