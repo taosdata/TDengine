@@ -4318,7 +4318,7 @@ int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SColumnNode* pColNode
         break;
       }
       default: {
-        qError("not supported type %d when build datum from value node", valNode->node.resType.type);
+        qDebug("not supported type %d when build datum from value node", valNode->node.resType.type);
         break;
       }
     }
@@ -4362,8 +4362,6 @@ int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, voi
       break;
 
     case TSDB_DATA_TYPE_VARBINARY:
-    case TSDB_DATA_TYPE_GEOMETRY:
-    case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_VARCHAR: {
       datum->kind = FLT_SCL_DATUM_KIND_VARCHAR;
       datum->i = *(int64_t*)val;
@@ -4376,7 +4374,7 @@ int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, voi
     }
     default: {
       datum->kind = FLT_SCL_DATUM_KIND_NULL;
-      qError("not supported type %d when build datum from block sma value", type);
+      qDebug("not supported type %d when build datum from block sma value", type);
       break;
     }
   }
