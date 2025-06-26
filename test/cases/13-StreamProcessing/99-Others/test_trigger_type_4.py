@@ -308,6 +308,7 @@ class TestStreamTriggerType1:
             and tdSql.compareData(1, 1, 1)
             and tdSql.compareData(1, 2, 1)  
         )
+        
 
     def checks21(self):
         result_sql = "select ts, c1, c2 from qdb.st21"
