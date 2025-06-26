@@ -425,6 +425,7 @@ typedef struct {
   SHashObj* alterViews;
   SHashObj* useDbs;
   SRWLatch  lock;
+  int8_t    passEncryptAlgorithm;
 } SUserObj;
 
 typedef struct {

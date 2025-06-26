@@ -14,12 +14,13 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndProfile.h"
 #include "audit.h"
+#include "crypt.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
-#include "mndProfile.h"
 #include "mndQnode.h"
 #include "mndShow.h"
 #include "mndSma.h"
@@ -294,8 +295,20 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {
-    mGError("user:%s, failed to login from %s since invalid pass, input:%s", pReq->info.conn.user, ip, connReq.passwd);
+  char tmpPass[TSDB_PASSWORD_LEN] = {0};
+  tstrncpy(tmpPass, connReq.passwd, TSDB_PASSWORD_LEN);
+
+  if (pUser->passEncryptAlgorithm != 0) {
+    if (pUser->passEncryptAlgorithm != tsiEncryptPassAlgorithm) {
+      code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      goto _OVER;
+    }
+    TAOS_CHECK_GOTO(mndEncryptPass(tmpPass, NULL), NULL, _OVER);
+  }
+
+  if (strncmp(tmpPass, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {
+    mGError("user:%s, failed to login from %s since pass not match, input:%s", pReq->info.conn.user, ip,
+            connReq.passwd);
     code = TSDB_CODE_MND_AUTH_FAILURE;
     goto _OVER;
   }
