@@ -25,7 +25,7 @@ class TestStreamSlidingTrigger:
     queryIdx = 0
     slidingList = [1, 10, 100, 1000]
     tableList = []
-    runCaseList = ["0-0-0-11-40" ]
+    runCaseList = ["0-0-0-12-40" ]
     streamSql = ""
     querySql = ""
     querySqls = [ # (SQL, (minPartitionColNum, partitionByTbname), PositiveCase)
@@ -76,7 +76,7 @@ class TestStreamSlidingTrigger:
         ("select _wstart,sum({calcTbname}.cint), max({calcTbname}.cint) from {calcTbname} ,{calcTbname} as t2 where {calcTbname}.cts=t2.cts  interval(120s)", (0, False), True), #37
         ("select _wstart, avg(cint) c, max(cint) from {calcTbname} partition by cint interval(60s) union all select _wstart, avg(cint) c, max(cint) from {calcTbname} partition by cint interval(60s) order by _wstart,c", (0, False), True), #38
         ("select last(cts), avg(cint), sum(cint) from %%tbname group by tbname", (1, True), True), #39
-        ("select cts, cint, _tgrpid,  %%tbname from {calcTbname} where %%tbname like '%1' order by cts", (0, False), True), #40
+        ("select cts, cint, _tgrpid,  %%tbname from %%trows where %%tbname like '%1' order by cts", (0, False), True), #40
     ]
 
     queryResults = {
@@ -164,6 +164,7 @@ class TestStreamSlidingTrigger:
         "0-0-0-10-24": [-1, None, True, [], ""],
         "0-0-0-10-39": [-1, None, True, [], ""],
         "0-0-0-11-40": [-1, None, True, [], ""],
+        "0-0-0-12-40": [-1, None, True, [], ""], 
 
         "1-1-0-0-0": [3, None, True, [], ""],  # 触发表子表、计算表子表 #success
         "1-1-0-0-26": [40, None, True, [], ""],#success
@@ -275,6 +276,7 @@ class TestStreamSlidingTrigger:
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} options(watermark(10s)|expired_time(40s)|ignore_disorder|delete_recalc|delete_output_table) into outTbname as querySql;", (3, True)),
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(delete_recalc) into outTbname as querySql ;", (1, True)),
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(watermark(3s)|fill_history('2025-01-01 00:01:30')) into outTbname as querySql;", (1, True)),#11
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(pre_filter(cint>2)|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#12
         ]
 
         for self.createStmIdx in range(len(createStreamSqls)):

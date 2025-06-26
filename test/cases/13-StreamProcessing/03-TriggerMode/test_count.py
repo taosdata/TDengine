@@ -44,15 +44,15 @@ class TestStreamCountTrigger:
         
         tdLog.info(f"=============== create stream")
         sql1 = "create stream s1 count_window(3, 3, cint) from ct1 into res_ct1 (firstts, num_v, cnt_v, avg_v, sum_v) as select first(_c0), _twrownum, count(*), avg(cint), sum(cint) from %%trows;"
-        sql2 = "create stream s2 count_window(4, 2, cint) from ct1 into res_ct2 (firstts, num_v, cnt_v, avg_v, sum_v) as select first(_c0), _twrownum, count(*), avg(cint), sum(cint) from %%trows;"
-        # sql2 = "create stream s2 count_window(3, 3, cint) from ct2 into res_ct2 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        sql2 = "create stream s2 count_window(4, 2, cint) from ct2 into res_ct2 (firstts, num_v, cnt_v, avg_v, sum_v) as select first(_c0), _twrownum, count(*), avg(cint), sum(cint) from %%trows;"
+        sql3 = "create stream s3 count_window(4, 2, cint) from stb partition by tbname into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, num_v, cnt_v, avg_v, sum_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid)  as select first(_c0), _twrownum, count(*), avg(cuint), sum(cint) from %%trows;"
         # sql3 = "create stream s3 count_window(cint) from stb partition by tbname into stb_res OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname;"
         # sql4 = "create stream s4 count_window(cint) from stb partition by tbname, tint into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', tbname, '_', cast(tint as varchar))) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by %%1, %%2;"
          
         streams = [
-            # self.StreamItem(sql1, self.checks1),
-            self.StreamItem(sql2, self.checks2),
-            # self.StreamItem(sql3, self.checks3),
+            self.StreamItem(sql1, self.checks1),
+            # self.StreamItem(sql2, self.checks2),
+            self.StreamItem(sql3, self.checks3),
             # self.StreamItem(sql4, self.checks4),
         ]
 
@@ -175,6 +175,27 @@ class TestStreamCountTrigger:
             sql=result_sql,
             func=lambda: tdSql.getRows() == 4
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 4)
+            and tdSql.compareData(0, 2, 2.5)
+            and tdSql.compareData(0, 3, 10)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:02.000")
+            and tdSql.compareData(1, 1, 4)
+            and tdSql.compareData(1, 2, 4.5)
+            and tdSql.compareData(1, 3, 18)
+            and tdSql.compareData(3, 0, "2025-01-01 00:00:04.000")
+            and tdSql.compareData(3, 1, 4)
+            and tdSql.compareData(3, 2, 8.5)
+            and tdSql.compareData(3, 3, 34),
+        )
+        tdLog.info(f"=============== check s3 result success !!!!!!!! =====================")
+        return
+
+    def checks3(self):
+        result_sql = "select firstts, num_v, cnt_v, avg_v, sum_v from res_stb"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 4
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
             and tdSql.compareData(0, 1, 3)
             and tdSql.compareData(0, 2, 3)
             and tdSql.compareData(0, 3, 2)
@@ -190,7 +211,7 @@ class TestStreamCountTrigger:
             and tdSql.compareData(2, 3, 8)
             and tdSql.compareData(2, 4, 24),
         )
-        tdLog.info(f"=============== check s2 result success !!!!!!!! =====================")
+        tdLog.info(f"=============== check s3 result success !!!!!!!! =====================")
         return
         
 
