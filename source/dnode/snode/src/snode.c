@@ -50,9 +50,10 @@ void sndClose(SSnode *pSnode) {
 static int32_t handleTriggerCalcReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   SSTriggerCalcRequest req = {0};
   SStreamRunnerTask* pTask = NULL;
+  void* taskAddr = NULL;
   int32_t code = tDeserializeSTriggerCalcRequest(POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead), &req);
   if (code == 0) {
-    code = streamGetTask(req.streamId, req.runnerTaskId, (SStreamTask**)&pTask);
+    code = streamAcquireTask(req.streamId, req.runnerTaskId, (SStreamTask**)&pTask, &taskAddr);
   }
   if (code == 0) {
     req.brandNew = true;
@@ -64,6 +65,9 @@ static int32_t handleTriggerCalcReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   tDestroySTriggerCalcRequest(&req);
   SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_TRIGGER_CALC_RSP, .contLen = 0, .pCont = NULL, .info = pRpcMsg->info};
   rpcSendResponse(&rsp);
+
+  streamReleaseTask(taskAddr);
+  
   return code;
 }
 
@@ -179,6 +183,7 @@ end:
 
 static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   int32_t code = 0;
+  void* taskAddr = NULL;
   SResFetchReq req = {0};
   SSTriggerCalcRequest calcReq = {0};
   SStreamRunnerTask* pTask = NULL;
@@ -199,7 +204,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
     calcReq.pOutBlock = NULL;
   }
   if (code == 0) {
-    code = streamGetTask(calcReq.streamId, calcReq.runnerTaskId, (SStreamTask**)&pTask);
+    code = streamAcquireTask(calcReq.streamId, calcReq.runnerTaskId, (SStreamTask**)&pTask, &taskAddr);
   }
   if (code == 0) {
     pTask->pMsgCb = &pSnode->msgCb;
@@ -214,6 +219,9 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   tDestroySResFetchReq(&req);
   SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_FETCH_FROM_RUNNER_RSP, .contLen = size, .pCont = buf, .info = pRpcMsg->info};
   tmsgSendRsp(&rsp);
+  
+  streamReleaseTask(taskAddr);
+  
   return code;
 }
 

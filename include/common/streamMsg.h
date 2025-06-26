@@ -368,6 +368,8 @@ typedef union SStreamMgmtReq {
   SStreamMgmtReqCont cont;
 } SStreamMgmtReq;
 
+typedef void (*taskUndeplyCallback)(void*);
+
 
 typedef struct SStreamTask {
   EStreamTaskType type;
@@ -391,6 +393,11 @@ typedef struct SStreamTask {
   SStreamMgmtReq* pMgmtReq;  // request that should be handled by stream mgmt thread
 
   int64_t         runningStartTs;
+
+  SRWLatch        entryLock;       
+
+  SStreamUndeployTaskMsg undeployMsg;
+  taskUndeplyCallback    undeployCb;
   
   int8_t          deployed;      // concurrent undeloy
 } SStreamTask;

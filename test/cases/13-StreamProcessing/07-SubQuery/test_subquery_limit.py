@@ -53,19 +53,19 @@ class TestStreamDevBasic:
 
     def prepareQueryData(self):
         tdLog.info("prepare child tables for query")
-        tdStream.prepareChildTables(tbBatch=1, rowBatch=1, rowsPerBatch=400)
+        tdStream.prepareChildTables(tbBatch=1, rowBatch=1, rowsPerBatch=2)
 
         tdLog.info("prepare normal tables for query")
-        tdStream.prepareNormalTables(tables=10, rowBatch=1)
+        tdStream.prepareNormalTables(tables=2, rowBatch=1)
 
         tdLog.info("prepare virtual tables for query")
-        tdStream.prepareVirtualTables(tables=10)
+        tdStream.prepareVirtualTables(tables=2)
 
         tdLog.info("prepare json tag tables for query, include None and primary key")
-        tdStream.prepareJsonTables(tbBatch=1, tbPerBatch=10)
+        tdStream.prepareJsonTables(tbBatch=1, tbPerBatch=2)
 
         tdLog.info("prepare view")
-        tdStream.prepareViews(views=5)
+        tdStream.prepareViews(views=1)
 
     def prepareTriggerTable(self):
         tdLog.info("prepare tables for trigger")

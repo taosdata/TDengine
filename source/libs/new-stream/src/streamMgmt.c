@@ -495,19 +495,22 @@ int32_t smUndeployTask(SStreamTaskUndeploy* pUndeploy, bool rmFromVg) {
   pTask= &task;
 
   (void)taosHashRemove(gStreamMgmt.taskMap, key, sizeof(key));
+
+  (*ppTask)->undeployMsg = pUndeploy->undeployMsg;
+  (*ppTask)->undeployCb = smRemoveTaskCb;
   
   switch (pTask->type) {
     case STREAM_READER_TASK:
       if (rmFromVg) {
         smRemoveReaderFromVgMap(pTask);
       }
-      code = stReaderTaskUndeploy((SStreamReaderTask**)ppTask, &pUndeploy->undeployMsg, smRemoveTaskCb);
+      code = stReaderTaskUndeploy((SStreamReaderTask**)ppTask, false);
       break;
     case STREAM_TRIGGER_TASK:
-      code = stTriggerTaskUndeploy((SStreamTriggerTask**)ppTask, &pUndeploy->undeployMsg, smRemoveTaskCb);
+      code = stTriggerTaskUndeploy((SStreamTriggerTask**)ppTask, false);
       break;
     case STREAM_RUNNER_TASK:
-      code = stRunnerTaskUndeploy((SStreamRunnerTask**)ppTask, &pUndeploy->undeployMsg, smRemoveTaskCb);
+      code = stRunnerTaskUndeploy((SStreamRunnerTask**)ppTask, false);
       break;
     default:
       code = TSDB_CODE_STREAM_INTERNAL_ERROR;

@@ -42,8 +42,10 @@ static tmr_h    gStreamTriggerTimerId = NULL;
 #define STREAM_TRIGGER_WAIT_TIME_NS      1 * NANOSECOND_PER_SEC  // 1s
 
 typedef struct StreamTriggerWaitInfo {
-  SSTriggerRealtimeContext *pContext;
-  int64_t                   resumeTime;
+  int64_t streamId;
+  int64_t taskId;
+  int64_t sessionId;
+  int64_t resumeTime;
 } StreamTriggerWaitInfo;
 
 static int32_t streamTriggerAddWaitContext(SSTriggerRealtimeContext *pContext, int64_t resumeTime) {
@@ -52,7 +54,9 @@ static int32_t streamTriggerAddWaitContext(SSTriggerRealtimeContext *pContext, i
   SStreamTriggerTask *pTask = pContext->pTask;
 
   StreamTriggerWaitInfo info = {
-      .pContext = pContext,
+      .streamId = pTask->task.streamId,
+      .taskId = pTask->task.taskId,
+      .sessionId = pContext->sessionId,
       .resumeTime = resumeTime,
   };
   taosWLockLatch(&gStreamTriggerWaitLatch);
@@ -80,11 +84,7 @@ static void streamTriggerCheckWaitList(void *param, void *tmrId) {
     SListNode *pCurNode = pNode;
     pNode = TD_DLIST_NODE_NEXT(pCurNode);
     StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pCurNode->data;
-    if (pInfo == NULL || pInfo->pContext == NULL) {
-      stWarn("unexpected null stream trigger wait info");
-      TD_DLIST_POP(&gStreamTriggerWaitList, pCurNode);
-      taosMemoryFreeClear(pCurNode);
-    } else if (pInfo->resumeTime <= now) {
+    if (pInfo->resumeTime <= now) {
       TD_DLIST_POP(&gStreamTriggerWaitList, pCurNode);
       TD_DLIST_APPEND(&readylist, pCurNode);
     }
@@ -96,19 +96,34 @@ static void streamTriggerCheckWaitList(void *param, void *tmrId) {
     SListNode *pCurNode = pNode;
     pNode = TD_DLIST_NODE_NEXT(pCurNode);
     StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pCurNode->data;
+    SStreamTask* task = NULL;
+    void* taskAddr = NULL;
+    int32_t code = streamAcquireTask(pInfo->streamId, pInfo->taskId, &task, &taskAddr);
+    if (code != TSDB_CODE_SUCCESS) {
+      stError("failed to acquire stream trigger task %" PRIx64 "-%" PRIx64 "-%" PRIx64 " since %s",
+              pInfo->streamId, pInfo->taskId, pInfo->sessionId, tstrerror(code));
+      TD_DLIST_POP(&readylist, pCurNode);
+      taosMemoryFreeClear(pCurNode);
+      continue;
+    }
+
+    SStreamTriggerTask* pTask = (SStreamTriggerTask*)task;
     // resume the task
-    SSTriggerRealtimeContext *pContext = pInfo->pContext;
-    int32_t                   code = stRealtimeContextCheck(pContext);
+    SSTriggerRealtimeContext *pContext = pTask->pRealtimeContext;
+    code = stRealtimeContextCheck(pContext);
     if (code != TSDB_CODE_SUCCESS) {
       stError("failed to resume stream trigger realtime context%" PRIx64 "-%" PRIx64 "-%" PRIx64 " since %s",
               pContext->pTask->task.streamId, pContext->pTask->task.taskId, pContext->sessionId, tstrerror(code));
+      streamReleaseTask(taskAddr);
       continue;
     }
+
     stDebug("resume stream trigger realtime context %" PRIx64 "-%" PRIx64 "-%" PRIx64 " since now:%" PRId64
             ", resumeTime:%" PRId64,
             pContext->pTask->task.streamId, pContext->pTask->task.taskId, pContext->sessionId, now, pInfo->resumeTime);
     TD_DLIST_POP(&readylist, pCurNode);
     taosMemoryFreeClear(pCurNode);
+    streamReleaseTask(taskAddr);
   }
 
   taosWLockLatch(&gStreamTriggerWaitLatch);
@@ -2093,6 +2108,8 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
       int32_t      endIdx = 0;
       code = stRealtimeGroupGetDataBlock(pGroup, false, &pDataBlock, &startIdx, &endIdx, &allTableProcessed,
                                          &needFetchData);
+      QUERY_CHECK_CODE(code, lino, _end);
+
       if (allTableProcessed || needFetchData) {
         break;
       }
@@ -3057,13 +3074,15 @@ _end:
   return code;
 }
 
-int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, const SStreamUndeployTaskMsg *pMsg, taskUndeplyCallback cb) {
+int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUndeployTaskMsg *pMsg, taskUndeplyCallback cb) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = *ppTask;
+  
   stDebug("[checkpoint] stTriggerTaskUndeploy, taskId: %" PRId64 ", streamId: %" PRIx64
           ", doCheckpoint: %d, doCleanup: %d",
           pTask->task.taskId, pTask->task.streamId, pMsg->doCheckpoint, pMsg->doCleanup);
+          
   if (pMsg->doCheckpoint && pTask->pRealtimeContext) {
     uint8_t *buf = NULL;
     int64_t  len = 0;
@@ -3101,7 +3120,7 @@ int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, const SStreamUndeploy
     SListNode *pCurNode = pNode;
     pNode = TD_DLIST_NODE_NEXT(pCurNode);
     StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pCurNode->data;
-    if (pInfo != NULL && pInfo->pContext == pTask->pRealtimeContext) {
+    if (pInfo != NULL && pInfo->streamId == pTask->task.streamId) {
       TD_DLIST_POP(&gStreamTriggerWaitList, pCurNode);
       taosMemoryFreeClear(pCurNode);
     }
@@ -3162,6 +3181,19 @@ _end:
 
   return code;
 }
+
+int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, bool force) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  SStreamTriggerTask *pTask = *ppTask;
+  
+  if (!force && taosWTryForceLockLatch(&pTask->task.entryLock)) {
+    ST_TASK_DLOG("ignore undeploy trigger task since working, entryLock:%x", pTask->task.entryLock);
+    return code;
+  }
+
+  return stTriggerTaskUndeployImpl(ppTask, &pTask->task.undeployMsg, pTask->task.undeployCb);
+}
+
 
 int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) {
   int32_t code = TSDB_CODE_SUCCESS;
