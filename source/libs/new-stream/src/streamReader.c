@@ -352,6 +352,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
 
     STREAM_CHECK_RET_GOTO(buildSTSchemaAndSetColId(NULL, sStreamReaderInfo->calcCols,
                                                    sStreamReaderInfo->calcResBlock));
+    sStreamReaderInfo->calcResBlock->info.id.blockId = sStreamReaderInfo->triggerResBlock->info.id.blockId;                                             
     SNodeList* pseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanPseudoCols;
     if (pseudoCols != NULL) {
       STREAM_CHECK_RET_GOTO(

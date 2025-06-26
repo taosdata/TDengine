@@ -32,30 +32,144 @@ class TestStreamOldCaseBasic1:
         """
 
         tdStream.createSnode()
+        self.streams = []
 
-        # self.stream_basic_0()  # success
-        self.stream_basic_1()
-        # self.stream_basic_2()
-        # self.stream_basic_3()
-        # self.stream_basic_4()
-        # self.stream_basic_5()
+        basic0 = self.StreamItem(
+            "basic0",
+            "basic0",
+            self.b0_create_tb,
+            self.b0_create_stream,
+            self.b0_insert1,
+            self.b0_check1,
+            self.b0_insert2,
+            self.b0_check2,
+            self.b0_insert3,
+            self.b0_check3,
+        )
+        basic10 = self.StreamItem(
+            "basic10",
+            "basic10",
+            self.b10_create_tb,
+            self.b10_create_stream,
+            self.b10_insert1,
+            self.b10_check1,
+            self.b10_insert2,
+            self.b10_check2,
+            # self.b10_insert3,
+            # self.b10_check3,
+            # self.b10_insert4,
+            # self.b10_check4,
+            # self.b10_insert5,
+            # self.b10_check5,
+            # self.b10_insert6,
+            # self.b10_check6,
+            # self.b10_insert7,
+            # self.b10_check7,
+            # self.b10_insert8,
+            # self.b10_check8,
+        )
+        basic11 = self.StreamItem(
+            "basic11",
+            "basic11",
+            self.b11_create_tb,
+            self.b11_create_stream,
+            self.b11_insert1,
+            self.b11_check1,
+            self.b11_insert2,
+            self.b11_check2,
+            self.b11_insert3,
+            self.b11_check3,
+        )
+        basic12 = self.StreamItem(
+            "basic12",
+            "basic12",
+            self.b12_create_tb,
+            self.b12_create_stream,
+            self.b12_insert1,
+            self.b12_check1,
+        )
+        basic13 = self.StreamItem(
+            "basic13",
+            "basic13",
+            self.b13_create_tb,
+            self.b13_create_stream,
+            self.b13_insert1,
+            self.b13_check1,
+            self.b13_insert2,
+            self.b13_check2,
+            self.b13_insert3,
+            self.b13_check3,
+            self.b13_insert4,
+            self.b13_check4,
+            self.b13_insert5,
+            self.b13_check5,
+        )
+        basic14 = self.StreamItem(
+            "basic14",
+            "basic14",
+            self.b14_create_tb,
+            self.b14_create_stream,
+            self.b14_insert1,
+            self.b14_check1,
+        )
+        basic15 = self.StreamItem(
+            "basic15",
+            "basic15",
+            self.b15_create_tb,
+            self.b15_create_stream,
+            self.b15_insert1,
+            self.b15_check1,
+            self.b15_insert2,
+            self.b15_check2,
+        )
+        basic20 = self.StreamItem(
+            "basic20",
+            "basic20",
+            self.b20_create_tb,
+            self.b20_create_stream,
+            self.b20_insert1,
+            self.b20_check1,
+            self.b20_insert2,
+            self.b20_check2,
+        )
+        basic21 = self.StreamItem(
+            "basic21", "basic21", self.b21_create_tb, self.b21_create_stream
+        )
+        # basic30 = self.StreamItem(
+        #     "basic30",
+        #     "basic30",
+        #     self.b30_create_tb,
+        #     self.b30_create_stream,
+        #     self.b30_insert1,
+        #     self.b30_check1,
+        #     self.b30_insert2,
+        #     self.b30_check2,
+        #     self.b30_insert3,
+        #     self.b30_check3,
+        #     self.b30_insert4,
+        #     self.b30_check4,
+        #     self.b30_insert5,
+        #     self.b30_check5,
+        #     self.b30_insert6,
+        #     self.b30_check6,
+        #     self.b30_insert7,
+        #     self.b10_check7,
+        #     self.b10_insert8,
+        #     self.b10_check8,
+        # )
+        self.streams.append(basic0)
+        # self.streams.append(basic10)
+        self.run()
 
-    def stream_basic_0(self):
-        tdLog.info(f"stream_basic_0")
-        tdStream.dropAllStreamsAndDbs()
-
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database d0 vgroups 1")
-        tdSql.execute(f"use d0")
-
-        tdLog.info(f"=============== create super table")
+    def b0_create_tb(self):
+        tdSql.execute(f"create database basic0 vgroups 1 buffer 8")
+        tdSql.execute(f"use basic0")
         tdSql.execute(
             f"create table if not exists stb (ts timestamp, k int) tags (a int)"
         )
         tdSql.query(f"show stables")
         tdSql.checkRows(1)
 
-        tdLog.info(f"=============== create child table")
         tdSql.execute(f"create table ct1 using stb tags(1000)")
         tdSql.execute(f"create table ct2 using stb tags(2000)")
         tdSql.execute(f"create table ct3 using stb tags(3000)")
@@ -63,22 +177,22 @@ class TestStreamOldCaseBasic1:
         tdSql.query(f"show tables")
         tdSql.checkRows(3)
 
-        tdLog.info(f"=============== create stream")
+    def b0_create_stream(self):
         tdSql.execute(
             f"create stream s1 interval(10m) sliding(10m) from ct1 options(MAX_DELAY(1s)) into outstb as select _twstart, min(k), max(k), sum(k) as sum_alias from ct1 where ts >= _twstart and ts < _twend"
         )
-        tdStream.checkStreamStatus("s1")
 
-        tdLog.info(f"=============== insert data")
+    def b0_insert1(self):
         tdSql.execute(f"insert into ct1 values('2022-05-08 03:42:00.000', 234)")
 
+    def b0_check1(self):
         tdSql.checkResultsByFunc(
-            sql='select * from information_schema.ins_tables where db_name="d0" and table_name="outstb"',
+            sql='select * from information_schema.ins_tables where db_name="basic0" and table_name="outstb"',
             func=lambda: tdSql.getRows() == 1,
         )
 
         tdSql.checkTableSchema(
-            dbname="d0",
+            dbname="basic0",
             tbname="outstb",
             schema=[
                 ["_twstart", "TIMESTAMP", 8, ""],
@@ -88,7 +202,6 @@ class TestStreamOldCaseBasic1:
             ],
         )
 
-        tdLog.info(f"=============== query data from child table")
         tdSql.checkResultsByFunc(
             sql="select `_twstart`, `min(k)`, `max(k)`, sum_alias from outstb",
             func=lambda: tdSql.getRows() == 1
@@ -98,10 +211,10 @@ class TestStreamOldCaseBasic1:
             and tdSql.compareData(0, 3, 234),
         )
 
-        tdLog.info(f"=============== insert data")
+    def b0_insert2(self):
         tdSql.execute(f"insert into ct1 values('2022-05-08 03:43:00.000', -111)")
 
-        tdLog.info(f"=============== query data from child table")
+    def b0_check2(self):
         tdSql.checkResultsByFunc(
             sql="select `_twstart`, `min(k)`, `max(k)`, sum_alias from outstb",
             func=lambda: tdSql.getRows() == 1
@@ -111,10 +224,10 @@ class TestStreamOldCaseBasic1:
             and tdSql.compareData(0, 3, 123),
         )
 
-        tdLog.info(f"=============== insert data")
+    def b0_insert3(self):
         tdSql.execute(f"insert into ct1 values('2022-05-08 03:53:00.000', 789)")
 
-        tdLog.info(f"=============== query data from child table")
+    def b0_check3(self):
         tdSql.checkResultsByFunc(
             f"select `_twstart`, `min(k)`, `max(k)`, sum_alias from outstb",
             func=lambda: tdSql.getRows() == 2
@@ -128,28 +241,27 @@ class TestStreamOldCaseBasic1:
             and tdSql.compareData(1, 3, 789),
         )
 
-    def stream_basic_1(self):
-        tdLog.info(f"stream_basic_1")
-        tdStream.dropAllStreamsAndDbs()
-
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test vgroups 1;")
-        tdSql.execute(f"use test;")
+    def b10_create_tb(self):
+        tdSql.execute(f"create database basic10 vgroups 1 buffer 8;")
+        tdSql.execute(f"use basic10;")
 
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
+
+    def b10_create_stream(self):
         tdSql.execute(
             f"create stream streams1 interval(10s) sliding(10s) from t1 options(MAX_DELAY(1s)) into streamt as select _twstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
         )
-        tdStream.checkStreamStatus("streams1")
 
+    def b10_insert1(self):
         tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3, 1.0);")
         tdSql.execute(f"insert into t1 values(1648791223001, 2, 2, 3, 1.1);")
         tdSql.execute(f"insert into t1 values(1648791233002, 3, 2, 3, 2.1);")
         tdSql.execute(f"insert into t1 values(1648791243003, 4, 2, 3, 3.1);")
         tdSql.execute(f"insert into t1 values(1648791213004, 4, 2, 3, 4.1);")
 
+    def b10_check1(self):
         tdSql.checkTableSchema(
-            dbname="test",
+            dbname="basic10",
             tbname="streamt;",
             schema=[
                 ["_twstart", "TIMESTAMP", 8, ""],
@@ -186,8 +298,11 @@ class TestStreamOldCaseBasic1:
             and tdSql.getData(3, 5) == 3,
         )
 
-        # update 
+    def b10_insert2(self):
+        # update
         tdSql.execute(f"insert into t1 values(1648791223001, 12, 14, 13, 11.1);")
+
+    def b10_check2(self):
         tdSql.checkResultsByFunc(
             f"select * from streamt;",
             lambda: tdSql.getRows() == 4
@@ -212,10 +327,11 @@ class TestStreamOldCaseBasic1:
             and tdSql.getData(3, 4) == 2
             and tdSql.getData(3, 5) == 3,
         )
-        
-        return
 
+    def b10_insert3(self):
         tdSql.execute(f"insert into t1 values(1648791223002, 12, 14, 13, 11.1);")
+
+    def b10_check3(self):
         tdSql.checkResultsByFunc(
             f"select `_wstart`, c1, c2, c3, c4, c5 from streamt;",
             lambda: tdSql.getRows() == 4
@@ -226,7 +342,10 @@ class TestStreamOldCaseBasic1:
             and tdSql.getData(1, 5) == 13,
         )
 
+    def b10_insert4(self):
         tdSql.execute(f"insert into t1 values(1648791223003, 12, 14, 13, 11.1);")
+
+    def b10_check4(self):
         tdSql.checkResultsByFunc(
             f"select `_wstart`, c1, c2, c3, c4, c5 from streamt;",
             lambda: tdSql.getRows() == 4
@@ -237,9 +356,12 @@ class TestStreamOldCaseBasic1:
             and tdSql.getData(1, 5) == 13,
         )
 
+    def b10_insert5(self):
         tdSql.execute(f"insert into t1 values(1648791223001, 1, 1, 1, 1.1);")
         tdSql.execute(f"insert into t1 values(1648791223002, 2, 2, 2, 2.1);")
         tdSql.execute(f"insert into t1 values(1648791223003, 3, 3, 3, 3.1);")
+
+    def b10_check5(self):
         tdSql.checkResultsByFunc(
             f"select `_wstart`, c1, c2, c3, c4, c5 from streamt;",
             lambda: tdSql.getRows() == 4
@@ -250,9 +372,12 @@ class TestStreamOldCaseBasic1:
             and tdSql.getData(1, 5) == 1,
         )
 
+    def b10_insert6(self):
         tdSql.execute(f"insert into t1 values(1648791233003, 3, 2, 3, 2.1);")
         tdSql.execute(f"insert into t1 values(1648791233002, 5, 6, 7, 8.1);")
         tdSql.execute(f"insert into t1 values(1648791233002, 3, 2, 3, 2.1);")
+
+    def b10_check6(self):
         tdSql.checkResultsByFunc(
             f"select `_wstart`, c1, c2, c3, c4, c5 from streamt;",
             lambda: tdSql.getRows() == 4
@@ -263,9 +388,12 @@ class TestStreamOldCaseBasic1:
             and tdSql.getData(2, 5) == 3,
         )
 
+    def b10_insert7(self):
         tdSql.execute(
             f"insert into t1 values(1648791213004, 4, 2, 3, 4.1) (1648791213006, 5, 4, 7, 9.1) (1648791213004, 40, 20, 30, 40.1) (1648791213005, 4, 2, 3, 4.1);"
         )
+
+    def b10_check7(self):
         tdSql.checkResultsByFunc(
             f"select `_wstart`, c1, c2, c3, c4, c5 from streamt;",
             lambda: tdSql.getRows() == 4
@@ -276,9 +404,12 @@ class TestStreamOldCaseBasic1:
             and tdSql.getData(0, 5) == 3,
         )
 
+    def b10_insert8(self):
         tdSql.execute(
             f"insert into t1 values(1648791223004, 4, 2, 3, 4.1) (1648791233006, 5, 4, 7, 9.1) (1648791223004, 40, 20, 30, 40.1) (1648791233005, 4, 2, 3, 4.1);"
         )
+
+    def b10_check8(self):
         tdSql.checkResultsByFunc(
             f"select `_wstart`, c1, c2, c3, c4, c5 from streamt;",
             lambda: tdSql.getRows() == 4
@@ -294,10 +425,11 @@ class TestStreamOldCaseBasic1:
             and tdSql.getData(2, 5) == 3,
         )
 
-        tdSql.execute(f"create database test2 vgroups 1;")
+    def b11_create_tb(self):
+        tdSql.execute(f"create database basic11 vgroups 1;")
         tdSql.query(f"select * from information_schema.ins_databases;")
 
-        tdSql.execute(f"use test2;")
+        tdSql.execute(f"use basic11;")
         tdSql.execute(
             f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
         )
@@ -306,24 +438,31 @@ class TestStreamOldCaseBasic1:
         tdSql.execute(f"create table t3 using st tags(2, 2, 2);")
         tdSql.execute(f"create table t4 using st tags(2, 2, 2);")
         tdSql.execute(f"create table t5 using st tags(2, 2, 2);")
+
+    def b11_create_stream(self):
         tdSql.execute(
             f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt as select _wstart, count(*) c1, sum(a) c3, max(b) c4 from st partition by tbname interval(10s);"
         )
         tdSql.execute(
             f"create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt3 as select _wstart, count(*) c1, sum(a) c3, max(b) c4, now c5 from st partition by tbname interval(10s);"
         )
-        tdStream.checkStreamStatus()
 
+    def b11_insert1(self):
         tdSql.execute(
             f"insert into t1 values(1648791213000, 1, 1, 1, 1.0) t2 values(1648791213000, 2, 2, 2, 2.0) t3 values(1648791213000, 3, 3, 3, 3.0) t4 values(1648791213000, 4, 4, 4, 4.0);"
         )
+
+    def b11_check1(self):
         tdSql.checkResultsByFunc(
             f"select * from streamt;", lambda: tdSql.getRows() == 4
         )
 
+    def b11_insert2(self):
         tdSql.execute(
             f"insert into t1 values(1648791213000, 5, 5, 5, 5.0) t2 values(1648791213000, 6, 6, 6, 6.0) t5 values(1648791213000, 7, 7, 7, 7.0);"
         )
+
+    def b11_check2(self):
         tdSql.checkResultsByFunc(
             f"select * from streamt order by c4 desc;",
             lambda: tdSql.getRows() == 5
@@ -335,32 +474,39 @@ class TestStreamOldCaseBasic1:
             and tdSql.getData(2, 2) == 5,
         )
 
+    def b11_insert3(self):
         tdSql.execute(f"insert into t1 values(1648791213000, 8, 8, 8, 8.0);")
+
+    def b11_check3(self):
         tdSql.checkResultsByFunc(
             f"select * from streamt order by c4 desc;",
             lambda: tdSql.getRows() > 0
             and tdSql.getData(0, 1) == 1
             and tdSql.getData(0, 2) == 8,
         )
-
         tdSql.checkResultsByFunc(
             f"select count(*) from streamt3;",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 0) == 5,
         )
 
-        tdSql.execute(f"create database test3 vgroups 1;")
-        tdSql.execute(f"use test3;")
+    def b12_create_tb(self):
+        tdSql.execute(f"create database basic12 vgroups 1;")
+        tdSql.execute(f"use basic12;")
         tdSql.execute(
             f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
         tdSql.execute(f"create table ts1 using st tags(1, 1, 1);")
+
+    def b12_create_stream(self):
         tdSql.execute(
             f"create stream stream_t3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamtST3 as select ts, min(a) c6, a, b, c, ta, tb, tc from ts1 interval(10s) ;"
         )
 
-        tdStream.checkStreamStatus()
+    def b12_insert1(self):
         tdSql.execute(f"insert into ts1 values(1648791211000, 1, 2, 3);")
         tdSql.execute(f"insert into ts1 values(1648791222001, 2, 2, 3);")
+
+    def b12_check1(self):
         tdSql.checkResultsByFunc(
             f"select * from streamtST3;",
             lambda: tdSql.getRows() > 1
@@ -368,58 +514,74 @@ class TestStreamOldCaseBasic1:
             and tdSql.getData(1, 2) == 2,
         )
 
-        tdSql.execute(f"create database test4 vgroups 1;")
-        tdSql.execute(f"use test4;")
+    def b13_create_tb(self):
+        tdSql.execute(f"create database basic13 vgroups 1;")
+        tdSql.execute(f"use basic13;")
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
+
+    def b13_create_stream(self):
         tdSql.execute(
             f"create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt__4 as select _wstart, count(*) c1 from t1 where a > 5 interval(10s);"
         )
 
-        tdStream.checkStreamStatus()
-
+    def b13_insert1(self):
         tdSql.execute(f"insert into t1 values(1648791213000, 1, 2, 3, 1.0);")
+
+    def b13_check1(self):
         tdSql.checkResultsByFunc(
             f"select * from streamt__4;", lambda: tdSql.getRows() == 0
         )
 
+    def b13_insert2(self):
         tdSql.execute(f"insert into t1 values(1648791213000, 6, 2, 3, 1.0);")
+
+    def b13_check2(self):
         tdSql.checkResultsByFunc(
             f"select * from streamt__4;",
             lambda: tdSql.getRows() > 0 and tdSql.getData(0, 1) == 1,
         )
 
+    def b13_insert3(self):
         tdSql.execute(f"insert into t1 values(1648791213000, 2, 2, 3, 1.0);")
+
+    def b13_check3(self):
         tdSql.checkResultsByFunc(
             f"select * from streamt__4;", lambda: tdSql.getRows() == 0
         )
 
+    def b13_insert4(self):
         tdSql.execute(f"insert into t1 values(1648791223000, 2, 2, 3, 1.0);")
         tdSql.execute(f"insert into t1 values(1648791223000, 10, 2, 3, 1.0);")
         tdSql.execute(f"insert into t1 values(1648791233000, 10, 2, 3, 1.0);")
+
+    def b13_check4(self):
         tdSql.checkResultsByFunc(
             f"select * from streamt__4;", lambda: tdSql.getRows() == 2
         )
 
+    def b13_insert5(self):
         tdSql.execute(f"insert into t1 values(1648791233000, 2, 2, 3, 1.0);")
+
+    def b13_check5(self):
         tdSql.checkResultsByFunc(
             f"select * from streamt__4;", lambda: tdSql.getRows() == 1
         )
 
-        # for TS-2242
-        tdSql.execute(f"create database test5 vgroups 1;")
-        tdSql.execute(f"use test5;")
+    def b14_create_tb(self):
+        tdSql.execute(f"create database basic14 vgroups 1;")
+        tdSql.execute(f"use basic14;")
         tdSql.execute(
             f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
         tdSql.execute(f"create table ts1 using st tags(1, 1, 1);")
+
+    def b14_create_stream(self):
         tdSql.execute(
             f"create stream streams5 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt5 as select count(*), _wstart, _wend, max(a) from ts1 interval(10s) ;"
         )
         tdSql.execute(
             f"create stream streams6 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt6 as select count(*), _wstart, _wend, max(a), _wstart as ts from ts1 interval(10s) ;"
         )
-        tdStream.checkStreamStatus()
-
         tdSql.error(
             f"create stream streams7 trigger at_once into streamt7 as select _wstart, count(*), _wstart, _wend, max(a) from ts1 interval(10s) ;"
         )
@@ -430,57 +592,58 @@ class TestStreamOldCaseBasic1:
             f"create stream streams9 trigger at_once into streamt9 as select _wstart as ts, count(*), _wstart as ts, _wend, max(a) from ts1 interval(10s) ;"
         )
 
+    def b14_insert1(self):
         tdSql.execute(f"insert into ts1 values(1648791211000, 1, 2, 3);")
+
+    def b14_check1(self):
         tdSql.checkResultsByFunc(
             f"select * from streamt5;", lambda: tdSql.getRows() == 1
         )
-
         tdSql.checkResultsByFunc(
             f"select * from streamt6;", lambda: tdSql.getRows() == 1
         )
 
-        tdSql.execute(f"create database test7 vgroups 1;")
-        tdSql.execute(f"use test7;")
+    def b15_create_tb(self):
+        tdSql.execute(f"create database basic15 vgroups 1;")
+        tdSql.execute(f"use basic15;")
         tdSql.execute(
             f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
         tdSql.execute(f"create table ts1 using st tags(1, 1, 1);")
+
+    def b15_create_stream(self):
         tdSql.execute(
             f"create stream streams7 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt7 as select _wstart, count(*) from ts1 interval(10s) ;"
         )
-        tdStream.checkStreamStatus()
 
+    def b15_insert1(self):
         tdSql.execute(f"insert into ts1 values(1648791211000, 1, 2, 3);")
         tdSql.error(f"insert into ts1 values(-1648791211000, 1, 2, 3);")
+
+    def b15_check1(self):
         tdSql.checkResultsByFunc(
             f"select * from streamt7;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 1,
         )
 
+    def b15_insert2(self):
         tdSql.error(
             f"insert into ts1 values(-1648791211001, 1, 2, 3) (1648791211001, 1, 2, 3);"
         )
-        tdSql.query(f"select _wstart, count(*) from ts1 interval(10s) ;")
 
+    def b15_check2(self):
+        tdSql.query(f"select _wstart, count(*) from ts1 interval(10s) ;")
         tdSql.checkResultsByFunc(
             f"select * from streamt7;",
             lambda: tdSql.getRows() == 1 and tdSql.getData(0, 1) == 1,
         )
 
-    def stream_basic_2(self):
-        tdLog.info(f"stream_basic_2")
-        tdStream.dropAllStreamsAndDbs()
-
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database d0 vgroups 1")
+    def b20_create_tb(self):
+        tdSql.execute(f"create database basic20 vgroups 1")
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(3)
 
-        tdSql.execute(f"use d0")
-
-        tdLog.info(
-            f"=============== create super table, include column type for count/sum/min/max/first"
-        )
+        tdSql.execute(f"use basic20")
         tdSql.execute(
             f"create table if not exists stb (ts timestamp, k int) tags (a int)"
         )
@@ -488,7 +651,6 @@ class TestStreamOldCaseBasic1:
         tdSql.query(f"show stables")
         tdSql.checkRows(1)
 
-        tdLog.info(f"=============== create child table")
         tdSql.execute(f"create table ct1 using stb tags(1000)")
         tdSql.execute(f"create table ct2 using stb tags(2000)")
         tdSql.execute(f"create table ct3 using stb tags(3000)")
@@ -496,23 +658,18 @@ class TestStreamOldCaseBasic1:
         tdSql.query(f"show tables")
         tdSql.checkRows(3)
 
-        tdLog.info(f"===================== not support _wstart filter")
+    def b20_create_stream(self):
         tdSql.error(
             f"create stream s_error into str_dst_st as select _wend, count(*) a from stb where _wstart > '2025-1-1' interval(30s);"
         )
-
         tdSql.execute(
             f"create stream s1 trigger at_once into outstb as select _wstart, min(k), max(k), sum(k) as sum_alias from ct1 interval(10m)"
         )
-        tdStream.checkStreamStatus()
 
-        tdSql.query(f"show stables")
-        tdSql.checkRows(2)
-
-        tdLog.info(f"=============== insert data")
+    def b20_insert1(self):
         tdSql.execute(f"insert into ct1 values('2022-05-08 03:42:00.000', 234)")
 
-        tdLog.info(f"=============== query data from child table")
+    def b20_check1(self):
         tdSql.checkResultsByFunc(
             f"select `_twstart`, `min(k)`, `max(k)`, sum_alias from outstb",
             lambda: tdSql.getRows() == 1
@@ -521,10 +678,10 @@ class TestStreamOldCaseBasic1:
             and tdSql.getData(0, 3) == 234,
         )
 
-        tdLog.info(f"=============== insert data")
+    def b20_insert2(self):
         tdSql.execute(f"insert into ct1 values('2022-05-08 03:57:00.000', -111)")
 
-        tdLog.info(f"=============== query data from child table")
+    def b20_check2(self):
         tdSql.checkResultsByFunc(
             f"select `_twstart`, `min(k)`, `max(k)`, sum_alias from outstb",
             lambda: tdSql.getRows() == 2
@@ -536,15 +693,16 @@ class TestStreamOldCaseBasic1:
             and tdSql.getData(1, 3) == -111,
         )
 
-        tdLog.info(f"step 2====================")
-        tdSql.execute(f"create database test vgroups 1 ;")
-        tdSql.execute(f"use test;")
+    def b21_create_tb(self):
+        tdSql.execute(f"create database basic21 vgroups 1 ;")
+        tdSql.execute(f"use basic21;")
         tdSql.execute(
             f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
         )
         tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
+    def b21_create_stream(self):
         tdSql.error(
             f"create stream streams1 trigger max_delay 4000a ignore update 0 ignore expired 0 into streamtST1 as select _wstart, count(*) from st interval(5s);"
         )
@@ -557,7 +715,6 @@ class TestStreamOldCaseBasic1:
         tdSql.execute(
             f"create stream streams4 trigger max_delay 5s ignore update 0 ignore expired 0 into streamtST4 as select _wstart, count(*) from st interval(5s);"
         )
-
         tdSql.error(
             f"create stream streams5 trigger at_once ignore update 0 ignore expired 0 into streamtST5 as select _wstart, count(*) from st interval(5s) having count(*) > 2;"
         )
@@ -574,25 +731,22 @@ class TestStreamOldCaseBasic1:
             f"create stream streams9 trigger at_once ignore update 0 ignore expired 0 into streamtST9 as select _wstart, count(*) from st event_window start with a = 0 end with b = 9 having count(*) > 2;"
         )
 
-    def stream_basic_3(self):
-        tdLog.info(f"stream_basic_3")
-        tdStream.dropAllStreamsAndDbs()
-
-        tdSql.execute(f"alter local 'keepColumnName' '1'")
-
-        tdLog.info(f"========== interval\session\state window")
-        tdSql.execute(f"CREATE DATABASE test1 VGROUPS 2;")
-        tdSql.execute(f"use test1;")
+    def b30_create_tb(self):
+        tdSql.execute(f"CREATE DATABASE basic30 VGROUPS 2;")
+        tdSql.execute(f"use basic30;")
         tdSql.execute(
             f"CREATE STABLE st (time TIMESTAMP, ca DOUBLE, cb DOUBLE, cc int) TAGS (ta VARCHAR(10) );"
         )
+        tdSql.execute(
+            f"CREATE STABLE `meters_test_data` (`ts` TIMESTAMP, `close` FLOAT, `parttime` TIMESTAMP, `parttime_str` VARCHAR(32)) TAGS (`id` VARCHAR(32));"
+        )
 
-        tdLog.info(f"========== create table before stream")
         tdSql.execute(f"CREATE TABLE t1 using st TAGS ('aaa');")
         tdSql.execute(f"CREATE TABLE t2 using st TAGS ('bbb');")
         tdSql.execute(f"CREATE TABLE t3 using st TAGS ('ccc');")
         tdSql.execute(f"CREATE TABLE t4 using st TAGS ('ddd');")
 
+    def b30_create_stream(self):
         tdSql.execute(
             f'create stream streamd1 into streamt1 as select ca, _wstart,_wend, count(*) from st where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ca interval(60m) fill(linear);'
         )
@@ -614,13 +768,6 @@ class TestStreamOldCaseBasic1:
             f'create stream streamd6 into streamt6 as select ca, _wstart,_wend, count(*), max(ca), min(cb) from t1 where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ca state_window(cc);'
         )
 
-        tdStream.checkStreamStatus()
-
-        tdSql.execute(f"alter local 'keepColumnName' '1'")
-        tdSql.execute(
-            f"CREATE STABLE `meters_test_data` (`ts` TIMESTAMP, `close` FLOAT, `parttime` TIMESTAMP, `parttime_str` VARCHAR(32)) TAGS (`id` VARCHAR(32));"
-        )
-
         tdSql.error(
             f"create stream realtime_meters fill_history 1 into realtime_meters as select last(parttime), first(close), last(close) from meters_test_data partition by tbname state_window(parttime_str);"
         )
@@ -634,6 +781,7 @@ class TestStreamOldCaseBasic1:
         tdSql.execute(
             f"create stream streamd8 into streamt8 as select _wstart, _wend, count(*), first(ca) as c1, last(ca) as c2 from t1 interval(10s);"
         )
+
         tdSql.query(f"desc streamt8;")
         tdSql.checkAssert(tdSql.getRows() > 0)
 
@@ -1217,3 +1365,156 @@ class TestStreamOldCaseBasic1:
             and tdSql.getData(2, 4) == 2
             and tdSql.getData(2, 5) == 2,
         )
+
+    class StreamItem:
+        def __init__(
+            self,
+            name,
+            db,
+            create_tb,
+            create_stream,
+            insert1=None,
+            check1=None,
+            insert2=None,
+            check2=None,
+            insert3=None,
+            check3=None,
+            insert4=None,
+            check4=None,
+            insert5=None,
+            check5=None,
+            insert6=None,
+            check6=None,
+            insert7=None,
+            check7=None,
+            insert8=None,
+            check8=None,
+        ):
+            self.name = name
+            self.db = db
+            self.create_tb = create_tb
+            self.create_stream = create_stream
+            self.insert1 = insert1
+            self.check1 = check1
+            self.insert2 = insert2
+            self.check2 = check2
+            self.insert3 = insert3
+            self.check3 = check3
+            self.insert4 = insert4
+            self.check4 = check4
+            self.insert5 = insert5
+            self.check5 = check5
+            self.insert6 = insert6
+            self.check6 = check6
+            self.insert7 = insert7
+            self.check7 = check7
+            self.insert8 = insert8
+            self.check8 = check8
+
+    def run(self):
+        for stream in self.streams:
+            tdLog.info(f"stream:{stream.name}: create db")
+            stream.create_tb()
+
+        for stream in self.streams:
+            tdLog.info(f"stream:{stream.name}: create stream")
+            tdSql.execute(f"use {stream.db}")
+            stream.create_stream()
+
+        tdStream.checkStreamStatus()
+
+        for stream in self.streams:
+            if stream.insert1 != None:
+                tdLog.info(f"stream:{stream.name}: insert data step 1")
+                tdSql.execute(f"use {stream.db}")
+                stream.insert1()
+
+        for stream in self.streams:
+            if stream.check1 != None:
+                tdLog.info(f"stream:{stream.name}: check result step 1")
+                tdSql.execute(f"use {stream.db}")
+                stream.check1()
+
+        for stream in self.streams:
+            if stream.insert2 != None:
+                tdLog.info(f"stream:{stream.name}: insert data step 2")
+                tdSql.execute(f"use {stream.db}")
+                stream.insert2()
+
+        for stream in self.streams:
+            if stream.check2 != None:
+                tdLog.info(f"stream:{stream.name}: check result step 2")
+                tdSql.execute(f"use {stream.db}")
+                stream.check2()
+
+        for stream in self.streams:
+            if stream.insert3 != None:
+                tdLog.info(f"stream:{stream.name}: insert data step 3")
+                tdSql.execute(f"use {stream.db}")
+                stream.insert3()
+
+        for stream in self.streams:
+            if stream.check3 != None:
+                tdLog.info(f"stream:{stream.name}: check result step 3")
+                tdSql.execute(f"use {stream.db}")
+                stream.check3()
+
+        for stream in self.streams:
+            if stream.insert4 != None:
+                tdLog.info(f"stream:{stream.name}: insert data step 4")
+                tdSql.execute(f"use {stream.db}")
+                stream.insert4()
+
+        for stream in self.streams:
+            if stream.check4 != None:
+                tdLog.info(f"stream:{stream.name}: check result step 4")
+                tdSql.execute(f"use {stream.db}")
+                stream.check4()
+
+        for stream in self.streams:
+            if stream.insert5 != None:
+                tdLog.info(f"stream:{stream.name}: insert data step 5")
+                tdSql.execute(f"use {stream.db}")
+                stream.insert5()
+
+        for stream in self.streams:
+            if stream.check5 != None:
+                tdLog.info(f"stream:{stream.name}: check result step 5")
+                tdSql.execute(f"use {stream.db}")
+                stream.check5()
+
+        for stream in self.streams:
+            if stream.insert6 != None:
+                tdLog.info(f"stream:{stream.name}: insert data step 6")
+                tdSql.execute(f"use {stream.db}")
+                stream.insert6()
+
+        for stream in self.streams:
+            if stream.check6 != None:
+                tdLog.info(f"stream:{stream.name}: check result step 6")
+                tdSql.execute(f"use {stream.db}")
+                stream.check6()
+
+        for stream in self.streams:
+            if stream.insert7 != None:
+                tdLog.info(f"stream:{stream.name}: insert data step 7")
+                tdSql.execute(f"use {stream.db}")
+                stream.insert7()
+
+        for stream in self.streams:
+            if stream.check7 != None:
+                tdLog.info(f"stream:{stream.name}: check result step 7")
+                tdSql.execute(f"use {stream.db}")
+                stream.check7()
+
+        for stream in self.streams:
+            if stream.insert8 != None:
+                tdLog.info(f"stream:{stream.name}: insert data step 8")
+                tdSql.execute(f"use {stream.db}")
+                stream.insert8()
+
+        for stream in self.streams:
+            if stream.check8 != None:
+                tdLog.info(f"stream:{stream.name}: check result step 8")
+                tdSql.execute(f"use {stream.db}")
+                stream.check8()
