@@ -347,6 +347,14 @@ static int32_t joinTableNodeCopy(const SJoinTableNode* pSrc, SJoinTableNode* pDs
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t placeHolderTableNodeCopy(const SPlaceHolderTableNode* pSrc, SPlaceHolderTableNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
+  CLONE_OBJECT_FIELD(pMeta, tableMetaClone);
+  CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
+  COPY_SCALAR_FIELD(placeholderType);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t targetNodeCopy(const STargetNode* pSrc, STargetNode* pDst) {
   COPY_SCALAR_FIELD(dataBlockId);
   COPY_SCALAR_FIELD(slotId);
@@ -1089,6 +1097,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_JOIN_TABLE:
       code = joinTableNodeCopy((const SJoinTableNode*)pNode, (SJoinTableNode*)pDst);
+      break;
+    case QUERY_NODE_PLACE_HOLDER_TABLE:
+      code = placeHolderTableNodeCopy((const SPlaceHolderTableNode*)pNode, (SPlaceHolderTableNode*)pDst);
       break;
     case QUERY_NODE_GROUPING_SET:
       code = groupingSetNodeCopy((const SGroupingSetNode*)pNode, (SGroupingSetNode*)pDst);

@@ -1174,6 +1174,14 @@ int32_t tSerializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pReq
   }
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->recursiveTsma));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->baseTsmaName));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->streamReqLen));
+  if (pReq->streamReqLen > 0) {
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->createStreamReq, pReq->streamReqLen));
+  }
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->dstreamReqLen));
+  if (pReq->dstreamReqLen > 0) {
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->dropStreamReq, pReq->dstreamReqLen));
+  }
   tEndEncode(&encoder);
 
 _exit:
@@ -1260,6 +1268,22 @@ int32_t tDeserializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pR
   }
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->recursiveTsma));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->baseTsmaName));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->streamReqLen));
+  if (pReq->streamReqLen > 0) {
+    pReq->createStreamReq = taosMemoryMalloc(pReq->streamReqLen);
+    if (pReq->createStreamReq == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->createStreamReq));
+  }
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->dstreamReqLen));
+  if (pReq->dstreamReqLen > 0) {
+    pReq->dropStreamReq = taosMemoryMalloc(pReq->dstreamReqLen);
+    if (pReq->dropStreamReq == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->dropStreamReq));
+  }
   tEndDecode(&decoder);
 
 _exit:

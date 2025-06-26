@@ -70,8 +70,6 @@ typedef struct SCreateTSMACxt {
   SStbObj            *pSrcStb;
   SSmaObj            *pSma;
   const SSmaObj      *pBaseSma;
-  SCMCreateStreamReq *pCreateStreamReq;
-  SMDropStreamReq    *pDropStreamReq;
   const char         *streamName;
   const char         *targetStbFullName;
   SNodeList          *pProjects;
@@ -99,6 +97,7 @@ int32_t mndInitSma(SMnode *pMnode) {
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndCancelRetrieveIdx);
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_TSMA, mndProcessCreateTSMAReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_TSMA, mndProcessDropTSMAReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_TABLE_TSMA, mndProcessGetTbTSMAReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_TSMA, mndProcessGetTbTSMAReq);
@@ -297,8 +296,6 @@ void mndReleaseSma(SMnode *pMnode, SSmaObj *pSma) {
   sdbRelease(pSdb, pSma);
 }
 
-SDbObj *mndAcquireDbBySma(SMnode *pMnode, const char *db) { return mndAcquireDb(pMnode, db); }
-
 static void *mndBuildVCreateSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSma, int32_t *pContLen) {
   SEncoder encoder = {0};
   int32_t  contLen = 0;
@@ -354,52 +351,6 @@ static void *mndBuildVCreateSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSm
     return NULL;
   }
 
-  tEncoderClear(&encoder);
-
-  *pContLen = contLen;
-  return pHead;
-}
-
-static void *mndBuildVDropSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSma, int32_t *pContLen) {
-  SEncoder encoder = {0};
-  int32_t  contLen;
-  SName    name = {0};
-  int32_t  code = tNameFromString(&name, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-  if (TSDB_CODE_SUCCESS != code) {
-    terrno = code;
-    return NULL;
-  }
-
-  SVDropTSmaReq req = {0};
-  req.indexUid = pSma->uid;
-  tstrncpy(req.indexName, (char *)tNameGetTableName(&name), TSDB_INDEX_NAME_LEN);
-
-  // get length
-  int32_t ret = 0;
-  tEncodeSize(tEncodeSVDropTSmaReq, &req, contLen, ret);
-  if (ret < 0) {
-    return NULL;
-  }
-
-  contLen += sizeof(SMsgHead);
-
-  SMsgHead *pHead = taosMemoryMalloc(contLen);
-  if (pHead == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  pHead->contLen = htonl(contLen);
-  pHead->vgId = htonl(pVgroup->vgId);
-
-  void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
-  tEncoderInit(&encoder, pBuf, contLen - sizeof(SMsgHead));
-
-  if (tEncodeSVDropTSmaReq(&encoder, &req) < 0) {
-    taosMemoryFreeClear(pHead);
-    tEncoderClear(&encoder);
-    return NULL;
-  }
   tEncoderClear(&encoder);
 
   *pContLen = contLen;
@@ -1553,100 +1504,6 @@ static void initSMAObj(SCreateTSMACxt *pCxt) {
   pCxt->pSma->ast = pCxt->pCreateSmaReq->ast;
 }
 
-static int32_t mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
-  int32_t           code = 0;
-  //STREAMTODO
-  /*
-  tstrncpy(pCxt->pCreateStreamReq->name, pCxt->streamName, TSDB_STREAM_FNAME_LEN);
-  tstrncpy(pCxt->pCreateStreamReq->sourceDB, pCxt->pDb->name, TSDB_DB_FNAME_LEN);
-  tstrncpy(pCxt->pCreateStreamReq->targetStbFullName, pCxt->targetStbFullName, TSDB_TABLE_FNAME_LEN);
-  pCxt->pCreateStreamReq->igExists = false;
-  pCxt->pCreateStreamReq->triggerType = STREAM_TRIGGER_MAX_DELAY;
-  pCxt->pCreateStreamReq->igExpired = false;
-  pCxt->pCreateStreamReq->fillHistory = STREAM_FILL_HISTORY_ON;
-  pCxt->pCreateStreamReq->maxDelay = 10000;
-  pCxt->pCreateStreamReq->watermark = 0;
-  pCxt->pCreateStreamReq->numOfTags = pCxt->pSrcStb ? pCxt->pSrcStb->numOfTags + 1 : 1;
-  pCxt->pCreateStreamReq->checkpointFreq = 0;
-  pCxt->pCreateStreamReq->createStb = 1;
-  pCxt->pCreateStreamReq->targetStbUid = 0;
-  pCxt->pCreateStreamReq->fillNullCols = NULL;
-  pCxt->pCreateStreamReq->igUpdate = 0;
-  pCxt->pCreateStreamReq->deleteMark = pCxt->pCreateSmaReq->deleteMark;
-  pCxt->pCreateStreamReq->lastTs = pCxt->pCreateSmaReq->lastTs;
-  pCxt->pCreateStreamReq->smaId = pCxt->pSma->uid;
-  pCxt->pCreateStreamReq->ast = taosStrdup(pCxt->pCreateSmaReq->ast);
-  if (!pCxt->pCreateStreamReq->ast) {
-    return terrno;
-  }
-  pCxt->pCreateStreamReq->sql = taosStrdup(pCxt->pCreateSmaReq->sql);
-  if (!pCxt->pCreateStreamReq->sql) {
-    return terrno;
-  }
-
-  // construct tags
-  pCxt->pCreateStreamReq->pTags = taosArrayInit(pCxt->pCreateStreamReq->numOfTags, sizeof(SField));
-  if (!pCxt->pCreateStreamReq->pTags) {
-    return terrno;
-  }
-  SFieldWithOptions f = {0};
-  if (pCxt->pSrcStb) {
-    for (int32_t idx = 0; idx < pCxt->pCreateStreamReq->numOfTags - 1; ++idx) {
-      SSchema *pSchema = &pCxt->pSrcStb->pTags[idx];
-      f.bytes = pSchema->bytes;
-      f.type = pSchema->type;
-      f.flags = pSchema->flags;
-      tstrncpy(f.name, pSchema->name, TSDB_COL_NAME_LEN);
-      if (NULL == taosArrayPush(pCxt->pCreateStreamReq->pTags, &f)) {
-        code = terrno;
-        break;
-      }
-    }
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    f.bytes = TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE;
-    f.flags = COL_SMA_ON;
-    f.type = TSDB_DATA_TYPE_BINARY;
-    tstrncpy(f.name, "tbname", strlen("tbname") + 1);
-    if (NULL == taosArrayPush(pCxt->pCreateStreamReq->pTags, &f)) {
-      code = terrno;
-    }
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    // construct output cols
-    SNode *pNode;
-    FOREACH(pNode, pCxt->pProjects) {
-      SExprNode *pExprNode = (SExprNode *)pNode;
-      f.bytes = pExprNode->resType.bytes;
-      f.type = pExprNode->resType.type;
-      f.flags = COL_SMA_ON;
-      tstrncpy(f.name, pExprNode->userAlias, TSDB_COL_NAME_LEN);
-      if (IS_DECIMAL_TYPE(f.type)) {
-        f.typeMod = decimalCalcTypeMod(pExprNode->resType.precision, pExprNode->resType.scale);
-        f.flags |= COL_HAS_TYPE_MOD;
-      }
-      if (NULL == taosArrayPush(pCxt->pCreateStreamReq->pCols, &f)) {
-        code = terrno;
-        break;
-      }
-    }
-  }
-  */
-  return code;
-}
-
-static int32_t mndCreateTSMABuildDropStreamReq(SCreateTSMACxt *pCxt) {
-  tstrncpy(pCxt->pDropStreamReq->name, pCxt->streamName, TSDB_STREAM_FNAME_LEN);
-  pCxt->pDropStreamReq->igNotExists = false;
- // pCxt->pDropStreamReq->sql = taosStrdup(pCxt->pDropSmaReq->name);
- // if (!pCxt->pDropStreamReq->sql) {
- //   return terrno;
-  //}
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t mndSetUpdateDbTsmaVersionPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
   int32_t  code = 0;
   SSdbRaw *pRedoRaw = mndDbActionEncode(pOld);
@@ -1694,41 +1551,21 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt *pCxt) {
   TAOS_CHECK_GOTO(mndTransCheckConflict(pCxt->pMnode, pTrans), NULL, _OVER);
 
   mndTransSetSerial(pTrans);
-  mInfo("trans:%d, used to create tsma:%s stream:%s", pTrans->id, pCxt->pCreateSmaReq->name,
-        pCxt->pCreateStreamReq->name);
+  mInfo("trans:%d, used to create tsma:%s", pTrans->id, pCxt->pCreateSmaReq->name);
 
   mndGetMnodeEpSet(pCxt->pMnode, &createStreamRedoAction.epSet);
   createStreamRedoAction.acceptableCode = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
-  createStreamRedoAction.msgType = TDMT_STREAM_CREATE;
-  createStreamRedoAction.contLen = tSerializeSCMCreateStreamReq(0, 0, pCxt->pCreateStreamReq);
+  createStreamRedoAction.msgType = TDMT_MND_CREATE_STREAM;
+  createStreamRedoAction.contLen = pCxt->pCreateSmaReq->streamReqLen;
   createStreamRedoAction.pCont = taosMemoryCalloc(1, createStreamRedoAction.contLen);
-  if (!createStreamRedoAction.pCont) {
-    code = terrno;
-    goto _OVER;
-  }
-  if (createStreamRedoAction.contLen != tSerializeSCMCreateStreamReq(createStreamRedoAction.pCont,
-                                                                     createStreamRedoAction.contLen,
-                                                                     pCxt->pCreateStreamReq)) {
-    mError("sma: %s, failed to create due to create stream req encode failure", pCxt->pCreateSmaReq->name);
-    code = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
+  memcpy(createStreamRedoAction.pCont, pCxt->pCreateSmaReq->createStreamReq, createStreamRedoAction.contLen);
 
   createStreamUndoAction.epSet = createStreamRedoAction.epSet;
   createStreamUndoAction.acceptableCode = TSDB_CODE_MND_STREAM_NOT_EXIST;
-  createStreamUndoAction.msgType = TDMT_STREAM_DROP;
-  createStreamUndoAction.contLen = tSerializeSMDropStreamReq(0, 0, pCxt->pDropStreamReq);
+  createStreamUndoAction.msgType = TDMT_MND_DROP_STREAM;
+  createStreamUndoAction.contLen = pCxt->pCreateSmaReq->dstreamReqLen;
   createStreamUndoAction.pCont = taosMemoryCalloc(1, createStreamUndoAction.contLen);
-  if (!createStreamUndoAction.pCont) {
-    code = terrno;
-    goto _OVER;
-  }
-  if (createStreamUndoAction.contLen !=
-      tSerializeSMDropStreamReq(createStreamUndoAction.pCont, createStreamUndoAction.contLen, pCxt->pDropStreamReq)) {
-    mError("sma: %s, failed to create due to drop stream req encode failure", pCxt->pCreateSmaReq->name);
-    code = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
+  memcpy(createStreamUndoAction.pCont, pCxt->pCreateSmaReq->dropStreamReq, createStreamUndoAction.contLen);
 
   dropStbReq.igNotExists = true;
   tstrncpy(dropStbReq.name, pCxt->targetStbFullName, TSDB_TABLE_FNAME_LEN);
@@ -1756,8 +1593,8 @@ static int32_t mndCreateTSMATxnPrepare(SCreateTSMACxt *pCxt) {
   TAOS_CHECK_GOTO(mndSetCreateSmaUndoLogs(pCxt->pMnode, pTrans, pCxt->pSma), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateSmaCommitLogs(pCxt->pMnode, pTrans, pCxt->pSma), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransAppendRedoAction(pTrans, &createStreamRedoAction), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndTransAppendUndoAction(pTrans, &createStreamUndoAction), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndTransAppendUndoAction(pTrans, &dropStbUndoAction), NULL, _OVER);
+  //TAOS_CHECK_GOTO(mndTransAppendUndoAction(pTrans, &createStreamUndoAction), NULL, _OVER);
+  //TAOS_CHECK_GOTO(mndTransAppendUndoAction(pTrans, &dropStbUndoAction), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetUpdateDbTsmaVersionPrepareLogs(pCxt->pMnode, pTrans, pCxt->pDb, &newDb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetUpdateDbTsmaVersionCommitLogs(pCxt->pMnode, pTrans, pCxt->pDb, &newDb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pCxt->pMnode, pTrans), NULL, _OVER);
@@ -1772,8 +1609,6 @@ _OVER:
 static int32_t mndCreateTSMA(SCreateTSMACxt *pCxt) {
   int32_t            code = 0;
   SSmaObj            sma = {0};
-  SCMCreateStreamReq createStreamReq = {0};
-  SMDropStreamReq    dropStreamReq = {0};
 
   pCxt->pSma = &sma;
   initSMAObj(pCxt);
@@ -1785,32 +1620,6 @@ static int32_t mndCreateTSMA(SCreateTSMACxt *pCxt) {
   }
   pCxt->pProjects = pProjects;
 
-  pCxt->pCreateStreamReq = &createStreamReq;
-/*  STREAMTODO
-  if (pCxt->pCreateSmaReq->pVgroupVerList) {
-    pCxt->pCreateStreamReq->pVgroupVerList = taosArrayDup(pCxt->pCreateSmaReq->pVgroupVerList, NULL);
-    if (!pCxt->pCreateStreamReq->pVgroupVerList) {
-      code = terrno;
-      goto _OVER;
-    }
-  }
-  if (LIST_LENGTH(pProjects) > 0) {
-    createStreamReq.pCols = taosArrayInit(LIST_LENGTH(pProjects), sizeof(SFieldWithOptions));
-    if (!createStreamReq.pCols) {
-      code = terrno;
-      goto _OVER;
-    }
-  }
-*/  
-  pCxt->pDropStreamReq = &dropStreamReq;
-  code = mndCreateTSMABuildCreateStreamReq(pCxt);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto _OVER;
-  }
-  code = mndCreateTSMABuildDropStreamReq(pCxt);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto _OVER;
-  }
 
   if (TSDB_CODE_SUCCESS != (code = mndCreateTSMATxnPrepare(pCxt))) {
     goto _OVER;
@@ -1821,9 +1630,6 @@ static int32_t mndCreateTSMA(SCreateTSMACxt *pCxt) {
   }
 
 _OVER:
-  tFreeSCMCreateStreamReq(pCxt->pCreateStreamReq);
-  if (pCxt->pDropStreamReq) tFreeMDropStreamReq(pCxt->pDropStreamReq);
-  pCxt->pCreateStreamReq = NULL;
   if (pProjects) nodesDestroyList(pProjects);
   pCxt->pProjects = NULL;
   TAOS_RETURN(code);
@@ -1854,7 +1660,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
   int64_t        mTraceId = TRACE_GET_ROOTID(&pReq->info.traceId);
   SMCreateSmaReq createReq = {0};
 
-  if (sdbGetSize(pMnode->pSdb, SDB_SMA) >= tsMaxTsmaNum) {
+  if (sdbGetSize(pMnode->pSdb, SDB_SMA) >= 10000000) {
     code = TSDB_CODE_MND_MAX_TSMA_NUM_EXCEEDED;
     goto _OVER;
   }
@@ -1942,7 +1748,6 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
   SCreateTSMACxt cxt = {
       .pMnode = pMnode,
       .pCreateSmaReq = &createReq,
-      .pCreateStreamReq = NULL,
       .streamName = streamName,
       .targetStbFullName = streamTargetStbFullName,
       .pDb = pDb,
@@ -1978,30 +1783,14 @@ static int32_t mndDropTSMA(SCreateTSMACxt *pCxt) {
     code = terrno;
     goto _OVER;
   }
-  SMDropStreamReq dropStreamReq = {0};
-  pCxt->pDropStreamReq = &dropStreamReq;
-  code = mndCreateTSMABuildDropStreamReq(pCxt);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto _OVER;
-  }
   mndTransSetDbName(pTrans, pCxt->pDb->name, NULL);
   if (mndTransCheckConflict(pCxt->pMnode, pTrans) != 0) goto _OVER;
   mndTransSetSerial(pTrans);
   mndGetMnodeEpSet(pCxt->pMnode, &dropStreamRedoAction.epSet);
   dropStreamRedoAction.acceptableCode = TSDB_CODE_MND_STREAM_NOT_EXIST;
-  dropStreamRedoAction.msgType = TDMT_STREAM_DROP;
-  dropStreamRedoAction.contLen = tSerializeSMDropStreamReq(0, 0, pCxt->pDropStreamReq);
-  dropStreamRedoAction.pCont = taosMemoryCalloc(1, dropStreamRedoAction.contLen);
-  if (!dropStreamRedoAction.pCont) {
-    code = terrno;
-    goto _OVER;
-  }
-  if (dropStreamRedoAction.contLen !=
-      tSerializeSMDropStreamReq(dropStreamRedoAction.pCont, dropStreamRedoAction.contLen, pCxt->pDropStreamReq)) {
-    mError("tsma: %s, failed to drop due to drop stream req encode failure", pCxt->pDropSmaReq->name);
-    code = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
+  dropStreamRedoAction.msgType = TDMT_MND_DROP_STREAM;
+  dropStreamRedoAction.contLen = pCxt->pDropSmaReq->dstreamReqLen;
+  dropStreamRedoAction.pCont = taosStrdup(pCxt->pDropSmaReq->dropStreamReq);
 
   // output stable is not dropped when dropping stream, dropping it when dropping tsma
   SMDropStbReq dropStbReq = {0};
@@ -2039,7 +1828,6 @@ static int32_t mndDropTSMA(SCreateTSMACxt *pCxt) {
   TAOS_CHECK_GOTO(mndTransPrepare(pCxt->pMnode, pTrans), NULL, _OVER);
   code = TSDB_CODE_SUCCESS;
 _OVER:
-  tFreeMDropStreamReq(pCxt->pDropStreamReq);
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }
@@ -2066,6 +1854,7 @@ static int32_t mndProcessDropTSMAReq(SRpcMsg *pReq) {
   SSmaObj     *pSma = NULL;
   SDbObj      *pDb = NULL;
   SMnode      *pMnode = pReq->info.node;
+  SStbObj     *pStb = NULL;
   if (tDeserializeSMDropSmaReq(pReq->pCont, pReq->contLen, &dropReq) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_INVALID_MSG;
     goto _OVER;
@@ -2078,7 +1867,7 @@ static int32_t mndProcessDropTSMAReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  SStbObj *pStb = mndAcquireStb(pMnode, streamTargetStbFullName);
+  pStb = mndAcquireStb(pMnode, streamTargetStbFullName);
 
   pSma = mndAcquireSma(pMnode, dropReq.name);
   if (!pSma && dropReq.igNotExists) {

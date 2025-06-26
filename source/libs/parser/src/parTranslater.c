@@ -13235,7 +13235,7 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
   (void)snprintf(pReq->outDB, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->targetDbName);
 
   code = getTableMeta(pCxt, pStmt->targetDbName, pStmt->targetTabName, &pMeta);
-  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code || TSDB_CODE_PAR_INTERNAL_ERROR == code) {
     if (((SStreamTriggerNode*)pStmt->pTrigger)->pPartitionList) {
       // create stb
       pReq->outStbExists = false;
@@ -13288,7 +13288,7 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
       PAR_ERR_JRET(createStreamCheckOutCols(pCxt, pStmt->pCols, pMeta));
     }
   } else {
-    PAR_ERR_JRET(code);
+     PAR_ERR_JRET(code);
   }
 
   PAR_ERR_JRET(checkTableSchemaImpl(pCxt, pStmt->pTags, pStmt->pCols, NULL, false));
@@ -14970,9 +14970,6 @@ static int32_t buildIntervalForCreateStream(SNode *pInt, SNode** pOutput) {
   }
   nodesCloneNode(pInt, &pInterval->pInterval);
   nodesCloneNode(pInt, &pInterval->pSliding);
-  nodesMakeValueNodeFromInt32(0, &pInterval->pOffset);
-  nodesMakeValueNodeFromInt32(0, &pInterval->pSOffset);
-
 
   pInterval->pCol = NULL;
   code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pInterval->pCol);
@@ -14991,21 +14988,24 @@ static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMC
   int32_t            code = TSDB_CODE_SUCCESS;
   SSelectStmt*       pSelect = NULL;
   SSelectStmt*       pStreamQuery = NULL;
-  SRealTableNode*    pFromTable = NULL;
+  SPlaceHolderTableNode*  pFromTable = NULL;
   SNodeList*         pFuncList = NULL;
   int32_t            pProjectionTotalLen = 0;
   SCreateStreamStmt* pCreateStream = NULL;
   SNode*             pSubTable = NULL;
 
+  SRealTableNode* pTriggerTable = NULL;
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pTriggerTable));
+  tstrncpy(pTriggerTable->table.dbName, pStmt->dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pTriggerTable->table.tableName, pStmt->tableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pTriggerTable->table.tableAlias, pStmt->tableName, TSDB_TABLE_NAME_LEN);
+
 
   PAR_ERR_RET(nodesMakeNode(QUERY_NODE_SELECT_STMT, (SNode**)&pSelect));
   snprintf(pSelect->stmtName, TSDB_TABLE_NAME_LEN, "%p", pSelect);
 
-  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pFromTable));
-
-  snprintf(pFromTable->table.dbName, sizeof(pFromTable->table.dbName), "%s", pStmt->dbName);
-  snprintf(pFromTable->table.tableName, sizeof(pFromTable->table.tableName), "%s", pStmt->tableName);
-  snprintf(pFromTable->table.tableAlias, sizeof(pFromTable->table.tableAlias), "%s", pStmt->tableName);
+  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_PLACE_HOLDER_TABLE, (SNode**)&pFromTable));
+  pFromTable->placeholderType = SP_PARTITION_ROWS;
 
   pSelect->pFromTable = (SNode*)pFromTable;
 
@@ -15024,7 +15024,12 @@ static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMC
 
   nodesCloneNode((SNode*)pSelect, (SNode**)&pStreamQuery);
 
+  pCxt->createStreamTriggerTbl = (SNode*)pTriggerTable;
+  pCxt->createStreamCalc = true;
   PAR_ERR_JRET(translateQuery(pCxt, (SNode*)pSelect));
+  pCxt->createStreamCalc = false;
+  pCxt->createStreamTriggerTbl = NULL;
+
   PAR_ERR_JRET(nodesNodeToString((SNode*)pSelect, false, &pReq->ast, &pReq->astLen));
   PAR_ERR_JRET(nodesListToString(pSelect->pProjectionList, false, &pReq->expr, &pReq->exprLen));
 
@@ -15046,13 +15051,10 @@ static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMC
   }
   PAR_ERR_JRET(buildTSMAAstStreamSubTable(pStmt, pReq, pTbname, (SNode**)&pSubTable));
 
-  SRealTableNode* pTriggerTable = NULL;
-  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pTriggerTable));
-  tstrncpy(pTriggerTable->table.dbName, pStmt->dbName, TSDB_DB_NAME_LEN);
-  tstrncpy(pTriggerTable->table.tableName, pStmt->tableName, TSDB_TABLE_NAME_LEN);
-  tstrncpy(pTriggerTable->table.tableAlias, pStmt->tableName, TSDB_TABLE_NAME_LEN);
 
   SStreamTriggerNode* pTrigger = NULL;
+
+  nodesMakeNode(QUERY_NODE_STREAM_TRIGGER, (SNode**)&pTrigger);
   SIntervalWindowNode* pInterval = NULL;
   buildIntervalForCreateStream(pStmt->pOptions->pInterval, (SNode**)&pInterval);
 
@@ -15087,7 +15089,44 @@ static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMC
 
   SCMCreateStreamReq csreq = {0};
   PAR_ERR_JRET(checkCreateStream(pCxt, pCreateStream));
+
+  ESqlClause currClause = pCxt->currClause;
+  SNode*     pCurrStmt = pCxt->pCurrStmt;
+  int32_t    currLevel = pCxt->currLevel;
+
+  pCxt->currLevel = ++(pCxt->levelNo);
+
   PAR_ERR_JRET(buildCreateStreamReq(pCxt, pCreateStream, &csreq));
+
+  pCxt->currClause = currClause;
+  pCxt->pCurrStmt = pCurrStmt;
+  pCxt->currLevel = currLevel;
+
+  pReq->streamReqLen = tSerializeSCMCreateStreamReq(0, 0, &csreq);
+  pReq->createStreamReq = taosMemoryCalloc(1, pReq->streamReqLen);
+  if (!pReq->createStreamReq) {
+    PAR_ERR_JRET(terrno);
+  }
+  if (pReq->streamReqLen != tSerializeSCMCreateStreamReq(pReq->createStreamReq,
+                                                         pReq->streamReqLen,
+                                                         &csreq)) {
+    PAR_ERR_JRET(TSDB_CODE_INVALID_MSG);
+  }
+
+  SMDropStreamReq dropcsreq = {0};
+  dropcsreq.name = taosStrdup(csreq.name);
+  dropcsreq.igNotExists = false;
+
+  pReq->dstreamReqLen = tSerializeSMDropStreamReq(0, 0, &dropcsreq);
+  pReq->dropStreamReq = taosMemoryCalloc(1, pReq->dstreamReqLen);
+  if (!pReq->dropStreamReq) {
+    PAR_ERR_JRET(terrno);
+  }
+  if (pReq->dstreamReqLen != tSerializeSMDropStreamReq(pReq->dropStreamReq,
+                                                          pReq->dstreamReqLen,
+                                                          &dropcsreq)) {
+    PAR_ERR_JRET(TSDB_CODE_INVALID_MSG);
+  }
 
   return code;
 _return:
