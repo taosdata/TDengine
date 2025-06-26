@@ -30,8 +30,6 @@
 #include "taos_string_builder_i.h"
 #include "taos_test.h"
 
-#define MAX_VGROUP_ID_LEN 31
-
 taos_metric_formatter_t *taos_metric_formatter_new() {
   taos_metric_formatter_t *self = (taos_metric_formatter_t *)taos_malloc(sizeof(taos_metric_formatter_t));
   self->string_builder = taos_string_builder_new();
@@ -160,10 +158,10 @@ int32_t taos_metric_formatter_get_vgroup_id(char *key) {
     end = strchr(start, '\"');
     if (end) {
       size_t len = end - start;
-      if (len > MAX_VGROUP_ID_LEN) {
+      if (len > 11) {
         return 0;
       }
-      char vgroupid[MAX_VGROUP_ID_LEN + 1];
+      char vgroupid[12];
       strncpy(vgroupid, start, len);
       vgroupid[len] = '\0';
       return strtol(vgroupid, NULL, 10);

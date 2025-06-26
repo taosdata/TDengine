@@ -448,11 +448,10 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (!TSDB_CACHE_NO(pVnode->config)) {
-    METRICS_TIMING_BLOCK(pVnode->writeMetrics.last_cache_commit_time, METRIC_LEVEL_HIGH, {
-      code = tsdbCacheCommit(pVnode->pTsdb);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    });
+    METRICS_TIMING_BLOCK(pVnode->writeMetrics.last_cache_commit_time, METRIC_LEVEL_HIGH,
+                         { code = tsdbCacheCommit(pVnode->pTsdb); });
     METRICS_UPDATE(pVnode->writeMetrics.last_cache_commit_count, METRIC_LEVEL_HIGH, 1);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (VND_IS_RSMA(pVnode)) {
