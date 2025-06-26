@@ -168,6 +168,7 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
     triggerNum = 1;
     SStreamTask* pTask = &pDeploy->triggerTask->task;
     if (NULL == pStream->triggerTask) {
+      pStream->triggerTaskId = pTask->taskId;
       pStream->triggerTask = taosMemoryCalloc(1, sizeof(SStreamTriggerTask));
       TSDB_CHECK_NULL(pStream->triggerTask, code, lino, _exit, terrno);
 
