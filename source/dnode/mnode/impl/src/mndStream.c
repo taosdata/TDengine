@@ -1031,7 +1031,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
   sdbRelease(pMnode->pSdb, pStream);
 //  mndTransDrop(pTrans);
 
-  return TSDB_CODE_ACTION_IN_PROGRESS;
+  return TSDB_CODE_SUCCESS;
 }
 
 
