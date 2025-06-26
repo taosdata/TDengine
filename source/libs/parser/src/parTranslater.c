@@ -14214,7 +14214,7 @@ static int32_t getExtWindowBorder(STranslateContext* pCxt, SNode* pTriggerWindow
       uint8_t     precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
       SValueNode* pInter = (SValueNode*)pInterval->pInterval;
       SValueNode* pSliding = (SValueNode*)pInterval->pSliding;
-      if (pInter && pSliding && checkTimeGreater(pSliding, pInter, precision, true)) {
+      if (pInter && pSliding && TSDB_CODE_SUCCESS == checkTimeGreater(pSliding, pInter, precision, true)) {
         *withExtwindow = true;
         *eqLeft = true;
         *eqRight = false;
