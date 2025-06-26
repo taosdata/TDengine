@@ -939,13 +939,17 @@ END:
     }                                                    \
   }
 
-#define SET_DATA                                                     \
-  if (colVal.cid < pColData->info.colId) {                           \
-    sourceIdx++;                                                     \
-  } else if (colVal.cid == pColData->info.colId) {                   \
-    TQ_ERR_GO_TO_END(doSetVal(pColData, curRow - lastRow, &colVal)); \
-    sourceIdx++;                                                     \
-    targetIdx++;                                                     \
+#define SET_DATA                                                                                    \
+  if (colVal.cid < pColData->info.colId) {                                                          \
+    sourceIdx++;                                                                                    \
+  } else if (colVal.cid == pColData->info.colId) {                                                  \
+    if (IS_STR_DATA_BLOB(pColData->info.type)) {                                                    \
+      TQ_ERR_GO_TO_END(doSetBlobVal(pColData, curRow - lastRow, &colVal, pSubmitTbData->pBlobRow)); \
+    } else {                                                                                        \
+      TQ_ERR_GO_TO_END(doSetVal(pColData, curRow - lastRow, &colVal));                              \
+    }                                                                                               \
+    sourceIdx++;                                                                                    \
+    targetIdx++;                                                                                    \
   }
 
 static int32_t processBuildNew(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArray* blocks, SArray* schemas,
@@ -1784,7 +1788,11 @@ int32_t tqRetrieveVTableDataBlock(STqReader* pReader, SSDataBlock** pRes, const 
       for (int32_t k = 0; k < pColData->nVal; ++k) {
         code = tColDataGetValue(pColData, k, &colVal);
         TSDB_CHECK_CODE(code, lino, _end);
-        code = doSetVal(pOutCol, k, &colVal);
+        if (IS_STR_DATA_BLOB(pColData->type)) {
+          code = TSDB_CODE_INVALID_DATA_FMT;
+        } else {
+          code = doSetVal(pOutCol, k, &colVal);
+        }
         TSDB_CHECK_CODE(code, lino, _end);
       }
     } else {
@@ -1799,7 +1807,12 @@ int32_t tqRetrieveVTableDataBlock(STqReader* pReader, SSDataBlock** pRes, const 
           code = tRowGet(pRow, pPhyTblSchema, l, &colVal);
           TSDB_CHECK_CODE(code, lino, _end);
           if (colVal.cid == pCol->pColId) {
-            code = doSetVal(pOutCol, k, &colVal);
+            STColumn* pCol = pPhyTblSchema->columns + l;
+            if (IS_STR_DATA_BLOB(pCol->type)) {
+              code = TSDB_CODE_INVALID_DATA_FMT;
+            } else {
+              code = doSetVal(pOutCol, k, &colVal);
+            }
             TSDB_CHECK_CODE(code, lino, _end);
             break;
           } else if (colVal.cid > pCol->pColId || l == (nInputCols - 1)) {
@@ -1823,7 +1836,12 @@ int32_t tqRetrieveVTableDataBlock(STqReader* pReader, SSDataBlock** pRes, const 
     for (int32_t k = 0; k < pColData->nVal; ++k) {
       code = tColDataGetValue(pColData, k, &colVal);
       TSDB_CHECK_CODE(code, lino, _end);
-      code = doSetVal(pOutCol, k, &colVal);
+
+      if (IS_STR_DATA_BLOB(pColData->type)) {
+        return TSDB_CODE_INVALID_DATA_FMT;
+      } else {
+        code = doSetVal(pOutCol, k, &colVal);
+      }
       TSDB_CHECK_CODE(code, lino, _end);
     }
   } else {
@@ -1836,7 +1854,11 @@ int32_t tqRetrieveVTableDataBlock(STqReader* pReader, SSDataBlock** pRes, const 
       TSDB_CHECK_NULL(pRow, code, lino, _end, terrno);
       code = tRowGet(pRow, pPhyTblSchema, 0, &colVal);
       TSDB_CHECK_CODE(code, lino, _end);
-      code = doSetVal(pOutCol, k, &colVal);
+      if (IS_STR_DATA_BLOB(pOutCol->info.type)) {
+        return TSDB_CODE_INVALID_DATA_FMT;
+      } else {
+        code = doSetVal(pOutCol, k, &colVal);
+      }
       TSDB_CHECK_CODE(code, lino, _end);
     }
   }
