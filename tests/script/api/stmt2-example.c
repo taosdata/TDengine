@@ -21,10 +21,11 @@ void do_stmt(TAOS* taos) {
 
   struct {
     int64_t ts[2];
-    char    b[16];
+    char    b[512];
+    char    n[108];
   } v;
 
-  int32_t b_len[2], t64_len[2];
+  int32_t b_len[2], t64_len[2], n_len[2];
   char    is_null[2] = {0};
   char    is_null2[2] = {0, 2};
   //  TAOS_STMT2_OPTION option = {0};
@@ -76,9 +77,9 @@ void do_stmt(TAOS* taos) {
     v.ts[i] = ts++;
     t64_len[i] = sizeof(int64_t);
   }
-  strcpy(v.b, "aaa");
+  strcpy(v.b, "11111111111111111111111111");
   b_len[0] = (int)strlen(v.b);
-  strcpy(v.b + b_len[0], "bbb");
+  strcpy(v.b + b_len[0], "222");
   b_len[1] = 3;
 
   taos_stmt2_bind_param(stmt, &bindv, -1);

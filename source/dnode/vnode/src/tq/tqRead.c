@@ -733,6 +733,8 @@ static int32_t doSetBlobVal(SColumnInfoData* pColumnInfoData, int32_t idx, SColV
         uError("tq set blob val, idx:%d, get blob item failed, seq:%" PRIu64 ", code:%d", idx, seq, code);
         return code;
       }
+
+      val = taosMemRealloc(val, item.dataLen + sizeof(BlobDataLenT));
       (void)memcpy(blobDataVal(val), item.data, item.dataLen);
       len = item.dataLen;
     }
