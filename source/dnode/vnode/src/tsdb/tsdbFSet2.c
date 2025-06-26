@@ -282,6 +282,10 @@ int32_t tsdbTFileSetToJson(const STFileSet *fset, cJSON *json) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  if (cJSON_AddNumberToObject(json, "last migrate", fset->lastMigrate) == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   return 0;
 }
 
@@ -348,10 +352,17 @@ int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset) {
     (*fset)->lastCommit = 0;
   }
 
+  item1 = cJSON_GetObjectItem(json, "last migrate");
+  if (cJSON_IsNumber(item1)) {
+    (*fset)->lastMigrate = item1->valuedouble;
+  } else {
+    (*fset)->lastMigrate = 0;
+  }
+
   return 0;
 }
 
-// NOTE: the api does not remove file, only do memory operation
+// NOTE: the api does not remove file (seems this is not true?), only do memory operation
 int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
   int32_t code = 0;
 
@@ -492,6 +503,7 @@ int32_t tsdbTFileSetApplyEdit(STsdb *pTsdb, const STFileSet *fset1, STFileSet *f
 
   fset2->lastCompact = fset1->lastCompact;
   fset2->lastCommit = fset1->lastCommit;
+  fset2->lastMigrate = fset1->lastMigrate;
 
   return 0;
 }
@@ -550,6 +562,7 @@ int32_t tsdbTFileSetInitCopy(STsdb *pTsdb, const STFileSet *fset1, STFileSet **f
 
   (*fset)->lastCompact = fset1->lastCompact;
   (*fset)->lastCommit = fset1->lastCommit;
+  (*fset)->lastMigrate = fset1->lastMigrate;
 
   return 0;
 }
@@ -648,6 +661,7 @@ int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fs
 
   (*fset)->lastCompact = fset1->lastCompact;
   (*fset)->lastCommit = fset1->lastCommit;
+  (*fset)->lastMigrate = fset1->lastMigrate;
 
   return 0;
 }

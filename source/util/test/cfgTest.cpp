@@ -247,34 +247,6 @@ TEST_F(CfgTest, cfgDumpItemCategory) {
   EXPECT_EQ(cfgDumpItemCategory(pItem, NULL, 0, 0), TSDB_CODE_INVALID_CFG);
 }
 
-TEST_F(CfgTest, cfgDumpCfgS3) {
-  SConfig *pConfig = NULL;
-  int32_t  code = cfgInit(&pConfig);
-
-  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  ASSERT_NE(pConfig, nullptr);
-
-  cfgAddInt32(pConfig, "s3MigrateIntervalSec", 60 * 60, 600, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,
-              CFG_CATEGORY_GLOBAL);
-  cfgAddBool(pConfig, "s3MigrateEnabled", 60 * 60, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER, CFG_CATEGORY_GLOBAL);
-  cfgAddString(pConfig, "s3Accesskey", "", CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY, CFG_CATEGORY_GLOBAL);
-  cfgAddString(pConfig, "s3Endpoint", "", CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY, CFG_CATEGORY_GLOBAL);
-  cfgAddString(pConfig, "s3BucketName", "", CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY, CFG_CATEGORY_GLOBAL);
-  cfgAddInt32(pConfig, "s3PageCacheSize", 10, 4, 1024 * 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,
-              CFG_CATEGORY_GLOBAL);
-  cfgAddInt32(pConfig, "s3UploadDelaySec", 10, 1, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,
-              CFG_CATEGORY_GLOBAL);
-  cfgAddDir(pConfig, "scriptDir", configDir, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL);
-
-  cfgDumpCfgS3(pConfig, false, false);
-
-  cfgDumpCfgS3(pConfig, true, true);
-
-  cfgDumpCfgS3(pConfig, false, true);
-
-  cfgDumpCfgS3(pConfig, true, false);
-}
-
 #ifndef WINDOWS
 TEST_F(CfgTest, cfgLoadFromEnvVar) {
   SConfig *pConfig = NULL;

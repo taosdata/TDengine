@@ -128,6 +128,7 @@ echo "vDebugFlag             135"                >> $TAOS_CFG
 echo "mDebugFlag             135"                >> $TAOS_CFG
 echo "wDebugFlag             135"                >> $TAOS_CFG
 echo "azDebugFlag            135"                >> $TAOS_CFG
+echo "tssDebugFlag           135"                >> $TAOS_CFG
 echo "sDebugFlag             135"                >> $TAOS_CFG
 echo "tsdbDebugFlag          135"                >> $TAOS_CFG
 echo "tqDebugFlag            135"                >> $TAOS_CFG

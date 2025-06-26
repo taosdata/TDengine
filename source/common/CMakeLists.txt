@@ -95,7 +95,9 @@ else()
   DEP_ext_ssl(common)
 endif()
 
-if(${BUILD_S3})
+if(${BUILD_SHARED_STORAGE})
+  add_definitions(-DUSE_SHARED_STORAGE)
+
   if(${BUILD_WITH_S3})
     DEP_ext_libs3(common)
     DEP_ext_curl(common)
@@ -105,35 +107,37 @@ if(${BUILD_S3})
   endif()
 
   if(${BUILD_WITH_COS})
-    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-    find_library(APR_LIBRARY apr-1 PATHS /usr/local/apr/lib/)
-    find_library(APR_UTIL_LIBRARY aprutil-1 PATHS /usr/local/apr/lib/)
-    find_library(MINIXML_LIBRARY mxml)
-    target_link_libraries(
-      common
+    MESSAGE("shared storage does not support COS at present, please use s3 instead")
 
-      # s3
-      PUBLIC cos_c_sdk_static
-      PUBLIC ${APR_UTIL_LIBRARY}
-      PUBLIC ${APR_LIBRARY}
-      PUBLIC ${MINIXML_LIBRARY}
-      PUBLIC ${CURL_LIBRARY}
-    )
+    # set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    # find_library(APR_LIBRARY apr-1 PATHS /usr/local/apr/lib/)
+    # find_library(APR_UTIL_LIBRARY aprutil-1 PATHS /usr/local/apr/lib/)
+    # find_library(MINIXML_LIBRARY mxml)
+    # target_link_libraries(
+    # common
+
+    #  # s3
+    #   PUBLIC cos_c_sdk_static
+    #   PUBLIC ${APR_UTIL_LIBRARY}
+    #   PUBLIC ${APR_LIBRARY}
+    #   PUBLIC ${MINIXML_LIBRARY}
+    #   PUBLIC ${CURL_LIBRARY}
+    # )
 
     # s3
-    FIND_PROGRAM(APR_CONFIG_BIN NAMES apr-config apr-1-config PATHS /usr/bin /usr/local/bin /usr/local/apr/bin/)
+    # FIND_PROGRAM(APR_CONFIG_BIN NAMES apr-config apr-1-config PATHS /usr/bin /usr/local/bin /usr/local/apr/bin/)
 
-    if(APR_CONFIG_BIN)
-      EXECUTE_PROCESS(
-        COMMAND ${APR_CONFIG_BIN} --includedir
-        OUTPUT_VARIABLE APR_INCLUDE_DIR
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-      )
-    endif()
+    # if(APR_CONFIG_BIN)
+    # EXECUTE_PROCESS(
+    #   COMMAND ${APR_CONFIG_BIN} --includedir
+    #   OUTPUT_VARIABLE APR_INCLUDE_DIR
+    #   OUTPUT_STRIP_TRAILING_WHITESPACE
+    # )
+    # endif()
 
-    include_directories(${APR_INCLUDE_DIR})
+    # include_directories(${APR_INCLUDE_DIR})
 
-    add_definitions(-DUSE_COS)
+    # add_definitions(-DUSE_COS)
   endif(${BUILD_WITH_COS})
 endif()
 
