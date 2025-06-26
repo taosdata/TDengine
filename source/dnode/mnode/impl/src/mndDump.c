@@ -50,7 +50,7 @@ void dumpFunc(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
   void   *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "funcs");
+  SJson  *items = tjsonAddArrayToObject(json, "funcs");
 
   while (1) {
     SFuncObj *pObj = NULL;
@@ -572,6 +572,28 @@ _OVER:
   if (code != 0) mError("failed to dump snode info at line:%d since %s", lino, tstrerror(code));
 }
 
+void dumpBnode(SSdb *pSdb, SJson *json) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  void   *pIter = NULL;
+  SJson  *items = tjsonAddArrayToObject(json, "bnodes");
+
+  while (1) {
+    SBnodeObj *pObj = NULL;
+    pIter = sdbFetch(pSdb, SDB_BNODE, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    SJson *item = tjsonCreateObject();
+    RETRIEVE_CHECK_GOTO(tjsonAddItemToArray(items, item), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "id", i642str(pObj->id)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime)), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime)), pObj, &lino, _OVER);
+    sdbRelease(pSdb, pObj);
+  }
+_OVER:
+  if (code != 0) mError("failed to dump bnode info at line:%d since %s", lino, tstrerror(code));
+}
+
 void dumpQnode(SSdb *pSdb, SJson *json) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -700,7 +722,7 @@ void dumpHeader(SSdb *pSdb, SJson *json) {
   SJson *maxIdsJson = tjsonCreateObject();
   TAOS_CHECK_GOTO(tjsonAddItemToObject(json, "maxIds", maxIdsJson), &lino, _OVER);
   for (int32_t i = 0; i < SDB_MAX; ++i) {
-    if(i == 5) continue;
+    if (i == 5) continue;
     int64_t maxId = 0;
     if (i < SDB_MAX) {
       maxId = pSdb->maxId[i];
@@ -761,6 +783,7 @@ int32_t mndDumpSdb() {
   dumpUser(pSdb, json);
   dumpDnode(pSdb, json);
   dumpSnode(pSdb, json);
+  dumpBnode(pSdb, json);
   dumpQnode(pSdb, json);
   dumpMnode(pSdb, json);
   dumpCluster(pSdb, json);
