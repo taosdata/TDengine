@@ -1,12 +1,12 @@
 name: New Framework Test For Stream Dev
 
 on:
-  push:
-    branches:
-      - 'feat/TS-6100-3.0'
-    paths-ignore:
-      - 'packaging/**'
-      - 'docs/**'
+  # push:
+  #   branches:
+  #     - 'feat/TS-6100-3.0'
+  #   paths-ignore:
+  #     - 'packaging/**'
+  #     - 'docs/**'
   pull_request:
     branches:
       - 'feat/TS-6100-3.0'
