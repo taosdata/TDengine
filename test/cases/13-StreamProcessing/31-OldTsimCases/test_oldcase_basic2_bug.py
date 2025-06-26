@@ -46,8 +46,9 @@ class TestStreamOldCaseBasic2:
         )
         tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
+
         tdSql.execute(
-            f"create stream streams1 interval(10s) sliding (5s) from t1 options(MAX_DELAY(1s)) into streamt as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
+            f"create stream streams1 interval(10s) sliding (5s) from t1 options(MAX_DELAY(1s)) into streamt as select _twstart, _twend, first(ts), last(ts), count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
         )
 
         tdStream.checkStreamStatus()
@@ -70,6 +71,19 @@ class TestStreamOldCaseBasic2:
 
         tdLog.info(f"step 0")
         tdSql.checkResultsByFunc(
-            f"select * from streamt;",
-            lambda: tdSql.getRows() == 4,
+            f"select * from streamt;", lambda: tdSql.getRows() == 4
         )
+        tdSql.checkResultsBySql(
+            sql="select * from streamt",
+            exp_sql="select _wstart, _wend, first(ts), last(ts), count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 interval(10s) sliding (5s);",
+        )
+
+        #     and tdSql.compareData(0, 0, "2022-04-01 13:33:25.000")
+        #     and tdSql.compareData(1, 0, "2022-04-01 13:33:30.000")
+        #     and tdSql.compareData(2, 0, "2022-04-01 13:33:35.000")
+        #     and tdSql.compareData(3, 0, "2022-04-01 13:33:240.000")
+        #     and tdSql.compareData(0, 1, 1)
+        #     and tdSql.compareData(1, 1, 1)
+        #     and tdSql.compareData(2, 1, 1)
+        #     and tdSql.compareData(3, 1, 1)
+        # )

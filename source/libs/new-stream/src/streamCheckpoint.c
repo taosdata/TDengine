@@ -1,5 +1,6 @@
 #include "stream.h"
 #include "trpc.h"
+#include "streamInt.h"
 
 TdThreadMutex mtx;
 SHashObj* checkpointReadyMap = NULL;
@@ -176,60 +177,68 @@ static int32_t sendDeleteMsg(int64_t streamId, SEpSet* epSet){
   return tmsgSendReq(epSet, &msg);
 }
 
-int32_t streamCheckpointSetNotReady(int64_t streamId) {
-  int32_t code = 0;
-  int32_t lino = 0;
+// int32_t streamCheckpointSetNotReady(int64_t streamId) {
+//   int32_t code = 0;
+//   int32_t lino = 0;
 
-  if (checkpointReadyMap == NULL) {
+//   if (checkpointReadyMap == NULL) {
     
-    taosThreadMutexLock(&mtx);
-    if (checkpointReadyMap == NULL) {
-      checkpointReadyMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
-      if (checkpointReadyMap == NULL) {
-        code = terrno;
-        taosThreadMutexUnlock(&mtx);
-        stError("failed to initialize checkpoint ready map, error:%s", tstrerror(code));
-        goto end;
-      }
-    }
-    taosThreadMutexUnlock(&mtx);
-  }
-  bool checkpointReady = false;
-  STREAM_CHECK_RET_GOTO(taosHashPut(checkpointReadyMap, &streamId, sizeof(streamId), &checkpointReady, sizeof(checkpointReady)));
-  stDebug("[checkpoint] set not ready for streamId:%" PRIx64, streamId);
-end:
-  STREAM_PRINT_LOG_END(code, lino);
-  return code;
-}
+//     taosThreadMutexLock(&mtx);
+//     if (checkpointReadyMap == NULL) {
+//       checkpointReadyMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+//       if (checkpointReadyMap == NULL) {
+//         code = terrno;
+//         taosThreadMutexUnlock(&mtx);
+//         stError("failed to initialize checkpoint ready map, error:%s", tstrerror(code));
+//         goto end;
+//       }
+//     }
+//     taosThreadMutexUnlock(&mtx);
+//   }
+//   bool checkpointReady = false;
+//   STREAM_CHECK_RET_GOTO(taosHashPut(checkpointReadyMap, &streamId, sizeof(streamId), &checkpointReady, sizeof(checkpointReady)));
+//   stDebug("[checkpoint] set not ready for streamId:%" PRIx64, streamId);
+// end:
+//   STREAM_PRINT_LOG_END(code, lino);
+//   return code;
+// }
 
 int32_t streamCheckpointSetReady(int64_t streamId) {
-  bool checkpointReady = true;
-  int32_t code = taosHashPut(checkpointReadyMap, &streamId, sizeof(streamId), &checkpointReady, sizeof(checkpointReady));
-  if (code != 0) {
-    stError("failed to set checkpoint ready for streamId:%" PRIx64 ", error:%s", streamId, tstrerror(code));
-    return code;
+  SStreamTriggerTask* pTriggerTask = NULL;
+  int32_t code = streamGetTriggerTask(streamId, (SStreamTask**)&pTriggerTask);
+  if (code == 0){
+    pTriggerTask->isCheckpointReady = true;
   }
-  stDebug("[checkpoint] set ready for streamId:%" PRIx64, streamId);
   return code;
 }
+// int32_t streamCheckpointSetReady(int64_t streamId) {
+//   bool checkpointReady = true;
+//   int32_t code = taosHashPut(checkpointReadyMap, &streamId, sizeof(streamId), &checkpointReady, sizeof(checkpointReady));
+//   if (code != 0) {
+//     stError("failed to set checkpoint ready for streamId:%" PRIx64 ", error:%s", streamId, tstrerror(code));
+//     return code;
+//   }
+//   stDebug("[checkpoint] set ready for streamId:%" PRIx64, streamId);
+//   return code;
+// }
 
-bool streamCheckpointIsReady(int64_t streamId) {
-  if (checkpointReadyMap == NULL) { 
-    return true;
-  }
-  void* data = taosHashGet(checkpointReadyMap, &streamId, sizeof(streamId));
-  if (data == NULL) {
-    stDebug("[checkpoint] not generated for streamId:%" PRIx64, streamId);
-    return true;
-  }
-  bool ready = *(bool*)data;
-  if (ready) {
-    stDebug("[checkpoint] is ready for streamId:%" PRIx64, streamId);
-  } else {
-    stDebug("[checkpoint] is not ready for streamId:%" PRIx64, streamId);
-  }
-  return ready;
-}
+// bool streamCheckpointIsReady(int64_t streamId) {
+//   if (checkpointReadyMap == NULL) { 
+//     return true;
+//   }
+//   void* data = taosHashGet(checkpointReadyMap, &streamId, sizeof(streamId));
+//   if (data == NULL) {
+//     stDebug("[checkpoint] not generated for streamId:%" PRIx64, streamId);
+//     return true;
+//   }
+//   bool ready = *(bool*)data;
+//   if (ready) {
+//     stDebug("[checkpoint] is ready for streamId:%" PRIx64, streamId);
+//   } else {
+//     stDebug("[checkpoint] is not ready for streamId:%" PRIx64, streamId);
+//   }
+//   return ready;
+// }
 
 int32_t streamSyncWriteCheckpoint(int64_t streamId, SEpSet* epSet, void* data, int64_t dataLen) {
   int32_t code = 0;

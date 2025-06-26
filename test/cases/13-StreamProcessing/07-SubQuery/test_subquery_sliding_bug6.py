@@ -205,7 +205,7 @@ class TestStreamDevBasic:
                 ["_twstart", "TIMESTAMP", 8, ""],
                 ["_twrownum", "BIGINT", 8, ""],
                 ["count(*)", "BIGINT", 8, ""],
-                ["sum(cdecimal8)", "DECIMAL(0, 0)", 16, ""],
+                ["sum(cdecimal8)", "DECIMAL(38, 0)", 16, ""],
                 ["id", "INT", 4, "TAG"],
                 ["name", "VARCHAR", 16, "TAG"],
             ],

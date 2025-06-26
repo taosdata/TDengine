@@ -826,6 +826,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->fillHistoryFirst = pStream->pCreate->fillHistoryFirst;
   pMsg->lowLatencyCalc = pStream->pCreate->lowLatencyCalc;
   pMsg->hasPartitionBy = (pStream->pCreate->partitionCols != NULL);
+  pMsg->triggerTblType = pStream->pCreate->triggerTblType;
 
   pMsg->pNotifyAddrUrls = pStream->pCreate->pNotifyAddrUrls;
   pMsg->notifyEventTypes = pStream->pCreate->notifyEventTypes;

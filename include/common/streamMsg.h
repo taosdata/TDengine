@@ -515,6 +515,7 @@ typedef struct {
   int8_t fillHistoryFirst;
   int8_t lowLatencyCalc;
   int8_t hasPartitionBy;
+  int8_t triggerTblType;
 
   // notify options
   SArray* pNotifyAddrUrls;

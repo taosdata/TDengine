@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - '3.0'
+      - 'main'
     paths-ignore:
       - 'packaging/**'
       - 'docs/**'

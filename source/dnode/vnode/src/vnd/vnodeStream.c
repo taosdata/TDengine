@@ -669,7 +669,9 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
 
   STREAM_CHECK_RET_GOTO(scanWalOneVer(pVnode, pTableList, pBlock1, pBlock2, schemas, ver, uid, window));
 
-  STREAM_CHECK_RET_GOTO(processTag(pVnode, pExpr, numOfExpr, &api, pBlock2));
+  if (pBlock2->info.rows > 0) {
+    STREAM_CHECK_RET_GOTO(processTag(pVnode, pExpr, numOfExpr, &api, pBlock2));
+  }
 
   STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock2, pFilterInfo));
   printDataBlock(pBlock2, __func__, "");
@@ -1473,8 +1475,10 @@ static int32_t vnodeProcessStreamTsDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTrig
 
     SSDataBlock* pBlock = NULL;
     STREAM_CHECK_RET_GOTO(getTableData(pTask, &pBlock));
-    STREAM_CHECK_RET_GOTO(processTag(pVnode, sStreamReaderInfo->pExprInfo, sStreamReaderInfo->numOfExpr, &api, pBlock));
-
+    if (pBlock != NULL && pBlock->info.rows > 0) {
+      STREAM_CHECK_RET_GOTO(processTag(pVnode, sStreamReaderInfo->pExprInfo, sStreamReaderInfo->numOfExpr, &api, pBlock));
+    }
+    
     STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, pTask->pFilterInfo));
     STREAM_CHECK_RET_GOTO(blockDataMerge(pTask->pResBlockDst, pBlock));
     stDebug("vgId:%d %s get  skey:%" PRId64 ", eksy:%" PRId64 ", uid:%" PRId64 ", gId:%" PRIu64 ", rows:%" PRId64,
@@ -1534,9 +1538,10 @@ static int32_t vnodeProcessStreamTsdbTriggerDataReq(SVnode* pVnode, SRpcMsg* pMs
 
     SSDataBlock* pBlock = NULL;
     STREAM_CHECK_RET_GOTO(getTableData(pTask, &pBlock));
-    STREAM_CHECK_RET_GOTO(
+    if (pBlock != NULL && pBlock->info.rows > 0) {
+      STREAM_CHECK_RET_GOTO(
         processTag(pVnode, sStreamReaderInfo->pExprInfo, sStreamReaderInfo->numOfExpr, &pTask->api, pBlock));
-
+    }
     STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, pTask->pFilterInfo));
     STREAM_CHECK_RET_GOTO(blockDataMerge(pTask->pResBlockDst, pBlock));
     stDebug("vgId:%d %s get skey:%" PRId64 ", eksy:%" PRId64 ", uid:%" PRId64 ", gId:%" PRIu64 ", rows:%" PRId64,
