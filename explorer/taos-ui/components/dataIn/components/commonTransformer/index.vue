@@ -1538,6 +1538,11 @@ async function caculateMappingResult() {
   const mutates: Recordable[] = [];
   const mutateMap = {};
 
+  const precision_res = await executeSqlFn!(`
+        select \`precision\` from information_schema.ins_databases where name = '${sourceForm.targetDB}'
+        `);
+  const precision = precision_res.data[0][0];
+
   tableData.value.forEach((item: Recordable) => {
     // 主键列不能为空
     if (item['PrimaryKey'] && !item['Expression']) {
@@ -1583,6 +1588,9 @@ async function caculateMappingResult() {
               expreitem['default'] = item.default;
             }
           }
+        }
+        if (expreitem["generator"] === 'now') {
+          expreitem["precision"] = precision
         }
         mutates.push({
           [`${item['Name']}`]: expreitem
