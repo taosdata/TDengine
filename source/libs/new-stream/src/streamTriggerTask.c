@@ -3185,6 +3185,8 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
       pTask->task.status = STREAM_STATUS_RUNNING;
       break;
     }
+    case STREAM_MSG_UPDATE_RUNNER:
+    case STREAM_MSG_USER_RECALC:
     case STREAM_MSG_ORIGTBL_READER_INFO: {
       // todo(kjq): handle original table reader info
       break;
