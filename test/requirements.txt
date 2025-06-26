@@ -65,7 +65,7 @@ tomli==2.2.1
 typing_extensions==4.12.2
 tzdata==2025.1
 tzlocal==5.3.1
-urllib3==1.26.20
+urllib3==2.5.0
 wcwidth==0.2.13
 xmltodict==0.14.2
 zipp==3.21.0
