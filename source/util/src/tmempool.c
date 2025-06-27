@@ -1783,14 +1783,14 @@ static int32_t mpUpdateReservedSize(SMemPool* pPool, int32_t newReservedSizeMB) 
   code = taosGetSysAvailMemory(&sysAvailSize);
   if (code || sysAvailSize < MP_MIN_MEM_POOL_SIZE) {
     uInfo("memory pool disabled since no enough system available memory, size: %" PRId64, sysAvailSize);
-    return TSDB_CODE_INVALID_PARA;
+    MP_ERR_RET(TSDB_CODE_QRY_MEMORY_POOL_MEMORY_NOT_ENOUGH);
   }
 
   int64_t freeSizeAfterRes = sysAvailSize - newReservedSizeMB * 1048576UL;
   if (freeSizeAfterRes < MP_MIN_FREE_SIZE_AFTER_RESERVE) {
     uInfo("memory pool disabled since no enough system available memory after reservied, size: %" PRId64,
           freeSizeAfterRes);
-    return TSDB_CODE_INVALID_PARA;
+    MP_ERR_RET(TSDB_CODE_QRY_MEMORY_POOL_MEMORY_NOT_ENOUGH);
   }
 
   MP_LOCK(MP_WRITE, &pPool->cfgLock);
