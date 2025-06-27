@@ -34,7 +34,6 @@
                                                   .pTagCond = sStreamInfo->pTagCond,                               \
                                                   .pTagIndexCond = sStreamInfo->pTagIndexCond,                     \
                                                   .pConditions = sStreamInfo->pConditions,                         \
-                                                  .pCalcConditions = sStreamInfo->pCalcConditions,                 \
                                                   .partitionCols = sStreamInfo->partitionCols,                     \
                                                   .schemas = _schemas,                                             \
                                                   .isSchema = _isSchema,                                           \

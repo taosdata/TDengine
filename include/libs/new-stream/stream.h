@@ -104,7 +104,6 @@ typedef struct SStreamRunnerTask {
 typedef struct SStreamCacheReadInfo {
   SStreamTask  taskInfo;
   int64_t      gid;
-  void**       ppIter;
   TSKEY        start;
   TSKEY        end;
   SSDataBlock *pBlock;
