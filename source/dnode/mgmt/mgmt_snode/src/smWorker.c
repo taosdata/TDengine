@@ -116,7 +116,6 @@ static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, voi
       int64_t               buf[] = {pReq->streamId, pReq->triggerTaskId, pReq->sessionId};
       uint32_t              hashVal = MurmurHash3_32((const char *)buf, sizeof(buf));
       *pWorkerIdx = hashVal % tsNumOfStreamTriggerThreads;
-      code = streamTriggerKickCalc();
       break;
     }
 
