@@ -205,9 +205,11 @@ static int32_t sendDeleteMsg(int64_t streamId, SEpSet* epSet){
 
 int32_t streamCheckpointSetReady(int64_t streamId) {
   SStreamTriggerTask* pTriggerTask = NULL;
-  int32_t code = streamGetTriggerTask(streamId, (SStreamTask**)&pTriggerTask);
+  void* taskAddr = NULL;
+  int32_t code = streamAcquireTriggerTask(streamId, (SStreamTask**)&pTriggerTask, &taskAddr);
   if (code == 0){
     pTriggerTask->isCheckpointReady = true;
+    streamReleaseTask(taskAddr);
   }
   return code;
 }
