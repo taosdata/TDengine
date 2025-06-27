@@ -871,6 +871,8 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   TAOS_CHECK_EXIT(msmBuildTriggerRunnerTargets(pMnode, pInfo, streamId, &pMsg->runnerList));
 
   pMsg->leaderSnodeId = pStream->mainSnodeId;
+  pMsg->streamName = taosStrdup(pStream->name);
+  TSDB_CHECK_NULL(pMsg->streamName, code, lino, _exit, terrno);
 
 _exit:
 
@@ -892,6 +894,8 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStrea
   //TAOS_CHECK_EXIT(qSubPlanToString(plan, &pMsg->pPlan, NULL));
 
   pMsg->execReplica = replica;
+  pMsg->streamName = taosStrdup(pStream->name);
+  TSDB_CHECK_NULL(pMsg->streamName, code, lino, _exit, terrno);
   //TAOS_CHECK_EXIT(nodesCloneNode((SNode*)plan, (SNode**)&pMsg->pPlan));
   pMsg->pPlan = plan;
   pMsg->outDBFName = pStream->pCreate->outDB;
