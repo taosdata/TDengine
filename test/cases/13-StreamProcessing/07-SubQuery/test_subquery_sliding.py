@@ -751,11 +751,11 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=74,
-            stream="create stream rdb.s74 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r74 as select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by f1 having twa(f1) > 3",
+            stream="create stream rdb.s74 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r74 as select first(cts), _twstart, %%tbname, cint, avg(cfloat), count(cdouble), sum(cfloat), twa(cdouble) from qdb.meters where cts >= _twstart and cts < _twend and tbname = %%1 group by cint having count(cdouble) == 1 order by first(cts);",
             res_query="select * from rdb.r74",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            exp_query="select first(cts), cint, avg(cfloat), count(cdouble), sum(cfloat), twa(cdouble) from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname = 't1' group by cint having count(cdouble) == 1 order by first(cts);",
         )
-        # self.streams.append(stream)
+        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug8.py
 
         stream = StreamItem(
             id=75,
@@ -790,11 +790,11 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=79,
-            stream="create stream rdb.s79 interval(5m) sliding(5m) from tdb.triggers into rdb.r79 as select cts, sum(cdecimal8) from qdb.meters where tbname='%%1' and cts >= _twstart and cts < _twend and _twrownum > 0;",
-            res_query="select * from rdb.r79",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s79 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r79 as select _twstart, sum(cdecimal8), count(*), _twrownum from qdb.meters where tbname=%%1 and cts >= _twstart and cts < _twend and _twrownum > 0;",
+            res_query="select `_twstart`, `sum(cdecimal8)`, `count(*)` from rdb.r79 where tag_tbname='t1'",
+            exp_query="select _wstart, sum(cdecimal8), count(*) from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream) todo
+        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug3.py
 
         stream = StreamItem(
             id=80,
@@ -996,7 +996,7 @@ class TestStreamSubquerySliding:
             res_query="select * from rdb.r102",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream)
+        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug8.py
 
         stream = StreamItem(
             id=103,
@@ -1098,7 +1098,7 @@ class TestStreamSubquerySliding:
             res_query="select * from rdb.r115",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream)
+        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug8.py
 
         stream = StreamItem(
             id=116,
@@ -1146,7 +1146,7 @@ class TestStreamSubquerySliding:
             res_query="select * from rdb.r121",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream)
+        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug8.py
 
         stream = StreamItem(
             id=122,
@@ -1158,9 +1158,10 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=123,
-            stream="create stream rdb.s123 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r123 as select _wstart, _wend, _twstart ts, _twend, count(c1), sum(c2) from %%trows interval(1m)",
-            res_query="select * from rdb.r123",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s123 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r123 as select _wstart tw, _wend te, _twstart, _twend, count(c1) c1, sum(c2) c2 from %%trows interval(1m)",
+            res_query="select tw, te, c1, c2 from rdb.r123 where id=1",
+            exp_query="select _wstart, _wend, count(c1), sum(c2) from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(1m);",
+            check_func=self.check123,
         )
         # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug6.py
 
@@ -1445,4 +1446,24 @@ class TestStreamSubquerySliding:
         tdSql.checkResultsByFunc(
             sql="select * from rdb.r84 where tag_tbname='t1';",
             func=lambda: tdSql.getRows() == 14,
+        )
+
+    def check123(self):
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r123",
+            schema=[
+                ["tw", "TIMESTAMP", 8, ""],
+                ["te", "TIMESTAMP", 8, ""],
+                ["_twstart", "TIMESTAMP", 8, ""],
+                ["_twend", "TIMESTAMP", 8, ""],
+                ["c1", "BIGINT", 8, ""],
+                ["c2", "BIGINT", 8, ""],
+                ["id", "INT", 4, "TAG"],
+                ["name", "VARCHAR", 16, "TAG"],
+            ],
+        )
+        tdSql.checkResultsByFunc(
+            sql="select * from information_schema.ins_tables where db_name='rdb' and stable_name='r123';",
+            func=lambda: tdSql.getRows() == 3,
         )
