@@ -181,6 +181,7 @@ void streamReleaseTask(void* taskAddr) {
         break;
     }
   }
+  
   taosHashRelease(gStreamMgmt.taskMap, taskAddr);
 }
 

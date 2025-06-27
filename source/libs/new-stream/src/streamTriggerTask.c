@@ -2190,7 +2190,9 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   code = tmsgSendReq(&pCalcRunner->addr.epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
-
+  
+  ST_TASK_DLOG("calc request is sent to node:%d task:%" PRIx64, pCalcRunner->addr.nodeId, pCalcRunner->addr.taskId);
+               
   pContext->pCalcReq = NULL;
 
 _end:

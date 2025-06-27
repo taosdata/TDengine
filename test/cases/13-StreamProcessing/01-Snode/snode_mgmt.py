@@ -1,7 +1,7 @@
 import time
 import math
 import random
-from new_test_framework.utils import tdLog, tdSql, tdStream, StreamTableType, StreamTable
+from new_test_framework.utils import tdLog, tdSql, tdStream, StreamTableType, StreamTable, cluster
 from random import randint
 
 class TestSnodeMgmt:
@@ -129,7 +129,26 @@ class TestSnodeMgmt:
         print(f"asReplicaOf: {asReplicaOf}")
         self.checkSnodeReplica(replicaList, list(range(1, 9)))
         self.checkSnodeAsReplicaOf(asReplicaOf, list(range(1, 9)))
-        
+
+        tdDnodes=cluster.dnodes
+        tdLog.info(f"tdDnodes: {tdDnodes}")
+        for i in range(0, 8):
+            tdDnodes[i].stoptaosd()
+        for i in range(0, 8):    
+            tdDnodes[i].starttaosd()
+
+        tdSql.query("select * from information_schema.ins_snodes order by id;")
+        tdSql.checkRows(8)
+        ids = tdSql.getColData(0)
+        if ids != list(range(1, 9)):
+            raise Exception(f"snode list error:{ids}")
+        replicaList = tdSql.getColData(3)
+        asReplicaOf = tdSql.getColData(4)
+        print(f"replicaList: {replicaList}")
+        print(f"asReplicaOf: {asReplicaOf}")
+        self.checkSnodeReplica(replicaList, list(range(1, 9)))
+        self.checkSnodeAsReplicaOf(asReplicaOf, list(range(1, 9)))
+
         tdLog.info("======over")
 
     def dropSnodeTest(self):
