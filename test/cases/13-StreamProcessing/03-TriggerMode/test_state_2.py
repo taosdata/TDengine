@@ -57,8 +57,8 @@ class TestStreamStateTrigger:
 
         for stream in streams:
             tdSql.execute(stream.sql)
-        # tdStream.checkStreamStatus()
-        time.sleep(3)
+        tdStream.checkStreamStatus()
+        # time.sleep(3)
 
         tdLog.info(f"=============== write query data")
         sqls = [
@@ -119,8 +119,8 @@ class TestStreamStateTrigger:
         sql5 = "create stream s5 state_window(cint) true_for(5s) from ct1 into res_truefor_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
          
         tdSql.execute(sql5)
-        # tdStream.checkStreamStatus("s5")
-        time.sleep(3)
+        tdStream.checkStreamStatus("s5")
+        # time.sleep(3)
                 
         tdLog.info(f"=============== continue write data into ct1 for true_for(5s)")
         sqls = [
@@ -143,8 +143,8 @@ class TestStreamStateTrigger:
         sql6 = "create stream s6 state_window(cint) from ct1 options(fill_history) into res_fill_all_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
          
         tdSql.execute(sql6)
-        # tdStream.checkStreamStatus("s6")
-        time.sleep(3)
+        tdStream.checkStreamStatus("s6")
+        # time.sleep(3)
                 
         tdLog.info(f"=============== continue write data into ct1 for new real data ")
         sqls = [
@@ -165,8 +165,8 @@ class TestStreamStateTrigger:
         # set start_time
         sql7 = "create stream s7 state_window(cint) true_for(5s) from ct1 options(fill_history('2025-01-02 00:00:10')) into res_fill_part_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
         tdSql.execute(sql7)
-        # tdStream.checkStreamStatus("s7")
-        time.sleep(3)
+        tdStream.checkStreamStatus("s7")
+        # time.sleep(3)
                 
         tdLog.info(f"=============== continue write data into ct1 for new real data ")
         sqls = [
@@ -189,37 +189,55 @@ class TestStreamStateTrigger:
         tdLog.info(f"=============== create sub table")
         tdSql.execute(f"create table ct5 using stb tags(1);")
         
-        sql8 = "create stream s8 state_window(cint) from ct5 options(max_delay(3s)) into res_max_delay_ct1 (lastts, firstts, num_v, cnt_v, avg_v) as select last_row(_c0), first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        sql8 = "create stream s8 state_window(cint) from ct5 options(max_delay(3s)) into res_max_delay_ct5 (lastts, firstts, num_v, cnt_v, avg_v) as select last_row(_c0), first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
          
         tdSql.execute(sql8)
-        # tdStream.checkStreamStatus("s8")
-        time.sleep(3)
+        tdStream.checkStreamStatus("s8")
+        time.sleep(10)
                 
         tdLog.info(f"=============== continue write data into ct5 for new real data ")
         sqls = [
             "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:10', 1, 0);",
             "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:11', 1, 0);",
             "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:12', 1, 1);",
+        ]
+        tdSql.executes(sqls)
+        time.sleep(4)   
+        sqls = [
             "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:13', 1, 1);",
             "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:14', 1, 1);",
             "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:15', 2, 2);",
             "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:16', 2, 2);",
             "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:17', 2, 2);",
+        ]
+        tdSql.executes(sqls)     
+        time.sleep(4)      
+        sqls = [
             "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:18', 2, 2);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:19', 2, 3);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:20', 1, 0);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:21', 1, 0);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:19', 2, 2);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:20', 1, 1);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:21', 1, 1);",
             "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:22', 1, 1);",
+        ]
+        tdSql.executes(sqls)   
+        time.sleep(4)      
+        sqls = [
             "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:23', 1, 1);",
             "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:24', 1, 1);",
             "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:25', 2, 2);",
             "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:26', 2, 2);",
             "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:27', 2, 2);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:28', 2, 2);",
-            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:29', 2, 3);",
         ]
-        tdSql.executes(sqls)
-        self.checks6(3)  #  max_delay 觸發的結果時間戳 ，與 最後窗口關閉 的結果時間戳 是一樣的嗎？ 如果是，需要配合 通知 來測試。
+        tdSql.executes(sqls)   
+        time.sleep(4)      
+        sqls = [
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:28', 2, 2);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:29', 2, 2);",
+            "insert into ct5 using stb tags(1) values ('2025-01-04 00:00:30', 3, 3);",
+        ]
+        tdSql.executes(sqls)  
+        time.sleep(1)      
+        self.checks6(3)
         
         # max_delay + true_for
         
@@ -447,7 +465,7 @@ class TestStreamStateTrigger:
             )     
             tdLog.info(f"=============== check s6-2 result success !!!!!!!! =====================")
         elif 3 == check_idx:
-            result_sql = "select lastts, firstts, num_v, cnt_v, avg_v from res_max_delay_ct1"
+            result_sql = "select lastts, firstts, num_v, cnt_v, avg_v from res_max_delay_ct5"
             tdSql.checkResultsByFunc(
                 sql=result_sql,
                 func=lambda: tdSql.getRows() == 6

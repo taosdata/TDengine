@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseTwa:
@@ -34,209 +39,220 @@ class TestStreamOldCaseTwa:
 
         tdStream.createSnode()
 
-        self.streamTwaError()
-        self.streamTwaFwcFill()
+        streams = []
+        streams.append(self.TwaError())
+        streams.append(self.TwaFwcFill())
+        # streams.append(self.TwaFwcFill2())
+
+        tdStream.checkAll(streams)
+
         # self.streamTwaFwcFillPrimaryKey()
         # self.streamTwaFwcInterval()
         # self.streamTwaFwcIntervalPrimaryKey()
         # self.streamTwaInterpFwc()
 
-    def streamTwaError(self):
-        tdLog.info(f"streamTwaError")
-        tdStream.dropAllStreamsAndDbs()
+    class TwaError(StreamCheckItem):
+        def __init__(self):
+            self.db = "twa_error"
 
-        tdLog.info(f"step1")
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test vgroups 1;")
-        tdSql.execute(f"use test;")
+        def create_tb(self):
+            tdSql.execute(f"create database twa_error vgroups 1 buffer 8;")
+            tdSql.execute(f"use twa_error;")
 
-        tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
-        )
-        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
-        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
+            tdSql.execute(
+                f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
+            )
+            tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+            tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
-        tdSql.execute(
-            f"create stream streams1 period(2s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder|force_output) into streamt as select _tprev_localtime, twa(a) from st where tbname=%%1 and ta=%%2 and ts >= _tprev_localtime and ts < _tlocaltime;"
-        )
-        tdSql.execute(
-            f"create stream streams2 interval(2s) sliding(2s) from st partition by tbname, ta options(force_output) into streamt2 as select _twstart, twa(a) from st where tbname=%%1 and ta=%%2;"
-        )
-        tdSql.execute(
-            f"create stream streams3 interval(2s) sliding(2s) from st partition by tbname, ta options(expired_time(0s)|force_output) into streamt3 as select _twstart, twa(a) from %%trows;"
-        )
-        tdSql.execute(
-            f"create stream streams4 interval(2s) sliding(2s) from st partition by tbname, ta options(max_delay(5s)|force_output) into streamt4 as select _twstart, twa(a) from %%trows;"
-        )
-        tdSql.execute(
-            f"create stream streams5 interval(2s) sliding(2s) from st options(expired_time(0s)|ignore_disorder) into streamt5 as select _twstart, twa(a) from %%trows;"
-        )
-        tdSql.execute(
-            f"create stream streams6 period(2s) from st partition by tbname, ta into streamt6 as select last(ts), twa(a) from %%trows;"
-        )
-        tdSql.execute(
-            f"create stream streams7 session(ts, 2s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt7 as select _twstart, twa(a) from %%trows;"
-        )
-        tdSql.execute(
-            f"create stream streams8 state_window(a) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt8 as select _twstart, twa(a) from %%trows;;"
-        )
-        tdSql.execute(
-            f"create stream streams9 interval(2s) sliding(2s) from st partition by tbname, ta options(max_delay(1s)|expired_time(0s)|ignore_disorder|force_output) into streamt9 as select _twstart, elapsed(ts) from st where tbname=%%1 and ta=%%2;"
-        )
-        tdSql.execute(
-            f"create stream streams10 interval(2s, 1s) sliding(1s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt10 as select _twstart, sum(a) from %%trows;"
-        )
-        tdSql.error(
-            f"create stream streams11 interval(2s, 2s) sliding(2s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt11 as select _twstart, avg(a) from %%trows;"
-        )
-        tdSql.execute(
-            f"create stream streams12 interval(2s) sliding(2s) from st options(expired_time(0s)|ignore_disorder) into streams12 as select _twstart, sum(a) from st where ts >= _twstart and ts < _twend;"
-        )
-        tdSql.execute(
-            f"create stream streams13 interval(2s) sliding(2s) from st options(expired_time(0s)|ignore_disorder) into streams10 as select _twstart, sum(a) from st where ts >= _twstart and ts < _twend;"
-        )
+        def create_stream(self):
+            tdSql.execute(
+                f"create stream streams1 period(2s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder|force_output) into streamt as select _tprev_localtime, twa(a) from st where tbname=%%1 and ta=%%2 and ts >= _tprev_localtime and ts < _tlocaltime;"
+            )
+            tdSql.execute(
+                f"create stream streams2 interval(2s) sliding(2s) from st partition by tbname, ta options(force_output) into streamt2 as select _twstart, twa(a) from st where tbname=%%1 and ta=%%2;"
+            )
+            tdSql.execute(
+                f"create stream streams3 interval(2s) sliding(2s) from st partition by tbname, ta options(expired_time(0s)|force_output) into streamt3 as select _twstart, twa(a) from %%trows;"
+            )
+            tdSql.execute(
+                f"create stream streams4 interval(2s) sliding(2s) from st partition by tbname, ta options(max_delay(5s)|force_output) into streamt4 as select _twstart, twa(a) from %%trows;"
+            )
+            tdSql.execute(
+                f"create stream streams5 interval(2s) sliding(2s) from st options(expired_time(0s)|ignore_disorder) into streamt5 as select _twstart, twa(a) from %%trows;"
+            )
+            tdSql.execute(
+                f"create stream streams6 period(2s) from st partition by tbname, ta into streamt6 as select last(ts), twa(a) from %%trows;"
+            )
+            tdSql.execute(
+                f"create stream streams7 session(ts, 2s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt7 as select _twstart, twa(a) from %%trows;"
+            )
+            tdSql.execute(
+                f"create stream streams8 state_window(a) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt8 as select _twstart, twa(a) from %%trows;;"
+            )
+            tdSql.execute(
+                f"create stream streams9 interval(2s) sliding(2s) from st partition by tbname, ta options(max_delay(1s)|expired_time(0s)|ignore_disorder|force_output) into streamt9 as select _twstart, elapsed(ts) from st where tbname=%%1 and ta=%%2;"
+            )
+            tdSql.execute(
+                f"create stream streams10 interval(2s, 1s) sliding(1s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt10 as select _twstart, sum(a) from %%trows;"
+            )
+            tdSql.error(
+                f"create stream streams11 interval(2s, 2s) sliding(2s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt11 as select _twstart, avg(a) from %%trows;"
+            )
+            tdSql.execute(
+                f"create stream streams12 interval(2s) sliding(2s) from st options(expired_time(0s)|ignore_disorder) into streams12 as select _twstart, sum(a) from st where ts >= _twstart and ts < _twend;"
+            )
+            tdSql.execute(
+                f"create stream streams13 interval(2s) sliding(2s) from st options(expired_time(0s)|ignore_disorder) into streams10 as select _twstart, sum(a) from st where ts >= _twstart and ts < _twend;"
+            )
 
-        tdSql.query("show test.streams;")
-        tdSql.checkRows(12)
-        tdSql.checkKeyData("streams1", 0, "streams1")
-        tdSql.checkKeyData("streams2", 0, "streams2")
-        tdSql.checkKeyData("streams3", 0, "streams3")
+        def check1(self):
+            tdSql.query("show twa_error.streams;")
+            tdSql.checkRows(12)
+            tdSql.checkKeyData("streams1", 0, "streams1")
+            tdSql.checkKeyData("streams2", 0, "streams2")
+            tdSql.checkKeyData("streams3", 0, "streams3")
 
-        tdSql.query("select * from information_schema.ins_streams;")
-        tdSql.checkRows(12)
-        tdSql.checkKeyData("streams5", 1, "test")
-        tdSql.checkKeyData("streams6", 1, "test")
+            tdSql.query(
+                "select * from information_schema.ins_streams where db_name = 'twa_error';"
+            )
+            tdSql.checkRows(12)
+            tdSql.checkKeyData("streams5", 1, "twa_error")
+            tdSql.checkKeyData("streams6", 1, "twa_error")
 
-        tdSql.query(
-            "select * from information_schema.ins_streams where db_name='test';"
-        )
-        tdSql.checkRows(12)
+    class TwaFwcFill(StreamCheckItem):
+        def __init__(self):
+            self.db = "twa_fwcfill"
 
-        tdStream.dropAllStreamsAndDbs()
-        tdSql.query("select * from information_schema.ins_streams;")
-        tdSql.checkRows(0)
-        tdSql.query("show databases")
-        tdSql.checkRows(2)
+        def create_tb(self):
+            tdSql.execute(f"create database twa_fwcfill vgroups 1 buffer 32;")
+            tdSql.execute(f"use twa_fwcfill;")
 
-    def streamTwaFwcFill(self):
-        tdLog.info(f"streamTwaFwcFill")
-        tdStream.dropAllStreamsAndDbs()
+            tdSql.execute(
+                f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
+            )
+            tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+            tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
-        tdLog.info(f"step1")
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test vgroups 1;")
-        tdSql.execute(f"use test;")
+        def create_stream(self):
+            tdSql.execute(
+                f"create stream streams1 interval(2s) sliding(2s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt as select _twstart, twa(a), twa(b), elapsed(ts), now, timezone() from %%trows;"
+            )
 
-        tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
-        )
-        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
-        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
+        def insert1(self):
+            tdSql.execute(
+                f"insert into t1 values('2025-06-01 00:00:03', 1, 1, 1) ('2025-06-01 00:00:04', 10, 1, 1)  ('2025-06-01 00:00:07', 20, 2, 2) ('2025-06-01 00:00:08', 30, 3, 3) ('2025-06-01 00:00:11', 40, 4, 4) ('2025-06-01 00:00:12', 50, 5, 5);"
+            )
+            tdSql.execute(
+                f"insert into t2 values('2025-06-01 00:00:05', 1, 1, 1) ('2025-06-01 00:00:06', 10, 1, 1)  ('2025-06-01 00:00:09', 20, 2, 2) ('2025-06-01 00:00:10', 30, 3, 3) ('2025-06-01 00:00:13', 40, 4, 4) ('2025-06-01 00:00:14', 50, 5, 5);"
+            )
 
-        tdSql.execute(
-            f"create stream streams1 interval(2s) sliding(2s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt as select _twstart, twa(a), twa(b), elapsed(ts), now, timezone() from %%trows;"
-        )
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from twa_fwcfill.streamt where ta == 1;",
+                lambda: tdSql.getRows() == 5,
+            )
 
-        tdSql.execute(
-            f"insert into t1 values('2025-06-01 00:00:03', 1, 1, 1) ('2025-06-01 00:00:04', 10, 1, 1)  ('2025-06-01 00:00:07', 20, 2, 2) ('2025-06-01 00:00:08', 30, 3, 3) ('2025-06-01 00:00:11', 40, 4, 4) ('2025-06-01 00:00:12', 50, 5, 5);"
-        )
-        tdSql.execute(
-            f"insert into t2 values('2025-06-01 00:00:05', 1, 1, 1) ('2025-06-01 00:00:06', 10, 1, 1)  ('2025-06-01 00:00:09', 20, 2, 2) ('2025-06-01 00:00:10', 30, 3, 3) ('2025-06-01 00:00:13', 40, 4, 4) ('2025-06-01 00:00:14', 50, 5, 5);"
-        )
+            tdSql.checkResultsByFunc(
+                f"select * from twa_fwcfill.streamt where ta == 2;",
+                lambda: tdSql.getRows() == 5,
+            )
 
-        tdSql.checkResultsByFunc(
-            f"select * from test.streamt where ta == 1;",
-            lambda: tdSql.getRows() == 5,
-        )
+    class TwaFwcFill2(StreamCheckItem):
+        def __init__(self):
+            self.db = "twa_fwcfill2"
 
-        tdSql.checkResultsByFunc(
-            f"select * from test.streamt where ta == 2;",
-            lambda: tdSql.getRows() == 5,
-        )
-        
-        return
+        def create_tb(self):
+            tdSql.execute(f"create database twa_fwcfill2 vgroups 1 buffer 32;")
+            tdSql.execute(f"use twa_fwcfill2;")
 
-        tdLog.info(f"step2")
-        tdStream.dropAllStreamsAndDbs()
+            tdSql.execute(
+                f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
+            )
+            tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+            tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test2 vgroups 1;")
-        tdSql.execute(f"use test2;")
+        def create_stream(self):
+            tdSql.execute(
+                f"create stream streams2 period(2s) options(expired_time(0s) | ignore_disorder) into streamt as select cast(_tprev_localtime / 1000000 as timestamp) tp, cast(_tlocaltime / 1000000 as timestamp) tl, cast(_tnext_localtime / 1000000 as timestamp) tn, twa(a), twa(b), elapsed(ts), now, timezone() from st;"
+            )
 
-        tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
-        )
-        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
-        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
+        def insert1(self):
+            tdSql.execute(
+                f"insert into t1 values(now +  1s, 1, 1, 1)(now +  2s, 10, 1, 1)(now + 3s, 20, 2, 2)(now + 4s, 30, 3, 3)(now + 5s, 30, 3, 3)(now + 6s, 30, 3, 3)(now + 6s, 30, 3, 3)(now + 8s, 30, 3, 3)(now + 9s, 30, 3, 3)(now + 10s, 30, 3, 3);"
+            )
+            tdSql.execute(
+                f"insert into t2 values(now +  1s, 1, 1, 1)(now +  2s, 10, 1, 1)(now + 3s, 20, 2, 2)(now + 4s, 30, 3, 3)(now + 5s, 30, 3, 3)(now + 6s, 30, 3, 3)(now + 6s, 30, 3, 3)(now + 8s, 30, 3, 3)(now + 9s, 30, 3, 3)(now + 10s, 30, 3, 3);"
+            )
 
-        tdSql.execute(
-            f"create stream streams2 period(2s) from st partition by tbname options(expired_time(0s)|ignore_disorder) into streamt as select _tlocaltime, twa(a), twa(b), elapsed(ts), now, timezone(), ta from %%trows;"
-        )
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from twa_fwcfill2.streamt;",
+                lambda: tdSql.getRows() > 0,
+                retry=100,
+            )
 
-        tdStream.checkStreamStatus()
+            sql = "select TIMEDIFF(tp, tl), TIMEDIFF(tl, tn), `twa(a)`, `twa(b)`, `elapsed(ts)` from streamt limit 1"
+            exp_sql = "select -2000, -2000, twa(a), twa(b), elapsed(ts) from st"
+            tdSql.checkResultsBySql(sql, exp_sql, retry=1)
 
-        tdSql.execute(
-            f"insert into t1 values(now +  1s, 1, 1, 1)(now +  2s, 10, 1, 1)(now + 3s, 20, 2, 2)(now + 4s, 30, 3, 3)(now + 5s, 30, 3, 3)(now + 6s, 30, 3, 3)(now + 6s, 30, 3, 3)(now + 8s, 30, 3, 3)(now + 9s, 30, 3, 3)(now + 10s, 30, 3, 3);"
-        )
-        tdSql.execute(
-            f"insert into t2 values(now +  1s, 1, 1, 1)(now +  2s, 10, 1, 1)(now + 3s, 20, 2, 2)(now + 4s, 30, 3, 3)(now + 5s, 30, 3, 3)(now + 6s, 30, 3, 3)(now + 6s, 30, 3, 3)(now + 8s, 30, 3, 3)(now + 9s, 30, 3, 3)(now + 10s, 30, 3, 3);"
-        )
+            tdSql.query("select cast(tp as bigint) from streamt limit 1;")
+            tcalc = tdSql.getData(0, 0)
 
-        tdSql.checkResultsByFunc(
-            f"select * from test2.streamt where ta == 1;",
-            lambda: tdSql.getRows() > 0,
-        )
+            tdSql.query("select cast(ts as bigint) from t1 limit 1")
+            tnow = tdSql.getData(0, 0)
+            tdLog.info(f"calc:{tcalc}, now:{tnow}")
 
-        tdSql.checkResultsByFunc(
-            f"select * from test2.streamt where ta == 2;",
-            lambda: tdSql.getRows() > 0,
-        )
+            if tcalc - tnow > 60000:
+                tdLog.exit(f"not triggered within 60000 ms (actual:{tcalc - tnow} ms).")
+            else:
+                tdLog.info(f"triggered within 60000 ms (actual:{tcalc - tnow} ms).")
 
-        return
+            return
 
-        tdLog.info(f"step3")
-        tdStream.dropAllStreamsAndDbs()
+            tdLog.info(f"step3")
+            tdStream.dropAllStreamsAndDbs()
 
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test3 vgroups 1;")
-        tdSql.execute(f"use test3;")
+            tdLog.info(f"=============== create database")
+            tdSql.execute(f"create database test3 vgroups 1;")
+            tdSql.execute(f"use test3;")
 
-        tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
-        )
-        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
-        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
-        tdSql.execute(
-            f"create stream streams3 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into streamt as select _wstart, twa(a), twa(b), elapsed(ts), now, timezone(), ta from st partition by tbname interval(2s) fill(value, 100, 200, 300);"
-        )
+            tdSql.execute(
+                f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
+            )
+            tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+            tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
+            tdSql.execute(
+                f"create stream streams3 trigger force_window_close IGNORE EXPIRED 1 IGNORE UPDATE 1 into streamt as select _wstart, twa(a), twa(b), elapsed(ts), now, timezone(), ta from st partition by tbname interval(2s) fill(value, 100, 200, 300);"
+            )
 
-        tdStream.checkStreamStatus()
+            tdStream.checkStreamStatus()
 
-        tdSql.execute(
-            f"insert into t1 values(now +  3s, 1, 1, 1) (now +  4s, 10, 1, 1)  (now + 7s, 20, 2, 2) (now + 8s, 30, 3, 3);"
-        )
-        tdSql.execute(
-            f"insert into t2 values(now +  4s, 1, 1, 1) (now +  5s, 10, 1, 1)  (now + 8s, 20, 2, 2) (now + 9s, 30, 3, 3);"
-        )
+            tdSql.execute(
+                f"insert into t1 values(now +  3s, 1, 1, 1) (now +  4s, 10, 1, 1)  (now + 7s, 20, 2, 2) (now + 8s, 30, 3, 3);"
+            )
+            tdSql.execute(
+                f"insert into t2 values(now +  4s, 1, 1, 1) (now +  5s, 10, 1, 1)  (now + 8s, 20, 2, 2) (now + 9s, 30, 3, 3);"
+            )
 
-        tdLog.info(f"sql select * from t1;")
-        tdSql.query(f"select * from t1;")
+            tdLog.info(f"sql select * from t1;")
+            tdSql.query(f"select * from t1;")
 
-        tdLog.info(f"sql select * from t2;")
-        tdSql.query(f"select * from t2;")
+            tdLog.info(f"sql select * from t2;")
+            tdSql.query(f"select * from t2;")
 
-        time.sleep(2)
-        tdLog.info(f"2 sql select * from streamt where ta == 1;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt where ta == 1;",
-            lambda: tdSql.getRows() < 5,
-        )
+            time.sleep(2)
+            tdLog.info(f"2 sql select * from streamt where ta == 1;")
+            tdSql.checkResultsByFunc(
+                f"select * from streamt where ta == 1;",
+                lambda: tdSql.getRows() < 5,
+            )
 
-        tdLog.info(f"2 sql select * from streamt where ta == 2;")
-        tdSql.checkResultsByFunc(
-            f"select * from streamt where ta == 2;",
-            lambda: tdSql.getRows() < 5,
-        )
+            tdLog.info(f"2 sql select * from streamt where ta == 2;")
+            tdSql.checkResultsByFunc(
+                f"select * from streamt where ta == 2;",
+                lambda: tdSql.getRows() < 5,
+            )
 
     def streamTwaFwcFillPrimaryKey(self):
         tdLog.info(f"streamTwaFwcFillPrimaryKey")
