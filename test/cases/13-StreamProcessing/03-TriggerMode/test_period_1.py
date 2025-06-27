@@ -66,32 +66,32 @@ class TestStreamCheckpoint:
         self.num_of_rows = 100000
         self.write_data()
 
-        # try:
-        #     self.create_and_check_stream_basic_1("sm1", "tb1")
-        # except Exception as e:
-        #     print(f"stream error: {e}")
-        #
-        # self.clear_test_output("sm1", "tb1")
-        #
-        # self.write_data()
-        #
-        # try:
-        #     self.create_and_check_stream_basic_2("sm2", "tb2")
-        # except Exception as e:
-        #     print(f"stream error: {e}")
-        #
-        # self.clear_test_output("sm2", "tb2")
-        #
-        # self.write_data()
+        try:
+            self.create_and_check_stream_basic_1("sm1", "tb1")
+        except Exception as e:
+            print(f"stream error: {e}")
 
-        # try:
-        #     self.create_and_check_stream_basic_3("sm3", "tb3")
-        # except Exception as e:
-        #     print(f"stream error: {e}")
-        #
-        # self.clear_test_output("sm3", "tb3")
+        self.clear_test_output("sm1", "tb1")
 
-        # self.write_data()
+        self.write_data()
+
+        try:
+            self.create_and_check_stream_basic_2("sm2", "tb2")
+        except Exception as e:
+            print(f"stream error: {e}")
+
+        self.clear_test_output("sm2", "tb2")
+
+        self.write_data()
+
+        try:
+            self.create_and_check_stream_basic_3("sm3", "tb3")
+        except Exception as e:
+            print(f"stream error: {e}")
+
+        self.clear_test_output("sm3", "tb3")
+
+        self.write_data()
         try:
             self.create_and_check_stream_basic_4("sm4", "tb4")
         except Exception as e:
