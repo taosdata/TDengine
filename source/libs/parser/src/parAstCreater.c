@@ -394,8 +394,16 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
       tstrncpy(pExpr->userAlias, ((SColumnNode*)pExpr)->colName, TSDB_COL_NAME_LEN);
     } else if (pRawExpr->isPseudoColumn) {
       // all pseudo column are translate to function with same name
-      tstrncpy(pExpr->userAlias, ((SFunctionNode*)pExpr)->functionName, TSDB_COL_NAME_LEN);
       tstrncpy(pExpr->aliasName, ((SFunctionNode*)pExpr)->functionName, TSDB_COL_NAME_LEN);
+      if (strcmp(((SFunctionNode*)pExpr)->functionName, "_placeholder_column") == 0) {
+        TAOS_STRNCAT(pExpr->userAlias, "%%", 4);
+        SValueNode *pColId = (SValueNode*)nodesListGetNode(((SFunctionNode*)pExpr)->pParameterList, 0);
+        TAOS_STRNCAT(pExpr->userAlias, pColId->literal, strlen(pColId->literal) + 1);
+      } else if (strcmp(((SFunctionNode*)pExpr)->functionName, "_placeholder_tbname") == 0) {
+        tstrncpy(pExpr->userAlias, "%%tbname", TSDB_COL_NAME_LEN);
+      } else {
+        tstrncpy(pExpr->userAlias, ((SFunctionNode*)pExpr)->functionName, TSDB_COL_NAME_LEN);
+      }
     } else {
       int32_t len = TMIN(sizeof(pExpr->aliasName) - 1, pRawExpr->n);
 
