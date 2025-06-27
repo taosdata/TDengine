@@ -1853,7 +1853,7 @@ int32_t mJoinHandleConds(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJo
         pCond = pJoinNode->node.pConditions;
       }
 
-      MJ_ERR_RET(filterInitFromNode(pCond, &pJoin->pFinFilter, 0, &pTaskInfo->pStreamRuntimeInfo));
+      MJ_ERR_RET(filterInitFromNode(pCond, &pJoin->pFinFilter, 0, pTaskInfo->pStreamRuntimeInfo));
       break;
     }
     case JOIN_TYPE_LEFT:
@@ -1861,15 +1861,15 @@ int32_t mJoinHandleConds(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJo
     case JOIN_TYPE_FULL:
       if (pJoinNode->pFullOnCond != NULL) {
         MJ_ERR_RET(filterInitFromNode(pJoinNode->pFullOnCond, &pJoin->pFPreFilter, 0,
-                                      &pTaskInfo->pStreamRuntimeInfo));
+                                      pTaskInfo->pStreamRuntimeInfo));
       }
       if (pJoinNode->pColOnCond != NULL) {
         MJ_ERR_RET(
-            filterInitFromNode(pJoinNode->pColOnCond, &pJoin->pPreFilter, 0, &pTaskInfo->pStreamRuntimeInfo));
+            filterInitFromNode(pJoinNode->pColOnCond, &pJoin->pPreFilter, 0, pTaskInfo->pStreamRuntimeInfo));
       }
       if (pJoinNode->node.pConditions != NULL) {
         MJ_ERR_RET(filterInitFromNode(pJoinNode->node.pConditions, &pJoin->pFinFilter, 0,
-                                      &pTaskInfo->pStreamRuntimeInfo));
+                                      pTaskInfo->pStreamRuntimeInfo));
       }
       break;
     default:

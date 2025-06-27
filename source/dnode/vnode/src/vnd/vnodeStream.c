@@ -281,7 +281,6 @@ int32_t retrieveWalMetaData(SSubmitTbData* pSubmitTbData, void* pTableList, bool
     ekey = VALUE_GET_TRIVIAL_DATUM(&colVal.value);
   }
 
-  STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, numOfRows));
   STREAM_CHECK_RET_GOTO(buildWalMetaBlock(pBlock, WAL_SUBMIT_DATA, gid, isVTable, uid, skey, ekey, ver, numOfRows));
   pBlock->info.rows++;
   stDebug("stream reader scan submit data:uid %" PRIu64 ", skey %" PRIu64 ", ekey %" PRIu64 ", gid %" PRIu64
@@ -470,6 +469,9 @@ static int32_t scanSubmitData(void* pTableList, bool isVTable, SSDataBlock* pBlo
   STREAM_CHECK_RET_GOTO(tDecodeSubmitReq(&decoder, &submit, NULL));
 
   int32_t numOfBlocks = taosArrayGetSize(submit.aSubmitTbData);
+
+  STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, pBlock->info.rows + numOfBlocks));
+
   int32_t nextBlk = -1;
   while (++nextBlk < numOfBlocks) {
     stDebug("stream reader scan submit, next data block %d/%d", nextBlk, numOfBlocks);

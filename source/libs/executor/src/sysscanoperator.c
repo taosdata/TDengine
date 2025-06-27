@@ -3353,14 +3353,14 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   const char* name = tNameGetTableName(&pInfo->name);
   if (pInfo->showRewrite == false) {
     code = filterInitFromNode(pScanNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
-                              &pTaskInfo->pStreamRuntimeInfo);
+                              pTaskInfo->pStreamRuntimeInfo);
   } else {
     if (strncasecmp(name, TSDB_INS_DISK_USAGE, TSDB_TABLE_FNAME_LEN) == 0) {
       pInfo->skipFilterTable = true;
-      code = filterInitFromNode(NULL, &pOperator->exprSupp.pFilterInfo, 0, &pTaskInfo->pStreamRuntimeInfo);
+      code = filterInitFromNode(NULL, &pOperator->exprSupp.pFilterInfo, 0, pTaskInfo->pStreamRuntimeInfo);
     } else {
       code = filterInitFromNode(pScanNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
-                                &pTaskInfo->pStreamRuntimeInfo);
+                                pTaskInfo->pStreamRuntimeInfo);
     }
   }
   QUERY_CHECK_CODE(code, lino, _error);
