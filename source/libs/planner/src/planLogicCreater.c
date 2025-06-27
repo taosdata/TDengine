@@ -2011,7 +2011,8 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
 }
 
 static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || !pCxt->pPlanCxt->streamCalcQuery || !pCxt->pPlanCxt->withExtWindow ||
+  if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList ||
+      !pCxt->pPlanCxt->streamCalcQuery || !pCxt->pPlanCxt->withExtWindow ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE || nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE) {
     return TSDB_CODE_SUCCESS;
   }
