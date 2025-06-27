@@ -118,7 +118,7 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
   QUERY_CHECK_NULL(pOperator->exprSupp.pCtx, code, lino, _error, terrno);
   initResultSizeInfo(&pOperator->resultInfo, 1024);
   code = filterInitFromNode((SNode*)pSortNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
-                            &pTaskInfo->pStreamRuntimeInfo);
+                            pTaskInfo->pStreamRuntimeInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -379,7 +379,7 @@ void applyScalarFunction(SSDataBlock* pBlock, void* param) {
   if (pOperator->exprSupp.pExprInfo != NULL && pOperator->exprSupp.numOfExprs > 0) {
     int32_t code = projectApplyFunctions(pOperator->exprSupp.pExprInfo, pBlock, pBlock, pOperator->exprSupp.pCtx,
                                          pOperator->exprSupp.numOfExprs, NULL,
-                                         &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
+                                         GET_STM_RTINFO(pOperator->pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pOperator->pTaskInfo->env, code);
     }
