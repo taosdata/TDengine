@@ -32,15 +32,19 @@ class TestStreamEventTrigger:
                 event_window(start with cint > 1  end with cuint < 5)\
                 from ct1 into res_ct1 (firstts, lastts, num_v, cnt_v, avg_v)\
                 as select first(_c0), last_row(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
-        sql2 = "create stream s1\
-                event_window(start with cint > 1  end with cuint < 5)\
-                from ct1 into res_ct1 (firstts, lastts, num_v, cnt_v, avg_v)\
+        sql2 = "create stream s2\
+                event_window(start with cint > 1  end with cuint < 5) true_for(3s) from ct2\
+                into res_ct2 (firstts, lastts, num_v, cnt_v, avg_v)\
+                as select first(_c0), last_row(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        sql3 = "create stream s3\
+                event_window(start with cint > 1  end with cuint < 5) true_for(3s) from stb\
+                partition by tbname into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, num_v, cnt_v, avg_v)\
                 as select first(_c0), last_row(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
          
         streams = [
             self.StreamItem(sql1, self.checks1),
-            # self.StreamItem(sql2, self.checks2),
-            # self.StreamItem(sql3, self.checks3),
+            self.StreamItem(sql2, self.checks2),
+            self.StreamItem(sql3, self.checks3),
             # self.StreamItem(sql4, self.checks4),
         ]
 
@@ -58,31 +62,35 @@ class TestStreamEventTrigger:
             "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:04', 4, 4);",
             "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:05', 0, 2);",
             "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:06', 1, 2);",
-            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:07', 2, 9);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:07', 2, 1);",
             "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:08', 3, 8);",
             "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:09', 4, 4);",
             
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:00', 0, 0);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:01', 0, 0);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:02', 1, 1);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:03', 1, 1);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:04', 1, 1);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:05', 2, 2);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:06', 2, 2);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:07', 2, 2);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:08', 2, 2);",
-            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:09', 3, 3);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:00', 2, 9);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:01', 1, 9);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:02', 1, 9);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:03', 1, 4);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:04', 2, 9);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:05', 2, 9);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:06', 2, 4);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:07', 3, 1);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:08', 4, 9);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:09', 4, 9);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:10', 4, 9);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:11', 4, 4);",
             
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:00', 0, 0);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:01', 0, 0);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:02', 1, 1);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:03', 1, 1);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:04', 1, 1);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:05', 2, 2);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:06', 2, 2);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:07', 2, 2);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:08', 2, 2);",
-            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:09', 3, 3);",
+            "insert into ct3 using stb tags(2) values ('2025-01-01 00:00:00', 2, 9);",
+            "insert into ct3 using stb tags(2) values ('2025-01-01 00:00:01', 1, 9);",
+            "insert into ct3 using stb tags(2) values ('2025-01-01 00:00:02', 1, 9);",
+            "insert into ct3 using stb tags(2) values ('2025-01-01 00:00:03', 1, 4);",
+            "insert into ct3 using stb tags(2) values ('2025-01-01 00:00:04', 2, 9);",
+            "insert into ct3 using stb tags(2) values ('2025-01-01 00:00:05', 2, 9);",
+            "insert into ct3 using stb tags(2) values ('2025-01-01 00:00:06', 2, 4);",
+            "insert into ct3 using stb tags(2) values ('2025-01-01 00:00:07', 3, 1);",
+            "insert into ct3 using stb tags(2) values ('2025-01-01 00:00:08', 4, 9);",
+            "insert into ct3 using stb tags(2) values ('2025-01-01 00:00:09', 4, 9);",
+            "insert into ct3 using stb tags(2) values ('2025-01-01 00:00:10', 4, 9);",
+            "insert into ct3 using stb tags(2) values ('2025-01-01 00:00:11', 4, 4);",
             
             "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:00', 0, 0);",
             "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:01', 0, 0);",
@@ -243,15 +251,17 @@ class TestStreamEventTrigger:
         result_sql = "select firstts, lastts, num_v, cnt_v, avg_v from res_ct1"
         tdSql.checkResultsByFunc(
             sql=result_sql,
-            func=lambda: tdSql.getRows() == 2
+            func=lambda: tdSql.getRows() == 3
             and tdSql.compareData(0, 0, "2025-01-01 00:00:02.000")
             and tdSql.compareData(0, 1, "2025-01-01 00:00:04.000")
             and tdSql.compareData(0, 2, 3)
             and tdSql.compareData(0, 3, 3)
             and tdSql.compareData(1, 0, "2025-01-01 00:00:07.000")
-            and tdSql.compareData(1, 1, "2025-01-01 00:00:09.000")
-            and tdSql.compareData(1, 2, 3)
-            and tdSql.compareData(1, 3, 3),
+            and tdSql.compareData(1, 1, "2025-01-01 00:00:07.000")
+            and tdSql.compareData(1, 2, 1)
+            and tdSql.compareData(1, 3, 1)
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:08.000")
+            and tdSql.compareData(2, 1, "2025-01-01 00:00:09.000"),
         )
 
         tdSql.query("desc sdb.res_ct1")
@@ -276,214 +286,37 @@ class TestStreamEventTrigger:
         return
 
     def checks2(self):
-        result_sql = "select firstts, num_v, cnt_v, avg_v from res_ct2"
+        result_sql = "select firstts, lastts, num_v, cnt_v, avg_v from res_ct2"
         tdSql.checkResultsByFunc(
             sql=result_sql,
-            func=lambda: tdSql.getRows() == 3
+            func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
-            and tdSql.compareData(0, 1, 2)
-            and tdSql.compareData(0, 2, 2)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:02.000")
-            and tdSql.compareData(1, 1, 3)
-            and tdSql.compareData(1, 2, 3)
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:05.000")
-            and tdSql.compareData(2, 1, 4)
-            and tdSql.compareData(2, 2, 4),
+            and tdSql.compareData(0, 1, "2025-01-01 00:00:03.000")
+            and tdSql.compareData(0, 2, 4)
+            and tdSql.compareData(0, 3, 4)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:08.000")
+            and tdSql.compareData(1, 1, "2025-01-01 00:00:11.000")
+            and tdSql.compareData(1, 2, 4)
+            and tdSql.compareData(1, 3, 4),
         )
-
-        tdSql.query("desc sdb.res_ct2")
-        tdSql.printResult()
-        tdSql.checkRows(4)
-        tdSql.checkData(0, 0, "firstts")
-        tdSql.checkData(1, 0, "num_v")
-        tdSql.checkData(2, 0, "cnt_v")
-        tdSql.checkData(3, 0, "avg_v")
-        tdSql.checkData(0, 1, "TIMESTAMP")
-        tdSql.checkData(1, 1, "BIGINT")
-        tdSql.checkData(2, 1, "BIGINT")
-        tdSql.checkData(3, 1, "DOUBLE")
-        tdSql.checkData(0, 2, "8")
-        tdSql.checkData(1, 2, "8")
-        tdSql.checkData(2, 2, "8")
-        tdSql.checkData(3, 2, "8")
         tdLog.info(f"=============== check s2 result success !!!!!!!! =====================")
         return
 
     def checks3(self):
-        result_sql = "select firstts, num_v, cnt_v, avg_v from res_stb_ct1"
+        result_sql = "select firstts, lastts, num_v, cnt_v, avg_v from res_stb_ct2"
         tdSql.checkResultsByFunc(
             sql=result_sql,
-            func=lambda: tdSql.getRows() == 3
+            func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
-            and tdSql.compareData(0, 1, 2)
-            and tdSql.compareData(0, 2, 2)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:02.000")
-            and tdSql.compareData(1, 1, 3)
-            and tdSql.compareData(1, 2, 3)
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:05.000")
-            and tdSql.compareData(2, 1, 4)
-            and tdSql.compareData(2, 2, 4),
+            and tdSql.compareData(0, 1, "2025-01-01 00:00:03.000")
+            and tdSql.compareData(0, 2, 4)
+            and tdSql.compareData(0, 3, 4)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:08.000")
+            and tdSql.compareData(1, 1, "2025-01-01 00:00:11.000")
+            and tdSql.compareData(1, 2, 4)
+            and tdSql.compareData(1, 3, 4),
         )
-
-        tdSql.query("desc sdb.stb_res")
-        tdSql.printResult()
-        tdSql.checkRows(6)
-        tdSql.checkData(0, 0, "firstts")
-        tdSql.checkData(1, 0, "num_v")
-        tdSql.checkData(2, 0, "cnt_v")
-        tdSql.checkData(3, 0, "avg_v")
-        tdSql.checkData(4, 0, "nameoftbl")
-        tdSql.checkData(5, 0, "gid")
-        tdSql.checkData(0, 1, "TIMESTAMP")
-        tdSql.checkData(1, 1, "BIGINT")
-        tdSql.checkData(2, 1, "BIGINT")
-        tdSql.checkData(3, 1, "DOUBLE")
-        tdSql.checkData(4, 1, "VARCHAR")
-        tdSql.checkData(5, 1, "BIGINT")
-        tdSql.checkData(0, 2, "8")
-        tdSql.checkData(1, 2, "8")
-        tdSql.checkData(2, 2, "8")
-        tdSql.checkData(3, 2, "8")
-        tdSql.checkData(4, 2, "128")
-        tdSql.checkData(5, 2, "8")
-        tdSql.checkData(4, 3, "TAG")
-        tdSql.checkData(5, 3, "TAG")
         tdLog.info(f"=============== check s3 result success !!!!!!!! =====================")
-        return
-
-    def checks4(self):
-        result_sql = "select firstts, num_v, cnt_v, avg_v from res_stb_mtag_ct1_1"
-        tdSql.checkResultsByFunc(
-            sql=result_sql,
-            func=lambda: tdSql.getRows() == 3
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
-            and tdSql.compareData(0, 1, 2)
-            and tdSql.compareData(0, 2, 2)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:02.000")
-            and tdSql.compareData(1, 1, 3)
-            and tdSql.compareData(1, 2, 3)
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:05.000")
-            and tdSql.compareData(2, 1, 4)
-            and tdSql.compareData(2, 2, 4),
-        )
-
-        tdSql.query("desc sdb.stb_mtag_res")
-        tdSql.printResult()
-        tdSql.checkRows(6)
-        tdSql.checkData(0, 0, "firstts")
-        tdSql.checkData(1, 0, "num_v")
-        tdSql.checkData(2, 0, "cnt_v")
-        tdSql.checkData(3, 0, "avg_v")
-        tdSql.checkData(4, 0, "nameoftbl")
-        tdSql.checkData(5, 0, "gid")
-        tdSql.checkData(0, 1, "TIMESTAMP")
-        tdSql.checkData(1, 1, "BIGINT")
-        tdSql.checkData(2, 1, "BIGINT")
-        tdSql.checkData(3, 1, "DOUBLE")
-        tdSql.checkData(4, 1, "VARCHAR")
-        tdSql.checkData(5, 1, "BIGINT")
-        tdSql.checkData(0, 2, "8")
-        tdSql.checkData(1, 2, "8")
-        tdSql.checkData(2, 2, "8")
-        tdSql.checkData(3, 2, "8")
-        tdSql.checkData(4, 2, "128")
-        tdSql.checkData(5, 2, "8")
-        tdSql.checkData(4, 3, "TAG")
-        tdSql.checkData(5, 3, "TAG")
-        tdLog.info(f"=============== check s4 result success !!!!!!!! =====================")
-        return
-
-    def checks5(self, check_idx):
-        result_sql = "select firstts, num_v, cnt_v, avg_v from res_truefor_ct1"
-        if 0 == check_idx: 
-            tdSql.checkResultsByFunc(
-                sql=result_sql,
-                func=lambda: tdSql.getRows() == 0,
-            )
-            tdLog.info(f"=============== check s5-0 result success !!!!!!!! =====================")
-        elif 1 == check_idx:
-            tdSql.checkResultsByFunc(
-                sql=result_sql,
-                func=lambda: tdSql.getRows() == 3
-                and tdSql.compareData(0, 0, "2025-01-01 00:00:10.000")
-                and tdSql.compareData(0, 1, 3)
-                and tdSql.compareData(0, 2, 3)
-                and tdSql.compareData(1, 0, "2025-01-01 00:00:16.000")
-                and tdSql.compareData(1, 1, 4)
-                and tdSql.compareData(1, 2, 4)
-                and tdSql.compareData(2, 0, "2025-01-01 00:00:22.000")
-                and tdSql.compareData(2, 1, 2)
-                and tdSql.compareData(2, 2, 2),
-            )    
-            tdLog.info(f"=============== check s5-1 result success !!!!!!!! =====================")
-                        
-        return
-
-    def checks6(self, check_idx):
-        
-        if 0 == check_idx: 
-            result_sql = "select firstts, num_v, cnt_v, avg_v from res_fill_all_ct1"
-            tdSql.checkResultsByFunc(
-                sql=result_sql,
-                func=lambda: tdSql.getRows() == 0,
-            )
-            tdLog.info(f"=============== check s6-0 result success !!!!!!!! =====================")
-        elif 1 == check_idx:
-            result_sql = "select firstts, num_v, cnt_v, avg_v from res_fill_all_ct1"
-            tdSql.checkResultsByFunc(
-                sql=result_sql,
-                func=lambda: tdSql.getRows() == 11
-                and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
-                and tdSql.compareData(0, 1, 2)
-                and tdSql.compareData(0, 2, 2)
-                and tdSql.compareData(1, 0, "2025-01-01 00:00:02.000")
-                and tdSql.compareData(1, 1, 3)
-                and tdSql.compareData(1, 2, 3)
-                and tdSql.compareData(2, 0, "2025-01-01 00:00:05.000")
-                and tdSql.compareData(2, 1, 4)
-                and tdSql.compareData(2, 2, 4),
-            )    
-            tdLog.info(f"=============== check s6-1 result success !!!!!!!! =====================")
-        elif 2 == check_idx:   #  fill history start time from 2025-01-02 00:00:10
-            result_sql = "select firstts, num_v, cnt_v, avg_v from res_fill_part_ct1"
-            tdSql.checkResultsByFunc(
-                sql=result_sql,
-                func=lambda: tdSql.getRows() == 7
-                and tdSql.compareData(0, 0, "2025-01-02 00:00:10.000")
-                and tdSql.compareData(0, 1, 3)
-                and tdSql.compareData(0, 2, 3)
-                and tdSql.compareData(1, 0, "2025-01-02 00:00:16.000")
-                and tdSql.compareData(1, 1, 4)
-                and tdSql.compareData(1, 2, 4)
-                and tdSql.compareData(2, 0, "2025-01-02 00:00:22.000")
-                and tdSql.compareData(2, 1, 2)
-                and tdSql.compareData(2, 2, 2),
-            )     
-            tdLog.info(f"=============== check s6-2 result success !!!!!!!! =====================")
-        elif 3 == check_idx:
-            result_sql = "select lastts, firstts, num_v, cnt_v, avg_v from res_max_delay_ct5"
-            tdSql.checkResultsByFunc(
-                sql=result_sql,
-                func=lambda: tdSql.getRows() == 9
-                and tdSql.compareData(0, 0, "2025-01-04 00:00:12.000")
-                and tdSql.compareData(0, 1, "2025-01-04 00:00:10.000")
-                and tdSql.compareData(0, 2, 3)
-                and tdSql.compareData(0, 3, 3)
-                and tdSql.compareData(1, 0, "2025-01-04 00:00:14.000")
-                and tdSql.compareData(1, 1, "2025-01-04 00:00:10.000")
-                and tdSql.compareData(1, 2, 5)
-                and tdSql.compareData(1, 3, 5)
-                and tdSql.compareData(7, 0, "2025-01-04 00:00:29.000")
-                and tdSql.compareData(7, 1, "2025-01-04 00:00:25.000")
-                and tdSql.compareData(7, 2, 5)
-                and tdSql.compareData(7, 3, 5)
-                and tdSql.compareData(8, 0, "2025-01-04 00:00:30.000")
-                and tdSql.compareData(8, 1, "2025-01-04 00:00:30.000")
-                and tdSql.compareData(8, 2, 1)
-                and tdSql.compareData(8, 3, 1),
-            )     
-            tdLog.info(f"=============== check s6-3 result success !!!!!!!! =====================")
-                        
         return
 
     class StreamItem:
