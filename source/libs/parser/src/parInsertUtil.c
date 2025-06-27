@@ -299,7 +299,8 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
   }
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = pTableCxt;
-    parserDebug("uid:%" PRId64 ", create table data context, code:%d, vgId:%d", pTableMeta->uid, code, pTableMeta->vgId);
+    parserDebug("uid:%" PRId64 ", create table data context, code:%d, vgId:%d", pTableMeta->uid, code,
+                pTableMeta->vgId);
   } else {
     insDestroyTableDataCxt(pTableCxt);
   }
@@ -484,8 +485,7 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
   return code;
 }
 
-static int32_t createVgroupDataCxt(int32_t vgId, SHashObj* pVgroupHash, SArray* pVgroupList,
-                                   SVgroupDataCxt** pOutput) {
+static int32_t createVgroupDataCxt(int32_t vgId, SHashObj* pVgroupHash, SArray* pVgroupList, SVgroupDataCxt** pOutput) {
   SVgroupDataCxt* pVgCxt = taosMemoryCalloc(1, sizeof(SVgroupDataCxt));
   if (NULL == pVgCxt) {
     return terrno;
@@ -611,7 +611,7 @@ int32_t qBuildStmtFinOutput1(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDa
   return code;
 }
 
-int32_t checkAndMergeSVgroupDataCxtByUid(STableDataCxt* pTbCtx, SVgroupDataCxt* pVgCxt) {
+int32_t checkAndMergeSVgroupDataCxtByUid(STableDataCxt* pTbCtx, SVgroupDataCxt* pVgCxt, SHashObj* pTableUidHash) {
   if (NULL == pVgCxt->pData->aSubmitTbData) {
     pVgCxt->pData->aSubmitTbData = taosArrayInit(128, sizeof(SSubmitTbData));
     if (NULL == pVgCxt->pData->aSubmitTbData) {
@@ -619,47 +619,62 @@ int32_t checkAndMergeSVgroupDataCxtByUid(STableDataCxt* pTbCtx, SVgroupDataCxt* 
     }
   }
 
-  int32_t code = TSDB_CODE_SUCCESS;
-  for (int32_t i = 0; i < taosArrayGetSize(pVgCxt->pData->aSubmitTbData); i++) {
-    SSubmitTbData* pSubmitTbData = taosArrayGet(pVgCxt->pData->aSubmitTbData, i);
-    if ((pSubmitTbData->uid == pTbCtx->pData->uid && pTbCtx->pData->uid != 0) ||
-        (pTbCtx->pData->pCreateTbReq != NULL && pSubmitTbData->pCreateTbReq != NULL &&
-         pSubmitTbData->pCreateTbReq->name == pTbCtx->pData->pCreateTbReq->name)) {
-      // merge same table data
-      if (pSubmitTbData->aRowP && pTbCtx->pData->aRowP) {
-        for (int32_t j = 0; j < taosArrayGetSize(pTbCtx->pData->aRowP); ++j) {
-          SRow* pRow = (SRow*)taosArrayGetP(pTbCtx->pData->aRowP, j);
-          if (pRow) {
-            if (NULL == taosArrayPush(pSubmitTbData->aRowP, &pRow)) {
-              return terrno;
-            }
-          }
-        }
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SArray**       rowP = NULL;
 
-        code = tRowSort(pSubmitTbData->aRowP);
-        if (code != TSDB_CODE_SUCCESS) {
-          return code;
-        }
-        code = tRowMerge(pSubmitTbData->aRowP, pTbCtx->pSchema, 0);
-        if (code != TSDB_CODE_SUCCESS) {
-          return code;
+  if (pTbCtx->pData->uid != 0) {
+    rowP = (SArray**)taosHashGet(pTableUidHash, &pTbCtx->pData->uid, sizeof(pTbCtx->pData->uid));
+  }
+
+  if (NULL == rowP && pTbCtx->pData->pCreateTbReq != NULL && pTbCtx->pData->pCreateTbReq->name != NULL) {
+    rowP = (SArray**)taosHashGet(pTableUidHash, pTbCtx->pData->pCreateTbReq->name,
+                                 strlen(pTbCtx->pData->pCreateTbReq->name));
+  }
+
+  if (rowP != NULL && rowP != NULL) {
+    for (int32_t j = 0; j < taosArrayGetSize(*rowP); ++j) {
+      SRow* pRow = (SRow*)taosArrayGetP(pTbCtx->pData->aRowP, j);
+      if (pRow) {
+        if (NULL == taosArrayPush(*rowP, &pRow)) {
+          return terrno;
         }
       }
 
-      parserDebug("merge same uid data: %" PRId64 ", vgId:%d", pTbCtx->pData->uid, pVgCxt->vgId);
-
-      if (pTbCtx->pData->pCreateTbReq != NULL) {
-        tdDestroySVCreateTbReq(pTbCtx->pData->pCreateTbReq);
-        taosMemoryFree(pTbCtx->pData->pCreateTbReq);
-        pTbCtx->pData->pCreateTbReq = NULL;
+      code = tRowSort(*rowP);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
-
-      return TSDB_CODE_SUCCESS;
+      code = tRowMerge(*rowP, pTbCtx->pSchema, 0);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
+
+    parserDebug("merge same uid data: %" PRId64 ", vgId:%d", pTbCtx->pData->uid, pVgCxt->vgId);
+
+    if (pTbCtx->pData->pCreateTbReq != NULL) {
+      tdDestroySVCreateTbReq(pTbCtx->pData->pCreateTbReq);
+      taosMemoryFree(pTbCtx->pData->pCreateTbReq);
+      pTbCtx->pData->pCreateTbReq = NULL;
+    }
+
+    return TSDB_CODE_SUCCESS;
   }
 
   if (NULL == taosArrayPush(pVgCxt->pData->aSubmitTbData, pTbCtx->pData)) {
     return terrno;
+  }
+
+  if (pTbCtx->pData->uid != 0) {
+    code = taosHashPut(pTableUidHash, &pTbCtx->pData->uid, sizeof(pTbCtx->pData->uid), &pTbCtx->pData->aRowP,
+                       sizeof(SArray*));
+  } else if (pTbCtx->pData->pCreateTbReq != NULL && pTbCtx->pData->pCreateTbReq->name != NULL) {
+    code = taosHashPut(pTableUidHash, pTbCtx->pData->pCreateTbReq->name, strlen(pTbCtx->pData->pCreateTbReq->name),
+                       &pTbCtx->pData->aRowP, sizeof(SArray*));
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   parserDebug("uid:%" PRId64 ", add table data context to vgId:%d", pTbCtx->pMeta->uid, pVgCxt->vgId);
@@ -727,7 +742,7 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
   }
 
   if (code == TSDB_CODE_SUCCESS) {
-    code = checkAndMergeSVgroupDataCxtByUid(pTbCtx, pVgCxt);
+    code = checkAndMergeSVgroupDataCxtByUid(pTbCtx, pVgCxt, pBuildInfo->pTableUidHash);
   }
 
   if (taosArrayGetSize(pVgCxt->pData->aSubmitTbData) >= 20000) {
@@ -1116,8 +1131,8 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
 
   char* pStart = p;
 
-  SSchema*       pSchema = getTableColumnSchema(pTableCxt->pMeta);
-  SSchemaExt*    pExtSchemas = getTableColumnExtSchema(pTableCxt->pMeta);
+  SSchema*       pSchema = getTableColumnSchema(pTableMeta);
+  SSchemaExt*    pExtSchemas = getTableColumnExtSchema(pTableMeta);
   SBoundColInfo* boundInfo = &pTableCxt->boundColsInfo;
 
   if (tFields != NULL && numFields != numOfCols) {

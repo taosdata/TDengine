@@ -1576,7 +1576,7 @@ TEST(stmt2Case, stmt2_insert_duplicate) {
   ASSERT_EQ(getRecordCounts, 2);
   taos_free_result(pRes);
 
-  // do_query(taos, "drop database if exists stmt2_testdb_18");
+  do_query(taos, "drop database if exists stmt2_testdb_18");
   taos_close(taos);
 }
 
