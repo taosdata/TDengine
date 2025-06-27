@@ -210,6 +210,7 @@ The effective value of charset is UTF-8.
 | auditCreateTable           |                   | Supported, effective immediately   | Whether to enable audit feature for creating subtables; Enterprise parameter |
 | encryptAlgorithm           |                   | Not supported                      | Data encryption algorithm; Enterprise parameter              |
 | encryptScope               |                   | Not supported                      | Encryption scope; Enterprise parameter                       |
+| encryptPassAlgorithm       |v3.3.7.0           |Supported, effective immediately    |Switch for saving user password as encrypted string           |
 | enableWhiteList            |                   | Supported, effective immediately   | Switch for whitelist feature; Enterprise parameter           |
 | syncLogBufferMemoryAllowed |                   | Supported, effective immediately   | Maximum memory allowed for sync log cache messages for a dnode, in bytes, range 104857600-INT64_MAX, default value is 1/10 of server memory, effective from versions 3.1.3.2/3.3.2.13 |
 | syncElectInterval          |                   | Not supported                      | Internal parameter, for debugging synchronization module     |
