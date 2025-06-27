@@ -1513,7 +1513,7 @@ TEST(stmt2Case, stmt2_insert_duplicate) {
   // test 1
   TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
   ASSERT_NE(stmt, nullptr);
-  const char* sql = "INSERT INTO `stmt2_testdb_18`.`stb1` (ts,int_col,tbname)  VALUES (?,?,?)";
+  const char* sql = "INSERT INTO `stmt2_testdb_18`.`stb1` (ts,int_col,int_tag,tbname)  VALUES (?,?,?,?)";
   int         code = taos_stmt2_prepare(stmt, sql, 0);
   checkError(stmt, code);
 
@@ -1539,12 +1539,48 @@ TEST(stmt2Case, stmt2_insert_duplicate) {
   code = taos_stmt2_exec(stmt, &affected_rows);
   ASSERT_EQ(affected_rows, 2);
   checkError(stmt, code);  // ASSERT_STREQ(taos_stmt2_error(stmt), "Table name duplicated");
+
+  char*           tbname2[2] = {"tb2", "tb3"};
+  TAOS_STMT2_BIND paramv2[2][2]{
+      {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &t64_len[0], NULL, 2}, {TSDB_DATA_TYPE_INT, &tag_i[0], &tag_l[0], NULL, 2}},
+      {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &t64_len[0], NULL, 2}, {TSDB_DATA_TYPE_INT, &tag_i[0], &tag_l[0], NULL, 2}}};
+  TAOS_STMT2_BIND* paramvs2[2] = {&paramv2[0][0], &paramv2[1][0]};
+  TAOS_STMT2_BINDV bindv2 = {2, &tbname2[0], NULL, &paramvs2[0]};
+  for (int i = 0; i < 3; i++) {
+    code = taos_stmt2_bind_param(stmt, &bindv2, -1);
+    checkError(stmt, code);
+  }
+
+  code = taos_stmt2_exec(stmt, &affected_rows);
+  ASSERT_EQ(affected_rows, 4);
+  checkError(stmt, code);
+
   taos_stmt2_close(stmt);
 
   TAOS_RES* pRes = taos_query(taos, "select * from `stmt2_testdb_18`.`tb1`");
   ASSERT_NE(pRes, nullptr);
 
   int getRecordCounts = 0;
+  while ((taos_fetch_row(pRes))) {
+    getRecordCounts++;
+  }
+  ASSERT_EQ(getRecordCounts, 2);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select * from `stmt2_testdb_18`.`tb2`");
+  ASSERT_NE(pRes, nullptr);
+
+  getRecordCounts = 0;
+  while ((taos_fetch_row(pRes))) {
+    getRecordCounts++;
+  }
+  ASSERT_EQ(getRecordCounts, 2);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select * from `stmt2_testdb_18`.`tb3`");
+  ASSERT_NE(pRes, nullptr);
+
+  getRecordCounts = 0;
   while ((taos_fetch_row(pRes))) {
     getRecordCounts++;
   }
@@ -1576,7 +1612,7 @@ TEST(stmt2Case, stmt2_insert_duplicate) {
   ASSERT_EQ(getRecordCounts, 2);
   taos_free_result(pRes);
 
-  do_query(taos, "drop database if exists stmt2_testdb_18");
+  // do_query(taos, "drop database if exists stmt2_testdb_18");
   taos_close(taos);
 }
 

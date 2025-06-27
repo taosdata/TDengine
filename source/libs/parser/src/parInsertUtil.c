@@ -611,7 +611,7 @@ int32_t qBuildStmtFinOutput1(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDa
   return code;
 }
 
-int32_t checkAndMergeSVgroupDataCxtByUid(STableDataCxt* pTbCtx, SVgroupDataCxt* pVgCxt, SHashObj* pTableUidHash) {
+int32_t checkAndMergeSVgroupDataCxtByUid(STableDataCxt* pTbCtx, SVgroupDataCxt* pVgCxt, SSHashObj* pTableUidHash) {
   if (NULL == pVgCxt->pData->aSubmitTbData) {
     pVgCxt->pData->aSubmitTbData = taosArrayInit(128, sizeof(SSubmitTbData));
     if (NULL == pVgCxt->pData->aSubmitTbData) {
@@ -623,12 +623,12 @@ int32_t checkAndMergeSVgroupDataCxtByUid(STableDataCxt* pTbCtx, SVgroupDataCxt* 
   SArray**       rowP = NULL;
 
   if (pTbCtx->pData->uid != 0) {
-    rowP = (SArray**)taosHashGet(pTableUidHash, &pTbCtx->pData->uid, sizeof(pTbCtx->pData->uid));
+    rowP = (SArray**)tSimpleHashGet(pTableUidHash, &pTbCtx->pData->uid, sizeof(pTbCtx->pData->uid));
   }
 
   if (NULL == rowP && pTbCtx->pData->pCreateTbReq != NULL && pTbCtx->pData->pCreateTbReq->name != NULL) {
-    rowP = (SArray**)taosHashGet(pTableUidHash, pTbCtx->pData->pCreateTbReq->name,
-                                 strlen(pTbCtx->pData->pCreateTbReq->name));
+    rowP = (SArray**)tSimpleHashGet(pTableUidHash, pTbCtx->pData->pCreateTbReq->name,
+                                    strlen(pTbCtx->pData->pCreateTbReq->name));
   }
 
   if (rowP != NULL && rowP != NULL) {
@@ -666,11 +666,11 @@ int32_t checkAndMergeSVgroupDataCxtByUid(STableDataCxt* pTbCtx, SVgroupDataCxt* 
   }
 
   if (pTbCtx->pData->uid != 0) {
-    code = taosHashPut(pTableUidHash, &pTbCtx->pData->uid, sizeof(pTbCtx->pData->uid), &pTbCtx->pData->aRowP,
-                       sizeof(SArray*));
+    code = tSimpleHashPut(pTableUidHash, &pTbCtx->pData->uid, sizeof(pTbCtx->pData->uid), &pTbCtx->pData->aRowP,
+                          sizeof(SArray*));
   } else if (pTbCtx->pData->pCreateTbReq != NULL && pTbCtx->pData->pCreateTbReq->name != NULL) {
-    code = taosHashPut(pTableUidHash, pTbCtx->pData->pCreateTbReq->name, strlen(pTbCtx->pData->pCreateTbReq->name),
-                       &pTbCtx->pData->aRowP, sizeof(SArray*));
+    code = tSimpleHashPut(pTableUidHash, pTbCtx->pData->pCreateTbReq->name, strlen(pTbCtx->pData->pCreateTbReq->name),
+                          &pTbCtx->pData->aRowP, sizeof(SArray*));
   }
 
   if (code != TSDB_CODE_SUCCESS) {

@@ -297,7 +297,7 @@ typedef struct SStbInterlaceInfo {
   SHashObj*      pVgroupHash;
   SArray*        pVgroupList;
   SSHashObj*     pTableHash;
-  SHashObj*      pTableUidHash;
+  SSHashObj*     pTableUidHash;
   int64_t        tbRemainNum;
   STableBufInfo  tbBuf;
   char           firstName[TSDB_TABLE_NAME_LEN];
