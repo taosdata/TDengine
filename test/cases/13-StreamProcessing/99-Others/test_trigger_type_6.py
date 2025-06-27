@@ -6,6 +6,8 @@ from new_test_framework.utils import tdLog, tdSql, tdStream
 
 
 
+
+
 class TestStreamTriggerType1:
 
     def setup_class(cls):
