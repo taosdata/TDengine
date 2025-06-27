@@ -1609,6 +1609,10 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
                                             SStreamDataInserterInfo* pInserterInfo, SSubmitTbData* tbData,
                                             SVgroupInfo* vgInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
+  STag* pTag = NULL;
+  SArray* pTagVals = NULL;
+  SArray* TagNames = NULL;
+
   if (pInsertParam->pTagFields == NULL) {
     stError("buildStreamSubTableCreateReq, pTagFields is NULL");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
@@ -1626,7 +1630,7 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
   }
   int32_t nTags = pInserterInfo->pTagVals->size;
 
-  SArray* TagNames = taosArrayInit(nTags, TSDB_COL_NAME_LEN);
+  TagNames = taosArrayInit(nTags, TSDB_COL_NAME_LEN);
   if (!TagNames) {
     code = terrno;
     goto _end;
@@ -1657,13 +1661,11 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
     goto _end;
   }
 
-  SArray* pTagVals = NULL;
   code = getTagValsFromStreamInserterInfo(pInserterInfo, pInsertParam->pFields->size, &pTagVals);
   if (code != TSDB_CODE_SUCCESS) {
     goto _end;
   }
 
-  STag* pTag = NULL;
   code = tTagNew(pTagVals, pInsertParam->sver, false, &pTag);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to create tag, error:%s", tstrerror(code));

@@ -621,12 +621,17 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
   return code;
 }
 
-int32_t stRunnerFetchDataFromCache(SStreamCacheReadInfo* pInfo) {
+int32_t stRunnerFetchDataFromCache(SStreamCacheReadInfo* pInfo, bool* finished) {
   void**  ppIter;
   int32_t code = readStreamDataCache(pInfo->taskInfo.streamId, pInfo->taskInfo.taskId, pInfo->taskInfo.sessionId,
                                      pInfo->gid, pInfo->start, pInfo->end, &ppIter);
   if (code == 0 && *ppIter != NULL) {
     code = getNextStreamDataCache(ppIter, &pInfo->pBlock);
+  }
+  if(*ppIter == NULL) {
+    *finished = true;
+  } else {
+    *finished = false;
   }
   return code;
 }
