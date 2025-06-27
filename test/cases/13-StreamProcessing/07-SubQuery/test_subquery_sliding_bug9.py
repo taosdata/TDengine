@@ -107,10 +107,11 @@ class TestStreamDevBasic:
         self.streams = []
         
         stream = StreamItem(
-            id=95,
-            stream="create stream rdb.s95 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r95 as select _twstart, _twend from qdb.meters where tbname=%%1 and cts >= _twstart and cts < _twend",
-            res_query="select * from rdb.r95",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            id=12,
+            stream="create stream rdb.s12 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r12 as select _twstart ts, %%tbname tb, %%1, count(*) v1, avg(c1) v2, first(c1) v3, last(c1) v4 from %%trows where c2 > 0;",
+            res_query="select ts, tb, `%%1`, v2, v3, v4, tag_tbname from rdb.r12 where tb='t1'",
+            exp_query="select _wstart, 't1', 't1', avg(c1) v2, first(c1) v3, last(c1) v4, 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m) fill(NULL);",
+            check_func=self.check12,
         )
         self.streams.append(stream)
 
@@ -118,16 +119,24 @@ class TestStreamDevBasic:
         for stream in self.streams:
             stream.createStream()
 
-    def check0(self):
+    def check12(self):
         tdSql.checkTableType(
-            dbname="rdb", tbname="r0", typename="NORMAL_TABLE", columns=3
+            dbname="rdb",
+            stbname="r12",
+            columns=7,
+            tags=1,
         )
         tdSql.checkTableSchema(
             dbname="rdb",
-            tbname="r0",
+            tbname="r12",
             schema=[
                 ["ts", "TIMESTAMP", 8, ""],
-                ["c1", "BIGINT", 8, ""],
-                ["c2", "DOUBLE", 8, ""],
+                ["tb", "VARCHAR", 270, ""],
+                ["%%1", "VARCHAR", 270, ""],
+                ["v1", "BIGINT", 8, ""],
+                ["v2", "DOUBLE", 8, ""],
+                ["v3", "INT", 4, ""],
+                ["v4", "INT", 4, ""],
+                ["tag_tbname", "VARCHAR", 270, "TAG"],
             ],
         )
