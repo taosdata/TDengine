@@ -107,10 +107,10 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=37,
-            stream="create stream rdb.s37 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r37 as select _twstart ts, _twend, count(c1), sum(c2) from %%trows",
-            res_query="select * from rdb.r37 where id == 1",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            id=64,
+            stream="create stream rdb.s64 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r64 as select cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from qdb.view1 where cts >= _twstart and cts < _twend limit 1",
+            res_query="select cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from rdb.r64 where id = 1 limit 1",
+            exp_query="select cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from qdb.view1 where cts = '2025-01-01 00:00:00.000';",
         )
         self.streams.append(stream)
 
