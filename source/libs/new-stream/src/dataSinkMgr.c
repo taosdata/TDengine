@@ -537,6 +537,10 @@ int32_t getAlignDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end,
   SAlignTaskDSMgr* pStreamTaskMgr = (SAlignTaskDSMgr*)pCache;
   SResultIter*     pResultIter = NULL;
   *pIter = NULL;
+
+  stDebug("STREAMID:%" PRId64 "  [get data cache] init groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64,
+          pStreamTaskMgr->streamId, groupId, start, end);
+
   SAlignGrpMgr** ppExistGrpMgr = (SAlignGrpMgr**)taosHashGet(pStreamTaskMgr->pAlignGrpList, &groupId, sizeof(groupId));
   if (ppExistGrpMgr == NULL) {
     return code;
@@ -581,6 +585,9 @@ int32_t getSlidingDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
   SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
   SResultIter*       pResultIter = NULL;
   *pIter = NULL;
+
+  stDebug("STREAMID:%" PRId64 "  [get data cache] init groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64,
+          pStreamTaskMgr->streamId, groupId, start, end);
 
   SSlidingGrpMgr** ppExistGrpMgr =
       (SSlidingGrpMgr**)taosHashGet(pStreamTaskMgr->pSlidingGrpList, &groupId, sizeof(groupId));

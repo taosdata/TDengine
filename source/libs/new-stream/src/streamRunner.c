@@ -535,9 +535,10 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
             }
             ++nextOutIdx;
           }
-          ST_TASK_DLOG("[runner calc]gid:%" PRId64 "result has no data, status:%d", pReq->gid, pTask->task.status);
+          ST_TASK_DLOG("[runner calc]gid:%" PRId64 " result has no data, status:%d", pReq->gid, pTask->task.status);
         } else {
-          ST_TASK_DLOG("[runner calc]gid:%" PRId64 "non external window, %d, curIdx: %d, curOutIdx: %d, nextOutIdx: %d",
+          ST_TASK_DLOG("[runner calc]gid:%" PRId64
+                       " non external window, %d, curIdx: %d, curOutIdx: %d, nextOutIdx: %d",
                        pReq->gid, pExec->runtimeInfo.funcInfo.withExternalWindow, pExec->runtimeInfo.funcInfo.curIdx,
                        pExec->runtimeInfo.funcInfo.curOutIdx, nextOutIdx);
           code = stRunnerHandleResultBlock(pTask, pExec, pBlock, &createTable);
