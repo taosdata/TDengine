@@ -578,7 +578,8 @@ class TDDnode:
             tdLog.exit(cmd)
 
     def cfg(self, option, value):
-        cmd = "echo %s %s >> %s" % (option, value, self.cfgPath)
+        # add quote to value because ssAccessString may contain semicolon and echo will discard it
+        cmd = "echo %s '%s' >> %s" % (option, value, self.cfgPath)
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 

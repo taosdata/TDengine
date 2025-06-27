@@ -36,6 +36,7 @@ from frame.eos import *
 
 '''
 Common:
+    ssEnabled               : 2,
     ssPageCacheSize         : 10240,
     ssUploadDelaySec        : 10,
     ssAutoMigrateIntervalSec: 600,
@@ -65,7 +66,7 @@ class TDTestCase(TBase):
     updatecfgDict = {
         "supportVnodes":"1000",
         "ssEnabled": "2",
-        "ssAccessString": f's3:endpoint=192.168.1.52:9000;accessKey=zOgllR6bSnw2Ah3mCNel;bucket={bucketName};uriStyle=path;protocol=http;accessKeyId=zOgllR6bSnw2Ah3mCNel;secretAccessKey=cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX;chunkSize=64;maxChunks=10000;maxRetry=3',
+        "ssAccessString": f's3:endpoint=192.168.1.52:9000;bucket={bucketName};uriStyle=path;protocol=http;accessKeyId=zOgllR6bSnw2Ah3mCNel;secretAccessKey=cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX;chunkSize=64;maxChunks=10000;maxRetry=3',
         'ssPageCacheSize': '10240',
         "ssUploadDelaySec": "10",
         'ssAutoMigrateIntervalSec': '600',
