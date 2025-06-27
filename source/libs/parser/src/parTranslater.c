@@ -2951,19 +2951,31 @@ static bool hasFillClause(SNode* pCurrStmt) {
          NULL != ((SIntervalWindowNode*)pSelect->pWindow)->pFill;
 }
 
-static int32_t translatePlaceHolderFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SNode*  extraValue = NULL;
-
-  if (!fmIsPlaceHolderFunc(pFunc->funcId)) {
-    return TSDB_CODE_SUCCESS;
+static int32_t createTbnameFunction(SFunctionNode** ppFunc) {
+  SFunctionNode* pFunc = NULL;
+  int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (NULL == pFunc) {
+    return code;
   }
+  tstrncpy(pFunc->functionName, "tbname", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, "tbname", TSDB_COL_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, "tbname", TSDB_COL_NAME_LEN);
+  pFunc->node.resType.type = TSDB_DATA_TYPE_BINARY;
+  pFunc->node.resType.bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
+  *ppFunc = pFunc;
+  return code;
+}
+
+static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SNode*         extraValue = NULL;
+  SFunctionNode* pFuncNode = (SFunctionNode*)(*pFunc);
 
   if (!pCxt->createStreamCalc && !pCxt->createStreamOutTable) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "stream placeholder should only appear in create stream's query part"));
   }
 
-  switch (pFunc->funcType) {
+  switch (pFuncNode->funcType) {
     case FUNCTION_TYPE_TPREV_TS: {
       BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PREV_TS);
       PAR_ERR_JRET(nodesMakeValueNodeFromTimestamp(0, &extraValue));
@@ -3021,7 +3033,15 @@ static int32_t translatePlaceHolderFunc(STranslateContext* pCxt, SFunctionNode* 
     }
     case FUNCTION_TYPE_PLACEHOLDER_TBNAME: {
       BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_TBNAME);
-      PAR_ERR_JRET(nodesMakeValueNodeFromString("", (SValueNode**)&extraValue));
+      if (BIT_FLAG_TEST_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) && pCxt->createStreamCalc) {
+        SFunctionNode *pTbname = NULL;
+        PAR_ERR_JRET(createTbnameFunction(&pTbname));
+        tstrncpy(pTbname->node.userAlias, "%%tbname", TSDB_COL_NAME_LEN);
+        *pFunc = (SNode*)pTbname;
+        return translateFunction(pCxt, (SFunctionNode**)pFunc);
+      } else {
+        PAR_ERR_JRET(nodesMakeValueNodeFromString("", (SValueNode**)&extraValue));
+      }
       break;
     }
     case FUNCTION_TYPE_PLACEHOLDER_COLUMN: {
@@ -3029,7 +3049,7 @@ static int32_t translatePlaceHolderFunc(STranslateContext* pCxt, SFunctionNode* 
         PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "use %%n without partition list in trigger"));
       }
       BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_IDX);
-      SValueNode* pIndex = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
+      SValueNode* pIndex = (SValueNode*)nodesListGetNode(pFuncNode->pParameterList, 0);
       if (pIndex == NULL) {
         PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "%%n : partition index is required"));
       }
@@ -3042,23 +3062,43 @@ static int32_t translatePlaceHolderFunc(STranslateContext* pCxt, SFunctionNode* 
         PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "%%n : partition index out of range"));
       }
 
-      PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&extraValue));
-      ((SValueNode*)extraValue)->node.resType = pExpr->resType;
-      ((SValueNode*)extraValue)->isNull = true;
+      if (BIT_FLAG_TEST_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) && pCxt->createStreamCalc) {
+        if (nodeType(pExpr) == QUERY_NODE_FUNCTION) {
+          SFunctionNode* pTbname = NULL;
+          PAR_ERR_JRET(createTbnameFunction(&pTbname));
+          tstrncpy(pTbname->node.userAlias, "%%tbname", TSDB_COL_NAME_LEN);
+          *pFunc = (SNode*)pTbname;
+          return translateFunction(pCxt, (SFunctionNode**)pFunc);
+        } else if (nodeType(pExpr) == QUERY_NODE_COLUMN) {
+          SColumnNode* pCol = NULL;
+          PAR_ERR_JRET(nodesCloneNode((SNode*)pExpr, (SNode**)&pCol));
+          tstrncpy(pCol->node.userAlias, ((SExprNode*)*pFunc)->userAlias, TSDB_COL_NAME_LEN);
+          *pFunc = (SNode*)pCol;
+          return translateColumn(pCxt, (SColumnNode**)pFunc);
+        } else {
+          PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
+                                           "%%n : partition index must be a column or tbname function"));
+        }
+      } else {
+        PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&extraValue));
+        ((SValueNode*)extraValue)->node.resType = pExpr->resType;
+        ((SValueNode*)extraValue)->isNull = true;
 
-      pFunc->node.resType = pExpr->resType;
+        pFuncNode->node.resType = pExpr->resType;
+      }
       break;
     }
     default:
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "unsupported placeholder function %s", pFunc->functionName));
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "unsupported placeholder function %s", pFuncNode->functionName));
   }
 
-  PAR_ERR_JRET(nodesListMakePushFront(&pFunc->pParameterList, extraValue));
-  return code;
+  PAR_ERR_JRET(nodesListMakePushFront(&pFuncNode->pParameterList, extraValue));
+  return DEAL_RES_CONTINUE;
 _return:
+  pCxt->errCode = code;
   parserError("translatePlaceHolderFunc failed with code %d", code);
   nodesDestroyNode(extraValue);
-  return code;
+  return DEAL_RES_ERROR;
 }
 static int32_t translateForbidFillFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
   if (!fmIsForbidFillFunc(pFunc->funcId)) {
@@ -3469,9 +3509,6 @@ static int32_t translateNormalFunction(STranslateContext* pCxt, SNode** ppNode) 
   SFunctionNode* pFunc = (SFunctionNode*)(*ppNode);
   int32_t        code = translateAggFunc(pCxt, pFunc);
   if (TSDB_CODE_SUCCESS == code) {
-    code = translatePlaceHolderFunc(pCxt, pFunc);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
     bool bRewriteToColumn = false;
     code = translateScanPseudoColumnFunc(pCxt, ppNode, &bRewriteToColumn);
     if (bRewriteToColumn) {
@@ -3598,6 +3635,9 @@ static int32_t translateFunctionImpl(STranslateContext* pCxt, SFunctionNode** pF
   if (fmIsClientPseudoColumnFunc((*pFunc)->funcId)) {
     return rewriteClientPseudoColumnFunc(pCxt, (SNode**)pFunc);
   }
+  if (fmIsPlaceHolderFunc((*pFunc)->funcId)) {
+    return translatePlaceHolderFunc(pCxt, (SNode**)pFunc);
+  }
   return translateNormalFunction(pCxt, (SNode**)pFunc);
 }
 
@@ -3663,6 +3703,11 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
     pCxt->errCode = TSDB_CODE_PAR_INVALID_COLS_SELECTFUNC;
     return DEAL_RES_ERROR;
   }
+
+  if (fmIsPlaceHolderFunc((*pFunc)->funcId)) {
+    return translatePlaceHolderFunc(pCxt, (SNode**)pFunc);
+  }
+
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pCxt->errCode = translateFunctionImpl(pCxt, pFunc);
   }
@@ -6878,7 +6923,7 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
     return TSDB_CODE_SUCCESS;
   }
 
-  if (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_INITIALIZER) && !pCxt->createStreamCalc) {
+  if (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_INITIALIZER) && !pFill->pTimeRange) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
   }
 
@@ -6918,6 +6963,7 @@ static int32_t translateFill(STranslateContext* pCxt, SSelectStmt* pSelect, SInt
   }
 
   ((SFillNode*)pInterval->pFill)->timeRange = pSelect->timeRange;
+  PAR_ERR_RET(nodesCloneNode(pSelect->pTimeRange, &((SFillNode*)pInterval->pFill)->pTimeRange));
   return checkFill(pCxt, (SFillNode*)pInterval->pFill, (SValueNode*)pInterval->pInterval, false, pSelect->precision);
 }
 
@@ -11265,21 +11311,6 @@ static int32_t createRollupTableMeta(SCreateTableStmt* pStmt, int8_t precision, 
 
   *ppTbMeta = pMeta;
   return TSDB_CODE_SUCCESS;
-}
-
-static int32_t createTbnameFunction(SFunctionNode** ppFunc) {
-  SFunctionNode* pFunc = NULL;
-  int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
-  if (NULL == pFunc) {
-    return code;
-  }
-  tstrncpy(pFunc->functionName, "tbname", TSDB_FUNC_NAME_LEN);
-  tstrncpy(pFunc->node.aliasName, "tbname", TSDB_COL_NAME_LEN);
-  tstrncpy(pFunc->node.userAlias, "tbname", TSDB_COL_NAME_LEN);
-  pFunc->node.resType.type = TSDB_DATA_TYPE_BINARY;
-  pFunc->node.resType.bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
-  *ppFunc = pFunc;
-  return code;
 }
 
 static int32_t buildSampleAstInfoByTable(STranslateContext* pCxt, SCreateTableStmt* pStmt, SRetention* pRetension,

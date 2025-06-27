@@ -38,56 +38,24 @@ class TestStreamStateFillHistory:
 
         tdLog.info(f"=============== write query data")
         sqls = [
-            "insert into ct1 using stb tags(1) values ('2024-01-01 00:00:00', 0, 0);",
-            "insert into ct1 using stb tags(1) values ('2024-01-01 00:00:01', 0, 0);",
-            "insert into ct1 using stb tags(1) values ('2024-01-01 00:00:02', 1, 1);",
-            "insert into ct1 using stb tags(1) values ('2024-01-01 00:00:03', 1, 1);",
-            "insert into ct1 using stb tags(1) values ('2024-01-01 00:00:04', 1, 1);",
-            "insert into ct1 using stb tags(1) values ('2024-01-01 00:00:05', 2, 2);",
-            "insert into ct1 using stb tags(1) values ('2024-01-01 00:00:06', 2, 2);",
-            "insert into ct1 using stb tags(1) values ('2024-01-01 00:00:07', 2, 2);",
-            "insert into ct1 using stb tags(1) values ('2024-01-01 00:00:08', 2, 2);",
-            "insert into ct1 using stb tags(1) values ('2024-01-01 00:00:09', 3, 3);",
-                                                           
-            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:00', 0, 0);",
-            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:01', 0, 0);",
-            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:02', 1, 1);",
-            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:03', 1, 1);",
-            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:04', 1, 1);",
-            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:05', 2, 2);",
-            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:06', 2, 2);",
-            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:07', 2, 2);",
-            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:08', 2, 2);",
-            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:09', 3, 3);",
-                                                          
-            "insert into ct3 using stb tags(1) values ('2024-01-01 00:00:00', 0, 0);",
-            "insert into ct3 using stb tags(1) values ('2024-01-01 00:00:01', 0, 0);",
-            "insert into ct3 using stb tags(1) values ('2024-01-01 00:00:02', 1, 1);",
-            "insert into ct3 using stb tags(1) values ('2024-01-01 00:00:03', 1, 1);",
-            "insert into ct3 using stb tags(1) values ('2024-01-01 00:00:04', 1, 1);",
-            "insert into ct3 using stb tags(1) values ('2024-01-01 00:00:05', 2, 2);",
-            "insert into ct3 using stb tags(1) values ('2024-01-01 00:00:06', 2, 2);",
-            "insert into ct3 using stb tags(1) values ('2024-01-01 00:00:07', 2, 2);",
-            "insert into ct3 using stb tags(1) values ('2024-01-01 00:00:08', 2, 2);",
-            "insert into ct3 using stb tags(1) values ('2024-01-01 00:00:09', 3, 3);",
-                                                          
-            "insert into ct4 using stb tags(2) values ('2024-01-01 00:00:00', 0, 0);",
-            "insert into ct4 using stb tags(2) values ('2024-01-01 00:00:01', 0, 0);",
-            "insert into ct4 using stb tags(2) values ('2024-01-01 00:00:02', 1, 1);",
-            "insert into ct4 using stb tags(2) values ('2024-01-01 00:00:03', 1, 1);",
-            "insert into ct4 using stb tags(2) values ('2024-01-01 00:00:04', 1, 1);",
-            "insert into ct4 using stb tags(2) values ('2024-01-01 00:00:05', 2, 2);",
-            "insert into ct4 using stb tags(2) values ('2024-01-01 00:00:06', 2, 2);",
-            "insert into ct4 using stb tags(2) values ('2024-01-01 00:00:07', 2, 2);",
-            "insert into ct4 using stb tags(2) values ('2024-01-01 00:00:08', 2, 2);",
-            "insert into ct4 using stb tags(2) values ('2024-01-01 00:00:09', 3, 3);",
+            "insert into ct1 using stb tags(1) values ('2024-01-01 00:00:00', 0, 0)('2024-01-01 00:00:01', 0, 0)('2024-01-01 00:00:02', 1, 1)('2024-01-01 00:00:03', 1, 1)('2024-01-01 00:00:04', 1, 1);",
+            "insert into ct1 using stb tags(1) values ('2024-01-01 00:00:05', 2, 2)('2024-01-01 00:00:06', 2, 2)('2024-01-01 00:00:07', 2, 2)('2024-01-01 00:00:08', 2, 2)('2024-01-01 00:00:09', 3, 3);",
+                     
+            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:00', 0, 0)('2024-01-01 00:00:01', 0, 0)('2024-01-01 00:00:02', 1, 1)('2024-01-01 00:00:03', 1, 1)('2024-01-01 00:00:04', 1, 1);",
+            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:05', 2, 2)('2024-01-01 00:00:06', 2, 2)('2024-01-01 00:00:07', 2, 2)('2024-01-01 00:00:08', 2, 2)('2024-01-01 00:00:09', 3, 3);",
+                    
+            "insert into ct3 using stb tags(1) values ('2024-01-01 00:00:00', 0, 0)('2024-01-01 00:00:01', 0, 0)('2024-01-01 00:00:02', 1, 1)('2024-01-01 00:00:03', 1, 1)('2024-01-01 00:00:04', 1, 1);",
+            "insert into ct3 using stb tags(1) values ('2024-01-01 00:00:05', 2, 2)('2024-01-01 00:00:06', 2, 2)('2024-01-01 00:00:07', 2, 2)('2024-01-01 00:00:08', 2, 2)('2024-01-01 00:00:09', 3, 3);",
+                    
+            "insert into ct4 using stb tags(2) values ('2024-01-01 00:00:00', 0, 0)('2024-01-01 00:00:01', 0, 0)('2024-01-01 00:00:02', 1, 1)('2024-01-01 00:00:03', 1, 1)('2024-01-01 00:00:04', 1, 1);",
+            "insert into ct4 using stb tags(2) values ('2024-01-01 00:00:05', 2, 2)('2024-01-01 00:00:06', 2, 2)('2024-01-01 00:00:07', 2, 2)('2024-01-01 00:00:08', 2, 2)('2024-01-01 00:00:09', 3, 3);",
         ]
         tdSql.executes(sqls)
         tdSql.query("select _wstart, count(cint), avg(cint) from stb partition by tbname state_window(cint)")
         tdSql.printResult()       
         
         tdLog.info(f"=============== create stream")
-        sql1 = "create stream s1 state_window(cint) from ct1 into res_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        sql1 = "create stream s1 state_window(cint) from ct1                                              into res_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
         sql2 = "create stream s2 state_window(cint) from ct2 options(fill_history('2024-01-01 00:00:05')) into res_ct2 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
         sql5 = "create stream s5 state_window(cint) from ct2 into res_ct2 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
         sql3 = "create stream s3 state_window(cint) from stb partition by tbname into stb_res OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname;"
@@ -230,10 +198,12 @@ class TestStreamStateFillHistory:
         result_sql = "select firstts, num_v, cnt_v, avg_v from res_ct2"
         tdSql.checkResultsByFunc(
             sql=result_sql,
-            func=lambda: tdSql.getRows() == 5
-            and tdSql.compareData(0, 0, "2024-01-01 00:00:05.000")
-            and tdSql.compareData(1, 0, "2024-01-01 00:00:09.000")
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:00.000"),
+            func=lambda: tdSql.getRows() == 7
+            and tdSql.compareData(0, 0, "2024-01-01 00:00:00.000")
+            and tdSql.compareData(1, 0, "2024-01-01 00:00:02.000")
+            and tdSql.compareData(2, 0, "2024-01-01 00:00:05.000")
+            and tdSql.compareData(5, 0, "2025-01-01 00:00:02.000")
+            and tdSql.compareData(6, 0, "2025-01-01 00:00:05.000"),
         )
         tdLog.info(f"=============== check s2 result success !!!!!!!! =====================")
         return

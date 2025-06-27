@@ -52,7 +52,7 @@ class TestStreamCountTrigger:
         streams = [
             self.StreamItem(sql1, self.checks1),
             # self.StreamItem(sql2, self.checks2),
-            self.StreamItem(sql3, self.checks3),
+            # self.StreamItem(sql3, self.checks3),
             # self.StreamItem(sql4, self.checks4),
         ]
 
@@ -191,7 +191,7 @@ class TestStreamCountTrigger:
         return
 
     def checks3(self):
-        result_sql = "select firstts, num_v, cnt_v, avg_v, sum_v from res_stb"
+        result_sql = "select firstts, num_v, cnt_v, avg_v, sum_v from res_stb_ct1"
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 4

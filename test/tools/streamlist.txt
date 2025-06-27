@@ -5,6 +5,9 @@
 
 ## 03-Trigger
 ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/07-SubQuery/test_state.py
+../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/07-SubQuery/test_count.py
+../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/07-SubQuery/test_fill_history.py
+../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/03-TriggerMode/test_sliding.py
 
 ## 04-Option
 

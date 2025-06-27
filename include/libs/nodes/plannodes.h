@@ -372,6 +372,7 @@ typedef struct SFillLogicNode {
   SNode*      pWStartTs;
   SNode*      pValues;  // SNodeListNode
   STimeWindow timeRange;
+  SNode*      pTimeRange; // STimeRangeNode for create stream
   SNodeList*  pFillNullExprs;
 } SFillLogicNode;
 
@@ -748,6 +749,7 @@ typedef struct SFillPhysiNode {
   SNode*      pWStartTs;  // SColumnNode
   SNode*      pValues;    // SNodeListNode
   STimeWindow timeRange;
+  SNode*      pTimeRange;  // STimeRangeNode for create stream
   SNodeList*  pFillNullExprs;
 } SFillPhysiNode;
 
