@@ -5,6 +5,7 @@
 #include "plannodes.h"
 #include "scalar.h"
 #include "streamInt.h"
+#include "tarray.h"
 #include "tdatablock.h"
 
 static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pTaskExec);
@@ -320,12 +321,13 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   code = streamBuildBlockResultNotifyContent(pBlock, &pContent, pTask->output.outCols);
   if (code == 0) {
     ST_TASK_DLOG("start to send notify:%s", pContent);
-    SSTriggerCalcParam* pTriggerCalcParams = TARRAY_DATA(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals);
+    SSTriggerCalcParam* pTriggerCalcParams =
+        taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, pExec->runtimeInfo.funcInfo.curOutIdx);
     pTriggerCalcParams->resultNotifyContent = pContent;
+
     code = streamSendNotifyContent(&pTask->task, pExec->runtimeInfo.funcInfo.triggerType,
                                    pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
-                                   pTask->notification.notifyErrorHandle, pTriggerCalcParams,
-                                   taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals));
+                                   pTask->notification.notifyErrorHandle, pTriggerCalcParams, 1);
   }
   return code;
 }
