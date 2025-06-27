@@ -2195,6 +2195,7 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   pFill->mode = pFillNode->mode;
   pFill->timeRange = pFillNode->timeRange;
+  TSWAP(pFill->pTimeRange, pFillNode->pTimeRange);
   pFill->pValues = NULL;
   code = nodesCloneNode(pFillNode->pValues, &pFill->pValues);
   if (TSDB_CODE_SUCCESS == code) {

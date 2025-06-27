@@ -499,6 +499,7 @@ typedef struct SFillNode {
   SNode*      pValues;    // SNodeListNode
   SNode*      pWStartTs;  // _wstart pseudo column
   STimeWindow timeRange;
+  SNode*      pTimeRange; // STimeRangeNode for create stream
 } SFillNode;
 
 typedef struct SWhenThenNode {
