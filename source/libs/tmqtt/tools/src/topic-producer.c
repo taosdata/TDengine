@@ -421,7 +421,7 @@ void basic_consume_loop(tmq_t* tmq) {
       // free the message
       taos_free_result(tmqmsg);
     }
-    if (msgCnt > 50) {
+    if (totalRows > 999999) {
       // consume 50 messages and break
       break;
     }
@@ -549,6 +549,54 @@ int topic_prep(void) {
   return 0;
 }
 
+#define SQL_USE_DB_DEFAULT     "USE test"
+#define SQL_DROP_TOPIC_DEFAULT "DROP TOPIC IF EXISTS topic_meters"
+
+int32_t drop_topic_without_connect_default(TAOS* pConn) {
+  TAOS_RES* pRes;
+  int       code = 0;
+
+  if (!pConn) {
+    fprintf(stderr, "Invalid input parameter.\n");
+    return -1;
+  }
+
+  pRes = taos_query(pConn, SQL_USE_DB_DEFAULT);
+  code = taos_errno(pRes);
+  if (taos_errno(pRes) != 0) {
+    fprintf(stderr, "Failed to use power, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, SQL_DROP_TOPIC_DEFAULT);
+  code = taos_errno(pRes);
+  if (code != 0) {
+    fprintf(stderr, "Failed to drop topic topic_meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+  return 0;
+}
+
+tmq_list_t* build_topiclist(const char* topic_name) {
+  // create a empty topic list
+  tmq_list_t* topicList = tmq_list_new();
+
+  // append topic name to the list
+  int32_t code = tmq_list_append(topicList, topic_name);
+  if (code) {
+    // if failed, destroy the list and return NULL
+    tmq_list_destroy(topicList);
+    fprintf(stderr,
+            "Failed to create topic_list, topic: %s, groupId: %s, clientId: %s, ErrCode: 0x%x, ErrMessage: %s.\n",
+            topic_name, config.group_id, config.client_id, code, tmq_err2str(code));
+    return NULL;
+  }
+  // if success, return the list
+  return topicList;
+}
+
 int topic_consume(void) {
   const char* host = "localhost";
   const char* user = "root";
@@ -567,7 +615,26 @@ int topic_consume(void) {
     return -1;
   }
 
+  TAOS_RES* pRes = taos_query(pConn, SQL_USE_DB_DEFAULT);
+  code = taos_errno(pRes);
+  if (taos_errno(pRes) != 0) {
+    fprintf(stderr, "Failed to use power, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+#define SQL_CREATE_TOPIC_DEFAULT "CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT * FROM meters"
+
+  pRes = taos_query(pConn, SQL_CREATE_TOPIC_DEFAULT);
+  code = taos_errno(pRes);
+  if (code != 0) {
+    fprintf(stderr, "Failed to create topic topic_meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
   config.auto_offset_reset = "earliest";
+  config.group_id = "group7";
 
   tmq_t* tmq = build_consumer(&config);
   if (NULL == tmq) {
@@ -579,7 +646,7 @@ int topic_consume(void) {
             config.group_id, config.client_id);
   }
 
-  tmq_list_t* topic_list = build_topic_list();
+  tmq_list_t* topic_list = build_topiclist("topic_meters");
   if (NULL == topic_list) {
     fprintf(stderr, "Failed to create topic_list, topic: %s, groupId: %s, clientId: %s.\n", topic_name, config.group_id,
             config.client_id);
@@ -624,7 +691,7 @@ int topic_consume(void) {
 
   thread_stop = 1;
 
-  if (drop_topic_without_connect(pConn) < 0) {
+  if (drop_topic_without_connect_default(pConn) < 0) {
     fprintf(stderr, "Failed to drop topic.\n");
     return -1;
   }
