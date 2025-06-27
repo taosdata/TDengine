@@ -181,24 +181,33 @@ void streamReleaseTask(void* taskAddr) {
         break;
     }
   }
+  
   taosHashRelease(gStreamMgmt.taskMap, taskAddr);
 }
 
-int32_t streamGetTriggerTask(int64_t streamId, SStreamTask** ppTask) {
+int32_t streamAcquireTriggerTask(int64_t streamId, SStreamTask** ppTask, void** ppAddr) {
   int32_t gid = STREAM_GID(streamId);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SHashObj* pGrp = gStreamMgmt.stmGrp[gid];
 
-  SStreamInfo* pStream = taosHashGet(pGrp, &streamId, sizeof(streamId));
+  SStreamInfo* pStream = taosHashAcquire(pGrp, &streamId, sizeof(streamId));
   if (NULL == pStream) {
     stError("stream %" PRIx64 " not exists", streamId);
     return TSDB_CODE_MND_STREAM_NOT_EXIST;
   }
 
-  *ppTask = (SStreamTask*)pStream->triggerTask;
+  TAOS_CHECK_EXIT(streamAcquireTask(streamId, pStream->triggerTaskId, ppTask, ppAddr));
 
-  return TSDB_CODE_SUCCESS;
+_exit:
+
+  taosHashRelease(pGrp, pStream);
+
+  if (code) {
+    stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;
 }
 
 

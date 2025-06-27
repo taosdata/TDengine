@@ -1,5 +1,10 @@
 import time
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdStream
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    tdStream,
+    StreamCheckItem,
+)
 
 
 class TestStreamOldCaseTwa:
@@ -34,31 +39,56 @@ class TestStreamOldCaseTwa:
 
         tdStream.createSnode()
 
-       
-        tdLog.info(f"=============== create database")
-        tdSql.execute(f"create database test2 vgroups 1;")
-        tdSql.execute(f"use test2;")
+        streams = []
+        streams.append(self.TwaFwcFill2())
+        tdStream.checkAll(streams)
 
-        tdSql.execute(
-            f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
-        )
-        tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
-        tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
+    class TwaFwcFill2(StreamCheckItem):
+        def __init__(self):
+            self.db = "twa_fwcfill2"
 
-        tdSql.execute(
-            f"create stream streams2 period(2s) from st partition by tbname options(expired_time(0s)|ignore_disorder) into streamt as select _tlocaltime, twa(a), twa(b), elapsed(ts), now, timezone() from st where ts >= _tlocaltime and ts < _tnext_localtime;"
-        )
+        def create_tb(self):
+            tdSql.execute(f"create database twa_fwcfill2 vgroups 1 buffer 32;")
+            tdSql.execute(f"use twa_fwcfill2;")
 
-        tdStream.checkStreamStatus()
+            tdSql.execute(
+                f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
+            )
+            tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+            tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
-        tdSql.execute(
-            f"insert into t1 values(now +  1s, 1, 1, 1)(now +  2s, 10, 1, 1)(now + 3s, 20, 2, 2)(now + 4s, 30, 3, 3)(now + 5s, 30, 3, 3)(now + 6s, 30, 3, 3)(now + 6s, 30, 3, 3)(now + 8s, 30, 3, 3)(now + 9s, 30, 3, 3)(now + 10s, 30, 3, 3);"
-        )
-        tdSql.execute(
-            f"insert into t2 values(now +  1s, 1, 1, 1)(now +  2s, 10, 1, 1)(now + 3s, 20, 2, 2)(now + 4s, 30, 3, 3)(now + 5s, 30, 3, 3)(now + 6s, 30, 3, 3)(now + 6s, 30, 3, 3)(now + 8s, 30, 3, 3)(now + 9s, 30, 3, 3)(now + 10s, 30, 3, 3);"
-        )
+        def create_stream(self):
+            tdSql.execute(
+                f"create stream streams2 period(2s) options(expired_time(0s) | ignore_disorder) into streamt as select cast(_tprev_localtime / 1000000 as timestamp) tp, cast(_tlocaltime / 1000000 as timestamp) tl, cast(_tnext_localtime / 1000000 as timestamp) tn, twa(a), twa(b), elapsed(ts), now, timezone() from st;"
+            )
 
-        tdSql.checkResultsByFunc(
-            f"select * from test2.streamt;",
-            lambda: tdSql.getRows() > 0,
-        )
+        def insert1(self):
+            tdSql.execute(
+                f"insert into t1 values(now +  1s, 1, 1, 1)(now +  2s, 10, 1, 1)(now + 3s, 20, 2, 2)(now + 4s, 30, 3, 3)(now + 5s, 30, 3, 3)(now + 6s, 30, 3, 3)(now + 6s, 30, 3, 3)(now + 8s, 30, 3, 3)(now + 9s, 30, 3, 3)(now + 10s, 30, 3, 3);"
+            )
+            tdSql.execute(
+                f"insert into t2 values(now +  1s, 1, 1, 1)(now +  2s, 10, 1, 1)(now + 3s, 20, 2, 2)(now + 4s, 30, 3, 3)(now + 5s, 30, 3, 3)(now + 6s, 30, 3, 3)(now + 6s, 30, 3, 3)(now + 8s, 30, 3, 3)(now + 9s, 30, 3, 3)(now + 10s, 30, 3, 3);"
+            )
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                f"select * from twa_fwcfill2.streamt;",
+                lambda: tdSql.getRows() > 0,
+                retry=100,
+            )
+
+            sql = "select TIMEDIFF(tp, tl), TIMEDIFF(tl, tn), `twa(a)`, `twa(b)`, `elapsed(ts)` from streamt limit 1"
+            exp_sql = "select -2000, -2000, twa(a), twa(b), elapsed(ts) from st"
+            tdSql.checkResultsBySql(sql, exp_sql, retry=1)
+
+            tdSql.query("select cast(tp as bigint) from streamt limit 1;")
+            tcalc = tdSql.getData(0, 0)
+
+            tdSql.query("select cast(ts as bigint) from t1 limit 1")
+            tnow = tdSql.getData(0, 0)
+            tdLog.info(f"calc:{tcalc}, now:{tnow}")
+
+            if tcalc - tnow > 20000:
+                tdLog.exit(f"not triggered within 20000 ms (actual:{tcalc - tnow} ms).")
+            else:
+                tdLog.info(f"triggered within 20000 ms (actual:{tcalc - tnow} ms).")

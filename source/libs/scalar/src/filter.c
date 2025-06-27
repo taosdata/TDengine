@@ -5521,7 +5521,7 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
       FLT_ERR_JRET(terrno);
     }
     code =
-        scalarCalculate(info->sclCtx.node, pList, &output, info->pStreamRtInfo ? *(void **)info->pStreamRtInfo : NULL, NULL);
+        scalarCalculate(info->sclCtx.node, pList, &output, info->pStreamRtInfo, NULL);
     taosArrayDestroy(pList);
 
     *p = output.columnData;

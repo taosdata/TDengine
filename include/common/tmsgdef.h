@@ -112,8 +112,8 @@
   TD_DEF_MSG_TYPE(TDMT_DND_DROP_QNODE, "dnode-drop-qnode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_CREATE_SNODE, "dnode-create-snode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_DROP_SNODE, "dnode-drop-snode", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_DND_CREATE_BNODE, "dnode-create-bnode", NULL, NULL) // no longer used
-  TD_DEF_MSG_TYPE(TDMT_DND_DROP_BNODE, "dnode-drop-bnode", NULL, NULL)     // no longer used
+  TD_DEF_MSG_TYPE(TDMT_DND_CREATE_BACKUP_NODE, "dnode-create-backup-node", NULL, NULL) // no longer used
+  TD_DEF_MSG_TYPE(TDMT_DND_DROP_BACKUP_NODE, "dnode-drop-backup-node", NULL, NULL)     // no longer used
   TD_DEF_MSG_TYPE(TDMT_DND_CREATE_VNODE, "create-vnode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_DROP_VNODE, "drop-vnode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_SERVER_STATUS, "server-status", NULL, NULL)
@@ -136,6 +136,10 @@
   TD_DEF_MSG_TYPE(TDMT_MND_GET_USER_WHITELIST_DUAL, "get-user-whitelist-dual", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_RETRIEVE_IP_WHITE_DUAL, "retrieve-ip-white-dual", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_ALTER_SNODE, "dnode-alter-snode", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_CREATE_BNODE, "create-bnode", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_DROP_BNODE, "drop-bnode", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_CREATE_BNODE, "dnode-create-bnode", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_DROP_BNODE, "dnode-drop-bnode", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_DND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_MSG)  // 1<<8
@@ -161,9 +165,9 @@
   TD_DEF_MSG_TYPE(TDMT_MND_CREATE_SNODE, "create-snode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_ALTER_SNODE, "alter-snode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_DROP_SNODE, "drop-snode", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MND_CREATE_BNODE, "create-bnode", NULL, NULL) // no longer used
-  TD_DEF_MSG_TYPE(TDMT_MND_ALTER_BNODE, "alter-bnode", NULL, NULL)   // no longer used
-  TD_DEF_MSG_TYPE(TDMT_MND_DROP_BNODE, "drop-bnode", NULL, NULL)     // no longer used
+  TD_DEF_MSG_TYPE(TDMT_MND_CREATE_BACKUP_NODE, "create-backup-node", NULL, NULL) // no longer used
+  TD_DEF_MSG_TYPE(TDMT_MND_ALTER_BACKUP_NODE, "alter-backup-node", NULL, NULL)   // no longer used
+  TD_DEF_MSG_TYPE(TDMT_MND_DROP_BACKUP_NODE, "drop-backup-node", NULL, NULL)     // no longer used
   TD_DEF_MSG_TYPE(TDMT_MND_CREATE_DB, "create-db", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_DROP_DB, "drop-db", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_USE_DB, "use-db", NULL, NULL)

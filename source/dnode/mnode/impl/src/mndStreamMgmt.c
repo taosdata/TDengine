@@ -871,6 +871,8 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   TAOS_CHECK_EXIT(msmBuildTriggerRunnerTargets(pMnode, pInfo, streamId, &pMsg->runnerList));
 
   pMsg->leaderSnodeId = pStream->mainSnodeId;
+  pMsg->streamName = taosStrdup(pStream->name);
+  TSDB_CHECK_NULL(pMsg->streamName, code, lino, _exit, terrno);
 
 _exit:
 
@@ -892,6 +894,8 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStrea
   //TAOS_CHECK_EXIT(qSubPlanToString(plan, &pMsg->pPlan, NULL));
 
   pMsg->execReplica = replica;
+  pMsg->streamName = taosStrdup(pStream->name);
+  TSDB_CHECK_NULL(pMsg->streamName, code, lino, _exit, terrno);
   //TAOS_CHECK_EXIT(nodesCloneNode((SNode*)plan, (SNode**)&pMsg->pPlan));
   pMsg->pPlan = plan;
   pMsg->outDBFName = pStream->pCreate->outDB;
@@ -3532,6 +3536,11 @@ void msmRspAddTriggerUpdate(SMnode * pMnode, int64_t streamId, SStmGrpCtx* pCtx,
 
   TAOS_CHECK_EXIT(msmBuildTriggerRunnerTargets(pMnode, pStream, streamId, &rsp.cont.runnerList));  
 
+  if (NULL == pCtx->pRsp->rsps.rspList) {
+    pCtx->pRsp->rsps.rspList = taosArrayInit(2, sizeof(SStreamMgmtRsp));
+    TSDB_CHECK_NULL(pCtx->pRsp->rsps.rspList, code, lino, _exit, terrno);
+  }
+
   TSDB_CHECK_NULL(taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp), code, lino, _exit, terrno);
 
 _exit:
@@ -3564,6 +3573,11 @@ void msmRspAddUserRecalc(SMnode * pMnode, int64_t streamId, SStmGrpCtx* pCtx, SS
   rsp.task.streamId = streamId;
   rsp.task.taskId = pStream->triggerTask->id.taskId;
   TSWAP(rsp.cont.recalcList, pAction->recalc.recalcList);
+
+  if (NULL == pCtx->pRsp->rsps.rspList) {
+    pCtx->pRsp->rsps.rspList = taosArrayInit(2, sizeof(SStreamMgmtRsp));
+    TSDB_CHECK_NULL(pCtx->pRsp->rsps.rspList, code, lino, _exit, terrno);
+  }
 
   TSDB_CHECK_NULL(taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp), code, lino, _exit, terrno);
 
@@ -3871,6 +3885,11 @@ int32_t msmProcessDeployOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
     TAOS_CHECK_EXIT(msmCheckDeployTrigReader(pCtx, pTask, vgId, &rsp));
   }
 
+  if (NULL == pCtx->pRsp->rsps.rspList) {
+    pCtx->pRsp->rsps.rspList = taosArrayInit(2, sizeof(SStreamMgmtRsp));
+    TSDB_CHECK_NULL(pCtx->pRsp->rsps.rspList, code, lino, _exit, terrno);
+  }
+
   TSDB_CHECK_NULL(taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp), code, lino, _exit, terrno);
 
 _exit:
@@ -3916,7 +3935,7 @@ int32_t msmHandleStreamRequests(SStmGrpCtx* pCtx) {
   SStmTaskStatusMsg* pTask = NULL;
   
   int32_t reqNum = taosArrayGetSize(pReq->pStreamReq);
-  if (reqNum > 0) {
+  if (reqNum > 0 && NULL == pCtx->pRsp->rsps.rspList) {
     pCtx->pRsp->rsps.rspList = taosArrayInit(reqNum, sizeof(SStreamMgmtRsp));
     TSDB_CHECK_NULL(pCtx->pRsp->rsps.rspList, code, lino, _exit, terrno);
   }

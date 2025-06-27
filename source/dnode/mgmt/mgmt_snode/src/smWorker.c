@@ -31,7 +31,8 @@ static void smProcessRunnerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SSnodeMgmt     *pMgmt = pInfo->ahandle;
   const STraceId *trace = &pMsg->info.traceId;
 
-  dTrace("msg:%p, get from snode-stream-runner queue", pMsg);
+  dDebug("msg:%p %d, get from snode-stream-runner queue", pMsg, pMsg->msgType);
+  
   int32_t code = sndProcessStreamMsg(pMgmt->pSnode, pMsg);
   if (code < 0) {
     dGError("snd, msg:%p failed to process stream msg %s since %s", pMsg, TMSG_INFO(pMsg->msgType), tstrerror(code));
@@ -116,7 +117,6 @@ static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, voi
       int64_t               buf[] = {pReq->streamId, pReq->triggerTaskId, pReq->sessionId};
       uint32_t              hashVal = MurmurHash3_32((const char *)buf, sizeof(buf));
       *pWorkerIdx = hashVal % tsNumOfStreamTriggerThreads;
-      code = streamTriggerKickCalc();
       break;
     }
 

@@ -19,6 +19,7 @@
 #include "function.h"
 #include "nodes.h"
 #include "plannodes.h"
+#include "query.h"
 #include "storageapi.h"
 #include "tcommon.h"
 #include "tpagedbuf.h"
@@ -111,6 +112,15 @@ typedef struct STableListInfo {
   SHashObj*        remainGroups;  // remaining group has not yet processed the empty group
   STableListIdInfo idInfo;        // this maybe the super table or ordinary table
 } STableListInfo;
+typedef struct SDBVgInfoReq {
+  tsem_t     ready;
+  SUseDbRsp* pRsp;
+} SDBVgInfoReq;
+
+typedef struct SDBVgInfoMgr {
+  SHashObj* dbVgInfoMap;
+  int8_t    inited;  // 0: not initialized, 1: initialized
+} SDBVgInfoMgr;
 
 struct SqlFunctionCtx;
 
@@ -224,5 +234,8 @@ uint64_t calcGroupId(char* pData, int32_t len);
 SNodeList* makeColsNodeArrFromSortKeys(SNodeList* pSortKeys);
 
 int32_t extractKeysLen(const SArray* keys, int32_t* pLen);
+
+int32_t getDbVgInfoForExec(void* clientRpc, const char* dbFName, const char* tbName, SVgroupInfo* pVgInfo);
+void    rmDbVgInfoFromCache(const char* dbFName);
 
 #endif  // TDENGINE_EXECUTIL_H
