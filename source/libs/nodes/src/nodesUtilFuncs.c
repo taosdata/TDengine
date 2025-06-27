@@ -3142,6 +3142,7 @@ int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY:
+      pVal->nLen += VARSTR_HEADER_SIZE;
       pVal->pz = taosMemoryCalloc(1, pVal->nLen + 1);
       if (pVal->pz) {
         memcpy(pVal->pz, pNode->datum.p, varDataTLen(pNode->datum.p));
