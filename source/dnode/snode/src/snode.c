@@ -144,7 +144,7 @@ static int32_t handleSyncWriteCheckPointRsp(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   return streamCheckpointSetReady(streamId);
 }
 
-static int32_t buildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8_t precision) {
+static int32_t buildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8_t precision, bool finished) {
   int32_t code = 0;
   int32_t lino = 0;
   void*   buf =  NULL;
@@ -175,6 +175,9 @@ static int32_t buildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int
       code = terrno;
       goto end;
     }
+  }
+  if (finished) {
+    pRetrieve->completed = 1;
   }
 
   *data = buf;
@@ -216,7 +219,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   pTask->pMsgCb = &pSnode->msgCb;
   TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &calcReq));
 
-  TAOS_CHECK_EXIT(buildFetchRsp(calcReq.pOutBlock, &buf, &size, 0));
+  TAOS_CHECK_EXIT(buildFetchRsp(calcReq.pOutBlock, &buf, &size, 0, false));
 
 _exit:
 
@@ -251,9 +254,10 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   SSTriggerCalcParam* pParam = taosArrayGet(req.pStRtFuncInfo->pStreamPesudoFuncVals, req.pStRtFuncInfo->curIdx);
   readInfo.start = pParam->wstart;
   readInfo.end = pParam->wend;
-  TAOS_CHECK_EXIT(stRunnerFetchDataFromCache(&readInfo));
+  bool finished;
+  TAOS_CHECK_EXIT(stRunnerFetchDataFromCache(&readInfo,&finished));
 
-  TAOS_CHECK_EXIT(buildFetchRsp(readInfo.pBlock, &buf, &size, 0));
+  TAOS_CHECK_EXIT(buildFetchRsp(readInfo.pBlock, &buf, &size, 0, finished));
 
 _exit:
 
