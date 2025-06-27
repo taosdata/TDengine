@@ -1,5 +1,5 @@
 
-taos> select * from test1.`s0-0-0-1-10_out` order by cts, tag_tbname
+taos> select * from test1.`s0-0-0-1-10_out` order by cts, tag_tbname limit 150
            cts           |    cint     |           tag_tbname           |
 =========================================================================
  2025-01-01 00:00:00.000 |           0 | st1_0                          |

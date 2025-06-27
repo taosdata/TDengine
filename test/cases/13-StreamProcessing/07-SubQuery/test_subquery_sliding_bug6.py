@@ -107,10 +107,11 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=37,
-            stream="create stream rdb.s37 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r37 as select _twstart ts, _twend, count(c1), sum(c2) from %%trows",
-            res_query="select * from rdb.r37 where id == 1",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            id=123,
+            stream="create stream rdb.s123 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r123 as select _wstart tw, _wend te, _twstart, _twend, count(c1) c1, sum(c2) c2 from %%trows interval(1m)",
+            res_query="select tw, te, c1, c2 from rdb.r123 where id=1",
+            exp_query="select _wstart, _wend, count(c1), sum(c2) from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(1m);",
+            check_func=self.check123,
         )
         self.streams.append(stream)
 
@@ -118,16 +119,22 @@ class TestStreamDevBasic:
         for stream in self.streams:
             stream.createStream()
 
-    def check0(self):
-        tdSql.checkTableType(
-            dbname="rdb", tbname="r0", typename="NORMAL_TABLE", columns=3
-        )
+    def check123(self):
         tdSql.checkTableSchema(
             dbname="rdb",
-            tbname="r0",
+            tbname="r123",
             schema=[
-                ["ts", "TIMESTAMP", 8, ""],
+                ["tw", "TIMESTAMP", 8, ""],
+                ["te", "TIMESTAMP", 8, ""],
+                ["_twstart", "TIMESTAMP", 8, ""],
+                ["_twend", "TIMESTAMP", 8, ""],
                 ["c1", "BIGINT", 8, ""],
-                ["c2", "DOUBLE", 8, ""],
+                ["c2", "BIGINT", 8, ""],
+                ["id", "INT", 4, "TAG"],
+                ["name", "VARCHAR", 16, "TAG"],
             ],
+        )
+        tdSql.checkResultsByFunc(
+            sql="select * from information_schema.ins_tables where db_name='rdb' and stable_name='r123';",
+            func=lambda: tdSql.getRows() == 3,
         )
