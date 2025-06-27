@@ -51,7 +51,7 @@ static int32_t handleTriggerCalcReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   SSTriggerCalcRequest req = {0};
   SStreamRunnerTask* pTask = NULL;
   void* taskAddr = NULL;
-  int32_t code = 0;
+  int32_t code = 0, lino = 0;
   TAOS_CHECK_EXIT(tDeserializeSTriggerCalcRequest(POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead), &req));
   TAOS_CHECK_EXIT(streamAcquireTask(req.streamId, req.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));
 
@@ -239,9 +239,11 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   SResFetchReq req = {0};
   SStreamCacheReadInfo readInfo = {0};
   void* buf = NULL;
+  int64_t streamId = 0;
   size_t size = 0;
   TAOS_CHECK_EXIT(tDeserializeSResFetchReq(pRpcMsg->pCont, pRpcMsg->contLen, &req));
 
+  streamId = req.queryId;
   readInfo.taskInfo.streamId = req.queryId;
   readInfo.taskInfo.taskId = req.taskId;
   readInfo.taskInfo.sessionId = req.pStRtFuncInfo->sessionId;
@@ -255,14 +257,19 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
 
 _exit:
 
-  blockDataDestroy(readInfo.pBlock);
-  tDestroySResFetchReq(&req);
+  stsDebug("task %" PRIx64 " TDMT_STREAM_FETCH_FROM_CACHE_RSP with code:%d size:%d", req.taskId, code, (int32_t)size);  
+  if (0 == code)  {
+    assert(size > 0);
+  }
   SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_FETCH_FROM_CACHE_RSP, .contLen = size, .pCont = buf, .info = pRpcMsg->info};
   tmsgSendRsp(&rsp);
 
   if (code) {
     sndError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
+
+  blockDataDestroy(readInfo.pBlock);
+  tDestroySResFetchReq(&req);
   
   return code;
 }
