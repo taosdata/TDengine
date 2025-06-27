@@ -622,7 +622,7 @@ int32_t inserterGetDbVgInfo(SDataInserterHandle* pInserter, const char* dbFName,
 
 _return:
   qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
-  freeUseDbOutput_tmp(output);
+  freeUseDbOutput_tmp(&output);
   return code;
 }
 
@@ -2354,7 +2354,7 @@ int32_t getDbVgInfoByTbName(void* clientRpc, const char* dbFName, SDBVgInfo** db
 
 _return:
   qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
-  freeUseDbOutput_tmp(output);
+  freeUseDbOutput_tmp(&output);
   return code;
 }
 
