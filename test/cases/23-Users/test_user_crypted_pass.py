@@ -3,7 +3,7 @@ from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterC
 
 
 class TestUserPassword:
-    updatecfgDict = {'encryptPassAlgorithm':1}
+    updatecfgDict = {'encryptPassAlgorithm':'sm4'}
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -32,7 +32,7 @@ class TestUserPassword:
         tdSql.checkRows(1)
 
         tdLog.info(f"============= step2")
-        tdSql.execute(f"create user u_test pass 'taosdata'")
+        tdSql.execute(f"create user u_test pass 'taosdata'", queryTimes = 0)
 
         tdSql.query(f"show users")
         tdSql.checkRows(2)
