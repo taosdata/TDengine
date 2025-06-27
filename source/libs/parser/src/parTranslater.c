@@ -15001,13 +15001,8 @@ static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMC
   tstrncpy(pTriggerTable->table.tableAlias, pStmt->tableName, TSDB_TABLE_NAME_LEN);
 
 
-  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_SELECT_STMT, (SNode**)&pSelect));
-  snprintf(pSelect->stmtName, TSDB_TABLE_NAME_LEN, "%p", pSelect);
-
   PAR_ERR_RET(nodesMakeNode(QUERY_NODE_PLACE_HOLDER_TABLE, (SNode**)&pFromTable));
   pFromTable->placeholderType = SP_PARTITION_ROWS;
-
-  pSelect->pFromTable = (SNode*)pFromTable;
 
 
   PAR_ERR_JRET(nodesCloneList(pStmt->pOptions->pFuncs, &pFuncList));
@@ -15020,9 +15015,9 @@ static int32_t buildTSMAAst(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, SMC
     PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_ROW_LENGTH);
   }
 
-  pSelect->pProjectionList = pFuncList;
+  createSelectStmtImpl(false, pFuncList, (SNode*)pFromTable, NULL, (SNode**)&pStreamQuery);
 
-  nodesCloneNode((SNode*)pSelect, (SNode**)&pStreamQuery);
+  nodesCloneNode((SNode*)pStreamQuery, (SNode**)&pSelect);
 
   pCxt->createStreamTriggerTbl = (SNode*)pTriggerTable;
   pCxt->createStreamCalc = true;

@@ -1040,6 +1040,31 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_SCALAR_FIELD(timeLineCurMode);
   COPY_SCALAR_FIELD(hasAggFuncs);
   COPY_SCALAR_FIELD(hasRepeatScanFuncs);
+  COPY_SCALAR_FIELD(hasIndefiniteRowsFunc);
+  COPY_SCALAR_FIELD(hasMultiRowsFunc);
+  COPY_SCALAR_FIELD(hasSelectFunc);
+  COPY_SCALAR_FIELD(hasSelectValFunc);
+  COPY_SCALAR_FIELD(hasOtherVectorFunc);
+  COPY_SCALAR_FIELD(hasUniqueFunc);
+  COPY_SCALAR_FIELD(hasTailFunc);
+  COPY_SCALAR_FIELD(hasInterpFunc);
+  COPY_SCALAR_FIELD(hasInterpPseudoColFunc);
+  COPY_SCALAR_FIELD(hasForecastFunc);
+  COPY_SCALAR_FIELD(hasForecastPseudoColFunc);
+  COPY_SCALAR_FIELD(hasLastRowFunc);
+  COPY_SCALAR_FIELD(hasLastFunc);
+  COPY_SCALAR_FIELD(hasTimeLineFunc);
+  COPY_SCALAR_FIELD(hasCountFunc);
+  COPY_SCALAR_FIELD(hasUdaf);
+  COPY_SCALAR_FIELD(hasStateKey);
+  COPY_SCALAR_FIELD(hasTwaOrElapsedFunc);
+  COPY_SCALAR_FIELD(onlyHasKeepOrderFunc);
+  COPY_SCALAR_FIELD(groupSort);
+  COPY_SCALAR_FIELD(tagScan);
+  COPY_SCALAR_FIELD(joinContains);
+  COPY_SCALAR_FIELD(mixSysTableAndActualTable);
+  COPY_SCALAR_FIELD(hasProject);
+
   CLONE_NODE_LIST_FIELD(pHint);
   return TSDB_CODE_SUCCESS;
 }
