@@ -595,7 +595,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     return terrno;
   }
 
-  if (NULL == pMsg->pData) {
+  if (0 == code && NULL == pMsg->pData) {
     qError("invalid rsp msg, msgType:%d, len:%d", pMsg->msgType, pMsg->len);
     assert(0);
     code = TSDB_CODE_QRY_INVALID_MSG;

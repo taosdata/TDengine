@@ -2035,7 +2035,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
   pReq->readerTaskId = pReader->taskId;
 
   // serialize and send request
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_PULL};
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_PULL, .info.notFreeAhandle = 1};
   msg.info.ahandle = pReq;
   msg.contLen = tSerializeSTriggerPullRequest(NULL, 0, pReq);
   QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -2176,7 +2176,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   }
 
   // serialize and send request
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_CALC};
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_CALC, .info.notFreeAhandle = 1};
   msg.info.ahandle = pCalcReq;
   msg.contLen = tSerializeSTriggerCalcRequest(NULL, 0, pCalcReq);
   QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
