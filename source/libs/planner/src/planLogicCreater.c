@@ -2243,6 +2243,12 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pSort->node.resultDataOrder = isPrimaryKeySort(pSelect->pOrderByList)
                                     ? (pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
                                     : DATA_ORDER_LEVEL_NONE;
+  if (pCxt->pPlanCxt->streamCalcQuery &&
+      nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE &&
+      ((SRealTableNode*)pSelect->pFromTable)->placeholderType == SP_PARTITION_ROWS) {
+    pSort->skipPKSortOpt = true;
+  }
+
   code = nodesCollectColumns(pSelect, SQL_CLAUSE_ORDER_BY, NULL, COLLECT_COL_TYPE_ALL, &pSort->node.pTargets);
   if (TSDB_CODE_SUCCESS == code) {
     rewriteTargetsWithResId(pSort->node.pTargets);
