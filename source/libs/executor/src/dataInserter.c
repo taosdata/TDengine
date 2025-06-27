@@ -377,9 +377,9 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
-void freeUseDbOutput_tmp(void* pOutput) {
-  SUseDbOutput* pOut = *(SUseDbOutput**)pOutput;
-  if (NULL == pOutput) {
+void freeUseDbOutput_tmp(void* ppOutput) {
+  SUseDbOutput* pOut = *(SUseDbOutput**)ppOutput;
+  if (NULL == ppOutput) {
     return;
   }
 
@@ -387,6 +387,7 @@ void freeUseDbOutput_tmp(void* pOutput) {
     freeVgInfo(pOut->dbVgroup);
   }
   taosMemFree(pOut);
+  *(SUseDbOutput**)ppOutput = NULL;
 }
 
 static int32_t processUseDbRspForInserter(void* param, SDataBuf* pMsg, int32_t code) {
@@ -2344,6 +2345,16 @@ int32_t getDbVgInfoByTbName(void* clientRpc, const char* dbFName, SDBVgInfo** db
     QUERY_CHECK_CODE(code, line, _return);
 
     code = taosHashPut(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName), &output, POINTER_BYTES);
+    if (code == TSDB_CODE_DUP_KEY) {
+      code = TSDB_CODE_SUCCESS;
+      // another thread has put the same dbFName, so we need to free the output
+      freeUseDbOutput_tmp(&output);
+      find = (SUseDbOutput**)taosHashGet(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
+      if (find == NULL) {
+        QUERY_CHECK_CODE(code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR, line, _return);
+      }
+      output = *find;
+    }
     QUERY_CHECK_CODE(code, line, _return);
   } else {
     output = *find;
