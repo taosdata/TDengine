@@ -622,7 +622,7 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
 }
 
 int32_t stRunnerFetchDataFromCache(SStreamCacheReadInfo* pInfo) {
-  void**  ppIter;
+  void**  ppIter = NULL;
   int32_t code = readStreamDataCache(pInfo->taskInfo.streamId, pInfo->taskInfo.taskId, pInfo->taskInfo.sessionId,
                                      pInfo->gid, pInfo->start, pInfo->end, &ppIter);
   if (code == 0 && *ppIter != NULL) {
