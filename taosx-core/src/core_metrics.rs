@@ -506,7 +506,8 @@ pub async fn init_task_metrics(
             | runners::mongodb::MONGODB_ID
             | "local",
             "taos" | "tmq",
-        ) => {
+        )
+        | ("tmq", "mqtt") => {
             let metrics = try_get_metrics::<IpcMetrics>(task_id, from).await;
             if let Some(metrics) = metrics {
                 tracing::info!("reset metrics for task {}", task_id);

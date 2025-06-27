@@ -113,3 +113,5 @@ spb_received_messages: Total number of messages fetched in this task run
 spb_received_metrics: Total number of metrics fetched in this task run
 spb_fetched_acks: Total number of ACKs received in this task run
 spb_sent_batches: Number of batches sent in this task run
+tmq2mqtt_received_messages: Number of messages received from TMQ in this task run
+tmq2mqtt_published_messages: Number of messages published to MQTT in this task run

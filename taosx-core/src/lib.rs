@@ -43,6 +43,7 @@ use crate::runners::oracle::oracle_to_taos;
 use crate::runners::postgres::postgres_to_taos;
 use crate::tmq_to_kafka::clean_task;
 pub use crate::tmq_to_kafka::tmq_to_kafka;
+use crate::tmq_to_mqtt::tmq_to_mqtt;
 
 pub mod core_metrics;
 pub mod csv;
@@ -57,6 +58,7 @@ pub mod taoz;
 pub mod tmq;
 mod tmq_to_kafka;
 pub mod tmq_to_local;
+mod tmq_to_mqtt;
 mod tmq_to_td;
 pub mod transform;
 pub mod types;
@@ -337,6 +339,9 @@ impl TaskOpts {
                         notify.clone(),
                     )
                     .await?;
+                }
+                ("tmq", "mqtt") => {
+                    tmq_to_mqtt(from, to, task_id_number, cancel).await?;
                 }
                 (runners::sparkplugb::SPARKPLUGB_ID, "taos") => {
                     sparkplugb_to_taos(

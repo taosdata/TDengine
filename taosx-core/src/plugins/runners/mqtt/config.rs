@@ -153,7 +153,7 @@ impl TryFrom<&Dsn> for MqttConnectConfig {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub(crate) struct Certificates {
+pub struct Certificates {
     ca: Vec<u8>,
     cert: Option<Vec<u8>>,
     cert_key: Option<Vec<u8>>,
@@ -325,7 +325,7 @@ fn parse_from_param_or_file(dsn: &Dsn, key: &str) -> anyhow::Result<Option<Vec<u
         .transpose()
 }
 
-fn parse_simple_params<T>(dsn: &Dsn, key: &str) -> anyhow::Result<Option<T>>
+pub fn parse_simple_params<T>(dsn: &Dsn, key: &str) -> anyhow::Result<Option<T>>
 where
     T: std::str::FromStr,
     T::Err: std::error::Error + Send + Sync + 'static,

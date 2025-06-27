@@ -25,8 +25,8 @@ pub enum Error {
     MissingGroupId,
     #[snafu(display("message_type param not found"))]
     MissingMessageType,
-    #[snafu(display("invalid config param: {key}={value}"))]
-    InvalidParam { key: String, value: String },
+    #[snafu(display("invalid config param: {key}"))]
+    InvalidParam { key: String },
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -172,7 +172,8 @@ impl TryFrom<&Dsn> for SubscribeConfig {
     type Error = Error;
 
     fn try_from(dsn: &Dsn) -> Result<Self> {
-        let rebirth_cmd = parse_option_param::<bool>(dsn, "rebirth_cmd")?;
+        let rebirth_cmd = parse_option_param::<bool>(dsn, "rebirth_cmd")
+            .map_err(|_| InvalidParamSnafu { key: "rebirth_cmd" }.build())?;
         let group_id = option_param(dsn, "group_id").context(MissingGroupIdSnafu)?;
         let node_device_list = option_param(dsn, "node_device_list").map(|s| {
             s.split(',')
@@ -278,22 +279,18 @@ fn parse_list(s: &str) -> impl Iterator<Item = String> + use<'_> {
         .map(|s| s.to_string())
 }
 
-fn option_param<'a>(dsn: &'a Dsn, key: &'a str) -> Option<&'a str> {
+pub fn option_param<'a>(dsn: &'a Dsn, key: &'a str) -> Option<&'a str> {
     dsn.get(key).map(|v| v.trim()).filter(|v| !v.is_empty())
 }
 
-fn parse_option_param<T>(dsn: &Dsn, key: &str) -> Result<Option<T>>
+pub fn parse_option_param<T>(dsn: &Dsn, key: &str) -> std::result::Result<Option<T>, T::Err>
 where
     T: std::str::FromStr,
 {
     dsn.get(key)
         .map(|v| v.trim())
         .filter(|v| !v.is_empty())
-        .map(|value| {
-            value
-                .parse::<T>()
-                .map_err(|_| InvalidParamSnafu { key, value }.build())
-        })
+        .map(|value| value.parse::<T>())
         .transpose()
 }
 

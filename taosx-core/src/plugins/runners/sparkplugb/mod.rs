@@ -1,5 +1,5 @@
 mod batch;
-mod config;
+pub mod config;
 mod metrics;
 mod pb;
 mod proto;
@@ -59,7 +59,6 @@ pub async fn sparkplugb_to_taos(
             .context("init task metrics error")?;
     }
     let metrics = Arc::new(Metrics::new(get_metrics_arc_from_i64(task_id).await));
-    let _metrics_guard = crate::utils::defer::defer(|| metrics.reset());
     metrics.reset();
 
     let config: Config = from.try_into()?;
