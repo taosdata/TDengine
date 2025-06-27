@@ -722,6 +722,7 @@ typedef struct SEventWindowOperatorInfo {
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
 #define OPTR_SET_OPENED(_optr) ((_optr)->status |= OP_OPENED)
+#define OPTR_CLR_OPENED(_optr) ((_optr)->status &= ~OP_OPENED)
 
 SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode);
 
