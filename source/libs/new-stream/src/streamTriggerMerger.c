@@ -33,6 +33,30 @@ typedef struct SSTriggerMetaDataList {
   int64_t      nextTs;
 } SSTriggerMetaDataList;
 
+static int32_t stMergeTreeGetSecondIndex(SMultiwayMergeTreeInfo *pTree, int32_t *pIdx) {
+  *pIdx = tMergeTreeGetAdjustIndex(pTree);
+  if (pTree->totalSources == 2) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t   parentId = (*pIdx) >> 1;
+  STreeNode kLeaf = pTree->pNode[parentId];
+  parentId = parentId >> 1;
+  while (parentId > 0) {
+    STreeNode *pCur = &pTree->pNode[parentId];
+    if (pCur->index == -1) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    int32_t ret = pTree->comparFn(pCur, &kLeaf, pTree->param);
+    if (ret < 0) {
+      kLeaf = *pCur;
+    }
+    parentId = parentId >> 1;
+  }
+  *pIdx = kLeaf.index;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t stTimestampSorterInit(SSTriggerTimestampSorter *pSorter, SStreamTriggerTask *pTask) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -316,18 +340,6 @@ _end:
   return code;
 }
 
-static FORCE_INLINE int32_t stTimestampSorterTryAdjust(SSTriggerTimestampSorter *pSorter) {
-  if (TARRAY_SIZE(pSorter->pMetaLists) > 1) {
-    SSTriggerMetaDataList *pList = TARRAY_GET_ELEM(pSorter->pMetaLists, tMergeTreeGetChosenIndex(pSorter->pDataMerger));
-    SSTriggerMetaDataList *pList2 = TARRAY_GET_ELEM(pSorter->pMetaLists, pSorter->pDataMerger->pNode[1].index);
-    if (pList->nextTs > pList2->nextTs) {
-      int32_t idx = tMergeTreeGetAdjustIndex(pSorter->pDataMerger);
-      return tMergeTreeAdjust(pSorter->pDataMerger, idx);
-    }
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t stTimestampSorterNextDataBlock(SSTriggerTimestampSorter *pSorter, SSDataBlock **ppDataBlock, int32_t *pStartIdx,
                                        int32_t *pEndIdx) {
   int32_t                code = TSDB_CODE_SUCCESS;
@@ -362,7 +374,7 @@ int32_t stTimestampSorterNextDataBlock(SSTriggerTimestampSorter *pSorter, SSData
       } else {
         stTimestampSorterMetaListMoveForward(pList);
       }
-      code = stTimestampSorterTryAdjust(pSorter);
+      code = tMergeTreeAdjust(pSorter->pDataMerger, tMergeTreeGetAdjustIndex(pSorter->pDataMerger));
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -377,14 +389,16 @@ int32_t stTimestampSorterNextDataBlock(SSTriggerTimestampSorter *pSorter, SSData
     if (pList->nextTs < pSorter->readRange.skey) {
       code = stTimestampSorterMetaListSkip2Ts(pSorter, pList, pSorter->readRange.skey);
       QUERY_CHECK_CODE(code, lino, _end);
-      code = stTimestampSorterTryAdjust(pSorter);
+      code = tMergeTreeAdjust(pSorter->pDataMerger, tMergeTreeGetAdjustIndex(pSorter->pDataMerger));
       QUERY_CHECK_CODE(code, lino, _end);
       continue;
     }
 
     int64_t endTime = pSorter->readRange.ekey;
     if (TARRAY_SIZE(pSorter->pMetaLists) > 1) {
-      SSTriggerMetaDataList *pList2 = TARRAY_GET_ELEM(pSorter->pMetaLists, pSorter->pDataMerger->pNode[1].index);
+      int32_t idx2 = 0;
+      code = stMergeTreeGetSecondIndex(pSorter->pDataMerger, &idx2);
+      SSTriggerMetaDataList *pList2 = TARRAY_GET_ELEM(pSorter->pMetaLists, idx2);
       if (pList->nextTs == pList2->nextTs) {
         endTime = TMIN(pList->nextTs, endTime);
       } else {
@@ -451,7 +465,9 @@ int32_t stTimestampSorterForwardNrows(SSTriggerTimestampSorter *pSorter, int64_t
       // try to use metadata to skip rows
       int64_t endTime = pSorter->readRange.ekey;
       if (TARRAY_SIZE(pSorter->pMetaLists) > 1) {
-        SSTriggerMetaDataList *pList2 = TARRAY_GET_ELEM(pSorter->pMetaLists, pSorter->pDataMerger->pNode[1].index);
+        int32_t idx2 = 0;
+        code = stMergeTreeGetSecondIndex(pSorter->pDataMerger, &idx2);
+        SSTriggerMetaDataList *pList2 = TARRAY_GET_ELEM(pSorter->pMetaLists, idx2);
         if (pList->nextTs == pList2->nextTs) {
           endTime = TMIN(pList->nextTs, endTime);
         } else {
@@ -470,7 +486,7 @@ int32_t stTimestampSorterForwardNrows(SSTriggerTimestampSorter *pSorter, int64_t
         pSorter->readRange.skey = TMAX(pSorter->readRange.skey, pMeta->ekey + 1);
         // move forward to next meta
         stTimestampSorterMetaListMoveForward(pList);
-        code = stTimestampSorterTryAdjust(pSorter);
+        code = tMergeTreeAdjust(pSorter->pDataMerger, tMergeTreeGetAdjustIndex(pSorter->pDataMerger));
         QUERY_CHECK_CODE(code, lino, _end);
       } else {
         // need to fetch data block
@@ -719,7 +735,7 @@ int32_t stTimestampSorterBindDataBlock(SSTriggerTimestampSorter *pSorter, SSData
       pList->nextTs = *(int64_t *)px;
     }
   }
-  code = stTimestampSorterTryAdjust(pSorter);
+  code = tMergeTreeAdjust(pSorter->pDataMerger, tMergeTreeGetAdjustIndex(pSorter->pDataMerger));
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -928,20 +944,6 @@ _end:
   return code;
 }
 
-static FORCE_INLINE int32_t stVtableMergerTryAdjust(SSTriggerVtableMerger *pMerger) {
-  if (TARRAY_SIZE(pMerger->pReaderInfos) > 1) {
-    SVtableMergerReaderInfo *pReaderInfo =
-        TARRAY_GET_ELEM(pMerger->pReaderInfos, tMergeTreeGetChosenIndex(pMerger->pDataMerger));
-    SVtableMergerReaderInfo *pReaderInfo2 =
-        TARRAY_GET_ELEM(pMerger->pReaderInfos, pMerger->pDataMerger->pNode[1].index);
-    if (pReaderInfo->nextTs > pReaderInfo2->nextTs) {
-      int32_t idx = tMergeTreeGetAdjustIndex(pMerger->pDataMerger);
-      return tMergeTreeAdjust(pMerger->pDataMerger, idx);
-    }
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 #define stVtableMerger_NUM_OF_ROWS_PER_BLOCK 4096
 
 static int32_t stVtableMergerCopyDataBlock(SSTriggerVtableMerger *pMerger, SVtableMergerReaderInfo *pReaderInfo,
@@ -1062,13 +1064,14 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
         int64_t *pOrigTsData = (int64_t *)pOrigTsCol->pData;
         pReaderInfo->nextTs = pOrigTsData[pReaderInfo->startIdx];
       }
-      code = stVtableMergerTryAdjust(pMerger);
+      code = tMergeTreeAdjust(pMerger->pDataMerger, tMergeTreeGetAdjustIndex(pMerger->pDataMerger));
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
       int64_t endTime = pMerger->readRange.ekey;
       if (TARRAY_SIZE(pMerger->pReaderInfos) > 1) {
-        SVtableMergerReaderInfo *pReaderInfo2 =
-            TARRAY_GET_ELEM(pMerger->pReaderInfos, pMerger->pDataMerger->pNode[1].index);
+        int32_t idx2 = 0;
+        code = stMergeTreeGetSecondIndex(pMerger->pDataMerger, &idx2);
+        SVtableMergerReaderInfo *pReaderInfo2 = TARRAY_GET_ELEM(pMerger->pReaderInfos, idx2);
         if (pReaderInfo->nextTs == pReaderInfo2->nextTs) {
           endTime = TMIN(pReaderInfo->nextTs, endTime);
         } else {
@@ -1088,7 +1091,7 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
         pReaderInfo->pDataBlock = NULL;
         pReaderInfo->startIdx = pReaderInfo->endIdx = 0;
       }
-      code = stVtableMergerTryAdjust(pMerger);
+      code = tMergeTreeAdjust(pMerger->pDataMerger, tMergeTreeGetAdjustIndex(pMerger->pDataMerger));
       QUERY_CHECK_CODE(code, lino, _end);
       if (isFull) {
         // result data block is full, return it

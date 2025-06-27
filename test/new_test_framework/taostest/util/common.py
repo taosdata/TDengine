@@ -61,7 +61,7 @@ class TDCom:
     # docker image name variable
     docker_image_name_variable = "DOCKER_IMAGE_NAME"
     # default docker image name
-    docker_image_name_default = "taos_test:v1.0"
+    docker_image_name_default = "tdengine-ci:0.1"
     # container test root
     container_test_root = "/home/test_root"
     # entry point file name

@@ -622,7 +622,7 @@ int32_t inserterGetDbVgInfo(SDataInserterHandle* pInserter, const char* dbFName,
 
 _return:
   qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
-  freeUseDbOutput_tmp(output);
+  freeUseDbOutput_tmp(&output);
   return code;
 }
 
@@ -2335,7 +2335,7 @@ int32_t getDbVgInfoByTbName(void* clientRpc, const char* dbFName, SDBVgInfo** db
   SUseDbOutput** find = (SUseDbOutput**)taosHashGet(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
 
   if (find == NULL) {
-    output = taosMemoryMalloc(sizeof(SUseDbOutput));
+    output = taosMemoryCalloc(1, sizeof(SUseDbOutput));
     if (output == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -2354,7 +2354,7 @@ int32_t getDbVgInfoByTbName(void* clientRpc, const char* dbFName, SDBVgInfo** db
 
 _return:
   qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
-  freeUseDbOutput_tmp(output);
+  freeUseDbOutput_tmp(&output);
   return code;
 }
 
