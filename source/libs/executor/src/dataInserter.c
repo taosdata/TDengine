@@ -2335,7 +2335,7 @@ int32_t getDbVgInfoByTbName(void* clientRpc, const char* dbFName, SDBVgInfo** db
   SUseDbOutput** find = (SUseDbOutput**)taosHashGet(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
 
   if (find == NULL) {
-    output = taosMemoryMalloc(sizeof(SUseDbOutput));
+    output = taosMemoryCalloc(1, sizeof(SUseDbOutput));
     if (output == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
