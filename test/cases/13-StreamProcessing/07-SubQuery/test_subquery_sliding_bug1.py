@@ -112,7 +112,13 @@ class TestStreamDevBasic:
             res_query="select * from rdb.r46 where tbname='t1'",
             exp_query="select _wstart, count(c1), sum(c2), 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(1m) fill(prev);",
         )
-        
+        stream2 = StreamItem(
+            id=49,
+            stream="create stream rdb.s49   interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r49  as select _twstart ts, _twstart+1, count(c1) from tdb.triggers where ts < _twend;",
+            res_query="select * from rdb.r46 where tbname='t1'",
+            exp_query="select _wstart, count(c1), sum(c2), 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(1m) fill(prev);",
+        )
+          
         self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")
