@@ -1082,6 +1082,7 @@ void getDecimal128DefaultMax(uint8_t precision, uint8_t scale, Decimal128* dec);
 void getDecimal128DefaultMin(uint8_t precision, uint8_t scale, Decimal128* dec);
 int decimal64BCompare(const Decimal64* a, const Decimal64* b);
 int decimal128BCompare(const Decimal128* a, const Decimal128* b);
+int check_write_permission(const char *path);
 
 #ifdef __cplusplus
 }

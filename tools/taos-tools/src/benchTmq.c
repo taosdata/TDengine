@@ -404,6 +404,9 @@ int subscribeTestProcess() {
                 if (fp) {
                     fprintf(fp, "%s\n", jsonStr);
                     fclose(fp);
+                } else {
+                    errorPrint("Failed to open output JSON file, file name %s\n",
+                            g_arguments->output_json_file);
                 }
                 free(jsonStr);
             }

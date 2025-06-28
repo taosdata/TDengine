@@ -1839,3 +1839,14 @@ free_of_post:
     free(responseBuf);
     return code;
 }
+
+int check_write_permission(const char *path) {
+    FILE *fp = fopen(path, "w");
+    if (fp == NULL) {
+        errorPrint("Error: %s No write permission\n", path);
+        return 0;
+    }
+    fclose(fp);
+    
+    return 1;
+}

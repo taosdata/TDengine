@@ -3536,7 +3536,7 @@ static int printTotalDelay(SDataBase *database,
             tools_cJSON_AddNumberToObject(root, "max", maxDelay);
             tools_cJSON_AddNumberToObject(root, "p90", p90);
             tools_cJSON_AddNumberToObject(root, "p95", p95);
-            tools_cJSON_AddNumberToObject(root, "p98", p99);
+            tools_cJSON_AddNumberToObject(root, "p99", p99);
             
             char *jsonStr = tools_cJSON_PrintUnformatted(root);
             if (jsonStr) {
@@ -3544,6 +3544,9 @@ static int printTotalDelay(SDataBase *database,
                 if (fp) {
                     fprintf(fp, "%s\n", jsonStr);
                     fclose(fp);
+                } else {
+                    errorPrint("Failed to open output JSON file, file name %s\n",
+                            g_arguments->output_json_file);
                 }
                 free(jsonStr);
             }

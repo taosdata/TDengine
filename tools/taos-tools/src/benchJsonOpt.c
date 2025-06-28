@@ -1899,6 +1899,10 @@ static int getMetaFromInsertJsonFile(tools_cJSON *json) {
     if (resultJsonFile && resultJsonFile->type == tools_cJSON_String
             && resultJsonFile->valuestring != NULL) {
         g_arguments->output_json_file = resultJsonFile->valuestring;
+        if (check_write_permission(g_arguments->output_json_file)) {
+            errorPrint("json file %s does not have write permission.\n", g_arguments->output_json_file);
+            goto PARSE_OVER;
+        }
     }
 
     tools_cJSON *threads = tools_cJSON_GetObjectItem(json, "thread_count");
@@ -2474,6 +2478,10 @@ static int getMetaFromQueryJsonFile(tools_cJSON *json) {
     if (resultJsonFile && resultJsonFile->type == tools_cJSON_String
             && resultJsonFile->valuestring != NULL) {
         g_arguments->output_json_file = resultJsonFile->valuestring;
+        if (check_write_permission(g_arguments->output_json_file)) {
+            errorPrint("json file %s does not have write permission.\n", g_arguments->output_json_file);
+            goto PARSE_OVER;
+        }
     }
 
     // init sqls
@@ -2528,6 +2536,10 @@ static int getMetaFromTmqJsonFile(tools_cJSON *json) {
     if (resultJsonFile && resultJsonFile->type == tools_cJSON_String
             && resultJsonFile->valuestring != NULL) {
         g_arguments->output_json_file = resultJsonFile->valuestring;
+        if (check_write_permission(g_arguments->output_json_file)) {
+            errorPrint("json file %s does not have write permission.\n", g_arguments->output_json_file);
+            goto PARSE_OVER;
+        }
     }
 
     tools_cJSON *answerPrompt =

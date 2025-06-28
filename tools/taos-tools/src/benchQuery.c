@@ -753,7 +753,7 @@ static int specQuery(uint16_t iface, char* dbName) {
             tools_cJSON_AddNumberToObject(sqlResult, "max", maxDelay);
             tools_cJSON_AddNumberToObject(sqlResult, "p90", p90);
             tools_cJSON_AddNumberToObject(sqlResult, "p95", p95);
-            tools_cJSON_AddNumberToObject(sqlResult, "p98", p99);
+            tools_cJSON_AddNumberToObject(sqlResult, "p99", p99);
             tools_cJSON_AddItemToArray(result_array, sqlResult);
         }
 
@@ -769,7 +769,11 @@ static int specQuery(uint16_t iface, char* dbName) {
             if (fp) {
                 fprintf(fp, "%s\n", jsonStr);
                 fclose(fp);
+            } else {
+                errorPrint("Failed to open output JSON file, file name %s\n",
+                    g_arguments->output_json_file);
             }
+
             free(jsonStr);
         }
         tools_cJSON_Delete(root);  
