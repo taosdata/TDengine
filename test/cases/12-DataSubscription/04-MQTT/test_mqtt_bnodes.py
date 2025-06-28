@@ -64,15 +64,15 @@ class TestMqttBnodes:
         tdSql.checkKeyExist(self.bnodes_count)
 
         dnode_idx = dnodes_count + 1;
-        tdSql.error(f"create xnode on dnode {dnode_idx}")
+        tdSql.error(f"create bnode on dnode {dnode_idx}")
         dnode_idx = 0
-        tdSql.error(f"create xnode on dnode {dnode_idx}")
+        tdSql.error(f"create bnode on dnode {dnode_idx}")
         dnode_idx = -1
-        tdSql.error(f"create xnode on dnode {dnode_idx}")
+        tdSql.error(f"create bnode on dnode {dnode_idx}")
         dnode_idx = -10
-        tdSql.error(f"create xnode on dnode {dnode_idx}")
+        tdSql.error(f"create bnode on dnode {dnode_idx}")
         dnode_idx = dnodes_count + 10
-        tdSql.error(f"create xnode on dnode {dnode_idx}")
+        tdSql.error(f"create bnode on dnode {dnode_idx}")
         
     def show_bnodes(self):
         tdLog.info(f"test show bnodes")
@@ -86,24 +86,24 @@ class TestMqttBnodes:
     def drop_bnodes(self):
         tdLog.info(f"test bnodes dropping")
 
-        tdSql.error(f"drop xnode on dnode 0")
-        tdSql.error(f"drop xnode on dnode -1")
-        tdSql.error(f"drop xnode on dnode -10")
-        tdSql.error(f"drop xnode on dnode {self.bnodes_count + 1}")
-        tdSql.error(f"drop xnode on dnode {self.bnodes_count + 10}")
+        tdSql.error(f"drop bnode on dnode 0")
+        tdSql.error(f"drop bnode on dnode -1")
+        tdSql.error(f"drop bnode on dnode -10")
+        tdSql.error(f"drop bnode on dnode {self.bnodes_count + 1}")
+        tdSql.error(f"drop bnode on dnode {self.bnodes_count + 10}")
 
         tdSql.query("show bnodes")
         tdSql.checkKeyExist(self.bnodes_count)
         for i in range(self.bnodes_count):
             tdMqtt.dropBnode(i+1);
 
-        tdSql.error(f"drop xnode on dnode {1}")
-        tdSql.error(f"drop xnode on dnode {self.bnodes_count}")
-        tdSql.error(f"drop xnode on dnode 0")
-        tdSql.error(f"drop xnode on dnode -1")
-        tdSql.error(f"drop xnode on dnode -10")
-        tdSql.error(f"drop xnode on dnode {self.bnodes_count + 1}")
-        tdSql.error(f"drop xnode on dnode {self.bnodes_count + 10}")
+        tdSql.error(f"drop bnode on dnode {1}")
+        tdSql.error(f"drop bnode on dnode {self.bnodes_count}")
+        tdSql.error(f"drop bnode on dnode 0")
+        tdSql.error(f"drop bnode on dnode -1")
+        tdSql.error(f"drop bnode on dnode -10")
+        tdSql.error(f"drop bnode on dnode {self.bnodes_count + 1}")
+        tdSql.error(f"drop bnode on dnode {self.bnodes_count + 10}")
             
     def create_drop_repeat(self):
         tdLog.info(f"test bnodes creating")
@@ -134,7 +134,7 @@ class TestMqttBnodes:
 
         clusterComCheck.checkDnodes(dnodes_count)
 
-        # create xnode on first dnode
+        # create bnode on first dnode
         
         target_dnode = 1
         tdMqtt.createBnode(target_dnode)
@@ -149,7 +149,7 @@ class TestMqttBnodes:
         tdSql.query("select * from information_schema.ins_bnodes")
         tdSql.checkKeyExist(target_dnode)
 
-        # create xnode on last dnode
+        # create bnode on last dnode
         
         tdMqtt.dropBnode(target_dnode)
         target_dnode = min(10, dnodes_count)
@@ -166,9 +166,9 @@ class TestMqttBnodes:
         tdSql.checkKeyExist(target_dnode)
 
         #sc.dnodeStop(target_dnode);
-        #tdSql.error(f"drop xnode on dnode {target_dnode}")
-        # tdSql.error(f"drop xnode on dnode {target_dnode}", 0x800003D5)
-        # tdSql.error(f"drop xnode on dnode {target_dnode}", 0x80000408)
+        #tdSql.error(f"drop bnode on dnode {target_dnode}")
+        # tdSql.error(f"drop bnode on dnode {target_dnode}", 0x800003D5)
+        # tdSql.error(f"drop bnode on dnode {target_dnode}", 0x80000408)
         #sc.dnodeStart(target_dnode);
         
         tdSql.error(f"drop dnode {target_dnode}");
@@ -218,9 +218,9 @@ class TestMqttBnodes:
         tdSql.checkKeyExist(2)
 
         dnode_idx = 3
-        tdSql.error(f"create xnode on dnode {dnode_idx}")
+        tdSql.error(f"create bnode on dnode {dnode_idx}")
         dnode_idx = 0
-        tdSql.error(f"create xnode on dnode {dnode_idx}")
+        tdSql.error(f"create bnode on dnode {dnode_idx}")
         # tdSql.checkKeyExist(dnode_idx)
 
         tdLog.info(f"=============== create database")
