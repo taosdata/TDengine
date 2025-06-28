@@ -11,7 +11,7 @@ class TestUserPassword:
     def test_user_password(self):
         """user crypted password
 
-        1. -
+        1. - create encrypt_key and test to create user and login with crypted password
 
         Catalog:
             - User
