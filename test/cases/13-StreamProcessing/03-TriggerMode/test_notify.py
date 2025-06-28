@@ -57,7 +57,7 @@ class TestStreamNotifyTrigger:
 
         for stream in streams:
             tdSql.execute(stream.sql)
-        # tdStream.checkStreamStatus()
+        tdStream.checkStreamStatus()
         time.sleep(3)
 
         tdLog.info(f"=============== write query data")
