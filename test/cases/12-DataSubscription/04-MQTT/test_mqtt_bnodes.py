@@ -177,7 +177,7 @@ class TestMqttBnodes:
         tdMqtt.dropBnode(target_dnode)
         tdSql.query(f"drop dnode {target_dnode}")
 
-    def basic1(self):
+    def basic_case(self):
         # ---- global parameters start ----#
         dbName = "power"
         vgroups = 1
