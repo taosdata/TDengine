@@ -781,6 +781,24 @@ int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc) {
   return code;
 }
 
+void blockDataTransform(SSDataBlock* pDest, const SSDataBlock* pSrc) {
+  size_t  numOfCols = taosArrayGetSize(pDest->pDataBlock);
+  size_t  numOfColsSrc = taosArrayGetSize(pSrc->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol1 = taosArrayGet(pDest->pDataBlock, i);
+    for (int32_t j = 0; j < numOfColsSrc; ++j) {
+      SColumnInfoData* pCol2 = taosArrayGet(pSrc->pDataBlock, j);
+      if (pCol1->info.colId == pCol2->info.colId) {
+        TSWAP(*pCol1, *pCol2);
+        break;
+      }
+    }
+  }
+
+  pDest->info.rows = pSrc->info.rows;
+  pDest->info.capacity = pSrc->info.rows;
+}
+
 int32_t blockDataMergeNRows(SSDataBlock* pDest, const SSDataBlock* pSrc, int32_t srcIdx, int32_t numOfRows) {
   int32_t code = 0;
   if (pDest->info.rows + numOfRows > pDest->info.capacity) {

@@ -3066,7 +3066,7 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
         if (nodeType(pExpr) == QUERY_NODE_FUNCTION) {
           SFunctionNode* pTbname = NULL;
           PAR_ERR_JRET(createTbnameFunction(&pTbname));
-          tstrncpy(pTbname->node.userAlias, "%%tbname", TSDB_COL_NAME_LEN);
+          tstrncpy(pTbname->node.userAlias, ((SExprNode*)*pFunc)->userAlias, TSDB_COL_NAME_LEN);
           *pFunc = (SNode*)pTbname;
           return translateFunction(pCxt, (SFunctionNode**)pFunc);
         } else if (nodeType(pExpr) == QUERY_NODE_COLUMN) {
@@ -3131,7 +3131,7 @@ static bool fromSingleTable(SNode* table) {
     if (type == TSDB_CHILD_TABLE || type == TSDB_NORMAL_TABLE || type == TSDB_SYSTEM_TABLE) {
       return true;
     }
-    if (((SRealTableNode*)table)->asChildTable) {
+    if (((SRealTableNode*)table)->asSingleTable) {
       return true;
     }
   }
@@ -5976,12 +5976,16 @@ static int32_t translatePlaceHolderTable(STranslateContext* pCxt, SNode** pTable
     case SP_PARTITION_TBNAME: {
       BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_TBNAME);
       if (newPlaceHolderTable->pMeta->tableType == TSDB_SUPER_TABLE) {
-        newPlaceHolderTable->asChildTable = true;
+        newPlaceHolderTable->asSingleTable = true;
       }
       break;
     }
     case SP_PARTITION_ROWS: {
       BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS);
+      if (hasTbnameFunction(pCxt->createStreamTriggerPartitionList) &&
+          newPlaceHolderTable->pMeta->tableType == TSDB_SUPER_TABLE) {
+        newPlaceHolderTable->asSingleTable = true;
+      }
       break;
     }
     default: {

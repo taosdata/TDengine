@@ -247,7 +247,7 @@ typedef struct SRealTableNode {
   SArray*            tsmaTargetTbVgInfo;  // SArray<SVgroupsInfo*>, used for child table or normal table only
   SArray*            tsmaTargetTbInfo;    // SArray<STsmaTargetTbInfo>, used for child table or normal table only
   EStreamPlaceholder placeholderType;
-  bool               asChildTable; // only used in stream calc query
+  bool               asSingleTable; // only used in stream calc query
 } SRealTableNode;
 
 typedef struct STempTableNode {
