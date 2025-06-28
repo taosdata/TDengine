@@ -96,6 +96,7 @@ typedef struct {
   FItem            fp;
   void            *param;
   SQWorkerPoolType poolType;
+  bool             stopNoWaitQueue;
 } SSingleWorkerCfg;
 
 typedef struct {
@@ -103,6 +104,7 @@ typedef struct {
   STaosQueue      *queue;
   SQWorkerPoolType poolType;  // default to QWORKER_POOL
   void            *pool;
+  bool             stopNoWaitQueue;
 } SSingleWorker;
 
 typedef struct {

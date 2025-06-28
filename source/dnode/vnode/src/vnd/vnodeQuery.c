@@ -801,7 +801,8 @@ int32_t vnodeGetVSubtablesMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _return;
   }
 
-  SReadHandle handle = {.vnode = pVnode};
+  SReadHandle handle = {0};
+  handle.vnode = pVnode;
   initStorageAPI(&handle.api);
 
   QUERY_CHECK_CODE(vnodeReadVSubtables(&handle, req.suid, &rsp.pTables), line, _return);
@@ -862,7 +863,8 @@ int32_t vnodeGetVStbRefDbs(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _return;
   }
 
-  SReadHandle handle = {.vnode = pVnode};
+  SReadHandle handle = {0};
+  handle.vnode = pVnode;
   initStorageAPI(&handle.api);
 
   code = vnodeReadVStbRefDbs(&handle, req.suid, &rsp.pDbs);

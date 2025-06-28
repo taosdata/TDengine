@@ -502,8 +502,6 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
     STREAM_CHECK_RET_GOTO(streamResetTaskExec(pExec, pTask->output.outTblType == TSDB_NORMAL_TABLE));
   }
 
-  streamSetTaskRuntimeInfo(pExec->pExecutor, &pExec->runtimeInfo);
-
   pExec->runtimeInfo.funcInfo.curIdx = pReq->curWinIdx;
   pExec->runtimeInfo.funcInfo.curOutIdx = pReq->curWinIdx;
   bool    createTable = pReq->createTable;
@@ -585,6 +583,7 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
 
   ST_TASK_DLOG("vgId:%d start to build stream task", vgId);
   SReadHandle handle = {0};
+  handle.streamRtInfo = &pExec->runtimeInfo;
   handle.pMsgCb = pTask->pMsgCb;
   if (pTask->topTask) {
     SStreamInserterParam params = {.dbFName = pTask->output.outDbFName,
@@ -623,16 +622,22 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
 }
 
 int32_t stRunnerFetchDataFromCache(SStreamCacheReadInfo* pInfo, bool* finished) {
+  int32_t code = 0, lino = 0;
   void**  ppIter = NULL;
-  int32_t code = readStreamDataCache(pInfo->taskInfo.streamId, pInfo->taskInfo.taskId, pInfo->taskInfo.sessionId,
-                                     pInfo->gid, pInfo->start, pInfo->end, &ppIter);
-  if (code == 0 && *ppIter != NULL) {
-    code = getNextStreamDataCache(ppIter, &pInfo->pBlock);
+  int64_t streamId = pInfo->taskInfo.streamId;
+  TAOS_CHECK_EXIT(readStreamDataCache(pInfo->taskInfo.streamId, pInfo->taskInfo.taskId, pInfo->taskInfo.sessionId,
+                                     pInfo->gid, pInfo->start, pInfo->end, &ppIter));
+  if (*ppIter != NULL) {
+    TAOS_CHECK_EXIT(getNextStreamDataCache(ppIter, &pInfo->pBlock));
   }
-  if(*ppIter == NULL) {
-    *finished = true;
-  } else {
-    *finished = false;
+  
+  *finished = (*ppIter == NULL) ? true : false;
+
+_exit:
+
+  if (code) {
+    stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
+  
   return code;
 }
