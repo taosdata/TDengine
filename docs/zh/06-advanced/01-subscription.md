@@ -147,7 +147,7 @@ TDengine 的数据订阅功能支持回放（replay）功能，允许用户按�
 
 ## MQTT 数据订阅
 
-TDengine v3.3.7.0 版本开始提供 MQTT 订阅功能，通过 MQTT 客户端连接 TDengine Bnode 服务，可直接订阅系统中已有主题的数据；目前仅支持查询类型的主题。
+TDengine v3.3.7.0 版本开始提供 MQTT 订阅功能，通过 MQTT 客户端连接 TDengine Bnode 服务，可直接订阅系统中已有主题的数据。
 
 ### Bnode 节点管理
 
