@@ -558,7 +558,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   int32_t         code = makeScanLogicNode(pCxt, pRealTable, pSelect->hasRepeatScanFuncs, (SLogicNode**)&pScan);
 
   pScan->placeholderType = pRealTable->placeholderType;
-  pCxt->pPlanCxt->phTbnameQuery = pRealTable->asChildTable;
+  pCxt->pPlanCxt->phTbnameQuery =( pRealTable->pMeta->tableType == TSDB_SUPER_TABLE && pRealTable->placeholderType == SP_PARTITION_TBNAME);
   pScan->node.groupAction = GROUP_ACTION_NONE;
   pScan->node.resultDataOrder = (pRealTable->pMeta->tableType == TSDB_SUPER_TABLE) ? DATA_ORDER_LEVEL_IN_BLOCK : DATA_ORDER_LEVEL_GLOBAL;
 
