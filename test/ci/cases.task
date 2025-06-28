@@ -470,6 +470,9 @@
 #,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_snapshot1.py
 #,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_snapshot2.py
 ,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_topic.py
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_bnodes.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_bnodes.py -N 6
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_bnodes.py -N 11
 #,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_params.py
 #,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/02-Native/test_tmq_params.py -R
 ## 03-WebSocket
