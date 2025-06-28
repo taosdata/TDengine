@@ -1784,11 +1784,10 @@ int32_t streamExecuteTask(qTaskInfo_t tInfo, SSDataBlock** ppRes, uint64_t* usec
   return pTaskInfo->code;
 }
 
-void streamSetTaskRuntimeInfo(qTaskInfo_t tinfo, SStreamRuntimeInfo* pStreamRuntimeInfo) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  pTaskInfo->pStreamRuntimeInfo = pStreamRuntimeInfo;
-  pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow = pTaskInfo->withExternalWindow;
-}
+// void streamSetTaskRuntimeInfo(qTaskInfo_t tinfo, SStreamRuntimeInfo* pStreamRuntimeInfo) {
+//   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+//   pTaskInfo->pStreamRuntimeInfo = pStreamRuntimeInfo;
+// }
 
 int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType,
                                         SNodeList* pGroupTags, bool groupSort, SNode* pTagCond, SNode* pTagIndexCond,

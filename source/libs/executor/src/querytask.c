@@ -125,6 +125,7 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
 
   (*pTaskInfo)->pSubplan = pPlan;
   (*pTaskInfo)->pWorkerCb = pHandle->pWorkerCb;
+  (*pTaskInfo)->pStreamRuntimeInfo = pHandle->streamRtInfo;
   code = createOperator(pPlan->pNode, *pTaskInfo, pHandle, pPlan->pTagCond, pPlan->pTagIndexCond, pPlan->user,
                         pPlan->dbFName, &((*pTaskInfo)->pRoot), model);
 

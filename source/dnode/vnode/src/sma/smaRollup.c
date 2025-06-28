@@ -295,7 +295,11 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
 
     tdRSmaTaskRemove(pStreamTask->pMeta, pStreamTask->id.streamId, pStreamTask->id.taskId);
 
-    SReadHandle handle = {.vnode = pVnode, .initTqReader = 1, .skipRollup = 1, .pStateBackend = pStreamState};
+    SReadHandle handle = {0};
+    handle.vnode = pVnode;
+    handle.initTqReader = 1;
+    handle.skipRollup = 1;
+    handle.pStateBackend = pStreamState;
     initStorageAPI(&handle.api);
 
     code = qCreateStreamExecTaskInfo(&pRSmaInfo->taskInfo[idx], param->qmsg[idx], &handle, TD_VID(pVnode), 0);

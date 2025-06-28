@@ -502,8 +502,6 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
     STREAM_CHECK_RET_GOTO(streamResetTaskExec(pExec, pTask->output.outTblType == TSDB_NORMAL_TABLE));
   }
 
-  streamSetTaskRuntimeInfo(pExec->pExecutor, &pExec->runtimeInfo);
-
   pExec->runtimeInfo.funcInfo.curIdx = pReq->curWinIdx;
   pExec->runtimeInfo.funcInfo.curOutIdx = pReq->curWinIdx;
   bool    createTable = pReq->createTable;
@@ -585,6 +583,7 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
 
   ST_TASK_DLOG("vgId:%d start to build stream task", vgId);
   SReadHandle handle = {0};
+  handle.streamRtInfo = &pExec->runtimeInfo;
   handle.pMsgCb = pTask->pMsgCb;
   if (pTask->topTask) {
     SStreamInserterParam params = {.dbFName = pTask->output.outDbFName,

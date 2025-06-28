@@ -106,7 +106,6 @@ struct SExecTaskInfo {
   bool                  paramSet;
   SQueryAutoQWorkerPoolCB* pWorkerCb;
   SStreamRuntimeInfo*      pStreamRuntimeInfo;
-  bool                     withExternalWindow;
 };
 
 void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst);

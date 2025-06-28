@@ -66,6 +66,7 @@ typedef struct {
   void*              pWorkerCb;
   bool               localExec;
   int64_t            uid;
+  void*              streamRtInfo;
 } SReadHandle;
 
 typedef struct SStreamInserterParam {
@@ -282,7 +283,6 @@ int32_t setVgVerColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData
 
 
 int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, const SStreamRuntimeFuncInfo *pPartColVals);
-void    streamSetTaskRuntimeInfo(qTaskInfo_t tinfo, SStreamRuntimeInfo* pRuntimeInfo);
 
 typedef void (*getMnodeEpset_f)(void *pDnode, SEpSet *pEpset);
 typedef int32_t (*getDnodeId_f)(void *pData);

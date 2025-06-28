@@ -2098,11 +2098,11 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
       }
     }
     
-    SReadHandle handle = {
-        .vnode = pVnode,
-        .winRange = {0},
-        .uid = uid,
-    };
+    TSWAP(sStreamReaderCalcInfo->rtInfo.funcInfo, *req.pStRtFuncInfo);
+    SReadHandle handle = {0};
+    handle.vnode = pVnode;
+    handle.uid = uid;
+    handle.streamRtInfo = &sStreamReaderCalcInfo->rtInfo;
 
     initStorageAPI(&handle.api);
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(sStreamReaderCalcInfo->calcAst->pNode) &&
@@ -2120,9 +2120,6 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     // } else {
     // STREAM_CHECK_RET_GOTO(qResetTableScan(sStreamReaderCalcInfo->pTaskInfo, handle.winRange));
     // }
-
-    streamSetTaskRuntimeInfo(sStreamReaderCalcInfo->pTaskInfo, &sStreamReaderCalcInfo->rtInfo);
-    TSWAP(sStreamReaderCalcInfo->rtInfo.funcInfo, *req.pStRtFuncInfo);
 
     STREAM_CHECK_RET_GOTO(qSetTaskId(sStreamReaderCalcInfo->pTaskInfo, req.taskId, req.queryId));
   }
