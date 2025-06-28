@@ -36,7 +36,7 @@ static int32_t resetEventWindowOperState(SOperatorInfo* pOper) {
   pOper->status = OP_NOT_OPENED;
 
   resetBasicOperatorState(&pEvent->binfo);
-  taosMemoryFree(pEvent->pRow);
+  taosMemoryFreeClear(pEvent->pRow);
 
   pEvent->groupId = 0;
   pEvent->pPreDataBlock = NULL;

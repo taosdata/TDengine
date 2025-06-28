@@ -5,7 +5,13 @@
 
 ## 02-Stream
 
-## 03-Trigger
+## 03-TriggerMode
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_state.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_count.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_event.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_notify.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_fill_history.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_sliding.py
 
 ## 04-Option
 
