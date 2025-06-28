@@ -600,7 +600,6 @@ int32_t tDeserializeSClientHbBatchReq(void *buf, int32_t bufLen, SClientHbBatchR
       TAOS_CHECK_EXIT(tDeserializeIpRange(&decoder, (SIpRange *)&pReq->userDualIp));
     }
   }
-
   tEndDecode(&decoder);
 
 _exit:
