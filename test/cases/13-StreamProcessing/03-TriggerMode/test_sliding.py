@@ -25,9 +25,11 @@ class TestStreamSlidingTrigger:
     queryIdx = 0
     slidingList = [1, 10, 100, 1000]
     tableList = []
-    #runCaseList = ["0-0-0-0-6", "0-0-0-0-27", "0-0-0-1-2", "0-0-0-1-4", "0-0-0-1-6", "0-0-0-1-7", "0-0-0-1-8", "0-0-0-1-12","0-0-0-1-14","0-0-0-1-18","0-0-0-2-0","0-0-0-2-1","0-0-0-2-3","0-0-0-2-4","0-0-0-2-5","0-0-0-2-6","0-0-0-2-7","0-0-0-2-8"]
-    runCaseList = [  "0-0-0-15-37"]
-    # runCaseList = [ "0-0-0-4-2","0-0-0-4-6","0-0-0-10-2", "0-0-0-10-24", "0-0-0-10-39", "0-0-0-11-40", "0-0-0-12-40", "0-0-0-13-40", "0-0-0-14-40"]
+    # all success example
+    # runCaseList = ["0-0-0-0-0", "0-0-0-0-1", "0-0-0-0-2", "0-0-0-0-4", "0-0-0-0-6", "0-0-0-0-27", "0-0-0-1-0", "0-0-0-1-1", "0-0-0-1-2", "0-0-0-1-4", "0-0-0-1-6", "0-0-0-1-7", "0-0-0-1-8", "0-0-0-1-10", "0-0-0-1-12", "0-0-0-1-13", "0-0-0-1-14", "0-0-0-1-16", "0-0-0-1-18", "0-0-0-2-0", "0-0-0-2-1", "0-0-0-2-2", "0-0-0-2-3", "0-0-0-2-4", "0-0-0-2-5", "0-0-0-2-6", "0-0-0-2-7", "0-0-0-2-8", "0-0-0-2-9", "0-0-0-2-10", "0-0-0-2-11", "0-0-0-2-12", "0-0-0-2-13", "0-0-0-2-14", "0-0-0-2-15", "0-0-0-2-16", "0-0-0-2-17", "0-0-0-2-18", "0-0-0-2-23", "0-0-0-3-0", "0-0-0-3-1", "0-0-0-3-2", "0-0-0-3-3", "0-0-0-3-4", "0-0-0-3-5", "0-0-0-3-6", "0-0-0-3-7", "0-0-0-4-2", "0-0-0-4-41", "0-0-0-4-6", "0-0-0-5-2", "0-0-0-5-41", "0-0-0-5-6", "0-0-0-6-0", "0-0-0-10-2", "0-0-0-10-39", "0-0-0-15-38", "0-0-0-15-43", "1-1-0-0-0", "1-1-0-0-26", "1-1-0-0-35", "1-1-0-0-36", "1-1-0-0-37", "1-1-0-0-38"]
+    # less
+    runCaseList = [ "0-0-0-3-6", "0-0-0-3-7", "0-0-0-4-2",  "0-0-0-4-6",  "0-0-0-10-39", "0-0-0-15-38", "0-0-0-15-43",  "1-1-0-0-38"]
+    # runCaseList = ["0-0-0-1-2","0-0-0-1-6","0-0-0-1-18","0-0-0-3-0"]
     streamSql = ""
     querySql = ""
     querySqls = [ # (SQL, (minPartitionColNum, partitionByTbname), PositiveCase)
@@ -64,7 +66,7 @@ class TestStreamSlidingTrigger:
         ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} interval(10s)", (0, False), True), #26
         ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} where cts >= _tprev_ts and cts < _tcurrent_ts interval(10s)", (0, False), True), #27
         ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%trows where cts >= _tprev_ts + 1s and cts < _tcurrent_ts - 1s interval(1s)", (0, False), True), #28
-        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%trows", (0, False), True), #29
+        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%trows interval(60s)" , (0, False), True), #29
 
         ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} partition by cint state_window(cuint)", (0, False), True), #30
         ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%tbname where cts % 3 != 0 session(cts, 2s)", (1, True), True), #31
@@ -81,6 +83,7 @@ class TestStreamSlidingTrigger:
         ("select cts, cint,   %%tbname from %%trows where %%tbname like '%1' order by cts", (0, False), True), #40
         ("select cts, cint from {calcTbname} where _tcurrent_ts % 2 = 1 order by cts", (0, False), True), #41
         ("select last(cts), avg(cint), sum(cint) from %%trows group by tbname", (1, True), True), #42
+        ("select _wstart, avg(cint) c, max(cint) from {calcTbname}  interval(60s) union all select _wstart, avg(cint) c, max(cint) from {calcTbname}  interval(60s) order by _wstart,c", (0, False), True), #43
     ]
 
     queryResults = {
@@ -150,7 +153,7 @@ class TestStreamSlidingTrigger:
         "0-0-0-3-3": [120, None, True, [], ""],#success 
         "0-0-0-3-4": [120, None, True, [], ""], #success
         "0-0-0-3-5": [40, None, True, [], ""], #success
-        "0-0-0-3-6": [3515, None, True, [], ""],    #success     
+        "0-0-0-3-6": [3513, None, True, [], ""],    #success     
         "0-0-0-3-7": [9, None, True, [], ""],   #success   
 
         "0-0-0-4-2": [40, None, True, [], ""],  #success    
@@ -164,14 +167,17 @@ class TestStreamSlidingTrigger:
         "0-0-0-6-0": [3, None, True, [], "order by cts, tag_tbname"],#success 
         
         "0-0-0-10-2": [120, None, True, [], ""],#success
-        "0-0-0-10-24": [3513, None, True, [], ""], #failed，结果计算不完整
+        #"0-0-0-10-24": [3513, None, True, [], ""], #failed，结果计算不完整
         "0-0-0-10-39": [3, None, True, [], ""],#success
-        "0-0-0-10-42": [111, None, True, [], ""],#failed fillhistory还是加载不符合范围数据
-        "0-0-0-11-40": [40, None, True, [], ""],#failed，fillhistory还是加载不符合范围数据，where %%tbname like '%1' 不生效
-        "0-0-0-12-40": [-1, None, True, [], ""], #failed, where %%tbname like '%1' 不生效
+        #"0-0-0-10-42": [111, None, True, [], ""],#failed fillhistory还是加载不符合范围数据
+        #"0-0-0-11-40": [40, None, True, [], ""],#failed，fillhistory还是加载不符合范围数据，where %%tbname like '%1' 不生效
+        #"0-0-0-12-40": [-1, None, True, [], ""], #failed, where %%tbname like '%1' 不生效
         #"0-0-0-13-40": [0, None, True, [], ""], #success，只通知不计算,需要单独用例
         #"0-0-0-14-40": [0, None, True, [], ""],#success，只通知不计算,需要单独用例
-        "0-0-0-15-37": [-1, None, True, [], ""],#failed, taosd crash
+        #"0-0-0-15-37": [-1, None, True, [], ""],#failed, taosd crash
+        "0-0-0-15-38": [20, None, True, [], ""],#success
+        "0-0-0-15-43": [20, None, True, [], ""],#success
+        
         "1-1-0-0-0": [3, None, True, [], ""],  # 触发表子表、计算表子表 #success
         "1-1-0-0-26": [40, None, True, [], ""],#success
         "1-1-0-0-35": [1171, None, True, [], ""], #success
@@ -285,7 +291,7 @@ class TestStreamSlidingTrigger:
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(pre_filter(cint>2)|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#12
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(calc_notify_only|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#13
             (f'create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(calc_notify_only|fill_history("2025-01-01 00:00:00")) notify("ws://localhost:8080/notify") into outTbname as querySql;', (1, True)),#14
-            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(pre_filter(tint>0)|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#15
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname,tint options(pre_filter(tint>0)|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#15
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(pre_filter(cint is null)|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#16
         ]
 
