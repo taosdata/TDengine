@@ -160,6 +160,7 @@ static void destroyCondition(SNode* pCond) {
   if (pCond == NULL) return;
   if (nodeType(pCond) == QUERY_NODE_LOGIC_CONDITION) {
     nodesClearList(((SLogicConditionNode*)(pCond))->pParameterList);
+    ((SLogicConditionNode*)(pCond))->pParameterList = NULL;
     nodesDestroyNode(pCond);
   }
 }
