@@ -1364,55 +1364,55 @@ class StreamCheckItem:
         self.db = db
 
     def create(self):
-        tdLog.debug(f"stream:{self.db} - create stream - not implemented")
+        return
 
     def insert1(self):
-        tdLog.debug(f"stream:{self.db} - insert1 - not implemented")
+        return
 
     def check1(self):
-        tdLog.debug(f"stream:{self.db} - check1 - not implemented")
+        return
 
     def insert2(self):
-        tdLog.debug(f"stream:{self.db} - insert2 - not implemented")
+        return
 
     def check2(self):
-        tdLog.debug(f"stream:{self.db} - check2 - not implemented")
+        return
 
     def insert3(self):
-        tdLog.debug(f"stream:{self.db} - insert3 - not implemented")
+        return
 
     def check3(self):
-        tdLog.debug(f"stream:{self.db} - check3 - not implemented")
+        return
 
     def insert4(self):
-        tdLog.debug(f"stream:{self.db} - insert4 - not implemented")
+        return
 
     def check4(self):
-        tdLog.debug(f"stream:{self.db} - check4 - not implemented")
+        return
 
     def insert5(self):
-        tdLog.debug(f"stream:{self.db} - insert5 - not implemented")
+        return
 
     def check5(self):
-        tdLog.debug(f"stream:{self.db} - check5 - not implemented")
+        return
 
     def insert6(self):
-        tdLog.debug(f"stream:{self.db} - insert6 - not implemented")
+        return
 
     def check6(self):
-        tdLog.debug(f"stream:{self.db} - check6 - not implemented")
+        return
 
     def insert7(self):
-        tdLog.debug(f"stream:{self.db} - insert7 - not implemented")
+        return
 
     def check7(self):
-        tdLog.debug(f"stream:{self.db} - check7 - not implemented")
+        return
 
     def insert8(self):
-        tdLog.debug(f"stream:{self.db} - insert8 - not implemented")
+        return
 
     def check8(self):
-        tdLog.debug(f"stream:{self.db} - check8 - not implemented")
+        return
 
 
 class SafeDict(dict):
