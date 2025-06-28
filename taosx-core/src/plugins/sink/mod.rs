@@ -3699,24 +3699,29 @@ pub async fn channel_based_transformer(
         let _a = crate::utils::defer::defer(|| {
             tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
         });
-        if parser_clone.is_some() && task_id.is_some() {
-            ArchiveConsumer::new(task_id.unwrap(), parser_clone)
-                .consume(archive_rx)
-                .await
-        } else {
-            loop {
-                tokio::select! {
-                    _ = cancel_clone.cancelled() => {
-                        tracing::info!("stop the 'cache & archive' thread, task cancelled");
-                        break;
-                    }
-                    _ = tokio::time::sleep(Duration::from_secs(5)) => {
+
+        match (parser_clone, task_id) {
+            (Some(parser), Some(task_id)) => {
+                ArchiveConsumer::new(task_id, Some(parser))
+                    .consume(archive_rx)
+                    .await
+            }
+            _ => {
+                loop {
+                    tokio::select! {
+                        _ = cancel_clone.cancelled() => {
+                            tracing::info!("stop the 'cache & archive' thread, task cancelled");
+                            break;
+                        }
+                        _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                        }
                     }
                 }
+                Ok(())
             }
-            Ok(())
         }
     });
+
     // spawn a thread to rewrite cache data to files
     let pool_clone = target.clone();
     let parser_clone = parser.clone();
@@ -3726,17 +3731,19 @@ pub async fn channel_based_transformer(
         let _a = crate::utils::defer::defer(|| {
             tracing::info!("the 'rewrite file' thread has completed, task id: {task_id:?}",);
         });
-        if let Some(parser) = parser_clone {
-            read_cache_and_rewrite(
-                task_id.unwrap(),
-                &pool_clone,
-                &parser,
-                archive_tx_clone,
-                &cancel_clone,
-            )
-            .await
-        } else {
-            Ok(())
+
+        match (parser_clone, task_id) {
+            (Some(parser), Some(task_id)) => {
+                read_cache_and_rewrite(
+                    task_id,
+                    &pool_clone,
+                    &parser,
+                    archive_tx_clone,
+                    &cancel_clone,
+                )
+                .await
+            }
+            _ => Ok(()),
         }
     });
 
