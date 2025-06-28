@@ -6,11 +6,11 @@
 ## 02-Stream
 
 ## 03-TriggerMode
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_state.py
-,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_count.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_event.py
+,,n,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_state.py
+,,n,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_count.py
+,,n,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_event.py
 #,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_notify.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_fill_history.py
+,,n,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_fill_history.py
 #,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_sliding.py
 
 ## 04-Option
@@ -40,8 +40,8 @@
 # ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_check.py
 # ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_checkpoint.py
 # ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py 
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
+,,n,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py 
+,,n,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
 
 ## 99-Others
 
