@@ -13255,6 +13255,7 @@ static int32_t translateCreateStreamTagSubtableExpr(STranslateContext* pCxt, SNo
 }
 
 static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const char* streamDb, const char* streamName,
+                                               const char* outDbName, const char* outTableName,
                                                SNode* pSubtable, SHashObj* pTriggerSlotHash,
                                                SNodeList* pPartitionByList, char** subTblNameExpr) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -13267,7 +13268,7 @@ static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const ch
   if (pSubtable) {
     PAR_ERR_JRET(nodesCloneNode(pSubtable, &pSubtableExpr));
   } else {
-    // default rule : '_t' + md5(stream_full_name) + '_' + cast (_grpid() as varchar(20))
+    // default rule : '_t' + md5(stream_full_name + '.' + outtable_full_name) + '_' + cast (_grpid() as varchar(20))
     SFunctionNode* pConcatFunc = NULL;
     SFunctionNode* pGrpIdFunc = NULL;
     SFunctionNode* pCastFunc = NULL;
@@ -13290,13 +13291,18 @@ static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const ch
     pMd5Func->funcType = FUNCTION_TYPE_MD5;
     snprintf(pMd5Func->functionName, TSDB_FUNC_NAME_LEN, "md5");
 
-    char* streamFName = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
+    char* streamFName = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_TABLE_FNAME_LEN);
     if (NULL == streamFName) {
       PAR_ERR_JRET(terrno);
     }
-    TAOS_STRNCAT(streamFName, streamDb, TSDB_TABLE_FNAME_LEN);
+    TAOS_STRNCAT(streamFName, streamDb, TSDB_DB_NAME_LEN);
     TAOS_STRNCAT(streamFName, ".", 2);
-    TAOS_STRNCAT(streamFName, streamName, TSDB_TABLE_FNAME_LEN);
+    TAOS_STRNCAT(streamFName, streamName, TSDB_TABLE_NAME_LEN);
+    TAOS_STRNCAT(streamFName, ".", 2);
+    TAOS_STRNCAT(streamFName, outDbName, TSDB_DB_NAME_LEN);
+    TAOS_STRNCAT(streamFName, ".", 2);
+    TAOS_STRNCAT(streamFName, outTableName, TSDB_TABLE_NAME_LEN);
+
     PAR_ERR_JRET(nodesMakeValueNodeFromString(streamFName, &pNameValue));
     PAR_ERR_JRET(nodesListMakeStrictAppend(&pMd5Func->pParameterList, (SNode*)pNameValue));
     PAR_ERR_JRET(nodesListMakeStrictAppend(&pConcatFunc->pParameterList, (SNode*)pMd5Func));
@@ -13661,7 +13667,7 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
   }
 
   PAR_ERR_JRET(columnDefNodeToField(pStmt->pCols, &pReq->outCols, false, false));
-  PAR_ERR_JRET(createStreamReqBuildOutSubtable(pCxt, pStmt->streamDbName, pStmt->streamName, pStmt->pSubtable, pTriggerSlotHash, ((SStreamTriggerNode*)pStmt->pTrigger)->pPartitionList, (char**)&pReq->subTblNameExpr));
+  PAR_ERR_JRET(createStreamReqBuildOutSubtable(pCxt, pStmt->streamDbName, pStmt->streamName, pStmt->targetDbName, pStmt->targetTabName, pStmt->pSubtable, pTriggerSlotHash, ((SStreamTriggerNode*)pStmt->pTrigger)->pPartitionList, (char**)&pReq->subTblNameExpr));
 
   return code;
 _return:
