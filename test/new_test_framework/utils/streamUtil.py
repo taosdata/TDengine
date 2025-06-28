@@ -994,15 +994,10 @@ class StreamUtil:
     # for StreamCheckItem, see cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
     def checkAll(self, streams):
         for stream in streams:
-            tdLog.info(f"stream:{stream.db} - create db")
-            stream.create_tb()
+            tdLog.info(f"stream:{stream.db} - create database, table, stream")
+            stream.create()
 
-        for stream in streams:
-            tdLog.info(f"stream:{stream.db} - create stream")
-            tdSql.execute(f"use {stream.db}")
-            stream.create_stream()
-
-        tdLog.info(f"total:{len(streams)} streams is created")
+        tdLog.info(f"total:{len(streams)} cases is running")
         tdStream.checkStreamStatus()
 
         for stream in streams:
@@ -1368,10 +1363,7 @@ class StreamCheckItem:
     def __init__(self, db):
         self.db = db
 
-    def create_tb(self):
-        tdLog.debug(f"stream:{self.db} - create table - not implemented")
-
-    def create_stream(self):
+    def create(self):
         tdLog.debug(f"stream:{self.db} - create stream - not implemented")
 
     def insert1(self):

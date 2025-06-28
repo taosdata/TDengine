@@ -41,7 +41,7 @@ class TestStreamOldCaseTwa:
 
         streams = []
         streams.append(self.TwaError())
-        streams.append(self.TwaFwcFill())
+        streams.append(self.TwaFwcFill1())
         # streams.append(self.TwaFwcFill2())
 
         tdStream.checkAll(streams)
@@ -53,11 +53,11 @@ class TestStreamOldCaseTwa:
 
     class TwaError(StreamCheckItem):
         def __init__(self):
-            self.db = "twa_error"
+            self.db = "TwaError"
 
-        def create_tb(self):
-            tdSql.execute(f"create database twa_error vgroups 1 buffer 8;")
-            tdSql.execute(f"use twa_error;")
+        def create(self):
+            tdSql.execute(f"create database TwaError vgroups 1 buffer 8;")
+            tdSql.execute(f"use TwaError;")
 
             tdSql.execute(
                 f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -65,7 +65,7 @@ class TestStreamOldCaseTwa:
             tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
-        def create_stream(self):
+
             tdSql.execute(
                 f"create stream streams1 period(2s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder|force_output) into streamt as select _tprev_localtime, twa(a) from st where tbname=%%1 and ta=%%2 and ts >= _tprev_localtime and ts < _tlocaltime;"
             )
@@ -107,26 +107,26 @@ class TestStreamOldCaseTwa:
             )
 
         def check1(self):
-            tdSql.query("show twa_error.streams;")
+            tdSql.query("show TwaError.streams;")
             tdSql.checkRows(12)
             tdSql.checkKeyData("streams1", 0, "streams1")
             tdSql.checkKeyData("streams2", 0, "streams2")
             tdSql.checkKeyData("streams3", 0, "streams3")
 
             tdSql.query(
-                "select * from information_schema.ins_streams where db_name = 'twa_error';"
+                "select * from information_schema.ins_streams where db_name = 'TwaError';"
             )
             tdSql.checkRows(12)
-            tdSql.checkKeyData("streams5", 1, "twa_error")
-            tdSql.checkKeyData("streams6", 1, "twa_error")
+            tdSql.checkKeyData("streams5", 1, "TwaError")
+            tdSql.checkKeyData("streams6", 1, "TwaError")
 
-    class TwaFwcFill(StreamCheckItem):
+    class TwaFwcFill1(StreamCheckItem):
         def __init__(self):
-            self.db = "twa_fwcfill"
+            self.db = "FwcFIll1"
 
-        def create_tb(self):
-            tdSql.execute(f"create database twa_fwcfill vgroups 1 buffer 32;")
-            tdSql.execute(f"use twa_fwcfill;")
+        def create(self):
+            tdSql.execute(f"create database FwcFIll1 vgroups 1 buffer 32;")
+            tdSql.execute(f"use FwcFIll1;")
 
             tdSql.execute(
                 f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -134,7 +134,7 @@ class TestStreamOldCaseTwa:
             tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
-        def create_stream(self):
+
             tdSql.execute(
                 f"create stream streams1 interval(2s) sliding(2s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt as select _twstart, twa(a), twa(b), elapsed(ts), now, timezone() from %%trows;"
             )
@@ -149,22 +149,22 @@ class TestStreamOldCaseTwa:
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                f"select * from twa_fwcfill.streamt where ta == 1;",
+                f"select * from FwcFIll1.streamt where ta == 1;",
                 lambda: tdSql.getRows() == 5,
             )
 
             tdSql.checkResultsByFunc(
-                f"select * from twa_fwcfill.streamt where ta == 2;",
+                f"select * from FwcFIll1.streamt where ta == 2;",
                 lambda: tdSql.getRows() == 5,
             )
 
     class TwaFwcFill2(StreamCheckItem):
         def __init__(self):
-            self.db = "twa_fwcfill2"
+            self.db = "FwcFIll12"
 
-        def create_tb(self):
-            tdSql.execute(f"create database twa_fwcfill2 vgroups 1 buffer 32;")
-            tdSql.execute(f"use twa_fwcfill2;")
+        def create(self):
+            tdSql.execute(f"create database FwcFIll12 vgroups 1 buffer 32;")
+            tdSql.execute(f"use FwcFIll12;")
 
             tdSql.execute(
                 f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -172,7 +172,7 @@ class TestStreamOldCaseTwa:
             tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
-        def create_stream(self):
+
             tdSql.execute(
                 f"create stream streams2 period(2s) options(expired_time(0s) | ignore_disorder) into streamt as select cast(_tprev_localtime / 1000000 as timestamp) tp, cast(_tlocaltime / 1000000 as timestamp) tl, cast(_tnext_localtime / 1000000 as timestamp) tn, twa(a), twa(b), elapsed(ts), now, timezone() from st;"
             )
@@ -187,7 +187,7 @@ class TestStreamOldCaseTwa:
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                f"select * from twa_fwcfill2.streamt;",
+                f"select * from FwcFIll12.streamt;",
                 lambda: tdSql.getRows() > 0,
                 retry=100,
             )
