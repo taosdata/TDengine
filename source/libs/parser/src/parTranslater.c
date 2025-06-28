@@ -14681,6 +14681,7 @@ _return:
   return code;
 }
 
+// add this line just for test
 static int32_t translateCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   int32_t            code = TSDB_CODE_SUCCESS;
   SCMCreateStreamReq createReq = {0};
