@@ -45,11 +45,11 @@ class TestStreamOldCaseTwa:
 
     class TwaFwcFill2(StreamCheckItem):
         def __init__(self):
-            self.db = "twa_fwcfill2"
+            self.db = "FwcFIll2"
 
-        def create_tb(self):
-            tdSql.execute(f"create database twa_fwcfill2 vgroups 1 buffer 32;")
-            tdSql.execute(f"use twa_fwcfill2;")
+        def create(self):
+            tdSql.execute(f"create database FwcFIll2 vgroups 1 buffer 32;")
+            tdSql.execute(f"use FwcFIll2;")
 
             tdSql.execute(
                 f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -57,7 +57,7 @@ class TestStreamOldCaseTwa:
             tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
-        def create_stream(self):
+
             tdSql.execute(
                 f"create stream streams2 period(2s) options(expired_time(0s) | ignore_disorder) into streamt as select cast(_tprev_localtime / 1000000 as timestamp) tp, cast(_tlocaltime / 1000000 as timestamp) tl, cast(_tnext_localtime / 1000000 as timestamp) tn, twa(a), twa(b), elapsed(ts), now, timezone() from st;"
             )
@@ -72,7 +72,7 @@ class TestStreamOldCaseTwa:
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                f"select * from twa_fwcfill2.streamt;",
+                f"select * from FwcFIll2.streamt;",
                 lambda: tdSql.getRows() > 0,
                 retry=100,
             )
