@@ -26,8 +26,8 @@
 
 ## 07-SubQuery
 #,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_basic.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_limit.py
-#,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_limit.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding.py
 
 #,,n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_basic.py
 ,,n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_limit.py
