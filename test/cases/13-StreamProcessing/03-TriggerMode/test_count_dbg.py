@@ -59,7 +59,7 @@ class TestStreamCountTrigger:
         for stream in streams:
             tdSql.execute(stream.sql)
         tdStream.checkStreamStatus()
-        time.sleep(5)
+        time.sleep(1)
 
         tdLog.info(f"=============== write query data")
         sqls = [
@@ -194,25 +194,25 @@ class TestStreamCountTrigger:
         return
 
     def checks3(self):
-        result_sql = "select firstts, num_v, cnt_v, avg_v, sum_v from res_stb_ct1"
+        result_sql = "select firstts, num_v, cnt_v, avg_v, sum_v from res_stb_ct2"
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 4
             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
-            and tdSql.compareData(0, 1, 3)
-            and tdSql.compareData(0, 2, 3)
-            and tdSql.compareData(0, 3, 2)
-            and tdSql.compareData(0, 4, 6)
+            and tdSql.compareData(0, 1, 4)
+            and tdSql.compareData(0, 2, 4)
+            and tdSql.compareData(0, 3, 2.5)
+            and tdSql.compareData(0, 4, 10)
             and tdSql.compareData(1, 0, "2025-01-01 00:00:02.000")
-            and tdSql.compareData(1, 1, 3)
-            and tdSql.compareData(1, 2, 3)
-            and tdSql.compareData(1, 3, 5)
-            and tdSql.compareData(1, 4, 15)
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:04.000")
-            and tdSql.compareData(2, 1, 3)
-            and tdSql.compareData(2, 2, 3)
-            and tdSql.compareData(2, 3, 8)
-            and tdSql.compareData(2, 4, 24),
+            and tdSql.compareData(1, 1, 4)
+            and tdSql.compareData(1, 2, 4)
+            and tdSql.compareData(1, 3, 4.5)
+            and tdSql.compareData(1, 4, 18)
+            and tdSql.compareData(3, 0, "2025-01-01 00:00:06.000")
+            and tdSql.compareData(3, 1, 4)
+            and tdSql.compareData(3, 2, 4)
+            and tdSql.compareData(3, 3, 8.5)
+            and tdSql.compareData(3, 4, 34),
         )
         tdLog.info(f"=============== check s3 result success !!!!!!!! =====================")
         return
