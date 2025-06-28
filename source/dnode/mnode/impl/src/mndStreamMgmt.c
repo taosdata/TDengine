@@ -4304,7 +4304,7 @@ void msmCheckTaskListStatus(int64_t streamId, SStmTaskStatus** pList, int32_t ta
 
     int64_t noUpTs = mStreamMgmt.hCtx.currentTs - pTask->lastUpTs;
     if (STREAM_RUNNER_TASK == pTask->type || STREAM_TRIGGER_TASK == pTask->type) {
-      mstsWarn("%s TASK:%" PRId64 " status not updated for %" PRId64 "ms, will try to redeploy it", 
+      mstsWarn("%s TASK:%" PRIx64 " status not updated for %" PRId64 "ms, will try to redeploy it", 
           gStreamTaskTypeStr[pTask->type], pTask->id.taskId, noUpTs);
           
       msmStopStreamByError(streamId, NULL, TSDB_CODE_MND_STREAM_TASK_LOST, mStreamMgmt.hCtx.currentTs);
