@@ -651,10 +651,10 @@ function install_taosd_config() {
       ${csudo}echo "logDir ${logDir}" >>${script_dir}/cfg/${configFile}
     fi
 
-    if grep -q "tmpDir ${tmpDir}" ${script_dir}/cfg/${configFile}; then
-      echo "tmpDir ${tmpDir} in ${script_dir}/cfg/${configFile} already exists"
+    if grep -q "tempDir ${tmpDir}" ${script_dir}/cfg/${configFile}; then
+      echo "tempDir ${tmpDir} in ${script_dir}/cfg/${configFile} already exists"
     else
-      ${csudo}echo "tmpDir ${tmpDir}" >>${script_dir}/cfg/${configFile}
+      ${csudo}echo "tempDir ${tmpDir}" >>${script_dir}/cfg/${configFile}
     fi
 
     if [ "$verMode" == "cluster" ]; then
