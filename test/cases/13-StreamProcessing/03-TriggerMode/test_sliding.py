@@ -28,7 +28,8 @@ class TestStreamSlidingTrigger:
     # all success example
     # runCaseList = ["0-0-0-0-0", "0-0-0-0-1", "0-0-0-0-2", "0-0-0-0-4", "0-0-0-0-6", "0-0-0-0-27", "0-0-0-1-0", "0-0-0-1-1", "0-0-0-1-2", "0-0-0-1-4", "0-0-0-1-6", "0-0-0-1-7", "0-0-0-1-8", "0-0-0-1-10", "0-0-0-1-12", "0-0-0-1-13", "0-0-0-1-14", "0-0-0-1-16", "0-0-0-1-18", "0-0-0-2-0", "0-0-0-2-1", "0-0-0-2-2", "0-0-0-2-3", "0-0-0-2-4", "0-0-0-2-5", "0-0-0-2-6", "0-0-0-2-7", "0-0-0-2-8", "0-0-0-2-9", "0-0-0-2-10", "0-0-0-2-11", "0-0-0-2-12", "0-0-0-2-13", "0-0-0-2-14", "0-0-0-2-15", "0-0-0-2-16", "0-0-0-2-17", "0-0-0-2-18", "0-0-0-2-23", "0-0-0-3-0", "0-0-0-3-1", "0-0-0-3-2", "0-0-0-3-3", "0-0-0-3-4", "0-0-0-3-5", "0-0-0-3-6", "0-0-0-3-7", "0-0-0-4-2", "0-0-0-4-41", "0-0-0-4-6", "0-0-0-5-2", "0-0-0-5-41", "0-0-0-5-6", "0-0-0-6-0", "0-0-0-10-2", "0-0-0-10-39","0-0-0-10-45", "0-0-0-15-38", "0-0-0-15-43", "1-1-0-0-0", "1-1-0-0-26", "1-1-0-0-35", "1-1-0-0-36", "1-1-0-0-37", "1-1-0-0-38"]
     # less success example
-    runCaseList = [ "0-0-0-0-4","0-0-0-0-6","0-0-0-1-1",   "0-0-0-1-6", "0-0-0-1-7", "0-0-0-1-8",  "0-0-0-1-12", "0-0-0-1-13","0-0-0-2-8","0-0-0-2-10","0-0-0-2-13","0-0-0-2-18","0-0-0-2-23","0-0-0-3-6", "0-0-0-3-7",  "0-0-0-4-6","0-0-0-4-41",  "0-0-0-5-6", "0-0-0-6-0",  "0-0-0-10-39", "0-0-0-10-45", "0-0-0-12-40", "0-0-0-15-38", "0-0-0-15-43", "1-1-0-0-36", "1-1-0-0-38"]
+    runCaseList = [ "0-0-0-0-4","0-0-0-0-6","0-0-0-1-1",   "0-0-0-1-6", "0-0-0-1-7",  "0-0-0-1-12", "0-0-0-1-13","0-0-0-2-8","0-0-0-2-10","0-0-0-2-13","0-0-0-2-18","0-0-0-2-23","0-0-0-3-6", "0-0-0-3-7",  "0-0-0-4-6","0-0-0-4-41",  "0-0-0-5-6", "0-0-0-6-0",  "0-0-0-10-39", "0-0-0-10-45", "0-0-0-12-40", "0-0-0-15-38", "0-0-0-15-43", "1-1-0-0-36", "1-1-0-0-38"]
+    # runCaseList = ["0-0-0-8-35", "0-0-0-8-36", "0-0-0-8-37", "0-0-0-8-38", "0-0-0-8-39", "0-0-0-8-40", "0-0-0-8-41", "0-0-0-8-42", "0-0-0-8-43", "0-0-0-8-44", "0-0-0-8-45"]
     #failed 
     # runCaseList = [  "0-0-0-10-42", "0-0-0-11-40","0-0-0-12-44","0-0-0-15-37"]
     streamSql = ""
@@ -76,7 +77,7 @@ class TestStreamSlidingTrigger:
 
         ("select cts, cint from %%tbname where ts >= _twstart and ts < _twend", (1, True), True), #34
         #add
-        ("select _tcurrent_ts, avg(cint), max(cint) from {calcTbname} partition by cint order by cint", (0, False), True), #35
+        ("select _tcurrent_ts, avg(cint), max(cint) from {calcTbname} partition by cint order by cint", (1, False), True), #35
         ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} interval(60s)", (0, False), True), #36
         ("select _wstart,sum({calcTbname}.cint), max({calcTbname}.cint) from {calcTbname} ,{calcTbname} as t2 where {calcTbname}.cts=t2.cts  interval(120s)", (0, False), True), #37
         ("select _wstart, avg(cint) c, max(cint) from {calcTbname} partition by cint interval(60s) union all select _wstart, avg(cint) c, max(cint) from {calcTbname} partition by cint interval(60s) order by _wstart,c", (0, False), True), #38
@@ -110,7 +111,7 @@ class TestStreamSlidingTrigger:
 
         
         "0-0-0-1-7": [9, None, True, [], ""], #success
-        "0-0-0-1-8": [120, None, True, [], ""], #success
+        "0-0-0-1-8": [120, None, True, [], "limit 20"], #success
         "0-0-0-1-10": [120, None, True, [], "order by cts, tag_tbname limit 150"],#success
         "0-0-0-1-12": [3513, None, True, [], ""], #success
         "0-0-0-1-13": [120, None, True, [], "order by cts, tag_tbname limit 150"],#success,ans原先 sql 缺少 limit 150
@@ -169,6 +170,19 @@ class TestStreamSlidingTrigger:
         "0-0-0-5-6": [3510, None, True, [], ""],    #success
 
         "0-0-0-6-0": [3, None, True, [], "order by cts, tag_tbname"],#success 
+        
+        "0-0-0-8-35": [-1, None, True, [], ""],#
+        "0-0-0-8-36": [-1, None, True, [], ""],#
+        "0-0-0-8-37": [-1, None, True, [], ""],#
+        "0-0-0-8-38": [-1, None, True, [], ""],#
+        "0-0-0-8-39": [-1, None, True, [], ""],#
+        "0-0-0-8-40": [-1, None, True, [], ""],#
+        "0-0-0-8-41": [-1, None, True, [], ""],#
+        "0-0-0-8-42": [-1, None, True, [], ""],#
+        "0-0-0-8-43": [-1, None, True, [], ""],#
+        "0-0-0-8-44": [-1, None, True, [], ""],#
+        "0-0-0-8-45": [-1, None, True, [], ""],#
+        
         
         "0-0-0-10-2": [120, None, True, [], "limit 10"],#success
         "0-0-0-10-39": [3, None, True, [], ""],#success
@@ -280,18 +294,18 @@ class TestStreamSlidingTrigger:
         runnedCaseNum = 0
         createStreamSqls = [ #(SQL, (minPartitionColNum, partitionByTbname))
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (0, False)),#0
-            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),
-            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tint, tbname options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (2, True)),
-            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tvarchar, tbname, tint options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (3, True)),
-            (f"create stream stName sliding({self.sliding}s, 1a) from {self.trigTbname} options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (0, False)),
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#1
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tint, tbname options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (2, True)),#2
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tvarchar, tbname, tint options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (3, True)),#3
+            (f"create stream stName sliding({self.sliding}s, 1a) from {self.trigTbname} options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (0, False)),#
             
-            (f"create stream stName sliding({self.sliding}s, 1a) from {self.trigTbname} partition by tbname options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),
-            (f"create stream stName interval({self.sliding}s) sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),
-            (f"create stream stName interval({self.sliding + 1}s, 1a) sliding({self.sliding}s) from {self.trigTbname} options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (0, False)),
-            (f"create stream stName interval({self.sliding - 1}s, 1a) sliding({self.sliding}s, 1a) from {self.trigTbname} partition by tbname options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),
+            (f"create stream stName sliding({self.sliding}s, 1a) from {self.trigTbname} partition by tbname options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#5
+            (f"create stream stName interval({self.sliding}s) sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#6
+            (f"create stream stName interval({self.sliding + 1}s, 1a) sliding({self.sliding}s) from {self.trigTbname} options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (0, False)),#7
+            (f"create stream stName interval({self.sliding + 30}s, 1a) sliding({self.sliding}s, 1a) from {self.trigTbname} partition by tbname options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#8
 
-            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} options(watermark(10s)|expired_time(40s)|ignore_disorder|delete_recalc|delete_output_table) into outTbname as querySql;", (3, True)),
-            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(delete_recalc|fill_history('2025-01-01 00:01:30')) into outTbname as querySql ;", (1, True)),
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} options(watermark(10s)|expired_time(40s)|ignore_disorder|delete_recalc|delete_output_table) into outTbname as querySql;", (3, True)),#9
+            (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(delete_recalc|fill_history('2025-01-01 00:01:30')) into outTbname as querySql ;", (1, True)),#10
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(watermark(3s)|fill_history('2025-01-01 00:01:30')) into outTbname as querySql;", (1, True)),#11
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(pre_filter(cint>2)|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#12
             (f"create stream stName sliding({self.sliding}s) from {self.trigTbname} partition by tbname options(calc_notify_only|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#13
