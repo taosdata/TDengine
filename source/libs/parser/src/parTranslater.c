@@ -6657,6 +6657,27 @@ static int32_t getTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bo
   }
   return code;
 }
+typedef struct SConditionOnlyPhAndConstContext {
+  bool onlyPhAndConst;
+  bool hasPhOrConst;
+} SConditionOnlyPhAndConstContext;
+
+static EDealRes conditionOnlyPhAndConstImpl(SNode* pNode, void* pContext) {
+  SConditionOnlyPhAndConstContext* pCxt = (SConditionOnlyPhAndConstContext*)pContext;
+  if (nodeType(pNode) == QUERY_NODE_VALUE) {
+    pCxt->onlyPhAndConst &= true;
+    pCxt->hasPhOrConst = true;
+  } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
+    SFunctionNode *pFunc = (SFunctionNode*)pNode;
+    if (fmIsPlaceHolderFunc(pFunc->funcId)) {
+      pCxt->onlyPhAndConst &= true;
+      pCxt->hasPhOrConst = true;
+    } else {
+      pCxt->onlyPhAndConst = false;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
 
 typedef struct SFilterExtractTsContext {
   SNodeList* pStart;
@@ -6669,15 +6690,11 @@ static bool filterExtractTsNeedCollect(SNode* pLeft, SNode* pRight) {
     if (pCol->colType != COLUMN_TYPE_COLUMN || pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
       return false;
     }
-    if (nodeType(pRight) == QUERY_NODE_VALUE) {
+
+    SConditionOnlyPhAndConstContext cxt = {true, false};
+    nodesWalkExpr(pRight, conditionOnlyPhAndConstImpl, &cxt);
+    if (cxt.onlyPhAndConst && cxt.hasPhOrConst) {
       return true;
-    } else if (nodeType(pRight) == QUERY_NODE_FUNCTION) {
-      SFunctionNode *pFunc = (SFunctionNode*)pRight;
-      if (fmIsPlaceHolderFunc(pFunc->funcId)) {
-        return true;
-      } else {
-        return false;
-      }
     } else {
       return false;
     }
