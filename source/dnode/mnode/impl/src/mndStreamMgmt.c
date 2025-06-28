@@ -3834,7 +3834,6 @@ int32_t msmCheckDeployTrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask, int
   for (int32_t i = 0; i < readerNum; ++i) {
     SStmTaskStatus* pReader = (SStmTaskStatus*)taosArrayGet(pStatus->trigReaders, i);
     if (pReader->id.nodeId == vgId) {
-      TSDB_CHECK_NULL(taosArrayPush(pRsp->cont.vgIds, &vgId), code, lino, _exit, terrno);
       readerExists = true;
       break;
     }
@@ -3882,6 +3881,7 @@ int32_t msmProcessDeployOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   for (int32_t i = 0; i < tbNum; ++i) {
     pName = (SStreamDbTableName*)taosArrayGet(pTbs, i);
     TAOS_CHECK_EXIT(mstGetTableVgId(pDbVgroups, pName->dbFName, pName->tbName, &vgId));
+    TSDB_CHECK_NULL(taosArrayPush(rsp.cont.vgIds, &vgId), code, lino, _exit, terrno);
     TAOS_CHECK_EXIT(msmCheckDeployTrigReader(pCtx, pTask, vgId, &rsp));
   }
 
