@@ -76,14 +76,5 @@ class TestStreamOldCaseBasic2:
         tdSql.checkResultsBySql(
             sql="select * from streamt",
             exp_sql="select _wstart, _wend, first(ts), last(ts), count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 interval(10s) sliding (5s);",
+            retry=1,
         )
-
-        #     and tdSql.compareData(0, 0, "2022-04-01 13:33:25.000")
-        #     and tdSql.compareData(1, 0, "2022-04-01 13:33:30.000")
-        #     and tdSql.compareData(2, 0, "2022-04-01 13:33:35.000")
-        #     and tdSql.compareData(3, 0, "2022-04-01 13:33:240.000")
-        #     and tdSql.compareData(0, 1, 1)
-        #     and tdSql.compareData(1, 1, 1)
-        #     and tdSql.compareData(2, 1, 1)
-        #     and tdSql.compareData(3, 1, 1)
-        # )

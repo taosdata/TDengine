@@ -934,7 +934,7 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
     if (pInfo->scalarSupp.pExprInfo != NULL) {
       SExprSupp* pExprSup = &pInfo->scalarSupp;
       code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
-                                   &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
+                                   GET_STM_RTINFO(pOperator->pTaskInfo));
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -1102,7 +1102,7 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
     if (pInfo->scalarSup.pExprInfo != NULL) {
       pTaskInfo->code =
           projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                pInfo->scalarSup.numOfExprs, NULL, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
+                                pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
       if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
         T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
       }
@@ -1482,7 +1482,7 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
   }
 
   code = filterInitFromNode((SNode*)pPhyNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
-                            &pTaskInfo->pStreamRuntimeInfo);
+                            pTaskInfo->pStreamRuntimeInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -1660,7 +1660,7 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
     if (pInfo->scalarSupp.pExprInfo != NULL) {
       SExprSupp* pExprSup = &pInfo->scalarSupp;
       code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
-                                   &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
+                                   GET_STM_RTINFO(pOperator->pTaskInfo));
       QUERY_CHECK_CODE(code, lino, _end);
     }
     // the pDataBlock are always the same one, no need to call this again
@@ -1783,7 +1783,7 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWinodwPhy
   pInfo->binfo.outputTsOrder = pStateNode->window.node.outputTsOrder;
 
   code = filterInitFromNode((SNode*)pStateNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
-                            &pTaskInfo->pStreamRuntimeInfo);
+                            pTaskInfo->pStreamRuntimeInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -1952,7 +1952,7 @@ int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPh
   }
 
   code = filterInitFromNode((SNode*)pSessionNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
-                            &pTaskInfo->pStreamRuntimeInfo);
+                            pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->pOperator = pOperator;
@@ -2261,7 +2261,7 @@ int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
   pSup->hasWindowOrGroup = true;
 
   code = filterInitFromNode((SNode*)pNode->window.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
-                            &pTaskInfo->pStreamRuntimeInfo);
+                            pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
   miaInfo->curTs = INT64_MIN;

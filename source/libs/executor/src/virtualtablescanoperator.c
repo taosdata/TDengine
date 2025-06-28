@@ -872,7 +872,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
   pVirtualScanInfo->scanAllCols = pVirtualScanPhyNode->scanAllCols;
 
   VTS_ERR_JRET(filterInitFromNode((SNode*)pVirtualScanPhyNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo,
-                                  0, &pTaskInfo->pStreamRuntimeInfo));
+                                  0, pTaskInfo->pStreamRuntimeInfo));
 
   pVirtualScanInfo->base.metaCache.pTableMetaEntryCache = taosLRUCacheInit(1024 * 128, -1, .5);
   QUERY_CHECK_NULL(pVirtualScanInfo->base.metaCache.pTableMetaEntryCache, code, lino, _return, terrno);

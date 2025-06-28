@@ -28,10 +28,6 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext);
 static TdThreadOnce     gStreamTriggerModuleInit = PTHREAD_ONCE_INIT;
 static volatile int32_t gStreamTriggerInitRes = TSDB_CODE_SUCCESS;
 static volatile bool    gStreamTriggerToStop = false;
-// The number of calculation requests that can be sent by stream triggers on the entire dnode is limited
-static TdThreadMutex    gStreamTriggerCalcMutex;
-static TdThreadCond     gStreamTriggerCalcCond;
-static volatile int32_t gStreamTriggerCalcLimit = 10000;  // todo(kjq): adjust dynamically
 // When the trigger task's real-time calculation catches up with the latest WAL
 // progress, it will wait and be awakened later by a timer.
 static SRWLatch gStreamTriggerWaitLatch;
@@ -96,18 +92,18 @@ static void streamTriggerCheckWaitList(void *param, void *tmrId) {
     SListNode *pCurNode = pNode;
     pNode = TD_DLIST_NODE_NEXT(pCurNode);
     StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pCurNode->data;
-    SStreamTask* task = NULL;
-    void* taskAddr = NULL;
-    int32_t code = streamAcquireTask(pInfo->streamId, pInfo->taskId, &task, &taskAddr);
+    SStreamTask           *task = NULL;
+    void                  *taskAddr = NULL;
+    int32_t                code = streamAcquireTask(pInfo->streamId, pInfo->taskId, &task, &taskAddr);
     if (code != TSDB_CODE_SUCCESS) {
-      stError("failed to acquire stream trigger task %" PRIx64 "-%" PRIx64 "-%" PRIx64 " since %s",
-              pInfo->streamId, pInfo->taskId, pInfo->sessionId, tstrerror(code));
+      stError("failed to acquire stream trigger task %" PRIx64 "-%" PRIx64 "-%" PRIx64 " since %s", pInfo->streamId,
+              pInfo->taskId, pInfo->sessionId, tstrerror(code));
       TD_DLIST_POP(&readylist, pCurNode);
       taosMemoryFreeClear(pCurNode);
       continue;
     }
 
-    SStreamTriggerTask* pTask = (SStreamTriggerTask*)task;
+    SStreamTriggerTask *pTask = (SStreamTriggerTask *)task;
     // resume the task
     SSTriggerRealtimeContext *pContext = pTask->pRealtimeContext;
     code = stRealtimeContextCheck(pContext);
@@ -142,16 +138,6 @@ static void streamTriggerCheckWaitList(void *param, void *tmrId) {
 }
 
 static void streamTriggerEnvDoInit() {
-  gStreamTriggerInitRes = taosThreadMutexInit(&gStreamTriggerCalcMutex, NULL);
-  if (gStreamTriggerInitRes != TSDB_CODE_SUCCESS) {
-    stError("failed to init gStreamTriggerCalcMutex since %s", tstrerror(gStreamTriggerInitRes));
-    return;
-  }
-  gStreamTriggerInitRes = taosThreadCondInit(&gStreamTriggerCalcCond, NULL);
-  if (gStreamTriggerInitRes != TSDB_CODE_SUCCESS) {
-    stError("failed to init gStreamTriggerCalcCond since %s", tstrerror(gStreamTriggerInitRes));
-    return;
-  }
   taosInitRWLatch(&gStreamTriggerWaitLatch);
   tdListInit(&gStreamTriggerWaitList, sizeof(StreamTriggerWaitInfo));
   streamTmrStart(streamTriggerCheckWaitList, STREAM_TRIGGER_CHECK_INTERVAL_MS, NULL, gStreamMgmt.timer,
@@ -168,94 +154,12 @@ int32_t streamTriggerEnvInit() {
 }
 
 void streamTriggerEnvStop() {
-  int32_t code = taosThreadMutexLock(&gStreamTriggerCalcMutex);
-  if (code == TSDB_CODE_SUCCESS) {
-    gStreamTriggerToStop = true;
-    code = taosThreadCondBroadcast(&gStreamTriggerCalcCond);
-    if (code != TSDB_CODE_SUCCESS) {
-      stWarn("failed to broadcast gStreamTriggerCalcCond since %s", tstrerror(code));
-    }
-    code = taosThreadMutexUnlock(&gStreamTriggerCalcMutex);
-  } else {
-    stWarn("failed to lock gStreamTriggerCalcMutex since %s", tstrerror(code));
-  }
-
   taosWLockLatch(&gStreamTriggerWaitLatch);
   tdListEmpty(&gStreamTriggerWaitList);
   taosWUnLockLatch(&gStreamTriggerWaitLatch);
 }
 
-void streamTriggerEnvCleanup() {
-  int32_t code = taosThreadMutexDestroy(&gStreamTriggerCalcMutex);
-  if (code != TSDB_CODE_SUCCESS) {
-    stWarn("failed to destroy gStreamTriggerCalcMutex since %s", tstrerror(code));
-  }
-  code = taosThreadCondDestroy(&gStreamTriggerCalcCond);
-  if (code != TSDB_CODE_SUCCESS) {
-    stWarn("failed to destroy gStreamTriggerCalcCond since %s", tstrerror(code));
-  }
-}
-
-int32_t streamTriggerKickCalc() {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  bool    locked = false;
-
-  code = taosThreadMutexLock(&gStreamTriggerCalcMutex);
-  QUERY_CHECK_CODE(code, lino, _end);
-  locked = true;
-
-  gStreamTriggerCalcLimit++;
-  stTrace("receive calc resp and increase gStreamTriggerCalcLimit to %d", gStreamTriggerCalcLimit);
-  code = taosThreadCondSignal(&gStreamTriggerCalcCond);
-  QUERY_CHECK_CODE(code, lino, _end);
-
-  code = taosThreadMutexUnlock(&gStreamTriggerCalcMutex);
-  QUERY_CHECK_CODE(code, lino, _end);
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    if (locked) {
-      code = taosThreadMutexUnlock(&gStreamTriggerCalcMutex);
-    }
-  }
-  return code;
-}
-
-static int32_t streamTriggerAcquireCalcReq() {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  bool    locked = false;
-
-  stTrace("try to wait for gStreamTriggerCalcLimit");
-  code = taosThreadMutexLock(&gStreamTriggerCalcMutex);
-  QUERY_CHECK_CODE(code, lino, _end);
-  locked = true;
-
-  while (gStreamTriggerCalcLimit == 0) {
-    if (gStreamTriggerToStop) {
-      code = TSDB_CODE_STREAM_EXEC_CANCELLED;
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-    code = taosThreadCondWait(&gStreamTriggerCalcCond, &gStreamTriggerCalcMutex);
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
-  gStreamTriggerCalcLimit--;
-  stTrace("acquire calc req and decrease gStreamTriggerCalcLimit to %d", gStreamTriggerCalcLimit);
-
-  code = taosThreadMutexUnlock(&gStreamTriggerCalcMutex);
-  QUERY_CHECK_CODE(code, lino, _end);
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    if (locked) {
-      code = taosThreadMutexUnlock(&gStreamTriggerCalcMutex);
-    }
-  }
-  return code;
-}
+void streamTriggerEnvCleanup() {}
 
 static STimeWindow stTriggerTaskGetIntervalWindow(const SInterval *pInterval, int64_t ts) {
   STimeWindow win;
@@ -2035,7 +1939,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
   pReq->readerTaskId = pReader->taskId;
 
   // serialize and send request
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_PULL};
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_PULL, .info.notFreeAhandle = 1};
   msg.info.ahandle = pReq;
   msg.contLen = tSerializeSTriggerPullRequest(NULL, 0, pReq);
   QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -2176,7 +2080,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   }
 
   // serialize and send request
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_CALC};
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_CALC, .info.notFreeAhandle = 1};
   msg.info.ahandle = pCalcReq;
   msg.contLen = tSerializeSTriggerCalcRequest(NULL, 0, pCalcReq);
   QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -2190,7 +2094,9 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   code = tmsgSendReq(&pCalcRunner->addr.epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
-
+  
+  ST_TASK_DLOG("calc request is sent to node:%d task:%" PRIx64, pCalcRunner->addr.nodeId, pCalcRunner->addr.taskId);
+               
   pContext->pCalcReq = NULL;
 
 _end:
@@ -2791,9 +2697,6 @@ int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId
 
   *ppRequest = NULL;
 
-  code = streamTriggerAcquireCalcReq();
-  QUERY_CHECK_CODE(code, lino, _end);
-
   taosWLockLatch(&pTask->calcPoolLock);
   needUnlock = true;
 
@@ -3084,15 +2987,16 @@ _end:
   return code;
 }
 
-int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUndeployTaskMsg *pMsg, taskUndeplyCallback cb) {
+int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUndeployTaskMsg *pMsg,
+                                  taskUndeplyCallback cb) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = *ppTask;
-  
+
   stDebug("[checkpoint] stTriggerTaskUndeploy, taskId: %" PRId64 ", streamId: %" PRIx64
           ", doCheckpoint: %d, doCleanup: %d",
           pTask->task.taskId, pTask->task.streamId, pMsg->doCheckpoint, pMsg->doCleanup);
-          
+
   if (pMsg->doCheckpoint && pTask->pRealtimeContext) {
     uint8_t *buf = NULL;
     int64_t  len = 0;
@@ -3195,7 +3099,7 @@ _end:
 int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, bool force) {
   int32_t             code = TSDB_CODE_SUCCESS;
   SStreamTriggerTask *pTask = *ppTask;
-  
+
   if (!force && taosWTryForceLockLatch(&pTask->task.entryLock)) {
     ST_TASK_DLOG("ignore undeploy trigger task since working, entryLock:%x", pTask->task.entryLock);
     return code;
@@ -3203,7 +3107,6 @@ int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, bool force) {
 
   return stTriggerTaskUndeployImpl(ppTask, &pTask->task.undeployMsg, pTask->task.undeployCb);
 }
-
 
 int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -3221,6 +3124,8 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
       pTask->task.status = STREAM_STATUS_RUNNING;
       break;
     }
+    case STREAM_MSG_UPDATE_RUNNER:
+    case STREAM_MSG_USER_RECALC:
     case STREAM_MSG_ORIGTBL_READER_INFO: {
       // todo(kjq): handle original table reader info
       break;

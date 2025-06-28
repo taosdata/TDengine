@@ -116,7 +116,7 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = filterInitFromNode((SNode*)pAggNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
-                            &pTaskInfo->pStreamRuntimeInfo);
+                            GET_STM_RTINFO(pTaskInfo));
   TSDB_CHECK_CODE(code, lino, _error);
 
   pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
@@ -238,7 +238,7 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
     if (pAggInfo->scalarExprSup.pExprInfo != NULL && !blockAllocated) {
       SExprSupp* pSup1 = &pAggInfo->scalarExprSup;
-      code = projectApplyFunctions(pSup1->pExprInfo, pBlock, pBlock, pSup1->pCtx, pSup1->numOfExprs, NULL, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
+      code = projectApplyFunctions(pSup1->pExprInfo, pBlock, pBlock, pSup1->pCtx, pSup1->numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
       if (code != TSDB_CODE_SUCCESS) {
         destroyDataBlockForEmptyInput(blockAllocated, &pBlock);
         T_LONG_JMP(pTaskInfo->env, code);
@@ -795,7 +795,7 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
         // fmGetStreamPesudoFuncValTbname(pCtx[k].functionId, &taskInfo->pStreamRuntimeInfo->funcInfo, &data, &size);
         // code = varColSetVarData(&idata, 0, data, size, false);
       } else {
-        const void* val = fmGetStreamPesudoFuncVal(pCtx[k].functionId, &taskInfo->pStreamRuntimeInfo->funcInfo);
+        const void* val = fmGetStreamPesudoFuncVal(pCtx[k].functionId, GET_STM_RTINFO(taskInfo));
         colDataSetInt64(&idata, 0, (void*)val);
       }
       if (code != 0) {

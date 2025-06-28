@@ -89,6 +89,8 @@ typedef struct {
   SStreamInserterParam   inserterParams;
 } SStreamRuntimeInfo;
 
+#define GET_STM_RTINFO(_t) (((_t)->pStreamRuntimeInfo) ? (&(_t)->pStreamRuntimeInfo->funcInfo) : NULL)
+
 // in queue mode, data streams are seperated by msg
 typedef enum {
   OPTR_EXEC_MODEL_BATCH = 0x1,

@@ -191,6 +191,10 @@ const char* nodesNodeName(ENodeType type) {
       return "DropAnodeStmt";
     case QUERY_NODE_UPDATE_ANODE_STMT:
       return "UpdateAnodeStmt";
+    case QUERY_NODE_CREATE_BNODE_STMT:
+      return "CreateBnodeStmt";
+    case QUERY_NODE_DROP_BNODE_STMT:
+      return "DropBnodeStmt";
     case QUERY_NODE_CREATE_SNODE_STMT:
       return "CreateSnodeStmt";
     case QUERY_NODE_DROP_SNODE_STMT:
@@ -262,8 +266,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowAnodesFullStmt";
     case QUERY_NODE_SHOW_SNODES_STMT:
       return "ShowSnodesStmt";
-    case QUERY_NODE_SHOW_BNODES_STMT:
-      return "ShowBnodesStmt";
+    case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
+      return "ShowBackupNodesStmt";
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
       return "ShowArbGroupsStmt";
     case QUERY_NODE_SHOW_CLUSTER_STMT:
@@ -3346,6 +3350,7 @@ static const char* jkFillPhysiPlanValues = "Values";
 static const char* jkFillPhysiPlanStartTime = "StartTime";
 static const char* jkFillPhysiPlanEndTime = "EndTime";
 static const char* jkFillPhysiPlanFillNullExprs = "FillNullExprs";
+static const char* jkFillPhysiPlanFillTimeRangeExpr = "TimeRangeExpr";
 
 static int32_t physiFillNodeToJson(const void* pObj, SJson* pJson) {
   const SFillPhysiNode* pNode = (const SFillPhysiNode*)pObj;
@@ -3374,6 +3379,9 @@ static int32_t physiFillNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkFillPhysiPlanFillNullExprs, pNode->pFillNullExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkFillPhysiPlanFillTimeRangeExpr, nodeToJson, pNode->pTimeRange);
   }
 
   return code;
@@ -3406,6 +3414,9 @@ static int32_t jsonToPhysiFillNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkFillPhysiPlanFillNullExprs, &pNode->pFillNullExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkFillPhysiPlanFillTimeRangeExpr, &pNode->pTimeRange);
   }
 
   return code;
@@ -8098,6 +8109,28 @@ static int32_t jsonToDropAnodeStmt(const SJson* pJson, void* pObj) {
   return tjsonGetIntValue(pJson, jkUpdateDropANodeStmtId, &pNode->anodeId);
 }
 
+static const char* jkUpdateDropBNodeStmtId = "DnodeId";
+
+static int32_t createBnodeStmtToJson(const void* pObj, SJson* pJson) {
+  const SCreateBnodeStmt* pNode = (const SCreateBnodeStmt*)pObj;
+  return tjsonAddIntegerToObject(pJson, jkCreateComponentNodeStmtDnodeId, pNode->dnodeId);
+}
+
+static int32_t jsonToCreateBnodeStmt(const SJson* pJson, void* pObj) {
+  SCreateBnodeStmt* pNode = (SCreateBnodeStmt*)pObj;
+  return tjsonGetIntValue(pJson, jkCreateComponentNodeStmtDnodeId, &pNode->dnodeId);
+}
+
+static int32_t dropBnodeStmtToJson(const void* pObj, SJson* pJson) {
+  const SDropBnodeStmt* pNode = (const SDropBnodeStmt*)pObj;
+  return tjsonAddIntegerToObject(pJson, jkUpdateDropBNodeStmtId, pNode->dnodeId);
+}
+
+static int32_t jsonToDropBnodeStmt(const SJson* pJson, void* pObj) {
+  SDropBnodeStmt* pNode = (SDropBnodeStmt*)pObj;
+  return tjsonGetIntValue(pJson, jkUpdateDropBNodeStmtId, &pNode->dnodeId);
+}
+
 static int32_t createSnodeStmtToJson(const void* pObj, SJson* pJson) {
   return createComponentNodeStmtToJson(pObj, pJson);
 }
@@ -9338,6 +9371,10 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return dropAnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_UPDATE_ANODE_STMT:
       return updateAnodeStmtToJson(pObj, pJson);
+    case QUERY_NODE_CREATE_BNODE_STMT:
+      return createBnodeStmtToJson(pObj, pJson);
+    case QUERY_NODE_DROP_BNODE_STMT:
+      return dropBnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_SNODE_STMT:
       return createSnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_SNODE_STMT:

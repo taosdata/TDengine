@@ -149,7 +149,7 @@ _OVER:
     return NULL;
   }
 
-  mTrace("snode:%d, decode from raw:%p, row:%p", pObj->id, pRaw, pObj);
+  mDebug("snode:%d, decode from raw:%p, row:%p, leaderId[0]:%d, leaderId[1]:%d, replicaId:%d", pObj->id, pRaw, pObj, pObj->leadersId[0], pObj->leadersId[1], pObj->replicaId);
   return pRow;
 }
 
@@ -176,7 +176,7 @@ static int32_t mndSnodeActionDelete(SSdb *pSdb, SSnodeObj *pObj) {
 }
 
 static int32_t mndSnodeActionUpdate(SSdb *pSdb, SSnodeObj *pOld, SSnodeObj *pNew) {
-  mTrace("snode:%d, perform update action, old row:%p new row:%p", pOld->id, pOld, pNew);
+  mDebug("snode:%d, perform update action, old row:%p new row:%p", pOld->id, pOld, pNew);
   pOld->leadersId[0] = pNew->leadersId[0];
   pOld->leadersId[1] = pNew->leadersId[1];
   pOld->replicaId = pNew->replicaId;

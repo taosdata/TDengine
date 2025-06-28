@@ -63,6 +63,7 @@ extern int32_t       tsdmConfigVersion;
 extern int32_t       tsConfigInited;
 extern int32_t       tsStatusInterval;
 extern int32_t       tsNumOfSupportVnodes;
+extern uint16_t      tsMqttPort;
 extern char          tsEncryptAlgorithm[];
 extern char          tsEncryptScope[];
 extern EEncryptAlgor tsiEncryptAlgorithm;
@@ -70,6 +71,8 @@ extern EEncryptScope tsiEncryptScope;
 // extern char     tsAuthCode[];
 extern char tsEncryptKey[];
 extern int8_t tsEnableStrongPassword;
+extern char          tsEncryptPassAlgorithm[];
+extern EEncryptAlgor tsiEncryptPassAlgorithm;
 
 // common
 extern int32_t tsMaxShellConns;

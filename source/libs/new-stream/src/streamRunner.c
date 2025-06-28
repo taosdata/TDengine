@@ -5,6 +5,7 @@
 #include "plannodes.h"
 #include "scalar.h"
 #include "streamInt.h"
+#include "tarray.h"
 #include "tdatablock.h"
 
 static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pTaskExec);
@@ -320,11 +321,13 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   code = streamBuildBlockResultNotifyContent(pBlock, &pContent, pTask->output.outCols);
   if (code == 0) {
     ST_TASK_DLOG("start to send notify:%s", pContent);
+    SSTriggerCalcParam* pTriggerCalcParams =
+        taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, pExec->runtimeInfo.funcInfo.curOutIdx);
+    pTriggerCalcParams->resultNotifyContent = pContent;
+
     code = streamSendNotifyContent(&pTask->task, pExec->runtimeInfo.funcInfo.triggerType,
                                    pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
-                                   pTask->notification.notifyErrorHandle,
-                                   TARRAY_DATA(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals),
-                                   taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals));
+                                   pTask->notification.notifyErrorHandle, pTriggerCalcParams, 1);
   }
   return code;
 }
@@ -474,7 +477,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   int32_t                     lino = 0;
   SSDataBlock*                pForceOutBlock = NULL;
   SStreamRunnerTaskExecution* pExec = NULL;
-  ST_TASK_DLOG("[runner calc]start to handle runner task calc request, topTask: %d", pTask->topTask);
+  ST_TASK_DLOG("[runner calc]start, gid:%" PRId64 ", topTask: %d", pReq->gid, pTask->topTask);
 
   code = stRunnerTaskExecMgrAcquireExec(pTask, pReq->execId, &pExec);
   if (code != 0) {
@@ -532,10 +535,11 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
             }
             ++nextOutIdx;
           }
-          ST_TASK_DLOG("[runner calc]result has no data, status:%d", pTask->task.status);
+          ST_TASK_DLOG("[runner calc]gid:%" PRId64 " result has no data, status:%d", pReq->gid, pTask->task.status);
         } else {
-          ST_TASK_DLOG("[runner calc] non external window: %d, curIdx: %d, curOutIdx: %d, nextOutIdx: %d",
-                       pExec->runtimeInfo.funcInfo.withExternalWindow, pExec->runtimeInfo.funcInfo.curIdx,
+          ST_TASK_DLOG("[runner calc]gid:%" PRId64
+                       " non external window, %d, curIdx: %d, curOutIdx: %d, nextOutIdx: %d",
+                       pReq->gid, pExec->runtimeInfo.funcInfo.withExternalWindow, pExec->runtimeInfo.funcInfo.curIdx,
                        pExec->runtimeInfo.funcInfo.curOutIdx, nextOutIdx);
           code = stRunnerHandleResultBlock(pTask, pExec, pBlock, &createTable);
           nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx + 1;
@@ -543,8 +547,8 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
         if (finished) {
           ++pExec->runtimeInfo.funcInfo.curIdx;
           ++pExec->runtimeInfo.funcInfo.curOutIdx;
-          ST_TASK_DLOG("[runner calc] finished: %d, curIdx: %d, curOutIdx: %d, nextOutIdx: %d",
-                       pExec->runtimeInfo.funcInfo.withExternalWindow, pExec->runtimeInfo.funcInfo.curIdx,
+          ST_TASK_DLOG("[runner calc]gid:%" PRId64 " finished, %d, curIdx: %d, curOutIdx: %d, nextOutIdx: %d",
+                       pReq->gid, pExec->runtimeInfo.funcInfo.withExternalWindow, pExec->runtimeInfo.funcInfo.curIdx,
                        pExec->runtimeInfo.funcInfo.curOutIdx, nextOutIdx);
         }
       }
@@ -564,10 +568,10 @@ end:
   stRunnerTaskExecMgrReleaseExec(pTask, pExec);
   if (pForceOutBlock != NULL) blockDataDestroy(pForceOutBlock);
   if (code) {
-    ST_TASK_ELOG("[runner calc]faild to execute stream task, lino:%d code:%s", lino, tstrerror(code));
+    ST_TASK_ELOG("[runner calc]faild gid:%" PRId64 ", lino:%d code:%s", pReq->gid, lino, tstrerror(code));
     pTask->task.status = STREAM_STATUS_FAILED;
   } else {
-    ST_TASK_DLOG("[runner calc]task executed successfully, status:%d", pTask->task.status);
+    ST_TASK_DLOG("[runner calc]success, gid:%" PRId64 ",, status:%d", pReq->gid, pTask->task.status);
   }
   return code;
 }
@@ -618,12 +622,17 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
   return code;
 }
 
-int32_t stRunnerFetchDataFromCache(SStreamCacheReadInfo* pInfo) {
-  void**  ppIter;
+int32_t stRunnerFetchDataFromCache(SStreamCacheReadInfo* pInfo, bool* finished) {
+  void**  ppIter = NULL;
   int32_t code = readStreamDataCache(pInfo->taskInfo.streamId, pInfo->taskInfo.taskId, pInfo->taskInfo.sessionId,
                                      pInfo->gid, pInfo->start, pInfo->end, &ppIter);
   if (code == 0 && *ppIter != NULL) {
     code = getNextStreamDataCache(ppIter, &pInfo->pBlock);
+  }
+  if(*ppIter == NULL) {
+    *finished = true;
+  } else {
+    *finished = false;
   }
   return code;
 }

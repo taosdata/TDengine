@@ -665,7 +665,7 @@ class StreamUtil:
                     cfloat = rows % 7
                     cdouble = rows % 8
                     cvarchar = "SanFrancisco" if rows % 3 == 1 else "LosAngeles"
-                    csmallint = rows % 9
+                    csmallint = 1 if rows % 4 == 1 else 2
                     cusmallint = rows % 10
                     ctinyint = rows % 11
                     cutinyint = rows % 12
@@ -991,6 +991,118 @@ class StreamUtil:
             sql = f"create view view{v} as select cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cgeometry from qdb.t{v}"
             tdSql.execute(sql)
 
+    # for StreamCheckItem, see cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
+    def checkAll(self, streams):
+        for stream in streams:
+            tdLog.info(f"stream:{stream.db} - create db")
+            stream.create_tb()
+
+        for stream in streams:
+            tdLog.info(f"stream:{stream.db} - create stream")
+            tdSql.execute(f"use {stream.db}")
+            stream.create_stream()
+
+        tdLog.info(f"total:{len(streams)} streams is created")
+        tdStream.checkStreamStatus()
+
+        for stream in streams:
+            if stream.insert1 != None:
+                tdLog.info(f"stream:{stream.db} - insert data step 1")
+                tdSql.execute(f"use {stream.db}")
+                stream.insert1()
+
+        for stream in streams:
+            if stream.check1 != None:
+                tdLog.info(f"stream:{stream.db} - check result step 1")
+                tdSql.execute(f"use {stream.db}")
+                stream.check1()
+
+        for stream in streams:
+            if stream.insert2 != None:
+                tdLog.info(f"stream:{stream.db} - insert data step 2")
+                tdSql.execute(f"use {stream.db}")
+                stream.insert2()
+
+        for stream in streams:
+            if stream.check2 != None:
+                tdLog.info(f"stream:{stream.db} - check result step 2")
+                tdSql.execute(f"use {stream.db}")
+                stream.check2()
+
+        for stream in streams:
+            if stream.insert3 != None:
+                tdLog.info(f"stream:{stream.db} - insert data step 3")
+                tdSql.execute(f"use {stream.db}")
+                stream.insert3()
+
+        for stream in streams:
+            if stream.check3 != None:
+                tdLog.info(f"stream:{stream.db} - check result step 3")
+                tdSql.execute(f"use {stream.db}")
+                stream.check3()
+
+        for stream in streams:
+            if stream.insert4 != None:
+                tdLog.info(f"stream:{stream.db} - insert data step 4")
+                tdSql.execute(f"use {stream.db}")
+                stream.insert4()
+
+        for stream in streams:
+            if stream.check4 != None:
+                tdLog.info(f"stream:{stream.db} - check result step 4")
+                tdSql.execute(f"use {stream.db}")
+                stream.check4()
+
+        for stream in streams:
+            if stream.insert5 != None:
+                tdLog.info(f"stream:{stream.db} - insert data step 5")
+                tdSql.execute(f"use {stream.db}")
+                stream.insert5()
+
+        for stream in streams:
+            if stream.check5 != None:
+                tdLog.info(f"stream:{stream.db} - check result step 5")
+                tdSql.execute(f"use {stream.db}")
+                stream.check5()
+
+        for stream in streams:
+            if stream.insert6 != None:
+                tdLog.info(f"stream:{stream.db} - insert data step 6")
+                tdSql.execute(f"use {stream.db}")
+                stream.insert6()
+
+        for stream in streams:
+            if stream.check6 != None:
+                tdLog.info(f"stream:{stream.db} - check result step 6")
+                tdSql.execute(f"use {stream.db}")
+                stream.check6()
+
+        for stream in streams:
+            if stream.insert7 != None:
+                tdLog.info(f"stream:{stream.db} - insert data step 7")
+                tdSql.execute(f"use {stream.db}")
+                stream.insert7()
+
+        for stream in streams:
+            if stream.check7 != None:
+                tdLog.info(f"stream:{stream.db} - check result step 7")
+                tdSql.execute(f"use {stream.db}")
+                stream.check7()
+
+        for stream in streams:
+            if stream.insert8 != None:
+                tdLog.info(f"stream:{stream.db} - insert data step 8")
+                tdSql.execute(f"use {stream.db}")
+                stream.insert8()
+
+        for stream in streams:
+            if stream.check8 != None:
+                tdLog.info(f"stream:{stream.db} - check result step 8")
+                tdSql.execute(f"use {stream.db}")
+                stream.check8()
+
+        tdLog.info(f"total:{len(streams)} streams check successfully")
+
 
 tdStream = StreamUtil()
 
@@ -1250,6 +1362,65 @@ class StreamItem:
                 self.caseName,
             )
             tdLog.info("check result with result file succeed")
+
+
+class StreamCheckItem:
+    def __init__(self, db):
+        self.db = db
+
+    def create_tb(self):
+        tdLog.debug(f"stream:{self.db} - create table - not implemented")
+
+    def create_stream(self):
+        tdLog.debug(f"stream:{self.db} - create stream - not implemented")
+
+    def insert1(self):
+        tdLog.debug(f"stream:{self.db} - insert1 - not implemented")
+
+    def check1(self):
+        tdLog.debug(f"stream:{self.db} - check1 - not implemented")
+
+    def insert2(self):
+        tdLog.debug(f"stream:{self.db} - insert2 - not implemented")
+
+    def check2(self):
+        tdLog.debug(f"stream:{self.db} - check2 - not implemented")
+
+    def insert3(self):
+        tdLog.debug(f"stream:{self.db} - insert3 - not implemented")
+
+    def check3(self):
+        tdLog.debug(f"stream:{self.db} - check3 - not implemented")
+
+    def insert4(self):
+        tdLog.debug(f"stream:{self.db} - insert4 - not implemented")
+
+    def check4(self):
+        tdLog.debug(f"stream:{self.db} - check4 - not implemented")
+
+    def insert5(self):
+        tdLog.debug(f"stream:{self.db} - insert5 - not implemented")
+
+    def check5(self):
+        tdLog.debug(f"stream:{self.db} - check5 - not implemented")
+
+    def insert6(self):
+        tdLog.debug(f"stream:{self.db} - insert6 - not implemented")
+
+    def check6(self):
+        tdLog.debug(f"stream:{self.db} - check6 - not implemented")
+
+    def insert7(self):
+        tdLog.debug(f"stream:{self.db} - insert7 - not implemented")
+
+    def check7(self):
+        tdLog.debug(f"stream:{self.db} - check7 - not implemented")
+
+    def insert8(self):
+        tdLog.debug(f"stream:{self.db} - insert8 - not implemented")
+
+    def check8(self):
+        tdLog.debug(f"stream:{self.db} - check8 - not implemented")
 
 
 class SafeDict(dict):

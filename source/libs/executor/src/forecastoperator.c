@@ -1015,7 +1015,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
   }
 
   code = filterInitFromNode((SNode*)pForecastPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
-                            &pTaskInfo->pStreamRuntimeInfo);
+                            pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = forecastParseInput(pSupp, pForecastPhyNode->pFuncs, pId);

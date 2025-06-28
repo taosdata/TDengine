@@ -112,12 +112,10 @@ class TaosD:
             start_cmd = f"screen -L -d -m {valgrind_cmdline} {taosd_path} -c {dnode['config_dir']}  "
         else:
             if error_output:
-                asan_lib = subprocess.getoutput("gcc -print-file-name=libasan.so")
-                start_cmd = f"LD_PRELOAD={asan_lib} screen -L -d -m {taosd_path} -c {dnode['config_dir']} 2>{error_output}"
+                start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']} 2>{error_output}"
             else:
                 start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
 
-        self.logger.debug("start cmd: %s" % start_cmd)
         self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
         
         if self.taosd_valgrind == 0:
@@ -351,27 +349,6 @@ class TaosD:
                             killCmd = [
                                 f"ps -ef | grep -wi {nodeDict['name']} | grep {i['config_dir']} | grep -v grep | awk '{{print $2}}' | xargs kill -9 > /dev/null 2>&1"]
                             self._remote.cmd(fqdn, killCmd)
-                    
-                    if "system" in i.keys() and i["system"].lower() == "darwin":
-                        stop_service_cmd = "launchctl unload /Library/LaunchDaemons/com.taosdata.taosd.plist"
-                    else:
-                        stop_service_cmd = "systemctl is-active taosd && systemctl stop taosd || true"
-                    self.logger.debug(f"Executing stop command on {fqdn}: {stop_service_cmd}")
-                    self._remote.cmd(fqdn, [stop_service_cmd])
-                    
-                    get_and_kill_cmd = (
-                        "ps -ef | grep '[t]aosd' | grep -v grep | awk '{print $2}' | "
-                        "while read pid; do "
-                        "if kill -0 $pid 2>/dev/null; then "
-                        "echo Killing taosd process with PID: $pid; "
-                        "kill -9 $pid; "
-                        "fi; "
-                        "done"
-                    )
-                    self.logger.debug(f"Executing get and kill command on {fqdn}: {get_and_kill_cmd}")
-                    output=self._remote.cmd(fqdn, [get_and_kill_cmd])
-                    self.logger.info(f"Kill log on {fqdn}:{output}")
-                    
                     if self.taosd_valgrind and not self.taosc_valgrind:
                         killCmd = [
                             "ps -ef|grep -wi valgrind.bin | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"]

@@ -579,16 +579,17 @@ static int32_t resetMultiwayMergeOperState(SOperatorInfo* pOper) {
   resetBasicOperatorState(&pInfo->binfo);
   pInfo->groupId = 0;
 
+  OPTR_CLR_OPENED(pOper);
+
   switch (pInfo->type) {
     case MERGE_TYPE_SORT: {
+
       SSortMergeInfo* pSortMergeInfo = &pInfo->sortMergeInfo;
 
       blockDataCleanup(pSortMergeInfo->pInputBlock);
 
       blockDataDestroy(pSortMergeInfo->pIntermediateBlock);
       pSortMergeInfo->pIntermediateBlock = NULL;
-
-      taosArrayDestroy(pSortMergeInfo->matchInfo.pList);
 
       tsortDestroySortHandle(pSortMergeInfo->pSortHandle);
       pSortMergeInfo->pSortHandle = NULL;

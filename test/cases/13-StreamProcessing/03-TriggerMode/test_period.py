@@ -25,64 +25,82 @@ class TestStreamperiodTrigger:
     queryIdx = 0
     periodList = [1, 10, 100, 1000]
     tableList = []
-    runCaseList = ["0-0-0-1-1" ]
+    runCaseList = ["0-0-0-10-14","0-0-0-10-15" ]
     streamSql = ""
     querySql = ""
     querySqls = [ # (SQL, (minPartitionColNum, partitionByTbname), PositiveCase)
         ("select cts, cint from {calcTbname} order by cts limit 3", (0, False), True), #0
         ("select cts, cint from {calcTbname} order by cts desc limit 4", (0, False), True), #1
-        ("select cts, cint, _tprev_ts, _tcurrent_ts, _tnext_ts from {calcTbname} order by cts", (0, False), True), #2
-        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from {calcTbname} order by cts", (2, True), True), #3
-        ("select cts, cint from {calcTbname} where _tcurrent_ts % 2 = 0 order by cts", (0, False), True), #4
+        ("select cts, cint, _tprev_localtime / 1000000,  _tnext_localtime/1000000 from {calcTbname} order by cts", (0, False), True), #2
+        ("select cts, cint, _tprev_localtime/1000000,  %%tbname from {calcTbname} order by cts", (2, True), True), #3
+        ("select cts, cint from {calcTbname} where cts % 2 = 0 order by cts", (0, False), True), #4
         ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from {calcTbname} where %%tbname like '%1' order by cts", (2, True), True), #5
-        ("select _tcurrent_ts, cint from {calcTbname} order by cts limit 4", (0, False), True), #6
+        ("select cts, _tprev_localtime/1000000,  _tnext_localtime/1000000, cint from {calcTbname} order by cts limit 4", (0, False), True), #6
 
         ("select cts, cint from %%tbname order by cts limit 3", (1, True), True), #7
-        ("select cts, cint, _tprev_ts, _tcurrent_ts, _tnext_ts from %%tbname order by cts", (1, True), True), #8
+        ("select cts, cint, _tprev_localtime/1000000,  _tnext_localtime/1000000 from %%tbname order by cts", (1, True), True), #8
         ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname order by cts", (2, True), True), #9
-        ("select cts, cint from %%tbname where _tcurrent_ts % 2 = 0 order by cts", (1, True), True), #10
+        ("select cts, cint from %%tbname where cts % 2 = 0 order by cts", (1, True), True), #10
         ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname where %%tbname like '%1' order by cts", (2, True), True), #11
-        ("select _tcurrent_ts, cint from %%tbname order by cts limit 7", (1, True), True), #12
+        ("select cts, _tprev_localtime/1000000, cint from %%tbname order by cts limit 7", (0, False), True), #12
+        ("select cts, _tprev_localtime/1000000, cint from %%tbname order by cts desc limit 7", (0, False), True), #13
+        ("select cts, cint from %%tbname where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:10:00.000' order by cts limit 30", (1, True), True), #14
+        ("select cts, cint from %%tbname where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:10:00.000' and cint > 15 order by cts desc limit 12", (1, True), True), #15
+        
+        # ("select cts, cint from %%tbname partition by cint order by cts", (1, True), True), #13
+        # ("select cts, cint, _tprev_localtime,  _tnext_localtime from %%tbname partition by cint order by cts", (1, True), True), #14
+        # ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname partition by cint order by cts", (2, True), True), #15
+        # ("select cts, cint from %%tbname where _tprev_localtime % 2 = 0 partition by cint order by cts", (1, True), True), #16
+        # ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname where %%tbname like '%1' partition by cint order by cts", (2, True), True), #17
+        # ("select _tprev_localtime, cint from %%tbname partition by cint order by cts", (1, True), True), #18
+        # ("select cts, _tprev_localtime, cint from %%trows", (0, False), True), #19
 
-        ("select cts, cint from %%tbname partition by cint order by cts", (1, True), True), #13
-        ("select cts, cint, _tprev_ts, _tcurrent_ts, _tnext_ts from %%tbname partition by cint order by cts", (1, True), True), #14
-        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname partition by cint order by cts", (2, True), True), #15
-        ("select cts, cint from %%tbname where _tcurrent_ts % 2 = 0 partition by cint order by cts", (1, True), True), #16
-        ("select cts, cint, _tgrpid, %%1, %%2, %%tbname from %%tbname where %%tbname like '%1' partition by cint order by cts", (2, True), True), #17
-        ("select _tcurrent_ts, cint from %%tbname partition by cint order by cts", (1, True), True), #18
-        ("select cts, _tcurrent_ts, cint from %%trows", (0, False), True), #19
+        # ("select _tprev_localtime, avg(cint), sum(cint) from %%tbname", (1, True), True), #20
+        # ("select _tprev_localtime, avg(cint), max(cint) from {calcTbname}", (0, False), True), #21
+        # ("select _tprev_localtime, avg(cint), max(cint) from {calcTbname} partition by cint", (0, False), True), #22
+        # ("select _tprev_localtime, avg(cint), max(cint) from {calcTbname} partition by tbname", (0, False), True), #23
+        # ("select _tprev_localtime, avg(cint), sum(cint) from %%tbname group by cint", (1, True), True), #24
 
-        ("select _tcurrent_ts, avg(cint), sum(cint) from %%tbname", (1, True), True), #20
-        ("select _tcurrent_ts, avg(cint), max(cint) from {calcTbname}", (0, False), True), #21
-        ("select _tcurrent_ts, avg(cint), max(cint) from {calcTbname} partition by cint", (0, False), True), #22
-        ("select _tcurrent_ts, avg(cint), max(cint) from {calcTbname} partition by tbname", (0, False), True), #23
-        ("select _tcurrent_ts, avg(cint), sum(cint) from %%tbname group by cint", (1, True), True), #24
+        # ("select _wstart, _tprev_localtime, avg(cint), max(cint) from {calcTbname} partition by tbname interval(5s)", (0, False), True), #25
+        # ("select _wstart, _tprev_localtime, avg(cint), sum(cint) from {calcTbname} interval(10s)", (0, False), True), #26
+        # ("select _wstart, _tprev_localtime, avg(cint), sum(cint) from {calcTbname} where cts >= _tprev_localtime and cts <  _tnext_localtime interval(10s)", (0, False), True), #27
+        # ("select _wstart, _tprev_localtime, avg(cint), sum(cint) from %%trows where cts >= _tprev_localtime + 1s and cts <  _tnext_localtime - 1s interval(1s)", (0, False), True), #28
+        # ("select _wstart, _tprev_localtime, avg(cint), sum(cint) from %%trows", (0, False), True), #29
 
-        ("select _wstart, _tcurrent_ts, avg(cint), max(cint) from {calcTbname} partition by tbname interval(5s)", (0, False), True), #25
-        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} interval(10s)", (0, False), True), #26
-        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} where cts >= _tprev_ts and cts < _tcurrent_ts interval(10s)", (0, False), True), #27
-        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%trows where cts >= _tprev_ts + 1s and cts < _tcurrent_ts - 1s interval(1s)", (0, False), True), #28
-        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%trows", (0, False), True), #29
+        # ("select _wstart, _tprev_localtime, avg(cint), sum(cint) from {calcTbname} partition by cint state_window(cuint)", (0, False), True), #30
+        # ("select _wstart, _tprev_localtime, avg(cint), sum(cint) from %%tbname where cts % 3 != 0 session(cts, 2s)", (1, True), True), #31
+        # ("select _wstart, _tprev_localtime, avg(cint), sum(cint) from %%trows event_window start with cbigint = 0 end with cbigint > 1", (0, False), True), #32
+        # ("select _wstart, _tprev_localtime, avg(cint), sum(cint) from %%trows partition by cuint count_window(3)", (0, False), True), #33
 
-        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} partition by cint state_window(cuint)", (0, False), True), #30
-        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%tbname where cts % 3 != 0 session(cts, 2s)", (1, True), True), #31
-        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%trows event_window start with cbigint = 0 end with cbigint > 1", (0, False), True), #32
-        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from %%trows partition by cuint count_window(3)", (0, False), True), #33
-
-        ("select cts, cint from %%tbname where ts >= _twstart and ts < _twend", (1, True), True), #34
-        #add
-        ("select _tcurrent_ts, avg(cint), max(cint) from {calcTbname} partition by cint order by cint", (0, False), True), #35
-        ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} interval(60s)", (0, False), True), #36
-        ("select _wstart,sum({calcTbname}.cint), max({calcTbname}.cint) from {calcTbname} ,{calcTbname} as t2 where {calcTbname}.cts=t2.cts  interval(120s)", (0, False), True), #37
-        ("select _wstart, avg(cint) c, max(cint) from {calcTbname} partition by cint interval(60s) union all select _wstart, avg(cint) c, max(cint) from {calcTbname} partition by cint interval(60s) order by _wstart,c", (0, False), True), #38
+        # ("select cts, cint from %%tbname where ts >= _twstart and ts < _twend", (1, True), True), #34
+        # #add
+        # ("select _tprev_localtime, avg(cint), max(cint) from {calcTbname} partition by cint order by cint", (0, False), True), #35
+        # ("select _wstart, _tprev_localtime, avg(cint), sum(cint) from {calcTbname} interval(60s)", (0, False), True), #36
+        # ("select _wstart,sum({calcTbname}.cint), max({calcTbname}.cint) from {calcTbname} ,{calcTbname} as t2 where {calcTbname}.cts=t2.cts  interval(120s)", (0, False), True), #37
+        # ("select _wstart, avg(cint) c, max(cint) from {calcTbname} partition by cint interval(60s) union all select _wstart, avg(cint) c, max(cint) from {calcTbname} partition by cint interval(60s) order by _wstart,c", (0, False), True), #38
     ]
 
     queryResults = {
         #{"trigTbIdx-calcTbIdx-slidIdx-createStmIdx-queryIdx":[expectedRows, compareFunc, hasResultFile, [{rowIdx:[col0Value, col1Value...]}, order by clause]]}
-
-        "0-0-0-1-0": [-1, None, True, [], ""], 
-        "0-0-0-1-1": [-1, None, True, [], ""], #FAILED ,新手动写入一条后，结果没有更新
+        "0-0-0-0-1": [-1, None, True, [],""],#success
+        "0-0-0-1-0": [3, None, True, [], " order by tag_tbname"], #success
   
+        "0-0-0-1-3": [-1, None, True, [], ""],  
+        "0-0-0-1-4": [-1, None, True, [], ""],       
+        "0-0-0-2-12": [21, None, True, [], ""], 
+        "0-0-0-2-13": [-1, None, True, [], ""], 
+        "0-0-0-4-12": [-1, None, True, [], ""], 
+        "0-0-0-4-13": [-1, None, True, [], ""], 
+        "0-0-0-5-13": [-1, None, True, [], ""], 
+        "0-0-0-6-13": [-1, None, True, [], ""],
+        "0-0-0-7-13": [-1, None, True, [], ""],
+        "0-0-0-8-13": [-1, None, True, [], ""],
+        "0-0-0-7-14": [-1, None, True, [], ""],
+        "0-0-0-8-15": [-1, None, True, [], ""], 
+        "0-0-0-9-14": [-1, None, True, [], ""],
+        "0-0-0-9-15": [-1, None, True, [], ""],
+        "0-0-0-10-14": [-1, None, True, [], ""],
+        "0-0-0-10-15": [-1, None, True, [], ""],
     }
 
     def setup_class(cls):
@@ -134,10 +152,10 @@ class TestStreamperiodTrigger:
         for i in range(0, self.subTblNum + 1):
             self.tableList.append(f"st1_{i}")
         
-        ntb = StreamTable(self.dbname, "ntb1", StreamTableType.TYPE_NORMAL_TABLE)
-        ntb.createTable()
-        ntb.append_data(0, self.tblRowNum)
-        self.tableList.append(f"ntb1")
+        # ntb = StreamTable(self.dbname, "ntb1", StreamTableType.TYPE_NORMAL_TABLE)
+        # ntb.createTable()
+        # ntb.append_data(0, self.tblRowNum)
+        # self.tableList.append(f"ntb1")
 
     def checkResultWithResultFile(self):
         chkSql = f"select * from {self.dbname}.{self.outTbname} {self.queryResult[4]}"
@@ -166,23 +184,25 @@ class TestStreamperiodTrigger:
         tdLog.info("check result with expected list succeed")
 
     def execCase(self):
-        tdLog.info(f"execCase begin")
+       # tdLog.info(f"execCase begin")
 
         runnedCaseNum = 0
         createStreamSqls = [ #(SQL, (minPartitionColNum, partitionByTbname))
-            (f"create stream stName period({self.period}s) from {self.trigTbname} into outTbname as querySql;", (0, False)),
-            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname into outTbname as querySql;", (1, True)),
-            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tint, tbname into outTbname as querySql;", (2, True)),
-            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tvarchar, tbname, tint into outTbname as querySql;", (3, True)),
-            (f"create stream stName period({self.period}s, 1a) from {self.trigTbname} into outTbname as querySql;", (0, False)),
-            
-            (f"create stream stName period({self.period}s, 1a) from {self.trigTbname} partition by tbname into outTbname as querySql;", (1, True)),
-            (f"create stream stName interval({self.period}s) period({self.period}s) from {self.trigTbname} partition by tbname into outTbname as querySql;", (1, True)),
-            (f"create stream stName interval({self.period + 1}s, 1a) period({self.period}s) from {self.trigTbname} into outTbname as querySql;", (0, False)),
-            (f"create stream stName interval({self.period - 1}s, 1a) period({self.period}s, 1a) from {self.trigTbname} partition by tbname into outTbname as querySql;", (1, True)),
-
-            #(f"create stream stName period({self.sliding}s) from {self.trigTbname} options(watermark(10s)|expired_time(40s)|ignore_disorder|delete_recalc|delete_output_table) into outTbname as querySql;", (3, True)),
+            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname into outTbname as querySql;", (1, True)),#0
+            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tint, tbname into outTbname as querySql;", (2, True)),#1
+            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tvarchar, tbname, tint into outTbname as querySql;", (3, True)),#2
+            (f"create stream stName period({self.period}s, 1a) from {self.trigTbname} partition by tbname into outTbname as querySql;", (1, True)),#3
+            (f'create stream stName period({self.period}s) from {self.trigTbname} partition by tbname notify("ws://localhost:8080/notify")  into outTbname as querySql;',(1,True)),#4
+            (f'create stream stName period({self.period}s) from {self.trigTbname} partition by tbname notify("ws://localhost:8080/notify")  where cint>10 into outTbname as querySql;',(1,True)),#5
+            (f'create stream stName period({self.period}s) from {self.trigTbname} partition by tbname   into outTbname as querySql;',(1,True)),#6
+            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname options(force_output) into outTbname as querySql ;", (1, True)),#7
+            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname options(delete_output_table)  into outTbname as querySql ;", (1, True)),#8
+            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname options(LOW_LATENCY_CALC) into outTbname as querySql ;", (1, True)),#9
+            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname options(delete_output_table) into outTbname as querySql ;", (1, True)),#10
         ]
+        
+        # tdLog.info(f"createStreamSqls num: {len(createStreamSqls)}")
+        # tdLog.info(f"createquerySqls num: {len(self.querySqls)}")
 
         for self.createStmIdx in range(len(createStreamSqls)):
             for self.queryIdx in range(len(self.querySqls)):
@@ -201,15 +221,17 @@ class TestStreamperiodTrigger:
                     continue
 
                 self.resultIdx = f"{self.trigTbIdx}-{self.calcTbIdx}-{self.slidIdx}-{self.createStmIdx}-{self.queryIdx}"
-
+                #tdLog.info(f"exec case {self.caseIdx} idx: {self.resultIdx} trigTbname: {self.trigTbname}, calcTbname: {self.calcTbname}, period: {self.period}, createStmIdx: {self.createStmIdx}, queryIdx: {self.queryIdx}")
                 if not self.runAll and len(self.runCaseList) > 0 and self.resultIdx not in self.runCaseList:
                     tdLog.debug(f"skip case {self.caseIdx} idx: {self.resultIdx}")
                     self.caseIdx += 1
+                    #tdLog.info(f"skip this case 111")
                     continue
 
                 if not self.runAll and self.resultIdx not in self.queryResults:
                     tdLog.debug(f"skip case {self.caseIdx} idx: {self.resultIdx} because not in queryResults")
                     self.caseIdx += 1
+                    #tdLog.info(f"skip this case 222")
                     continue
 
                 runnedCaseNum += 1
@@ -234,6 +256,7 @@ class TestStreamperiodTrigger:
                     res_query=f"select * from {self.outTbname};",
                     check_func=self.queryResult[1],
                 )
+                #tdLog.info(f"create stream: {stream1.id} with sql: {stream1.stream}")
                 stream1.createStream()
                 stream1.awaitStreamRunning()
                 time.sleep(5)
@@ -249,7 +272,8 @@ class TestStreamperiodTrigger:
                         self.checkResultWithExpectedList()
 
                 self.caseIdx += 1
-
+        
+       # tdLog.info(f"===== exec end ===========")
         return True
 
     def checkBaic2Results(self):

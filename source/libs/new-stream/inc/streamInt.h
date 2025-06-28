@@ -44,6 +44,7 @@ typedef struct SStreamInfo {
   int32_t             taskNum;
   
   SList*              readerList;        // SStreamReaderTask
+  int64_t             triggerTaskId;
   SStreamTriggerTask* triggerTask;
   SList*              runnerList;        // SArray<SStreamRunnerTask>
 

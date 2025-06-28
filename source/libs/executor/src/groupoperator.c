@@ -477,7 +477,7 @@ static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
       code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                   pInfo->scalarSup.numOfExprs, NULL, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
+                                   pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -595,7 +595,7 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = filterInitFromNode((SNode*)pAggNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
-                            &pTaskInfo->pStreamRuntimeInfo);
+                            pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
@@ -1056,7 +1056,7 @@ static int32_t hashPartitionNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
     if (pInfo->scalarSup.pExprInfo != NULL) {
       code =
           projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                pInfo->scalarSup.numOfExprs, NULL, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
+                                pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
       QUERY_CHECK_CODE(code, lino, _end);
     }
 

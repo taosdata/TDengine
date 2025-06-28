@@ -491,7 +491,7 @@ static int32_t extWindowCopyRows(SOperatorInfo* pOperator, SSDataBlock* pInputBl
     code = blockDataMergeNRows(pExtW->pTmpBlock, pInputBlock, startPos, rowsToCopy);
     if (code == 0) {
       code = projectApplyFunctions(pExprSup->pExprInfo, pResBlock, pExtW->pTmpBlock, pExprSup->pCtx, pExprSup->numOfExprs,
-          NULL, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
+          NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
     }
   }
 
@@ -811,7 +811,7 @@ static int32_t doMergeAlignExtWindowProject(SOperatorInfo* pOperator, SResultRow
   SExternalWindowOperator* pExtW = pOperator->info;
   SExprSupp*               pExprSup = &pExtW->scalarSupp;
   int32_t code = projectApplyFunctions(pExprSup->pExprInfo, pResultBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
-                        &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
+                        GET_STM_RTINFO(pOperator->pTaskInfo));
   return code;
 }
 

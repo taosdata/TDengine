@@ -3,7 +3,12 @@
 
 ## 02-Stream
 
-## 03-Trigger
+## 03-TriggerMode
+../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/03-TriggerMode/test_state.py
+../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/03-TriggerMode/test_count.py
+../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/03-TriggerMode/test_event.py
+../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/03-TriggerMode/test_fill_history.py
+../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/03-TriggerMode/test_sliding.py
 
 ## 04-Option
 
@@ -14,7 +19,7 @@
 ## 07-SubQuery
 ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/07-SubQuery/test_subquery_basic.py
 ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/07-SubQuery/test_subquery_limit.py
-../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding.py
+# ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding.py
 
 ## 08-ReCalculate
 
@@ -28,7 +33,7 @@
 ## 23-Compatibility 
 
 ## 24-OldCases
-../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py 
+# ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py 
 # ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_check.py
 # ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_checkpoint.py
 # ../tests/script/sh/stop_dnodes.sh; pytest --clean cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py

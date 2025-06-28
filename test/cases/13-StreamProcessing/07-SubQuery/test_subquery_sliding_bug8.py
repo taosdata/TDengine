@@ -32,8 +32,8 @@ class TestStreamDevBasic:
         self.prepareQueryData()
         self.prepareTriggerTable()
         self.createStreams()
-        self.writeTriggerData()
         self.checkStreamStatus()
+        self.writeTriggerData()
         self.checkResults()
 
     def createSnode(self):
@@ -69,8 +69,8 @@ class TestStreamDevBasic:
     def prepareTriggerTable(self):
         tdLog.info("prepare tables for trigger")
 
-        stb = "create table tdb.triggers (ts timestamp, c1 int, c2 int) tags(id int);"
-        ctb = "create table tdb.t1 using tdb.triggers tags(1) tdb.t2 using tdb.triggers tags(2) tdb.t3 using tdb.triggers tags(3)"
+        stb = "create table tdb.triggers (ts timestamp, c1 int, c2 int) tags(id int, name varchar(16));"
+        ctb = "create table tdb.t1 using tdb.triggers tags(1, '1') tdb.t2 using tdb.triggers tags(2, '2') tdb.t3 using tdb.triggers tags(3, '3')"
         tdSql.execute(stb)
         tdSql.execute(ctb)
 
@@ -107,10 +107,10 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=23,
-            stream="create stream rdb.s23 interval(5m) sliding(5m) from tdb.triggers into rdb.r23 as select _twstart ts, `name` as cname, `super` csuper, create_time cctime from information_schema.ins_users;",
-            # res_query="select ts, cname, csuper, 1000 from rdb.r23",
-            # exp_query="select _wstart ts, 'root',  1, count(cint) from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+            id=74,
+            stream="create stream rdb.s74 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r74 as select first(cts), _twstart, %%tbname, cint, avg(cfloat), count(cdouble), sum(cfloat), twa(cdouble) from qdb.meters where cts >= _twstart and cts < _twend and tbname = %%1 group by cint having count(cdouble) == 1 order by first(cts);",
+            res_query="select * from rdb.r74",
+            exp_query="select first(cts), cint, avg(cfloat), count(cdouble), sum(cfloat), twa(cdouble) from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname = 't1' group by cint having count(cdouble) == 1 order by first(cts);",
         )
         self.streams.append(stream)
 
@@ -118,17 +118,16 @@ class TestStreamDevBasic:
         for stream in self.streams:
             stream.createStream()
 
-    def check23(self):
+    def check0(self):
         tdSql.checkTableType(
-            dbname="rdb", tbname="r23", typename="NORMAL_TABLE", columns=4
+            dbname="rdb", tbname="r0", typename="NORMAL_TABLE", columns=3
         )
         tdSql.checkTableSchema(
             dbname="rdb",
-            tbname="r23",
+            tbname="r0",
             schema=[
                 ["ts", "TIMESTAMP", 8, ""],
-                ["cname", "VARCHAR", 24, ""],
-                ["csuper", "TINYINT", 1, ""],
-                ["cctime", "TIMESTAMP", 8, ""],
+                ["c1", "BIGINT", 8, ""],
+                ["c2", "DOUBLE", 8, ""],
             ],
         )

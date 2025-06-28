@@ -69,8 +69,8 @@ class TestStreamDevBasic:
     def prepareTriggerTable(self):
         tdLog.info("prepare tables for trigger")
 
-        stb = "create table tdb.triggers (ts timestamp, c1 int, c2 int) tags(id int, name varchar(16));"
-        ctb = "create table tdb.t1 using tdb.triggers tags(1, '1') tdb.t2 using tdb.triggers tags(2, '2') tdb.t3 using tdb.triggers tags(3, '3')"
+        stb = "create table tdb.triggers (ts timestamp, c1 int, c2 int) tags(id int);"
+        ctb = "create table tdb.t1 using tdb.triggers tags(1) tdb.t2 using tdb.triggers tags(2) tdb.t3 using tdb.triggers tags(3)"
         tdSql.execute(stb)
         tdSql.execute(ctb)
 
@@ -107,29 +107,28 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=41,
-            stream="create stream rdb.s41 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r41 as select cts, cint, cbool, cast(tjson->'k1' as varchar(8)) cjson, _twstart from qdb.j0 where cts >= _twstart and cts < _twend and cbool = %%1 order by cts limit 2, 3",
-            res_query="select * from rdb.r41 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and id = 1",
-            exp_query="select cts, cint, cbool, cast(tjson->'k1' as varchar(8)) cjson, cast('2025-01-01 00:00:00.000' as timestamp) from qdb.j0 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and cbool = 1 order by cts limit 2, 3",
-            check_func=self.check41,
+            id=28,
+            stream="create stream rdb.s28 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r28 as select _twstart ts, `name` as cname, `super` csuper, create_time cctime, %%1 from information_schema.ins_users",
+            res_query="select ts, cname, csuper, 1000 from rdb.r28 where id = 1",
+            exp_query="select _wstart ts, 'root',  1, count(cint) from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
         )
-
         self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()
 
-    def check41(self):
+    def check23(self):
+        tdSql.checkTableType(
+            dbname="rdb", tbname="r23", typename="NORMAL_TABLE", columns=4
+        )
         tdSql.checkTableSchema(
             dbname="rdb",
-            tbname="r41",
+            tbname="r23",
             schema=[
-                ["cts", "TIMESTAMP", 8, ""],
-                ["cint", "INT", 4, ""],
-                ["cbool", "BOOL", 1, ""],
-                ["cjson", "VARCHAR", 8, ""],
-                ["_twstart", "TIMESTAMP", 8, ""],
-                ["id", "INT", 4, "TAG"],
+                ["ts", "TIMESTAMP", 8, ""],
+                ["cname", "VARCHAR", 24, ""],
+                ["csuper", "TINYINT", 1, ""],
+                ["cctime", "TIMESTAMP", 8, ""],
             ],
         )

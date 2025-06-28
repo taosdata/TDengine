@@ -613,6 +613,15 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_UPDATE_ANODE_STMT:
       code = makeNode(type, sizeof(SUpdateAnodeStmt), &pNode);
       break;
+    case QUERY_NODE_CREATE_BNODE_STMT:
+      code = makeNode(type, sizeof(SCreateBnodeStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_BNODE_STMT:
+      code = makeNode(type, sizeof(SDropBnodeStmt), &pNode);
+      break;
+    case QUERY_NODE_BNODE_OPTIONS:
+      code = makeNode(type, sizeof(SBnodeOptions), &pNode);
+      break;
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = makeNode(type, sizeof(SCreateIndexStmt), &pNode);
       break;
@@ -620,13 +629,13 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SDropIndexStmt), &pNode);
       break;
     case QUERY_NODE_CREATE_QNODE_STMT:
-    case QUERY_NODE_CREATE_BNODE_STMT:
+    case QUERY_NODE_CREATE_BACKUP_NODE_STMT:
     case QUERY_NODE_CREATE_SNODE_STMT:
     case QUERY_NODE_CREATE_MNODE_STMT:
       code = makeNode(type, sizeof(SCreateComponentNodeStmt), &pNode);
       break;
     case QUERY_NODE_DROP_QNODE_STMT:
-    case QUERY_NODE_DROP_BNODE_STMT:
+    case QUERY_NODE_DROP_BACKUP_NODE_STMT:
     case QUERY_NODE_DROP_SNODE_STMT:
     case QUERY_NODE_DROP_MNODE_STMT:
       code = makeNode(type, sizeof(SDropComponentNodeStmt), &pNode);
@@ -718,8 +727,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
-    case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_SNODES_STMT:
+    case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
@@ -1533,7 +1543,18 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_CREATE_ANODE_STMT:  // no pointer field
     case QUERY_NODE_UPDATE_ANODE_STMT:  // no pointer field
     case QUERY_NODE_DROP_ANODE_STMT:    // no pointer field
+    case QUERY_NODE_DROP_BNODE_STMT:    // no pointer field
       break;
+    case QUERY_NODE_CREATE_BNODE_STMT: {
+      SBnodeOptions* pOptions = ((SCreateBnodeStmt*)pNode)->pOptions;
+      nodesDestroyNode((SNode*)pOptions);
+      break;
+    }
+    case QUERY_NODE_BNODE_OPTIONS: {
+      SBnodeOptions* pOptions = (SBnodeOptions*)pNode;
+      // nodesDestroyList(pOptions->pProtocol);
+      break;
+    }
     case QUERY_NODE_CREATE_INDEX_STMT: {
       SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->pOptions);
@@ -1547,8 +1568,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_DROP_INDEX_STMT:    // no pointer field
     case QUERY_NODE_CREATE_QNODE_STMT:  // no pointer field
     case QUERY_NODE_DROP_QNODE_STMT:    // no pointer field
-    case QUERY_NODE_CREATE_BNODE_STMT:  // no pointer field
-    case QUERY_NODE_DROP_BNODE_STMT:    // no pointer field
+    case QUERY_NODE_CREATE_BACKUP_NODE_STMT:  // no pointer field
+    case QUERY_NODE_DROP_BACKUP_NODE_STMT:    // no pointer field
     case QUERY_NODE_CREATE_SNODE_STMT:  // no pointer field
     case QUERY_NODE_DROP_SNODE_STMT:    // no pointer field
     case QUERY_NODE_CREATE_MNODE_STMT:  // no pointer field
@@ -1629,7 +1650,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
-    case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
@@ -1858,6 +1879,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyNode(pLogicNode->pWStartTs);
       nodesDestroyNode(pLogicNode->pValues);
+      nodesDestroyNode(pLogicNode->pTimeRange);
       nodesDestroyList(pLogicNode->pFillExprs);
       nodesDestroyList(pLogicNode->pNotFillExprs);
       nodesDestroyList(pLogicNode->pFillNullExprs);
@@ -2048,6 +2070,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pWStartTs);
       nodesDestroyNode(pPhyNode->pValues);
       nodesDestroyList(pPhyNode->pFillNullExprs);
+      nodesDestroyNode(pPhyNode->pTimeRange);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
@@ -3121,6 +3144,7 @@ int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY:
+      pVal->nLen += VARSTR_HEADER_SIZE;
       pVal->pz = taosMemoryCalloc(1, pVal->nLen + 1);
       if (pVal->pz) {
         memcpy(pVal->pz, pNode->datum.p, varDataTLen(pNode->datum.p));

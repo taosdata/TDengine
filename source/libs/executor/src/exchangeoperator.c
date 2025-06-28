@@ -488,7 +488,7 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pDummyBlock->pDataBlock);
 
   code = filterInitFromNode((SNode*)pExNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
-                            &pTaskInfo->pStreamRuntimeInfo);
+                            pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
   pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, loadRemoteDataNext, NULL, destroyExchangeOperatorInfo,
@@ -593,6 +593,11 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
 
   if (!pSourceDataInfo) {
     return terrno;
+  }
+
+  if (0 == code && NULL == pMsg->pData) {
+    qError("invalid rsp msg, msgType:%d, len:%d", pMsg->msgType, pMsg->len);
+    code = TSDB_CODE_QRY_INVALID_MSG;
   }
 
   if (code == TSDB_CODE_SUCCESS) {

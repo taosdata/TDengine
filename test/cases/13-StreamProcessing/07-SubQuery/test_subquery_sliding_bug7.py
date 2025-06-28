@@ -32,8 +32,8 @@ class TestStreamDevBasic:
         self.prepareQueryData()
         self.prepareTriggerTable()
         self.createStreams()
-        self.writeTriggerData()
         self.checkStreamStatus()
+        self.writeTriggerData()
         self.checkResults()
 
     def createSnode(self):
@@ -69,8 +69,8 @@ class TestStreamDevBasic:
     def prepareTriggerTable(self):
         tdLog.info("prepare tables for trigger")
 
-        stb = "create table tdb.triggers (ts timestamp, c1 int, c2 int) tags(id int);"
-        ctb = "create table tdb.t1 using tdb.triggers tags(1) tdb.t2 using tdb.triggers tags(2) tdb.t3 using tdb.triggers tags(3)"
+        stb = "create table tdb.triggers (ts timestamp, c1 int, c2 int) tags(id int, name varchar(16));"
+        ctb = "create table tdb.t1 using tdb.triggers tags(1, '1') tdb.t2 using tdb.triggers tags(2, '2') tdb.t3 using tdb.triggers tags(3, '3')"
         tdSql.execute(stb)
         tdSql.execute(ctb)
 
@@ -107,11 +107,10 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=5,
-            stream="create stream rdb.s5 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r5 as select _twstart ts, _twend te, _twduration td, _twrownum tw, %%tbname as tb, count(c1) c1, avg(c2) c2 from %%tbname where ts >= _twstart and ts < _twend",
-            res_query="select ts, te, td, tw, tb, c1, c2, tag_tbname from rdb.r5 where tag_tbname='t1';",
-            exp_query="select _wstart, _wend, _wduration, count(c1), 't1', count(c1), avg(c2), 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m) fill(value, 0, 0, null);",
-            check_func=self.check5,
+            id=64,
+            stream="create stream rdb.s64 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r64 as select cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from qdb.view1 where cts >= _twstart and cts < _twend limit 1",
+            res_query="select cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from rdb.r64 where id = 1 limit 1",
+            exp_query="select cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from qdb.view1 where cts = '2025-01-01 00:00:00.000';",
         )
         self.streams.append(stream)
 
@@ -119,17 +118,16 @@ class TestStreamDevBasic:
         for stream in self.streams:
             stream.createStream()
 
-    def check5(self):
-        tdSql.checkResultsByFunc(
-            sql="select * from information_schema.ins_tags where db_name='rdb' and stable_name='r5' and tag_name='tag_tbname';",
-            func=lambda: tdSql.getRows() == 2,
+    def check0(self):
+        tdSql.checkTableType(
+            dbname="rdb", tbname="r0", typename="NORMAL_TABLE", columns=3
         )
-        tdSql.checkResultsByFunc(
-            sql="select ts, te, td, c1, tag_tbname from rdb.r5 where tag_tbname='t2'",
-            func=lambda: tdSql.getRows() == 1
-            and tdSql.compareData(0, 0, "2025-01-01 00:10:00.000")
-            and tdSql.compareData(0, 1, "2025-01-01 00:15:00.000")
-            and tdSql.compareData(0, 2, 300000)
-            and tdSql.compareData(0, 3, 2)
-            and tdSql.compareData(0, 4, "t2"),
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r0",
+            schema=[
+                ["ts", "TIMESTAMP", 8, ""],
+                ["c1", "BIGINT", 8, ""],
+                ["c2", "DOUBLE", 8, ""],
+            ],
         )

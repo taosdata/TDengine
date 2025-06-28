@@ -23,23 +23,22 @@ typedef struct SStreamTriggerReaderInfo {
   int8_t       deleteReCalc;
   int8_t       deleteOutTbl;
   SNode*       pTagCond;
+  SNode*       pCalcTagCond;
   SNode*       pTagIndexCond;
   SNode*       pConditions;
+  SNode*       pCalcConditions;
   SNodeList*   partitionCols;
   SNodeList*   triggerCols;
-  SNodeList*   calcCols;
   SHashObj*    streamTaskMap;
   SHashObj*    groupIdMap;
   SSubplan*    triggerAst;
   SSubplan*    calcAst;
   SSDataBlock* triggerResBlock;
   SSDataBlock* calcResBlock;
+  SSDataBlock* calcResBlockTmp;
   STSchema*    triggerSchema;
-  // STSchema*    calcSchema;
   SExprInfo*   pExprInfo;
   int32_t      numOfExpr;
-  SExprInfo*   pCalcExprInfo;
-  int32_t      numOfCalcExpr;
   SArray*      uidList;       // for virtual table stream, uid list
   SArray*      uidListIndex;
   SHashObj*    uidHash;

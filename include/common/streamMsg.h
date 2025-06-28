@@ -539,11 +539,13 @@ typedef struct {
   SArray* runnerList;  // SArray<SStreamRunnerTarget>
 
   int32_t leaderSnodeId;
+  char*   streamName;  
 } SStreamTriggerDeployMsg;
 
 typedef struct SStreamRunnerDeployMsg {
   int32_t execReplica;
 
+  char*  streamName;
   void*  pPlan;
   char*  outDBFName;
   char*  outTblName;

@@ -130,7 +130,7 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
   SExprSupp*         pSup = &pOperator->exprSupp;
   code = setInputDataBlock(pSup, pBlock, order, scanFlag, false);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs, NULL, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
+  code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
   QUERY_CHECK_CODE(code, lino, _end);
 
   // reset the row value before applying the no-fill functions to the input data block, which is "pBlock" in this case.
@@ -140,7 +140,7 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
   QUERY_CHECK_CODE(code, lino, _end);
 
   code = projectApplyFunctions(pNoFillSupp->pExprInfo, pInfo->pRes, pBlock, pNoFillSupp->pCtx, pNoFillSupp->numOfExprs,
-                               NULL, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
+                               NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
   QUERY_CHECK_CODE(code, lino, _end);
 
   if (pInfo->fillNullExprSupp.pExprInfo) {
@@ -148,7 +148,7 @@ void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int
     code = setInputDataBlock(&pInfo->fillNullExprSupp, pBlock, order, scanFlag, false);
     QUERY_CHECK_CODE(code, lino, _end);
     code = projectApplyFunctions(pInfo->fillNullExprSupp.pExprInfo, pInfo->pRes, pBlock, pInfo->fillNullExprSupp.pCtx,
-        pInfo->fillNullExprSupp.numOfExprs, NULL, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo);
+        pInfo->fillNullExprSupp.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
   }
 
   pInfo->pRes->info.id.groupId = pBlock->info.id.groupId;
@@ -706,7 +706,7 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
   }
 
   code = filterInitFromNode((SNode*)pPhyFillNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
-                            &pTaskInfo->pStreamRuntimeInfo);
+                            pTaskInfo->pStreamRuntimeInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -746,6 +746,7 @@ static void reviseFillStartAndEndKey(SFillOperatorInfo* pInfo, int32_t order) {
     while (next < pInfo->win.ekey) {
       next = taosTimeAdd(ekey, pInfo->pFillInfo->interval.sliding, pInfo->pFillInfo->interval.slidingUnit,
                          pInfo->pFillInfo->interval.precision, NULL);
+      if (next == ekey) break;
       ekey = next > pInfo->win.ekey ? ekey : next;
     }
     pInfo->win.ekey = ekey;
@@ -755,6 +756,7 @@ static void reviseFillStartAndEndKey(SFillOperatorInfo* pInfo, int32_t order) {
     while (next < pInfo->win.skey) {
       next = taosTimeAdd(skey, pInfo->pFillInfo->interval.sliding, pInfo->pFillInfo->interval.slidingUnit,
                          pInfo->pFillInfo->interval.precision, NULL);
+      if (next == ekey) break;
       skey = next > pInfo->win.skey ? skey : next;
     }
     taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, skey);

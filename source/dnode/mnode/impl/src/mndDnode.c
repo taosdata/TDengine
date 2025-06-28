@@ -14,11 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndDnode.h"
 #include <stdio.h>
 #include "audit.h"
 #include "mndCluster.h"
 #include "mndDb.h"
-#include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndQnode.h"
@@ -27,6 +27,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "mndBnode.h"
 #include "taos_monitor.h"
 #include "tconfig.h"
 #include "tjson.h"
@@ -1174,7 +1175,7 @@ int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq) { return 0; }
 #endif
 
 static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMnodeObj *pMObj, SQnodeObj *pQObj,
-                            SSnodeObj *pSObj, int32_t numOfVnodes, bool force, bool unsafe) {
+                            SSnodeObj *pSObj, SBnodeObj *pBObj, int32_t numOfVnodes, bool force, bool unsafe) {
   int32_t  code = -1;
   SSdbRaw *pRaw = NULL;
   STrans  *pTrans = NULL;
@@ -1223,6 +1224,11 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
   if (pSObj != NULL) {
     mInfo("trans:%d, snode on dnode:%d will be dropped", pTrans->id, pDnode->id);
     TAOS_CHECK_GOTO(mndSetDropSnodeInfoToTrans(pMnode, pTrans, pSObj, force), &lino, _OVER);
+  }
+
+  if (pBObj != NULL) {
+    mInfo("trans:%d, bnode on dnode:%d will be dropped", pTrans->id, pDnode->id);
+    TAOS_CHECK_GOTO(mndSetDropBnodeInfoToTrans(pMnode, pTrans, pBObj, force), NULL, _OVER);
   }
 
   if (numOfVnodes > 0) {
@@ -1274,6 +1280,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   SMnodeObj    *pMObj = NULL;
   SQnodeObj    *pQObj = NULL;
   SSnodeObj    *pSObj = NULL;
+  SBnodeObj    *pBObj = NULL;
   SDropDnodeReq dropReq = {0};
 
   TAOS_CHECK_GOTO(tDeserializeSDropDnodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
@@ -1301,6 +1308,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
   pQObj = mndAcquireQnode(pMnode, dropReq.dnodeId);
   pSObj = mndAcquireSnode(pMnode, dropReq.dnodeId);
+  pBObj = mndAcquireBnode(pMnode, dropReq.dnodeId);
   pMObj = mndAcquireMnode(pMnode, dropReq.dnodeId);
   if (pMObj != NULL) {
     if (sdbGetSize(pMnode->pSdb, SDB_MNODE) <= 1) {
@@ -1318,8 +1326,8 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
   if (isonline && force) {
     code = TSDB_CODE_DNODE_ONLY_USE_WHEN_OFFLINE;
-    mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, tstrerror(code),
-           numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
+    mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d bnode:%d", pDnode->id,
+           tstrerror(code), numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL, pBObj != NULL);
     goto _OVER;
   }
 
@@ -1356,7 +1364,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, numOfVnodes, force, dropReq.unsafe);
+  code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, pBObj, numOfVnodes, force, dropReq.unsafe);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char obj1[30] = {0};
