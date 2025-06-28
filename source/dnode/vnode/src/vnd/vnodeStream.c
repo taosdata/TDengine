@@ -637,7 +637,7 @@ end:
   return code;
 }
 
-static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStreamInfo, int64_t ver,
+static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStreamInfo, int64_t ver, bool isCalc,
                                  int64_t uid, STimeWindow* window, SSDataBlock** pBlock) {
   int32_t      code = 0;
   int32_t      lino = 0;
@@ -652,17 +652,17 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
   int32_t      numOfExpr = sStreamInfo->numOfExpr;
 
   if (sStreamInfo->pCalcConditions != NULL) {
-    STREAM_CHECK_RET_GOTO(filterInitFromNode(sStreamInfo->pCalcConditions, &pFilterInfo, 0, NULL));
+    STREAM_CHECK_RET_GOTO(filterInitFromNode(isCalc ? sStreamInfo->pCalcConditions : sStreamInfo->pConditions, &pFilterInfo, 0, NULL));
   }
 
   initStorageAPI(&api);
   STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(
       pVnode, sStreamInfo->suid, sStreamInfo->uid, sStreamInfo->tableType, sStreamInfo->partitionCols, false,
-      sStreamInfo->pCalcTagCond, NULL, &api, &pTableList, NULL));
+      isCalc ? sStreamInfo->pCalcTagCond : sStreamInfo->pTagCond, NULL, &api, &pTableList, NULL));
 
   STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamInfo->triggerResBlock, false, &pBlock1));
   STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamInfo->triggerResBlock, false, &pBlock2));
-  STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamInfo->calcResBlock, false, pBlock));
+  if (isCalc) STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamInfo->calcResBlock, false, pBlock));
   pBlock2->info.id.uid = uid;
   pBlock1->info.id.uid = uid;
 
@@ -672,10 +672,15 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
     STREAM_CHECK_RET_GOTO(processTag(pVnode, pExpr, numOfExpr, &api, pBlock2));
   }
 
-  STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock2, pFilterInfo));
-  printDataBlock(pBlock2, __func__, "");
+  if (isCalc) {
+    STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock2, pFilterInfo));
+    blockDataTransform(*pBlock, pBlock2);
+  } else {
+    *pBlock = pBlock2;
+    pBlock2 = NULL;  
+  }
 
-  blockDataTransform(*pBlock, pBlock2);
+  printDataBlock(*pBlock, __func__, "");
 
 end:
   STREAM_PRINT_LOG_END(code, lino);
@@ -1765,7 +1770,7 @@ static int32_t vnodeProcessStreamWalTsDataReq(SVnode* pVnode, SRpcMsg* pMsg, SST
 
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
 
-  STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, req->walTsDataReq.ver, req->walTsDataReq.uid, NULL, &pBlock))
+  STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, req->walTsDataReq.ver, false, req->walTsDataReq.uid, NULL, &pBlock))
   stDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
 
@@ -1791,7 +1796,7 @@ static int32_t vnodeProcessStreamWalTriggerDataReq(SVnode* pVnode, SRpcMsg* pMsg
 
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
 
-  STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, req->walTriggerDataReq.ver,
+  STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, req->walTriggerDataReq.ver, false,
                                           req->walTriggerDataReq.uid, NULL, &pBlock));
 
   stDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
@@ -1822,7 +1827,7 @@ static int32_t vnodeProcessStreamWalCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, S
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
 
   STimeWindow window = {.skey = req->walCalcDataReq.skey, .ekey = req->walCalcDataReq.ekey};
-  STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, req->walCalcDataReq.ver,
+  STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, req->walCalcDataReq.ver, true,
                                           req->walCalcDataReq.uid, &window, &pBlock));
 
   stDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
@@ -2098,11 +2103,11 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
       }
     }
     
-    SReadHandle handle = {
-        .vnode = pVnode,
-        .winRange = {0},
-        .uid = uid,
-    };
+    TSWAP(sStreamReaderCalcInfo->rtInfo.funcInfo, *req.pStRtFuncInfo);
+    SReadHandle handle = {0};
+    handle.vnode = pVnode;
+    handle.uid = uid;
+    handle.streamRtInfo = &sStreamReaderCalcInfo->rtInfo;
 
     initStorageAPI(&handle.api);
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(sStreamReaderCalcInfo->calcAst->pNode) &&
@@ -2120,9 +2125,6 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     // } else {
     // STREAM_CHECK_RET_GOTO(qResetTableScan(sStreamReaderCalcInfo->pTaskInfo, handle.winRange));
     // }
-
-    streamSetTaskRuntimeInfo(sStreamReaderCalcInfo->pTaskInfo, &sStreamReaderCalcInfo->rtInfo);
-    TSWAP(sStreamReaderCalcInfo->rtInfo.funcInfo, *req.pStRtFuncInfo);
 
     STREAM_CHECK_RET_GOTO(qSetTaskId(sStreamReaderCalcInfo->pTaskInfo, req.taskId, req.queryId));
   }
