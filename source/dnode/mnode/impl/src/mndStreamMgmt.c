@@ -863,16 +863,16 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
     mstsDebug("the %dth trigReader src added to trigger's readerList, TASK:%" PRIx64 " nodeId:%d", i, addr.taskId, addr.nodeId);
   }
 
+  pMsg->leaderSnodeId = pStream->mainSnodeId;
+  pMsg->streamName = taosStrdup(pStream->name);
+  TSDB_CHECK_NULL(pMsg->streamName, code, lino, _exit, terrno);
+
   if (0 == pInfo->runnerNum) {
     mstsDebug("no runner task, skip set trigger's runner list, deployNum:%d", pInfo->runnerDeploys);
     return code;
   }
 
   TAOS_CHECK_EXIT(msmBuildTriggerRunnerTargets(pMnode, pInfo, streamId, &pMsg->runnerList));
-
-  pMsg->leaderSnodeId = pStream->mainSnodeId;
-  pMsg->streamName = taosStrdup(pStream->name);
-  TSDB_CHECK_NULL(pMsg->streamName, code, lino, _exit, terrno);
 
 _exit:
 
@@ -4304,7 +4304,7 @@ void msmCheckTaskListStatus(int64_t streamId, SStmTaskStatus** pList, int32_t ta
 
     int64_t noUpTs = mStreamMgmt.hCtx.currentTs - pTask->lastUpTs;
     if (STREAM_RUNNER_TASK == pTask->type || STREAM_TRIGGER_TASK == pTask->type) {
-      mstsWarn("%s TASK:%" PRId64 " status not updated for %" PRId64 "ms, will try to redeploy it", 
+      mstsWarn("%s TASK:%" PRIx64 " status not updated for %" PRId64 "ms, will try to redeploy it", 
           gStreamTaskTypeStr[pTask->type], pTask->id.taskId, noUpTs);
           
       msmStopStreamByError(streamId, NULL, TSDB_CODE_MND_STREAM_TASK_LOST, mStreamMgmt.hCtx.currentTs);

@@ -138,6 +138,7 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
       .fp = (FItem)smProcessRunnerQueue,
       .param = pMgmt,
       .poolType = QUERY_AUTO_QWORKER_POOL,
+      .stopNoWaitQueue = true,
   };
 
   if ((code = tSingleWorkerInit(&pMgmt->runnerWorker, &cfg)) != 0) {

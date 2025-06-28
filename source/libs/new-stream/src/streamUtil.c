@@ -37,7 +37,7 @@ int32_t stmAddMgmtReq(int64_t streamId, SArray** ppReq, int32_t idx) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  if (NULL == ppReq) {
+  if (NULL == *ppReq) {
     *ppReq = taosArrayInit(5, sizeof(int32_t));
     TSDB_CHECK_NULL(*ppReq, code, lino, _exit, terrno);
   }
@@ -849,7 +849,7 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
     }
     *pppIter = px;
   } else {
-    stError("sessionId %" PRId64 " not match with task %" PRId64, sessionId, pTask->pRealtimeContext->sessionId);
+    stsError("sessionId %" PRId64 " not match with task %" PRId64, sessionId, pTask->pRealtimeContext->sessionId);
     code = TSDB_CODE_INTERNAL_ERROR;
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -859,7 +859,7 @@ _end:
   streamReleaseTask(taskAddr);
 
   if (code != TSDB_CODE_SUCCESS) {
-    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    stsError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
 }
