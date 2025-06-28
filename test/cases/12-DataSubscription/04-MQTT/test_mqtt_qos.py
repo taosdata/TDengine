@@ -26,6 +26,8 @@ class TestMqttCases:
     def test_mqtt_qos(self):
         """ Mqtt qos testing
 
+        mqtt qos {0, 1, 2} testing
+
         Catalog:
             - Subscribe:Mqtt
 
