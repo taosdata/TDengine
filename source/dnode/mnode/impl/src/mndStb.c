@@ -3060,10 +3060,12 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+/*
   if (mndCheckDropStbForStream(pMnode, dropReq.name, pStb->uid) < 0) {
     code = TSDB_CODE_MND_STREAM_MUST_BE_DELETED;
     goto _OVER;
   }
+*/
 
   code = mndDropStb(pMnode, pReq, pDb, pStb);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;

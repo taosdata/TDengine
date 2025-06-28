@@ -622,16 +622,22 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
 }
 
 int32_t stRunnerFetchDataFromCache(SStreamCacheReadInfo* pInfo, bool* finished) {
+  int32_t code = 0, lino = 0;
   void**  ppIter = NULL;
-  int32_t code = readStreamDataCache(pInfo->taskInfo.streamId, pInfo->taskInfo.taskId, pInfo->taskInfo.sessionId,
-                                     pInfo->gid, pInfo->start, pInfo->end, &ppIter);
-  if (code == 0 && *ppIter != NULL) {
-    code = getNextStreamDataCache(ppIter, &pInfo->pBlock);
+  int64_t streamId = pInfo->taskInfo.streamId;
+  TAOS_CHECK_EXIT(readStreamDataCache(pInfo->taskInfo.streamId, pInfo->taskInfo.taskId, pInfo->taskInfo.sessionId,
+                                     pInfo->gid, pInfo->start, pInfo->end, &ppIter));
+  if (*ppIter != NULL) {
+    TAOS_CHECK_EXIT(getNextStreamDataCache(ppIter, &pInfo->pBlock));
   }
-  if(*ppIter == NULL) {
-    *finished = true;
-  } else {
-    *finished = false;
+  
+  *finished = (*ppIter == NULL) ? true : false;
+
+_exit:
+
+  if (code) {
+    stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
+  
   return code;
 }
