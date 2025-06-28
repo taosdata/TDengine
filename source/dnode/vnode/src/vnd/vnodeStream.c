@@ -1581,6 +1581,7 @@ static int32_t vnodeProcessStreamCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
                  sStreamReaderInfo->triggerCols, false, STREAM_SCAN_ALL, req->tsdbCalcDataReq.gid, true);
     options.pConditions = sStreamReaderInfo->pCalcConditions;
     options.pTagCond    = sStreamReaderInfo->pCalcTagCond;
+    options.pTagIndexCond = NULL;
     SStorageAPI api = {0};
     initStorageAPI(&api);
     STREAM_CHECK_RET_GOTO(createStreamTask(pVnode, &options, &pTask, sStreamReaderInfo->triggerResBlock, NULL, &api));
