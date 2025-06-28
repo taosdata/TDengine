@@ -485,6 +485,7 @@ int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) 
   int32_t code;
   pWorker->poolType = pCfg->poolType;
   pWorker->name = pCfg->name;
+  pWorker->stopNoWaitQueue = pCfg->stopNoWaitQueue;
 
   switch (pCfg->poolType) {
     case QWORKER_POOL: {
@@ -531,8 +532,10 @@ int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) 
 
 void tSingleWorkerCleanup(SSingleWorker *pWorker) {
   if (pWorker->queue == NULL) return;
-  while (!taosQueueEmpty(pWorker->queue)) {
-    taosMsleep(10);
+  if (!pWorker->stopNoWaitQueue) {
+    while (!taosQueueEmpty(pWorker->queue)) {
+      taosMsleep(10);
+    }
   }
 
   switch (pWorker->poolType) {

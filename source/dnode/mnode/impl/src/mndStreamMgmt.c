@@ -863,16 +863,16 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
     mstsDebug("the %dth trigReader src added to trigger's readerList, TASK:%" PRIx64 " nodeId:%d", i, addr.taskId, addr.nodeId);
   }
 
+  pMsg->leaderSnodeId = pStream->mainSnodeId;
+  pMsg->streamName = taosStrdup(pStream->name);
+  TSDB_CHECK_NULL(pMsg->streamName, code, lino, _exit, terrno);
+
   if (0 == pInfo->runnerNum) {
     mstsDebug("no runner task, skip set trigger's runner list, deployNum:%d", pInfo->runnerDeploys);
     return code;
   }
 
   TAOS_CHECK_EXIT(msmBuildTriggerRunnerTargets(pMnode, pInfo, streamId, &pMsg->runnerList));
-
-  pMsg->leaderSnodeId = pStream->mainSnodeId;
-  pMsg->streamName = taosStrdup(pStream->name);
-  TSDB_CHECK_NULL(pMsg->streamName, code, lino, _exit, terrno);
 
 _exit:
 
