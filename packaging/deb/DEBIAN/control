@@ -1,5 +1,8 @@
-Package: tdengine
+Package: tdengine-tsdb
 Version: 3.0.0
+Replaces: tdengine (<= 3.3.6.9)
+Provides: tdengine
+Conflicts: tdengine
 Section: utils
 Priority: optional
 #Essential: no
