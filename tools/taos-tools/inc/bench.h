@@ -762,6 +762,7 @@ typedef struct SArguments_S {
     bool                performance_print;
     bool                chinese;
     char *              output_file;
+    char *              output_json_file;
     uint32_t            binwidth;
     uint32_t            intColumnCount;
     uint32_t            nthreads;

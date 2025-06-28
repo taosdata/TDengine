@@ -3481,15 +3481,35 @@ static int printTotalDelay(SDataBase *database,
                 totalDelay3/threads/1E6);
     }
 
+    double time_cost = spend / 1E6;
+    double real_time_cost = totalDelay/threads/1E6;
+    double records_per_second = (double)(totalInsertRows / (spend/1E6));
+    double real_records_per_second = (double)(totalInsertRows / (totalDelay/threads/1E6));
+
     succPrint("Spent %.6f (real %.6f) seconds to insert rows: %" PRIu64
               " with %d thread(s) into %s %.2f (real %.2f) records/second%s\n",
-              spend/1E6, totalDelay/threads/1E6, totalInsertRows, threads,
-              database->dbName,
-              (double)(totalInsertRows / (spend/1E6)),
-              (double)(totalInsertRows / (totalDelay/threads/1E6)), subDelay);
+              time_cost, real_time_cost, totalInsertRows, threads,
+              database->dbName, records_per_second,
+              real_records_per_second, subDelay);
+
     if (!total_delay_list->size) {
         return -1;
     }
+    
+    double minDelay = *(int64_t *)(benchArrayGet(total_delay_list, 0))/1E3;
+    double avgDelay = (double)totalDelay/total_delay_list->size/1E3;
+    double p90 = *(int64_t *)(benchArrayGet(total_delay_list,
+                                         (int32_t)(total_delay_list->size
+                                         * 0.9)))/1E3;
+    double p95 = *(int64_t *)(benchArrayGet(total_delay_list,
+                                         (int32_t)(total_delay_list->size
+                                         * 0.95)))/1E3;
+    double p99 = *(int64_t *)(benchArrayGet(total_delay_list,
+                                         (int32_t)(total_delay_list->size
+                                         * 0.99)))/1E3;
+    double maxDelay = *(int64_t *)(benchArrayGet(total_delay_list,
+                                         (int32_t)(total_delay_list->size
+                                         - 1)))/1E3;                                     
 
     succPrint("insert delay, "
               "min: %.4fms, "
@@ -3498,20 +3518,38 @@ static int printTotalDelay(SDataBase *database,
               "p95: %.4fms, "
               "p99: %.4fms, "
               "max: %.4fms\n",
-              *(int64_t *)(benchArrayGet(total_delay_list, 0))/1E3,
-              (double)totalDelay/total_delay_list->size/1E3,
-              *(int64_t *)(benchArrayGet(total_delay_list,
-                                         (int32_t)(total_delay_list->size
-                                         * 0.9)))/1E3,
-              *(int64_t *)(benchArrayGet(total_delay_list,
-                                         (int32_t)(total_delay_list->size
-                                         * 0.95)))/1E3,
-              *(int64_t *)(benchArrayGet(total_delay_list,
-                                         (int32_t)(total_delay_list->size
-                                         * 0.99)))/1E3,
-              *(int64_t *)(benchArrayGet(total_delay_list,
-                                         (int32_t)(total_delay_list->size
-                                         - 1)))/1E3);
+            minDelay, avgDelay, p90, p95, p99, maxDelay);
+    
+    if (g_arguments->output_json_file) {
+        tools_cJSON *root = tools_cJSON_CreateObject();
+        if (root) {
+            tools_cJSON_AddStringToObject(root, "db_name", database->dbName);
+            tools_cJSON_AddNumberToObject(root, "inserted_rows", totalInsertRows);
+            tools_cJSON_AddNumberToObject(root, "threads", threads);
+            tools_cJSON_AddNumberToObject(root, "time_cost", time_cost);
+            tools_cJSON_AddNumberToObject(root, "real_time_cost", real_time_cost);
+            tools_cJSON_AddNumberToObject(root, "records_per_second",  records_per_second);
+            tools_cJSON_AddNumberToObject(root, "real_records_per_second", real_records_per_second);
+            
+            tools_cJSON_AddNumberToObject(root, "avg", avgDelay);
+            tools_cJSON_AddNumberToObject(root, "min", minDelay);
+            tools_cJSON_AddNumberToObject(root, "max", maxDelay);
+            tools_cJSON_AddNumberToObject(root, "p90", p90);
+            tools_cJSON_AddNumberToObject(root, "p95", p95);
+            tools_cJSON_AddNumberToObject(root, "p98", p99);
+            
+            char *jsonStr = tools_cJSON_PrintUnformatted(root);
+            if (jsonStr) {
+                FILE *fp = fopen(g_arguments->output_json_file, "w");
+                if (fp) {
+                    fprintf(fp, "%s\n", jsonStr);
+                    fclose(fp);
+                }
+                free(jsonStr);
+            }
+            tools_cJSON_Delete(root);
+        }
+    }        
     return 0;
 }
 

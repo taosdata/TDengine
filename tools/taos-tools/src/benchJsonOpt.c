@@ -1895,6 +1895,12 @@ static int getMetaFromInsertJsonFile(tools_cJSON *json) {
         g_arguments->output_file = resultfile->valuestring;
     }
 
+    tools_cJSON *resultJsonFile = tools_cJSON_GetObjectItem(json, "result_json_file");
+    if (resultJsonFile && resultJsonFile->type == tools_cJSON_String
+            && resultJsonFile->valuestring != NULL) {
+        g_arguments->output_json_file = resultJsonFile->valuestring;
+    }
+
     tools_cJSON *threads = tools_cJSON_GetObjectItem(json, "thread_count");
     if (threads && threads->type == tools_cJSON_Number) {
         if(!(g_argFlag & ARG_OPT_THREAD)) {
@@ -2463,6 +2469,13 @@ static int getMetaFromQueryJsonFile(tools_cJSON *json) {
             return -1;
         }
     }
+
+    tools_cJSON *resultJsonFile = tools_cJSON_GetObjectItem(json, "result_json_file");
+    if (resultJsonFile && resultJsonFile->type == tools_cJSON_String
+            && resultJsonFile->valuestring != NULL) {
+        g_arguments->output_json_file = resultJsonFile->valuestring;
+    }
+
     // init sqls
     g_queryInfo.specifiedQueryInfo.sqls = benchArrayInit(1, sizeof(SSQL));
 
@@ -2509,6 +2522,12 @@ static int getMetaFromTmqJsonFile(tools_cJSON *json) {
     if (resultfile && resultfile->type == tools_cJSON_String
             && resultfile->valuestring != NULL) {
         g_arguments->output_file = resultfile->valuestring;
+    }
+
+    tools_cJSON *resultJsonFile = tools_cJSON_GetObjectItem(json, "result_json_file");
+    if (resultJsonFile && resultJsonFile->type == tools_cJSON_String
+            && resultJsonFile->valuestring != NULL) {
+        g_arguments->output_json_file = resultJsonFile->valuestring;
     }
 
     tools_cJSON *answerPrompt =
