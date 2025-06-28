@@ -367,7 +367,7 @@ class TestStreamSlidingTrigger:
                 )
                 stream1.createStream()
                 stream1.awaitStreamRunning()
-                time.sleep(5)
+                time.sleep(10)
                 if not self.runAll:
                     stream1.awaitRowStability(self.queryResult[0])
                     if stream1.check_func is not None:
