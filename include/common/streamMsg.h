@@ -370,7 +370,6 @@ typedef union SStreamMgmtReq {
 
 typedef void (*taskUndeplyCallback)(void*);
 
-
 typedef struct SStreamTask {
   EStreamTaskType type;
 

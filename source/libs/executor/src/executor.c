@@ -1687,6 +1687,10 @@ int32_t streamCollectExprsForReplace(qTaskInfo_t tInfo, SArray* pExprs) {
 
 int32_t clearStatesForOperator(SOperatorInfo* pOper) {
   int32_t code = 0;
+
+  freeResetOperatorParams(pOper, OP_GET_PARAM, true);
+  freeResetOperatorParams(pOper, OP_NOTIFY_PARAM, true);
+
   if (pOper->fpSet.resetStateFn) {
     code = pOper->fpSet.resetStateFn(pOper);
   }
