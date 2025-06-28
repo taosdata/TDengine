@@ -665,7 +665,7 @@ class StreamUtil:
                     cfloat = rows % 7
                     cdouble = rows % 8
                     cvarchar = "SanFrancisco" if rows % 3 == 1 else "LosAngeles"
-                    csmallint = rows % 9
+                    csmallint = 1 if rows % 4 == 1 else 2
                     cusmallint = rows % 10
                     ctinyint = rows % 11
                     cutinyint = rows % 12

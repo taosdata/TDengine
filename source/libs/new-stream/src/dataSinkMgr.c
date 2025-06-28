@@ -537,12 +537,20 @@ int32_t getAlignDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end,
   SAlignTaskDSMgr* pStreamTaskMgr = (SAlignTaskDSMgr*)pCache;
   SResultIter*     pResultIter = NULL;
   *pIter = NULL;
+
+  stDebug("[get data cache] init start groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRId64,
+          groupId, start, end, pStreamTaskMgr->streamId);
+
   SAlignGrpMgr** ppExistGrpMgr = (SAlignGrpMgr**)taosHashGet(pStreamTaskMgr->pAlignGrpList, &groupId, sizeof(groupId));
   if (ppExistGrpMgr == NULL) {
-    return code;
+    stDebug("[get data cache] init nogroup groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRId64,
+            groupId, start, end, pStreamTaskMgr->streamId);
+    return TSDB_CODE_SUCCESS;
   }
   SAlignGrpMgr* pExistGrpMgr = *ppExistGrpMgr;
   if (pExistGrpMgr->blocksInMem->size == 0 && (!pExistGrpMgr->blocksInFile || pExistGrpMgr->blocksInFile->size == 0)) {
+    stDebug("[get data cache] init nodata groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRId64,
+            groupId, start, end, pStreamTaskMgr->streamId);
     return TSDB_CODE_SUCCESS;
   }
   code = createDataResult((void**)(&pResultIter));
@@ -582,10 +590,15 @@ int32_t getSlidingDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
   SResultIter*       pResultIter = NULL;
   *pIter = NULL;
 
+  stDebug("STREAMID:%" PRId64 "  [get data cache] init groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64,
+          pStreamTaskMgr->streamId, groupId, start, end);
+
   SSlidingGrpMgr** ppExistGrpMgr =
       (SSlidingGrpMgr**)taosHashGet(pStreamTaskMgr->pSlidingGrpList, &groupId, sizeof(groupId));
   if (ppExistGrpMgr == NULL) {
-    return code;
+    stDebug("[get data cache] init nogroup groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRId64,
+            groupId, start, end, pStreamTaskMgr->streamId);
+    return TSDB_CODE_SUCCESS;
   }
   SSlidingGrpMgr* pExistGrpMgr = *ppExistGrpMgr;
   bool            canRead = changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_READING);
@@ -596,6 +609,8 @@ int32_t getSlidingDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
 
   if (pExistGrpMgr->winDataInMem->size == 0 && (!pExistGrpMgr->blocksInFile || pExistGrpMgr->blocksInFile->size == 0)) {
     (void)changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_IDLE);
+    stDebug("[get data cache] init nodata groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRId64,
+            groupId, start, end, pStreamTaskMgr->streamId);
     return TSDB_CODE_SUCCESS;
   }
 
