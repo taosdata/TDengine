@@ -264,13 +264,13 @@ int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
       code = createSlidingTaskMgr(streamId, taskId, sessionId, tsSlotId, ppCache);
     }
     if (code != 0) {
-      stError("failed to create stream task data sink manager, cleanMode:%d, err: %d", cleanMode, code);
+      stError("failed to create stream task data sink manager, cleanMode:%d, err: 0x%0x", cleanMode, code);
       return code;
     } else {
       code = taosHashPut(g_pDataSinkManager.dsStreamTaskList, key, strlen(key), ppCache, sizeof(void*));
       if (code != 0) {
         destroyStreamDataCache(*ppCache);
-        stError("failed to put stream task data sink manager, err: %0x", code);
+        stError("failed to put stream task data sink manager, err: 0x%0x", code);
         return code;
       }
       stDebug("streamId: %" PRId64 " taskId: %" PRId64 " data sink manager created", streamId, taskId);
