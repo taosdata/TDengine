@@ -1978,6 +1978,9 @@ int32_t lz4DecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSiz
 }
 
 int32_t zlibCompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+#if defined(WINDOWS) || defined(DARWIN)
+  return TSDB_CODE_INVALID_CFG;
+#else
   uLongf  dstLen = *dstSize;
   int32_t ret = compress2(dst, &dstLen, src, srcSize, Z_BEST_COMPRESSION);
   if (ret != Z_OK) {
@@ -1988,8 +1991,12 @@ int32_t zlibCompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize
   }
   *dstSize = dstLen;
   return 0;
+#endif
 }
 int32_t zlibDecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+#if defined(WINDOWS) || defined(DARWIN)
+  return TSDB_CODE_INVALID_CFG;
+#else
   int32_t code = 0;
 
   uLongf  dstLen = *dstSize;
@@ -2000,9 +2007,13 @@ int32_t zlibDecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSi
 
   *dstSize = dstLen;
   return code;
+#endif
 }
 
 int32_t zstdCompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+#if defined(WINDOWS) || defined(DARWIN)
+  return TSDB_CODE_INVALID_CFG;
+#else
   size_t len = ZSTD_compress(dst, *dstSize, src, srcSize, 9);
   if (ZSTD_isError(len)) {
     return -1;
@@ -2014,8 +2025,12 @@ int32_t zstdCompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize
 
   *dstSize = len;
   return 0;
+#endif
 }
 int32_t zstdDecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+#if defined(WINDOWS) || defined(DARWIN)
+  return TSDB_CODE_INVALID_CFG;
+#else
   size_t len = ZSTD_decompress(dst, *dstSize, src, srcSize);
   if (ZSTD_isError(len)) {
     return -1;
@@ -2023,21 +2038,30 @@ int32_t zstdDecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSi
 
   *dstSize = len;
   return 0;
+#endif
 }
 
 int32_t xzCompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+#if defined(WINDOWS) || defined(DARWIN)
+  return TSDB_CODE_INVALID_CFG;
+#else
   size_t len = FL2_compress(dst, *dstSize, src, srcSize, 9);
   if (len == 0 || len > srcSize) {
     return -1;
   }
   *dstSize = len;
   return 0;
+#endif
 }
 int32_t xzDecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize) {
+#if defined(WINDOWS) || defined(DARWIN)
+  return TSDB_CODE_INVALID_CFG;
+#else
   size_t len = FL2_decompress(dst, *dstSize, src, srcSize);
   if (len == 0) {
     return -1;
   }
   *dstSize = len;
   return 0;
+#endif
 }
