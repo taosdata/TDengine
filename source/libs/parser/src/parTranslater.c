@@ -3036,7 +3036,7 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
       if (BIT_FLAG_TEST_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) && pCxt->createStreamCalc) {
         SFunctionNode *pTbname = NULL;
         PAR_ERR_JRET(createTbnameFunction(&pTbname));
-        tstrncpy(pTbname->node.userAlias, "%%tbname", TSDB_COL_NAME_LEN);
+        tstrncpy(pTbname->node.userAlias, ((SExprNode*)*pFunc)->userAlias, TSDB_COL_NAME_LEN);
         *pFunc = (SNode*)pTbname;
         return translateFunction(pCxt, (SFunctionNode**)pFunc);
       } else {
