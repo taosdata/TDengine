@@ -13,8 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "taoserror.h"
-#include "trpc.h"
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "qworker.h"
