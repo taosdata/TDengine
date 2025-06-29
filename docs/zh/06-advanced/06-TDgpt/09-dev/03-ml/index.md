@@ -12,7 +12,7 @@ sidebar_label: "添加机器学习模型"
 推荐将模型保存在默认的保存目录 `/usr/local/taos/taosanode/model/` 中，也可以在目录中建立下一级目录，用以保存模型。下面使用 Keras 开发的基于自编码器 `auto encoder` 的异常检测模型添加到 TDgpt 为例讲解整个流程。
 
 该模型在 TDgpt 系统中名称为 'sample_ad_model'。
-训练该模型的代码见：[training_ad_model.py](https://github.com/taosdata/TDengine/tree/main/tools/tdgpt/taosanalytics/misc/training_ad_model.py)。
+训练该模型的代码见：[train_ad_model.py](https://github.com/taosdata/TDengine/tree/main/tools/tdgpt/taosanalytics/misc/train_ad_model.py)。
 该模型训练使用了 NAB 的 [art_daily_small_noise 数据集](https://raw.githubusercontent.com/numenta/NAB/master/data/artificialNoAnomaly/art_daily_small_noise.csv)。
 训练完成得到的模型保存成为了两个文件，点击 [此处](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/model/sample-ad-autoencoder/) 下载该模型文件，模型文件说明如下。
 
