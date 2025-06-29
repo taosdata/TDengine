@@ -795,6 +795,8 @@ class TDTestCase:
         operators = ["+" ,"-" , "*" ,"/" ,"%"]
         querys_oper = ["count(*)","avg(q_int)",  "sum(q_double)","stddev(q_float)", "elapsed(ts,1s)"]
 
+        tdSql.execute("flush database testdbV1;")
+
         for operator in operators:
 
             query_datas=[]
