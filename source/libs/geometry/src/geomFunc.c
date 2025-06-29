@@ -22,10 +22,13 @@
 #include "sclInt.h"
 #include "sclvector.h"
 
+typedef int32_t (*_geomInitCtxFunc_t)();
+typedef int32_t (*_geomFromStringFunc_t)(const char *inputStr, unsigned char **outputGeom, size_t *size);
+typedef int32_t (*_geomAsStringFunc_t)(const unsigned char *inputGeom, size_t inputSize, char **outputStr);
+
 typedef int32_t (*_geomDoRelationFunc_t)(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1,
                                          const GEOSGeometry *geom2, bool swapped, char *res);
 
-typedef int32_t (*_geomInitCtxFunc_t)();
 typedef int32_t (*_geomExecuteOneParamFunc_t)(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData);
 typedef int32_t (*_geomExecuteTwoParamsFunc_t)(SColumnInfoData *pInputData[], int32_t iLeft, int32_t iRight,
                                                SColumnInfoData *pOutputData);
@@ -60,7 +63,7 @@ _exit:
 
 // both input and output are with VARSTR format
 // need to call taosMemoryFree(*output) later
-int32_t doGeomFromTextFunc(const char *input, unsigned char **output) {
+int32_t doGeomFromStringFunc(const char *input, unsigned char **output, _geomFromStringFunc_t geomFromStringFn) {
   int32_t code = TSDB_CODE_FAILED;
 
   if ((varDataLen(input)) == 0) {  // empty value
@@ -68,19 +71,19 @@ int32_t doGeomFromTextFunc(const char *input, unsigned char **output) {
     return TSDB_CODE_SUCCESS;
   }
 
-  char          *inputGeom = NULL;
+  char          *inputStr = NULL;
   unsigned char *outputGeom = NULL;
   size_t         size = 0;
 
   // make a zero ending string
-  inputGeom = taosMemoryCalloc(1, varDataLen(input) + 1);
-  if (inputGeom == NULL) {
+  inputStr = taosMemoryCalloc(1, varDataLen(input) + 1);
+  if (inputStr == NULL) {
     code = terrno;
     goto _exit;
   }
-  (void)memcpy(inputGeom, varDataVal(input), varDataLen(input));
+  (void)memcpy(inputStr, varDataVal(input), varDataLen(input));
 
-  TAOS_CHECK_GOTO(doGeomFromText(inputGeom, &outputGeom, &size), NULL, _exit);
+  TAOS_CHECK_GOTO(geomFromStringFn(inputStr, &outputGeom, &size), NULL, _exit);
 
   *output = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
   if (*output == NULL) {
@@ -94,14 +97,14 @@ int32_t doGeomFromTextFunc(const char *input, unsigned char **output) {
 
 _exit:
   geosFreeBuffer(outputGeom);
-  geosFreeBuffer(inputGeom);
+  taosMemoryFree(inputStr);
 
   return code;
 }
 
 // both input and output are with VARSTR format
 // need to call taosMemoryFree(*output) later
-int32_t doAsTextFunc(unsigned char *input, char **output) {
+int32_t doAsStringFunc(unsigned char *input, char **output, _geomAsStringFunc_t asStringFn) {
   int32_t code = TSDB_CODE_FAILED;
 
   if ((varDataLen(input)) == 0) {  // empty value
@@ -109,22 +112,22 @@ int32_t doAsTextFunc(unsigned char *input, char **output) {
     return TSDB_CODE_SUCCESS;
   }
 
-  char *outputWKT = NULL;
-  TAOS_CHECK_GOTO(doAsText(varDataVal(input), varDataLen(input), &outputWKT), NULL, _exit);
+  char *outputStr = NULL;
+  TAOS_CHECK_GOTO(asStringFn(varDataVal(input), varDataLen(input), &outputStr), NULL, _exit);
 
-  size_t size = strlen(outputWKT);
+  size_t size = strlen(outputStr);
   *output = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
   if (*output == NULL) {
     code = terrno;
     goto _exit;
   }
 
-  (void)memcpy(varDataVal(*output), outputWKT, size);
+  (void)memcpy(varDataVal(*output), outputStr, size);
   varDataSetLen(*output, size);
   code = TSDB_CODE_SUCCESS;
 
 _exit:
-  geosFreeBuffer(outputWKT);
+  geosFreeBuffer(outputStr);
 
   return code;
 }
@@ -154,7 +157,8 @@ _exit:
   return code;
 }
 
-int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
+int32_t executeGeomFromStringFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData,
+                                  _geomFromStringFunc_t geomFromStringFn) {
   int32_t code = TSDB_CODE_FAILED;
 
   if (!IS_VAR_DATA_TYPE((pInputData)->info.type)) {
@@ -164,7 +168,7 @@ int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnI
   char          *input = colDataGetData(pInputData, i);
   unsigned char *output = NULL;
 
-  TAOS_CHECK_GOTO(doGeomFromTextFunc(input, &output), NULL, _exit);
+  TAOS_CHECK_GOTO(doGeomFromStringFunc(input, &output, geomFromStringFn), NULL, _exit);
   TAOS_CHECK_GOTO(colDataSetVal(pOutputData, i, output, (output == NULL)), NULL, _exit);
 
 _exit:
@@ -175,13 +179,15 @@ _exit:
   return code;
 }
 
-int32_t executeAsTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
+
+int32_t executeAsStringFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData,
+                            _geomAsStringFunc_t asStringFn) {
   int32_t code = TSDB_CODE_FAILED;
 
   unsigned char *input = colDataGetData(pInputData, i);
   char          *output = NULL;
 
-  TAOS_CHECK_GOTO(doAsTextFunc(input, &output), NULL, _exit);
+  TAOS_CHECK_GOTO(doAsStringFunc(input, &output, asStringFn), NULL, _exit);
   TAOS_CHECK_GOTO(colDataSetVal(pOutputData, i, output, (output == NULL)), NULL, _exit);
 
 _exit:
@@ -190,6 +196,22 @@ _exit:
   }
 
   return code;
+}
+
+int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
+  return executeGeomFromStringFunc(pInputData, i, pOutputData, doGeomFromText);
+}
+
+int32_t executeAsTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
+  return executeAsStringFunc(pInputData, i, pOutputData, doAsText);
+}
+
+int32_t executeGeomFromGeoJSONFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
+  return executeGeomFromStringFunc(pInputData, i, pOutputData, doGeomFromGeoJSON);
+}
+
+int32_t executeAsGeoJSONFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
+  return executeAsStringFunc(pInputData, i, pOutputData, doAsGeoJSON);
 }
 
 int32_t executeRelationFunc(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1,
@@ -361,6 +383,14 @@ int32_t geomFromTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
 
 int32_t asTextFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return geomOneParamFunction(pInput, pOutput, initCtxAsText, executeAsTextFunc);
+}
+
+int32_t geomFromGeoJSONFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return geomOneParamFunction(pInput, pOutput, initCtxGeomFromGeoJSON, executeGeomFromGeoJSONFunc);
+}
+
+int32_t asGeoJSONFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return geomOneParamFunction(pInput, pOutput, initCtxAsGeoJSON, executeAsGeoJSONFunc);
 }
 
 int32_t intersectsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
