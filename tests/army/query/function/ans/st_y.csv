@@ -1,0 +1,32 @@
+
+taos> select st_y(NULL)
+        st_y(null)         |
+============================
+ NULL                      |
+
+taos> select st_y(ST_GeomFromText('POINT(45 900)'))
+ st_y(st_geomfromtext('POINT(45 900)')) |
+=========================================
+                                    900 |
+
+taos> select st_y(ST_GeomFromText('POINT(45 900)'), NULL)
+taos> select st_y(ST_GeomFromText('POINT(45 900)'), 0)
+ st_y(st_geomfromtext('POINT(45 900)'), 0) |
+============================================
+ POINT (45.000000 0.000000)                |
+
+taos> select st_y(ST_GeomFromText('POINT(45 900)'), -0.00004)
+ st_y(st_geomfromtext('POINT(45 900)'), -0.00004) |
+===================================================
+ POINT (45.000000 -0.000040)                      |
+
+taos> select st_y(ST_GeomFromText('POINT(45 900)'), 10.0)
+ st_y(st_geomfromtext('POINT(45 900)'), 10.0) |
+===============================================
+ POINT (45.000000 10.000000)                  |
+
+taos> select st_y(ST_GeomFromText('POINT(45 900)'), 1000000003445)
+ st_y(st_geomfromtext('POINT(45 900)'), 1000000003445) |
+========================================================
+ POINT (45.000000 1000000003445.000000)                |
+

@@ -175,6 +175,97 @@ class TDTestCase(TBase):
     def test_dayofweek(self):
         self.test_normal_query_new("dayofweek")
 
+    def test_st_x(self):
+        self.test_normal_query_new("st_x")
+
+        tdSql.error("select st_x('');")
+        tdSql.error("select st_x(FALSE);")
+        tdSql.error("select st_x(123);")
+        tdSql.error("select st_x(123.45);")
+        tdSql.error("select st_x('strings are not allowed');")
+        tdSql.error("select st_x(ST_GeomFromText('LINESTRING (30 10, 10 30, 40 40)'));")
+        tdSql.error("select st_x(TO_TIMESTAMP('2000-01-01 00:00:00+00', 'yyyy-mm-dd hh24:mi:ss'));")
+        tdSql.error("select st_x(ST_GeomFromText('POINT(45 900)'), 'strings are not allowed');")
+        tdSql.error("select st_x(ST_GeomFromText('POINT(45 900)'), TO_TIMESTAMP('2000-01-01 00:00:00+00', 'yyyy-mm-dd hh24:mi:ss'));")
+        tdSql.error("select st_x(ST_GeomFromText('POINT(45 900)'), 100000000000000000000000000000000000000003445);")
+
+    def test_st_y(self):
+        self.test_normal_query_new("st_y")
+
+        tdSql.error("select st_y('');")
+        tdSql.error("select st_y(FALSE);")
+        tdSql.error("select st_y(123);")
+        tdSql.error("select st_y(123.45);")
+        tdSql.error("select st_y('strings are not allowed');")
+        tdSql.error("select st_y(ST_GeomFromText('LINESTRING (30 10, 10 30, 40 40)'));")
+        tdSql.error("select st_y(TO_TIMESTAMP('2000-01-01 00:00:00+00', 'yyyy-mm-dd hh24:mi:ss'));")
+        tdSql.error("select st_y(ST_GeomFromText('POINT(45 900)'), 'strings are not allowed');")
+        tdSql.error("select st_y(ST_GeomFromText('POINT(45 900)'), TO_TIMESTAMP('2000-01-01 00:00:00+00', 'yyyy-mm-dd hh24:mi:ss'));")
+        tdSql.error("select st_y(ST_GeomFromText('POINT(45 900)'), 100000000000000000000000000000000000000003445);")
+        
+    def test_st_numpoints(self):
+        self.test_normal_query_new("st_numpoints")
+
+        tdSql.error("select st_numpoints('');")
+        tdSql.error("select st_numpoints(FALSE);")
+        tdSql.error("select st_numpoints(123);")
+        tdSql.error("select st_numpoints(123.45);")
+        tdSql.error("select st_numpoints('strings are not allowed');")
+        tdSql.error("select st_numpoints(ST_GeomFromText('POINT(45 900)'));")
+        tdSql.error("select st_numpoints(ST_GeomFromText('LINESTRING (45 900)'));")
+
+    def test_st_numinteriorrings(self): 
+        self.test_normal_query_new("st_numinteriorrings")
+
+        tdSql.error("select st_numinteriorrings('');")
+        tdSql.error("select st_numinteriorrings(FALSE);")
+        tdSql.error("select st_numinteriorrings(123);")
+        tdSql.error("select st_numinteriorrings(123.45);")
+        tdSql.error("select st_numinteriorrings('strings are not allowed');")
+        tdSql.error("select st_numinteriorrings(ST_GeomFromText('POINT(45 900)'));")
+        tdSql.error("select st_numinteriorrings(ST_GeomFromText('LINESTRING (30 10, 10 30, 40 40)'));")
+        tdSql.error("select st_numinteriorrings(TO_TIMESTAMP('2000-01-01 00:00:00+00', 'yyyy-mm-dd hh24:mi:ss'));")
+
+    def test_st_numgeometries(self): 
+        self.test_normal_query_new("st_numgeometries")
+
+        tdSql.error("select st_numgeometries('');")
+        tdSql.error("select st_numgeometries(FALSE);")
+        tdSql.error("select st_numgeometries(123);")
+        tdSql.error("select st_numgeometries(123.45);")
+        tdSql.error("select st_numgeometries('strings are not allowed');")
+        tdSql.error("select st_numgeometries(TO_TIMESTAMP('2000-01-01 00:00:00+00', 'yyyy-mm-dd hh24:mi:ss'));")
+
+    def test_st_issimple(self): 
+        self.test_normal_query_new("st_issimple")
+
+        tdSql.error("select st_issimple('');")
+        tdSql.error("select st_issimple(FALSE);")
+        tdSql.error("select st_issimple(123);")
+        tdSql.error("select st_issimple(123.45);")
+        tdSql.error("select st_issimple('strings are not allowed');")
+        tdSql.error("select st_issimple(TO_TIMESTAMP('2000-01-01 00:00:00+00', 'yyyy-mm-dd hh24:mi:ss'));")
+
+    def test_st_isempty(self): 
+        self.test_normal_query_new("st_isempty")
+
+        tdSql.error("select st_isempty('');")
+        tdSql.error("select st_isempty(FALSE);")
+        tdSql.error("select st_isempty(123);")
+        tdSql.error("select st_isempty(123.45);")
+        tdSql.error("select st_isempty('strings are not allowed');")
+        tdSql.error("select st_isempty(TO_TIMESTAMP('2000-01-01 00:00:00+00', 'yyyy-mm-dd hh24:mi:ss'));")
+
+    def test_st_dimension(self): 
+        self.test_normal_query_new("st_dimension")
+
+        tdSql.error("select st_dimension('');")
+        tdSql.error("select st_dimension(FALSE);")
+        tdSql.error("select st_dimension(123);")
+        tdSql.error("select st_dimension(123.45);")
+        tdSql.error("select st_dimension('strings are not allowed');")
+        tdSql.error("select st_dimension(TO_TIMESTAMP('2000-01-01 00:00:00+00', 'yyyy-mm-dd hh24:mi:ss'));")
+
     def test_stddev_pop(self):
         self.test_normal_query_new("stddev")
 
@@ -559,6 +650,16 @@ class TDTestCase(TBase):
         # select function
         self.test_max()
         self.test_min()
+
+        # geometry function
+        self.test_st_x()
+        self.test_st_y()
+        self.test_st_numpoints()
+        self.test_st_numinteriorrings()
+        self.test_st_numgeometries()
+        self.test_st_issimple()
+        self.test_st_isempty()
+        self.test_st_dimension()
 
         # error function
         self.test_error()

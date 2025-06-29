@@ -1,0 +1,16 @@
+
+taos> select st_numpoints(NULL)
+ st_numpoints(null) |
+=====================
+ NULL               |
+
+taos> select st_numpoints(ST_GeomFromText('LINESTRING (30 10, 0 30)'))
+ st_numpoints(st_geomfromtext('LINESTRING (30 10, 0 30)')) |
+============================================================
+                                                         2 |
+
+taos> select st_numpoints(ST_GeomFromText('LINESTRING (30 10, 10 30, 40 40)'))
+ st_numpoints(st_geomfromtext('LINESTRING (30 10, 10 30, 40 40)') |
+===================================================================
+                                                                3 |
+

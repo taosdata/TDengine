@@ -18,9 +18,17 @@
 #include "tutil.h"
 #include "types.h"
 
+typedef int  (*_geos_doCountObject_t)(GEOSContextHandle_t handle, const GEOSGeometry *g);
+typedef bool (*_isExpectedGeometry_t)(int geometryType);
+typedef char (*_geos_doCheckProperty_t)(GEOSContextHandle_t handle, const GEOSGeometry *g);
 typedef char (*_geosRelationFunc_t)(GEOSContextHandle_t handle, const GEOSGeometry *g1, const GEOSGeometry *g2);
 typedef char (*_geosPreparedRelationFunc_t)(GEOSContextHandle_t handle, const GEOSPreparedGeometry *pg1,
                                             const GEOSGeometry *g2);
+
+typedef enum {
+  X = 0,
+  Y = 1
+} Coordinate;
 
 void geosFreeBuffer(void *buffer) {
   if (buffer) {
@@ -359,6 +367,170 @@ int32_t initCtxRelationFunc() {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t initCtxGeomGetCoordinate() {
+  int32_t code = TSDB_CODE_FAILED;
+  SGeosContext *geosCtx = NULL;
+  
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
+  
+  if (geosCtx->handle == NULL) {
+    geosCtx->handle = GEOS_init_r();
+    if (geosCtx->handle == NULL) {
+      return code;
+    }
+  
+    GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx->errMsg);
+  }
+  
+  if (geosCtx->WKBReader == NULL) {
+    geosCtx->WKBReader = GEOSWKBReader_create_r(geosCtx->handle);
+    if (geosCtx->WKBReader == NULL) {
+      return code;
+    }
+  }
+  
+  if (geosCtx->WKBWriter == NULL) {
+    geosCtx->WKBWriter = GEOSWKBWriter_create_r(geosCtx->handle);
+    if (geosCtx->WKBWriter == NULL) {
+      return code;
+    }
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t geomGetCoordinate(const GEOSGeometry *geom, double *n, Coordinate coordinate) {
+  SGeosContext *geosCtx = NULL;
+
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
+
+  if (GEOSGeomTypeId_r(geosCtx->handle, geom) != GEOS_POINT) {
+    return TSDB_CODE_UNEXPECTED_GEOMETRY_TYPE;
+  }
+
+  if (coordinate == X) {
+    if (GEOSGeomGetX_r(geosCtx->handle, geom, n) != 1) {
+      return TSDB_CODE_FAILED;
+    }
+  } else {
+    if (GEOSGeomGetY_r(geosCtx->handle, geom, n) != 1) {
+      return TSDB_CODE_FAILED;
+    }
+  }
+
+  if (!isfinite(*n)) {
+    return TSDB_CODE_GEOMETRY_DATA_OUT_OF_RANGE;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t geomGetCoordinateX(const GEOSGeometry *geom, double *x) {
+  return geomGetCoordinate(geom, x, X);
+}
+
+int32_t geomGetCoordinateY(const GEOSGeometry *geom, double *y) {
+  return geomGetCoordinate(geom, y, Y);
+}
+
+static int32_t geomDoCount(const GEOSGeometry *geom, uint32_t *count, _geos_doCountObject_t countFn, _isExpectedGeometry_t isExpectedGeomFn) {
+  SGeosContext *geosCtx = NULL;
+  uint32_t n;
+
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
+
+  if (!isExpectedGeomFn(GEOSGeomTypeId_r(geosCtx->handle, geom))) {
+    return TSDB_CODE_UNEXPECTED_GEOMETRY_TYPE;
+  }
+
+  n = countFn(geosCtx->handle, geom);
+  if (n == -1) {
+    return TSDB_CODE_FAILED;
+  }
+
+  *count = n;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool isLinestring(int geosGeomType) {
+  return geosGeomType == GEOS_LINESTRING;
+}
+
+static bool isPolygon(int geosGeomType) {
+  return geosGeomType == GEOS_POLYGON;
+}
+
+static bool isGeometryCollection(int geosGeomType) {
+  return geosGeomType == GEOS_GEOMETRYCOLLECTION;
+}
+
+int32_t geomGetNumPoints(const GEOSGeometry *geom, uint32_t *numPoints) {
+  return geomDoCount(geom, numPoints, GEOSGeomGetNumPoints_r, isLinestring);
+}
+
+int32_t geomGetNumInnerRings(const GEOSGeometry *geom, uint32_t *numInnerRings) {
+  return geomDoCount(geom, numInnerRings, GEOSGetNumInteriorRings_r, isPolygon);
+}
+
+int32_t geomGetNumGeometries(const GEOSGeometry *geom, int32_t *numGeometries) {
+  SGeosContext *geosCtx = NULL;
+
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
+
+  int geomType = GEOSGeomTypeId_r(geosCtx->handle, geom);
+  bool isComposite = (geomType == GEOS_MULTIPOINT ||
+                      geomType == GEOS_MULTILINESTRING ||
+                      geomType == GEOS_MULTIPOLYGON ||
+                      geomType == GEOS_GEOMETRYCOLLECTION);
+
+  if (!isComposite) {
+    *numGeometries = -1;
+  } else {
+    *numGeometries = GEOSGetNumGeometries_r(geosCtx->handle, geom);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t geomCheckProperty(const GEOSGeometry *geom, bool *isPropertyTrue, _geos_doCheckProperty_t checkFn) {
+  SGeosContext *geosCtx = NULL;
+  bool checkResult;
+
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
+
+  checkResult = checkFn(geosCtx->handle, geom);
+  if (checkResult == -1) {
+    return TSDB_CODE_FAILED;
+  }
+
+  *isPropertyTrue = checkResult;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t geomIsSimple(const GEOSGeometry *geom, bool *isSimple) {
+  return geomCheckProperty(geom, isSimple, GEOSisSimple_r);
+}
+
+int32_t geomIsEmpty(const GEOSGeometry *geom, bool *isEmpty) {
+  return geomCheckProperty(geom, isEmpty, GEOSisEmpty_r);
+}
+
+int32_t geomDimension(const GEOSGeometry *geom, int8_t *dimension) {
+  SGeosContext *geosCtx = NULL;
+
+  TAOS_CHECK_RETURN(getThreadLocalGeosCtx(&geosCtx));
+
+  if (GEOSisEmpty_r(geosCtx->handle, geom)) {
+    *dimension = -1;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *dimension = (int8_t)GEOSGeom_getDimensions_r(geosCtx->handle, geom);
+  return TSDB_CODE_SUCCESS;
+}
+  
 int32_t doGeosRelation(const GEOSGeometry *geom1, const GEOSPreparedGeometry *preparedGeom1, const GEOSGeometry *geom2,
                        bool swapped, char *res, _geosRelationFunc_t relationFn, _geosRelationFunc_t swappedRelationFn,
                        _geosPreparedRelationFunc_t preparedRelationFn,
