@@ -946,7 +946,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   VNODE_DO_META_QUERY(pVnode, pLoad->numOfTables = metaGetTbNum(pVnode->pMeta));
   VNODE_DO_META_QUERY(pVnode, pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1));
   pLoad->totalStorage = (int64_t)3 * 1073741824;
-  pLoad->compStorage = (int64_t)2 * 1073741824;
+  pLoad->compStorage = (int64_t)1 * 1073741824;
   pLoad->pointsWritten = 100;
   pLoad->numOfSelectReqs = 1;
   pLoad->numOfInsertReqs = atomic_load_64(&pVnode->statis.nInsert);
