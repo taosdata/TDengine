@@ -939,6 +939,21 @@ static int32_t vnodeGetCompStorage(SVnode *pVnode, int64_t *output) {
   return code;
 }
 
+static void vnodeGetBufferInfo(SVnode *pVnode, int64_t *bufferSegmentUsed, int64_t *bufferSegmentSize) {
+  *bufferSegmentUsed = 0;
+  *bufferSegmentSize = 0;
+  if (pVnode) {
+    taosThreadMutexLock(&pVnode->mutex);
+
+    if (pVnode->inUse) {
+      *bufferSegmentUsed = pVnode->inUse->size;
+    }
+    *bufferSegmentSize = pVnode->config.szBuf / VNODE_BUFPOOL_SEGMENTS;
+
+    taosThreadMutexUnlock(&pVnode->mutex);
+  }
+}
+
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   SSyncState state = syncGetState(pVnode->sync);
   pLoad->syncAppliedIndex = pVnode->state.applied;
@@ -964,6 +979,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->numOfInsertSuccessReqs = atomic_load_64(&pVnode->statis.nInsertSuccess);
   pLoad->numOfBatchInsertReqs = atomic_load_64(&pVnode->statis.nBatchInsert);
   pLoad->numOfBatchInsertSuccessReqs = atomic_load_64(&pVnode->statis.nBatchInsertSuccess);
+  vnodeGetBufferInfo(pVnode, &pLoad->bufferSegmentUsed, &pLoad->bufferSegmentSize);
   return 0;
 }
 

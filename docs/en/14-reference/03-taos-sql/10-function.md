@@ -1238,6 +1238,47 @@ taos> select repeat('abc',-1);
                   |
 ```
 
+#### TO_BASE64
+
+```sql
+TO_BASE64(expr)
+```
+
+**Function Description**: Returns the base64 encoding of the string `expr`s.
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**:
+
+- `expr`: VARCHAR, NCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- If `expr` is NULL, returns NULL.
+
+**Example**:
+
+```sql
+taos> select to_base64("");
+ to_base64("") |
+================
+               |
+
+taos> select to_base64("Hello, world!");
+ to_base64("Hello, world!") |
+=============================
+ SGVsbG8sIHdvcmxkIQ==       |
+
+taos> select to_base64("你好 世界");
+ to_base64("你好 世界")      |
+==============================
+ 5L2g5aW9IOS4lueVjA==        |
+```
+
 ### Conversion Functions
 
 Conversion functions convert values from one data type to another.

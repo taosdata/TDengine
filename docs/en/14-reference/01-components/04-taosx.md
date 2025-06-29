@@ -257,9 +257,13 @@ This section discusses how to deploy `taosX` in service mode. When running taosX
 - `log_level`: Log level, available levels include `error`, `warn`, `info`, `debug`, `trace`, default value is `info`. Deprecated, please use `log.level` instead.
 - `log_keep_days`: Maximum storage days for logs, `taosX` logs will be divided into different files by day. Deprecated, please use `log.keepDays` instead.
 - `jobs`: Maximum number of threads per runtime. In service mode, the total number of threads is `jobs*2`, default number of threads is `current server cores*2`.
-- `serve.listen`: `taosX` REST API listening address, default value is `0.0.0.0:6050`.
+- `serve.listen`: `taosX` REST API listening address, default value is `0.0.0.0:6050`. Supports IPv6 and multiple comma-separated addresses with the same port.
+- `serve.ssl_cert`: SSL/TLS certificate file.
+- `serve.ssl_key`: SSL/TLS server's private key.
+- `serve.ssl_ca`: SSL/TLS certificate authority (CA) certificates.
 - `serve.database_url`: Address of the `taosX` database, format is `sqlite:<path>`.
 - `serve.request_timeout`: Global interface API timeout.
+- `serve.grpc`:`taosX` gRPC listening address, default value is `0.0.0.0:6055`. Supports IPv6 and multiple comma-separated addresses with the same port.
 - `monitor.fqdn`: FQDN of the `taosKeeper` service, no default value, leave blank to disable monitoring.
 - `monitor.port`: Port of the `taosKeeper` service, default `6043`.
 - `monitor.interval`: Frequency of sending metrics to `taosKeeper`, default is every 10 seconds, only values between 1 and 10 are valid.
@@ -295,11 +299,30 @@ As shown below:
 # listen to ip:port address
 #listen = "0.0.0.0:6050"
 
+# TLS/SSL certificate
+#ssl_cert = "/path/to/tls/server.pem"
+# TLS/SSL certificate key
+#ssl_key = "/path/to/tls/server.key"
+# TLS/SSL CA certificate
+#ssl_ca = "/path/to/tls/ca.pem"
+
 # database url
 #database_url = "sqlite:taosx.db"
 
 # default global request timeout which unit is second. This parameter takes effect for certain interfaces that require a timeout setting
 #request_timeout = 30
+
+# GRPC listen address，use ip:port like `0.0.0.0:6055`.
+#
+# When use this in explorer, please set explorer grpc configuration to **Public** IP or
+# FQDN with correct port, which might be changed exposing to Public network.
+#
+# - Example 1: "http://192.168.111.111:6055" 
+# - Example 2: "http://node1.company.domain:6055" 
+#
+# Please also make sure the above address is not blocked if firewall is enabled.
+#
+#grpc = "0.0.0.0:6055"
 
 [monitor]
 # FQDN of taosKeeper service, no default value

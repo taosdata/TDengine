@@ -101,6 +101,21 @@ Notes:
 
 ## 4.3 Run tests by command line arguments
 
+The template configuration files for **taosd**, **taosadapter**, and **taoskeeper** are located in the `env` directory.  
+You can update these YAML files to customize the deployment and test environment.
+
+- **taos_config.yaml**:  
+  - `port`: Base port for the first dnode (default: 6030, increments by 100 for each additional dnode)
+  - `mqttPort`: Base MQTT port (default: 6083, increments by 100 for each additional dnode)
+
+- **taosadapter_config.yaml**:  
+  - Used to configure taosadapter service.  
+  - You can set log level, port, log path, and other adapter-specific options.
+
+- **taoskeeper_config.yaml**:  
+  - Used to configure taoskeeper service.  
+  - You can set database connection info, log options, metrics, etc.
+
 Run test cases command description:
 
 Options:
@@ -122,6 +137,7 @@ Options:
 - `--skip_deploy`: Only run test without start TDengine
 - `--testlist`: Path to file containing list of test files to run. Each line should contain one Python test file path, and lines starting with # will be ignored.
 - `--skip_stop`: Do not destroy/stop the TDengine cluster after test class execution (for debugging or keeping environment alive)
+- `--only_deploy`: Only do deploy without starting TDengine cluster
 
 ## 4.4 Run tests by configuration file
 
@@ -164,6 +180,9 @@ pytest --log-level=DEBUG
 
 # 5. Run test with a specific YAML configuration file
 pytest --yaml_file=ci_default.yaml cases/data_write/sql_statement/test_insert_double.py
+
+# 6. Only do deploy
+pytest --clean --only_deploy 
 ```
 
 ## 4.7 Batch Run Test Cases

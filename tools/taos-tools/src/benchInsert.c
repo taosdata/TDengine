@@ -443,19 +443,14 @@ skip:
         Field * col = benchArrayGet(stbInfo->cols, i);
         if (col->sma) {
             if (first_sma) {
-                n = snprintf(command + length,
-                                   TSDB_MAX_ALLOWED_SQL_LEN - length,
-                        " SMA(%s", col->name);
+                n = snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length, " SMA(%s", col->name);
                 first_sma = false;
             } else {
-                n = snprintf(command + length,
-                                   TSDB_MAX_ALLOWED_SQL_LEN - length,
-                        ",%s", col->name);
+                n = snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length, ",%s", col->name);
             }
 
             if (n < 0 || n > TSDB_MAX_ALLOWED_SQL_LEN - length) {
-                errorPrint("%s() LN%d snprintf overflow on %d iteral\n",
-                           __func__, __LINE__, i);
+                errorPrint("%s() LN%d snprintf overflow on %d iteral\n", __func__, __LINE__, i);
                 break;
             } else {
                 length += n;
@@ -879,6 +874,7 @@ static void *createTable(void *sarg) {
     int         w = 0; // record tagData
 
     int smallBatchCount = 0;
+    int index=  pThreadInfo->start_table_from;
     for (uint64_t i = pThreadInfo->start_table_from;
                   i <= pThreadInfo->end_table_to && !g_arguments->terminate;
                   i++) {
@@ -909,7 +905,7 @@ static void *createTable(void *sarg) {
             }
             // generator
             if (w == 0) {
-                if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
+                if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL, index)) {
                     goto create_table_end;
                 }
             }
@@ -920,6 +916,7 @@ static void *createTable(void *sarg) {
             if (++w >= TAG_BATCH_COUNT) {
                 // reset for gen again
                 w = 0;
+                index += TAG_BATCH_COUNT;
             }                           
 
             batchNum++;
@@ -1820,7 +1817,7 @@ static void *syncWriteInterlace(void *sarg) {
             goto free_of_interlace;
         }
     }    
-
+    int64_t index = tableSeq;
     while (insertRows > 0) {
         int64_t tmp_total_insert_rows = 0;
         uint32_t generated = 0;
@@ -1872,7 +1869,7 @@ static void *syncWriteInterlace(void *sarg) {
 
                     // generator
                     if (stbInfo->autoTblCreating && w == 0) {
-                        if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
+                        if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL, index)) {
                             goto free_of_interlace;
                         }
                     }
@@ -1915,6 +1912,7 @@ static void *syncWriteInterlace(void *sarg) {
                     if (stbInfo->autoTblCreating && ++w >= TAG_BATCH_COUNT) {
                         // reset for gen again
                         w = 0;
+                        index += TAG_BATCH_COUNT;
                     }  
 
                     // write child data with interlaceRows
@@ -1991,7 +1989,7 @@ static void *syncWriteInterlace(void *sarg) {
 
                     // generator
                     if (stbInfo->autoTblCreating && w == 0) {
-                        if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
+                        if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL, index)) {
                             goto free_of_interlace;
                         }
                     }
@@ -2034,6 +2032,7 @@ static void *syncWriteInterlace(void *sarg) {
                         if (w >= TAG_BATCH_COUNT) {
                             // reset for gen again
                             w = 0;
+                            index += TAG_BATCH_COUNT;
                         }
                     }
 
@@ -2048,7 +2047,7 @@ static void *syncWriteInterlace(void *sarg) {
                         // create
                         if (w == 0) {
                             // recreate sample tags
-                            if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, pThreadInfo->tagsStmt)) {
+                            if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, pThreadInfo->tagsStmt, index)) {
                                 goto free_of_interlace;
                             }
                         }
@@ -2078,6 +2077,7 @@ static void *syncWriteInterlace(void *sarg) {
                         if (w >= TAG_BATCH_COUNT) {
                             // reset for gen again
                             w = 0;
+                            index += TAG_BATCH_COUNT;
                         }
                     }
 
@@ -2786,6 +2786,7 @@ void *syncWriteProgressive(void *sarg) {
     //
     // loop write each child table
     //
+    int16_t index = pThreadInfo->start_table_from;
     for (uint64_t tableSeq = pThreadInfo->start_table_from;
             tableSeq <= pThreadInfo->end_table_to; tableSeq++) {
         char *sampleDataBuf;
@@ -2816,7 +2817,7 @@ void *syncWriteProgressive(void *sarg) {
         if(stmt || smart || acreate) {
             // generator
             if (w == 0) {
-                if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
+                if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL, index)) {
                     g_fail = true;
                     goto free_of_progressive;
                 }
@@ -2842,6 +2843,7 @@ void *syncWriteProgressive(void *sarg) {
             if (++w >= TAG_BATCH_COUNT) {
                 // reset for gen again
                 w = 0;
+                index += TAG_BATCH_COUNT;
             } 
         }
 
@@ -2921,7 +2923,7 @@ void *syncWriteProgressive(void *sarg) {
 
                         // generator
                         if (w == 0) {
-                            if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
+                            if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL, index)) {
                                 g_fail = true;
                                 goto free_of_progressive;
                             }
@@ -2939,6 +2941,7 @@ void *syncWriteProgressive(void *sarg) {
                         if (++w >= TAG_BATCH_COUNT) {
                             // reset for gen again
                             w = 0;
+                            index += TAG_BATCH_COUNT;
                         }
 
                         code = execInsert(pThreadInfo, generated, &delay3);
@@ -3642,10 +3645,6 @@ int64_t obtainTableCount(SDataBase* database, SSuperTable* stbInfo) {
 
 // assign table to thread with vgroups, return assign thread count
 int32_t assignTableToThread(SDataBase* database, SSuperTable* stbInfo) {
-    SBenchConn* conn = initBenchConn();
-    if (NULL == conn) {
-        return 0;
-    }
     int32_t threads = 0;
 
     // calc table count per vgroup
@@ -3685,7 +3684,6 @@ int32_t assignTableToThread(SDataBase* database, SSuperTable* stbInfo) {
         vg->childTblArray[vg->tbOffset] = stbInfo->childTblArray[i];
         vg->tbOffset++;
     }
-    closeBenchConn(conn);
     return threads;
 }
 
@@ -3847,13 +3845,13 @@ void *genInsertTheadInfo(void* arg) {
                 for (int t = 0; t < pThreadInfo->ntables; t++) {
                     pThreadInfo->sml_tags[t] = benchCalloc(1, stbInfo->lenOfTags, true);
                 }
-
+                int64_t index = pThreadInfo->start_table_from;
                 for (int t = 0; t < pThreadInfo->ntables; t++) {
                     if (generateRandData(
                                 stbInfo, pThreadInfo->sml_tags[t],
                                 stbInfo->lenOfTags,
                                 stbInfo->lenOfCols + stbInfo->lenOfTags,
-                                stbInfo->tags, 1, true, NULL)) {
+                                stbInfo->tags, 1, true, NULL, index++)) {
                         g_fail = true;            
                         goto END;
                     }

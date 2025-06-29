@@ -53,39 +53,41 @@ Supports Python 3.0 and above.
 
 ## Version History
 
-Python Connector historical versions (it is recommended to use the latest version of 'taospy'):
+Python Connector historical versions (it is recommended to use the latest version of 'taopsy'):
 
-| Python Connector Version | Major Changes                                                | TDengine Version   |
-| ------------------------ | ------------------------------------------------------------ | ------------------ |
-| 2.8.1                    | Add two functions to set the connect property                | -                  |
-| 2.8.0                    | Remove Apache Superset Driver                                | -                  |
-| 2.7.23                   | Supports DECIMAL data type                                   | -                  |
-| 2.7.22                   | Supports Python 3.12 and above                               | -                  |
-| 2.7.21                   | Supports native STMT2 writing                                | -                  |
-| 2.7.19                   | Supports Apache Superset connection to TDengine Cloud data source | -                  |
-| 2.7.18                   | Supports Apache SuperSet BI Tools                            | -                  |
-| 2.7.16                   | Adds subscription configuration (session.timeout.ms, Max.roll.interval.ms) | -                  |
-| 2.7.15                   | Supports VARBINARY and GEOMETRY data types                   | -                  |
-| 2.7.14                   | Fixes known issues                                           | -                  |
-| 2.7.13                   | Adds tmq synchronous submission offset interface             | -                  |
-| 2.7.12                   | 1. Adds support for VARBINARY type (STMT currently does not support VARBINARY) <br/> 2 Improves query performance (thanks to contributor [hadrianl](https://github.com/taosdata/taos-connector-python/pull/209) ) | 3.1.1.2 and higher |
-| 2.7.9                    | Data subscription supports obtaining and resetting consumption progress | 3.0.2.6 and higher |
-| 2.7.8                    | Adds 'executioner_many'                                      | 3.0.0.0 and higher |
+|Python Connector Version | Major Changes                                                                           | TDengine Version|
+| --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
+|2.8.1 | Add two functions to set the connect property                                                               | - |
+|2.8.0 | Remove Apache Superset Driver                                                                               | - |
+|2.7.23 | Supports DECIMAL data type                                                                                 | - |
+|2.7.22 | Supports Python 3.12 and above                                                                             | - |
+|2.7.21 | Supports native STMT2 writing                                                                              | - |
+|2.7.19 | Supports Apache Superset connection to TDengine Cloud data source                                          | - |
+|2.7.18 | Supports Apache SuperSet BI Tools                                                                          | - |
+|2.7.16 | Adds subscription configuration (session.timeout.ms, Max.roll.interval.ms)                                 | - |
+|2.7.15 | Supports VARBINARY and GEOMETRY data types                                                                 | - |
+|2.7.14 | Fixes known issues                                                                                         | - |
+|2.7.13 | Adds tmq synchronous submission offset interface                                                           | - |
+|2.7.12 | 1. Adds support for VARBINARY type (STMT currently does not support VARBINARY) <br/> 2 Improves query performance (thanks to contributor [hadrianl](https://github.com/taosdata/taos-connector-python/pull/209) ) | 3.1.1.2 and higher|
+|2.7.9  | Data subscription supports obtaining and resetting consumption progress                                    | 3.0.2.6 and higher|
+|2.7.8  | Adds 'executioner_many'                                                                                    | 3.0.0.0 and higher|
 
 WebSocket Connector Historical Versions:
 
-| WebSocket Connector Version | Major Changes                                                | TDengine Version   |
-| --------------------------- | ------------------------------------------------------------ | ------------------ |
-| 0.5.1                       | Support WebSocket STMT2 writing and querying                 | -                  |
-| 0.4.0                       | Support dynamic add tmq attribute                            | -                  |
-| 0.3.9                       | Fixes the problem of incomplete data retrieval when customizing the number of rows with the "fetchmany" method | -                  |
-| 0.3.8                       | Supports connecting SuperSet to the TDengine cloud service instance | -                  |
-| 0.3.5                       | Fixes the issues in the crypto provider                      | -                  |
-| 0.3.4                       | Supports VARBINARY and GEOMETRY data types                   | 3.3.0.0 and higher |
-| 0.3.2                       | Optimizes WebSocket SQL query and insertion performance, modifies readme and documentation, fixes known issues | 3.2.3.0 and higher |
-| 0.2.9                       | Fixes known issues                                           | -                  |
-| 0.2.5                       | 1. Data subscription supports obtaining and resetting consumption progress <br/>2. Supports schemaless <br/>3. Supports STMT | -                  |
-| 0.2.4                       | Adds data subscription addition/unsubscribe methods          | 3.0.5.0 and higher |
+|WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
+| ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
+|0.5.3 | Support IPv6 address format | - |
+|0.5.2 | Upgrade Rust connector to fix dsn token param issue                                                                     | - |
+|0.5.1 | Support WebSocket STMT2 writing and querying                                                                            | - |
+|0.4.0 | Support dynamic add tmq attribute                                                                                       | - |
+|0.3.9 | Fixes the problem of incomplete data retrieval when customizing the number of rows with the "fetchmany" method          | - |
+|0.3.8 | Supports connecting SuperSet to the TDengine cloud service instance                                                     | - |
+|0.3.5 | Fixes the issues in the crypto provider                                                                                 | - |
+|0.3.4 | Supports VARBINARY and GEOMETRY data types                                                                              | 3.3.0.0 and higher |
+|0.3.2 | Optimizes WebSocket SQL query and insertion performance, modifies readme and documentation, fixes known issues          | 3.2.3.0 and higher|
+|0.2.9 | Fixes known issues                                                                                                      | - |
+|0.2.5 | 1. Data subscription supports obtaining and resetting consumption progress <br/>2. Supports schemaless <br/>3. Supports STMT | - |
+|0.2.4 | Adds data subscription addition/unsubscribe methods                                                                     | 3.0.5.0 and higher|
 
 ## Exception Handling
 
@@ -178,7 +180,7 @@ Feel free to [ask questions or report issues](https://github.com/taosdata/taos-c
 
 - **protocol**: Establish a connection using the websocket protocol. For example, `ws://localhost:6041`
 - **username/password**: Username and password for the database.
-- **host/port**: Host address and port number. For example, `localhost:6041`
+- **host/port**: The host_name parameter supports valid domain names or IP addresses. The `taos-ws-py` supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number parsing conflicts.
 - **database**: Database name.
 - **params**: Other parameters. For example, token.
 

@@ -100,6 +100,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3 -M 3
 ,,y,army,./pytest.sh python3 ./test.py -f create/create_ctb_using_csv_file.py
 ,,y,army,./pytest.sh python3 ./test.py -f create/create_ctb_using_csv_file.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f insert/insert_csv_file_with_row_split.py 
 
 ,,y,army,./pytest.sh python3 ./test.py -f stream/test_stream_vtable.py
 
@@ -118,7 +119,6 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-vgroups.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/connMode.py -B
-
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/custom_col_tag.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_json.py
@@ -132,7 +132,10 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to-continue.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/json_tag.py
-
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_sml.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_sql.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_stmt.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_stmt2.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert-json-csv.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/insertBasic.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertBindVGroup.py
@@ -176,11 +179,9 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestInsertWithJsonStmt-otherPara.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/telnet_tcp.py -R
-
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmqBasic.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmq_case.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/websiteCase.py
-
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/cloud/cloud-test.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/ws/websocket.py -R
 
@@ -201,6 +202,7 @@
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_error_exit.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/tmq_cancle.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/taos_config_json.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_data.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_auto_create_table_json.py
 
 # taosdump 43 cases

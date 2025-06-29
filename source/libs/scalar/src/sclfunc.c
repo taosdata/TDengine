@@ -1848,6 +1848,65 @@ _return:
   return code;
 }
 
+static char base64Table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                            "abcdefghijklmnopqrstuvwxyz"
+                            "0123456789+/";
+
+static void base64Impl(uint8_t *base64Out, const uint8_t *inputBytes, size_t inputLen, VarDataLenT outputLen) {
+  for (size_t i = 0, j = 0; i < inputLen;) {
+    unsigned int octet_a = i < inputLen ? inputBytes[i++] : 0;
+    unsigned int octet_b = i < inputLen ? inputBytes[i++] : 0;
+    unsigned int octet_c = i < inputLen ? inputBytes[i++] : 0;
+
+    unsigned int triple = (octet_a << 16) | (octet_b << 8) | octet_c;
+
+    base64Out[j++] = base64Table[(triple >> 18) & 0x3F];
+    base64Out[j++] = base64Table[(triple >> 12) & 0x3F];
+    base64Out[j++] = base64Table[(triple >> 6) & 0x3F];
+    base64Out[j++] = base64Table[triple & 0x3F];
+  }
+
+  for (int k = 0; k < (3 - (inputLen % 3)) % 3; k++) {
+    base64Out[outputLen - k - 1] = '=';
+  }
+
+  base64Out[outputLen] = 0;
+}
+
+uint32_t base64BufSize(size_t inputLenBytes) {
+  return 4 * ((inputLenBytes + 2) / 3);
+}
+
+int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+  char *outputBuf = taosMemoryMalloc(TSDB_MAX_FIELD_LEN + VARSTR_HEADER_SIZE);
+  if (outputBuf == NULL) {
+    SCL_ERR_RET(terrno);
+  }
+  
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    char *input = colDataGetData(pInputData, i);
+    size_t inputLen = varDataLen(colDataGetData(pInputData, i));
+    char *out = outputBuf + VARSTR_HEADER_SIZE;
+    VarDataLenT outputLength = base64BufSize(inputLen);
+    base64Impl(out, varDataVal(input), inputLen, outputLength);
+    varDataSetLen(outputBuf, outputLength);
+    SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+_return:
+  taosMemoryFree(outputBuf);
+  return code;
+}
+
 static int32_t repeatStringHelper(char *input, int32_t inputLen, int32_t count, char *output) {
   for (int32_t i = 0; i < count; ++i) {
     (void)memcpy(output, input, inputLen);

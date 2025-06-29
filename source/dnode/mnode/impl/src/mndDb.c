@@ -1311,6 +1311,7 @@ static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *p
   mInfo("trans:%d, used to alter db, ableToBeKilled:%d, killMode:%d", pTrans->id, pTrans->ableToBeKilled, pTrans->killMode);
 
   mndTransSetDbName(pTrans, pOld->name, NULL);
+  mndTransSetGroupParallel(pTrans);
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransCheckConflictWithCompact(pMnode, pTrans), NULL, _OVER);
 
@@ -1598,7 +1599,8 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
 
   while (1) {
     SStbObj *pStb = NULL;
-    pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
+    ESdbStatus status;
+    pIter = sdbFetchAll(pSdb, SDB_STB, pIter, (void **)&pStb, &status, true);
     if (pIter == NULL) break;
 
     if (pStb->dbUid == pDb->uid) {
@@ -1690,6 +1692,32 @@ static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bo
   TAOS_RETURN(code);
 }
 
+static int32_t mndRemoveAllStbUser(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+  int32_t code = -1;
+  void   *pIter = NULL;
+  while (1) {
+    SStbObj   *pStb = NULL;
+    ESdbStatus status;
+    pIter = sdbFetchAll(pMnode->pSdb, SDB_STB, pIter, (void **)&pStb, &status, true);
+    if (pIter == NULL) break;
+
+    if (pStb->dbUid == pDb->uid) {
+      if ((code = mndUserRemoveStb(pMnode, pTrans, pStb->name)) != 0) {
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        sdbRelease(pMnode->pSdb, pStb);
+        return code;
+      }
+    }
+
+    sdbRelease(pMnode->pSdb, pStb);
+  }
+
+  code = 0;
+
+_OVER:
+  return code;
+}
+
 static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   int32_t code = -1;
 
@@ -1721,6 +1749,7 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   TAOS_CHECK_GOTO(mndStreamSetStopStreamTasksActions(pMnode, pTrans, pDb->uid), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetDropDbRedoActions(pMnode, pTrans, pDb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndUserRemoveDb(pMnode, pTrans, pDb->name), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndRemoveAllStbUser(pMnode, pTrans, pDb), NULL, _OVER);
 
   int32_t rspLen = 0;
   void   *pRsp = NULL;

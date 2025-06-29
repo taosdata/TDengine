@@ -232,6 +232,7 @@ void vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
 
 static int32_t vmRegisterRunningState(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   SVnodeObj *pOld = NULL;
+  dInfo("vgId:%d, put vnode into running hash", pVnode->vgId);
 
   int32_t r = taosHashGetDup(pMgmt->runngingHash, &pVnode->vgId, sizeof(int32_t), (void *)&pOld);
   if (r != 0) {
@@ -255,6 +256,7 @@ static void vmUnRegisterRunningState(SVnodeMgmt *pMgmt, int32_t vgId) {
 
 static int32_t vmRegisterClosedState(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   int32_t    code = 0;
+  dInfo("vgId:%d, put into closed hash", pVnode->vgId);
   SVnodeObj *pClosedVnode = taosMemoryCalloc(1, sizeof(SVnodeObj));
   if (pClosedVnode == NULL) {
     dError("failed to alloc vnode since %s", terrstr());
@@ -287,6 +289,7 @@ static int32_t vmRegisterClosedState(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
 
 static void vmUnRegisterClosedState(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   SVnodeObj *pOld = NULL;
+  dInfo("vgId:%d, remove from closed hash", pVnode->vgId);
   int32_t    r = taosHashGetDup(pMgmt->closedHash, &pVnode->vgId, sizeof(int32_t), (void *)&pOld);
   if (r != 0) {
     dError("vgId:%d, failed to get vnode from closedHash", pVnode->vgId);
@@ -544,10 +547,12 @@ static void *vmOpenVnodeInThread(void *param) {
       }
     }
 
-    if (vmOpenVnode(pMgmt, pCfg, pImpl) != 0) {
-      dError("vgId:%d, failed to open vnode by thread:%d", pCfg->vgId, pThread->threadIndex);
-      pThread->failed++;
-      continue;
+    if (pImpl != NULL) {
+      if (vmOpenVnode(pMgmt, pCfg, pImpl) != 0) {
+        dError("vgId:%d, failed to open vnode by thread:%d", pCfg->vgId, pThread->threadIndex);
+        pThread->failed++;
+        continue;
+      }
     }
 
     dInfo("vgId:%d, is opened by thread:%d", pCfg->vgId, pThread->threadIndex);
@@ -806,7 +811,6 @@ static void vmCleanup(SVnodeMgmt *pMgmt) {
   vnodeCleanup();
   (void)taosThreadRwlockDestroy(&pMgmt->hashLock);
   (void)taosThreadMutexDestroy(&pMgmt->mutex);
-  (void)taosThreadMutexDestroy(&pMgmt->fileLock);
   taosMemoryFree(pMgmt);
 }
 
@@ -902,12 +906,6 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
 
   code = taosThreadMutexInit(&pMgmt->mutex, NULL);
-  if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(ERRNO);
-    goto _OVER;
-  }
-
-  code = taosThreadMutexInit(&pMgmt->fileLock, NULL);
   if (code != 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _OVER;

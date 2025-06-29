@@ -16,8 +16,8 @@ dateparser==1.2.1
 distro==1.9.0
 exceptiongroup==1.2.2
 execnet==2.1.1
-fabric==2.7.1
-fabric2==2.7.1
+fabric==3.0.0
+fabric2==3.0.0
 Faker==37.0.0
 faster-fifo==1.5.2
 fonttools==4.56.0
@@ -25,7 +25,7 @@ httmock==1.4.0
 idna==3.10
 importlib_resources==6.5.2
 iniconfig==2.0.0
-invoke==1.7.3
+invoke==2.1.0
 iso8601==1.0.2
 kiwisolver==1.4.7
 matplotlib==3.9.4
@@ -33,7 +33,6 @@ numpy==2.0.2
 packaging==24.2
 pandas==2.2.3
 paramiko==3.5.1
-patchwork==1.0.1
 pathlib2==2.3.7.post1
 pillow==11.1.0
 pluggy==1.5.0
@@ -58,7 +57,7 @@ regex==2024.11.6
 requests==2.27.1
 requests_ntlm==1.3.0
 six==1.17.0
-taos-ws-py==0.5.1
+taos-ws-py==0.5.3
 taospy==2.8.1
 threadpool==1.3.2
 toml==0.10.2
@@ -70,3 +69,4 @@ urllib3==1.26.20
 wcwidth==0.2.13
 xmltodict==0.14.2
 zipp==3.21.0
+decorator==5.2.1

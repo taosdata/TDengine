@@ -134,27 +134,27 @@ Please refer to the specific error codes:
 
 TDengine currently supports timestamp, numeric, character, boolean types, and the corresponding Java type conversions are as follows:
 
-| TDengine DataType | JDBCType             | Remark                                  |
-| ----------------- | -------------------- | --------------------------------------- |
-| TIMESTAMP         | java.sql.Timestamp   |                                         |
-| BOOL              | java.lang.Boolean    |                                         |
-| TINYINT           | java.lang.Byte       |                                         |
-| TINYINT UNSIGNED  | java.lang.Short      | only supported in WebSocket connections |
-| SMALLINT          | java.lang.Short      |                                         |
-| SMALLINT UNSIGNED | java.lang.Integer    | only supported in WebSocket connections |
-| INT               | java.lang.Integer    |                                         |
-| INT UNSIGNED      | java.lang.Long       | only supported in WebSocket connections |
-| BIGINT            | java.lang.Long       |                                         |
-| BIGINT UNSIGNED   | java.math.BigInteger | only supported in WebSocket connections |
-| FLOAT             | java.lang.Float      |                                         |
-| DOUBLE            | java.lang.Double     |                                         |
-| BINARY            | byte array           |                                         |
-| NCHAR             | java.lang.String     |                                         |
-| JSON              | java.lang.String     | only supported in tags                  |
-| VARBINARY         | byte[]               |                                         |
-| GEOMETRY          | byte[]               |                                         |
-| BLOB              | byte[]               | only supported in tags                  |
-| DECIMAL           | java.math.BigDecimal | only supported in WebSocket connections |
+| TDengine DataType | JDBCType             | Remark                                                                                                     |
+| ----------------- | -------------------- | ---------------------------------------------------------------------------------------------------------- |
+| TIMESTAMP         | java.sql.Timestamp   |                                                                                                            |
+| BOOL              | java.lang.Boolean    |                                                                                                            |
+| TINYINT           | java.lang.Byte       |                                                                                                            |
+| TINYINT UNSIGNED  | java.lang.Short      | only supported in WebSocket connections                                                                    |
+| SMALLINT          | java.lang.Short      |                                                                                                            |
+| SMALLINT UNSIGNED | java.lang.Integer    | only supported in WebSocket connections                                                                    |
+| INT               | java.lang.Integer    |                                                                                                            |
+| INT UNSIGNED      | java.lang.Long       | only supported in WebSocket connections                                                                    |
+| BIGINT            | java.lang.Long       |                                                                                                            |
+| BIGINT UNSIGNED   | java.math.BigInteger | only supported in WebSocket connections                                                                    |
+| FLOAT             | java.lang.Float      |                                                                                                            |
+| DOUBLE            | java.lang.Double     |                                                                                                            |
+| VARCHAR/BINARY    | byte[]               | Setting the `varcharAsString` parameter to `true` on a WebSocket connection can map it to the String type. |
+| NCHAR             | java.lang.String     |                                                                                                            |
+| JSON              | java.lang.String     | only supported in tags                                                                                     |
+| VARBINARY         | byte[]               |                                                                                                            |
+| GEOMETRY          | byte[]               |                                                                                                            |
+| BLOB              | byte[]               | only supported in tags                                                                                     |
+| DECIMAL           | java.math.BigDecimal | only supported in WebSocket connections                                                                    |
 
 **Note**: Due to historical reasons, the BINARY type in TDengine is not truly binary data and is no longer recommended. Please use VARBINARY type instead.  
 GEOMETRY type is binary data in little endian byte order, complying with the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)  
@@ -223,7 +223,7 @@ taos-jdbcdriver implements the JDBC standard Driver interface, providing 3 imple
 The JDBC URL format for TDengine is:
 `jdbc:[TAOS|TAOS-WS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`
 
-The host_name parameter supports valid domain names or IP addresses. The taos-jdbcdriver supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., [::1] or [2001:db8:1234:5678::1]) to avoid port number parsing conflicts.
+The host_name parameter supports valid domain names or IP addresses. The taos-jdbcdriver supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number parsing conflicts.
 
 **Native Connection**  
 `jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata`, using the TSDBDriver for native JDBC connection, establishes a connection to the hostname taosdemo.com, port 6030 (TDengine's default port), and database name power. This URL specifies the username (user) as root and the password (password) as taosdata.
@@ -250,9 +250,8 @@ In TDengine, as long as one of the nodes in firstEp and secondEp is valid, a con
 
 > **Note**: The configuration file here refers to the configuration file on the machine where the application calling the JDBC Connector is located, with the default value on Linux OS being /etc/taos/taos.cfg, and on Windows OS being C://TDengine/cfg/taos.cfg.
 
-WebSocket Connection:
-
-Using JDBC WebSocket connection does not depend on the client driver. Compared to native JDBC connections, you only need to:
+**WebSocket Connection**  
+Using JDBC WebSocket connection does not depend on the client driver. Here's an example: `jdbc:TAOS-WS://taosdemo.com:6030/power?user=root&password=taosdata&varcharAsString=true`. Compared to native JDBC connections, you only need to:
 
 1. Specify driverClass as "com.taosdata.jdbc.ws.WebSocketDriver";
 1. Start jdbcUrl with "jdbc:TAOS-WS://";
@@ -267,15 +266,21 @@ For WebSocket connections, the configuration parameters in the URL are as follow
 - messageWaitTimeout: Message timeout in ms, default value 60000.
 - useSSL: Whether SSL is used in the connection.
 - timezone: Client timezone, default is the system current timezone. Recommended not to set, using the system time zone provides better performance.
+- varcharAsString: Maps VARCHAR/BINARY types to String. Effective only when using WebSocket connections. Default value is false.
 
-**Note**: Some configuration items (such as: locale, charset) do not take effect in WebSocket connections.
+**Note**: Some configuration items (such as: locale, charset) do not take effect in WebSocket connections. WebSocket connections only support the UTF-8 character set.
 
-**REST Connection**
+**REST Connection**  
+
+:::warning
+It is no longer recommended to use this connection. Please use a WebSocket connection instead.
+:::
+
 Using JDBC REST connection does not depend on the client driver. Compared to native JDBC connections, you only need to:
 
 1. Specify driverClass as "com.taosdata.jdbc.rs.RestfulDriver";
-1. Start jdbcUrl with "jdbc:TAOS-RS://";
-1. Use 6041 as the connection port.
+2. Start jdbcUrl with "jdbc:TAOS-RS://";
+3. Use 6041 as the connection port.
 
 For REST connections, the configuration parameters in the URL are as follows:
 
@@ -327,6 +332,7 @@ The configuration parameters in properties are as follows:
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS: Auto-reconnect retry interval, in milliseconds, default value 2000. Effective only when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT: Auto-reconnect retry count, default value 3, effective only when PROPERTY_KEY_ENABLE_AUTO_RECONNECT is true.
 - TSDBDriver.PROPERTY_KEY_DISABLE_SSL_CERT_VALIDATION: Disable SSL certificate validation. Effective only when using WebSocket connections. true: enabled, false: not enabled. Default is false.
+- TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING: Maps VARCHAR/BINARY types to String. Effective only when using WebSocket connections. Default value is false.
 - TSDBDriver.PROPERTY_KEY_APP_NAME: App name, can be used for display in the `show connections` query result. Effective only when using WebSocket connections. Default value is java.  
 - TSDBDriver.PROPERTY_KEY_APP_IP: App IP, can be used for display in the `show connections` query result. Effective only when using WebSocket connections. Default value is empty.  
 

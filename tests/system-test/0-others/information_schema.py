@@ -221,7 +221,7 @@ class TDTestCase:
             tdSql.checkEqual(20470,len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
-        tdSql.checkRows(327)
+        tdSql.checkRows(329)
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
         tdSql.checkRows(62)
 

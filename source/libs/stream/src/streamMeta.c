@@ -15,6 +15,7 @@
 
 #include "streamBackendRocksdb.h"
 #include "streamInt.h"
+#include "tglobal.h"
 #include "tmisce.h"
 #include "tref.h"
 #include "tsched.h"
@@ -1327,6 +1328,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
   int32_t vgId = pMeta->vgId;
   int64_t startTs = 0;
   int32_t sendCount = 0;
+  int32_t numOfTasks = 0;
 
   streamMetaGetHbSendInfo(pMeta->pHbInfo, &startTs, &sendCount);
   stInfo("vgId:%d notify all stream tasks that current vnode is closing. isLeader:%d startHb:%" PRId64 ", totalHb:%d",
@@ -1334,7 +1336,10 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
 
   // wait for the stream meta hb function stopping
   pMeta->closeFlag = true;
-  streamMetaWaitForHbTmrQuit(pMeta);
+
+  if (!tsDisableStream) { // stream is disabled, no need to wait for the timer out
+    streamMetaWaitForHbTmrQuit(pMeta);
+  }
 
   stDebug("vgId:%d start to check all tasks for closing", vgId);
   int64_t st = taosGetTimestampMs();
@@ -1346,7 +1351,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
   if (code != TSDB_CODE_SUCCESS) {
   }
 
-  int32_t numOfTasks = taosArrayGetSize(pTaskList);
+  numOfTasks = taosArrayGetSize(pTaskList);
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
     SStreamTask*   pTask = NULL;
@@ -1477,20 +1482,24 @@ void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t term, bool isLeader) 
 
   streamMetaWUnLock(pMeta);
 
-  if (isLeader) {
-    if (prevRole == NODE_ROLE_FOLLOWER) {
-      stInfo("vgId:%d update term:%" PRId64 ", prevTerm:%" PRId64
-             " prevRole:%d leader:%d, start to send Hb, rid:%" PRId64 " restart after nodeEp being updated",
-             pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->rid);
+  if (!tsDisableStream) {
+    if (isLeader) {
+      if (prevRole == NODE_ROLE_FOLLOWER) {
+        stInfo("vgId:%d update term:%" PRId64 ", prevTerm:%" PRId64
+               " prevRole:%d leader:%d, start to send Hb, rid:%" PRId64 " restart after nodeEp being updated",
+               pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->rid);
+      } else {
+        stInfo("vgId:%d update term:%" PRId64 ", prevTerm:%" PRId64
+               " prevRole:%d leader:%d, start to send Hb, rid:%" PRId64,
+               pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->rid);
+      }
+      streamMetaStartHb(pMeta);
     } else {
-      stInfo("vgId:%d update term:%" PRId64 ", prevTerm:%" PRId64
-             " prevRole:%d leader:%d, start to send Hb, rid:%" PRId64,
-             pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->rid);
+      stInfo("vgId:%d update term:%" PRId64 " prevTerm:%" PRId64 " prevRole:%d leader:%d sendMsg beforeClosing:%d",
+             pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->sendMsgBeforeClosing);
     }
-    streamMetaStartHb(pMeta);
   } else {
-    stInfo("vgId:%d update term:%" PRId64 " prevTerm:%" PRId64 " prevRole:%d leader:%d sendMsg beforeClosing:%d",
-           pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->sendMsgBeforeClosing);
+    stInfo("vgId:%d stream is disabled, not start the Hb", pMeta->vgId);
   }
 }
 

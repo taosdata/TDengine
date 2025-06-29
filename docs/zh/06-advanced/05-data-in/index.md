@@ -86,10 +86,16 @@ JSON 解析支持 JSONObject 或者 JSONArray。如下 JSON 示例数据，可�
 
 后续示例仅以 JSONObject 为例说明。
 
-如下嵌套结构的 JSON 数据，可自动解析出字段`groupid`、`data_voltage`、`data_current`、`ts`、`inuse`、`location_0_province`、`location_0_city`、`location_0_datun`，也可以选择要解析的字段，并设置解析的别名。
+如下嵌套结构的 JSON 数据，需要手动填写 `JSON Path` 表达式来解析出字段 `groupid`、`data_voltage`、`data_current`、`ts`、`inuse`、`location_0_province`、`location_0_city`、`location_0_datun`，也可以选择要解析的字段，并设置解析的别名。
 
 ``` json
 {"groupid": 170001, "data": { "voltage": "221V", "current": 12.3 }, "ts": "2023-12-18T22:12:00", "inuse": true, "location": [{"province": "beijing", "city":"chaoyang", "street": "datun"}]}
+```
+
+`JSON Path` 表达式
+
+```text
+$["groupid"]=groupid,$["data"]["voltage"]=voltage,$["data"]["current"]=current,$["ts"]=ts,$["inuse"]=inuse,$["location"][0]["province"]=location_0_province,$["location"][0]["city"]=location_0_city,$["location"][0]["street"]=location_0_street
 ```
 
 ![JSON 解析](./pic/transform-02.png)
@@ -126,7 +132,7 @@ JSON 解析支持 JSONObject 或者 JSONArray。如下 JSON 示例数据，可�
 
 那么可以使用如下脚本来提取三个电压数据。
 
-```
+```text
 let v3 = data["voltage"].split(",");
 
 [
@@ -165,7 +171,8 @@ let v3 = data["voltage"].split(",");
 过滤功能可以设置过滤条件，满足条件的数据行 才会被写入目标表。过滤条件表达式的结果必须是 boolean 类型。在编写过滤条件前，必须确定 解析字段的类型，根据解析字段的类型，可以使用判断函数、比较操作符（`>`、`>=`、`<=`、`<`、`==`、`!=`）来判断。
 
 对时间戳过滤，可以采用以下函数。其中 ts 为符合 rfc3339 日期时间格式化字符串的字段，t1 和 t2 为相对当前时间的秒数，时间范围为 now + t1 ~ now + t2.
-```
+
+```text
 between_time_range(ts, t1, t2)
 
 // 例如：如果时间范围为最近 7 天内的才能入库，则过滤条件为：
@@ -294,8 +301,8 @@ between_time_range(ts, -604800, 0)
 3. 输入任务名称后，选择类型为 MQTT，然后可以创建一个新的代理，或者选择已创建的代理
 4. 输入 MQTT broker 的 IP 地址和端口号，例如：192.168.1.100:1883
 5. 配置认证和 SSL 加密：
-  - 如果 MQTT broker 开启了用户认证，则在认证部分，输入 MQTT broker 的用户名和密码；
-  - 如果 MQTT broker 开启了 SSL 加密，则可以打开页面上的 SSL 证书开关，并上传 CA 的证书，以及客户端的证书和私钥文件；
+   * 如果 MQTT broker 开启了用户认证，则在认证部分，输入 MQTT broker 的用户名和密码；
+   * 如果 MQTT broker 开启了 SSL 加密，则可以打开页面上的 SSL 证书开关，并上传 CA 的证书，以及客户端的证书和私钥文件；
 6. 在“采集配置“部分，可选择 MQTT 协议的版本，目前支持 3.1，3.1.1，5.0 三个版本；配置 Client ID 时要注意，如果对同一个 MQTT broker 创建了多个任务，Client ID 应不同，否则会造成 Client ID 冲突，导致任务无法正常运行；在对主题和 QoS 进行配置时，需要使用 `<topic name>::<QoS>` 的形式，即订阅的主题与 QoS 之间要使用两个冒号分隔，其中 QoS 的取值范围为 0，1，2，分别代表 at most once，at lease once，exactly once；配置完成以上信息后，可以点击“检查连通性”按钮，对以上配置进行检查，如果连通性检查失败，请按照页面上返回的具体错误提示进行修改；
 7. 在从 MQTT broker 同步数据的过程中，taosX 还支持对消息体中的字段进行提取，过滤、映射等操作。在位于“Payload 转换”下方的文本框中，可以直接输入输入消息体样例，或是以上传文件的方式导入，以后还会支持直接从所配置的服务器中检索样例消息；
 8. 对消息体字段的提取，目前支持 2 种方式：JSON 和正则表达式。对于简单的 key/value 格式的 JSON 数据，可以直接点击提取按钮，即可展示解析出的字段名；对于复杂的 JSON 数据，可以使用 JSON Path 提取感兴趣的字段；当使用正则表达式提取字段时，要保证正则表达式的正确性；
@@ -323,13 +330,17 @@ between_time_range(ts, -604800, 0)
 
 在任务管理列表展示中，有如下状态：
 
-- Ready：数据源和目标端健康检查通过，可以进行数据读取和写入。
-- Idle：表示监测时段内无数据处理（没有数据进入处理流程）。
-- Busy：表示写入队列已满（超出一定阈值，表示写入繁忙，在一定程度上意味着当前可能存在性能瓶颈，需要调整参数或配置等来进行改善，但并不说明存在错误）。
-- Bounce：数据源和目标端均正常，但在写入过程中存在错误，一定周期内超出阈值，可能意味着存在大量非正常数据或正在发生数据丢失。
-- SourceError: 数据源错误导致无法进行读取。此时工作负载将尝试重连数据源。
-- SinkError：写入端错误导致无法进行写入。此时工作负载将尝试重连数据库，恢复后进入 Ready 状态。
-- Fatal：严重或无法恢复的错误。
+* Ready：数据源和目标端健康检查通过，可以进行数据读取和写入。
+* Idle：表示监测时段内无数据处理（没有数据进入处理流程）。
+* Active: 表示任务正常运行且处于活跃状态。
+* Pending: 表示数据源正常，但写入端处于等待状态，当写入消息数为 0 时切换为此状态。
+* Busy：表示写入队列已满（超出一定阈值，表示写入繁忙，在一定程度上意味着当前可能存在性能瓶颈，需要调整参数或配置等来进行改善，但并不说明存在错误）。
+* Bounce：数据源和目标端均正常，但在写入过程中存在错误，一定周期内超出阈值，可能意味着存在大量非正常数据或正在发生数据丢失。
+* SourceError: 数据源错误导致无法进行读取。此时工作负载将尝试重连数据源。
+* SinkError：写入端错误导致无法进行写入。此时工作负载将尝试重连数据库，恢复后进入 Ready 状态。
+* Fatal：严重或无法恢复的错误。
+
+当健康状态为空时，表示尚未有数据开始入库。
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

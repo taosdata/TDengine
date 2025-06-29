@@ -386,6 +386,7 @@ An example structure for the notification message is shown below:
           "eventTime": 1733284887097,
           "windowId": "window-id-67890",
           "windowType": "Time",
+          "groupId": "2650968222368530754",
           "windowStart": 1733284800000
         },
         {
@@ -394,6 +395,7 @@ An example structure for the notification message is shown below:
           "eventTime": 1733284887197,
           "windowId": "window-id-67890",
           "windowType": "Time",
+          "groupId": "2650968222368530754",
           "windowStart": 1733284800000,
           "windowEnd": 1733284860000,
           "result": {
@@ -412,6 +414,7 @@ An example structure for the notification message is shown below:
           "eventTime": 1733284887231,
           "windowId": "window-id-13579",
           "windowType": "Event",
+          "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "triggerCondition": {
             "conditionIndex": 0,
@@ -427,12 +430,13 @@ An example structure for the notification message is shown below:
           "eventTime": 1733284887231,
           "windowId": "window-id-13579",
           "windowType": "Event",
+          "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "windowEnd": 1733284810000,
           "triggerCondition": {
             "conditionIndex": 1,
             "fieldValue": {
-              "c1": 20
+              "c1": 20,
               "c2": 3
             }
           },
@@ -467,10 +471,11 @@ The following sections explain the fields in the notification message.
 These fields are common to all event objects.
 
 1. "tableName": A string indicating the name of the target subtable.
-2. "eventType": A string representing the event type ("WINDOW_OPEN", "WINDOW_CLOSE", or "WINDOW_INVALIDATION").
-3. "eventTime": A long integer timestamp that indicates when the event was generated, accurate to the millisecond (i.e., the number of milliseconds since '00:00, Jan 1 1970 UTC').
-4. "windowId": A string representing the unique identifier for the window. This ID ensures that the open and close events for the same window can be correlated. In the case that taosd restarts due to a fault, some events may be sent repeatedly, but the windowId remains constant for the same window.
-5. "windowType": A string that indicates the window type ("Time", "State", "Session", "Event", or "Count").
+1. "eventType": A string representing the event type ("WINDOW_OPEN", "WINDOW_CLOSE", or "WINDOW_INVALIDATION").
+1. "eventTime": A long integer timestamp that indicates when the event was generated, accurate to the millisecond (i.e., the number of milliseconds since '00:00, Jan 1 1970 UTC').
+1. "windowId": A string representing the unique identifier for the window. This ID ensures that the open and close events for the same window can be correlated. In the case that taosd restarts due to a fault, some events may be sent repeatedly, but the windowId remains constant for the same window.
+1. "windowType": A string that indicates the window type ("Time", "State", "Session", "Event", or "Count").
+1. "groupId": A string that uniquely identifies the corresponding group. If stream is partitioned by table, it matches the uid of that table.
 
 #### Fields for Time Windows
 

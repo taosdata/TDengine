@@ -99,6 +99,7 @@ extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfRpcSessions;
 extern int32_t tsShareConnLimit;
 extern int32_t tsReadTimeout;
+extern int8_t  tsEnableIpv6;
 extern int32_t tsTimeToGetAvailableConn;
 extern int32_t tsNumOfCommitThreads;
 extern int32_t tsNumOfTaskQueueThreads;
@@ -127,6 +128,7 @@ extern int32_t tsHeartbeatTimeout;
 extern int32_t tsSnapReplMaxWaitN;
 extern int64_t tsLogBufferMemoryAllowed;  // maximum allowed log buffer size in bytes for each dnode
 extern int32_t tsRoutineReportInterval;
+extern bool    tsSyncLogHeartbeat;
 
 // arbitrator
 extern int32_t tsArbHeartBeatIntervalSec;
@@ -148,6 +150,7 @@ extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;
 extern bool    tsMndSkipGrant;
 extern bool    tsEnableWhiteList;
+extern bool    tsForceKillTrans;
 
 // dnode
 extern int64_t tsDndStart;
