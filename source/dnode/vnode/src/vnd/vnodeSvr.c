@@ -330,7 +330,12 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     }
 
     for (int32_t iRow = 0; iRow < colData.nVal; iRow++) {
+#ifndef NO_UNALIGNED_ACCESS
       if (((TSKEY *)colData.pData)[iRow] < minKey || ((TSKEY *)colData.pData)[iRow] > maxKey) {
+#else
+      TSKEY tsKey = taosGetInt64Aligned((TSKEY *)colData.pData + iRow);
+      if (tsKey < minKey || tsKey > maxKey) {
+#endif
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
         TSDB_CHECK_CODE(code, lino, _exit);
       }

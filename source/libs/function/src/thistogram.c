@@ -64,13 +64,13 @@ SHistogramInfo* tHistogramCreateFrom(void* pBuf, int32_t numOfBins) {
   SHistogramInfo* pHisto = (SHistogramInfo*)pBuf;
   pHisto->elems = (SHistBin*)((char*)pBuf + sizeof(SHistogramInfo));
   for (int32_t i = 0; i < numOfBins; ++i) {
-    pHisto->elems[i].val = -DBL_MAX;
+    taosSetLDoubleAlignedx(pHisto->elems[i].val, -DBL_MAX);
   }
 
   pHisto->maxEntries = numOfBins;
 
-  pHisto->min = DBL_MAX;
-  pHisto->max = -DBL_MAX;
+  taosSetLDoubleAlignedx(pHisto->min, DBL_MAX);
+  taosSetLDoubleAlignedx(pHisto->max, -DBL_MAX);
 
   return pBuf;
 }

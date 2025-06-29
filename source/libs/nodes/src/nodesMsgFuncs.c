@@ -373,7 +373,12 @@ static int32_t tlvDecodeValueI32(STlvDecoder* pDecoder, int32_t* pValue) {
 static int32_t tlvDecodeI64(STlv* pTlv, int64_t* pValue) {
   int32_t code = tlvDecodeImpl(pTlv, pValue, sizeof(*pValue));
   if (TSDB_CODE_SUCCESS == code) {
+#ifndef NO_UNALIGNED_ACCESS
     *pValue = ntohll(*pValue);
+#else
+    int64_t value = taosGetInt64Aligned(pValue);
+    taosSetInt64Aligned(pValue, ntohll(value));
+#endif
   }
   return code;
 }

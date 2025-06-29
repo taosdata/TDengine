@@ -656,7 +656,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid bigint data", pToken->z);
       }
-      val->i64 = iv;
+      taosSetInt64Aligned((int64_t*)(&val->i64), iv);
       break;
     }
 
@@ -665,7 +665,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned bigint data", pToken->z);
       }
-      *(uint64_t*)(&val->i64) = uv;
+      taosSetUInt64Aligned((uint64_t*)(&val->i64), uv);
       break;
     }
 
@@ -678,7 +678,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
       if (dv > FLT_MAX || dv < -FLT_MAX || isinf(dv) || isnan(dv)) {
         return buildSyntaxErrMsg(pMsgBuf, "illegal float data", pToken->z);
       }
-      *(float*)(&val->i64) = dv;
+      taosSetFloatAligned((float*)(&val->i64), dv);
       break;
     }
 
@@ -692,7 +692,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
         return buildSyntaxErrMsg(pMsgBuf, "illegal double data", pToken->z);
       }
 
-      *(double*)(&val->i64) = dv;
+      taosSetDoubleAligned((double*)(&val->i64), dv);
       break;
     }
 
@@ -766,7 +766,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp", pToken->z);
       }
 
-      val->i64 = iv;
+      taosSetInt64Aligned((int64_t*)(&val->i64), iv);
       break;
     }
   }

@@ -307,7 +307,7 @@ static FORCE_INLINE bool validateTm(struct tm* pTm) {
 }
 
 int32_t parseLocaltimeDst(char* timestr, int32_t len, int64_t* utime, int32_t timePrec, char delim, timezone_t tz) {
-  *utime = 0;
+  taosSetInt64Aligned(utime, 0);
   struct tm tm = {0};
   tm.tm_isdst = -1;
 
@@ -336,7 +336,7 @@ int32_t parseLocaltimeDst(char* timestr, int32_t len, int64_t* utime, int32_t ti
     TAOS_CHECK_RETURN(parseFraction(str + 1, &str, timePrec, &fraction));
   }
 
-  *utime = TSDB_TICK_PER_SECOND(timePrec) * seconds + fraction;
+  taosSetInt64Aligned(utime, TSDB_TICK_PER_SECOND(timePrec) * seconds + fraction);
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 

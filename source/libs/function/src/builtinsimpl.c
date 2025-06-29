@@ -106,6 +106,25 @@ typedef enum {
     }                                                                    \
   } while (0)
 
+#define LIST_ADD_TYPE_N(_res, _col, _start, _rows, _t, numOfElem, _resType, _resFunc) \
+  do {                                                                                \
+    _t* d = (_t*)(_col->pData);                                                       \
+    for (int32_t i = (_start); i < (_rows) + (_start); ++i) {                         \
+      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) {              \
+        continue;                                                                     \
+      };                                                                              \
+      _resFunc(&(_res), (_resType)(d)[i]);                                            \
+      (numOfElem)++;                                                                  \
+    }                                                                                 \
+  } while (0)
+
+#define LIST_ADD_INT64_N(_res, _col, _start, _rows, _t, numOfElem) \
+  LIST_ADD_TYPE_N(_res, _col, _start, _rows, _t, numOfElem, int64_t, taosAddInt64Aligned)
+#define LIST_ADD_UINT64_N(_res, _col, _start, _rows, _t, numOfElem) \
+  LIST_ADD_TYPE_N(_res, _col, _start, _rows, _t, numOfElem, uint64_t, taosAddUInt64Aligned)
+#define LIST_ADD_DOUBLE_N(_res, _col, _start, _rows, _t, numOfElem) \
+  LIST_ADD_TYPE_N(_res, _col, _start, _rows, _t, numOfElem, double, taosAddDoubleAligned)
+
 #define LIST_ADD_DECIMAL_N(_res, _col, _start, _rows, _t, numOfElem)                                  \
   do {                                                                                                \
     _t*                d = (_t*)(_col->pData);                                                        \
@@ -583,7 +602,7 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
   int32_t type = pInput->pData[0]->info.type;
 
   char*   buf = GET_ROWCELL_INTERBUF(pResInfo);
-  int64_t val = *((int64_t*)buf);
+  int64_t val = taosGetPInt64Alignedx(buf);
   if (IS_NULL_TYPE(type)) {
     // select count(NULL) returns 0
     numOfElem = 1;
@@ -592,7 +611,7 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
     numOfElem = getNumOfElems(pCtx);
     val += numOfElem;
   }
-  taosSetInt64Aligned((int64_t*)buf, val);
+  taosPSetInt64Alignedx(buf, val);
 
   if (tsCountAlwaysReturnValue) {
     pResInfo->numOfRes = 1;
@@ -671,28 +690,28 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
 
     if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
       if (type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_BOOL) {
-        LIST_ADD_N(SUM_RES_GET_ISUM(pSumRes), pCol, start, numOfRows, int8_t, numOfElem);
+        LIST_ADD_INT64_N(SUM_RES_GET_ISUM(pSumRes), pCol, start, numOfRows, int8_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_SMALLINT) {
-        LIST_ADD_N(SUM_RES_GET_ISUM(pSumRes), pCol, start, numOfRows, int16_t, numOfElem);
+        LIST_ADD_INT64_N(SUM_RES_GET_ISUM(pSumRes), pCol, start, numOfRows, int16_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_INT) {
-        LIST_ADD_N(SUM_RES_GET_ISUM(pSumRes), pCol, start, numOfRows, int32_t, numOfElem);
+        LIST_ADD_INT64_N(SUM_RES_GET_ISUM(pSumRes), pCol, start, numOfRows, int32_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_BIGINT) {
-        LIST_ADD_N(SUM_RES_GET_ISUM(pSumRes), pCol, start, numOfRows, int64_t, numOfElem);
+        LIST_ADD_INT64_N(SUM_RES_GET_ISUM(pSumRes), pCol, start, numOfRows, int64_t, numOfElem);
       }
     } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
       if (type == TSDB_DATA_TYPE_UTINYINT) {
-        LIST_ADD_N(SUM_RES_GET_USUM(pSumRes), pCol, start, numOfRows, uint8_t, numOfElem);
+        LIST_ADD_UINT64_N(SUM_RES_GET_USUM(pSumRes), pCol, start, numOfRows, uint8_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_USMALLINT) {
-        LIST_ADD_N(SUM_RES_GET_USUM(pSumRes), pCol, start, numOfRows, uint16_t, numOfElem);
+        LIST_ADD_UINT64_N(SUM_RES_GET_USUM(pSumRes), pCol, start, numOfRows, uint16_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_UINT) {
-        LIST_ADD_N(SUM_RES_GET_USUM(pSumRes), pCol, start, numOfRows, uint32_t, numOfElem);
+        LIST_ADD_UINT64_N(SUM_RES_GET_USUM(pSumRes), pCol, start, numOfRows, uint32_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_UBIGINT) {
-        LIST_ADD_N(SUM_RES_GET_USUM(pSumRes), pCol, start, numOfRows, uint64_t, numOfElem);
+        LIST_ADD_UINT64_N(SUM_RES_GET_USUM(pSumRes), pCol, start, numOfRows, uint64_t, numOfElem);
       }
     } else if (type == TSDB_DATA_TYPE_DOUBLE) {
-      LIST_ADD_N(SUM_RES_GET_DSUM(pSumRes), pCol, start, numOfRows, double, numOfElem);
+      LIST_ADD_DOUBLE_N(SUM_RES_GET_DSUM(pSumRes), pCol, start, numOfRows, double, numOfElem);
     } else if (type == TSDB_DATA_TYPE_FLOAT) {
-      LIST_ADD_N(SUM_RES_GET_DSUM(pSumRes), pCol, start, numOfRows, float, numOfElem);
+      LIST_ADD_DOUBLE_N(SUM_RES_GET_DSUM(pSumRes), pCol, start, numOfRows, float, numOfElem);
     } else if (IS_DECIMAL_TYPE(type)) {
       SUM_RES_SET_TYPE(pSumRes, pCtx->inputType, TSDB_DATA_TYPE_DECIMAL);
       int32_t overflow = false;
@@ -706,7 +725,8 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
   }
 
   // check for overflow
-  if (IS_FLOAT_TYPE(type) && (isinf(SUM_RES_GET_DSUM(pSumRes)) || isnan(SUM_RES_GET_DSUM(pSumRes)))) {
+  if (IS_FLOAT_TYPE(type) && (isinf(taosGetDoubleAlignedx(SUM_RES_GET_DSUM(pSumRes))) ||
+                              isnan(taosGetDoubleAlignedx(SUM_RES_GET_DSUM(pSumRes))))) {
     numOfElem = 0;
   }
 
@@ -2089,7 +2109,7 @@ int32_t apercentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pRes
   SAPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
 
   SVariant* pVal = &pCtx->param[1].param;
-  pInfo->percent = 0;
+  taosSetLDoubleAlignedx(pInfo->percent, 0);
   GET_TYPED_DATA(pInfo->percent, double, pVal->nType, &pVal->i, typeGetTypeModFromCol(pCtx->param[1].pCol));
 
   if (pCtx->numOfParams == 2) {
@@ -2407,9 +2427,10 @@ EFuncDataRequired firstDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
     } else {
       pResult->pkData = NULL;
     }
-    if (pResult->ts < pBlockInfo->window.skey) {
+    int64_t rts = taosGetInt64Aligned(&pResult->ts);
+    if (rts < pBlockInfo->window.skey) {
       return FUNC_DATA_REQUIRED_NOT_LOAD;
-    } else if (pResult->ts == pBlockInfo->window.skey) {
+    } else if (rts == pBlockInfo->window.skey) {
       if (NULL == pResult->pkData) {
         return FUNC_DATA_REQUIRED_NOT_LOAD;
       }
@@ -2479,7 +2500,7 @@ static FORCE_INLINE TSKEY getRowPTs(SColumnInfoData* pTsColInfo, int32_t rowInde
     return 0;
   }
 
-  return *(TSKEY*)colDataGetData(pTsColInfo, rowIndex);
+  return (TSKEY)taosGetPInt64Alignedx(colDataGetData(pTsColInfo, rowIndex));
 }
 
 int32_t firstLastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
@@ -2556,7 +2577,7 @@ static int32_t doSaveCurrentVal(SqlFunctionCtx* pCtx, int32_t rowIndex, int64_t 
     pInfo->pkData = pInfo->buf + pInfo->bytes;
   }
 
-  pInfo->ts = currentTs;
+  taosSetInt64Aligned(&pInfo->ts, currentTs);
   int32_t code = firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pInfo, false);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -2678,8 +2699,8 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
       pkData = colDataGetData(pkCol, i);
     }
     TSKEY cts = pts[i];
-    if (pResInfo->numOfRes == 0 || pInfo->ts > cts ||
-        (pInfo->ts == cts && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
+    TSKEY pts = taosGetInt64Aligned(&pInfo->ts);
+    if (pResInfo->numOfRes == 0 || pts > cts || (pts == cts && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
       int32_t code = doSaveCurrentVal(pCtx, i, cts, pkData, pInputCol->info.type, data);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -2782,7 +2803,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   }
 #else
   int64_t* pts = (int64_t*)pInput->pPTS->pData;
-
+  int64_t  rts = taosGetInt64Aligned(&pInfo->ts);
 #if 0
     for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
       if (pInputCol->hasNull && colDataIsNull(pInputCol, pInput->totalRows, i, pColAgg)) {
@@ -2824,7 +2845,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
         chosen = i + 3;
       }
 
-      if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
+      if (pResInfo->numOfRes == 0 || rts < cts) {
         char*   data = colDataGetData(pInputCol, chosen);
         int32_t code = doSaveCurrentVal(pCtx, chosen, cts, NULL, type, data);
         if (code != TSDB_CODE_SUCCESS) {
@@ -2857,8 +2878,8 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       if (pCtx->hasPrimaryKey) {
         pkData = colDataGetData(pkCol, i);
       }
-      if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i] ||
-          (pInfo->ts == pts[i] && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
+      if (pResInfo->numOfRes == 0 || rts < pts[i] ||
+          (rts == pts[i] && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
         char*   data = colDataGetData(pInputCol, i);
         int32_t code = doSaveCurrentVal(pCtx, i, pts[i], pkData, type, data);
         if (code != TSDB_CODE_SUCCESS) {
@@ -3101,7 +3122,7 @@ static int32_t doSaveLastrow(SqlFunctionCtx* pCtx, char* pData, int32_t rowIndex
     (void)memcpy(pInfo->buf + pInfo->bytes, pkData, pInfo->pkBytes);
     pInfo->pkData = pInfo->buf + pInfo->bytes;
   }
-  pInfo->ts = cts;
+  taosSetInt64Aligned(&pInfo->ts, cts);
   int32_t code = firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pInfo, false);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -3160,9 +3181,10 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
       bool  isNull = colDataIsNull(pInputCol, pInput->numOfRows, i, NULL);
       char* data = isNull ? NULL : colDataGetData(pInputCol, i);
       TSKEY cts = getRowPTs(pInput->pPTS, i);
+      TSKEY its = taosGetInt64Aligned(&pInfo->ts);
       numOfElems++;
 
-      if (pResInfo->numOfRes == 0 || pInfo->ts < cts) {
+      if (pResInfo->numOfRes == 0 || its < cts) {
         int32_t code = doSaveLastrow(pCtx, data, i, cts, pInfo);
         if (code != TSDB_CODE_SUCCESS) return code;
       }
@@ -3175,15 +3197,16 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
     while (funcInputGetNextRowIndex(pInput, from, false, &i, &from)) {
       bool  isNull = colDataIsNull(pInputCol, pInput->numOfRows, i, NULL);
       char* data = isNull ? NULL : colDataGetData(pInputCol, i);
-      TSKEY cts = pts[i];
-
+      TSKEY cts = taosGetInt64Aligned(pts + i);
+      TSKEY its = taosGetInt64Aligned(&pInfo->ts);
+      
       numOfElems++;
       char* pkData = NULL;
       if (pCtx->hasPrimaryKey) {
         pkData = colDataGetData(pkCol, i);
       }
-      if (pResInfo->numOfRes == 0 || pInfo->ts < cts ||
-          (pInfo->ts == pts[i] && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
+      if (pResInfo->numOfRes == 0 || its < cts ||
+          (its == cts && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
         int32_t code = doSaveLastrow(pCtx, data, i, cts, pInfo);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
@@ -3930,7 +3953,7 @@ static int32_t doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, 
     releaseBufPage(pHandle->pBuf, pPage);
   } else {  // other tuple save policy
     if (pStore->streamStateFuncPut(pHandle->pState, key, pBuf, length) >= 0) {
-      p.streamTupleKey = *key;
+      TAOS_SET_POBJ_ALIGNED(&p.streamTupleKey, key);
     }
   }
 
@@ -3954,7 +3977,7 @@ int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock*
       return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
     }
     key.groupId = pSrcBlock->info.id.groupId;
-    key.ts = *(int64_t*)colDataGetData(pColInfo, rowIndex);
+    key.ts = taosGetPInt64Alignedx(colDataGetData(pColInfo, rowIndex));
     key.numInGroup = pCtx->pExpr->pExpr->_function.bindExprID;
   }
 
@@ -4156,8 +4179,8 @@ int32_t spreadFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultIn
   }
 
   SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
-  SET_DOUBLE_VAL(&pInfo->min, DBL_MAX);
-  SET_DOUBLE_VAL(&pInfo->max, -DBL_MAX);
+  taosSetLDoubleAlignedx(pInfo->min, DBL_MAX);
+  taosSetLDoubleAlignedx(pInfo->max, -DBL_MAX);
   pInfo->hasResult = false;
   return TSDB_CODE_SUCCESS;
 }
@@ -5243,10 +5266,10 @@ int32_t stateCountFunction(SqlFunctionCtx* pCtx) {
   }
 
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-    if (pInfo->isPrevTsSet == true && tsList[i] == pInfo->prevTs) {
+    if (pInfo->isPrevTsSet == true && tsList[i] == taosGetInt64Alignedx(pInfo->prevTs)) {
       return TSDB_CODE_FUNC_DUP_TIMESTAMP;
     } else {
-      pInfo->prevTs = tsList[i];
+      taosSetLInt64Alignedx(pInfo->prevTs, tsList[i]);
     }
 
     pInfo->isPrevTsSet = true;
@@ -5268,9 +5291,15 @@ int32_t stateCountFunction(SqlFunctionCtx* pCtx) {
 
     int64_t output = -1;
     if (ret) {
+#ifndef NO_UNALIGNED_ACCESS
       output = ++pInfo->count;
+#else
+      int64_t count = taosGetInt64Alignedx(pInfo->count);
+      output = ++count;
+      taosSetInt64Alignedx(pInfo->count, count);
+#endif
     } else {
-      pInfo->count = 0;
+      taosSetLInt64Alignedx(pInfo->count, 0);
     }
     code = colDataSetVal(pOutput, pCtx->offset + numOfElems - 1, (char*)&output, false);
     if (TSDB_CODE_SUCCESS != code) {
@@ -6871,10 +6900,10 @@ int32_t irateFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
 
   SRateInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  pInfo->firstKey = INT64_MIN;
-  pInfo->lastKey = INT64_MIN;
-  pInfo->firstValue = (double)INT64_MIN;
-  pInfo->lastValue = (double)INT64_MIN;
+  taosSetLInt64Alignedx(pInfo->firstKey, INT64_MIN);
+  taosSetLInt64Alignedx(pInfo->lastKey, INT64_MIN);
+  taosSetLDoubleAlignedx(pInfo->firstValue, INT64_MIN);
+  taosSetLDoubleAlignedx(pInfo->lastValue, INT64_MIN);
 
   pInfo->hasResult = 0;
   return TSDB_CODE_SUCCESS;
@@ -6882,8 +6911,8 @@ int32_t irateFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
 
 static void doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, char* pk, double v) {
   if (isFirst) {
-    pRateInfo->firstValue = v;
-    pRateInfo->firstKey = ts;
+    taosSetDoubleAlignedx(pRateInfo->firstValue, v);
+    taosSetInt64Alignedx(pRateInfo->firstKey, ts);
     if (pRateInfo->firstPk) {
       int32_t pkBytes;
       if (IS_VAR_DATA_TYPE(pRateInfo->pkType)) {
@@ -6898,8 +6927,8 @@ static void doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, char*
       (void)memcpy(pRateInfo->firstPk, pk, pkBytes);
     }
   } else {
-    pRateInfo->lastValue = v;
-    pRateInfo->lastKey = ts;
+    taosSetDoubleAlignedx(pRateInfo->lastValue, v);
+    taosSetInt64Alignedx(pRateInfo->lastKey, ts);
     if (pRateInfo->lastPk) {
       int32_t pkBytes;
       if (IS_VAR_DATA_TYPE(pRateInfo->pkType)) {
@@ -6967,25 +6996,27 @@ int32_t irateFunction(SqlFunctionCtx* pCtx) {
     double v = 0;
     GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
 
-    if (INT64_MIN == pRateInfo->lastKey) {
+    int64_t firstKey = taosGetInt64Alignedx(pRateInfo->firstKey);
+    int64_t lastKey = taosGetInt64Alignedx(pRateInfo->lastKey);
+    if (INT64_MIN == lastKey) {
       doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);
       pRateInfo->hasResult = 1;
       continue;
     }
 
-    if (row.ts > pRateInfo->lastKey) {
-      if ((INT64_MIN == pRateInfo->firstKey) || pRateInfo->lastKey > pRateInfo->firstKey) {
-        doSaveRateInfo(pRateInfo, true, pRateInfo->lastKey, pRateInfo->lastPk, pRateInfo->lastValue);
+    if (row.ts > lastKey) {
+      if ((INT64_MIN == firstKey) || lastKey > firstKey) {
+        doSaveRateInfo(pRateInfo, true, lastKey, pRateInfo->lastPk, taosGetDoubleAlignedx(pRateInfo->lastValue));
       }
       doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);
       continue;
-    } else if (row.ts == pRateInfo->lastKey) {
+    } else if (row.ts == lastKey) {
       return TSDB_CODE_FUNC_DUP_TIMESTAMP;
     }
 
-    if ((INT64_MIN == pRateInfo->firstKey) || row.ts > pRateInfo->firstKey) {
+    if ((INT64_MIN == firstKey) || row.ts > firstKey) {
       doSaveRateInfo(pRateInfo, true, row.ts, row.pPk, v);
-    } else if (row.ts == pRateInfo->firstKey) {
+    } else if (row.ts == firstKey) {
       return TSDB_CODE_FUNC_DUP_TIMESTAMP;
     }
   }
@@ -6997,20 +7028,22 @@ int32_t irateFunction(SqlFunctionCtx* pCtx) {
 }
 
 static double doCalcRate(const SRateInfo* pRateInfo, double tickPerSec) {
-  if ((INT64_MIN == pRateInfo->lastKey) || (INT64_MIN == pRateInfo->firstKey) ||
-      (pRateInfo->firstKey >= pRateInfo->lastKey)) {
+  int64_t firstKey = taosGetInt64Alignedx(pRateInfo->firstKey);
+  int64_t lastKey = taosGetInt64Alignedx(pRateInfo->lastKey);
+
+  if ((INT64_MIN == lastKey) || (INT64_MIN == firstKey) || (firstKey >= lastKey)) {
     return 0.0;
   }
 
   double diff = 0;
   // If the previous value of the last is greater than the last value, only keep the last point instead of the delta
   // value between two values.
-  diff = pRateInfo->lastValue;
-  if (diff >= pRateInfo->firstValue) {
-    diff -= pRateInfo->firstValue;
+  diff = taosGetDoubleAlignedx(pRateInfo->lastValue);
+  if (diff >= taosGetDoubleAlignedx(pRateInfo->firstValue)) {
+    diff -= taosGetDoubleAlignedx(pRateInfo->firstValue);
   }
 
-  int64_t duration = pRateInfo->lastKey - pRateInfo->firstKey;
+  int64_t duration = lastKey - firstKey;
   if (duration == 0) {
     return 0;
   }
