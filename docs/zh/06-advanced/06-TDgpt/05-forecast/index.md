@@ -165,5 +165,5 @@ select _frowts, forecast(val, past_co_val, future_co_val, "algo=moirai,rows=4,dy
 - PatchTST (Patch Time Series Transformer)
 - Temporal Fusion Transformer
 - TimesNet
-
+- [Prophet](./05-prophet.md)
 
