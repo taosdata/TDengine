@@ -943,14 +943,14 @@ static void vnodeGetBufferInfo(SVnode *pVnode, int64_t *bufferSegmentUsed, int64
   *bufferSegmentUsed = 0;
   *bufferSegmentSize = 0;
   if (pVnode) {
-    taosThreadMutexLock(&pVnode->mutex);
+    (void)taosThreadMutexLock(&pVnode->mutex);
 
     if (pVnode->inUse) {
       *bufferSegmentUsed = pVnode->inUse->size;
     }
     *bufferSegmentSize = pVnode->config.szBuf / VNODE_BUFPOOL_SEGMENTS;
 
-    taosThreadMutexUnlock(&pVnode->mutex);
+    (void)taosThreadMutexUnlock(&pVnode->mutex);
   }
 }
 
@@ -972,7 +972,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   VNODE_DO_META_QUERY(pVnode, pLoad->numOfTables = metaGetTbNum(pVnode->pMeta));
   VNODE_DO_META_QUERY(pVnode, pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1));
   pLoad->totalStorage = (int64_t)3 * 1073741824;  // TODO
-  vnodeGetCompStorage(pVnode, &pLoad->compStorage);
+  (void)vnodeGetCompStorage(pVnode, &pLoad->compStorage);
   pLoad->pointsWritten = 100;
   pLoad->numOfSelectReqs = 1;
   pLoad->numOfInsertReqs = atomic_load_64(&pVnode->statis.nInsert);
