@@ -26,6 +26,7 @@ extern "C" {
 #endif
 
 typedef struct SSTriggerVirTableInfo {
+  int64_t tbGid;
   int64_t tbUid;
   int64_t tbVer;
   int32_t vgId;
@@ -63,6 +64,7 @@ typedef struct SSTriggerRealtimeGroup {
 
 typedef enum ESTriggerContextStatus {
   STRIGGER_CONTEXT_IDLE = 0,
+  STRIGGER_CONTEXT_GATHER_VTABLE_INFO,
   STRIGGER_CONTEXT_DETERMINE_BOUND,
   STRIGGER_CONTEXT_FETCH_META,
   STRIGGER_CONTEXT_ACQUIRE_REQUEST,
@@ -194,11 +196,18 @@ typedef struct SStreamTriggerTask {
   SSTriggerRealtimeContext *pRealtimeContext;
   SSHashObj                *pRealtimeStartVer;
   SSHashObj                *pHistoryCutoffTime;
+
+  SArray      *pVirCacheSlots;  // SArray<int32_t>
+  SSDataBlock *pVirDataBlock;
+  SArray      *pVirTableInfoRsp;  // SArray<VTableInfo>
+  SSHashObj   *pOrigTableCols;    // SSHashObj<dbname, SSHashObj<tbname, SSTriggerOrigTableInfo>>
+  SSHashObj   *pVirTableInfos;    // SSHashObj<tbUid, SSTriggerVirTableInfo>
+
   // calc request pool
   SRWLatch   calcPoolLock;
   SArray    *pCalcNodes;     // SArray<SSTriggerCalcNode>
   SSHashObj *pGroupRunning;  // SSHashObj<gid, bool[]>
-  
+
   // checkpoint
   bool isCheckpointReady;
 } SStreamTriggerTask;

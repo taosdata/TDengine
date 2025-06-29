@@ -795,10 +795,6 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     stError("failed to get next data from cache, err: %s, lineno:%d", terrMsg, lino);
   }
-  if (ppBlock != NULL && *ppBlock != NULL) {
-    stDebug("[get data cache] end, groupID:%" PRId64 ", start:%" PRId64 " end:%" PRId64 " block rows: %" PRId64 " next:%p",
-            pResult->groupId, pResult->reqStartTime, pResult->reqEndTime, (*ppBlock)->info.rows, *pIter);
-  }
   return code;
 }
 
