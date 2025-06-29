@@ -42,6 +42,8 @@ IF(TD_BUILD_TAOSA_INTERNAL)
   set(_ldflags_list
           "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}'"
           "-X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+          "-X 'github.com/taosdata/taosadapter/v3/version.CUS_NAME=${TAOSA_CUS_NAME}'"
+          "-X 'github.com/taosdata/taosadapter/v3/version.CUS_PROMPT=${TAOSA_CUS_PROMPT}'"
   )
   string(JOIN " " _cgo_cflags ${_cgo_cflags_list})
   string(JOIN " " _cgo_ldflags ${_cgo_ldflags_list})
