@@ -279,7 +279,7 @@ function install_anode_venv() {
   ${csudo}ln -sf ${venvDir} ${install_main_dir}/venv
 
   # build venv
-  ${csudo}python3.${python_minor_ver} -m venv ${venvDir}
+  python3.${python_minor_ver} -m venv ${venvDir}
 
   echo -e "active Python3 virtual env: ${venvDir}"
   source ${venvDir}/bin/activate
@@ -296,7 +296,7 @@ function install_anode_venv() {
   ${csudo}${venvDir}/bin/pip3 install flask
   ${csudo}${venvDir}/bin/pip3 install matplotlib
   ${csudo}${venvDir}/bin/pip3 install uwsgi
-  ${csudo}${venvDir}/bin/pip3 install torch --index-url https://download.pytorch.org/whl/cpu
+  ${csudo}${venvDir}/bin/pip3 install torch==2.3.1+cpu --index-url https://download.pytorch.org/whl/cpu
   ${csudo}${venvDir}/bin/pip3 install --upgrade keras
   ${csudo}${venvDir}/bin/pip3 install requests
   ${csudo}${venvDir}/bin/pip3 install taospy
