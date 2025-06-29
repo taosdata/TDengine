@@ -456,6 +456,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_WRITE_DISABLED,           "Vnode write is disabl
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_COLUMN_COMPRESS_ALREADY_EXIST,"Same with old param")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_TTL_FLUSH_INCOMPLETION,   "Failed to flush all ttl modification to tdb")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ALREADY_EXIST_BUT_NOT_MATCH,   "Vnode already exist but Dbid not match")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_VNODE_OFFLINE,            "Vnode is offline")
 
 
 // tsdb
@@ -531,6 +532,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED,      "Query memory exhauste
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NO_FETCH_TIMEOUT,         "Timeout for long time no fetch")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_SUCC_TO_PARTSUSS,    "Change task status from success to partial success")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_MEMORY_POOL_NOT_INITIALIZED, "Memory pool not initialized")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_MEMORY_POOL_MEMORY_NOT_ENOUGH, "Alter minReservedMemorySize failed since no enough system available memory")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
@@ -596,6 +598,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SYN_WRONG_REF,                "Sync got a wrong ref"
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_ID,               "Sync invalid id")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_RETURN_VALUE_NULL,        "Sync got a null return")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_WRONG_ROLE,               "Sync got a wrong role")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_IN_RAFT_GROUP,        "Sync not in raft group")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TERM_NOT_MATCH,           "Sync term not match current term")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INTERNAL_ERROR,           "Sync internal error")
 
 //tq

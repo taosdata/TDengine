@@ -94,6 +94,7 @@ typedef struct {
   int8_t        shareConn;
   int8_t        startReadTimer;
   int64_t       readTimeout;
+  int8_t        ipv6;
   TdThreadMutex mutex;
 } SRpcInfo;
 #else

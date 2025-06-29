@@ -82,11 +82,13 @@ show dnodes;
 
 In the logs, please confirm that the fqdn and port of the output dnode are consistent with the endpoint you just tried to add. If they are not consistent, correct it to the correct endpoint. By following the steps above, you can continuously add new dnodes to the cluster one by one, thereby expanding the scale of the cluster and improving overall performance. Make sure to follow the correct process when adding new nodes, which helps maintain the stability and reliability of the cluster.
 
-**Tips**
+:::note
 
 - Any dnode that has joined the cluster can serve as the firstEp for subsequent nodes to be added. The firstEp parameter only functions when that dnode first joins the cluster. After joining, the dnode will save the latest mnode's endpoint list, and subsequently, it no longer depends on this parameter. The firstEp parameter in the configuration file is mainly used for client connections, and if no parameters are set for TDengine CLI, it will default to connecting to the node specified by firstEp.
 - Two dnodes that have not configured the firstEp parameter will run independently after starting. At this time, it is not possible to join one dnode to another to form a cluster.
 - TDengine does not allow merging two independent clusters into a new cluster.
+
+:::
 
 ### 7. Adding mnode
 
@@ -98,13 +100,15 @@ create mnode on dnode <dnodeId>
 
 Please note to replace the dnodeId in the example above with the serial number of the newly created dnode (which can be obtained by executing the `show dnodes` command). Finally, execute the following `show mnodes` to see if the newly created mnode has successfully joined the cluster.
 
-**Tips**
+:::note
 
 During the process of setting up a TDengine cluster, if a new node always shows as offline after executing the create dnode command to add a new node, please follow these steps for troubleshooting.
 
 - Step 1, check whether the taosd service on the new node has started normally. You can confirm this by checking the log files or using the ps command.
 - Step 2, if the taosd service has started, next check whether the new node's network connection is smooth and confirm whether the firewall has been turned off. Network issues or firewall settings may prevent the node from communicating with other nodes in the cluster.
 - Step 3, use the taos -h fqdn command to try to connect to the new node, then execute the show dnodes command. This will display the running status of the new node as an independent cluster. If the displayed list is inconsistent with that shown on the main node, it indicates that the new node may have formed a single-node cluster on its own. To resolve this issue, follow these steps. First, stop the taosd service on the new node. Second, clear all files in the dataDir directory specified in the taos.cfg configuration file on the new node. This will delete all data and configuration information related to that node. Finally, restart the taosd service on the new node. This will reset the new node to its initial state, ready to rejoin the main cluster.
+
+:::
 
 ## Deploying taosAdapter
 
@@ -114,11 +118,11 @@ This section discusses how to deploy taosAdapter, which provides RESTful and Web
 
 After the installation of TDengine Enterprise is complete, taosAdapter can be used. If you want to deploy taosAdapter on different servers, TDengine Enterprise needs to be installed on these servers.
 
-2. Single Instance Deployment
+1. Single Instance Deployment
 
 Deploying a single instance of taosAdapter is very simple. For specific commands and configuration parameters, please refer to the taosAdapter section in the manual.
 
-3. Multiple Instances Deployment
+1. Multiple Instances Deployment
 
 The main purposes of deploying multiple instances of taosAdapter are as follows:
 

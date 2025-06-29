@@ -31,19 +31,19 @@ Explanation:
   SHOW [db_name.]VIEWS;
   ```
 
-2. View the creation statement of a view
+1. View the creation statement of a view
 
   ```sql
   SHOW CREATE VIEW [db_name.]view_name;
   ```
 
-3. View column information of a view
+1. View column information of a view
 
   ```sql
   DESCRIBE [db_name.]view_name;
   ```
 
-4. View all views information
+1. View all views information
 
   ```sql
   SELECT ... FROM information_schema.ins_views;

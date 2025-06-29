@@ -359,3 +359,21 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 6   |  total_size   | BIGINT       | 文件组的总大小                          |
 | 7   | last_compact  | TIMESTAMP    | 最后一次压缩的时间                      |
 | 8   | should_compact | bool         | 是否需要压缩，true：需要，false：不需要 |
+
+## INS_VNODES
+
+提供系统中 vnode 的相关信息。属性为 0 的用户不能查看此表。
+
+| #   |   **Column Name**   | **Data Type** | **Description**       |
+| --- | :-----------------: | ------------- | --------------------- |
+| 1   |      dnode_id       | INT           | Dnode id              |
+| 2   |      vgroup_id      | INT           | Vgroup id             |
+| 3   |       db_name       | VARCHAR(66)   | 数据库名              |
+| 4   |       status        | VARCHAR(11)   | Vnode 状态            |
+| 5   |      role_time      | TIMESTAMP     | 最近的选举时间        |
+| 6   |     start_time      | TIMESTAMP     | Vnode 启动时间        |
+| 7   |      restored       | BOOL          | 是否恢复              |
+| 8   |  apply_finish_time  | VARCHAR(20)   | 恢复时间              |
+| 9   |      unapplied      | INT           | 未应用的请求个数      |
+| 10  | buffer_segment_used | BIGINT        | Buffer 段使用的字节数 |
+| 11  | buffer_segment_size | BIGINT        | Buffer 段总字节数     |

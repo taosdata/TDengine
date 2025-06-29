@@ -43,6 +43,8 @@ def pytest_addoption(parser):
                     help="Path to file containing list of test files to run")
     parser.addoption("--skip_stop", action="store_true",
                     help="Do not destroy/stop the TDengine cluster after test class execution (for debugging or keeping environment alive)")
+    parser.addoption("--only_deploy", action="store_true",
+                     help="Only deploy the environment without running any test cases")
     #parser.addoption("--setup_all", action="store_true",
     #                help="Setup environment once before all tests running")
 
@@ -183,7 +185,7 @@ def before_test_class(request):
     request.cls.mnode_nums = request.session.mnodes_num
     request.cls.restful = request.session.restful
     if request.session.restful:
-        request.cls.taosadapter = request.session.taosadapter
+        request.cls.taosadapter = request.session.adapter
     request.cls.set_taoskeeper = request.session.set_taoskeeper
     if request.session.set_taoskeeper:
         request.cls.taoskeeper = request.session.taoskeeper
@@ -673,6 +675,13 @@ def add_common_methods(request):
 
 
 def pytest_collection_modifyitems(config, items):
+    if config.getoption("--only_deploy"):
+        dummy_items = [item for item in items if "cases/dummy/" in str(item.fspath)]
+        deselected = [item for item in items if item not in dummy_items]
+        config.hook.pytest_deselected(items=deselected)
+        items[:] = dummy_items
+        return
+    
     tsim_path = config.getoption("--tsim")
     testlist_file = config.getoption("--testlist")
 

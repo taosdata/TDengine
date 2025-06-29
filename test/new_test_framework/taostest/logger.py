@@ -1,7 +1,7 @@
 import logging
 import sys
+import threading
 from logging import handlers
-import multiprocessing
 from ..utils.log import tdLog
 
 
@@ -71,7 +71,7 @@ class ThreadLogger():
 
     def start(self):
         # start log thread
-        self.t = multiprocessing.Process(target=self.work_thread, args=())
+        self.t = threading.Thread(target=self.work_thread, args=())
         self.t.start()
 
 

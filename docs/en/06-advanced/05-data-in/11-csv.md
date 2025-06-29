@@ -74,10 +74,9 @@ Click **Select File**, choose test-json.csv, then click **Parse** to preview the
 <Image img={imgStep04} alt=""/>
 </figure>
 
-**Preview Parsing Results**
-
 <figure>
 <Image img={imgStep05} alt=""/>
+<figcaption>Preview Parsing Results</figcaption>
 </figure>
 
 #### 4.2 Field Splitting

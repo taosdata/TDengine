@@ -371,7 +371,7 @@ The definition of timestamp resolution is defined in the `taosws.h` file, with d
 Note that the timestamp resolution parameter is only effective when the protocol type is `WS_SML_LINE_PROTOCOL`.
 For the OpenTSDB text protocol, the parsing of timestamps follows its official parsing rules — determined by the number of characters contained in the timestamp.
 
-**Other related schemaless interfaces**
+Other related schemaless interfaces:
 
 - `WS_RES *ws_schemaless_insert_raw_with_reqid(WS_TAOS *taos,
                                             const char *lines,
@@ -1104,7 +1104,7 @@ In addition to using SQL or parameter binding APIs to insert data, you can also 
   - **Return Value**: Returns a pointer to a TAOS_RES structure, which contains the results of the insert operation. Applications can obtain error information using `taos_errstr()`, or get the error code using `taos_errno()`. In some cases, the returned TAOS_RES may be `NULL`, in which case `taos_errno()` can still be safely called to obtain error code information.
   The returned TAOS_RES must be freed by the caller to avoid memory leaks.
 
-**Description**
+Description:
 
 - The above 7 interfaces are extension interfaces, mainly used for passing ttl and reqid parameters during schemaless writing, and can be used as needed.
 - Interfaces with _raw use the passed parameters lines pointer and length len to represent data, to solve the problem of data containing '\0' being truncated in the original interface. The totalRows pointer returns the number of data rows parsed.
@@ -1128,7 +1128,8 @@ In addition to using SQL or parameter binding APIs to insert data, you can also 
     - key: [Input] Configuration item key name.
     - value: [Input] Configuration item value.
   - **Return Value**: Returns a tmq_conf_res_t enum value, indicating the result of the configuration setting. tmq_conf_res_t defined as follows:
-    ```
+
+    ```cpp
     typedef enum tmq_conf_res_t {
          TMQ_CONF_UNKNOWN = -2,  // invalid key
          TMQ_CONF_INVALID = -1,  // invalid value

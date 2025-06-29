@@ -450,7 +450,7 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   code = taosAnalyBufClose(&analyBuf);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
-  pJson = taosAnalySendReqRetJson(pInfo->algoUrl, ANALYTICS_HTTP_TYPE_POST, &analyBuf, pInfo->timeout * 1000);
+  pJson = taosAnalySendReqRetJson(pInfo->algoUrl, ANALYTICS_HTTP_TYPE_POST, &analyBuf, pInfo->timeout);
   if (pJson == NULL) {
     code = terrno;
     goto _OVER;

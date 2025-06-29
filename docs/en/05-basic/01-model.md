@@ -83,9 +83,10 @@ To better understand the relationship between metrics, tags, supertables, and su
 
 The design of "one table per data collection point" and "supertables" addresses most challenges in time-series data management and analysis for industrial and IoT scenarios. However, in real-world scenarios, a single device often has multiple sensors with varying collection frequencies. For example, a wind turbine may have electrical parameters, environmental parameters, and mechanical parameters, each collected by different sensors at different intervals. This makes it difficult to describe a device with a single table, often requiring multiple tables. When analyzing data across multiple sensors, multi-level join queries become necessary, which can lead to usability and performance issues. From a user perspective, "one table per device" is more intuitive. However, directly implementing this model would result in excessive NULL values at each timestamp due to varying collection frequencies, reducing storage and query efficiency.
 
-To resolve this, TDengine introduces **Virtual Tables** (VTables). A virtual table is a logical entity that does not store physical data but enables analytical computations by dynamically combining columns from multiple source tables (subtables or regular tables). Like physical tables, virtual tables can be categorized into **virtual supertables**, **virtual subtables**, and **virtual regular tables**. A virtual supertable can represent a complete dataset for a device or group of devices, while each virtual subtable can flexibly reference columns from different sources. This allows users to define custom data views tailored to specific analytical needs, achieving a "personalized schema per user" effect. Virtual tables cannot be written to or deleted from but are queried like physical tables. The key distinction is that virtual table data is dynamically generated during queries—only columns referenced in a query are merged into the virtual table. Thus, the same virtual table may present entirely different datasets across different queries.
+To resolve this, TDengine introduces **Virtual Tables** (VTables). A virtual table is a logical entity that does not store physical data but enables analytical computations by dynamically combining columns from multiple source tables (subtables or regular tables). Like physical tables, virtual tables can be categorized into **virtual supertables**, **virtual subtables**, and **virtual regular tables**. A virtual supertable can represent a complete dataset for a device or group of devices, while each virtual subtable can flexibly reference columns from different sources. This allows users to define custom data views tailored to specific analytical needs, achieving a "personalized schema per user" effect. Virtual tables cannot be written to or deleted from but are queried like physical tables. The key distinction is that virtual table data is dynamically generated during queries; only columns referenced in a query are merged into the virtual table. Thus, the same virtual table may present entirely different datasets across different queries.
 
 **Key Features of Virtual Supertables:**
+
 1. **Column Selection & Merging**: Users can select specific columns from multiple source tables and combine them into a unified view.
 2. **Timestamp-Based Alignment**: Data is aligned by timestamp. If multiple tables have data at the same timestamp, their column values are merged into a single row. Missing values are filled with NULL.
 3. **Dynamic Updates**: Virtual tables automatically reflect changes in source tables, ensuring real-time data without physical storage.
@@ -250,6 +251,7 @@ Whether using single-column or multi-column models, TDengine enables cross-table
 ---
 
 #### 1. Single-Source Multi-Dimensional Time-Series Aggregation
+
 In this scenario, "single-source" refers to multiple **single-column time-series tables** from the **same data collection point**. While these tables are physically split due to business requirements or constraints, they maintain logical consistency through device tags and timestamps. Virtual tables restore "vertically" split data into a complete "horizontal" view of the collection point.
 For example, Suppose three supertables are created for current, voltage, and phase measurements using a single-column model. Virtual tables can aggregate these three measurements into one unified view.
 
@@ -439,6 +441,7 @@ Taking device d1001 as an example, assume that the current, voltage, and phase d
 ---
 
 #### 2. Cross-Source Metric Comparative Analysis
+
 In this scenario, "cross-source" refers to data from **different data collection points**. Virtual tables align and merge semantically comparable measurements from multiple devices for comparative analysis.
 For example, Compare current measurements across devices `d1001`, `d1002`, `d1003`, and `d1004`. The SQL statement to create the virtual table is as follows:
 

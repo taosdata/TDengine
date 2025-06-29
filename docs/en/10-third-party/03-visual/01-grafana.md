@@ -58,7 +58,7 @@ Save the script and execute `./install.sh --help` to view detailed help document
 </TabItem>
 <TabItem value="command" label="Command Line Tool">
 
-Use the [`grafana-cli` command line tool](https://grafana.com/docs/grafana/latest/administration/cli/) to install the plugin. After installation, Grafana needs to be restarted. 
+Use the [`grafana-cli` command line tool](https://grafana.com/docs/grafana/latest/administration/cli/) to install the plugin. After installation, Grafana needs to be restarted.
 
 On Linux or macOS, run the following command in your terminal:
 
@@ -71,6 +71,7 @@ sudo -u grafana grafana-cli --pluginUrl \
       https://www.tdengine.com/assets-download/grafana-plugin/tdengine-datasource.zip \
       plugins install tdengine-datasource
 ```
+
 On Windows, first ensure that the plugin installation directory exists (by default, it is located in the data/plugins subdirectory of your Grafana installation directory). Then, run the following command in the bin directory of the Grafana installation path using an administrator account:
 
 ```shell
@@ -294,9 +295,9 @@ As shown in the image above, select the `TDengine` data source in "Query", and e
 
 Suppose we want to query the average current size over a period of time, with the time window divided by `$interval`, and fill with null if data is missing in any time window.
 
-- “INPUT SQL”: Enter the query statement (the result set of this SQL statement should be two columns and multiple rows), here enter: `select _wstart as ts, avg(current) as current from power.meters where groupid in ($selected_groups) and ts > $from and ts < $to interval($interval) fill(null)`, where from, to, and interval are Grafana built-in variables, and selected_groups is a custom variable.
-- “ALIAS BY”: You can set an alias for the current query.
-- “GENERATE SQL”: Clicking this button will automatically replace the corresponding variables and generate the final execution statement.
+- "INPUT SQL": Enter the query statement (the result set of this SQL statement should be two columns and multiple rows), here enter: `select _wstart as ts, avg(current) as current from power.meters where groupid in ($selected_groups) and ts > $from and ts < $to interval($interval) fill(null)`, where from, to, and interval are Grafana built-in variables, and selected_groups is a custom variable.
+- "ALIAS BY": You can set an alias for the current query.
+- "GENERATE SQL": Clicking this button will automatically replace the corresponding variables and generate the final execution statement.
 
 In the custom variables at the top, if the value of `selected_groups` is set to 1, then querying the average value changes of all devices' current in the `meters` supertable with `groupid` 1 is shown in the following image:
 
@@ -314,8 +315,8 @@ Since the REST interface is stateless, you cannot use the `use db` statement to 
 
 Suppose we want to query the average current size over a period of time and display it grouped by `groupid`, we can modify the previous SQL to `select _wstart as ts, groupid, avg(current) as current from power.meters where ts > $from and ts < $to partition by groupid interval($interval) fill(null)`
 
-- “Group by column(s)”: Comma-separated `group by` or `partition by` column names in **half-width** commas. If it is a `group by` or `partition by` query statement, set the “Group by” column to display multidimensional data. Here, set the “Group by” column name as `groupid` to display data grouped by `groupid`.
-- “Group By Format”: Legend format for multidimensional data in `Group by` or `Partition by` scenarios. For example, in the above INPUT SQL, set the “Group By Format” to `groupid-{{groupid}}`, and the displayed legend name will be the formatted group name.
+- "Group by column(s)": Comma-separated `group by` or `partition by` column names in **half-width** commas. If it is a `group by` or `partition by` query statement, set the "Group by" column to display multidimensional data. Here, set the "Group by" column name as `groupid` to display data grouped by `groupid`.
+- "Group By Format": Legend format for multidimensional data in `Group by` or `Partition by` scenarios. For example, in the above INPUT SQL, set the "Group By Format" to `groupid-{{groupid}}`, and the displayed legend name will be the formatted group name.
 
 After completing the settings, the display grouped by `groupid` is shown in the following image:
 

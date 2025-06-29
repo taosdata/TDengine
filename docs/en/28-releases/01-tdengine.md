@@ -17,7 +17,7 @@ The TDengine version number consists of four digits separated by dots, defined a
 
 ## TDengine 2.x Downloads
 
-For TDengine 2.x version installation packages, please visit [here](https://tdengine.com/downloads/historical/)
+For TDengine 2.x version installation packages, see [Download Historical Versions](https://tdengine.com/downloads/historical/).
 
 ## TDengine 3.x Downloads
 

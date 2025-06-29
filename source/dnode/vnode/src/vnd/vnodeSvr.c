@@ -362,6 +362,12 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
+
+      // Check pRow->sver
+      if (pRow->sver != submitTbData.sver) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
     }
   }
 

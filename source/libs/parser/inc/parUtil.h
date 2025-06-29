@@ -115,7 +115,7 @@ typedef struct SParseMetaCache {
   SHashObj* pTableName;    // key is tbFUid, elements is STableMeta*(append with tbName)
   SArray*   pVSubTables;   // element is SVSubTablesRsp
   SArray*   pVStbRefDbs;   // element is pVStbRefDbs
-  SArray*   pDnodes;       // element is SEpSet
+  SArray*   pDnodes;       // element is SDNodeAddr
   bool      dnodeRequired;
   bool      forceFetchViewMeta;
 } SParseMetaCache;

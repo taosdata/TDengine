@@ -189,3 +189,9 @@ taosX = "http://ip:3000/d/000000002/taosx?theme=light&kiosk=tv"
 如下图 (grafana V-8.5.27)，获取 dashboard url, 获取的 url 请额外加上参数：theme=light&kiosk=tv.
 
 ![获取 grafana dashboard](./pic/grafana-dashboard.png)
+
+## 监控集群
+
+登录 explorer 后，切换到“概览”页面，即可查看集群状态。如下图所示，包括集群中 taosd/taos-adapter/taosX/taos-keeper 的服务数量，及 dnode 主机信息和各个服务组件状态。
+
+![cluster monitor](./pic/cluster-monitor.jpg)

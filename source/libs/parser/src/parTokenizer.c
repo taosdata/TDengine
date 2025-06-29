@@ -225,6 +225,7 @@ static SKeyword keywordTable[] = {
     {"REDISTRIBUTE",         TK_REDISTRIBUTE},
     {"RENAME",               TK_RENAME},
     {"REPLACE",              TK_REPLACE},
+    {"REPLICAS",             TK_REPLICAS},
     {"REPLICA",              TK_REPLICA},
     {"RESET",                TK_RESET},
     {"RESUME",               TK_RESUME},

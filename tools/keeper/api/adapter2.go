@@ -171,14 +171,14 @@ func (a *Adapter) createDatabase() error {
 		logrus.Fields{config.ReqIDKey: qid},
 	)
 
-	conn, err := db.NewConnector(a.username, a.password, a.host, a.port, a.usessl)
+	conn, err := db.NewConnectorWithRetryForever(a.username, a.password, a.host, a.port, a.usessl)
 	if err != nil {
 		return fmt.Errorf("connect to database error, msg:%s", err)
 	}
 	defer func() { _ = conn.Close() }()
 	sql := a.createDBSql()
 	adapterLog.Infof("create database, sql:%s", sql)
-	_, err = conn.Exec(context.Background(), sql, util.GetQidOwn(config.Conf.InstanceID))
+	_, err = conn.ExecWithRetryForever(context.Background(), sql, util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		adapterLog.Errorf("create database error, msg:%s", err)
 		return err

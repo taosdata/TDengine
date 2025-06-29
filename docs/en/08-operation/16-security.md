@@ -146,7 +146,7 @@ The current list of operations recorded in the audit logs and the meanings of ea
 
 ### View Audit Logs
 
-After both taosd and taosKeeper are correctly configured and started, as the system continues to operate, various operations (as shown in the table above) will be recorded and reported in real-time. Users can log in to taosExplorer, click on "System Management" → "Audit" page to view the audit logs; they can also directly query the relevant databases and tables in the TDengine CLI.
+After both taosd and taosKeeper are correctly configured and started, as the system continues to operate, various operations (as shown in the table above) will be recorded and reported in real-time. Users can log in to taosExplorer, click on "System Management" > "Audit" page to view the audit logs; they can also directly query the relevant databases and tables in the TDengine CLI.
 
 ## Data Encryption
 

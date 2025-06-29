@@ -1199,7 +1199,7 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
 
     tstrncpy(pOneReq->userApp, pTscObj->optionInfo.userApp, sizeof(pOneReq->userApp));
     pOneReq->userIp = pTscObj->optionInfo.userIp;
-
+    pOneReq->userDualIp = pTscObj->optionInfo.userDualIp;
     pOneReq = taosArrayPush((*pBatchReq)->reqs, pOneReq);
     if (NULL == pOneReq) {
       releaseTscObj(connKey->tscRid);
@@ -1231,7 +1231,7 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
     maxIpWhiteVer = TMAX(maxIpWhiteVer, ver);
     releaseTscObj(connKey->tscRid);
   }
-  (*pBatchReq)->ipWhiteList = maxIpWhiteVer;
+  (*pBatchReq)->ipWhiteListVer = maxIpWhiteVer;
 
   return TSDB_CODE_SUCCESS;
 }

@@ -88,7 +88,7 @@ class TDTestCase:
                 continue
         return result
 
-    def logRotateOccurred(self, logFiles, targetStr, maxRetry=15):
+    def logRotateOccurred(self, logFiles, targetStr, maxRetry=20):
         result = False
         for i in range(maxRetry):
             if self.checkTargetStrInFiles(logFiles, targetStr):

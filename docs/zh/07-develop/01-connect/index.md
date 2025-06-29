@@ -194,7 +194,7 @@ taos = { version = "*", default-features = false, features = ["ws"] }
 <TabItem label="Node.js" value="node">
 
 - **安装前准备**
-    - 安装 Node.js 开发环境，使用 14 以上版本。下载链接：https://nodejs.org/en/download/
+    - 安装 Node.js 开发环境，使用 14 以上版本。下载链接：[Download Node.js](https://nodejs.org/en/download)
 
 - **安装**
     - 使用 npm 安装 Node.js 连接器
@@ -278,10 +278,12 @@ dotnet add package TDengine.Connector
     </TabItem>
     <TabItem label="Python" value="python">
     Python 连接器使用 `connect()` 方法来建立连接，下面是连接参数的具体说明：    
-        - url： `taosAdapter` REST 服务的 URL。默认是 `localhost` 的 `6041` 端口。 
+        - url： `taosAdapter` Websocket 服务的 URL。默认是 `localhost` 的 `6041` 端口。 
         - user： TDengine 用户名。默认是 `root`。  
         - password： TDengine 用户密码。默认是 `taosdata`。  
         - timeout： HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。一般无需配置。
+
+    URL 的详细参数说明和如何使用详见 [url 规范](../../reference/connector/python/#url-规范)
 
     </TabItem>
     <TabItem label="Go" value="go">
@@ -343,15 +345,20 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
 
     - **protocol**: 使用 websocket 协议建立连接。例如`ws://localhost:6041`
     - **username/password**: 数据库的用户名和密码。
-    - **host/port**: 主机地址和端口号。例如`localhost:6041`
+    - **host/port**: 参数支持合法的域名或 IP 地址。`@tdengine/websocket` 同时支持 IPV4 和 IPV6 两种地址格式，对于 IPv6 地址，必须使用中括号括起来（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。
     - **database**: 数据库名称。
     - **params**: 其他参数。例如 token。
 
     - 完整 DSN 示例：
-
+    
     ```js
+        // IPV4:
         ws://root:taosdata@localhost:6041
+    
+        // IPV6:
+        ws://root:taosdata@[::1]:6041
     ``` 
+
     </TabItem>
 
     <TabItem label="C#" value="csharp">

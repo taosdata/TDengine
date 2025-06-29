@@ -125,13 +125,14 @@ if [ "$DISABLE_KEEPER" = "0" ]; then
     done
 fi
 
-
-which taos-explorer >/dev/null && taos-explorer &
-# wait for 6060 port ready
-for _ in $(seq 1 20); do
-    nc -z localhost 6060 && break
-    sleep 0.5
-done
+if [ "$DISABLE_EXPLORER" = "0" ]; then
+    which taos-explorer >/dev/null && taos-explorer &
+    # wait for 6060 port ready
+    for _ in $(seq 1 20); do
+        nc -z localhost 6060 && break
+        sleep 0.5
+    done
+fi
 
 if [ "$NEEDS_INITDB" = "1" ]; then
     # check if initdb.d exists

@@ -9,9 +9,10 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import RequestId from "../../assets/resources/_request_id.mdx";
 
-`taopsy` is the official TDengine python connector, which provides multiple access interfaces for database writing, querying, subscribing, etc.
+`taospy` is the official TDengine python connector, which provides multiple access interfaces for database writing, querying, subscribing, etc.
 
 The installation command is as follows:
+
 ``` bash
 # Native connection and REST connection
 pip3 install taospy
@@ -24,7 +25,7 @@ The connector code is open sourced and hosted on Github [Taos Connector Python](
 
 ## Connection Methods
 
-`taopsy` provides three connection methods, and we recommend using WebSocket connection.
+`taospy` provides three connection methods, and we recommend using WebSocket connection.
 
 - **Native Connection**, Python connector loads TDengine client driver (libtaos.so/taos.dll), directly connects to TDengine instance, with high performance and fast speed.
  Functionally, it supports functions such as data writing, querying, data subscription, schemaless interface, and parameter binding interface.
@@ -35,8 +36,8 @@ The connector code is open sourced and hosted on Github [Taos Connector Python](
 
 For a detailed introduction of the connection method, please refer to: [Connection Method](../../../developer-guide/connecting-to-tdengine/)
 
-In addition to encapsulating Native and REST interfaces, `taopsy` also provides compliance with [the Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/) The programming interface.
-This makes it easy to integrate `taopsy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
+In addition to encapsulating Native and REST interfaces, `taospy` also provides compliance with [the Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/) The programming interface.
+This makes it easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
 
 The method of establishing a connection directly with the server using the native interface provided by the client driver is referred to as "Native Connection" in the following text;
 The method of establishing a connection with the server using the REST interface or WebSocket interface provided by the taosAdapter is referred to as a "REST Connection" or "WebSocket connection" in the following text.
@@ -56,7 +57,7 @@ Python Connector historical versions (it is recommended to use the latest versio
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
-|2.8.1 | Add two functions to set the connect property                                                                               | - |
+|2.8.1 | Add two functions to set the connect property                                                               | - |
 |2.8.0 | Remove Apache Superset Driver                                                                               | - |
 |2.7.23 | Supports DECIMAL data type                                                                                 | - |
 |2.7.22 | Supports Python 3.12 and above                                                                             | - |
@@ -75,6 +76,8 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
+|0.5.3 | Support IPv6 address format | - |
+|0.5.2 | Upgrade Rust connector to fix dsn token param issue                                                                     | - |
 |0.5.1 | Support WebSocket STMT2 writing and querying                                                                            | - |
 |0.4.0 | Support dynamic add tmq attribute                                                                                       | - |
 |0.3.9 | Fixes the problem of incomplete data retrieval when customizing the number of rows with the "fetchmany" method          | - |
@@ -96,17 +99,17 @@ The Python connector may generate 4 types of exceptions:
 - Data subscription exceptions
 - For other TDengine module errors, please refer to [Error Codes](../../error-codes/)
 
-|Error Type|Description|Suggested Actions|
-|:---------|:----------|:----------------|
-|InterfaceError|taosc version too low, does not support the used interface|Please check the TDengine client version|
-|ConnectionError|Database connection error|Please check the TDengine server status and connection parameters|
-|DatabaseError|Database error|Please check the TDengine server version and upgrade the Python connector to the latest version|
-|OperationalError|Operation error|API usage error, please check your code|
-|ProgrammingError|Interface call error|Please check if the submitted data is correct|
-|StatementError|stmt related exception|Please check if the binding parameters match the SQL|
-|ResultError|Operation data error|Please check if the operation data matches the data type in the database|
-|SchemalessError|schemaless related exception|Please check the data format and corresponding protocol type are correct|
-|TmqError|tmq related exception|Please check if the Topic and consumer configuration are correct|
+| Error Type       | Description                                                | Suggested Actions                                            |
+| :--------------- | :--------------------------------------------------------- | :----------------------------------------------------------- |
+| InterfaceError   | taosc version too low, does not support the used interface | Please check the TDengine client version                     |
+| ConnectionError  | Database connection error                                  | Please check the TDengine server status and connection parameters |
+| DatabaseError    | Database error                                             | Please check the TDengine server version and upgrade the Python connector to the latest version |
+| OperationalError | Operation error                                            | API usage error, please check your code                      |
+| ProgrammingError | Interface call error                                       | Please check if the submitted data is correct                |
+| StatementError   | stmt related exception                                     | Please check if the binding parameters match the SQL         |
+| ResultError      | Operation data error                                       | Please check if the operation data matches the data type in the database |
+| SchemalessError  | schemaless related exception                               | Please check the data format and corresponding protocol type are correct |
+| TmqError         | tmq related exception                                      | Please check if the Topic and consumer configuration are correct |
 
 In Python, exceptions are usually handled using try-expect. For more on exception handling, refer to [Python Errors and Exceptions Documentation](https://docs.python.org/3/tutorial/errors.html).  
 For other TDengine module errors, please refer to [Error Codes](../../error-codes/)
@@ -121,36 +124,36 @@ All database operations in the Python Connector, if an exception occurs, will be
 
 TDengine currently supports timestamp, numeric, character, boolean types, and the corresponding Python type conversions are as follows:
 
-|TDengine DataType|Python DataType|
-|:----------------|:--------------|
-|   TIMESTAMP     |  datetime  |
-|      INT        |    int     |
-|    BIGINT       |    int     |
-|     FLOAT       |   float    |
-|    DOUBLE       |    int     |
-|   SMALLINT      |    int     |
-|    TINYINT      |    int     |
-|     BOOL        |    bool    |
-|    BINARY       |    str     |
-|     NCHAR       |    str     |
-|     JSON        |    str     |
-|   GEOMETRY      | bytearray  |
-|   VARBINARY     | bytearray  |
-|    DECIMAL      |  Decimal   |
+| TDengine DataType | Python DataType |
+| :---------------- | :-------------- |
+| TIMESTAMP         | datetime        |
+| INT               | int             |
+| BIGINT            | int             |
+| FLOAT             | float           |
+| DOUBLE            | int             |
+| SMALLINT          | int             |
+| TINYINT           | int             |
+| BOOL              | bool            |
+| BINARY            | str             |
+| NCHAR             | str             |
+| JSON              | str             |
+| GEOMETRY          | bytearray       |
+| VARBINARY         | bytearray       |
+| DECIMAL           | Decimal         |
 
 ## Example Programs Summary
 
-| Example Program Link                                                                                                    | Example Program Content            |
-| ------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| [bind_multi.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-multi.py)           | Parameter binding, bind multiple rows at once |
-| [bind_row.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-row.py)               | Parameter binding, bind one row at a time  |
-| [insert_lines.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/insert-lines.py)       | InfluxDB line protocol writing     |
-| [json_tag.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/json-tag.py)               | Using JSON type tags    |
-| [tmq_consumer.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq_consumer.py)       | tmq subscription              |
-| [native_all_type_query.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_query.py) | Example supporting all types |
+| Example Program Link                                         | Example Program Content                        |
+| ------------------------------------------------------------ | ---------------------------------------------- |
+| [bind_multi.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-multi.py) | Parameter binding, bind multiple rows at once  |
+| [bind_row.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-row.py) | Parameter binding, bind one row at a time      |
+| [insert_lines.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/insert-lines.py) | InfluxDB line protocol writing                 |
+| [json_tag.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/json-tag.py) | Using JSON type tags                           |
+| [tmq_consumer.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/tmq_consumer.py) | tmq subscription                               |
+| [native_all_type_query.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_query.py) | Example supporting all types                   |
 | [native_all_type_stmt.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/native_all_type_stmt.py) | Parameter binding example supporting all types |
-| [test_stmt2.py](https://github.com/taosdata/taos-connector-python/blob/main/tests/test_stmt2.py)   | Example of STMT2 writing |
-Example program source code can be found at:
+| [test_stmt2.py](https://github.com/taosdata/taos-connector-python/blob/main/tests/test_stmt2.py) | Example of STMT2 writing                       |
+| Example program source code can be found at:                 |                                                |
 
 1. [More native example programs](https://github.com/taosdata/taos-connector-python/tree/main/examples)
 2. [More WebSocket example programs](https://github.com/taosdata/taos-connector-python/tree/main/taos-ws-py/examples)
@@ -177,7 +180,7 @@ Feel free to [ask questions or report issues](https://github.com/taosdata/taos-c
 
 - **protocol**: Establish a connection using the websocket protocol. For example, `ws://localhost:6041`
 - **username/password**: Username and password for the database.
-- **host/port**: Host address and port number. For example, `localhost:6041`
+- **host/port**: The host_name parameter supports valid domain names or IP addresses. The `taos-ws-py` supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number parsing conflicts.
 - **database**: Database name.
 - **params**: Other parameters. For example, token.
 
@@ -263,10 +266,10 @@ TaosResult objects can be accessed by iterating over them to retrieve the querie
 
 #### Parameter Binding
 
-Since version 0.5.1, an interface for binding parameters of stmt2 has been provided to achieve efficient writing. 
+Since version 0.5.1, an interface for binding parameters of stmt2 has been provided to achieve efficient writing.
 
 - `fn stmt2_statement(&self) -> PyResult<TaosStmt2>`
-  - **接口说明**：Create a stmt2 object using a connection object.
+  - **Interface Description**: Create a stmt2 object using a connection object.
   - **Return Value**: stmt object.
   - **Exception**: Throws `ConnectionError` on failure.
 - `fn prepare(&mut self, sql: &str) -> PyResult<()>`
@@ -474,40 +477,40 @@ TaosResult object can be iterated over to retrieve queried data.
   - **Exceptions**: Throws `SchemalessError` if operation fails.
 
 #### Parameter Binding
-- `def statement2(self, sql=None, option=None)`
-    - **Interface Description**：Creating an STMT2 object using a connection object
-    - **Parameter Description**
-        - `sql`: The bound SQL statement will call the `prepare` function if it is not empty
-        - `option` Pass in `TaoStmt2Option` class instance
-    - **Return Value**：STMT2 object
-    - **Exception**：Throws `ConnectionError` on failure
-- `def prepare(self, sql)`
-    - **Interface Description**：Bind a precompiled SQL statement
-    - **Parameter Description**：
-        - `sql`: Precompiled SQL statement
-    - **Exception**：Throws `StatementError` on failure
-- `def bind_param(self, tbnames, tags, datas)`
-    - **Interface Description**：Binding Data as an Independent Array
-    - **Parameter Description**：
-        - `tbnames`:Bind table name array, data type is list 
-        - `tags`: Bind tag column value array, data type is list
-        - `datas`: Bind data column value array, data type of list
-    - **Exception**：Throws `StatementError` on failure
-- `def bind_param_with_tables(self, tables)`
-    - **Interface Description**：Bind data in an independent table format. Independent tables are organized by table units, with table name, TAG value, and data column attributes in table object
-    - **Parameter Description**：
-        - `tables`: `BindTable` Independent table object array
-    - **Exception**：Throws `StatementError` on failure
-- `def execute(self) -> int:`
-    - **Interface Description**：Execute to write all bound data
-    - **Return Value**：Affects the number of rows
-    - **Exception**：Throws `QueryError` on failure
-- `def result(self)`
-    - **Interface Description**：Get parameter binding query result set
-    - **Return Value**：Returns the TaosResult object
-- `def close(self)`
-    - **Interface Description**： close the STMT2 object
 
+- `def statement2(self, sql=None, option=None)`
+  - **Interface Description**: Creating an STMT2 object using a connection object
+  - **Parameter Description**:
+    - `sql`: The bound SQL statement will call the `prepare` function if it is not empty
+    - `option` Pass in `TaoStmt2Option` class instance
+  - **Return Value**: STMT2 object
+  - **Exception**: Throws `ConnectionError` on failure
+- `def prepare(self, sql)`
+  - **Interface Description**: Bind a precompiled SQL statement
+  - **Parameter Description**:
+    - `sql`: Precompiled SQL statement
+  - **Exception**: Throws `StatementError` on failure
+- `def bind_param(self, tbnames, tags, datas)`
+  - **Interface Description**: Binding Data as an Independent Array
+  - **Parameter Description**:
+    - `tbnames`:Bind table name array, data type is list
+    - `tags`: Bind tag column value array, data type is list
+    - `datas`: Bind data column value array, data type of list
+  - **Exception**: Throws `StatementError` on failure
+- `def bind_param_with_tables(self, tables)`
+  - **Interface Description**: Bind data in an independent table format. Independent tables are organized by table units, with table name, TAG value, and data column attributes in table object
+  - **Parameter Description**:
+    - `tables`: `BindTable` Independent table object array
+  - **Exception**: Throws `StatementError` on failure
+- `def execute(self) -> int:`
+  - **Interface Description**: Execute to write all bound data
+  - **Return Value**: Affects the number of rows
+  - **Exception**: Throws `QueryError` on failure
+- `def result(self)`
+  - **Interface Description**: Get parameter binding query result set
+  - **Return Value**: Returns the TaosResult object
+- `def close(self)`
+  - **Interface Description**: close the STMT2 object
 
 #### Data Subscription
 

@@ -847,7 +847,7 @@ class TDSql:
     #  check session
     #
 
-    def checkRows(self, expectedRows):
+    def checkRows(self, expectedRows, show=False):
         """
         Checks if the number of rows fetched by the last query matches the expected number of rows.
 
@@ -860,7 +860,7 @@ class TDSql:
         Raises:
             SystemExit: If the number of rows does not match the expected number.
         """
-        return self.checkEqual(self.queryRows, expectedRows)
+        return self.checkEqual(self.queryRows, expectedRows, show=show)
 
     def checkRowsV2(
         self,
@@ -1076,7 +1076,10 @@ class TDSql:
                 "%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args
             )
 
-    def checkData(self, row, col, data, show=False):
+    def compareData(self, row, col, data, show=False):
+        return self.checkData(row, col, data, show, False)
+
+    def checkData(self, row, col, data, show=False, exit=True):
         """
         Checks if the data at the specified row and column matches the expected data.
 
@@ -1093,17 +1096,35 @@ class TDSql:
             SystemExit: If the data at the specified row and column does not match the expected data.
         """
         if row >= self.queryRows:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, row + 1, self.queryRows)
-            tdLog.exit(
-                "%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args
-            )
+            if exit:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                args = (
+                    caller.filename,
+                    caller.lineno,
+                    self.sql,
+                    row + 1,
+                    self.queryRows,
+                )
+                tdLog.exit(
+                    "%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args
+                )
+            else:
+                return False
         if col >= self.queryCols:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, col + 1, self.queryCols)
-            tdLog.exit(
-                "%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args
-            )
+            if exit:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                args = (
+                    caller.filename,
+                    caller.lineno,
+                    self.sql,
+                    col + 1,
+                    self.queryCols,
+                )
+                tdLog.exit(
+                    "%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args
+                )
+            else:
+                return False
 
         self.checkRowCol(row, col)
 
@@ -1116,22 +1137,25 @@ class TDSql:
                             if show:
                                 tdLog.info("check successfully")
                         else:
-                            caller = inspect.getframeinfo(inspect.stack()[1][0])
-                            args = (
-                                caller.filename,
-                                caller.lineno,
-                                self.sql,
-                                row,
-                                col,
-                                self.queryResult[row][col],
-                                data,
-                            )
-                            tdLog.exit(
-                                "%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s"
-                                % args
-                            )
+                            if exit:
+                                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                                args = (
+                                    caller.filename,
+                                    caller.lineno,
+                                    self.sql,
+                                    row,
+                                    col,
+                                    self.queryResult[row][col],
+                                    data,
+                                )
+                                tdLog.exit(
+                                    "%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s"
+                                    % args
+                                )
+                            else:
+                                return False
                     else:
-                        print(f"{self.queryResult[row][col]}")
+                        # print(f"{self.queryResult[row][col]}")
                         real = self.queryResult[row][col]
                         if real is None:
                             # none
@@ -1145,6 +1169,33 @@ class TDSql:
                             if show:
                                 tdLog.info("check successfully")
                         else:
+                            if exit:
+                                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                                args = (
+                                    caller.filename,
+                                    caller.lineno,
+                                    self.sql,
+                                    row,
+                                    col,
+                                    self.queryResult[row][col],
+                                    data,
+                                )
+                                tdLog.exit(
+                                    "%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s"
+                                    % args
+                                )
+                            else:
+                                return False
+                    return True
+                elif isinstance(data, int):
+                    if len(str(data)) == 16:
+                        precision = "us"
+                    elif len(str(data)) == 13:
+                        precision = "ms"
+                    elif len(str(data)) == 19:
+                        precision = "ns"
+                    else:
+                        if exit:
                             caller = inspect.getframeinfo(inspect.stack()[1][0])
                             args = (
                                 caller.filename,
@@ -1159,30 +1210,8 @@ class TDSql:
                                 "%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s"
                                 % args
                             )
-                    return
-                elif isinstance(data, int):
-                    if len(str(data)) == 16:
-                        precision = "us"
-                    elif len(str(data)) == 13:
-                        precision = "ms"
-                    elif len(str(data)) == 19:
-                        precision = "ns"
-                    else:
-                        caller = inspect.getframeinfo(inspect.stack()[1][0])
-                        args = (
-                            caller.filename,
-                            caller.lineno,
-                            self.sql,
-                            row,
-                            col,
-                            self.queryResult[row][col],
-                            data,
-                        )
-                        tdLog.exit(
-                            "%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s"
-                            % args
-                        )
-                        return
+                        else:
+                            return False
                     success = False
                     if precision == "ms":
                         dt_obj = self.queryResult[row][col]
@@ -1216,22 +1245,25 @@ class TDSql:
                     if success:
                         if show:
                             tdLog.info("check successfully")
+                        return True
                     else:
-                        caller = inspect.getframeinfo(inspect.stack()[1][0])
-                        args = (
-                            caller.filename,
-                            caller.lineno,
-                            self.sql,
-                            row,
-                            col,
-                            self.queryResult[row][col],
-                            data,
-                        )
-                        tdLog.exit(
-                            "%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s"
-                            % args
-                        )
-                    return
+                        if exit:
+                            caller = inspect.getframeinfo(inspect.stack()[1][0])
+                            args = (
+                                caller.filename,
+                                caller.lineno,
+                                self.sql,
+                                row,
+                                col,
+                                self.queryResult[row][col],
+                                data,
+                            )
+                            tdLog.exit(
+                                "%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s"
+                                % args
+                            )
+                        else:
+                            return False
                 elif isinstance(data, datetime.datetime):
                     dt_obj = self.queryResult[row][col]
                     delt_data = data - datetime.datetime.fromtimestamp(0, data.tzinfo)
@@ -1243,7 +1275,26 @@ class TDSql:
                     if delt_data == delt_result:
                         if show:
                             tdLog.info("check successfully")
+                        return True
                     else:
+                        if exit:
+                            caller = inspect.getframeinfo(inspect.stack()[1][0])
+                            args = (
+                                caller.filename,
+                                caller.lineno,
+                                self.sql,
+                                row,
+                                col,
+                                self.queryResult[row][col],
+                                data,
+                            )
+                            tdLog.exit(
+                                "%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s"
+                                % args
+                            )
+                        return False
+                else:
+                    if exit:
                         caller = inspect.getframeinfo(inspect.stack()[1][0])
                         args = (
                             caller.filename,
@@ -1258,28 +1309,14 @@ class TDSql:
                             "%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s"
                             % args
                         )
-                    return
-                else:
-                    caller = inspect.getframeinfo(inspect.stack()[1][0])
-                    args = (
-                        caller.filename,
-                        caller.lineno,
-                        self.sql,
-                        row,
-                        col,
-                        self.queryResult[row][col],
-                        data,
-                    )
-                    tdLog.exit(
-                        "%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s"
-                        % args
-                    )
+                    else:
+                        return False
 
             if str(self.queryResult[row][col]) == str(data):
                 # tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
                 if show:
                     tdLog.info("check successfully")
-                return
+                return True
 
             elif isinstance(data, float):
                 if (
@@ -1297,6 +1334,26 @@ class TDSql:
                         tdLog.info("check successfully")
 
                 else:
+                    if exit:
+                        caller = inspect.getframeinfo(inspect.stack()[1][0])
+                        args = (
+                            caller.filename,
+                            caller.lineno,
+                            self.sql,
+                            row,
+                            col,
+                            self.queryResult[row][col],
+                            data,
+                        )
+                        tdLog.exit(
+                            "%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s"
+                            % args
+                        )
+                    else:
+                        return False
+                return True
+            else:
+                if exit:
                     caller = inspect.getframeinfo(inspect.stack()[1][0])
                     args = (
                         caller.filename,
@@ -1311,23 +1368,11 @@ class TDSql:
                         "%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s"
                         % args
                     )
-                return
-            else:
-                caller = inspect.getframeinfo(inspect.stack()[1][0])
-                args = (
-                    caller.filename,
-                    caller.lineno,
-                    self.sql,
-                    row,
-                    col,
-                    self.queryResult[row][col],
-                    data,
-                )
-                tdLog.exit(
-                    "%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args
-                )
+                else:
+                    return False
         if show:
             tdLog.info("check successfully")
+        return True
 
     def checkDataV2(self, row, col, data, show=False, operator="==") -> bool:
         """
@@ -1490,7 +1535,8 @@ class TDSql:
             if self.queryResult[i][col] == data:
                 row = i
 
-        tdLog.info(f"find key:{key}, row:{row} col:{col}, data:{data}")
+        if show:
+            tdLog.info(f"find key:{key}, row:{row} col:{col}, data:{data}")
 
         if row == -1:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -1500,13 +1546,37 @@ class TDSql:
         if show:
             tdLog.info("check key successfully")
 
-    def printResult(self):
-        tdLog.info(
-            f"print result, rows:{self.queryRows}, cols:{self.queryCols}, sql:{self.sql}"
-        )
-        for r in range(self.queryRows):
-            for c in range(self.queryCols):
-                tdLog.info(f"data[{r}][{c}]=[{self.queryResult[r][c]}]")
+    def checkKeyExist(self, key, show=False):
+        return self.checkKeyData(key, 0, key, show=show)
+
+    def printResult(self, name="results", exit=False, input_result=None, input_sql=""):
+        if input_result == None:
+            rows = self.queryRows
+            cols = self.queryCols
+            results = self.queryResult
+        else:
+            rows = len(input_result)
+            if rows == 0:
+                cols = 0
+            else:
+                cols = len(input_result[0])
+            results = input_result
+
+        if input_sql == "":
+            sql = self.sql
+        else:
+            sql = input_sql
+
+        tdLog.info(f"==== {name}, rows:{rows}, cols:{cols}, sql:{sql}")
+        for r in range(rows):
+            data = "==== "
+            for c in range(cols):
+                data += f"d[{r}][{c}]={results[r][c]} "
+            tdLog.info(data)
+
+        if exit:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            tdLog.exit(f"{name} {caller.filename}({caller.lineno})")
 
     def expectKeyData(self, key, col, data, show=False):
         """
@@ -1939,7 +2009,7 @@ class TDSql:
         # tdLog.info("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
         raise Exception("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
 
-    def checkEqual(self, elm, expect_elm):
+    def checkEqual(self, elm, expect_elm, show=False):
         """
         Checks if the given element is equal to the expected element.
 
@@ -1954,10 +2024,16 @@ class TDSql:
             Exception: If the element does not match the expected element.
         """
         if elm == expect_elm:
-            tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
+            if show:
+                tdLog.info(
+                    "sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm)
+                )
             return True
         if self.__check_equal(elm, expect_elm):
-            tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
+            if show:
+                tdLog.info(
+                    "sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm)
+                )
             return True
         self.print_error_frame_info(elm, expect_elm)
 
@@ -2299,6 +2375,92 @@ class TDSql:
 
         """
         tdLog.info(f"set connection mode:{mode}")
+
+    def checkResultsByFunc(self, sql, func, delay=0.0, retry=20, show=False):
+        if delay != 0:
+            time.sleep(delay)
+
+        if retry <= 0:
+            retry = 1
+
+        for loop in range(retry):
+            tdSql.query(sql)
+
+            if func():
+                tdSql.printResult(f"check succeed in {loop} seconds")
+                return
+
+            if loop != retry - 1:
+                if show:
+                    tdSql.printResult("check continue")
+                time.sleep(1)
+
+        tdSql.printResult(f"check failed for {retry} seconds", exit=True)
+
+    def checkResultsByArray(
+        self, sql, exp_result, exp_sql="", delay=0.0, retry=20, show=False
+    ):
+        if delay != 0:
+            time.sleep(delay)
+
+        if retry <= 0:
+            retry = 1
+
+        for loop in range(retry):
+            res_result = tdSql.getResult(sql)
+
+            if self.compareResults(res_result, exp_result):
+                tdSql.printResult(f"check succeed in {loop} seconds")
+                return
+
+            if loop != retry - 1:
+                if show:
+                    tdSql.printResult("check continue")
+                time.sleep(1)
+
+        tdSql.printResult(f"expect results", input_result=exp_result, input_sql=exp_sql)
+        tdSql.printResult(
+            f"check failed for {retry} seconds", input_result=res_result, input_sql=sql
+        )
+        self.compareResults(res_result, exp_result, show=True)
+
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
+        tdLog.exit(f"{caller.filename}(caller.lineno)  check result failed")
+
+    def checkResultsBySql(self, sql, exp_sql, delay=0.0, retry=20, show=False):
+        exp_result = tdSql.getResult(exp_sql)
+        return self.checkResultsByArray(sql, exp_result, exp_sql, delay, retry, show)
+
+    def compareResults(self, res_result, exp_result, show=False):
+        exp_rows = len(exp_result)
+        res_rows = len(res_result)
+
+        if exp_rows != res_rows:
+            if show:
+                tdLog.info(f"exp_rows={exp_rows}, res_rows={res_rows}")
+            return False
+        if exp_rows == 0:
+            return True
+
+        exp_cols = len(exp_result[0])
+        res_cols = len(res_result[0])
+        if exp_cols != res_cols:
+            if show:
+                tdLog.info(f"exp_cols={exp_cols}, res_cols={res_cols}")
+            return False
+        if exp_cols == 0:
+            return True
+
+        for r in range(res_rows):
+            for c in range(res_cols):
+                if res_result[r][c] != exp_result[r][c]:
+                    if show:
+                        tdLog.info(
+                            f"res_result[{r}][{c}]={res_result[r][c]}, exp_result[{r}][{c}]={exp_result[r][c]}"
+                        )
+                    return False
+
+        return True
 
 
 tdSql = TDSql()

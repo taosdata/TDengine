@@ -5,9 +5,13 @@ system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 sql connect
 
+step0:
+
+$cn = 0
+
 print =============== select * from information_schema.ins_mnodes
-sleep 1000
 sql select * from information_schema.ins_mnodes;
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6]
 if $rows != 1 then 
   return -1
 endi
@@ -17,8 +21,12 @@ if $data00 != 1 then
 endi
 
 if $data02 != leader then 
-  print $data02
-  return -1
+  sleep 1000
+  $cn = $cn + 1
+  if $cn == 20 then
+    return -1
+  endi
+  goto step0
 endi
 
 print =============== create dnodes

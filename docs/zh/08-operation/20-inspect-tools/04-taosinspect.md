@@ -13,18 +13,23 @@ TDengine 在运行一段时间后需要针对运行环境和 TDengine 本身的�
 工具支持通过 help 参数查看支持的语法
 
 ```help
-Usage: taosinspect [OPTIONS]
+usage: taosinspect [-h] [--model {local,ssh}] [--config CONFIG] [--result RESULT] [--backend] [--check-nginx] [--log-level {debug,info}] [--version]
 
-  Check Database deployment environment
+Check Database deployment environment
 
-Options:
-  -m, --model [local|ssh]     connection model, default: local
-  -f, --config TEXT           Full path of test config file  [required]
-  -r, --result TEXT           Full path of result directory  [required]
-  -b, --backend BOOLEAN       Run process in backend. default: False
-  -cn, --check-nginx BOOLEAN  Whether check nginx's config, default: False
-  -v, --version               Show version
-  --help                      Show this message and exit.
+optional arguments:
+  -h, --help            show this help message and exit
+  --model {local,ssh}, -m {local,ssh}
+                        connection model, default: local
+  --config CONFIG, -f CONFIG
+                        Full path of test config file
+  --result RESULT, -r RESULT
+                        Result directory. default: None
+  --backend, -b         Run process in backend. default: False
+  --check-nginx, -cn    Whether check nginx's config, default: False
+  --log-level {debug,info}, -l {debug,info}
+                        Set log level, default: info (options: debug, info)
+  --version, -v         Show version
 ```
 
 ### 参数详细说明
@@ -32,8 +37,9 @@ Options:
 - `model`：安装工具运行模式，分为 local 和 ssh。安装环境的多节点间支持 SSH 通信，可选择 ssh 模式，在任意节点上运行安装工具，会依次对所有节点环境完成安装操作。反之，节点间不支持 SSH 通信时，可选择 local 模式，仅对工具运行所在机器完成安装操作，默认为 local 模式。
 - `config`：安装工具加载的配置文件，其具体配置方式详见 **配置文件使用说明** 章节。不配置 config 参数时配置文件默认值为/etc/taos/inspect.cfg。
 - `result`：巡检运行结束后结果文件和相关日志文件的存储目录，默认是用户在 taos.cfg 中配置的 logDir 对应目录。
-- `backend`：后台运行安装工具，选择 True 后安装工具在自动在后台运行，默认为 False。
-- `check-nginx`：是否检测负载均衡 nginx 的配置文件，默认值为 False。
+- `backend`：后台运行安装工具，默认前台运行。
+- `check-nginx`：是否检测负载均衡 nginx 的配置文件，默认值为不检查。
+- `log-level`: 输出日志级别，目前支持 debug 和 info，模式为 info。
 - `version`：打印安装工具版本信息。
 
 ### 配置文件使用说明
@@ -47,7 +53,7 @@ Options:
 
 # 安装部署TDengine的环境信息，支持免密登录和SSH登录两种方式，当环境配置了免密登录后不用配置password信息。
 # 除此外还支持从TDengine自动获取集群信息，该模式下不需配置集群节点的ip和FQDN，仅需要配置连接各节点的用户信息（免密时不用配置password信息）
-# 配置方式1、2和3不可配置
+# 配置方式1、2和3不可同时配置
 [test_env]
 # 配置方式1: 通过TDengine获取集群信息
 username=root
@@ -105,33 +111,36 @@ root hard stack=65536
 
 # 预安装软件列表
 [app_list]
-app1=screen
-app2=tmux
-app3=gdb
-app4=fio
-app5=iperf,iperf3
-app6=sysstat
-app7=net-tools 
-app8=jansson
-app9=snappy
-app10=ntp,chrony
-app11=tree
-app12=wget
+screen
+tmux
+gdb
+fio
+iperf
+iperf3
+sysstat
+net-tools 
+jansson
+snappy
+ntp
+chrony
+tree
+wget
 
 # 巡检覆盖的TDengine服务范围
 [td_services]
-ts1=taosd
-ts2=taosadapter
-ts3=taoskeeper
-ts4=taosx
-ts5=taos-explorer
+taosd
+taos
+taosadapter
+taoskeeper
+taosx
+taos-explorer
 
 # 可忽略的TDengine错误日志
 [skip_error_strs]
-str1=failed to get monitor info
-str2=Table does not exist
-str3=failed to send
-str4=Fail to get table info
+failed to get monitor info
+Table does not exist
+failed to send
+Fail to get table info
 ```
 ## 巡检范围
 ### 磁盘巡检范围
@@ -192,11 +201,11 @@ str4=Fail to get table info
 ### Nginx 配置巡检（可选）
 | **No** | **巡检项目** | **详细说明** | **告警规则** |
 |:-------|:------------|:-----------|:-----------|
-| 1 | **Nginx 配置**   | 各节点的 hostanme 和 ip 是否正确配置到 Nginx 配置文件 | 配置文件中 FQDN 配置信息缺失或错误 | 
+| 1 | **Nginx 配置**   | 各节点的 hostname 和 ip 是否正确配置到 Nginx 配置文件 | 配置文件中 FQDN 配置信息缺失或错误 | 
 
 
 ## 结果文件
-巡检工具运行后会在工具运行用户在 taos.cfg 中配置的 logDir 目录下生成三类文件，包含了巡检报告 inspect_report.md，巡检结构化数据 inspect.json，数据库和超级表初始化文件 stabel_schemas.md、各节点 taos、taosd 和 taosKeeper 对应的错误日志文件和各服务对应的配置文件。最后会将出错误日志文件以外的其他所有文件压缩为 results.zip
+巡检工具运行后会在工具运行用户在 taos.cfg 中配置的 logDir 目录下生成三类文件，包含了巡检报告 inspect_report.md，巡检结构化数据 inspect.json，数据库和超级表初始化文件 stable_schemas.md、各节点 taos、taosd 和 taosKeeper 对应的错误日志文件和各服务对应的配置文件。最后会将出错误日志文件以外的其他所有文件压缩为 results.zip
 
 ## 应用示例
 
@@ -210,9 +219,9 @@ str4=Fail to get table info
 ```
 指定配置文件并在集群所有节点执行巡检任务
 ```
-./taosinspect -m ssh -f /path_to_file/install.cfg
+./taosinspect -m ssh -f /path_to_file/inspect.cfg
 ```
 在集群所有节点执行巡检任务，包括检查 nginx 服务配置文件
 ```
-./taosinspect -m ssh -f /path_to_file/install.cfg -cn true
+./taosinspect -m ssh -f /path_to_file/inspect.cfg -cn true
 ```

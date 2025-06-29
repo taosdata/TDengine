@@ -66,7 +66,7 @@ In the **Authentication** area, there are two tabs, *`1.x version`* and *`2.x ve
   **Version** Select the version of the source InfluxDB database from the dropdown menu.  
   **User** Enter the user of the source InfluxDB database, who must have read permissions in that organization.  
   **Password** Enter the login password for the above user in the source InfluxDB database.
-  
+
   <figure>
   <Image img={imgStep04} alt=""/>
   </figure>
@@ -76,22 +76,20 @@ In the **Authentication** area, there are two tabs, *`1.x version`* and *`2.x ve
   **Organization ID** Enter the organization ID of the source InfluxDB database, which is a string of hexadecimal characters, not the organization name, and can be obtained from the InfluxDB console's Organization->About page.  
   **Token** Enter the access token for the source InfluxDB database, which must have read permissions in that organization.  
   **Add Database Retention Policy** This is a *`Yes/No`* toggle. InfluxQL requires a combination of database and retention policy (DBRP) to query data. The cloud version of InfluxDB and some 2.x versions require manually adding this mapping. Turn on this switch, and the connector can automatically add it when executing tasks.  
-  
+
   <figure>
   <Image img={imgStep05} alt=""/>
   </figure>
-
 Below the **Authentication** area, there is a **Connectivity Check** button. Users can click this button to check if the information filled in above can normally access the data of the source InfluxDB database. The check results are shown below:  
-  **Failed**
-  
+
   <figure>
   <Image img={imgStep06} alt=""/>
+  <figcaption>Failed</figcaption>
   </figure>
 
-  **Successful**
-  
   <figure>
   <Image img={imgStep07} alt=""/>
+  <figcaption>Successful</figcaption>
   </figure>
 
 ### 5. Configure Task Information

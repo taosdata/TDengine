@@ -15,7 +15,7 @@ installDir="/usr/local/taos/taosanode"
 venv_dir="/usr/local/taos/taosanode/venv"
 serverName="${MAIN_NAME}d"
 uninstallName="rmtaosanode"
-productName="TDengine Enterprise ANode"
+productName="TDengine TDgpt"
 
 if [ "$osType" != "Darwin" ]; then
   bin_link_dir="/usr/bin"
