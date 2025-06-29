@@ -221,10 +221,9 @@ class TDTestCase:
             tdSql.checkEqual(20470,len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
-        tdLog.info(len(tdSql.queryResult))
-        tdSql.checkEqual(True, len(tdSql.queryResult) in range(329, 330))
+        tdSql.checkRows(329)
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
-        tdSql.checkEqual(62, len(tdSql.queryResult))
+        tdSql.checkRows(62)
 
     def ins_dnodes_check(self):
         tdSql.execute('drop database if exists db2')
