@@ -32,7 +32,7 @@ TDengine 经过特别优化，以适应时间序列数据的独特需求，引�
 
 5. 数据订阅：TDengine 提供了类似 Kafka 的数据订阅功能。但用户可以通过 SQL 来灵活控制订阅的数据内容，并使用和 Kafka 相同的 API 来订阅一张表、一组表、全部列或部分列、甚至整个数据库的数据。TDengine 可以替代需要集成消息队列产品的场景，从而简化系统设计的复杂度，降低运营维护成本。
 
-6. 可视化/BI：TDengine 本身不提供可视化或 BI 的功能。但通过其 RESTful API，标准的 JDBC、ODBC 接口，TDengine 能够和 Grafana、Google Data Studio、Power BI、Tableau 以及国产 BI 工具无缝集成。
+6. 可视化/BI：TDengine 本身不提供可视化或 BI 的功能。但通过其 RESTful API，标准的 JDBC、ODBC 接口，TDengine 能够和 Grafana、Google Looker Studio、Power BI、Tableau 以及国产 BI 工具无缝集成。
 
 7. 集群功能：TDengine 支持集群部署，能够随着业务数据量的增长，通过增加节点线性提升系统处理能力，实现水平扩展。同时，通过多副本技术提供高可用性，支持 Kubernetes 部署，提供了多种运维工具，方便系统管理员更好地管理和维护集群的健壮运行。
 

@@ -204,7 +204,7 @@ toc_max_heading_level: 4
 - TDengine CLI
 - taosBenchmark
 - taosdump
-- TDengine 与 BI 工具的集成，例如 Google Data Studio、Power BI、永洪 BI 等
+- TDengine 与 BI 工具的集成，例如 Google Looker Studio、Power BI、永洪 BI 等
 - TDengine 与 Grafana、Seeq 的集成
 
 ## 系统管理
