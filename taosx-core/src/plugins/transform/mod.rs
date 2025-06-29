@@ -1172,13 +1172,18 @@ impl Parser {
             let spec_columns = if let Some(cols) = &table.columns {
                 let mut indices = Vec::new();
                 for name in cols {
+                    // TS-6763: 首先找名字完全匹配的列，再找 metadata 里 name 匹配的列
+                    if let Ok(index) = schema.index_of(name) {
+                        indices.push(index);
+                        continue;
+                    }
                     if let Some((index, _)) =
                         Self::get_schema_column_with_name(&schema, name.as_str())
                     {
                         indices.push(index);
-                    } else {
-                        tracing::warn!("Selected column {name} not found in stream message");
+                        continue;
                     }
+                    tracing::warn!("Selected column {name} not found in stream message");
                 }
                 indices
             } else {
@@ -1187,6 +1192,11 @@ impl Parser {
             let (tags, columns) = if let Some(tags) = &table.tags {
                 let mut indices = vec![];
                 for name in tags {
+                    if let Ok(index) = schema.index_of(name) {
+                        indices.push(index);
+                        columns_indices[index] = usize::MAX;
+                        continue;
+                    }
                     let (i, _) = Self::get_schema_column_with_name(&schema, name.as_str())
                         .ok_or_else(|| anyhow::format_err!("Invalid field name `{name}`"))?;
                     indices.push(i);
