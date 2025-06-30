@@ -17,6 +17,7 @@
 #include "os.h"
 #include "query.h"
 #include "taosdef.h"
+#include "taoserror.h"
 #include "tmsg.h"
 #include "ttypes.h"
 
@@ -55,6 +56,7 @@ typedef struct SFillOperatorInfo {
   SExprSupp         noFillExprSupp;
   SExprSupp         fillNullExprSupp;
   SList*            pFillSavedBlockList;
+  SNode*            pTimeRange;  // STimeRangeNode for stream fill
 } SFillOperatorInfo;
 
 static void destroyFillOperatorInfo(void* param);
@@ -418,6 +420,13 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
 
+  STimeWindow    pWinRange = {};
+  bool           isWinRangeValid = false;
+  
+  calcTimeRange((STimeRangeNode*)pInfo->pTimeRange, &pTaskInfo->pStreamRuntimeInfo->funcInfo, &pWinRange, &isWinRangeValid);
+
+  pInfo->win.skey = pWinRange.skey;
+  pInfo->win.ekey = pWinRange.ekey; 
   if (pOperator->status == OP_EXEC_DONE) {
     (*ppRes) = NULL;
     return code;
@@ -596,13 +605,6 @@ static int32_t resetFillOperState(SOperatorInfo* pOper) {
   tdListFreeP(pFill->pFillInfo->pFillSavedBlockList, destroyFillBlock);
   pFill->pFillInfo->pFillSavedBlockList = NULL;
 
-  int32_t code = resetExprSupp(&pFill->noFillExprSupp, pTaskInfo, pPhyNode->pNotFillExprs, NULL,
-    &pTaskInfo->storageAPI.functionStore);
-  if (code == 0) {
-    code = resetExprSupp(&pFill->fillNullExprSupp, pTaskInfo, pPhyNode->pFillNullExprs, NULL,
-      &pTaskInfo->storageAPI.functionStore);
-  }
-
   int32_t order = (pPhyNode->node.inputTsOrder == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
   if (order == TSDB_ORDER_ASC) {
     pFill->win.skey = pPhyNode->timeRange.skey;
@@ -612,7 +614,7 @@ static int32_t resetFillOperState(SOperatorInfo* pOper) {
     pFill->win.ekey = pPhyNode->timeRange.skey;
   }
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode,
@@ -692,7 +694,7 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
-
+  TSWAP(pInfo->pTimeRange, pPhyFillNode->pTimeRange);
   pInfo->pFinalRes = NULL;
 
   code = createOneDataBlock(pInfo->pRes, false, &pInfo->pFinalRes);

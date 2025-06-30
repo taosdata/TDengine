@@ -983,6 +983,30 @@ static int64_t getTs(SScalarParam* param){
   }
   return skey;
 }
+static bool isTimeStampCol(SNode *pNode) {
+  if (pNode == NULL) {
+    return false;
+  }
+  if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+    SColumnNode *colNode = (SColumnNode *)pNode;
+    if (colNode->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      return true;
+    }
+  }
+  return false;
+}
+static bool isReqRangeTS(SOperatorNode *node) {
+  if (node->opType != OP_TYPE_LOWER_EQUAL && node->opType != OP_TYPE_LOWER_THAN &&
+                                                 node->opType != OP_TYPE_GREATER_EQUAL &&
+                                                 node->opType != OP_TYPE_GREATER_THAN) {
+    return false;
+  }
+  if (isTimeStampCol(node->pLeft) || isTimeStampCol(node->pRight)) {
+    return true;
+  }
+
+  return false;
+}
 static void calcStreamTimeRangeForPseudoCols(SStreamTSRangeParas* streamTsRange, SOperatorNode *node, SScalarParam *params){
   if (streamTsRange->eType == SCL_VALUE_TYPE_START) {
     if (nodeType(node->pRight) == QUERY_NODE_COLUMN && 
@@ -1059,7 +1083,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
       SCL_ERR_JRET(code);
     }
   }
-  if (ctx->streamTsRange != NULL) {
+  if (ctx->streamTsRange != NULL && isReqRangeTS(node)) {
     calcStreamTimeRangeForPseudoCols(ctx->streamTsRange, node, params);
     goto _return;
   }
