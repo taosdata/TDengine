@@ -1138,7 +1138,7 @@ static int32_t stmtDeepReset(STscStmt2* pStmt) {
   }
 
   if (pStmt->sql.siInfo.pTableUidHash) {
-    tSimpleHashClear(pStmt->sql.siInfo.pTableUidHash);
+    tSimpleHashCleanup(pStmt->sql.siInfo.pTableUidHash);
     pStmt->sql.siInfo.pTableUidHash = NULL;
   }
 
