@@ -107,6 +107,7 @@ else
 
   if [[ "$AsanFileSuccessLen" -gt 0 ]]; then
     echo "Execute script successfully and check asan"
+    sleep 3
     $CODE_DIR/ci/checkAsan.sh
   else
     echo "Execute script failure"
