@@ -127,12 +127,10 @@ C# 驱动在解析结果集时，默认使用本地时区解析时间类型。�
 
 - 在 Windows 系统上，`FindSystemTimeZoneById` 尝试匹配注册表 `HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Time Zones` 分支的子项名称。
 - 在 Linux 和 macOS 上，使用 [ICU 库](https://unicode-org.github.io/icu/userguide/datetime/timezone/)中提供的时区信息。
-- .Net 6.0 及以上版本，可以统一使用 [IANA](https://www.iana.org/time-zones) 时区格式。
 
-以纽约时区为例：
+以纽约时区为例：Windows 上使用 `Eastern Standard Time`，Linux 和 macOS 上使用 `America/New_York`。
 
-- .Net 版本小于 6.0 时，Windows 上使用 `Eastern Standard Time`，Linux 和 macOS 上使用 `America/New_York`。
-- .Net 版本大于等于 6.0 时，可以统一使用 `America/New_York`。
+.Net 6.0 及以上版本，可以统一使用 [IANA](https://www.iana.org/time-zones) 时区格式，例如：`America/New_York`。
 
 #### 接口说明  
 

@@ -128,12 +128,10 @@ Internally, the `TimeZoneInfo.FindSystemTimeZoneById` method is used to retrieve
 
 - On Windows systems, `FindSystemTimeZoneById` attempts to match the subkey names under the registry branch `HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Time Zones`.
 - On Linux and macOS, the timezone information provided by the [ICU library](https://unicode-org.github.io/icu/userguide/datetime/timezone/) is used.
-- For .NET 6.0 and later versions, the [IANA](https://www.iana.org/time-zones) timezone format can be used uniformly.
 
-Taking New York timezone as an example:
+Take the New York timezone as an example: Windows uses Eastern Standard Time, while Linux and macOS use America/New_York.
 
-- For .NET versions earlier than 6.0, use `Eastern Standard Time` on Windows and `America/New_York` on Linux and macOS.
-- For .NET versions 6.0 and later, you can uniformly use `America/New_York`.
+Starting with .NET 6, you can uniformly use the [IANA](https://www.iana.org/time-zones) time zone format, such as `America/New_York`.
 
 #### Interface Description
 
