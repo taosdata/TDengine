@@ -9,7 +9,7 @@ slug: /get-started/deploy-enterprise-edition
 - Ensure that your servers are running Ubuntu 18.04, CentOS 7.9 or later.
 - Ensure that `systemd` is installed and enabled on all servers.
 - Confirm the location of all storage media that you want to use for tiered storage.
-- If you want to use S3, obtain the access key and bucket name for the desired S3 instance.
+- If you want to use shared storage, such as S3, prepare the access string for the desired storage device.
 - If you want to try TDengine Enterprise using Docker, please refer to [Get Started with TDengine Using Docker](../deploy-in-docker/) or [docker hub](https://hub.docker.com/r/tdengine/tdengine-ee).
 
 ## Prepare Your Environment
@@ -86,16 +86,34 @@ Before starting TDengine, open the `/etc/taos/taos.cfg` file and configure the f
 
     Note that each cluster can have only one primary storage device, and the primary storage device must be on tier 0.
 
-    Then add the following parameters to the configuration file to enable S3 storage:
+    TDengine also supports using cloud providers' object storage as storage device. However, since most object storage systems already have multiple replicas, enabling TDengine's multi-replica feature on top would lead to wasted storage space and increased costs. To address this, TDengine has further improved object storage into shared storage—where the storage device logically maintains only one copy of data that is shared across all nodes in the TDengine cluster. This approach significantly reduces both storage space requirements and costs.
+    
+    To enable shared storage, please add the following parameters to the configuration file:
 
     ```conf
-    s3EndPoint <your-endpoint>
-    s3AccessKey <secret-id>:<secret-key>
-    s3BucketName <your-s3-bucket>
+    ssEnabled 2
+    ssAccessString s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=AKMYACCESSKEY;secretAccessKey=MYSECRETACCESSKEY;region=us-east-2;chunkSize=64;maxChunks=10000;maxRetry=3
     ssUploadDelaySec 10
     ssAutoMigrateIntervalSec 600
     ssPageCacheSize 1
     ```
+
+    The possible values for `ssEnabled` are `0`, `1` and `2`. `0` is the default, which means shared storage is disabled; `1` means only enable manual migration(migrate local data to shared storage), and `2` means also enable auto migation. 
+
+    The format of `ssAccessString` is `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`. Currently, TDengine supports using Amazon S3 compatible object storage as shared storage, its `device-type` is `s3`, and should the following options:
+
+    Name            |   Description
+    ----------------|----------------------------------------------
+    endpoint        | host name / ip address, and optional port number of the object storage server.
+    bucket          | bucket name.
+    protocol        | `https` or `http`, `https` is the default.     
+    uriStyle        | `virtualHost` or `path`, `virtualHost` is the default, but please note that some object storage provider only support `path`.
+    region          | object storage service region, optional.
+    accessKeyId     | your access key id.              
+    secretAccessKey | your secret access key.
+    chunkSize       | chunk size in MB, files larger than this size will use multipart upload, default is 64.
+    maxChunks       | max number of allowed chunks in a multipart upload, default is 10000.
+    maxRetry        | max retry times when encounter retryable errors, default is 3, negative value means unlimited retry.
 
 3. (Optional) Modify the `/etc/taos/taosadapter.toml` file as follows to enable SSL on taosAdapter:
 
