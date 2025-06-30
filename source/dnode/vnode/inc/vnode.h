@@ -36,16 +36,19 @@
 #include "storageapi.h"
 #include "tdb.h"
 
+#include "libs/metrics/metrics.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // vnode
-typedef struct SVnode       SVnode;
-typedef struct STsdbCfg     STsdbCfg;  // todo: remove
-typedef struct SVnodeCfg    SVnodeCfg;
-typedef struct SVSnapReader SVSnapReader;
-typedef struct SVSnapWriter SVSnapWriter;
+typedef struct SVnode             SVnode;
+typedef struct STsdbCfg           STsdbCfg;  // todo: remove
+typedef struct SVnodeCfg          SVnodeCfg;
+typedef struct SVSnapReader       SVSnapReader;
+typedef struct SVSnapWriter       SVSnapWriter;
+typedef struct SVnodeWriteMetrics SVnodeWriteMetrics;
 
 extern const SVnodeCfg vnodeCfgDefault;
 
@@ -134,7 +137,7 @@ int32_t     metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName);
 
 int      metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName);
 int      metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid);
-int      metaGetTableTypeSuidByName(void *meta, char *tbName, ETableType *tbType, uint64_t* suid);
+int      metaGetTableTypeSuidByName(void *meta, char *tbName, ETableType *tbType, uint64_t *suid);
 int      metaGetTableTtlByUid(void *meta, uint64_t uid, int64_t *ttlDays);
 bool     metaIsTableExist(void *pVnode, tb_uid_t uid);
 int32_t  metaGetCachedTableUidList(void *pVnode, tb_uid_t suid, const uint8_t *key, int32_t keyLen, SArray *pList,
@@ -152,8 +155,8 @@ int32_t  metaInitTbFilterCache(SMeta *pMeta);
 
 int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t *numOfCols, int8_t *flags);
 
-int32_t metaGetCachedRefDbs(void* pVnode, tb_uid_t suid, SArray* pList);
-int32_t metaPutRefDbsToCache(void* pVnode, tb_uid_t suid, SArray* pList);
+int32_t metaGetCachedRefDbs(void *pVnode, tb_uid_t suid, SArray *pList);
+int32_t metaPutRefDbsToCache(void *pVnode, tb_uid_t suid, SArray *pList);
 
 // tsdb
 typedef struct STsdbReader STsdbReader;
@@ -226,22 +229,22 @@ typedef struct SVTSourceScanInfo {
 } SVTSourceScanInfo;
 
 typedef struct STqReader {
-  SPackedData     msg;
-  SSubmitReq2     submit;
-  int32_t         nextBlk;
-  int64_t         lastBlkUid;
-  SWalReader     *pWalReader;
-  SMeta          *pVnodeMeta;
-  SHashObj       *tbIdHash;
-  SArray         *pColIdList;  // SArray<int16_t>
-  int32_t         cachedSchemaVer;
-  int64_t         cachedSchemaSuid;
-  int64_t         cachedSchemaUid;
-  SSchemaWrapper *pSchemaWrapper;
-  SSDataBlock    *pResBlock;
-  int64_t         lastTs;
-  bool            hasPrimaryKey;
-  SExtSchema     *extSchema;
+  SPackedData       msg;
+  SSubmitReq2       submit;
+  int32_t           nextBlk;
+  int64_t           lastBlkUid;
+  SWalReader       *pWalReader;
+  SMeta            *pVnodeMeta;
+  SHashObj         *tbIdHash;
+  SArray           *pColIdList;  // SArray<int16_t>
+  int32_t           cachedSchemaVer;
+  int64_t           cachedSchemaSuid;
+  int64_t           cachedSchemaUid;
+  SSchemaWrapper   *pSchemaWrapper;
+  SSDataBlock      *pResBlock;
+  int64_t           lastTs;
+  bool              hasPrimaryKey;
+  SExtSchema       *extSchema;
   SVTSourceScanInfo vtSourceScanInfo;
 } STqReader;
 
@@ -253,8 +256,8 @@ void tqSetTablePrimaryKey(STqReader *pReader, int64_t uid);
 
 int32_t tqReaderSetColIdList(STqReader *pReader, SArray *pColIdList, const char *id);
 int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList, const char *id);
-void tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
-void tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
+void    tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
+void    tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 
 bool tqReaderIsQueriedTable(STqReader *pReader, uint64_t uid);
 bool tqCurrentBlockConsumed(const STqReader *pReader);
@@ -267,11 +270,12 @@ SSDataBlock *tqGetResultBlock(STqReader *pReader);
 int64_t      tqGetResultBlockTime(STqReader *pReader);
 
 int32_t extractMsgFromWal(SWalReader *pReader, void **pItem, int64_t maxVer, const char *id);
-int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver, SArray* rawList);
+int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver, SArray *rawList);
 void    tqReaderClearSubmitMsg(STqReader *pReader);
 bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(STqReader *pReader, SSDataBlock **pRes, const char *idstr);
-int32_t tqRetrieveTaosxBlock(STqReader *pReader, SMqDataRsp* pRsp, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet, SArray* rawList, int8_t fetchMeta);
+int32_t tqRetrieveTaosxBlock(STqReader *pReader, SMqDataRsp *pRsp, SArray *blocks, SArray *schemas,
+                             SSubmitTbData **pSubmitTbDataRet, SArray *rawList, int8_t fetchMeta);
 int32_t tqGetStreamExecInfo(SVnode *pVnode, int64_t streamId, int64_t *pDelay, bool *fhFinished);
 
 int32_t tqReaderSetVtableInfo(STqReader *pReader, void *vnode, void *pAPI, SSHashObj *pVtableInfos,
@@ -387,6 +391,24 @@ void    tsdbFileSetReaderClose(struct SFileSetReader **ppReader);
 
 int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry);
 void    metaFetchEntryFree(SMetaEntry **ppEntry);
+
+/**
+ * @brief Get raw write metrics for a vnode
+ *
+ * @param pVnode Pointer to the vnode object
+ * @param pRawMetrics Pointer to the SRawWriteMetrics struct to fill with raw metrics
+ * @return 0 on success, non-zero on error
+ */
+int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics);
+
+/**
+ * @brief Reset raw write metrics for a vnode by subtracting old values
+ *
+ * @param pVnode Pointer to the vnode object
+ * @param pOldMetrics Pointer to the SRawWriteMetrics struct containing values to subtract
+ * @return 0 on success, non-zero on error
+ */
+int32_t vnodeResetRawWriteMetrics(void *pVnode, const SRawWriteMetrics *pOldMetrics);
 
 #ifdef __cplusplus
 }
