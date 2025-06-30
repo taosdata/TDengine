@@ -1844,9 +1844,9 @@ int check_write_permission(const char *path) {
     FILE *fp = fopen(path, "w");
     if (fp == NULL) {
         errorPrint("Error: %s No write permission\n", path);
-        return 0;
+        return -1;
     }
     fclose(fp);
     
-    return 1;
+    return 0;
 }
