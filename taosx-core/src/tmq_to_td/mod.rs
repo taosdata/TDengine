@@ -123,9 +123,8 @@ async fn write_data(
     target_is_v3: bool,
     metrics: &TmqMetrics,
 ) -> anyhow::Result<u64> {
-    tracing::trace!("Start writing data");
+    tracing::debug!("Start writing data");
     metrics.add_messages_of_data(1);
-    let mut has_blocks = false;
     let mut last_error = None;
     if target_is_v3 && !topic.is_query() && actions.is_empty() {
         let raw = data
@@ -168,6 +167,8 @@ async fn write_data(
         }
     }
 
+    // fallback to block-by-block method
+    let mut has_blocks = false;
     while let Some(mut raw) = data
         .fetch_raw_block()
         .await
@@ -175,65 +176,50 @@ async fn write_data(
     {
         has_blocks = true;
 
-        let source_table_name = raw.table_name().and_then(|name| {
-            if name.is_empty() {
-                None
-            } else {
-                Some(name.to_owned())
-            }
-        });
-        tracing::trace!(
-            source.table = source_table_name,
-            "sync block with {} rows {} cols",
-            raw.nrows(),
-            raw.ncols()
+        let source_table_name = raw
+            .table_name()
+            .filter(|name| !name.is_empty())
+            .map(|s| s.to_owned());
+        tracing::debug!(
+            "try to write raw block: {}",
+            raw.pretty_format().to_string()
         );
         if let Some(name) = table {
-            if actions.is_empty() {
-                raw.with_table_name(name);
-                tracing::debug!(
-                    "Write into {name} {} rows(total {}) with {} columns",
-                    raw.nrows(),
-                    rows,
-                    raw.ncols()
-                );
-            } else {
-                let mut name = name.to_string();
-                for action in actions {
-                    match action {
-                        Action::RenameTable(rename) | Action::RenameChildTable(rename) => {
-                            rename.apply_in_place(&mut name)?
-                        }
-                        _ => (),
+            let mut name = name.to_string();
+            for action in actions {
+                match action {
+                    Action::RenameTable(rename) | Action::RenameChildTable(rename) => {
+                        rename.apply_in_place(&mut name)?
                     }
+                    _ => (),
                 }
-                raw.with_table_name(&name);
-                tracing::debug!(
-                    "Write into {name} {} rows(total {}) with {} columns",
-                    raw.nrows(),
-                    rows,
-                    raw.ncols()
-                );
             }
+            raw.with_table_name(&name);
+            tracing::debug!(
+                "Write into {name} {} rows(total {}) with {} columns",
+                raw.nrows(),
+                rows,
+                raw.ncols()
+            );
         } else if let Some(name) = raw.table_name() {
-            if !actions.is_empty() {
-                let mut name = name.to_string();
-                for action in actions {
-                    match action {
-                        Action::RenameTable(rename) | Action::RenameChildTable(rename) => {
-                            rename.apply_in_place(&mut name)?
-                        }
-                        _ => (),
+            let mut name = name.to_string();
+            for action in actions {
+                match action {
+                    Action::RenameTable(rename) | Action::RenameChildTable(rename) => {
+                        rename.apply_in_place(&mut name)?
                     }
+                    _ => (),
                 }
-                raw.with_table_name(&name);
-                tracing::debug!(
-                    "write into {name} {} rows(total {}) with {} columns",
-                    raw.nrows(),
-                    rows,
-                    raw.ncols()
-                );
             }
+            if !actions.is_empty() {
+                raw.with_table_name(&name);
+            }
+            tracing::debug!(
+                "write into {name} {} rows(total {}) with {} columns",
+                raw.nrows(),
+                rows,
+                raw.ncols()
+            );
         } else {
             // 会走到这里吗？
             tracing::debug!(
