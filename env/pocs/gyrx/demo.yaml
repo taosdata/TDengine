@@ -1,0 +1,198 @@
+settings:
+  - name: taosd
+    fqdn: [node230]
+    spec:
+      version: 2.4.0.121111  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: node230:6030
+      dnodes:
+        - endpoint: node230:6030
+          config_dir: /etc/taos
+          code_dir: /root/TDengine
+          update_branch: main
+          config: # will write into taos.cfg
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+            supportVnodes: 1024
+            logKeepDays:  -1
+            numOfLogLines: 300000000
+            checkpointInterval: 60
+            snodeAddress: 127.0.0.1:873
+            ratioOfVnodeStreamThreads: 4
+            maxInsertBatchRows: 10000
+            UdfdLdLibPath: /usr/local/lib/python3.8/site-packages/taospyudf:/usr/local/lib/python3.8/dist-packages/taospyudf
+  - name: taospy
+    fqdn: [node230]
+    spec:
+      version: 2.2.0111
+      client_version: 2.4.0.12111
+      config:
+        firstEP: node230:6030
+        logDir: /var/log/taos
+        debugFlag: 135
+        asyncLog: 0
+        maxQueryTimeRange: 3
+        disableCount: 0
+        queryTableNotExistAsEmpty: false
+        maxInsertBatchRows: 10000
+
+  - name: taosAdapter
+    fqdn: [node230]
+    spec:
+      version: 2.4.0.12
+      config_file: /etc/taos/taosadapter.toml
+      adapter_config:
+        logLevel: info
+        port: 6041
+        taosConfigDir: /etc/taos
+        log:
+          path: /var/log/taos
+        opentsdb_telnet:
+          enable: true
+          maxTCPConnections: 250
+          tcpKeepAlive: false
+          dbs: ["telnet_tcp"]
+          ports: [6046]
+          user: root
+          password: taosdata
+          worker: 1000
+
+      taos_config:
+        firstEP: node230:6030
+        logDir: /var/log/taos
+        debugFlag: 135
+  - name: taosBenchmark
+    fqdn: [node230]
+    spec:
+      version: 3.0.1.8
+      taos_version: 3.0.1.8
+      config_dir: /etc/taos
+      taos_config:
+        firstEP: node230:6030
+        logDir: /var/log/taos
+        debugFlag: 131
+
+  - name: taosx
+    fqdn: [node230]
+    spec:
+      config_file: /etc/taos/taosx.toml
+      port: 6060
+      taosx_config:
+        instanceId: 100
+        log:
+          path: /var/log/taos
+        monitor:
+          fqdn: localhost
+      version: 3.3.*.*
+
+  - name: prometheus
+    fqdn: [node230]
+    spec:
+      server:
+        run_dir: /opt/prometheus
+        config:
+          global:
+            evaluation_interval: 10s
+            scrape_interval: 15s
+            scrape_timeout: 15s
+          scrape_configs:
+            job_name: prometheus
+            targets: [192.168.1.230:9090]
+      node_exporter:
+        fqdn: [node230]
+        run_dir: /opt/node_exporter
+      process_exporter:
+        fqdn: [node230]
+        run_dir: /opt/process_exporter
+        config:
+          common_process: [taosd, taosBenchmark]
+          custom_process:
+            node230: [taosd, taosBenchmark]
+
+  - name: playwright
+    fqdn: [localhost]
+    spec:
+      playwright:
+        # Screenshot configuration
+        screenshot:
+          viewport_width: 1280
+          viewport_height: 720
+          full_page: true  # Whether to capture the full page
+          wait_timeout: 30000  # Wait timeout in milliseconds
+          wait_for_selector: null  # Wait for specific selector to appear (optional)
+
+        # Browser configuration
+        browser:
+          type: "chromium"  # Options: chromium, firefox, webkit
+
+        # Optional: whether to delete installation directory on cleanup
+        cleanup_on_destroy: false
+
+  - name: jmeter
+    fqdn: [node230]
+    spec:
+      server:
+        version: "5.6.3"
+        offline: false
+        local_package_path: "/tmp"
+        install_java: true
+        run_dir: /opt
+
+        # JMX template and SQL file configuration
+        jmx_template: "jmetest.jmx"
+        sql_file: "demo_test_sqls.sql"
+
+        # Global variable configuration
+        global_variables:
+          # Database connection configuration
+          db_host: "node230"
+          db_port: "6041"
+          username: "root"
+          password: "taosdata"
+
+          # Default performance test parameters
+          query_timeout: "10000"
+          pool_max: "16"
+          connection_timeout: "30000"
+          ramp_time: "1"
+
+        # Concurrency level configuration for demo
+        concurrency_levels:
+          - name: "demo_light"
+            thread_count: "5"
+            loop_count: "3"
+            description: "Demo light load test"
+
+          - name: "demo_medium"
+            thread_count: "10"
+            loop_count: "5"
+            description: "Demo medium load test"
+
+        # Result collection configuration
+        result_config:
+          collect_jtl: true
+          collect_html_report: true
+          collect_logs: true
+
+      jdbc-driver:
+        version: 3.4.0
+
+  - name: kafka
+    fqdn: [192.168.2.192]
+    spec:
+      port: 9092
+      config:
+        bootstrap_servers: 192.168.2.192:9092
+        client_id: taostest_client
+        group_id: taostest_group
+
+  - name: grafana
+    fqdn: [192.168.2.196]
+    spec:
+      port: 3000
+      dashboards:
+        - id: "td_ds_01"
+          name: "tdinsight-for-3-x"
+        - id: "td_ds_02"
+          name: "tdinsight-for-taosx"
