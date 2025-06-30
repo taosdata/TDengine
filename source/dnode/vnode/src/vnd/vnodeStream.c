@@ -651,9 +651,7 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
   SExprInfo*   pExpr = sStreamInfo->pExprInfo;
   int32_t      numOfExpr = sStreamInfo->numOfExpr;
 
-  if (sStreamInfo->pCalcConditions != NULL) {
-    STREAM_CHECK_RET_GOTO(filterInitFromNode(isCalc ? sStreamInfo->pCalcConditions : sStreamInfo->pConditions, &pFilterInfo, 0, NULL));
-  }
+  STREAM_CHECK_RET_GOTO(filterInitFromNode(isCalc ? sStreamInfo->pCalcConditions : sStreamInfo->pConditions, &pFilterInfo, 0, NULL));
 
   initStorageAPI(&api);
   STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(

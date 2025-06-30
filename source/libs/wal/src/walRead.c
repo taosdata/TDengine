@@ -236,7 +236,7 @@ int32_t walReaderSeekVer(SWalReader *pReader, int64_t ver) {
   }
 
   if (ver > pWal->vers.lastVer || ver < pWal->vers.firstVer) {
-    wInfo("vgId:%d, invalid index:%" PRId64 ", first index:%" PRId64 ", last index:%" PRId64, pReader->pWal->cfg.vgId,
+    wDebug("vgId:%d, invalid index:%" PRId64 ", first index:%" PRId64 ", last index:%" PRId64, pReader->pWal->cfg.vgId,
           ver, pWal->vers.firstVer, pWal->vers.lastVer);
 
     TAOS_RETURN(TSDB_CODE_WAL_LOG_NOT_EXIST);
