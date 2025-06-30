@@ -42,7 +42,8 @@
 ## 23-Compatibility 
 
 ## 24-OldCases
-#,,n,.,pytest pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py 
+,,n,.,pytest pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py 
+#,,n,.,pytest pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py 
 #,,n,.,pytest pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_check.py
 #,,n,.,pytest pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_checkpoint.py
 #,,n,.,pytest pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
