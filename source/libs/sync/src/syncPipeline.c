@@ -732,6 +732,7 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
             pNode->vgId, pEntry->index, &rpcMsg.info, cbMeta.seqNum, num);
 
     code = pFsm->FpCommitCb(pFsm, &rpcMsg, &cbMeta);
+
     retry = (code != 0) && (terrno == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE);
 
     sGTrace(&rpcMsg.info.traceId,
@@ -1558,6 +1559,14 @@ int32_t syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncInd
       sWarn("vgId:%d, failed to get log entry since %s, index:%" PRId64, pNode->vgId, tstrerror(code), index);
     }
   }
+  
+  // TODO: where is the vgId 2 from?
+  if(code == 0 && *ppEntry && (*ppEntry)->dataLen >= sizeof(SMsgHead)) {
+    if((6 == pNode->vgId) && (((SMsgHead*)((*ppEntry)->data))->vgId != pNode->vgId)) {
+      ((SMsgHead*)((*ppEntry)->data))->vgId = pNode->vgId;
+    }
+  }
+
   TAOS_RETURN(code);
 }
 
@@ -1603,8 +1612,8 @@ int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex ind
   sGDebug(&msgOut.info.traceId,
           "vgId:%d, index:%" PRId64 ", replicate one msg to dest addr:0x%" PRIx64 ", term:%" PRId64 " prevterm:%" PRId64,
           pNode->vgId, pEntry->index, pDestId->addr, pEntry->term, prevLogTerm);
-  TAOS_CHECK_GOTO(syncNodeSendAppendEntries(pNode, pDestId, &msgOut), &lino, _err);
 
+  TAOS_CHECK_GOTO(syncNodeSendAppendEntries(pNode, pDestId, &msgOut), &lino, _err);
   if (!inBuf) {
     syncEntryDestroy(pEntry);
     pEntry = NULL;

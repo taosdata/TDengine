@@ -124,7 +124,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_MODULE,
   TSDB_MGMT_TABLE_QNODE,
   TSDB_MGMT_TABLE_SNODE,
-  TSDB_MGMT_TABLE_BNODE,  // no longer used
+  TSDB_MGMT_TABLE_BACKUP_NODE,  // no longer used
   TSDB_MGMT_TABLE_CLUSTER,
   TSDB_MGMT_TABLE_DB,
   TSDB_MGMT_TABLE_FUNC,
@@ -164,6 +164,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_USAGE,
   TSDB_MGMT_TABLE_FILESETS,
   TSDB_MGMT_TABLE_TRANSACTION_DETAIL,
+  TSDB_MGMT_TABLE_BNODE,
   TSDB_MGMT_TABLE_MOUNT,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
@@ -277,6 +278,7 @@ typedef enum ENodeType {
   QUERY_NODE_RANGE_AROUND,
   QUERY_NODE_STREAM_NOTIFY_OPTIONS,
   QUERY_NODE_VIRTUAL_TABLE,
+  QUERY_NODE_BNODE_OPTIONS,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -306,8 +308,8 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_INDEX_STMT,
   QUERY_NODE_CREATE_QNODE_STMT,
   QUERY_NODE_DROP_QNODE_STMT,
-  QUERY_NODE_CREATE_BNODE_STMT,
-  QUERY_NODE_DROP_BNODE_STMT,
+  QUERY_NODE_CREATE_BACKUP_NODE_STMT,  // no longer used
+  QUERY_NODE_DROP_BACKUP_NODE_STMT,    // no longer used
   QUERY_NODE_CREATE_SNODE_STMT,
   QUERY_NODE_DROP_SNODE_STMT,
   QUERY_NODE_CREATE_MNODE_STMT,
@@ -378,6 +380,8 @@ typedef enum ENodeType {
   QUERY_NODE_ASSIGN_LEADER_STMT,
   QUERY_NODE_SHOW_CREATE_TSMA_STMT,
   QUERY_NODE_SHOW_CREATE_VTABLE_STMT,
+  QUERY_NODE_CREATE_BNODE_STMT,
+  QUERY_NODE_DROP_BNODE_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -386,7 +390,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_MODULES_STMT,
   QUERY_NODE_SHOW_QNODES_STMT,
   QUERY_NODE_SHOW_SNODES_STMT,
-  QUERY_NODE_SHOW_BNODES_STMT,
+  QUERY_NODE_SHOW_BACKUP_NODES_STMT,  // no longer used
   QUERY_NODE_SHOW_ARBGROUPS_STMT,
   QUERY_NODE_SHOW_CLUSTER_STMT,
   QUERY_NODE_SHOW_DATABASES_STMT,
@@ -425,6 +429,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_FILESETS_STMT,
   QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT,
   QUERY_NODE_SHOW_VTABLES_STMT,
+  QUERY_NODE_SHOW_BNODES_STMT,
   QUERY_NODE_SHOW_MOUNTS_STMT,
 
   // logic plan node
@@ -2158,6 +2163,24 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
+  int64_t total_requests;
+  int64_t total_rows;
+  int64_t total_bytes;
+  double  write_size;
+  double  cache_hit_ratio;
+  int64_t rpc_queue_wait;
+  int64_t preprocess_time;
+
+  int64_t memory_table_size;
+  int64_t commit_count;
+  int64_t merge_count;
+  double  commit_time;
+  double  merge_time;
+  int64_t block_commit_time;
+  int64_t memtable_wait_time;
+} SVnodeMetrics;
+
+typedef struct {
   int32_t     vgId;
   int64_t     numOfTables;
   int64_t     memSize;
@@ -2911,6 +2934,27 @@ void    tFreeSMDropAnodeReq(SMDropAnodeReq* pReq);
 int32_t tSerializeSMUpdateAnodeReq(void* buf, int32_t bufLen, SMUpdateAnodeReq* pReq);
 int32_t tDeserializeSMUpdateAnodeReq(void* buf, int32_t bufLen, SMUpdateAnodeReq* pReq);
 void    tFreeSMUpdateAnodeReq(SMUpdateAnodeReq* pReq);
+
+typedef struct {
+  int32_t dnodeId;
+  int32_t bnodeProto;
+  int32_t sqlLen;
+  char*   sql;
+} SMCreateBnodeReq, SDCreateBnodeReq;
+
+int32_t tSerializeSMCreateBnodeReq(void* buf, int32_t bufLen, SMCreateBnodeReq* pReq);
+int32_t tDeserializeSMCreateBnodeReq(void* buf, int32_t bufLen, SMCreateBnodeReq* pReq);
+void    tFreeSMCreateBnodeReq(SMCreateBnodeReq* pReq);
+
+typedef struct {
+  int32_t dnodeId;
+  int32_t sqlLen;
+  char*   sql;
+} SMDropBnodeReq, SDDropBnodeReq;
+
+int32_t tSerializeSMDropBnodeReq(void* buf, int32_t bufLen, SMDropBnodeReq* pReq);
+int32_t tDeserializeSMDropBnodeReq(void* buf, int32_t bufLen, SMDropBnodeReq* pReq);
+void    tFreeSMDropBnodeReq(SMDropBnodeReq* pReq);
 
 typedef struct {
   int32_t vgId;

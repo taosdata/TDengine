@@ -3744,6 +3744,68 @@ _err:
   return NULL;
 }
 
+SNode* createCreateBnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId, SNode* pOptions) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateBnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_BNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
+
+  pStmt->pOptions = (SBnodeOptions*)pOptions;
+
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createDropBnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId) {
+  CHECK_PARSER_STATUS(pCxt);
+  SUpdateBnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_BNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
+
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createDefaultBnodeOptions(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SBnodeOptions* pOptions = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_BNODE_OPTIONS, (SNode**)&pOptions);
+  CHECK_MAKE_NODE(pOptions);
+
+  tstrncpy(pOptions->protoStr, TSDB_BNODE_OPT_PROTO_DFT_STR, TSDB_BNODE_OPT_PROTO_STR_LEN);
+  pOptions->proto = TSDB_BNODE_OPT_PROTO_DEFAULT;
+
+  return (SNode*)pOptions;
+_err:
+  return NULL;
+}
+
+static SNode* setBnodeOptionImpl(SAstCreateContext* pCxt, SNode* pBodeOptions, EBnodeOptionType type, void* pVal,
+                                    bool alter) {
+  CHECK_PARSER_STATUS(pCxt);
+  SBnodeOptions* pOptions = (SBnodeOptions*)pBodeOptions;
+  switch (type) {
+    case BNODE_OPTION_PROTOCOL:
+      COPY_STRING_FORM_STR_TOKEN(pOptions->protoStr, (SToken*)pVal);
+      break;
+    default:
+      break;
+  }
+
+  return pBodeOptions;
+_err:
+  nodesDestroyNode(pBodeOptions);
+  return NULL;
+}
+
+SNode* setBnodeOption(SAstCreateContext* pCxt, SNode* pOptions, EBnodeOptionType type, void* pVal) {
+  return setBnodeOptionImpl(pCxt, pOptions, type, pVal, false);
+}
+
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue) {
   SToken config;
   config.type = TK_NK_STRING;

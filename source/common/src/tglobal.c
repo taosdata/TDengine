@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tglobal.h"
 #include "cJSON.h"
 #include "defines.h"
 #include "os.h"
 #include "osString.h"
 #include "tconfig.h"
+#include "tglobal.h"
 #include "tgrant.h"
 #include "tjson.h"
 #include "tlog.h"
@@ -45,8 +45,9 @@ int32_t       tsVersion = 30000000;
 int32_t       tsForceReadConfig = 0;
 int32_t       tsdmConfigVersion = -1;
 int32_t       tsConfigInited = 0;
-int32_t       tsStatusInterval = 1;  // second
+int32_t       tsStatusInterval = 1;   // second
 int32_t       tsNumOfSupportVnodes = 256;
+uint16_t      tsMqttPort = 6083;
 char          tsEncryptAlgorithm[16] = {0};
 char          tsEncryptScope[100] = {0};
 EEncryptAlgor tsiEncryptAlgorithm = 0;
@@ -55,6 +56,8 @@ EEncryptScope tsiEncryptScope = 0;
 // char     tsEncryptKey[17] = {0};
 char   tsEncryptKey[17] = {0};
 int8_t tsEnableStrongPassword = 1;
+char          tsEncryptPassAlgorithm[16] = {0};
+EEncryptAlgor tsiEncryptPassAlgorithm = 0;
 
 // common
 int32_t tsMaxShellConns = 50000;
@@ -156,11 +159,15 @@ uint16_t tsMonitorPort = 6043;
 int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 bool     tsMonitorLogProtocol = false;
+int32_t  tsEnableMetrics = 0;    // 0: disable, 1: enable
+int32_t  tsMetricsLevel = 0;      // 0: only high level metrics, 1: full metrics
+int32_t  tsMetricsInterval = 30;  // second
 #ifdef USE_MONITOR
 bool tsMonitorForceV2 = true;
 #else
 bool    tsMonitorForceV2 = false;
 #endif
+
 
 // audit
 #ifdef USE_AUDIT
@@ -680,12 +687,15 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
       cfgAddInt32(pCfg, "stDebugFlag", stDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
       cfgAddInt32(pCfg, "sndDebugFlag", sndDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(
+      cfgAddInt32(pCfg, "bndDebugFlag", bndDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 static int32_t taosAddClientCfg(SConfig *pCfg) {
   char    defaultFqdn[TSDB_FQDN_LEN] = {0};
   int32_t defaultServerPort = 6030;
+  int32_t defaultMqttPort = 6083;
   if (taosGetFqdn(defaultFqdn) != 0) {
     tstrncpy(defaultFqdn, "localhost", TSDB_FQDN_LEN);
   }
@@ -696,6 +706,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "secondEp", "", CFG_SCOPE_BOTH, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "fqdn", defaultFqdn, CFG_SCOPE_SERVER, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056, CFG_SCOPE_SERVER, CFG_DYN_CLIENT,
+                                CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "mqttPort", defaultMqttPort, 1, 65056, CFG_SCOPE_SERVER, CFG_DYN_CLIENT,
                                 CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "tempDir", tsTempDir, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
@@ -799,7 +811,6 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "compareAsStrInGreatest", tsCompareAsStrInGreatest, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL));
-
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -892,8 +903,12 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptAlgorithm", tsEncryptAlgorithm, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptScope", tsEncryptScope, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableStrongPassword", tsEnableStrongPassword, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptPassAlgorithm", tsEncryptPassAlgorithm, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "metricsInterval", tsMetricsInterval, 1, 3600, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "enableMetrics", tsEnableMetrics, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "metricsLevel", tsMetricsLevel, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxShellConns", tsMaxShellConns, 10, 50000000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryBufferSize", tsQueryBufferSize, -1, 500000000000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
@@ -1346,6 +1361,9 @@ static int32_t taosSetServerLogCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sndDebugFlag");
   sndDebugFlag = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "bndDebugFlag");
+  bndDebugFlag = pItem->i32;
+
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1419,6 +1437,8 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   char defaultFirstEp[TSDB_EP_LEN] = {0};
   (void)snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "mqttPort");
+  tsMqttPort = (uint16_t)pItem->i32;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");
   tsEnableIpv6 = pItem->bval;
 
@@ -1603,6 +1623,15 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "statusInterval");
   tsStatusInterval = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableMetrics");
+  tsEnableMetrics = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "metricsLevel");
+  tsMetricsLevel = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "metricsInterval");
+  tsMetricsInterval = pItem->i32;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minSlidingTime");
   tsMinSlidingTime = pItem->i32;
 
@@ -1622,6 +1651,18 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableStrongPassword");
   tsEnableStrongPassword = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "encryptPassAlgorithm");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, 16));
+  tstrncpy(tsEncryptPassAlgorithm, pItem->str, 16);
+
+  if (strlen(tsEncryptPassAlgorithm) > 0) {
+    if (strcmp(tsEncryptPassAlgorithm, "sm4") == 0) {
+      tsiEncryptPassAlgorithm = DND_CA_SM4;
+    } else {
+      uError("invalid tsEncryptAlgorithm:%s", tsEncryptPassAlgorithm);
+    }
+  }
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfRpcThreads");
   tsNumOfRpcThreads = pItem->i32;
@@ -2130,6 +2171,11 @@ static int32_t taosCheckGlobalCfg() {
 
   if (tsServerPort <= 0) {
     uError("invalid server port:%u, can not be initialized", tsServerPort);
+    TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);
+  }
+
+  if (tsMqttPort <= 0 || tsMqttPort == tsServerPort) {
+    uError("invalid mqtt port:%u, can not be initialized", tsMqttPort);
     TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);
   }
 
@@ -2676,7 +2722,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
         {"uDebugFlag", &uDebugFlag},       {"smaDebugFlag", &smaDebugFlag},
         {"rpcDebugFlag", &rpcDebugFlag},   {"qDebugFlag", &qDebugFlag},
         {"metaDebugFlag", &metaDebugFlag}, {"stDebugFlag", &stDebugFlag},
-        {"sndDebugFlag", &sndDebugFlag},   {"tqClientDebugFlag", &tqClientDebugFlag},
+        {"sndDebugFlag", &sndDebugFlag},   {"bndDebugFlag", &bndDebugFlag},
+        {"tqClientDebugFlag", &tqClientDebugFlag},
     };
 
     static OptionNameAndVar options[] = {{"audit", &tsEnableAudit},
@@ -2767,7 +2814,10 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"arbSetAssignedTimeoutSec", &tsArbSetAssignedTimeoutSec},
                                          {"queryNoFetchTimeoutSec", &tsQueryNoFetchTimeoutSec},
                                          {"enableStrongPassword", &tsEnableStrongPassword},
-                                        {"forceKillTrans", &tsForceKillTrans}};
+                                         {"enableMetrics", &tsEnableMetrics},
+                                         {"metricsInterval", &tsMetricsInterval},
+                                         {"metricsLevel", &tsMetricsLevel},
+                                         {"forceKillTrans", &tsForceKillTrans}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -3114,6 +3164,7 @@ static int32_t taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
   taosCheckAndSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&stDebugFlag, "stDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&sndDebugFlag, "sndDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&bndDebugFlag, "bndDebugFlag", flag, noNeedToSetVars);
 
   taosArrayClear(noNeedToSetVars);  // reset array
 
