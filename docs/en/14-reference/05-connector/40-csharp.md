@@ -67,7 +67,9 @@ For error reporting in other TDengine modules, please refer to [Error Codes](../
 - The GEOMETRY type is binary data in little endian byte order, conforming to the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)
 For WKB standard, please refer to [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)
 - The DECIMAL type in C# is represented using the `decimal` type, which supports high-precision decimal numbers. 
-Since C#'s `decimal` type differs from TDengine's Decimal type in precision and range, the following should be noted when using it:
+Since C#'s `decimal` type differs from TDengine's DECIMAL type in precision and range,
+the C#'s `decimal` has a maximum precision of 29 digits, while TDengine's DECIMAL type supports up to 38 digits of precision.
+The following should be noted when using it:
   - When the value does not exceed the range of C#'s `decimal` type, you can use `GetDecimal` or `GetValue` to retrieve it.
   - When the value exceeds the range of C#'s `decimal` type, the `GetDecimal` and `GetValue` methods will throw an `OverflowException`. 
   In such cases, you can use the `GetString` method to obtain the string representation.

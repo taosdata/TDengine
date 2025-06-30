@@ -65,7 +65,8 @@ TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/
 - JSON 类型仅在 tag 中支持。
 - GEOMETRY 类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)。
 WKB 规范请参考 [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)。
-- DECIMAL 类型在 C# 中使用 `decimal` 类型表示，支持高精度的十进制数值。因为 C# 的 `decimal` 类型与 TDengine 的 DECIMAL 类型在精度和范围上有所不同，所以在使用时需要注意：
+- DECIMAL 类型在 C# 中使用 `decimal` 类型表示，支持高精度的十进制数值。因为 C# 的 `decimal` 类型与 TDengine 的 DECIMAL 类型在精度和范围上有所不同，
+  C# `decimal` 精度最大 29 位，TDengine DECIMAL 类型精度最大 38 位，所以在使用时需要注意：
     - 未超出 C# decimal 类型范围时可以使用 `GetDecimal` 或 `GetValue` 获取。
     - 当超出 C# decimal 类型范围时 `GetDecimal` 和 `GetValue` 方法会抛出 `OverflowException`，此时可以使用 `GetString` 方法获取字符串表示形式。
 
