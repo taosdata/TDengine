@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include <regex.h>
+#include <stdio.h>
 #ifndef TD_ASTRA
 #include <uv.h>
 #endif
@@ -3751,6 +3752,49 @@ _err:
 SNode* setBnodeOption(SAstCreateContext* pCxt, SNode* pOptions, EBnodeOptionType type, void* pVal) {
   return setBnodeOptionImpl(pCxt, pOptions, type, pVal, false);
 }
+
+SNode* createCreateXnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl) {
+  printf("createCreateXnodeStmt: %s\n", pUrl->z);
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateXnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_XNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  (void)trimString(pUrl->z, pUrl->n, pStmt->url, sizeof(pStmt->url));
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode) {
+  CHECK_PARSER_STATUS(pCxt);
+  SUpdateXnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (NULL != pXnode) {
+    pStmt->xnodeId = taosStr2Int32(pXnode->z, NULL, 10);
+  } else {
+    pStmt->xnodeId = -1;
+  }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createUpdateXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool updateAll) {
+  CHECK_PARSER_STATUS(pCxt);
+  SUpdateXnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_UPDATE_XNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (NULL != pXnode) {
+    pStmt->xnodeId = taosStr2Int32(pXnode->z, NULL, 10);
+  } else {
+    pStmt->xnodeId = -1;
+  }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue) {
   SToken config;

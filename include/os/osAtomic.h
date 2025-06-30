@@ -16,6 +16,8 @@
 #ifndef _TD_OS_ATOMIC_H_
 #define _TD_OS_ATOMIC_H_
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

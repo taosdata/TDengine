@@ -16,6 +16,7 @@
 #ifndef _TD_CMD_NODES_H_
 #define _TD_CMD_NODES_H_
 
+#include "tdef.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -431,6 +432,22 @@ typedef struct {
   ENodeType type;
   int32_t   dnodeId;
 } SUpdateBnodeStmt;
+
+typedef struct {
+  ENodeType type;
+  char      url[TSDB_XNODE_URL_LEN + 3];
+} SCreateXnodeStmt;
+
+typedef struct {
+  ENodeType type;
+  int32_t   xnodeId;
+} SDropXnodeStmt;
+
+typedef struct {
+  ENodeType type;
+  int32_t   xnodeId;
+} SUpdateXnodeStmt;
+
 
 typedef struct SShowStmt {
   ENodeType     type;

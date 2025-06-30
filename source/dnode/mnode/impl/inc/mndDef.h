@@ -21,6 +21,7 @@
 #include "cJSON.h"
 #include "scheduler.h"
 #include "sync.h"
+#include "tarray.h"
 #include "thash.h"
 #include "tlist.h"
 #include "tlog.h"
@@ -82,7 +83,10 @@ typedef enum {
   MND_OPER_UPDATE_ANODE,
   MND_OPER_DROP_ANODE,
   MND_OPER_CREATE_BNODE,
-  MND_OPER_DROP_BNODE
+  MND_OPER_DROP_BNODE,
+  MND_OPER_CREATE_XNODE,
+  MND_OPER_UPDATE_XNODE,
+  MND_OPER_DROP_XNODE
 } EOperType;
 
 typedef enum {
@@ -265,6 +269,38 @@ typedef struct {
   char*    url;
   SArray** algos;
 } SAnodeObj;
+
+/**
+ * @brief Stucture for XNode object.
+ * 
+ * This structure represents an XNode in the system, which contains
+ * information about the node's ID, creation and update times, version,
+ * URL length, status, and a lock for synchronization.
+ */
+typedef struct {
+  int32_t  id;
+  int64_t  createdTime;
+  int64_t  updateTime;
+  int32_t  version;
+  int32_t  urlLen;
+  int32_t  numOfAlgos;
+  int32_t  status;
+  SRWLatch lock;
+  char*    url;
+} SXnodeObj;
+
+typedef struct {
+  int32_t id;
+  int64_t createdTime;
+  int64_t updateTime;
+  char*  sourceType;
+  char*  sourceDsn;
+  char*  sinkType;
+  char*  sinkDsn;
+  char*  parser;
+  SArray** labels;
+  int32_t numOfLabels;
+} SXtaskObj;
 
 typedef struct {
   int32_t    id;
