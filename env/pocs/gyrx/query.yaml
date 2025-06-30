@@ -1,0 +1,23 @@
+# 数据库查询配置文件
+# db: 指定数据库名称
+# sql_list: 要执行的SQL查询列表
+
+database_config:
+  db: test
+  sql_list:
+    - "select * from test.stb where tbname ='ctb4' limit 10"
+    - "select count(*),avg(c0),max(c1) from test.stb partition by tbname slimit 10"
+    - "select a.ts, a.c0, b.c1 from ctb0 a inner join ctb1 b on a.ts=b.ts limit 10"
+    - "select a.ts, a.c0, b.c1 from ctb0 a left join ctb1 b on a.ts=b.ts limit 10"
+    - "select a.ts, a.c0, b.c1 from ctb0 a right join ctb1 b on a.ts=b.ts limit 10"
+    - "select a.ts, a.c0, b.c1,c.c1 from ctb0 a ,ctb1 b,ctb2 c where a.ts = b.ts and  a.ts = c.ts limit 10"
+    - "select count(*) from (select distinct tbname from test.stb)"
+    - "select * from ctb0 order by ts limit 10"
+    - "select * from ctb0 order by ts desc limit 10"
+    - "select ts from ctb0 union select ts from ctb1 limit 10"
+    - "select ts from ctb0 union all select ts from ctb1 limit 10"
+
+# 如果需要添加更多数据库的查询，请按以下格式添加：
+# another_database_name:
+#   - "SQL语句1"
+#   - "SQL语句2"
