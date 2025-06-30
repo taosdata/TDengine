@@ -711,6 +711,8 @@ _exit:
 }
 static int32_t inline vnodeSubmitBlobData(SVnode *pVnode, SSubmitReq2 *pReq) {
   int32_t code = 0;
+
+  uInfo("vgId:%d,submit blob data, nSubmitTbData:%d", TD_VID(pVnode), (int)(TARRAY_SIZE(pReq->aSubmitTbData)));
   for (int32_t i = 0; i < TARRAY_SIZE(pReq->aSubmitTbData); ++i) {
     SSubmitTbData *pSubmitTbData = taosArrayGet(pReq->aSubmitTbData, i);
     if (pSubmitTbData->flags & SUBMIT_REQ_WITH_BLOB) {

@@ -467,6 +467,8 @@ int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
   if (code != 0) {
     bseError("vgId:%d failed to get value from seq %" PRId64 " at line %d since %s", BSE_GET_VGID(pBse), seq, line,
              tstrerror(code));
+  } else {
+    bseDebug("vgId:%d get value from seq %" PRId64 " at line %d", BSE_GET_VGID(pBse), seq, line);
   }
   return code;
 }

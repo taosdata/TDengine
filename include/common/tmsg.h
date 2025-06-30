@@ -4845,6 +4845,7 @@ typedef struct {
   };
   int64_t    ctimeMs;
   SBlobRow2* pBlobRow;
+  SArray*    aBlobData;  // SArray<SBlobData>
 } SSubmitTbData;
 
 typedef struct {

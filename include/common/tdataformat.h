@@ -166,6 +166,8 @@ int32_t tBlobRowUpdate(SBlobRow2 *pBlobRow, uint64_t seq, SBlobItem *pBlobItem);
 int32_t tBlobRowGet(SBlobRow2 *pBlobRow, uint64_t seq, SBlobItem *pItem); 
 int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow);
 int32_t tBlobRowSize(SBlobRow2 *pBlobRow);
+int32_t tBlobRowEnd(SBlobRow2 *pBlobRow);
+int32_t tBlobRowRebuild(SBlobRow2 *pBlobRow, int32_t srow, int32_t nrow, SBlobRow2 **pNew);
 
 int32_t tRowGetBlobSeq(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal, uint64_t *seq);
 void    tRowDestroy(SRow *pRow);
@@ -298,6 +300,8 @@ struct SBlobRow2 {
   int32_t  cap;
   uint8_t  compress;
   SArray  *pSeqTable;
+
+  SArray  *pSet;
   uint8_t *data;
 };
 
@@ -478,6 +482,9 @@ typedef struct {
 
 int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
                            SArray *rowArray, bool *pOrdered, bool *pDupTs);
+
+int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
+                                   SArray *rowArray, bool *pOrdered, bool *pDupTs, SBlobRow2 *pBlobRow);
 
 struct SRowBuildScanInfo {
   int32_t numOfNone;

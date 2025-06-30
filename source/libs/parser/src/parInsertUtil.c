@@ -497,6 +497,8 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
     code = rebuildTableData(pTableCxt->pData, &pTableCxt->pData);
   } else if (clear) {
     taosMemoryFreeClear(pTableCxt->pData);
+  } else {
+    code = tBlobRowCreate(4096, 1, &pTableCxt->pData->pBlobRow);
   }
 
   parserDebug("uid:%" PRId64 ", add table data context to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
@@ -899,6 +901,43 @@ static void destroyVgDataBlocks(void* p) {
   taosMemoryFree(pVg);
 }
 
+static int32_t insRebuildBlobRow(SSubmitReq2* pReq) {
+  int32_t    code = 0;
+  SBlobRow2* pBlob = NULL;
+  if (pReq->aSubmitTbData && taosArrayGetSize(pReq->aSubmitTbData) > 0) {
+    SSubmitTbData* pSubmitTbData = taosArrayGet(pReq->aSubmitTbData, 0);
+    if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      return TSDB_CODE_SUCCESS;  // no need to rebuild blob row
+    }
+    if (pSubmitTbData->pBlobRow == NULL || taosArrayGetSize(pSubmitTbData->pBlobRow->pSeqTable) <= 0) {
+      // no blob row, no need to rebuild
+      return TSDB_CODE_SUCCESS;
+    }
+    if (taosArrayGetSize(pSubmitTbData->aRowP) >= taosArrayGetSize(pSubmitTbData->pBlobRow->pSeqTable)) {
+      return TSDB_CODE_SUCCESS;
+    }
+    pBlob = pSubmitTbData->pBlobRow;
+  } else {
+    return code;
+  }
+
+  int32_t totalRow = 0;
+  for (uint64_t i = 0; i < taosArrayGetSize(pReq->aSubmitTbData); i++) {
+    SSubmitTbData* pSubmitTbData = taosArrayGet(pReq->aSubmitTbData, i);
+    int32_t        row = taosArrayGetSize(pSubmitTbData->aRowP);
+    if (i != 0) {
+      tBlobRowDestroy(pSubmitTbData->pBlobRow);
+    }
+    code = tBlobRowRebuild(pBlob, totalRow, row, &pSubmitTbData->pBlobRow);
+
+    totalRow += row;
+  }
+
+  if (pBlob != NULL) {
+    tBlobRowDestroy(pBlob);
+  }
+  return TSDB_CODE_SUCCESS;
+}
 int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, SArray** pVgDataBlocks, bool append) {
   size_t  numOfVg = taosArrayGetSize(pVgDataCxtList);
   SArray* pDataBlocks = (append && *pVgDataBlocks) ? *pVgDataBlocks : taosArrayInit(numOfVg, POINTER_BYTES);
@@ -916,9 +955,14 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
     if (NULL == dst) {
       code = terrno;
     }
+
     if (TSDB_CODE_SUCCESS == code) {
       dst->numOfTables = taosArrayGetSize(src->pData->aSubmitTbData);
       code = taosHashGetDup(pVgroupsHashObj, (const char*)&src->vgId, sizeof(src->vgId), &dst->vg);
+    }
+
+    if (TSDB_CODE_SUCCESS == code) {
+      code = insRebuildBlobRow(src->pData);
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = buildSubmitReq(src->vgId, src->pData, &dst->pData, &dst->size);
