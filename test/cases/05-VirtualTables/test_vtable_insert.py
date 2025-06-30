@@ -39,10 +39,13 @@ class TestVtableInsert:
             tdSql.execute(f"insert into tb values (now,{i})")
             i = i - 1
 
-        tdSql.execute(f"CREATE STABLE `vst` (ts timestamp, flag int) TAGS (t1 VARCHAR(10))VIRTUAL 1")
+        tdSql.execute(f"CREATE STABLE `vst` (ts timestamp, flag int) TAGS (t1 VARCHAR(10)) VIRTUAL 1")
         tdSql.execute(f"CREATE VTABLE `sct0`(tb.flag) USING vst TAGS (1)")
+        tdSql.execute(f"CREATE VTABLE `nsct0`(ts timestamp,flag int from tb.flag)")
 
         tdSql.error(f"insert into vst values(now, 1)")
-        tdSql.error(f"insert into sct0 (ct0.count)values(now, 1)")
+        tdSql.error(f"insert into sct0 values(now, 1)")
+        tdSql.error(f"insert into nsct0 values(now, 1)")
+
 
         tdLog.info(f"end virtual table insert test successfully")
