@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "metrics.h"
 #include "dmMgmt.h"
 #include "dmNodes.h"
 
