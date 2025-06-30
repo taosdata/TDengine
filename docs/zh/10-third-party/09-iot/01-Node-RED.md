@@ -21,7 +21,7 @@ node-red-node-tdengine 是 TDengine 为 Node-RED 开发的官方插件，由两�
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../../reference/components/taosadapter)。
 - Node-RED 3.0.0 及以上版本，[Node-RED 安装](https://nodered.org/docs/getting-started/)。
 - Node.js 语言连接器 3.1.8 及以上版本，可从 [npmjs.com](https://www.npmjs.com/package/@tdengine/websocket) 下载。
-- node-red-node-tdengine 插件 1.0.0 及以上版本，可从 [npmjs.com](https://www.npmjs.com/package/node-red-node-tdengine) 下载。
+- node-red-node-tdengine 插件最新版本，可从 [npmjs.com](https://www.npmjs.com/package/node-red-node-tdengine) 下载。
 
 以上各安装组件调用关系如下图：
 
