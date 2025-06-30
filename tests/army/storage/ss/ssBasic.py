@@ -97,7 +97,7 @@ class TDTestCase(TBase):
 
     def migrateDbSs(self):
         sql = f"ssmigrate database {self.db}"
-        tdSql.execute(sql, show=True)
+        tdSql.execute(sql, queryTimes=60, show=True)
 
     def checkDataFile(self, lines, maxFileSize):
         # ls -l
