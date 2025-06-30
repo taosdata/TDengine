@@ -436,10 +436,6 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       }
 
       SColumnNode *ref = (SColumnNode *)node;
-
-      if (taosArrayGetSize(ctx->pBlockList) > 1){
-        
-      }
       int32_t index = -1;
       for (int32_t i = 0; i < taosArrayGetSize(ctx->pBlockList); ++i) {
         SSDataBlock *pb = taosArrayGetP(ctx->pBlockList, i);
