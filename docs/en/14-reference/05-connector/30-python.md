@@ -57,6 +57,7 @@ Python Connector historical versions (it is recommended to use the latest versio
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
+|2.8.2 | The connection parameter settings support cross-platform compatibility.                                     | - |
 |2.8.1 | Add two functions to set the connect property                                                               | - |
 |2.8.0 | Remove Apache Superset Driver                                                                               | - |
 |2.7.23 | Supports DECIMAL data type                                                                                 | - |
