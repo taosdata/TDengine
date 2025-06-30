@@ -2384,14 +2384,6 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   } else {
     pContext->curReaderIdx = (pContext->curReaderIdx + 1) % taosArrayGetSize(pTask->readerList);
     if (pContext->curReaderIdx == 0) {
-      if (!pContext->getWalMetaThisRound) {
-        // add the task to wait list since it catches up all readers
-        pContext->status = STRIGGER_CONTEXT_IDLE;
-        int64_t resumeTime = taosGetTimestampNs() + STREAM_TRIGGER_WAIT_TIME_NS;
-        code = streamTriggerAddWaitContext(pContext, resumeTime);
-        QUERY_CHECK_CODE(code, lino, _end);
-        goto _end;
-      }
       // todo(kjq): start history calc if needed
       pContext->getWalMetaThisRound = false;
 #define STRIGGER_CHECK_POINT_INTERVAL_NS 10 * NANOSECOND_PER_MINUTE  // 10min
@@ -2419,6 +2411,14 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         taosMemoryFree(buf);
         QUERY_CHECK_CODE(code, lino, _end);
         pContext->lastCheckpointTime = now;
+      }
+      if (!pContext->getWalMetaThisRound) {
+        // add the task to wait list since it catches up all readers
+        pContext->status = STRIGGER_CONTEXT_IDLE;
+        int64_t resumeTime = taosGetTimestampNs() + STREAM_TRIGGER_WAIT_TIME_NS;
+        code = streamTriggerAddWaitContext(pContext, resumeTime);
+        QUERY_CHECK_CODE(code, lino, _end);
+        goto _end;
       }
     }
     // pull new wal metas
