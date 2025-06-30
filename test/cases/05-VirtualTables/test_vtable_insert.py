@@ -28,7 +28,7 @@ class TestVtableInsert:
         """
 
         tdLog.info(f"========== start virtual table insert test")
-        tdSql.execute(f"drop database test_vdb")
+        tdSql.execute(f"drop database if exists test_vdb")
         tdSql.execute(f"create database test_vdb")
         tdSql.execute(f"use test_vdb")
         tdSql.execute(f"create table st (ts timestamp, flag int) tags (t1 VARCHAR(10))")
