@@ -437,6 +437,9 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 
       SColumnNode *ref = (SColumnNode *)node;
 
+      if (taosArrayGetSize(ctx->pBlockList) > 1){
+        
+      }
       int32_t index = -1;
       for (int32_t i = 0; i < taosArrayGetSize(ctx->pBlockList); ++i) {
         SSDataBlock *pb = taosArrayGetP(ctx->pBlockList, i);
@@ -449,10 +452,12 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         }
       }
 
-      if (index == -1) {
+      if (index == -1 && taosArrayGetSize(ctx->pBlockList) > 1) {
         sclError("column tupleId is too big, tupleId:%d, dataBlockNum:%d", ref->dataBlockId,
                  (int32_t)taosArrayGetSize(ctx->pBlockList));
         SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+      } else {
+        index = 0;
       }
 
       SSDataBlock *block = *(SSDataBlock **)taosArrayGet(ctx->pBlockList, index);
