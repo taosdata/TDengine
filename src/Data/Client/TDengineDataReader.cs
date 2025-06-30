@@ -22,48 +22,46 @@ namespace TDengine.Data.Client
             var schemaTable = new DataTable();
             if (_fieldCount > 0)
             {
-                
                 var columns = schemaTable.Columns;
+
                 var columnName = new DataColumn(SchemaTableColumn.ColumnName, typeof(string));
                 var columnOrdinal = new DataColumn(SchemaTableColumn.ColumnOrdinal, typeof(int));
                 var columnSize = new DataColumn(SchemaTableColumn.ColumnSize, typeof(int));
-                var dataType = new DataColumn(SchemaTableColumn.DataType, typeof(Type)); 
+                var dataType = new DataColumn(SchemaTableColumn.DataType, typeof(Type));
                 var dataTypeName = new DataColumn("DataTypeName", typeof(string));
+                var numericPrecision = new DataColumn(SchemaTableColumn.NumericPrecision, typeof(int));
+                var numericScale = new DataColumn(SchemaTableColumn.NumericScale, typeof(int));
+
 
                 columns.Add(columnName);
                 columns.Add(columnOrdinal);
                 columns.Add(columnSize);
                 columns.Add(dataType);
                 columns.Add(dataTypeName);
+                columns.Add(numericPrecision);
+                columns.Add(numericScale);
 
                 for (int i = 0; i < _fieldCount; i++)
                 {
                     var schemaRow = schemaTable.NewRow();
+
                     schemaRow[columnName] = GetName(i);
                     schemaRow[columnOrdinal] = i;
                     schemaRow[columnSize] = GetFieldSize(i);
                     schemaRow[dataType] = GetFieldType(i);
                     schemaRow[dataTypeName] = GetDataTypeName(i);
+                    schemaRow[numericPrecision] = _rows.GetFieldPrecision(i);
+                    schemaRow[numericScale] = _rows.GetFieldScale(i);
                     schemaTable.Rows.Add(schemaRow);
                 }
             }
+
             return schemaTable;
         }
 
-        public override bool GetBoolean(int ordinal) => (bool)GetValue(ordinal);
+        public override bool GetBoolean(int ordinal) => _rows.GetBoolean(ordinal);
 
-        public override byte GetByte(int ordinal) {
-            var value = GetValue(ordinal);
-            switch (value)
-            {
-                case byte val:
-                    return val;
-                case sbyte val:
-                    return (byte)val;
-                default:
-                    throw new NotSupportedException($"can not change to byte: {value}");
-            }
-        }
+        public override byte GetByte(int ordinal) => _rows.GetByte(ordinal);
 
         public override long GetBytes(int ordinal, long dataOffset, byte[] buffer, int bufferOffset, int length) =>
             _rows.GetBytes(ordinal, dataOffset, buffer, bufferOffset, length);
@@ -75,96 +73,37 @@ namespace TDengine.Data.Client
 
         public override string GetDataTypeName(int ordinal) => _rows.GetDataTypeName(ordinal);
 
-        public override DateTime GetDateTime(int ordinal) => (DateTime)GetValue(ordinal);
+        public override DateTime GetDateTime(int ordinal) => _rows.GetDateTime(ordinal);
 
-        public override decimal GetDecimal(int ordinal) => throw new Exception("TDengine unsupported decimal");
+        public override decimal GetDecimal(int ordinal) => _rows.GetDecimal(ordinal);
 
-        public override double GetDouble(int ordinal) => (double)GetValue(ordinal);
+        public override double GetDouble(int ordinal) => _rows.GetDouble(ordinal);
 
         public override Type GetFieldType(int ordinal) => _rows.GetFieldType(ordinal);
 
-        public override float GetFloat(int ordinal) => (float)GetValue(ordinal);
+        public override float GetFloat(int ordinal) => _rows.GetFloat(ordinal);
 
         public override Guid GetGuid(int ordinal) => GetFieldValue<Guid>(ordinal);
 
-        public override short GetInt16(int ordinal)
-        {
-            var value = GetValue(ordinal);
-            switch (value)
-            {
-                case short val:
-                    return val;
-                case ushort val:
-                    return (short)val;
-                default:
-                    throw new NotSupportedException($"can not change to short: {value}");
-            }
-        }
+        public override short GetInt16(int ordinal) => _rows.GetInt16(ordinal);
 
-        public override int GetInt32(int ordinal)
-        {
-            var value = GetValue(ordinal);
-            switch (value)
-            {
-                case int val:
-                    return val;
-                case uint val:
-                    return (int)val;
-                default:
-                    throw new NotSupportedException($"can not change to int: {value}");
-            }
-        }
+        public override int GetInt32(int ordinal) => _rows.GetInt32(ordinal);
 
-        public override long GetInt64(int ordinal)
-        {
-            var value = GetValue(ordinal);
-            switch (value)
-            {
-                case long val:
-                    return val;
-                case ulong val:
-                    return (long)val;
-                default:
-                    throw new NotSupportedException($"can not change to long: {value}");
-            }
-        }
+        public override long GetInt64(int ordinal) => _rows.GetInt64(ordinal);
 
         public override string GetName(int ordinal) => _rows.GetName(ordinal);
-        
-        public  int  GetFieldSize(int ordinal) => _rows.GetFieldSize(ordinal);
+
+        public int GetFieldSize(int ordinal) => _rows.GetFieldSize(ordinal);
 
         public override int GetOrdinal(string name) => _rows.GetOrdinal(name);
 
-        public override string GetString(int ordinal)
-        {
-            var value = GetValue(ordinal);
-            switch (value)
-            {
-                case byte[] val:
-                    return System.Text.Encoding.UTF8.GetString(val);
-                case string val:
-                    return val;
-                case char[] val:
-                    return new string(val);
-                default:
-                    throw new NotSupportedException($"can not change to string: {value}");
-            }
-        }
+        public override string GetString(int ordinal) => _rows.GetString(ordinal);
 
         public override object GetValue(int ordinal) => _rows.GetValue(ordinal);
 
-        public override int GetValues(object[] values)
-        {
-            for (var i = 0; i < _fieldCount; i++)
-            {
-                var obj = GetValue(i);
-                values[i] = obj;
-            }
+        public override int GetValues(object[] values) => _rows.GetValues(values);
 
-            return _fieldCount;
-        }
-
-        public override bool IsDBNull(int ordinal) => GetValue(ordinal) == null;
+        public override bool IsDBNull(int ordinal) => _rows.IsDBNull(ordinal);
 
         public override int FieldCount => _fieldCount;
 
@@ -190,11 +129,9 @@ namespace TDengine.Data.Client
 
         protected override void Dispose(bool disposing)
         {
-            if (_rows != null)
-            {
-                _rows.Dispose();
-                _rows = null;
-            }
+            if (_rows == null) return;
+            _rows.Dispose();
+            _rows = null;
         }
     }
 }

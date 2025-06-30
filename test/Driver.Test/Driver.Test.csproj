@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net5;net6;net46;netcoreapp3.1</TargetFrameworks>
+    <TargetFrameworks>net5;net6;net7;net8;net9;net46;netcoreapp3.1</TargetFrameworks>
     <!--<ImplicitUsings>enable</ImplicitUsings>-->
     <!--    <Nullable>enable</Nullable>-->
-    <NoWarn>CS1591;CS0168</NoWarn>
+    <NoWarn>CS1591;CS0168;NETSDK1138</NoWarn>
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DocumentationFile>.\doc\Test.XML</DocumentationFile>

@@ -177,7 +177,7 @@ namespace TDengine.Driver.Client.Websocket
                 return new WSRows(resp.AffectedRows);
             }
 
-            return new WSRows(resp, _connection, _tz);
+            return new WSRows(resp.ResultId, resp, _connection, _tz);
         }
 
         public long Exec(string query)

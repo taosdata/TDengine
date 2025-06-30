@@ -63,23 +63,34 @@ namespace Function.Test.Taosc
                 //_output.WriteLine("{0},{1},{2}",i, columns[i], actualResData[i]);
                 var val = actualResData[i];
                 var expectVal = columns[i];
-                if (val is float floatVal)
-                {
-                    Assert.IsType<float>(expectVal);
-                    Assert.Equal((float)expectVal, floatVal, 7);
-                }
-                else if (val is double doubleVal)
-                {
-                    Assert.IsType<double>(expectVal);
-                    Assert.Equal((double)expectVal, doubleVal, 15);
-                }
-                else
-                {
-                    Assert.Equal(expectVal, val);
-                }
+                CheckValue(val, expectVal);
             }
 
             Tools.FreeResult(res);
+        }
+
+        private static void CheckValue(object val, object expectVal)
+        {
+#if NETFRAMEWORK
+            const float floatTolerance = 0.00001f;
+            const double doubleTolerance = 0.0000000000001;
+            if (val is float floatVal)
+            {
+                Assert.IsType<float>(expectVal);
+                Assert.True(Math.Abs((float)expectVal - floatVal) < floatTolerance);
+            }
+            else if (val is double doubleVal)
+            {
+                Assert.IsType<double>(expectVal);
+                Assert.True(Math.Abs((double)expectVal - doubleVal) < doubleTolerance);
+            }
+            else
+            {
+                Assert.Equal(expectVal, val);
+            }
+#else
+            Assert.Equal(expectVal, val);
+#endif
         }
 
         /// <author>xiaolei</author>
@@ -124,20 +135,7 @@ namespace Function.Test.Taosc
                 //_output.WriteLine("{0},{1},{2}", i, expectResData[i], actualResData[i]);
                 var val = actualResData[i];
                 var expectVal = expectResData[i];
-                if (val is float floatVal)
-                {
-                    Assert.IsType<float>(expectVal);
-                    Assert.Equal((float)expectVal, floatVal, 7);
-                }
-                else if (val is double doubleVal)
-                {
-                    Assert.IsType<double>(expectVal);
-                    Assert.Equal((double)expectVal, doubleVal, 15);
-                }
-                else
-                {
-                    Assert.Equal(expectVal, val);
-                }
+                CheckValue(val, expectVal);
             }
 
             Tools.FreeResult(res);
@@ -185,20 +183,7 @@ namespace Function.Test.Taosc
                 //_output.WriteLine("{0},{1},{2}", i, expectResData[i], actualResData[i]);
                 var val = actualResData[i];
                 var expectVal = expectResData[i];
-                if (val is float floatVal)
-                {
-                    Assert.IsType<float>(expectVal);
-                    Assert.Equal((float)expectVal, floatVal, 7);
-                }
-                else if (val is double doubleVal)
-                {
-                    Assert.IsType<double>(expectVal);
-                    Assert.Equal((double)expectVal, doubleVal, 15);
-                }
-                else
-                {
-                    Assert.Equal(expectVal, val);
-                }
+                CheckValue(val, expectVal);
             }
 
             Tools.FreeResult(res);
@@ -238,20 +223,7 @@ namespace Function.Test.Taosc
                 //_output.WriteLine("{0},{1},{2}",i, columns[i], actualResData[i]);
                 var val = actualResData[i];
                 var expectVal = columns[i];
-                if (val is float floatVal)
-                {
-                    Assert.IsType<float>(expectVal);
-                    Assert.Equal((float)expectVal, floatVal, 7);
-                }
-                else if (val is double doubleVal)
-                {
-                    Assert.IsType<double>(expectVal);
-                    Assert.Equal((double)expectVal, doubleVal, 15);
-                }
-                else
-                {
-                    Assert.Equal(expectVal, val);
-                }
+                CheckValue(val, expectVal);
             }
 
             Tools.FreeResult(res);

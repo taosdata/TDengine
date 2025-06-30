@@ -81,17 +81,13 @@ namespace TDengine.Driver.Impl.NativeMethods
         [DllImport(DLLName, EntryPoint = "taos_fetch_fields", CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr taos_fetch_fields(IntPtr res);
 
-        public static List<TDengineMeta> FetchFields(IntPtr res)
+        [DllImport(DLLName, EntryPoint = "taos_fetch_fields_e", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr taos_fetch_fields_e(IntPtr res);
+
+        private static List<TDengineMeta> fetch_fields(IntPtr res, int fieldCount)
         {
             List<TDengineMeta> metaList = new List<TDengineMeta>();
-            if (res == IntPtr.Zero)
-            {
-                return metaList;
-            }
-
-            int fieldCount = FieldCount(res);
             IntPtr fieldsPtr = taos_fetch_fields(res);
-
             for (int i = 0; i < fieldCount; ++i)
             {
                 int offset = i * (int)TaosField.STRUCT_SIZE;
@@ -105,6 +101,45 @@ namespace TDengine.Driver.Impl.NativeMethods
             }
 
             return metaList;
+        }
+
+        private static List<TDengineMeta> fetch_fields_e(IntPtr res, int fieldCount)
+        {
+            List<TDengineMeta> metaList = new List<TDengineMeta>();
+            IntPtr fieldsPtr = taos_fetch_fields_e(res);
+            for (int i = 0; i < fieldCount; ++i)
+            {
+                TDengineMeta meta = new TDengineMeta();
+                IntPtr fieldPtr = IntPtr.Add(fieldsPtr, i * Marshal.SizeOf(typeof(TaosFieldE)));
+                var field = (TaosFieldE)Marshal.PtrToStructure(fieldPtr, typeof(TaosFieldE));
+                meta.name = field.name;
+                meta.type = (byte)field.type;
+                meta.size = field.bytes;
+                meta.precision = field.precision;
+                meta.scale = field.scale;
+                metaList.Add(meta);
+            }
+
+            return metaList;
+        }
+
+        public static List<TDengineMeta> FetchFields(IntPtr res)
+        {
+            List<TDengineMeta> metaList = new List<TDengineMeta>();
+            if (res == IntPtr.Zero)
+            {
+                return metaList;
+            }
+
+            int fieldCount = FieldCount(res);
+            try
+            {
+                return fetch_fields_e(res, fieldCount);
+            }
+            catch (EntryPointNotFoundException)
+            {
+                return fetch_fields(res, fieldCount);
+            }
         }
 
         [DllImport(DLLName, EntryPoint = "taos_fetch_row", CallingConvention = CallingConvention.Cdecl)]

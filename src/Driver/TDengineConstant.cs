@@ -22,8 +22,13 @@ namespace TDengine.Driver
         TSDB_DATA_TYPE_UINT = 13, // 4 bytes
         TSDB_DATA_TYPE_UBIGINT = 14, // 8 bytes
         TSDB_DATA_TYPE_JSONTAG = 15, //4096 bytes 
-        TSDB_DATA_TYPE_VARBINARY = 16,
-        TSDB_DATA_TYPE_GEOMETRY = 20,
+        TSDB_DATA_TYPE_VARBINARY = 16, // binary
+        TSDB_DATA_TYPE_DECIMAL = 17, // decimal
+        TSDB_DATA_TYPE_BLOB = 18, // binary
+        TSDB_DATA_TYPE_MEDIUMBLOB = 19,
+        TSDB_DATA_TYPE_GEOMETRY = 20, // geometry
+        TSDB_DATA_TYPE_DECIMAL64 = 21, // decimal64
+        TSDB_DATA_TYPE_MAX = 22,
     }
 
     public enum TDengineInitOption
@@ -67,63 +72,18 @@ namespace TDengine.Driver
         public string name = string.Empty;
         public int size;
         public byte type;
+        public byte precision;
+        public byte scale;
 
         public string TypeName()
         {
-            switch ((TDengineDataType)type)
-            {
-                case TDengineDataType.TSDB_DATA_TYPE_BOOL:
-                    return "BOOL";
-                case TDengineDataType.TSDB_DATA_TYPE_TINYINT:
-                    return "TINYINT";
-                case TDengineDataType.TSDB_DATA_TYPE_SMALLINT:
-                    return "SMALLINT";
-                case TDengineDataType.TSDB_DATA_TYPE_INT:
-                    return "INT";
-                case TDengineDataType.TSDB_DATA_TYPE_BIGINT:
-                    return "BIGINT";
-                case TDengineDataType.TSDB_DATA_TYPE_UTINYINT:
-                    return "TINYINT UNSIGNED";
-                case TDengineDataType.TSDB_DATA_TYPE_USMALLINT:
-                    return "SMALLINT UNSIGNED";
-                case TDengineDataType.TSDB_DATA_TYPE_UINT:
-                    return "INT UNSIGNED";
-                case TDengineDataType.TSDB_DATA_TYPE_UBIGINT:
-                    return "BIGINT UNSIGNED";
-                case TDengineDataType.TSDB_DATA_TYPE_FLOAT:
-                    return "FLOAT";
-                case TDengineDataType.TSDB_DATA_TYPE_DOUBLE:
-                    return "DOUBLE";
-                case TDengineDataType.TSDB_DATA_TYPE_BINARY:
-                    return "BINARY";
-                case TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP:
-                    return "TIMESTAMP";
-                case TDengineDataType.TSDB_DATA_TYPE_NCHAR:
-                    return "NCHAR";
-                case TDengineDataType.TSDB_DATA_TYPE_JSONTAG:
-                    return "JSON";
-                case TDengineDataType.TSDB_DATA_TYPE_VARBINARY:
-                    return "VARBINARY";
-                case TDengineDataType.TSDB_DATA_TYPE_GEOMETRY:
-                    return "GEOMETRY";
-                default:
-                    return "undefine";
-            }
+            return TDengineConstant.GetFieldTypeName((sbyte)type);
         }
 
         public Type ScanType()
         {
             return TDengineConstant.ScanType((sbyte)type);
         }
-    }
-
-    public class StmtFields
-    {
-        internal string name { get; } = String.Empty;
-        internal sbyte type { get; }
-        internal byte preicision { get; }
-        internal byte scale { get; }
-        internal int bytes { get; }
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -346,6 +306,10 @@ namespace TDengine.Driver
                     return typeof(byte[]);
                 case TDengineDataType.TSDB_DATA_TYPE_GEOMETRY:
                     return typeof(byte[]);
+                case TDengineDataType.TSDB_DATA_TYPE_DECIMAL64:
+                    return typeof(decimal);
+                case TDengineDataType.TSDB_DATA_TYPE_DECIMAL:
+                    return typeof(decimal);
                 default:
                     return typeof(DBNull);
             }
@@ -384,13 +348,61 @@ namespace TDengine.Driver
                 case TDengineDataType.TSDB_DATA_TYPE_NCHAR:
                     return typeof(string);
                 case TDengineDataType.TSDB_DATA_TYPE_JSONTAG:
-                    return typeof(byte[]);
                 case TDengineDataType.TSDB_DATA_TYPE_VARBINARY:
-                    return typeof(byte[]);
                 case TDengineDataType.TSDB_DATA_TYPE_GEOMETRY:
                     return typeof(byte[]);
+                case TDengineDataType.TSDB_DATA_TYPE_DECIMAL64:
+                case TDengineDataType.TSDB_DATA_TYPE_DECIMAL:
+                    return typeof(string);
                 default:
                     return typeof(DBNull);
+            }
+        }
+
+        public static string GetFieldTypeName(sbyte type)
+        {
+            switch ((TDengineDataType)type)
+            {
+                case TDengineDataType.TSDB_DATA_TYPE_BOOL:
+                    return "BOOL";
+                case TDengineDataType.TSDB_DATA_TYPE_TINYINT:
+                    return "TINYINT";
+                case TDengineDataType.TSDB_DATA_TYPE_SMALLINT:
+                    return "SMALLINT";
+                case TDengineDataType.TSDB_DATA_TYPE_INT:
+                    return "INT";
+                case TDengineDataType.TSDB_DATA_TYPE_BIGINT:
+                    return "BIGINT";
+                case TDengineDataType.TSDB_DATA_TYPE_UTINYINT:
+                    return "TINYINT UNSIGNED";
+                case TDengineDataType.TSDB_DATA_TYPE_USMALLINT:
+                    return "SMALLINT UNSIGNED";
+                case TDengineDataType.TSDB_DATA_TYPE_UINT:
+                    return "INT UNSIGNED";
+                case TDengineDataType.TSDB_DATA_TYPE_UBIGINT:
+                    return "BIGINT UNSIGNED";
+                case TDengineDataType.TSDB_DATA_TYPE_FLOAT:
+                    return "FLOAT";
+                case TDengineDataType.TSDB_DATA_TYPE_DOUBLE:
+                    return "DOUBLE";
+                case TDengineDataType.TSDB_DATA_TYPE_BINARY:
+                    return "BINARY";
+                case TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP:
+                    return "TIMESTAMP";
+                case TDengineDataType.TSDB_DATA_TYPE_NCHAR:
+                    return "NCHAR";
+                case TDengineDataType.TSDB_DATA_TYPE_JSONTAG:
+                    return "JSON";
+                case TDengineDataType.TSDB_DATA_TYPE_VARBINARY:
+                    return "VARBINARY";
+                case TDengineDataType.TSDB_DATA_TYPE_GEOMETRY:
+                    return "GEOMETRY";
+                case TDengineDataType.TSDB_DATA_TYPE_DECIMAL64:
+                    return "DECIMAL";
+                case TDengineDataType.TSDB_DATA_TYPE_DECIMAL:
+                    return "DECIMAL";
+                default:
+                    return "undefine";
             }
         }
     }

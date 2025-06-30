@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net5;net6;netstandard2.0;netstandard2.1;net45;net451;</TargetFrameworks>
+    <TargetFrameworks>net5;net6;net7;net8;net9;netstandard2.0;netstandard2.1;net45;net451;</TargetFrameworks>
     <PackageId>TDengine.Connector</PackageId>
     <PackageIcon>image\logo.jpg</PackageIcon>
     <PackageReadmeFile>docs\README.md</PackageReadmeFile>
@@ -11,15 +11,13 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageTags>Taos;Data;Microsoft.NET.Sdk;IOT;bigdata;TDengine;taosdata</PackageTags>
     <Description>
-		This is the C# connector's classlib that lets you connect to TDengine 3.0.
-		This C # connector supports: Linux 64/Windows x64.
-		more information please visit: https://tdengine.com/
+      The official TDengine C# connector.
     </Description>
     <PackageProjectUrl>https://docs.tdengine.com/client-libraries/csharp/</PackageProjectUrl>
     <RepositoryUrl>https://github.com/taosdata/taos-connector-dotnet.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryBranch>"3.0"</RepositoryBranch>
-    <NoWarn>CS1591</NoWarn>
+    <NoWarn>CS1591;NETSDK1138</NoWarn>
 <!--    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>-->
     <IsPackable>true</IsPackable>
     <!--<Nullable>enable</Nullable>-->

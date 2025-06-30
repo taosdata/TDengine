@@ -118,6 +118,11 @@ namespace Test.Utils
                             insertSql.Append(Encoding.UTF8.GetString(val));
                             insertSql.Append('\'');
                             break;
+                        case DateTime val:
+                            var ts = TDengineConstant.ConvertDatetimeToTick(val,
+                                TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+                            insertSql.Append(ts);
+                            break;
                         default:
                             insertSql.Append(tagData[j]);
                             break;
@@ -145,6 +150,11 @@ namespace Test.Utils
                         insertSql.Append('\'');
                         insertSql.Append(Encoding.UTF8.GetString(val));
                         insertSql.Append('\'');
+                        break;
+                    case DateTime val:
+                        var ts = TDengineConstant.ConvertDatetimeToTick(val,
+                            TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+                        insertSql.Append(ts);
                         break;
                     default:
                         insertSql.Append(colData[i]);
@@ -361,10 +371,14 @@ namespace Test.Utils
 
         public static List<Object> ColumnsList(int numOfRows)
         {
+            var now = DateTime.Now;
+            var nowTs = TDengineConstant.ConvertDatetimeToTick(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
             List<object> columns = new List<object>();
             for (int i = 0; i < numOfRows; i++)
             {
-                columns.Add(1659060000000 + (i * 10));
+                var ts = TDengineConstant.ConvertTimeToDatetime(nowTs + i * 10,
+                    TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+                columns.Add(ts);
                 columns.Add((sbyte)(-10 + i));
                 columns.Add((short)(-20 + i));
                 columns.Add(-30 + i);
@@ -508,12 +522,15 @@ namespace Test.Utils
         {
             var list = new List<object>(metaList.Count * numOfRows);
             byte[] colType = new byte[metaList.Count];
+            byte[] scales = new byte[metaList.Count];
             for (int i = 0; i < metaList.Count; i++)
             {
                 colType[i] = metaList[i].type;
+                scales[i] = metaList[i].scale;
             }
 
-            var br = new BlockReader(0, metaList.Count, colType);
+            var br = new BlockReader(0, metaList.Count, (int)TDenginePrecision.TSDB_TIME_PRECISION_MILLI, colType,
+                scales);
             br.SetBlockPtr(pData, numOfRows);
             for (int rowIndex = 0; rowIndex < numOfRows; rowIndex++)
             {

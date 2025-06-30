@@ -80,7 +80,8 @@ namespace TDengine.Driver.Client.Native
             }
         }
 
-        private TAOS_MULTI_BIND[] GenerateBindList(object[] data, TaosFieldE[] fields, out IntPtr[] needFree, bool isInsert)
+        private TAOS_MULTI_BIND[] GenerateBindList(object[] data, TaosFieldE[] fields, out IntPtr[] needFree,
+            bool isInsert)
         {
             TAOS_MULTI_BIND[] binds = new TAOS_MULTI_BIND[data.Length];
             var needFreePointer = new List<IntPtr>();
@@ -117,8 +118,7 @@ namespace TDengine.Driver.Client.Native
                         case sbyte val:
                             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_TINYINT;
                             p = Marshal.AllocHGlobal(TDengineConstant.Int8Size);
-                            bs = BitConverter.GetBytes(val);
-                            Marshal.Copy(bs, 0, p, bs.Length);
+                            Marshal.WriteByte(p, (byte)val);
                             needFreePointer.Add(p);
                             bind.buffer = p;
                             bind.buffer_length = (UIntPtr)TDengineConstant.Int8Size;
@@ -153,8 +153,7 @@ namespace TDengine.Driver.Client.Native
                         case byte val:
                             bind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_UTINYINT;
                             p = Marshal.AllocHGlobal(TDengineConstant.UInt8Size);
-                            bs = BitConverter.GetBytes(val);
-                            Marshal.Copy(bs, 0, p, bs.Length);
+                            Marshal.WriteByte(p, (byte)val);
                             needFreePointer.Add(p);
                             bind.buffer = p;
                             bind.buffer_length = (UIntPtr)TDengineConstant.UInt8Size;

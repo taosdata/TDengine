@@ -31,12 +31,13 @@ namespace Driver.Test.Client.Version
         public void CheckVersionCompatibility_VersionTooLow_ThrowsVersionMismatchException()
         {
             Assert.Throws<VersionMismatchException>(() => TDengineVersion.CheckVersionCompatibility("3.3.1.0"));
+            Assert.Throws<VersionMismatchException>(() => TDengineVersion.CheckVersionCompatibility("3.3.2.0"));
         }
 
         [Fact]
         public void CheckVersionCompatibility_VersionEqualOrHigher_NoException()
         {
-            TDengineVersion.CheckVersionCompatibility("3.3.2.0");
+            TDengineVersion.CheckVersionCompatibility("3.3.6.0");
             TDengineVersion.CheckVersionCompatibility("3.3.6.3");
             TDengineVersion.CheckVersionCompatibility("3.3.10.0");
         }

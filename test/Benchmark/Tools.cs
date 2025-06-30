@@ -56,12 +56,15 @@ namespace Benchmark
         {
             var list = new List<object>(metaList.Count * numOfRows);
             byte[] colType = new byte[metaList.Count];
+            byte[] scales = new byte[metaList.Count];
             for (int i = 0; i < metaList.Count; i++)
             {
                 colType[i] = metaList[i].type;
+                scales[i] = metaList[i].scale;
             }
 
-            var br = new BlockReader(0, metaList.Count, colType);
+            var br = new BlockReader(0, metaList.Count, (int)TDenginePrecision.TSDB_TIME_PRECISION_MILLI, colType,
+                scales);
             br.SetBlockPtr(pData, numOfRows);
             for (int rowIndex = 0; rowIndex < numOfRows; rowIndex++)
             {

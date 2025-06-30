@@ -36,18 +36,20 @@ namespace Function.Test.Taosc
             Assert.NotEqual(conn, IntPtr.Zero);
             IntPtr _res = IntPtr.Zero;
             string tableName = "cn_insert_nchar_ntable";
-
+            var now = DateTime.Now;
+            var ts = TDengineConstant.ConvertDatetimeToTick(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            now = TDengineConstant.ConvertTimeToDatetime(ts, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
             var colData = new List<Object>
             {
-                1637064040000, 1, "涛思数据",
-                1637064041000, 2, "涛思数据taosdata",
-                1637064042000, 3, "TDegnine涛思数据",
-                1637064043000, 4, "4涛思数据",
-                1637064044000, 5, "涛思数据5",
-                1637064045000, 6, "taos涛思数据6",
-                1637064046000, 7, "7涛思数据taos",
-                1637064047000, 8, "8&涛思数据taos",
-                1637064048000, 9, "&涛思数据taos9"
+                now, 1, "涛思数据",
+                now.Add(TimeSpan.FromSeconds(1)), 2, "涛思数据taosdata",
+                now.Add(TimeSpan.FromSeconds(2)), 3, "TDegnine涛思数据",
+                now.Add(TimeSpan.FromSeconds(3)), 4, "4涛思数据",
+                now.Add(TimeSpan.FromSeconds(4)), 5, "涛思数据5",
+                now.Add(TimeSpan.FromSeconds(5)), 6, "taos涛思数据6",
+                now.Add(TimeSpan.FromSeconds(6)), 7, "7涛思数据taos",
+                now.Add(TimeSpan.FromSeconds(7)), 8, "8&涛思数据taos",
+                now.Add(TimeSpan.FromSeconds(8)), 9, "&涛思数据taos9"
             };
 
             String dropTb = $"drop table if exists {tableName}";
@@ -96,17 +98,20 @@ namespace Function.Test.Taosc
             IntPtr conn = database.Conn;
             IntPtr _res = IntPtr.Zero;
             string tableName = "cn_insert_nchar_stable";
+            var now = DateTime.Now;
+            var ts = TDengineConstant.ConvertDatetimeToTick(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            now = TDengineConstant.ConvertTimeToDatetime(ts, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
             var colData = new List<Object>
             {
-                1637064040000, 1, "涛思数据",
-                1637064041000, 2, "涛思数据taosdata",
-                1637064042000, 3, "TDegnine涛思数据",
-                1637064043000, 4, "4涛思数据",
-                1637064044000, 5, "涛思数据5",
-                1637064045000, 6, "taos涛思数据6",
-                1637064046000, 7, "7涛思数据taos",
-                1637064047000, 8, "8&涛思数据taos",
-                1637064048000, 9, "&涛思数据taos9"
+                now, 1, "涛思数据",
+                now.Add(TimeSpan.FromSeconds(1)), 2, "涛思数据taosdata",
+                now.Add(TimeSpan.FromSeconds(2)), 3, "TDegnine涛思数据",
+                now.Add(TimeSpan.FromSeconds(3)), 4, "4涛思数据",
+                now.Add(TimeSpan.FromSeconds(4)), 5, "涛思数据5",
+                now.Add(TimeSpan.FromSeconds(5)), 6, "taos涛思数据6",
+                now.Add(TimeSpan.FromSeconds(6)), 7, "7涛思数据taos",
+                now.Add(TimeSpan.FromSeconds(7)), 8, "8&涛思数据taos",
+                now.Add(TimeSpan.FromSeconds(8)), 9, "&涛思数据taos9"
             };
             var tagData = new List<Object> { 1, "涛思数据", };
             String dropTb = "drop table if exists " + tableName;
@@ -160,17 +165,20 @@ namespace Function.Test.Taosc
             IntPtr conn = database.Conn;
             IntPtr _res = IntPtr.Zero;
             string tableName = "cn_multi_insert_nchar_ntable";
+            var now = DateTime.Now;
+            var ts = TDengineConstant.ConvertDatetimeToTick(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            now = TDengineConstant.ConvertTimeToDatetime(ts, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
             var colData = new List<Object>
             {
-                1637064040000, 1, "涛思数据", "保利广场", "Beijing", "China",
-                1637064041000, 2, "涛思数据taosdata", "保利广场baoli", "Beijing", "China",
-                1637064042000, 3, "TDegnine涛思数据", "time广场", "NewYork", "US",
-                1637064043000, 4, "4涛思数据", "4广场南部", "London", "UK",
-                1637064044000, 5, "涛思数据5", "!广场路中部123", "Tokyo", "JP",
-                1637064045000, 6, "taos涛思数据6", "青年广场123号！", "Washin", "DC",
-                1637064046000, 7, "7涛思数据taos", "asdf#壮年广场%#endregion", "NewYork", "US",
-                1637064047000, 8, "8&涛思数据taos", "include阿斯顿发", "NewYork", "US",
-                1637064048000, 9, "&涛思数据taos9", "123黑化肥werq会挥……&¥%发！afsdfa", "NewYork", "US",
+                now, 1, "涛思数据", "保利广场", "Beijing", "China",
+                now.Add(TimeSpan.FromSeconds(1)), 2, "涛思数据taosdata", "保利广场baoli", "Beijing", "China",
+                now.Add(TimeSpan.FromSeconds(2)), 3, "TDegnine涛思数据", "time广场", "NewYork", "US",
+                now.Add(TimeSpan.FromSeconds(3)), 4, "4涛思数据", "4广场南部", "London", "UK",
+                now.Add(TimeSpan.FromSeconds(4)), 5, "涛思数据5", "!广场路中部123", "Tokyo", "JP",
+                now.Add(TimeSpan.FromSeconds(5)), 6, "taos涛思数据6", "青年广场123号！", "Washin", "DC",
+                now.Add(TimeSpan.FromSeconds(6)), 7, "7涛思数据taos", "asdf#壮年广场%#endregion", "NewYork", "US",
+                now.Add(TimeSpan.FromSeconds(7)), 8, "8&涛思数据taos", "include阿斯顿发", "NewYork", "US",
+                now.Add(TimeSpan.FromSeconds(8)), 9, "&涛思数据taos9", "123黑化肥werq会挥……&¥%发！afsdfa", "NewYork", "US",
             };
 
             String dropTb = "drop table if exists " + tableName;
@@ -231,17 +239,20 @@ namespace Function.Test.Taosc
             IntPtr conn = database.Conn;
             IntPtr _res = IntPtr.Zero;
             string tableName = "cn_multi_insert_nchar_stable";
+            var now = DateTime.Now;
+            var ts = TDengineConstant.ConvertDatetimeToTick(now, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            now = TDengineConstant.ConvertTimeToDatetime(ts, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
             var colData = new List<Object>
             {
-                1637064040000, 1, "涛思数据", "保利广场", "Beijing", "China",
-                1637064041000, 2, "涛思数据taosdata", "保利广场baoli", "Beijing", "China",
-                1637064042000, 3, "TDegnine涛思数据", "time广场", "NewYork", "US",
-                1637064043000, 4, "4涛思数据", "4广场南部", "London", "UK",
-                1637064044000, 5, "涛思数据5", "!广场路中部123", "Tokyo", "JP",
-                1637064045000, 6, "taos涛思数据6", "青年广场123号！", "Washin", "DC",
-                1637064046000, 7, "7涛思数据taos", "asdf#壮年广场%#endregion", "NewYork", "US",
-                1637064047000, 8, "8&涛思数据taos", "include阿斯顿发", "NewYork", "US",
-                1637064048000, 9, "&涛思数据taos9", "123黑化肥werq会挥……&¥%发！afsdfa", "NewYork", "US",
+                now, 1, "涛思数据", "保利广场", "Beijing", "China",
+                now.Add(TimeSpan.FromSeconds(1)), 2, "涛思数据taosdata", "保利广场baoli", "Beijing", "China",
+                now.Add(TimeSpan.FromSeconds(2)), 3, "TDegnine涛思数据", "time广场", "NewYork", "US",
+                now.Add(TimeSpan.FromSeconds(3)), 4, "4涛思数据", "4广场南部", "London", "UK",
+                now.Add(TimeSpan.FromSeconds(4)), 5, "涛思数据5", "!广场路中部123", "Tokyo", "JP",
+                now.Add(TimeSpan.FromSeconds(5)), 6, "taos涛思数据6", "青年广场123号！", "Washin", "DC",
+                now.Add(TimeSpan.FromSeconds(6)), 7, "7涛思数据taos", "asdf#壮年广场%#endregion", "NewYork", "US",
+                now.Add(TimeSpan.FromSeconds(7)), 8, "8&涛思数据taos", "include阿斯顿发", "NewYork", "US",
+                now.Add(TimeSpan.FromSeconds(8)), 9, "&涛思数据taos9", "123黑化肥werq会挥……&¥%发！afsdfa", "NewYork", "US",
             };
             var tagData = new List<Object> { 1, "涛思数据", "中国北方&南方长江黄河！49wq", "tdengine" };
             String dropTb = "drop table if exists " + tableName;

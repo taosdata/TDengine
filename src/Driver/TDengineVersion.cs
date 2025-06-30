@@ -4,7 +4,7 @@ namespace TDengine.Driver
 {
     public class TDengineVersion
     {
-        private static Version MinimumVersion { get; set; } = new Version(3, 3, 2, 0);
+        private static Version MinimumVersion { get; set; } = new Version(3, 3, 6, 0);
 
         public static Version ParseVersion(string version)
         {

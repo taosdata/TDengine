@@ -240,7 +240,7 @@ namespace TDengine.Driver.Client.Websocket
             }
 
             var resp = _connection.StmtUseResult(_stmt);
-            return new WSRows(resp, _connection, _tz);
+            return new WSRows(resp.ResultId, resp, _connection, _tz);
         }
     }
 }

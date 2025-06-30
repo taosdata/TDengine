@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 using TDengine.Driver;
 using TDengine.Driver.Client;
 using Xunit;
@@ -34,7 +36,33 @@ namespace Driver.Test.Client.Query
                 $"protocol=WebSocket;host={host};port=443;useSSL=true;token={token};enableCompression=true";
         }
 
-        private object[][] GenerateValue(TDenginePrecision precision, out string sql)
+        private static Decimal GenerateDecimal(int precision, int scale)
+        {
+            var random = new Random();
+            var sb = new StringBuilder();
+
+            int integerDigits = precision - scale;
+
+            sb.Append(random.Next(1, 10));
+
+            for (int i = 1; i < integerDigits; i++)
+            {
+                sb.Append(random.Next(0, 10));
+            }
+
+            if (scale > 0)
+            {
+                sb.Append('.');
+                for (int i = 0; i < scale; i++)
+                {
+                    sb.Append(random.Next(0, 10));
+                }
+            }
+
+            return decimal.Parse(sb.ToString());
+        }
+
+        private object[][] GenerateValue(TDenginePrecision precision, bool withDecimal, out string sql)
         {
             Random rand = new Random();
             bool v1 = true;
@@ -48,97 +76,293 @@ namespace Driver.Test.Client.Query
             ulong v9 = (ulong)rand.Next();
             float v10 = (float)rand.NextDouble();
             double v11 = rand.NextDouble();
+            decimal v16 = GenerateDecimal(20, 4);
+            decimal v17 = GenerateDecimal(8, 4);
+
+            bool v1_3 = false;
+            sbyte v2_3 = sbyte.MinValue;
+            short v3_3 = short.MinValue;
+            int v4_3 = int.MinValue;
+            long v5_3 = long.MinValue;
+            byte v6_3 = byte.MaxValue;
+            ushort v7_3 = ushort.MaxValue;
+            uint v8_3 = uint.MaxValue;
+            ulong v9_3 = ulong.MaxValue;
+            float v10_3 = (float)rand.NextDouble();
+            double v11_3 = rand.NextDouble();
+            decimal v16_3 = decimal.Parse("9999999999999999.9999");
+            decimal v17_3 = decimal.Parse("9999.9999");
+
+            bool v1_4 = true;
+            sbyte v2_4 = sbyte.MaxValue;
+            short v3_4 = short.MaxValue;
+            int v4_4 = int.MaxValue;
+            long v5_4 = long.MaxValue;
+            byte v6_4 = byte.MaxValue;
+            ushort v7_4 = ushort.MaxValue;
+            uint v8_4 = uint.MaxValue;
+            ulong v9_4 = ulong.MaxValue;
+            float v10_4 = (float)rand.NextDouble();
+            double v11_4 = rand.NextDouble();
+            decimal v16_4 = decimal.Parse("0.9999");
+            decimal v17_4 = decimal.Parse("0.9999");
+
+            var rowCount = 5;
             var dateTime = DateTime.Now;
-            long ts = 0;
-            long nextSecond = 0;
+            var timeStampes = new long[rowCount];
             switch (precision)
             {
                 case TDenginePrecision.TSDB_TIME_PRECISION_MILLI:
-                    ts = (dateTime.ToUniversalTime().Ticks - TDengineConstant.TimeZero.Ticks) / 10000;
-                    nextSecond = (dateTime.Add(TimeSpan.FromSeconds(1)).ToUniversalTime().Ticks -
-                                  TDengineConstant.TimeZero.Ticks) / 10000;
+                    for (int i = 0; i < rowCount; i++)
+                    {
+                        timeStampes[i] = (dateTime.Add(TimeSpan.FromSeconds(i)).ToUniversalTime().Ticks -
+                                          TDengineConstant.TimeZero.Ticks) / 10000;
+                    }
+
                     break;
                 case TDenginePrecision.TSDB_TIME_PRECISION_NANO:
-                    ts = (dateTime.ToUniversalTime().Ticks - TDengineConstant.TimeZero.Ticks) * 100;
-                    nextSecond = (dateTime.Add(TimeSpan.FromSeconds(1)).ToUniversalTime().Ticks -
-                                  TDengineConstant.TimeZero.Ticks) * 100;
+                    for (int i = 0; i < rowCount; i++)
+                    {
+                        timeStampes[i] = (dateTime.Add(TimeSpan.FromSeconds(i)).ToUniversalTime().Ticks -
+                                          TDengineConstant.TimeZero.Ticks) * 100;
+                    }
+
                     break;
                 case TDenginePrecision.TSDB_TIME_PRECISION_MICRO:
-                    ts = (dateTime.ToUniversalTime().Ticks - TDengineConstant.TimeZero.Ticks) / 10;
-                    nextSecond = (dateTime.Add(TimeSpan.FromSeconds(1)).ToUniversalTime().Ticks -
-                                  TDengineConstant.TimeZero.Ticks) / 10;
+                    for (int i = 0; i < rowCount; i++)
+                    {
+                        timeStampes[i] = (dateTime.Add(TimeSpan.FromSeconds(i)).ToUniversalTime().Ticks -
+                                          TDengineConstant.TimeZero.Ticks) / 10;
+                    }
+
                     break;
             }
 
-            sql = string.Format(
-                "values({0},{1},{2},{3},{4},{5},{6},{7},{8},{9},{10},{11},'test_binary','test_nchar','中文','POINT(100 100)')({12},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)",
-                ts,
-                v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11,
-                nextSecond);
+            if (withDecimal)
+            {
+                sql = $"values" +
+                      $"({timeStampes[0]},{v1},{v2},{v3},{v4},{v5},{v6},{v7},{v8},{v9},{v10:G9},{v11:G17},'test_binary','test_nchar','中文','POINT(100 100)',{v16},{v17})" +
+                      $"({timeStampes[1]},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)" +
+                      $"({timeStampes[2]},{v1},{v2},{v3},{v4},{v5},{v6},{v7},{v8},{v9},{v10},{v11},'中文','中文','中文','POINT(100 100)',{v16},{v17})" +
+                      $"({timeStampes[3]},{v1_3},{v2_3},{v3_3},{v4_3},{v5_3},{v6_3},{v7_3},{v8_3},{v9_3},{v10_3},{v11_3},'中文','中文','中文','POINT(100 100)',{v16_3},{v17_3})" +
+                      $"({timeStampes[4]},{v1_4},{v2_4},{v3_4},{v4_4},{v5_4},{v6_4},{v7_4},{v8_4},{v9_4},{v10_4},{v11_4},'中文','中文','中文','POINT(100 100)',{v16_4},{v17_4})";
+                return new object[][]
+                {
+                    new object[]
+                    {
+                        TDengineConstant.ConvertTimeToDatetime(timeStampes[0], precision), v1, v2, v3, v4, v5, v6, v7,
+                        v8, v9, v10,
+                        v11,
+                        Encoding.UTF8.GetBytes("test_binary"),
+                        "test_nchar", Encoding.UTF8.GetBytes("中文"),
+                        new byte[]
+                        {
+                            0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
+                            0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                        },
+                        v16, v17,
+                    },
+                    new object[]
+                    {
+                        TDengineConstant.ConvertTimeToDatetime(timeStampes[1], precision), null, null, null, null, null,
+                        null,
+                        null, null, null, null, null, null, null, null, null, null, null
+                    },
+                    new object[]
+                    {
+                        TDengineConstant.ConvertTimeToDatetime(timeStampes[2], precision), v1, v2, v3, v4, v5, v6, v7,
+                        v8, v9, v10,
+                        v11,
+                        Encoding.UTF8.GetBytes("中文"),
+                        "中文", Encoding.UTF8.GetBytes("中文"),
+                        new byte[]
+                        {
+                            0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
+                            0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                        },
+                        v16, v17,
+                    },
+                    new object[]
+                    {
+                        TDengineConstant.ConvertTimeToDatetime(timeStampes[3], precision), v1_3, v2_3, v3_3, v4_3, v5_3,
+                        v6_3, v7_3, v8_3, v9_3, v10_3,
+                        v11_3,
+                        Encoding.UTF8.GetBytes("中文"),
+                        "中文", Encoding.UTF8.GetBytes("中文"),
+                        new byte[]
+                        {
+                            0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
+                            0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                        },
+                        v16_3, v17_3,
+                    },
+                    new object[]
+                    {
+                        TDengineConstant.ConvertTimeToDatetime(timeStampes[4], precision), v1_4, v2_4, v3_4, v4_4, v5_4,
+                        v6_4, v7_4, v8_4, v9_4, v10_4,
+                        v11_4,
+                        Encoding.UTF8.GetBytes("中文"),
+                        "中文", Encoding.UTF8.GetBytes("中文"),
+                        new byte[]
+                        {
+                            0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
+                            0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                        },
+                        v16_4, v17_4,
+                    },
+                };
+            }
+
+            sql = $"values" +
+                  $"({timeStampes[0]},{v1},{v2},{v3},{v4},{v5},{v6},{v7},{v8},{v9},{v10},{v11},'test_binary','test_nchar','中文','POINT(100 100)')" +
+                  $"({timeStampes[1]},null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)" +
+                  $"({timeStampes[2]},{v1},{v2},{v3},{v4},{v5},{v6},{v7},{v8},{v9},{v10},{v11},'中文','中文','中文','POINT(100 100)')" +
+                  $"({timeStampes[3]},{v1_3},{v2_3},{v3_3},{v4_3},{v5_3},{v6_3},{v7_3},{v8_3},{v9_3},{v10_3},{v11_3},'中文','中文','中文','POINT(100 100)')" +
+                  $"({timeStampes[4]},{v1_4},{v2_4},{v3_4},{v4_4},{v5_4},{v6_4},{v7_4},{v8_4},{v9_4},{v10_4},{v11_4},'中文','中文','中文','POINT(100 100)')";
             return new object[][]
             {
                 new object[]
                 {
-                    TDengineConstant.ConvertTimeToDatetime(ts, precision), v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11,
+                    TDengineConstant.ConvertTimeToDatetime(timeStampes[0], precision), v1, v2, v3, v4, v5, v6, v7, v8,
+                    v9, v10,
+                    v11,
                     Encoding.UTF8.GetBytes("test_binary"),
                     "test_nchar", Encoding.UTF8.GetBytes("中文"),
                     new byte[]
                     {
                         0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
                         0x00, 0x00, 0x00, 0x00, 0x59, 0x40
-                    }
+                    },
                 },
                 new object[]
                 {
-                    TDengineConstant.ConvertTimeToDatetime(nextSecond, precision), null, null, null, null, null, null,
+                    TDengineConstant.ConvertTimeToDatetime(timeStampes[1], precision), null, null, null, null, null,
+                    null,
                     null, null, null, null, null, null, null, null, null
-                }
+                },
+                new object[]
+                {
+                    TDengineConstant.ConvertTimeToDatetime(timeStampes[2], precision), v1, v2, v3, v4, v5, v6, v7, v8,
+                    v9, v10,
+                    v11,
+                    Encoding.UTF8.GetBytes("中文"),
+                    "中文", Encoding.UTF8.GetBytes("中文"),
+                    new byte[]
+                    {
+                        0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
+                        0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                    },
+                },
+                new object[]
+                {
+                    TDengineConstant.ConvertTimeToDatetime(timeStampes[3], precision), v1_3, v2_3, v3_3, v4_3, v5_3,
+                    v6_3, v7_3, v8_3, v9_3, v10_3,
+                    v11_3,
+                    Encoding.UTF8.GetBytes("中文"),
+                    "中文", Encoding.UTF8.GetBytes("中文"),
+                    new byte[]
+                    {
+                        0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
+                        0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                    },
+                },
+                new object[]
+                {
+                    TDengineConstant.ConvertTimeToDatetime(timeStampes[4], precision), v1_4, v2_4, v3_4, v4_4, v5_4,
+                    v6_4, v7_4, v8_4, v9_4, v10_4,
+                    v11_4,
+                    Encoding.UTF8.GetBytes("中文"),
+                    "中文", Encoding.UTF8.GetBytes("中文"),
+                    new byte[]
+                    {
+                        0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40, 0x00, 0x00,
+                        0x00, 0x00, 0x00, 0x00, 0x59, 0x40
+                    },
+                },
             };
         }
 
-        private static string GenerateCreateTableSql(string tableName)
+        private static string GenerateCreateTableSql(string tableName, bool withDecimal)
         {
-            var createTableSql = $"create table if not exists {tableName} (ts timestamp," +
-                                 "c1 bool," +
-                                 "c2 tinyint," +
-                                 "c3 smallint," +
-                                 "c4 int," +
-                                 "c5 bigint," +
-                                 "c6 tinyint unsigned," +
-                                 "c7 smallint unsigned," +
-                                 "c8 int unsigned," +
-                                 "c9 bigint unsigned," +
-                                 "c10 float," +
-                                 "c11 double," +
-                                 "c12 binary(20)," +
-                                 "c13 nchar(20)," +
-                                 "c14 varbinary(20)," +
-                                 "c15 geometry(100)" +
-                                 ")" +
-                                 "tags(t json)";
-            return createTableSql;
+            var commonColumns = new StringBuilder()
+                .Append($"create table if not exists {tableName} (ts timestamp,")
+                .Append("c1 bool,")
+                .Append("c2 tinyint,")
+                .Append("c3 smallint,")
+                .Append("c4 int,")
+                .Append("c5 bigint,")
+                .Append("c6 tinyint unsigned,")
+                .Append("c7 smallint unsigned,")
+                .Append("c8 int unsigned,")
+                .Append("c9 bigint unsigned,")
+                .Append("c10 float,")
+                .Append("c11 double,")
+                .Append("c12 binary(20),")
+                .Append("c13 nchar(20),")
+                .Append("c14 varbinary(20),")
+                .Append("c15 geometry(100)");
+
+            if (withDecimal)
+            {
+                commonColumns
+                    .Append(",c16 decimal(20,4),")
+                    .Append("c17 decimal(8,4)");
+            }
+
+            commonColumns.Append(") tags(t json)");
+
+            return commonColumns.ToString();
         }
 
         private static Array[] TransposeToTypedArrays(object[][] data)
         {
-            var aTs = new DateTime[] { (DateTime)data[0][0], (DateTime)data[1][0] };
-            var a1 = new bool?[] { (bool)data[0][1], (bool?)data[1][1], };
-            var a2 = new sbyte?[] { (sbyte)data[0][2], (sbyte?)data[1][2] };
-            var a3 = new short?[] { (short)data[0][3], (short?)data[1][3] };
-            var a4 = new int?[] { (int)data[0][4], (int?)data[1][4] };
-            var a5 = new long?[] { (long)data[0][5], (long?)data[1][5] };
-            var a6 = new byte?[] { (byte)data[0][6], (byte?)data[1][6] };
-            var a7 = new ushort?[] { (ushort)data[0][7], (ushort?)data[1][7] };
-            var a8 = new uint?[] { (uint)data[0][8], (uint?)data[1][8] };
-            var a9 = new ulong?[] { (ulong)data[0][9], (ulong?)data[1][9] };
-            var a10 = new float?[] { (float)data[0][10], (float?)data[1][10] };
-            var a11 = new double?[] { (double)data[0][11], (double?)data[1][11] };
-            var aBinary = new byte[][] { (byte[])data[0][12], (byte[])data[1][12] };
-            var aNchar = new string[] { (string)data[0][13], (string)data[1][13] };
-            var aVarBinary = new byte[][] { (byte[])data[0][14], (byte[])data[1][14] };
-            var aGeometry = new byte[][] { (byte[])data[0][15], (byte[])data[1][15] };
+            if (data == null || data.Length == 0)
+                throw new ArgumentException("Data cannot be null or empty", nameof(data));
+
+            int rowCount = data.Length;
+
             return new Array[]
-                { aTs, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, aBinary, aNchar, aVarBinary, aGeometry };
+            {
+                CreateColumnArray<DateTime>(data, 0, o => (DateTime)o),
+                CreateNullableColumnArray<bool>(data, 1, o => (bool)o),
+                CreateNullableColumnArray<sbyte>(data, 2, o => (sbyte)o),
+                CreateNullableColumnArray<short>(data, 3, o => (short)o),
+                CreateNullableColumnArray<int>(data, 4, o => (int)o),
+                CreateNullableColumnArray<long>(data, 5, o => (long)o),
+                CreateNullableColumnArray<byte>(data, 6, o => (byte)o),
+                CreateNullableColumnArray<ushort>(data, 7, o => (ushort)o),
+                CreateNullableColumnArray<uint>(data, 8, o => (uint)o),
+                CreateNullableColumnArray<ulong>(data, 9, o => (ulong)o),
+                CreateNullableColumnArray<float>(data, 10, o => (float)o),
+                CreateNullableColumnArray<double>(data, 11, o => (double)o),
+                CreateColumnArray<byte[]>(data, 12, o => (byte[])o),
+                CreateColumnArray<string>(data, 13, o => (string)o),
+                CreateColumnArray<byte[]>(data, 14, o => (byte[])o),
+                CreateColumnArray<byte[]>(data, 15, o => (byte[])o)
+            };
+        }
+
+        private static T[] CreateColumnArray<T>(object[][] data, int columnIndex, Func<object, T> converter)
+        {
+            T[] array = new T[data.Length];
+            for (int i = 0; i < data.Length; i++)
+            {
+                array[i] = converter(data[i][columnIndex]);
+            }
+
+            return array;
+        }
+
+        private static T?[] CreateNullableColumnArray<T>(object[][] data, int columnIndex, Func<object, T> converter)
+            where T : struct
+        {
+            T?[] array = new T?[data.Length];
+            for (int i = 0; i < data.Length; i++)
+            {
+                array[i] = data[i][columnIndex] != null ? converter(data[i][columnIndex]) : (T?)null;
+            }
+
+            return array;
         }
 
         private string PrecisionString(TDenginePrecision precision)
@@ -151,9 +375,9 @@ namespace Driver.Test.Client.Query
                     return "us";
                 case TDenginePrecision.TSDB_TIME_PRECISION_MILLI:
                     return "ms";
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(precision), precision, null);
             }
-
-            return "ms";
         }
 
         private static bool IsCloudTest(ConnectionStringBuilder builder)
@@ -163,7 +387,8 @@ namespace Driver.Test.Client.Query
 
         private void QueryTest(string connectString, string db, TDenginePrecision precision)
         {
-            var data = this.GenerateValue(precision, out var insertSql);
+            var withDecimal = true;
+            var data = this.GenerateValue(precision, withDecimal, out var insertSql);
             var builder = new ConnectionStringBuilder(connectString);
             var inCloud = IsCloudTest(builder);
             using (var client = DbDriver.Open(builder))
@@ -180,7 +405,7 @@ namespace Driver.Test.Client.Query
                     }
 
                     client.Exec($"use {db}");
-                    var createTableSql = GenerateCreateTableSql(superTableName);
+                    var createTableSql = GenerateCreateTableSql(superTableName, withDecimal);
                     client.Exec(createTableSql);
                     string insertQuery =
                         $"insert into {subTableName} using {superTableName} tags('{{\"a\":\"b\"}}') {insertSql}";
@@ -188,7 +413,7 @@ namespace Driver.Test.Client.Query
                     string query = $"select * from {superTableName} order by ts asc";
                     using (var rows = client.Query(query))
                     {
-                        this.AssertColumn(rows);
+                        this.AssertColumn(rows, withDecimal);
                         this.AssertValue(rows, data);
                     }
                 }
@@ -210,7 +435,8 @@ namespace Driver.Test.Client.Query
 
         private void QueryWithReqIDTest(string connectString, string db, TDenginePrecision precision)
         {
-            var data = this.GenerateValue(precision, out var insertSql);
+            var withDecimal = true;
+            var data = this.GenerateValue(precision, withDecimal, out var insertSql);
             var builder = new ConnectionStringBuilder(connectString);
             var inCloud = IsCloudTest(builder);
             using (var client = DbDriver.Open(builder))
@@ -227,7 +453,7 @@ namespace Driver.Test.Client.Query
                     }
 
                     client.Exec($"use {db}", ReqId.GetReqId());
-                    string createTableSql = GenerateCreateTableSql(superTableName);
+                    string createTableSql = GenerateCreateTableSql(superTableName, withDecimal);
                     client.Exec(createTableSql, ReqId.GetReqId());
                     string insertQuery =
                         $"insert into {subTableName} using {superTableName} tags('{{\"a\":\"b\"}}') {insertSql}";
@@ -235,7 +461,7 @@ namespace Driver.Test.Client.Query
                     string query = $"select * from {superTableName} order by ts asc";
                     using (var rows = client.Query(query, ReqId.GetReqId()))
                     {
-                        this.AssertColumn(rows);
+                        this.AssertColumn(rows, withDecimal);
                         this.AssertValue(rows, data);
                     }
                 }
@@ -258,7 +484,8 @@ namespace Driver.Test.Client.Query
 
         private void StmtTest(string connectString, string db, TDenginePrecision precision)
         {
-            var data = this.GenerateValue(precision, out _);
+            var withDecimal = false;
+            var data = this.GenerateValue(precision, withDecimal, out _);
             var builder = new ConnectionStringBuilder(connectString);
             var inCloud = IsCloudTest(builder);
             using (var client = DbDriver.Open(builder))
@@ -275,7 +502,7 @@ namespace Driver.Test.Client.Query
                     }
 
                     client.Exec($"use {db}");
-                    var createTableSql = GenerateCreateTableSql(superTableName);
+                    var createTableSql = GenerateCreateTableSql(superTableName, withDecimal);
                     client.Exec(createTableSql);
                     var stmt = client.StmtInit();
                     StringBuilder questionMarks = new StringBuilder();
@@ -295,12 +522,16 @@ namespace Driver.Test.Client.Query
                     Assert.True(isInsert);
                     stmt.SetTableName(subTableName);
                     stmt.SetTags(new object[] { "{\"a\":\"b\"}" });
-                    stmt.BindRow(data[0]);
-                    stmt.BindRow(data[1]);
+                    var rowCount = data.Length;
+                    for (int i = 0; i < rowCount; i++)
+                    {
+                        stmt.BindRow(data[i]);
+                    }
+
                     stmt.AddBatch();
                     stmt.Exec();
                     var affected = stmt.Affected();
-                    Assert.Equal((long)2, affected);
+                    Assert.Equal((long)rowCount, affected);
                     stmt.Prepare($"select * from {superTableName} where ts >= ? order by ts asc");
                     isInsert = stmt.IsInsert();
                     Assert.False(isInsert);
@@ -309,7 +540,7 @@ namespace Driver.Test.Client.Query
                     stmt.Exec();
                     using (var rows = stmt.Result())
                     {
-                        this.AssertColumn(rows);
+                        this.AssertColumn(rows, withDecimal);
                         this.AssertValue(rows, data);
                     }
                 }
@@ -332,7 +563,8 @@ namespace Driver.Test.Client.Query
 
         private void StmtWithReqIDTest(string connectString, string db, TDenginePrecision precision)
         {
-            var data = this.GenerateValue(precision, out _);
+            var withDecimal = false;
+            var data = this.GenerateValue(precision, withDecimal, out _);
             var builder = new ConnectionStringBuilder(connectString);
             var inCloud = IsCloudTest(builder);
             using (var client = DbDriver.Open(builder))
@@ -349,7 +581,7 @@ namespace Driver.Test.Client.Query
                     }
 
                     client.Exec($"use {db}", ReqId.GetReqId());
-                    var createTableSql = GenerateCreateTableSql(superTableName);
+                    var createTableSql = GenerateCreateTableSql(superTableName, withDecimal);
                     client.Exec(createTableSql, ReqId.GetReqId());
                     var stmt = client.StmtInit(ReqId.GetReqId());
                     StringBuilder questionMarks = new StringBuilder();
@@ -369,12 +601,16 @@ namespace Driver.Test.Client.Query
                     Assert.True(isInsert);
                     stmt.SetTableName(subTableName);
                     stmt.SetTags(new object[] { "{\"a\":\"b\"}" });
-                    stmt.BindRow(data[0]);
-                    stmt.BindRow(data[1]);
+                    var rowCount = data.Length;
+                    for (int i = 0; i < rowCount; i++)
+                    {
+                        stmt.BindRow(data[i]);
+                    }
+
                     stmt.AddBatch();
                     stmt.Exec();
                     var affected = stmt.Affected();
-                    Assert.Equal((long)2, affected);
+                    Assert.Equal((long)rowCount, affected);
                     stmt.Prepare($"select * from {superTableName} where ts >= ? order by ts asc");
                     isInsert = stmt.IsInsert();
                     Assert.False(isInsert);
@@ -383,7 +619,7 @@ namespace Driver.Test.Client.Query
                     stmt.Exec();
                     using (var rows = stmt.Result())
                     {
-                        this.AssertColumn(rows);
+                        this.AssertColumn(rows, withDecimal);
                         this.AssertValue(rows, data);
                     }
                 }
@@ -406,7 +642,8 @@ namespace Driver.Test.Client.Query
 
         private void StmtBindColumnsTest(string connectString, string db, TDenginePrecision precision)
         {
-            var data = this.GenerateValue(precision, out _);
+            var withDecimal = false;
+            var data = this.GenerateValue(precision, withDecimal, out _);
             var transposedData = TransposeToTypedArrays(data);
 
             var builder =
@@ -426,7 +663,7 @@ namespace Driver.Test.Client.Query
                     }
 
                     client.Exec($"use {db}");
-                    var createTableSql = GenerateCreateTableSql(superTableName);
+                    var createTableSql = GenerateCreateTableSql(superTableName, withDecimal);
                     client.Exec(createTableSql);
                     var stmt = client.StmtInit(ReqId.GetReqId());
                     stmt.Prepare(
@@ -440,7 +677,7 @@ namespace Driver.Test.Client.Query
                     stmt.AddBatch();
                     stmt.Exec();
                     var affected = stmt.Affected();
-                    Assert.Equal((long)2, affected);
+                    Assert.Equal((long)data.Length, affected);
                     stmt.Prepare($"select * from {superTableName} where ts >= ? order by ts asc");
                     isInsert = stmt.IsInsert();
                     Assert.False(isInsert);
@@ -449,7 +686,7 @@ namespace Driver.Test.Client.Query
                     stmt.Exec();
                     using (var result = stmt.Result())
                     {
-                        this.AssertColumn(result);
+                        this.AssertColumn(result, withDecimal);
                         this.AssertValue(result, data);
                     }
                 }
@@ -747,11 +984,19 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
             }
         }
 
-        private void AssertColumn(IRows result)
+        private void AssertColumn(IRows result, bool withDecimal)
         {
             Assert.Equal(1, result.GetOrdinal("c1"));
             var fieldCount = result.FieldCount;
-            Assert.Equal(17, fieldCount);
+            if (withDecimal)
+            {
+                Assert.Equal(19, fieldCount);
+            }
+            else
+            {
+                Assert.Equal(17, fieldCount);
+            }
+
             Assert.Equal("ts", result.GetName(0));
             Assert.Equal("c1", result.GetName(1));
             Assert.Equal("c2", result.GetName(2));
@@ -768,7 +1013,17 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
             Assert.Equal("c13", result.GetName(13));
             Assert.Equal("c14", result.GetName(14));
             Assert.Equal("c15", result.GetName(15));
-            Assert.Equal("t", result.GetName(16));
+            if (withDecimal)
+            {
+                Assert.Equal("c16", result.GetName(16));
+                Assert.Equal("c17", result.GetName(17));
+                Assert.Equal("t", result.GetName(18));
+            }
+            else
+            {
+                Assert.Equal("t", result.GetName(16));
+            }
+
             Assert.Equal(-1, result.AffectRows);
         }
 
@@ -783,24 +1038,35 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                     // this._output.WriteLine($"{data[i][j]}:{rows.GetValue(j)}");
                     var val = rows.GetValue(j);
                     var expectVal = data[i][j];
-                    if (val is float floatVal)
-                    {
-                        Assert.IsType<float>(expectVal);
-                        Assert.Equal((float)expectVal, floatVal, 7);
-                    }
-                    else if (val is double doubleVal)
-                    {
-                        Assert.IsType<double>(expectVal);
-                        Assert.Equal((double)expectVal, doubleVal, 15);
-                    }
-                    else
-                    {
-                        Assert.Equal(expectVal, val);
-                    }
+                    CheckValue(val, expectVal);
                 }
 
                 Assert.Equal(Encoding.UTF8.GetBytes("{\"a\":\"b\"}"), rows.GetValue(data[i].Length));
             }
+        }
+
+        private static void CheckValue(object val, object expectVal)
+        {
+#if NETFRAMEWORK
+            const float floatTolerance = 0.00001f;
+            const double doubleTolerance = 0.0000000000001;
+            if (val is float floatVal)
+            {
+                Assert.IsType<float>(expectVal);
+                Assert.True(Math.Abs((float)expectVal - floatVal) < floatTolerance);
+            }
+            else if (val is double doubleVal)
+            {
+                Assert.IsType<double>(expectVal);
+                Assert.True(Math.Abs((double)expectVal - doubleVal) < doubleTolerance);
+            }
+            else
+            {
+                Assert.Equal(expectVal, val);
+            }
+#else
+            Assert.Equal(expectVal, val);
+#endif
         }
 
         private void QueryConcurrencyTest(string connectString, string db)
@@ -838,12 +1104,12 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                 }
 
                 client.Exec($"insert into {tableName} values {valuesStr}");
-                var tasks = new System.Collections.Generic.List<System.Threading.Tasks.Task>();
+                var tasks = new List<Task>();
                 for (var i = 0; i < count; i++)
                 {
                     int localI = i;
                     string query = $"select * from {tableName} where ts = " + ts[localI];
-                    tasks.Add(System.Threading.Tasks.Task.Run(() =>
+                    tasks.Add(Task.Run(() =>
                     {
                         using (var rows = client.Query(query))
                         {
@@ -864,7 +1130,7 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                     }));
                 }
 
-                System.Threading.Tasks.Task.WaitAll(tasks.ToArray());
+                Task.WaitAll(tasks.ToArray());
             }
             catch (Exception e)
             {

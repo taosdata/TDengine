@@ -768,104 +768,183 @@ namespace Data.Tests
                     "create table if not exists test_types(" +
                     "ts timestamp, f_int int, f_bigint bigint, f_float float, f_double double, f_binary binary(16), " +
                     "f_smallint smallint, f_tinyint tinyint, f_bool bool, f_nchar nchar(16), " +
-                    "f_uint int unsigned,f_ubigint bigint unsigned, f_usmallint smallint unsigned,f_utinyint tinyint unsigned)";
+                    "f_uint int unsigned,f_ubigint bigint unsigned, f_usmallint smallint unsigned,f_utinyint tinyint unsigned, " +
+                    "f_varbinary varbinary(20),f_geometry geometry(100),f_decimal_128 decimal(20,4), f_decimal_64 decimal(8,4))";
                 affected = cmd.ExecuteNonQuery();
                 Assert.Equal(0, affected);
                 cmd.CommandText =
-                    "insert into test_types values(now+1s, null, null, null, null, null, null, null, null, null,null,null,null,null)," +
-                    "(now, 1, 2, 3000000.3, 400000000.4, '5binary', 6, 7, true, '9nchar',10,11,12,13)";
+                    "insert into test_types values(now+1s, null, null, null, null, null, null, null, null, null,null,null,null,null,null,null,null,null)," +
+                    "(now, 1, 2, 3000000.3, 400000000.4, '5binary', 6, 7, true, '9nchar',10,11,12,13,'varbinary','point(100 100)', 9999999999999999.9999,9999.9999)";
                 affected = cmd.ExecuteNonQuery();
                 Assert.Equal(2, affected);
                 cmd.CommandText =
-                    "select ts, f_int, f_bigint, f_float, f_double, f_binary, f_smallint, f_tinyint, f_bool, f_nchar,f_uint,f_ubigint,f_usmallint,f_utinyint from test_types order by ts desc limit 2";
+                    "select ts, f_int, f_bigint, f_float, f_double, f_binary, f_smallint, f_tinyint, " +
+                    "f_bool, f_nchar,f_uint,f_ubigint,f_usmallint,f_utinyint,f_varbinary,f_geometry," +
+                    "f_decimal_128,f_decimal_64 from test_types order by ts desc limit 2";
                 var reader = cmd.ExecuteReader();
                 var schemaTable = reader.GetSchemaTable();
-                Assert.Equal(14, schemaTable.Rows.Count);
-                Assert.Equal("ts", schemaTable.Rows[0]["ColumnName"]);
-                Assert.Equal(typeof(DateTime), schemaTable.Rows[0]["DataType"]);
-                Assert.Equal(0, schemaTable.Rows[0]["ColumnOrdinal"]);
-                Assert.Equal(8, schemaTable.Rows[0]["ColumnSize"]);
-                Assert.Equal("TIMESTAMP", schemaTable.Rows[0]["DataTypeName"]);
+                Assert.Equal(18, schemaTable.Rows.Count);
+                var index = 0;
+                Assert.Equal("ts", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(DateTime), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(8, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("TIMESTAMP", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericScale"]);
 
-                Assert.Equal("f_int", schemaTable.Rows[1]["ColumnName"]);
-                Assert.Equal(typeof(int), schemaTable.Rows[1]["DataType"]);
-                Assert.Equal(1, schemaTable.Rows[1]["ColumnOrdinal"]);
-                Assert.Equal(4, schemaTable.Rows[1]["ColumnSize"]);
-                Assert.Equal("INT", schemaTable.Rows[1]["DataTypeName"]);
+                index = 1;
+                Assert.Equal("f_int", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(int), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(4, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("INT", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericScale"]);
 
-                Assert.Equal("f_bigint", schemaTable.Rows[2]["ColumnName"]);
-                Assert.Equal(typeof(long), schemaTable.Rows[2]["DataType"]);
-                Assert.Equal(2, schemaTable.Rows[2]["ColumnOrdinal"]);
-                Assert.Equal(8, schemaTable.Rows[2]["ColumnSize"]);
-                Assert.Equal("BIGINT", schemaTable.Rows[2]["DataTypeName"]);
+                index = 2;
+                Assert.Equal("f_bigint", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(long), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(8, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("BIGINT", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericScale"]);
 
-                Assert.Equal("f_float", schemaTable.Rows[3]["ColumnName"]);
-                Assert.Equal(typeof(float), schemaTable.Rows[3]["DataType"]);
-                Assert.Equal(3, schemaTable.Rows[3]["ColumnOrdinal"]);
-                Assert.Equal(4, schemaTable.Rows[3]["ColumnSize"]);
-                Assert.Equal("FLOAT", schemaTable.Rows[3]["DataTypeName"]);
+                index = 3;
+                Assert.Equal("f_float", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(float), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(4, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("FLOAT", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericScale"]);
 
-                Assert.Equal("f_double", schemaTable.Rows[4]["ColumnName"]);
-                Assert.Equal(typeof(double), schemaTable.Rows[4]["DataType"]);
-                Assert.Equal(4, schemaTable.Rows[4]["ColumnOrdinal"]);
-                Assert.Equal(8, schemaTable.Rows[4]["ColumnSize"]);
-                Assert.Equal("DOUBLE", schemaTable.Rows[4]["DataTypeName"]);
+                index = 4;
+                Assert.Equal("f_double", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(double), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(8, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("DOUBLE", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericScale"]);
 
-                Assert.Equal("f_binary", schemaTable.Rows[5]["ColumnName"]);
-                Assert.Equal(typeof(byte[]), schemaTable.Rows[5]["DataType"]);
-                Assert.Equal(5, schemaTable.Rows[5]["ColumnOrdinal"]);
-                Assert.Equal(16, schemaTable.Rows[5]["ColumnSize"]);
-                Assert.Equal("BINARY", schemaTable.Rows[5]["DataTypeName"]);
+                index = 5;
+                Assert.Equal("f_binary", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(byte[]), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(16, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("BINARY", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericScale"]);
 
-                Assert.Equal("f_smallint", schemaTable.Rows[6]["ColumnName"]);
-                Assert.Equal(typeof(short), schemaTable.Rows[6]["DataType"]);
-                Assert.Equal(6, schemaTable.Rows[6]["ColumnOrdinal"]);
-                Assert.Equal(2, schemaTable.Rows[6]["ColumnSize"]);
-                Assert.Equal("SMALLINT", schemaTable.Rows[6]["DataTypeName"]);
+                index = 6;
+                Assert.Equal("f_smallint", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(short), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(2, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("SMALLINT", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericScale"]);
 
+                index = 7;
+                Assert.Equal("f_tinyint", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(sbyte), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(1, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("TINYINT", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericScale"]);
 
-                Assert.Equal("f_tinyint", schemaTable.Rows[7]["ColumnName"]);
-                Assert.Equal(typeof(sbyte), schemaTable.Rows[7]["DataType"]);
-                Assert.Equal(7, schemaTable.Rows[7]["ColumnOrdinal"]);
-                Assert.Equal(1, schemaTable.Rows[7]["ColumnSize"]);
-                Assert.Equal("TINYINT", schemaTable.Rows[7]["DataTypeName"]);
+                index = 8;
+                Assert.Equal("f_bool", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(bool), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(1, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("BOOL", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericScale"]);
 
-                Assert.Equal("f_bool", schemaTable.Rows[8]["ColumnName"]);
-                Assert.Equal(typeof(bool), schemaTable.Rows[8]["DataType"]);
-                Assert.Equal(8, schemaTable.Rows[8]["ColumnOrdinal"]);
-                Assert.Equal(1, schemaTable.Rows[8]["ColumnSize"]);
-                Assert.Equal("BOOL", schemaTable.Rows[8]["DataTypeName"]);
+                index = 9;
+                Assert.Equal("f_nchar", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(string), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(16, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("NCHAR", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericScale"]);
 
-                Assert.Equal("f_nchar", schemaTable.Rows[9]["ColumnName"]);
-                Assert.Equal(typeof(string), schemaTable.Rows[9]["DataType"]);
-                Assert.Equal(9, schemaTable.Rows[9]["ColumnOrdinal"]);
-                Assert.Equal(16, schemaTable.Rows[9]["ColumnSize"]);
-                Assert.Equal("NCHAR", schemaTable.Rows[9]["DataTypeName"]);
+                index = 10;
+                Assert.Equal("f_uint", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(uint), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(4, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("INT UNSIGNED", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericScale"]);
 
-                Assert.Equal("f_uint", schemaTable.Rows[10]["ColumnName"]);
-                Assert.Equal(typeof(uint), schemaTable.Rows[10]["DataType"]);
-                Assert.Equal(10, schemaTable.Rows[10]["ColumnOrdinal"]);
-                Assert.Equal(4, schemaTable.Rows[10]["ColumnSize"]);
-                Assert.Equal("INT UNSIGNED", schemaTable.Rows[10]["DataTypeName"]);
+                index = 11;
+                Assert.Equal("f_ubigint", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(ulong), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(8, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("BIGINT UNSIGNED", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericScale"]);
 
-                Assert.Equal("f_ubigint", schemaTable.Rows[11]["ColumnName"]);
-                Assert.Equal(typeof(ulong), schemaTable.Rows[11]["DataType"]);
-                Assert.Equal(11, schemaTable.Rows[11]["ColumnOrdinal"]);
-                Assert.Equal(8, schemaTable.Rows[11]["ColumnSize"]);
-                Assert.Equal("BIGINT UNSIGNED", schemaTable.Rows[11]["DataTypeName"]);
+                index = 12;
+                Assert.Equal("f_usmallint", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(ushort), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(2, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("SMALLINT UNSIGNED", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericScale"]);
 
-                Assert.Equal("f_usmallint", schemaTable.Rows[12]["ColumnName"]);
-                Assert.Equal(typeof(ushort), schemaTable.Rows[12]["DataType"]);
-                Assert.Equal(12, schemaTable.Rows[12]["ColumnOrdinal"]);
-                Assert.Equal(2, schemaTable.Rows[12]["ColumnSize"]);
-                Assert.Equal("SMALLINT UNSIGNED", schemaTable.Rows[12]["DataTypeName"]);
+                index = 13;
+                Assert.Equal("f_utinyint", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(byte), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(1, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("TINYINT UNSIGNED", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericScale"]);
 
-                Assert.Equal("f_utinyint", schemaTable.Rows[13]["ColumnName"]);
-                Assert.Equal(typeof(byte), schemaTable.Rows[13]["DataType"]);
-                Assert.Equal(13, schemaTable.Rows[13]["ColumnOrdinal"]);
-                Assert.Equal(1, schemaTable.Rows[13]["ColumnSize"]);
-                Assert.Equal("TINYINT UNSIGNED", schemaTable.Rows[13]["DataTypeName"]);
+                index = 14;
+                Assert.Equal("f_varbinary", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(byte[]), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(20, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("VARBINARY", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericScale"]);
 
+                index = 15;
+                Assert.Equal("f_geometry", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(byte[]), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(100, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("GEOMETRY", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(0, schemaTable.Rows[index]["NumericScale"]);
+
+                index = 16;
+                Assert.Equal("f_decimal_128", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(decimal), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(16, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("DECIMAL", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(20, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(4, schemaTable.Rows[index]["NumericScale"]);
+
+                index = 17;
+                Assert.Equal("f_decimal_64", schemaTable.Rows[index]["ColumnName"]);
+                Assert.Equal(typeof(decimal), schemaTable.Rows[index]["DataType"]);
+                Assert.Equal(index, schemaTable.Rows[index]["ColumnOrdinal"]);
+                Assert.Equal(8, schemaTable.Rows[index]["ColumnSize"]);
+                Assert.Equal("DECIMAL", schemaTable.Rows[index]["DataTypeName"]);
+                Assert.Equal(8, schemaTable.Rows[index]["NumericPrecision"]);
+                Assert.Equal(4, schemaTable.Rows[index]["NumericScale"]);
                 reader.Close();
             }
         }
