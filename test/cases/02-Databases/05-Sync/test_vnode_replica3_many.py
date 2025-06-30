@@ -1,4 +1,5 @@
 import time
+import threading
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
@@ -68,7 +69,9 @@ class TestVnodeReplica3Many:
         lastRows4 = tdSql.getRows()
 
         tdLog.info(f"======== step2")
-        # run_back tsim/vnode/back_insert_many.sim
+        self.running = True
+        self.threadId = threading.Thread(target=self.threadLoop)
+        self.threadId.start()
         time.sleep(2)
 
         for i in range(2):
@@ -80,7 +83,11 @@ class TestVnodeReplica3Many:
             clusterComCheck.checkDbReady("db2")
             clusterComCheck.checkDbReady("db3")
             clusterComCheck.checkDbReady("db4")
-            
+            tdSql.query(f"select count(*) from db1.tb1")
+            tdLog.info(f"rows:{tdSql.getData(0, 0)}")
+            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows1)
+            lastRows1 = tdSql.getData(0, 0)
+
             sc.dnodeStart(2)
             time.sleep(3)
             clusterComCheck.checkDnodes(4)
@@ -88,6 +95,10 @@ class TestVnodeReplica3Many:
             clusterComCheck.checkDbReady("db2")
             clusterComCheck.checkDbReady("db3")
             clusterComCheck.checkDbReady("db4")
+            tdSql.query(f"select count(*) from db1.tb1")
+            tdLog.info(f"rows:{tdSql.getData(0, 0)}")
+            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows1)
+            lastRows1 = tdSql.getData(0, 0)
 
             sc.dnodeStop(3)
             time.sleep(3)
@@ -96,7 +107,11 @@ class TestVnodeReplica3Many:
             clusterComCheck.checkDbReady("db2")
             clusterComCheck.checkDbReady("db3")
             clusterComCheck.checkDbReady("db4")
-            
+            tdSql.query(f"select count(*) from db1.tb1")
+            tdLog.info(f"rows:{tdSql.getData(0, 0)}")
+            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows1)
+            lastRows1 = tdSql.getData(0, 0)
+
             sc.dnodeStart(3)
             time.sleep(3)
             clusterComCheck.checkDnodes(4)
@@ -104,6 +119,10 @@ class TestVnodeReplica3Many:
             clusterComCheck.checkDbReady("db2")
             clusterComCheck.checkDbReady("db3")
             clusterComCheck.checkDbReady("db4")
+            tdSql.query(f"select count(*) from db1.tb1")
+            tdLog.info(f"rows:{tdSql.getData(0, 0)}")
+            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows1)
+            lastRows1 = tdSql.getData(0, 0)
 
             sc.dnodeStop(2)
             time.sleep(3)
@@ -112,7 +131,11 @@ class TestVnodeReplica3Many:
             clusterComCheck.checkDbReady("db2")
             clusterComCheck.checkDbReady("db3")
             clusterComCheck.checkDbReady("db4")
-            
+            tdSql.query(f"select count(*) from db1.tb1")
+            tdLog.info(f"rows:{tdSql.getData(0, 0)}")
+            tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows1)
+            lastRows1 = tdSql.getData(0, 0)
+
             sc.dnodeStart(2)
             time.sleep(3)
             clusterComCheck.checkDnodes(4)
@@ -136,3 +159,20 @@ class TestVnodeReplica3Many:
             tdSql.query(f"select count(*) from db4.tb4")
             tdSql.checkAssert(tdSql.getData(0, 0) >= lastRows4)
             lastRows4 = tdSql.getData(0, 0)
+
+        self.running = False
+        self.threadId.join()
+
+    def threadLoop(self):
+        tdLog.info(f"thread is running ")
+        x = 1
+        while self.running:
+            result = tdSql.is_err_sql(f"insert into db1.tb1 values(now, {x}) ")
+            result = tdSql.is_err_sql(f"insert into db2.tb2 values(now, {x}) ")
+            result = tdSql.is_err_sql(f"insert into db3.tb3 values(now, {x}) ")
+            result = tdSql.is_err_sql(f"insert into db4.tb4 values(now, {x}) ")
+            
+            # tdLog.info(f"execute result:{result}, times:{x}")
+            x = x + 1
+            time.sleep(0.1)
+        tdLog.info(f"thread is stopped ")

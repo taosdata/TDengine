@@ -90,7 +90,7 @@ class TestShowBasic:
         tdSql.query("select * from information_schema.ins_streams")
         tdSql.query(f"select * from information_schema.ins_tables")
         if tdSql.getRows() <= 0:
-            tdLog.exit("assert here")
+            tdLog.exit("checkAssert here")
 
         tdSql.error("select * from information_schema.ins_table_distributed")
         tdSql.query(f"select * from information_schema.ins_users")
@@ -156,7 +156,7 @@ class TestShowBasic:
         tdSql.query("select * from information_schema.ins_streams")
         tdSql.query(f"select * from information_schema.ins_tables")
         if tdSql.getRows() <= 0:
-            tdLog.exit("assert here")
+            tdLog.exit("checkAssert here")
 
         tdSql.error("select * from information_schema.ins_table_distributed")
         tdSql.query(f"select * from information_schema.ins_users")
@@ -179,20 +179,20 @@ class TestShowBasic:
         tdSql.error(f"show create stable t0;")
 
         tdSql.query(f"show variables;")
-        tdSql.checkRows(89)
+        tdSql.checkRows(92)
 
         tdSql.query(f"show dnode 1 variables;")
         if tdSql.getRows() <= 0:
-            tdLog.exit("assert here")
+            tdLog.exit("checkAssert here")
 
         tdSql.query(f"show local variables;")
         if tdSql.getRows() <= 0:
-            tdLog.exit("assert here")
+            tdLog.exit("checkAssert here")
 
         tdSql.query(f"show cluster alive;")
         if tdSql.getRows() <= 0:
-            tdLog.exit("assert here")
+            tdLog.exit("checkAssert here")
 
         tdSql.query(f"show db.alive;")
         if tdSql.getRows() <= 0:
-            tdLog.exit("assert here")
+            tdLog.exit("checkAssert here")

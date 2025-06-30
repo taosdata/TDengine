@@ -121,6 +121,7 @@ int32_t shellParseArgs(int32_t argc, char* argv[]);
 
 // shellCommand.c
 int32_t shellReadCommand(char* command);
+int32_t shellCountPrefixOnes(uint8_t c);
 
 // shellEngine.c
 int32_t shellExecute(int argc, char *argv[]);

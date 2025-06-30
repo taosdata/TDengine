@@ -33,8 +33,7 @@ extern "C" {
 extern int32_t tsRpcHeadSize;
 
 typedef struct {
-  uint32_t clientIp;
-  uint16_t clientPort;
+  SIpAddr  cliAddr;
   int64_t  applyIndex;
   uint64_t applyTerm;
   char     user[TSDB_USER_LEN];
@@ -134,6 +133,7 @@ typedef struct SRpcInit {
   int8_t  notWaitAvaliableConn;  // 1: wait to get, 0: no wait
   int8_t  startReadTimer;
   int64_t readTimeout;  // s
+  int8_t  ipv6;
 
   void *parent;
 } SRpcInit;
@@ -188,7 +188,7 @@ int32_t rpcSetIpWhite(void *thandl, void *arg);
 
 int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf);
 
-int32_t rpcUtilSWhiteListToStr(SIpWhiteList *pWhiteList, char **ppBuf);
+int32_t rpcUtilSWhiteListToStr(SIpWhiteListDual *pWhiteList, char **ppBuf);
 int32_t rpcCvtErrCode(int32_t code);
 
 #else

@@ -110,7 +110,7 @@ func (gm *GeneralMetric) Init(c gin.IRouter) error {
 	c.POST("/taosd-cluster-basic", gm.handleTaosdClusterBasic())
 	c.POST("/slow-sql-detail-batch", gm.handleSlowSqlDetailBatch())
 
-	conn, err := db.NewConnectorWithDb(gm.username, gm.password, gm.host, gm.port, gm.database, gm.usessl)
+	conn, err := db.NewConnectorWithDbWithRetryForever(gm.username, gm.password, gm.host, gm.port, gm.database, gm.usessl)
 	if err != nil {
 		gmLogger.Errorf("init db connect error, msg:%s", err)
 		return err
@@ -633,6 +633,14 @@ func get_sub_table_name(stbName string, tagMap map[string]string) string {
 			}
 			return fmt.Sprintf("adapter_conn_pool_%s_%s", tagMap["user"], util.GetMd5HexStr(tagMap["endpoint"]))
 		}
+	case "adapter_c_interface":
+		if checkKeysExist(tagMap, "endpoint") {
+			subTableName := fmt.Sprintf("adapter_c_if_%s", tagMap["endpoint"])
+			if len(subTableName) <= util.MAX_TABLE_NAME_LEN {
+				return subTableName
+			}
+			return subTableName[0:util.MAX_TABLE_NAME_LEN]
+		}
 	default:
 		return ""
 	}
@@ -726,7 +734,7 @@ func (gm *GeneralMetric) initColumnSeqMap() error {
     order by stable_name asc;
 	`, gm.database)
 
-	data, err := gm.conn.Query(context.Background(), query, util.GetQidOwn())
+	data, err := gm.conn.QueryWithRetryForever(context.Background(), query, util.GetQidOwn(config.Conf.InstanceID))
 
 	if err != nil {
 		return err
@@ -739,7 +747,7 @@ func (gm *GeneralMetric) initColumnSeqMap() error {
 	}
 	//set gColumnSeqMap with desc stables
 	for tableName, columnSeq := range gColumnSeqMap {
-		data, err := gm.conn.Query(context.Background(), fmt.Sprintf(`desc %s.%s;`, gm.database, tableName), util.GetQidOwn())
+		data, err := gm.conn.Query(context.Background(), fmt.Sprintf(`desc %s.%s;`, gm.database, tableName), util.GetQidOwn(config.Conf.InstanceID))
 
 		if err != nil {
 			return err
@@ -776,7 +784,7 @@ func (gm *GeneralMetric) createSTables() error {
 		"(ts timestamp, first_ep varchar(255), first_ep_dnode_id INT, cluster_version varchar(20)) " +
 		"tags (cluster_id varchar(50))"
 
-	_, err := gm.conn.Exec(context.Background(), createTableSql, util.GetQidOwn())
+	_, err := gm.conn.ExecWithRetryForever(context.Background(), createTableSql, util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		return err
 	}
@@ -786,6 +794,6 @@ func (gm *GeneralMetric) createSTables() error {
 		"type TINYINT, rows_num BIGINT, sql varchar(16384), process_name varchar(32), process_id varchar(32)) " +
 		"tags (db varchar(1024), `user` varchar(32), ip varchar(32), cluster_id varchar(32))"
 
-	_, err = gm.conn.Exec(context.Background(), createTableSql, util.GetQidOwn())
+	_, err = gm.conn.ExecWithRetryForever(context.Background(), createTableSql, util.GetQidOwn(config.Conf.InstanceID))
 	return err
 }

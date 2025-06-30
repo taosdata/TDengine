@@ -53,11 +53,11 @@ func TestAdapter2(t *testing.T) {
 
 	conn, err := db.NewConnectorWithDb(c.TDengine.Username, c.TDengine.Password, c.TDengine.Host, c.TDengine.Port, c.Metrics.Database.Name, c.TDengine.Usessl)
 	defer func() {
-		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", c.Metrics.Database.Name), util.GetQidOwn())
+		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", c.Metrics.Database.Name), util.GetQidOwn(config.Conf.InstanceID))
 	}()
 
 	assert.NoError(t, err)
-	data, err := conn.Query(context.Background(), "select * from adapter_requests where req_type=0", util.GetQidOwn())
+	data, err := conn.Query(context.Background(), "select * from adapter_requests where req_type=0", util.GetQidOwn(config.Conf.InstanceID))
 
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(data.Data))
@@ -77,7 +77,7 @@ func TestAdapter2(t *testing.T) {
 	assert.Equal(t, uint32(1), data.Data[0][14])
 	assert.Equal(t, uint32(2), data.Data[0][15])
 
-	data, err = conn.Query(context.Background(), "select * from adapter_requests where req_type=1", util.GetQidOwn())
+	data, err = conn.Query(context.Background(), "select * from adapter_requests where req_type=1", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(data.Data))
 	assert.Equal(t, uint32(10), data.Data[0][1])
@@ -112,17 +112,17 @@ func TestAdapter2(t *testing.T) {
 	router.ServeHTTP(w, req3)
 	assert.Equal(t, 200, w.Code)
 
-	data, err = conn.Query(context.Background(), "select count(*) from adapter_status", util.GetQidOwn())
+	data, err = conn.Query(context.Background(), "select count(*) from adapter_status", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(data.Data))
 	assert.Equal(t, int64(2), data.Data[0][0])
 
-	data, err = conn.Query(context.Background(), "select count(*) from adapter_conn_pool", util.GetQidOwn())
+	data, err = conn.Query(context.Background(), "select count(*) from adapter_conn_pool", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(data.Data))
 	assert.Equal(t, int64(2), data.Data[0][0])
 
-	conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", c.Metrics.Database.Name), util.GetQidOwn())
+	conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", c.Metrics.Database.Name), util.GetQidOwn(config.Conf.InstanceID))
 }
 
 func Test_adapterTableSql(t *testing.T) {
@@ -130,13 +130,13 @@ func Test_adapterTableSql(t *testing.T) {
 	defer conn.Close()
 
 	dbName := "db_202412031446"
-	conn.Exec(context.Background(), "create database "+dbName, util.GetQidOwn())
-	defer conn.Exec(context.Background(), "drop database "+dbName, util.GetQidOwn())
+	conn.Exec(context.Background(), "create database "+dbName, util.GetQidOwn(config.Conf.InstanceID))
+	defer conn.Exec(context.Background(), "drop database "+dbName, util.GetQidOwn(config.Conf.InstanceID))
 
 	conn, _ = db.NewConnectorWithDb("root", "taosdata", "127.0.0.1", 6041, dbName, false)
 	defer conn.Close()
 
-	conn.Exec(context.Background(), adapterTableSql, util.GetQidOwn())
+	conn.Exec(context.Background(), adapterTableSql, util.GetQidOwn(config.Conf.InstanceID))
 
 	testCases := []struct {
 		ep      string
@@ -151,7 +151,7 @@ func Test_adapterTableSql(t *testing.T) {
 
 	for i, tc := range testCases {
 		sql := fmt.Sprintf("create table d%d using adapter_requests tags ('%s', 0)", i, tc.ep)
-		_, err := conn.Exec(context.Background(), sql, util.GetQidOwn())
+		_, err := conn.Exec(context.Background(), sql, util.GetQidOwn(config.Conf.InstanceID))
 		if tc.wantErr {
 			assert.Error(t, err) // [0x2653] Value too long for column/tag: endpoint
 		} else {

@@ -15,7 +15,7 @@ class TestDatabaseBasic1:
         3. show vnodes
 
         Catalog:
-            - Database:Create
+            - Databases:Create
 
         Since: v3.0.0.0
 

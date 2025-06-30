@@ -66,15 +66,15 @@ if [ -f "$DATA_DIR/dnode/dnode.json" ] ||
 
             # Initialization scripts should only work in first node.
             if [ "$FQDN" = "$FIRST_EP_HOST" ]; then
-                if [ ! -f "${data_dir}/.docker-entrypoint-root-password-changed" ]; then
+                if [ ! -f "${DATA_DIR}/.docker-entrypoint-root-password-changed" ]; then
                     if [ "$TAOS_ROOT_PASSWORD" != "taosdata" ]; then
                         # change default root password
                         taos -s "ALTER USER root PASS '$TAOS_ROOT_PASSWORD'"
-                        touch "${data_dir}/.docker-entrypoint-root-password-changed"
+                        touch "${DATA_DIR}/.docker-entrypoint-root-password-changed"
                     fi
                 fi
                 # Initialization scripts should only work in first node.
-                if [ ! -f "${data_dir}/.docker-entrypoint-inited" ]; then
+                if [ ! -f "${DATA_DIR}/.docker-entrypoint-inited" ]; then
                     NEEDS_INITDB=1
                 fi
             fi
@@ -125,13 +125,14 @@ if [ "$DISABLE_KEEPER" = "0" ]; then
     done
 fi
 
-
-which taos-explorer >/dev/null && taos-explorer &
-# wait for 6060 port ready
-for _ in $(seq 1 20); do
-    nc -z localhost 6060 && break
-    sleep 0.5
-done
+if [ "$DISABLE_EXPLORER" = "0" ]; then
+    which taos-explorer >/dev/null && taos-explorer &
+    # wait for 6060 port ready
+    for _ in $(seq 1 20); do
+        nc -z localhost 6060 && break
+        sleep 0.5
+    done
+fi
 
 if [ "$NEEDS_INITDB" = "1" ]; then
     # check if initdb.d exists
@@ -160,4 +161,5 @@ if [ "$NEEDS_INITDB" = "1" ]; then
     touch "${DATA_DIR}/.docker-entrypoint-inited"
 fi
 
-while true; do sleep 1000; done
+tail -f /dev/null
+# while true; do sleep 1000; done

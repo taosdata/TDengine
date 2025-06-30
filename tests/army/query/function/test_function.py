@@ -147,6 +147,9 @@ class TDTestCase(TBase):
 
     def test_trim(self):
         self.test_normal_query_new("trim")
+        
+    def test_base64(self):
+        self.test_normal_query_new("base64")
     
     def test_crc32(self):
         self.test_normal_query_new("crc32")
@@ -535,6 +538,7 @@ class TDTestCase(TBase):
         self.test_substr()
         self.test_substr_idx()
         self.test_trim()
+        self.test_base64()
         self.test_crc32()
 
         # time function

@@ -40,7 +40,7 @@ class TestDatabaseKeep:
         x = 1
         while x < 41:
             time = str(x) + "d"
-            tdSql.is_err_sql(f"insert into tb values (now - {time} , {x} )")
+            tdSql.isErrorSql(f"insert into tb values (now - {time} , {x} )")
             x = x + 1
 
         tdSql.query(f"select * from tb")
@@ -71,7 +71,7 @@ class TestDatabaseKeep:
         x = 41
         while x < 81:
             time = str(x) + "d"
-            tdSql.is_err_sql(f"insert into tb values (now - {time} , {x} )")
+            tdSql.isErrorSql(f"insert into tb values (now - {time} , {x} )")
             x = x + 1
 
         tdSql.query(f"select * from tb")
@@ -109,7 +109,7 @@ class TestDatabaseKeep:
         x = 81
         while x < 121:
             time = str(x) + "d"
-            tdSql.is_err_sql(f"insert into tb values (now - {time} , {x} )")
+            tdSql.isErrorSql(f"insert into tb values (now - {time} , {x} )")
             x = x + 1
 
         tdSql.query(f"select * from tb")

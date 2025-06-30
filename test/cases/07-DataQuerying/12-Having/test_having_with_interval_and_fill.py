@@ -32,7 +32,7 @@ class TestHavingWithIntervalAndFill:
         tdSql.execute("use td32059;")
         tdSql.query("SELECT _wstart, last_row(id) FROM stb WHERE ts BETWEEN '2024-09-11 09:50:13.999' AND '2024-09-11 09:59:13.999' INTERVAL(30s) FILL(PREV) HAVING(last_row(id) IS NOT NULL);")
         tdSql.checkRows(13)
-        assert ('NULL' not in [item[1] for item in tdSql.queryResult])
+        checkAssert ('NULL' not in [item[1] for item in tdSql.queryResult])
 
 
 

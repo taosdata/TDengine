@@ -46,6 +46,7 @@ def params_get(pars):
     opts.rm_containers = True if "rm_containers" in pars else False
     opts.taosd_valgrind = True if "taosd_valgrind" in pars else False
     opts.taosc_valgrind = True if "taosc_valgrind" in pars else False
+    opts.clean = True if "clean" in pars else False
     opts.stop = True if "stop" in pars else False
     opts.disable_collection = True if "disable_collection" in pars else False
     opts.disable_data_collection = True if "disable_data_collection" in pars else False
@@ -115,9 +116,9 @@ def check_opts(opts):
         print("Must specify one option in:[ --destroy, --use, --setup, --prepare]")
         return False
     # have only one
-    if (opts.destroy and opts.use) or (opts.use and opts.setup) or (opts.destroy and opts.setup):
-        print("Can only specify one environment option: --destroy or --use or --setup")
-        return False
+    #if (opts.destroy and opts.use) or (opts.use and opts.setup) or (opts.destroy and opts.setup):
+    #    print("Can only specify one environment option: --destroy or --use or --setup")
+    #    return False
     # test groups and test cases can't run together.
     if (opts.group_dirs or opts.group_files) and opts.cases:
         print("--group-dir or --group-file can't be used together with --case")

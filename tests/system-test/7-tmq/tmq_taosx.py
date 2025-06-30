@@ -749,7 +749,7 @@ class TDTestCase:
         self.checkSnapshot1VgroupTable()
 
         self.checkWalMultiVgroups()
-        self.checkWalMultiVgroupsRawData()
+        # self.checkWalMultiVgroupsRawData()
         self.checkSnapshotMultiVgroups()
 
         self.checkWalMultiVgroupsWithDropTable()

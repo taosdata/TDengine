@@ -30,9 +30,12 @@ fi
 mkdir -p ${pkg_dir}
 cd ${pkg_dir}
 
-libfile="libtaos.so.${tdengine_ver}"
-nativelibfile="libtaosnative.so.${tdengine_ver}"
+libfile="libtaos.so"
+pkg_libfile="libtaos.so.${tdengine_ver}"
+nativelibfile="libtaosnative.so"
+pkg_nativelibfile="libtaosnative.so.${tdengine_ver}"
 wslibfile="libtaosws.so"
+pkg_wslibfile="libtaosws.so.${tdengine_ver}"
 
 # create install dir
 install_home_path="/usr/local/taos"
@@ -120,9 +123,9 @@ if [ -f "${taosx_dir}/target/release/taos-explorer" ]; then
 fi
 
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver
-cp ${compile_dir}/build/lib/${nativelibfile}        ${pkg_dir}${install_home_path}/driver
-[ -f ${compile_dir}/build/lib/${wslibfile} ] && cp ${compile_dir}/build/lib/${wslibfile}            ${pkg_dir}${install_home_path}/driver ||:
+cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver/${pkg_libfile}     
+cp ${compile_dir}/build/lib/${nativelibfile}        ${pkg_dir}${install_home_path}/driver/${pkg_nativelibfile}
+cp ${compile_dir}/build/lib/${wslibfile}            ${pkg_dir}${install_home_path}/driver/${pkg_wslibfile} ||:
 cp ${compile_dir}/../include/client/taos.h          ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/common/taosdef.h       ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../include/util/taoserror.h       ${pkg_dir}${install_home_path}/include

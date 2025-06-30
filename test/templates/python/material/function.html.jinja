@@ -51,97 +51,88 @@
       {% endif %}
   
       {% if should_render %}
-        {% if not root or config.show_root_heading %}
-          {% filter heading(
-              heading_level,
-              role="function",
-              id=html_id,
-              class="doc doc-heading",
-              toc_label=(('<code class="doc-symbol doc-symbol-toc doc-symbol-' + symbol_type + '"></code>&nbsp;')|safe if config.show_symbol_type_toc else '') + 
-                        (
-                          function.docstring.value.split("\n", 1)[0] if "cases/" in function.relative_filepath|string and function.docstring.value else
-                          function.name
-                        ),
-            ) %}
-  
-            {% block heading scoped %}
-              {#- Heading block.
-  
-              This block renders the heading for the function.
-              -#}
-              {% if config.show_symbol_type_heading %}<code class="doc-symbol doc-symbol-heading doc-symbol-{{ symbol_type }}"></code>{% endif %}
+        {% filter heading(
+            heading_level,
+            role="function",
+            id=html_id,
+            class="doc doc-heading",
+            toc_label=(('<code class="doc-symbol doc-symbol-toc doc-symbol-' + symbol_type + '"></code>&nbsp;')|safe if config.show_symbol_type_toc else '') + 
+                      (
+                        function.docstring.value.split("\n", 1)[0] if "cases/" in function.relative_filepath|string and function.docstring.value else
+                        function.name
+                      ),
+          ) %}
+
+          {% block heading scoped %}
+            {#- Heading block.
+
+            This block renders the heading for the function.
+            -#}
+            {% if not ("cases/" in function.relative_filepath|string and function.docstring.value) %}
               {% if config.separate_signature %}
                 <span class="doc doc-object-name doc-function-name">{{ config.heading if config.heading and root else function_name }}</span>
               {% else %}
-                {%+ filter highlight(language="python", inline=True) %}
                   {{ function_name }}{% include "signature"|get_template with context %}
-                {% endfilter %}
               {% endif %}
-            {% endblock heading %}
-  
-            {% block labels scoped %}
-              {#- Labels block.
-  
-              This block renders the labels for the function.
-              -#}
-              {% with labels = function.labels %}
-                {% include "labels"|get_template with context %}
-              {% endwith %}
-            {% endblock labels %}
-  
-          {% endfilter %}
-    
-          {% block signature scoped %}
-            {#- Signature block.
-    
-            This block renders the signature for the function,
-            as well as its overloaded signatures if any.
-            -#}
-            {% if function.overloads %}
-              <div class="doc-overloads">
-                {% for overload in function.overloads %}
-                  {% filter format_signature(overload, config.line_length, annotations=True, crossrefs=config.signature_crossrefs) %}
-                    {{ overload.name }}
-                  {% endfilter %}
-                {% endfor %}
-              </div>
             {% endif %}
-            {% if config.separate_signature %}
-              {% filter format_signature(function, config.line_length, crossrefs=config.signature_crossrefs) %}
-                {{ function.name }}
-              {% endfilter %}
-            {% endif %}
-          {% endblock signature %}
-    
-        {% else %}
-    
-          {% if config.show_root_toc_entry %}
-            {% filter heading(
-                heading_level,
-                role="function",
-                id=html_id,
-                toc_label=(('<code class="doc-symbol doc-symbol-toc doc-symbol-' + symbol_type + '"></code>&nbsp;')|safe if config.show_symbol_type_toc else '') + 
-                          (
-                            function.docstring.value.split("\n", 1)[0] if "cases/" in function.relative_filepath|string and function.docstring.value else
-                            function.name 
-                          ),
-                hidden=True,
-              ) %}
-            {% endfilter %}
-          {% endif %}
-          {% set heading_level = heading_level - 1 %}
-        {% endif %}
+          {% endblock heading %}
 
+        {% endfilter %}
+  
         <div class="doc doc-contents {% if root %}first{% endif %}">
           {% block contents scoped %}
             {# 渲染 docstring #}
             {% block docstring scoped %}
-              {% with docstring_sections = function.docstring.parsed %}
-                {% include "docstring"|get_template with context %}
-              {% endwith %}
+              {% if not ("cases/" in function.relative_filepath|string and function.docstring.value) %}
+                {% with docstring_sections = function.docstring.parsed %}
+                  {% include "docstring"|get_template with context %}
+                {% endwith %}
+              {% else %}
+                {% with docstring_lines = function.docstring.value.split("\n") %}
+                  {% set summary = docstring_lines[0] if docstring_lines else "" %}
+                  {% set stop_keywords = ["Catalog:", "Since:", "Labels:", "Jira:", "History:"] %}
+                  {% set details = [] %}
+                  {% with ns = namespace(stop=false) %}
+                    {% for line in docstring_lines[2:] %}
+                      {% if not ns.stop %}
+                        {% for kw in stop_keywords %}
+                          {% if line.strip().startswith(kw) %}
+                            {% set ns.stop = true %}
+                          {% endif %}
+                        {% endfor %}
+                        {% if not ns.stop %}
+                          {% set _ = details.append(line) %}
+                        {% endif %}
+                      {% endif %}
+                    {% endfor %}
+                  {% endwith %}
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> {{ summary|safe }}
+                  </div>
+                  {% if details %}
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                        {% for line in details %}
+                          {% set indent = (line|length - line.lstrip()|length) %}
+                          <div style="margin-left: {{ indent * 0.8 }}em; white-space: pre-wrap;">{{ line }}</div>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  {% endif %}
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/{{ config.github_branch }}/test/{{ function.relative_filepath }}" target="_blank">
+                      {{ function.relative_filepath|safe }}
+                    </a>
+                  </div>
+                {% endwith %}
+              {% endif %}
             {% endblock docstring %}
           {% endblock contents %}
         </div>
+
       {% endif %}
     {% endwith %}
   </div>

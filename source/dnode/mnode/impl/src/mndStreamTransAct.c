@@ -26,7 +26,6 @@ static int32_t doSetPauseAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTa
   if (pReq == NULL) {
     mError("failed to malloc in pause stream, size:%" PRIzu ", code:%s", sizeof(SVPauseStreamTaskReq),
            tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    // terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
 
@@ -216,9 +215,9 @@ static int32_t doBuildStreamTaskUpdateMsg(void **pBuf, int32_t *pLen, SVgroupCha
 }
 
 // todo: set the task id list for a given nodeId
-static int32_t createUpdateTaskList(int32_t vgId, SArray* pList) {
-  for (int32_t i = 0; i < taosArrayGetSize(execInfo.pTaskList); ++i) {
-    STaskId *p = taosArrayGet(execInfo.pTaskList, i);
+static int32_t createUpdateTaskList(SArray* pTaskNodeInfoList, int32_t vgId, SArray* pList) {
+  for (int32_t i = 0; i < taosArrayGetSize(pTaskNodeInfoList); ++i) {
+    STaskId *p = taosArrayGet(pTaskNodeInfoList, i);
     if (p == NULL) {
       continue;
     }
@@ -235,7 +234,8 @@ static int32_t createUpdateTaskList(int32_t vgId, SArray* pList) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doSetUpdateTaskAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask, SVgroupChangeInfo *pInfo) {
+static int32_t doSetUpdateTaskAction(SMnode *pMnode, STrans *pTrans, SStreamTask *pTask, SVgroupChangeInfo *pInfo,
+                                     SArray* pTaskNodeInfoList) {
   void   *pBuf = NULL;
   int32_t len = 0;
   SEpSet  epset = {0};
@@ -246,7 +246,7 @@ static int32_t doSetUpdateTaskAction(SMnode *pMnode, STrans *pTrans, SStreamTask
   }
 
   bool unusedRet = streamTaskUpdateEpsetInfo(pTask, pInfo->pUpdateNodeList);
-  int32_t code = createUpdateTaskList(pTask->info.nodeId, pTaskList);
+  int32_t code = createUpdateTaskList(pTaskNodeInfoList, pTask->info.nodeId, pTaskList);
   if (code != 0) {
     taosArrayDestroy(pTaskList);
     return code;
@@ -495,7 +495,7 @@ int32_t mndStreamSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamObj *pSt
 }
 
 // build trans to update the epset
-int32_t mndStreamSetUpdateEpsetAction(SMnode *pMnode, SStreamObj *pStream, SVgroupChangeInfo *pInfo, STrans *pTrans) {
+int32_t mndStreamSetUpdateEpsetAction(SMnode *pMnode, SStreamObj *pStream, SVgroupChangeInfo *pInfo, STrans *pTrans, SArray* pTaskNodeInfoList) {
   mDebug("stream:0x%" PRIx64 " set tasks epset update action", pStream->uid);
   SStreamTaskIter *pIter = NULL;
 
@@ -516,7 +516,7 @@ int32_t mndStreamSetUpdateEpsetAction(SMnode *pMnode, SStreamObj *pStream, SVgro
       return code;
     }
 
-    code = doSetUpdateTaskAction(pMnode, pTrans, pTask, pInfo);
+    code = doSetUpdateTaskAction(pMnode, pTrans, pTask, pInfo, pTaskNodeInfoList);
     if (code != TSDB_CODE_SUCCESS) {
       destroyStreamTaskIter(pIter);
       taosWUnLockLatch(&pStream->lock);

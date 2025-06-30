@@ -267,6 +267,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   mDebug("consumer:0x%" PRIx64 " receive hb pollFlag:%d pollStatus:%d", consumerId, req.pollFlag, pConsumer->pollStatus);
   if (req.pollFlag == 1){
     atomic_store_32(&pConsumer->pollStatus, 0);
+    pConsumer->pollTime = taosGetTimestampMs();
   }
 
   storeOffsetRows(pMnode, &req, pConsumer);
@@ -1093,6 +1094,11 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       MND_TMQ_NULL_CHECK(pColInfo);
       MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)parasStr, false));
       taosMemoryFreeClear(parasStr);
+
+      // rebalance time
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      MND_TMQ_NULL_CHECK(pColInfo);
+      MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->pollTime, pConsumer->pollTime == 0));
       numOfRows++;
     }
 

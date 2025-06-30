@@ -16,7 +16,9 @@ TDengine 提供了类似于消息队列产品的数据订阅和消费接口。�
 
 **注意**
 在 TDengine 连接器实现中，对于订阅查询，有以下限制。
-- 查询语句限制：订阅查询只能使用 select 语句，并不支持其他类型的 SQL，如订阅库、订阅超级表（非 select 方式）、insert、update 或 delete 等。
+- 只支持订阅数据，不支持 `with meta` 的订阅。
+  - Java（WebSocket 连接）、Go 和 Rust 连接器支持订阅数据库，超级表，以及 select 查询语句。
+  - Java（原生连接）、C# 、Python 和 Nodejs 连接器只支持订阅 select 语句，并不支持其他类型的 SQL，如订阅库、订阅超级表。
 - 原始始数据查询：订阅查询只能查询原始数据，而不能查询聚合或计算结果。
 - 时间顺序限制：订阅查询只能按照时间正序查询数据。
 
@@ -48,7 +50,7 @@ TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接�
 #### group.id
 - 说明：消费组 ID，同一消费组共享消费进度
 - 类型：string
-- 备注：**必填项**。最大长度：192，超长将截断。<br />每个 topic 最多可建立 100 个 consumer group
+- 备注：**必填项**。最大长度：192，超长将截断，不可包含英文冒号':'。<br />每个 topic 最多可建立 100 个 consumer group
 
 #### client.id
 - 说明：客户端 ID
@@ -305,6 +307,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 - `subscribe` 方法的参数含义为：订阅的主题列表（即名称），支持同时订阅多个主题。 
 - `poll` 每次调用获取一个消息，一个消息中可能包含多个记录。
 - `ResultBean` 是我们自定义的一个内部类，其字段名和数据类型与列的名称和数据类型一一对应，这样根据 `value.deserializer` 属性对应的反序列化类可以反序列化出 `ResultBean` 类型的对象。
+- 如果订阅数据库，需要在创建消费者时设置 `value.deserializer` 为 `com.taosdata.jdbc.tmq.MapEnhanceDeserializer`，然后创建 `TaosConsumer<TMQEnhMap>` 类型的消费者。这样每行数据就可以反序列化为表名和一个 `Map`。
 
 </TabItem>
 

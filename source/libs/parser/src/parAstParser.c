@@ -55,7 +55,13 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
       Parse(pParser, 0, t0, &cxt);
       goto abort_parse;
     }
-    t0.n = tGetToken((char*)&cxt.pQueryCxt->pSql[i], &t0.type);
+    if (!pParseCxt->hasDupQuoteChar) {
+      char dupQuoteChar = 0;
+      t0.n = tGetToken((char*)&cxt.pQueryCxt->pSql[i], &t0.type, &dupQuoteChar);
+      if (dupQuoteChar) pParseCxt->hasDupQuoteChar = true;
+    } else {
+      t0.n = tGetToken((char*)&cxt.pQueryCxt->pSql[i], &t0.type, NULL);
+    }
     t0.z = (char*)(cxt.pQueryCxt->pSql + i);
     i += t0.n;
 

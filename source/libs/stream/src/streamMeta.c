@@ -15,6 +15,7 @@
 
 #include "streamBackendRocksdb.h"
 #include "streamInt.h"
+#include "tglobal.h"
 #include "tmisce.h"
 #include "tref.h"
 #include "tsched.h"
@@ -390,22 +391,13 @@ int32_t streamMetaUpdateInfoInit(STaskUpdateInfo* pInfo) {
     return terrno;
   }
 
-  pInfo->pTaskList = taosArrayInit(4, sizeof(int32_t));
-  if (pInfo->pTaskList == NULL) {
-    return terrno;
-  }
-
   return TSDB_CODE_SUCCESS;
 }
 
 void streamMetaUpdateInfoCleanup(STaskUpdateInfo* pInfo) {
   taosHashCleanup(pInfo->pTasks);
-  taosArrayDestroy(pInfo->pTaskList);
   pInfo->pTasks = NULL;
-  pInfo->pTaskList = NULL;
 }
-
-
 
 int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, FTaskExpand expandTaskFn, int32_t vgId,
                        int64_t stage, startComplete_fn_t fn, SStreamMeta** p) {
@@ -1336,6 +1328,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
   int32_t vgId = pMeta->vgId;
   int64_t startTs = 0;
   int32_t sendCount = 0;
+  int32_t numOfTasks = 0;
 
   streamMetaGetHbSendInfo(pMeta->pHbInfo, &startTs, &sendCount);
   stInfo("vgId:%d notify all stream tasks that current vnode is closing. isLeader:%d startHb:%" PRId64 ", totalHb:%d",
@@ -1343,7 +1336,10 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
 
   // wait for the stream meta hb function stopping
   pMeta->closeFlag = true;
-  streamMetaWaitForHbTmrQuit(pMeta);
+
+  if (!tsDisableStream) { // stream is disabled, no need to wait for the timer out
+    streamMetaWaitForHbTmrQuit(pMeta);
+  }
 
   stDebug("vgId:%d start to check all tasks for closing", vgId);
   int64_t st = taosGetTimestampMs();
@@ -1355,7 +1351,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
   if (code != TSDB_CODE_SUCCESS) {
   }
 
-  int32_t numOfTasks = taosArrayGetSize(pTaskList);
+  numOfTasks = taosArrayGetSize(pTaskList);
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId* pTaskId = taosArrayGet(pTaskList, i);
     SStreamTask*   pTask = NULL;
@@ -1486,20 +1482,24 @@ void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t term, bool isLeader) 
 
   streamMetaWUnLock(pMeta);
 
-  if (isLeader) {
-    if (prevRole == NODE_ROLE_FOLLOWER) {
-      stInfo("vgId:%d update term:%" PRId64 ", prevTerm:%" PRId64
-             " prevRole:%d leader:%d, start to send Hb, rid:%" PRId64 " restart after nodeEp being updated",
-             pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->rid);
+  if (!tsDisableStream) {
+    if (isLeader) {
+      if (prevRole == NODE_ROLE_FOLLOWER) {
+        stInfo("vgId:%d update term:%" PRId64 ", prevTerm:%" PRId64
+               " prevRole:%d leader:%d, start to send Hb, rid:%" PRId64 " restart after nodeEp being updated",
+               pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->rid);
+      } else {
+        stInfo("vgId:%d update term:%" PRId64 ", prevTerm:%" PRId64
+               " prevRole:%d leader:%d, start to send Hb, rid:%" PRId64,
+               pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->rid);
+      }
+      streamMetaStartHb(pMeta);
     } else {
-      stInfo("vgId:%d update term:%" PRId64 ", prevTerm:%" PRId64
-             " prevRole:%d leader:%d, start to send Hb, rid:%" PRId64,
-             pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->rid);
+      stInfo("vgId:%d update term:%" PRId64 " prevTerm:%" PRId64 " prevRole:%d leader:%d sendMsg beforeClosing:%d",
+             pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->sendMsgBeforeClosing);
     }
-    streamMetaStartHb(pMeta);
   } else {
-    stInfo("vgId:%d update term:%" PRId64 " prevTerm:%" PRId64 " prevRole:%d leader:%d sendMsg beforeClosing:%d",
-           pMeta->vgId, term, prevTerm, prevRole, isLeader, pMeta->sendMsgBeforeClosing);
+    stInfo("vgId:%d stream is disabled, not start the Hb", pMeta->vgId);
   }
 }
 
@@ -1545,8 +1545,7 @@ int32_t streamMetaResetTaskStatus(SStreamMeta* pMeta) {
   return 0;
 }
 
-void streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTask* pHTask, int32_t transId,
-                                     int64_t startTs) {
+void streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, int32_t transId, int64_t startTs) {
   const char* id = pTask->id.idStr;
   int32_t     vgId = pMeta->vgId;
   int32_t     code = 0;
@@ -1559,41 +1558,29 @@ void streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SSt
   }
 
   int64_t el = taosGetTimestampMs() - startTs;
-  if (pHTask != NULL) {
-    STaskUpdateEntry hEntry = {.streamId = pHTask->id.streamId, .taskId = pHTask->id.taskId, .transId = transId};
-    code = taosHashPut(pMeta->updateInfo.pTasks, &hEntry, sizeof(hEntry), NULL, 0);
-    if (code != 0) {
-      stError("s-task:%s failed to put updateTask into update list", id);
-    } else {
-      stDebug("s-task:%s vgId:%d transId:%d task nodeEp update completed, streamTask/hTask closed, elapsed:%" PRId64
-              " ms",
-              id, vgId, transId, el);
-    }
-  } else {
-    stDebug("s-task:%s vgId:%d transId:%d task nodeEp update completed, streamTask closed, elapsed time:%" PRId64 "ms",
-            id, vgId, transId, el);
-  }
+  stDebug("s-task:%s vgId:%d transId:%d task nodeEp update completed, streamTask closed, elapsed time:%" PRId64 "ms",
+          id, vgId, transId, el);
 }
 
 void streamMetaClearSetUpdateTaskListComplete(SStreamMeta* pMeta) {
   STaskUpdateInfo* pInfo = &pMeta->updateInfo;
-  int32_t          num = taosArrayGetSize(pInfo->pTaskList);
+  int32_t          num = taosHashGetSize(pInfo->pTasks);
 
   taosHashClear(pInfo->pTasks);
-  taosArrayClear(pInfo->pTaskList);
 
   int32_t prev = pInfo->completeTransId;
   pInfo->completeTransId = pInfo->activeTransId;
   pInfo->activeTransId = -1;
   pInfo->completeTs = taosGetTimestampMs();
 
-  stDebug("vgId:%d set the nodeEp update complete, ts:%" PRId64
+  stInfo("vgId:%d set the nodeEp update complete, ts:%" PRId64
           ", complete transId:%d->%d, update Tasks:%d reset active transId",
           pMeta->vgId, pInfo->completeTs, prev, pInfo->completeTransId, num);
 }
 
-bool streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId) {
+bool streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId, SArray* pUpdateTaskList) {
   STaskUpdateInfo* pInfo = &pMeta->updateInfo;
+  int32_t          numOfTasks = taosArrayGetSize(pUpdateTaskList);
 
   if (transId > pInfo->completeTransId) {
     if (pInfo->activeTransId == -1) {
@@ -1606,12 +1593,12 @@ bool streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId) {
         int32_t num = taosArrayGetSize(pMeta->startInfo.pRecvChkptIdTasks);
         pMeta->startInfo.partialTasksStarted = true;
         stInfo(
-            "vgId:%d set the active epset update transId:%d, prev complete transId:%d, start all interrupted, only %d "
-            "tasks were started",
-            pMeta->vgId, transId, pInfo->completeTransId, num);
+            "vgId:%d set the active epset update transId:%d for %d tasks, prev complete transId:%d, start all "
+            "interrupted, only %d tasks were started",
+            pMeta->vgId, transId, numOfTasks, pInfo->completeTransId, num);
       } else {
-        stInfo("vgId:%d set the active epset update transId:%d, prev complete transId:%d", pMeta->vgId, transId,
-               pInfo->completeTransId);
+        stInfo("vgId:%d set the active epset update transId:%d for %d tasks, prev complete transId:%d", pMeta->vgId,
+               transId, numOfTasks, pInfo->completeTransId);
       }
       return true;
     } else {
@@ -1619,7 +1606,7 @@ bool streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId) {
         // do nothing
         return true;
       } else if (transId < pInfo->activeTransId) {
-        stError("vgId:%d invalid(out of order)epset update transId:%d, active transId:%d, complete transId:%d, discard",
+        stError("vgId:%d invalid(out of order) epset update transId:%d, active transId:%d, complete transId:%d, discard",
                 pMeta->vgId, transId, pInfo->activeTransId, pInfo->completeTransId);
         return false;
       } else {  // transId > pInfo->activeTransId
@@ -1627,8 +1614,9 @@ bool streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId) {
         int32_t prev = pInfo->activeTransId;
         pInfo->activeTransId = transId;
 
-        stInfo("vgId:%d active epset update transId updated from:%d to %d, prev complete transId:%d", pMeta->vgId,
-               transId, prev, pInfo->completeTransId);
+        stInfo(
+            "vgId:%d active epset update transId updated from:%d to %d, prev complete transId:%d, reqUpdate tasks:%d",
+            pMeta->vgId, prev, transId, pInfo->completeTransId, numOfTasks);
         return true;
       }
     }

@@ -200,7 +200,6 @@ systemctl status taosd
 
 安装后，在应用程序目录下，双击 TDengine 图标来启动程序，也可以运行 `sudo launchctl start ` 来启动 TDengine 服务进程。
 
-
 ```bash
 sudo launchctl start com.tdengine.taosd
 sudo launchctl start com.tdengine.taosadapter

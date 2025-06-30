@@ -120,6 +120,10 @@ WKB 规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/
 
   设置 Go 代理 `go env -w GOPROXY=https://goproxy.cn,direct`。
 
+7. 查询结果时区处理
+
+  WebSocket 连接和原生连接查询结果使用 `time.Unix` 从时间戳转成本地时区，restful 连接直接解析查询结果字符串使用的标准 UTC 时区（0 时区）。
+
 ## API 参考
 
 ### database/sql 驱动

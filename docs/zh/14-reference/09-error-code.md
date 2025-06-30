@@ -306,6 +306,8 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000739 | Query memory upper limit is reached  | 单个查询达到内存使用上限                    | 设置合理的内存上限或调整 SQL 语句                      |
 | 0x8000073A | Query memory exhausted               | dnode 查询内存到达使用上限                  | 设置合理的内存上限或调整并发查询量或增大系统内存       |
 | 0x8000073B | Timeout for long time no fetch       | 查询被长时间中断未恢复                     | 调整应用实现尽快 fetch 数据                            |
+| 0x8000073C | Memory pool not initialized          | 内存池没有初始化                          | 确认开关 queryUseMemoryPool 是否打开；如果 queryUseMemoryPool 已经打开，检查服务器是否达到了开启内存池的基本条件：1. 系统的可用内存总量不低于 5G；2. 扣除预留部分后系统的可用内存不低于 4G |
+| 0x8000073D | Alter minReservedMemorySize failed since no enough system available memory   | 更新 minReservedMemorySize 失败 | 确认当前的系统内存：1. 系统的可用内存总量不低于 5G；2. 扣除预留部分后系统的可用内存不低于 4G |
 
 ## grant
 

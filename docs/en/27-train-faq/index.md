@@ -8,7 +8,7 @@ slug: /frequently-asked-questions
 If the information in the FAQ does not help you, and you need technical support and assistance from the TDengine technical team, please package the contents of the following two directories:
 
 1. `/var/log/taos` (if the default path has not been modified)
-2. `/etc/taos` (if no other configuration file path has been specified)
+1. `/etc/taos` (if no other configuration file path has been specified)
 
 Attach the necessary problem description, including the version information of TDengine used, platform environment information, the operations performed when the problem occurred, the manifestation of the problem, and the approximate time, and submit an issue on [GitHub](https://github.com/taosdata/TDengine).
 
@@ -29,10 +29,10 @@ However, when the system is running normally, be sure to set the debugFlag to 13
 Version 3.0 is a complete reconstruction based on previous versions, and the configuration files and data files are not compatible. Be sure to perform the following operations before upgrading:
 
 1. Delete the configuration file, execute `sudo rm -rf /etc/taos/taos.cfg`
-2. Delete the log files, execute `sudo rm -rf /var/log/taos/`
-3. Under the premise that the data is no longer needed, delete the data files, execute `sudo rm -rf /var/lib/taos/`
-4. Install the latest stable version of TDengine 3.0
-5. If data migration is needed or data files are damaged, please contact the official technical support team of Taos Data for assistance
+1. Delete the log files, execute `sudo rm -rf /var/log/taos/`
+1. Under the premise that the data is no longer needed, delete the data files, execute `sudo rm -rf /var/lib/taos/`
+1. Install the latest stable version of TDengine 3.0
+1. If data migration is needed or data files are damaged, please contact the official technical support team of Taos Data for assistance
 
 ### 4. What should I do if I encounter the error "Unable to establish connection"?
 
@@ -44,23 +44,23 @@ If the client encounters a connection failure, please follow the steps below to 
 - Local virtual machine: Check if the network can ping through, try to avoid using `localhost` as the hostname
 - Company server: If it is a NAT network environment, be sure to check if the server can return messages to the client
 
-2. Ensure that the client and server version numbers are exactly the same, open source community edition and enterprise edition cannot be mixed
+1. Ensure that the client and server version numbers are exactly the same, open source community edition and enterprise edition cannot be mixed
 
-3. On the server, execute `systemctl status taosd` to check the *taosd* running status. If it is not running, start *taosd*
+1. On the server, execute `systemctl status taosd` to check the *taosd* running status. If it is not running, start *taosd*
 
-4. Confirm that the correct server FQDN (Fully Qualified Domain Name —— can be obtained by executing the Linux/macOS command hostname -f on the server) was specified when the client connected.
+1. Confirm that the correct server FQDN (Fully Qualified Domain Name —— can be obtained by executing the Linux/macOS command hostname -f on the server) was specified when the client connected.
 
-5. Ping the server FQDN, if there is no response, please check your network, DNS settings, or the system hosts file of the client's computer. If a TDengine cluster is deployed, the client needs to be able to ping all cluster node FQDNs.
+1. Ping the server FQDN, if there is no response, please check your network, DNS settings, or the system hosts file of the client's computer. If a TDengine cluster is deployed, the client needs to be able to ping all cluster node FQDNs.
 
-6. Check the firewall settings (use ufw status on Ubuntu, use firewall-cmd --list-port on CentOS), ensure that all hosts in the cluster can communicate on ports 6030/6041 for TCP/UDP protocols.
+1. Check the firewall settings (use ufw status on Ubuntu, use firewall-cmd --list-port on CentOS), ensure that all hosts in the cluster can communicate on ports 6030/6041 for TCP/UDP protocols.
 
-7. For Linux JDBC (ODBC, Python, Go, and similar interfaces) connections, ensure that `libtaos.so` is in the directory `/usr/local/taos/driver`, and that `/usr/local/taos/driver` is in the system library search path `LD_LIBRARY_PATH`
+1. For Linux JDBC (ODBC, Python, Go, and similar interfaces) connections, ensure that `libtaos.so` is in the directory `/usr/local/taos/driver`, and that `/usr/local/taos/driver` is in the system library search path `LD_LIBRARY_PATH`
 
-8. For JDBC connections on macOS (similar for ODBC, Python, Go, etc.), ensure that `libtaos.dylib` is in the directory `/usr/local/lib`, and that `/usr/local/lib` is included in the system library search path `LD_LIBRARY_PATH`.
+1. For JDBC connections on macOS (similar for ODBC, Python, Go, etc.), ensure that `libtaos.dylib` is in the directory `/usr/local/lib`, and that `/usr/local/lib` is included in the system library search path `LD_LIBRARY_PATH`.
 
-9. For JDBC, ODBC, Python, Go, etc., connections on Windows, ensure that `C:\TDengine\driver\taos.dll` is in your system library search directory (it is recommended to place `taos.dll` in the directory `C:\Windows\System32`).
+1. For JDBC, ODBC, Python, Go, etc., connections on Windows, ensure that `C:\TDengine\driver\taos.dll` is in your system library search directory (it is recommended to place `taos.dll` in the directory `C:\Windows\System32`).
 
-10. If you still cannot eliminate connection issues:
+1. If you still cannot eliminate connection issues:
 
     - On Linux/macOS, use the command line tool nc to separately check if the TCP and UDP connections on the specified port are clear:
       - Check if the UDP port connection is working: `nc -vuz {hostIP} {port}`
@@ -69,18 +69,18 @@ If the client encounters a connection failure, please follow the steps below to 
 
     - On Windows, use the PowerShell command `Test-NetConnection -ComputerName {fqdn} -Port {port}` to check if the server-side port is accessible.
 
-11. You can also use the network connectivity test feature embedded in the taos program to verify whether the specified port connection between the server and client is clear: [Operation Guide](../operations-and-maintenance/).
+1. You can also use the network connectivity test feature embedded in the taos program to verify whether the specified port connection between the server and client is clear: [Operation Guide](../operations-and-maintenance/).
 
 ### 5. What to do if you encounter the error "Unable to resolve FQDN"?
 
 This error occurs because the client or data node cannot resolve the FQDN (Fully Qualified Domain Name). For the TDengine CLI or client applications, please check the following:
 
 1. Check if the FQDN of the server you are connecting to is correct.
-2. If there is a DNS server in the network configuration, check if it is working properly
-3. If there is no DNS server configured in the network, check the hosts file on the client machine to see if the FQDN is configured and has the correct IP address
-4. If the network configuration is OK, you need to be able to ping the FQDN from the client machine, otherwise the client cannot connect to the server
-5. If the server has previously used TDengine and changed the hostname, it is recommended to check if the dnode.json in the data directory matches the currently configured EP, typically located at /var/lib/taos/dnode. Normally, it is advisable to change to a new data directory or backup and delete the previous data directory to avoid this issue.
-6. Check /etc/hosts and /etc/hostname for the pre-configured FQDN
+1. If there is a DNS server in the network configuration, check if it is working properly
+1. If there is no DNS server configured in the network, check the hosts file on the client machine to see if the FQDN is configured and has the correct IP address
+1. If the network configuration is OK, you need to be able to ping the FQDN from the client machine, otherwise the client cannot connect to the server
+1. If the server has previously used TDengine and changed the hostname, it is recommended to check if the dnode.json in the data directory matches the currently configured EP, typically located at /var/lib/taos/dnode. Normally, it is advisable to change to a new data directory or backup and delete the previous data directory to avoid this issue.
+1. Check /etc/hosts and /etc/hostname for the pre-configured FQDN
 
 ### 6. What is the most effective method for data insertion?
 
@@ -165,9 +165,9 @@ In TDengine, the time zone of timestamps is always handled by the client, indepe
 The client handles timestamp strings with the following logic:
 
 1. By default, without special settings, the client uses the time zone settings of the operating system it is running on.
-2. If the `timezone` parameter is set in taos.cfg, the client will follow the settings in this configuration file.
-3. If the timezone is explicitly specified when establishing a database connection in Connector Drivers for various programming languages such as C/C++/Java/Python, that specified time zone setting will be used. For example, the Java Connector's JDBC URL includes a timezone parameter.
-4. When writing SQL statements, you can also directly use Unix timestamps (e.g., `1554984068000`) or timestamps with time zone strings, either in RFC 3339 format (e.g., `2013-04-12T15:52:01.123+08:00`) or ISO-8601 format (e.g., `2013-04-12T15:52:01.123+0800`). In these cases, the values of these timestamps are not affected by other time zone settings.
+1. If the `timezone` parameter is set in taos.cfg, the client will follow the settings in this configuration file.
+1. If the timezone is explicitly specified when establishing a database connection in Connector Drivers for various programming languages such as C/C++/Java/Python, that specified time zone setting will be used. For example, the Java Connector's JDBC URL includes a timezone parameter.
+1. When writing SQL statements, you can also directly use Unix timestamps (e.g., `1554984068000`) or timestamps with time zone strings, either in RFC 3339 format (e.g., `2013-04-12T15:52:01.123+08:00`) or ISO-8601 format (e.g., `2013-04-12T15:52:01.123+0800`). In these cases, the values of these timestamps are not affected by other time zone settings.
 
 ### 16. What network ports are used by TDengine 3.0?
 
@@ -220,20 +220,20 @@ Here are the solutions:
 </plist>
 ```
 
-2. Modify file permissions
+1. Modify file permissions
 
 ```shell
 sudo chown root:wheel /Library/LaunchDaemons/limit.maxfiles.plist
 sudo chmod 644 /Library/LaunchDaemons/limit.maxfiles.plist
 ```
 
-3. Load the plist file (or it will take effect after restarting the system. launchd will automatically load the plist in this directory at startup)
+1. Load the plist file (or it will take effect after restarting the system. launchd will automatically load the plist in this directory at startup)
 
 ```shell
 sudo launchctl load -w /Library/LaunchDaemons/limit.maxfiles.plist
 ```
 
-4. Confirm the changed limit
+1. Confirm the changed limit
 
 ```shell
 launchctl limit maxfiles
@@ -299,6 +299,7 @@ Therefore, first, check whether all ports on the server and cluster (default 603
 If the issue still cannot be resolved, it is necessary to contact Taos technical personnel for support.
 
 ### 32 Why is the original database lost and the cluster ID changed when the data directory dataDir of the database remains unchanged on the same server?
+
 Background: When the TDengine server process (taosd) starts, if there are no valid data file subdirectories (such as mnode, dnode, and vnode) under the data directory (dataDir, which is specified in the configuration file taos.cfg), these directories will be created automatically.When a new mnode directory is created, a new cluster ID will be allocated to generate a new cluster.
 
 Cause analysis: The data directory dataDir of taosd can point to multiple different mount points.If these mount points are not configured for automatic mounting in the fstab file, after the server restarts, dataDir will only exist as a normal directory of the local disk, and it will not point to the mounted disk as expected.At this point, if the taosd service is started, it will create a new directory under dataDir to generate a new cluster.
@@ -308,14 +309,17 @@ Impact of the problem: After the server is restarted, the original database is l
 Problem solving: You should configure the automatic mount of the dataDir directory in the fstab file to ensure that the dataDir always points to the expected mount point and directory. At this point, restarting the server will retrieve the original database and cluster. In the subsequent version, we will develop a function to enable taosd to exit in the startup phase when it detects that the dataDir changes before and after startup, and provide corresponding error prompts.
 
 ### 33 How to solve MVCP1400.DLL loss when running TDengine on Windows platform?
+
 1. Reinstall Microsoft Visual C++ Redistributable: As msvcp140.dll is part of Microsoft Visual C++Redistributable, reinstalling this package usually resolves most issues. You can download the corresponding version from the official Microsoft website for installation
-2. Manually download and replace the msvcp140.dll file online: You can download the msvcp140.dll file from a reliable source and copy it to the corresponding directory in the system. Ensure that the downloaded files match your system architecture (32-bit or 64 bit) and ensure the security of the source
+1. Manually download and replace the msvcp140.dll file online: You can download the msvcp140.dll file from a reliable source and copy it to the corresponding directory in the system. Ensure that the downloaded files match your system architecture (32-bit or 64 bit) and ensure the security of the source
 
 ### 34 Which fast query data from super table with TAG filter or child table ?
+
 Directly querying from child table is fast. The query from super table with TAG filter is designed to meet the convenience of querying. It can filter data from multiple child tables at the same time. If the goal is to pursue performance and the child table has been clearly queried, directly querying from the sub table can achieve higher performance
 
 ### 35 How to view data compression ratio indicators?
-Currently, TDengine only provides compression ratios based on tables, not databases or the entire system. To view the compression ratios, execute the `SHOW TABLE DISTRIBUTED table_name;` command in the client TDengine CLI. The table_name can be a super table, regular table, or subtable. For details [Click Here](https://docs.tdengine.com/tdengine-reference/sql-manual/show-commands/#show-table-distributed)
+
+Currently, TDengine only provides compression ratios based on tables, not databases or the entire system. To view the compression ratios, execute the `SHOW TABLE DISTRIBUTED table_name;` command in the client TDengine CLI. The table_name can be a super table, regular table, or subtable. For details, see [SHOW TABLE DISTRIBUTED](https://docs.tdengine.com/tdengine-reference/sql-manual/show-commands/#show-table-distributed).
 
 ### 36 Why didn't my configuration parameter take effect even though I modified the configuration file?
 
@@ -328,7 +332,7 @@ This is because TDengine versions 3.3.5.0 and above support persisting dynamical
 **Problem Solution:**
 If you understand the feature of persistent configuration parameters but still wish to load configuration parameters from the configuration file upon restart, you can add `forceReadConfig 1` to the configuration file. This will force TDengine to read configuration parameters from the file.
 
-### 37 I have clearly modified the configuration file, but the configuration parameters haven't taken effect.
+### 37 I have clearly modified the configuration file, but the configuration parameters haven't taken effect
 
 **Problem description:**
 In TDengine versions 3.3.5.0 and above, some users may encounter an issue: they have clearly modified a certain configuration parameter in the taos.cfg file, but after restarting, they find that the modification has not taken effect, and no error reports can be found when checking the logs.
@@ -338,7 +342,6 @@ This is because TDengine versions 3.3.5.0 and above support the persistence of d
 
 **Solution to the problem:**
 If you understand the function of configuration parameter persistence but still want to load the configuration parameters from the configuration file after a restart, you can add forceReadConfig 1 to the configuration file. This will make TDengine forcefully read the configuration parameters from the configuration file.
-
 
 ### 38 Database upgrade from version 2.6 to 3.3, When data migration is carried out and data is being written in the business at the same time, will there be serious out-of-order issues?
 

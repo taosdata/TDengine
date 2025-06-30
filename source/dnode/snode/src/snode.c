@@ -114,7 +114,7 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
     case TDMT_STREAM_TASK_RUN:
       return tqStreamTaskProcessRunReq(pSnode->pMeta, pMsg, true);
     case TDMT_STREAM_TASK_DISPATCH:
-      return tqStreamTaskProcessDispatchReq(pSnode->pMeta, pMsg);
+      return tqStreamTaskProcessDispatchReq(pSnode->pMeta, pMsg, &pSnode->msgCb);
     case TDMT_STREAM_TASK_DISPATCH_RSP:
       return tqStreamTaskProcessDispatchRsp(pSnode->pMeta, pMsg);
     case TDMT_STREAM_RETRIEVE:

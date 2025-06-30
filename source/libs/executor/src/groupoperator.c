@@ -1320,13 +1320,16 @@ _end:
 }
 
 int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTagSup, uint64_t groupId,
-                             SSDataBlock* pSrcBlock, int32_t rowId, SSDataBlock* pDestBlock, SStateStore* pAPI) {
+                             SSDataBlock* pSrcBlock, int32_t rowId, SSDataBlock* pDestBlock, SStateStore* pAPI,
+                             const char* id) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   void*   pValue = NULL;
   int32_t winCode = TSDB_CODE_SUCCESS;
+
   code = pAPI->streamStateGetParName(pState, groupId, &pValue, true, &winCode);
   QUERY_CHECK_CODE(code, lino, _end);
+
   if (winCode != TSDB_CODE_SUCCESS) {
     SSDataBlock* pTmpBlock = NULL;
     code = blockCopyOneRow(pSrcBlock, rowId, &pTmpBlock);
@@ -1347,14 +1350,18 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
       if (colDataIsNull_s(pTbCol, pDestBlock->info.rows - 1)) {
         len = 1;
         tbName[0] = 0;
+        qTrace("%s user specified table name for groupId:%" PRIu64 "is null, dynamic generate stream dst table name",
+               id, groupId);
       } else {
         void* pData = colDataGetData(pTbCol, pDestBlock->info.rows - 1);
         len = TMIN(varDataLen(pData), TSDB_TABLE_NAME_LEN - 1);
         memcpy(tbName, varDataVal(pData), len);
         code = pAPI->streamStatePutParName(pState, groupId, tbName);
         QUERY_CHECK_CODE(code, lino, _end);
-        qTrace("%s child_table_name tbName:%s, groupId%"PRIu64, __FUNCTION__, tbName, groupId);
+
+        qTrace("%s %s child_table_name tbName:%s, groupId%" PRIu64, id, __FUNCTION__, tbName, groupId);
       }
+
       memcpy(pTmpBlock->info.parTbName, tbName, len);
       pDestBlock->info.rows--;
     } else {
@@ -1371,23 +1378,27 @@ int32_t appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTag
     } else {
       memcpy(pDestBlock->info.parTbName, pTmpBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
     }
-    qTrace("not get name from rocksdb, partName:%s, groupId:%"PRIu64, pDestBlock->info.parTbName, groupId);
+
+    qTrace("%s failed to get name from rocksdb, partName:%s, groupId:%" PRIu64, id, pDestBlock->info.parTbName,
+           groupId);
 
     void* pGpIdCol = taosArrayGet(pDestBlock->pDataBlock, UD_GROUPID_COLUMN_INDEX);
     QUERY_CHECK_NULL(pGpIdCol, code, lino, _end, terrno);
     code = colDataSetVal(pGpIdCol, pDestBlock->info.rows, (const char*)&groupId, false);
     QUERY_CHECK_CODE(code, lino, _end);
+
     pDestBlock->info.rows++;
     blockDataDestroy(pTmpBlock);
   } else {
     memcpy(pSrcBlock->info.parTbName, pValue, TSDB_TABLE_NAME_LEN);
     qTrace("get name from rocksdb, partName:%s, groupId:%"PRIu64, pSrcBlock->info.parTbName, groupId);
   }
+
   pAPI->streamStateFreeVal(pValue);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s %s failed at line %d since %s", id, __FUNCTION__, lino, tstrerror(code));
   }
   return code;
 }
@@ -1398,6 +1409,8 @@ static int32_t buildStreamCreateTableResult(SOperatorInfo* pOperator) {
   SExecTaskInfo*                pTask = pOperator->pTaskInfo;
   SStreamPartitionOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*                  pSrc = pInfo->pInputDataBlock;
+  const char*                   id = GET_TASKID(pTask);
+
   if ((pInfo->tbnameCalSup.numOfExprs == 0 && pInfo->tagCalSup.numOfExprs == 0)) {
     pTask->storageAPI.stateStore.streamStateSetParNameInvalid(pTask->streamInfo.pState);
     goto _end;
@@ -1414,7 +1427,7 @@ static int32_t buildStreamCreateTableResult(SOperatorInfo* pOperator) {
     SPartitionDataInfo* pParInfo = (SPartitionDataInfo*)pInfo->pTbNameIte;
     int32_t             rowId = *(int32_t*)taosArrayGet(pParInfo->rowIds, 0);
     code = appendCreateTableRow(pTask->streamInfo.pState, &pInfo->tbnameCalSup, &pInfo->tagCalSup, pParInfo->groupId,
-                                pSrc, rowId, pInfo->pCreateTbRes, &pTask->storageAPI.stateStore);
+                                pSrc, rowId, pInfo->pCreateTbRes, &pTask->storageAPI.stateStore, id);
     QUERY_CHECK_CODE(code, lino, _end);
     pInfo->pTbNameIte = taosHashIterate(pInfo->pPartitions, pInfo->pTbNameIte);
   }

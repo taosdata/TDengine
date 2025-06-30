@@ -1185,6 +1185,47 @@ UPPER(expr)
 
 **适用于**：表和超级表。
 
+#### TO_BASE64
+
+```sql
+TO_BASE64(expr)
+```
+
+**功能说明**: 传回字符串“expr”的 Base64 编码。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `expr`: VARCHAR, NCHAR.
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 若 expr 为 NULL，返回 NULL。
+
+**举例**:
+
+```sql
+taos> select to_base64("");
+ to_base64("") |
+================
+               |
+
+taos> select to_base64("Hello, world!");
+ to_base64("Hello, world!") |
+=============================
+ SGVsbG8sIHdvcmxkIQ==       |
+
+taos> select to_base64("你好 世界");
+ to_base64("你好 世界")      |
+==============================
+ 5L2g5aW9IOS4lueVjA==        |
+```
+
 ### 转换函数
 
 转换函数将值从一种数据类型转换为另一种数据类型。

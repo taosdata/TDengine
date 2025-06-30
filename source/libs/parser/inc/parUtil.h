@@ -68,11 +68,11 @@ extern "C" {
     token = tStrGetToken(pSql, &index, false, NULL); \
   } while (0)
 
-#define NEXT_VALID_TOKEN(pSql, token)           \
-  do {                                          \
-    (token).n = tGetToken(pSql, &(token).type); \
-    (token).z = (char*)pSql;                    \
-    pSql += (token).n;                          \
+#define NEXT_VALID_TOKEN(pSql, token)                 \
+  do {                                                \
+    (token).n = tGetToken(pSql, &(token).type, NULL); \
+    (token).z = (char*)pSql;                          \
+    pSql += (token).n;                                \
   } while (TK_NK_SPACE == (token).type)
 
 typedef struct SMsgBuf {
@@ -115,7 +115,7 @@ typedef struct SParseMetaCache {
   SHashObj* pTableName;    // key is tbFUid, elements is STableMeta*(append with tbName)
   SArray*   pVSubTables;   // element is SVSubTablesRsp
   SArray*   pVStbRefDbs;   // element is pVStbRefDbs
-  SArray*   pDnodes;       // element is SEpSet
+  SArray*   pDnodes;       // element is SDNodeAddr
   bool      dnodeRequired;
   bool      forceFetchViewMeta;
 } SParseMetaCache;

@@ -3,11 +3,10 @@ name: TDengine Release Build
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */2 * * *'
+    - cron: '0 */6 * * *'
   push:
     branches:
-      - 'main'
-      - '3.*'
+      - main
     paths-ignore:
       - 'docs/**'
       - 'packaging/**'
@@ -65,8 +64,6 @@ jobs:
             gflags \
             geos \
             jansson \
-            openssl \
-            pkg-config \
             snappy \
             zlib
 

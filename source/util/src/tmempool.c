@@ -1782,15 +1782,15 @@ static int32_t mpUpdateReservedSize(SMemPool* pPool, int32_t newReservedSizeMB) 
   int64_t sysAvailSize = 0;
   code = taosGetSysAvailMemory(&sysAvailSize);
   if (code || sysAvailSize < MP_MIN_MEM_POOL_SIZE) {
-    uInfo("memory pool disabled since no enough system available memory, size: %" PRId64, sysAvailSize);
-    return TSDB_CODE_INVALID_PARA;
+    uInfo("failed to update reserved size since no enough system available memory, size: %" PRId64, sysAvailSize);
+    MP_ERR_RET(TSDB_CODE_QRY_MEMORY_POOL_MEMORY_NOT_ENOUGH);
   }
 
   int64_t freeSizeAfterRes = sysAvailSize - newReservedSizeMB * 1048576UL;
   if (freeSizeAfterRes < MP_MIN_FREE_SIZE_AFTER_RESERVE) {
-    uInfo("memory pool disabled since no enough system available memory after reservied, size: %" PRId64,
+    uInfo("failed to update reserved size since no enough system available memory after reservied, size: %" PRId64,
           freeSizeAfterRes);
-    return TSDB_CODE_INVALID_PARA;
+    MP_ERR_RET(TSDB_CODE_QRY_MEMORY_POOL_MEMORY_NOT_ENOUGH);
   }
 
   MP_LOCK(MP_WRITE, &pPool->cfgLock);
@@ -1805,10 +1805,14 @@ int32_t taosMemoryPoolCfgUpdateReservedSize(int32_t newReservedSizeMB) {
     return TSDB_CODE_SUCCESS;
   }
   int32_t code = TSDB_CODE_SUCCESS;
-  if (NULL == gMemPoolHandle || newReservedSizeMB < 0) {
-    uError("%s invalid input param, poolHandle:%p, newReservedSizeMB:%d", __FUNCTION__, gMemPoolHandle,
-           newReservedSizeMB);
+  if (NULL == gMemPoolHandle) {
+    uError("failed to update reserved size since memory pool not initialized");
+    MP_ERR_RET(TSDB_CODE_QRY_MEMORY_POOL_NOT_INITIALIZED);
+  }
+  if (newReservedSizeMB < 0) {
+    uError("failed to update reserved size since newReservedSizeMB:%d is invalid", newReservedSizeMB);
     MP_ERR_RET(TSDB_CODE_INVALID_PARA);
   }
+
   return mpUpdateReservedSize(gMemPoolHandle, newReservedSizeMB);
 }

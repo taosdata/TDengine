@@ -87,6 +87,30 @@ static int32_t getSchemaBytes(const SSchema* pSchema) {
   }
 }
 
+static const char* expandIdentifier(const char* name, char* output) {
+  if (NULL == name) return "";
+  bool containsEscapeChar = false;
+  for (const char* p = name; *p != '\0'; ++p) {
+    if (*p == TS_ESCAPE_CHAR) {
+      containsEscapeChar = true;
+      break;
+    }
+  }
+  if (!containsEscapeChar) return name;
+  if (NULL == output) return "";
+  char* out_ptr = output;
+  for (const char* src = name; *src != '\0'; ++src) {
+    if (*src == TS_ESCAPE_CHAR) {
+      *out_ptr++ = TS_ESCAPE_CHAR;
+      *out_ptr++ = TS_ESCAPE_CHAR;
+    } else {
+      *out_ptr++ = *src;
+    }
+  }
+  *out_ptr = '\0';
+  return output;
+}
+
 static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
   QRY_PARAM_CHECK(pOutput);
 
@@ -567,6 +591,7 @@ static int32_t buildCreateViewResultDataBlock(SSDataBlock** pOutput) {
 }
 
 static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
+  char expandName[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
   for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
     SColRef* pRef = pCfg->pColRefs + i;
@@ -598,23 +623,25 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
     if (hasRefCol(pCfg->tableType) && pCfg->pColRefs && pRef->hasRef) {
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, " FROM `%s`", pRef->refDbName);
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, ".");
-      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "`%s`", pRef->refTableName);
+      typeLen +=
+          tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "`%s`", expandIdentifier(pRef->refTableName, expandName));
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, ".");
-      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "`%s`", pRef->refColName);
+      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "`%s`", expandIdentifier(pRef->refColName, expandName));
     }
 
     if (!(pSchema->flags & COL_IS_KEY)) {
       *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                        "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
+                        "%s`%s` %s", ((i > 0) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type);
     } else {
       char* pk = "COMPOSITE KEY";
       *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                        "%s`%s` %s %s", ((i > 0) ? ", " : ""), pSchema->name, type, pk);
+                        "%s`%s` %s %s", ((i > 0) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type, pk);
     }
   }
 }
 
 static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
+  char expandName[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
   for (int32_t i = 1; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
     SColRef* pRef = pCfg->pColRefs + i;
@@ -624,20 +651,21 @@ static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
     if (hasRefCol(pCfg->tableType) && pCfg->pColRefs && pRef->hasRef) {
       typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "FROM `%s`", pRef->refDbName);
       typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, ".");
-      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "`%s`", pRef->refTableName);
+      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "`%s`", expandIdentifier(pRef->refTableName, expandName));
       typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, ".");
-      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "`%s`", pRef->refColName);
+      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "`%s`", expandIdentifier(pRef->refColName, expandName));
     } else {
       continue;
     }
 
     *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                      "%s`%s` %s", ((i > 1) ? ", " : ""), pSchema->name, type);
+                      "%s`%s` %s", ((i > 1) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type);
 
   }
 }
 
 static void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
+  char expandName[(TSDB_COL_NAME_LEN << 1) + 1] = {0};
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
     char     type[32];
@@ -652,15 +680,16 @@ static void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
     }
 
     *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                      "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
+                      "%s`%s` %s", ((i > 0) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type);
   }
 }
 
 static void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
+  char expandName[(TSDB_COL_NAME_LEN << 1) + 1] = {0};
   for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
     *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                      "%s`%s`", ((i > 0) ? ", " : ""), pSchema->name);
+                      "%s`%s`", ((i > 0) ? ", " : ""), expandIdentifier(pSchema->name, expandName));
   }
 }
 
@@ -834,7 +863,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
   pBlock->info.rows = 1;
 
   SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
-  char             buf1[SHOW_CREATE_TB_RESULT_FIELD1_LEN] = {0};
+  char             buf1[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1)] = {0};
   STR_TO_VARSTR(buf1, tbName);
   QRY_ERR_RET(colDataSetVal(pCol1, 0, buf1, false));
 
@@ -848,7 +877,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
 
   if (TSDB_SUPER_TABLE == pCfg->tableType) {
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                     "CREATE STABLE `%s` (", tbName);
+                     "CREATE STABLE `%s` (", expandIdentifier(tbName, buf1));
     appendColumnFields(buf2, &len, pCfg);
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
                      ") TAGS (");
@@ -858,7 +887,9 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
   } else if (TSDB_CHILD_TABLE == pCfg->tableType) {
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                     "CREATE TABLE `%s` USING `%s` (", tbName, pCfg->stbName);
+                     "CREATE TABLE `%s` ", expandIdentifier(tbName, buf1));
+    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                     "USING `%s` (", expandIdentifier(pCfg->stbName, buf1));
     appendTagNameFields(buf2, &len, pCfg);
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
                      ") TAGS (");
@@ -867,26 +898,25 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     len +=
         snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
-  } else if (TSDB_NORMAL_TABLE == pCfg->tableType){
+  } else if (TSDB_NORMAL_TABLE == pCfg->tableType) {
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                     "CREATE TABLE `%s` (", tbName);
+                     "CREATE TABLE `%s` (", expandIdentifier(tbName, buf1));
     appendColumnFields(buf2, &len, pCfg);
     len +=
         snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
   } else if (TSDB_VIRTUAL_NORMAL_TABLE == pCfg->tableType) {
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                     "CREATE VTABLE `%s` (", tbName);
+                     "CREATE VTABLE `%s` (", expandIdentifier(tbName, buf1));
     appendColumnFields(buf2, &len, pCfg);
     len +=
         snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
   } else if (TSDB_VIRTUAL_CHILD_TABLE == pCfg->tableType) {
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                     "CREATE VTABLE `%s` (", tbName);
+                     "CREATE VTABLE `%s` (", expandIdentifier(tbName, buf1));
     appendColRefFields(buf2, &len, pCfg);
-    len +=
-        snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
-                 ") USING `%s` (", pCfg->stbName);
+    len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                    ") USING `%s` (", expandIdentifier(pCfg->stbName, buf1));
     appendTagNameFields(buf2, &len, pCfg);
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
                      ") TAGS (");

@@ -43,9 +43,12 @@ echo topdir: %{_topdir}
 echo version: %{_version}
 echo buildroot: %{buildroot}
 
-libfile="libtaos.so.%{_version}"
-nativelibfile="libtaosnative.so.%{_version}"
+libfile="libtaos.so"
+pkg_libfile="libtaos.so.%{_version}"
+nativelibfile="libtaosnative.so"
+pkg_nativelibfile="libtaosnative.so.%{_version}"
 wslibfile="libtaosws.so"
+pkg_wslibfile="libtaosws.so.%{_version}"
 
 # create install path, and cp file
 mkdir -p %{buildroot}%{homepath}/bin
@@ -112,9 +115,9 @@ fi
 if [ -f %{_compiledir}/build/bin/taosadapter ]; then
     cp %{_compiledir}/build/bin/taosadapter                    %{buildroot}%{homepath}/bin
 fi
-cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
-cp %{_compiledir}/build/lib/${nativelibfile}        %{buildroot}%{homepath}/driver
-[ -f %{_compiledir}/build/lib/${wslibfile} ] && cp %{_compiledir}/build/lib/${wslibfile}            %{buildroot}%{homepath}/driver ||:
+cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver/${pkg_libfile}
+cp %{_compiledir}/build/lib/${nativelibfile}        %{buildroot}%{homepath}/driver/${pkg_nativelibfile}
+cp %{_compiledir}/build/lib/${wslibfile}            %{buildroot}%{homepath}/driver/${pkg_wslibfile} ||:
 cp %{_compiledir}/../include/client/taos.h          %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/common/taosdef.h       %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/util/taoserror.h       %{buildroot}%{homepath}/include

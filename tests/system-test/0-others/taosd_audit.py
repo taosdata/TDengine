@@ -14,10 +14,13 @@ from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
+from util.cluster import *
+import threading
 
 telemetryPort = '6043'
-serverPort = '7080'
+serverPort = '6030'
 hostname = socket.gethostname()
+threadisExit = False
 
 class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
     hostPort = hostname + ":" + serverPort
@@ -38,6 +41,7 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         """
 
     def do_POST(self):
+        global threadisExit
         """
         process POST request
         """
@@ -64,6 +68,9 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         # print(infoDict)
         
         self.telemetryInfoCheck(infoDict)
+
+        print ("set threadisExit to True")
+        threadisExit = True
 
         # 4. shutdown the server and exit case
         assassin = threading.Thread(target=self.server.shutdown)
@@ -111,7 +118,8 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), logSql)
+        self.dnodes = cluster.dnodes
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
@@ -125,13 +133,9 @@ class TDTestCase:
         sql = "create table db3.stb (ts timestamp, f int) tags (t int)"
         tdSql.query(sql)
 
-        tdLog.info("create tb")
-        sql = "create table db3.tb using db3.stb tags (1)"
-        tdSql.query(sql)
-
-        tdLog.info("delete tb")
-        sql = "delete from db3.tb"
-        tdSql.query(sql)
+        newTdSql1=tdCom.newTdSql()
+        t1 = threading.Thread(target=self.createTbThread, args=('', newTdSql1))
+        t1.start()
 
         tdLog.info("start http server")
         # create http server: bing ip/port , and  request processor
@@ -142,7 +146,24 @@ class TDTestCase:
         else:
             serverAddress = ("", int(telemetryPort))
             http.server.HTTPServer(serverAddress, RequestHandlerImpl).serve_forever()
-        
+
+    def createTbThread(self, sql, newTdSql):
+        global threadisExit
+        while True:
+                
+            tdLog.info("threadisExit = %s"%threadisExit)
+            if threadisExit == True:
+                break
+
+            tdLog.info("create tb")
+            sql = "create table db3.tb using db3.stb tags (1)"
+            tdSql.query(sql)
+
+            tdLog.info("delete tb")
+            sql = "delete from db3.tb"
+            tdSql.query(sql)
+
+            time.sleep(5)
 
     def stop(self):
         tdSql.close()

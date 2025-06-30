@@ -18,7 +18,9 @@ Prepare the following environments:
 - JDBC driver 3.6.2 and above version. Download from [maven.org](https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver).
 
 ## Configure Data Source
+
 Connect to the TDengine data source via JDBC WebSocket. The connection URL format is:
+
 ``` sql
 jdbc:TAOS-WS://[host_name]:[port]/[database_name]?[user={user}|&password={password}]
 ```
@@ -28,6 +30,7 @@ For detailed parameters, see: [URL Parameter](../../../tdengine-reference/client
 Set driverClass  to "com.taosdata.jdbc.ws.WebSocketDriver".
 
 The following example creates a Spark instance and connects to the local TDengine service:
+
 ``` java
 // create spark instance
 SparkSession spark = SparkSession.builder()
@@ -56,6 +59,7 @@ The following takes a Spark task written in the JAVA language and submitted for 
 Data writing uses parameter binding and is accomplished in three steps:
 
 1. Create a Connection.
+
     ``` java
       // create connect
       String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
@@ -64,6 +68,7 @@ Data writing uses parameter binding and is accomplished in three steps:
 
 2. Bind Data and Submit.  
   The following example directly writes to a supertable and uses the batch - binding method to enhance writing efficiency.
+
     ``` java
     int childTb    = 1;
     int insertRows = 21;
@@ -102,6 +107,7 @@ Data writing uses parameter binding and is accomplished in three steps:
     ```
 
 3. Close the Connection.
+
     ``` java
     // close
     connection.close();
@@ -113,7 +119,8 @@ Data writing uses parameter binding and is accomplished in three steps:
 
 Data reading is achieved through table mapping and is completed in four steps:
 
-1.  Create a Spark Interaction Instance.
+1. Create a Spark Interaction Instance.
+
     ``` java
     // create connect
     SparkSession spark = SparkSession.builder()
@@ -123,6 +130,7 @@ Data reading is achieved through table mapping and is completed in four steps:
     ```
 
 2. Create a Data Reader.
+
     ``` java
     // create reader
     String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
@@ -136,6 +144,7 @@ Data reading is achieved through table mapping and is completed in four steps:
     ```
 
 3. Map the Table and Display the Data in the Table.
+
     ``` java
     // map table
     String dbtable = "test.meters";
@@ -146,6 +155,7 @@ Data reading is achieved through table mapping and is completed in four steps:
     ```
 
 4. Close the Interaction.
+
     ``` java
     spark.stop();
     ```
@@ -157,14 +167,16 @@ Data reading is achieved through table mapping and is completed in four steps:
 Data subscription uses the JDBC standard data - subscription method and is completed in four steps:
 
 1. Create a Spark Interaction Instance.
+
     ``` java
     SparkSession spark = SparkSession.builder()
         .appName("appSparkTest")
         .master("local[*]")
         .getOrCreate();
-    ```            
+    ```
 
 2. Create a Consumer.
+
     ``` java
     // create consumer
     TaosConsumer<ResultBean> consumer = getConsumer();
@@ -181,7 +193,7 @@ Data subscription uses the JDBC standard data - subscription method and is compl
         config.setProperty("enable.auto.commit",          "true");
         config.setProperty("auto.commit.interval.ms",     "1000");
         config.setProperty("group.id",                    "group1");
-        config.setProperty("client.id",                   "clinet1");
+        config.setProperty("client.id",                   "client1");
         config.setProperty("td.connect.user",             "root");
         config.setProperty("td.connect.pass",             "taosdata");
         config.setProperty("value.deserializer",          cls);
@@ -211,6 +223,7 @@ Data subscription uses the JDBC standard data - subscription method and is compl
     ```
 
 3. Subscribe to the Topic, Consume the Data, and Display It in Spark.
+
     ``` java
     // poll
     pollExample(spark, consumer);
@@ -268,6 +281,7 @@ Data subscription uses the JDBC standard data - subscription method and is compl
     ```
 
 4. Unsubscribe and Release Resources.
+
     ``` java
     // close
     consumer.unsubscribe();
@@ -281,6 +295,7 @@ Data subscription uses the JDBC standard data - subscription method and is compl
 ## Data Analysis
 
 ### Scenario Introduction
+
 The example scenario involves a smart electricity meter used in a household. The data is stored in TDengine, and the goal is to analyze the voltage change of a single smart electricity meter's weekly electricity consumption.
 
 ### Data preparation
@@ -288,13 +303,17 @@ The example scenario involves a smart electricity meter used in a household. The
 Generate a supertable and a child table. One piece of data is generated daily, and a total of 21 pieces of data for three weeks are generated. The voltage data randomly varies within the range of 210 - 230.
 
 ### Analyze the Weekly Voltage Change Rate
+
 The LAG() function in Spark is used to obtain data from a previous row relative to the current row. This example uses this function to analyze the weekly voltage change rate.
 
 1. Obtain data through TDengine SQL and create a Spark View. See createSparkView() for details.
+
     ``` sql
     SELECT tbname,* FROM test.meters WHERE tbname='d0'
     ```
+
 2. Use Spark SQL to query the data in the Spark View and calculate the weekly voltage change rate. The SQL is as follows:
+
     ``` sql
     SELECT tbname, ts, voltage,
         (LAG(voltage, 7) OVER (ORDER BY tbname)) AS voltage_last_week, 
@@ -310,6 +329,7 @@ The LAG() function in Spark is used to obtain data from a previous row relative 
 After Spark accesses the TDengine data source, it can further support complex data - processing functions such as cross - database analysis, intersection/union/difference operations of datasets, sub - query filtering with the WHERE clause, and normal - column JOIN.
 
 ## Example Source Code
+
 The example is written in the JAVA language. For compilation and running instructions, refer to the README in the example source - code directory.
 
 [Complete Example Source Code](https://github.com/taosdata/tdengine-eco/tree/main/spark)

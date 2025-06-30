@@ -128,6 +128,7 @@ create stream if not exists s1 fill_history 1 into st1  as select count(*) from 
 If the stream task is completely outdated and you no longer want it to monitor or process data, you can manually delete it. The computed data will still be retained.
 
 Tips:
+
 - When enabling fill_history, creating a stream requires finding the boundary point of historical data. If there is a lot of historical data, it may cause the task of creating a stream to take a long time. In this case, you can use fill_history 1 async (supported since version 3.3.6.0) , then the task of creating a stream can be processed in the background. The statement of creating a stream can be returned immediately without blocking subsequent operations. async only takes effect when fill_history 1 is used, and creating a stream with fill_history 0 is very fast and does not require asynchronous processing.
 
 - Show streams can be used to view the progress of background stream creation (ready status indicates success, init status indicates stream creation in progress, failed status indicates that the stream creation has failed, and the message column can be used to view the reason for the failure. In the case of failed stream creation, the stream can be deleted and rebuilt).
@@ -337,6 +338,7 @@ notification_options: {
 ```
 
 The rules for the syntax above are as follows:
+
 1. `url`: Specifies the target address for the notification. It must include the protocol, IP or domain name, port, and may include a path and parameters. Currently, only the websocket protocol is supported. For example: 'ws://localhost:8080', 'ws://localhost:8080/notify', 'wss://localhost:8080/notify?key=foo'.
 2. `event_type`: Defines the events that trigger notifications. Supported event types include:
     1. 'WINDOW_OPEN': Window open event; triggered when any type of window opens.
@@ -384,6 +386,7 @@ An example structure for the notification message is shown below:
           "eventTime": 1733284887097,
           "windowId": "window-id-67890",
           "windowType": "Time",
+          "groupId": "2650968222368530754",
           "windowStart": 1733284800000
         },
         {
@@ -392,6 +395,7 @@ An example structure for the notification message is shown below:
           "eventTime": 1733284887197,
           "windowId": "window-id-67890",
           "windowType": "Time",
+          "groupId": "2650968222368530754",
           "windowStart": 1733284800000,
           "windowEnd": 1733284860000,
           "result": {
@@ -410,6 +414,7 @@ An example structure for the notification message is shown below:
           "eventTime": 1733284887231,
           "windowId": "window-id-13579",
           "windowType": "Event",
+          "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "triggerCondition": {
             "conditionIndex": 0,
@@ -425,12 +430,13 @@ An example structure for the notification message is shown below:
           "eventTime": 1733284887231,
           "windowId": "window-id-13579",
           "windowType": "Event",
+          "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "windowEnd": 1733284810000,
           "triggerCondition": {
             "conditionIndex": 1,
             "fieldValue": {
-              "c1": 20
+              "c1": 20,
               "c2": 3
             }
           },
@@ -463,15 +469,18 @@ The following sections explain the fields in the notification message.
 #### Common Fields
 
 These fields are common to all event objects.
+
 1. "tableName": A string indicating the name of the target subtable.
-2. "eventType": A string representing the event type ("WINDOW_OPEN", "WINDOW_CLOSE", or "WINDOW_INVALIDATION").
-3. "eventTime": A long integer timestamp that indicates when the event was generated, accurate to the millisecond (i.e., the number of milliseconds since '00:00, Jan 1 1970 UTC').
-4. "windowId": A string representing the unique identifier for the window. This ID ensures that the open and close events for the same window can be correlated. In the case that taosd restarts due to a fault, some events may be sent repeatedly, but the windowId remains constant for the same window.
-5. "windowType": A string that indicates the window type ("Time", "State", "Session", "Event", or "Count").
+1. "eventType": A string representing the event type ("WINDOW_OPEN", "WINDOW_CLOSE", or "WINDOW_INVALIDATION").
+1. "eventTime": A long integer timestamp that indicates when the event was generated, accurate to the millisecond (i.e., the number of milliseconds since '00:00, Jan 1 1970 UTC').
+1. "windowId": A string representing the unique identifier for the window. This ID ensures that the open and close events for the same window can be correlated. In the case that taosd restarts due to a fault, some events may be sent repeatedly, but the windowId remains constant for the same window.
+1. "windowType": A string that indicates the window type ("Time", "State", "Session", "Event", or "Count").
+1. "groupId": A string that uniquely identifies the corresponding group. If stream is partitioned by table, it matches the uid of that table.
 
 #### Fields for Time Windows
 
 These fields are present only when "windowType" is "Time".
+
 1. When "eventType" is "WINDOW_OPEN", the following field is included:
     1. "windowStart": A long integer timestamp representing the start time of the window, matching the time precision of the result table.
 2. When "eventType" is "WINDOW_CLOSE", the following fields are included:
@@ -482,6 +491,7 @@ These fields are present only when "windowType" is "Time".
 #### Fields for State Windows
 
 These fields are present only when "windowType" is "State".
+
 1. When "eventType" is "WINDOW_OPEN", the following fields are included:
     1. "windowStart": A long integer timestamp representing the start time of the window.
     1. "prevState": A value of the same type as the state column, representing the state of the previous window. If there is no previous window (i.e., this is the first window), it will be NULL.
@@ -496,6 +506,7 @@ These fields are present only when "windowType" is "State".
 #### Fields for Session Windows
 
 These fields are present only when "windowType" is "Session".
+
 1. When "eventType" is "WINDOW_OPEN", the following field is included:
     1. "windowStart": A long integer timestamp representing the start time of the window.
 2. When "eventType" is "WINDOW_CLOSE", the following fields are included:
@@ -506,6 +517,7 @@ These fields are present only when "windowType" is "Session".
 #### Fields for Event Windows
 
 These fields are present only when "windowType" is "Event".
+
 1. When "eventType" is "WINDOW_OPEN", the following fields are included:
     1. "windowStart": A long integer timestamp representing the start time of the window.
     1. "triggerCondition": An object that provides information about the condition that triggered the window to open. It includes:
@@ -522,6 +534,7 @@ These fields are present only when "windowType" is "Event".
 #### Fields for Count Windows
 
 These fields are present only when "windowType" is "Count".
+
 1. When "eventType" is "WINDOW_OPEN", the following field is included:
     1. "windowStart": A long integer timestamp representing the start time of the window.
 2. When "eventType" is "WINDOW_CLOSE", the following fields are included:
@@ -534,14 +547,15 @@ These fields are present only when "windowType" is "Count".
 Due to scenarios such as data disorder, updates, or deletions during stream computing, windows that have already been generated might be removed or their results need to be recalculated. In such cases, a notification with the eventType "WINDOW_INVALIDATION" is sent to inform which windows have been invalidated.
 
 For events with "eventType" as "WINDOW_INVALIDATION", the following fields are included:
+
 1. "windowStart": A long integer timestamp representing the start time of the window.
 1. "windowEnd": A long integer timestamp representing the end time of the window.
 
 ## Support for Virtual Tables in Stream Computing
 
-Starting with v3.3.6.0, stream computing can use virtual tables—including virtual regular tables, virtual sub-tables, and virtual super tables—as data sources for computation. The syntax is identical to that for non‑virtual tables.
+Starting with v3.3.6.0, stream computing can use virtual tables—including virtual regular tables, virtual sub-tables, and virtual super tables—as data sources for computation. The syntax is identical to that for non-virtual tables.
 
-However, because the behavior of virtual tables differs from that of non‑virtual tables, the following restrictions apply when using stream computing:
+However, because the behavior of virtual tables differs from that of non-virtual tables, the following restrictions apply when using stream computing:
 
 1. The schema of virtual regular tables/virtual sub-tables involved in stream computing cannot be modified.
 1. During stream computing, if the data source corresponding to a column in a virtual table is changed, the stream computation will not pick up the change; it will still read from the old data source.

@@ -362,6 +362,12 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
+
+      // Check pRow->sver
+      if (pRow->sver != submitTbData.sver) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
     }
   }
 
@@ -629,10 +635,14 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
           pMsg->info.conn.applyTerm, pMsg->contLen);
 
   if (!(pVnode->state.applyTerm <= pMsg->info.conn.applyTerm)) {
+    vError("vgId:%d, applyTerm mismatch, expected: %" PRId64 ", received: %" PRId64, TD_VID(pVnode),
+           pVnode->state.applyTerm, pMsg->info.conn.applyTerm);
     return terrno = TSDB_CODE_INTERNAL_ERROR;
   }
 
   if (!(pVnode->state.applied + 1 == ver)) {
+    vError("vgId:%d, ver mismatch, expected: %" PRId64 ", received: %" PRId64, TD_VID(pVnode),
+           pVnode->state.applied + 1, ver);
     return terrno = TSDB_CODE_INTERNAL_ERROR;
   }
 

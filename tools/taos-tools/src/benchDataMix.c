@@ -58,43 +58,6 @@ int32_t inul = 20; // interval null count
         sprintf(val, "%f", mid);        \
       }                                 \
 
-
-// 32 ~ 126 + '\r' '\n' '\t' radom char
-uint32_t genRadomString(char* val, uint32_t len, char* prefix) {
-  uint32_t size = RD(len) ;
-  if (size < 3) {
-    strcpy(val, VAL_NULL);
-    return sizeof(VAL_NULL);
-  }
-
-  val[0] = '\'';
-
-  int32_t pos = 1;
-  int32_t preLen = strlen(prefix);
-  if(preLen > 0 && size > preLen + 3) {
-    strcpy(&val[1], prefix);
-    pos += preLen;
-  }
-
-  char spe[] = {'\\', '\r', '\n', '\t'};
-  for (int32_t i = pos; i < size - 1; i++) {
-    if (false) {
-      val[i] = spe[RD(sizeof(spe))];
-    } else {
-      val[i] = 32 + RD(94);
-    }
-    if (val[i] == '\'' || val[i] == '\"' || val[i] == '%' || val[i] == '\\') {
-      val[i] = 'x';
-    }
-  }
-
-  val[size - 1] = '\'';
-  // set string end
-  val[size] = 0;
-  return size;
-}
-
-
 // data row generate by randowm
 uint32_t dataGenByField(Field* fd, char* pstr, uint32_t len, char* prefix, int64_t *k, char* nullVal) {
     uint32_t size = 0;

@@ -216,7 +216,7 @@ func (cmd *Command) ProcessDrop(conf *config.Config) {
 	logger.Infof("use database:%s", conf.Metrics.Database.Name)
 
 	for _, stable := range dropStableList {
-		if _, err := cmd.conn.Exec(ctx, "DROP STABLE IF EXISTS "+stable, util.GetQidOwn()); err != nil {
+		if _, err := cmd.conn.Exec(ctx, "DROP STABLE IF EXISTS "+stable, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 			logger.Errorf("drop stable %s, error:%s", stable, err)
 			panic(err)
 		}
@@ -321,7 +321,7 @@ func (cmd *Command) TransferTaosdClusterBasicInfo() error {
 		"(ts timestamp, first_ep varchar(255), first_ep_dnode_id INT, cluster_version varchar(20)) " +
 		"tags (cluster_id varchar(50))"
 
-	if _, err := cmd.conn.Exec(ctx, createTableSql, util.GetQidOwn()); err != nil {
+	if _, err := cmd.conn.Exec(ctx, createTableSql, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 		logger.Errorf("create taosd_cluster_basic error, msg:%s", err)
 		return err
 	}
@@ -332,7 +332,7 @@ func (cmd *Command) TransferTaosdClusterBasicInfo() error {
 		querySql := fmt.Sprintf("select cluster_id, first_ep, first_ep_dnode_id, `version` as cluster_version, ts from cluster_info where ts > %d and ts <= %d",
 			current.UnixMilli(), current.Add(time.Duration(delta)).UnixMilli())
 		logger.Tracef("query sql:%s", querySql)
-		data, err := cmd.conn.Query(ctx, querySql, util.GetQidOwn())
+		data, err := cmd.conn.Query(ctx, querySql, util.GetQidOwn(config.Conf.InstanceID))
 		if err != nil {
 			logger.Errorf("query cluster_info error, msg:%s", err)
 			return err
@@ -367,7 +367,7 @@ func (cmd *Command) TransferTaosdClusterBasicInfo() error {
 				buf.WriteString(sql)
 
 				if buf.Len() >= MAX_SQL_LEN {
-					rowsAffected, err := cmd.conn.Exec(context.Background(), buf.String(), util.GetQidOwn())
+					rowsAffected, err := cmd.conn.Exec(context.Background(), buf.String(), util.GetQidOwn(config.Conf.InstanceID))
 					if err != nil {
 						logger.Errorf("insert taosd_cluster_basic error, msg:%s", err)
 						return err
@@ -380,7 +380,7 @@ func (cmd *Command) TransferTaosdClusterBasicInfo() error {
 			}
 
 			if buf.Len() > 0 {
-				rowsAffected, err := cmd.conn.Exec(context.Background(), buf.String(), util.GetQidOwn())
+				rowsAffected, err := cmd.conn.Exec(context.Background(), buf.String(), util.GetQidOwn(config.Conf.InstanceID))
 				if err != nil {
 					logger.Errorf("insert taosd_cluster_basic error, msg:%s", err)
 					return err
@@ -409,7 +409,7 @@ func (cmd *Command) TransferTableToDst(sql string, dstTable string, tagNum int) 
 		querySql := fmt.Sprintf(sql+" a.ts > %d and a.ts <= %d",
 			current.UnixMilli(), current.Add(time.Duration(delta)).UnixMilli())
 		logger.Tracef("query sql:%s", querySql)
-		data, err := cmd.conn.Query(ctx, querySql, util.GetQidOwn())
+		data, err := cmd.conn.Query(ctx, querySql, util.GetQidOwn(config.Conf.InstanceID))
 		if err != nil {
 			logger.Errorf("query cluster_info error, msg:%s", err)
 			return err

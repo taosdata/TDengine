@@ -34,6 +34,10 @@ extern "C" {
 #define GRANT_FLAG_ALL       (0x01)
 #define GRANT_FLAG_AUDIT     (0x02)
 #define GRANT_FLAG_VIEW      (0x04)
+// ...
+#define GRANT_FLAG_EX_MULTI_TIER (0x10000)
+#define GRANT_FLAG_EX_VNODE      (0x20000)
+#define GRANT_FLAG_EX_STORAGE    (0x40000)
 
 typedef enum {
   TSDB_GRANT_ALL,
@@ -84,6 +88,8 @@ bool    grantCheckDualReplicaDnodes(void *pMnode);
       {.name = "timeseries", .bytes = 43 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},   \
       {.name = "dnodes", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},       \
       {.name = "cpu_cores", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},    \
+      {.name = "vnodes", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},       \
+      {.name = "storage_size", .bytes = 43 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true}, \
   }
 #else
 #define GRANTS_SCHEMA                                                                                              \
@@ -96,6 +102,8 @@ bool    grantCheckDualReplicaDnodes(void *pMnode);
       {.name = "timeseries", .bytes = 43 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},   \
       {.name = "dnodes", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},       \
       {.name = "cpu_cores", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},    \
+      {.name = "vnodes", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},       \
+      {.name = "storage_size", .bytes = 43 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true}, \
   }
 #endif
 // #define GRANT_CFG_ADD

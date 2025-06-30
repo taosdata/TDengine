@@ -3262,7 +3262,8 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
       } else {
         memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
       }
-      qInfo("%s partName:%s, groupId:%"PRIu64, __FUNCTION__, (char*)tbname, pKey->groupId);
+
+      qDebug("%s partName:%s, groupId:%"PRIu64, __FUNCTION__, (char*)tbname, pKey->groupId);
       pAPI->stateStore.streamStateFreeVal(tbname);
     } else {
       // current value belongs to different group, it can't be packed into one datablock

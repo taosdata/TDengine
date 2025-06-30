@@ -1081,23 +1081,13 @@ void cfgDumpCfgS3(SConfig *pCfg, bool tsc, bool dump) {
   }
 }
 
-void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
-  if (dump) {
-    (void)printf("                     global config");
-    (void)printf("\n");
-    (void)printf("=================================================================");
-    (void)printf("\n");
-  } else {
-    uInfo("                     global config");
-    uInfo("=================================================================");
-  }
-
+void cfgDumpCfgImpl(SArray *array, bool tsc, bool dump) {
   char src[CFG_SRC_PRINT_LEN + 1] = {0};
   char name[CFG_NAME_PRINT_LEN + 1] = {0};
 
-  int32_t size = taosArrayGetSize(pCfg->localArray);
+  int32_t size = taosArrayGetSize(array);
   for (int32_t i = 0; i < size; ++i) {
-    SConfigItem *pItem = taosArrayGet(pCfg->localArray, i);
+    SConfigItem *pItem = taosArrayGet(array, i);
     if (tsc && pItem->scope == CFG_SCOPE_SERVER) continue;
     if (dump && strcmp(pItem->name, "scriptDir") == 0) continue;
     tstrncpy(src, cfgStypeStr(pItem->stype), CFG_SRC_PRINT_LEN);
@@ -1171,7 +1161,20 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
         break;
     }
   }
+}
 
+void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
+  if (dump) {
+    (void)printf("                     global config");
+    (void)printf("\n");
+    (void)printf("=================================================================");
+    (void)printf("\n");
+  } else {
+    uInfo("                     global config");
+    uInfo("=================================================================");
+  }
+  cfgDumpCfgImpl(pCfg->localArray, tsc, dump);
+  cfgDumpCfgImpl(pCfg->globalArray, tsc, dump);
   if (dump) {
     (void)printf("=================================================================\n");
   } else {

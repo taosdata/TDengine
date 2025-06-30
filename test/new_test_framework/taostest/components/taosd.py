@@ -233,13 +233,15 @@ class TaosD:
                     cfg: dict = dnode["config"] if 'config' in dnode else {}
                     # cat /proc/sys/kernel/core_pattern
                     # scp coredump files to logDir/data/{fqdn}/coredump
-                    coreDir = "{}/data/{}/coredump".format(logDir, host)
-                    os.system("mkdir -p {}".format(coreDir))
-                    corePattern = self._remote.cmd(host, ["cat /proc/sys/kernel/core_pattern"])
-                    if not corePattern is None:
-                        dirName = os.path.dirname(corePattern)
-                        if dirName.startswith("/"):
-                            self._remote.get(host, dirName, coreDir)
+                    system_platform = dnode["system"] if "system" in dnode.keys() else "linux"
+                    if system_platform.lower() == "linux":
+                        coreDir = "{}/data/{}/coredump".format(logDir, host)
+                        os.system("mkdir -p {}".format(coreDir))
+                        corePattern = self._remote.cmd(host, ["cat /proc/sys/kernel/core_pattern"])
+                        if not corePattern is None:
+                            dirName = os.path.dirname(corePattern)
+                            if dirName.startswith("/"):
+                                self._remote.get(host, dirName, coreDir)
                     # default data dir & log dir
                     remoteDataDir = "/var/lib/taos"
                     remoteLogDir = "/var/log/taos"
@@ -341,9 +343,12 @@ class TaosD:
                             killCmd = ["ps -ef | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
                             self._remote.cmd(fqdn, killCmd)
                     else:
-                        killCmd = [
-                            f"ps -ef | grep -wi {nodeDict['name']} | grep {i['config_dir']} | grep -v grep | awk '{{print $2}}' | xargs kill -9 > /dev/null"]
-                        self._remote.cmd(fqdn, killCmd)
+                        check_cmd = f"ps -ef | grep -wi {nodeDict['name']} | grep {i['config_dir']} | grep -v grep | wc -l"
+                        result = self._remote.cmd(fqdn, [check_cmd])
+                        if int(result[0].strip()) > 0:
+                            killCmd = [
+                                f"ps -ef | grep -wi {nodeDict['name']} | grep {i['config_dir']} | grep -v grep | awk '{{print $2}}' | xargs kill -9 > /dev/null 2>&1"]
+                            self._remote.cmd(fqdn, killCmd)
                     if self.taosd_valgrind and not self.taosc_valgrind:
                         killCmd = [
                             "ps -ef|grep -wi valgrind.bin | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"]
