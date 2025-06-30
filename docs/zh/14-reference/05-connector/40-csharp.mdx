@@ -95,7 +95,7 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 - `password`：连接的密码。
 - `protocol`：连接的协议，可选值为 Native 或 WebSocket，默认为 Native。
 - `db`：连接的数据库。
-- `timezone`：时区，默认为本地时区。
+- `timezone`：查询结果集解析时间类型使用的时区，默认为本地时区，格式见[结果集时区设置](#结果集时区设置)。
 
 ##### WebSocket 连接
 
@@ -109,7 +109,7 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 - `password`：连接的密码。
 - `protocol`：连接的协议，可选值为 Native 或 WebSocket，默认为 Native。
 - `db`：连接的数据库。
-- `timezone`：时区，默认为本地时区。
+- `timezone`：查询结果集解析时间类型使用的时区，默认为本地时区，格式见[结果集时区设置](#结果集时区设置)。
 - `connTimeout`：连接超时时间，默认为 1 分钟。
 - `readTimeout`：读取超时时间，默认为 5 分钟。
 - `writeTimeout`：发送超时时间，默认为 10 秒。
@@ -119,6 +119,20 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 - `autoReconnect`：是否自动重连，默认为 false。
 - `reconnectRetryCount`：重连次数，默认为 3。
 - `reconnectIntervalMs`：重连间隔毫秒时间，默认为 2000。
+
+#### 结果集时区设置
+
+C# 驱动在解析结果集时，默认使用本地时区解析时间类型。如果需要使用其他时区解析时间类型，可以通过设置 `timezone` 参数来指定时区。
+内部使用 `TimeZoneInfo.FindSystemTimeZoneById` 方法获取时区信息：
+
+- 在 Windows 系统上，`FindSystemTimeZoneById` 尝试匹配注册表 `HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Time Zones` 分支的子项名称。
+- 在 Linux 和 macOS 上，使用 [ICU 库](https://unicode-org.github.io/icu/userguide/datetime/timezone/)中提供的时区信息。
+- .Net 6.0 及以上版本，可以统一使用 [IANA](https://www.iana.org/time-zones) 时区格式。
+
+以纽约时区为例：
+
+- .Net 版本小于 6.0 时，Windows 上使用 `Eastern Standard Time`，Linux 和 macOS 上使用 `America/New_York`。
+- .Net 版本大于等于 6.0 时，可以统一使用 `America/New_York`。
 
 #### 接口说明  
 
