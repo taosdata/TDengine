@@ -1,0 +1,58 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "thread_count": 8,
+    "create_table_thread_count": 8,
+    "result_file": "./usecase13.txt",
+    "confirm_parameter_prompt": "no",
+    "num_of_records_per_req": 10,
+    "prepared_rand": 10,
+    "chinese": "no",
+    "escape_character": "yes",
+    "continue_if_fail": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "functiontest",
+                "drop": "yes"
+            },
+            "super_tables": [
+                {
+                    "name": "usecase13",
+                    "child_table_exists": "no",
+                    "childtable_count": 1,
+                    "childtable_prefix": "d13_",
+                    "auto_create_table": "yes",
+                    "batch_create_tbl_num": 5,
+                    "data_source": "rand",
+                    "insert_mode": "taosc",
+                    "non_stop_mode": "no",
+                    "line_protocol": "line",
+                    "insert_rows": 10,
+                    "childtable_limit": 0,
+                    "childtable_offset": 0,
+                    "interlace_rows": 0,
+                    "insert_interval": 0,
+                    "partial_col_num": 0,
+                    "timestamp_step": 1000,
+                    "start_timestamp": "2026-07-01 00:00:00.000",
+                    "sample_format": "csv",
+                    "sample_file": "./sample.csv",
+                    "use_sample_ts": "no",
+                    "tags_file": "",
+                    "columns": [
+                        {"type": "FLOAT","name": "val", "count": 4094, "min": 0, "max": 2000}
+                    ],
+                    "tags": [
+                        {"type": "INT","name": "id", "min": 0, "max": 6000}
+                    ]
+                }
+            ]
+        }
+    ]
+}

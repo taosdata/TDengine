@@ -1,0 +1,10 @@
+[06/25 13:43:32.703322] SUCC: host:127.0.0.1 port:0  connect successfully.
+[06/25 13:43:34.074637] SUCC: created database (functiontest)
+[06/25 13:43:34.075105] SUCC: host:127.0.0.1 port:0  connect successfully.
+[06/25 13:43:34.080149] SUCC: host:127.0.0.1 port:0  connect successfully.
+[06/25 13:43:34.089509] ERROR: Call engine failed. error code: 0x80002640, reason: Too many columns command CREATE TABLE IF NOT EXISTS `functiontest`.`usecase13` (ts TIMESTAMP,val float,val_1 float,val_2 float,val_3 float,val_4 float,val_5 float,val_6 float,val_7 float,val_8 float,val_9 float,val_10 float,val_11 float,val_12 float,val_13 float,val_14 float,val_15 float,val_16 float,val_17 float,val_18 float,val_19 float,val_20 float,val_21 float,val_22 float,val_23 float,val_24 float,val_25 float,val_26 float,val_27 float,val_28 float,val_29 float,val_30 float,val_31 float,val_32 float,val_33 float,val_34 float,val_35 float,val_3
+[06/25 13:43:34.089592] ERROR: insert test process failed
+[06/25 13:43:53.048232] SUCC: host:127.0.0.1 port:0  connect successfully.
+[06/25 13:43:54.424635] SUCC: created database (functiontest)
+[06/25 13:43:54.425032] SUCC: host:127.0.0.1 port:0  connect successfully.
+[06/25 13:43:54.430394] SUCC: host:127.0.0.1 port:0  connect successfully.
