@@ -1,6 +1,8 @@
 import os
 import threading
 import time
+
+import psutil
 import taos
 
 from new_test_framework.utils import tdLog, clusterComCheck, tdStream, tdSql
@@ -44,6 +46,20 @@ def _do_build_results():
         results.append(row)
     return results
 
+def get_conf_dir(process_name):
+    for proc in psutil.process_iter(attrs=['pid', 'name']):
+        try:
+            if process_name.lower() in proc.info['name'].lower():
+                print(f"Found process: {proc.info}")
+
+                process = psutil.Process(proc.info['pid'])
+                cmdline = process.cmdline()
+
+                if len(cmdline) == 3:
+                    return cmdline[-1]
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    return "/etc/taos/cfg"
 
 def check_all_results(sql: str, values: list) -> None:
     tdSql.query(sql)
@@ -134,16 +150,14 @@ class TestStreamCheckpoint:
 
         self.create_env()
 
-        self.set_write_info(100000, 1)
-        self.write_data()
+        self.write_data(100000, 1)
         try:
             self.create_and_check_stream_basic_1("sm1", "tb1")
         except Exception as e:
             tdLog.error(f"case 1 error: {e}")
 
         clear_output("sm1", "tb1")
-        self.set_write_info(100000, 1)
-        self.write_data()
+        self.write_data(100000, 1)
         try:
             self.create_and_check_stream_basic_2("sm2", "tb2")
         except Exception as e:
@@ -151,8 +165,7 @@ class TestStreamCheckpoint:
 
         #
         # clear_output("sm2", "tb2")
-        # self.set_write_info(100000, 1)
-        # self.write_data()
+        # self.write_data(100000, 1)
         #
         # try:
         #     self.create_and_check_stream_basic_3("sm3", "tb3")
@@ -160,80 +173,70 @@ class TestStreamCheckpoint:
         #     tdLog.error(f"case 3 error: {e}")
         #
         # clear_output("sm3", "tb3")
-        # self.set_write_info(100000, 1)
-        # self.write_data()
+        # self.write_data(100000, 1)
         # try:
         #     self.create_and_check_stream_basic_4("sm4", "tb4")
         # except Exception as e:
         #     tdLog.error(f"case 4 error: {e}")
         #
         # clear_output("sm4", "tb4")
-        # self.set_write_info(100000, 1)
-        # self.write_data()
+        # self.write_data(100000, 1)
         # try:
         #     self.create_and_check_stream_basic_5("sm5", "tb5")
         # except Exception as e:
         #     tdLog.error(f"case 5 error: {e}")
         #
         # clear_output("sm5", "tb5")
-        # self.set_write_info(100000, 1)
-        # self.write_data()
+        # self.write_data(100000, 1)
         # try:
         #     self.create_and_check_stream_basic_6("sm6", "tb6")
         # except Exception as e:
         #     tdLog.error(f"case 6 error: {e}")
         #
         # clear_output("sm6", "tb6")
-        # self.set_write_info(10000, 10)
-        # self.write_data()
+        # self.write_data(10000, 10)
         # try:
         #     self.create_and_check_stream_basic_7("sm7", "tb7")
         # except Exception as e:
         #     tdLog.error(f"case 7 error: {e}")
         #
         # clear_output("sm7", "tb7")
-        # self.set_write_info(10000, 10)
-        # self.write_data()
+        # self.write_data(10000, 10)
         # try:
         #     self.create_and_check_stream_basic_8("sm8", "tb8")
         # except Exception as e:
         #     tdLog.error(f"case 8 error: {e}")
         #
         # clear_output("sm8", "tb8")
-        # self.set_write_info(10000, 10)
-        # self.write_data()
+        # self.write_data(10000, 10)
         # try:
         #     self.create_and_check_stream_basic_9("sm9", "tb9")
         # except Exception as e:
         #     tdLog.error(f"case 9 error: {e}")
 
         # clear_output("sm9", "tb9")
-        # self.set_write_info(10000, 10)
-        # self.write_data()
+        # self.write_data(10000, 10)
         # try:
         #     self.create_and_check_stream_basic_10("sm10", "tb10")
         # except Exception as e:
         #     tdLog.error(f"case 10 error: {e}")
 
         # clear_output("sm10", "tb10")
-        # self.set_write_info(10000, 10)
-        # self.write_data()
+        # self.write_data(10000, 10)
         # try:
         #     self.create_and_check_stream_basic_11("sm11", "tb11")
         # except Exception as e:
         #     tdLog.error(f"case 11 error: {e}")
 
         # clear_output("sm11", "tb11")
-        # self.set_write_info(10000, 10)
-        # self.write_data()
+        # self.write_data(10000, 10)
         # try:
         #     self.create_and_check_stream_basic_12("sm12", "tb12")
         # except Exception as e:
         #     tdLog.error(f"case 12 error: {e}")
 
         clear_output("sm12", "tb12")
-        self.set_write_info(10000, 10)
-        self.write_data()
+        self.write_data(10000, 10)
         try:
             self.create_and_check_stream_basic_13("sm13", "tb13")
         except Exception as e:
@@ -273,10 +276,11 @@ class TestStreamCheckpoint:
         for i in range(num_of_tables):
             tdSql.execute(f"create table if not exists c{i} using source_table tags({i})")
 
-    def write_data(self) -> None:
+    def write_data(self, num_of_rows, num_of_tables) -> None:
+        self.set_write_info(num_of_rows, num_of_tables)
         tdLog.info("write data to source table in other thread")
-        conf = os.getcwd() + "/new_test_framework/utils/sim/dnode1/cfg"
 
+        conf = get_conf_dir("taosd")
         self.do_prepare_source_table(self.num_of_tables)
         
         try:
@@ -294,7 +298,6 @@ class TestStreamCheckpoint:
         tdLog.info(f"check total:{len(self.streams)} streams result")
         for stream in self.streams:
             stream.checkResults()
-
 
 
     def create_and_check_stream_basic_1(self, stream_name, dst_table) -> None:
