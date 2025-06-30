@@ -22,7 +22,7 @@ dependencies = [
     "taos-ws-py>=0.5.3",
     "pytest-xdist>=3.6.1",
     "pytz==2025.1",
-    "requests==2.27.1",
+    "requests==2.32.4",
     "taospy>=2.8.2",
     "tomli==2.2.1",
     "urllib3==1.26.20",
