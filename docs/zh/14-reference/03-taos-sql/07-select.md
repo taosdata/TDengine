@@ -116,29 +116,29 @@ SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
 ```
 
 ### 字段说明
-- DATABASE() 显示当前选择的数据库，如 ```use test``` 则显示test。
+- DATABASE() 显示当前选择的数据库，如 ```use test``` 则显示 test。
 - CLIENT_VERSION() 显示当前使用的客户端版本，如 3.3.6.13.0628。
 - SERVER_VERSION() 显示当前使用的服务端版本，如 3.3.6.13.0628。
-- SERVER_STATUS() 显示当前服务集群状态，0表示无节点可用，1表示所有节点可用，2表示部分节点可用。
+- SERVER_STATUS() 显示当前服务集群状态，0 表示无节点可用，1 表示所有节点可用，2 表示部分节点可用。
 - NOW() 显示当前时间，如 2025-04-22 21:32:26.009。
 - TODAY() 显示当前日期，如 2025-04-22 00:00:00.000。
 - TIMEZONE() 显示当前所在时区，如 Asia/Shanghai (CST, +0800)。
 - CURRENT_USER() 显示当前用户，如 current_user(): root@localhost。
 - USER() 显示用户列表，单行展示如 root@localhost。
 - DISTINCT 对指定数据列去重，可以是指定单列，也可以指定多列，指定多列时是多列的组合去重。
-- select_expr 选择表达式，指定要选择展示的列，*对于普通表表示全部列，超级表包含全部列和标签，expr表达式可以做一些运算，如max(col),对较长的列名可以使用AS重命名，表达式列表上限为4096。
-- from_clause from语句，指定从哪里选择数据，table_reference 可以是从单表或者多个表选择，也可以使用join_clause即join子句结果。
+- select_expr 选择表达式，指定要选择展示的列，*对于普通表表示全部列，超级表包含全部列和标签，expr 表达式可以做一些运算，如 max(col),对较长的列名可以使用 AS 重命名，表达式列表上限为 4096。
+- from_clause from 语句，指定从哪里选择数据，table_reference 可以是从单表或者多个表选择，也可以使用 join_clause 即 join 子句结果。
 - table_reference 可以使用原始表名或者被重命名的表查询。
-- table_expr 从表table_name，视图view_name，或者子查询subquery选择查询数据源。
-- join_clause join语句从多个表中选择具有相同条件特征的数据，可选择的join类型如INNER，LEFT，RIGHT，FULL等，JOIN 指定要和哪些表做关联查询，使用ON condition过滤满足条件的数据，WINDOW_OFFSET指定窗口的左右边界相对于左表主键时间戳的偏移量，如WINDOW_OFFSET(-1a，1a)，表示每个窗口是[左表主键时间戳 - 1毫秒，左表主键时间戳 + 1毫秒]，时间单位可以是b（纳秒）、u（微秒）、a（毫秒）、s（秒）、m（分）、h（小时）、d（天）、w（周），支持的最小时间单位为数据库精度。JLIMIT 限制单个窗口内最大匹配行数，默认值为所有行，取值范围为[0,1024]。
+- table_expr 从表 table_name，视图 view_name，或者子查询 subquery 选择查询数据源。
+- join_clause join 语句从多个表中选择具有相同条件特征的数据，可选择的 join 类型如 INNER，LEFT，RIGHT，FULL 等，JOIN 指定要和哪些表做关联查询，使用 ON condition 过滤满足条件的数据，WINDOW_OFFSET 指定窗口的左右边界相对于左表主键时间戳的偏移量，如 WINDOW_OFFSET(-1a，1a)，表示每个窗口是[左表主键时间戳 - 1 毫秒，左表主键时间戳 + 1 毫秒]，时间单位可以是 b（纳秒）、u（微秒）、a（毫秒）、s（秒）、m（分）、h（小时）、d（天）、w（周），支持的最小时间单位为数据库精度。JLIMIT 限制单个窗口内最大匹配行数，默认值为所有行，取值范围为[0,1024]。
 - window_clause 窗口子句将数据按照窗口进行切分成子集并进行聚合。此部分为时序数据库特色查询，可参阅特色查询章节获取详细信息。
-- interp_clause 指定时间截面的记录值或者插值，RANGE指定插值的时间范围，若开始和结束时间没有指定，或者为0，时间范围为输入数据时间范围。EVERY指定输出数据时间间隔，没有指定则只输出一条记录。FILL指定插值类型，类型范围为VALUE，NULL，PREV，NEXT，LINEAR。
-- partition_by_expr 指定数据切片条件，切片内的数据会独立进行计算。可以按照原始列名，列名别名，或者使用在select语句出现的位置。
-- group_by_expr 指定分组聚合条件，可以按照原始列名，列名别名，或者使用在select语句出现的位置。
-- order_expr 指定数据排序规则，可以是升序ASC或者降序DESC，不指定默认为升序。有空值时可以选择将空值放在前面，使用NULLS FIRST或者放在后面，使用NULLS LAST。
-  排序的条件可以指定单个或多个列，可以使用原始列名，列名别名，也可以使用位置position，使用位置时是在select语句中出现的位置顺序。
-- SLIMIT 控制输出分片数量，结合PARTITION BY子句使用。有ORDER BY子句时只输出一个分片，使用SOFFSET指定偏移开始位置，如SLIMIT 5 SOFFSET 2，表示输出第3个到第7个分片，可以简写为 SLIMIT 2, 5。
-- LIMIT 控制输出条数，使用OFFSET指定偏移开始位置，如LIMIT 5 OFFSET 2，表示输出第3到第7条数据，可以简写为 LIMIT 2, 5。
+- interp_clause 指定时间截面的记录值或者插值，RANGE 指定插值的时间范围，若开始和结束时间没有指定，或者为 0，时间范围为输入数据时间范围。EVERY 指定输出数据时间间隔，没有指定则只输出一条记录。FILL 指定插值类型，类型范围为 VALUE，NULL，PREV，NEXT，LINEAR。
+- partition_by_expr 指定数据切片条件，切片内的数据会独立进行计算。可以按照原始列名，列名别名，或者使用在 select 语句出现的位置。
+- group_by_expr 指定分组聚合条件，可以按照原始列名，列名别名，或者使用在 select 语句出现的位置。
+- order_expr 指定数据排序规则，可以是升序 ASC 或者降序 DESC，不指定默认为升序。有空值时可以选择将空值放在前面，使用 NULLS FIRST 或者放在后面，使用 NULLS LAST。
+  排序的条件可以指定单个或多个列，可以使用原始列名，列名别名，也可以使用位置 position，使用位置时是在 select 语句中出现的位置顺序。
+- SLIMIT 控制输出分片数量，结合 PARTITION BY 子句使用。有 ORDER BY 子句时只输出一个分片，使用 SOFFSET 指定偏移开始位置，如 SLIMIT 5 SOFFSET 2，表示输出第 3 个到第 7 个分片，可以简写为 SLIMIT 2, 5。
+- LIMIT 控制输出条数，使用 OFFSET 指定偏移开始位置，如 LIMIT 5 OFFSET 2，表示输出第 3 到第 7 条数据，可以简写为 LIMIT 2, 5。
 
 ## 列表
 
