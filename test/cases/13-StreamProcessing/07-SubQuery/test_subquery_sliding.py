@@ -425,7 +425,7 @@ class TestStreamSubquerySliding:
             res_query="select `sum(cint)`, `avg(cint)` from rdb.r33 where tbn = 1 limit 1",
             exp_query="select sum(cint), avg(cint) from qdb.meters where tint=1 and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' interval(1m) limit 1 offset 4",
         )
-        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug9.py
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=34,
@@ -890,7 +890,7 @@ class TestStreamSubquerySliding:
             res_query="select * from rdb.r91",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug8.py
+        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug6.py
 
         stream = StreamItem(
             id=92,
