@@ -2,6 +2,7 @@ use std::sync::{Arc, Weak};
 use std::time::Duration;
 
 use anyhow::{Context, bail};
+use archive::{Archive, ArchiveConsumer, ArchiveType, Cache};
 use arrow::{datatypes::Schema, record_batch::RecordBatch};
 use arrow_flight::{FlightData, PutResult, decode::DecodedFlightData};
 use bytes::Bytes;
@@ -12,11 +13,10 @@ use serde::{Deserialize, Serialize};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taoslog::QidManager;
 use taoslog::utils::{QidMetadataGetter, QidMetadataSetter};
-use taosx_core::core_metrics::{TaskMetrics, init_task_metrics};
+use taosx_core::core_metrics::{TaskMetrics, get_metrics_arc_from_i64, init_task_metrics};
 use taosx_core::sink::{handle_point_message_init, read_cache_and_rewrite};
 use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::trace::Qid;
-use taosx_core::{ArchiveConsumer, ArchiveType};
 use taosx_core::{
     ConnectorLicense, IpcStreamWorker, Parser,
     core_metrics::get_metrics,
@@ -103,7 +103,7 @@ async fn ipc_stream_writer(
     abort_message_tx: flume::Sender<Result<PutResult, Status>>,
     ipc_error_strategy: IpcErrorStrategy,
     notify: Arc<tokio::sync::Notify>,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     let cancellation = tokio_util::sync::CancellationToken::new();
     let _drop_guard = cancellation.clone().drop_guard();
@@ -352,7 +352,7 @@ async fn spawn_stream_writer(
     notify_sender: AgentNotifySender,
     spawn_sender: AgentSpawnSender,
     schema: Arc<Schema>,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<PutStreamChannel> {
     let task = controller
         .get(task_id)
@@ -784,7 +784,7 @@ impl PutStream {
             .await
             .map_err(|err| Status::internal(err.to_string()))?
             .ok_or_else(|| anyhow::format_err!("Cannot find task {}", task_id))?;
-        let parser = task
+        let parser: Option<Parser> = task
             .parser
             .as_ref()
             .map(|v| serde_json::from_value(v.clone()).unwrap());
@@ -801,9 +801,22 @@ impl PutStream {
                 tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
             });
             if parser_clone.is_some() {
-                ArchiveConsumer::new(task_id, parser_clone)
-                    .consume(archive_rx)
-                    .await
+                let (cache, archive) = match parser_clone {
+                    Some(parser) => (
+                        parser.global().process_on_abnormal.cache.clone(),
+                        parser.global().process_on_abnormal.archive.clone(),
+                    ),
+                    None => (Cache::default(), Archive::default()),
+                };
+                let metrics = get_metrics_arc_from_i64(Some(task_id)).await;
+
+                ArchiveConsumer::new(task_id, cache, archive, |num_rows: u64| {
+                    let metrics = metrics.ipc();
+                    metrics.add_archived_rows(num_rows);
+                    Ok::<_, anyhow::Error>(())
+                })
+                .consume(archive_rx)
+                .await
             } else {
                 loop {
                     tokio::select! {

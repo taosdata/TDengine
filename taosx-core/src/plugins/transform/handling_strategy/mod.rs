@@ -1,13 +1,9 @@
 use anyhow::Context;
-use archive::Archive;
-use cache::Cache;
+use archive::{Archive, Cache};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use taos::Itertools;
 use tinytemplate::TinyTemplate;
-
-pub mod archive;
-pub mod cache;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]

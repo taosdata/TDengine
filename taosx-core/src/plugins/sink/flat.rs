@@ -9,6 +9,7 @@ use std::{
 };
 
 use anyhow::Context;
+use archive::ArchiveType;
 use arrow::array::{Array, RecordBatch, StringArray, TimestampNanosecondArray};
 use arrow_schema::{ArrowError, Field};
 use async_backtrace::framed;
@@ -36,8 +37,8 @@ use crate::{
         get_primary_timestamp_ns, parse::ArrayForTaos, MessageArrowRecords, MessageTableMeta,
     },
     sink::{
-        consume_flat_record, persist::get_stream, transform::handling_strategy::HandlingResult,
-        DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+        consume_flat_record, persist::get_stream, process_archive, process_cache,
+        transform::handling_strategy::HandlingResult, DEFAULT_MAX_RETRIES_FOR_CONNECTION,
     },
     utils::{
         sql::{
@@ -46,17 +47,14 @@ use crate::{
         },
         trace::{BatchCounter, Qid},
     },
-    ArchiveType, Parser,
+    Parser,
 };
 
 use crate::global::SQL_TAG_CACHE_CAPACITY;
 use crate::global::TABLE_TAG_CACHE;
 
 use super::{
-    ipc_metric::IpcMetrics,
-    persist::PersistComponent,
-    transform::{archive_records, TableOptions},
-    IpcErrorStrategy,
+    ipc_metric::IpcMetrics, persist::PersistComponent, transform::TableOptions, IpcErrorStrategy,
 };
 
 /// All the messages should be in the same stable.
@@ -433,7 +431,7 @@ pub async fn flat_write_with_sql(
     _notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
     global: &TableOptions,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<usize> {
     // define a macro to handle the success
     macro_rules! metrics_success {
@@ -858,7 +856,7 @@ async fn handle_primary_timestamp_null_and_rewrite(
     stable: &str,
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<bool> {
     let mut success = true;
     // loop the batches
@@ -947,7 +945,7 @@ async fn handle_field_length_overflow_and_rewrite(
     field: &str,
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<bool> {
     let mut success = true;
     // get the length of the field
@@ -1264,7 +1262,7 @@ async fn handle_ingesting_error(
     global: &TableOptions,
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     match global
         .process_on_abnormal
@@ -1303,7 +1301,7 @@ pub async fn flat_write_with_raw_block(
     notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
     global: &TableOptions,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<usize> {
     // define a macro to handle the error
     macro_rules! metrics_failed {
@@ -2052,7 +2050,7 @@ pub async fn handling_database_not_exist(
     global: &TableOptions,
     messages: &[MessageArrowRecords],
     err: taos::Error,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     match global
         .process_on_abnormal
@@ -2081,32 +2079,6 @@ pub async fn handling_database_not_exist(
     Ok(())
 }
 
-fn process_cache(
-    batch: &RecordBatch,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
-) -> anyhow::Result<()> {
-    if batch.num_rows() > 0 {
-        archive_tx.send((ArchiveType::Cache, batch.clone()))?;
-    }
-    Ok(())
-}
-
-fn process_archive(
-    err: &str,
-    batch: &RecordBatch,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
-) -> anyhow::Result<()> {
-    // possible difference in schema, so archive them separately
-    let err_vec = vec![err.to_string(); batch.num_rows()];
-    let err_timestamp_vec = vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
-    archive_records(
-        batch,
-        err_vec.clone(),
-        err_timestamp_vec.clone(),
-        archive_tx.clone(),
-    )
-}
-
 pub type FlatItem = (
     Vec<MessageArrowRecords>,
     Qid,
@@ -2130,7 +2102,7 @@ impl FlatSink {
         metrics_arc: Arc<CoreMetrics>,
         notifier: crate::TaskNotifySender,
         cancel: CancellationToken,
-        archive_tx: Sender<(ArchiveType, RecordBatch)>,
+        archive_tx: Sender<ArchiveType>,
     ) -> anyhow::Result<Self> {
         let workers = parser.global().workers_per_vgroup();
         let taos = pool.get().await?;
@@ -2454,7 +2426,7 @@ async fn consume_flat_record_with_sink(
     batch: &RecordBatch,
     count: &mut usize,
     parser: &Parser,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     let batch = parser.parse_message_from_records(batch, true, archive_tx.clone())?;
 
@@ -2482,7 +2454,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
@@ -2669,7 +2641,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
@@ -2812,7 +2784,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
     let count = Arc::new(AtomicUsize::new(0));

@@ -57,7 +57,7 @@ scc = { workspace = true, features = ["serde"] }
 semver = { version = "1.0.22" }
 serde = { workspace = true, features = ["derive"] }
 sha2 = "0.10"
-thiserror = "1"
+thiserror = { workspace = true }
 tokio = { workspace = true, features = [
   "rt",
   "rt-multi-thread",
@@ -177,6 +177,7 @@ zstd = "0.13.2"
 awaitgroup = "0.7.0"
 
 persist-queue = { path = "../crates/persist-queue" }
+archive = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }

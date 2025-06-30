@@ -457,6 +457,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "archive"
+version = "1.10.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "bytes",
+ "faststr",
+ "flume",
+ "futures",
+ "parquet",
+ "regex",
+ "rotate-file",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "arraydeque"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2560,6 +2580,18 @@ dependencies = [
  "log",
  "regex",
  "sqlparser",
+]
+
+[[package]]
+name = "dateparser"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2ef451feee09ae5ecd8a02e738bd9adee9266b8fa9b44e22d3ce968d8694238"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "lazy_static",
+ "regex",
 ]
 
 [[package]]
@@ -7141,6 +7173,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "rotate-file"
+version = "1.10.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "chrono-tz 0.8.6",
+ "dateparser",
+ "faststr",
+ "flume",
+ "futures",
+ "once_cell",
+ "regex",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "rsa"
 version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8727,6 +8777,7 @@ dependencies = [
  "actix-web",
  "actix-ws",
  "anyhow",
+ "archive",
  "arrow",
  "arrow-flight",
  "assert_cmd",
@@ -8855,6 +8906,7 @@ version = "1.10.0"
 dependencies = [
  "actix-web",
  "anyhow",
+ "archive",
  "arrow",
  "arrow-cast-guess-precision",
  "arrow-compute-ext",

@@ -144,12 +144,16 @@ async fn task_opts_init(
                 let mut parser = parser;
                 parser.set_maximum_timestamp(maximum_timestamp);
                 parser.set_minimum_timestamp(minimum_timestamp);
+                parser.organize_archive(task.id);
+                parser.organize_cache(task.id);
                 plugins::Parser::Inner(parser)
             }
             plugins::Parser::WithSample { parser, input } => {
                 let mut parser = parser;
                 parser.set_maximum_timestamp(maximum_timestamp);
                 parser.set_minimum_timestamp(minimum_timestamp);
+                parser.organize_archive(task.id);
+                parser.organize_cache(task.id);
                 plugins::Parser::WithSample { parser, input }
             }
         };
