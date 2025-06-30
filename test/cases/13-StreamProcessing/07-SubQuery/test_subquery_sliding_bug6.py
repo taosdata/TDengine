@@ -107,11 +107,9 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=123,
-            stream="create stream rdb.s123 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r123 as select _wstart tw, _wend te, _twstart, _twend, count(c1) c1, sum(c2) c2 from %%trows interval(1m)",
-            res_query="select tw, te, c1, c2 from rdb.r123 where id=1",
-            exp_query="select _wstart, _wend, count(c1), sum(c2) from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(1m);",
-            check_func=self.check123,
+            id=80,
+            stream="create stream rdb.s80 interval(5m) sliding(5m) from tdb.triggers into rdb.r80 as select _twstart, sum(v1), sum(v2) from (select count(c1) v1, sum(c2) v2 from %%trows)",
+            check_func=self.check80,
         )
         self.streams.append(stream)
 
@@ -119,22 +117,17 @@ class TestStreamDevBasic:
         for stream in self.streams:
             stream.createStream()
 
-    def check123(self):
-        tdSql.checkTableSchema(
-            dbname="rdb",
-            tbname="r123",
-            schema=[
-                ["tw", "TIMESTAMP", 8, ""],
-                ["te", "TIMESTAMP", 8, ""],
-                ["_twstart", "TIMESTAMP", 8, ""],
-                ["_twend", "TIMESTAMP", 8, ""],
-                ["c1", "BIGINT", 8, ""],
-                ["c2", "BIGINT", 8, ""],
-                ["id", "INT", 4, "TAG"],
-                ["name", "VARCHAR", 16, "TAG"],
-            ],
-        )
+    def check80(self):
         tdSql.checkResultsByFunc(
-            sql="select * from information_schema.ins_tables where db_name='rdb' and stable_name='r123';",
-            func=lambda: tdSql.getRows() == 3,
+            sql="select * from rdb.r80;",
+            func=lambda: tdSql.getRows() == 7
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 1)
+            and tdSql.compareData(0, 2, 0)
+            and tdSql.compareData(1, 0, "2025-01-01 00:05:00.000")
+            and tdSql.compareData(1, 1, 1)
+            and tdSql.compareData(1, 2, 50)
+            and tdSql.compareData(6, 0, "2025-01-01 00:30:00.000")
+            and tdSql.compareData(6, 1, 2)
+            and tdSql.compareData(6, 2, 620),
         )

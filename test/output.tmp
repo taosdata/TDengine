@@ -1,0 +1,70 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-8.3.5, pluggy-1.5.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /root/TDinternal/community/test
+configfile: pytest.ini
+plugins: xdist-3.6.1, timeout-2.3.1, cov-4.1.0, allure-pytest-2.13.5, Faker-37.0.0
+timeout: 1000.0s
+timeout method: signal
+timeout func_only: False
+collecting ... collected 1 item
+
+cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py::TestStreamOldCaseTwa::test_stream_oldcase_twa [32;20m[2025-06-28 18:51:05] [INFO] conftest.py:106 - rm /root/TDinternal/sim before deploy[0m
+[32;20m[2025-06-28 18:51:05] [INFO] remote.py:67 - cmd on localhost: ps -ef | grep -wi taosd | grep /root/TDinternal/sim/dnode1/cfg | grep -v grep | wc -l[0m
+[32;20m[2025-06-28 18:51:05] [INFO] remote.py:67 - cmd on localhost: ulimit -n 1048576 & screen -L -d -m /root/TDinternal/debug/build/bin/taosd -c /root/TDinternal/sim/dnode1/cfg  [0m
+[32;20m[2025-06-28 18:51:07] [INFO] frame.py:240 - ----------Deploy done----------[0m
+[32;20m[2025-06-28 18:51:07] [INFO] streamUtil.py:997 - stream:twa_error - create database, table, stream[0m
+[32;20m[2025-06-28 18:51:07] [INFO] streamUtil.py:997 - stream:twa_fwc_fill - create database, table, stream[0m
+[32;20m[2025-06-28 18:51:07] [INFO] streamUtil.py:1000 - total:2 cases is running[0m
+[32;20m[2025-06-28 18:51:19] [INFO] streamUtil.py:1005 - stream:twa_error - insert data step 1[0m
+[32;20m[2025-06-28 18:51:19] [INFO] streamUtil.py:1005 - stream:twa_fwc_fill - insert data step 1[0m
+[32;20m[2025-06-28 18:51:19] [INFO] streamUtil.py:1011 - stream:twa_error - check result step 1[0m
+[32;20m[2025-06-28 18:51:19] [INFO] streamUtil.py:1011 - stream:twa_fwc_fill - check result step 1[0m
+[32;20m[2025-06-28 18:51:20] [INFO] sql.py:1616 - ==== check succeed in 1 seconds, rows:5, cols:8, sql:select * from twa_fwc_fill.streamt where ta == 1;[0m
+[32;20m[2025-06-28 18:51:20] [INFO] sql.py:1621 - ==== d[0][0]=2025-06-01 00:00:02 d[0][1]=1.0 d[0][2]=1.0 d[0][3]=0.0 d[0][4]=2025-06-28 18:51:07.969000 d[0][5]=Asia/Shanghai (CST, +0800) d[0][6]=t1 d[0][7]=1 [0m
+[32;20m[2025-06-28 18:51:20] [INFO] sql.py:1621 - ==== d[1][0]=2025-06-01 00:00:04 d[1][1]=10.0 d[1][2]=1.0 d[1][3]=0.0 d[1][4]=2025-06-28 18:51:07.969000 d[1][5]=Asia/Shanghai (CST, +0800) d[1][6]=t1 d[1][7]=1 [0m
+[32;20m[2025-06-28 18:51:20] [INFO] sql.py:1621 - ==== d[2][0]=2025-06-01 00:00:06 d[2][1]=20.0 d[2][2]=2.0 d[2][3]=0.0 d[2][4]=2025-06-28 18:51:07.969000 d[2][5]=Asia/Shanghai (CST, +0800) d[2][6]=t1 d[2][7]=1 [0m
+[32;20m[2025-06-28 18:51:20] [INFO] sql.py:1621 - ==== d[3][0]=2025-06-01 00:00:08 d[3][1]=30.0 d[3][2]=3.0 d[3][3]=0.0 d[3][4]=2025-06-28 18:51:07.969000 d[3][5]=Asia/Shanghai (CST, +0800) d[3][6]=t1 d[3][7]=1 [0m
+[32;20m[2025-06-28 18:51:20] [INFO] sql.py:1621 - ==== d[4][0]=2025-06-01 00:00:10 d[4][1]=40.0 d[4][2]=4.0 d[4][3]=0.0 d[4][4]=2025-06-28 18:51:07.969000 d[4][5]=Asia/Shanghai (CST, +0800) d[4][6]=t1 d[4][7]=1 [0m
+[32;20m[2025-06-28 18:51:20] [INFO] sql.py:1616 - ==== check succeed in 0 seconds, rows:5, cols:8, sql:select * from twa_fwc_fill.streamt where ta == 2;[0m
+[32;20m[2025-06-28 18:51:20] [INFO] sql.py:1621 - ==== d[0][0]=2025-06-01 00:00:04 d[0][1]=1.0 d[0][2]=1.0 d[0][3]=0.0 d[0][4]=2025-06-28 18:51:07.969000 d[0][5]=Asia/Shanghai (CST, +0800) d[0][6]=t2 d[0][7]=2 [0m
+[32;20m[2025-06-28 18:51:20] [INFO] sql.py:1621 - ==== d[1][0]=2025-06-01 00:00:06 d[1][1]=10.0 d[1][2]=1.0 d[1][3]=0.0 d[1][4]=2025-06-28 18:51:07.969000 d[1][5]=Asia/Shanghai (CST, +0800) d[1][6]=t2 d[1][7]=2 [0m
+[32;20m[2025-06-28 18:51:20] [INFO] sql.py:1621 - ==== d[2][0]=2025-06-01 00:00:08 d[2][1]=20.0 d[2][2]=2.0 d[2][3]=0.0 d[2][4]=2025-06-28 18:51:07.969000 d[2][5]=Asia/Shanghai (CST, +0800) d[2][6]=t2 d[2][7]=2 [0m
+[32;20m[2025-06-28 18:51:20] [INFO] sql.py:1621 - ==== d[3][0]=2025-06-01 00:00:10 d[3][1]=30.0 d[3][2]=3.0 d[3][3]=0.0 d[3][4]=2025-06-28 18:51:07.969000 d[3][5]=Asia/Shanghai (CST, +0800) d[3][6]=t2 d[3][7]=2 [0m
+[32;20m[2025-06-28 18:51:20] [INFO] sql.py:1621 - ==== d[4][0]=2025-06-01 00:00:12 d[4][1]=40.0 d[4][2]=4.0 d[4][3]=0.0 d[4][4]=2025-06-28 18:51:07.969000 d[4][5]=Asia/Shanghai (CST, +0800) d[4][6]=t2 d[4][7]=2 [0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1017 - stream:twa_error - insert data step 2[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1017 - stream:twa_fwc_fill - insert data step 2[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1023 - stream:twa_error - check result step 2[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1023 - stream:twa_fwc_fill - check result step 2[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1029 - stream:twa_error - insert data step 3[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1029 - stream:twa_fwc_fill - insert data step 3[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1035 - stream:twa_error - check result step 3[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1035 - stream:twa_fwc_fill - check result step 3[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1041 - stream:twa_error - insert data step 4[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1041 - stream:twa_fwc_fill - insert data step 4[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1047 - stream:twa_error - check result step 4[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1047 - stream:twa_fwc_fill - check result step 4[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1053 - stream:twa_error - insert data step 5[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1053 - stream:twa_fwc_fill - insert data step 5[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1059 - stream:twa_error - check result step 5[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1059 - stream:twa_fwc_fill - check result step 5[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1065 - stream:twa_error - insert data step 6[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1065 - stream:twa_fwc_fill - insert data step 6[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1071 - stream:twa_error - check result step 6[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1071 - stream:twa_fwc_fill - check result step 6[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1077 - stream:twa_error - insert data step 7[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1077 - stream:twa_fwc_fill - insert data step 7[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1083 - stream:twa_error - check result step 7[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1083 - stream:twa_fwc_fill - check result step 7[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1089 - stream:twa_error - insert data step 8[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1089 - stream:twa_fwc_fill - insert data step 8[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1095 - stream:twa_error - check result step 8[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1095 - stream:twa_fwc_fill - check result step 8[0m
+[32;20m[2025-06-28 18:51:20] [INFO] streamUtil.py:1099 - total:2 streams check successfully[0m
+PASSED[32;20m[2025-06-28 18:51:20] [INFO] conftest.py:290 - successfully executed[0m
+[32;20m[2025-06-28 18:51:20] [INFO] remote.py:67 - cmd on localhost: ps -ef | grep -wi taosd | grep /root/TDinternal/sim/dnode1/cfg | grep -v grep | wc -l[0m
+[32;20m[2025-06-28 18:51:20] [INFO] remote.py:67 - cmd on localhost: ps -ef | grep -wi taosd | grep /root/TDinternal/sim/dnode1/cfg | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1[0m
+[32;20m[2025-06-28 18:51:20] [INFO] frame.py:219 - ----------Destroy done----------[0m
+
+
+============================== 1 passed in 14.66s ==============================
