@@ -202,6 +202,7 @@ class BeforeTest:
         taoskeeper_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taoskeeper_config.yaml'))
         servers = []
         port_base = dnode_config_template["port"] if "port" in dnode_config_template else 6030
+        yaml_data["settings"][0]["spec"]["config"]["firstEP"] = f"localhost:{port_base}"
         mqttport_base = dnode_config_template["mqttPort"] if "mqttPort" in dnode_config_template else 6083
         for i in range(request.session.denodes_num):
             dnode_cfg_path = os.path.join(work_dir, f"dnode{i+1}", "cfg")
@@ -271,7 +272,7 @@ class BeforeTest:
                     "config_file": adapter_config_file,
                     "adapter_config": adapter_config,
                     "taos_config": {
-                        "firstEP": "localhost:6030",
+                        "firstEP": f"localhost:{port_base}",
                         "logDir": taos_log_dir
                     },
                     "taosadapterPath": os.path.join(request.session.taos_bin_path, "taosadapter")
@@ -287,7 +288,7 @@ class BeforeTest:
             adapter["port"] = 6041
             adapter["logLevel"] = "info"
             adapter["log_path"] = adapter_log_dir
-            adapter["taos_firstEP"] = "localhost:6030"
+            adapter["taos_firstEP"] = f"localhost:{port_base}"
             adapter["taos_logDir"] = taos_log_dir
             request.session.adapter = adapter
         if request.session.set_taoskeeper:
@@ -308,7 +309,7 @@ class BeforeTest:
                     "config_file": taoskeeper_config_file,
                     "taoskeeper_config": taoskeeper_config,
                     "taos_config": {
-                        "firstEP": "localhost:6030",
+                        "firstEP": f"localhost:{port_base}",
                         "logDir": taos_log_dir
                     },
                     "taoskeeperPath": os.path.join(request.session.taos_bin_path, "taoskeeper")
