@@ -37,6 +37,7 @@ typedef struct SSTriggerMetaData {
 typedef struct SSTriggerTableMeta {
   int64_t tbUid;
   int32_t vgId;
+  int32_t metaIdx;
   SArray *pMetas;  // SArray<SSTriggerMetaData>
 } SSTriggerTableMeta;
 

@@ -444,7 +444,10 @@ static int32_t vnodePreProcessDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   SEncoder  *pCoder = &(SEncoder){0};
   SDeleteRes res = {0};
 
-  SReadHandle handle = {.vnode = pVnode, .pMsgCb = &pVnode->msgCb, .skipRollup = 1};
+  SReadHandle handle = {0};
+  handle.vnode = pVnode;
+  handle.pMsgCb = &pVnode->msgCb;
+  handle.skipRollup = 1;
   initStorageAPI(&handle.api);
 
   code = qWorkerProcessDeleteMsg(&handle, pVnode->pQuery, pMsg, &res);
@@ -837,7 +840,10 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     return 0;
   }
 
-  SReadHandle handle = {.vnode = pVnode, .pMsgCb = &pVnode->msgCb, .pWorkerCb = pInfo->workerCb};
+  SReadHandle handle = {0};
+  handle.vnode = pVnode;
+  handle.pMsgCb = &pVnode->msgCb;
+  handle.pWorkerCb = pInfo->workerCb;
   initStorageAPI(&handle.api);
   int32_t code = TSDB_CODE_SUCCESS;
   bool    redirected = false;

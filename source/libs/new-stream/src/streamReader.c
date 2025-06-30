@@ -160,6 +160,7 @@ static void destroyCondition(SNode* pCond) {
   if (pCond == NULL) return;
   if (nodeType(pCond) == QUERY_NODE_LOGIC_CONDITION) {
     nodesClearList(((SLogicConditionNode*)(pCond))->pParameterList);
+    ((SLogicConditionNode*)(pCond))->pParameterList = NULL;
     nodesDestroyNode(pCond);
   }
 }
@@ -412,7 +413,7 @@ static SStreamTriggerReaderCalcInfo* createStreamReaderCalcInfo(const SStreamRea
 
   STREAM_CHECK_RET_GOTO(nodesStringToNode(pMsg->msg.calc.calcScanPlan, (SNode**)(&sStreamReaderCalcInfo->calcAst)));
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo->calcAst, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
-  if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(sStreamReaderCalcInfo->calcAst->pNode) &&
+  if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(sStreamReaderCalcInfo->calcAst->pNode) ||
       QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == nodeType(sStreamReaderCalcInfo->calcAst->pNode)){
     SNodeList* pScanCols = ((STableScanPhysiNode*)(sStreamReaderCalcInfo->calcAst->pNode))->scan.pScanCols;
     SNode*     nodeItem = NULL;

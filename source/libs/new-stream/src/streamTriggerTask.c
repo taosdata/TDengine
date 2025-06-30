@@ -431,46 +431,48 @@ static void stRealtimeGroupClearTemp(SSTriggerRealtimeGroup *pGroup) {
   }
 }
 
-static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SSDataBlock *pDataMeta) {
+static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SSDataBlock *pMetaDataBlock) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SSTriggerRealtimeContext *pContext = pGroup->pContext;
   SStreamTriggerTask       *pTask = pContext->pTask;
   SSTriggerTableMeta       *pTableMeta = NULL;
-  bool                      hasNewMetaData = false;
+  SSHashObj                *pAddedUids = NULL;
 
-  QUERY_CHECK_NULL(pDataMeta, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pMetaDataBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
     pGroup->oldThreshold = INT64_MIN;
   }
 
   pGroup->newThreshold = pGroup->oldThreshold;
+  pAddedUids = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  QUERY_CHECK_NULL(pAddedUids, code, lino, _end, terrno);
 
   int32_t          iCol = 0;
-  SColumnInfoData *pTypeCol = taosArrayGet(pDataMeta->pDataBlock, iCol++);
+  SColumnInfoData *pTypeCol = taosArrayGet(pMetaDataBlock->pDataBlock, iCol++);
   QUERY_CHECK_NULL(pTypeCol, code, lino, _end, terrno);
   uint8_t         *pTypes = (uint8_t *)pTypeCol->pData;
-  SColumnInfoData *pGidCol = taosArrayGet(pDataMeta->pDataBlock, iCol++);
+  SColumnInfoData *pGidCol = taosArrayGet(pMetaDataBlock->pDataBlock, iCol++);
   QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
   int64_t         *pGids = (int64_t *)pGidCol->pData;
-  SColumnInfoData *pUidCol = taosArrayGet(pDataMeta->pDataBlock, iCol++);
+  SColumnInfoData *pUidCol = taosArrayGet(pMetaDataBlock->pDataBlock, iCol++);
   QUERY_CHECK_NULL(pUidCol, code, lino, _end, terrno);
   int64_t         *pUids = (int64_t *)pUidCol->pData;
-  SColumnInfoData *pSkeyCol = taosArrayGet(pDataMeta->pDataBlock, iCol++);
+  SColumnInfoData *pSkeyCol = taosArrayGet(pMetaDataBlock->pDataBlock, iCol++);
   QUERY_CHECK_NULL(pSkeyCol, code, lino, _end, terrno);
   int64_t         *pSkeys = (int64_t *)pSkeyCol->pData;
-  SColumnInfoData *pEkeyCol = taosArrayGet(pDataMeta->pDataBlock, iCol++);
+  SColumnInfoData *pEkeyCol = taosArrayGet(pMetaDataBlock->pDataBlock, iCol++);
   QUERY_CHECK_NULL(pEkeyCol, code, lino, _end, terrno);
   int64_t         *pEkeys = (int64_t *)pEkeyCol->pData;
-  SColumnInfoData *pVerCol = taosArrayGet(pDataMeta->pDataBlock, iCol++);
+  SColumnInfoData *pVerCol = taosArrayGet(pMetaDataBlock->pDataBlock, iCol++);
   QUERY_CHECK_NULL(pVerCol, code, lino, _end, terrno);
   int64_t         *pVers = (int64_t *)pVerCol->pData;
-  SColumnInfoData *pNrowsCol = taosArrayGet(pDataMeta->pDataBlock, iCol++);
+  SColumnInfoData *pNrowsCol = taosArrayGet(pMetaDataBlock->pDataBlock, iCol++);
   QUERY_CHECK_NULL(pNrowsCol, code, lino, _end, terrno);
   int64_t *pNrows = (int64_t *)pNrowsCol->pData;
 
-  int32_t numNewMeta = blockDataGetNumOfRows(pDataMeta);
+  int32_t numNewMeta = blockDataGetNumOfRows(pMetaDataBlock);
   for (int32_t i = 0; i < numNewMeta; i++) {
     bool inGroup = false;
     if (pTask->isVirtualTable) {
@@ -499,7 +501,8 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SSDat
     }
 
     if (pEkeys[i] > pGroup->oldThreshold) {
-      hasNewMetaData = true;
+      code = tSimpleHashPut(pAddedUids, &pUids[i], sizeof(int64_t), NULL, 0);
+      QUERY_CHECK_CODE(code, lino, _end);
       if (pTableMeta == NULL || pTableMeta->tbUid != pUids[i]) {
         pTableMeta = tSimpleHashGet(pGroup->pTableMetas, &pUids[i], sizeof(int64_t));
         if (pTableMeta == NULL) {
@@ -555,21 +558,16 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SSDat
     }
   }
 
-  if (!hasNewMetaData) {
-    // no new metadata to process
-    goto _end;
-  }
-
   int32_t iter = 0;
-  taosSort(pUids, numNewMeta, sizeof(int64_t), compareInt64Val);
-  for (int32_t i = 0; i < numNewMeta; i++) {
-    if (i == 0 || pUids[i] != pUids[i - 1]) {
-      pTableMeta = tSimpleHashGet(pGroup->pTableMetas, &pUids[i], sizeof(int64_t));
-      if (pTableMeta == NULL) {
-        continue;
-      }
-      taosArraySort(pTableMeta->pMetas, stRealtimeGroupMetaDataCompare);
-      while (TARRAY_SIZE(pTableMeta->pMetas) > 0) {
+  void   *px = tSimpleHashIterate(pAddedUids, NULL, &iter);
+  while (px != NULL) {
+    int64_t uid = *(int64_t *)tSimpleHashGetKey(px, NULL);
+    pTableMeta = tSimpleHashGet(pGroup->pTableMetas, &uid, sizeof(int64_t));
+    if (pTableMeta->metaIdx < TARRAY_SIZE(pTableMeta->pMetas)) {
+      SSTriggerMetaData *pMeta = TARRAY_DATA(pTableMeta->pMetas);
+      taosSort(pMeta + pTableMeta->metaIdx, TARRAY_SIZE(pTableMeta->pMetas) - pTableMeta->metaIdx,
+               sizeof(SSTriggerMetaData), stRealtimeGroupMetaDataCompare);
+      while (TARRAY_SIZE(pTableMeta->pMetas) > pTableMeta->metaIdx) {
         SSTriggerMetaData *pMeta = taosArrayGetLast(pTableMeta->pMetas);
         if (pMeta->skey != INT64_MAX || pMeta->ekey != INT64_MAX) {
           break;
@@ -578,6 +576,7 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SSDat
         TARRAY_SIZE(pTableMeta->pMetas)--;
       }
     }
+    px = tSimpleHashIterate(pAddedUids, px, &iter);
   }
 
   if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
@@ -590,7 +589,7 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SSDat
   int32_t maxNumHold = 0;
   pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
   while (pTableMeta != NULL) {
-    maxNumHold = TMAX(maxNumHold, TARRAY_SIZE(pTableMeta->pMetas));
+    maxNumHold = TMAX(maxNumHold, TARRAY_SIZE(pTableMeta->pMetas) - pTableMeta->metaIdx);
     pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, pTableMeta, &iter);
   }
   if (maxNumHold < pContext->minMetaThreshold) {
@@ -602,7 +601,7 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SSDat
   pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
   pGroup->newThreshold = INT64_MAX;
   while (pTableMeta != NULL) {
-    if (TARRAY_SIZE(pTableMeta->pMetas) >= numHoldThreshold) {
+    if (TARRAY_SIZE(pTableMeta->pMetas) - pTableMeta->metaIdx >= numHoldThreshold) {
       SSTriggerMetaData *pMeta = taosArrayGetLast(pTableMeta->pMetas);
       pGroup->newThreshold = TMIN(pGroup->newThreshold, pMeta->ekey - pTask->watermark);
     }
@@ -611,6 +610,9 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SSDat
   QUERY_CHECK_CONDITION(pGroup->newThreshold != INT64_MAX, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
 _end:
+  if (pAddedUids == NULL) {
+    tSimpleHashCleanup(pAddedUids);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -2094,9 +2096,9 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   code = tmsgSendReq(&pCalcRunner->addr.epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
-  
+
   ST_TASK_DLOG("calc request is sent to node:%d task:%" PRIx64, pCalcRunner->addr.nodeId, pCalcRunner->addr.taskId);
-               
+
   pContext->pCalcReq = NULL;
 
 _end:
@@ -2260,21 +2262,18 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     TD_DLIST_POP(&pContext->groupsToCheck, pGroup);
 
     // clear wal meta and update threshold
-    int64_t endTime = pGroup->newThreshold;
-    if ((pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) && IS_REALTIME_GROUP_OPEN_WINDOW(pGroup)) {
-      endTime = TRINGBUF_FIRST(&pGroup->winBuf).range.skey - 1;
-    }
     int32_t             iter = 0;
     SSTriggerTableMeta *pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
     while (pTableMeta != NULL) {
-      int32_t metaIdx = taosArraySearchIdx(pTableMeta->pMetas, &endTime, stRealtimeGroupMetaDataSearch, TD_GT);
-      taosArrayPopFrontBatch(pTableMeta->pMetas, metaIdx);
-      for (int32_t j = 0; j < TARRAY_SIZE(pTableMeta->pMetas); j++) {
-        SSTriggerMetaData *pMeta = TARRAY_GET_ELEM(pTableMeta->pMetas, j);
-        if (pMeta->skey <= endTime) {
-          pMeta->skey = endTime + 1;
-          SET_TRIGGER_META_SKEY_INACCURATE(pMeta);
-        }
+      if ((pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) && IS_REALTIME_GROUP_OPEN_WINDOW(pGroup)) {
+        int64_t endTime = TRINGBUF_FIRST(&pGroup->winBuf).range.skey - 1;
+        int32_t idx = taosArraySearchIdx(pTableMeta->pMetas, &endTime, stRealtimeGroupMetaDataSearch, TD_GT);
+        taosArrayPopFrontBatch(pTableMeta->pMetas, idx);
+        idx = taosArraySearchIdx(pTableMeta->pMetas, &pGroup->newThreshold, stRealtimeGroupMetaDataSearch, TD_GT);
+        pTableMeta->metaIdx = (idx == -1) ? TARRAY_SIZE(pTableMeta->pMetas) : idx;
+      } else {
+        taosArrayClear(pTableMeta->pMetas);
+        pTableMeta->metaIdx = 0;
       }
       pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, pTableMeta, &iter);
     }

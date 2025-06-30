@@ -25,7 +25,7 @@ class TestStreamperiodTrigger:
     queryIdx = 0
     periodList = [1, 10, 100, 1000]
     tableList = []
-    runCaseList = ["0-0-0-10-14","0-0-0-10-15" ]
+    runCaseList = ["0-0-0-11-14" ]
     streamSql = ""
     querySql = ""
     querySqls = [ # (SQL, (minPartitionColNum, partitionByTbname), PositiveCase)
@@ -101,6 +101,7 @@ class TestStreamperiodTrigger:
         "0-0-0-9-15": [-1, None, True, [], ""],
         "0-0-0-10-14": [-1, None, True, [], ""],
         "0-0-0-10-15": [-1, None, True, [], ""],
+        "0-0-0-11-14": [-1, None, True, [], ""],
     }
 
     def setup_class(cls):
@@ -199,6 +200,7 @@ class TestStreamperiodTrigger:
             (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname options(delete_output_table)  into outTbname as querySql ;", (1, True)),#8
             (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname options(LOW_LATENCY_CALC) into outTbname as querySql ;", (1, True)),#9
             (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname options(delete_output_table) into outTbname as querySql ;", (1, True)),#10
+            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname options(delete_recalc) into outTbname as querySql ;", (1, True)),#11
         ]
         
         # tdLog.info(f"createStreamSqls num: {len(createStreamSqls)}")
