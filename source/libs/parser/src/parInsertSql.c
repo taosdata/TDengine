@@ -3571,6 +3571,12 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
   if (TSDB_CODE_SUCCESS == code) {
     code = parseInsertSqlImpl(&context, (SVnodeModifyOpStmt*)((*pQuery)->pRoot));
   }
+
+  SVnodeModifyOpStmt* stmt = (SVnodeModifyOpStmt*)((*pQuery)->pRoot);
+  if(TSDB_CODE_SUCCESS == code && stmt->pTableMeta && (stmt->pTableMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE || stmt->pTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE)) {
+    code = buildInvalidOperationMsg(&context.msg, "Virtual table can not be written");
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = setNextStageInfo(&context, *pQuery, pCatalogReq);
   }
