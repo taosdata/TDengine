@@ -10,6 +10,7 @@
     "thread_count": 3,
     "create_table_thread_count": 1,
     "result_file": "./insert_res_mix2.txt",
+    "result_json_file": "./insert_res_json.txt",
     "confirm_parameter_prompt": "no",
     "insert_interval": 0,
     "check_sql": "yes",

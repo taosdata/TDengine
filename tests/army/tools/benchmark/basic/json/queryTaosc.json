@@ -9,6 +9,7 @@
   "databases": "db",
   "query_times": 2,
   "query_mode": "taosc",
+  "result_json_file":"./query_res.json",
   "specified_table_query": {
     "query_interval": 1,
     "threads": 3,

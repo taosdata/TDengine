@@ -10,8 +10,8 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
- #include "cus_name.h"  // include/util/
- #include <bench.h>
+#include "cus_name.h"  // include/util/
+#include <bench.h>
 #include "benchLog.h"
 #include <toolsdef.h>
 

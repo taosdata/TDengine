@@ -8,6 +8,7 @@
     "thread_count": 4,
     "thread_count_create_tbl": 4,
     "result_file":"./insert_res.txt",
+    "result_json_file":"./insert_res.json",
     "confirm_parameter_prompt": "no", 
     "pre_load_tb_meta": "yes",  
     "insert_interval": 0,

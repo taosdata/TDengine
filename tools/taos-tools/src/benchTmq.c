@@ -392,7 +392,28 @@ int subscribeTestProcess() {
     infoPrintToFile(
                     "Consumed total msgs: %" PRId64 ","
                     "total rows: %" PRId64 "\n", totalMsgs, totalRows);
-
+    
+    if (g_arguments->output_json_file) {
+        tools_cJSON *root = tools_cJSON_CreateObject();
+        if (root) {
+            tools_cJSON_AddNumberToObject(root, "total_msgs", totalMsgs); 
+            tools_cJSON_AddNumberToObject(root, "total_rows", totalRows); 
+            char *jsonStr = tools_cJSON_PrintUnformatted(root);
+            if (jsonStr) {
+                FILE *fp = fopen(g_arguments->output_json_file, "w");
+                if (fp) {
+                    fprintf(fp, "%s\n", jsonStr);
+                    fclose(fp);
+                } else {
+                    errorPrint("Failed to open output JSON file, file name %s\n",
+                            g_arguments->output_json_file);
+                }
+                free(jsonStr);
+            }
+            tools_cJSON_Delete(root);
+        }
+    }
+    
 tmq_over:
     free(pids);
     free(infos);
