@@ -145,7 +145,7 @@ class TestMqttCases:
             if i == 0:
                 firstTbl = f"{ctbName}"
                 print(precision, insertSql)
-                
+
             insertSqls = [insertSql]
 
             tdSql.executes(insertSqls)
