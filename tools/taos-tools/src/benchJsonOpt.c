@@ -2480,7 +2480,7 @@ static int getMetaFromQueryJsonFile(tools_cJSON *json) {
         g_arguments->output_json_file = resultJsonFile->valuestring;
         if (check_write_permission(g_arguments->output_json_file)) {
             errorPrint("json file %s does not have write permission.\n", g_arguments->output_json_file);
-            goto PARSE_OVER;
+            return -1;
         }
     }
 
@@ -2538,7 +2538,7 @@ static int getMetaFromTmqJsonFile(tools_cJSON *json) {
         g_arguments->output_json_file = resultJsonFile->valuestring;
         if (check_write_permission(g_arguments->output_json_file)) {
             errorPrint("json file %s does not have write permission.\n", g_arguments->output_json_file);
-            goto PARSE_OVER;
+            goto TMQ_PARSE_OVER;
         }
     }
 
