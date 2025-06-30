@@ -33,7 +33,7 @@ static void smProcessRunnerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 
   dDebug("msg:%p %d, get from snode-stream-runner queue", pMsg, pMsg->msgType);
   
-  int32_t code = sndProcessStreamMsg(pMgmt->pSnode, pMsg);
+  int32_t code = sndProcessStreamMsg(pMgmt->pSnode, pInfo->workerCb, pMsg);
   if (code < 0) {
     dGError("snd, msg:%p failed to process stream msg %s since %s", pMsg, TMSG_INFO(pMsg->msgType), tstrerror(code));
     smSendRsp(pMsg, terrno);
