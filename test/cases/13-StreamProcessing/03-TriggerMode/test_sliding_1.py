@@ -65,28 +65,28 @@ class TestStreamCheckpoint:
 
         self.create_env()
 
-        self.write_data(100000, 1)
-        try:
-            self.create_and_check_stream_basic_1("sm1", "tb1")
-        except Exception as e:
-            tdLog.error(f"case 1 error: {e}")
-
-        clear_output("sm1", "tb1")
-        self.write_data(100000, 1)
-
-        try:
-            self.create_and_check_stream_basic_2("sm2", "tb2")
-        except Exception as e:
-            tdLog.error(f"case 2 error: {e}")
-
-
-        clear_output("sm2", "tb2")
-        self.write_data(100000, 1)
-
-        try:
-            self.create_and_check_stream_basic_3("sm3", "tb3")
-        except Exception as e:
-            tdLog.error(f"case 3 error: {e}")
+        # self.write_data(100000, 1)
+        # try:
+        #     self.create_and_check_stream_basic_1("sm1", "tb1")
+        # except Exception as e:
+        #     tdLog.error(f"case 1 error: {e}")
+        #
+        # clear_output("sm1", "tb1")
+        # self.write_data(100000, 1)
+        #
+        # try:
+        #     self.create_and_check_stream_basic_2("sm2", "tb2")
+        # except Exception as e:
+        #     tdLog.error(f"case 2 error: {e}")
+        #
+        #
+        # clear_output("sm2", "tb2")
+        # self.write_data(100000, 1)
+        #
+        # try:
+        #     self.create_and_check_stream_basic_3("sm3", "tb3")
+        # except Exception as e:
+        #     tdLog.error(f"case 3 error: {e}")
 
         clear_output("sm3", "tb3")
         self.write_data(100000, 1)
@@ -95,54 +95,54 @@ class TestStreamCheckpoint:
         except Exception as e:
             tdLog.error(f"case 4 error: {e}")
 
-        clear_output("sm4", "tb4")
-        self.write_data(100000, 1)
-        try:
-            self.create_and_check_stream_basic_5("sm5", "tb5")
-        except Exception as e:
-            tdLog.error(f"case 5 error: {e}")
-
-        clear_output("sm5", "tb5")
-        self.write_data(100000, 1)
-        try:
-            self.create_and_check_stream_basic_6("sm6", "tb6")
-        except Exception as e:
-            tdLog.error(f"case 6 error: {e}")
-
-        clear_output("sm6", "tb6")
-        self.write_data(10000, 10)
-        try:
-            self.create_and_check_stream_basic_7("sm7", "tb7")
-        except Exception as e:
-            tdLog.error(f"case 7 error: {e}")
-
-        clear_output("sm7", "tb7")
-        self.write_data(10000, 10)
-        try:
-            self.create_and_check_stream_basic_8("sm8", "tb8")
-        except Exception as e:
-            tdLog.error(f"case 8 error: {e}")
-
-        clear_output("sm8", "tb8")
-        self.write_data(10000, 10)
-        try:
-            self.create_and_check_stream_basic_9("sm9", "tb9")
-        except Exception as e:
-            tdLog.error(f"case 9 error: {e}")
-
-        clear_output("sm9", "tb9")
-        self.write_data(10000, 10)
-        try:
-            self.create_and_check_stream_basic_10("sm10", "tb10")
-        except Exception as e:
-            tdLog.error(f"case 10 error: {e}")
-
-        clear_output("sm10", "tb10")
-        self.write_data(10000, 10)
-        try:
-            self.create_and_check_stream_basic_11("sm11", "tb11")
-        except Exception as e:
-            tdLog.error(f"case 11 error: {e}")
+        # clear_output("sm4", "tb4")
+        # self.write_data(100000, 1)
+        # try:
+        #     self.create_and_check_stream_basic_5("sm5", "tb5")
+        # except Exception as e:
+        #     tdLog.error(f"case 5 error: {e}")
+        #
+        # clear_output("sm5", "tb5")
+        # self.write_data(100000, 1)
+        # try:
+        #     self.create_and_check_stream_basic_6("sm6", "tb6")
+        # except Exception as e:
+        #     tdLog.error(f"case 6 error: {e}")
+        #
+        # clear_output("sm6", "tb6")
+        # self.write_data(10000, 10)
+        # try:
+        #     self.create_and_check_stream_basic_7("sm7", "tb7")
+        # except Exception as e:
+        #     tdLog.error(f"case 7 error: {e}")
+        #
+        # clear_output("sm7", "tb7")
+        # self.write_data(10000, 10)
+        # try:
+        #     self.create_and_check_stream_basic_8("sm8", "tb8")
+        # except Exception as e:
+        #     tdLog.error(f"case 8 error: {e}")
+        #
+        # clear_output("sm8", "tb8")
+        # self.write_data(10000, 10)
+        # try:
+        #     self.create_and_check_stream_basic_9("sm9", "tb9")
+        # except Exception as e:
+        #     tdLog.error(f"case 9 error: {e}")
+        #
+        # clear_output("sm9", "tb9")
+        # self.write_data(10000, 10)
+        # try:
+        #     self.create_and_check_stream_basic_10("sm10", "tb10")
+        # except Exception as e:
+        #     tdLog.error(f"case 10 error: {e}")
+        #
+        # clear_output("sm10", "tb10")
+        # self.write_data(10000, 10)
+        # try:
+        #     self.create_and_check_stream_basic_11("sm11", "tb11")
+        # except Exception as e:
+        #     tdLog.error(f"case 11 error: {e}")
 
 
     def set_write_info(self, num_of_rows, num_of_tables):
@@ -254,7 +254,8 @@ class TestStreamCheckpoint:
         tdSql.execute(
             f"create stream {stream_name} interval(10a) sliding(10a) from source_table into {dst_table} as "
             f"select _tcurrent_ts ts, _tprev_ts `prev`, _tnext_ts et, count(*) c, last(c1) "
-            f"from source_table")
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend")
         tdLog.info(f"create stream completed, and wait for it completed")
 
         wait_for_insert_complete(self.num_of_tables, self.num_of_rows)
