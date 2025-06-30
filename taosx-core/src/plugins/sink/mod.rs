@@ -31,7 +31,7 @@ use std::{
 };
 use taos::{
     taos_query::{common::Describe, Manager},
-    Itertools, Taos, TaosPool, Ty, Value,
+    Itertools, Taos, TaosPool, Value,
 };
 use taoslog::utils::QidMetadataGetter;
 use taoslog::QidManager;
@@ -1849,8 +1849,7 @@ async fn consume_point_record(
                                     }
                                 }
                                 for column_meta in desc {
-                                    if (column_meta.ty == Ty::VarChar
-                                        || column_meta.ty == Ty::NChar)
+                                    if column_meta.ty().is_var_type()
                                         && column_meta.field()
                                             == sql_insertion.modify.value_column_name
                                         && sql_insertion.modify.value_column_length

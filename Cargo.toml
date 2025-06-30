@@ -80,7 +80,7 @@ actix-ws = "0.3.0"
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "e93f352c"
+rev = "399d3ec9"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]
