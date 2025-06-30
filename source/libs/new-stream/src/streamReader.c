@@ -447,12 +447,12 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
 
   pTask->triggerReader = pMsg->triggerReader;
   if (pMsg->triggerReader == 1) {
-    stDebug("triggerScanPlan:%s", (char*)(pMsg->msg.trigger.triggerScanPlan));
-    stDebug("calcCacheScanPlan:%s", (char*)(pMsg->msg.trigger.calcCacheScanPlan));
+    ST_TASK_DLOG("triggerScanPlan:%s", (char*)(pMsg->msg.trigger.triggerScanPlan));
+    ST_TASK_DLOG("calcCacheScanPlan:%s", (char*)(pMsg->msg.trigger.calcCacheScanPlan));
     pTask->info = createStreamReaderInfo(pMsg);
     STREAM_CHECK_NULL_GOTO(pTask->info, terrno);
   } else {
-    stDebug("calcScanPlan:%s", (char*)(pMsg->msg.calc.calcScanPlan));
+    ST_TASK_DLOG("calcScanPlan:%s", (char*)(pMsg->msg.calc.calcScanPlan));
     pTask->info = taosArrayInit(pMsg->msg.calc.execReplica, POINTER_BYTES);
     STREAM_CHECK_NULL_GOTO(pTask->info, terrno);
     for (int32_t i = 0; i < pMsg->msg.calc.execReplica; ++i) {
@@ -461,7 +461,7 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
       STREAM_CHECK_NULL_GOTO(taosArrayPush(pTask->info, &pCalcInfo), terrno);
     }
   }
-  stInfo("stReaderTaskDeploy: stream %" PRIx64 " task %" PRIx64 " vgId:%d pTask:%p, info:%p", pTask->task.streamId,
+  ST_TASK_DLOG("stReaderTaskDeploy: stream %" PRIx64 " task %" PRIx64 " vgId:%d pTask:%p, info:%p", pTask->task.streamId,
          pTask->task.taskId, pTask->task.nodeId, pTask, pTask->info);
 
   pTask->task.status = STREAM_STATUS_INIT;
@@ -524,8 +524,7 @@ void* qStreamGetReaderInfo(int64_t streamId, int64_t taskId, void** taskAddr) {
 end:
   STREAM_PRINT_LOG_END(code, lino);
   if (code == TSDB_CODE_SUCCESS) {
-    // stDebug("stream %" PRIx64 " task %" PRIx64 "  in qStreamGetReaderInfo, pTask:%p, info:%p", streamId, taskId,
-    // pTask, ((SStreamReaderTask*)pTask)->info.triggerReaderInfo);
+    ST_TASK_DLOG("qStreamGetReaderInfo, pTask:%p, info:%p", pTask, ((SStreamReaderTask*)pTask)->info);
     return ((SStreamReaderTask*)pTask)->info;
   }
   terrno = code;
