@@ -528,10 +528,9 @@ class TestStreamSubquerySliding:
         stream = StreamItem(
             id=46,
             stream="create stream rdb.s46 interval(5m) sliding(5m) from tdb.triggers into rdb.r46 as select _twstart ts, count(c1), sum(c2) from %%trows",
-            res_query="select * from rdb.r46",
-            exp_query="select _wstart, count(c1), sum(c2) from tdb.triggers where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(5m);",
+            check_func=self.check46,
         )
-        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug6.py
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=47,
@@ -791,10 +790,11 @@ class TestStreamSubquerySliding:
         stream = StreamItem(
             id=79,
             stream="create stream rdb.s79 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r79 as select _twstart, sum(cdecimal8), count(*), _twrownum from qdb.meters where tbname=%%1 and cts >= _twstart and cts < _twend and _twrownum > 0;",
-            res_query="select `_twstart`, `sum(cdecimal8)`, `count(*)` from rdb.r79 where tag_tbname='t1'",
-            exp_query="select _wstart, sum(cdecimal8), count(*) from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            res_query="select `_twstart`, `sum(cdecimal8)`, `count(*)` from rdb.r79 where tag_tbname='t1' limit 3",
+            exp_query="select _wstart ts, sum(cdecimal8), count(*) from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m) limit 3",
+            check_func=self.check79,
         )
-        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug3.py
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=80,
@@ -999,11 +999,11 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=105,
-            stream="create stream rdb.s105 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r105 as select  c11, c21, _rowts from (select cols(last_row(c0), ts as t1, c1 as c11), cols(first(c0), ts as t2, c1 c21), first(c0)  from test.meters where c0 < 4)",
-            res_query="select * from rdb.r105",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s105 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r105 as select t1, c11, c12, t2, c21, c22, _twstart, _twend from (select cols(last_row(cint), cts as t1, cuint as c11), last_row(cint) c12,  cols(first(cint), cts as t2, cuint c21), first(cint) c22  from qdb.meters where tbname='t1' and cts >= _twstart and cts < _twend)",
+            check_func=self.check105,
         )
-        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug3.py
+        self.streams.append(stream)
+
         stream = StreamItem(
             id=106,
             stream="create stream rdb.s106 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r106 as select varchar+nchar, cint+cuint, ctinyint-cdouble, cfloat*cdouble, cbigint*12, -ctinyint from xx limit 1 offset 1 ",
@@ -1400,6 +1400,21 @@ class TestStreamSubquerySliding:
             ],
         )
 
+    def check46(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from rdb.r46;",
+            func=lambda: tdSql.getRows() == 7
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 1)
+            and tdSql.compareData(0, 2, 0)
+            and tdSql.compareData(1, 0, "2025-01-01 00:05:00.000")
+            and tdSql.compareData(1, 1, 1)
+            and tdSql.compareData(1, 2, 50)
+            and tdSql.compareData(6, 0, "2025-01-01 00:30:00.000")
+            and tdSql.compareData(6, 1, 2)
+            and tdSql.compareData(6, 2, 620),
+        )
+
     def check78(self):
         tdSql.checkTableSchema(
             dbname="rdb",
@@ -1417,6 +1432,24 @@ class TestStreamSubquerySliding:
         tdSql.checkResultsByFunc(
             sql="select count(*) from rdb.r78 where id != 2;",
             func=lambda: tdSql.compareData(0, 0, 7),
+        )
+
+    def check79(self):
+        tdSql.checkResultsByFunc(
+            sql="select `_twstart`, `sum(cdecimal8)`, `count(*)` from rdb.r79 where tag_tbname='t1';",
+            func=lambda: tdSql.getRows() == 7
+            and tdSql.compareData(3, 0, "2025-01-01 00:15:00.000")
+            and tdSql.compareData(3, 1, None)
+            and tdSql.compareData(3, 2, 0)
+            and tdSql.compareData(4, 0, "2025-01-01 00:20:00.000")
+            and tdSql.compareData(4, 1, None)
+            and tdSql.compareData(4, 2, 0)
+            and tdSql.compareData(5, 0, "2025-01-01 00:25:00.000")
+            and tdSql.compareData(5, 1, None)
+            and tdSql.compareData(5, 2, 0)
+            and tdSql.compareData(6, 0, "2025-01-01 00:30:00.000")
+            and tdSql.compareData(6, 1, 56)
+            and tdSql.compareData(6, 2, 10),
         )
 
     def check81(self):
@@ -1449,4 +1482,52 @@ class TestStreamSubquerySliding:
         tdSql.checkResultsByFunc(
             sql="select * from information_schema.ins_tables where db_name='rdb' and stable_name='r123';",
             func=lambda: tdSql.getRows() == 2,
+        )
+
+    def check105(self):
+        tdSql.checkResultsByFunc(
+            sql="select t1, c11, c12, t2, c21, c22 from rdb.r105 where tag_tbname='t1';",
+            func=lambda: tdSql.getRows() == 7
+            and tdSql.compareData(0, 0, "2025-01-01 00:04:30.000")
+            and tdSql.compareData(0, 1, 1)
+            and tdSql.compareData(0, 2, 9)
+            and tdSql.compareData(0, 3, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 4, 0)
+            and tdSql.compareData(0, 5, 0)
+            and tdSql.compareData(1, 0, "2025-01-01 00:09:30.000")
+            and tdSql.compareData(1, 1, 3)
+            and tdSql.compareData(1, 2, 19)
+            and tdSql.compareData(1, 3, "2025-01-01 00:05:00.000")
+            and tdSql.compareData(1, 4, 2)
+            and tdSql.compareData(1, 5, 10)
+            and tdSql.compareData(2, 0, "2025-01-01 00:14:30.000")
+            and tdSql.compareData(2, 1, 1)
+            and tdSql.compareData(2, 2, 29)
+            and tdSql.compareData(2, 3, "2025-01-01 00:10:00.000")
+            and tdSql.compareData(2, 4, 0)
+            and tdSql.compareData(2, 5, 20)
+            and tdSql.compareData(3, 0, "2025-01-01 00:19:30.000")
+            and tdSql.compareData(3, 1, 3)
+            and tdSql.compareData(3, 2, 39)
+            and tdSql.compareData(3, 3, "2025-01-01 00:15:00.000")
+            and tdSql.compareData(3, 4, 2)
+            and tdSql.compareData(3, 5, 30)
+            and tdSql.compareData(4, 0, "2025-01-01 00:24:30.000")
+            and tdSql.compareData(4, 1, 1)
+            and tdSql.compareData(4, 2, 49)
+            and tdSql.compareData(4, 3, "2025-01-01 00:20:00.000")
+            and tdSql.compareData(4, 4, 0)
+            and tdSql.compareData(4, 5, 40)
+            and tdSql.compareData(5, 0, "2025-01-01 00:29:30.000")
+            and tdSql.compareData(5, 1, 3)
+            and tdSql.compareData(5, 2, 59)
+            and tdSql.compareData(5, 3, "2025-01-01 00:25:00.000")
+            and tdSql.compareData(5, 4, 2)
+            and tdSql.compareData(5, 5, 50)
+            and tdSql.compareData(6, 0, "2025-01-01 00:34:30.000")
+            and tdSql.compareData(6, 1, 1)
+            and tdSql.compareData(6, 2, 69)
+            and tdSql.compareData(6, 3, "2025-01-01 00:30:00.000")
+            and tdSql.compareData(6, 4, 0)
+            and tdSql.compareData(6, 5, 60),
         )
