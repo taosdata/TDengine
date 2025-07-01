@@ -420,13 +420,18 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
 
-  STimeWindow    pWinRange = {};
-  bool           isWinRangeValid = false;
-  
-  calcTimeRange((STimeRangeNode*)pInfo->pTimeRange, &pTaskInfo->pStreamRuntimeInfo->funcInfo, &pWinRange, &isWinRangeValid);
+  if (pInfo->pTimeRange != NULL) {
+    STimeWindow pWinRange = {};
+    bool        isWinRangeValid = false;
+    calcTimeRange((STimeRangeNode*)pInfo->pTimeRange, &pTaskInfo->pStreamRuntimeInfo->funcInfo, &pWinRange,
+                  &isWinRangeValid);
 
-  pInfo->win.skey = pWinRange.skey;
-  pInfo->win.ekey = pWinRange.ekey; 
+    if (isWinRangeValid) {
+      pInfo->win.skey = pWinRange.skey;
+      pInfo->win.ekey = pWinRange.ekey;
+    }
+  }
+
   if (pOperator->status == OP_EXEC_DONE) {
     (*ppRes) = NULL;
     return code;
