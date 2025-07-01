@@ -48,6 +48,14 @@ typedef struct SStreamReaderTask {
   void*       info;
 } SStreamReaderTask;
 
+
+typedef struct SSTriggerAHandle {
+  int64_t streamId;
+  int64_t taskId;
+  void*   param;
+} SSTriggerAHandle;
+
+
 typedef struct SStreamRunnerTaskExecution {
   const char        *pPlan;
   void              *pExecutor;

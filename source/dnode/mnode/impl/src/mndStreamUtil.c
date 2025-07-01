@@ -65,18 +65,23 @@ void mstDestroyVgroupStatus(SStmVgroupStatus* pVgStatus) {
 
 void mstDestroySStmTaskToDeployExt(void* param) {
   SStmTaskToDeployExt* pExt = (SStmTaskToDeployExt*)param;
-  if (STREAM_TRIGGER_TASK != pExt->deploy.task.type) {
-    return;
+  switch (pExt->deploy.task.type) {
+    case STREAM_TRIGGER_TASK:
+      taosArrayDestroy(pExt->deploy.msg.trigger.readerList);
+      taosArrayDestroy(pExt->deploy.msg.trigger.runnerList);
+      break;
+    case STREAM_RUNNER_TASK:
+      taosMemoryFree(pExt->deploy.msg.runner.pPlan);
+      break;
+    default:  
+      break;;
   }
-
-  taosArrayDestroy(pExt->deploy.msg.trigger.readerList);
-  taosArrayDestroy(pExt->deploy.msg.trigger.runnerList);
 }
 
 void mstDestroySStmSnodeTasksDeploy(void* param) {
   SStmSnodeTasksDeploy* pSnode = (SStmSnodeTasksDeploy*)param;
   taosArrayDestroyEx(pSnode->triggerList, mstDestroySStmTaskToDeployExt);
-  taosArrayDestroy(pSnode->runnerList);
+  taosArrayDestroyEx(pSnode->runnerList, mstDestroySStmTaskToDeployExt);
 }
 
 void mstDestroySStmVgTasksToDeploy(void* param) {

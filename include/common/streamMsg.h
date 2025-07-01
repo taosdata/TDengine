@@ -362,14 +362,13 @@ typedef struct SStreamMgmtReqCont {
   SArray*            fullTableNames;  // SArray<SStreamDbTableName>, full table names of the original tables
 } SStreamMgmtReqCont;
 
-typedef union SStreamMgmtReq {
+typedef struct SStreamMgmtReq {
   int64_t            reqId;
   SStreamMgmtReqType type;
   SStreamMgmtReqCont cont;
 } SStreamMgmtReq;
 
 typedef void (*taskUndeplyCallback)(void*);
-
 
 typedef struct SStreamTask {
   EStreamTaskType type;
@@ -392,7 +391,7 @@ typedef struct SStreamTask {
 
   SStreamMgmtReq* pMgmtReq;  // request that should be handled by stream mgmt thread
 
-  int64_t         runningStartTs;
+  // FOR LOCAL PART
 
   SRWLatch        entryLock;       
 
@@ -414,7 +413,7 @@ typedef struct SStreamMgmtRspCont {
   SArray*    recalcList;  // SArray<SStreamRecalcReq>
 } SStreamMgmtRspCont;
 
-typedef union SStreamMgmtRsp {
+typedef struct SStreamMgmtRsp {
   SStreamMsg         header;
   int64_t            reqId;
   int32_t            code;
@@ -460,7 +459,7 @@ typedef struct SStreamHbMsg {
 
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq);
 int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq);
-void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg);
+void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg, bool deepClean);
 
 typedef struct {
   char*   triggerTblName;
@@ -515,7 +514,7 @@ typedef struct {
   int8_t fillHistoryFirst;
   int8_t lowLatencyCalc;
   int8_t hasPartitionBy;
-  int8_t triggerTblType;
+  int8_t isTriggerTblVirt;
 
   // notify options
   SArray* pNotifyAddrUrls;
@@ -532,8 +531,9 @@ typedef struct {
   int64_t eventTypes;
   int64_t placeHolderBitmap;
   int16_t tsSlotId;  // only used when using %%trows
-  void*   triggerPrevFilter;  // filter for trigger table
-  void*   calcPlan;  // only for virtual table(child/normal/super) trigger
+  void*   triggerPrevFilter;
+  void*   triggerScanPlan;    // only used for virtual tables
+  void*   calcCacheScanPlan;  // only used for virtual tables
 
   SArray* readerList;  // SArray<SStreamTaskAddr>
   SArray* runnerList;  // SArray<SStreamRunnerTarget>
@@ -624,6 +624,8 @@ typedef struct {
   SStreamMgmtRsps        rsps;
 } SMStreamHbRspMsg;
 
+void tFreeSMStreamHbRspMsg(SMStreamHbRspMsg* pRsp);
+void tDeepFreeSMStreamHbRspMsg(SMStreamHbRspMsg* pRsp);
 int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp);
 int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp);
 
@@ -806,7 +808,7 @@ typedef struct SSTriggerGroupColValueRequest {
 
 typedef struct SSTriggerVirTableInfoRequest {
   SSTriggerPullRequest base;
-  SArray*              cids;  // SArray<int64_t>, col ids of the virtual table
+  SArray*              cids;  // SArray<col_id_t>, col ids of the virtual table
 } SSTriggerVirTableInfoRequest;
 
 typedef struct OTableInfoRsp {

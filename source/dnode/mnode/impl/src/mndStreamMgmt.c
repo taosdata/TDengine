@@ -826,7 +826,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->fillHistoryFirst = pStream->pCreate->fillHistoryFirst;
   pMsg->lowLatencyCalc = pStream->pCreate->lowLatencyCalc;
   pMsg->hasPartitionBy = (pStream->pCreate->partitionCols != NULL);
-  pMsg->triggerTblType = pStream->pCreate->triggerTblType;
+  pMsg->isTriggerTblVirt = STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags);
 
   pMsg->pNotifyAddrUrls = pStream->pCreate->pNotifyAddrUrls;
   pMsg->notifyEventTypes = pStream->pCreate->notifyEventTypes;
@@ -842,10 +842,11 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->eventTypes = pStream->pCreate->eventTypes;
   pMsg->placeHolderBitmap = pStream->pCreate->placeHolderBitmap;
   pMsg->tsSlotId = pStream->pCreate->tsSlotId;
-  if (STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags)) {
-    pMsg->calcPlan = pStream->pCreate->calcPlan;
-  }
   pMsg->triggerPrevFilter = pStream->pCreate->triggerPrevFilter;
+  if (STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags)) {
+    pMsg->triggerScanPlan = pStream->pCreate->triggerScanPlan;
+    pMsg->calcCacheScanPlan = msmSearchCalcCacheScanPlan(pStream->pCreate->calcScanPlanList);
+  }
 
   SStreamTaskAddr addr;
   int32_t triggerReaderNum = taosArrayGetSize(pInfo->trigReaders);
@@ -864,8 +865,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   }
 
   pMsg->leaderSnodeId = pStream->mainSnodeId;
-  pMsg->streamName = taosStrdup(pStream->name);
-  TSDB_CHECK_NULL(pMsg->streamName, code, lino, _exit, terrno);
+  pMsg->streamName = pStream->name;
 
   if (0 == pInfo->runnerNum) {
     mstsDebug("no runner task, skip set trigger's runner list, deployNum:%d", pInfo->runnerDeploys);
@@ -894,8 +894,7 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStrea
   //TAOS_CHECK_EXIT(qSubPlanToString(plan, &pMsg->pPlan, NULL));
 
   pMsg->execReplica = replica;
-  pMsg->streamName = taosStrdup(pStream->name);
-  TSDB_CHECK_NULL(pMsg->streamName, code, lino, _exit, terrno);
+  pMsg->streamName = pStream->name;
   //TAOS_CHECK_EXIT(nodesCloneNode((SNode*)plan, (SNode**)&pMsg->pPlan));
   pMsg->pPlan = plan;
   pMsg->outDBFName = pStream->pCreate->outDB;
@@ -1729,6 +1728,9 @@ int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* 
 
     TAOS_CHECK_EXIT(msmTDAddRunnersToSnodeMap(deployTaskList, pStream));
 
+    nodesDestroyNode((SNode *)pDag);
+    pDag = NULL;
+    
     TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pDag));
 
     mstsDebug("total %d runner tasks added for deploy %d", totalTaskNum, deployId);
@@ -1748,6 +1750,7 @@ _exit:
   }
 
   taosArrayDestroy(deployTaskList);
+  nodesDestroyNode((SNode *)pDag);
 
   return code;
 }
@@ -1874,12 +1877,17 @@ static int32_t msmBuildRunnerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamO
     TSDB_CHECK_NULL(pInfo->runners[i], code, lino, _exit, terrno);
   }
 
-  TAOS_CHECK_EXIT(msmBuildRunnerTasksImpl(pCtx, pPlan, pInfo, pStream));
+  code = msmBuildRunnerTasksImpl(pCtx, pPlan, pInfo, pStream);
+  pPlan = NULL;
+  
+  TAOS_CHECK_EXIT(code);
 
   taosHashClear(mStreamMgmt.toUpdateScanMap);
   mStreamMgmt.toUpdateScanNum = 0;
 
 _exit:
+
+  nodesDestroyNode((SNode *)pPlan);
 
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -3834,7 +3842,6 @@ int32_t msmCheckDeployTrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask, int
   for (int32_t i = 0; i < readerNum; ++i) {
     SStmTaskStatus* pReader = (SStmTaskStatus*)taosArrayGet(pStatus->trigReaders, i);
     if (pReader->id.nodeId == vgId) {
-      TSDB_CHECK_NULL(taosArrayPush(pRsp->cont.vgIds, &vgId), code, lino, _exit, terrno);
       readerExists = true;
       break;
     }
@@ -3882,6 +3889,7 @@ int32_t msmProcessDeployOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   for (int32_t i = 0; i < tbNum; ++i) {
     pName = (SStreamDbTableName*)taosArrayGet(pTbs, i);
     TAOS_CHECK_EXIT(mstGetTableVgId(pDbVgroups, pName->dbFName, pName->tbName, &vgId));
+    TSDB_CHECK_NULL(taosArrayPush(rsp.cont.vgIds, &vgId), code, lino, _exit, terrno);
     TAOS_CHECK_EXIT(msmCheckDeployTrigReader(pCtx, pTask, vgId, &rsp));
   }
 

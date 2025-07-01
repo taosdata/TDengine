@@ -61,7 +61,76 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
 static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator);
 static int32_t anomalyCacheBlock(SAnomalyWindowOperatorInfo* pInfo, SSDataBlock* pBlock);
 
-static int32_t resetAnomalyWindowOperatorState(SOperatorInfo* pOper);
+static int32_t resetAnomalyWindowOperState(SOperatorInfo* pOper);
+
+
+static int32_t resetAnomalyWindowOperState(SOperatorInfo* pOper) {
+  int32_t code = 0, lino = 0;
+  SAnomalyWindowOperatorInfo* pInfo = pOper->info;
+  SAnomalyWindowPhysiNode*    pAnomalyNode = (SAnomalyWindowPhysiNode*)pOper->pPhyNode;
+  SExecTaskInfo* pTaskInfo = pOper->pTaskInfo;
+  SExprInfo*  pExprInfo = NULL;
+  size_t      keyBufSize = 0;
+  int32_t     num = 0;
+  const char* id = GET_TASKID(pTaskInfo);
+
+  pOper->status = OP_NOT_OPENED;
+
+  resetBasicOperatorState(&pInfo->binfo);
+
+  cleanupAggSup(&pInfo->aggSup);
+  cleanupExprSupp(&pInfo->scalarSup);
+  colDataDestroy(&pInfo->twAggSup.timeWindowData);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->anomalySup.blocks); ++i) {
+    SSDataBlock* pBlock = taosArrayGetP(pInfo->anomalySup.blocks, i);
+    blockDataDestroy(pBlock);
+  }
+
+  taosArrayClear(pInfo->anomalySup.blocks);
+  taosArrayClear(pInfo->anomalySup.windows);
+  taosMemoryFreeClear(pInfo->anomalySup.pResultRow);
+  pInfo->anomalySup.groupId = 0;
+  pInfo->anomalySup.cachedRows = 0;
+  pInfo->anomalySup.curWin.ekey = 0;
+  pInfo->anomalySup.curWin.skey = 0;
+  pInfo->anomalySup.curWinIndex = 0;
+
+  memset(&pInfo->anomalyWinRowSup, 0, sizeof(pInfo->anomalyWinRowSup));
+
+  if (pAnomalyNode->window.pExprs != NULL) {
+    int32_t    numOfScalarExpr = 0;
+    SExprInfo* pScalarExprInfo = NULL;
+    TAOS_CHECK_EXIT(createExprInfo(pAnomalyNode->window.pExprs, NULL, &pScalarExprInfo, &numOfScalarExpr));
+
+    TAOS_CHECK_EXIT(initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore));
+  }
+
+  TAOS_CHECK_EXIT(createExprInfo(pAnomalyNode->window.pFuncs, NULL, &pExprInfo, &num));
+
+  initResultSizeInfo(&pOper->resultInfo, 4096);
+
+  TAOS_CHECK_EXIT(initAggSup(&pOper->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, id, pTaskInfo->streamInfo.pState,
+                    &pTaskInfo->storageAPI.functionStore));
+
+  int32_t itemSize = sizeof(int32_t) + pInfo->aggSup.resultRowSize + pInfo->anomalyKey.bytes;
+  pInfo->anomalySup.pResultRow = taosMemoryCalloc(1, itemSize);
+  TSDB_CHECK_NULL(pInfo->anomalySup.pResultRow, code, lino, _exit, terrno);
+
+  TAOS_CHECK_EXIT(filterInitFromNode((SNode*)pAnomalyNode->window.node.pConditions, &pOper->exprSupp.pFilterInfo, 0,
+                            pTaskInfo->pStreamRuntimeInfo));
+
+  TAOS_CHECK_EXIT(initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window));
+
+_exit:
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;  
+}
+
 
 int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
                                         SOperatorInfo** pOptrInfo) {
@@ -82,6 +151,8 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
     code = terrno;
     goto _error;
   }
+
+  pOperator->pPhyNode = physiNode;
 
   code = taosAnalyGetOpts(pAnomalyNode->anomalyOpt, &pHashMap);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -155,6 +226,8 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
                   pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, anomalyAggregateNext, NULL, anomalyDestroyOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+
+  setOperatorResetStateFn(pOperator, resetAnomalyWindowOperState);
 
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -660,12 +733,6 @@ _OVER:
   pSupp->curWinIndex = 0;
 
   return code;
-}
-
-static int32_t resetAnomalyWindowOperatorState(SOperatorInfo* pOper) {
-  SAnomalyWindowOperatorInfo* pAno = pOper->info;
-  resetBasicOperatorState(&pAno->binfo);
-  return 0;
 }
 
 #else

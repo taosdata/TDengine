@@ -112,6 +112,7 @@ void stTimestampSorterDestroy(void *ptr) {
     taosArrayDestroy(pSorter->pSessWins);
     pSorter->pSessWins = NULL;
   }
+  taosMemoryFree(pSorter);
 }
 
 void stTimestampSorterReset(SSTriggerTimestampSorter *pSorter) {
@@ -1045,7 +1046,7 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
 
     if (pReaderInfo->pDataBlock == NULL) {
       // get next data block from reader
-      SSTriggerTimestampSorter *pReader = TARRAY_GET_ELEM(pMerger->pReaders, idx);
+      SSTriggerTimestampSorter *pReader = *(SSTriggerTimestampSorter **)TARRAY_GET_ELEM(pMerger->pReaders, idx);
       code = stTimestampSorterNextDataBlock(pReader, &pReaderInfo->pDataBlock, &pReaderInfo->startIdx,
                                             &pReaderInfo->endIdx);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -1133,7 +1134,7 @@ int32_t stVtableMergerGetMetaToFetch(SSTriggerVtableMerger *pMerger, SSTriggerMe
                         TSDB_CODE_INVALID_PARA);
   int32_t                   idx = tMergeTreeGetChosenIndex(pMerger->pDataMerger);
   SVtableMergerReaderInfo  *pReaderInfo = TARRAY_GET_ELEM(pMerger->pReaderInfos, idx);
-  SSTriggerTimestampSorter *pReader = TARRAY_GET_ELEM(pMerger->pReaders, idx);
+  SSTriggerTimestampSorter *pReader = *(SSTriggerTimestampSorter **)TARRAY_GET_ELEM(pMerger->pReaders, idx);
   if (pReaderInfo->pDataBlock == NULL) {
     code = stTimestampSorterGetMetaToFetch(pReader, ppMeta);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1160,7 +1161,7 @@ int32_t stVtableMergerBindDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
 
   int32_t                   idx = tMergeTreeGetChosenIndex(pMerger->pDataMerger);
   SVtableMergerReaderInfo  *pReaderInfo = TARRAY_GET_ELEM(pMerger->pReaderInfos, idx);
-  SSTriggerTimestampSorter *pReader = TARRAY_GET_ELEM(pMerger->pReaders, idx);
+  SSTriggerTimestampSorter *pReader = *(SSTriggerTimestampSorter **)TARRAY_GET_ELEM(pMerger->pReaders, idx);
   QUERY_CHECK_CONDITION(pReaderInfo->pDataBlock == NULL, code, lino, _end, TSDB_CODE_INVALID_PARA);
   code = stTimestampSorterBindDataBlock(pReader, ppDataBlock);
   QUERY_CHECK_CODE(code, lino, _end);

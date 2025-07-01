@@ -1734,6 +1734,9 @@ void mJoinResetOperator(struct SOperatorInfo* pOperator) {
 
   mJoinResetCtx(pJoin);
 
+  pJoin->errCode = 0;
+  pJoin->execInfo = (SMJoinExecInfo){0};
+
   pOperator->status = OP_OPENED;
 }
 
@@ -1918,10 +1921,6 @@ int32_t mJoinSetImplFp(SMJoinOperatorInfo* pJoin) {
 
 static int32_t resetMergeJoinOperState(SOperatorInfo* pOper) {
   mJoinResetOperator(pOper);
-  SMJoinOperatorInfo* pHjOper = pOper->info;
-  pOper->status = OP_NOT_OPENED;
-
-  pHjOper->execInfo = (SMJoinExecInfo){0};
   return 0;
 }
 

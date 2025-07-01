@@ -804,15 +804,16 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
   moveToNextIterator(pIter);
 
   if (code == TSDB_CODE_SUCCESS && *ppBlock == NULL && *pIter != NULL) {
-    return getNextStreamDataCache(pIter, ppBlock);
+    code = getNextStreamDataCache(pIter, ppBlock);
+    goto _end;
   }
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    stError("failed to get next data from cache, err: %s, lineno:%d", terrMsg, lino);
-  }
-  if (ppBlock != NULL && *ppBlock != NULL) {
-    stDebug("[get data cache] end, groupID:%" PRId64 ", start:%" PRId64 " end:%" PRId64 " block rows: %" PRId64 " next:%p",
-            pResult->groupId, pResult->reqStartTime, pResult->reqEndTime, (*ppBlock)->info.rows, *pIter);
+    stError("[get data cache] end, failed to get next data from cache, err: %s, lineno:%d", terrMsg, lino);
+  } else if (ppBlock != NULL && *ppBlock != NULL) {
+    stDebug("[get data cache] end, block rows: %" PRId64 " next:%p", (*ppBlock)->info.rows, *pIter);
+  } else {
+    stDebug("[get data cache] end, not found data, next:%p", *pIter);
   }
   return code;
 }

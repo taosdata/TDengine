@@ -5,6 +5,7 @@
 #include "querynodes.h"
 #include "sclInt.h"
 #include "sclvector.h"
+#include "taoserror.h"
 #include "tcommon.h"
 #include "tcompare.h"
 #include "tdatablock.h"
@@ -983,58 +984,89 @@ static int64_t getTs(SScalarParam* param){
   }
   return skey;
 }
-static void calcStreamTimeRangeForPseudoCols(SStreamTSRangeParas* streamTsRange, SOperatorNode *node, SScalarParam *params){
-  if (streamTsRange->eType == SCL_VALUE_TYPE_START) {
-    if (nodeType(node->pRight) == QUERY_NODE_COLUMN && 
-      (node->opType == OP_TYPE_LOWER_EQUAL || node->opType == OP_TYPE_LOWER_THAN)) {
-      
-      int64_t skey = getTs(params);
-      if (skey > streamTsRange->timeValue) {
-        streamTsRange->timeValue = skey;
-        streamTsRange->opType = ((node->opType == OP_TYPE_LOWER_EQUAL) ? OP_TYPE_GREATER_EQUAL : OP_TYPE_GREATER_THAN);
-      } else if (skey == streamTsRange->timeValue && node->opType == OP_TYPE_LOWER_THAN) {
-        streamTsRange->opType = OP_TYPE_GREATER_THAN;
-      }
-    } else if(nodeType(node->pLeft) == QUERY_NODE_COLUMN && 
-      (node->opType == OP_TYPE_GREATER_EQUAL || node->opType == OP_TYPE_GREATER_THAN)) {
 
-      int64_t skey = getTs(params + 1);
-      if (skey > streamTsRange->timeValue) {
-        streamTsRange->timeValue = skey;
-        streamTsRange->opType = node->opType;
-      } else if (skey == streamTsRange->timeValue && node->opType == OP_TYPE_GREATER_THAN) {
-        streamTsRange->opType = OP_TYPE_GREATER_THAN;
-      }
-    } else {
-      sclError("invalid stream timerange start expr, opType:%d, nodeType left:%d, nodeType right:%d", 
-        node->opType, nodeType(node->pLeft), nodeType(node->pRight));
+static bool isTimeStampCol(SNode *pNode) {
+  if (pNode == NULL) {
+    return false;
+  }
+  if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+    SColumnNode *colNode = (SColumnNode *)pNode;
+    if (colNode->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      return true;
     }
-  } else if (streamTsRange->eType == SCL_VALUE_TYPE_END) {
-    if (nodeType(node->pRight) == QUERY_NODE_COLUMN && 
-      (node->opType == OP_TYPE_GREATER_EQUAL || node->opType == OP_TYPE_GREATER_THAN)) {
-      int64_t ekey = getTs(params);
-      if (ekey < streamTsRange->timeValue) {
-        streamTsRange->timeValue = ekey;
-        streamTsRange->opType = ((node->opType == OP_TYPE_GREATER_EQUAL) ? OP_TYPE_LOWER_EQUAL : OP_TYPE_LOWER_THAN);
-      } else if (ekey == streamTsRange->timeValue && node->opType == OP_TYPE_GREATER_THAN) {
-        streamTsRange->opType = OP_TYPE_LOWER_THAN;
-      }
-    } else if(nodeType(node->pLeft) == QUERY_NODE_COLUMN && 
-      (node->opType == OP_TYPE_LOWER_EQUAL || node->opType == OP_TYPE_LOWER_THAN)) {
-      int64_t ekey = getTs(params + 1);
-      if (ekey < streamTsRange->timeValue) {
-        streamTsRange->timeValue = ekey;
-        streamTsRange->opType = node->opType;
-      } else if (ekey == streamTsRange->timeValue && node->opType == OP_TYPE_LOWER_THAN) {
-        streamTsRange->opType = OP_TYPE_LOWER_THAN;
-      }
+  }
+  return false;
+}
+
+static bool isReqRangeTS(SOperatorNode *node) {
+  if (node->opType != OP_TYPE_LOWER_EQUAL && node->opType != OP_TYPE_LOWER_THAN &&
+      node->opType != OP_TYPE_GREATER_EQUAL && node->opType != OP_TYPE_GREATER_THAN) {
+    return false;
+  }
+  if (isTimeStampCol(node->pLeft) || isTimeStampCol(node->pRight)) {
+    return true;
+  }
+
+  return false;
+}
+
+static int32_t getExprTSValue(SScalarCtx *ctx, SNode *pNode, int64_t *tsValue) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (nodeType(pNode) == QUERY_NODE_OPERATOR || nodeType(pNode) == QUERY_NODE_FUNCTION) {
+    SScalarParam *res = (SScalarParam *)taosHashGet(ctx->pRes, (void *)&pNode, POINTER_BYTES);
+    if (res == NULL || res->columnData == NULL) {
+      sclError("no result for node, type:%d, node:%p", nodeType(pNode), pNode);
+      return TSDB_CODE_QRY_INVALID_INPUT;
+    }
+    if (res->columnData->pData == NULL) {
+      sclError("invalid column data for ts range expr, type:%d, node:%p", res->columnData->info.type, pNode);
+      return TSDB_CODE_QRY_INVALID_INPUT;
+    }
+    if (res->columnData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+      *tsValue = getTs(res);
     } else {
-      sclError("invalid stream timerange end expr, opType:%d, nodeType left:%d, nodeType right:%d", 
-        node->opType, nodeType(node->pLeft), nodeType(node->pRight));
+      sclError("invalid type for ts range expr, type:%d, node:%p", res->columnData->info.type, pNode);
+      return TSDB_CODE_QRY_INVALID_INPUT;
+    }
+  } else if (nodeType(pNode) == QUERY_NODE_VALUE) {
+    SValueNode *valueNode = (SValueNode *)pNode;
+    if (IS_INTEGER_TYPE(valueNode->node.resType.type)) {
+      *tsValue = valueNode->datum.i;
+    } else if (valueNode->node.resType.type == TSDB_DATA_TYPE_SMALLINT) {
+      *tsValue = (int64_t)valueNode->datum.i;
+    } else {
+      sclError("invalid type for ts range expr, type:%d, node:%p", valueNode->node.resType.type, pNode);
+      return TSDB_CODE_QRY_INVALID_INPUT;
     }
   } else {
-    sclError("invalid stream ts range type, type:%d", streamTsRange->eType);
+    sclError("invalid node type for ts range expr, type:%d, node:%p", nodeType(pNode), pNode);
+    return TSDB_CODE_QRY_INVALID_INPUT;
   }
+
+  return code;
+}
+
+static int32_t calcStreamTimeRangeForPseudoCols(SScalarCtx *ctx, SStreamTSRangeParas *streamTsRange,
+                                                SOperatorNode *node, SScalarParam *params) {
+  int32_t code = 0;
+  int64_t timeValue = 0;
+
+  if (isTimeStampCol(node->pRight)) {
+    code = getExprTSValue(ctx, node->pRight, &timeValue);
+  } else if (isTimeStampCol(node->pLeft)) {
+    code = getExprTSValue(ctx, node->pRight, &timeValue);
+
+  } else {
+    sclError("invalid stream timerange start expr, opType:%d, nodeType left:%d, nodeType right:%d", node->opType,
+             nodeType(node->pLeft), nodeType(node->pRight));
+  }
+
+  streamTsRange->timeValue = timeValue;
+  streamTsRange->opType = node->opType;
+  if (code != TSDB_CODE_SUCCESS) {
+    sclError("get ts value for stream timerange failed, code:%d", code);
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *output) {
@@ -1059,8 +1091,8 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
       SCL_ERR_JRET(code);
     }
   }
-  if (ctx->streamTsRange != NULL) {
-    calcStreamTimeRangeForPseudoCols(ctx->streamTsRange, node, params);
+  if (ctx->streamTsRange != NULL && isReqRangeTS(node)) {
+    code = calcStreamTimeRangeForPseudoCols(ctx, ctx->streamTsRange, node, params);
     goto _return;
   }
   _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(node->opType);

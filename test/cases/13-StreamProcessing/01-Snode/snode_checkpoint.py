@@ -111,7 +111,7 @@ class TestStreamCheckpoint:
             res_query="select ts, te, td, c1, c2 from r5",
             exp_query="select _wstart ts, _wend te, _wduration td, count(c1) c1, avg(c2) c2 "
                       "from source_table "
-                      "where ts<'2025-1-1 00:15:10' and ts>='2025-1-1' "
+                      "where ts<='2025-1-1 00:20:50' and ts>='2025-1-1' "
                       "partition by tbname "
                       "interval(10s) sliding(10s) fill(value, 0, null)",
             check_func=self.check5,
@@ -130,7 +130,7 @@ class TestStreamCheckpoint:
 
         tdSql.checkResultsByFunc(
             sql="select ts, te, td, c1, tag_tbname from r5 where tag_tbname='c1'",
-            func=lambda: tdSql.getRows() == 91
+            func=lambda: tdSql.getRows() == 126
         )
 
     def checkpoint(self) -> None:
@@ -145,4 +145,4 @@ class TestStreamCheckpoint:
         tdLog.info("start query after restart")
 
         tdSql.query("select * from r5")
-        tdSql.checkRows(91)
+        tdSql.checkRows(126)
