@@ -172,11 +172,13 @@ static void releaseStreamReaderInfo(void* p) {
   taosHashCleanup(pInfo->streamTaskMap);
   taosHashCleanup(pInfo->groupIdMap);
   pInfo->streamTaskMap = NULL;
+
+  destroyCondition(pInfo->pCalcConditions);
+  destroyCondition(pInfo->pCalcTagCond);
+
   nodesDestroyNode((SNode*)(pInfo->triggerAst));
   nodesDestroyNode((SNode*)(pInfo->calcAst));
   
-  destroyCondition(pInfo->pCalcConditions);
-  destroyCondition(pInfo->pCalcTagCond);
   
   blockDataDestroy(pInfo->triggerResBlock);
   blockDataDestroy(pInfo->calcResBlock);

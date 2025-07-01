@@ -90,6 +90,7 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   }
 
   streamReleaseTask(taskAddr);
+  taosMemoryFree(pAhandle);
 
   dTrace("msg:%p, is freed, code:%d", pMsg, code);
   rpcFreeCont(pMsg->pCont);
