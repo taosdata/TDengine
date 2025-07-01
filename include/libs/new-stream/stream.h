@@ -104,6 +104,7 @@ typedef struct SStreamRunnerTask {
   const char*                   pPlan;
   int32_t                       parallelExecutionNun;
   void*                         pMsgCb;
+  void*                         pWorkerCb;
   void*                         pSubTableExpr;
   SArray*                       forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
   bool                          topTask;
