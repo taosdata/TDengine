@@ -776,21 +776,23 @@ void tFreeSSTriggerRuntimeStatus(void* param) {
   taosArrayDestroy(pStatus->userRecalcs);
 }
 
-void tCleanupStreamHbMsg(SStreamHbMsg* pMsg) {
+void tCleanupStreamHbMsg(SStreamHbMsg* pMsg, bool deepClean) {
   if (pMsg == NULL) {
     return;
   }
 
   taosArrayDestroy(pMsg->pVgLeaders);
-  int32_t reqNum = taosArrayGetSize(pMsg->pStreamReq);
-  for (int32_t i = 0; i < reqNum; ++i) {
-    int32_t* idx = taosArrayGet(pMsg->pStreamReq, i);
-    SStmTaskStatusMsg* pTask = taosArrayGet(pMsg->pStreamStatus, *idx);
-    if (NULL == pTask) {
-      continue;
-    }
+  if (deepClean) {
+    int32_t reqNum = taosArrayGetSize(pMsg->pStreamReq);
+    for (int32_t i = 0; i < reqNum; ++i) {
+      int32_t* idx = taosArrayGet(pMsg->pStreamReq, i);
+      SStmTaskStatusMsg* pTask = taosArrayGet(pMsg->pStreamStatus, *idx);
+      if (NULL == pTask) {
+        continue;
+      }
 
-    tFreeSStreamMgmtReq(pTask->pMgmtReq);
+      tFreeSStreamMgmtReq(pTask->pMgmtReq);
+    }
   }
   taosArrayDestroy(pMsg->pStreamReq);
   taosArrayDestroy(pMsg->pStreamStatus);
