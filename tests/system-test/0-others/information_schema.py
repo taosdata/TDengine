@@ -58,7 +58,7 @@ class TDTestCase:
             ]
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
-        self.ins_list = ['ins_dnodes','ins_mnodes','ins_qnodes','ins_snodes','ins_cluster','ins_databases','ins_functions',\
+        self.ins_list = ['ins_dnodes','ins_mnodes','ins_qnodes','ins_snodes','ins_bnodes','ins_cluster','ins_databases','ins_functions',\
             'ins_indexes','ins_stables','ins_tables','ins_tags','ins_columns','ins_users','ins_grants','ins_vgroups','ins_configs','ins_dnode_variables',\
                 'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges','ins_views',
                 'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes", "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details"]
@@ -222,7 +222,7 @@ class TDTestCase:
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
         tdLog.info(len(tdSql.queryResult))
-        tdSql.checkEqual(True, len(tdSql.queryResult) in range(329, 330))
+        tdSql.checkEqual(True, len(tdSql.queryResult) in range(333, 334))
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
         tdSql.checkEqual(62, len(tdSql.queryResult))
 
