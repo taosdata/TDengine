@@ -112,7 +112,7 @@ class TestInterp:
         tdLog.debug(f"start to excute {__file__}")
         self.insert_data()
         # math function
-        self.test_interp()
+        self.run_interp()
         tdLog.success(f"{__file__} successfully executed")
 
 
