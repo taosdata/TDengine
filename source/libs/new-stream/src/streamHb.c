@@ -123,7 +123,9 @@ void streamHbStart(void* param, void* tmrId) {
 _exit:
 
   streamTmrStart(streamHbStart, STREAM_HB_INTERVAL_MS, NULL, gStreamMgmt.timer, &gStreamMgmt.hb.hbTmr, "stream-hb");
-  
+
+  tCleanupStreamHbMsg(&reqMsg);
+
   if (code) {
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
@@ -195,6 +197,8 @@ _exit:
   } else {
     stDebug("end to process stream hb rsp msg");
   }
+
+  tDeepFreeSMStreamHbRspMsg(pRsp);
   
   return code;
 }

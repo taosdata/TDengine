@@ -91,12 +91,12 @@ static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunn
   taosThreadMutexUnlock(&pMgr->lock);
 }
 
-static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
+static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMsg) {
   strncpy(pTask->output.outDbFName, pMsg->outDBFName, TSDB_DB_FNAME_LEN);
-  pTask->output.outCols = pMsg->outCols;
+  TSWAP(pTask->output.outCols, pMsg->outCols);
   pTask->output.outTblType = pMsg->outTblType;
   pTask->output.outStbUid = pMsg->outStbUid;
-  pTask->output.outTags = pMsg->outTags;
+  TSWAP(pTask->output.outTags, pMsg->outTags);
   if (pMsg->outTblType == TSDB_SUPER_TABLE) strncpy(pTask->output.outSTbName, pMsg->outTblName, TSDB_TABLE_NAME_LEN);
 }
 

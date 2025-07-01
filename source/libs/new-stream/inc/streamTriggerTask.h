@@ -210,7 +210,7 @@ int32_t stTriggerTaskReleaseRequest(SStreamTriggerTask *pTask, SSTriggerCalcRequ
 int32_t stTriggerTaskMarkRecalc(SStreamTriggerTask *pTask, int64_t gid, int64_t skey, int64_t ekey);
 
 // interfaces called by stream mgmt thread
-int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, const SStreamTriggerDeployMsg *pMsg);
+int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *pMsg);
 int32_t stTriggerTaskUndeploy(SStreamTriggerTask **ppTask, bool force);
 int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg);
 
