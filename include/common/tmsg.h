@@ -1072,7 +1072,7 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapperEx(SDecoder* pDecoder, SSchemaW
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pSW->nCols));
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pSW->version));
 
-  pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
+  pSW->pSchema = (SSchema*)tDecoderMalloc(pSW->nCols, sizeof(SSchema));
   if (pSW->pSchema == NULL) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }

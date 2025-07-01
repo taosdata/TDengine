@@ -69,6 +69,23 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
     }
   }
 
+  pOut->dbVgroup->vgArray = taosArrayInit(usedbRsp->vgNum, sizeof(SVgroupInfo));
+  if (NULL == pOut->dbVgroup->vgArray) {
+    return terrno;
+  }
+
+  void* pIter = taosHashIterate(pOut->dbVgroup->vgHash, NULL);
+  while (pIter) {
+    if (NULL == taosArrayPush(pOut->dbVgroup->vgArray, pIter)) {
+      taosHashCancelIterate(pOut->dbVgroup->vgHash, pIter);
+      return terrno;
+    }
+
+    pIter = taosHashIterate(pOut->dbVgroup->vgHash, pIter);
+  }
+
+  taosArraySort(pOut->dbVgroup->vgArray, inserterVgInfoComp);
+
   return TSDB_CODE_SUCCESS;
 }
 

@@ -536,27 +536,12 @@ int inserterVgInfoComp(const void* lp, const void* rp) {
 
 int32_t inserterGetVgInfo(SDBVgInfo* dbInfo, char* tbName, SVgroupInfo* pVgInfo) {
   if (NULL == dbInfo) {
-    return TSDB_CODE_CTG_INTERNAL_ERROR;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
-  if (dbInfo->vgHash && NULL == dbInfo->vgArray) {
-    int32_t vgSize = taosHashGetSize(dbInfo->vgHash);
-    dbInfo->vgArray = taosArrayInit(vgSize, sizeof(SVgroupInfo));
-    if (NULL == dbInfo->vgArray) {
-      return terrno;
-    }
-
-    void* pIter = taosHashIterate(dbInfo->vgHash, NULL);
-    while (pIter) {
-      if (NULL == taosArrayPush(dbInfo->vgArray, pIter)) {
-        taosHashCancelIterate(dbInfo->vgHash, pIter);
-        return terrno;
-      }
-
-      pIter = taosHashIterate(dbInfo->vgHash, pIter);
-    }
-
-    taosArraySort(dbInfo->vgArray, inserterVgInfoComp);
+  if (NULL == dbInfo->vgArray) {
+    qError("empty db vgArray, hashSize:%d", taosHashGetSize(dbInfo->vgHash));
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
   uint32_t hashValue =
@@ -565,11 +550,13 @@ int32_t inserterGetVgInfo(SDBVgInfo* dbInfo, char* tbName, SVgroupInfo* pVgInfo)
   if (NULL == vgInfo) {
     qError("no hash range found for hash value [%u], table:%s, numOfVgId:%d", hashValue, tbName,
            (int32_t)taosArrayGetSize(dbInfo->vgArray));
-    return TSDB_CODE_CTG_INTERNAL_ERROR;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
+  
   *pVgInfo = *vgInfo;
   qInfo("insert get vgInfo, vgId:%d epset(%s:%d)", pVgInfo->vgId, pVgInfo->epSet.eps[0].fqdn,
         pVgInfo->epSet.eps[0].port);
+        
   return TSDB_CODE_SUCCESS;
 }
 

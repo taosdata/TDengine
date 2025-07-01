@@ -13320,7 +13320,9 @@ static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const ch
     TAOS_STRNCAT(streamFName, ".", 2);
     TAOS_STRNCAT(streamFName, outTableName, TSDB_TABLE_NAME_LEN);
 
-    PAR_ERR_JRET(nodesMakeValueNodeFromString(streamFName, &pNameValue));
+    code = nodesMakeValueNodeFromString(streamFName, &pNameValue);
+    taosMemoryFree(streamFName);
+    PAR_ERR_JRET(code);
     PAR_ERR_JRET(nodesListMakeStrictAppend(&pMd5Func->pParameterList, (SNode*)pNameValue));
     PAR_ERR_JRET(nodesListMakeStrictAppend(&pConcatFunc->pParameterList, (SNode*)pMd5Func));
 
@@ -13347,12 +13349,16 @@ static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const ch
 
   PAR_ERR_JRET(translateCreateStreamTagSubtableExpr(pCxt, pPartitionByList, &pSubtableExpr));
   if (!nodesIsExprNode(pSubtableExpr) || ((SExprNode*)pSubtableExpr)->resType.type != TSDB_DATA_TYPE_BINARY) {
+    nodesDestroyNode(pSubtableExpr);
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
                                    "Subtable name expression must be a binary type expression");
   }
   PAR_ERR_JRET(createStreamSetNodeSlotId(pSubtableExpr, pTriggerSlotHash, NULL));
   PAR_ERR_JRET(nodesNodeToString(pSubtableExpr, false, subTblNameExpr, NULL));
+  nodesDestroyNode(pSubtableExpr);
+
   return code;
+  
 _return:
   nodesDestroyNode(pSubtableExpr);
   // TODO(smj) : free node
