@@ -15,8 +15,6 @@
 
 #include "transComm.h"
 #include "tqueue.h"
-#include "transLog.h"
-#include "uv.h"
 
 #ifndef TD_ASTRA_RPC
 #define BUFFER_CAP 8 * 1024
