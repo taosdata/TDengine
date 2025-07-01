@@ -15,7 +15,7 @@ on:
       - 'source/dnode/mnode/impl/src/mndAnode.c'
       - 'include/common/tanalytics.h'
       - 'source/common/src/tanalytics.c'
-      - 'tests/parallel/tdgpt_cases.task'
+      - 'tests/parallel_test/tdgpt_cases.task'
       - 'tests/script/tsim/analytics'
 
 jobs:
