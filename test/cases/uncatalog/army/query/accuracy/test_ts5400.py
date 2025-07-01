@@ -1,5 +1,6 @@
 import taos
-from new_test_framework.utils import tdLog, tdSql
+import socket
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
 
 class TestTs5400:
     """Add test case to cover TS-5400

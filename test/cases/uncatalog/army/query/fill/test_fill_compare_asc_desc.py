@@ -48,10 +48,10 @@ class TestFillCompareAscDesc:
         for func in ["avg(c1)", "count(c1)", "first(c1)", "last(c1)", "max(c1)", "min(c1)", "sum(c1)"]:
             tdSql.query(
                 f"select _wstart, {func} from st_pre where ts between '2024-01-21 04:52:52.000' and '2024-01-21 04:54:31.000' interval(5s) fill(prev) order by _wstart asc;")
-            res1 = tdSql.res
+            res1 = tdSql.queryResult
             tdSql.query(
                 f"select _wstart, {func} from st_pre where ts between '2024-01-21 04:52:52.000' and '2024-01-21 04:54:31.000' interval(5s) fill(prev) order by _wstart desc;")
-            res2 = tdSql.res
+            res2 = tdSql.queryResult
             assert len(res1) == len(res2)
             for i in range(len(res1)):
                 assert res1[i] in res2
@@ -63,10 +63,10 @@ class TestFillCompareAscDesc:
         for func in ["avg(c1)", "count(c1)", "first(c1)", "last(c1)", "max(c1)", "min(c1)", "sum(c1)"]:
             tdSql.query(
                 f"select _wstart, {func} from st_next where ts between '2024-01-21 04:52:52.000' and '2024-01-21 04:54:31.000' interval(5s) fill(next) order by _wstart asc;")
-            res1 = tdSql.res
+            res1 = tdSql.queryResult
             tdSql.query(
                 f"select _wstart, {func} from st_next where ts between '2024-01-21 04:52:52.000' and '2024-01-21 04:54:31.000' interval(5s) fill(next) order by _wstart desc;")
-            res2 = tdSql.res
+            res2 = tdSql.queryResult
             assert len(res1) == len(res2)
             for i in range(len(res1)):
                 assert res1[i] in res2
@@ -78,10 +78,10 @@ class TestFillCompareAscDesc:
         for func in ["avg(c1)", "count(c1)", "first(c1)", "last(c1)", "max(c1)", "min(c1)", "sum(c1)"]:
             tdSql.query(
                 f"select _wstart, {func} from st_linear where ts between '2024-01-21 04:52:52.000' and '2024-01-21 04:54:31.000' interval(5s) fill(linear) order by _wstart asc;")
-            res1 = tdSql.res
+            res1 = tdSql.queryResult
             tdSql.query(
                 f"select _wstart, {func} from st_linear where ts between '2024-01-21 04:52:52.000' and '2024-01-21 04:54:31.000' interval(5s) fill(linear) order by _wstart desc;")
-            res2 = tdSql.res
+            res2 = tdSql.queryResult
             assert len(res1) == len(res2)
             for i in range(len(res1)):
                 assert res1[i] in res2

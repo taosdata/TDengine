@@ -1,12 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import frame.etool
-
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
+from new_test_framework.utils import tdLog, tdSql, etool
 
 
 class TestFillNull:

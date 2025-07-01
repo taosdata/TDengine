@@ -651,3 +651,29 @@
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_checkerror8.py
 #,,y,.,./ci/pytest.sh pytest cases/50-Others/01-Valgrind/test_valgrind_udf.py
 
+
+
+
+
+# uncatalog
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_query_accuracy.py
+#,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_ts5400.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_having.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/decimal/test_TS6333.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_desc.py -N 3 -L 3 -D 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_null.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/fill/test_fill_compare_asc_desc.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_func_elapsed.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_function.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_selection_function_with_json.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_func_paramnum.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_percentile.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_resinfo.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_interp.py
+# ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_interval.py
+# ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_interval_diff_tz.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_concat.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_cast.py
