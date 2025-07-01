@@ -15,6 +15,8 @@
 
 #include "transComm.h"
 #include "tqueue.h"
+#include "transLog.h"
+#include "uv.h"
 
 #ifndef TD_ASTRA_RPC
 #define BUFFER_CAP 8 * 1024
@@ -1791,7 +1793,14 @@ bool transReqEpsetIsEqual(SReqEpSet* a, SReqEpSet* b) {
     return false;
   }
   for (int i = 0; i < a->numOfEps; i++) {
-    if (strncmp(a->eps[i].fqdn, b->eps[i].fqdn, TSDB_FQDN_LEN) != 0 || a->eps[i].port != b->eps[i].port) {
+    int32_t l1 = strlen(a->eps[i].fqdn);
+    int32_t l2 = strlen(b->eps[i].fqdn);
+    if (l1 >= TSDB_FQDN_LEN || l2 >= TSDB_FQDN_LEN) {
+      tWarn("get invalid epset, a:%s, b:%s", a->eps[i].fqdn, b->eps[i].fqdn);
+      return false;
+    }
+
+    if (l1 != l2 || strncmp(a->eps[i].fqdn, b->eps[i].fqdn, l1) != 0 || a->eps[i].port != b->eps[i].port) {
       return false;
     }
   }
