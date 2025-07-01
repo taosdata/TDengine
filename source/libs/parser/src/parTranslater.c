@@ -6967,6 +6967,12 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
   }
 
+  if (pFill->pTimeRange &&
+      (!((STimeRangeNode*)pFill->pTimeRange)->pStart ||
+       !((STimeRangeNode*)pFill->pTimeRange)->pEnd)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE, "Start and End time of query range required ");
+  }
+
   if (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_DESC_INITIALIZER)) {
     return TSDB_CODE_SUCCESS;
   }
