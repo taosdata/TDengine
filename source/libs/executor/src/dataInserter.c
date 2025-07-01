@@ -422,6 +422,19 @@ _return:
   return code;
 }
 
+
+int inserterVgInfoComp(const void* lp, const void* rp) {
+  SVgroupInfo* pLeft = (SVgroupInfo*)lp;
+  SVgroupInfo* pRight = (SVgroupInfo*)rp;
+  if (pLeft->hashBegin < pRight->hashBegin) {
+    return -1;
+  } else if (pLeft->hashBegin > pRight->hashBegin) {
+    return 1;
+  }
+
+  return 0;
+}
+
 static int32_t buildDbVgInfoMap(void* clientRpc, const char* dbFName, SUseDbOutput* output) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
@@ -472,7 +485,26 @@ static int32_t buildDbVgInfoMap(void* clientRpc, const char* dbFName, SUseDbOutp
   code = queryBuildUseDbOutput(output, dbVgInfoReq.pRsp);
   QUERY_CHECK_CODE(code, lino, _return);
 
+  output->dbVgroup->vgArray = taosArrayInit(dbVgInfoReq.pRsp->vgNum, sizeof(SVgroupInfo));
+  if (NULL == output->dbVgroup->vgArray) {
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  void* pIter = taosHashIterate(output->dbVgroup->vgHash, NULL);
+  while (pIter) {
+    if (NULL == taosArrayPush(output->dbVgroup->vgArray, pIter)) {
+      taosHashCancelIterate(output->dbVgroup->vgHash, pIter);
+      return terrno;
+    }
+
+    pIter = taosHashIterate(output->dbVgroup->vgHash, pIter);
+  }
+
+  taosArraySort(output->dbVgroup->vgArray, inserterVgInfoComp);
+
 _return:
+
   if (code) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     taosMemoryFree(buf1);
@@ -522,17 +554,6 @@ int32_t inserterHashValueComp(void const* lp, void const* rp) {
   return 0;
 }
 
-int inserterVgInfoComp(const void* lp, const void* rp) {
-  SVgroupInfo* pLeft = (SVgroupInfo*)lp;
-  SVgroupInfo* pRight = (SVgroupInfo*)rp;
-  if (pLeft->hashBegin < pRight->hashBegin) {
-    return -1;
-  } else if (pLeft->hashBegin > pRight->hashBegin) {
-    return 1;
-  }
-
-  return 0;
-}
 
 int32_t inserterGetVgInfo(SDBVgInfo* dbInfo, char* tbName, SVgroupInfo* pVgInfo) {
   if (NULL == dbInfo) {
