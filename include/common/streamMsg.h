@@ -459,7 +459,7 @@ typedef struct SStreamHbMsg {
 
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq);
 int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq);
-void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg);
+void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg, bool deepClean);
 
 typedef struct {
   char*   triggerTblName;

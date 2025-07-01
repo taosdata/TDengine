@@ -124,7 +124,7 @@ _exit:
 
   streamTmrStart(streamHbStart, STREAM_HB_INTERVAL_MS, NULL, gStreamMgmt.timer, &gStreamMgmt.hb.hbTmr, "stream-hb");
 
-  tCleanupStreamHbMsg(&reqMsg);
+  tCleanupStreamHbMsg(&reqMsg, false);
 
   if (code) {
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
