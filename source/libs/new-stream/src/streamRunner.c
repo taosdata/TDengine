@@ -321,8 +321,17 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   code = streamBuildBlockResultNotifyContent(pBlock, &pContent, pTask->output.outCols);
   if (code == 0) {
     ST_TASK_DLOG("start to send notify:%s", pContent);
+    int32_t index = pExec->runtimeInfo.funcInfo.curOutIdx;
+    if (pExec->runtimeInfo.funcInfo.curOutIdx >= pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size) {
+      pExec->runtimeInfo.funcInfo.curOutIdx = pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size - 1;
+    }
     SSTriggerCalcParam* pTriggerCalcParams =
         taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, pExec->runtimeInfo.funcInfo.curOutIdx);
+    if (pTriggerCalcParams == NULL) {
+      ST_TASK_ELOG("failed to get trigger calc params for index:%d, size:%d", index,
+                   (int32_t)pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size);
+      return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+    }
     pTriggerCalcParams->resultNotifyContent = pContent;
 
     code = streamSendNotifyContent(&pTask->task, pExec->runtimeInfo.funcInfo.triggerType,
@@ -337,7 +346,10 @@ static int32_t stRunnerHandleResultBlock(SStreamRunnerTask* pTask, SStreamRunner
   int32_t code = stRunnerOutputBlock(pTask, pExec, pBlock, *pCreateTb);
   //*pCreateTb = false;
   if (code == 0) {
-    return streamDoNotification(pTask, pExec, pBlock);
+    code = streamDoNotification(pTask, pExec, pBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("failed to send notification for block, code:%s", tstrerror(code));
+    }
   }
   return code;
 }
