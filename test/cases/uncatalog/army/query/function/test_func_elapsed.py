@@ -1,27 +1,18 @@
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
-from frame.eos import *
+from new_test_framework.utils import tdLog, tdSql
 
-
-class TDTestCase(TBase):
+class TestFuncElapsed:
     """Verify the elapsed function
     """
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        self.dbname = 'db'
-        self.table_dic = {
+    def setup_class(cls):
+        cls.dbname = 'db'
+        cls.table_dic = {
             "super_table": ["st1", "st2", "st_empty"],
             "child_table": ["ct1_1", "ct1_2", "ct1_empty", "ct2_1", "ct2_2", "ct2_empty"],
             "tags_value": [("2023-03-01 15:00:00", 1, 'bj'), ("2023-03-01 15:10:00", 2, 'sh'), ("2023-03-01 15:20:00", 3, 'sz'), ("2023-03-01 15:00:00", 4, 'gz'), ("2023-03-01 15:10:00", 5, 'cd'), ("2023-03-01 15:20:00", 6, 'hz')],
             "common_table": ["t1", "t2", "t_empty"]
         }
-        self.start_ts = 1677654000000 # 2023-03-01 15:00:00.000
-        self.row_num = 100
+        cls.start_ts = 1677654000000 # 2023-03-01 15:00:00.000
+        cls.row_num = 100
 
     def prepareData(self):
         # db
@@ -56,7 +47,7 @@ class TDTestCase(TBase):
             tdSql.execute(sql)
             tdLog.debug("Insert data into table %s" % t)
 
-    def test_normal_query(self):
+    def run_normal_query(self):
         # only one timestamp
         tdSql.query("select elapsed(ts) from t1 group by c_ts;")
         tdSql.checkRows(self.row_num)
@@ -98,7 +89,7 @@ class TDTestCase(TBase):
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0.0275)
 
-    def test_query_with_filter(self):
+    def run_query_with_filter(self):
         end_ts = 1677654000000 + 1000 * 99
         query_list = [
             {
@@ -189,7 +180,7 @@ class TDTestCase(TBase):
             res_list.append(item["res"])
         tdSql.queryAndCheckResult(sql_list, res_list)
 
-    def test_query_with_other_function(self):
+    def run_query_with_other_function(self):
         query_list = [
             {
                 "sql": "select avg(c_int), count(*), elapsed(ts, 1s), leastsquares(c_int, 0, 1), spread(c_bigint), sum(c_int), hyperloglog(c_int) from st1;",
@@ -207,7 +198,7 @@ class TDTestCase(TBase):
             res_list.append(item["res"])
         tdSql.queryAndCheckResult(sql_list, res_list)
 
-    def test_query_with_join(self):
+    def run_query_with_join(self):
         query_list = [
             {
                 "sql": "select elapsed(st1.ts, 1s) from st1, st2 where st1.ts = st2.ts;",
@@ -261,7 +252,7 @@ class TDTestCase(TBase):
             res_list.append(item["res"])
         tdSql.queryAndCheckResult(sql_list, res_list)
 
-    def test_query_with_union(self):
+    def run_query_with_union(self):
         query_list = [
             {
                 "sql": "select elapsed(ts, 1s) from st1 union select elapsed(ts, 1s) from st2;",
@@ -323,7 +314,7 @@ class TDTestCase(TBase):
             res_list.append(item["res"])
         tdSql.queryAndCheckResult(sql_list, res_list)
 
-    def test_query_with_window(self):
+    def run_query_with_window(self):
         query_list = [
             {
                 "sql": "select elapsed(ts, 1s) from st1 where ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:00:20.000' interval(10s) fill(next);",
@@ -349,7 +340,7 @@ class TDTestCase(TBase):
             res_list.append(item["res"])
         tdSql.queryAndCheckResult(sql_list, res_list)
 
-    def test_nested_query(self):
+    def run_nested_query(self):
         query_list = [
             {
                 "sql": "select elapsed(ts, 1s) from (select * from st1 where c_int > 10 and ts between '2023-03-01 15:00:00.000' and '2023-03-01 15:01:40.000');",
@@ -379,7 +370,7 @@ class TDTestCase(TBase):
             res_list.append(item["res"])
         tdSql.queryAndCheckResult(sql_list, res_list)
 
-    def test_abnormal_query(self):
+    def run_abnormal_query(self):
         # incorrect parameter
         table_list = self.table_dic["super_table"] + self.table_dic["child_table"] + self.table_dic["common_table"]
         incorrect_parameter_list = ["()", "(null)", "(*)", "(c_ts)", "(c_ts, 1s)", "(c_int)", "(c_bigint)", "(c_double)", "(c_nchar)", "(ts, null)",
@@ -430,18 +421,31 @@ class TDTestCase(TBase):
         ]
         tdSql.errors(other_sql_list)
 
-    def run(self):
+    def test_func_elapsed(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         self.prepareData()
-        self.test_normal_query()
-        self.test_query_with_filter()
-        self.test_query_with_other_function()
-        self.test_query_with_join()
-        self.test_query_with_union()
-        self.test_abnormal_query()
+        self.run_normal_query()
+        self.run_query_with_filter()
+        self.run_query_with_other_function()
+        self.run_query_with_join()
+        self.run_query_with_union()
+        self.run_abnormal_query()
 
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        tdLog.success(f"{__file__} successfully executed")

@@ -10,26 +10,15 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
+from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
-import sys
-import time
-import random
 import hashlib
-
-import taos
-import frame
-import frame.etool
-
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
 
 initial_hash_resinfoInt = "eae723d1ecdd18993a11d43d1b00316d"
 initial_hash_resinfo = "172d04aa7af0d8cd2e4d9df284079958"
 
-class TDTestCase(TBase):
+class TestResinfo:
+
     def get_file_hash(self, file_path):
         hasher = hashlib.md5()
         with open(file_path, 'rb') as f:
@@ -37,7 +26,7 @@ class TDTestCase(TBase):
             hasher.update(buf)
         return hasher.hexdigest()
 
-    def testFileChanged(self):
+    def run_file_changed(self):
         tdLog.info(f"insert data.")
         # taosBenchmark run
         resinfoIntFile = etool.curFile(__file__, "../../../../source/libs/function/inc/functionResInfoInt.h")
@@ -57,14 +46,30 @@ class TDTestCase(TBase):
 
 
     # run
-    def run(self):
+    def test_resinfo(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tdLog.debug(f"start to excute {__file__}")
 
         # insert data
-        self.testFileChanged()
+        self.run_file_changed()
 
         tdLog.success(f"{__file__} successfully executed")
 
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

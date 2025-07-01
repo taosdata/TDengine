@@ -11,15 +11,9 @@
 
 # -*- coding: utf-8 -*-
 
-from frame import etool
-from frame.etool import *
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame.common import *
+from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
-class TDTestCase(TBase):
+class TestInterp:
     updatecfgDict = {
         "keepColumnName": "1",
         "ttlChangeOnWrite": "1",
@@ -63,7 +57,7 @@ class TDTestCase(TBase):
         tdSql.execute(f"insert into test.ts5941_child values ('2020-02-01 00:00:10', 10, 10)")
         tdSql.execute(f"insert into test.ts5941_child values ('2020-02-01 00:00:15', 15, 15)")
 
-    def test_normal_query_new(self, testCase):
+    def run_normal_query_new(self, testCase):
         # read sql from .sql file and execute
         tdLog.info("test normal query.")
         self.sqlFile = etool.curFile(__file__, f"in/{testCase}.in")
@@ -71,7 +65,7 @@ class TDTestCase(TBase):
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
-    def test_abnormal_query(self, testCase):
+    def run_abnormal_query(self, testCase):
         tdLog.info("test abnormal query.")
         tdSql.error("select interp(c1) from test.td32727 range('2020-02-01 00:00:00.000', '2020-02-01 00:00:30.000', -1s) every(2s) fill(prev, 99);")
         tdSql.error("select interp(c1), interp(c4) from test.td32727 range('2020-02-01 00:00:00.000', '2020-02-01 00:00:30.000', 1s) every(2s) fill(prev, 99);")
@@ -92,20 +86,33 @@ class TDTestCase(TBase):
         tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1) every(2s) fill(prev, 99);")
         tdSql.error("create stream s1 trigger force_window_close into test.s1res as select _irowts, interp(c1), interp(c2)from test.td32727 partition by tbname range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(1s) fill(near, 1, 1);")
 
+    def run_interp(self):
+        self.run_normal_query_new("interp")
+        self.run_abnormal_query("interp")
+
     def test_interp(self):
-        self.test_normal_query_new("interp")
-        self.test_abnormal_query("interp")
+        """summary: xxx
 
-    def run(self):
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tdLog.debug(f"start to excute {__file__}")
-
         self.insert_data()
-
         # math function
         self.test_interp()
-
         tdLog.success(f"{__file__} successfully executed")
 
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

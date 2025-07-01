@@ -1,23 +1,13 @@
-import taos
-import frame
-import frame.etool
+from new_test_framework.utils import tdLog, tdSql
 
 
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
-
-
-class TDTestCase(TBase):
+class TestConcat:
     """Verify the concat function
     """
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdSql.init(conn.cursor())
-        self.dbname = 'db'
-        self.tbname = f'{self.dbname}.tbconcat'
+    
+    def setup_class(cls):
+        cls.dbname = 'db'
+        cls.tbname = f'{cls.dbname}.tbconcat'
     def checkConcat(self):
         tdSql.execute(f'drop database if exists {self.dbname}')
         tdSql.execute(f'create database {self.dbname}')
@@ -30,15 +20,26 @@ class TDTestCase(TBase):
         tdSql.execute(f'select concat(name2,"你好") from {self.tbname}')
         tdSql.execute(f'select concat(name2,"") from {self.tbname}')
         tdSql.execute(f'select concat("", name2) from {self.tbname}')
-    def run(self):
+    def test_concat(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tdLog.debug(f"start to excute {__file__}")
         # check concat function
         self.checkConcat()
         tdLog.success(f"{__file__} successfully executed")
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

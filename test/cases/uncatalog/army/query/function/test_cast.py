@@ -1,17 +1,13 @@
 # -*- coding: utf-8 -*-
 
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
+from new_test_framework.utils import tdLog, tdSql
 
 
-class TDTestCase(TBase):
-    def init(self, conn, logSql, replicaVar=1):
+class TestCast:
+
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
-        self._datetime_epoch = datetime.datetime.fromtimestamp(0)
+        cls._datetime_epoch = datetime.datetime.fromtimestamp(0)
 
     def cast_from_int_to_other(self):
         # int
@@ -566,13 +562,28 @@ class TDTestCase(TBase):
         self.cast_from_compute_to_other()
         # self.cast_from_null_to_other()
 
-    def run(self):
+    def test_cast(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         # 'from table' case see system-test/2-query/cast.py
         self.cast_without_from()
         self.ts5972()
 
         tdLog.success(f"{__file__} successfully executed")
 
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

@@ -11,15 +11,9 @@
 
 # -*- coding: utf-8 -*-
 
-from frame import etool
-from frame.etool import *
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame.common import *
+from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
-class TDTestCase(TBase):
+class TestPercentile:
     updatecfgDict = {
         "keepColumnName": "1",
         "ttlChangeOnWrite": "1",
@@ -177,18 +171,27 @@ class TDTestCase(TBase):
         tdSql.execute(f'INSERT INTO td32506.reg_table_159 using td32506.fs_table(tinyint_type_tag_name,usmallint_type_tag_name,b,f,varbinary_type_tag_name,bigint_type_tag_name,smallint_type_tag_name,geometry_type_tag_name,varchar_type_tag_name,extratag,utinyint_type_tag_name,uint_type_tag_name,ubigint_type_tag_name,double_type_tag_name,bool_type_tag_name,int_type_tag_name) TAGS(-98, 2946, "qgvkaujyrikpmgxp", 3.2784411370027565e+38, "dspxtsyqnqdyciab", -794888918858663169, -1378, "point(1.0 1.0)", "diaerlydilfkqveu", -1591170700, -9, 88084273, -8326438069324931384, -6.790019844508353e+307, False, 1326851510) (ts,speed,double_type_col_name,geometry_type_col_name,ubigint_type_col_name,bool_type_col_name,utinyint_type_col_name,bigint_type_col_name,usmallint_type_col_name,color,smallint_type_col_name,varchar_type_col_name,nchar_type_col_name,float_type_col_name,varbinary_type_col_name) VALUES ("2016-12-16 18:17:51", -1374792144, -1.149850424042433e+308, "point(1.0 1.0)", 8907011909602006795, False, 104, 1588514034331429385, -18984, "namrvnonxcrzziic", -26616, "ueddmjfyoclvjwfx", "mkkexxinfededdfr", -2.403953587086065e+38, "kadxrwlomevmukfr");')
 
     def test_percentile(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+        tdLog.debug(f"start to excute {__file__}")
+        self.insert_data()
         tdSql.error('SELECT SPREAD(bigint_type_tag_name),LEASTSQUARES(bigint_type_tag_name, 9, 2),COUNT(bigint_type_tag_name),HYPERLOGLOG(bigint_type_tag_name),PERCENTILE(bigint_type_tag_name,89,27,20,19,87,99,26,17,45),AVG(bigint_type_tag_name), HYPERLOGLOG(tinyint_type_tag_name),AVG(tinyint_type_tag_name),SPREAD(tinyint_type_tag_name),STDDEV(tinyint_type_tag_name),SUM(tinyint_type_tag_name),COUNT(tinyint_type_tag_name),APERCENTILE(tinyint_type_tag_name, 1, "t-digest"),LEASTSQUARES(tinyint_type_tag_name, 8, 1), STDDEV(usmallint_type_tag_name), COUNT(nchar_type_tag_name),HYPERLOGLOG(nchar_type_tag_name), PERCENTILE(double_type_col_name,6,23,52,24,1,53,95,51,38),HYPERLOGLOG(double_type_col_name),SPREAD(double_type_col_name) FROM td32506.reg_table_159   STATE_WINDOW(1);')
 
-    def run(self):
-        tdLog.debug(f"start to excute {__file__}")
-
-        self.insert_data()
-
-        # math function
-        self.test_percentile()
-
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())
+    

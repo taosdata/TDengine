@@ -11,15 +11,10 @@
 
 # -*- coding: utf-8 -*-
 
-from frame import etool
-from frame.etool import *
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame.common import *
+from new_test_framework.utils import tdLog, tdSql, etool
 
-class TDTestCase(TBase):
+
+class TestFunction:
     updatecfgDict = {
         "keepColumnName": "1",
         "ttlChangeOnWrite": "1",
@@ -45,7 +40,7 @@ class TDTestCase(TBase):
         tdSql.execute("insert into n1 values(now+1a, null, 3, '23')")
         tdSql.execute("insert into n1 values(now+2a, 5, 3, '23')")
 
-    def test_normal_query_new(self, testCase):
+    def run_normal_query_new(self, testCase):
         # read sql from .sql file and execute
         tdLog.info("test normal query.")
         self.sqlFile = etool.curFile(__file__, f"in/{testCase}.in")
@@ -53,67 +48,67 @@ class TDTestCase(TBase):
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
-    def test_pi(self):
-        self.test_normal_query_new("pi")
+    def run_pi(self):
+        self.run_normal_query_new("pi")
 
-    def test_round(self):
-        self.test_normal_query_new("round")
+    def run_round(self):
+        self.run_normal_query_new("round")
 
         tdSql.error("select round(name, 2) from ts_4893.meters limit 1;")
 
-    def test_exp(self):
-        self.test_normal_query_new("exp")
+    def run_exp(self):
+        self.run_normal_query_new("exp")
 
-    def test_truncate(self):
-        self.test_normal_query_new("trunc")
+    def run_truncate(self):
+        self.run_normal_query_new("trunc")
 
         tdSql.error("select truncate(0.999);")
         tdSql.error("select truncate(-1.999);")
         tdSql.error("select truncate(null);")
         tdSql.error("select truncate(name, 1) from ts_4893.meters limit 1;")
 
-    def test_ln(self):
-        self.test_normal_query_new("ln")
+    def run_ln(self):
+        self.run_normal_query_new("ln")
 
         tdSql.error("select ln(name) from ts_4893.meters limit 1;")
 
-    def test_mod(self):
-        self.test_normal_query_new("mod")
+    def run_mod(self):
+        self.run_normal_query_new("mod")
 
         tdSql.error("select mod(name, 2) from ts_4893.meters limit 1;")
 
-    def test_sign(self):
-        self.test_normal_query_new("sign")
+    def run_sign(self):
+        self.run_normal_query_new("sign")
 
         tdSql.error("select sign('');")
         tdSql.error("select sign('abc');")
         tdSql.error("select sign('123');")
         tdSql.error("select sign('-456');")
 
-    def test_degrees(self):
-        self.test_normal_query_new("degrees")
+    def run_degrees(self):
+        self.run_normal_query_new("degrees")
 
         tdSql.error("select degrees('');")
         tdSql.error("select degrees('abc');")
         tdSql.error("select degrees('1.57');")
 
-    def test_radians(self):
-        self.test_normal_query_new("radians")
+    def run_radians(self):
+        self.run_normal_query_new("radians")
 
         tdSql.error("select radians('');")
         tdSql.error("select radians('abc');")
         tdSql.error("select radians('45');")
 
-    def test_char_length(self):
-        self.test_normal_query_new("char_length")
+    def run_char_length(self):
+        self.run_normal_query_new("char_length")
 
         tdSql.error("select char_length(12345);")
         tdSql.error("select char_length(true);")
         tdSql.error("select char_length(repeat('a', 1000000));")
         tdSql.error("select char_length(id) from ts_4893.meters;")
 
-    def test_char(self):
-        self.test_normal_query_new("char")
+    def run_char(self):
+        self.run_normal_query_new("char")
 
         res = [[chr(0)], [chr(1)], [chr(2)], [chr(3)], [chr(4)], [chr(5)], [chr(6)], [chr(7)], [chr(8)], [chr(9)]]
         tdSql.checkDataMem("select char(id) from ts_4893.d0 limit 10;", res)
@@ -125,74 +120,74 @@ class TDTestCase(TBase):
         tdSql.checkDataMem("select char(var1) from ts_4893.d0 limit 10;", res)
         tdSql.checkDataMem("select char(var1) from ts_4893.meters limit 10;", res)
 
-    def test_ascii(self):
-        self.test_normal_query_new("ascii")
+    def run_ascii(self):
+        self.run_normal_query_new("ascii")
 
         tdSql.error("select ascii(123);")
 
-    def test_position(self):
-        self.test_normal_query_new("position")
+    def run_position(self):
+        self.run_normal_query_new("position")
 
-    def test_replace(self):
-        self.test_normal_query_new("replace")
+    def run_replace(self):
+        self.run_normal_query_new("replace")
 
-    def test_repeat(self):
-        self.test_normal_query_new("repeat")
+    def run_repeat(self):
+        self.run_normal_query_new("repeat")
 
-    def test_substr(self):
-        self.test_normal_query_new("substr")
+    def run_substr(self):
+        self.run_normal_query_new("substr")
 
-    def test_substr_idx(self):
-        self.test_normal_query_new("substr_idx")
+    def run_substr_idx(self):
+        self.run_normal_query_new("substr_idx")
 
-    def test_trim(self):
-        self.test_normal_query_new("trim")
+    def run_trim(self):
+        self.run_normal_query_new("trim")
         
-    def test_base64(self):
-        self.test_normal_query_new("base64")
+    def run_base64(self):
+        self.run_normal_query_new("base64")
     
-    def test_crc32(self):
-        self.test_normal_query_new("crc32")
+    def run_crc32(self):
+        self.run_normal_query_new("crc32")
 
-    def test_timediff(self):
-        self.test_normal_query_new("timediff")
+    def run_timediff(self):
+        self.run_normal_query_new("timediff")
 
         tdSql.error("select timediff(min(ts), '2023-01-01 00:00:00') from ts_4893.meters limit 1;")
         tdSql.error("select timediff(max(ts), '2023-12-31 23:59:59') from ts_4893.meters limit 1;")
         tdSql.error("select (select timediff(ts, (select max(ts) from ts_4893.meters)) from ts_4893.meters where id = m.id) from ts_4893.meters m;")
 
-    def test_week(self):
-        self.test_normal_query_new("week")
+    def run_week(self):
+        self.run_normal_query_new("week")
 
-    def test_weekday(self):
-        self.test_normal_query_new("weekday")
+    def run_weekday(self):
+        self.run_normal_query_new("weekday")
 
         tdSql.error("select weekday(hello) from ts_4893.meters limit 1;")
 
-    def test_weekofyear(self):
-        self.test_normal_query_new("weekofyear")
+    def run_weekofyear(self):
+        self.run_normal_query_new("weekofyear")
 
-    def test_dayofweek(self):
-        self.test_normal_query_new("dayofweek")
+    def run_dayofweek(self):
+        self.run_normal_query_new("dayofweek")
 
-    def test_stddev_pop(self):
-        self.test_normal_query_new("stddev")
+    def run_stddev_pop(self):
+        self.run_normal_query_new("stddev")
 
         tdSql.error("select stddev_pop(var1) from ts_4893.meters;")
         tdSql.error("select stddev_pop(current) from empty_ts_4893.meters;")
         tdSql.error("select stddev_pop(name) from ts_4893.meters;")
         tdSql.error("select stddev_pop(nonexistent_column) from ts_4893.meters;")
 
-    def test_varpop(self):
-        self.test_normal_query_new("varpop")
+    def run_varpop(self):
+        self.run_normal_query_new("varpop")
 
         tdSql.error("select var_pop(var1) from ts_4893.meters;")
         tdSql.error("select var_pop(current) from empty_ts_4893.meters;")
         tdSql.error("select var_pop(name) from ts_4893.meters;")
         tdSql.error("select var_pop(nonexistent_column) from ts_4893.meters;")
 
-    def test_rand(self):
-        self.test_normal_query_new("rand")
+    def run_rand(self):
+        self.run_normal_query_new("rand")
 
         tdSql.query("select rand();")
         tdSql.checkRows(1)
@@ -263,36 +258,36 @@ class TDTestCase(TBase):
             args = (caller.filename, caller.lineno, self.sql, row+1, self.queryRows)
             tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
 
-    def test_max(self):
-        self.test_normal_query_new("max")
+    def run_max(self):
+        self.run_normal_query_new("max")
 
         tdSql.error("select max(nonexistent_column) from ts_4893.meters;")
 
-    def test_min(self):
-        self.test_normal_query_new("min")
+    def run_min(self):
+        self.run_normal_query_new("min")
 
         tdSql.error("select min(nonexistent_column) from ts_4893.meters;")
 
-    def test_sum(self):
-        self.test_normal_query_new("sum")
+    def run_sum(self):
+        self.run_normal_query_new("sum")
 
-    def test_statecount(self):
-        self.test_normal_query_new("statecount")
+    def run_statecount(self):
+        self.run_normal_query_new("statecount")
 
-    def test_avg(self):
-        self.test_normal_query_new("avg")
+    def run_avg(self):
+        self.run_normal_query_new("avg")
 
-    def test_leastsquares(self):
-        self.test_normal_query_new("leastsquares")
+    def run_leastsquares(self):
+        self.run_normal_query_new("leastsquares")
 
-    def test_error(self):
+    def run_error(self):
         tdSql.error("select * from (select to_iso8601(ts, timezone()), timezone() from ts_4893.meters \
             order by ts desc) limit 1000;", expectErrInfo="Invalid parameter data type : to_iso8601") # TS-5340
         tdSql.error("select * from ts_4893.meters where ts between(timetruncate(now, 1h) - 10y) and timetruncate(now(), 10y) partition by voltage;",
                     expectErrInfo="Invalid timzone format : timetruncate") #
 
-    def test_greatest(self):
-        self.test_normal_query_new("greatest")
+    def run_greatest(self):
+        self.run_normal_query_new("greatest")
         
         tdSql.execute("alter local 'compareAsStrInGreatest' '1';")
         
@@ -364,8 +359,8 @@ class TDTestCase(TBase):
         tdSql.error("select GREATEST(cast('a' as varbinary), cast('b' as varbinary), 'c', 'd');")
         tdSql.error("select GREATEST(6, cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")       
 
-    def test_least(self):
-        self.test_normal_query_new("least")
+    def run_least(self):
+        self.run_normal_query_new("least")
 
         tdSql.execute("alter local 'compareAsStrInGreatest' '1';")
         
@@ -455,7 +450,7 @@ class TDTestCase(TBase):
         tdSql.error("select LEAST(cast('a' as varbinary), cast('b' as varbinary), 'c', 'd');")
         tdSql.error("select LEAST(cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")
 
-    def test_greatest_large_table(self):
+    def run_greatest_large_table(self):
         tdLog.info("test greatest large table.")
            
         ts = 1741341251000
@@ -508,63 +503,60 @@ class TDTestCase(TBase):
         tdLog.info(f"greatest_query: {greatest_query}")
         tdSql.execute(greatest_query)
 
-    def run(self):
+    def test_function(self):
         tdLog.debug(f"start to excute {__file__}")
 
         self.insert_data()
 
         # math function
-        self.test_pi()
-        self.test_round()
-        self.test_exp()
-        self.test_truncate()
-        self.test_ln()
-        self.test_mod()
-        self.test_sign()
-        self.test_degrees()
-        self.test_radians()
-        self.test_rand()
-        self.test_greatest()
-        self.test_least()
-        self.test_greatest_large_table()
+        self.run_pi()
+        self.run_round()
+        self.run_exp()
+        self.run_truncate()
+        self.run_ln()
+        self.run_mod()
+        self.run_sign()
+        self.run_degrees()
+        self.run_radians()
+        self.run_rand()
+        self.run_greatest()
+        self.run_least()
+        self.run_greatest_large_table()
         
         # char function
-        self.test_char_length()
-        self.test_char()
-        self.test_ascii()
-        self.test_position()
-        self.test_replace()
-        self.test_repeat()
-        self.test_substr()
-        self.test_substr_idx()
-        self.test_trim()
-        self.test_base64()
-        self.test_crc32()
+        self.run_char_length()
+        self.run_char()
+        self.run_ascii()
+        self.run_position()
+        self.run_replace()
+        self.run_repeat()
+        self.run_substr()
+        self.run_substr_idx()
+        self.run_trim()
+        self.run_base64()
+        self.run_crc32()
 
         # time function
-        self.test_timediff()
-        self.test_week()
-        self.test_weekday()
-        self.test_weekofyear()
-        self.test_dayofweek()
+        self.run_timediff()
+        self.run_week()
+        self.run_weekday()
+        self.run_weekofyear()
+        self.run_dayofweek()
 
         # agg function
-        self.test_stddev_pop()
-        self.test_varpop()
-        self.test_avg()
-        self.test_sum()
-        self.test_leastsquares()
-        self.test_statecount()
+        self.run_stddev_pop()
+        self.run_varpop()
+        self.run_avg()
+        self.run_sum()
+        self.run_leastsquares()
+        self.run_statecount()
 
         # select function
-        self.test_max()
-        self.test_min()
+        self.run_max()
+        self.run_min()
 
         # error function
-        self.test_error()
+        self.run_error()
 
         tdLog.success(f"{__file__} successfully executed")
 
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

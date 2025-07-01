@@ -11,19 +11,11 @@
 
 # -*- coding: utf-8 -*-
 
-from frame import etool
-from frame.etool import *
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame.common import *
+from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
-class TDTestCase(TBase):
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestInterval:
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
 
     def insert_data(self):
         tdLog.info("insert interval test data.")
@@ -51,7 +43,7 @@ class TDTestCase(TBase):
             tdLog.info(f"i={i} wait for history data calculation finish ...")
             time.sleep(1)
 
-    def query_test(self):
+    def query_run(self):
         # read sql from .sql file and execute
         tdLog.info("test normal query.")
         self.sqlFile = etool.curFile(__file__, f"in/interval.in")
@@ -59,21 +51,10 @@ class TDTestCase(TBase):
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "interval")
 
-    def run(self):
+    def test_interval(self):
         self.insert_data()
         self.create_streams()
-        self.query_test()
+        self.query_run()
 
-    def stop(self):
-        tdSql.execute("drop stream stream1;")
-        tdSql.execute("drop stream stream2;")
-        tdSql.execute("drop stream stream3;")
-        tdSql.execute("drop stream stream4;")
-        tdSql.execute("drop stream stream5;")
-        tdSql.execute("drop stream stream6;")
-        tdSql.execute("drop stream stream7;")
         tdLog.success(f"{__file__} successfully executed")
 
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

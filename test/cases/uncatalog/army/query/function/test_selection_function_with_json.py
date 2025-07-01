@@ -11,15 +11,10 @@
 
 # -*- coding: utf-8 -*-
 
-from frame import etool
-from frame.etool import *
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame.common import *
+from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
-class TDTestCase(TBase):
+
+class TestSelectionFunctionWithJson:
     updatecfgDict = {
         "keepColumnName": "1",
         "ttlChangeOnWrite": "1",
@@ -93,14 +88,26 @@ class TDTestCase(TBase):
             tdSql.query("select _wstart,first(v)-last(v), first(labels->'asset_name'),first(labels->'ident'),mode(labels->'asset_name'),mode(labels->'ident'),last(labels->'asset_name'),last(labels->'ident') from ts_5763.metrics interval(1s)")
             tdSql.checkRows(18)
 
-    def run(self):
+    def test_selection_function_with_json(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tdLog.debug(f"start to excute {__file__}")
-
         self.insert_data()
-
-
         tdLog.success(f"{__file__} successfully executed")
 
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())
