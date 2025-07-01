@@ -361,6 +361,8 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 - **result_file** : The path to the result output file, default is ./output.txt.
 
+- **result_json_file**：The path to the result output JSON file. If not configured, the file will not be output.
+
 - **confirm_parameter_prompt** : A toggle parameter that requires user confirmation after a prompt to continue. The value can be "yes" or "no", by default "no".
 
 - **interlace_rows** : Enables interleaved insertion mode and specifies the number of rows to insert into each subtable at a time. Interleaved insertion mode refers to inserting the specified number of rows into each subtable in sequence and repeating this process until all subtable data has been inserted. The default is 0, meaning data is inserted into one subtable completely before moving to the next.

@@ -269,6 +269,8 @@ taosBenchmark -f <json file>
 
 - **result_file**：结果输出文件的路径，默认值为 ./output.txt。
 
+- **result_json_file**：结果输出的 JSON 文件路径，若未配置则不输出该文件。
+
 - **confirm_parameter_prompt**：开关参数，要求用户在提示后确认才能继续，可取值 "yes" or "no"。默认值为 "no" 。
 
 - **interlace_rows**：启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0，即向一张子表完成数据插入后才会向下一张子表进行数据插入。
