@@ -6740,6 +6740,25 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
         } else {
           return DEAL_RES_CONTINUE;
         }
+      } else if (pOperator->opType == OP_TYPE_EQUAL) {
+        if (filterExtractTsNeedCollect(pOperator->pLeft, pOperator->pRight) ||
+            filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft)) {
+          SNode*      startNode = NULL;
+          SNode*      endNode = NULL;
+          SValueNode* pVal = NULL;
+          nodesCloneNode(*pNode, &startNode);
+          nodesCloneNode(*pNode, &endNode);
+          ((SOperatorNode*)startNode)->opType = OP_TYPE_GREATER_EQUAL;
+          ((SOperatorNode*)endNode)->opType = OP_TYPE_LOWER_EQUAL;
+          nodesListMakeAppend(&pCxt->pStart, startNode);
+          nodesListMakeAppend(&pCxt->pEnd, endNode);
+          nodesMakeValueNodeFromBool(true, &pVal);
+          *pNode = (SNode*)pVal;
+
+          return DEAL_RES_IGNORE_CHILD;
+        } else {
+          return DEAL_RES_CONTINUE;
+        }
       } else {
         return DEAL_RES_CONTINUE;
       }
@@ -6913,7 +6932,7 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
     }
   }
 
-  if (pCxt->createStreamCalc && pCxt->currClause == SQL_CLAUSE_WHERE) {
+  if (pCxt->createStreamCalc) {
     PAR_ERR_JRET(filterExtractTsCond(&pCond, pTimeRangeExpr));
     // some node may be replaced
     TSWAP(*pWhere, pCond);
@@ -7711,7 +7730,7 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateExpr(pCxt, &pSelect->pFill);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = getQueryTimeRange(pCxt, &pSelect->pRange, &(((SFillNode*)pSelect->pFill)->timeRange), NULL);
+    code = getQueryTimeRange(pCxt, &pSelect->pRange, &(((SFillNode*)pSelect->pFill)->timeRange), &(((SFillNode*)pSelect->pFill)->pTimeRange));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true, pSelect->precision);

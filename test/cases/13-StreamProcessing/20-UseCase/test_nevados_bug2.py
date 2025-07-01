@@ -141,11 +141,11 @@ class Test_Nevados:
         )
 
         sql = "select window_start, window_hourly, site, id, windspeed_hourly_maximum from dev.windspeeds_hourly where id='id_1';"
-        exp_sql = "select _wstart, _wend, site, id, max(speed) from t1 interval(1h);"
+        exp_sql = "select _wstart, _wend, site, id, max(speed) from dev.t1 interval(1h);"
         tdSql.checkResultsBySql(sql=sql, exp_sql=exp_sql, retry=15)
 
         sql = "select count(*) from dev.windspeeds_hourly;"
-        exp_sql = "select count(*) from (select _wstart, _wend, site, id, max(speed) from windspeeds partition by tbname interval(1h));"
+        exp_sql = "select count(*) from (select _wstart, _wend, site, id, max(speed) from dev.windspeeds partition by tbname interval(1h));"
         tdSql.checkResultsBySql(sql=sql, exp_sql=exp_sql, retry=15)
 
     def windspeeds_daily(self):

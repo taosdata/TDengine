@@ -26,6 +26,7 @@ extern "C" {
 #endif
 
 typedef struct SSTriggerVirTableInfo {
+  int64_t tbGid;
   int64_t tbUid;
   int64_t tbVer;
   int32_t vgId;
@@ -46,7 +47,7 @@ typedef struct SSTriggerRealtimeGroup {
   int64_t                          gid;
   TD_DLIST_NODE(SSTriggerRealtimeGroup);
 
-  SSHashObj *pVirTableInfos;  // SSHashObj<tbUid, SSTriggerVirTableInfo>, only for virtual tables
+  SArray    *pVirTableInfos;  // SArray<SSTriggerVirTableInfo *>
   SSHashObj *pTableMetas;     // SSHashObj<tbUid, SSTriggerTableMeta>
 
   int64_t oldThreshold;
@@ -63,6 +64,7 @@ typedef struct SSTriggerRealtimeGroup {
 
 typedef enum ESTriggerContextStatus {
   STRIGGER_CONTEXT_IDLE = 0,
+  STRIGGER_CONTEXT_GATHER_VTABLE_INFO,
   STRIGGER_CONTEXT_DETERMINE_BOUND,
   STRIGGER_CONTEXT_FETCH_META,
   STRIGGER_CONTEXT_ACQUIRE_REQUEST,
@@ -104,6 +106,8 @@ typedef struct SSTriggerRealtimeContext {
 
   SArray                   *pNotifyParams;  // SArray<SSTriggerCalcParam>
   SSTriggerPullRequestUnion pullReq;
+  SArray                   *reqCids;  // SArray<col_id_t>
+  SArray                   *reqCols;  // SArray<OTableInfo>
   SSDataBlock              *pullRes[STRIGGER_PULL_TYPE_MAX];
   SSTriggerCalcRequest     *pCalcReq;
 
@@ -154,7 +158,7 @@ typedef struct SStreamTriggerTask {
       int64_t windowSliding;
     };
     struct {  // for state window
-      int64_t stateColId;
+      int64_t stateSlotId;
       int64_t stateTrueFor;
     };
     struct {  // for event window
@@ -186,19 +190,30 @@ typedef struct SStreamTriggerTask {
   int32_t            notifyErrorHandle;
   bool               notifyHistory;
   // reader and runner info
-  SArray *readerList;  // SArray<SStreamTaskAddr>
-  SArray *runnerList;  // SArray<SStreamRunnerTarget>
+  SArray *readerList;      // SArray<SStreamTaskAddr>
+  SArray *virtReaderList;  // SArray<SStreamTaskAddr>
+  SArray *runnerList;      // SArray<SStreamRunnerTarget>
 
   // runtime info
   int32_t                   leaderSnodeId;
   SSTriggerRealtimeContext *pRealtimeContext;
   SSHashObj                *pRealtimeStartVer;
   SSHashObj                *pHistoryCutoffTime;
+
+  SSDataBlock *pVirDataBlock;
+  SArray      *pVirTrigSlots;     // SArray<int32_t>
+  SArray      *pVirCalcSlots;     // SArray<int32_t>
+  SArray      *pVirTableInfoRsp;  // SArray<VTableInfo>
+  SSHashObj   *pOrigTableCols;    // SSHashObj<dbname, SSHashObj<tbname, SSTriggerOrigTableInfo>>
+  SSHashObj   *pReaderUidMap;     // SSHashObj<vgId, SArray<int64_t, int64_t>>
+  SSHashObj   *pVirTableInfos;    // SSHashObj<tbUid, SSTriggerVirTableInfo>
+  bool         virTableInfoReady;
+
   // calc request pool
   SRWLatch   calcPoolLock;
   SArray    *pCalcNodes;     // SArray<SSTriggerCalcNode>
   SSHashObj *pGroupRunning;  // SSHashObj<gid, bool[]>
-  
+
   // checkpoint
   bool isCheckpointReady;
 } SStreamTriggerTask;
