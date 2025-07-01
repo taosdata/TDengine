@@ -678,7 +678,7 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
     pBlock2 = NULL;  
   }
 
-  printDataBlock(*pBlock, __func__, "");
+  printDataBlock(*pBlock, __func__, "processWalVerData2");
 
 end:
   STREAM_PRINT_LOG_END(code, lino);
