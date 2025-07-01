@@ -479,6 +479,11 @@
 ## 03-WebSocket
 ## 04-MQTT
 ,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_smoking.py
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 6
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 11
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_qos.py
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_special.py
 ## 05-OPC
 
 # 13-StreamProcessing

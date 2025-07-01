@@ -181,6 +181,10 @@ class TestShowBasic:
         tdSql.query(f"show variables;")
         tdSql.checkAssert(tdSql.getRows() > 0)
 
+        tdSql.query(f"show dnode 1 variables;")
+        if tdSql.getRows() <= 0:
+            tdLog.exit("checkAssert here")
+
         tdSql.query(f"show local variables;")
         if tdSql.getRows() <= 0:
             tdLog.exit("checkAssert here")
