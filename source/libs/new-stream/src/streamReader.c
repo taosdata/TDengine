@@ -172,11 +172,13 @@ static void releaseStreamReaderInfo(void* p) {
   taosHashCleanup(pInfo->streamTaskMap);
   taosHashCleanup(pInfo->groupIdMap);
   pInfo->streamTaskMap = NULL;
+
+  destroyCondition(pInfo->pCalcConditions);
+  destroyCondition(pInfo->pCalcTagCond);
+
   nodesDestroyNode((SNode*)(pInfo->triggerAst));
   nodesDestroyNode((SNode*)(pInfo->calcAst));
   
-  destroyCondition(pInfo->pCalcConditions);
-  destroyCondition(pInfo->pCalcTagCond);
   
   blockDataDestroy(pInfo->triggerResBlock);
   blockDataDestroy(pInfo->calcResBlock);
@@ -215,36 +217,25 @@ int32_t qStreamBuildSchema(SArray* schemas, int8_t type, int32_t bytes, col_id_t
   return 0;
 }
 
-static int32_t buildSTSchemaAndSetColId(STSchema** sSchema, SNodeList* list, SSDataBlock* pResBlock) {
+static int32_t buildSTSchemaForScanData(STSchema** sSchema, SNodeList* list) {
   int32_t  code = 0;
   int32_t  lino = 0;
   int32_t  nCols = LIST_LENGTH(list);
-  SSchema* pSchema = NULL;
-  if (sSchema != NULL){
-    pSchema = (SSchema*)taosMemoryCalloc(nCols, sizeof(SSchema));
-    STREAM_CHECK_NULL_GOTO(pSchema, terrno);
-  }
+  SSchema* pSchema = pSchema = (SSchema*)taosMemoryCalloc(nCols, sizeof(SSchema));
+  STREAM_CHECK_NULL_GOTO(pSchema, terrno);
   
   SNode*  nodeItem = NULL;
   int32_t i = 0;
   FOREACH(nodeItem, list) {
     SColumnNode*     valueNode = (SColumnNode*)((STargetNode*)nodeItem)->pExpr;
-    int32_t          slotId = ((STargetNode*)nodeItem)->slotId;
-    SColumnInfoData* pColData = taosArrayGet(pResBlock->pDataBlock, slotId);
-    STREAM_CHECK_NULL_GOTO(pColData, terrno);
-    pColData->info.colId = valueNode->colId;
-    if (sSchema != NULL){
-      pSchema[i].type = valueNode->node.resType.type;
-      pSchema[i].colId = valueNode->colId;
-      pSchema[i].bytes = valueNode->node.resType.bytes;
-    }
+    pSchema[i].type = valueNode->node.resType.type;
+    pSchema[i].colId = valueNode->colId;
+    pSchema[i].bytes = valueNode->node.resType.bytes;
     i++;
   }
 
-  if (sSchema != NULL){
-    *sSchema = tBuildTSchema(pSchema, nCols, 0);
-    STREAM_CHECK_NULL_GOTO(*sSchema, terrno);
-  }
+  *sSchema = tBuildTSchema(pSchema, nCols, 0);
+  STREAM_CHECK_NULL_GOTO(*sSchema, terrno);
 
 end:
   STREAM_PRINT_LOG_END(code, lino);
@@ -351,13 +342,14 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
       ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.node.pOutputDataBlockDesc;
   sStreamReaderInfo->triggerResBlock = createDataBlockFromDescNode(pDescNode);
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerResBlock, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
-  STREAM_CHECK_RET_GOTO(buildSTSchemaAndSetColId(&sStreamReaderInfo->triggerSchema, sStreamReaderInfo->triggerCols,
-                                                 sStreamReaderInfo->triggerResBlock));
+  STREAM_CHECK_RET_GOTO(buildSTSchemaForScanData(&sStreamReaderInfo->triggerSchema, sStreamReaderInfo->triggerCols));
   SNodeList* pseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanPseudoCols;
   if (pseudoCols != NULL) {
     STREAM_CHECK_RET_GOTO(
         createExprInfo(pseudoCols, NULL, &sStreamReaderInfo->pExprInfo, &sStreamReaderInfo->numOfExpr));
   }
+  setColIdForCalcResBlock(pseudoCols, sStreamReaderInfo->triggerResBlock->pDataBlock);
+  setColIdForCalcResBlock(sStreamReaderInfo->triggerCols, sStreamReaderInfo->triggerResBlock->pDataBlock);
 
   // process calcCacheScanPlan
   STREAM_CHECK_RET_GOTO(nodesStringToNode(pMsg->msg.trigger.calcCacheScanPlan, (SNode**)(&sStreamReaderInfo->calcAst)));
@@ -385,7 +377,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
   sStreamReaderInfo->groupIdMap =
       taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->groupIdMap, terrno);
-  taosHashSetFreeFp(sStreamReaderInfo->streamTaskMap, releaseGroupIdMap);
+  taosHashSetFreeFp(sStreamReaderInfo->groupIdMap, releaseGroupIdMap);
 
   sStreamReaderInfo->streamTaskMap =
       taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
@@ -447,12 +439,12 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
 
   pTask->triggerReader = pMsg->triggerReader;
   if (pMsg->triggerReader == 1) {
-    ST_TASK_DLOG("triggerScanPlan:%s", (char*)(pMsg->msg.trigger.triggerScanPlan));
-    ST_TASK_DLOG("calcCacheScanPlan:%s", (char*)(pMsg->msg.trigger.calcCacheScanPlan));
+    ST_TASK_DLOGL("triggerScanPlan:%s", (char*)(pMsg->msg.trigger.triggerScanPlan));
+    ST_TASK_DLOGL("calcCacheScanPlan:%s", (char*)(pMsg->msg.trigger.calcCacheScanPlan));
     pTask->info = createStreamReaderInfo(pMsg);
     STREAM_CHECK_NULL_GOTO(pTask->info, terrno);
   } else {
-    ST_TASK_DLOG("calcScanPlan:%s", (char*)(pMsg->msg.calc.calcScanPlan));
+    ST_TASK_DLOGL("calcScanPlan:%s", (char*)(pMsg->msg.calc.calcScanPlan));
     pTask->info = taosArrayInit(pMsg->msg.calc.execReplica, POINTER_BYTES);
     STREAM_CHECK_NULL_GOTO(pTask->info, terrno);
     for (int32_t i = 0; i < pMsg->msg.calc.execReplica; ++i) {

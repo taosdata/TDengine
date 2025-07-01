@@ -64,6 +64,7 @@ _exit:
   return code;
 }
 
+
 static int32_t streamTriggerAddWaitContext(SSTriggerRealtimeContext *pContext, int64_t resumeTime) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
@@ -2068,7 +2069,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
     case STRIGGER_PULL_WAL_TS_DATA:
     case STRIGGER_PULL_WAL_TRIGGER_DATA:
     case STRIGGER_PULL_WAL_CALC_DATA: {
-      SSTriggerWalTriggerDataRequest *pReq = &pContext->pullReq.walTriggerDataReq;
+      SSTriggerWalRequest *pReq = &pContext->pullReq.walReq;
       SSTriggerRealtimeGroup         *pGroup = stRealtimeContextGetCurrentGroup(pContext);
       QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
       SSTriggerTableMeta *pCurTableMeta = pGroup->pCurTableMeta;
@@ -2716,7 +2717,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
   SSTriggerOrigTableInfoRsp otableInfo = {0};
   SArray                   *pOrigTableNames = NULL;
 
-  QUERY_CHECK_CONDITION(pRsp->code == TSDB_CODE_SUCCESS || pRsp->code == TSDB_CODE_WAL_LOG_NOT_EXIST, code, lino, _end,
+  QUERY_CHECK_CONDITION(pRsp->code == TSDB_CODE_SUCCESS || pRsp->code == TSDB_CODE_STREAM_NO_DATA, code, lino, _end,
                         TSDB_CODE_INVALID_PARA);
 
   SSTriggerAHandle *pAhandle = pRsp->info.ahandle;
@@ -2792,7 +2793,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
         pContext->pullRes[pReq->type] = pDataBlock;
       }
-      if (pRsp->code == TSDB_CODE_WAL_LOG_NOT_EXIST) {
+      if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
         QUERY_CHECK_CONDITION(pRsp->contLen == sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
         blockDataEmpty(pDataBlock);
         pDataBlock->info.id.groupId = *(int64_t *)pRsp->pCont;
@@ -3970,7 +3971,7 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
     SSTriggerPullRequest *pReq = pAhandle->param;
     switch (pRsp->code) {
       case TSDB_CODE_SUCCESS:
-      case TSDB_CODE_WAL_LOG_NOT_EXIST: {
+      case TSDB_CODE_STREAM_NO_DATA: {
         code = stRealtimeContextProcPullRsp(pTask->pRealtimeContext, pRsp);
         QUERY_CHECK_CODE(code, lino, _end);
         break;
