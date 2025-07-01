@@ -155,7 +155,7 @@ jobs:
           date
           rm -rf ${{ env.WKC }}/debug
           cd ${{ env.WKC }}/tests/parallel_test
-          time ./container_build.sh -w ${{ env.WKDIR }} -e
+          time ./container_build.sh -w ${{ env.WKDIR }} -e -T false -A false
 
       - name: Get parameters for testing
         id: get_param
