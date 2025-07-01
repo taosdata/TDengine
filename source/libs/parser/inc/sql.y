@@ -179,6 +179,7 @@ cmd ::= DROP ANODE NK_INTEGER(A).                                               
 
 /************************************************ create drop update xnode ***************************************/
 cmd ::= CREATE XNODE NK_STRING(A).                                                { pCxt->pRootNode = createCreateXnodeStmt(pCxt, &A); }
+cmd ::= CREATE XNODE NK_STRING(A) USER user_name(B) PASS NK_STRING(C).            { pCxt->pRootNode = createCreateXnodeWithUserPassStmt(pCxt, &A, &B, &C); }
 cmd ::= UPDATE XNODE NK_INTEGER(A).                                               { pCxt->pRootNode = createUpdateXnodeStmt(pCxt, &A, false); }
 cmd ::= UPDATE ALL XNODES.                                                        { pCxt->pRootNode = createUpdateXnodeStmt(pCxt, NULL, true); }
 cmd ::= DROP XNODE NK_INTEGER(A).                                                 { pCxt->pRootNode = createDropXnodeStmt(pCxt, &A); }

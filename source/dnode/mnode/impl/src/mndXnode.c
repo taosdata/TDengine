@@ -289,14 +289,14 @@ static int32_t mndCreateXnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeReq *p
   xnodeObj.updateTime = xnodeObj.createdTime;
   xnodeObj.version = 0;
   xnodeObj.urlLen = pCreate->urlLen;
-  // if (xnodeObj.urlLen > TSDB_XNODE_URL_LEN) {
-  //   code = TSDB_CODE_MND_XNODE_TOO_LONG_URL;
-  //   goto _OVER;
-  // }
-
+  if (xnodeObj.urlLen > TSDB_XNODE_URL_LEN) {
+    code = TSDB_CODE_MND_XNODE_TOO_LONG_URL;
+    goto _OVER;
+  }
   xnodeObj.url = taosMemoryCalloc(1, pCreate->urlLen);
   if (xnodeObj.url == NULL) goto _OVER;
   (void)memcpy(xnodeObj.url, pCreate->url, pCreate->urlLen);
+
   mInfo("create xnode, xnode.id:%d, xnode.url: %s, xnode.time:%ld", xnodeObj.id, xnodeObj.url, xnodeObj.createdTime);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-xnode");

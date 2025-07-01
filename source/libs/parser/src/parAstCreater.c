@@ -3753,6 +3753,28 @@ SNode* setBnodeOption(SAstCreateContext* pCxt, SNode* pOptions, EBnodeOptionType
   return setBnodeOptionImpl(pCxt, pOptions, type, pVal, false);
 }
 
+SNode* createCreateXnodeWithUserPassStmt(SAstCreateContext* pCxt, const SToken* pUrl, SToken* pUser,
+                                         const SToken* pPass) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateXnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_XNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  (void)trimString(pUrl->z, pUrl->n, pStmt->url, sizeof(pStmt->url));
+
+  if (pUser != NULL) {
+    CHECK_NAME(checkUserName(pCxt, pUser));
+    COPY_STRING_FORM_ID_TOKEN(pStmt->user, pUser);
+  }
+  if (pPass != NULL) {
+    CHECK_NAME(checkPassword(pCxt, pPass,pStmt->pass));
+  }
+  printf("xnode created with url:%s, user:%s, pass:%s\n", pStmt->url, pStmt->user, pStmt->pass);
+  return (SNode*)pStmt;
+_err:
+  printf("createCreateXnodeWithUserPassStmt: error %x\n", pCxt->errCode);
+  return NULL;
+}
 SNode* createCreateXnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl) {
   printf("createCreateXnodeStmt: %s\n", pUrl->z);
   CHECK_PARSER_STATUS(pCxt);

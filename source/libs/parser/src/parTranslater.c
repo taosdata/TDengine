@@ -11315,18 +11315,41 @@ static int32_t translateUpdateAnode(STranslateContext* pCxt, SUpdateAnodeStmt* p
 }
 
 static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* pStmt) {
+  printf("translateCreateXnode: %s\n", pStmt->url);
   SMCreateXnodeReq createReq = {0};
+
   createReq.urlLen = strlen(pStmt->url) + 1;
   if (createReq.urlLen > TSDB_XNODE_URL_LEN) {
     return TSDB_CODE_MND_ANODE_TOO_LONG_URL;
   }
-
   createReq.url = taosMemoryCalloc(createReq.urlLen, 1);
   if (createReq.url == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-
   tstrncpy(createReq.url, pStmt->url, createReq.urlLen);
+
+  createReq.userLen = strlen(pStmt->user) + 1;
+  if (createReq.userLen > TSDB_USER_LEN) {
+    return TSDB_CODE_MND_USER_NOT_AVAILABLE;
+  }
+  createReq.user = taosMemoryCalloc(createReq.userLen, 1);
+  if (createReq.user== NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tstrncpy(createReq.user, pStmt->user, createReq.userLen);
+
+
+  createReq.passLen = strlen(pStmt->pass) + 1;
+  if (createReq.urlLen > TSDB_USET_PASSWORD_LONGLEN) {
+    return TSDB_CODE_MND_INVALID_PASS_FORMAT;
+  }
+  createReq.pass = taosMemoryCalloc(createReq.passLen, 1);
+  if (createReq.pass == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tstrncpy(createReq.pass, pStmt->pass, createReq.passLen);
+  // taosEncryptPass_c((uint8_t*)pStmt->pass, strlen(pStmt->pass), createReq.pass);
+  createReq.passIsMd5 = 0;
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE, (FSerializeFunc)tSerializeSMCreateXnodeReq, &createReq);
   tFreeSMCreateXnodeReq(&createReq);

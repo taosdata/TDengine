@@ -2815,10 +2815,15 @@ int32_t tDeserializeSMDropBnodeReq(void* buf, int32_t bufLen, SMDropBnodeReq* pR
 void    tFreeSMDropBnodeReq(SMDropBnodeReq* pReq);
 
 typedef struct {
-  int32_t urlLen;
   int32_t sqlLen;
-  char*   url;
+  int32_t urlLen;
+  int32_t userLen;
+  int32_t passLen;
+  int32_t passIsMd5;
   char*   sql;
+  char*   url;
+  char*   user;
+  char*   pass;
 } SMCreateXnodeReq;
 
 int32_t tSerializeSMCreateXnodeReq(void* buf, int32_t bufLen, SMCreateXnodeReq* pReq);

@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+
 #include "tmsg.h"
 #include "tglobal.h"
 
@@ -4028,11 +4029,22 @@ int32_t tSerializeSMCreateXnodeReq(void *buf, int32_t bufLen, SMCreateXnodeReq *
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  ENCODESQL();
+ 
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->urlLen));
   if (pReq->urlLen > 0) {
     TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->url, pReq->urlLen));
   }
-  ENCODESQL();
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->userLen));
+  if (pReq->userLen > 0) {
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->user,pReq->userLen));
+  }
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->passLen));
+  if (pReq->passLen > 0) {
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->pass, pReq->passLen));
+  }
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->passIsMd5));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -4053,12 +4065,22 @@ int32_t tDeserializeSMCreateXnodeReq(void *buf, int32_t bufLen, SMCreateXnodeReq
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  DECODESQL();
+
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->urlLen));
   if (pReq->urlLen > 0) {
     TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->url, NULL));
   }
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->userLen));
+  if (pReq->userLen > 0) {
+    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->user, NULL));
+  }
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->passLen));
+  if (pReq->passLen > 0) {
+    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->pass, NULL));
+  }
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->passIsMd5));
 
-  DECODESQL();
   tEndDecode(&decoder);
 
 _exit:
@@ -4068,6 +4090,8 @@ _exit:
 
 void tFreeSMCreateXnodeReq(SMCreateXnodeReq *pReq) {
   taosMemoryFreeClear(pReq->url);
+  taosMemoryFreeClear(pReq->user);
+  taosMemoryFreeClear(pReq->pass);
   FREESQL();
 }
 
