@@ -669,7 +669,6 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
   if (pBlock2->info.rows > 0) {
     STREAM_CHECK_RET_GOTO(processTag(pVnode, pExpr, numOfExpr, &api, pBlock2));
   }
-  printDataBlock(pBlock2, __func__, "processWalVerData1");
 
   if (isCalc) {
     STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock2, pFilterInfo));
