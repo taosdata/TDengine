@@ -121,7 +121,6 @@ function prepare_cases() {
 }
 
 function is_local_host() {
-    # $1: host to check
     local check_host="$1"
     local local_hostnames=("127.0.0.1" "localhost" "::1" "$(hostname)" "$(hostname -I | awk '{print $1}')")
     for lh in "${local_hostnames[@]}"; do
@@ -133,7 +132,6 @@ function is_local_host() {
 }
 
 function get_remote_scp_command() {
-    # $1: index
     local index=$1
     if [ -z "${passwords[index]}" ]; then
         echo "scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
@@ -271,7 +269,11 @@ function run_thread() {
             # $cmd 2>&1 | tee -a $case_log_file
             # ret=${PIPESTATUS[0]}
             # echo "cmd:${cmd}"
-            bash -c "$cmd" >>"$case_log_file" 2>&1
+            if ! is_local_host "${hosts[index]}"; then
+                $cmd >>"$case_log_file" 2>&1
+            else
+                bash -c "$cmd" >>"$case_log_file" 2>&1
+            fi
             ret=$?
             local real_end_time
             real_end_time=$(date +%s)
