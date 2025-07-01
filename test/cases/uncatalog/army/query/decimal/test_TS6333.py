@@ -10,16 +10,9 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
+from new_test_framework.utils import tdLog, tdSql
 
-from frame import etool
-from frame.etool import *
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame.common import *
-
-class TDTestCase(TBase):
+class TestTs6333:
     updatecfgDict = {
         "keepColumnName": "1",
         "ttlChangeOnWrite": "1",
@@ -28,7 +21,25 @@ class TDTestCase(TBase):
         "queryBufferSize": 10240
     }
 
-    def run(self):
+    def test_ts6333(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tdLog.debug(f"start to excute {__file__}")
         tdSql.execute("create database ts_6333;")
         tdSql.execute("use ts_6333;")
@@ -50,5 +61,3 @@ class TDTestCase(TBase):
         tdLog.success(f"{__file__} successfully executed")
 
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())
