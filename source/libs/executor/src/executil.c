@@ -361,6 +361,14 @@ SArray* createSortInfo(SNodeList* pNodeList) {
     bi.order = (pSortKey->order == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
     bi.nullFirst = (pSortKey->nullOrder == NULL_ORDER_FIRST);
 
+    if (nodeType(pSortKey->pExpr) != QUERY_NODE_COLUMN) {
+      qError("invalid order by expr type:%d", nodeType(pSortKey->pExpr));
+      taosArrayDestroy(pList);
+      pList = NULL;
+      terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      break;
+    }
+    
     SColumnNode* pColNode = (SColumnNode*)pSortKey->pExpr;
     bi.slotId = pColNode->slotId;
     void* tmp = taosArrayPush(pList, &bi);

@@ -64,6 +64,7 @@ _exit:
   return code;
 }
 
+
 static int32_t streamTriggerAddWaitContext(SSTriggerRealtimeContext *pContext, int64_t resumeTime) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
