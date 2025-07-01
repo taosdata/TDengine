@@ -112,10 +112,16 @@ class TaosD:
             start_cmd = f"screen -L -d -m {valgrind_cmdline} {taosd_path} -c {dnode['config_dir']}  "
         else:
             if error_output:
-                start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']} 2>{error_output}"
+                ld_preload_cmd = (
+                    'export LD_PRELOAD="$(realpath $(gcc -print-file-name=libasan.so)) '
+                    '$(realpath $(gcc -print-file-name=libstdc++.so))"; '
+                )
+                asan_options_cmd = 'export ASAN_OPTIONS=detect_odr_violation=0; '
+                run_cmd = f'{taosd_path} -c {dnode["config_dir"]} 2>{error_output}'
+                bash_cmd = ld_preload_cmd + asan_options_cmd + run_cmd
+                start_cmd = f"screen -d -m bash -c '{bash_cmd}'"
             else:
                 start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
-
         self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
         
         if self.taosd_valgrind == 0:
