@@ -182,12 +182,12 @@ int32_t streamHbProcessRspMsg(SMStreamHbRspMsg* pRsp) {
     TAOS_CHECK_EXIT(smDeployStreams(&pRsp->deploy));
   }
 
-  if (pRsp->start.taskList) {
-    TAOS_CHECK_EXIT(smStartTasks(&pRsp->start));
-  }
-
   if (pRsp->rsps.rspList) {
     TAOS_CHECK_EXIT(smHandleMgmtRsp(&pRsp->rsps));
+  }
+
+  if (pRsp->start.taskList) {
+    TAOS_CHECK_EXIT(smStartTasks(&pRsp->start));
   }
 
 _exit:
