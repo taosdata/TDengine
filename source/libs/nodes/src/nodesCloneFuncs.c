@@ -1034,6 +1034,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_SCALAR_FIELD(hasAggFuncs);
   COPY_SCALAR_FIELD(hasRepeatScanFuncs);
   CLONE_NODE_LIST_FIELD(pHint);
+  COPY_SCALAR_FIELD(hasProject);
   return TSDB_CODE_SUCCESS;
 }
 
