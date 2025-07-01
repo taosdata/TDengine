@@ -2036,7 +2036,7 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
   int32_t              lino = 0;
   SDataInserterHandle* pInserter = (SDataInserterHandle*)pHandle;
   if (!pInserter || !pInserter->pParam || !pInserter->pParam->streamInserterParam) {
-    stError("putStreamDataBlock: pInserter is NULL");
+    stError("putStreamDataBlock invalid param, pInserter: %p, pParam:%p", pInserter, pInserter ? pInserter->pParam : NULL);
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
   if (!pInserter->explain) {

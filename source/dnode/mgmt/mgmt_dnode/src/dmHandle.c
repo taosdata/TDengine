@@ -779,6 +779,7 @@ int32_t dmProcessStreamHbRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   code = tDecodeStreamHbRsp(&decoder, &rsp);
   if (code < 0) {
     code = TSDB_CODE_INVALID_MSG;
+    tDeepFreeSMStreamHbRspMsg(&rsp);
     tDecoderClear(&decoder);
     dError("fail to decode stream hb rsp msg, error:%s", tstrerror(code));
     return streamHbHandleRspErr(code, currTs);

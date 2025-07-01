@@ -370,7 +370,6 @@ typedef union SStreamMgmtReq {
 
 typedef void (*taskUndeplyCallback)(void*);
 
-
 typedef struct SStreamTask {
   EStreamTaskType type;
 
@@ -392,7 +391,7 @@ typedef struct SStreamTask {
 
   SStreamMgmtReq* pMgmtReq;  // request that should be handled by stream mgmt thread
 
-  int64_t         runningStartTs;
+  // FOR LOCAL PART
 
   SRWLatch        entryLock;       
 
@@ -624,6 +623,8 @@ typedef struct {
   SStreamMgmtRsps        rsps;
 } SMStreamHbRspMsg;
 
+void tFreeSMStreamHbRspMsg(SMStreamHbRspMsg* pRsp);
+void tDeepFreeSMStreamHbRspMsg(SMStreamHbRspMsg* pRsp);
 int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp);
 int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp);
 

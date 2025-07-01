@@ -1687,6 +1687,10 @@ int32_t streamCollectExprsForReplace(qTaskInfo_t tInfo, SArray* pExprs) {
 
 int32_t clearStatesForOperator(SOperatorInfo* pOper) {
   int32_t code = 0;
+
+  freeResetOperatorParams(pOper, OP_GET_PARAM, true);
+  freeResetOperatorParams(pOper, OP_NOTIFY_PARAM, true);
+
   if (pOper->fpSet.resetStateFn) {
     code = pOper->fpSet.resetStateFn(pOper);
   }
@@ -2078,60 +2082,52 @@ void destroyStreamInserterParam(SStreamInserterParam* pParam) {
 }
 
 int32_t cloneStreamInserterParam(SStreamInserterParam** ppDst, SStreamInserterParam* pSrc) {
-  int32_t code = 0;
+  int32_t code = 0, lino = 0;
   if (ppDst == NULL || pSrc == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
   }
   *ppDst = (SStreamInserterParam*)taosMemoryCalloc(1, sizeof(SStreamInserterParam));
-  if (*ppDst == NULL) {
-    return terrno;
-  }
+  TSDB_CHECK_NULL(*ppDst, code, lino, _exit, terrno);
+
   (*ppDst)->suid = pSrc->suid;
   (*ppDst)->sver = pSrc->sver;
   (*ppDst)->tbType = pSrc->tbType;
   (*ppDst)->tbname = taosStrdup(pSrc->tbname);
-  if ((*ppDst)->tbname == NULL) {
-    code = terrno;
-    goto _err;
-  }
+  TSDB_CHECK_NULL((*ppDst)->tbname, code, lino, _exit, terrno);
+
   if (pSrc->stbname) {
     (*ppDst)->stbname = taosStrdup(pSrc->stbname);
-    if ((*ppDst)->stbname == NULL) {
-      code = terrno;
-      goto _err;
-    }
+    TSDB_CHECK_NULL((*ppDst)->stbname, code, lino, _exit, terrno);
   }
 
   (*ppDst)->dbFName = taosStrdup(pSrc->dbFName);
-  if ((*ppDst)->dbFName == NULL) {
-    code = terrno;
-    goto _err;
-  }
+  TSDB_CHECK_NULL((*ppDst)->dbFName, code, lino, _exit, terrno);
+
   (*ppDst)->pSinkHandle = pSrc->pSinkHandle;  // don't need clone and free
 
   if (pSrc->pFields && pSrc->pFields->size > 0) {
     (*ppDst)->pFields = taosArrayDup(pSrc->pFields, NULL);
-    if ((*ppDst)->pFields == NULL) {
-      code = terrno;
-      goto _err;
-    }
+    TSDB_CHECK_NULL((*ppDst)->pFields, code, lino, _exit, terrno);
   } else {
     (*ppDst)->pFields = NULL;
   }
+  
   if (pSrc->pTagFields && pSrc->pTagFields->size > 0) {
     (*ppDst)->pTagFields = taosArrayDup(pSrc->pTagFields, NULL);
-    if ((*ppDst)->pTagFields == NULL) {
-      code = terrno;
-      goto _err;
-    }
+    TSDB_CHECK_NULL((*ppDst)->pTagFields, code, lino, _exit, terrno);
   } else {
     (*ppDst)->pTagFields = NULL;
   }
 
-_err:
-  if (code != 0 && *ppDst) {
-    destroyStreamInserterParam(*ppDst);
-    *ppDst = NULL;
+_exit:
+
+  if (code != 0) {
+    if (*ppDst) {
+      destroyStreamInserterParam(*ppDst);
+      *ppDst = NULL;
+    }
+    
+    stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
   return code;
 }

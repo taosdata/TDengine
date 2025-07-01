@@ -112,6 +112,7 @@ void stTimestampSorterDestroy(void *ptr) {
     taosArrayDestroy(pSorter->pSessWins);
     pSorter->pSessWins = NULL;
   }
+  taosMemoryFree(pSorter);
 }
 
 void stTimestampSorterReset(SSTriggerTimestampSorter *pSorter) {

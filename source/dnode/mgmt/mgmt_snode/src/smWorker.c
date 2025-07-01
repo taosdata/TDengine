@@ -49,28 +49,29 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   STraceId   *trace = &pMsg->info.traceId;
   void       *taskAddr = NULL;
   dGTrace("msg:%p, get from snode-stream-trigger queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+  SSTriggerAHandle* pAhandle = pMsg->info.ahandle;
 
   int32_t      code = TSDB_CODE_SUCCESS;
   SStreamTask *pTask = NULL;
   switch (pMsg->msgType) {
     case TDMT_STREAM_TRIGGER_PULL_RSP: {
-      SSTriggerPullRequest *pReq = pMsg->info.ahandle;
-      if (pReq == NULL) {
+      if (pAhandle == NULL) {
         code = TSDB_CODE_INVALID_PARA;
         dError("msg:%p, invalid pull request in snode-stream-trigger queue", pMsg);
         break;
       }
-      code = streamAcquireTask(pReq->streamId, pReq->triggerTaskId, &pTask, &taskAddr);
+
+      code = streamAcquireTask(pAhandle->streamId, pAhandle->taskId, &pTask, &taskAddr);
       break;
     }
     case TDMT_STREAM_TRIGGER_CALC_RSP: {
-      SSTriggerCalcRequest *pReq = pMsg->info.ahandle;
-      if (pReq == NULL) {
+      if (pAhandle == NULL) {
         code = TSDB_CODE_INVALID_PARA;
         dError("msg:%p, invalid calc request in snode-stream-trigger queue", pMsg);
         break;
       }
-      code = streamAcquireTask(pReq->streamId, pReq->triggerTaskId, &pTask, &taskAddr);
+
+      code = streamAcquireTask(pAhandle->streamId, pAhandle->taskId, &pTask, &taskAddr);
       break;
     }
     default: {
@@ -96,14 +97,25 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 }
 
 static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, void *pParam, int32_t *pWorkerIdx) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   SRpcMsg *pMsg = (SRpcMsg *)pParam;
+  SSTriggerAHandle* pAhandle = pMsg->info.ahandle;
+  if (pAhandle == NULL) {
+    code = TSDB_CODE_INVALID_PARA;
+    dError("empty ahandle for msg %s", TMSG_INFO(pMsg->msgType));
+    return code;
+  }
+
+  SStreamTask *pTask = NULL;  
+  void       *taskAddr = NULL;  
+  TAOS_CHECK_EXIT(streamAcquireTask(pAhandle->streamId, pAhandle->taskId, &pTask, &taskAddr));
+
   switch (pMsg->msgType) {
     case TDMT_STREAM_TRIGGER_PULL_RSP: {
-      SSTriggerPullRequest *pReq = pMsg->info.ahandle;
+      SSTriggerPullRequest *pReq = pAhandle->param;
       if (pReq == NULL){
         dError("msg:%p, invalid trigger-pull-resp without request ahandle", pMsg);
-        code = TSDB_CODE_MSG_NOT_PROCESSED;
+        TAOS_CHECK_EXIT(TSDB_CODE_MSG_NOT_PROCESSED);
         break;
       }
       int64_t               buf[] = {pReq->streamId, pReq->triggerTaskId, pReq->sessionId};
@@ -113,7 +125,7 @@ static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, voi
     }
 
     case TDMT_STREAM_TRIGGER_CALC_RSP: {
-      SSTriggerCalcRequest *pReq = pMsg->info.ahandle;
+      SSTriggerCalcRequest *pReq = pAhandle->param;
       int64_t               buf[] = {pReq->streamId, pReq->triggerTaskId, pReq->sessionId};
       uint32_t              hashVal = MurmurHash3_32((const char *)buf, sizeof(buf));
       *pWorkerIdx = hashVal % tsNumOfStreamTriggerThreads;
@@ -121,10 +133,19 @@ static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, voi
     }
 
     default: {
-      code = TSDB_CODE_MSG_NOT_PROCESSED;
+      TAOS_CHECK_EXIT(TSDB_CODE_MSG_NOT_PROCESSED);
       break;
     }
   }
+
+_exit:
+
+  if (code) {
+    stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  streamReleaseTask(taskAddr);
+
   return code;
 }
 

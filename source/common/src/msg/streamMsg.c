@@ -447,6 +447,14 @@ _exit:
   return code;
 }
 
+void tFreeSStreamMgmtReq(SStreamMgmtReq* pReq) {
+  if (NULL == pReq) {
+    return;
+  }
+
+  taosArrayDestroy(pReq->cont.fullTableNames);
+}
+
 int32_t tDecodeSStreamMgmtReq(SDecoder* pDecoder, SStreamMgmtReq* pReq) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -760,12 +768,33 @@ _exit:
   return code;
 }
 
+void tFreeSSTriggerRuntimeStatus(void* param) {
+  SSTriggerRuntimeStatus* pStatus = (SSTriggerRuntimeStatus*)param;
+  if (NULL == pStatus) {
+    return;
+  }
+  taosArrayDestroy(pStatus->userRecalcs);
+}
+
 void tCleanupStreamHbMsg(SStreamHbMsg* pMsg) {
   if (pMsg == NULL) {
     return;
   }
 
-  //STREAMTODO
+  taosArrayDestroy(pMsg->pVgLeaders);
+  int32_t reqNum = taosArrayGetSize(pMsg->pStreamReq);
+  for (int32_t i = 0; i < reqNum; ++i) {
+    int32_t* idx = taosArrayGet(pMsg->pStreamReq, i);
+    SStmTaskStatusMsg* pTask = taosArrayGet(pMsg->pStreamStatus, *idx);
+    if (NULL == pTask) {
+      continue;
+    }
+
+    tFreeSStreamMgmtReq(pTask->pMgmtReq);
+  }
+  taosArrayDestroy(pMsg->pStreamReq);
+  taosArrayDestroy(pMsg->pStreamStatus);
+  taosArrayDestroyEx(pMsg->pTriggerStatus, tFreeSSTriggerRuntimeStatus);
 }
 
 int32_t tEncodeSStreamReaderDeployFromTrigger(SEncoder* pEncoder, const SStreamReaderDeployFromTrigger* pMsg) {
@@ -1791,6 +1820,156 @@ _exit:
 
   return code;
 }
+
+void tFreeSStreamMgmtRsp(void* param) {
+  if (NULL == param) {
+    return;
+  }
+  
+  SStreamMgmtRsp* pRsp = (SStreamMgmtRsp*)param;
+
+  taosArrayDestroy(pRsp->cont.vgIds);
+  taosArrayDestroy(pRsp->cont.readerList);
+  taosArrayDestroy(pRsp->cont.runnerList);
+  taosArrayDestroy(pRsp->cont.recalcList);
+}
+
+void tFreeSStreamReaderDeployMsg(SStreamReaderDeployMsg* pReader) {
+  if (NULL == pReader) {
+    return;
+  }
+  
+  if (pReader->triggerReader) {
+    SStreamReaderDeployFromTrigger* pMsg = (SStreamReaderDeployFromTrigger*)&pReader->msg.trigger;
+    taosMemoryFree(pMsg->triggerTblName);
+    taosMemoryFree(pMsg->partitionCols);
+    taosMemoryFree(pMsg->triggerCols);
+    taosMemoryFree(pMsg->triggerScanPlan);
+    taosMemoryFree(pMsg->calcCacheScanPlan);
+  } else {
+    SStreamReaderDeployFromCalc* pMsg = (SStreamReaderDeployFromCalc*)&pReader->msg.calc;
+    taosMemoryFree(pMsg->calcScanPlan);
+  }
+}
+
+void tFreeSStreamTriggerDeployMsg(SStreamTriggerDeployMsg* pTrigger) {
+  if (NULL == pTrigger) {
+    return;
+  }
+  
+  taosArrayDestroyEx(pTrigger->pNotifyAddrUrls, taosAutoMemoryFree);
+  switch (pTrigger->triggerType) {
+    case WINDOW_TYPE_EVENT:
+      taosMemoryFree(pTrigger->trigger.event.startCond);
+      taosMemoryFree(pTrigger->trigger.event.endCond);
+      break;
+    case WINDOW_TYPE_COUNT:
+      taosMemoryFree(pTrigger->trigger.count.condCols);  
+      break;
+    default:
+      break;
+  }
+
+  taosMemoryFree(pTrigger->triggerPrevFilter);
+  taosMemoryFree(pTrigger->calcPlan);
+
+  taosArrayDestroy(pTrigger->readerList);
+  taosArrayDestroy(pTrigger->runnerList);
+
+  taosMemoryFree(pTrigger->streamName);
+}
+
+void tFreeSStreamOutCol(void* param) {
+  if (NULL == param) {
+    return;
+  }
+
+  SStreamOutCol* pOut = (SStreamOutCol*)param;
+  taosMemoryFree(pOut->expr);
+}
+
+void tFreeSStreamRunnerDeployMsg(SStreamRunnerDeployMsg* pRunner) {
+  if (NULL == pRunner) {
+    return;
+  }
+
+  taosMemoryFree(pRunner->streamName);
+  taosMemoryFree(pRunner->pPlan);
+  taosMemoryFree(pRunner->outDBFName);
+  taosMemoryFree(pRunner->outTblName);
+
+  taosArrayDestroyEx(pRunner->pNotifyAddrUrls, taosAutoMemoryFree);
+  taosArrayDestroy(pRunner->outCols);
+  taosArrayDestroy(pRunner->outTags);
+
+  taosMemoryFree(pRunner->subTblNameExpr);
+  taosMemoryFree(pRunner->tagValueExpr);
+  taosArrayDestroyEx(pRunner->forceOutCols, tFreeSStreamOutCol);
+}
+
+void tFreeSStmTaskDeploy(void* param) {
+  if (NULL == param) {
+    return;
+  }
+
+  SStmTaskDeploy* pTask = (SStmTaskDeploy*)param;
+  switch (pTask->task.type)  {
+    case STREAM_READER_TASK:
+      tFreeSStreamReaderDeployMsg(&pTask->msg.reader);
+      break;
+    case STREAM_TRIGGER_TASK:
+      tFreeSStreamTriggerDeployMsg(&pTask->msg.trigger);
+      break;
+    case STREAM_RUNNER_TASK:
+      tFreeSStreamRunnerDeployMsg(&pTask->msg.runner);
+      break;
+    default:
+      break;
+  }
+}
+
+void tFreeSStmStreamDeploy(void* param) {
+  if (NULL == param) {
+    return;
+  }
+  
+  SStmStreamDeploy* pDeploy = (SStmStreamDeploy*)param;
+  taosArrayDestroy(pDeploy->readerTasks);
+  taosArrayDestroy(pDeploy->runnerTasks);
+}
+
+void tDeepFreeSStmStreamDeploy(void* param) {
+  if (NULL == param) {
+    return;
+  }
+  
+  SStmStreamDeploy* pDeploy = (SStmStreamDeploy*)param;
+  taosArrayDestroyEx(pDeploy->readerTasks, tFreeSStmTaskDeploy);
+  tFreeSStmTaskDeploy(pDeploy->triggerTask);
+  taosArrayDestroyEx(pDeploy->runnerTasks, tFreeSStmTaskDeploy);
+}
+
+
+void tFreeSMStreamHbRspMsg(SMStreamHbRspMsg* pRsp) {
+  if (NULL == pRsp) {
+    return;
+  }
+  taosArrayDestroyEx(pRsp->deploy.streamList, tFreeSStmStreamDeploy);
+  taosArrayDestroy(pRsp->start.taskList);
+  taosArrayDestroy(pRsp->undeploy.taskList);
+  taosArrayDestroy(pRsp->rsps.rspList);
+}
+
+void tDeepFreeSMStreamHbRspMsg(SMStreamHbRspMsg* pRsp) {
+  if (NULL == pRsp) {
+    return;
+  }
+  taosArrayDestroyEx(pRsp->deploy.streamList, tDeepFreeSStmStreamDeploy);
+  taosArrayDestroy(pRsp->start.taskList);
+  taosArrayDestroy(pRsp->undeploy.taskList);
+  taosArrayDestroyEx(pRsp->rsps.rspList, tFreeSStreamMgmtRsp);
+}
+
 
 
 int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp) {
