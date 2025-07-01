@@ -64,7 +64,6 @@ _exit:
   return code;
 }
 
-
 static int32_t streamTriggerAddWaitContext(SSTriggerRealtimeContext *pContext, int64_t resumeTime) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
@@ -510,6 +509,10 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
 
   pGroup->oldThreshold = INT64_MIN;
   pGroup->newThreshold = INT64_MIN;
+  // todo(kjq): remove threshold
+  if ((pTask->fillHistory || pTask->fillHistoryFirst) && pTask->fillHistoryStartTime > 0) {
+    pGroup->oldThreshold = pTask->fillHistoryStartTime - 1;
+  }
 
   TRINGBUF_INIT(&pGroup->winBuf);
 
@@ -2069,8 +2072,8 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
     case STRIGGER_PULL_WAL_TS_DATA:
     case STRIGGER_PULL_WAL_TRIGGER_DATA:
     case STRIGGER_PULL_WAL_CALC_DATA: {
-      SSTriggerWalRequest *pReq = &pContext->pullReq.walReq;
-      SSTriggerRealtimeGroup         *pGroup = stRealtimeContextGetCurrentGroup(pContext);
+      SSTriggerWalRequest    *pReq = &pContext->pullReq.walReq;
+      SSTriggerRealtimeGroup *pGroup = stRealtimeContextGetCurrentGroup(pContext);
       QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
       SSTriggerTableMeta *pCurTableMeta = pGroup->pCurTableMeta;
       SSTriggerMetaData  *pMetaToFetch = pContext->pMetaToFetch;
@@ -2767,6 +2770,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_LAST_TS);
         QUERY_CHECK_CODE(code, lino, _end);
       } else {
+        // todo(kjq): remove condition check
         if (!pTask->fillHistory && !pTask->fillHistoryFirst) {
           int32_t               iter = 0;
           SSTriggerWalProgress *pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, NULL, &iter);
@@ -2805,7 +2809,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_CONDITION(pCont == pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       }
 
-      QUERY_CHECK_CONDITION(TD_DLIST_NELES(&pContext->groupsToCheck) == 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       int32_t nrows = blockDataGetNumOfRows(pDataBlock);
       // update reader wal progress
       SStreamTaskAddr *pReader = taosArrayGet(pTask->readerList, pContext->curReaderIdx);
@@ -2863,8 +2866,11 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           }
         }
       }
-      if (pTask->triggerType == STREAM_TRIGGER_PERIOD &&
-          pContext->curReaderIdx != taosArrayGetSize(pTask->readerList) - 1) {
+      if (pTask->triggerType == STREAM_TRIGGER_PERIOD && nrows > 0) {
+        code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_META);
+        QUERY_CHECK_CODE(code, lino, _end);
+      } else if (pTask->triggerType == STREAM_TRIGGER_PERIOD &&
+                 pContext->curReaderIdx != taosArrayGetSize(pTask->readerList) - 1) {
         pContext->curReaderIdx++;
         code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_META);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -3000,6 +3006,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         }
         SStreamMgmtReq *pReq = taosMemoryCalloc(1, sizeof(SStreamMgmtReq));
         QUERY_CHECK_NULL(pReq, code, lino, _end, terrno);
+        pReq->reqId = atomic_fetch_add_64(&pTask->mgmtReqId, 1);
         pReq->type = STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER;
         pReq->cont.fullTableNames = pOrigTableNames;
         pOrigTableNames = NULL;
