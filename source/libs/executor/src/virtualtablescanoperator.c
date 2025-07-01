@@ -814,6 +814,51 @@ _return:
   return code;
 }
 
+int32_t resetVirtualTableMergeOperState(SOperatorInfo* pOper) {
+  int32_t code = 0, lino = 0;
+  SVirtualScanMergeOperatorInfo* pMergeInfo = pOper->info;
+  SVirtualScanPhysiNode* pPhynode = (SVirtualScanPhysiNode*)pOper->pPhyNode;
+  SVirtualTableScanInfo* pInfo = &pMergeInfo->virtualScanInfo;
+  
+  pOper->status = OP_NOT_OPENED;
+  resetBasicOperatorState(&pMergeInfo->binfo);
+
+  tsortDestroySortHandle(pInfo->pSortHandle);
+  pInfo->pSortHandle = NULL;
+  taosArrayDestroy(pInfo->pSortInfo);
+  pInfo->pSortHandle = NULL;
+
+  blockDataDestroy(pInfo->pIntermediateBlock);
+  pInfo->pIntermediateBlock = NULL;
+
+  blockDataDestroy(pInfo->pInputBlock);
+  pInfo->pInputBlock = createDataBlockFromDescNode(((SPhysiNode*)pPhynode)->pOutputDataBlockDesc);
+  TSDB_CHECK_NULL(pInfo->pInputBlock, code, lino, _exit, terrno);
+
+  pInfo->tagDownStreamId = -1;
+
+  if (pInfo->pSortCtxList) {
+    for (int32_t i = 0; i < taosArrayGetSize(pInfo->pSortCtxList); i++) {
+      SLoadNextCtx* pCtx = *(SLoadNextCtx**)taosArrayGet(pInfo->pSortCtxList, i);
+      blockDataDestroy(pCtx->pIntermediateBlock);
+      taosMemoryFree(pCtx);
+    }
+    taosArrayDestroy(pInfo->pSortCtxList);
+    pInfo->pSortCtxList = NULL;
+  }
+
+  pMergeInfo->pSavedTuple = NULL;
+  pMergeInfo->pSavedTagBlock = NULL;
+
+_exit:
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
 int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                             SVirtualScanPhysiNode* pVirtualScanPhyNode,
                                             SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
@@ -827,6 +872,8 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
 
   QUERY_CHECK_NULL(pInfo, code, lino, _return, terrno);
   QUERY_CHECK_NULL(pOperator, code, lino, _return, terrno);
+
+  pOperator->pPhyNode = pVirtualScanPhyNode;
 
   pInfo->binfo.inputTsOrder = pVirtualScanPhyNode->scan.node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pVirtualScanPhyNode->scan.node.outputTsOrder;
@@ -882,6 +929,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
   pOperator->fpSet =
       createOperatorFpSet(openVirtualTableScanOperator, virtualTableGetNext, NULL, destroyVirtualTableScanOperatorInfo,
                           optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorResetStateFn(pOperator, resetVirtualTableMergeOperState);
 
   if (NULL != pDownstream) {
     VTS_ERR_JRET(appendDownstream(pOperator, pDownstream, numOfDownstream));

@@ -3036,7 +3036,7 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
       if (BIT_FLAG_TEST_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) && pCxt->createStreamCalc) {
         SFunctionNode *pTbname = NULL;
         PAR_ERR_JRET(createTbnameFunction(&pTbname));
-        tstrncpy(pTbname->node.userAlias, "%%tbname", TSDB_COL_NAME_LEN);
+        tstrncpy(pTbname->node.userAlias, ((SExprNode*)*pFunc)->userAlias, TSDB_COL_NAME_LEN);
         *pFunc = (SNode*)pTbname;
         return translateFunction(pCxt, (SFunctionNode**)pFunc);
       } else {
@@ -6657,6 +6657,27 @@ static int32_t getTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bo
   }
   return code;
 }
+typedef struct SConditionOnlyPhAndConstContext {
+  bool onlyPhAndConst;
+  bool hasPhOrConst;
+} SConditionOnlyPhAndConstContext;
+
+static EDealRes conditionOnlyPhAndConstImpl(SNode* pNode, void* pContext) {
+  SConditionOnlyPhAndConstContext* pCxt = (SConditionOnlyPhAndConstContext*)pContext;
+  if (nodeType(pNode) == QUERY_NODE_VALUE) {
+    pCxt->onlyPhAndConst &= true;
+    pCxt->hasPhOrConst = true;
+  } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
+    SFunctionNode *pFunc = (SFunctionNode*)pNode;
+    if (fmIsPlaceHolderFunc(pFunc->funcId)) {
+      pCxt->onlyPhAndConst &= true;
+      pCxt->hasPhOrConst = true;
+    } else {
+      pCxt->onlyPhAndConst = false;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
 
 typedef struct SFilterExtractTsContext {
   SNodeList* pStart;
@@ -6669,15 +6690,11 @@ static bool filterExtractTsNeedCollect(SNode* pLeft, SNode* pRight) {
     if (pCol->colType != COLUMN_TYPE_COLUMN || pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
       return false;
     }
-    if (nodeType(pRight) == QUERY_NODE_VALUE) {
+
+    SConditionOnlyPhAndConstContext cxt = {true, false};
+    nodesWalkExpr(pRight, conditionOnlyPhAndConstImpl, &cxt);
+    if (cxt.onlyPhAndConst && cxt.hasPhOrConst) {
       return true;
-    } else if (nodeType(pRight) == QUERY_NODE_FUNCTION) {
-      SFunctionNode *pFunc = (SFunctionNode*)pRight;
-      if (fmIsPlaceHolderFunc(pFunc->funcId)) {
-        return true;
-      } else {
-        return false;
-      }
     } else {
       return false;
     }
@@ -6719,6 +6736,25 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
             nodesMakeValueNodeFromBool(true, &pVal);
             *pNode = (SNode*)pVal;
           }
+          return DEAL_RES_IGNORE_CHILD;
+        } else {
+          return DEAL_RES_CONTINUE;
+        }
+      } else if (pOperator->opType == OP_TYPE_EQUAL) {
+        if (filterExtractTsNeedCollect(pOperator->pLeft, pOperator->pRight) ||
+            filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft)) {
+          SNode*      startNode = NULL;
+          SNode*      endNode = NULL;
+          SValueNode* pVal = NULL;
+          nodesCloneNode(*pNode, &startNode);
+          nodesCloneNode(*pNode, &endNode);
+          ((SOperatorNode*)startNode)->opType = OP_TYPE_GREATER_EQUAL;
+          ((SOperatorNode*)endNode)->opType = OP_TYPE_LOWER_EQUAL;
+          nodesListMakeAppend(&pCxt->pStart, startNode);
+          nodesListMakeAppend(&pCxt->pEnd, endNode);
+          nodesMakeValueNodeFromBool(true, &pVal);
+          *pNode = (SNode*)pVal;
+
           return DEAL_RES_IGNORE_CHILD;
         } else {
           return DEAL_RES_CONTINUE;
@@ -6896,7 +6932,7 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
     }
   }
 
-  if (pCxt->createStreamCalc && pCxt->currClause == SQL_CLAUSE_WHERE) {
+  if (pCxt->createStreamCalc) {
     PAR_ERR_JRET(filterExtractTsCond(&pCond, pTimeRangeExpr));
     // some node may be replaced
     TSWAP(*pWhere, pCond);
@@ -7694,7 +7730,7 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateExpr(pCxt, &pSelect->pFill);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = getQueryTimeRange(pCxt, &pSelect->pRange, &(((SFillNode*)pSelect->pFill)->timeRange), NULL);
+    code = getQueryTimeRange(pCxt, &pSelect->pRange, &(((SFillNode*)pSelect->pFill)->timeRange), &(((SFillNode*)pSelect->pFill)->pTimeRange));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true, pSelect->precision);
@@ -13255,6 +13291,7 @@ static int32_t translateCreateStreamTagSubtableExpr(STranslateContext* pCxt, SNo
 }
 
 static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const char* streamDb, const char* streamName,
+                                               const char* outDbName, const char* outTableName,
                                                SNode* pSubtable, SHashObj* pTriggerSlotHash,
                                                SNodeList* pPartitionByList, char** subTblNameExpr) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -13267,7 +13304,7 @@ static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const ch
   if (pSubtable) {
     PAR_ERR_JRET(nodesCloneNode(pSubtable, &pSubtableExpr));
   } else {
-    // default rule : '_t' + md5(stream_full_name) + '_' + cast (_grpid() as varchar(20))
+    // default rule : '_t' + md5(stream_full_name + '.' + outtable_full_name) + '_' + cast (_grpid() as varchar(20))
     SFunctionNode* pConcatFunc = NULL;
     SFunctionNode* pGrpIdFunc = NULL;
     SFunctionNode* pCastFunc = NULL;
@@ -13290,13 +13327,18 @@ static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const ch
     pMd5Func->funcType = FUNCTION_TYPE_MD5;
     snprintf(pMd5Func->functionName, TSDB_FUNC_NAME_LEN, "md5");
 
-    char* streamFName = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
+    char* streamFName = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_TABLE_FNAME_LEN);
     if (NULL == streamFName) {
       PAR_ERR_JRET(terrno);
     }
-    TAOS_STRNCAT(streamFName, streamDb, TSDB_TABLE_FNAME_LEN);
+    TAOS_STRNCAT(streamFName, streamDb, TSDB_DB_NAME_LEN);
     TAOS_STRNCAT(streamFName, ".", 2);
-    TAOS_STRNCAT(streamFName, streamName, TSDB_TABLE_FNAME_LEN);
+    TAOS_STRNCAT(streamFName, streamName, TSDB_TABLE_NAME_LEN);
+    TAOS_STRNCAT(streamFName, ".", 2);
+    TAOS_STRNCAT(streamFName, outDbName, TSDB_DB_NAME_LEN);
+    TAOS_STRNCAT(streamFName, ".", 2);
+    TAOS_STRNCAT(streamFName, outTableName, TSDB_TABLE_NAME_LEN);
+
     PAR_ERR_JRET(nodesMakeValueNodeFromString(streamFName, &pNameValue));
     PAR_ERR_JRET(nodesListMakeStrictAppend(&pMd5Func->pParameterList, (SNode*)pNameValue));
     PAR_ERR_JRET(nodesListMakeStrictAppend(&pConcatFunc->pParameterList, (SNode*)pMd5Func));
@@ -13661,7 +13703,7 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
   }
 
   PAR_ERR_JRET(columnDefNodeToField(pStmt->pCols, &pReq->outCols, false, false));
-  PAR_ERR_JRET(createStreamReqBuildOutSubtable(pCxt, pStmt->streamDbName, pStmt->streamName, pStmt->pSubtable, pTriggerSlotHash, ((SStreamTriggerNode*)pStmt->pTrigger)->pPartitionList, (char**)&pReq->subTblNameExpr));
+  PAR_ERR_JRET(createStreamReqBuildOutSubtable(pCxt, pStmt->streamDbName, pStmt->streamName, pStmt->targetDbName, pStmt->targetTabName, pStmt->pSubtable, pTriggerSlotHash, ((SStreamTriggerNode*)pStmt->pTrigger)->pPartitionList, (char**)&pReq->subTblNameExpr));
 
   return code;
 _return:

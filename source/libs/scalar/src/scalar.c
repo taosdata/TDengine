@@ -436,7 +436,6 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       }
 
       SColumnNode *ref = (SColumnNode *)node;
-
       int32_t index = -1;
       for (int32_t i = 0; i < taosArrayGetSize(ctx->pBlockList); ++i) {
         SSDataBlock *pb = taosArrayGetP(ctx->pBlockList, i);
@@ -449,10 +448,12 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         }
       }
 
-      if (index == -1) {
+      if (index == -1 && taosArrayGetSize(ctx->pBlockList) > 1) {
         sclError("column tupleId is too big, tupleId:%d, dataBlockNum:%d", ref->dataBlockId,
                  (int32_t)taosArrayGetSize(ctx->pBlockList));
         SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+      } else {
+        index = 0;
       }
 
       SSDataBlock *block = *(SSDataBlock **)taosArrayGet(ctx->pBlockList, index);
@@ -982,6 +983,30 @@ static int64_t getTs(SScalarParam* param){
   }
   return skey;
 }
+static bool isTimeStampCol(SNode *pNode) {
+  if (pNode == NULL) {
+    return false;
+  }
+  if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+    SColumnNode *colNode = (SColumnNode *)pNode;
+    if (colNode->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      return true;
+    }
+  }
+  return false;
+}
+static bool isReqRangeTS(SOperatorNode *node) {
+  if (node->opType != OP_TYPE_LOWER_EQUAL && node->opType != OP_TYPE_LOWER_THAN &&
+                                                 node->opType != OP_TYPE_GREATER_EQUAL &&
+                                                 node->opType != OP_TYPE_GREATER_THAN) {
+    return false;
+  }
+  if (isTimeStampCol(node->pLeft) || isTimeStampCol(node->pRight)) {
+    return true;
+  }
+
+  return false;
+}
 static void calcStreamTimeRangeForPseudoCols(SStreamTSRangeParas* streamTsRange, SOperatorNode *node, SScalarParam *params){
   if (streamTsRange->eType == SCL_VALUE_TYPE_START) {
     if (nodeType(node->pRight) == QUERY_NODE_COLUMN && 
@@ -1058,7 +1083,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
       SCL_ERR_JRET(code);
     }
   }
-  if (ctx->streamTsRange != NULL) {
+  if (ctx->streamTsRange != NULL && isReqRangeTS(node)) {
     calcStreamTimeRangeForPseudoCols(ctx->streamTsRange, node, params);
     goto _return;
   }

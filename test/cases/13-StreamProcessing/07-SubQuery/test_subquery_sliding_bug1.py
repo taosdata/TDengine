@@ -112,7 +112,6 @@ class TestStreamDevBasic:
             res_query="select * from rdb.r46 where tbname='t1'",
             exp_query="select _wstart, count(c1), sum(c2), 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(1m) fill(prev);",
         )
-        
         self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")
