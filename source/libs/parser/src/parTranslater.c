@@ -6967,6 +6967,12 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
   }
 
+  if (pFill->pTimeRange &&
+      (!((STimeRangeNode*)pFill->pTimeRange)->pStart ||
+       !((STimeRangeNode*)pFill->pTimeRange)->pEnd)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE, "Start and End time of query range required ");
+  }
+
   if (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_DESC_INITIALIZER)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -11202,7 +11208,7 @@ static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, ch
     return code;
   }
   snprintf(pSelect->stmtName, TSDB_TABLE_NAME_LEN, "%p", pSelect);
-
+  pSelect->hasProject = true;
   code = buildTableForSampleAst(pInfo, &pSelect->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildProjectsForSampleAst(pInfo, &pSelect->pProjectionList, pProjectionTotalLen);
@@ -20092,6 +20098,7 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
     return code;
   }
 
+  pStmt->hasProject = true;
   pStmt->pProjectionList = pProjList;
   pStmt->pFromTable = pTempTblNode;
   snprintf(pStmt->stmtName, TSDB_TABLE_NAME_LEN, "%p", pStmt);

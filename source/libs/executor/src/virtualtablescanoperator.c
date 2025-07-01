@@ -778,42 +778,6 @@ _return:
   return code;
 }
 
-static int32_t createVtbExprInfo(SNodeList* pNodeList, SExprInfo** pExprInfo, int32_t* numOfExprs, SHashObj** pTagSlotMap) {
-  QRY_PARAM_CHECK(pExprInfo);
-
-  int32_t    code = 0;
-  int32_t    lino = 0;
-  SExprInfo* pExprs = NULL;
-
-  *numOfExprs = LIST_LENGTH(pNodeList);
-  if (*numOfExprs == 0) {
-    return code;
-  }
-
-  pExprs = taosMemoryCalloc(*numOfExprs, sizeof(SExprInfo));
-  TSDB_CHECK_NULL(pExprs, code, lino, _return, terrno);
-
-  *pTagSlotMap = taosHashInit(*numOfExprs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
-
-  for (int32_t i = 0; i < (*numOfExprs); ++i) {
-    STargetNode* pTargetNode = (STargetNode*)nodesListGetNode(pNodeList, i);
-    TSDB_CHECK_NULL(pExprs, code, lino, _return, terrno);
-
-    VTS_ERR_JRET(taosHashPut(*pTagSlotMap, &i, sizeof(i), &i, sizeof(i)));
-    SExprInfo* pExp = &pExprs[i];
-    VTS_ERR_JRET(createExprFromTargetNode(pExp, pTargetNode));
-  }
-
-  *pExprInfo = pExprs;
-  return code;
-
-_return:
-  destroyExprInfo(pExprs, *numOfExprs);
-  taosMemoryFreeClear(pExprs);
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  return code;
-}
-
 int32_t resetVirtualTableMergeOperState(SOperatorInfo* pOper) {
   int32_t code = 0, lino = 0;
   SVirtualScanMergeOperatorInfo* pMergeInfo = pOper->info;

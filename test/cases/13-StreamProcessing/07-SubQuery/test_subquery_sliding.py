@@ -313,7 +313,7 @@ class TestStreamSubquerySliding:
             res_query="select tw, sumcnt from rdb.r19 where id = 1",
             exp_query="select _wend, count(*) from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tint=1 interval(5m)",
         )
-        self.streams.append(stream)
+        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug1.py
 
         stream = StreamItem(
             id=20,
@@ -321,7 +321,7 @@ class TestStreamSubquerySliding:
             res_query="select tw, c1, id, name from rdb.r20 where id=1",
             exp_query="select _wend, count(*) cnt, 1, '1' from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tint=1 interval(5m)",
         )
-        self.streams.append(stream)
+        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug1.py
 
         stream = StreamItem(
             id=21,
@@ -329,7 +329,7 @@ class TestStreamSubquerySliding:
             res_query="select tw, c1, tg from rdb.r21",
             exp_query="select _wstart, count(*) cnt, 0 from qdb.meters where cts >= '2025-01-01 00:25:00.000' and cts < '2025-01-01 00:45:00.000' interval(5m);",
         )
-        self.streams.append(stream)
+        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug1.py
 
         stream = StreamItem(
             id=22,
@@ -1143,6 +1143,14 @@ class TestStreamSubquerySliding:
             res_query="select tw, te, c1, c2 from rdb.r123 where id=1",
             exp_query="select _wstart, _wend, count(c1), sum(c2) from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(1m);",
             check_func=self.check123,
+        )
+        self.streams.append(stream)
+        
+        stream = StreamItem(
+            id=124,
+            stream="create stream rdb.s124 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r124 as select _wstart ts, count(c1), sum(c2) from %%trows where ts >= _twstart and ts < _twend interval(1m) fill(prev)",
+            res_query="select * from rdb.r124 where tag_tbname='t1' limit 15;",
+            exp_query="select _wstart, count(c1), sum(c2), 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:15:00.000' interval(1m) fill(prev);",
         )
         self.streams.append(stream)
 
