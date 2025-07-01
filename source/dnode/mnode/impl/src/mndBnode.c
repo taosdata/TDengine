@@ -437,6 +437,7 @@ _OVER:
   }
 
   mndReleaseBnode(pMnode, pObj);
+  mndReleaseDnode(pMnode, pDnode);
   tFreeSMDropBnodeReq(&dropReq);
   TAOS_RETURN(code);
 }
