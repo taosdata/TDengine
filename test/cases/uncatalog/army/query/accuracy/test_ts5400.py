@@ -1,26 +1,18 @@
 import taos
-import socket
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
-from frame.eos import *
-from frame.server.dnodes import *
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase(TBase):
+class TestTs5400:
     """Add test case to cover TS-5400
     """
     updatecfgDict = {
         "timezone": "UTC"
     }
 
-    def init(self, conn, logSql, replicaVar=1):
+    @classmethod
+    def setup_class(cls):
         host = socket.gethostname()
         con = taos.connect(host=f"{host}", config=tdDnodes.getSimCfgPath(), timezone='UTC')
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(con.cursor())
+        tdLog.debug(f"start to execute {__file__}")
 
     def prepare_data(self):
         # prepare data for TS-5400
@@ -32,6 +24,24 @@ class TDTestCase(TBase):
         tdSql.execute("insert into t1 values ('1970-01-29 05:04:53.000','22:: ');")
 
     def test_ts5400(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         self.prepare_data()
         tdSql.execute("use db_ts5400;")
         tdSql.query("select _wstart, count(*) from st interval(1y);")
@@ -39,13 +49,4 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 0, '1970-01-01 00:00:00.000')
         tdSql.checkData(0, 1, 1)
 
-    def run(self):
-        self.test_ts5400()
-
-    def stop(self):
-        tdSql.execute("drop database db_ts5400;")
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        tdLog.success(f"{__file__} successfully executed")
