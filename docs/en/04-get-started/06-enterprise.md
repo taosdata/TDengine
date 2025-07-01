@@ -98,13 +98,13 @@ Before starting TDengine, open the `/etc/taos/taos.cfg` file and configure the f
     ssPageCacheSize 1
     ```
 
-    The possible values for `ssEnabled` are `0`, `1` and `2`. `0` is the default, which means shared storage is disabled; `1` means only enable manual migration(migrate local data to shared storage), and `2` means also enable auto migation. 
+    The possible values for `ssEnabled` are `0`, `1` and `2`. `0` is the default, which means shared storage is disabled; `1` means only enable manual migration(migrate local data to shared storage), and `2` means also enable auto migration. 
 
-    The format of `ssAccessString` is `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`. Currently, TDengine supports using Amazon S3 compatible object storage as shared storage, its `device-type` is `s3`, and should the following options:
+    The format of `ssAccessString` is `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`. Currently, TDengine supports using Amazon S3 compatible object storage as shared storage, its `device-type` is `s3`, and the following table list all possible options:
 
     Name            |   Description
     ----------------|----------------------------------------------
-    endpoint        | host name / ip address, and optional port number of the object storage server.
+    endpoint        | host name / ip address, and an optional port number of the object storage server.
     bucket          | bucket name.
     protocol        | `https` or `http`, `https` is the default.     
     uriStyle        | `virtualHost` or `path`, `virtualHost` is the default, but please note that some object storage provider only support `path`.

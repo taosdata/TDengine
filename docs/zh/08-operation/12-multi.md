@@ -12,7 +12,7 @@ toc_max_heading_level: 4
 
 多级存储所涉及的各层存储介质都是本地存储设备。除了本地存储设备之外，TDengine Enterprise 还支持使用对象存储，将最冷的一批数据保存在最廉价的介质上，以进一步降低存储成本，并在必要时仍然可以进行查询，且数据存储在哪里也对 SQL 透明。
 
-由于大多数对象存储本身已经是多副本，如果TDengine在其基础上再叠加一个多副本，无疑将会浪费大量的存储资源并增加存储成本，所以，TDengine进一步将对象存储优化为了共享存储，共享存储中的数据在逻辑上只有一份，并在TDengine集群节点之间共享。
+由于大多数对象存储本身已经是多副本，如果 TDengine 在其基础上再叠加一个多副本，无疑将会浪费大量的存储资源并增加存储成本，所以，TDengine 进一步将对象存储优化为了共享存储，共享存储中的数据在逻辑上只有一份，并在 TDengine 集群节点之间共享。
 
 共享存储在 3.3.7.0 版本中首次发布，它是对 3.3.0.0 版本开始支持的对象存储（S3）功能的增强。但需要注意，二者并不兼容，如果已经使用了之前版本的对象存储功能，升级到 3.3.7.0 时需要进行一些手工处理。
 
@@ -81,7 +81,7 @@ dataDir /mnt/data6 2 0
 
 | 参数名称 | 参数含义 |
 |:---------------------|:-----------------------------------------------|
-| ssEnabled | 是否启用共享存储，默认值为0，表示禁用共享存储；1表示启用共享存储，但仅支持数据的手动迁移；2表示启用共享存储且支持自动迁移 |
+| ssEnabled | 是否启用共享存储，默认值为 0，表示禁用共享存储；1 表示启用共享存储，但仅支持数据的手动迁移；2 表示启用共享存储且支持自动迁移 |
 | ssAccessString | 一个包含各种共享存储访问选项的字符串，格式为 `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`。 目前，仅支持 S3 兼容的对象存储服务，故 `device-type` 必须是 `s3`，下一个表格列出了具体选项的详细信息。 |
 | ssUploadDelaySec     | data 文件持续多长时间不再变动后上传至共享存储，单位：秒。最小值：1；最大值：2592000（30 天），默认值 60 秒 |
 | ssPageCacheSize      | 共享存储 page cache 缓存页数目，单位：页。最小值：4；最大值：1024*1024*1024。 ，默认值 4096|
@@ -94,7 +94,7 @@ dataDir /mnt/data6 2 0
 endpoint        | 对象存储服务的机器名或 IP 地址，可以包含可选的端口号
 bucket          | 存储桶的名字
 protocol        | `https` 或 `http`，默认是 `https`
-uriStyle        | `virtualHost` 或 `path`，默认是 `virtualHost`，注意，部分对象存储不支持 `virtualHost`
+uriStyle        | `virtualHost` 或 `path`，默认是 `virtualHost`，注意，部分对象存储仅支持其中之一
 region          | 对象存储服务所在区域，此参数可选
 accessKeyId     | 用于访问对象存储的 access key id.              
 secretAccessKey | 上述 access key id 对应的密钥
@@ -175,7 +175,7 @@ ssmigrate database <db_name>;
 
 ### Azure Blob 存储
 
-共享存储暂对 Azure Blob 的支持将在后续版本提供，如果已经在 TDengine 3.3.7.0 之前的版本中使用了 AZure Blob，请暂缓升级。
+共享存储对 Azure Blob 的支持将在后续版本提供，如果已经在 TDengine 3.3.7.0 之前的版本中使用了 Azure Blob，请暂缓升级。
 
 <!--
 

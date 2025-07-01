@@ -449,7 +449,7 @@ static void tsdbRemoveSsGarbageFiles(int32_t vid, STFileSet* fset) {
         STFileObj* fobj = fset->farr[TSDB_FTYPE_DATA];
         int n = sscanf(rname, "v%df%dver%" PRId64 ".%d.data", &vgId, &fid, &cid, &cn);
         if (n == 4) {
-          if (vgId == vid && fid == fset->fid && cn >= 1 && cn < fobj->f->lcn) {
+          if (vgId == vid && fid == fset->fid && cid == fobj->f->cid && cn >= 1 && cn < fobj->f->lcn) {
             remove = false; // not the last chunk, keep it
           }
         } else {

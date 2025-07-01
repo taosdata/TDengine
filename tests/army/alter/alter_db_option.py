@@ -181,7 +181,7 @@ class TDTestCase(TBase):
         tdSql.error("ALTER DATABASE test schemaless 1",expectErrInfo="syntax error")
         tdSql.error("ALTER DATABASE test table_prefix 't'",expectErrInfo="syntax error")
         tdSql.error("ALTER DATABASE test table_suffix 't'",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test s3_chunkpages 100",expectErrInfo="syntax error")
+        tdSql.error("ALTER DATABASE test ss_chunkpages 100",expectErrInfo="syntax error")
         tdSql.error("ALTER DATABASE test wal_roll_period 3600",expectErrInfo="syntax error")
         tdSql.error("ALTER DATABASE test wal_segment_size 1000",expectErrInfo="syntax error")
         tdSql.error("ALTER DATABASE test dnodes 'dnode1'",expectErrInfo="syntax error")

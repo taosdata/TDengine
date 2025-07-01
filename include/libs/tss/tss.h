@@ -42,7 +42,7 @@ struct SSharedStorage {
 };
 
 
-// SSharedStorageType is defines the interface of a shared storage.
+// SSharedStorageType defines the interface of a shared storage.
 struct SSharedStorageType {
      // the name of the shared storage type.
     const char* name;

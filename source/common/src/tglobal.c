@@ -437,37 +437,6 @@ int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs) {
   return cfgUpdateTfsItemDisable(pCfg, value, pTfs);
 }
 
-static int32_t taosSplitS3Cfg(SConfig *pCfg, const char *name, char gVarible[TSDB_MAX_EP_NUM][TSDB_FQDN_LEN],
-                              int8_t *pNum) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  SConfigItem *pItem = NULL;
-  int32_t      num = 0;
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, name);
-
-  char *strDup = NULL;
-  if ((strDup = taosStrdup(pItem->str)) == NULL) {
-    code = terrno;
-    goto _exit;
-  }
-
-  char **slices = strsplit(strDup, ",", &num);
-  if (num > TSDB_MAX_EP_NUM) {
-    code = TSDB_CODE_INVALID_CFG;
-    goto _exit;
-  }
-
-  for (int i = 0; i < num; ++i) {
-    tstrncpy(gVarible[i], slices[i], TSDB_FQDN_LEN);
-  }
-  *pNum = num;
-
-_exit:
-  taosMemoryFreeClear(slices);
-  taosMemoryFreeClear(strDup);
-  TAOS_RETURN(code);
-}
-
 struct SConfig *taosGetCfg() {
   return tsCfg;
 }

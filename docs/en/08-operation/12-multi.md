@@ -79,9 +79,9 @@ In the configuration file `/etc/taos/taos.cfg`, add parameters for shared storag
 |:-------------|:-----------------------------------------------|
 | ssEnabled | Whether to enable shared storage or not, allowed values are `0`, `1` and `2`. `0` is the default, which means shared storage is disabled; `1` means only enable manual migration, and `2` means also enable auto migation. 
 | ssAccessString | A string which contains various options for accessing the shared storage, the format is `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`, currently,  only Amazon S3 compatible object storage providers are supported, so the `device-type` should be `s3`, and please refer the next table for the possible options. |
-| ssUploadDelaySec | How long a data file remains unchanged before being uploaded to S3, in seconds. Minimum: 1; Maximum: 2592000 (30 days), default value 60 seconds |
-| ssPageCacheSize | Number of s3 page cache pages, in pages. Minimum: 4; Maximum: 1024*1024*1024, default value 4096 |
-| ssAutoMigrateIntervalSec | The trigger cycle for automatic upload of local data files to S3, in seconds. Minimum: 600; Maximum: 100000. Default value 3600 |
+| ssUploadDelaySec | How long a data file remains unchanged before being uploaded to shared storage, in seconds. Minimum: 1; Maximum: 2592000 (30 days), default value 60 seconds |
+| ssPageCacheSize | Number of shared storage page cache pages, in pages. Minimum: 4; Maximum: 1024 * 1024 * 1024, default value 4096 |
+| ssAutoMigrateIntervalSec | The trigger cycle for automatic upload of local data files to shared storage, in seconds. Minimum: 600; Maximum: 100000. Default value 3600 |
 
 
 `ssAccessString` options for S3 compatible object storage providers:
@@ -91,7 +91,7 @@ Name            |   Description
 endpoint        | host name / ip address, and optional port number of the object storage server.
 bucket          | bucket name.
 protocol        | `https` or `http`, `https` is the default.     
-uriStyle        | `virtualHost` or `path`, `virtualHost` is the default, but please note that some object storage provider only support `path`.
+uriStyle        | `virtualHost` or `path`, `virtualHost` is the default, but please note that some object storage providers only support one of them.
 region          | object storage service region, optional.
 accessKeyId     | your access key id.              
 secretAccessKey | your secret access key.
@@ -177,7 +177,7 @@ The page cache is a memory cache, and data needs to be re-downloaded after a nod
 
 ## Azure Blob Storage
 
-Support for Azure Blob object storage is temporarily disbled, if you are using this service before the release of TDengine version 3.3.7.0, please wait for the new version.
+Support for Azure Blob object storage is temporarily disabled, if you are using this service before the release of TDengine version 3.3.7.0, please wait for the new version.
 
 <!--
 
