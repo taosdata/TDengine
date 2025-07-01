@@ -4,23 +4,299 @@ title: 流式计算
 description: 流式计算的相关 SQL 的详细语法
 ---
 
+与传统的流计算相比，TDengine 的流计算进行了功能和边界上的扩展。传统定义的流计算是一种以低延迟、持续性和事件时间驱动为核心，处理无界数据流的实时计算范式。TDengine 的流计算采用的是触发与计算分离的处理策略，处理的依然是持续的无界的数据流，但是进行了以下几个方面的扩展：
+
+- 处理对象的扩展：传统的流计算其事件驱动对象与计算对象往往是统一的，根据同一份数据产生事件和计算。TDengine 的流计算支持触发（事件驱动）与计算的分离，也就意味着触发对象可以与计算对象进行分离。触发表与计算的数据源表可以不相同，甚至可以不需要触发表，处理的数据集合无论是列、时间范围都可以不相同。
+- 触发方式的扩展：除了传统的数据写入触发方式外，TDengine 的流计算支持更多触发方式的扩展，例如 TDengine 支持的各种窗口计算。通过支持窗口触发，用户可以灵活的定义和使用各种方式的窗口来产生触发事件，并且窗口可以选择在开窗、关窗以及开关窗时进行触发。除了通过这些与触发表关联的事件时间驱动外，TDengine 还支持与事件时间无关的驱动，例如按照处理事件定义的定时触发等。在事件触发之前，TDengine 还支持对触发数据进行预先过滤处理，只有符合条件的数据才会进入触发。
+- 计算的扩展：除了可以对触发表进行计算外，也可以对其他库表进行计算。计算的类型不受限制，任何查询语句都可以支持。计算结果的应用也可以根据需要进行选择，可以用来发送通知（不写入保存）、写入输出表，也可以两者同时使用。
+
+除了对触发与计算的扩展外，TDengine 的流计算还对用户提供了其他使用上的便利。例如，针对不同用户对结果延迟的不同需求，可以支持用户在结果时效性与资源负载之间进行平衡。针对不同用户对非正常顺序写入场景的不同需求，可以支持用户灵活选择适合的处理方式与策略。
 
 ## 创建流式计算
-
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [COMPOSITE KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery [notification_definition]
+CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name stream_options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [PRIMARY KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
+
 stream_options: {
- TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE| CONTINUOUS_WINDOW_CLOSE [recalculate rec_time_val] ]
- WATERMARK      time
- IGNORE EXPIRED [0|1]
- DELETE_MARK    time
- FILL_HISTORY   [0|1] [ASYNC]
- IGNORE UPDATE  [0|1]
+    trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [OPTIONS(stream_option [|...])] [notification_definition]
 }
+    
+trigger_type: {
+    PERIOD(period_time[, offset_time])
+  | [INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val[, offset_time]) 
+  | SESSION(ts_col, session_val)
+  | STATE_WINDOW(col) [TRUE_FOR(duration_time)] 
+  | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
+  | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
+}
+    
+event_types:
+    event_type [|event_type]    
+    
+event_type: {WINDOW_OPEN | WINDOW_CLOSE}    
+
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types)}
+
+notification_definition:
+    NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
+
+notify_option: [NOTIFY_HISTORY | ON_FAILURE_PAUSE]
+
+tag_definition:
+    tag_name type_name [COMMENT 'string_value'] AS expr
 
 ```
 
+### 流式计算的触发方式
+流式计算支持事件触发和定时触发两种触发方式，触发对象与计算对象彼此分离。
+- 事件触发：通过与触发表关联的事件时间驱动，可以灵活的定义和使用各种窗口来产生触发事件，支持在开窗、关窗以及开关窗时进行触发，支持对触发数据进行预先过滤处理，只有符合条件的数据才会进入触发。
+- 定时触发：与事件时间无关，按照系统时间定时触发。
+
+#### 触发类型
+触发类型通过 `trigger_type` 指定，支持定时触发、滑动触发、会话窗口触发、状态窗口触发、事件窗口触发、计数窗口触发。其中，会话窗口触发、状态窗口触发、事件窗口触发和计数窗口触发搭配超级表时，必须与 `partition by tbname` 一起使用。对于数据源表是复合主键的流，不支持状态窗口、事件窗口、计数窗口的计算。
+
+##### 定时触发
+```sql
+PERIOD(period_time[, offset_time])
+```
+
+定时触发通过系统时间的固定间隔来驱动，以建流当天系统时间的零点作为基准时间点，然后根据间隔来确定下次触发的时间点，可以通过指定时间偏移的方式来改变基准时间点。各参数含义如下：
+- period_time：定时触发的系统时间间隔，支持的时间单位包括：毫秒(a)、秒(s)、分(m)、小时(h)、天(d)，支持的时间范围为 `[10a, 3650d]`。
+- offset_time：可选，指定定时触发的时间偏移，支持的时间单位包括：毫秒(a)、秒(s)、分(m)、小时(h)。
+
+使用说明：
+- 定时间隔小于 1 天时，基准时间点的时间偏移在每天重置，表现为相对于每日零点的偏移，以前后两日的基准时间点为一个周期，在周期内按照间隔进行定时触发，最后一次定时触发的时间点与下一日的基准时间点之间的间隔可能小于固定的定时间隔。例如：
+  - 定时间隔为 5 小时 30 分钟，那么在一天内的触发时刻为 `[00:00, 05:30, 11:00, 16:30, 22:00]`，后续每一天的触发时刻都是相同的。
+  - 同样定时间隔，如果指定了偏移为 1 秒，那么在一天内的触发时刻为 `[00:01, 05:31, 11:01, 16:31, 22:01]`，后续每一天的触发时刻都是相同的。
+  - 同样条件下，如果建流时当前系统时间为 `12:00`，那么在当天的触发时刻为 `[16:31, 22:01]`，后续每一天内的触发时刻同上。
+- 定时间隔大于等于 1 天时，基准时间点只在第一次是相对于每日零点的偏移，后续不会进行重置。例如：
+  - 定时间隔为 1 天 1 小时，建流时当前系统时间为 `05-01 12:00`，那么在当天及随后几天的触发时刻为 `[05-02 01:00, 05-03 02:00, 05-04 03:00, 05-05 04:00, ……]`。
+  - 同样条件下，如果指定了偏移为 1 秒，那么在当天及随后几天的触发时刻为 `[05-02 01:01, 05-03 02:02, 05-04 03:03, 05-05 04:04, ……]`。
+
+##### 滑动触发
+```sql
+[INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val[, offset_time]) 
+```
+
+滑动触发是指对触发表的写入数据按照事件时间的固定间隔来驱动的触发。可以有 INTERVAL 窗口，也可以没有。
+- 存在 `INTERVAL` 窗口时，滑动触发的起始时间点是窗口的起始点，可以指定窗口的时间偏移，此时滑动的时间偏移不起作用。
+- 不存在 `INTERVAL` 窗口时，滑动触发的触发时刻、时间偏移规则同定时触发相同，唯一的区别是系统时间变更为事件时间。
+
+各参数含义如下：
+- interval_val：可选，滑动窗口的时长。
+- interval_offset：可选，滑动窗口的时间偏移。
+- sliding_val：必选，事件时间的滑动时长。
+- offset_time：可选，指定滑动触发的时间偏移，支持的时间单位包括：毫秒(a)、秒(s)、分(m)、小时(h)。
+
+使用说明：
+- 必须指定触发表，触发表为超级表时支持按 tag、子表分组，支持不分组。
+- 支持对写入数据进行处理过滤后（有条件）的窗口触发。
+
+##### 会话窗口触发
+```sql
+SESSION(ts_col, session_val)
+```
+
+会话窗口触发是指对触发表的写入数据按照会话窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。各参数含义如下：
+- ts_col：主键列名。
+- session_val：属于同一个会话的最大时间间隔，间隔小于等于session_val的记录都属于同一个会话。
+
+使用说明：
+- 必须指定触发表，触发表为超级表时支持按 tag、子表分组，支持不分组。
+- 支持对写入数据进行处理过滤后（有条件）的窗口触发。
+
+##### 状态窗口触发
+```sql
+STATE_WINDOW(col) [TRUE_FOR(duration_time)] 
+```
+
+状态窗口触发是指对触发表的写入数据按照状态窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。各参数含义如下：
+- col：状态列的列名。
+- duration_time：可选，指定窗口的最小持续时长，如果某个窗口的时长低于该设定值，则会自动舍弃，不产生触发。
+
+使用说明：
+- 必须指定触发表，触发表为超级表时支持按 tag、子表分组，支持不分组。
+- 支持对写入数据进行处理过滤后（有条件）的窗口触发。
+  
+##### 事件窗口触发
+```sql
+EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
+```
+
+状态窗口触发是指对触发表的写入数据按照状态窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。各参数含义如下：
+- start_condition：事件开始条件的定义。
+- end_condition：事件结束条件的定义。
+- duration_time：可选，指定窗口的最小持续时长，如果某个窗口的时长低于该设定值，则会自动舍弃，不产生触发。
+
+使用说明：
+- 必须指定触发表，触发表为超级表时支持按 tag、子表分组，支持不分组。
+- 支持对写入数据进行处理过滤后（有条件）的窗口触发。
+
+
+##### 计数窗口触发
+```sql
+COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
+```
+
+计数窗口触发是指对触发表的写入数据按照计数窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。支持列的触发，只有当指定的列有数据写入时才触发。各参数含义如下：
+- count_val：计数条数，当写入数据条目数达到 count_val 时触发。
+- sliding_val：可选，窗口滑动的条数。
+- col1 [, ...]：可选，按列触发模式时的数据列列表，列表中任一列有非空数据写入时才为有效条目，NULL 值视为无效值。
+
+使用说明：
+- 必须指定触发表，触发表为超级表时支持按 tag、子表分组，支持不分组。
+- 支持对写入数据进行处理过滤后（有条件）的窗口触发。
+
+
+#### 触发表
+```sql
+[FROM [db_name.]table_name]
+```
+
+触发表可以为任意表类型，不支持系统表，不支持视图，不支持子查询，但支持虚拟表。除了定时触发可以不指定触发表外，其他触发方式必须指定触发表。
+
+#### 触发分组
+```sql
+[PARTITION BY col1 [, ...]]
+```
+
+指定触发的分组列，支持多列，目前只支持按照 tbname（表）和 tag 进行分组。
+
+
+### 流式计算的控制选项
+```sql
+[OPTIONS(stream_option [|...])]
+
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types)}
+```
+
+指定流的控制选项用于控制触发和计算行为，可以多选，同一个选项不可以多次指定，目前支持的控制选项包括：
+- WATERMARK(duration_time)：指定数据乱序的容忍时长，超过该时长的数据会被当做乱序数据，根据不同触发方式的乱序数据处理策略和用户配置进行处理，未指定时默认 duration_time 值为 0。
+- EXPIRED_TIME(exp_time) ：指定过期数据间隔并忽略过期数据，未指定时无过期数据，如果业务不需要感知超过一定时间范围的数据写入或更新时可以指定。exp_time 为过期时间间隔，支持的时间单位包括：毫秒(a)、秒(s)、分(m)、小时(h)、天(d)，最小值为 1a。
+- IGNORE_DISORDER：指定忽略触发表的乱序数据，未指定时不忽略乱序数据，对于业务非常注重计算或通知的时效性、触发表乱序数据不影响计算结果等场景可以指定。
+- DELETE_RECALC: 指定触发表的数据删除（包含触发子表被删除场景）需要自动重新计算，只有触发方式支持数据删除的自动重算才可以指定。未指定时忽略数据删除，只有触发表数据删除会影响计算结果的场景才需要指定。
+- DELETE_OUTPUT_TABLE：指定触发子表被删除时其对应的输出子表也需要被删除，只适用于按表分组的场景，未指定时触发子表被删除不会删除其输出子表。
+- FILL_HISTORY[(start_time)]：指定需要从start_time（事件时间）开始触发历史数据计算，[(start_time)]可选，未指定时从最早的记录开始触发计算。如果未指定FILL_HISTORY和 FILL_HISTORY_FIRST则不进行历史数据的触发计算，该选项不能与FILL_HISTORY_FIRST同时指定 。定时触发（PERIOD）模式下不支持历史计算。
+- FILL_HISTORY_FIRST[(start_time)]：指定需要从start_time（事件时间）开始优先触发历史数据计算，[(start_time)]可选，未指定时从最早的记录开始触发计算。该选项适合在需要按照时间顺序计算历史数据且历史数据计算完成前不需要实时计算的场景下指定，未指定时优先实时计算，不能与FILL_HISTORY同时指定。定时触发（PERIOD）模式下不支持历史计算。
+- CALC_NOTIFY_ONLY：指定计算结果只发送通知，不保存到输出表，未指定时默认会保存到输出表。
+- LOW_LATENCY_CALC：指定触发后需要低延迟的计算或通知，单次触发发生后会立即启动计算或通知。低延迟的计算或通知会保证实时流计算任务的时效性，但是也会造成处理效率的降低，有可能需要更多的处理资源才能满足需求，因此只推荐在业务有强时效性要求时使用。未指定时单次触发发生后有可能不会立即进行计算，采用批量计算与通知的方式来达到较好的资源利用效率。
+- PRE_FILTER(expr) ：指定在触发进行前对触发表进行数据过滤处理，只有符合条件的数据才会进入触发判断，例如：col1 > 0 则只有 col1为正数的数据行可以进行触发，未指定时无触发表数据过滤。
+- FORCE_OUTPUT：指定计算结果强制输出选项，当某次触发没有计算结果时将强制输出一行数据，除常量外（含常量对待列）其他列的值都为 NULL。
+- MAX_DELAY(delay_time)：指定在窗口未关闭时最长等待的时长（处理时间），每超过该时间且窗口仍未关闭时产生触发，适用于所有窗口触发方式，SLIDING 触发（不带 INTERVAL）和 PERIOD 触发不适用（自动忽略）。当窗口触发存在TRUE_FOR条件且TRUE_FOR时长大于MAX_DELAY时，MAX_DELAY仍然生效，即使最终当前窗口未满足TRUE_FOR条件。delay_time为等待时长，支持的时间单位包括：毫秒(a)、秒(s)、分(m)、小时(h)、天(d)。
+- EVENT_TYPE(event_types)：指定窗口触发的事件类型，可以多选，未指定时默认值为 WINDOW_CLOSE ，选项含义如下：
+  - WINDOW_OPEN ：窗口启动事件。
+  - WINDOW_CLOSE ：窗口关闭事件。
+  SLIDING 触发（不带 INTERVAL）和 PERIOD 触发不适用（自动忽略）。
+
+### 流式计算的通知机制
+```sql
+[notification_definition]
+
+notification_definition:
+    NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
+```
+
+当需要发送事件通知时需要指定，详细说明如下：
+- url [, ...]：指定通知的目标地址，必须包括协议、IP 或域名、端口号，并允许包含路径、参数，整个 url 需要包含在引号内。目前仅支持 websocket 协议。例如："ws://localhost:8080"、"ws://localhost:8080/notify"、"ws://localhost:8080/notify?key=foo"。
+- [ON (event_types)]：指定需要通知的事件类型，可多选，对于SLIDING（不带 INTERVAL 窗口）和PERIOD触发不需要指定，其他触发必须指定，支持的事件类型有：
+  - WINDOW_OPEN：窗口打开事件，在触发表分组窗口打开时发送通知。
+  - WINDOW_CLOSE：窗口关闭事件，在触发表分组窗口关闭时发送通知。
+- [WHERE condition]：指定通知需要满足的条件，condition中只能指定含计算结果列和（或）常量的条件。
+- [NOTIFY_OPTIONS(notify_option[|notify_option)]]：可选，指定通知选项用于控制通知的行为，可以多选，目前支持的通知选项包括：
+  - NOTIFY_HISTORY：指定计算历史数据时是否发送通知，未指定时默认不发送。
+  - ON_FAILURE_PAUSE：指定在向通知地址发送通知失败时暂停流计算任务，循环重试发送通知，直至发送成功才恢复流计算运行，未指定时默认直接丢失事件通知（不影响流计算继续运行）。
+
+
+### 流式计算的计算对象
+```sql
+[AS subquery]
+```
+
+指定流计算的计算任务语句，可以是任意类型的查询语句。既可以对触发表进行计算，也可以对其他库表进行计算。
+
+#### 占位符
+计算时可能需要使用触发时的一些关联信息，这些信息在 SQL 语句中以占位符的形式出现，在每次真实计数时会被作为常量替换到 SQL 语句中。这里定义和列举了计算 SQL 语句中可以使用的触发相关的一些占位符：
+
+| 触发方式 | 占位符            | 含义与说明                        |
+| ------- | -----------------| --------------------------------- |
+| 滑动触发 | _tprev_ts        | 上一次触发的事件时间（精度同记录）   |
+| 滑动触发 | _tcurrent_ts     | 本次触发的事件时间（精度同记录）     |
+| 滑动触发 | _tnext_ts        | 下一次触发的事件时间（精度同记录）   |
+| 窗口触发 | _twstart         | 本次触发窗口的起始时间戳            |
+| 窗口触发 | _twend           | 本次触发窗口的结束时间戳            |
+| 窗口触发 | _twduration      | 本次触发窗口的持续时间              |
+| 窗口触发 | _twrownum        | 本次触发窗口的记录条数              |
+| 定时触发 | _tprev_localtime | 上一次触发时刻的系统时间（精度：ns） |
+| 定时触发 | _tnext_localtime | 下一次触发时刻的系统时间（精度：ns） |
+| 通用     | _tgrpid     | 触发分组的 ID 值，类型为 BIGINT         |
+| 通用     | _tlocaltime | 本次触发时刻的系统时间（精度：ns）       |
+| 通用     | %%n         | 触发分组列的引用，n 为分组列（来自 [PARTITION BY col1[, ...]] ）的下标（从 1 开始）        |
+| 通用     | %%tbname    | 触发表每个分组表名的引用，只有触发分组含 tbname 时可用，可作为查询表名使用（FROM %%tbname）  |
+| 通用     | %%trows     | 触发表每个分组的触发数据集（满足本次触发的数据集）的引用，定时触发时为上次与本次触发之间写入的触发表数据 |
+
+使用限制：
+- %%trows：只能用于 FROM 子句，推荐在小数据量场景下使用。
+- %%tbname：只能用于 FROM、SELECT 和 WHERE子 句。
+- 其他占位符：只能用于 SELECT 和 WHERE 子句。
+
+## 删除流式计算
+仅删除流式计算任务，由流式计算写入的数据不会被删除。
+```sql
+DROP STREAM [IF EXISTS] [db_name.]stream_name;
+```
+
+## 查看流式计算
+### 流的查看
+显示当前数据库或指定数据库所属的流计算。
+```sql
+SHOW [db_name.]STREAMS;
+```
+
+如需查看所有流计算的信息或者流计算的更详细的信息，可以查询 `information_schema.ins_streams` 系统表。
+``` SQL
+SELECT * from information_schema.`ins_streams`;
+```
+
+### 任务查看
+流计算在执行时由多个任务组成，用户或维护人员可以从系统表 `information_schema.ins_stream_tasks` 获取更详细的流的具体的任务信息。
+``` SQL
+SELECT * from information_schema.`ins_stream_tasks`;
+```
+
+## 操作流式计算
+### 启动操作
+``` SQL
+START STREAM [IF EXISTS] [IGNORE UNTREATED] [db_name.]stream_name; 
+```
+
+说明：
+- 没有指定 IF EXISTS，如果该 stream 不存在，则报错，如果存在，则启动流计算；指定了 IF EXISTS，如果 stream 不存在，则返回成功；如果存在，则启动流计算。
+- 建流后流自动启动运行，不需要用户启动，只有在停止操作后才需要通过启动操作恢复流的运行。
+- 启动流计算时，流计算停止期间写入的数据会被当做历史数据处理。
+
+### 停止操作
+``` SQL
+STOP STREAM [IF EXISTS] [db_name.]stream_name; 
+```
+
+说明：
+- 如果没有指定 IF EXISTS，如果该 stream 不存在，则报错；如果存在，则停止流计算。指定了 IF EXISTS，如果该 stream 不存在，则返回成功；如果存在，则停止流计算。
+- 停止操作是持久有效的，在用户重启流运行之前不会重新运行。
+  
+### 手动重算
+``` SQL
+RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
+```
+
+说明：
+- 用户可以根据需要来指定需要重算流的一段时间区间（事件时间）内的数据。
+- 不适用于定时触发（PERIOD），适用于其他所有触发类型。
+
+
+
 其中 subquery 是 select 普通查询语法的子集。
+
+
+
 
 ```sql
 subquery: SELECT select_list
