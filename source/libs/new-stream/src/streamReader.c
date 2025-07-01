@@ -375,7 +375,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
   sStreamReaderInfo->groupIdMap =
       taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->groupIdMap, terrno);
-  taosHashSetFreeFp(sStreamReaderInfo->streamTaskMap, releaseGroupIdMap);
+  taosHashSetFreeFp(sStreamReaderInfo->groupIdMap, releaseGroupIdMap);
 
   sStreamReaderInfo->streamTaskMap =
       taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
