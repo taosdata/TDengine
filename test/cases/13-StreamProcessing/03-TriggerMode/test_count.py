@@ -51,8 +51,8 @@ class TestStreamCountTrigger:
          
         streams = [
             self.StreamItem(sql1, self.checks1),
-            # self.StreamItem(sql2, self.checks2),
-            # self.StreamItem(sql3, self.checks3),
+            self.StreamItem(sql2, self.checks2),
+            self.StreamItem(sql3, self.checks3),
             # self.StreamItem(sql4, self.checks4),
         ]
 
