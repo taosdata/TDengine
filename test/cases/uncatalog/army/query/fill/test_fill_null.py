@@ -9,14 +9,31 @@ from frame.caseBase import *
 from frame import *
 
 
-class TDTestCase(TBase):
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        self.dbname = "ts_5054"
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+class TestFillNull:
+    @classmethod
+    def setup_class(cls):
+        cls.dbname = "ts_5054"
+        tdLog.debug(f"start to execute {__file__}")
 
-    def run(self):
+    def test_fill_null(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         etool.benchMark(command=f"-d {self.dbname} -t 1 -n 1000 -S 10 -y")
         tdSql.execute(f"use {self.dbname}")
         tdSql.execute("select database();")
@@ -27,10 +44,4 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 1, "2017-07-14 10:40:00.000")
         tdSql.checkData(0, 2, "2017-07-14 10:40:02.990")
 
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        tdLog.success(f"{__file__} successfully executed")

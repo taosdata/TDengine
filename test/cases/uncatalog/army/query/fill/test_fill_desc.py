@@ -1,24 +1,32 @@
-import taos
-import sys
+from new_test_framework.utils import tdLog, tdSql
 
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
-
-class TDTestCase(TBase):
+class TestFillDesc:
     updatecfgDict = {
         'slowLogScope':"all"
-    }    
+    }
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor())
-        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def run(self):
+    def test_fill_desc(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         dbname = "db"
         stbname = "ocloud_point"
         tbname = "ocloud_point_170658_3837620225_1701134595725266945"
@@ -62,9 +70,4 @@ class TDTestCase(TBase):
            data.append(row)
         tdSql.checkDataMem(sql, data)
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())
