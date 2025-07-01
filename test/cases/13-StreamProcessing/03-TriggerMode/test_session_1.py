@@ -86,20 +86,20 @@ class TestStreamCheckpoint:
         except Exception as e:
             tdLog.error(f"case 1 error: {e}")
 
-        # clear_output("sm1", "tb1")
-        # self.write_data(100000, 1)
-        # try:
-        #     self.create_and_check_stream_basic_2("sm2", "tb2")
-        # except Exception as e:
-        #     tdLog.error(f"case 2 error: {e}")
-        #
-        # clear_output("sm2", "tb2")
-        # self.write_data(100000, 1)
-        #
-        # try:
-        #     self.create_and_check_stream_basic_3("sm3", "tb3")
-        # except Exception as e:
-        #     tdLog.error(f"case 3 error: {e}")
+        clear_output("sm1", "tb1")
+        self.write_data(100000, 1)
+        try:
+            self.create_and_check_stream_basic_2("sm2", "tb2")
+        except Exception as e:
+            tdLog.error(f"case 2 error: {e}")
+
+        clear_output("sm2", "tb2")
+        self.write_data(100000, 1)
+
+        try:
+            self.create_and_check_stream_basic_3("sm3", "tb3")
+        except Exception as e:
+            tdLog.error(f"case 3 error: {e}")
 
         # clear_output("sm3", "tb3")
         # self.write_data(100000, 1)
@@ -229,10 +229,15 @@ class TestStreamCheckpoint:
             stream.checkResults()
 
     def create_and_check_stream_basic_1(self, stream_name, dst_table) -> None:
-        """simple 1"""
+        """simple 1
+            Error: failed to create destination table.
+        """
         tdSql.execute("use db")
         tdSql.execute(
-            f"create stream {stream_name} session(ts, 100s) from source_table into {dst_table} as select cast(_tlocaltime/1000000 as timestamp) ts, count(*) c from source_table")
+            f"create stream {stream_name} session(ts, 100s) from source_table into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) ts, count(*) c "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend")
         tdLog.info(f"create stream completed, and wait for it completed")
 
         wait_for_insert_complete(self.num_of_tables, self.num_of_rows)
@@ -240,10 +245,15 @@ class TestStreamCheckpoint:
         # check_ts_step(tb_name=dst_table, freq=30)
 
     def create_and_check_stream_basic_2(self, stream_name, dst_table) -> None:
-        """simple 2"""
+        """simple 2
+            Error: results are incorrect
+        """
         tdSql.execute("use db")
         tdSql.execute(
-            f"create stream {stream_name} session(ts, 100a) from source_table into {dst_table} as select cast(_tlocaltime/1000000 as timestamp) ts, count(*) c from source_table")
+            f"create stream {stream_name} session(ts, 100a) from source_table into {dst_table} as "
+            f"select _twstart st, _twend et, _twduration du, count(*) c "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend")
         tdLog.info(f"create stream completed, and wait for it completed")
 
         wait_for_insert_complete(self.num_of_tables, self.num_of_rows)
@@ -256,7 +266,10 @@ class TestStreamCheckpoint:
         """
         tdSql.execute("use db")
         tdSql.execute(
-            f"create stream {stream_name} session(ts, 100a) from source_table into {dst_table} as select _twstart, _twend, cast(_tlocaltime/1000000 as timestamp) ts, now(), \'abcdefg\', count(*), sum(k), first(k), max(k) c, concat('abc', cast(_tlocaltime as varchar(1))) from source_table")
+            f"create stream {stream_name} session(ts, 100a) from source_table into {dst_table} as "
+            f"select _twstart, _twend, cast(_tlocaltime/1000000 as timestamp) ts, now(), \'abcdefg\', count(*), sum(k), first(k), max(k) c, concat('abc', cast(_tlocaltime as varchar(1))) "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend")
         tdLog.info(f"create stream completed, and wait for it completed")
 
         wait_for_insert_complete(self.num_of_tables, self.num_of_rows)
