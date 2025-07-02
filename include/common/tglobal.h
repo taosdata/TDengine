@@ -296,7 +296,6 @@ extern bool    tsS3MigrateEnabled;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 extern bool    tsUpdateCacheBatch;
-extern bool    tsDisableStream;
 extern int64_t tsStreamBufferSize;
 extern bool    tsFilterScalarMode;
 extern int32_t tsPQSortMemThreshold;
@@ -308,10 +307,6 @@ extern bool    tsCompareAsStrInGreatest;
 extern int32_t tsStreamVirtualMergeMaxDelayMs;
 extern int32_t tsStreamVirtualMergeMaxMemKb;
 extern int32_t tsStreamVirtualMergeWaitMode;
-
-extern char     tsAdapterFqdn[];
-extern uint16_t tsAdapterPort;
-extern char     tsAdapterToken[];
 
 extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
