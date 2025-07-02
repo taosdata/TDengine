@@ -11,7 +11,8 @@ class TestVtableInsert:
         1.Create db
         2.Create supper table and sub table
         3.Create virtual supper table and sub table
-        4.Insert data into virtual super table and virtual sub table, it should be return error
+        4.Create normal virtual table and normal table
+        5.Insert data into virtual super table or virtual sub table or virtual normal table, it should be return error
 
         Catalog:
             - Insert
@@ -31,21 +32,43 @@ class TestVtableInsert:
         tdSql.execute(f"drop database if exists test_vdb")
         tdSql.execute(f"create database test_vdb")
         tdSql.execute(f"use test_vdb")
-        tdSql.execute(f"create table st (ts timestamp, flag int) tags (t1 VARCHAR(10))")
-        tdSql.execute(f"create table tb using st tags('t1')")
+
+        # create super table and sub table
+        tdSql.execute(f"create table super_t (ts timestamp, flag int) tags (t1 VARCHAR(10))")
+        tdSql.execute(f"create table sub_t0 using super_t tags('t1')")
+
+        # create normal table and insert data
+        tdSql.execute(f"create table normal_t (ts timestamp, flag int)")
 
         i = 10
         while i > 0:
-            tdSql.execute(f"insert into tb values (now,{i})")
+            tdSql.execute(f"insert into sub_t0 values (now,{i})")
+            tdSql.execute(f"insert into normal_t values (now,{i})")
             i = i - 1
 
-        tdSql.execute(f"CREATE STABLE `vst` (ts timestamp, flag int) TAGS (t1 VARCHAR(10)) VIRTUAL 1")
-        tdSql.execute(f"CREATE VTABLE `sct0`(tb.flag) USING vst TAGS (1)")
-        tdSql.execute(f"CREATE VTABLE `nsct0`(ts timestamp,flag int from tb.flag)")
+        # create virtual super table and sub table
+        tdSql.execute(f"create stable v_super_t (ts timestamp, flag int) tags (t1 VARCHAR(10)) virtual 1")
+        tdSql.execute(f"create vtable v_sub_t0 (sub_t0.flag) using v_super_t TAGS (1)")
 
-        tdSql.error(f"insert into vst values(now, 1)")
-        tdSql.error(f"insert into sct0 values(now, 1)")
-        tdSql.error(f"insert into nsct0 values(now, 1)")
+        # create normal virtual table
+        tdSql.execute(f"CREATE VTABLE v_normal_t (ts timestamp,flag int from sub_t0.flag)")
 
+        # insert data into virtual super table and sub table, it should be return error
+
+        # single table insert
+        tdSql.error(f"insert into v_super_t values(now, 1)")
+        tdSql.error(f"insert into v_sub_t0 values(now, 1)")
+        tdSql.error(f"insert into v_normal_t values(now, 1)")
+
+        # multiple table insert
+        tdSql.error(f"insert into normal_t values(now, 1) v_sub_t0 values(now, 1)")
+        tdSql.error(f"insert into v_sub_t0 values(now, 1) normal_t values(now, 1)")
+        tdSql.error(f"insert into normal_t values(now, 1) v_super_t values(now, 1)")
+        tdSql.error(f"insert into v_super_t values(now, 1) normal_t values(now, 1)")
+        tdSql.error(f"insert into v_normal_t values(now, 1) normal_t values(now, 1)")
+        tdSql.error(f"insert into normal_t values(now, 1) v_normal_t values(now, 1)")
+        tdSql.error(f"insert into normal_t values(now, 1) v_sub_t0 values(now, 1) v_super_t values(now, 1)")
+        tdSql.error(f"insert into normal_t values(now, 1) v_sub_t0 values(now, 1) v_super_t values(now, 1)")
+        tdSql.error(f"insert into v_sub_t0 values(now, 1) normal_t values(now, 1) v_normal_t values(now, 1)")
 
         tdLog.info(f"end virtual table insert test successfully")
