@@ -131,7 +131,7 @@ STATE_WINDOW(col) [TRUE_FOR(duration_time)]
 EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
 ```
 
-状态窗口触发是指对触发表的写入数据按照状态窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。各参数含义如下：
+事件窗口触发是指对触发表的写入数据按照事件窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。各参数含义如下：
 - start_condition：事件开始条件的定义。
 - end_condition：事件结束条件的定义。
 - duration_time：可选，指定窗口的最小持续时长，如果某个窗口的时长低于该设定值，则会自动舍弃，不产生触发。
@@ -186,33 +186,9 @@ COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 [PARTITION BY col1 [, ...]]
 ```
 
-### 流式计算的控制选项
-```sql
-[OPTIONS(stream_option [|...])]
-
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types)}
-```
-
-控制选项用于控制触发和计算行为，可以多选，同一个选项不可以多次指定。包括：
-- WATERMARK(duration_time)：指定数据乱序的容忍时长，超过该时长的数据会被当做乱序数据，根据不同触发方式的乱序数据处理策略和用户配置进行处理，未指定时默认 `duration_time` 值为 0。
-- EXPIRED_TIME(exp_time) ：指定过期数据间隔并忽略过期数据，未指定时无过期数据。不需要感知超过一定时间范围的数据写入或更新时可以指定。`exp_time` 为过期时间间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)，最小值为 1a。
-- IGNORE_DISORDER：指定忽略触发表的乱序数据，未指定时不忽略乱序数据。注重计算或通知的时效性、触发表乱序数据不影响计算结果等场景可以指定。
-- DELETE_RECALC: 指定触发表的数据删除（包含触发子表被删除场景）需要自动重新计算，只有触发方式支持数据删除的自动重算才可以指定。未指定时忽略数据删除，只有触发表数据删除会影响计算结果的场景才需要指定。
-- DELETE_OUTPUT_TABLE：指定触发子表被删除时其对应的输出子表也需要被删除，只适用于按表分组的场景，未指定时触发子表被删除不会删除其输出子表。
-- FILL_HISTORY[(start_time)]：指定需要从 `start_time`（事件时间）开始触发历史数据计算，未指定时从最早的记录开始触发计算。如果未指定 `FILL_HISTORY` 和 `FILL_HISTORY_FIRST`，则不进行历史数据的触发计算。该选项不能与 `FILL_HISTORY_FIRST` 同时指定。定时触发（PERIOD）模式下不支持历史计算。
-- FILL_HISTORY_FIRST[(start_time)]：指定需要从 `start_time`（事件时间）开始优先触发历史数据计算，未指定时从最早的记录开始触发计算。该选项适合在需要按照时间顺序计算历史数据且历史数据计算完成前不需要实时计算的场景下指定，未指定时优先实时计算，不能与 `FILL_HISTORY` 同时指定。定时触发（PERIOD）模式下不支持历史计算。
-- CALC_NOTIFY_ONLY：指定计算结果只发送通知，不保存到输出表，未指定时默认会保存到输出表。
-- LOW_LATENCY_CALC：指定触发后需要低延迟的计算或通知，单次触发发生后会立即启动计算或通知。低延迟的计算或通知会保证实时流计算任务的时效性，但是也会造成处理效率的降低，有可能需要更多的处理资源才能满足需求，因此只推荐在业务有强时效性要求时使用。未指定时单次触发发生后有可能不会立即进行计算，采用批量计算与通知的方式来达到较好的资源利用效率。
-- PRE_FILTER(expr) ：指定在触发进行前对触发表进行数据过滤处理，只有符合条件的数据才会进入触发判断，例如：`col1 > 0` 则只有 col1 为正数的数据行可以进行触发，未指定时无触发表数据过滤。
-- FORCE_OUTPUT：指定计算结果强制输出选项，当某次触发没有计算结果时将强制输出一行数据，除常量外（含常量对待列）其他列的值都为 NULL，后续版本会增加更多填充策略。
-- MAX_DELAY(delay_time)：指定在窗口未关闭时的最长等待的时长（处理时间），每超过该时间且窗口仍未关闭时产生触发，非窗口触发时自动忽略。当窗口触发存在 `TRUE_FOR` 条件且 `TRUE_FOR` 时长大于 `MAX_DELAY` 时，`MAX_DELAY` 仍然生效 (即最终当前窗口未满足 `TRUE_FOR` 条件)。`delay_time` 为等待时长，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)。
-- EVENT_TYPE(event_types)：指定窗口触发的事件类型，可以多选，未指定时默认值为 `WINDOW_CLOSE`。SLIDING 触发（不带 INTERVAL）和 PERIOD 触发不适用（自动忽略）。各选项含义如下：
-  - WINDOW_OPEN：窗口启动事件。
-  - WINDOW_CLOSE：窗口关闭事件。
-
 ### 流式计算的输出结果
 ```sql
-[INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [PRIMARY KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
+[INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [PRIMARY KEY][, ...])] [TAGS (tag_definition [, ...])] 
 
 tag_definition:
     tag_name type_name [COMMENT 'string_value'] AS expr
@@ -230,31 +206,6 @@ tag_definition:
   - type_name：标签列类型
   - string_value：标签列说明
   - expr：标签值计算表达式，可根据需要选择任意触发表分组列（来自 `[PARTITION BY col1[, ...]]`）。
-
-### 流式计算的通知机制
-事件通知是流在事件触发后可选的执行动作，支持通过 `WebSocket` 协议发送事件通知到应用。通知内容可以包含计算结果，也可以在没有计算结果时只通知事件相关信息。
-
-```sql
-[notification_definition]
-
-notification_definition:
-    NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
-
-event_types:
-    event_type [|event_type]    
-    
-event_type: {WINDOW_OPEN | WINDOW_CLOSE}   
-```
-
-详细说明如下：
-- url [, ...]：指定通知的目标地址，必须包括协议、IP 或域名、端口号，并允许包含路径、参数，整个 url 需要包含在引号内。目前仅支持 WebSocket 协议。例如：`ws://localhost:8080`、`ws://localhost:8080/notify`、`ws://localhost:8080/notify?key=foo`。
-- [ON (event_types)]：指定需要通知的事件类型，可多选。SLIDING（不带 INTERVAL）和 PERIOD 触发不需要指定，其他触发必须指定，支持的事件类型有：
-  - WINDOW_OPEN：窗口打开事件，在触发表分组窗口打开时发送通知。
-  - WINDOW_CLOSE：窗口关闭事件，在触发表分组窗口关闭时发送通知。
-- [WHERE condition]：指定通知需要满足的条件，`condition` 中只能指定含计算结果列和（或）常量的条件。
-- [NOTIFY_OPTIONS(notify_option[|notify_option)]]：可选，指定通知选项用于控制通知的行为，可以多选，目前支持的通知选项包括：
-  - NOTIFY_HISTORY：指定计算历史数据时是否发送通知，未指定时默认不发送。
-  - ON_FAILURE_PAUSE：指定在向通知地址发送通知失败时暂停流计算任务，循环重试发送通知，直至发送成功才恢复流计算运行，未指定时默认直接丢失事件通知（不影响流计算继续运行）。
 
 ### 流式计算的计算任务
 ```sql
@@ -289,6 +240,238 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
 - %%trows：只能用于 FROM 子句，推荐在小数据量场景下使用。
 - %%tbname：只能用于 FROM、SELECT 和 WHERE 子句。
 - 其他占位符：只能用于 SELECT 和 WHERE 子句。
+
+### 流式计算的控制选项
+```sql
+[OPTIONS(stream_option [|...])]
+
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types)}
+```
+
+控制选项用于控制触发和计算行为，可以多选，同一个选项不可以多次指定。包括：
+- WATERMARK(duration_time)：指定数据乱序的容忍时长，超过该时长的数据会被当做乱序数据，根据不同触发方式的乱序数据处理策略和用户配置进行处理，未指定时默认 `duration_time` 值为 0。
+- EXPIRED_TIME(exp_time) ：指定过期数据间隔并忽略过期数据，未指定时无过期数据。不需要感知超过一定时间范围的数据写入或更新时可以指定。`exp_time` 为过期时间间隔，支持的时间单位包括：毫秒(a)、秒(s)、分(m)、小时(h)、天(d)，最小值为 1a。
+- IGNORE_DISORDER：指定忽略触发表的乱序数据，未指定时不忽略乱序数据。注重计算或通知的时效性、触发表乱序数据不影响计算结果等场景可以指定。
+- DELETE_RECALC: 指定触发表的数据删除（包含触发子表被删除场景）需要自动重新计算，只有触发方式支持数据删除的自动重算才可以指定。未指定时忽略数据删除，只有触发表数据删除会影响计算结果的场景才需要指定。
+- DELETE_OUTPUT_TABLE：指定触发子表被删除时其对应的输出子表也需要被删除，只适用于按表分组的场景，未指定时触发子表被删除不会删除其输出子表。
+- FILL_HISTORY[(start_time)]：指定需要从 `start_time`（事件时间）开始触发历史数据计算，未指定时从最早的记录开始触发计算。如果未指定 `FILL_HISTORY` 和 `FILL_HISTORY_FIRST`，则不进行历史数据的触发计算。该选项不能与 `FILL_HISTORY_FIRST` 同时指定 。定时触发（PERIOD）模式下不支持历史计算。
+- FILL_HISTORY_FIRST[(start_time)]：指定需要从 `start_time`（事件时间）开始优先触发历史数据计算，未指定时从最早的记录开始触发计算。该选项适合在需要按照时间顺序计算历史数据且历史数据计算完成前不需要实时计算的场景下指定，未指定时优先实时计算，不能与 `FILL_HISTORY` 同时指定。定时触发（PERIOD）模式下不支持历史计算。
+- CALC_NOTIFY_ONLY：指定计算结果只发送通知，不保存到输出表，未指定时默认会保存到输出表。
+- LOW_LATENCY_CALC：指定触发后需要低延迟的计算或通知，单次触发发生后会立即启动计算或通知。低延迟的计算或通知会保证实时流计算任务的时效性，但是也会造成处理效率的降低，有可能需要更多的处理资源才能满足需求，因此只推荐在业务有强时效性要求时使用。未指定时单次触发发生后有可能不会立即进行计算，采用批量计算与通知的方式来达到较好的资源利用效率。
+- PRE_FILTER(expr) ：指定在触发进行前对触发表进行数据过滤处理，只有符合条件的数据才会进入触发判断，例如：`col1 > 0` 则只有 col1 为正数的数据行可以进行触发，未指定时无触发表数据过滤。
+- FORCE_OUTPUT：指定计算结果强制输出选项，当某次触发没有计算结果时将强制输出一行数据，除常量外（含常量对待列）其他列的值都为 NULL，后续版本会增加更多填充策略。
+- MAX_DELAY(delay_time)：指定在窗口未关闭时的最长等待的时长（处理时间），每超过该时间且窗口仍未关闭时产生触发，非窗口触发时自动忽略。当窗口触发存在 `TRUE_FOR` 条件且 `TRUE_FOR` 时长大于 `MAX_DELAY` 时，`MAX_DELAY` 仍然生效(即最终当前窗口未满足 `TRUE_FOR` 条件)。`delay_time` 为等待时长，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)。
+- EVENT_TYPE(event_types)：指定窗口触发的事件类型，可以多选，未指定时默认值为 `WINDOW_CLOSE`。SLIDING 触发（不带 INTERVAL）和 PERIOD 触发不适用（自动忽略）。各选项含义如下：
+  - WINDOW_OPEN：窗口启动事件。
+  - WINDOW_CLOSE：窗口关闭事件。
+
+### 流式计算的通知机制
+事件通知是流在事件触发后可选的执行动作，支持通过 `WebSocket` 协议发送事件通知到应用。用户通过 `notification_definition` 来指定需要通知的事件，以及用于接收通知消息的目标地址。通知内容可以包含计算结果，也可以在没有计算结果时只通知事件相关信息。
+
+```sql
+[notification_definition]
+
+notification_definition:
+    NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
+
+event_types:
+    event_type [|event_type]    
+    
+event_type: {WINDOW_OPEN | WINDOW_CLOSE}   
+```
+
+详细说明如下：
+- url [, ...]：指定通知的目标地址，必须包括协议、IP 或域名、端口号，并允许包含路径、参数，整个 url 需要包含在引号内。目前仅支持 WebSocket 协议。例如：`ws://localhost:8080`、`ws://localhost:8080/notify`、`ws://localhost:8080/notify?key=foo`。
+- [ON (event_types)]：指定需要通知的事件类型，可多选。SLIDING（不带 INTERVAL）和 PERIOD 触发不需要指定，其他触发必须指定，支持的事件类型有：
+  - WINDOW_OPEN：窗口打开事件，在触发表分组窗口打开时发送通知。
+  - WINDOW_CLOSE：窗口关闭事件，在触发表分组窗口关闭时发送通知。
+- [WHERE condition]：指定通知需要满足的条件，`condition` 中只能指定含计算结果列和（或）常量的条件。
+- [NOTIFY_OPTIONS(notify_option[|notify_option)]]：可选，指定通知选项用于控制通知的行为，可以多选，目前支持的通知选项包括：
+  - NOTIFY_HISTORY：指定计算历史数据时是否发送通知，未指定时默认不发送。
+  - ON_FAILURE_PAUSE：指定在向通知地址发送通知失败时暂停流计算任务，循环重试发送通知，直至发送成功才恢复流计算运行，未指定时默认直接丢失事件通知（不影响流计算继续运行）。
+
+当触发指定的事件时，taosd 会向指定的 URL 发送 POST 请求，消息体为 JSON 格式。一个请求可能包含若干个流的若干个事件，且事件类型不一定相同。
+事件信息视窗口类型而定：
+
+1. 时间窗口：开始时发送起始时间；结束时发送起始时间、结束时间、计算结果。
+1. 状态窗口：开始时发送起始时间、前一个窗口的状态值、当前窗口的状态值；结束时发送起始时间、结束时间、计算结果、当前窗口的状态值、下一个窗口的状态值。
+1. 会话窗口：开始时发送起始时间；结束时发送起始时间、结束时间、计算结果。
+1. 事件窗口：开始时发送起始时间，触发窗口打开的数据值和对应条件编号；结束时发送起始时间、结束时间、计算结果、触发窗口关闭的数据值和对应条件编号。
+1. 计数窗口：开始时发送起始时间；结束时发送起始时间、结束时间、计算结果。
+
+通知消息的结构示例如下：
+
+```json
+{
+  "messageId": "unique-message-id-12345",
+  "timestamp": 1733284887203,
+  "streams": [
+    {
+      "streamName": "avg_current_stream",
+      "events": [
+        {
+          "tableName": "t_a667a16127d3b5a18988e32f3e76cd30",
+          "eventType": "WINDOW_OPEN",
+          "eventTime": 1733284887097,
+          "windowId": "window-id-67890",
+          "windowType": "Time",
+          "groupId": "2650968222368530754",
+          "windowStart": 1733284800000
+        },
+        {
+          "tableName": "t_a667a16127d3b5a18988e32f3e76cd30",
+          "eventType": "WINDOW_CLOSE",
+          "eventTime": 1733284887197,
+          "windowId": "window-id-67890",
+          "windowType": "Time",
+          "groupId": "2650968222368530754",
+          "windowStart": 1733284800000,
+          "windowEnd": 1733284860000,
+          "result": {
+            "_wstart": 1733284800000,
+            "avg(current)": 1.3
+          }
+        }
+      ]
+    },
+    {
+      "streamName": "max_voltage_stream",
+      "events": [
+        {
+          "tableName": "t_96f62b752f36e9b16dc969fe45363748",
+          "eventType": "WINDOW_OPEN",
+          "eventTime": 1733284887231,
+          "windowId": "window-id-13579",
+          "windowType": "Event",
+          "groupId": "7533998559487590581",
+          "windowStart": 1733284800000,
+          "triggerCondition": {
+            "conditionIndex": 0,
+            "fieldValue": {
+              "c1": 10,
+              "c2": 15
+            }
+          },
+        },
+        {
+          "tableName": "t_96f62b752f36e9b16dc969fe45363748",
+          "eventType": "WINDOW_CLOSE",
+          "eventTime": 1733284887231,
+          "windowId": "window-id-13579",
+          "windowType": "Event",
+          "groupId": "7533998559487590581",
+          "windowStart": 1733284800000,
+          "windowEnd": 1733284810000,
+          "triggerCondition": {
+            "conditionIndex": 1,
+            "fieldValue": {
+              "c1": 20,
+              "c2": 3
+            }
+          },
+          "result": {
+            "_wstart": 1733284800000,
+            "max(voltage)": 220
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+后续小节是通知消息中各个字段的说明。
+
+### 根级字段说明
+
+1. messageId：字符串类型，是通知消息的唯一标识符，确保整条消息可以被追踪和去重。
+1. timestamp：长整型时间戳，表示通知消息生成的时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
+1. streams：对象数组，包含多个流任务的事件信息。(详细信息见下节)
+
+### stream 对象的字段说明
+
+1. streamName：字符串类型，流任务的名称，用于标识事件所属的流。
+1. events：对象数组，该流任务下的事件列表，包含一个或多个事件对象。(详细信息见下节)
+
+### event 对象的字段说明
+
+#### 通用字段
+
+这部分是所有 event 对象所共有的字段。
+1. tableName：字符串类型，是对应目标子表的表名。
+1. eventType：字符串类型，表示事件类型，支持 WINDOW_OPEN、WINDOW_CLOSE、WINDOW_INVALIDATION 三种类型。
+1. eventTime：长整型时间戳，表示事件生成时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
+1. windowId：字符串类型，窗口的唯一标识符，确保打开和关闭事件的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一窗口的 windowId 保持不变。
+1. windowType：字符串类型，表示窗口类型，支持 Time、State、Session、Event、Count 五种类型。
+1. groupId: 字符串类型，是对应分组的唯一标识符，如果是按表分组，则与对应表的 uid 一致。
+
+#### 时间窗口相关字段
+
+这部分是 windowType 为 Time 时 event 对象才有的字段。
+1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+    1. result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+#### 状态窗口相关字段
+
+这部分是 windowType 为 State 时 event 对象才有的字段。
+1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. prevState：与状态列的类型相同，表示上一个窗口的状态值。如果没有上一个窗口 (即：现在是第一个窗口)，则为 NULL。
+    1. curState：与状态列的类型相同，表示当前窗口的状态值。
+1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+    1. curState：与状态列的类型相同，表示当前窗口的状态值。
+    1. nextState：与状态列的类型相同，表示下一个窗口的状态值。
+    1. result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+#### 会话窗口相关字段
+
+这部分是 windowType 为 Session 时 event 对象才有的字段。
+1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+    1. result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+#### 事件窗口相关字段
+
+这部分是 windowType 为 Event 时 event 对象才有的字段。
+1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
+  1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+  1. triggerCondition：触发窗口开始的条件信息，包括以下字段：
+    1. conditionIndex：整型，表示满足的触发窗口开始的条件的索引，从 0 开始编号。
+    1. fieldValue：键值对形式，包含条件列列名及其对应的值。
+1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+    1. triggerCondition：触发窗口关闭的条件信息，包括以下字段：
+        1. conditionIndex：整型，表示满足的触发窗口关闭的条件的索引，从 0 开始编号。
+        1. fieldValue：键值对形式，包含条件列列名及其对应的值。
+    1. result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+#### 计数窗口相关字段
+
+这部分是 windowType 为 Count 时 event 对象才有的字段。
+1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+    1. result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+#### 窗口失效相关字段
+
+因为流计算过程中会遇到数据乱序、更新、删除等情况，可能造成已生成的窗口被删除，或者结果需要重新计算。此时会向通知地址发送一条 WINDOW_INVALIDATION 的通知，说明哪些窗口已经被删除。
+
+这部分是 eventType 为 WINDOW_INVALIDATION 时，event 对象才有的字段。
+1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+1. windowEnd: 长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
 
 ## 删除流式计算
 仅删除流式计算任务，由流式计算写入的数据不会被删除。
@@ -561,6 +744,15 @@ CREATE stream sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname
   OPTIONS(MAX_DELAY(1m) | FILL_HISTORY_FIRST) 
   INTO stb2 AS 
     SELECT _twstart, avg(col1) FROM %%tbname WHERE _c0 >= _twstart AND _c0 <= _twend;
+```
+
+- 计算电表电流的每分钟平均值，并在窗口打开、关闭时向两个通知地址发送通知，计算历史数据时不发送通知，不允许在通知发送失败时丢弃通知。
+
+```sql
+CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters 
+  NOTIFY ('ws://localhost:8080/notify', 'wss://192.168.1.1:8080/notify?key=foo') ON ('WINDOW_OPEN', 'WINDOW_CLOSE') NOTIFY_OPTIONS(NOTIFY_HISTORY | ON_FAILURE_PAUSE)
+  INTO avg_stb
+    AS SELECT _twstart, _twend, AVG(current) FROM %%trows;
 ```
 
 #### 定时触发
