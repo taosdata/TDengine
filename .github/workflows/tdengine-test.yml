@@ -20,6 +20,7 @@ on:
       - 'tests/script/tsim/analytics'
       - '**/*.md'
       - '.github/workflows/**'
+      
   workflow_dispatch:
     inputs:
       specified_source_branch:
