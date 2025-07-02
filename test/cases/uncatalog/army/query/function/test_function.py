@@ -504,6 +504,24 @@ class TestFunction:
         tdSql.execute(greatest_query)
 
     def test_function(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tdLog.debug(f"start to excute {__file__}")
 
         self.insert_data()

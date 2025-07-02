@@ -52,6 +52,24 @@ class TestInterval:
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "interval")
 
     def test_interval(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         self.insert_data()
         self.create_streams()
         self.query_run()

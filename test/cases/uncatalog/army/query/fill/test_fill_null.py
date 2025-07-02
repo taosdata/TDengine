@@ -9,6 +9,25 @@ class TestFillNull:
         cls.dbname = "ts_5054"
 
     def test_fill_null(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         etool.benchMark(command=f"-d {self.dbname} -t 1 -n 1000 -S 10 -y")
         tdSql.execute(f"use {self.dbname}")
         tdSql.execute("select database();")

@@ -19,6 +19,24 @@ class TestFuncParamnum:
         etool.benchMark(command = "-l 1000 -n 1 -d ts_5798")
 
     def test_func_paramnum(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tdLog.debug(f"start to excute {__file__}")
 
         self.create_table()
