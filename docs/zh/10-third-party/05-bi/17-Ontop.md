@@ -53,15 +53,15 @@ Ontop 通过 [TDengine Java connector](../../../reference/connector/java/) 连�
     source	SELECT ts, voltage, phase, groupid, location  from test.meters
     ]]
    ```
-   示例把超级表 meters 映射为 Ontop 对象 ns:Meters，各列同名映射。
-   
+   ** 格式说明：**
     | 关键字段  | 说明  |
     |:-------  |:----------------------------------- |
+    | mappingId | 映射 ID，唯一标识该映射关系            |
     | source   | TDengine SQL 查询语句（支持复杂查询）   |  
     | target   | 字段映射关系（未指定类型时按默认规则转换） |
-   
+    
 
-   **数据类型默认映射规则：**
+   在 target 中可指定映射的数据类型，若未指定则按以下规则转化：
 
     | TDengine JDBC 数据类型 | Ontop 数据类型  |
     |:-------------------- |:----------------|
@@ -83,15 +83,15 @@ Ontop 通过 [TDengine Java connector](../../../reference/connector/java/) 连�
 ### 4. 测试连接
    启动 Ontop 端点服务验证配置：
    ``` bash
-   ontop endpoint -p db.properties -m db.obda
+   ontop endpoint -p db.properties -m db.obda --port 8080
    ```
-   访问 http://localhost:8080/ontop/endpoint/ ，若显示 SPARQL 查询界面，则表示配置成功。 
+   访问 `http://localhost:8080` ，若显示 SPARQL 查询界面，则表示配置成功。 
 
 
 ## 3. 数据分析
 
 ### 场景介绍
-使用 Ontop 将 TDengine 中的智能电表数据转化为虚拟知识图谱，通过 SPARQL 查询电压超过 240V 的高负载设备。
+某小区智能电表数据存储在 TDengine 数据库中，使用 Ontop 将 TDengine 中的智能电表数据转化为虚拟知识图谱，通过 SPARQL 接口查询出电压超过 240V 的高负载设备。
 
 ### 数据准备
 通过 taosBenchmark 生成模拟数据：
@@ -113,7 +113,8 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
 
 
 ### 执行查询
-1. 制作 SPARQL 查询语句，查询电压超过 240V 的智能电表设备，并显示 2 条最高电压数据：
+1. 制作 SPARQL 查询语句。
+   查询电压超过 240V 的智能电表设备，按电压倒序排列并显示前 2 条数据：
    ``` sparql
     PREFIX ns: <http://example.org/ns#>
 
@@ -130,11 +131,11 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
     ORDER BY DESC(?voltage)
     LIMIT 2
    ```
-   [W3C SPARQL 语法详细](https://www.w3.org/TR/sparql11-query/)
+   [SPARQL 语法参考](https://www.w3.org/TR/sparql11-query/)
 2. 在 SPARQL 查询界面输入上述语句，点击“运行”按钮，查询结果如下：
    ![ontop-query](img/ontop-query.webp)
 
-3. 查询结果以 SPARQL JSON 格式返回，包含了电表采集时间戳、采集电压、相位、分组 ID 及设备位置等信息。
+3. 结果以 SPARQL JSON 格式返回，包含了电表采集时间戳、采集电压、相位、分组 ID 及设备位置等信息。
    ``` json
     {
     "head" : {
@@ -207,9 +208,9 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
    ```
 
 ## 4. 总结
-通过集成 TDengine 与 Ontop：
-- 实现时序数据到 RDF 的自动转换，支持 SPARQL 语义化查询
+本文通过 TDengine 与 Ontop 集成：
+- 实现时序数据到 RDF 自动转换，支持 SPARQL 语义化查询
 - 提供符合 W3C 标准的统一数据访问接口
 - 解锁工业 IoT 的知识图谱分析与推理能力
 
-**该方案开创了时序智能新范式**：结合知识图谱的强逻辑推理与大语言模型的泛化能力，为复杂工业场景（如设备故障根因分析、能效优化）提供具备认知智能的分析平台。
+集成同时也开创了时序数据库领域智能新范式，知识图谱强逻辑推理与大语言模型泛化能力，为复杂物联网场景（如设备故障根因分析、能效优化等）提供具备认知领域的智能分析解决方案。
