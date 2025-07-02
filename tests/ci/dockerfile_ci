@@ -53,15 +53,12 @@ ADD apache-maven-3.8.4-bin.tar.gz /usr/local/
 ADD node-v20.17.0-linux-x64.tar.xz /usr/local/
 ADD cmake-3.21.5-linux-x86_64.tar.gz /usr/local/
 
+ENV RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
+ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"
+ENV RUST_VERSION=1.87.0
+
 # 安装 Rust（优化安装过程）
-RUN curl https://rsproxy.cn/rustup-init.sh -o rustup-init.sh \
-    && chmod +x rustup-init.sh \
-    && RUSTUP_DIST_SERVER="https://rsproxy.cn" \
-       RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup" \
-       ./rustup-init.sh -y --no-modify-path --default-toolchain stable \
-    && rm rustup-init.sh \
-    && echo "export RUSTUP_DIST_SERVER=\"https://rsproxy.cn\"" >> /root/.bashrc \
-    && echo "export RUSTUP_UPDATE_ROOT=\"https://rsproxy.cn/rustup\"" >> /root/.bashrc
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --verbose --profile minimal --component clippy,rustfmt --default-toolchain $RUST_VERSION
 COPY .cargo/config /root/.cargo/config
 
 # 配置环境变量
@@ -71,10 +68,9 @@ ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"  RUSTUP_UPDATE_ROOT="https://rsproxy
 RUN go env -w GOPROXY=https://goproxy.cn
 ENV LANG=en_US.UTF-8 LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
 
-
-
+# 配置 R 支持 Java 并安装 RJDBC
 RUN R CMD javareconf JAVA_HOME=${JAVA_HOME} JAVA=${JAVA_HOME}/bin/java JAVAC=${JAVA_HOME}/bin/javac JAVAH=${JAVA_HOME}/bin/javah JAR=${JAVA_HOME}/bin/jar \
-&&  echo "install.packages(\"RJDBC\", repos=\"http://cran.us.r-project.org\")" | R --no-save \
+&&  echo "install.packages(\"RJDBC\", repos=\"http://cran.us.r-project.org\")" | R --no-save
 
 # 安装覆盖率工具
 RUN gem install coveralls-lcov \
