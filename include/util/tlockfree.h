@@ -76,6 +76,7 @@ int32_t taosRTryLockLatch(SRWLatch *pLatch);
 int32_t taosRUnLockLatch(SRWLatch *pLatch);
 int32_t taosWTryLockLatch(SRWLatch *pLatch);
 bool    taosIsOnlyWLocked(SRWLatch *pLatch);
+bool    taosHasRWWFlag(SRWLatch *pLatch);
 int32_t taosWTryForceLockLatch(SRWLatch *pLatch);
 
 // copy on read
