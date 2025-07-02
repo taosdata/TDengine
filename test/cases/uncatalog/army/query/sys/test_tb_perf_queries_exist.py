@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-f
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
 '''

@@ -93,227 +93,227 @@ class TestCaseWhen:
     def run_case_when_statements(self):
         tdSql.execute("use test_case_when;")
         tdSql.query("select case when c_null is null then c_null else t_null end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
+        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.queryResult]))
         
         tdSql.query("select case when c_null is not null then c_null else t_null end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
+        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.queryResult]))
         
         tdSql.query("select case when c_bool is null then c_bool else c_null end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
+        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.queryResult]))
         
         tdSql.query("select case when c_bool is not null then c_bool else c_null end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(1,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(1,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
 
         tdSql.query("select case when c_tinyint is null then c_tinyint else c_null end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
+        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.queryResult]))
 
         tdSql.query("select case when c_tinyint is not null then c_tinyint else c_null end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_smallint is null then c_smallint else c_null end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
+        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.queryResult]))
         
         tdSql.query("select case when c_smallint is not null then c_smallint else c_null end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
 
         tdSql.query("select case when c_int is null then c_int else c_null end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
+        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.queryResult]))
 
         tdSql.query("select case when c_int is not null then c_int else c_null end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_bigint is null then c_bigint else c_null end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
+        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.queryResult]))
         
         tdSql.query("select case when c_bigint is not null then c_bigint else c_null end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_float is null then c_float else c_null end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
+        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.queryResult]))
         
         tdSql.query("select case when c_float is not null then c_float else c_null end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('2.2',), ('3.3',), ('4.4',), ('5.5',), ('6.6',), ('7.7',), ('8.8',), ('9.9',), ('10.1',), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('2.2',), ('3.3',), ('4.4',), ('5.5',), ('6.6',), ('7.7',), ('8.8',), ('9.9',), ('10.1',), (None,)])
 
         tdSql.query("select case when c_double is null then c_double else c_null end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
+        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.queryResult]))
 
         tdSql.query("select case when c_double is not null then c_double else c_null end from st1;")
         
-        assert(tdSql.checkRows(10) and tdSql.res == [('2.22',), ('3.33',), ('4.44',), ('5.55',), ('6.66',), ('7.77',), ('8.88',), ('9.99',), ('10.101',), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('2.22',), ('3.33',), ('4.44',), ('5.55',), ('6.66',), ('7.77',), ('8.88',), ('9.99',), ('10.101',), (None,)])
         
         tdSql.query("select case when c_varchar is null then c_varchar else c_null end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
+        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.queryResult]))
         
         tdSql.query("select case when c_varchar is not null then c_varchar else c_null end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('bbbbbbbb',), ('cccccccc',), ('dddddddd',), ('eeeeeeee',), ('ffffffff',), ('gggggggg',), ('hhhhhhhh',), ('iiiiiiii',), ('jjjjjjjj',), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('bbbbbbbb',), ('cccccccc',), ('dddddddd',), ('eeeeeeee',), ('ffffffff',), ('gggggggg',), ('hhhhhhhh',), ('iiiiiiii',), ('jjjjjjjj',), (None,)])
 
         tdSql.query("select case when c_nchar is null then c_nchar else c_null end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
+        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.queryResult]))
         
         tdSql.query("select case when c_nchar is not null then c_nchar else c_null end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('bbbbbbbb',), ('cccccccc',), ('dddddddd',), ('eeeeeeee',), ('ffffffff',), ('gggggggg',), ('hhhhhhhh',), ('iiiiiiii',), ('jjjjjjjj',), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('bbbbbbbb',), ('cccccccc',), ('dddddddd',), ('eeeeeeee',), ('ffffffff',), ('gggggggg',), ('hhhhhhhh',), ('iiiiiiii',), ('jjjjjjjj',), (None,)])
         
         tdSql.query("select case when c_utinyint is null then c_utinyint else c_null end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
+        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.queryResult]))
         
         tdSql.query("select case when c_utinyint is not null then c_utinyint else c_null end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_usmallint is null then c_usmallint else c_null end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
+        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.queryResult]))
         
         tdSql.query("select case when c_usmallint is not null then c_usmallint else c_null end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_uint is null then c_uint else c_null end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
+        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.queryResult]))
         
         tdSql.query("select case when c_uint is not null then c_uint else c_null end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_ubigint is null then c_ubigint else c_null end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
+        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.queryResult]))
         
         tdSql.query("select case when c_ubigint is not null then c_ubigint else c_null end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('2',), ('3',), ('4',), ('5',), ('6',), ('7',), ('8',), ('9',), ('10',), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('2',), ('3',), ('4',), ('5',), ('6',), ('7',), ('8',), ('9',), ('10',), (None,)])
         
         tdSql.error("select case when c_varbinary is null then c_varbinary else c_null end from st1;")
         tdSql.error("select case when c_varbinary is not null then c_varbinary else c_null end from st1;")
         
         tdSql.query("select case when c_null is null then NULL else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
+        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.queryResult]))
         
         tdSql.query("select case when c_null is not null then NULL else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(True,), (False,), (True,), (False,), (True,), (False,), (True,), (False,), (True,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(True,), (False,), (True,), (False,), (True,), (False,), (True,), (False,), (True,), (None,)])
         
         tdSql.query("select case when c_bool=true then NULL else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(None,), (False,), (None,), (False,), (None,), (False,), (None,), (False,), (None,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(None,), (False,), (None,), (False,), (None,), (False,), (None,), (False,), (None,), (None,)])
         
         tdSql.query("select case when c_bool!=true then NULL else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(True,), (None,), (True,), (None,), (True,), (None,), (True,), (None,), (True,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(True,), (None,), (True,), (None,), (True,), (None,), (True,), (None,), (True,), (None,)])
         
         tdSql.query("select case when c_tinyint=2 then c_tinyint else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
         
         tdSql.query("select case when c_tinyint!=2 then c_tinyint else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
 
         tdSql.query("select case when c_smallint=2 then c_smallint else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
 
         tdSql.query("select case when c_smallint!=2 then c_smallint else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_int=2 then c_int else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
         
         tdSql.query("select case when c_int!=2 then c_int else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_bigint=2 then c_bigint else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
         
         tdSql.query("select case when c_bigint!=2 then c_bigint else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_float=2.2 then c_float else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res[1:] == [(0.0,), (1.0,), (0.0,), (1.0,), (0.0,), (1.0,), (0.0,), (1.0,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult[1:] == [(0.0,), (1.0,), (0.0,), (1.0,), (0.0,), (1.0,), (0.0,), (1.0,), (None,)])
         
         tdSql.query("select case when c_float!=2.2 then c_float else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res[0] == (1.0,))
+        assert(tdSql.checkRows(10) and tdSql.queryResult[0] == (1.0,))
         
         tdSql.query("select case when c_double=2.22 then c_double else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2.22,), (0.0,), (1.0,), (0.0,), (1.0,), (0.0,), (1.0,), (0.0,), (1.0,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2.22,), (0.0,), (1.0,), (0.0,), (1.0,), (0.0,), (1.0,), (0.0,), (1.0,), (None,)])
         
         tdSql.query("select case when c_double!=2.2 then c_double else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2.22,), (3.33,), (4.44,), (5.55,), (6.66,), (7.77,), (8.88,), (9.99,), (10.101,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2.22,), (3.33,), (4.44,), (5.55,), (6.66,), (7.77,), (8.88,), (9.99,), (10.101,), (None,)])
         
         tdSql.query("select case when c_varchar='bbbbbbbb' then c_varchar else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('bbbbbbbb',), ('false',), ('true',), ('false',), ('true',), ('false',), ('true',), ('false',), ('true',), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('bbbbbbbb',), ('false',), ('true',), ('false',), ('true',), ('false',), ('true',), ('false',), ('true',), (None,)])
         
         tdSql.query("select case when c_varchar!='bbbbbbbb' then c_varchar else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('true',), ('cccccccc',), ('dddddddd',), ('eeeeeeee',), ('ffffffff',), ('gggggggg',), ('hhhhhhhh',), ('iiiiiiii',), ('jjjjjjjj',), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('true',), ('cccccccc',), ('dddddddd',), ('eeeeeeee',), ('ffffffff',), ('gggggggg',), ('hhhhhhhh',), ('iiiiiiii',), ('jjjjjjjj',), (None,)])
         
         tdSql.query("select case when c_timestamp='2021-09-01 00:00:00.000' then c_timestamp else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(1630425600000,), (1630425600000,), (1630425600000,), (1630425600000,), (1630425600000,), (1630425600000,), (1630425600000,), (1630425600000,), (1630425600000,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(1630425600000,), (1630425600000,), (1630425600000,), (1630425600000,), (1630425600000,), (1630425600000,), (1630425600000,), (1630425600000,), (1630425600000,), (None,)])
         
         tdSql.query("select case when c_timestamp!='2021-09-01 00:00:00.000' then c_timestamp else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(1,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(1,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
 
         tdSql.query("select case when c_nchar='bbbbbbbb' then c_nchar else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('bbbbbbbb',), ('false',), ('true',), ('false',), ('true',), ('false',), ('true',), ('false',), ('true',), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('bbbbbbbb',), ('false',), ('true',), ('false',), ('true',), ('false',), ('true',), ('false',), ('true',), (None,)])
 
         tdSql.query("select case when c_nchar!='bbbbbbbb' then c_nchar else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('true',), ('cccccccc',), ('dddddddd',), ('eeeeeeee',), ('ffffffff',), ('gggggggg',), ('hhhhhhhh',), ('iiiiiiii',), ('jjjjjjjj',), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('true',), ('cccccccc',), ('dddddddd',), ('eeeeeeee',), ('ffffffff',), ('gggggggg',), ('hhhhhhhh',), ('iiiiiiii',), ('jjjjjjjj',), (None,)])
         
         tdSql.query("select case when c_utinyint=2 then c_utinyint else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
         
         tdSql.query("select case when c_utinyint!=2 then c_utinyint else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_usmallint=2 then c_usmallint else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
         
         tdSql.query("select case when c_usmallint!=2 then c_usmallint else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_uint=2 then c_uint else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
 
         tdSql.query("select case when c_uint!=2 then c_uint else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_ubigint=2 then c_ubigint else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
         
         tdSql.query("select case when c_ubigint!=2 then c_ubigint else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_ubigint=2 then c_ubigint else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (0,), (1,), (0,), (1,), (0,), (1,), (0,), (1,), (None,)])
 
         tdSql.query("select case when c_ubigint!=2 then c_ubigint else c_bool end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(1,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
 
         tdSql.error("select case when c_varbinary='\x30783037' then c_varbinary else c_bool end from st1;")
         tdSql.error("select case when c_varbinary!='\x30783037' then c_varbinary else c_bool end from st1;")
         
         tdSql.query("select case when c_null is null then NULL else c_tinyint end from st1;")
-        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.res]))
+        assert(tdSql.checkRows(10) and all([item[0] is None for item in tdSql.queryResult]))
         
         tdSql.query("select case when c_null is not null then NULL else c_tinyint end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_bool=true then false else c_tinyint end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(0,), (3,), (0,), (5,), (0,), (7,), (0,), (9,), (0,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(0,), (3,), (0,), (5,), (0,), (7,), (0,), (9,), (0,), (None,)])
         
         tdSql.query("select case when c_bool!=true then false else c_tinyint end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (0,), (4,), (0,), (6,), (0,), (8,), (0,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (0,), (4,), (0,), (6,), (0,), (8,), (0,), (10,), (None,)])
         
         tdSql.query("select case when c_smallint=2 then c_smallint else c_tinyint end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_smallint!=2  then c_smallint else c_tinyint end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_int=2 then c_smallint else c_int end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_int!=2  then c_smallint else c_int end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [(2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (None,)])
         
         tdSql.query("select case when c_float=2.2 then 387897 else 'test message' end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('387897',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('387897',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',)])
         
         tdSql.query("select case when c_double=2.22 then 387897 else 'test message' end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('387897',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('387897',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',)])
 
         tdSql.query("select case when c_varchar='cccccccc' then 'test' when c_varchar='bbbbbbbb' then 'bbbb' else 'test message' end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('bbbb',), ('test',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('bbbb',), ('test',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',), ('test message',)])
         
         tdSql.query("select case when ts='2024-10-01 00:00:04.000' then 456646546 when ts>'2024-10-01 00:00:04.000' then 'after today' else 'before today or unknow date' end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('before today or unknow date',), ('before today or unknow date',), ('before today or unknow date',), ('before today or unknow date',), ('456646546',), ('after today',), ('after today',), ('after today',), ('after today',), ('after today',)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('before today or unknow date',), ('before today or unknow date',), ('before today or unknow date',), ('before today or unknow date',), ('456646546',), ('after today',), ('after today',), ('after today',), ('after today',), ('after today',)])
 
         tdSql.error("select case when c_geometry is null then c_geometry else c_null end from st1;")
         tdSql.error("select case when c_geometry is not null then c_geometry else c_null end from st1;")
@@ -326,33 +326,33 @@ class TestCaseWhen:
         tdSql.error("select case when t->'location'!='beijing' then t->'location' else c_bool end from st1;")
 
         tdSql.query("select case when c_float!=2.2 then 387897 else 'test message' end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('test message',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('test message',)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('test message',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('test message',)])
 
         tdSql.query("select case when c_double!=2.22 then 387897 else 'test message' end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('test message',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('test message',)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('test message',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('387897',), ('test message',)])
 
         tdSql.query("select case c_tinyint when 2 then -2147483648 when 3 then 'three' else '4294967295' end from st1;")
-        assert(tdSql.checkRows(10) and tdSql.res == [('-2147483648',), ('three',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',)])
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('-2147483648',), ('three',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',), ('4294967295',)])
 
         tdSql.query("select case c_float when 2.2 then 9.2233720e+18 when 3.3 then -9.2233720e+18 else 'aa' end from st1;")
-        print(tdSql.res)
-        assert(tdSql.checkRows(10) and tdSql.res == [('9.223372e+18',), ('-9.223372e+18',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',)])
+        print(tdSql.queryResult)
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('9.223372e+18',), ('-9.223372e+18',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',), ('aa',)])
 
         tdSql.query("select case t1.c_int when 2 then 'run' when t1.c_int is null then 'other' else t2.c_varchar end from st1 t1, st2 t2 where t1.ts=t2.ts;")
-        print(tdSql.res)
-        assert(tdSql.checkRows(10) and tdSql.res == [('run',), ('cccccccc',), ('dddddddd',), ('eeeeeeee',), ('ffffffff',), ('gggggggg',), ('hhhhhhhh',), ('iiiiiiii',), ('jjjjjjjj',), (None,)])
+        print(tdSql.queryResult)
+        assert(tdSql.checkRows(10) and tdSql.queryResult == [('run',), ('cccccccc',), ('dddddddd',), ('eeeeeeee',), ('ffffffff',), ('gggggggg',), ('hhhhhhhh',), ('iiiiiiii',), ('jjjjjjjj',), (None,)])
 
         tdSql.query("select avg(case when c_tinyint>=2 then c_tinyint else c_null end) from st1;")
-        assert(tdSql.checkRows(1) and tdSql.res == [(6.0,)])
+        assert(tdSql.checkRows(1) and tdSql.queryResult == [(6.0,)])
         
         tdSql.query("select sum(case when c_tinyint>=2 then c_tinyint else c_null end) from st1;")
-        assert(tdSql.checkRows(1) and tdSql.res == [(54,)])
+        assert(tdSql.checkRows(1) and tdSql.queryResult == [(54,)])
         
         tdSql.query("select first(case when c_int >=2 then 'abc' else 0 end) from st1;")
-        assert(tdSql.checkRows(1) and tdSql.res == [('abc',)])
+        assert(tdSql.checkRows(1) and tdSql.queryResult == [('abc',)])
         
         tdSql.query("select last(case when c_int >=2 then c_int else 0 end) from st1;")
-        assert(tdSql.checkRows(1) and tdSql.res == [(0,)])
+        assert(tdSql.checkRows(1) and tdSql.queryResult == [(0,)])
 
     def test_case_when(self):
         """summary: xxx
