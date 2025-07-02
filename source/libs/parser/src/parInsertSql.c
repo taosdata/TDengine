@@ -3231,7 +3231,7 @@ static int32_t processTableSchemaFromMetaData(SInsertParseContext* pCxt, const S
     code = buildInvalidOperationMsg(&pCxt->msg, "insert data into super table is not supported");
   }
 
-  if(TSDB_VIRTUAL_CHILD_TABLE == pStmt->pTableMeta->tableType || TSDB_VIRTUAL_NORMAL_TABLE == pStmt->pTableMeta->tableType) {
+  if(TSDB_CODE_SUCCESS == code && pStmt->pTableMeta && (TSDB_VIRTUAL_CHILD_TABLE == pStmt->pTableMeta->tableType || TSDB_VIRTUAL_NORMAL_TABLE == pStmt->pTableMeta->tableType)) {
     code = buildInvalidOperationMsg(&pCxt->msg, "Virtual table can not be written");
   }
   if (TSDB_CODE_SUCCESS == code && isStb) {
