@@ -1507,8 +1507,10 @@ static int32_t stRealtimeGroupDoSessionCheck(SSTriggerRealtimeGroup *pGroup) {
         }
         continue;
       }
-      code = stRealtimeGroupCloseWindow(pGroup, NULL, true);
-      QUERY_CHECK_CODE(code, lino, _end);
+      if (IS_REALTIME_GROUP_OPEN_WINDOW(pGroup)) {
+        code = stRealtimeGroupCloseWindow(pGroup, NULL, true);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
       code = stRealtimeGroupOpenWindow(pGroup, nextTs, NULL, true, true);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
