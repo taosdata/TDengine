@@ -1346,6 +1346,8 @@ int32_t msmUPAddCacheTask(SStmGrpCtx* pCtx, SStreamCalcScan* pScan, SStreamObj* 
   
 _exit:
 
+  nodesDestroyNode((SNode*)pSubplan);
+  
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
@@ -1827,6 +1829,9 @@ int32_t msmReBuildRunnerTasks(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* pI
 
     TAOS_CHECK_EXIT(msmSTAddToSnodeMap(pCtx, streamId, pInfo->runners[deployId], NULL, 0, deployId));
 
+    nodesDestroyNode((SNode *)pDag);
+    pDag = NULL;
+
     TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pDag));
   }
 
@@ -1836,6 +1841,7 @@ _exit:
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
+  nodesDestroyNode((SNode *)pDag);
   taosArrayDestroy(deployTaskList);
 
   return code;
