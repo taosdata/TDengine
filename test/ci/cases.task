@@ -475,6 +475,11 @@
 ## 03-WebSocket
 ## 04-MQTT
 ,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_smoking.py
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 6
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 11
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_qos.py
+,,y,.,./ci/pytest.sh pytest cases/12-DataSubscription/04-MQTT/test_mqtt_special.py
 ## 05-OPC
 
 # 13-StreamProcessing
@@ -581,7 +586,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/22-Show/test_show_table_distributed.py 
 
 # 23-Users
-,,y,.,./ci/pytest.sh pytest cases/23-Users/test_user_basic.py 
+,,y,.,./ci/pytest.sh pytest cases/23-Users/test_user_basic.py
+,,y,.,./ci/pytest.sh pytest cases/23-Users/test_user_crypted_pass.py 
 ,,y,.,./ci/pytest.sh pytest cases/23-Users/test_user_password.py 
 ,,y,.,./ci/pytest.sh pytest cases/23-Users/test_user_privilege_create_db.py 
 ,,y,.,./ci/pytest.sh pytest cases/23-Users/test_user_privilege_db.py 

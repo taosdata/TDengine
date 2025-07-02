@@ -792,9 +792,9 @@ int main(int argc, char *argv[]) {
   }
   bndInfo("mqttd start with mnode ep %s:%hu", global.mgmtEp.epSet.eps[0].fqdn, global.mgmtEp.epSet.eps[0].port);
 
-  ttq_main(argc, argv);
+  code = ttq_main(argc, argv);
 
-  bndInfo("mqttd exit normally");
+  bndInfo("mqttd exit normally: %d", code);
   /*
   if (udfdOpenClientRpc() != 0) {
     bndError("open rpc connection to mnode failed");

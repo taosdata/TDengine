@@ -329,6 +329,26 @@ static void *dmCrashReportThreadFp(void *param) {
 }
 #endif
 
+static void *dmMetricsThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  int64_t     lastTime = taosGetTimestampMs();
+  setThreadName("dnode-metrics");
+  while (1) {
+    taosMsleep(200);
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+
+    int64_t curTime = taosGetTimestampMs();
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = (curTime - lastTime) / 1000.0f;
+    if (interval >= tsMetricsInterval) {
+      (*pMgmt->sendMetricsReportFp)();
+      (*pMgmt->metricsCleanExpiredSamplesFp)();
+      lastTime = curTime;
+    }
+  }
+  return NULL;
+}
+
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
   int32_t      code = 0;
   TdThreadAttr thAttr;
@@ -473,6 +493,24 @@ int32_t dmStartAuditThread(SDnodeMgmt *pMgmt) {
   return 0;
 }
 
+int32_t dmStartMetricsThread(SDnodeMgmt *pMgmt) {
+  int32_t code = 0;
+#ifdef USE_MONITOR
+  TdThreadAttr thAttr;
+  (void)taosThreadAttrInit(&thAttr);
+  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMgmt->metricsThread, &thAttr, dmMetricsThreadFp, pMgmt) != 0) {
+    code = TAOS_SYSTEM_ERROR(ERRNO);
+    dError("failed to create metrics thread since %s", tstrerror(code));
+    return code;
+  }
+
+  (void)taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("dnode-metrics", "initialized");
+#endif
+  return 0;
+}
+
 void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
 #ifdef USE_MONITOR
   if (taosCheckPthreadValid(pMgmt->monitorThread)) {
@@ -524,6 +562,13 @@ void dmStopCrashReportThread(SDnodeMgmt *pMgmt) {
     taosThreadClear(&pMgmt->crashReportThread);
   }
 #endif
+}
+
+void dmStopMetricsThread(SDnodeMgmt *pMgmt) {
+  if (taosCheckPthreadValid(pMgmt->metricsThread)) {
+    (void)taosThreadJoin(pMgmt->metricsThread, NULL);
+    taosThreadClear(&pMgmt->metricsThread);
+  }
 }
 
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
