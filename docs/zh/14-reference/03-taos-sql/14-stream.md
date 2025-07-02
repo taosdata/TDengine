@@ -629,7 +629,7 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 | 用户删除数据库                               | 当被删库为某个流的数据源库、或触发表库且不是该流的所在库时不允许 <br/> 当存在非目标数据库的虚拟表触发或虚拟表计算流时不允许 <br/> 用户在确认无影响后可指定强制执行（`DROP DATABASE name FORCE`）|
 
 ### 配置参数说明
-流计算相关配置参数包括，详细参见 [taosd 参考手册]( ../01-components/01-taosd.md#流计算参数)  
+流计算相关配置参数包括，详细参见 [taosd 参考手册](../components/taosd#流计算参数)  
 - **numOfMnodeStreamMgmtThreads**：mnode 流计算管理线程个数
 - **numOfStreamMgmtThreads**：vnode/Snode 流计算管理线程个数
 - **numOfVnodeStreamReaderThreads**：vnode 流计算读线程个数
