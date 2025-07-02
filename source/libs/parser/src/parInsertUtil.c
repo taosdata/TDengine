@@ -623,12 +623,12 @@ int32_t checkAndMergeSVgroupDataCxtByUid(STableDataCxt* pTbCtx, SVgroupDataCxt* 
   SArray**       rowP = NULL;
 
   if (pTbCtx->pData->uid != 0) {
-    rowP = (SArray**)tSimpleHashGet(pTableUidHash, &pTbCtx->pData->uid, sizeof(pTbCtx->pData->uid));
+    rowP = (SArray**)tSimpleHashGet(pTableUidHash, &pTbCtx->pData->uid, sizeof(int64_t));
   }
 
   if (NULL == rowP && pTbCtx->pData->pCreateTbReq != NULL && pTbCtx->pData->pCreateTbReq->name != NULL) {
-    rowP = (SArray**)tSimpleHashGet(pTableUidHash, pTbCtx->pData->pCreateTbReq->name,
-                                    strlen(pTbCtx->pData->pCreateTbReq->name));
+    uint64_t hash = MurmurHash3_64(pTbCtx->pData->pCreateTbReq->name, strlen(pTbCtx->pData->pCreateTbReq->name));
+    rowP = (SArray**)tSimpleHashGet(pTableUidHash, &hash, sizeof(uint64_t));
   }
 
   if (rowP != NULL && rowP != NULL) {
@@ -666,11 +666,11 @@ int32_t checkAndMergeSVgroupDataCxtByUid(STableDataCxt* pTbCtx, SVgroupDataCxt* 
   }
 
   if (pTbCtx->pData->uid != 0) {
-    code = tSimpleHashPut(pTableUidHash, &pTbCtx->pData->uid, sizeof(pTbCtx->pData->uid), &pTbCtx->pData->aRowP,
-                          sizeof(SArray*));
+    code = tSimpleHashPut(pTableUidHash, &pTbCtx->pData->uid, sizeof(int64_t), &pTbCtx->pData->aRowP, sizeof(SArray*));
   } else if (pTbCtx->pData->pCreateTbReq != NULL && pTbCtx->pData->pCreateTbReq->name != NULL) {
-    code = tSimpleHashPut(pTableUidHash, pTbCtx->pData->pCreateTbReq->name, strlen(pTbCtx->pData->pCreateTbReq->name),
-                          &pTbCtx->pData->aRowP, sizeof(SArray*));
+    uint64_t hash = MurmurHash3_64(pTbCtx->pData->pCreateTbReq->name, strlen(pTbCtx->pData->pCreateTbReq->name));
+
+    code = tSimpleHashPut(pTableUidHash, &hash, sizeof(uint64_t), &pTbCtx->pData->aRowP, sizeof(SArray*));
   }
 
   if (code != TSDB_CODE_SUCCESS) {
