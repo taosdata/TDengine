@@ -203,7 +203,10 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   pSup->hasWindowOrGroup = true;
   pMlExtInfo->curTs = INT64_MIN;
 
-  // filterInfo???
+  pExtW->primaryTsIndex = ((SColumnNode*)pPhynode->window.pTspk)->slotId;
+  pExtW->scalarMode = pPhynode->window.pProjs;
+  pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
+  pExtW->binfo.outputTsOrder = pExtW->binfo.inputTsOrder;
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   initResultSizeInfo(&pOperator->resultInfo, 512);
@@ -765,7 +768,7 @@ static int32_t doMergeAlignExtWindowAgg(SOperatorInfo* pOperator, SResultRowInfo
 
   const STimeWindow *pWin = getExtWindow(pExtW, ts);
   if (pWin == NULL) {
-    qError("failed to get time window for ts:%" PRId64 ", error:%s", ts, tstrerror(terrno));
+    qError("failed to get time window for ts:%" PRId64 ", index:%d, error:%s", ts, pExtW->primaryTsIndex, tstrerror(terrno));
     T_LONG_JMP(pTaskInfo->env, TSDB_CODE_INVALID_PARA);
   }
   code = setSingleOutputTupleBuf(pResultRowInfo, pWin, &pMlExtInfo->pResultRow, pSup, &pExtW->aggSup);
