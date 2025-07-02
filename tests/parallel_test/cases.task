@@ -111,97 +111,97 @@
 #
 
 # benchmark 64 cases
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-partial-col-numpy.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-single-table.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-sml-rest.py -R
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-supplement-insert.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-vgroups.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-partial-col-numpy.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-single-table.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-sml-rest.py -R
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-supplement-insert.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-vgroups.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/connMode.py -B
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/connMode.py -B
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/custom_col_tag.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/custom_col_tag.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/demo.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/demo.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/csv-export.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/csv-export.py
 # ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/csv-import.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/insert-decimal.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/insert-decimal.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to-continue.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to-continue.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/json_tag.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/json_tag.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert-json-csv.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/insertBasic.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertBindVGroup.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertMix.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertPrecision.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/invalid_commandline.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert-json-csv.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/insertBasic.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertBindVGroup.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertMix.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertPrecision.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/invalid_commandline.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json.py -B
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-error-sqlfile.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-sqlfile.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/queryMain.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json.py -B
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-error-sqlfile.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-sqlfile.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/queryMain.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/rest_insert_alltypes_json.py -R
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/reuse-exist-stb.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/rest_insert_alltypes_json.py -R
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/reuse-exist-stb.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_auto_create_table_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_json_alltypes.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_json_insert_alltypes-same-min-max.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_taosjson_alltypes.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_telnet_alltypes.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_telnet_insert_alltypes-same-min-max.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_auto_create_table_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_insert_alltypes_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_insert_alltypes-same-min-max.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_offset_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json_doesnt_use_ts.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json-subtable.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt2_insert.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream-test.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream_function_test.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stt.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_auto_create_table_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_json_alltypes.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_json_insert_alltypes-same-min-max.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_taosjson_alltypes.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_telnet_alltypes.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_telnet_insert_alltypes-same-min-max.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_auto_create_table_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_insert_alltypes_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_insert_alltypes-same-min-max.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_offset_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json_doesnt_use_ts.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json-subtable.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt2_insert.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream-test.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream_function_test.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stt.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_auto_create_table_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_sample_csv_json-subtable.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert_alltypes-same-min-max.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert_alltypes_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert_alltypes_json-partial-col.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert-table-creating-interval.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_sample_csv_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestInsertWithJsonStmt-otherPara.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson.py -R
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/telnet_tcp.py -R
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmqBasic.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmq_case.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/websiteCase.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_auto_create_table_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_sample_csv_json-subtable.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert_alltypes-same-min-max.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert_alltypes_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert_alltypes_json-partial-col.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert-table-creating-interval.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_sample_csv_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestInsertWithJsonStmt-otherPara.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson.py -R
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/telnet_tcp.py -R
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmqBasic.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmq_case.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/websiteCase.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/cloud/cloud-test.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/ws/websocket.py -R
 
-,,n,army,python3 ./test.py -f tools/benchmark/basic/bugs.py -B
-,,n,army,python3 ./test.py -f tools/benchmark/basic/commandline-retry.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/commandline-sml.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_json_alltypes-interlace.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_insert_alltypes_json.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_interlace.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_taosjson_insert_alltypes-same-min-max.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/taosadapter_json.py -B
-,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-mix.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-retry-json-global.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-retry-json-stb.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson-mixed-query.py -R
-,,n,army,python3 ./test.py -f tools/benchmark/basic/create_table_from_csv.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_cancle.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_error_exit.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/tmq_cancle.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/taos_config_json.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_data.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_auto_create_table_json.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/bugs.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/commandline-retry.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/commandline-sml.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_json_alltypes-interlace.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_insert_alltypes_json.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_interlace.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_taosjson_insert_alltypes-same-min-max.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/taosadapter_json.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-mix.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-retry-json-global.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-retry-json-stb.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson-mixed-query.py -R
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/create_table_from_csv.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_cancle.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_error_exit.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/tmq_cancle.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/taos_config_json.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_data.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_auto_create_table_json.py
 
 # taosdump 43 cases
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpSchemaChange.py

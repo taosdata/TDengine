@@ -1,6 +1,7 @@
 from .autogen import *
 from .before_test import *
 from .eutil import *
+from .eos import *
 from .taoskeeper import *
 from .sql import *
 from .log import *
