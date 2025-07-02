@@ -1,0 +1,40 @@
+# Prophet 参数配置模板
+
+saturating_cap_max: false          # 是否自动用输入数据最大值作为饱和上限（cap）
+saturating_cap: null               # 手动指定饱和上限值，优先级高于 saturating_cap_max
+saturating_cap_scale: null         # 饱和上限的缩放倍数，例如 1.2 表示 cap = 最大值 * 1.2
+
+saturating_floor_min: false        # 是否自动用输入数据最小值作为饱和下限（floor）
+saturating_floor: null             # 手动指定饱和下限值，优先级高于 saturating_floor_min
+saturating_floor_scale: null       # 饱和下限的缩放倍数，例如 0.8 表示 floor = 最小值 * 0.8
+
+seasonality_mode: "additive"       # 季节性模型类型，additive 或 multiplicative
+seasonality_prior_scale: 10.0      # 控制季节性灵活度，值越大模型越灵活
+holidays_prior_scale: 10.0         # 控制节假日效应强度，值越大影响越明显
+changepoint_prior_scale: 0.05      # 趋势变点敏感度，值越大模型对趋势突变越敏感
+
+daily_seasonality: true            # 是否启用日季节性
+weekly_seasonality: false           # 是否启用周季节性
+yearly_seasonality: false           # 是否启用年季节性
+
+holidays:
+  - holiday: "New Year"           # 节假日名称
+    dates:
+      - "2025-01-01"
+      - "2025-01-02"
+    lower_window: 0               # 节假日前影响的天数（负数表示节日前几天）
+    upper_window: 1               # 节假日后影响的天数
+
+  - holiday: "Labor Day"
+    dates:
+      - "2025-05-01"
+      - "2025-05-02"
+      - "2025-05-03"
+    lower_window: 0
+    upper_window: 0
+
+  - holiday: "Custom Holiday"
+    dates:
+      - "2025-08-15"
+    lower_window: -1              # 节假日前1天也视为假日影响期
+    upper_window: 2               # 节假日后2天视为假日影响期
