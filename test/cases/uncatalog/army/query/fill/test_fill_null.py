@@ -1,36 +1,73 @@
-# -*- coding: utf-8 -*-
+from new_test_framework.utils import tdLog, tdSql
 
-import frame.etool
+class TestFillDesc:
+    updatecfgDict = {
+        'slowLogScope':"all"
+    }
 
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
+    def setup_class(cls):
+        tdLog.debug(f"start to excute {__file__}")
 
+    def test_fill_desc(self):
+        """summary: xxx
 
-class TDTestCase(TBase):
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        self.dbname = "ts_5054"
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+        description: xxx
 
-    def run(self):
-        etool.benchMark(command=f"-d {self.dbname} -t 1 -n 1000 -S 10 -y")
-        tdSql.execute(f"use {self.dbname}")
-        tdSql.execute("select database();")
-        tdSql.query(
-            "select _wstart, first(ts), last(ts) from meters where ts >= '2017-07-14 10:40:00.000' and ts < '2017-07-14 10:40:10.000' partition by groupid interval(3s) fill(NULL);"
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+        dbname = "db"
+        stbname = "ocloud_point"
+        tbname = "ocloud_point_170658_3837620225_1701134595725266945"
+
+        tdSql.prepare()
+
+        tdLog.printNoPrefix("==========step1:create table")
+
+        tdSql.execute(
+            f'''create stable if not exists {dbname}.{stbname}
+            (wstart timestamp, point_value float) tags (location binary(64), groupId int)
+            '''
         )
-        tdSql.checkRows(4)
-        tdSql.checkData(0, 1, "2017-07-14 10:40:00.000")
-        tdSql.checkData(0, 2, "2017-07-14 10:40:02.990")
 
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+        tdSql.execute(
+            f'''create table if not exists {dbname}.{tbname} using {dbname}.{stbname} tags("California.SanFrancisco", 2)'''
+        )
+
+        sqls = []
+        for i in range(35, 41):
+            if i == 38 or i == 40:
+                sqls.append(f"insert into {dbname}.{tbname} values('2023-12-26 10:{i}:00.000', null)")
+            else:
+                sqls.append(f"insert into {dbname}.{tbname} values('2023-12-26 10:{i}:00.000', 5.0)")
+
+        # sqls.append(f"insert into {dbname}.{tbname} values('2023-12-26 10:36:00.000', 5.0)")
+        # sqls.append(f"insert into {dbname}.{tbname} values('2023-12-26 10:37:00.000', 5.0)")
+        # sqls.append(f"insert into {dbname}.{tbname} values('2023-12-26 10:38:00.000', null)")
+        # sqls.append(f"insert into {dbname}.{tbname} values('2023-12-26 10:39:00.000', 5.0)")
+        # sqls.append(f"insert into {dbname}.{tbname} values('2023-12-26 10:40:00.000', null)")
 
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        tdSql.executes(sqls)
+
+        tdLog.printNoPrefix("==========step3:fill data")
+
+        sql = f"select first(point_value) as pointValue from {dbname}.{tbname} where wstart between '2023-12-26 10:35:00' and '2023-12-26 10:40:00' interval(1M) fill(prev) order by wstart desc limit 100"
+        data = []
+        for i in range(6):
+           row = [5]
+           data.append(row)
+        tdSql.checkDataMem(sql, data)
+
+        tdLog.success(f"{__file__} successfully executed")
