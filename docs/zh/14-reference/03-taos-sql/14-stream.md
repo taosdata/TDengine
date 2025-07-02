@@ -14,7 +14,7 @@ TDengine 的流计算还提供了其他使用上的便利。针对结果延迟�
 
 ## 创建流式计算
 ```sql
-CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name stream_options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [PRIMARY KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
+CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name stream_options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
 stream_options: {
     trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [OPTIONS(stream_option [|...])] [notification_definition]
@@ -188,7 +188,7 @@ COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 
 ### 流式计算的输出结果
 ```sql
-[INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [PRIMARY KEY][, ...])] [TAGS (tag_definition [, ...])] 
+[INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] 
 
 tag_definition:
     tag_name type_name [COMMENT 'string_value'] AS expr
@@ -200,7 +200,7 @@ tag_definition:
   - 不存在触发分组时该表为普通表。
   - 只触发通知不计算，或计算结果只通知不保存时，不需要指定。
 - [OUTPUT_SUBTABLE(tbname_expr)]：可选，指定每个触发分组的计算输出表（子表）名，没有触发分组时不可以指定。未指定时自动为每个分组生成唯一的输出表（子表）名。`tbname_expr` 为任意输出字符串的表达式，可根据需要选择触发表分组列（来自 `[PARTITION BY col1[, ...]]`），输出长度不能超过表名最大长度，超过时截断处理。如果不希望不同分组输出到同一个子表中，用户需确保每个分组输出表名都是唯一的。
-- [(column_name1, column_name2 [PRIMARY KEY][, ...])]：可选，指定输出表的每列列名，未指定时每列列名与计算结果的每列列名相同。可以通过 `[COMPOSITE KEY]` 指定第二列为主键列，与第一列共同组成复合主键。
+- [(column_name1, column_name2 [COMPOSITE KEY][, ...])]：可选，指定输出表的每列列名，未指定时每列列名与计算结果的每列列名相同。可以通过 `[COMPOSITE KEY]` 指定第二列为主键列，与第一列共同组成复合主键。
 - [TAGS (tag_definition [, ...])]：可选，指定输出超级表的标签列定义与值的列表，只有存在触发分组时才可以指定。未指定时，标签列的定义和值来自于所有分组列，此时分组列中不可以存在相同的列名。当按表分组时，默认产生的标签列名为 `tag_tbname`，类型为 `VARCHAR(270)`。具体的 `tag_definition` 参数说明如下：
   - tag_name：标签列名
   - type_name：标签列类型
@@ -250,17 +250,17 @@ stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISOR
 
 控制选项用于控制触发和计算行为，可以多选，同一个选项不可以多次指定。包括：
 - WATERMARK(duration_time)：指定数据乱序的容忍时长，超过该时长的数据会被当做乱序数据，根据不同触发方式的乱序数据处理策略和用户配置进行处理，未指定时默认 `duration_time` 值为 0。
-- EXPIRED_TIME(exp_time) ：指定过期数据间隔并忽略过期数据，未指定时无过期数据。不需要感知超过一定时间范围的数据写入或更新时可以指定。`exp_time` 为过期时间间隔，支持的时间单位包括：毫秒(a)、秒(s)、分(m)、小时(h)、天(d)，最小值为 1a。
+- EXPIRED_TIME(exp_time) ：指定过期数据间隔并忽略过期数据，未指定时无过期数据。不需要感知超过一定时间范围的数据写入或更新时可以指定。`exp_time` 为过期时间间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)，最小值为 1a。
 - IGNORE_DISORDER：指定忽略触发表的乱序数据，未指定时不忽略乱序数据。注重计算或通知的时效性、触发表乱序数据不影响计算结果等场景可以指定。
 - DELETE_RECALC: 指定触发表的数据删除（包含触发子表被删除场景）需要自动重新计算，只有触发方式支持数据删除的自动重算才可以指定。未指定时忽略数据删除，只有触发表数据删除会影响计算结果的场景才需要指定。
 - DELETE_OUTPUT_TABLE：指定触发子表被删除时其对应的输出子表也需要被删除，只适用于按表分组的场景，未指定时触发子表被删除不会删除其输出子表。
-- FILL_HISTORY[(start_time)]：指定需要从 `start_time`（事件时间）开始触发历史数据计算，未指定时从最早的记录开始触发计算。如果未指定 `FILL_HISTORY` 和 `FILL_HISTORY_FIRST`，则不进行历史数据的触发计算。该选项不能与 `FILL_HISTORY_FIRST` 同时指定 。定时触发（PERIOD）模式下不支持历史计算。
+- FILL_HISTORY[(start_time)]：指定需要从 `start_time`（事件时间）开始触发历史数据计算，未指定时从最早的记录开始触发计算。如果未指定 `FILL_HISTORY` 和 `FILL_HISTORY_FIRST`，则不进行历史数据的触发计算。该选项不能与 `FILL_HISTORY_FIRST` 同时指定。定时触发（PERIOD）模式下不支持历史计算。
 - FILL_HISTORY_FIRST[(start_time)]：指定需要从 `start_time`（事件时间）开始优先触发历史数据计算，未指定时从最早的记录开始触发计算。该选项适合在需要按照时间顺序计算历史数据且历史数据计算完成前不需要实时计算的场景下指定，未指定时优先实时计算，不能与 `FILL_HISTORY` 同时指定。定时触发（PERIOD）模式下不支持历史计算。
 - CALC_NOTIFY_ONLY：指定计算结果只发送通知，不保存到输出表，未指定时默认会保存到输出表。
 - LOW_LATENCY_CALC：指定触发后需要低延迟的计算或通知，单次触发发生后会立即启动计算或通知。低延迟的计算或通知会保证实时流计算任务的时效性，但是也会造成处理效率的降低，有可能需要更多的处理资源才能满足需求，因此只推荐在业务有强时效性要求时使用。未指定时单次触发发生后有可能不会立即进行计算，采用批量计算与通知的方式来达到较好的资源利用效率。
 - PRE_FILTER(expr) ：指定在触发进行前对触发表进行数据过滤处理，只有符合条件的数据才会进入触发判断，例如：`col1 > 0` 则只有 col1 为正数的数据行可以进行触发，未指定时无触发表数据过滤。
 - FORCE_OUTPUT：指定计算结果强制输出选项，当某次触发没有计算结果时将强制输出一行数据，除常量外（含常量对待列）其他列的值都为 NULL，后续版本会增加更多填充策略。
-- MAX_DELAY(delay_time)：指定在窗口未关闭时的最长等待的时长（处理时间），每超过该时间且窗口仍未关闭时产生触发，非窗口触发时自动忽略。当窗口触发存在 `TRUE_FOR` 条件且 `TRUE_FOR` 时长大于 `MAX_DELAY` 时，`MAX_DELAY` 仍然生效(即最终当前窗口未满足 `TRUE_FOR` 条件)。`delay_time` 为等待时长，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)。
+- MAX_DELAY(delay_time)：指定在窗口未关闭时的最长等待的时长（处理时间），每超过该时间且窗口仍未关闭时产生触发，非窗口触发时自动忽略。当窗口触发存在 `TRUE_FOR` 条件且 `TRUE_FOR` 时长大于 `MAX_DELAY` 时，`MAX_DELAY` 仍然生效 (即最终当前窗口未满足 `TRUE_FOR` 条件)。`delay_time` 为等待时长，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)。
 - EVENT_TYPE(event_types)：指定窗口触发的事件类型，可以多选，未指定时默认值为 `WINDOW_CLOSE`。SLIDING 触发（不带 INTERVAL）和 PERIOD 触发不适用（自动忽略）。各选项含义如下：
   - WINDOW_OPEN：窗口启动事件。
   - WINDOW_CLOSE：窗口关闭事件。

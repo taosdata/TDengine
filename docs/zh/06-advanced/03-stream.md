@@ -16,7 +16,7 @@ TDengine 的流计算还提供了其他使用上的便利。针对结果延迟�
 
 ## 创建流式计算
 ```sql
-CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name stream_options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [PRIMARY KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
+CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name stream_options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
 stream_options: {
     trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [OPTIONS(stream_option [|...])] [notification_definition]
