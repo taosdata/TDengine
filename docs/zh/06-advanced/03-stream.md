@@ -12,9 +12,10 @@ toc_max_heading_level: 4
 
 TDengine 的流计算还提供了其他使用上的便利。针对结果延迟的不同需求，支持用户在结果时效性与资源负载之间进行平衡。针对非正常顺序写入场景的不同需求，支持用户灵活选择适合的处理方式与策略。它提供了替代复杂流处理系统的轻量级解决方案，并能够在高吞吐的数据写入的情况下，提供毫秒级的计算结果延迟。
 
-流计算使用的具体方法如下，详细内容参见 [SQL 手册](../14-reference/03-taos-sql/14-stream.md#流式计算的通知机制)。
+流计算使用的具体方法如下，详细内容参见 [SQL 手册](../../reference/taos-sql/stream)。
 
 ## 创建流式计算
+
 ```sql
 CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name stream_options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
@@ -58,13 +59,14 @@ tag_definition:
 
 ### 触发动作
 
-触发后可以根据需要执行不同的动作，比如发送[事件通知](#流式计算的通知机制)、[执行计算](#流式计算的计算任务)或者两者同时进行。
+触发后可以根据需要执行不同的动作，比如发送[事件通知](../../reference/taos-sql/stream/#流式计算的通知机制)、[执行计算](../../reference/taos-sql/stream/#流式计算的计算任务)或者两者同时进行。
 
 - 只通知不计算：可以通过 `WebSocket` 方式向外部应用发送事件通知。
 - 只计算不通知：可以执行任意一个查询并保存结果到流计算的输出表中。
 - 既通知又计算：可以执行任意一个查询，同时发送计算结果或事件通知给外部应用。
 
 ### 触发表与分组
+
 通常意义来说，一个流计算只对应一个计算，比如根据一个子表触发和产生一个计算，结果保存到一张表中。根据 TDengine **一个设备一张表**的设计理念，如果需要对所有设备分别计算，那就需要为每个子表创建一个流计算，这会造成使用的不便和处理效率的降低。为了解决这个问题，TDengine 的流计算支持触发分组，分组是流计算的最小执行单元，从逻辑上可以认为每个分组对应一个单独的流计算，每个分组对应一个输出表和单独的事件通知。
 
 **总结来说，一个流计算输出表（子表或普通表）的个数与触发表的分组个数相同，未指定分组时只产生一个输出表（普通表）。**
@@ -72,6 +74,7 @@ tag_definition:
 ### 计算任务
 
 计算任务是流在事件触发后执行的计算动作，可以是**任意类型的查询语句**，既可以对触发表进行计算，也可以对其他库表进行计算。计算时可能需要使用触发时的关联信息，这些信息在 SQL 语句中以占位符的形式出现，在每次计算时会被作为常量替换到 SQL 语句中。包括：
+
 - _tprev_ts：上一次触发的事件时间
 - _tcurrent_ts：本次触发的事件时间
 - _tnext_ts：下一次触发的事件时间
@@ -88,11 +91,15 @@ tag_definition:
 - %%trows：触发表每个分组的触发数据集（满足本次触发的数据集）的引用
 
 ### 通知机制
+
 事件通知是流在事件触发后可选的执行动作，支持通过 `WebSocket` 协议发送事件通知到应用。用户可以指定需要通知的事件，以及用于接收通知消息的目标地址。通知内容可以包含计算结果，也可以在没有计算结果时只通知事件相关信息。
 
 ## 流式计算的示例
-#### 计数窗口触发
+
+### 计数窗口触发
+
 - 表 tb1 每写入 1 行数据时，计算表 tb2 在同一时刻前 5 分钟内 col1 的平均值，计算结果写入表 tb3。
+
 ```SQL
 CREATE stream sm1 count_window(1) FROM tb1 
   INTO tb3 AS
@@ -101,6 +108,7 @@ CREATE stream sm1 count_window(1) FROM tb1
 ```
 
 - 表 tb1 每写入 10 行大于 0 的 col1 列数据时，计算这 10 条数据 col1 列的平均值，计算结果不需要保存，需要通知到 `ws://localhost:8080/notify`。
+
 ```SQL
 CREATE stream sm2 count_window(10, 1, col1) FROM tb1 
   OPTIONS(CALC_ONTIFY_ONLY | PRE_FILTER(col1 > 0)) 
@@ -109,8 +117,10 @@ CREATE stream sm2 count_window(10, 1, col1) FROM tb1
     SELECT avg(col1) FROM %%trows;
 ```
 
-#### 滑动触发
+### 滑动触发
+
 - 超级表 stb1 的每个子表在每 5 分钟的时间窗口结束后，计算这 5 分钟的 col1 的平均值，每个子表的计算结果分别写入超级表 stb2 的不同子表中。
+
 ```SQL
 CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
   INTO stb2 AS 
@@ -121,6 +131,7 @@ CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname
 > 上面 SQL 中的 `from %%tbname where _c0 >= _twstart and _c0 <= _twend` 与 `from %%trows` 的含义是不完全相同的。前者表示计算使用触发分组对应的表中在触发窗口时间段内的数据，窗口内的数据在计算时与 `%%trows` 相比较是有可能有变化的，后者则表示只使用触发时读取到的窗口数据。
 
 - 超级表 stb1 的每个子表从最早的数据开始，在每 5 分钟的时间窗口结束后或从窗口启动 1 分钟后窗口仍然未关闭时，计算窗口内的 col1 的平均值，每个子表的计算结果分别写入超级表 stb2 的不同子表中。
+
 ```SQL
 CREATE stream sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
   OPTIONS(MAX_DELAY(1m) | FILL_HISTORY_FIRST) 
@@ -137,8 +148,10 @@ CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters
     AS SELECT _twstart, _twend, AVG(current) FROM %%trows;
 ```
 
-#### 定时触发
+### 定时触发
+
 - 每过 1 小时计算表 tb1 中总的数据量，计算结果写入表 tb2 (毫秒库)。
+
 ```SQL
 CREATE stream sm1 PERIOD(1h) 
   INTO tb2 AS
@@ -146,14 +159,18 @@ CREATE stream sm1 PERIOD(1h)
 ```
 
 - 每过 1 小时通知 `ws://localhost:8080/notify` 当前系统时间。
+
 ```SQL
 CREATE stream sm1 PERIOD(1h) 
   NOTIFY("ws://localhost:8080/notify");
 ```
 
 ## 流式计算的其他特性
+
 ### 高可用
+
 流式计算从架构上支持流的存算分离，在部署时要求系统中必须部署 snode，除数据读取外所有流计算功能都只在 snode 上运行。
+
 - snode 是负责运行流计算计算任务的节点，在一个集群中可以部署 1 或多个（至少 1 个），每个 snode 都有多个执行线程。
 - snode 部署在单独的 dnode 上时，可以保证资源隔离，不会对写入、查询等业务造成太大干扰。
 - 为了保证流计算的高可用，可在一个集群的多个物理节点中部署多个 snode：
@@ -161,6 +178,7 @@ CREATE stream sm1 PERIOD(1h)
   - 每两个 snode 间互为存储副本，负责存储流的状态和进度等信息。
 
 ### 重新计算
+
 TDengine 支持使用 `WATERMARK` 来解决一定程度的乱序、更新、删除场景带来的问题。`WATERMARK` 是用户可以指定的基于事件时间的时长，它代表的是事件时间在流计算中的进展，体现了用户对于乱序数据的容忍程度。`当前处理的最新事件时间 - WATERMARK 指定的固定间隔` 即为当前水位线，只有写入数据的事件时间早于当前水位线才会进入触发判断，只有窗口或其他触发的时间条件早于当前水位线才会启动触发。
 
 对于超出 `WATERMARK` 的乱序、更新、删除场景，TDengine 流计算使用重新计算的方式来保证最终结果的正确性，重新计算意味着对于乱序、更新和删除的数据覆盖区间重新进行触发和运算。为了保证这种方式的有效性，用户需要确保其计算语句和数据源表是与处理时间无关的，也就是说同一个触发即使执行多次其结果依然是有效的。
