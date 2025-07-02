@@ -4,13 +4,13 @@ title: 与 Ontop 集成
 toc_max_heading_level: 5
 ---
 
-[Ontop](https://ontop-vkg.org/) 是由意大利博尔扎诺自由大学 KRDB 研究小组开发的开源虚拟知识图谱系统。它能够将关系数据库内容动态转化为知识图谱，数据无需迁移仍保留在原始数据源中。Ontop 通过 SPARQL（W3C 制定的 RDF 查询语言）查询数据库，并将结果转换为 RDF 格式。支持包括 MySQL、PostgreSQL、Oracle、SQL Server、SQLite 和 **TDengine** 在内的多种数据库。
+[Ontop](https://ontop-vkg.org/) 是由意大利博尔扎诺自由大学 KRDB 研究小组开发的开源虚拟知识图谱系统，它能够将关系数据库内容动态转化为知识图谱，数据无需迁移仍保留在原始数据源中。
 
-:::tip 核心价值
-通过 Ontop + TDengine 的组合，您可以直接使用标准 SPARQL 查询时序数据库中的物联网数据，无需额外数据迁移。
-:::
+通过 SPARQL（W3C 制定的 RDF 查询语言）查询数据库，并将结果转换为 RDF 格式。
 
-## 前置条件 
+支持包括 MySQL、PostgreSQL、Oracle、SQL Server、SQLite 和 **TDengine** 在内的多种数据库。
+
+## 1. 前置条件 
 
 Ontop 通过 [TDengine Java connector](../../../reference/connector/java/) 连接 TDengine 数据源，需准备以下环境：
 
@@ -19,10 +19,17 @@ Ontop 通过 [TDengine Java connector](../../../reference/connector/java/) 连�
 - Ontop 5.4.0 及以上版本（ [Spark 下载](https://spark.apache.org/downloads.html)）。
 - JDBC 驱动 3.6.4 及以上版本。可从 [maven.org](https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver) 下载。
 
-## 配置数据源
-在 Ontop 中配置 TDengine 数据源需要以下步骤：
-1. **安装 JDBC 驱动**：将下载的 JDBC 驱动包（`.jar`文件）置于 Ontop 主程序的 `jdbc/` 目录下。
-2. **配置 JDBC 驱动**：在 Ontop 的 `.properties` 文件中配置 JDBC 连接信息：
+## 2. 配置数据源
+
+在 Ontop 中配置 TDengine 数据源需以下步骤：
+
+### 1. 安装 JDBC 驱动
+
+将下载的 JDBC 驱动包（`.jar`文件）置于 Ontop 主程序的 `jdbc/` 目录下。
+
+### 2. 配置 JDBC 驱动
+
+在 Ontop 的 `.properties` 文件中配置 JDBC 连接信息：
    ``` sql
     jdbc.url = jdbc:TAOS-WS://[host]:[port]/[database]
     jdbc.user = [用户名]
@@ -30,7 +37,10 @@ Ontop 通过 [TDengine Java connector](../../../reference/connector/java/) 连�
     jdbc.driver = com.taosdata.jdbc.ws.WebSocketDriver  
    ```  
    URL 参数详情参阅：[TDengine URL 规范](../../../reference/connector/java/#url-规范)。
-3. **配置表映射**：在 .obda 文件中定义 TDengine 与 Ontop 的映射关系（以智能电表场景为例）：
+
+### 3. 配置表映射
+
+在 .obda 文件中定义 TDengine 与 Ontop 的映射关系（以智能电表场景为例）：
    ``` properties
     [PrefixDeclaration]
     :   http://example.org/tde
@@ -51,7 +61,7 @@ Ontop 通过 [TDengine Java connector](../../../reference/connector/java/) 连�
     | target   | 字段映射关系（未指定类型时按默认规则转换） |
    
 
-   **数据类型默认映射规则**
+   **数据类型默认映射规则：**
 
     | TDengine JDBC 数据类型 | Ontop 数据类型  |
     |:-------------------- |:----------------|
@@ -70,15 +80,15 @@ Ontop 通过 [TDengine Java connector](../../../reference/connector/java/) 连�
 
    完整 .obda 文件格式介绍请参考 [Ontop OBDA 文档](https://ontop-vkg.org/guide/advanced/mapping-language.html)。
 
-4. **测试连接**
+### 4. 测试连接
    启动 Ontop 端点服务验证配置：
    ``` bash
    ontop endpoint -p db.properties -m db.obda
    ```
-   访问 http://localhost:8080/ontop/endpoint/，若显示 SPARQL 查询界面，则表示配置成功。 
+   访问 http://localhost:8080/ontop/endpoint/ ，若显示 SPARQL 查询界面，则表示配置成功。 
 
 
-## 数据分析
+## 3. 数据分析
 
 ### 场景介绍
 使用 Ontop 将 TDengine 中的智能电表数据转化为虚拟知识图谱，通过 SPARQL 查询电压超过 240V 的高负载设备。
@@ -98,8 +108,8 @@ jdbc.user=root
 jdbc.password=taosdata
 jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver   
 ```  
-**db.obda** （映射配置）：
-复用 2.3 节示例内容。
+**db.obda** （映射配置）：  
+复用 [3. 配置表映射](#3-配置表映射) 一节中示例内容。
 
 
 ### 执行查询
@@ -120,6 +130,7 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
     ORDER BY DESC(?voltage)
     LIMIT 2
    ```
+   [W3C SPARQL 语法详细](https://www.w3.org/TR/sparql11-query/)
 2. 在 SPARQL 查询界面输入上述语句，点击“运行”按钮，查询结果如下：
    ![ontop-query](img/ontop-query.webp)
 
@@ -141,17 +152,17 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
             "ts" : {
             "datatype" : "http://www.w3.org/2001/XMLSchema#dateTime",
             "type" : "literal",
-            "value" : "2017-07-14T10:40:00.040"
+            "value" : "2025-07-02T15:22:55.098"
             },
             "voltage" : {
             "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
             "type" : "literal",
-            "value" : "258"
+            "value" : "263"
             },
             "phase" : {
             "datatype" : "http://www.w3.org/2001/XMLSchema#double",
             "type" : "literal",
-            "value" : "147.5"
+            "value" : "143.2"
             },
             "groupid" : {
             "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
@@ -167,17 +178,17 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
             "ts" : {
             "datatype" : "http://www.w3.org/2001/XMLSchema#dateTime",
             "type" : "literal",
-            "value" : "2017-07-14T10:40:00.044"
+            "value" : "2025-07-02T15:23:30.186"
             },
             "voltage" : {
             "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
             "type" : "literal",
-            "value" : "258"
+            "value" : "259"
             },
             "phase" : {
             "datatype" : "http://www.w3.org/2001/XMLSchema#double",
             "type" : "literal",
-            "value" : "147.0"
+            "value" : "132.1"
             },
             "groupid" : {
             "datatype" : "http://www.w3.org/2001/XMLSchema#integer",
@@ -190,13 +201,15 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
             }
         }
         ]
+      }
     }
-    }   
+
    ```
 
-## 总结
-本文介绍了如何将 TDengine 与 Ontop 集成，实现了：
-- 时序数据语义化查询：将 TDengine 中的时序数据转换为 RDF 格式，支持 SPARQL 语义查询。
-- 标准化数据访问：通过 W3C 标准 SPARQL 语言，提供统一的数据访问接口。
-- 知识图谱应用：为工业 IoT 场景提供了强大的语义分析和知识推理能力。
-Ontop 与 TDengine 集成为企业构建智能化时序数据分析平台提供了新的技术路径，大模型语言泛化能力结合知识图谱逻辑推理能力，工业物联网复杂智能化查询应用场景提供一片新天地。
+## 4. 总结
+通过集成 TDengine 与 Ontop：
+- 实现时序数据到 RDF 的自动转换，支持 SPARQL 语义化查询
+- 提供符合 W3C 标准的统一数据访问接口
+- 解锁工业 IoT 的知识图谱分析与推理能力
+
+**该方案开创了时序智能新范式**：结合知识图谱的强逻辑推理与大语言模型的泛化能力，为复杂工业场景（如设备故障根因分析、能效优化）提供具备认知智能的分析平台。
