@@ -182,8 +182,56 @@ cmd ::= CREATE XNODE NK_STRING(A).                                              
 cmd ::= CREATE XNODE NK_STRING(A) USER user_name(B) PASS NK_STRING(C).            { pCxt->pRootNode = createCreateXnodeWithUserPassStmt(pCxt, &A, &B, &C); }
 cmd ::= UPDATE XNODE NK_INTEGER(A).                                               { pCxt->pRootNode = createUpdateXnodeStmt(pCxt, &A, false); }
 cmd ::= UPDATE ALL XNODES.                                                        { pCxt->pRootNode = createUpdateXnodeStmt(pCxt, NULL, true); }
-cmd ::= DROP XNODE NK_INTEGER(A).                                                 { pCxt->pRootNode = createDropXnodeStmt(pCxt, &A); }
+cmd ::= DROP XNODE xnode_endpoint(A).                                             { pCxt->pRootNode = createDropXnodeStmt(pCxt, &A); }
 
+%type xnode_endpoint                                                              { SToken }
+%destructor xnode_endpoint                                                        { }
+xnode_endpoint(A) ::= NK_STRING(B).                                               { A = B; }
+xnode_endpoint(A) ::= NK_INTEGER(B).                                              { A = B; }
+xnode_endpoint(A) ::= NK_ID(B).                                                   { A = B; }
+
+/* create xnode agent 'a1' */
+cmd ::= CREATE XNODE xnode_resource_type(A) NK_STRING(B) with_task_options_opt(E).
+                                                                                  { pCxt->pRootNode = createXnodeTaskWithOptions(pCxt, A, &B, NULL, NULL, E); }
+
+/* create xnode task 't1' from 'mqtt://xxx' to database s1 with parser '{...}' */
+cmd ::= CREATE XNODE xnode_resource_type(A) NK_STRING(B) FROM xnode_task_source(C) TO xnode_task_sink(D) with_task_options_opt(E).
+                                                                                  { pCxt->pRootNode = createXnodeTaskWithOptions(pCxt, A, &B, C, D, E); }
+
+/* drop xnode agent 'a1'; drop xnode task 't1'; */
+cmd ::= DROP XNODE xnode_resource_type(A) NK_STRING(B).                           { pCxt->pRootNode = dropXnodeResource(pCxt, A, &B); }
+
+/* alter xnode task 't1' from 'mqtt://xxx' to database s1 with parser '{...}' */
+cmd ::= ALTER XNODE xnode_resource_type(A) NK_STRING(B) xnode_task_from_opt(C) xnode_task_to_opt(D) with_task_options_opt(E).
+                                                                                  { pCxt->pRootNode = createXnodeTaskWithOptions(pCxt, A, &B, C, D, E); }
+
+%type xnode_resource_type                                                         { EXnodeResourceType }
+%destructor xnode_resource_type                                                   { }
+xnode_resource_type(A) ::= NK_ID(B).                                              { A = setXnodeResourceType(pCxt, &B); }
+
+%destructor xnode_task_source                                                     { }
+xnode_task_source(A) ::= NK_STRING(B).                                            { A = createXnodeSourceAsDsn(pCxt, &B); }
+xnode_task_source(A) ::= DATABASE db_name(B).                                     { A = createXnodeSourceAsDatabase(pCxt, &B); }
+xnode_task_source(A) ::= TOPIC topic_name(B).                                     { A = createXnodeSourceAsTopic(pCxt, &B); }
+
+xnode_task_sink(A) ::= NK_STRING(B).                                              { A = createXnodeSinkAsDsn(pCxt, &B); }
+xnode_task_sink(A) ::= DATABASE db_name(B).                                       { A = createXnodeSinkAsDatabase(pCxt, &B); }
+
+xnode_task_options(A) ::= NK_ID(C) NK_STRING(D).                                  { A = setXnodeTaskOption(pCxt, NULL, &C, &D); }
+xnode_task_options(A) ::= NK_ID(C) NK_EQ NK_STRING(D).                            { A = setXnodeTaskOption(pCxt, NULL, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_ID(C) NK_STRING(D).            { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_ID(C) NK_EQ NK_STRING(D).      { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) TRIGGER NK_STRING(D).             { A = setXnodeTaskOption(pCxt, B, NULL, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) TRIGGER NK_EQ NK_STRING(D).       { A = setXnodeTaskOption(pCxt, B, NULL, &D); }
+
+with_task_options_opt(A) ::= .                                                    { A = NULL; }
+with_task_options_opt(A) ::= WITH xnode_task_options(B).                          { A = B; }
+
+xnode_task_from_opt(A) ::= .                                                      { A = NULL; }
+xnode_task_from_opt(A) ::= FROM xnode_task_source(B).                             { A = B; }
+
+xnode_task_to_opt(A) ::= .                                                        { A = NULL; }
+xnode_task_to_opt(A) ::= TO xnode_task_sink(B).                                   { A = B; }
 
 /************************************************ create/drop/alter/restore dnode *********************************************/
 cmd ::= CREATE DNODE dnode_endpoint(A).                                           { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, NULL); }

@@ -16,11 +16,11 @@
 #ifndef _TD_CMD_NODES_H_
 #define _TD_CMD_NODES_H_
 
-#include "tdef.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#include "tdef.h"
 #include "query.h"
 #include "querynodes.h"
 
@@ -437,10 +437,10 @@ typedef struct {
   ENodeType type;
   char      url[TSDB_XNODE_URL_LEN + 3];
   // Create xnode with new user.
-  char      user[TSDB_USER_LEN + 3];
+  char user[TSDB_USER_LEN + 3];
 
   // Create xnode with new user password. `user` and `pass` should exist along with each other.
-  char      pass[TSDB_USET_PASSWORD_LONGLEN + 3];
+  char pass[TSDB_USET_PASSWORD_LONGLEN + 3];
 } SCreateXnodeStmt;
 
 typedef struct {
@@ -452,6 +452,29 @@ typedef struct {
   ENodeType type;
   int32_t   xnodeId;
 } SUpdateXnodeStmt;
+
+typedef struct {
+  ENodeType type;
+  // taosX Agent ID.
+  int32_t via;
+  char    name[TSDB_XNODE_TASK_NAME_LEN + 3];
+  char    trigger[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
+  char    health[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
+  char    parser[TSDB_XNODE_TASK_PARSER_LEN + 3];
+} SXTaskOptions;
+typedef struct {
+  ENodeType type;
+  int32_t sourceType;
+  char database[TSDB_DB_NAME_LEN + 3];
+  char topic[TSDB_TOPIC_NAME_LEN + 3];
+  char dsn[TSDB_XNODE_TASK_SOURCE_LEN + 3];
+} SXTaskSource;
+typedef struct {
+  ENodeType type;
+  int32_t sinkType;
+  char database[TSDB_DB_NAME_LEN + 3];
+  char dsn[TSDB_XNODE_TASK_SOURCE_LEN + 3];
+} SXTaskSink;
 
 
 typedef struct SShowStmt {

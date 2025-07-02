@@ -1034,6 +1034,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_SCORES_STMT:
       code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
+    case QUERY_NODE_XNODE_TASK_OPTIONS:
+      code = makeNode(type, sizeof(SXTaskOptions), &pNode);
+      break;
     default:
       break;
   }
