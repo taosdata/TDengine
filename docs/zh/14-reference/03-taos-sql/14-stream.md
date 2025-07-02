@@ -86,7 +86,7 @@ PERIOD(period_time[, offset_time])
 - interval_val：可选，滑动窗口的时长。
 - interval_offset：可选，滑动窗口的时间偏移。
 - sliding_val：必选，事件时间的滑动时长。
-- offset_time：可选，指定滑动触发的时间偏移，支持的时间单位包括：毫秒(a)、秒(s)、分(m)、小时(h)。
+- offset_time：可选，指定滑动触发的时间偏移，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)。
 
 使用说明：
 - 必须指定触发表，触发表为超级表时支持按标签、子表分组，支持不分组。
