@@ -205,7 +205,7 @@ stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISOR
 - LOW_LATENCY_CALC：指定触发后需要低延迟的计算或通知，单次触发发生后会立即启动计算或通知。低延迟的计算或通知会保证实时流计算任务的时效性，但是也会造成处理效率的降低，有可能需要更多的处理资源才能满足需求，因此只推荐在业务有强时效性要求时使用。未指定时单次触发发生后有可能不会立即进行计算，采用批量计算与通知的方式来达到较好的资源利用效率。
 - PRE_FILTER(expr) ：指定在触发进行前对触发表进行数据过滤处理，只有符合条件的数据才会进入触发判断，例如：`col1 > 0` 则只有 col1 为正数的数据行可以进行触发，未指定时无触发表数据过滤。
 - FORCE_OUTPUT：指定计算结果强制输出选项，当某次触发没有计算结果时将强制输出一行数据，除常量外（含常量对待列）其他列的值都为 NULL，后续版本会增加更多填充策略。
-- MAX_DELAY(delay_time)：指定在窗口未关闭时的最长等待的时长（处理时间），每超过该时间且窗口仍未关闭时产生触发。适用于所有窗口触发方式，SLIDING 触发（不带 INTERVAL）和 PERIOD 触发不适用（自动忽略）。当窗口触发存在 `TRUE_FOR` 条件且 `TRUE_FOR` 时长大于 `MAX_DELAY` 时，`MAX_DELAY` 仍然生效(即最终当前窗口未满足 `TRUE_FOR` 条件)。`delay_time` 为等待时长，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)。
+- MAX_DELAY(delay_time)：指定在窗口未关闭时的最长等待的时长（处理时间），每超过该时间且窗口仍未关闭时产生触发。适用于所有窗口触发方式，非窗口触发时自动忽略。当窗口触发存在 `TRUE_FOR` 条件且 `TRUE_FOR` 时长大于 `MAX_DELAY` 时，`MAX_DELAY` 仍然生效(即最终当前窗口未满足 `TRUE_FOR` 条件)。`delay_time` 为等待时长，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)。
 - EVENT_TYPE(event_types)：指定窗口触发的事件类型，可以多选，未指定时默认值为 `WINDOW_CLOSE`。SLIDING 触发（不带 INTERVAL）和 PERIOD 触发不适用（自动忽略）。各选项含义如下：
   - WINDOW_OPEN：窗口启动事件。
   - WINDOW_CLOSE：窗口关闭事件。
