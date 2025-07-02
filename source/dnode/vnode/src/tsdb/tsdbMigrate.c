@@ -621,11 +621,8 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
   }
   taosCloseFile(&fdFrom);
   taosCloseFile(&fdTo);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
 
-  return 0;
+  return code;
 }
 
 
@@ -637,6 +634,12 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
 
   *pCode = 0;
   if (!flocal) {
+    tsdbInfo("vgId:%d, fid:%d, migration cancelled, local data file not exist", vid, pLocalFset->fid);
+    return false;
+  }
+
+  if (rtner->lastCommit != pLocalFset->lastCommit) {
+    tsdbInfo("vgId:%d, fid:%d, migration cancelled, there are new commits after migration task is scheduled", vid, pLocalFset->fid);
     return false;
   }
 
@@ -739,6 +742,14 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
   SSsMigrateMonitor* pmm = rtner->tsdb->pSsMigrateMonitor;
   SFileSetSsMigrateState *pState = NULL;
   int32_t fsIdx = 0;
+
+  // though we make this check in the leader node, we should do this in the follower nodes too.
+  // because there may be a leader change and the execution order of async tasks may result in
+  // different commit time. if we don't do this, we may corrupt the follower data.
+  if (rtner->lastCommit != fset->lastCommit) {
+    tsdbInfo("vgId:%d, fid:%d, follower migration cancelled, there are new commits after migration is scheduled", vid, fset->fid);
+    return 0;
+  }
 
   tsdbInfo("vgId:%d, fid:%d, vnode is follower, waiting leader on node %d to upload.", vid, fset->fid, rtner->nodeId);
 
@@ -930,6 +941,8 @@ static int32_t tsdbLeaderDoSsMigrate(SRTNer *rtner) {
 
 
 int32_t tsdbDoSsMigrate(SRTNer *rtner) {
+  // note: leader is decided when the task is scheduled, the actual leader may change after that,
+  // but this is ok.
   if (rtner->nodeId == vnodeNodeId(rtner->tsdb->pVnode)) {
     return tsdbLeaderDoSsMigrate(rtner);
   }

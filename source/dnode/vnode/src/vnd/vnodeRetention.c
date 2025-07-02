@@ -33,7 +33,7 @@ int32_t vnodeAsyncSsMigrate(SVnode *pVnode, SSsMigrateVgroupReq *pReq) {
     return tsdbAsyncSsMigrate(pVnode->pTsdb, pReq);
   }
 #endif
-  return TSDB_CODE_INTERNAL_ERROR;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
 int32_t vnodeQuerySsMigrateProgress(SVnode *pVnode, SRpcMsg *pMsg) {

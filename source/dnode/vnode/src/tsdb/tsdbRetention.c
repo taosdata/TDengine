@@ -201,6 +201,7 @@ _exit:
 typedef struct {
   STsdb  *tsdb;
   int64_t now;
+  TSKEY   lastCommit;
   int32_t nodeId; // node id of leader vnode in ss migration
   int32_t fid;
   bool    ssMigrate;
@@ -326,6 +327,7 @@ static int32_t tsdbRetention(void *arg) {
           .tsdb = pTsdb,
           .szPage = pVnode->config.tsdbPageSize,
           .now = rtnArg->now,
+          .lastCommit = rtnArg->lastCommit,
           .cid = tsdbFSAllocEid(pTsdb->pFS),
           .nodeId = rtnArg->nodeId,
   };
@@ -412,8 +414,11 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool ssMigrate, 
     arg->fid = fset->fid;
     arg->nodeId = nodeId;
     arg->ssMigrate = ssMigrate;
+    arg->lastCommit = fset->lastCommit;
 
-    tsdbSsMigrateMonitorAddFileSet(tsdb, fset->fid);
+    if (ssMigrate) {
+      tsdbSsMigrateMonitorAddFileSet(tsdb, fset->fid);
+    }
     code = vnodeAsync(RETENTION_TASK_ASYNC, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg,
                       &fset->retentionTask);
     if (code) {

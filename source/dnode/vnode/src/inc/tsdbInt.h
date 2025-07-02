@@ -21,6 +21,11 @@ typedef struct {
   int32_t szPage;
   int32_t nodeId; // node id of leader vnode in ss migration
   int64_t now;
+
+  // lastCommit time when the task is scheduled, we will compare it with the
+  // fileset last commit time at the start of the task execution, if mismatch,
+  // we know there are new commits after the task is scheduled.
+  TSKEY   lastCommit;
   int64_t cid;
 
   STFileSet   *fset;
