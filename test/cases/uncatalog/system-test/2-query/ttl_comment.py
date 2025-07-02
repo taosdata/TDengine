@@ -11,25 +11,40 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
-import taos
-from util.log import tdLog
-from util.cases import tdCases
-from util.sql import tdSql
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase:
+class TestTtlComment:
     def caseDescription(self):
         '''
         ttl/comment test
         '''
         return
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
 
-    def run(self):
+    def test_ttl_comment(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         dbname="db"
         tdSql.prepare()
 
@@ -47,7 +62,6 @@ class TDTestCase:
         tdSql.checkData(0, 0, 'normal_table1')
         tdSql.checkData(0, 7, 0)
         tdSql.checkData(0, 8, None)
-
 
         tdSql.query("select * from information_schema.ins_tables where table_name like 'normal_table2'")
         tdSql.checkData(0, 0, 'normal_table2')
@@ -79,7 +93,6 @@ class TDTestCase:
         tdSql.checkData(0, 0, 'normal_table2')
         tdSql.checkData(0, 7, 0)
 
-
         print("============== STEP 2 ===== test super table")
 
         tdSql.execute(f"create table {dbname}.super_table1(ts timestamp, i int) tags(t int)")
@@ -90,16 +103,13 @@ class TDTestCase:
         tdSql.checkData(0, 0, 'super_table1')
         tdSql.checkData(0, 6, None)
 
-
         tdSql.query("select * from information_schema.ins_stables where stable_name like 'super_table2'")
         tdSql.checkData(0, 0, 'super_table2')
         tdSql.checkData(0, 6, '')
 
-
         tdSql.query("select * from information_schema.ins_stables where stable_name like 'super_table3'")
         tdSql.checkData(0, 0, 'super_table3')
         tdSql.checkData(0, 6, 'super')
-
 
         tdSql.execute(f"alter table {dbname}.super_table1 comment 'nihao'")
         tdSql.query("select * from information_schema.ins_stables where stable_name like 'super_table1'")
@@ -135,12 +145,10 @@ class TDTestCase:
         tdSql.checkData(0, 7, 10)
         tdSql.checkData(0, 8, None)
 
-
         tdSql.query("select * from information_schema.ins_tables where table_name like 'child_table2'")
         tdSql.checkData(0, 0, 'child_table2')
         tdSql.checkData(0, 7, 0)
         tdSql.checkData(0, 8, '')
-
 
         tdSql.query("select * from information_schema.ins_tables where table_name like 'child_table3'")
         tdSql.checkData(0, 0, 'child_table3')
@@ -155,7 +163,6 @@ class TDTestCase:
         tdSql.checkData(0, 0, 'child_table5')
         tdSql.checkData(0, 7, 23)
         tdSql.checkData(0, 8, '')
-
 
         tdSql.execute(f"alter table {dbname}.child_table1 comment 'nihao'")
         tdSql.query("select * from information_schema.ins_tables where table_name like 'child_table1'")
@@ -177,7 +184,6 @@ class TDTestCase:
         tdSql.checkData(0, 0, 'child_table3')
         tdSql.checkData(0, 8, 'tdengine')
 
-
         tdSql.execute(f"alter table {dbname}.child_table4 comment 'tdengine'")
         tdSql.query("select * from information_schema.ins_tables where table_name like 'child_table4'")
         tdSql.checkData(0, 0, 'child_table4')
@@ -193,10 +199,5 @@ class TDTestCase:
         tdSql.checkData(0, 0, 'child_table3')
         tdSql.checkData(0, 7, 9)
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

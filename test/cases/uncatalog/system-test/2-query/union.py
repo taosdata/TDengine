@@ -1,9 +1,6 @@
 import datetime
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
+from new_test_framework.utils import tdLog, tdSql
 
 PRIMARY_COL = "ts"
 
@@ -24,12 +21,12 @@ CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
 BOOLEAN_COL = [ BOOL_COL, ]
 TS_TYPE_COL = [ TS_COL, ]
 
-class TDTestCase:
+class TestUnion:
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql)
 
     def __query_condition(self,tbname):
         query_condition = []
@@ -260,7 +257,6 @@ class TDTestCase:
         tdSql.error(f"select diff(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
         tdSql.error(f"select derivative(c1, 1s, 0) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
 
-
     def __test_error(self, dbname="db"):
 
         tdSql.error( f"show {dbname}.tables union show {dbname}.tables" )
@@ -369,7 +365,7 @@ class TDTestCase:
             '''
         )
 
-    def test_TS_5630(self):
+    def check_TS_5630(self):
         sql = "CREATE DATABASE `ep_iot` BUFFER 256 CACHESIZE 20 CACHEMODEL 'both' COMP 2 DURATION 14400m WAL_FSYNC_PERIOD 3000 MAXROWS 4096 MINROWS 100 STT_TRIGGER 2 KEEP 5256000m,5256000m,5256000m PAGES 256 PAGESIZE 4 PRECISION 'ms' REPLICA 1 WAL_LEVEL 1 VGROUPS 3 SINGLE_STABLE 0 TABLE_PREFIX 0 TABLE_SUFFIX 0 TSDB_PAGESIZE 4 WAL_RETENTION_PERIOD 3600 WAL_RETENTION_SIZE 0"
         tdSql.execute(sql, queryTimes=1)
         tdLog.info("database ep_iot created")
@@ -406,15 +402,34 @@ class TDTestCase:
         tdSql.checkRows(6)
         ##tdSql.execute("drop database ep_iot")
 
-    def test_case_for_nodes_match_node(self):
+    def check_case_for_nodes_match_node(self):
         sql = "create table db.nt (ts timestamp, c1 int primary key, c2 int)"
         tdSql.execute(sql, queryTimes=1)
         sql = 'select diff (ts) from (select * from db.tt union select * from db.tt order by c1, case when ts < now - 1h then ts + 1h else ts end) partition by c1, case when ts < now - 1h then ts + 1h else ts end'
         tdSql.error(sql, -2147473917)
 
-    def run(self):
+    def test_union(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
-        self.test_TS_5630()
+        self.check_TS_5630()
 
         tdLog.printNoPrefix("==========step1:create table")
         self.__create_tb()
@@ -432,10 +447,13 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
-        self.test_TD_33137()
-        self.test_case_for_nodes_match_node()
+        self.check_TD_33137()
+        self.check_case_for_nodes_match_node()
     
-    def test_TD_33137(self):
+        #tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")
+
+    def check_TD_33137(self):
         sql = "select 'asd' union all select 'asdasd'"
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(2)
@@ -465,10 +483,3 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, None)
         tdSql.checkData(1, 0, 'asd')
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

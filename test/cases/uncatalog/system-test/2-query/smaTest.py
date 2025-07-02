@@ -10,18 +10,13 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-
-import sys
-import taos
-from util.log import *
-from util.cases import *
-from util.sql import *
-import numpy as np
-
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+import random
+import time
 # constant define
 WAITS = 5 # wait seconds
 
-class TDTestCase:
+class TestSmatest:
     #
     # --------------- main frame -------------------
     #
@@ -29,15 +24,13 @@ class TDTestCase:
     # updatecfgDict = {'fqdn': 135}
 
     # init
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        tdSql.prepare()
-        self.create_tables();
-        self.ts = 1500000000000
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.ts = 1500000000000
 
-    def test_TD_33336(self):
+    def check_TD_33336(self):
         sql = "flush database db"
         tdSql.execute(sql)
         time.sleep(5)
@@ -60,7 +53,26 @@ class TDTestCase:
             tdLog.exit(f' err rows returned for sql: {sql} row_count_sub1d: {row_count_sub1d} > all_row_count: {all_row_count}')
 
     # run case
-    def run(self):
+    def test_smaTest(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         # insert data
         dbname = "db"
         self.insert_data1(f"{dbname}.t1", self.ts, 10*10000)
@@ -72,12 +84,11 @@ class TDTestCase:
         # self.test_case2()
         tdLog.debug(" LIMIT test_case2 ............ [OK]")
 
-        self.test_TD_33336()
+        self.check_TD_33336()
         self.ts5900()
 
     # stop
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
     #
@@ -176,7 +187,6 @@ class TDTestCase:
             self.ts5900query()
             tdLog.info(f"ts5900 test {i} ............ [OK]")
             time.sleep(1)
-               
 
     # test case1 base
     # def test_case1(self):
@@ -187,9 +197,6 @@ class TDTestCase:
     #     sql = "select * from t1 limit 10"
     #     tdSql.waitedQuery(sql, 10, WAITS)
 
-
 #
 # add case with filename
 #
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

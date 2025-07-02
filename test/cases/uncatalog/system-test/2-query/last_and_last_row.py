@@ -1,13 +1,9 @@
 import datetime
 import sys
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import tdDnodes
+from new_test_framework.utils import tdLog, tdSql
 from math import inf
 
-
-class TDTestCase:
+class TestLastAndLastRow:
     def init(self, conn, logSql, replicaVer=1):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), True)
@@ -643,7 +639,26 @@ class TDTestCase:
         tdSql.execute("drop stable if exists last_test_both_model.st;")
         tdSql.execute("drop database if exists last_test_both_model;")
 
-    def run(self):
+    def test_last_and_last_row(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.none_model_test()
 
         self.last_value_model_test()
@@ -652,9 +667,5 @@ class TDTestCase:
 
         self.both_model_test()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

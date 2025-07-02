@@ -1,5 +1,3 @@
-import taos
-import sys
 import time
 import socket
 import os
@@ -7,24 +5,17 @@ import threading
 
 from datetime import timezone, datetime
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase:
+class TestNestedqueryinterval:
     hostname = socket.gethostname()
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor())
-        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
-        
-        self.testcasePath = os.path.split(__file__)[0]
-        self.testcaseFilename = os.path.split(__file__)[-1]
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
-
+        #tdSql.init(conn.cursor(), logSql)
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcaseFilename = os.path.split(__file__)[-1]
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -778,7 +769,26 @@ class TDTestCase:
         tdLog.debug("insert data ............ [OK]")
         return
 
-    def run(self):
+    def test_nestedQueryInterval(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
         self.create_tables()
         self.insert_data()
@@ -792,7 +802,6 @@ class TDTestCase:
         wend_res = ['2021-09-01 00:00:00.000', '2021-10-01 00:00:00.000']
         twa_res = [280745245.341775954, -162181281.012160718]
         irate_res = [112899.676866667, 46569.524533333]
-
 
         ## check twa
         tdSql.query(f"select _wstart,_wend,twa(q_int) from nested.stable_2_1 interval(1n);")
@@ -856,6 +865,9 @@ class TDTestCase:
         tdSql.query(f"flush database nested;")
         self.TS_3932_flushdb()
         
+        #tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")
+
     def fun_to_char(self):
         tdLog.debug("test to_char ............ [OK]")
         
@@ -923,8 +935,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, '1');
         tdSql.query(f"select * from (select ts,to_char(ts, 'y') from nested.stable_1 limit 2);")
         tdSql.checkData(0, 1, '1');
-        
-        
+
         tdSql.query(f"select ts,to_char(ts, 'yyyy-MON') from nested.stable_1 limit 2;")
         tdSql.checkData(0, 1, '2021-AUG');
         tdSql.query(f"select * from (select ts,to_char(ts, 'yyyy-MON') from nested.stable_1 limit 2);")
@@ -1004,7 +1015,6 @@ class TDTestCase:
         tdSql.query(f"select * from (select ts,to_char(ts, 'yyyy-MON-D-DD-DDD hh24:mi:ss.ns') from nested.stable_1 limit 2);")
         tdSql.checkData(0, 1, '2021-AUG-6-27-239 01:46:40.000000000');
 
-        
     def sql_data_check(self,sql):   
         tdLog.info("\n=============sql:(%s)====================\n" %(sql)) 
         tdSql.query(sql) 
@@ -1141,8 +1151,7 @@ class TDTestCase:
         tdSql.checkRows(6)
         tdSql.checkData(0, 1, 121)
         tdSql.checkData(1, 1, 200)
-                       
-                       
+
         tdSql.query(f"insert into nested.stable_null_data (ts,tbname) values(now,'stable_null_data_1');")
         tdSql.query(f"select tbname,count(*) from nested.stable_null_data_1 group by tbname order by tbname;")
         tdSql.checkRows(1)
@@ -1311,8 +1320,7 @@ class TDTestCase:
         tdSql.query(f"select tbname,count(*) from nested.stable_null_childtable group by tbname order by tbname;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 52)
-        
-        
+
         #stables
         tdSql.query(f"insert into nested.stable_1 (ts,tbname,q_int) values({ts},'stable_1_1',1) \
                       nested.stable_1 (ts,tbname,q_bigint) values({ts}+1a,'stable_1_1',1)\
@@ -1429,8 +1437,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1)
         tdSql.query(f"select count(q_bool) from nested.stable_null_childtable;")
         tdSql.checkData(0, 0, 0)
-        
-        
+
         tdSql.query(f"delete from nested.stable_1;")
         tdSql.query(f"delete from nested.stable_null_data;")
         tdSql.query(f"delete from nested.stable_null_childtable;")
@@ -1480,11 +1487,3 @@ class TDTestCase:
         tdSql.error(f"insert into nested.stable_1 (ts,tbname,q_int) values({ts},'stable_1',1) \
                       nested.stable_null_data (ts,tbname,q_int) values({ts},'stable_null_data',1) \
                       nested.stable_null_childtable (ts,tbname,q_int) values({ts},'stable_null_childtable',1);")
-        
-    
-    def stop(self):
-        tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

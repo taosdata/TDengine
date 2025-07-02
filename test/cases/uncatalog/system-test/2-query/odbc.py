@@ -1,19 +1,13 @@
-import taos
-import sys
-import datetime
-import inspect
+import os
+from new_test_framework.utils import tdLog, tdSql, tdCom
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.common import tdCom
+class TestOdbc:
 
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def check_ins_cols(self):
         tdSql.execute("create database if not exists db")
@@ -27,11 +21,9 @@ class TDTestCase:
         tdSql.checkRows(14)
         tdSql.checkData(0, 2, "NORMAL_TABLE")
 
-
         tdSql.query("select * from information_schema.ins_columns where table_name = 'stb'")
         tdSql.checkRows(14)
         tdSql.checkData(0, 2, "SUPER_TABLE")
-
 
         tdSql.query("select db_name,table_type,col_name,col_type,col_length from information_schema.ins_columns where table_name = 'ctb'")
         tdSql.checkRows(14)
@@ -55,7 +47,26 @@ class TDTestCase:
         if ret != 0:
             tdLog.exit("sml_test get_db_name_test != 0")
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_odbc(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare(replica = self.replicaVar)
 
         tdLog.printNoPrefix("==========start check_ins_cols run ...............")
@@ -66,10 +77,5 @@ class TDTestCase:
         self.check_get_db_name()
         tdLog.printNoPrefix("==========end check_get_db_name run ...............")
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

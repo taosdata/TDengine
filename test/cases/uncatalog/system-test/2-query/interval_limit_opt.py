@@ -6,24 +6,22 @@ import os
 import threading
 import math
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import tdCom
 # from tmqCommon import *
 
-class TDTestCase:
+class TestIntervalLimitOpt:
     def __init__(self):
         self.vgroups    = 4
         self.ctbNum     = 10
         self.rowsPerTbl = 10000
         self.duraion = '1h'
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=2,replica=1, duration:str='1d'):
         if dropFlag == 1:
@@ -146,7 +144,7 @@ class TDTestCase:
 
             self.check_first_rows(all_rows, limited_rows, offset)
 
-    def test_interval_limit_asc(self, offset: int = 0):
+    def check_interval_limit_asc(self, offset: int = 0):
         sqls = ["select _wstart, _wend, count(*), sum(c1), avg(c2), first(ts) from meters interval(1s) ",
                 "select _wstart, _wend, count(*), sum(c1), avg(c2), first(ts) from meters interval(1m) ",
                 "select _wstart, _wend, count(*), sum(c1), avg(c2), first(ts) from meters interval(1h) ",
@@ -158,7 +156,7 @@ class TDTestCase:
         for sql in sqls:
             self.query_and_check_with_limit(sql, 5000, 500, offset)
 
-    def test_interval_limit_desc(self, offset: int = 0):
+    def check_interval_limit_desc(self, offset: int = 0):
         sqls = ["select _wstart, _wend, count(*), sum(c1), avg(c2), last(ts) from meters interval(1s) ",
                 "select _wstart, _wend, count(*), sum(c1), avg(c2), last(ts) from meters interval(1m) ",
                 "select _wstart, _wend, count(*), sum(c1), avg(c2), last(ts) from meters interval(1h) ",
@@ -170,12 +168,12 @@ class TDTestCase:
         for sql in sqls:
             self.query_and_check_with_limit(sql, 5000, 500, offset)
 
-    def test_interval_limit_offset(self):
+    def check_interval_limit_offset(self):
         for offset in range(0, 1000, 500):
-            self.test_interval_limit_asc(offset)
-            self.test_interval_limit_desc(offset)
+            self.check_interval_limit_asc(offset)
+            self.check_interval_limit_desc(offset)
 
-    def test_interval_partition_by_slimit_limit(self):
+    def check_interval_partition_by_slimit_limit(self):
         sql = "select * from (select _wstart as a, _wend as b, count(*), sum(c1), last(c2), first(ts),c3 from meters " \
                 "where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' partition by c3 interval(1m) slimit 10 limit 2) order by c3 asc"
         tdSql.query(sql)
@@ -200,25 +198,39 @@ class TDTestCase:
         tdSql.query(sql)
         tdSql.checkRows(11)
 
-    def test_partition_by_limit_no_agg(self):
+    def check_partition_by_limit_no_agg(self):
         sql_template = 'select t1 from meters partition by t1 limit %d'
 
         for i in range(1, 5000, 1000):
             tdSql.query(sql_template % i)
             tdSql.checkRows(5 * i)
 
+    def test_interval_limit_opt(self):
+        """summary: xxx
 
-    def run(self):
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.prepareTestEnv()
-        self.test_interval_limit_offset()
-        self.test_interval_partition_by_slimit_limit()
-        self.test_partition_by_limit_no_agg()
+        self.check_interval_limit_offset()
+        self.check_interval_partition_by_slimit_limit()
+        self.check_partition_by_limit_no_agg()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

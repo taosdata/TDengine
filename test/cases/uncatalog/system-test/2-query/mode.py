@@ -1,19 +1,15 @@
 from random import randint, random
 from numpy import equal
-import taos
-import sys
 import datetime
-import inspect
+from new_test_framework.utils import tdLog, tdSql
 
-from util.log import *
-from util.sql import *
-from util.cases import *
+class TestMode:
 
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def prepare_datas(self, dbname="db"):
         tdSql.execute(
@@ -189,7 +185,26 @@ class TDTestCase:
         tdSql.checkData(0, 3, -9.99)
         tdSql.checkData(0, 4, 'binary9')
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_mode(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
@@ -200,10 +215,5 @@ class TDTestCase:
 
         self.check_mode_function()
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

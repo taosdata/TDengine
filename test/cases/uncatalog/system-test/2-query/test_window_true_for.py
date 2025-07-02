@@ -11,20 +11,14 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
 import time
-
-import taos
-from util.log import *
-from util.cases import *
-from util.sql import *
-
-class TDTestCase:
+from new_test_framework.utils import tdLog, tdSql
+class TestTestWindowTrueFor:
     # init
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
 
     def create_objects(self):
         tdSql.execute("drop database if exists test", show=True)
@@ -437,7 +431,7 @@ class TDTestCase:
         tdSql.checkData(2, 1, '2025-01-01 00:00:28.000')
         tdSql.checkData(2, 2, 5)
 
-    def test_abnormal_query(self):
+    def check_abnormal_query(self):
         tdLog.info("test abnormal window true_for limit")
         tdSql.error("select _wstart, _wend, count(*) from ct_0 event_window start with c1 > 0 end with c1 < 0 true_for(3n);")
         tdSql.error("select _wstart, _wend, count(*) from ct_0 event_window start with c1 > 0 end with c1 < 0 true_for(3y);")
@@ -450,7 +444,7 @@ class TDTestCase:
         tdSql.error("create stream s_ab into dst as select _wstart, _wend, count(*) from ct_0 event_window start with c1 > 0 end with c1 < 0 true_for(-1a);")
         tdSql.error("create stream s_ab into dst as select _wstart, _wend, count(*) from ct_0 event_window start with c1 > 0 end with c1 < 0 true_for('-1a');")
 
-    def test_window_true_for_limit(self):
+    def check_window_true_for_limit(self):
         """ Test the functionality of the true_for window function.
 
         This test covers:
@@ -473,16 +467,31 @@ class TDTestCase:
         self.insert_data()
         self.update_data()
         self.check_result()
-        self.test_abnormal_query()
+        self.check_abnormal_query()
 
     # run
-    def run(self):
-        self.test_window_true_for_limit()
+    def test_test_window_true_for(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
+        self.check_window_true_for_limit()
 
     # stop
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

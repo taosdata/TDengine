@@ -11,19 +11,15 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
-import taos
-from util.log import *
-from util.cases import *
-from util.sql import *
+from new_test_framework.utils import tdLog, tdSql
+import datetime
 
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestTbname:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        
+        #tdSql.init(conn.cursor(), logSql)
+
     def td29092(self, dbname="db"):
         tdSql.execute(f'use {dbname}')
         tdSql.execute('CREATE STABLE `st` (`ts` TIMESTAMP, `v1` INT) TAGS (`t1` INT);')
@@ -440,15 +436,29 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "`vstb`100`")
 
-    def run(self):
+    def test_tbname(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
         self.ts6532()
         self.td29092()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

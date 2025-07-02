@@ -12,24 +12,19 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import subprocess
 import random
-import math
 import numpy as np
-import inspect
 import re
-
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import *
+import platform
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
 
 msec_per_min=60 * 1000
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+class TestCsum:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def csum_query_form(self, col="c1",  alias="", table_expr="db.t1", condition=""):
 
@@ -499,9 +494,26 @@ class TDTestCase:
         # tdSql.query("select csum(c1) from db.stb1 partition by st1 slimit 1")
         # tdSql.checkRows(4)
 
+    def test_csum(self):
+        """summary: xxx
 
+        description: xxx
 
-    def run(self):
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         import traceback
         try:
             # run in  develop branch
@@ -512,11 +524,5 @@ class TDTestCase:
             traceback.print_exc()
             raise e
 
-
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

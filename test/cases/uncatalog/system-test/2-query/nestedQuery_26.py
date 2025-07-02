@@ -10,13 +10,31 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-from util.cases import tdCases
+from new_test_framework.utils import tdLog, tdSql, tdCom
 from .nestedQuery import *
 
-class TDTestCase(TDTestCase):
+class TDTestCase:
 
-                        
-    def run(self):
+    def test_nestedQuery_26(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
         
         startTime = time.time() 
@@ -48,9 +66,7 @@ class TDTestCase(TDTestCase):
         # self.time_nest(['CAST_2'])
         # self.time_nest(['CAST_3'])
         # self.time_nest(['CAST_4'])
-        
-        
-        
+
         # self.time_nest(['NOW','TODAY']) 
         # self.time_nest(['TIMEZONE']) 
         # self.time_nest(['TIMETRUNCATE']) 
@@ -59,18 +75,9 @@ class TDTestCase(TDTestCase):
         # self.time_nest(['ELAPSED'])
         #self.time_nest(['TIMEDIFF_1'])
         #self.time_nest(['TIMEDIFF_2'])
-        
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
 
-        
-
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

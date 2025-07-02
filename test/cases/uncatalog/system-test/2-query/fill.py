@@ -1,25 +1,20 @@
 import queue
 import random
+import os
 from pandas._libs import interval
-import taos
-import sys
-
-from util.common import TDCom
-from util.log import *
-from util.sql import *
-from util.cases import *
 import threading
 
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import TDCom
+from new_test_framework.utils.sql import TDSql
 
-
-class TDTestCase:
+class TestFill:
     updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'numOfVnodeQueryThreads': 80}
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor())
-        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        #tdSql.init(conn.cursor(), logSql)
 
     def generate_fill_range(self, data_start: int, data_end: int, interval: int, step: int):
         ret = []
@@ -123,7 +118,7 @@ class TDTestCase:
         for t in threads:
             t.join()
 
-    def test_fill_range(self):
+    def check_fill_range(self):
         os.system('taosBenchmark -t 10 -n 10000 -v 8 -S 32000 -y')
         self.schedule_fill_test_tasks()
         sql = "select first(_wstart), last(_wstart) from (select _wstart, count(*) from test.meters where ts >= '2019-09-19 23:54:00.000' and ts < '2019-09-20 01:00:00.000' interval(10s) sliding(10s) fill(VALUE_F, 122) order by _wstart) t"
@@ -139,16 +134,34 @@ class TDTestCase:
         tdSql.checkData(0, 1, last_ts)
         tdSql.execute('drop database test')
     
-    def test_ns_db_fill(self):
+    def check_ns_db_fill(self):
         tdSql.execute("create database nsdb precision 'ns'")
         tdSql.execute("create table nsdb.nsdb_test(ts timestamp, c0 int, c1 bool, c2 varchar(100), c3 nchar(100), c4 varbinary(100))")
         tdSql.query("select _wstart, count(*) from nsdb.nsdb_test where ts >='2025-01-01' and ts <= '2025-12-01 23:59:59' interval(1n) fill(NULL)")
         tdSql.checkRows(0)
         tdSql.execute("drop database nsdb")
 
-    def run(self):
-        self.test_ns_db_fill()
-        self.test_fill_range()
+    def test_fill(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+        self.check_ns_db_fill()
+        self.check_fill_range()
         dbname = "db"
         tbname = "tb"
 
@@ -387,9 +400,6 @@ class TDTestCase:
         tdSql.checkData(2, 1, b'varbinary')
         tdSql.checkData(3, 1, b'\xe4\xb8\xad\xe6\x96\x87')
         tdSql.checkData(4, 1, b'\xe4\xb8\xad\xe6\x96\x87')
-    def stop(self):
-        tdSql.close()
+        
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

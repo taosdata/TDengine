@@ -2150,6 +2150,14 @@ def dict2toml(in_dict: dict, file:str):
     with open(file, 'w') as f:
         toml.dump(in_dict, f)
 
-
+def is_json(msg):
+    if isinstance(msg, str):
+        try:
+            json.loads(msg)
+            return True
+        except:
+            return False
+    else:
+        return False
 
 tdCom = TDCom()

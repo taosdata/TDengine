@@ -1,22 +1,18 @@
-import random
+from new_test_framework.utils import tdLog, tdSql
+
 import string
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
-from util.sqlset import *
-import numpy as np
+import platform
+import os
 
-
-class TDTestCase:
+class checkSlowQueryBasic:
     updatecfgDict = {'slowLogThresholdTest': ''}
     updatecfgDict["slowLogThresholdTest"]  = 0
     
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+
     def getPath(self, tool="taosBenchmark"):
         if (platform.system().lower() == 'windows'):
             tool = tool + ".exe"
@@ -47,20 +43,34 @@ class TDTestCase:
         tdLog.info(cmd)
         os.system(cmd)
         
-    def testSlowQuery(self):
+    def checkSlowQuery(self):
         self.taosBenchmark(" -d db -t 2 -v 2 -n 1000000 -y")
         sql = "select count(*) from db.meters"
         for i in range(10):            
             tdSql.query(sql)
             tdSql.checkData(0, 0, 2 * 1000000)
 
-    def run(self):
-        self.testSlowQuery()
+    def test_slow_query_basic(self):
+        """summary: xxx
 
-    def stop(self):
-        tdSql.close()
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
+        self.checkSlowQuery()
+
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

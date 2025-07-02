@@ -11,30 +11,25 @@
 
 # -*- coding: utf-8 -*-
 
-import random
 import os
 import time
-import taos
 import subprocess
 from faker import Faker
-from util.log import tdLog
-from util.cases import tdCases
-from util.sql import tdSql
-from util.dnodes import tdDnodes
-from util.dnodes import *
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase:
+class TestInsertNullNone:
     updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 131 ,"querySmaOptimize":1}
     
-    def init(self, conn, logSql, replicaVar):
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+        # tdSql.init(conn.cursor(), logSql)
 
-        self.testcasePath = os.path.split(__file__)[0]
-        self.testcaseFilename = os.path.split(__file__)[-1]
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf %s/%s.sql" % (cls.testcasePath,cls.testcaseFilename))
         
-        self.db = "insert_null_none"
+        cls.db = "insert_null_none"
 
     def dropandcreateDB_random(self,database,n):
         ts = 1630000000000
@@ -228,7 +223,6 @@ class TDTestCase:
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
                             fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
 
-
     def qint_none_null_value(self,database,n):
         ts = 1630000000000
         num_random = 10
@@ -277,7 +271,6 @@ class TDTestCase:
                             fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
                             fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
-                 
 
     def qbigint_none(self,database,n):
         ts = 1630000000000
@@ -426,7 +419,6 @@ class TDTestCase:
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
                             fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
 
-
     def qbigint_none_null_value(self,database,n):
         ts = 1630000000000
         num_random = 10
@@ -475,7 +467,6 @@ class TDTestCase:
                             fake.random_int(min=-2147483647, max=2147483647, step=1),'NULL',  
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
                             fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
-
 
     def qsmallint_none(self,database,n):
         tdLog.info("qsmallint_none")
@@ -629,7 +620,6 @@ class TDTestCase:
                             fake.random_int(min=-32767, max=32767, step=1) ,'NULL', fake.random_int(min=-127, max=127, step=1) , 
                             fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
 
-
     def qsmallint_none_null_value(self,database,n):
         tdLog.info("qsmallint_none_null_value")
         ts = 1630000000000
@@ -679,8 +669,6 @@ class TDTestCase:
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) ,'NULL',  fake.random_int(min=-127, max=127, step=1) , 
                             fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
- 
- 
 
     def qtinyint_none(self,database,n):
         tdLog.info("qtinyint_none")
@@ -834,7 +822,6 @@ class TDTestCase:
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 'NULL',
                             fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
 
-
     def qtinyint_none_null_value(self,database,n):
         tdLog.info("qtinyint_none_null_value")
         ts = 1630000000000
@@ -885,7 +872,6 @@ class TDTestCase:
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 'NULL', 
                             fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
 
- 
     def qfloat_none(self,database,n):
         tdLog.info("qfloat_none")
         ts = 1630000000000
@@ -1038,7 +1024,6 @@ class TDTestCase:
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,'NULL',
                             fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
 
-
     def qfloat_none_null_value(self,database,n):
         tdLog.info("qfloat_none_null_value")
         ts = 1630000000000
@@ -1088,7 +1073,6 @@ class TDTestCase:
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,'NULL', 
                             fake.pyfloat() , fake.pystr() , fake.pystr() , ts + i ))
-
 
     def qdouble_none(self,database,n):
         tdLog.info("qdouble_none")
@@ -1242,7 +1226,6 @@ class TDTestCase:
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1),
                             fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i ))
 
-
     def qdouble_none_null_value(self,database,n):
         tdLog.info("qdouble_none_null_value")
         ts = 1630000000000
@@ -1292,10 +1275,6 @@ class TDTestCase:
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
                             fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i ))
-
-
-
-
 
     def qbinary_none(self,database,n):
         tdLog.info("qbinary_none")
@@ -1449,7 +1428,6 @@ class TDTestCase:
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,
                             fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , ts + i ))
 
-
     def qbinary_none_null_value(self,database,n):
         tdLog.info("qbinary_none_null_value")
         ts = 1630000000000
@@ -1499,8 +1477,6 @@ class TDTestCase:
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
                             fake.pyfloat() , fake.pyfloat(), 'NULL' , fake.pystr() , ts + i ))
-
-
 
     def qnchar_none(self,database,n):
         tdLog.info("qnchar_none")
@@ -1653,7 +1629,6 @@ class TDTestCase:
                             fake.random_int(min=-2147483647, max=2147483647, step=1),  
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,
                             fake.pyfloat() ,fake.pyfloat() ,fake.pystr() ,'NULL',  ts + i ))
-
 
     def qnchar_none_null_value(self,database,n):
         tdLog.info("qnchar_none_null_value")
@@ -1857,7 +1832,6 @@ class TDTestCase:
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) ,
                             fake.pyfloat() ,fake.pyfloat() ,fake.pystr() ,fake.pystr(),'NULL' ))
 
-
     def qts_none_null_value(self,database,n):
         tdLog.info("qts_none_null_value")
         ts = 1630000000000
@@ -1907,7 +1881,6 @@ class TDTestCase:
                             fake.random_int(min=-2147483647, max=2147483647, step=1), 
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1) , 
                             fake.pyfloat() , fake.pyfloat(), fake.pystr() ,fake.pystr() , 'NULL' ))
-                
 
     def qbool_none(self,database,n):
         tdLog.info("qbool_none")
@@ -2061,7 +2034,6 @@ class TDTestCase:
                             fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , fake.random_int(min=-127, max=127, step=1),
                             fake.pyfloat() ,fake.pyfloat() ,'NULL', fake.pystr() , fake.pystr() , ts + i  ))
 
-
     def qbool_none_null_value(self,database,n):
         tdLog.info("qbool_none_null_value")
         ts = 1630000000000
@@ -2196,8 +2168,7 @@ class TDTestCase:
         tdSql.execute(" flush database %s;" %database)
         tdLog.info("flush database success")
         self.sqls(database);    
-        
-        
+
         self.qbigint_none(database, 10);  
         self.sqls(database); 
         tdSql.execute(" flush database %s;" %database)
@@ -2233,8 +2204,7 @@ class TDTestCase:
         tdSql.execute(" flush database %s;" %database)
         tdLog.info("flush database success")
         self.sqls(database); 
-        
-        
+
         self.qsmallint_none(database, 10);  
         self.sqls(database); 
         tdSql.execute(" flush database %s;" %database)
@@ -2270,8 +2240,7 @@ class TDTestCase:
         tdSql.execute(" flush database %s;" %database)
         tdLog.info("flush database success")
         self.sqls(database); 
-        
-        
+
         self.qtinyint_none(database, 10);  
         self.sqls(database); 
         tdSql.execute(" flush database %s;" %database)
@@ -2307,8 +2276,7 @@ class TDTestCase:
         tdSql.execute(" flush database %s;" %database)
         tdLog.info("flush database success")
         self.sqls(database); 
-        
-        
+
         self.qfloat_none(database, 10);  
         self.sqls(database); 
         tdSql.execute(" flush database %s;" %database)
@@ -2344,8 +2312,7 @@ class TDTestCase:
         tdSql.execute(" flush database %s;" %database)
         tdLog.info("flush database success")
         self.sqls(database); 
-        
-        
+
         self.qdouble_none(database, 10);  
         self.sqls(database); 
         tdSql.execute(" flush database %s;" %database)
@@ -2453,8 +2420,7 @@ class TDTestCase:
         tdSql.execute(" flush database %s;" %database)
         tdLog.info("flush database success")
         self.sqls(database); 
-        
-        
+
         self.qts_none(database, 10);  
         self.sqls(database); 
         tdSql.execute(" flush database %s;" %database)
@@ -2490,8 +2456,7 @@ class TDTestCase:
         tdSql.execute(" flush database %s;" %database)
         tdLog.info("flush database success")
         self.sqls(database); 
-        
-        
+
         self.qbool_none(database, 10);  
         self.sqls(database); 
         tdSql.execute(" flush database %s;" %database)
@@ -2527,8 +2492,7 @@ class TDTestCase:
         tdSql.execute(" flush database %s;" %database)
         tdLog.info("flush database success")
         self.sqls(database); 
-        
-        
+
     def constant_check(self,sql1,sql2):   
         tdLog.info("\n=============sql1:(%s)___sql2:(%s) ====================\n" %(sql1,sql2)) 
         tdSql.query(sql1) 
@@ -2545,17 +2509,35 @@ class TDTestCase:
         else :
             tdLog.exit(f"checkEqual error, base_value=={base_value},check_value={check_value}") 
                             
-    def run(self):      
-        
+    def test_insert_null_none(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         startTime = time.time()  
                   
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
         
+        
         self.dropandcreateDB_random("%s" %self.db, 10)
         
         self.check_flushdb("%s" %self.db)
-        
-        
+
         # #taos -f sql 
         # startTime1 = time.time()
         # print("taos -f sql start!")
@@ -2567,13 +2549,6 @@ class TDTestCase:
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
-    
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

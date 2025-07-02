@@ -1,33 +1,26 @@
-import taos
-import sys
 import time
 import socket
 import os
 import threading
-import math
-from datetime import datetime
-
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+import datetime
+from new_test_framework.utils import tdLog, tdSql, tdCom
 # from tmqCommon import *
 
 COMPARE_DATA = 0
 COMPARE_LEN = 1
 
-class TDTestCase:
+class TestPartitionByColAgg:
     def __init__(self):
         self.vgroups    = 4
         self.ctbNum     = 10
         self.rowsPerTbl = 10000
         self.duraion = '1h'
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=2,replica=1, duration:str='1d'):
         if dropFlag == 1:
@@ -196,7 +189,7 @@ class TDTestCase:
                 tdLog.exit("compare failed for row: [%d], sqls: [%s] res1: [%s], sql2 : [%s] res2: [%s]" % (i, sql1, res1[i], sql2, res2[i]))
         tdLog.debug("sql: [%s] and sql: [%s] have same results, rows: [%d]" % (sql1, sql2, min(len(res1), len(res2))))
 
-    def prepare_and_query_and_compare(self, sqls: [], order_by: str, select_list: str = "*", compare_what: int = 0):
+    def prepare_and_query_and_compare(self, sqls: list[str], order_by: str, select_list: str = "*", compare_what: int = 0):
         for sql in sqls:
             sql_hint = self.add_order_by(self.add_hint(sql), order_by, select_list)
             sql = self.add_order_by(sql, order_by, select_list)
@@ -213,7 +206,7 @@ class TDTestCase:
         self.check_explain_res_has_row('Merge', explain_res)
         self.check_explain_res_has_row('blocking=0', explain_res)
 
-    def test_pipelined_agg_plan_with_slimit(self):
+    def check_pipelined_agg_plan_with_slimit(self):
         sql = 'select count(*), %s from meters partition by %s slimit 1'
         self.check_explain(sql % ('c1','c1'))
         self.check_explain(sql % ('c1,c2', 'c1,c2'))
@@ -222,7 +215,7 @@ class TDTestCase:
         # self.check_explain(sql % ('t1', 'c1,t1'))
         # self.check_explain(sql % ('t1', 'c1,tbname'))
 
-    def test_pipelined_agg_data_with_slimit(self):
+    def check_pipelined_agg_data_with_slimit(self):
         sql_template = 'select %s from meters partition by %s %s'
 
         sql_elems = [
@@ -244,7 +237,7 @@ class TDTestCase:
             sql_no_slimit = self.add_order_by(sql_no_slimit, ele[3])
             self.query_and_compare_first_rows(sql_hint, sql_no_slimit)
 
-    def test_remove_partition(self):
+    def check_remove_partition(self):
         sql = 'select c1, count(*) from meters partition by c1 slimit 10'
         explain_res = self.explain_sql(sql)
         self.check_explain_res_no_row("Partition", explain_res)
@@ -255,18 +248,33 @@ class TDTestCase:
         self.check_explain_res_no_row("Partition", explain_res)
         self.check_explain_res_has_row("blocking=1", explain_res)
 
-    def run(self):
+    def test_partition_by_col_agg(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.prepareTestEnv()
         #time.sleep(99999999)
-        self.test_pipelined_agg_plan_with_slimit()
-        self.test_pipelined_agg_data_with_slimit()
-        self.test_remove_partition()
+        self.check_pipelined_agg_plan_with_slimit()
+        self.check_pipelined_agg_data_with_slimit()
+        self.check_remove_partition()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

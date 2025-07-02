@@ -1,19 +1,12 @@
-import taos
-import sys
-import datetime
-import inspect
 import math
-from util.log import *
-from util.sql import *
-from util.cases import *
+from new_test_framework.utils import tdLog, tdSql
 
+class TestSqrt:
 
-class TDTestCase:
-
-    def init(self, conn,  logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        # tdSql.init(conn.cursor())
 
     def prepare_datas(self, dbname="db"):
         tdSql.execute(
@@ -89,8 +82,7 @@ class TDTestCase:
             for col_index , elem in enumerate(row):
                 tdSql.checkData(row_index ,col_index ,auto_result[row_index][col_index])
 
-
-    def test_errors(self, dbname="db"):
+    def check_errors(self, dbname="db"):
         error_sql_lists = [
             f"select sqrt from {dbname}.t1",
             # f"select sqrt(-+--+c1 ) from {dbname}.t1",
@@ -158,7 +150,6 @@ class TDTestCase:
         for type_sql in type_error_sql_lists:
             tdSql.error(type_sql)
 
-
         type_sql_lists = [
             f"select sqrt(c1) from {dbname}.t1",
             f"select sqrt(c2) from {dbname}.t1",
@@ -219,7 +210,6 @@ class TDTestCase:
         tdSql.query(f"select sqrt(c6) from {dbname}.ct3")
         tdSql.checkRows(0)
 
-
         # # used for regular table
         tdSql.query(f"select sqrt(c1) from {dbname}.t1")
         tdSql.checkData(0, 0, None)
@@ -277,7 +267,6 @@ class TDTestCase:
         tdSql.query(f"select sqrt(c1) from {dbname}.stb1")
         tdSql.checkRows(25)
 
-
         # used for not exists table
         tdSql.error(f"select sqrt(c1) from {dbname}.stbbb1")
         tdSql.error(f"select sqrt(c1) from {dbname}.tbname")
@@ -324,7 +313,6 @@ class TDTestCase:
         tdSql.query(f"select max(c5), count(c5) from {dbname}.stb1")
         tdSql.query(f"select max(c5), count(c5) from {dbname}.ct1")
 
-
         # bug fix for count
         tdSql.query(f"select count(c1) from {dbname}.ct4 ")
         tdSql.checkData(0,0,9)
@@ -354,11 +342,10 @@ class TDTestCase:
 
         tdSql.query(f"select c1, sqrt(c1), c2, sqrt(c2), c3, sqrt(c3) from {dbname}.ct1")
 
-    def test_big_number(self, dbname="db"):
+    def check_big_number(self, dbname="db"):
 
         tdSql.query(f"select c1, sqrt(100000000) from {dbname}.ct1")  # bigint to double data overflow
         tdSql.checkData(4, 1, 10000.000000000)
-
 
         tdSql.query(f"select c1, sqrt(10000000000000) from {dbname}.ct1")  # bigint to double data overflow
         tdSql.checkData(4, 1, 3162277.660168380)
@@ -500,7 +487,26 @@ class TDTestCase:
         self.check_result_auto_sqrt( f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select sqrt(t1) , sqrt(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
         pass
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_sqrt(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
@@ -509,7 +515,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:test errors ==============")
 
-        self.test_errors()
+        self.check_errors()
 
         tdLog.printNoPrefix("==========step3:support types ============")
 
@@ -521,7 +527,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step5: big number sqrt query ============")
 
-        self.test_big_number()
+        self.check_big_number()
 
         tdLog.printNoPrefix("==========step6: base  number for sqrt query ============")
 
@@ -539,11 +545,5 @@ class TDTestCase:
 
         self.support_super_table_test()
 
-
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

@@ -1,21 +1,14 @@
-import taos
-import sys
-import datetime
-import inspect
-import math
-from util.log import *
-from util.sql import *
-from util.cases import *
+from new_test_framework.utils import tdLog, tdSql
+import time
 
-
-class TDTestCase:
+class TestArcsin:
     # updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     # "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
     # "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
-    def init(self, conn,  logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        # tdSql.init(conn.cursor())
 
     def prepare_datas(self, dbname="db"):
         tdSql.execute(
@@ -94,7 +87,7 @@ class TDTestCase:
               
       
 
-    def test_errors(self, dbname="db"):
+    def check_errors(self, dbname="db"):
         error_sql_lists = [
             f"select asin from {dbname}.t1",
             # f"select asin(-+--+c1 ) from {dbname}.t1",
@@ -339,7 +332,7 @@ class TDTestCase:
 
         tdSql.query(f"select c1, asin(c1), c2, asin(c2), c3, asin(c3) from {dbname}.ct1")
 
-    def test_big_number(self, dbname="db"):
+    def check_big_number(self, dbname="db"):
 
         tdSql.query(f"select c1, asin(100000000) from {dbname}.ct1")  # bigint to double data overflow
         tdSql.checkData(4, 1, None)
@@ -485,8 +478,26 @@ class TDTestCase:
         self.check_result_auto_asin( f" select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select asin(t1) , asin(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
         pass
 
+    def test_arcsin(self):
+        """summary: xxx
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
@@ -495,7 +506,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:test errors ==============")
 
-        self.test_errors()
+        self.check_errors()
 
         tdLog.printNoPrefix("==========step3:support types ============")
 
@@ -507,8 +518,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step5: big number asin query ============")
 
-        self.test_big_number()
-
+        self.check_big_number()
 
         tdLog.printNoPrefix("==========step6: asin boundary query ============")
 
@@ -522,10 +532,5 @@ class TDTestCase:
 
         self.support_super_table_test()
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

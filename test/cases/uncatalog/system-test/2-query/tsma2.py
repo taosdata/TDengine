@@ -1,12 +1,10 @@
+from new_test_framework.utils import tdLog, tdSql,TDSql, tdCom
+import random
+from typing import List
 from random import randrange
 import time
 import threading
 import secrets
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
 # from tmqCommon import *
 
 ROUND = 100
@@ -21,7 +19,6 @@ class TSMA:
         self.funcs = []
         self.cols = []
         self.interval: str = ''
-
 
 class UsedTsma:
     TS_MIN = '-9223372036854775808'
@@ -89,7 +86,6 @@ class TSMAQueryContext:
                 return True
         return False
 
-
 class TSMAQCBuilder:
     def __init__(self) -> None:
         self.qc_: TSMAQueryContext = TSMAQueryContext()
@@ -152,7 +148,6 @@ class TSMAQCBuilder:
         used_tsma.is_tsma_ = True
         self.qc_.used_tsmas.append(used_tsma)
         return self
-
 
 class TSMATester:
     def __init__(self, tdSql: TDSql) -> None:
@@ -265,7 +260,6 @@ class TSMATester:
         for sql, query_ctx in zip(sqls, expects):
             self.check_sql(sql, query_ctx)
 
-
 class TSMATesterSQLGeneratorOptions:
     def __init__(self) -> None:
         self.ts_min: int = 1537146000000 - 1000 * 60 * 60
@@ -292,7 +286,6 @@ class TSMATesterSQLGeneratorOptions:
         self.limit_max = 10
         self.norm_tb = False
 
-
 class TSMATesterSQLGeneratorRes:
     def __init__(self):
         self.has_where_ts_range: bool = False
@@ -305,7 +298,6 @@ class TSMATesterSQLGeneratorRes:
 
     def can_ignore_res_order(self):
         return not (self.has_limit and self.has_slimit)
-
 
 class TSMATestSQLGenerator:
     def __init__(self, opts: TSMATesterSQLGeneratorOptions = TSMATesterSQLGeneratorOptions()):
@@ -601,8 +593,7 @@ class TSMATestSQLGenerator:
 
     # order by, limit, having, subquery...
 
-
-class TDTestCase:
+class TestTsma2:
     updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'maxTsmaNum': 3}
 
     def __init__(self):
@@ -611,14 +602,10 @@ class TDTestCase:
         self.rowsPerTbl = 10000
         self.duraion = '1h'
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
-        tdSql.execute('alter local "debugFlag" "143"')
-        tdSql.execute('alter dnode 1 "debugFlag" "143"')
-        self.tsma_tester: TSMATester = TSMATester(tdSql)
-        self.tsma_sql_generator: TSMATestSQLGenerator = TSMATestSQLGenerator()
+        #tdSql.init(conn.cursor(), logSql)
 
     def create_database(self, tsql, dbName, dropFlag=1, vgroups=2, replica=1, duration: str = '1d'):
         if dropFlag == 1:
@@ -799,10 +786,34 @@ class TDTestCase:
         for ctx in ctxs:
             self.tsma_tester.check_sql(ctx.sql, ctx)
 
-    def run(self):
-        self.test_bigger_tsma_interval()
+    def test_tsma2(self):
+        """summary: xxx
 
-    def test_create_recursive_tsma_interval(self, db: str, tb: str, func, interval: str, recursive_interval: str, succ: bool, code: int):
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
+        self.check_bigger_tsma_interval()
+
+        #tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")
+
+
+
+    def check_create_recursive_tsma_interval(self, db: str, tb: str, func, interval: str, recursive_interval: str, succ: bool, code: int):
         self.create_tsma('tsma1', db, tb, func, interval)
         sql = f'CREATE RECURSIVE TSMA tsma2 ON {db}.tsma1 INTERVAL({recursive_interval})'
         if not succ:
@@ -812,7 +823,7 @@ class TDTestCase:
             self.drop_tsma('tsma2', db)
         self.drop_tsma('tsma1', db)
 
-    def test_bigger_tsma_interval_query(self, func_list: List):
+    def check_bigger_tsma_interval_query(self, func_list: List):
         ## 3 tsmas, 12h, 1n, 1y
         ctxs = []
         interval_list = ['2h', '8h', '1d', '1n', '3n', '1w', '1y', '2y']
@@ -830,7 +841,7 @@ class TDTestCase:
             ).ignore_res_order(sql_generator.can_ignore_res_order()).get_qc())
         return ctxs
 
-    def test_query_interval(self):
+    def check_query_interval(self):
         sql = 'select count(*), _wstart, _wend from db.meters interval(1n) sliding(1d) limit 1'
         tdSql.query(sql)
         tdSql.checkData(0, 1, '2017-06-15 00:00:00')
@@ -838,12 +849,12 @@ class TDTestCase:
         tdSql.query(sql)
         tdSql.checkData(0, 1, '2017-06-15 00:00:00')
 
-    def test_bigger_tsma_interval(self):
+    def check_bigger_tsma_interval(self):
         db = 'db'
         tb = 'meters'
         func = ['max(c1)', 'min(c1)', 'min(c2)', 'max(c2)', 'avg(c1)', 'count(ts)']
         self.init_data(db,10, 10000, 1500000000000, 11000000)
-        self.test_query_interval()
+        self.check_query_interval()
 
         examples = [
                 ('10m', '1h', True), ('10m','1d',True), ('1m', '120s', True), ('1h','1d',True),
@@ -852,12 +863,12 @@ class TDTestCase:
                 ]
         tdSql.execute('use db')
         for (i, ri, ret) in examples:
-            self.test_create_recursive_tsma_interval(db, tb, func, i, ri, ret, -2147471086)
+            self.check_create_recursive_tsma_interval(db, tb, func, i, ri, ret, -2147471086)
 
         self.create_tsma('tsma1', db, tb, func, '1h')
         self.create_recursive_tsma('tsma1', 'tsma2', db, '1n', tb, func)
         self.create_recursive_tsma('tsma2', 'tsma3', db, '1y', tb, func)
-        self.check(self.test_bigger_tsma_interval_query(func))
+        self.check(self.check_bigger_tsma_interval_query(func))
 
         ctxs = []
         ctxs.append(TSMAQCBuilder().with_sql('SELECT max(c1) FROM db.meters').should_query_with_tsma('tsma3').get_qc())
@@ -908,14 +919,4 @@ class TDTestCase:
                     .get_qc())
 
         self.check(ctxs)
-
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
-
-
 event = threading.Event()
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

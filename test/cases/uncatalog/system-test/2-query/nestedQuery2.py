@@ -1,15 +1,13 @@
+import random
+
 from random import randrange
 import time
 import threading
 import secrets
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+from new_test_framework.utils import tdLog, tdSql, tdCom
 # from tmqCommon import *
 
-class TDTestCase:
+class TestNestedquery2:
     updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4}
 
     def __init__(self):
@@ -18,10 +16,11 @@ class TDTestCase:
         self.rowsPerTbl = 10000
         self.duraion = '1h'
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def create_database(self, tsql, dbName, dropFlag=1, vgroups=2, replica=1, duration: str = '1d'):
         if dropFlag == 1:
@@ -133,7 +132,7 @@ class TDTestCase:
         self.init_normal_tb(tdSql, paraDict['dbName'], 'norm_tb',
                             paraDict['rowsPerTbl'], paraDict['startTs'], paraDict['tsStep'])
 
-    def test_select_asterisk_from_subquery_with_duplicate_aliasname(self):
+    def check_select_asterisk_from_subquery_with_duplicate_aliasname(self):
         sql = "select * from (select c8 as a, c9 as a from t1 order by ts desc limit 10)t;"
         tdSql.query(sql, queryTimes=1)
         tdSql.checkData(0, 0, "binary9")
@@ -152,16 +151,30 @@ class TDTestCase:
         tdSql.checkData(0, 3, 1)
         tdSql.checkData(0, 4, 3)
 
-    def run(self):
-        self.init_data()
-        self.test_select_asterisk_from_subquery_with_duplicate_aliasname()
+    def test_nestedQuery2(self):
+        """summary: xxx
 
-    def stop(self):
-        tdSql.close()
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
+        self.init_data()
+        self.check_select_asterisk_from_subquery_with_duplicate_aliasname()
+
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
-
 event = threading.Event()
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

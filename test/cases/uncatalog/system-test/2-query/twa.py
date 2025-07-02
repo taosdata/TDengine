@@ -1,23 +1,19 @@
-from util.log import *
-from util.cases import *
-from util.sql import *
-import numpy as np
-import random ,os ,sys
-import platform
-import math
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase:
+import platform
+
+class TestTwa:
     updatecfgDict = {"maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        self.vnode_disbutes = None
-        self.ts = 1537146000000
-        self.tb_nums = 20
-        self.row_nums = 100
-        self.time_step = 1000
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.vnode_disbutes = None
+        cls.ts = 1537146000000
+        cls.tb_nums = 20
+        cls.row_nums = 100
+        cls.time_step = 1000
 
     def prepare_datas_of_distribute(self, dbname="testdb"):
 
@@ -53,7 +49,6 @@ class TDTestCase:
                 tdSql.query(f"select twa({col_type[0]}) from {dbname}.stb1 partition by tbname ")
             else:
                 tdSql.error(f"select twa({col_type[0]}) from {dbname}.stb1 partition by tbname ")
-
 
     def check_distribute_datas(self, dbname="testdb"):
         # get vgroup_ids of all
@@ -159,7 +154,6 @@ class TDTestCase:
         tdSql.execute(" create table db.tb1 using db.st tags(1) ")
         tdSql.execute(" create table db.tb2 using db.st tags(2) ")
 
-
         for i in range(10):
             ts = i*10 + self.ts
             tdSql.execute(f" insert into db.tb1 values({ts},{i},{i}.0)")
@@ -169,7 +163,6 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0,0,4.500000000)
         tdSql.checkData(0,1,4.500000000)
-        
 
         # mixup with other functions
         tdSql.query(f"select twa(c1),twa(c2),max(c1),elapsed(ts) from {dbname}.ct1 ")
@@ -177,15 +170,30 @@ class TDTestCase:
         tdSql.checkData(0,1,11111.000000000)
         tdSql.checkData(0,2,1)
 
-    def run(self):
+    def test_twa(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.prepare_datas_of_distribute()
         self.check_distribute_datas()
         self.twa_support_types()
         self.distribute_twa_query()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

@@ -1,20 +1,14 @@
-import random
+from new_test_framework.utils import tdLog, tdSql
+
 import itertools
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.sqlset import *
-from util import constant
-from util.common import *
 
-
-class TDTestCase:
+class TestTestTd28163:
     """Verify the jira TD-28163
     """
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
 
     def prepareData(self):
         # db
@@ -61,7 +55,7 @@ class TDTestCase:
                 tdSql.execute(sql)
         tdLog.debug("Prepare data successfully")
 
-    def test_query_with_filter(self):
+    def check_query_with_filter(self):
         # total row number
         tdSql.query("select count(*) from st;")
         total_rows = tdSql.queryResult[0][0]
@@ -100,7 +94,7 @@ class TDTestCase:
             tdSql.query(f"select * from st where {filter};")
             tdSql.checkRows(0)
 
-    def test_query_with_groupby(self):
+    def check_query_with_groupby(self):
         tdSql.query("select count(*) from st group by tbname;")
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, 100)
@@ -152,7 +146,7 @@ class TDTestCase:
         tdSql.query("select elapsed(ts, 1s) t from st where c_int_empty is not null and c_nchar like '%aa%' group by tbname order by t desc slimit 1 limit 1;")
         tdSql.checkRows(0)
 
-    def test_query_with_join(self):
+    def check_query_with_join(self):
         tdSql.query("select count(*) from st as t1 join st as t2 on t1.ts = t2.ts and t1.c_float_empty is not null;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
@@ -173,7 +167,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
 
-    def test_query_with_window(self):
+    def check_query_with_window(self):
         # time window
         tdSql.query("select sum(c_int_empty) from st where ts > '2024-01-01 00:00:00.000' and ts <= '2024-01-01 14:00:00.000' interval(5m) sliding(1m) fill(value, 10);")
         tdSql.checkRows(845)
@@ -197,7 +191,7 @@ class TDTestCase:
         tdSql.query("select _wstart, _wend, count(*) from (select * from st order by ts, tbname) event_window start with t_bool=true end with t_bool=false;")
         tdSql.checkRows(200)
 
-    def test_query_with_union(self):
+    def check_query_with_union(self):
         tdSql.query("select count(ts) from (select * from ct1 union select * from ct2 union select * from ct3);")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 100)
@@ -230,7 +224,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 500)
 
-    def test_nested_query(self):
+    def check_nested_query(self):
         tdSql.query("select elapsed(ts, 1s) from (select * from (select * from st where c_int = 1) where c_int_empty is null);")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 99)
@@ -248,18 +242,33 @@ class TDTestCase:
         tdSql.checkRows(6)
         tdSql.checkData(0, 0, 1)
 
-    def run(self):
+    def test_test_td28163(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.prepareData()
-        self.test_query_with_filter()
-        self.test_query_with_groupby()
-        self.test_query_with_join()
-        self.test_query_with_window()
-        self.test_query_with_union()
-        self.test_nested_query()
+        self.check_query_with_filter()
+        self.check_query_with_groupby()
+        self.check_query_with_join()
+        self.check_query_with_window()
+        self.check_query_with_union()
+        self.check_nested_query()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

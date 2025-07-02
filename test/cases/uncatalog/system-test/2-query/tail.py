@@ -1,20 +1,14 @@
+from new_test_framework.utils import tdLog, tdSql
+
 from random import randint, random
 from numpy import equal
-import taos
-import sys
-import datetime
-import inspect
 
-from util.log import *
-from util.sql import *
-from util.cases import *
+class TestTail:
 
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql)
 
     def prepare_datas(self, dbname="db"):
         tdSql.execute(
@@ -66,7 +60,7 @@ class TDTestCase:
             '''
         )
 
-    def test_errors(self, dbname="db"):
+    def check_errors(self, dbname="db"):
         error_sql_lists = [
             f"select tail  from {dbname}.t1",
             f"select tail(123--123)==1  from {dbname}.t1",
@@ -363,7 +357,6 @@ class TDTestCase:
         tdSql.query(f"select tail(c1,2) from {dbname}.stb1 partition by tbname")
         tdSql.checkRows(4)
 
-
         # bug need fix
         # tdSql.query(f"select tbname , tail(c1,2) from {dbname}.stb1 partition by tbname")
         # tdSql.checkRows(4)
@@ -380,7 +373,6 @@ class TDTestCase:
 
         tdSql.query(f"select tail(c1,2) from {dbname}.stb1 partition by tbname")
         tdSql.checkRows(4)
-
 
         # # bug need fix
         # tdSql.query(f"select tbname , tail(c1,2) from {dbname}.stb1  where t1 = 0 partition by tbname ")
@@ -455,7 +447,26 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0,0,-9223372036854775803)
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_tail(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
@@ -464,7 +475,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:test errors ==============")
 
-        self.test_errors()
+        self.check_errors()
 
         tdLog.printNoPrefix("==========step3:support types ============")
 
@@ -478,10 +489,5 @@ class TDTestCase:
 
         self.check_boundary_values()
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

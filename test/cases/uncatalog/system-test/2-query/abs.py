@@ -1,30 +1,22 @@
-import taos
-import sys
-import datetime
-import inspect
-
-from util.log import *
-from util.sql import *
-from util.cases import *
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 import random
+import time
 
-
-class TDTestCase:
+class TestAbs:
     # updatecfgDict = {'debugFlag': 143, "cDebugFlag": 143, "uDebugFlag": 143, "rpcDebugFlag": 143, "tmrDebugFlag": 143,
     #                  "jniDebugFlag": 143, "simDebugFlag": 143, "dDebugFlag": 143, "dDebugFlag": 143, "vDebugFlag": 143, "mDebugFlag": 143, "qDebugFlag": 143,
     #                  "wDebugFlag": 143, "sDebugFlag": 143, "tsdbDebugFlag": 143, "tqDebugFlag": 143, "fsDebugFlag": 143, "udfDebugFlag": 143}
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
-        self.tb_nums = 10
-        self.row_nums = 20
-        self.ts = 1434938400000
-        self.time_step = 1000
-        self.replicaVar = int(replicaVar)
-        self.keep_duration = 36500  # days
-        
+        #tdSql.init(conn.cursor(), logSql)
+        cls.tb_nums = 10
+        cls.row_nums = 20
+        cls.ts = 1434938400000
+        cls.time_step = 1000
+        cls.keep_duration = 36500  
+
     def insert_datas_and_check_abs(self ,tbnums , rownums , time_step ):
         tdLog.info(" prepare datas for auto check abs function ")
         dbname = "test"
@@ -66,7 +58,6 @@ class TDTestCase:
                 origin_sql = "select {} from {} order by tbname".format(colname, tbname)
                 if coltype[1] in support_types:
                     self.check_result_auto(origin_sql , abs_sql)
-
 
     def prepare_datas(self, dbname="db"):
         tdSql.execute(
@@ -205,14 +196,12 @@ class TDTestCase:
                 row_check.append(elem)
             auto_result.append(row_check)
 
-
         tdSql.query(abs_query)
         for row_index, row in enumerate(abs_result):
             for col_index, elem in enumerate(row):
                 tdSql.checkData(row_index,col_index,auto_result[row_index][col_index])
 
-
-    def test_errors(self):
+    def check_errors(self):
         dbname = "testdb"
         tdSql.execute(f"use {dbname}")
         error_sql_lists = [
@@ -529,7 +518,7 @@ class TDTestCase:
         self.check_result_auto(f"select c1+1 ,c2 , c3*1 , c4/2, c5/2, c6 from {dbname}.sub1_bound",
                                f"select abs(c1+1) ,abs(c2) , abs(c3*1) , abs(c4/2), abs(c5)/2, abs(c6) from {dbname}.sub1_bound ")
 
-    def test_tag_compute_for_scalar_function(self):
+    def check_tag_compute_for_scalar_function(self):
         dbname = "testdb"
 
         tdSql.execute(f"use {dbname}")
@@ -584,8 +573,26 @@ class TDTestCase:
         self.check_result_auto( f" select t4,c1 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select t4 , abs(c1) from {dbname}.stb1 where c1 > 0 order by tbname" )
         pass
 
+    def test_abs(self):
+        """summary: xxx
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare(replica=f"{self.replicaVar}")
 
         tdLog.printNoPrefix("==========step1:create table ==============")
@@ -595,7 +602,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:test errors ==============")
 
-        self.test_errors()
+        self.check_errors()
 
         tdLog.printNoPrefix("==========step3:support types ============")
 
@@ -615,7 +622,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step6: tag coumpute query ============")
 
-        self.test_tag_compute_for_scalar_function()
+        self.check_tag_compute_for_scalar_function()
 
         tdLog.printNoPrefix("==========step7: check result of query ============")
 
@@ -625,10 +632,5 @@ class TDTestCase:
 
         self.support_super_table_test()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

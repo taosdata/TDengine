@@ -14,27 +14,22 @@
 import random
 import os
 import time
-import taos
 import subprocess
 from faker import Faker
-from util.log import tdLog
-from util.cases import tdCases
-from util.sql import tdSql
-from util.dnodes import tdDnodes
-from util.dnodes import *
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase:
+class TestSelectNull:
     updatecfgDict = {'debugflag':0,'stdebugFlag': 143 ,"tqDebugflag":135}
 
-    def init(self, conn, logSql, replicaVar):
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+        # tdSql.init(conn.cursor(), logSql)
 
-        self.testcasePath = os.path.split(__file__)[0]
-        self.testcaseFilename = os.path.split(__file__)[-1]
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf %s/%s.sql" % (cls.testcasePath,cls.testcaseFilename))
 
-        self.db = "sel_null"
+        cls.db = "sel_null"
 
     def insert_data(self,database,vgroups):
         num_random = 10
@@ -86,7 +81,6 @@ class TDTestCase:
             sql = "select count(t1) from(select * from %s.stb0 limit %d,%d) "%(database,offset,i)
             tdSql.query(sql)
             tdSql.checkData(0,0,i)
-
 
     def ts_2974_max(self,database):
         sql = "select max(c0) from %s.stb0 where ts<now;"%(database)
@@ -372,7 +366,6 @@ class TDTestCase:
         else:
             tdLog.exit("ts_3036: sql1 result:'%s' not equal sql2 result:'%s' or not equal sql3 result:'%s'" % (sql1,sql2,sql3))
 
-
     def ts_23569(self,database):
 
         tdSql.query("alter local 'keepcolumnname' '0';")
@@ -436,8 +429,26 @@ class TDTestCase:
         sql = "drop table %s.`test1eq2` ;"%(database)
         tdSql.execute(sql)
 
+    def test_select_null(self):
+        """summary: xxx
 
-    def run(self):
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         startTime = time.time()
 
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
@@ -470,11 +481,14 @@ class TDTestCase:
 
         self.td_27939("%s" %self.db)
 
-        self.test_select_as_chinese_characters();
+        self.check_select_as_chinese_characters();
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
 
-    def test_select_as_chinese_characters(self):
+        #tdSql.close()
+        tdLog.success("%s successfully executed" % __file__)
+
+    def check_select_as_chinese_characters(self):
         tdSql.execute("use sel_null")
         tdSql.query("select ts as 时间戳, c0 as c第一列, t0 标签1 from sel_null.stb0_0 limit 10", queryTimes=1)
         tdSql.checkRows(10)
@@ -503,11 +517,3 @@ class TDTestCase:
         tdSql.execute('create user user1 pass "asdxtz@#12"', queryTimes=1)
         tdSql.execute('grant write on sel_null.stable1 with 标签1 = 1 to user1',queryTimes=1)
         tdSql.execute('select count(*) from sel_null.stable1 state_window(值)', queryTimes=1)
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

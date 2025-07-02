@@ -10,13 +10,13 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-from util.cases import tdCases
+from new_test_framework.utils import tdLog, tdSql
 #from .nestedQueryInterval import *
 from .nestedQuery import *
 from faker import Faker
 import random
 
-class TDTestCase(TDTestCase):
+class TDTestCase:
     
     def explain_scan_value(self,sql,cachemodel):    
         tdLog.info(cachemodel)  
@@ -54,7 +54,6 @@ class TDTestCase(TDTestCase):
             tdLog.info(sql)  
             tdLog.exit(f"explain_scan_value : checkEqual error")   
 
-            
     def check_sql_result_include(self, sql,include_result):
         result = os.popen(f"taos -s \"reset query cache; {sql}\"" )
         res = result.read()
@@ -86,7 +85,6 @@ class TDTestCase(TDTestCase):
             
     def cachemodel_none(self, dbname="nested"):
 
-           
         sql = f"explain select last(*) from {dbname}.stable_1 "
         self.explain_scan_value(sql,"none")         
         sql = f"explain select last_row(*) from {dbname}.stable_1 "
@@ -119,7 +117,6 @@ class TDTestCase(TDTestCase):
         self.explain_scan_value(sql,"none")  
         sql = f"explain select last_row(*),last_row(*) from {dbname}.stable_1 partition by tbname"
         self.explain_scan_value(sql,"none")    
-
 
         #  last(id+1)  
         sql = f"explain select last(*) from {dbname}.stable_1 "
@@ -154,8 +151,7 @@ class TDTestCase(TDTestCase):
         self.explain_scan_value(sql,"none")  
         sql = f"explain select last_row(*),last_row(*) from {dbname}.stable_1 partition by tbname"
         self.explain_scan_value(sql,"none")    
-        
-        
+
         #last(id)+1   
         sql = f"explain select last(*) from {dbname}.stable_1 "
         self.explain_scan_value(sql,"none")         
@@ -189,8 +185,7 @@ class TDTestCase(TDTestCase):
         self.explain_scan_value(sql,"none")  
         sql = f"explain select last_row(*),last_row(*) from {dbname}.stable_1 partition by tbname"
         self.explain_scan_value(sql,"none")    
-        
-        
+
     def cachemodel_last_row(self, dbname="nested"):
     
         sql = f"explain select last(*) from {dbname}.stable_1 "
@@ -322,7 +317,26 @@ class TDTestCase(TDTestCase):
         tdSql.execute('alter stable stable_1 drop column q_nchar4;')
         tdSql.execute('alter stable stable_1 drop column q_binary4;')
                         
-    def run(self):
+    def test_last_and_last_row(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
         
         startTime = time.time() 
@@ -344,18 +358,7 @@ class TDTestCase(TDTestCase):
             self.cachemodel_both() 
             tdSql.query("alter database nested cachemodel 'none' ")  
             tdSql.query("reset query cache;")  
-          
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
-
-        
-
-
-    def stop(self):
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

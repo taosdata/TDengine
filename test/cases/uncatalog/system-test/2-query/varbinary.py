@@ -1,18 +1,15 @@
-import sys
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import tdCom
+
 import os
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.common import *
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestVarbinary:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
 
-    def test(self):
+    def check(self):
         tdLog.info(" test")
 
         buildPath = tdCom.getBuildPath()
@@ -65,16 +62,28 @@ class TDTestCase:
         #
         # tdSql.query(f"select c2,t3 from stb where c2 >= 0x0181 order by ts")
 
+    def test_varbinary(self):
+        """summary: xxx
 
+        description: xxx
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
-        self.test()
+        self.check()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

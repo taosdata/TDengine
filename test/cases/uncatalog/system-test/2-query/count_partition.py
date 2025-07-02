@@ -1,17 +1,15 @@
+from new_test_framework.utils import tdLog, tdSql
+
 # author : wenzhouwww
-from util.log import *
-from util.sql import *
-from util.cases import *
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-
-        self.row_nums = 10
-        self.tb_nums = 10
-        self.ts = 1537146000000
+class TestCountPartition:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.row_nums = 10
+        cls.tb_nums = 10
+        cls.ts = 1537146000000
 
     def prepare_datas(self, stb_name , tb_nums , row_nums, dbname="db" ):
         tdSql.execute(f" use {dbname} ")
@@ -154,8 +152,26 @@ class TDTestCase:
         tdSql.query(f'select max(c1) from {dbname}.stb where ts>={self.ts} and ts < {self.ts}+10000 interval(50s) sliding(30s)')
         tdSql.query(f'select tbname , count(c1) from {dbname}.stb where ts>={self.ts} and ts < {self.ts}+10000 partition by tbname interval(50s) sliding(30s)')
 
+    def test_count_partition(self):
+        """summary: xxx
 
-    def run(self):
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
         self.prepare_datas("stb",self.tb_nums,self.row_nums)
         self.basic_query()
@@ -168,11 +184,5 @@ class TDTestCase:
         tdSql.query(f"select avg(abs(c1)) , tbname from {dbname}.stb group by tbname ")
         tdSql.query(f"select t1,c1 from {dbname}.stb where abs(t2+c1)=1 ")
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

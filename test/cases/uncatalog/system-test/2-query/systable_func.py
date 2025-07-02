@@ -1,21 +1,32 @@
-import taos
-import sys
+from new_test_framework.utils import tdLog, tdSql
 
-from util.log import *
-from util.sql import *
-from util.cases import *
+class TestSystableFunc:
 
-
-
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor())
-        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        #tdSql.init(conn.cursor(), logSql)
 
-    def run(self):
+    def test_systable_func(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
 
         tdSql.query(f"select count(`columns`) from `information_schema`.`ins_tables`;")
@@ -51,10 +62,5 @@ class TDTestCase:
         tdSql.error(f"select csum(`columns`) from `information_schema`.`ins_tables`;")
         tdSql.error(f"select mavg(`columns`, 1) from `information_schema`.`ins_tables`;")
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

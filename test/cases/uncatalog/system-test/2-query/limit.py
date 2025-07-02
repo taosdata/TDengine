@@ -1,29 +1,22 @@
-
-import taos
-import sys
 import time
 import socket
 import os
 import threading
-import math
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+from new_test_framework.utils import tdLog, tdSql, tdCom
 # from tmqCommon import *
 
-class TDTestCase:
+class TestLimit:
     def __init__(self):
         self.vgroups    = 2
         self.ctbNum     = 10
         self.rowsPerTbl = 10000
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=2,replica=1):
         if dropFlag == 1:
@@ -229,7 +222,6 @@ class TDTestCase:
         tdSql.checkData(2, 0, 6)
         tdSql.checkData(3, 0, -1000)
 
-
         sqlStr = f"select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000) limit 10 offset 10001;"
         # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
@@ -243,7 +235,6 @@ class TDTestCase:
         # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(9998)
-
 
         sqlStr = f"select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000) limit 100 offset 20001;"
         # tdLog.info("====sql:%s"%(sqlStr))
@@ -267,15 +258,12 @@ class TDTestCase:
         tdSql.checkData(6, 8, "binary3")
         tdSql.checkData(7, 9, None)
 
-
-
         limit = paraDict["rowsPerTbl"]
         offset = limit / 2
         sqlStr = f"select max(c1), min(c2), sum(c3), avg(c4), stddev(c5), spread(c6), first(c7), last(c8), first(c9) from %s where ts >= %d and ts <= %d interval(5m) fill(prev) limit %d offset %d"%(tb,ts0,tsu,limit, offset)
         # tdLog.info("====sql:%s"%(sqlStr))
         tdSql.query(sqlStr)
         tdSql.checkRows(limit)
-
 
         limit = paraDict["rowsPerTbl"]
         offset = limit / 2 + 10
@@ -293,7 +281,6 @@ class TDTestCase:
         tdSql.checkData(0, 9, "nchar5")
         tdSql.checkData(1, 8, "-8")
         tdSql.checkData(1, 9, "-9")
-
 
         limit = paraDict["rowsPerTbl"]
         offset = limit * 2 - 11
@@ -350,7 +337,6 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdLog.info("check db2 vgroups 2 limit 1 offset 100 successfully!")
 
-
         # db1
         tdSql.execute("create database db1 vgroups 1;")
         tdSql.execute("use db1;")
@@ -373,21 +359,34 @@ class TDTestCase:
         tdSql.query("select ts, age from (select ts, age from db6080.t1 order by ts limit 1) where ts > 1537146000000;")
         tdSql.checkRows(0)
         
-    def run(self):
+    def test_limit(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         # tdSql.prepare()
         self.prepareTestEnv()
         self.tmqCase1()
 
         # one vgroup diff more than one vgroup check
         self.checkVGroups()
-        
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

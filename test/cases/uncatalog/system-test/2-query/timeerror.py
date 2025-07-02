@@ -1,20 +1,34 @@
-import taos
-import sys
+from new_test_framework.utils import tdLog, tdSql
+
 from time import sleep
-from util.log import *
-from util.sql import *
-from util.cases import *
 
+class TestTimeerror:
 
-
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql)
 
-    def run(self):
+    def test_timeerror(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         rows = 10
 
         tdSql.execute("create database dbus PRECISION 'us' ")
@@ -61,9 +75,5 @@ class TDTestCase:
             tdSql.checkData(0,0,qtime)
             tdSql.checkData(0,0,qts)
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

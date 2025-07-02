@@ -1,28 +1,44 @@
-import sys 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import tdDnodes
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
+
 from math import inf
 
-class TDTestCase:
+class TestCompactCol:
     def caseDescription(self):
         '''
         case1<shenglian zhou>: [TD-] 
         ''' 
         return
     
-    def init(self, conn, logSql, replicaVer=1):
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
-        self.conn = conn
+        # tdSql.init(conn.cursor(), True)
+        # self.conn = conn
         
     def restartTaosd(self, index=1, dbname="db"):
         tdDnodes.stop(index)
         tdDnodes.startWithoutSleep(index)
         tdSql.execute(f"use tbname_vgroup")
 
-    def run(self):
+    def test_compact_col(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         print("running {}".format(__file__))
         tdSql.execute("drop database if exists tbname_vgroup")
         tdSql.execute("create database if not exists tbname_vgroup")
@@ -63,9 +79,5 @@ class TDTestCase:
            raise Exception("first column name of compact result shall be name")
 
         tdSql.execute('drop database tbname_vgroup')
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

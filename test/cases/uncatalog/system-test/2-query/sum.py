@@ -1,9 +1,5 @@
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.autogen import *
-
+from new_test_framework.utils import tdLog, tdSql, autogen
+import datetime
 
 INT_COL     = "c1"
 BINT_COL    = "c2"
@@ -23,12 +19,12 @@ TS_TYPE_COL = [TS_COL]
 
 DBNAME = "db"
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestSum:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        self.autoGen = AutoGen(True)
+        #tdSql.init(conn.cursor(), logSql)
+        cls.autoGen = autogen.AutoGen(True)
 
     def __sum_condition(self):
         sum_condition = []
@@ -106,11 +102,9 @@ class TDTestCase:
                 tdSql.error(sql=errsql)
             tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
 
-
     def all_test(self, dbname="db"):
         self.__test_current(dbname)
         self.__test_error(dbname)
-
 
     def __create_tb(self, dbname="db"):
 
@@ -250,8 +244,26 @@ class TDTestCase:
 
             i += 1
 
+    def test_sum(self):
+        """summary: xxx
 
-    def run(self):
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
 
         self.testAllTypes()
@@ -272,9 +284,5 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

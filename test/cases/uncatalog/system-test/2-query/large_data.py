@@ -1,19 +1,19 @@
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
+from new_test_framework.utils import tdLog, tdSql, etool
+import time
 
-class TDTestCase:
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestLargeData:
+
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
-        
+        #tdSql.init(conn.cursor(), logSql)
+        pass
+
     def prepare_data(self):
         tdSql.execute("drop database if exists test;")
         
-        tdCases.taosBenchmarkExec("-t 2 -n 1000000 -b int,float,nchar -y")
+        etool.benchMark(command ="-t 2 -n 1000000 -b int,float,nchar -y")
         
         while True:
             tdSql.query("select ts from test.d0;")
@@ -48,7 +48,7 @@ class TDTestCase:
         start = 1500000000000
         tdSql.execute("drop database if exists test1;")
         
-        tdCases.taosBenchmarkExec(f"-d test1 -t 3 -n 1000000 -s {start} -y")
+        etool.benchMark(command ="-d test1 -t 3 -n 1000000 -s {start} -y")
         
         while True:
             tdSql.query("select count(*) from test1.meters;")
@@ -87,16 +87,30 @@ class TDTestCase:
                 tdSql.checkData(i, 1, ts_list[i])
     
         tdLog.info("All tests passed for ts6136")
-        
 
-    def run(self):
+    def test_large_data(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.prepare_data()
         self.ts5803()
         self.ts6136()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

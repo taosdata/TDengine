@@ -1,19 +1,13 @@
-import taos
-import sys
-import datetime
-import inspect
+from new_test_framework.utils import tdLog, tdSql
+import time
 import math
-from util.log import *
-from util.sql import *
-from util.cases import *
 
+class TestPow:
 
-class TDTestCase:
-
-    def init(self, conn,  logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        # tdSql.init(conn.cursor())
 
     def prepare_datas(self, dbname="db"):
         tdSql.execute(
@@ -85,9 +79,8 @@ class TDTestCase:
         for row_index , row in enumerate(pow_result):
             for col_index , elem in enumerate(row):
                 tdSql.checkData(row_index,col_index ,auto_result[row_index][col_index])
-                
 
-    def test_errors(self, dbname="db"):
+    def check_errors(self, dbname="db"):
         error_sql_lists = [
             f"select pow from {dbname}.t1",
             # f"select pow(-+--+c1 ,2) from {dbname}.t1",
@@ -155,7 +148,6 @@ class TDTestCase:
         for type_sql in type_error_sql_lists:
             tdSql.error(type_sql)
 
-
         type_sql_lists = [
             f"select pow(c1,2 ) from {dbname}.t1",
             f"select pow(c2,2 ) from {dbname}.t1",
@@ -216,7 +208,6 @@ class TDTestCase:
         tdSql.query(f"select pow(c6 ,2) from {dbname}.ct3")
         tdSql.checkRows(0)
 
-
         # pow used for different param types
 
         tdSql.query(f"select pow(c1,c2) from {dbname}.ct1;")
@@ -245,7 +236,6 @@ class TDTestCase:
 
         tdSql.query(f"select pow(abs(c2),2) from {dbname}.ct1;")
         tdSql.query(f"select pow(abs(c2),2) from {dbname}.stb1 partition by tbname order by tbname;")
-
 
         # # used for regular table
         tdSql.query(f"select pow(c1 ,2) from {dbname}.t1")
@@ -284,7 +274,6 @@ class TDTestCase:
         tdSql.checkData(3 , 2, 152225.429759376)
         tdSql.checkData(4 , 2, 7573.273783071)
 
-
         self.check_result_auto_pow( 2, f"select c1,  c3 , c4, c5 from {dbname}.ct1", f"select pow(c1,2), pow(c3,2), pow(c4,2), pow(c5,2) from {dbname}.ct1")
         self.check_result_auto_pow( 10, f"select c1, c3 , c4, c5 from {dbname}.ct1", f"select pow(c1,10), pow(c3,10), pow(c4,10), pow(c5,10) from {dbname}.ct1")
 
@@ -309,7 +298,6 @@ class TDTestCase:
 
         tdSql.query(f"select pow(c1, 2) from {dbname}.stb1")
         tdSql.checkRows(25)
-
 
         # used for not exists table
         tdSql.error(f"select pow(c1, 2) from {dbname}.stbbb1")
@@ -357,7 +345,6 @@ class TDTestCase:
         tdSql.query(f"select max(c5), count(c5) from {dbname}.stb1")
         tdSql.query(f"select max(c5), count(c5) from {dbname}.ct1")
 
-
         # bug fix for count
         tdSql.query(f"select count(c1) from {dbname}.ct4 ")
         tdSql.checkData(0,0,9)
@@ -387,13 +374,12 @@ class TDTestCase:
 
         tdSql.query(f"select c1, pow(c1, -10), c2, pow(c2, -10), c3, pow(c3, -10) from {dbname}.ct1")
 
-    def test_big_number(self, dbname="db"):
+    def check_big_number(self, dbname="db"):
 
         tdSql.query(f"select c1, pow(c1, 100000000) from {dbname}.ct1")  # bigint to double data overflow
         tdSql.checkData(0, 1, None)
         tdSql.checkData(1, 1, None)
         tdSql.checkData(4, 1, 0.000000000)
-
 
         tdSql.query(f"select c1, pow(c1, 10000000000000) from {dbname}.ct1")  # bigint to double data overflow
         tdSql.checkData(0, 1, None)
@@ -431,7 +417,6 @@ class TDTestCase:
         tdSql.query(f"select c1, pow(1, 2.0) from {dbname}.ct1")
         tdSql.checkData(0, 1, 1.000000000)
         tdSql.checkRows(13)
-
 
         # # bug for compute in functions
         # tdSql.query(f"select c1, abs(1/0) from {dbname}.ct1")
@@ -526,7 +511,6 @@ class TDTestCase:
 
         self.check_result_auto_pow(2, f"select c1, c3 , c3, c2 ,c1 from {dbname}.sub1_bound ", f"select pow(c1,2), pow(c3,2), pow(c3,2), pow(c2,2) ,pow(c1,2) from {dbname}.sub1_bound")
 
-
         self.check_result_auto_pow(2, f"select abs(abs(abs(abs(abs(abs(abs(abs(abs(c1)))))))))  nest_col_func from {dbname}.sub1_bound" , f"select pow(abs(c1) ,2) from {dbname}.sub1_bound" )
 
         # check basic elem for table per row
@@ -555,7 +539,6 @@ class TDTestCase:
         tdSql.checkData(0,3,math.pow(63.500000000,2))
         tdSql.checkData(0,5,None)
 
-
     def support_super_table_test(self, dbname="db"):
         self.check_result_auto_pow(2, f"select c5 from {dbname}.stb1 order by ts " , f"select pow(c5,2) from {dbname}.stb1 order by ts" )
         self.check_result_auto_pow(2, f"select c5 from {dbname}.stb1 order by tbname " , f"select pow(c5,2) from {dbname}.stb1 order by tbname" )
@@ -567,7 +550,26 @@ class TDTestCase:
         self.check_result_auto_pow(2, f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select pow(t1,2) ,pow(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
         self.check_result_auto_pow(2, f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select pow(t1,2) , pow(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_pow(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
@@ -576,7 +578,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:test errors ==============")
 
-        self.test_errors()
+        self.check_errors()
 
         tdLog.printNoPrefix("==========step3:support types ============")
 
@@ -588,7 +590,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step5: big number pow query ============")
 
-        self.test_big_number()
+        self.check_big_number()
 
         tdLog.printNoPrefix("==========step6: base  number for pow query ============")
 
@@ -606,9 +608,5 @@ class TDTestCase:
 
         self.support_super_table_test()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

@@ -1,25 +1,17 @@
-import taos
-import sys
-import datetime
-import inspect
+from new_test_framework.utils import tdLog, tdSql
+import random
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-import random ,math
+class TestIrate:
 
-
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
-        self.tb_nums = 10
-        self.row_nums = 20
-        self.ts = 1434938400000
-        self.time_step = 1000
-        self.keep_duration = 36500  # days
+        #tdSql.init(conn.cursor(), logSql)
+        cls.tb_nums = 10
+        cls.row_nums = 20
+        cls.ts = 1434938400000
+        cls.time_step = 1000
+        cls.keep_duration = 36500  
 
     def insert_datas_and_check_irate(self ,tbnums , rownums , time_step ):
         dbname = "test"
@@ -138,7 +130,7 @@ class TDTestCase:
             '''
         )
 
-    def test_errors(self, dbname="testdb"):
+    def check_errors(self, dbname="testdb"):
         error_sql_lists = [
             f"select irate from {dbname}.t1",
             f"select irate(-+--+c1) from {dbname}.t1",
@@ -202,7 +194,6 @@ class TDTestCase:
         tdSql.query(f"select irate(abs(c1+c2)) from {dbname}.ct1")
         tdSql.checkData(0, 0, 0.000000000)
 
-
         # mix with common col
         tdSql.error(f"select c1, irate(c1) from {dbname}.ct1")
 
@@ -215,7 +206,6 @@ class TDTestCase:
         tdSql.checkData(1, 0, 0.000000000)
         tdSql.checkData(0, 1, 13)
         tdSql.checkData(1, 1, 9)
-
 
     def irate_func_filter(self, dbname="testdb"):
         tdSql.query(
@@ -233,7 +223,26 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0.000000000)
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_irate(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
@@ -242,7 +251,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:test errors ==============")
 
-        self.test_errors()
+        self.check_errors()
 
         tdLog.printNoPrefix("==========step3:support types ============")
 
@@ -256,15 +265,9 @@ class TDTestCase:
 
         self.irate_func_filter()
 
-
         tdLog.printNoPrefix("==========step6: check result of query ============")
 
         self.insert_datas_and_check_irate(self.tb_nums,self.row_nums,self.time_step)
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

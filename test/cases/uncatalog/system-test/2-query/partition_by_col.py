@@ -1,33 +1,26 @@
-import taos
-import sys
 import time
 import socket
 import os
 import threading
-import math
-from datetime import datetime
-
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+import  datetime
+from new_test_framework.utils import tdLog, tdSql, tdCom
 # from tmqCommon import *
 
 COMPARE_DATA = 0
 COMPARE_LEN = 1
 
-class TDTestCase:
+class TestPartitionByCol:
     def __init__(self):
         self.vgroups    = 4
         self.ctbNum     = 10
         self.rowsPerTbl = 10000
         self.duraion = '1d'
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=2,replica=1, duration:str='1d'):
         if dropFlag == 1:
@@ -137,8 +130,7 @@ class TDTestCase:
         if not plan_found:
             tdLog.exit("plan: %s not found in res: [%s]" % (plan_str_expect, str(rows)))
 
-
-    def test_sort_for_partition_hint(self):
+    def check_sort_for_partition_hint(self):
         sql = 'select count(*), c1 from meters partition by c1'
         sql_hint = 'select /*+ sort_for_group() */count(*), c1 from meters partition by c1'
         #self.check_explain_res_has_row("Partition on", self.explain_sql(sql))
@@ -213,7 +205,7 @@ class TDTestCase:
                     tdLog.exit("compare failed for row: [%d], sqls: [%s] res1: [%s], sql2 : [%s] res2: [%s]" % (i, sql1, res1[i], sql2, res2[i]))
         tdLog.debug("sql: [%s] and sql: [%s] have same results, rows: [%d]" % (sql1, sql2, len(res1)))
 
-    def prepare_and_query_and_compare(self, sqls: [], order_by: str, select_list: str = "*", compare_what: int = 0):
+    def prepare_and_query_and_compare(self, sqls: list[str], order_by: str, select_list: str = "*", compare_what: int = 0):
         for sql in sqls:
             sql_hint = self.add_order_by(self.add_hint(sql), order_by, select_list)
             sql = self.add_order_by(sql, order_by, select_list)
@@ -221,7 +213,7 @@ class TDTestCase:
             #self.check_explain_res_has_row("Partition", self.explain_sql(sql))
             self.query_and_compare_res(sql, sql_hint, compare_what=compare_what)
 
-    def test_sort_for_partition_res(self):
+    def check_sort_for_partition_res(self):
         sqls_par_c1_agg = [
                 "select count(*), c1 from meters partition by c1",
                 "select count(*), min(c2), max(c3), c1 from meters partition by c1",
@@ -278,7 +270,7 @@ class TDTestCase:
         order_list = 'a, %s, ts' % (col_name)
         return (sqls, order_list)
 
-    def test_sort_for_partition_interval(self):
+    def check_sort_for_partition_interval(self):
         sqls, order_list = self.get_interval_template_sqls('c1')
         self.prepare_and_query_and_compare(sqls, order_list)
         #sqls, order_list = self.get_interval_template_sqls('c2')
@@ -298,7 +290,7 @@ class TDTestCase:
         sqls, order_list = self.get_interval_template_sqls('c9')
         self.prepare_and_query_and_compare(sqls, order_list)
 
-    def test_sort_for_partition_no_agg_limit(self):
+    def check_sort_for_partition_no_agg_limit(self):
         sqls_template = [
                 'select * from meters partition by c1 slimit %d limit %d',
                 'select * from meters partition by c2 slimit %d limit %d',
@@ -314,7 +306,7 @@ class TDTestCase:
 
         self.prepare_and_query_and_compare(sqls, order_by_list, compare_what=COMPARE_LEN)
     
-    def test_tsdb_read(self):
+    def check_tsdb_read(self):
         tdSql.execute('delete from t0')
         tdSql.execute('flush database test')
         for i in range(0, 4096):
@@ -329,22 +321,36 @@ class TDTestCase:
         tdSql.query('select first(ts), last(ts) from t0', queryTimes=1)
         tdSql.checkRows(1)
 
-    def run(self):
+    def test_partition_by_col(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.prepareTestEnv()
         tdSql.execute('flush database test')
         #time.sleep(99999999)
-        self.test_sort_for_partition_hint()
-        self.test_sort_for_partition_res()
-        self.test_sort_for_partition_interval()
-        self.test_sort_for_partition_no_agg_limit()
-        self.test_tsdb_read()
+        self.check_sort_for_partition_hint()
+        self.check_sort_for_partition_res()
+        self.check_sort_for_partition_interval()
+        self.check_sort_for_partition_no_agg_limit()
+        self.check_tsdb_read()
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

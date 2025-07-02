@@ -11,25 +11,21 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
+import time
 import os
 import random
 import re
 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import *
+from new_test_framework.utils import tdLog, tdSql
 
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar):
+class TestSlimit:
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+        # tdSql.init(conn.cursor(), logSql)
 
-        self.testcasePath = os.path.split(__file__)[0]
-        self.testcaseFilename = os.path.split(__file__)[-1]
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf %s/%s.sql" % (cls.testcasePath,cls.testcaseFilename))
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -119,8 +115,7 @@ class TDTestCase:
         tdSql.error(sql_0)
         nest_sql_0 = re.sub(r'\d\d',"0",nest_sql)
         tdSql.error(nest_sql_0)
-        
-        
+
     def sql_limit_retun_1_slimit_return_error(self,sql,tables,per_table_num,base_fun,replace_fun): 
         #sql limit n =1;sql limit 0 = 0 ;sql slmit n = error;sql slimit 0  = error 
         sql = sql.replace('%s'%base_fun,'%s'%replace_fun)
@@ -188,8 +183,7 @@ class TDTestCase:
             tdLog.info("sql checkrows success")
         else:
             tdLog.exit(f"checkEqual error, sql_rows=={rows}")
-            
-            
+
         self.sql_query_time_cost(nest_sql)
         rows = tdSql.queryRows
         if (rows >= 1 or rows <= 4):
@@ -745,9 +739,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("base query ---------2----------")
         sql = "select * from %s.meters where ts is not null limit %d" %(dbname,num)
         self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -766,9 +758,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("base query ---------3----------")
         sql = "select * from %s.meters where ts is not null order by ts limit %d" %(dbname,num)
         self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -787,8 +777,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
+
         tdLog.info("base query ---------4----------")
         sql = "select * from %s.meters where ts is not null order by ts desc limit %d" %(dbname,num)
         self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -828,10 +817,7 @@ class TDTestCase:
         self.sql_data_limit_retun_1_slimit_return_error(sql_union,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_1_slimit_return_error(sql_union_all,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
-        
+
         tdLog.info("count query ---------2----------")
         sql = "select count(*) from %s.meters where ts is not null limit %d" %(dbname,num)
         self.sql_limit_retun_1_slimit_return_error(sql,tables,per_table_num,base_fun,replace_fun)
@@ -850,9 +836,7 @@ class TDTestCase:
         self.sql_data_limit_retun_1_slimit_return_error(sql_union,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_1_slimit_return_error(sql_union_all,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("count query ---------3----------")
         sql = "select count(*) from %s.meters where ts is not null order by ts limit %d" %(dbname,num)
         self.sql_retun_error(sql,base_fun,replace_fun)
@@ -871,9 +855,7 @@ class TDTestCase:
         self.sql_retun_error(sql_union,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_retun_error(sql_union_all,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("count query ---------4----------")
         sql = "select count(*) from %s.meters where ts is not null order by ts desc limit %d" %(dbname,num)        
         self.sql_retun_error(sql,base_fun,replace_fun)
@@ -892,9 +874,7 @@ class TDTestCase:
         self.sql_retun_error(sql_union,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_retun_error(sql_union_all,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("count query ---------5----------")
         sql = "select count(*) from %s.meters where ts is not null group by tbname limit %d" %(dbname,num)
         self.sql_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)        
@@ -913,10 +893,7 @@ class TDTestCase:
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun) 
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
-        
-        
-        
-        
+
         tdLog.info("count query ---------6----------")
         sql = "select count(*) from %s.meters where ts is not null partition by tbname limit %d" %(dbname,num)
         self.sql_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun) 
@@ -935,9 +912,7 @@ class TDTestCase:
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun) 
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
-        
-        
-        
+
         tdLog.info("count query ---------7----------")
         sql = "select count(*) cc from %s.meters where ts is not null group by tbname order by cc limit %d" %(dbname,num)
         self.sql_limit_retun_n_slimit_return_tables(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -956,9 +931,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_slimit_return_tables(sql_union,num,tables,per_table_num,base_fun,replace_fun) 
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_tables(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
-        
-        
-        
+
         tdLog.info("count query ---------8----------")
         sql = "select count(*) cc from %s.meters where ts is not null partition by tbname order by cc limit %d" %(dbname,num)
         self.sql_limit_retun_n_slimit_return_tables(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -977,9 +950,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_slimit_return_tables(sql_union,num,tables,per_table_num,base_fun,replace_fun) 
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_tables(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
-        
-        
-        
+
         tdLog.info("count query ---------9----------")
         sql = "select count(*) cc from %s.meters where ts is not null interval(1a) limit %d" %(dbname,num)
         self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -998,9 +969,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun) 
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
-        
-        
-        
+
         tdLog.info("count query ---------10----------")
         sql = "select count(*) cc from %s.meters where ts is not null interval(1a) order by cc asc limit %d" %(dbname,num)
         self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1019,9 +988,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun) 
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
-        
-        
-        
+
         tdLog.info("count query ---------11----------")
         sql = "select count(*) cc from %s.meters where ts is not null interval(1a) order by cc desc limit %d" %(dbname,num)
         self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1040,9 +1007,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun) 
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
-        
-        
-        
+
         tdLog.info("count query ---------12----------")
         sql = "select tbname,count(*) cc from %s.meters where ts is not null interval(1a) group by tbname limit %d" %(dbname,num)
         self.sql_retun_error(sql,base_fun,replace_fun)
@@ -1061,9 +1026,7 @@ class TDTestCase:
         self.sql_retun_error(sql_union,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_retun_error(sql_union_all,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("count query ---------13----------")
         sql = "select tbname,count(*) cc from %s.meters where ts is not null interval(1a) partition by tbname limit %d" %(dbname,num)
         self.sql_retun_error(sql,base_fun,replace_fun)
@@ -1082,9 +1045,7 @@ class TDTestCase:
         self.sql_retun_error(sql_union,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_retun_error(sql_union_all,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("count query ---------14----------")
         sql = "select tbname,count(*) cc from %s.meters where ts is not null partition by tbname interval(1a) limit %d" %(dbname,num)
         self.sql_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1103,9 +1064,7 @@ class TDTestCase:
         self.sql_data_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("count query ---------15----------")
         sql = "select tbname,count(*) cc from %s.meters where ts is not null partition by tbname interval(1a) order by cc asc limit %d" %(dbname,num)
         self.sql_limit_retun_n_slimit_return_per_table_num_times_tables(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1124,9 +1083,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_slimit_return_per_table_num_times_tables(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_per_table_num_times_tables(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("count query ---------16----------")
         sql = "select tbname,count(*) cc from %s.meters where ts is not null partition by tbname interval(1a) order by cc desc limit %d" %(dbname,num)
         self.sql_limit_retun_n_slimit_return_per_table_num_times_tables(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1145,9 +1102,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_slimit_return_per_table_num_times_tables(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_per_table_num_times_tables(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("count query ---------17----------")
         sql = "select tbname,count(*) cc from %s.meters where ts is not null partition by tbname interval(1a) slimit %d" %(dbname,num)
         self.sql_limit_not_test_slimitkeep_return_per_table_num_times_n(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1166,9 +1121,7 @@ class TDTestCase:
         self.sql_data_limit_not_test_slimitkeep_return_per_table_num_times_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_not_test_slimitkeep_return_per_table_num_times_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("count query ---------18----------")
         sql = "select tbname,count(*) cc from %s.meters where ts is not null partition by tbname interval(1a) order by cc asc slimit %d" %(dbname,num)
         self.sql_limit_not_test_slimitkeep_return_per_table_num_times_tables(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1187,8 +1140,7 @@ class TDTestCase:
         self.sql_data_limit_not_test_slimitkeep_return_per_table_num_times_tables(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_not_test_slimitkeep_return_per_table_num_times_tables(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
+
         tdLog.info("count query ---------19----------")
         sql = "select tbname,count(*) cc from %s.meters where ts is not null partition by tbname interval(1a) order by cc desc slimit %d" %(dbname,num)
         self.sql_limit_not_test_slimitkeep_return_per_table_num_times_tables(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1207,9 +1159,7 @@ class TDTestCase:
         self.sql_data_limit_not_test_slimitkeep_return_per_table_num_times_tables(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_not_test_slimitkeep_return_per_table_num_times_tables(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("count query ---------20----------")
         sql = "select tbname,count(*) cc from %s.meters where ts is not null partition by tbname interval(1a) slimit %d limit %d" %(dbname,num,num2)
         self.sql_limit_retun_n_times_n2_slimitkeep_return_n_times_n2(sql,num,num2,tables,per_table_num,base_fun,replace_fun)
@@ -1228,8 +1178,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_times_n2_slimitkeep_return_n_times_n2(sql_union,num,num2,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_times_n2_slimitkeep_return_n_times_n2(sql_union_all,num,num2,tables,per_table_num,base_fun,replace_fun)
-        
-        
+
         tdLog.info("count query ---------21----------")
         sql = "select tbname,count(*) cc from %s.meters where ts is not null partition by tbname interval(1a) order by cc asc slimit %d limit %d" %(dbname,num,num2)
         self.sql_limit_times_slimitkeep_return_n2(sql,num,num2,tables,per_table_num,base_fun,replace_fun)
@@ -1248,8 +1197,7 @@ class TDTestCase:
         self.sql_data_limit_times_slimitkeep_return_n2(sql_union,num,num2,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_times_slimitkeep_return_n2(sql_union_all,num,num2,tables,per_table_num,base_fun,replace_fun)
-        
-        
+
         tdLog.info("count query ---------22----------")
         sql = "select tbname,count(*) cc from %s.meters where ts is not null partition by tbname interval(1a) order by cc desc slimit %d limit %d" %(dbname,num,num2)
         self.sql_limit_times_slimitkeep_return_n2(sql,num,num2,tables,per_table_num,base_fun,replace_fun)
@@ -1268,8 +1216,7 @@ class TDTestCase:
         self.sql_data_limit_times_slimitkeep_return_n2(sql_union,num,num2,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_times_slimitkeep_return_n2(sql_union_all,num,num2,tables,per_table_num,base_fun,replace_fun)
-        
-         
+
     def fun_last(self,dbname,num,num2,tables,per_table_num,dbnamejoin,base_fun,replace_fun):
         
         tdLog.info("last query ---------1----------")       
@@ -1290,10 +1237,7 @@ class TDTestCase:
         self.sql_last_limit_retun_1_slimit_return_error(sql_union,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_last_limit_retun_1_slimit_return_error(sql_union_all,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
-        
+
         tdLog.info("last query ---------2----------")
         sql = "select last(*) from %s.meters where ts is not null limit %d" %(dbname,num)
         self.sql_limit_retun_1_slimit_return_error(sql,tables,per_table_num,base_fun,replace_fun)
@@ -1312,9 +1256,7 @@ class TDTestCase:
         self.sql_last_limit_retun_1_slimit_return_error(sql_union,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_last_limit_retun_1_slimit_return_error(sql_union_all,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("last query ---------3----------")
         sql = "select last(*) from %s.meters where ts is not null order by ts limit %d" %(dbname,num)
         self.sql_retun_error(sql,base_fun,replace_fun)
@@ -1333,9 +1275,7 @@ class TDTestCase:
         self.sql_retun_error(sql_union,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_retun_error(sql_union_all,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("last query ---------4----------")
         sql = "select last(*) from %s.meters where ts is not null order by ts desc limit %d" %(dbname,num)        
         self.sql_retun_error(sql,base_fun,replace_fun)
@@ -1354,9 +1294,7 @@ class TDTestCase:
         self.sql_retun_error(sql_union,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_retun_error(sql_union_all,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("last query ---------5----------")
         sql = "select last(*) from %s.meters where ts is not null group by tbname limit %d" %(dbname,num)
         self.sql_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun)        
@@ -1375,10 +1313,7 @@ class TDTestCase:
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun) 
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
-        
-        
-        
-        
+
         tdLog.info("last query ---------6----------")
         sql = "select last(*) from %s.meters where ts is not null partition by tbname limit %d" %(dbname,num)
         self.sql_limit_retun_tables_slimit_return_n(sql,num,tables,per_table_num,base_fun,replace_fun) 
@@ -1397,9 +1332,7 @@ class TDTestCase:
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union,num,tables,per_table_num,base_fun,replace_fun) 
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_tables_slimit_return_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
-        
-        
-        
+
         tdLog.info("last query ---------7----------")
         sql = "select last(ts) cc from %s.meters where ts is not null group by tbname order by cc limit %d" %(dbname,num)
         self.sql_limit_retun_n_slimit_return_tables(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1418,9 +1351,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_slimit_return_tables(sql_union,num,tables,per_table_num,base_fun,replace_fun) 
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_tables(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
-        
-        
-        
+
         tdLog.info("last query ---------8----------")
         sql = "select last(ts) cc from %s.meters where ts is not null partition by tbname order by cc limit %d" %(dbname,num)
         self.sql_limit_retun_n_slimit_return_tables(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1439,9 +1370,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_slimit_return_tables(sql_union,num,tables,per_table_num,base_fun,replace_fun) 
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_tables(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
-        
-        
-        
+
         tdLog.info("last query ---------9----------")
         sql = "select last(*) from %s.meters where ts is not null interval(1a) limit %d" %(dbname,num)
         self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1460,9 +1389,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun) 
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
-        
-        
-        
+
         tdLog.info("last query ---------10----------")
         sql = "select last(ts) cc from %s.meters where ts is not null interval(1a) order by cc asc limit %d" %(dbname,num)
         self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1481,9 +1408,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun) 
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
-        
-        
-        
+
         tdLog.info("last query ---------11----------")
         sql = "select last(ts) cc from %s.meters where ts is not null interval(1a) order by cc desc limit %d" %(dbname,num)
         self.sql_limit_retun_n_slimit_return_error(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1502,9 +1427,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_slimit_return_error(sql_union,num,tables,per_table_num,base_fun,replace_fun) 
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_error(sql_union_all,num,tables,per_table_num,base_fun,replace_fun) 
-        
-        
-        
+
         tdLog.info("last query ---------12----------")
         sql = "select tbname,last(ts) cc from %s.meters where ts is not null interval(1a) group by tbname limit %d" %(dbname,num)
         self.sql_retun_error(sql,base_fun,replace_fun)
@@ -1523,9 +1446,7 @@ class TDTestCase:
         self.sql_retun_error(sql_union,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_retun_error(sql_union_all,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("last query ---------13----------")
         sql = "select tbname,last(ts) cc from %s.meters where ts is not null interval(1a) partition by tbname limit %d" %(dbname,num)
         self.sql_retun_error(sql,base_fun,replace_fun)
@@ -1544,9 +1465,7 @@ class TDTestCase:
         self.sql_retun_error(sql_union,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_retun_error(sql_union_all,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("last query ---------14----------") 
         sql = "select tbname,last(*) cc from %s.meters where ts is not null partition by tbname interval(1a) limit %d" %(dbname,num)
         self.sql_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1565,9 +1484,7 @@ class TDTestCase:
         self.sql_data_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_tables_times_n_slimit_return_per_table_num_times_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("last query ---------15----------")
         sql = "select tbname,last(ts) cc from %s.meters where ts is not null partition by tbname interval(1a) order by cc asc limit %d" %(dbname,num)
         self.sql_limit_retun_n_slimit_return_per_table_num_times_tables(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1586,9 +1503,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_slimit_return_per_table_num_times_tables(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_per_table_num_times_tables(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("last query ---------16----------")
         sql = "select tbname,last(ts) cc from %s.meters where ts is not null partition by tbname interval(1a) order by cc desc limit %d" %(dbname,num)
         self.sql_limit_retun_n_slimit_return_per_table_num_times_tables(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1607,9 +1522,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_slimit_return_per_table_num_times_tables(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_slimit_return_per_table_num_times_tables(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("last query ---------17----------")
         sql = "select tbname,last(*) cc from %s.meters where ts is not null partition by tbname interval(1a) slimit %d" %(dbname,num)
         self.sql_limit_not_test_slimitkeep_return_per_table_num_times_n(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1628,9 +1541,7 @@ class TDTestCase:
         self.sql_data_limit_not_test_slimitkeep_return_per_table_num_times_n(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_not_test_slimitkeep_return_per_table_num_times_n(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("last query ---------18----------")
         sql = "select tbname,last(ts) cc from %s.meters where ts is not null partition by tbname interval(1a) order by cc asc slimit %d" %(dbname,num)
         self.sql_limit_not_test_slimitkeep_return_per_table_num_times_tables(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1649,8 +1560,7 @@ class TDTestCase:
         self.sql_data_limit_not_test_slimitkeep_return_per_table_num_times_tables(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_not_test_slimitkeep_return_per_table_num_times_tables(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
+
         tdLog.info("last query ---------19----------")
         sql = "select tbname,last(ts) cc from %s.meters where ts is not null partition by tbname interval(1a) order by cc desc slimit %d" %(dbname,num)
         self.sql_limit_not_test_slimitkeep_return_per_table_num_times_tables(sql,num,tables,per_table_num,base_fun,replace_fun)
@@ -1669,9 +1579,7 @@ class TDTestCase:
         self.sql_data_limit_not_test_slimitkeep_return_per_table_num_times_tables(sql_union,num,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_not_test_slimitkeep_return_per_table_num_times_tables(sql_union_all,num,tables,per_table_num,base_fun,replace_fun)
-        
-        
-        
+
         tdLog.info("last query ---------20----------") 
         sql = "select tbname,last(*) cc from %s.meters where ts is not null partition by tbname interval(1a) slimit %d limit %d" %(dbname,num,num2)
         self.sql_limit_retun_n_times_n2_slimitkeep_return_n_times_n2(sql,num,num2,tables,per_table_num,base_fun,replace_fun)
@@ -1690,8 +1598,7 @@ class TDTestCase:
         self.sql_data_limit_retun_n_times_n2_slimitkeep_return_n_times_n2(sql_union,num,num2,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_retun_n_times_n2_slimitkeep_return_n_times_n2(sql_union_all,num,num2,tables,per_table_num,base_fun,replace_fun)
-        
-        
+
         tdLog.info("last query ---------21----------")
         sql = "select tbname,last(ts) cc from %s.meters where ts is not null partition by tbname interval(1a) order by cc asc slimit %d limit %d" %(dbname,num,num2)
         self.sql_limit_times_slimitkeep_return_n2(sql,num,num2,tables,per_table_num,base_fun,replace_fun)
@@ -1710,8 +1617,7 @@ class TDTestCase:
         self.sql_data_limit_times_slimitkeep_return_n2(sql_union,num,num2,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_times_slimitkeep_return_n2(sql_union_all,num,num2,tables,per_table_num,base_fun,replace_fun)
-        
-        
+
         tdLog.info("last query ---------22----------")
         sql = "select tbname,last(ts) cc from %s.meters where ts is not null partition by tbname interval(1a) order by cc desc slimit %d limit %d" %(dbname,num,num2)
         self.sql_limit_times_slimitkeep_return_n2(sql,num,num2,tables,per_table_num,base_fun,replace_fun)
@@ -1730,10 +1636,6 @@ class TDTestCase:
         self.sql_data_limit_times_slimitkeep_return_n2(sql_union,num,num2,tables,per_table_num,base_fun,replace_fun)
         sql_union_all = "(%s) union all (%s)" %(sql_join,sql_union)
         self.sql_data_limit_times_slimitkeep_return_n2(sql_union_all,num,num2,tables,per_table_num,base_fun,replace_fun)
-        
-        
-            
-   
 
     def sql_base_check(self,sql1,sql2):
         tdSql.query(sql1)
@@ -1769,8 +1671,7 @@ class TDTestCase:
             self.sql_query_time_cost(sql1)
             sql1_result = tdSql.getData(0,0)
             tdLog.info("sql:%s , result: %s" %(sql1,sql1_result))
-    
-                
+
     def sql_base(self,dbname,num,num2,tables,per_table_num,dbnamejoin):
         
         sql = "select count(*) from %s.meters" %dbname
@@ -1785,12 +1686,31 @@ class TDTestCase:
         # #self.fun_last(dbname,num,num2,tables,per_table_num,dbnamejoin,'last','last_row')
         # self.fun_last(dbname,num,num2,tables,per_table_num,dbnamejoin,'last','first')
             
-    def test(self,dbname,tables,per_table_num,vgroups,replica,dbnamejoin):
+    def check(self,dbname,tables,per_table_num,vgroups,replica,dbnamejoin):
         self.run_benchmark(dbname,tables,per_table_num,vgroups,replica)
         self.run_benchmark(dbnamejoin,tables,per_table_num,vgroups,replica)
         self.run_limit_slimit_sql(dbname,tables,per_table_num,dbnamejoin)
 
-    def run(self):
+    def test_slimit(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         startTime = time.time()
 
         dbname = 'test'
@@ -1802,7 +1722,7 @@ class TDTestCase:
         #self.test('test',tables,per_table_num,vgroup,1) 
         #self.test('test',10000,150,vgroup,1)     
         
-        self.test('test',100,150,vgroups,1,'testjoin')    #方便调试，调试时不执行下面3个 
+        self.check('test',100,150,vgroups,1,'testjoin')    #方便调试，调试时不执行下面3个 
         
         # self.run_benchmark(dbname,tables,per_table_num,vgroups,replica)
         # self.run_benchmark(dbnamejoin,tables*vgroups,per_table_num*vgroups,vgroups*2,replica) #方便测试不同数据量
@@ -1811,11 +1731,5 @@ class TDTestCase:
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

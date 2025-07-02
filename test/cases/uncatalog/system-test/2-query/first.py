@@ -11,28 +11,20 @@
 
 # -*- coding: utf-8 -*-
 
-import random
 import string
-import sys
-import taos
-from util.common import *
-from util.log import *
-from util.cases import *
-from util.sql import *
-import numpy as np
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import tdCom
 
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-
-        self.rowNum = 10
-        self.tbnum = 20
-        self.ts = 1537146000000
-        self.binary_str = 'taosdata'
-        self.nchar_str = '涛思数据'
+class TestFirst:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.rowNum = 10
+        cls.tbnum = 20
+        cls.ts = 1537146000000
+        cls.binary_str = 'taosdata'
+        cls.nchar_str = '涛思数据'
 
     def first_check_base(self):
         dbname = "db"
@@ -171,14 +163,28 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.execute(f'drop database {dbname}')
 
-    def run(self):
+    def test_first(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.first_check_base()
         self.first_check_stb_distribute()
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

@@ -1,19 +1,17 @@
+from new_test_framework.utils import tdLog, tdSql
+
 # author : bobliu
-from util.log import *
-from util.sql import *
-from util.cases import *
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-
-        self.row_nums = 10
-        self.tb_nums = 10
-        self.ts = 1537146000000
-        self.dbname = "db"
-        self.stable = "stb"
+class TestGroupPartition:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.row_nums = 10
+        cls.tb_nums = 10
+        cls.ts = 1537146000000
+        cls.dbname = "db"
+        cls.stable = "stb"
 
     def prepare_db(self):
         tdSql.execute(f" use {self.dbname} ")
@@ -35,7 +33,7 @@ class TDTestCase:
                 tdSql.execute(f"insert into {tbname} values({ts} , {row} , {row} , {row} , {row} , 1 , 2 , 'true' , 'binary_{row}' , 'nchar_{row}' , {row} , {row} , 1 ,2 )")
 
 
-    def test_groupby(self, keyword, check_num, nonempty_tb_num):
+    def check_groupby(self, keyword, check_num, nonempty_tb_num):
         ####### by tbname
         tdSql.query(f"select count(*), count(1), count(c1) from {self.dbname}.{self.stable} {keyword} by tbname ")
         tdSql.checkRows(check_num)
@@ -97,7 +95,7 @@ class TDTestCase:
         tdSql.query(f"select t2, t3, c1, count(*) from {self.dbname}.{self.stable} {keyword} by t2, t3, c1 ")
         tdSql.checkRows(nonempty_tb_num * self.row_nums)
 
-    def test_groupby_position(self, keyword, check_num, nonempty_tb_num):
+    def check_groupby_position(self, keyword, check_num, nonempty_tb_num):
         ####### by tbname
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} {keyword} by 1 ")
         tdSql.checkRows(check_num)
@@ -176,7 +174,7 @@ class TDTestCase:
         tdSql.error(f"select c1, c2, count(*) from {self.dbname}.{self.stable} {keyword} by 1")
         tdSql.error(f"select c1, avg(c2), count(*) from {self.dbname}.{self.stable} {keyword} by 1, 2")
 
-    def test_groupby_alias(self, keyword, check_num, nonempty_tb_num):
+    def check_groupby_alias(self, keyword, check_num, nonempty_tb_num):
         tdSql.query(f"select t1 as t1_alias, count(*) from {self.dbname}.{self.stable} {keyword} by t1_alias ")
         tdSql.checkRows(check_num)
 
@@ -248,7 +246,7 @@ class TDTestCase:
         ####### error case
         tdSql.error(f"select c1, avg(c2) as avg_alias, count(*) from {self.dbname}.{self.stable} {keyword} by 1, avg_alias")
 
-    def test_groupby_sub_table(self):
+    def check_groupby_sub_table(self):
         for i in range(self.tb_nums):
             tbname = f"{self.dbname}.sub_{self.stable}_{i}"
             ts = self.ts + i*10000
@@ -289,7 +287,7 @@ class TDTestCase:
         tdSql.checkData(0, 2, 40)
 
 
-    def test_multi_group_key(self, check_num, nonempty_tb_num):
+    def check_multi_group_key(self, check_num, nonempty_tb_num):
         # multi tag/tbname
         tdSql.query(f"select t2, t3, tbname, count(*) from {self.dbname}.{self.stable} group by t2, t3, tbname")
         tdSql.checkRows(check_num)
@@ -322,7 +320,7 @@ class TDTestCase:
         tdSql.checkRows(nonempty_tb_num * self.row_nums)
 
 
-    def test_multi_agg(self, all_tb_num, nonempty_tb_num):
+    def check_multi_agg(self, all_tb_num, nonempty_tb_num):
         tdSql.query(f"select count(*), sum(c1) from {self.dbname}.{self.stable} group by tbname ")
         tdSql.checkRows(all_tb_num)
 
@@ -349,7 +347,7 @@ class TDTestCase:
         #   tdSql.query(f" select avg(c1), percentile(c1, 50) from {self.dbname}.sub_{self.stable}_1")
         #   tdSql.checkRows(1)
 
-    def test_innerSelect(self, check_num):
+    def check_innerSelect(self, check_num):
         tdSql.query(f"select * from (select count(c1) from {self.dbname}.{self.stable} group by tbname) ")
         tdSql.checkRows(check_num)   
 
@@ -360,7 +358,7 @@ class TDTestCase:
         tdSql.checkRows(check_num)
 
 
-    def test_window(self, nonempty_tb_num):
+    def check_window(self, nonempty_tb_num):
         # empty group optimization condition is not met
         # time window
         tdSql.query(f"select count(c1) from {self.dbname}.{self.stable} partition by tbname interval(1d)")
@@ -381,7 +379,7 @@ class TDTestCase:
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9;")
         tdSql.checkRows(nonempty_tb_num)
 
-    def test_event_window(self, nonempty_tb_num):
+    def check_event_window(self, nonempty_tb_num):
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and 1=1;")
         tdSql.checkRows(nonempty_tb_num)
 
@@ -415,12 +413,12 @@ class TDTestCase:
         tdSql.error(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and _wduration + 1s > 5s;")
         tdSql.error(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and count(*) > 10;")
 
-    def test_error(self):
+    def check_error(self):
         tdSql.error(f"select * from {self.dbname}.{self.stable} group by t2")
         tdSql.error(f"select t2, count(*) from {self.dbname}.{self.stable} group by t2 where t2 = 1")
         tdSql.error(f"select t2, count(*) from {self.dbname}.{self.stable} group by t2 interval(1d)")
 
-    def test_TS5567(self):
+    def check_TS5567(self):
         tdSql.query(f"select const_col from (select 1 as const_col from {self.dbname}.{self.stable}) t group by const_col")
         tdSql.checkRows(1)
         tdSql.query(f"select const_col from (select 1 as const_col from {self.dbname}.{self.stable}) t partition by const_col")
@@ -438,7 +436,7 @@ class TDTestCase:
         tdSql.query(f"select const_col from (select 1 as const_col, count(c1) from {self.dbname}.{self.stable} t group by c1) partition by 1")
         tdSql.checkRows(10)
     
-    def test_TD_32883(self):
+    def check_TD_32883(self):
         sql = "select avg(c1), t9 from db.stb group by t9,t9, tbname"
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(5)
@@ -452,7 +450,7 @@ class TDTestCase:
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(5)
         
-    def test_TS_5727(self):
+    def check_TS_5727(self):
         tdSql.execute(f" use {self.dbname} ")
         stableName = "test5727"
         sql = f"CREATE STABLE {self.dbname}.{stableName} (`ts` TIMESTAMP, `WaterConsumption` FLOAT,  \
@@ -517,57 +515,69 @@ class TDTestCase:
         tdSql.checkData(0, 2, False)
         tdSql.checkData(1, 2, True)
         tdSql.checkData(2, 2, True)
-        
-        
-    def run(self):
+
+    def test_group_partition(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
         self.prepare_db()
         # empty table only
-        self.test_groupby('group', self.tb_nums, 0)
-        self.test_groupby('partition', self.tb_nums, 0)
-        self.test_groupby_position('group', self.tb_nums, 0)
-        self.test_groupby_position('partition', self.tb_nums, 0)
-        self.test_groupby_alias('group', self.tb_nums, 0)
-        self.test_groupby_alias('partition', self.tb_nums, 0)
-        self.test_innerSelect(self.tb_nums)
-        self.test_multi_group_key(self.tb_nums, 0)
-        self.test_multi_agg(self.tb_nums, 0)
-        self.test_window(0)
+        self.check_groupby('group', self.tb_nums, 0)
+        self.check_groupby('partition', self.tb_nums, 0)
+        self.check_groupby_position('group', self.tb_nums, 0)
+        self.check_groupby_position('partition', self.tb_nums, 0)
+        self.check_groupby_alias('group', self.tb_nums, 0)
+        self.check_groupby_alias('partition', self.tb_nums, 0)
+        self.check_innerSelect(self.tb_nums)
+        self.check_multi_group_key(self.tb_nums, 0)
+        self.check_multi_agg(self.tb_nums, 0)
+        self.check_window(0)
 
         # insert data to 5 tables
         nonempty_tb_num = 5
         self.insert_db(nonempty_tb_num, self.row_nums)
 
-        self.test_groupby('group', self.tb_nums, nonempty_tb_num)
-        self.test_groupby('partition', self.tb_nums, nonempty_tb_num)
-        self.test_groupby_position('group', self.tb_nums, nonempty_tb_num)
-        self.test_groupby_position('partition', self.tb_nums, nonempty_tb_num)
-        self.test_groupby_alias('group', self.tb_nums, nonempty_tb_num)
-        self.test_groupby_alias('partition', self.tb_nums, nonempty_tb_num)
-        self.test_groupby_sub_table()
-        self.test_innerSelect(self.tb_nums)
-        self.test_multi_group_key(self.tb_nums, nonempty_tb_num)
-        self.test_multi_agg(self.tb_nums, nonempty_tb_num)
-        self.test_window(nonempty_tb_num)
-        self.test_event_window(nonempty_tb_num)
+        self.check_groupby('group', self.tb_nums, nonempty_tb_num)
+        self.check_groupby('partition', self.tb_nums, nonempty_tb_num)
+        self.check_groupby_position('group', self.tb_nums, nonempty_tb_num)
+        self.check_groupby_position('partition', self.tb_nums, nonempty_tb_num)
+        self.check_groupby_alias('group', self.tb_nums, nonempty_tb_num)
+        self.check_groupby_alias('partition', self.tb_nums, nonempty_tb_num)
+        self.check_groupby_sub_table()
+        self.check_innerSelect(self.tb_nums)
+        self.check_multi_group_key(self.tb_nums, nonempty_tb_num)
+        self.check_multi_agg(self.tb_nums, nonempty_tb_num)
+        self.check_window(nonempty_tb_num)
+        self.check_event_window(nonempty_tb_num)
 
-        self.test_TS5567()
-        self.test_TD_32883()
+        self.check_TS5567()
+        self.check_TD_32883()
 
         ## test old version before changed
-        # self.test_groupby('group', 0, 0)
+        # self.check_groupby('group', 0, 0)
         # self.insert_db(5, self.row_nums)
-        # self.test_groupby('group', 5, 5)
+        # self.check_groupby('group', 5, 5)
 
-        self.test_error()
+        self.check_error()
         
-        self.test_TS_5727()
+        self.check_TS_5727()
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

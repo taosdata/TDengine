@@ -1,3 +1,4 @@
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
 
 import taos
 import sys
@@ -10,10 +11,6 @@ if platform.system().lower() == 'windows':
 else:
     import pexpect as taosExpect
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
 
 def taos_command (buildPath, key, value, expectString, sqlString=''):
     if len(key) == 0:
@@ -52,7 +49,7 @@ def taos_command (buildPath, key, value, expectString, sqlString=''):
     else:
         return "TAOS_FAIL"
 
-class TDTestCase:
+class TestColumnlenupdated:
     #updatecfgDict = {'clientCfg': {'serverPort': 7080, 'firstEp': 'trd02:7080', 'secondEp':'trd02:7080'},\
     #                 'serverPort': 7080, 'firstEp': 'trd02:7080'}
     hostname = socket.gethostname()
@@ -80,10 +77,11 @@ class TDTestCase:
 
     print ("===================: ", updatecfgDict)
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -101,7 +99,26 @@ class TDTestCase:
                     break
         return buildPath
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_columnLenUpdated(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
         # time.sleep(2)
         tdSql.query("create user testpy pass 'test123@#$'")
@@ -206,10 +223,5 @@ class TDTestCase:
         tdSql.checkData(0, 0, 2)
         tdSql.checkData(1, 0, 1)
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

@@ -11,25 +11,21 @@
 
 # -*- coding: utf-8 -*-
 
-import random
 import string
-import numpy as np
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
-from util.sqlset import *
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        self.dbname = 'db_test'
-        self.setsql = TDSetSql()
-        self.ntbname = f'{self.dbname}.ntb'
-        self.row_num = 10
-        self.ts = 1537146000000
-        self.column_dict = {
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.sqlset import TDSetSql
+
+class TestStddev:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.dbname = 'db_test'
+        # cls.setsql = # TDSetSql()
+        cls.ntbname = f'{cls.dbname}.ntb'
+        cls.row_num = 10
+        cls.ts = 1537146000000
+        cls.column_dict = {
             'ts':'timestamp',
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -42,12 +38,12 @@ class TDTestCase:
     
         }
     def insert_data(self,column_dict,tbname,row_num):
-        insert_sql = self.setsql.set_insertsql(column_dict,tbname)
+        insert_sql = TDSetSql.set_insertsql(column_dict,tbname)
         for i in range(row_num):
             insert_list = []
-            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
+            TDSetSql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
     def stddev_check(self):
-        stbname = f'{self.dbname}.{tdCom.getLongName(5,"letters")}'
+        stbname = f"{self.dbname}.test_stb"
         tag_dict = {
             't0':'int'
         }
@@ -55,7 +51,7 @@ class TDTestCase:
             f'1'
             ]
         tdSql.execute(f"create database if not exists {self.dbname}")
-        tdSql.execute(self.setsql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
+        tdSql.execute(TDSetSql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
         tdSql.execute(f"create table {stbname}_1 using {stbname} tags({tag_values[0]})")
         self.insert_data(self.column_dict,f'{stbname}_1',self.row_num)
         for col in self.column_dict.keys():
@@ -68,13 +64,27 @@ class TDTestCase:
                 tdSql.query(f'select stddev({col}) from {stbname}_1')
                 tdSql.checkEqual(col_std,tdSql.queryResult[0][0])
         tdSql.execute(f'drop database {self.dbname}')
-    def run(self): 
+    def test_stddev(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+ 
         self.stddev_check() 
-        
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

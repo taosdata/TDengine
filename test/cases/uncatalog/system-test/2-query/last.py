@@ -1,24 +1,19 @@
+from new_test_framework.utils import tdLog, tdSql, tdCom
 import random
+
 import string
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
-import numpy as np
 
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-
-        self.rowNum = 10
-        self.tbnum = 20
-        self.ts = 1537146000000
-        self.binary_str = 'taosdata'
-        self.nchar_str = '涛思数据'
-        self.cachemodel = None
+class TestLast:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.rowNum = 10
+        cls.tbnum = 20
+        cls.ts = 1537146000000
+        cls.binary_str = 'taosdata'
+        cls.nchar_str = '涛思数据'
+        cls.cachemodel = None
 
     def generateString(self, length):
         chars = string.ascii_uppercase + string.ascii_lowercase
@@ -366,7 +361,26 @@ class TDTestCase:
         tdSql.execute("drop stable if exists test_last_tbname.st;")
         tdSql.execute("drop database if exists test_last_tbname;")
 
-    def run(self):
+    def test_last(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.last_check_stb_tb_base()
         self.last_check_ntb_base()
         self.last_check_stb_distribute()
@@ -377,10 +391,5 @@ class TDTestCase:
         self.last_check_scan_type("last_value")
         self.last_check_scan_type("both")
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

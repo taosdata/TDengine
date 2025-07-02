@@ -1,22 +1,16 @@
+from new_test_framework.utils import tdLog, tdSql
+
 from math import floor
 from random import randint, random
 from numpy import equal
-import taos
-import sys
-import datetime
-import inspect
 
-from util.log import *
-from util.sql import *
-from util.cases import *
+class TestStatecount:
 
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        self.ts = 1420041600000 # 2015-01-01 00:00:00  this is begin time for first record
+        #tdSql.init(conn.cursor(), logSql)
+        cls.ts = 1420041600000 
 
     def prepare_datas(self, dbname="db"):
         tdSql.execute(
@@ -68,7 +62,7 @@ class TDTestCase:
             '''
         )
 
-    def test_errors(self, dbname="db"):
+    def check_errors(self, dbname="db"):
         error_sql_lists = [
             # f"select statecount(c1,'GT',5) from {dbname}.t1"
             f"select statecount from {dbname}.t1",
@@ -277,7 +271,6 @@ class TDTestCase:
 
         tdSql.error(f"select stateduration(c6,'GT',1) , unique(c2) from {dbname}.ct1")
 
-
         # unique with aggregate function
         tdSql.error(f"select statecount(c6,'GT',1) ,sum(c1)  from {dbname}.ct1")
         tdSql.error(f"select statecount(c6,'GT',1) ,max(c1)  from {dbname}.ct1")
@@ -301,7 +294,6 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1)
         tdSql.checkData(1, 0, 2)
         tdSql.checkData(6, 0, -1)
-
 
         # unique with union all
         tdSql.query(f"select statecount(c1,'GT',1) from {dbname}.ct4 union all select statecount(c1,'GT',1) from {dbname}.ct1")
@@ -361,7 +353,6 @@ class TDTestCase:
         tdSql.checkData(0, 0, None)
         tdSql.checkData(1, 0, 0.000000000)
         tdSql.checkData(3, 0, -1.000000000)
-
 
         # bug for stable
         #partition by tbname
@@ -480,7 +471,26 @@ class TDTestCase:
         tdSql.query(f"select statecount(c1,'GT',1) from {dbname}.sub1_bound")
         tdSql.checkRows(5)
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_statecount(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
@@ -489,7 +499,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:test errors ==============")
 
-        self.test_errors()
+        self.check_errors()
 
         tdLog.printNoPrefix("==========step3:support types ============")
 
@@ -511,11 +521,5 @@ class TDTestCase:
         self.check_unit_time()
         self.query_precision()
 
-
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

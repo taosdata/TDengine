@@ -1,29 +1,19 @@
-import taos
-import sys
+from new_test_framework.utils import tdLog, tdSql
 
-from util.log import *
-from util.sql import *
-from util.cases import *
+class TestGeometry:
 
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-
-        # WKT strings to be input as GEOMETRY type
-        self.point = "POINT (3.000000 6.000000)"
-        self.lineString = "LINESTRING (1.000000 1.000000, 2.000000 2.000000, 5.000000 5.000000)"
-        self.polygon = "POLYGON ((3.000000 6.000000, 5.000000 6.000000, 5.000000 8.000000, 3.000000 8.000000, 3.000000 6.000000))"
-
-        # expected errno
-        self.errno_TSC_SQL_SYNTAX_ERROR = -2147483114;
-        self.errno_PAR_SYNTAX_ERROR = -2147473920
-
-        self.errno_FUNTION_PARA_NUM = -2147473407;
-        self.errno_FUNTION_PARA_TYPE = -2147473406;
-        self.errno_FUNTION_PARA_VALUE = -2147473405;
+        #tdSql.init(conn.cursor(), logSql)
+        cls.point = "POINT (3.000000 6.000000)"
+        cls.lineString = "LINESTRING (1.000000 1.000000, 2.000000 2.000000, 5.000000 5.000000)"
+        cls.polygon = "POLYGON ((3.000000 6.000000, 5.000000 6.000000, 5.000000 8.000000, 3.000000 8.000000, 3.000000 6.000000))"
+        cls.errno_TSC_SQL_SYNTAX_ERROR = -2147483114;
+        cls.errno_PAR_SYNTAX_ERROR = -2147473920
+        cls.errno_FUNTION_PARA_NUM = -2147473407;
+        cls.errno_FUNTION_PARA_TYPE = -2147473406;
+        cls.errno_FUNTION_PARA_VALUE = -2147473405;
 
     def prepare_data(self, dbname = "db"):
         tdSql.execute(
@@ -190,7 +180,26 @@ class TDTestCase:
         tdSql.checkEqual(tdSql.queryResult[1][0], "LINESTRING (1.000000 1.000000, 2.000000 2.000000, 5.000000 5.000000)")
         tdSql.checkEqual(tdSql.queryResult[2][0], "POLYGON ((3.000000 6.000000, 5.000000 6.000000, 5.000000 8.000000, 3.000000 8.000000, 3.000000 6.000000))")
 
-    def run(self):
+    def test_geometry(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1: create tables and insert data")
@@ -269,9 +278,5 @@ class TDTestCase:
         self.geomRelationFunc_test('ST_ContainsProperly', expectedResults)
         self.test_td28365()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

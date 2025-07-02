@@ -14,21 +14,19 @@
 import sys
 import random
 import re
+import time
 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import *
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
+import random
 
 DBNAME = "db"
 
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        self.ts = 1537146000000
+class TestSample:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.ts = 1537146000000
 
     def sample_query_form(self, sel=f"select", func="sample(", col="c1", m_comm =",", k=1,r_comm=")", alias="", fr="from",table_expr="t1", condition=""):
         '''
@@ -60,7 +58,6 @@ class TDTestCase:
                 sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
                 table_expr=table_expr, condition=condition
             ))
-
 
         sql = f"select * from {table_expr}"
         collist =  tdSql.getColNameList(sql)
@@ -815,7 +812,6 @@ class TDTestCase:
         self.sample_current_query()
         self.sample_error_query()
 
-
         tdLog.printNoPrefix("######## insert data mix with NULL test:")
         for i in range(tbnum):
             tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime})")
@@ -823,8 +819,6 @@ class TDTestCase:
             tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime+(per_table_rows+3)*10})")
         self.sample_current_query()
         self.sample_error_query()
-
-
 
         tdLog.printNoPrefix("######## check after WAL test:")
         tdSql.query(f"select * from information_schema.ins_dnodes")
@@ -856,7 +850,26 @@ class TDTestCase:
         tdSql.query("select sample(c1,2) from db.stb1 partition by c1 ")
         tdSql.query("select c1 ,ind, sample(c1,2) from sample_db.st partition by c1 ")
 
-    def run(self):
+    def test_sample(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         import traceback
         try:
             # run in  develop branch
@@ -867,9 +880,5 @@ class TDTestCase:
             traceback.print_exc()
             raise e
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

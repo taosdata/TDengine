@@ -13,25 +13,23 @@
 
 import sys
 import subprocess
-import random
-import math
-import numpy as np
-import inspect
 import re
-import taos
+import random
+import numpy as np
+import platform
+import time
 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import *
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
+
 
 dbname = 'db'
 msec_per_min = 60 * 1000
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+class TestMavg:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def mavg_query_form(self, sel="select", func="mavg(", col="c1", m_comm =",", k=1,r_comm=")", alias="", fr="from",table_expr=f"{dbname}.t1", condition=""):
         '''
@@ -649,7 +647,6 @@ class TDTestCase:
         self.mavg_current_query()
         self.mavg_error_query()
 
-
         tdLog.printNoPrefix("######## insert data mix with NULL test:")
         for i in range(tbnum):
             tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime + i * msec_per_min})")
@@ -657,8 +654,6 @@ class TDTestCase:
             tdSql.execute(f"insert into {dbname}.t{i}(ts) values ({nowtime+(per_table_rows+3)*10 + i * msec_per_min})")
         self.mavg_current_query()
         self.mavg_error_query()
-
-
 
         tdLog.printNoPrefix("######## check after WAL test:")
         tdSql.query("select * from information_schema.ins_dnodes")
@@ -691,8 +686,6 @@ class TDTestCase:
         tdSql.query(f"select mavg(st1+c1,3) from {dbname}.stb1 partition by tbname")
         tdSql.checkRows(20)
 
-
-
         # bug need fix
         tdSql.query(f"select mavg(st1+c1,3) from {dbname}.stb1 partition by tbname")
         tdSql.checkRows(20)
@@ -723,8 +716,26 @@ class TDTestCase:
         tdSql.query(f"select c1, c2, c3, c4, mavg(123,3) from {dbname}.stb1 partition by tbname ")
         tdSql.checkRows(50)
 
+    def test_mavg(self):
+        """summary: xxx
 
-    def run(self):
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         import traceback
         try:
             # run in  develop branch
@@ -735,10 +746,5 @@ class TDTestCase:
             traceback.print_exc()
             raise e
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

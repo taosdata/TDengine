@@ -1,11 +1,30 @@
-from util.cases import *
-from util.sql import *
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
+class TestTd28068:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
 
+    def test_td_28068(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tdSql.execute("drop database if exists td_28068;")
         tdSql.execute("create database td_28068;")
         tdSql.execute("create database if not exists td_28068;")
@@ -19,7 +38,7 @@ class TDTestCase:
         tdSql.execute("insert into td_28068.ct4 using td_28068.st (branch, scenario) tags ('3.1', 'scenario2') values (1717122949000, 'query1', 8,8);")
         tdSql.execute("insert into td_28068.ct4 using td_28068.st (branch, scenario) tags ('3.1', 'scenario2') values (1717122950000, 'query1', 9,10);")
 
-    def run(self):
+
         tdSql.query('select last(ts) as ts, last(branch) as branch, last(scenario) as scenario, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by last(branch);')
         tdSql.checkRows(4)
         tdSql.query('select last(ts) as ts, last(branch) as branch1, last(scenario) as scenario, last(test_case) as test_case  from td_28068.st group by st.branch, st.scenario order by last(branch), last(scenario); ')
@@ -59,11 +78,5 @@ class TDTestCase:
 
         tdSql.execute("drop database if exists td_28068;")
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

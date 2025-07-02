@@ -1,20 +1,14 @@
-import taos
-import sys
-import datetime
-import inspect
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.common import tdCom
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase:
+class TestLike:
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
-        
+        #tdSql.init(conn.cursor(), logSql)
+        pass
+
     def initDB(self):
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database if not exists db")
@@ -31,7 +25,6 @@ class TDTestCase:
         
         tdSql.query("select * from information_schema.ins_columns where table_name like '%\_1x'")
         tdSql.checkRows(2)
-
 
         tdSql.query("insert into db.t1x values(now, 'abc'), (now+1s, 'a%c'),(now+2s, 'a_c'),(now+3s, '_c'),(now+4s, '%c')")
         
@@ -167,10 +160,28 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "_c")
 
-    def run(self):
+    def test_like(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdLog.printNoPrefix("==========start like_wildcard_test run ...............")
         tdSql.prepare(replica = self.replicaVar)
-
 
         self.initDB()
         self.like_wildcard_test()
@@ -181,10 +192,5 @@ class TDTestCase:
         
         self.stopTest()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

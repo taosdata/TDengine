@@ -1,24 +1,15 @@
-import taos
-import sys
-import datetime
-import inspect
+from new_test_framework.utils import tdLog, tdSql
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-import random
+class TestFunctionNull:
 
-
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
-        self.tb_nums = 10
-        self.row_nums = 20
-        self.ts = 1434938400000
-        self.time_step = 1000
+        #tdSql.init(conn.cursor(), logSql)
+        cls.tb_nums = 10
+        cls.row_nums = 20
+        cls.ts = 1434938400000
+        cls.time_step = 1000
 
     def prepare_tag_datas(self, dbname="testdb"):
         # prepare datas
@@ -231,7 +222,26 @@ class TDTestCase:
         tdSql.query(f"select pow(c1/0 ,1 ) from {dbname}.t1 group by c1 order by c1")
         tdSql.checkData(9,0,None)
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_function_null(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
@@ -242,11 +252,5 @@ class TDTestCase:
 
         self.function_for_null_data()
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

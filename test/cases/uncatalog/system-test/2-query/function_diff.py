@@ -16,20 +16,19 @@ import subprocess
 import random
 import math
 import numpy as np
-import inspect
+import platform
 import re
+import time
 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import *
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
 
 msec_per_min=60*1000
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+class TestFunctionDiff:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def diff_query_form(self, col="c1",  alias="", table_expr="db.t1", condition=""):
 
@@ -453,7 +452,26 @@ class TDTestCase:
         self.diff_current_query()
         self.diff_error_query()
 
-    def run(self):
+    def test_function_diff(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         import traceback
         try:
             # run in  develop branch
@@ -464,10 +482,5 @@ class TDTestCase:
             traceback.print_exc()
             raise e
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

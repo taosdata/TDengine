@@ -1,33 +1,30 @@
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.gettime import *
-class TDTestCase:
+from new_test_framework.utils import tdLog, tdSql, gettime
+class TestTimediff:
 
     updatecfgDict = {'keepColumnName': 1}
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        self.get_time = GetTime()
-        self.ts_str = [
+        #tdSql.init(conn.cursor(), logSql)
+        cls.get_time = gettime.GetTime()
+        cls.ts_str = [
             '2020-1-1',
             '2020-2-1 00:00:01',
             '2020-3-1 00:00:00.001',
             '2020-4-1 00:00:00.001002',
             '2020-5-1 00:00:00.001002001'
 
-        ]
-        self.rest_tag = str(conn).lower().split('.')[0].replace("<taos","")
-        self.db_param_precision = ['ms','us','ns']
-        self.time_unit = ['1w','1d','1h','1m','1s','1a','1u','1b']
-        self.error_unit = ['2w','2d','2h','2m','2s','2a','2u','1c','#1']
-        self.dbname = 'db'
-        self.ntbname = f'{self.dbname}.ntb'
-        self.stbname = f'{self.dbname}.stb'
-        self.ctbname = f'{self.dbname}.ctb'
-        self.subtractor = 1  # unit:s
+        ]        
+        cls.db_param_precision = ['ms','us','ns']
+        cls.time_unit = ['1w','1d','1h','1m','1s','1a','1u','1b']
+        cls.error_unit = ['2w','2d','2h','2m','2s','2a','2u','1c','#1']
+        cls.dbname = 'db'
+        cls.ntbname = f'{cls.dbname}.ntb'
+        cls.stbname = f'{cls.dbname}.stb'
+        cls.ctbname = f'{cls.dbname}.ctb'
+        cls.subtractor = 1  
+
     def check_tbtype(self,tb_type):
         if tb_type.lower() == 'ntb':
             tdSql.query(f'select timediff(ts,{self.subtractor}) from {self.ntbname}')
@@ -198,17 +195,32 @@ class TDTestCase:
         tdSql.query(f'select timediff(last(ts), first(ts)) from {self.ntbname}')
         tdSql.checkData(0, 0, 60000)
 
+    def test_Timediff(self):
+        """summary: xxx
 
+        description: xxx
 
-    def run(self):  # sourcery skip: extract-duplicate-method
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+        # sourcery skip: extract-duplicate-method
+        self.rest_tag = str(self.conn).lower().split('.')[0].replace("<taos","")
+        
         self.function_check_ntb()
         self.function_check_stb()
         self.function_without_param()
         self.function_multi_res_param()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

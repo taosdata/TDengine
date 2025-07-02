@@ -17,59 +17,55 @@ import time
 import taos
 import subprocess
 from faker import Faker
-from util.log import tdLog
-from util.cases import tdCases
-from util.sql import tdSql
-from util.dnodes import tdDnodes
-from util.dnodes import *
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase:
+
+class TestParaTms:
     updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 131 ,"cDebugFlag":131,"uDebugFlag":131 ,"rpcDebugFlag":131 , "tmrDebugFlag":131 ,
     "jniDebugFlag":131 ,"simDebugFlag":131,"dDebugFlag":131, "dDebugFlag":131,"vDebugFlag":131,"mDebugFlag":131,"qDebugFlag":131,
     "wDebugFlag":131,"sDebugFlag":131,"tsdbDebugFlag":131,"tqDebugFlag":131 ,"fsDebugFlag":131 ,"fnDebugFlag":131}
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
 
-        self.testcasePath = os.path.split(__file__)[0]
-        self.testcaseFilename = os.path.split(__file__)[-1]
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf %s/%s.sql" % (cls.testcasePath,cls.testcaseFilename))
 
-        self.num = 10
-        self.fornum = 5
+        cls.num = 10
+        cls.fornum = 5
 
-        self.db_nest = "stab"
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        cls.db_nest = "stab"
+        cls.dropandcreateDB_random("%s" %cls.db_nest, 1)
 
         # regular column select
-        self.q_select= ['q_int', 'q_bigint' , 'q_bigint' , 'q_smallint' , 'q_tinyint' , 'q_bool' , 'q_binary' , 'q_nchar' ,'q_float' , 'q_double' ,'q_ts ', 'q_int_null ', 'q_bigint_null ' , 'q_bigint_null ' , 'q_smallint_null ' , 'q_tinyint_null ' , 'q_bool_null ' , 'q_binary_null ' , 'q_nchar_null ' ,'q_float_null ' , 'q_double_null ' ,'q_ts_null ']
+        cls.q_select= ['q_int', 'q_bigint' , 'q_bigint' , 'q_smallint' , 'q_tinyint' , 'q_bool' , 'q_binary' , 'q_nchar' ,'q_float' , 'q_double' ,'q_ts ', 'q_int_null ', 'q_bigint_null ' , 'q_bigint_null ' , 'q_smallint_null ' , 'q_tinyint_null ' , 'q_bool_null ' , 'q_binary_null ' , 'q_nchar_null ' ,'q_float_null ' , 'q_double_null ' ,'q_ts_null ']
 
         # tag column select
-        self.t_select= ['loc','t_int', 't_bigint' , 't_bigint' , 't_smallint' , 't_tinyint' , 't_bool' , 't_binary' , 't_nchar' ,'t_float' , 't_double' ,'t_ts ']
+        cls.t_select= ['loc','t_int', 't_bigint' , 't_bigint' , 't_smallint' , 't_tinyint' , 't_bool' , 't_binary' , 't_nchar' ,'t_float' , 't_double' ,'t_ts ']
 
         # regular and tag column select
-        self.qt_select=  self.q_select + self.t_select
+        cls.qt_select=  cls.q_select + cls.t_select
 
         # distinct regular column select
-        self.dq_select= ['distinct q_int', 'distinct q_bigint' , 'distinct q_smallint' , 'distinct q_tinyint' ,
+        cls.dq_select= ['distinct q_int', 'distinct q_bigint' , 'distinct q_smallint' , 'distinct q_tinyint' ,
                 'distinct q_bool' , 'distinct q_binary' , 'distinct q_nchar' ,'distinct q_float' , 'distinct q_double' ,'distinct q_ts ']
 
         # distinct tag column select
-        self.dt_select= ['distinct loc', 'distinct t_int', 'distinct t_bigint'  , 'distinct t_smallint' , 'distinct t_tinyint' ,
+        cls.dt_select= ['distinct loc', 'distinct t_int', 'distinct t_bigint'  , 'distinct t_smallint' , 'distinct t_tinyint' ,
                 'distinct t_bool' , 'distinct t_binary' , 'distinct t_nchar' ,'distinct t_float' , 'distinct t_double' ,'distinct t_ts ']
 
         # distinct regular and tag column select
-        self.dqt_select= self.dq_select + self.dt_select
+        cls.dqt_select= cls.dq_select + cls.dt_select
 
         # special column select
-        self.s_r_select= ['_c0', '_rowts' , '_C0' ]
-        self.s_s_select= ['tbname' , '_rowts' , '_c0', '_C0' ]
-        self.unionall_or_union= [ ' union ' , ' union all ' ]
+        cls.s_r_select= ['_c0', '_rowts' , '_C0' ]
+        cls.s_s_select= ['tbname' , '_rowts' , '_c0', '_C0' ]
+        cls.unionall_or_union= [ ' union ' , ' union all ' ]
 
         # regular column where
-        self.q_where = ['ts < now +1s','q_bigint >= -9223372036854775807 and q_bigint <= 9223372036854775807', 'q_int <= 2147483647 and q_int >= -2147483647',
+        cls.q_where = ['ts < now +1s','q_bigint >= -9223372036854775807 and q_bigint <= 9223372036854775807', 'q_int <= 2147483647 and q_int >= -2147483647',
         'q_smallint >= -32767 and q_smallint <= 32767','q_tinyint >= -127 and q_tinyint <= 127','q_float >= -1.7E308 and q_float <= 1.7E308',
         'q_double >= -1.7E308 and q_double <= 1.7E308', 'q_binary like \'binary%\'  or q_binary = \'0\' ' , 'q_nchar like \'nchar%\' or q_nchar = \'0\' ' ,
         'q_bool = true or  q_bool = false' , 'q_bool in (0 , 1)' , 'q_bool in ( true , false)' , 'q_bool = 0 or q_bool = 1',
@@ -83,7 +79,7 @@ class TDTestCase:
         #TD-6201 ,'q_bool between 0 and 1'
 
         # regular column where for test union,join
-        self.q_u_where = ['t1.ts < now +1s' , 't2.ts < now +1s','t1.q_bigint >= -9223372036854775807 and t1.q_bigint <= 9223372036854775807 and t2.q_bigint >= -9223372036854775807 and t2.q_bigint <= 9223372036854775807',
+        cls.q_u_where = ['t1.ts < now +1s' , 't2.ts < now +1s','t1.q_bigint >= -9223372036854775807 and t1.q_bigint <= 9223372036854775807 and t2.q_bigint >= -9223372036854775807 and t2.q_bigint <= 9223372036854775807',
         't1.q_int <= 2147483647 and t1.q_int >= -2147483647 and t2.q_int <= 2147483647 and t2.q_int >= -2147483647',
         't1.q_smallint >= -32767 and t1.q_smallint <= 32767 and t2.q_smallint >= -32767 and t2.q_smallint <= 32767',
         't1.q_tinyint >= -127 and t1.q_tinyint <= 127 and t2.q_tinyint >= -127 and t2.q_tinyint <= 127',
@@ -105,7 +101,7 @@ class TDTestCase:
         #TD-6201 ,'t1.q_bool between 0 and 1 or t2.q_bool between 0 and 1']
         #'t1.q_bool = true and  t1.q_bool = false and t2.q_bool = true and  t2.q_bool = false' , 't1.q_bool = 0 and t1.q_bool = 1 and t2.q_bool = 0 and t2.q_bool = 1' ,
 
-        self.q_u_or_where = ['(t1.q_binary like \'binary%\'  or t1.q_binary = \'0\'  or t2.q_binary like \'binary%\'  or t2.q_binary = \'0\' )' ,
+        cls.q_u_or_where = ['(t1.q_binary like \'binary%\'  or t1.q_binary = \'0\'  or t2.q_binary like \'binary%\'  or t2.q_binary = \'0\' )' ,
         '(t1.q_nchar like \'nchar%\' or t1.q_nchar = \'0\' or t2.q_nchar like \'nchar%\' or t2.q_nchar = \'0\' )' , '(t1.q_bool = true or  t1.q_bool = false or t2.q_bool = true or  t2.q_bool = false)' ,
         '(t1.q_bool in (0 , 1) or t2.q_bool in (0 , 1))' , '(t1.q_bool in ( true , false) or t2.q_bool in ( true , false))' , '(t1.q_bool = 0 or t1.q_bool = 1 or t2.q_bool = 0 or t2.q_bool = 1)' ,
         '(t1.q_bigint between  -9223372036854775807 and 9223372036854775807 or t2.q_bigint between  -9223372036854775807 and 9223372036854775807)',
@@ -115,7 +111,7 @@ class TDTestCase:
         '(t1.q_double between -1.7E308 and 1.7E308 or t2.q_double between -1.7E308 and 1.7E308)']
 
         # tag column where
-        self.t_where = ['ts < now +1s','t_bigint >= -9223372036854775807 and t_bigint <= 9223372036854775807','t_int <= 2147483647 and t_int >= -2147483647',
+        cls.t_where = ['ts < now +1s','t_bigint >= -9223372036854775807 and t_bigint <= 9223372036854775807','t_int <= 2147483647 and t_int >= -2147483647',
         't_smallint >= -32767 and t_smallint <= 32767','q_tinyint >= -127 and t_tinyint <= 127','t_float >= -1.7E308 and t_float <= 1.7E308',
         't_double >= -1.7E308 and t_double <= 1.7E308', 't_binary like \'binary%\'   or t_binary = \'0\' ' , 't_nchar like \'nchar%\' or t_nchar = \'0\'' ,
         't_bool = true or  t_bool = false' , 't_bool in (0 , 1)' , 't_bool in ( true , false)' , 't_bool = 0 or t_bool = 1',
@@ -127,7 +123,7 @@ class TDTestCase:
         'tbname match \'[^stable]\' ','tbname nmatch \'[^qwwerrwee]\' ','loc match \'[^stable]\' ','loc nmatch \'[^qwwerrwee]\' ',]
 
         # tag column where for test  union,join | this is not support
-        self.t_u_where = ['t1.ts < now +1s' , 't2.ts < now +1s','t1.t_bigint >= -9223372036854775807 and t1.t_bigint <= 9223372036854775807 and t2.t_bigint >= -9223372036854775807 and t2.t_bigint <= 9223372036854775807',
+        cls.t_u_where = ['t1.ts < now +1s' , 't2.ts < now +1s','t1.t_bigint >= -9223372036854775807 and t1.t_bigint <= 9223372036854775807 and t2.t_bigint >= -9223372036854775807 and t2.t_bigint <= 9223372036854775807',
         't1.t_int <= 2147483647 and t1.t_int >= -2147483647 and t2.t_int <= 2147483647 and t2.t_int >= -2147483647',
         't1.t_smallint >= -32767 and t1.t_smallint <= 32767 and t2.t_smallint >= -32767 and t2.t_smallint <= 32767',
         't1.t_tinyint >= -127 and t1.t_tinyint <= 127 and t2.t_tinyint >= -127 and t2.t_tinyint <= 127',
@@ -148,7 +144,7 @@ class TDTestCase:
         '(t1.t_nchar match \'[stable]\'  and t2.t_nchar match \'[stable]\')','(t1.t_nchar nmatch \'[qqeqweq]\'  and t2.t_nchar nmatch \'[eqeqweq]\')',
         '(t1.t_nchar match \'[^stable]\'  and t2.t_nchar match \'[^stable]\')','(t1.t_nchar nmatch \'[^qqeqweq]\'  and t2.t_nchar nmatch \'[^eqeqweq]\')']
 
-        self.t_u_or_where = ['(t1.t_binary like \'binary%\'  or t1.t_binary = \'0\'  or t2.t_binary like \'binary%\'  or t2.t_binary = \'0\' )' ,
+        cls.t_u_or_where = ['(t1.t_binary like \'binary%\'  or t1.t_binary = \'0\'  or t2.t_binary like \'binary%\'  or t2.t_binary = \'0\' )' ,
         '(t1.t_nchar like \'nchar%\' or t1.t_nchar = \'0\' or t2.t_nchar like \'nchar%\' or t2.t_nchar = \'0\' )' , '(t1.t_bool = true or  t1.t_bool = false or t2.t_bool = true or  t2.t_bool = false)' ,
         '(t1.t_bool in (0 , 1) or t2.t_bool in (0 , 1))' , '(t1.t_bool in ( true , false) or t2.t_bool in ( true , false))' , '(t1.t_bool = 0 or t1.t_bool = 1 or t2.t_bool = 0 or t2.t_bool = 1)',
         '(t1.t_bigint between  -9223372036854775807 and 9223372036854775807 or t2.t_bigint between  -9223372036854775807 and 9223372036854775807)',
@@ -164,38 +160,38 @@ class TDTestCase:
         '(t1.t_nchar match \'[^stable]\'  or t2.t_nchar match \'[^stable]\')','(t1.t_nchar nmatch \'[^qqeqweq]\'  or t2.t_nchar nmatch \'[^eqeqweq]\')']
 
         # regular and tag column where
-        self.qt_where = self.q_where + self.t_where
-        self.qt_u_where = self.q_u_where + self.t_u_where
-        self.qt_u_or_where = self.q_u_or_where + self.t_u_or_where
+        cls.qt_where = cls.q_where + cls.t_where
+        cls.qt_u_where = cls.q_u_where + cls.t_u_where
+        cls.qt_u_or_where = cls.q_u_or_where + cls.t_u_or_where
 
         # tag column where for test super join | this is  support  , 't1.t_bool = t2.t_bool ' ？？？
-        self.t_join_where = ['t1.t_bigint = t2.t_bigint ', 't1.t_int = t2.t_int ', 't1.t_smallint = t2.t_smallint ', 't1.t_tinyint = t2.t_tinyint ',
+        cls.t_join_where = ['t1.t_bigint = t2.t_bigint ', 't1.t_int = t2.t_int ', 't1.t_smallint = t2.t_smallint ', 't1.t_tinyint = t2.t_tinyint ',
                     't1.t_float = t2.t_float ', 't1.t_double = t2.t_double ', 't1.t_binary = t2.t_binary ' , 't1.t_nchar = t2.t_nchar  ' ]
 
         # session && fill
-        self.session_where = ['session(ts,10a)' , 'session(ts,10s)', 'session(ts,10m)' , 'session(ts,10h)','session(ts,10d)' , 'session(ts,10w)']
-        self.session_u_where = ['session(t1.ts,10a)' , 'session(t1.ts,10s)', 'session(t1.ts,10m)' , 'session(t1.ts,10h)','session(t1.ts,10d)' , 'session(t1.ts,10w)',
+        cls.session_where = ['session(ts,10a)' , 'session(ts,10s)', 'session(ts,10m)' , 'session(ts,10h)','session(ts,10d)' , 'session(ts,10w)']
+        cls.session_u_where = ['session(t1.ts,10a)' , 'session(t1.ts,10s)', 'session(t1.ts,10m)' , 'session(t1.ts,10h)','session(t1.ts,10d)' , 'session(t1.ts,10w)',
                     'session(t2.ts,10a)' , 'session(t2.ts,10s)', 'session(t2.ts,10m)' , 'session(t2.ts,10h)','session(t2.ts,10d)' , 'session(t2.ts,10w)']
 
-        self.fill_where = ['FILL(NONE)','FILL(PREV)','FILL(NULL)','FILL(LINEAR)','FILL(NEXT)','FILL(VALUE, 1.23)']
+        cls.fill_where = ['FILL(NONE)','FILL(PREV)','FILL(NULL)','FILL(LINEAR)','FILL(NEXT)','FILL(VALUE, 1.23)']
 
-        self.state_window = ['STATE_WINDOW(q_tinyint)','STATE_WINDOW(q_bigint)','STATE_WINDOW(q_int)','STATE_WINDOW(q_bool)','STATE_WINDOW(q_smallint)']
-        self.state_u_window = ['STATE_WINDOW(t1.q_tinyint)','STATE_WINDOW(t1.q_bigint)','STATE_WINDOW(t1.q_int)','STATE_WINDOW(t1.q_bool)','STATE_WINDOW(t1.q_smallint)',
+        cls.state_window = ['STATE_WINDOW(q_tinyint)','STATE_WINDOW(q_bigint)','STATE_WINDOW(q_int)','STATE_WINDOW(q_bool)','STATE_WINDOW(q_smallint)']
+        cls.state_u_window = ['STATE_WINDOW(t1.q_tinyint)','STATE_WINDOW(t1.q_bigint)','STATE_WINDOW(t1.q_int)','STATE_WINDOW(t1.q_bool)','STATE_WINDOW(t1.q_smallint)',
                     'STATE_WINDOW(t2.q_tinyint)','STATE_WINDOW(t2.q_bigint)','STATE_WINDOW(t2.q_int)','STATE_WINDOW(t2.q_bool)','STATE_WINDOW(t2.q_smallint)']
 
         # order by where
-        self.order_where = ['order by ts' , 'order by ts asc']
-        self.order_u_where = ['order by t1.ts' , 'order by t1.ts asc' , 'order by t2.ts' , 'order by t2.ts asc']
-        self.order_desc_where = ['order by ts' , 'order by ts asc' , 'order by ts desc' ]
-        self.orders_desc_where = ['order by ts' , 'order by ts asc' , 'order by ts desc' , 'order by ts,loc' , 'order by ts,loc asc' , 'order by ts,loc desc']
+        cls.order_where = ['order by ts' , 'order by ts asc']
+        cls.order_u_where = ['order by t1.ts' , 'order by t1.ts asc' , 'order by t2.ts' , 'order by t2.ts asc']
+        cls.order_desc_where = ['order by ts' , 'order by ts asc' , 'order by ts desc' ]
+        cls.orders_desc_where = ['order by ts' , 'order by ts asc' , 'order by ts desc' , 'order by ts,loc' , 'order by ts,loc asc' , 'order by ts,loc desc']
 
-        self.group_where = ['group by tbname , loc' , 'group by tbname', 'group by tbname, t_bigint', 'group by tbname,t_int', 'group by tbname, t_smallint', 'group by tbname,t_tinyint',
+        cls.group_where = ['group by tbname , loc' , 'group by tbname', 'group by tbname, t_bigint', 'group by tbname,t_int', 'group by tbname, t_smallint', 'group by tbname,t_tinyint',
                     'group by tbname,t_float', 'group by tbname,t_double' , 'group by tbname,t_binary', 'group by tbname,t_nchar', 'group by tbname,t_bool' ,'group by tbname ,loc ,t_bigint',
                     'group by tbname,t_binary ,t_nchar ,t_bool' , 'group by tbname,t_int ,t_smallint ,t_tinyint' , 'group by tbname,t_float ,t_double ' ,
                     'PARTITION BY tbname , loc' , 'PARTITION BY tbname', 'PARTITION BY tbname, t_bigint', 'PARTITION BY tbname,t_int', 'PARTITION BY tbname, t_smallint', 'PARTITION BY tbname,t_tinyint',
                     'PARTITION BY tbname,t_float', 'PARTITION BY tbname,t_double' , 'PARTITION BY tbname,t_binary', 'PARTITION BY tbname,t_nchar', 'PARTITION BY tbname,t_bool' ,'PARTITION BY tbname ,loc ,t_bigint',
                     'PARTITION BY tbname,t_binary ,t_nchar ,t_bool' , 'PARTITION BY tbname,t_int ,t_smallint ,t_tinyint' , 'PARTITION BY tbname,t_float ,t_double ']
-        self.group_where_j = ['group by  t1.loc' , 'group by t1.t_bigint', 'group by t1.t_int', 'group by t1.t_smallint', 'group by t1.t_tinyint',
+        cls.group_where_j = ['group by  t1.loc' , 'group by t1.t_bigint', 'group by t1.t_int', 'group by t1.t_smallint', 'group by t1.t_tinyint',
                     'group by t1.t_float', 'group by t1.t_double' , 'group by t1.t_binary', 'group by t1.t_nchar', 'group by t1.t_bool' ,'group by t1.loc ,t1.t_bigint',
                     'group by t1.t_binary ,t1.t_nchar ,t1.t_bool' , 'group by t1.t_int ,t1.t_smallint ,t1.t_tinyint' , 'group by t1.t_float ,t1.t_double ' ,
                     'PARTITION BY t1.loc' , 'PARTITION by t1.t_bigint', 'PARTITION by t1.t_int', 'PARTITION by t1.t_smallint', 'PARTITION by t1.t_tinyint',
@@ -208,33 +204,33 @@ class TDTestCase:
                     'PARTITION by t2.t_float', 'PARTITION by t2.t_double' , 'PARTITION by t2.t_binary', 'PARTITION by t2.t_nchar', 'PARTITION by t2.t_bool' ,'PARTITION BY t2.loc ,t2.t_bigint',
                     'PARTITION by t2.t_binary ,t2.t_nchar ,t2.t_bool' , 'PARTITION by t2.t_int ,t2.t_smallint ,t2.t_tinyint' , 'PARTITION by t2.t_float ,t2.t_double ']
 
-        self.group_only_where = ['group by tbname , loc' , 'group by tbname', 'group by tbname, t_bigint', 'group by tbname,t_int', 'group by tbname, t_smallint', 'group by tbname,t_tinyint',
+        cls.group_only_where = ['group by tbname , loc' , 'group by tbname', 'group by tbname, t_bigint', 'group by tbname,t_int', 'group by tbname, t_smallint', 'group by tbname,t_tinyint',
                     'group by tbname,t_float', 'group by tbname,t_double' , 'group by tbname,t_binary', 'group by tbname,t_nchar', 'group by tbname,t_bool' ,'group by tbname ,loc ,t_bigint',
                     'group by tbname,t_binary ,t_nchar ,t_bool' , 'group by tbname,t_int ,t_smallint ,t_tinyint' , 'group by tbname,t_float ,t_double ' ]
-        self.group_only_where_j = ['group by  t1.loc' , 'group by t1.t_bigint', 'group by t1.t_int', 'group by t1.t_smallint', 'group by t1.t_tinyint',
+        cls.group_only_where_j = ['group by  t1.loc' , 'group by t1.t_bigint', 'group by t1.t_int', 'group by t1.t_smallint', 'group by t1.t_tinyint',
                     'group by t1.t_float', 'group by t1.t_double' , 'group by t1.t_binary', 'group by t1.t_nchar', 'group by t1.t_bool' ,'group by t1.loc ,t1.t_bigint',
                     'group by t1.t_binary ,t1.t_nchar ,t1.t_bool' , 'group by t1.t_int ,t1.t_smallint ,t1.t_tinyint' , 'group by t1.t_float ,t1.t_double ' ,
                     'group by  t2.loc' , 'group by t2.t_bigint', 'group by t2.t_int', 'group by t2.t_smallint', 'group by t2.t_tinyint',
                     'group by t2.t_float', 'group by t2.t_double' , 'group by t2.t_binary', 'group by t2.t_nchar', 'group by t2.t_bool' ,'group by t2.loc ,t2.t_bigint',
                     'group by t2.t_binary ,t2.t_nchar ,t2.t_bool' , 'group by t2.t_int ,t2.t_smallint ,t2.t_tinyint' , 'group by t2.t_float ,t2.t_double ' ]
 
-        self.partiton_where = ['PARTITION BY tbname , loc' , 'PARTITION BY tbname', 'PARTITION BY tbname, t_bigint', 'PARTITION BY tbname,t_int', 'PARTITION BY tbname, t_smallint', 'PARTITION BY tbname,t_tinyint',
+        cls.partiton_where = ['PARTITION BY tbname , loc' , 'PARTITION BY tbname', 'PARTITION BY tbname, t_bigint', 'PARTITION BY tbname,t_int', 'PARTITION BY tbname, t_smallint', 'PARTITION BY tbname,t_tinyint',
                     'PARTITION BY tbname,t_float', 'PARTITION BY tbname,t_double' , 'PARTITION BY tbname,t_binary', 'PARTITION BY tbname,t_nchar', 'PARTITION BY tbname,t_bool' ,'PARTITION BY tbname ,loc ,t_bigint',
                     'PARTITION BY tbname,t_binary ,t_nchar ,t_bool' , 'PARTITION BY tbname,t_int ,t_smallint ,t_tinyint' , 'PARTITION BY tbname,t_float ,t_double ']
-        self.partiton_where_j = ['PARTITION BY t1.loc' , 'PARTITION by t1.t_bigint', 'PARTITION by t1.t_int', 'PARTITION by t1.t_smallint', 'PARTITION by t1.t_tinyint',
+        cls.partiton_where_j = ['PARTITION BY t1.loc' , 'PARTITION by t1.t_bigint', 'PARTITION by t1.t_int', 'PARTITION by t1.t_smallint', 'PARTITION by t1.t_tinyint',
                     'PARTITION by t1.t_float', 'PARTITION by t1.t_double' , 'PARTITION by t1.t_binary', 'PARTITION by t1.t_nchar', 'PARTITION by t1.t_bool' ,'PARTITION BY t1.loc ,t1.t_bigint',
                     'PARTITION by t1.t_binary ,t1.t_nchar ,t1.t_bool' , 'PARTITION by t1.t_int ,t1.t_smallint ,t1.t_tinyint' , 'PARTITION by t1.t_float ,t1.t_double ',
                     'PARTITION BY t2.loc' , 'PARTITION by t2.t_bigint', 'PARTITION by t2.t_int', 'PARTITION by t2.t_smallint', 'PARTITION by t2.t_tinyint',
                     'PARTITION by t2.t_float', 'PARTITION by t2.t_double' , 'PARTITION by t2.t_binary', 'PARTITION by t2.t_nchar', 'PARTITION by t2.t_bool' ,'PARTITION BY t2.loc ,t2.t_bigint',
                     'PARTITION by t2.t_binary ,t2.t_nchar ,t2.t_bool' , 'PARTITION by t2.t_int ,t2.t_smallint ,t2.t_tinyint' , 'PARTITION by t2.t_float ,t2.t_double ']
 
-        self.group_where_regular = ['group by tbname ' , 'group by tbname', 'group by tbname, q_bigint', 'group by tbname,q_int', 'group by tbname, q_smallint', 'group by tbname,q_tinyint',
+        cls.group_where_regular = ['group by tbname ' , 'group by tbname', 'group by tbname, q_bigint', 'group by tbname,q_int', 'group by tbname, q_smallint', 'group by tbname,q_tinyint',
                     'group by tbname,q_float', 'group by tbname,q_double' , 'group by tbname,q_binary', 'group by tbname,q_nchar', 'group by tbname,q_bool' ,'group by tbname ,q_bigint',
                     'group by tbname,q_binary ,q_nchar ,q_bool' , 'group by tbname,q_int ,q_smallint ,q_tinyint' , 'group by tbname,q_float ,q_double ' ,
                     'PARTITION BY tbname ' , 'PARTITION BY tbname', 'PARTITION BY tbname, q_bigint', 'PARTITION BY tbname,q_int', 'PARTITION BY tbname, q_smallint', 'PARTITION BY tbname,q_tinyint',
                     'PARTITION BY tbname,q_float', 'PARTITION BY tbname,q_double' , 'PARTITION BY tbname,q_binary', 'PARTITION BY tbname,q_nchar', 'PARTITION BY tbname,q_bool' ,'PARTITION BY tbname ,q_bigint',
                     'PARTITION BY tbname,q_binary ,q_nchar ,q_bool' , 'PARTITION BY tbname,q_int ,q_smallint ,q_tinyint' , 'PARTITION BY tbname,q_float ,q_double ']
-        self.group_where_regular_j = ['group by t1.q_bigint', 'group by t1.q_int', 'group by t1.q_smallint', 'group by t1.q_tinyint',
+        cls.group_where_regular_j = ['group by t1.q_bigint', 'group by t1.q_int', 'group by t1.q_smallint', 'group by t1.q_tinyint',
                     'group by t1.q_float', 'group by t1.q_double' , 'group by t1.q_binary', 'group by t1.q_nchar', 'group by t1.q_bool' ,'group by t1.q_bigint',
                     'group by t1.q_binary ,t1.q_nchar ,t1.q_bool' , 'group by t1.q_int ,t1.q_smallint ,t1.q_tinyint' , 'group by t1.q_float ,t1.q_double ' ,
                     'PARTITION by t1.q_bigint', 'PARTITION by t1.q_int', 'PARTITION by t1.q_smallint', 'PARTITION by t1.q_tinyint',
@@ -247,17 +243,17 @@ class TDTestCase:
                     'PARTITION by t2.q_float', 'PARTITION by t2.q_double' , 'PARTITION by t2.q_binary', 'PARTITION by t2.q_nchar', 'PARTITION by t2.q_bool' ,'PARTITION BY t2.q_bigint',
                     'PARTITION by t2.q_binary ,t2.q_nchar ,t2.q_bool' , 'PARTITION by t2.q_int ,t2.q_smallint ,t2.q_tinyint' , 'PARTITION by t2.q_float ,t2.q_double ']
 
-        self.partiton_where_regular = ['PARTITION BY tbname ' , 'PARTITION BY tbname', 'PARTITION BY tbname, q_bigint', 'PARTITION BY tbname,q_int', 'PARTITION BY tbname, q_smallint', 'PARTITION BY tbname,q_tinyint',
+        cls.partiton_where_regular = ['PARTITION BY tbname ' , 'PARTITION BY tbname', 'PARTITION BY tbname, q_bigint', 'PARTITION BY tbname,q_int', 'PARTITION BY tbname, q_smallint', 'PARTITION BY tbname,q_tinyint',
                     'PARTITION BY tbname,q_float', 'PARTITION BY tbname,q_double' , 'PARTITION BY tbname,q_binary', 'PARTITION BY tbname,q_nchar', 'PARTITION BY tbname,q_bool' ,'PARTITION BY tbname ,q_bigint',
                     'PARTITION BY tbname,q_binary ,q_nchar ,q_bool' , 'PARTITION BY tbname,q_int ,q_smallint ,q_tinyint' , 'PARTITION BY tbname,q_float ,q_double ']
-        self.partiton_where_regular_j = ['PARTITION by t1.q_bigint', 'PARTITION by t1.q_int', 'PARTITION by t1.q_smallint', 'PARTITION by t1.q_tinyint',
+        cls.partiton_where_regular_j = ['PARTITION by t1.q_bigint', 'PARTITION by t1.q_int', 'PARTITION by t1.q_smallint', 'PARTITION by t1.q_tinyint',
                     'PARTITION by t1.q_float', 'PARTITION by t1.q_double' , 'PARTITION by t1.q_binary', 'PARTITION by t1.q_nchar', 'PARTITION by t1.q_bool' ,'PARTITION BY t1.q_bigint',
                     'PARTITION by t1.q_binary ,t1.q_nchar ,t1.q_bool' , 'PARTITION by t1.q_int ,t1.q_smallint ,t1.q_tinyint' , 'PARTITION by t1.q_float ,t1.q_double ',
                     'PARTITION by t2.q_bigint', 'PARTITION by t2.q_int', 'PARTITION by t2.q_smallint', 'PARTITION by t2.q_tinyint',
                     'PARTITION by t2.q_float', 'PARTITION by t2.q_double' , 'PARTITION by t2.q_binary', 'PARTITION by t2.q_nchar', 'PARTITION by t2.q_bool' ,'PARTITION BY t2.q_bigint',
                     'PARTITION by t2.q_binary ,t2.q_nchar ,t2.q_bool' , 'PARTITION by t2.q_int ,t2.q_smallint ,t2.q_tinyint' , 'PARTITION by t2.q_float ,t2.q_double ']
 
-        self.having_support = ['having count(q_int) > 0','having count(q_bigint) > 0','having count(q_smallint) > 0','having count(q_tinyint) > 0','having count(q_float) > 0','having count(q_double) > 0','having count(q_bool) > 0',
+        cls.having_support = ['having count(q_int) > 0','having count(q_bigint) > 0','having count(q_smallint) > 0','having count(q_tinyint) > 0','having count(q_float) > 0','having count(q_double) > 0','having count(q_bool) > 0',
                     'having avg(q_int) > 0','having avg(q_bigint) > 0','having avg(q_smallint) > 0','having avg(q_tinyint) > 0','having avg(q_float) > 0','having avg(q_double) > 0',
                     'having sum(q_int) > 0','having sum(q_bigint) > 0','having sum(q_smallint) > 0','having sum(q_tinyint) > 0','having sum(q_float) > 0','having sum(q_double) > 0',
                     'having STDDEV(q_int) > 0','having STDDEV(q_bigint) > 0','having STDDEV(q_smallint) > 0','having STDDEV(q_tinyint) > 0','having STDDEV(q_float) > 0','having STDDEV(q_double) > 0',
@@ -279,7 +275,7 @@ class TDTestCase:
                     'having FIRST(q_int_null) > 0','having FIRST(q_bigint_null) > 0','having FIRST(q_smallint_null) > 0','having FIRST(q_tinyint_null) > 0','having FIRST(q_float_null) > 0','having FIRST(q_double_null) > 0',
                     'having LAST(q_int_null) > 0','having LAST(q_bigint_null) > 0','having LAST(q_smallint_null) > 0','having LAST(q_tinyint_null) > 0','having LAST(q_float_null) > 0','having LAST(q_double_null) > 0',
                     'having APERCENTILE(q_int_null,10) > 0','having APERCENTILE(q_bigint_null,10) > 0','having APERCENTILE(q_smallint_null,10) > 0','having APERCENTILE(q_tinyint_null,10) > 0','having APERCENTILE(q_float_null,10) > 0','having APERCENTILE(q_double_null,10) > 0']
-        self.having_not_support = ['having TOP(q_int,10) > 0','having TOP(q_bigint,10) > 0','having TOP(q_smallint,10) > 0','having TOP(q_tinyint,10) > 0','having TOP(q_float,10) > 0','having TOP(q_double,10) > 0','having TOP(q_bool,10) > 0',
+        cls.having_not_support = ['having TOP(q_int,10) > 0','having TOP(q_bigint,10) > 0','having TOP(q_smallint,10) > 0','having TOP(q_tinyint,10) > 0','having TOP(q_float,10) > 0','having TOP(q_double,10) > 0','having TOP(q_bool,10) > 0',
                     'having BOTTOM(q_int,10) > 0','having BOTTOM(q_bigint,10) > 0','having BOTTOM(q_smallint,10) > 0','having BOTTOM(q_tinyint,10) > 0','having BOTTOM(q_float,10) > 0','having BOTTOM(q_double,10) > 0','having BOTTOM(q_bool,10) > 0',
                     'having LEASTSQUARES(q_int) > 0','having  LEASTSQUARES(q_bigint) > 0','having  LEASTSQUARES(q_smallint) > 0','having  LEASTSQUARES(q_tinyint) > 0','having  LEASTSQUARES(q_float) > 0','having  LEASTSQUARES(q_double) > 0','having  LEASTSQUARES(q_bool) > 0',
                     'having FIRST(q_bool) > 0','having IRATE(q_bool) > 0','having PERCENTILE(q_bool,10) > 0','having avg(q_bool) > 0','having LAST_ROW(q_bool) > 0','having sum(q_bool) > 0','having STDDEV(q_bool) > 0','having APERCENTILE(q_bool,10) > 0','having  TWA(q_bool) > 0','having LAST(q_bool) > 0',
@@ -289,10 +285,10 @@ class TDTestCase:
                     'having LEASTSQUARES(q_int_null) > 0','having  LEASTSQUARES(q_bigint_null) > 0','having  LEASTSQUARES(q_smallint_null) > 0','having  LEASTSQUARES(q_tinyint_null) > 0','having  LEASTSQUARES(q_float_null) > 0','having  LEASTSQUARES(q_double_null) > 0','having  LEASTSQUARES(q_bool_null) > 0',
                     'having FIRST(q_bool_null) > 0','having IRATE(q_bool_null) > 0','having PERCENTILE(q_bool_null,10) > 0','having avg(q_bool_null) > 0','having LAST_ROW(q_bool_null) > 0','having sum(q_bool_null) > 0','having STDDEV(q_bool_null) > 0','having APERCENTILE(q_bool_null,10) > 0','having  TWA(q_bool_null) > 0','having LAST(q_bool_null) > 0',
                     'having PERCENTILE(q_int_null,10) > 0','having PERCENTILE(q_bigint_null,10) > 0','having PERCENTILE(q_smallint_null,10) > 0','having PERCENTILE(q_tinyint_null,10) > 0','having PERCENTILE(q_float_null,10) > 0','having PERCENTILE(q_double_null,10) > 0']
-        self.having_tagnot_support = ['having LAST_ROW(q_int) > 0','having LAST_ROW(q_bigint) > 0','having LAST_ROW(q_smallint) > 0','having LAST_ROW(q_tinyint) > 0','having LAST_ROW(q_float) > 0','having LAST_ROW(q_double) > 0',
+        cls.having_tagnot_support = ['having LAST_ROW(q_int) > 0','having LAST_ROW(q_bigint) > 0','having LAST_ROW(q_smallint) > 0','having LAST_ROW(q_tinyint) > 0','having LAST_ROW(q_float) > 0','having LAST_ROW(q_double) > 0',
                                       'having LAST_ROW(q_int_null) > 0','having LAST_ROW(q_bigint_null) > 0','having LAST_ROW(q_smallint_null) > 0','having LAST_ROW(q_tinyint_null) > 0','having LAST_ROW(q_float_null) > 0','having LAST_ROW(q_double_null) > 0']
 
-        self.having_support_j = ['having count(t1.q_int) > 0','having count(t1.q_bigint) > 0','having count(t1.q_smallint) > 0','having count(t1.q_tinyint) > 0','having count(t1.q_float) > 0','having count(t1.q_double) > 0','having count(t1.q_bool) > 0',
+        cls.having_support_j = ['having count(t1.q_int) > 0','having count(t1.q_bigint) > 0','having count(t1.q_smallint) > 0','having count(t1.q_tinyint) > 0','having count(t1.q_float) > 0','having count(t1.q_double) > 0','having count(t1.q_bool) > 0',
                     'having avg(t1.q_int) > 0','having avg(t1.q_bigint) > 0','having avg(t1.q_smallint) > 0','having avg(t1.q_tinyint) > 0','having avg(t1.q_float) > 0','having avg(t1.q_double) > 0',
                     'having sum(t1.q_int) > 0','having sum(t1.q_bigint) > 0','having sum(t1.q_smallint) > 0','having sum(t1.q_tinyint) > 0','having sum(t1.q_float) > 0','having sum(t1.q_double) > 0',
                     'having STDDEV(t1.q_int) > 0','having STDDEV(t1.q_bigint) > 0','having STDDEV(t1.q_smallint) > 0','having STDDEV(t1.q_tinyint) > 0','having STDDEV(t1.q_float) > 0','having STDDEV(t1.q_double) > 0',
@@ -305,15 +301,15 @@ class TDTestCase:
                     'having APERCENTILE(t1.q_int,10) > 0','having APERCENTILE(t1.q_bigint,10) > 0','having APERCENTILE(t1.q_smallint,10) > 0','having APERCENTILE(t1.q_tinyint,10) > 0','having APERCENTILE(t1.q_float,10) > 0','having APERCENTILE(t1.q_double,10) > 0']
 
         # limit offset where
-        self.limit_where = ['limit 1 offset 1' , 'limit 1' , 'limit 2 offset 1' , 'limit 2', 'limit 12 offset 1' , 'limit 20', 'limit 20 offset 10' , 'limit 200']
-        self.limit1_where = ['limit 1 offset 1' , 'limit 1' ]
-        self.limit_u_where = ['limit 100 offset 10' , 'limit 50' , 'limit 100' , 'limit 10' ]
+        cls.limit_where = ['limit 1 offset 1' , 'limit 1' , 'limit 2 offset 1' , 'limit 2', 'limit 12 offset 1' , 'limit 20', 'limit 20 offset 10' , 'limit 200']
+        cls.limit1_where = ['limit 1 offset 1' , 'limit 1' ]
+        cls.limit_u_where = ['limit 100 offset 10' , 'limit 50' , 'limit 100' , 'limit 10' ]
 
         # slimit soffset where
-        self.slimit_where = ['slimit 1 soffset 1' , 'slimit 1' , 'slimit 2 soffset 1' , 'slimit 2']
-        self.slimit1_where = ['slimit 2 soffset 1' , 'slimit 1' ]
+        cls.slimit_where = ['slimit 1 soffset 1' , 'slimit 1' , 'slimit 2 soffset 1' , 'slimit 2']
+        cls.slimit1_where = ['slimit 2 soffset 1' , 'slimit 1' ]
 
-        self.calc_select_all = ['bottom(q_int,20)' , 'bottom(q_bigint,20)' , 'bottom(q_smallint,20)' , 'bottom(q_tinyint,20)' ,'bottom(q_float,20)' , 'bottom(q_double,20)' ,
+        cls.calc_select_all = ['bottom(q_int,20)' , 'bottom(q_bigint,20)' , 'bottom(q_smallint,20)' , 'bottom(q_tinyint,20)' ,'bottom(q_float,20)' , 'bottom(q_double,20)' ,
                     'top(q_int,20)' , 'top(q_bigint,20)' , 'top(q_smallint,20)' ,'top(q_tinyint,20)' ,'top(q_float,20)' ,'top(q_double,20)' ,
                     'first(q_int)' , 'first(q_bigint)' , 'first(q_smallint)' , 'first(q_tinyint)' , 'first(q_float)' ,'first(q_double)' ,'first(q_binary)' ,'first(q_nchar)' ,'first(q_bool)' ,'first(q_ts)' ,
                     'last(q_int)' ,  'last(q_bigint)' , 'last(q_smallint)'  , 'last(q_tinyint)' , 'last(q_float)'  ,'last(q_double)' , 'last(q_binary)' ,'last(q_nchar)' ,'last(q_bool)' ,'last(q_ts)' ,
@@ -332,7 +328,7 @@ class TDTestCase:
                     'last_row(q_double_null)' , 'last_row(q_bool_null)' ,'last_row(q_binary_null)' ,'last_row(q_nchar_null)' ,'last_row(q_ts_null)',
                     'apercentile(q_int_null,20)' ,  'apercentile(q_bigint_null,20)'  ,'apercentile(q_smallint_null,20)'  ,'apercentile(q_tinyint_null,20)' ,'apercentile(q_float_null,20)'  ,'apercentile(q_double_null,20)' ,]
 
-        self.calc_select_in_ts = ['bottom(q_int,20)' , 'bottom(q_bigint,20)' , 'bottom(q_smallint,20)' , 'bottom(q_tinyint,20)' ,'bottom(q_float,20)' , 'bottom(q_double,20)' ,
+        cls.calc_select_in_ts = ['bottom(q_int,20)' , 'bottom(q_bigint,20)' , 'bottom(q_smallint,20)' , 'bottom(q_tinyint,20)' ,'bottom(q_float,20)' , 'bottom(q_double,20)' ,
                     'top(q_int,20)' , 'top(q_bigint,20)' , 'top(q_smallint,20)' ,'top(q_tinyint,20)' ,'top(q_float,20)' ,'top(q_double,20)' ,
                     'bottom(q_int_null,20)' , 'bottom(q_bigint_null,20)' , 'bottom(q_smallint_null,20)' , 'bottom(q_tinyint_null,20)' ,'bottom(q_float_null,20)' , 'bottom(q_double_null,20)' ,
                     'top(q_int_null,20)' , 'top(q_bigint_null,20)' , 'top(q_smallint_null,20)' ,'top(q_tinyint_null,20)' ,'top(q_float_null,20)' ,'top(q_double_null,20)' ,
@@ -341,7 +337,7 @@ class TDTestCase:
                     'first(q_int_null)' , 'first(q_bigint_null)' , 'first(q_smallint_null)' , 'first(q_tinyint_null)' , 'first(q_float_null)' ,'first(q_double_null)' ,'first(q_binary_null)' ,'first(q_nchar_null)' ,'first(q_bool_null)' ,'first(q_ts_null)' ,
                     'last(q_int_null)' ,  'last(q_bigint_null)' , 'last(q_smallint_null)'  , 'last(q_tinyint_null)' , 'last(q_float_null)'  ,'last(q_double_null)' , 'last(q_binary_null)' ,'last(q_nchar_null)' ,'last(q_bool_null)' ,'last(q_ts_null)' ]
 
-        self.calc_select_in = ['min(q_int)' , 'min(q_bigint)' , 'min(q_smallint)' , 'min(q_tinyint)' , 'min(q_float)' ,'min(q_double)' ,
+        cls.calc_select_in = ['min(q_int)' , 'min(q_bigint)' , 'min(q_smallint)' , 'min(q_tinyint)' , 'min(q_float)' ,'min(q_double)' ,
                     'max(q_int)' ,  'max(q_bigint)' , 'max(q_smallint)' , 'max(q_tinyint)' ,'max(q_float)' ,'max(q_double)' ,
                     'apercentile(q_int,20)' ,  'apercentile(q_bigint,20)'  ,'apercentile(q_smallint,20)'  ,'apercentile(q_tinyint,20)' ,'apercentile(q_float,20)'  ,'apercentile(q_double,20)' ,
                     'last_row(q_int)' ,  'last_row(q_bigint)' , 'last_row(q_smallint)' , 'last_row(q_tinyint)' , 'last_row(q_float)' ,
@@ -352,7 +348,7 @@ class TDTestCase:
                     'last_row(q_int_null)' ,  'last_row(q_bigint_null)' , 'last_row(q_smallint_null)' , 'last_row(q_tinyint_null)' , 'last_row(q_float_null)' ,
                     'last_row(q_double_null)' , 'last_row(q_bool_null)' ,'last_row(q_binary_null)' ,'last_row(q_nchar_null)' ,'last_row(q_ts_null)']
 
-        self.calc_select_not_support_ts = ['first(q_int)' , 'first(q_bigint)' , 'first(q_smallint)' , 'first(q_tinyint)' , 'first(q_float)' ,'first(q_double)' ,'first(q_binary)' ,'first(q_nchar)' ,'first(q_bool)' ,'first(q_ts)' ,
+        cls.calc_select_not_support_ts = ['first(q_int)' , 'first(q_bigint)' , 'first(q_smallint)' , 'first(q_tinyint)' , 'first(q_float)' ,'first(q_double)' ,'first(q_binary)' ,'first(q_nchar)' ,'first(q_bool)' ,'first(q_ts)' ,
                     'last(q_int)' ,  'last(q_bigint)' , 'last(q_smallint)'  , 'last(q_tinyint)' , 'last(q_float)'  ,'last(q_double)' , 'last(q_binary)' ,'last(q_nchar)' ,'last(q_bool)' ,'last(q_ts)' ,
                     'last_row(q_int)' ,  'last_row(q_bigint)' , 'last_row(q_smallint)' , 'last_row(q_tinyint)' , 'last_row(q_float)' ,
                     'last_row(q_double)' , 'last_row(q_bool)' ,'last_row(q_binary)' ,'last_row(q_nchar)' ,'last_row(q_ts)',
@@ -363,7 +359,7 @@ class TDTestCase:
                     'last_row(q_double_null)' , 'last_row(q_bool_null)' ,'last_row(q_binary_null)' ,'last_row(q_nchar_null)' ,'last_row(q_ts_null)',
                     'apercentile(q_int_null,20)' ,  'apercentile(q_bigint_null,20)'  ,'apercentile(q_smallint_null,20)'  ,'apercentile(q_tinyint_null,20)' ,'apercentile(q_float_null,20)'  ,'apercentile(q_double_null,20)']
 
-        self.calc_select_support_ts = ['bottom(q_int,20)' , 'bottom(q_bigint,20)' , 'bottom(q_smallint,20)' , 'bottom(q_tinyint,20)' ,'bottom(q_float,20)' , 'bottom(q_double,20)' ,
+        cls.calc_select_support_ts = ['bottom(q_int,20)' , 'bottom(q_bigint,20)' , 'bottom(q_smallint,20)' , 'bottom(q_tinyint,20)' ,'bottom(q_float,20)' , 'bottom(q_double,20)' ,
                     'top(q_int,20)' , 'top(q_bigint,20)' , 'top(q_smallint,20)' ,'top(q_tinyint,20)' ,'top(q_float,20)' ,'top(q_double,20)' ,
                     'bottom(q_int_null,20)' , 'bottom(q_bigint_null,20)' , 'bottom(q_smallint_null,20)' , 'bottom(q_tinyint_null,20)' ,'bottom(q_float_null,20)' , 'bottom(q_double_null,20)' ,
                     'top(q_int_null,20)' , 'top(q_bigint_null,20)' , 'top(q_smallint_null,20)' ,'top(q_tinyint_null,20)' ,'top(q_float_null,20)' ,'top(q_double_null,20)' ,
@@ -372,15 +368,15 @@ class TDTestCase:
                     'min(q_int_null)' , 'min(q_bigint_null)' , 'min(q_smallint_null)' , 'min(q_tinyint_null)' , 'min(q_float_null)' ,'min(q_double_null)' ,
                     'max(q_int_null)' ,  'max(q_bigint_null)' , 'max(q_smallint_null)' , 'max(q_tinyint_null)' ,'max(q_float_null)' ,'max(q_double_null)']
 
-        self.calc_select_regular = [ 'PERCENTILE(q_int,10)' ,'PERCENTILE(q_bigint,20)' , 'PERCENTILE(q_smallint,30)' ,'PERCENTILE(q_tinyint,40)' ,'PERCENTILE(q_float,50)' ,'PERCENTILE(q_double,60)',
+        cls.calc_select_regular = [ 'PERCENTILE(q_int,10)' ,'PERCENTILE(q_bigint,20)' , 'PERCENTILE(q_smallint,30)' ,'PERCENTILE(q_tinyint,40)' ,'PERCENTILE(q_float,50)' ,'PERCENTILE(q_double,60)',
                                     'PERCENTILE(q_int_null,10)' ,'PERCENTILE(q_bigint_null,20)' , 'PERCENTILE(q_smallint_null,30)' ,'PERCENTILE(q_tinyint_null,40)' ,'PERCENTILE(q_float_null,50)' ,'PERCENTILE(q_double_null,60)']
 
 
-        self.calc_select_fill = ['INTERP(q_int)' ,'INTERP(q_bigint)' ,'INTERP(q_smallint)' ,'INTERP(q_tinyint)', 'INTERP(q_float)' ,'INTERP(q_double)']
-        self.interp_where = ['ts = now' , 'ts = \'2020-09-13 20:26:40.000\'' , 'ts = \'2020-09-13 20:26:40.009\'' ,'tbname in (\'table_1\') and ts = now' ,'tbname in (\'table_0\' ,\'table_1\',\'table_2\',\'table_3\',\'table_4\',\'table_5\') and ts =  \'2020-09-13 20:26:40.000\'','tbname like \'table%\'  and ts =  \'2020-09-13 20:26:40.002\'']
+        cls.calc_select_fill = ['INTERP(q_int)' ,'INTERP(q_bigint)' ,'INTERP(q_smallint)' ,'INTERP(q_tinyint)', 'INTERP(q_float)' ,'INTERP(q_double)']
+        cls.interp_where = ['ts = now' , 'ts = \'2020-09-13 20:26:40.000\'' , 'ts = \'2020-09-13 20:26:40.009\'' ,'tbname in (\'table_1\') and ts = now' ,'tbname in (\'table_0\' ,\'table_1\',\'table_2\',\'table_3\',\'table_4\',\'table_5\') and ts =  \'2020-09-13 20:26:40.000\'','tbname like \'table%\'  and ts =  \'2020-09-13 20:26:40.002\'']
 
         #two table join
-        self.calc_select_in_ts_j = ['bottom(t1.q_int,20)' , 'bottom(t1.q_bigint,20)' , 'bottom(t1.q_smallint,20)' , 'bottom(t1.q_tinyint,20)' ,'bottom(t1.q_float,20)' , 'bottom(t1.q_double,20)' ,
+        cls.calc_select_in_ts_j = ['bottom(t1.q_int,20)' , 'bottom(t1.q_bigint,20)' , 'bottom(t1.q_smallint,20)' , 'bottom(t1.q_tinyint,20)' ,'bottom(t1.q_float,20)' , 'bottom(t1.q_double,20)' ,
                     'top(t1.q_int,20)' , 'top(t1.q_bigint,20)' , 'top(t1.q_smallint,20)' ,'top(t1.q_tinyint,20)' ,'top(t1.q_float,20)' ,'top(t1.q_double,20)' ,
                     'first(t1.q_int)' , 'first(t1.q_bigint)' , 'first(t1.q_smallint)' , 'first(t1.q_tinyint)' , 'first(t1.q_float)' ,'first(t1.q_double)' ,'first(t1.q_binary)' ,'first(t1.q_nchar)' ,'first(t1.q_bool)' ,'first(t1.q_ts)' ,
                     'last(t1.q_int)' ,  'last(t1.q_bigint)' , 'last(t1.q_smallint)'  , 'last(t1.q_tinyint)' , 'last(t1.q_float)'  ,'last(t1.q_double)' , 'last(t1.q_binary)' ,'last(t1.q_nchar)' ,'last(t1.q_bool)' ,'last(t1.q_ts)' ,
@@ -397,7 +393,7 @@ class TDTestCase:
                     'first(t2.q_int_null)' , 'first(t2.q_bigint_null)' , 'first(t2.q_smallint_null)' , 'first(t2.q_tinyint_null)' , 'first(t2.q_float_null)' ,'first(t2.q_double_null)' ,'first(t2.q_binary_null)' ,'first(t2.q_nchar_null))' ,'first(t2.q_bool_null)' ,'first(t2.q_ts_null)' ,
                     'last(t2.q_int_null)' ,  'last(t2.q_bigint_null)' , 'last(t2.q_smallint_null)'  , 'last(t2.q_tinyint_null)' , 'last(t2.q_float_null)'  ,'last(t2.q_double_null)' , 'last(t2.q_binary_null)' ,'last(t2.q_nchar_null))' ,'last(t2.q_bool_null)' ,'last(t2.q_ts_null)']
 
-        self.calc_select_in_support_ts_j = ['bottom(t1.q_int,20)' , 'bottom(t1.q_bigint,20)' , 'bottom(t1.q_smallint,20)' , 'bottom(t1.q_tinyint,20)' ,'bottom(t1.q_float,20)' , 'bottom(t1.q_double,20)' ,
+        cls.calc_select_in_support_ts_j = ['bottom(t1.q_int,20)' , 'bottom(t1.q_bigint,20)' , 'bottom(t1.q_smallint,20)' , 'bottom(t1.q_tinyint,20)' ,'bottom(t1.q_float,20)' , 'bottom(t1.q_double,20)' ,
                     'top(t1.q_int,20)' , 'top(t1.q_bigint,20)' , 'top(t1.q_smallint,20)' ,'top(t1.q_tinyint,20)' ,'top(t1.q_float,20)' ,'top(t1.q_double,20)' ,
                     'min(t1.q_int)' , 'min(t1.q_bigint)' , 'min(t1.q_smallint)' , 'min(t1.q_tinyint)' , 'min(t1.q_float)' ,'min(t1.q_double)' ,
                     'max(t1.q_int)' ,  'max(t1.q_bigint)' , 'max(t1.q_smallint)' , 'max(t1.q_tinyint)' ,'max(t1.q_float)' ,'max(t1.q_double)' ,
@@ -414,7 +410,7 @@ class TDTestCase:
                     'min(t2.q_int_null)' , 'min(t2.q_bigint_null)' , 'min(t2.q_smallint_null)' , 'min(t2.q_tinyint_null)' , 'min(t2.q_float_null)' ,'min(t2.q_double_null)' ,
                     'max(t2.q_int_null)' ,  'max(t2.q_bigint_null)' , 'max(t2.q_smallint_null)' , 'max(t2.q_tinyint_null)' ,'max(t2.q_float_null)' ,'max(t2.q_double_null)' ]
 
-        self.calc_select_in_not_support_ts_j = ['apercentile(t1.q_int,20)' ,  'apercentile(t1.q_bigint,20)'  ,'apercentile(t1.q_smallint,20)'  ,'apercentile(t1.q_tinyint,20)' ,'apercentile(t1.q_float,20)'  ,'apercentile(t1.q_double,20)' ,
+        cls.calc_select_in_not_support_ts_j = ['apercentile(t1.q_int,20)' ,  'apercentile(t1.q_bigint,20)'  ,'apercentile(t1.q_smallint,20)'  ,'apercentile(t1.q_tinyint,20)' ,'apercentile(t1.q_float,20)'  ,'apercentile(t1.q_double,20)' ,
                     'apercentile(t1.q_int_null,20)' ,  'apercentile(t1.q_bigint_null,20)'  ,'apercentile(t1.q_smallint_null,20)'  ,'apercentile(t1.q_tinyint_null,20)' ,'apercentile(t1.q_float_null,20)'  ,'apercentile(t1.q_double_null,20)' ,
                     'last_row(t1.q_int)' ,  'last_row(t1.q_bigint)' , 'last_row(t1.q_smallint)' , 'last_row(t1.q_tinyint)' , 'last_row(t1.q_float)' ,
                     'last_row(t1.q_double)' , 'last_row(t1.q_bool)' ,'last_row(t1.q_binary)' ,'last_row(t1.q_nchar)' ,'last_row(t1.q_ts)' ,
@@ -427,7 +423,7 @@ class TDTestCase:
                     'last_row(t2.q_int_null)' ,  'last_row(t2.q_bigint_null)' , 'last_row(t2.q_smallint_null)' , 'last_row(t2.q_tinyint_null)' , 'last_row(t2.q_float_null)' ,
                     'last_row(t2.q_double_null)' , 'last_row(t2.q_bool_null)' ,'last_row(t2.q_binary_null)' ,'last_row(t2.q_nchar_null)' ,'last_row(t2.q_ts_null)']
 
-        self.calc_select_in_j = ['min(t1.q_int)' , 'min(t1.q_bigint)' , 'min(t1.q_smallint)' , 'min(t1.q_tinyint)' , 'min(t1.q_float)' ,'min(t1.q_double)' ,
+        cls.calc_select_in_j = ['min(t1.q_int)' , 'min(t1.q_bigint)' , 'min(t1.q_smallint)' , 'min(t1.q_tinyint)' , 'min(t1.q_float)' ,'min(t1.q_double)' ,
                     'max(t1.q_int)' ,  'max(t1.q_bigint)' , 'max(t1.q_smallint)' , 'max(t1.q_tinyint)' ,'max(t1.q_float)' ,'max(t1.q_double)' ,
                     'apercentile(t1.q_int,20)' ,  'apercentile(t1.q_bigint,20)'  ,'apercentile(t1.q_smallint,20)'  ,'apercentile(t1.q_tinyint,20)' ,'apercentile(t1.q_float,20)'  ,'apercentile(t1.q_double,20)' ,
                     'min(t1.q_int_null)' , 'min(t1.q_bigint_null)' , 'min(t1.q_smallint_null)' , 'min(t1.q_tinyint_null)' , 'min(t1.q_float_null)' ,'min(t1.q_double_null)' ,
@@ -447,21 +443,21 @@ class TDTestCase:
                     'last_row(t2.q_double)' , 'last_row(t2.q_bool)' ,'last_row(t2.q_binary)' ,'last_row(t2.q_nchar)' ,'last_row(t2.q_ts)',
                     'last_row(t2.q_int_null)' ,  'last_row(t2.q_bigint_null)' , 'last_row(t2.q_smallint_null)' , 'last_row(t2.q_tinyint_null)' , 'last_row(t2.q_float_null)' ,
                     'last_row(t2.q_double_null)' , 'last_row(t2.q_bool_null)' ,'last_row(t2.q_binary_null)' ,'last_row(t2.q_nchar_null)' ,'last_row(t2.q_ts_null)']
-        self.calc_select_all_j = self.calc_select_in_ts_j + self.calc_select_in_j
+        cls.calc_select_all_j = cls.calc_select_in_ts_j + cls.calc_select_in_j
 
-        self.calc_select_regular_j = [ 'PERCENTILE(t1.q_int,10)' ,'PERCENTILE(t1.q_bigint,20)' , 'PERCENTILE(t1.q_smallint,30)' ,'PERCENTILE(t1.q_tinyint,40)' ,'PERCENTILE(t1.q_float,50)' ,'PERCENTILE(t1.q_double,60)' ,
+        cls.calc_select_regular_j = [ 'PERCENTILE(t1.q_int,10)' ,'PERCENTILE(t1.q_bigint,20)' , 'PERCENTILE(t1.q_smallint,30)' ,'PERCENTILE(t1.q_tinyint,40)' ,'PERCENTILE(t1.q_float,50)' ,'PERCENTILE(t1.q_double,60)' ,
                     'PERCENTILE(t2.q_int,10)' ,'PERCENTILE(t2.q_bigint,20)' , 'PERCENTILE(t2.q_smallint,30)' ,'PERCENTILE(t2.q_tinyint,40)' ,'PERCENTILE(t2.q_float,50)' ,'PERCENTILE(t2.q_double,60)',
                     'PERCENTILE(t1.q_int_null,10)' ,'PERCENTILE(t1.q_bigint_null,20)' , 'PERCENTILE(t1.q_smallint_null,30)' ,'PERCENTILE(t1.q_tinyint_null,40)' ,'PERCENTILE(t1.q_float_null,50)' ,'PERCENTILE(t1.q_double_null,60)' ,
                     'PERCENTILE(t2.q_int_null,10)' ,'PERCENTILE(t2.q_bigint_null,20)' , 'PERCENTILE(t2.q_smallint_null,30)' ,'PERCENTILE(t2.q_tinyint_null,40)' ,'PERCENTILE(t2.q_float_null,50)' ,'PERCENTILE(t2.q_double_null,60)']
 
 
-        self.calc_select_fill_j = ['INTERP(t1.q_int)' ,'INTERP(t1.q_bigint)' ,'INTERP(t1.q_smallint)' ,'INTERP(t1.q_tinyint)', 'INTERP(t1.q_float)' ,'INTERP(t1.q_double)' ,
+        cls.calc_select_fill_j = ['INTERP(t1.q_int)' ,'INTERP(t1.q_bigint)' ,'INTERP(t1.q_smallint)' ,'INTERP(t1.q_tinyint)', 'INTERP(t1.q_float)' ,'INTERP(t1.q_double)' ,
                     'INTERP(t2.q_int)' ,'INTERP(t2.q_bigint)' ,'INTERP(t2.q_smallint)' ,'INTERP(t2.q_tinyint)', 'INTERP(t2.q_float)' ,'INTERP(t2.q_double)']
-        self.interp_where_j = ['t1.ts = now' , 't1.ts = \'2020-09-13 20:26:40.000\'' , 't1.ts = \'2020-09-13 20:26:40.009\'' ,'t2.ts = now' , 't2.ts = \'2020-09-13 20:26:40.000\'' , 't2.ts = \'2020-09-13 20:26:40.009\'' ,
+        cls.interp_where_j = ['t1.ts = now' , 't1.ts = \'2020-09-13 20:26:40.000\'' , 't1.ts = \'2020-09-13 20:26:40.009\'' ,'t2.ts = now' , 't2.ts = \'2020-09-13 20:26:40.000\'' , 't2.ts = \'2020-09-13 20:26:40.009\'' ,
                     't1.tbname in (\'table_1\') and t1.ts = now' ,'t1.tbname in (\'table_0\' ,\'table_1\',\'table_2\',\'table_3\',\'table_4\',\'table_5\') and t1.ts =  \'2020-09-13 20:26:40.000\'','t1.tbname like \'table%\'  and t1.ts =  \'2020-09-13 20:26:40.002\'',
                     't2.tbname in (\'table_1\') and t2.ts = now' ,'t2.tbname in (\'table_0\' ,\'table_1\',\'table_2\',\'table_3\',\'table_4\',\'table_5\') and t2.ts =  \'2020-09-13 20:26:40.000\'','t2.tbname like \'table%\'  and t2.ts =  \'2020-09-13 20:26:40.002\'']
 
-        self.calc_aggregate_all = ['count(*)' , 'count(q_int)' ,'count(q_bigint)' , 'count(q_smallint)' ,'count(q_tinyint)' ,'count(q_float)' ,
+        cls.calc_aggregate_all = ['count(*)' , 'count(q_int)' ,'count(q_bigint)' , 'count(q_smallint)' ,'count(q_tinyint)' ,'count(q_float)' ,
                     'count(q_double)' ,'count(q_binary)' ,'count(q_nchar)' ,'count(q_bool)' ,'count(q_ts)' ,
                     'avg(q_int)' ,'avg(q_bigint)' , 'avg(q_smallint)' ,'avg(q_tinyint)' ,'avg(q_float)' ,'avg(q_double)' ,
                     'sum(q_int)' ,'sum(q_bigint)' , 'sum(q_smallint)' ,'sum(q_tinyint)' ,'sum(q_float)' ,'sum(q_double)' ,
@@ -474,7 +470,7 @@ class TDTestCase:
                     'STDDEV(q_int_null)' ,'STDDEV(q_bigint_null)' , 'STDDEV(q_smallint_null)' ,'STDDEV(q_tinyint_null)' ,'STDDEV(q_float_null)' ,'STDDEV(q_double_null)',
                     'APERCENTILE(q_int_null,10)' ,'APERCENTILE(q_bigint_null,20)' , 'APERCENTILE(q_smallint_null,30)' ,'APERCENTILE(q_tinyint_null,40)' ,'APERCENTILE(q_float_null,50)' ,'APERCENTILE(q_double_null,60)']
 
-        self.calc_aggregate_regular = ['twa(q_int)' ,'twa(q_bigint)' , 'twa(q_smallint)' ,'twa(q_tinyint)' ,'twa (q_float)' ,'twa(q_double)' ,
+        cls.calc_aggregate_regular = ['twa(q_int)' ,'twa(q_bigint)' , 'twa(q_smallint)' ,'twa(q_tinyint)' ,'twa (q_float)' ,'twa(q_double)' ,
                     'IRATE(q_int)' ,'IRATE(q_bigint)' , 'IRATE(q_smallint)' ,'IRATE(q_tinyint)' ,'IRATE (q_float)' ,'IRATE(q_double)' ,
                     'twa(q_int_null)' ,'twa(q_bigint_null)' , 'twa(q_smallint_null)' ,'twa(q_tinyint_null)' ,'twa (q_float_null)' ,'twa(q_double_null)' ,
                     'IRATE(q_int_null)' ,'IRATE(q_bigint_null)' , 'IRATE(q_smallint_null)' ,'IRATE(q_tinyint_null)' ,'IRATE (q_float_null)' ,'IRATE(q_double_null)' ,
@@ -483,13 +479,13 @@ class TDTestCase:
                     'LEASTSQUARES(q_int_null,15,3)' , 'LEASTSQUARES(q_bigint_null,10,1)' , 'LEASTSQUARES(q_smallint_null,20,3)' ,'LEASTSQUARES(q_tinyint_null,10,4)' ,'LEASTSQUARES(q_float_null,6,4)' ,'LEASTSQUARES(q_double_null,3,1)' ,
                     'PERCENTILE(q_int_null,10)' ,'PERCENTILE(q_bigint_null,20)' , 'PERCENTILE(q_smallint_null,30)' ,'PERCENTILE(q_tinyint_null,40)' ,'PERCENTILE(q_float_null,50)' ,'PERCENTILE(q_double_null,60)']
 
-        self.calc_aggregate_groupbytbname = ['twa(q_int)' ,'twa(q_bigint)' , 'twa(q_smallint)' ,'twa(q_tinyint)' ,'twa (q_float)' ,'twa(q_double)' ,
+        cls.calc_aggregate_groupbytbname = ['twa(q_int)' ,'twa(q_bigint)' , 'twa(q_smallint)' ,'twa(q_tinyint)' ,'twa (q_float)' ,'twa(q_double)' ,
                     'IRATE(q_int)' ,'IRATE(q_bigint)' , 'IRATE(q_smallint)' ,'IRATE(q_tinyint)' ,'IRATE (q_float)' ,'IRATE(q_double)',
                     'twa(q_int_null)' ,'twa(q_bigint_null)' , 'twa(q_smallint_null)' ,'twa(q_tinyint_null)' ,'twa (q_float_null)' ,'twa(q_double_null)' ,
                     'IRATE(q_int_null)' ,'IRATE(q_bigint_null)' , 'IRATE(q_smallint_null)' ,'IRATE(q_tinyint_null)' ,'IRATE (q_float_null)' ,'IRATE(q_double_null)']
 
         #two table join
-        self.calc_aggregate_all_j = ['count(t1.*)' , 'count(t1.q_int)' ,'count(t1.q_bigint)' , 'count(t1.q_smallint)' ,'count(t1.q_tinyint)' ,'count(t1.q_float)' ,
+        cls.calc_aggregate_all_j = ['count(t1.*)' , 'count(t1.q_int)' ,'count(t1.q_bigint)' , 'count(t1.q_smallint)' ,'count(t1.q_tinyint)' ,'count(t1.q_float)' ,
                     'count(t1.q_double)' ,'count(t1.q_binary)' ,'count(t1.q_nchar)' ,'count(t1.q_bool)' ,'count(t1.q_ts)' ,
                     'avg(t1.q_int)' ,'avg(t1.q_bigint)' , 'avg(t1.q_smallint)' ,'avg(t1.q_tinyint)' ,'avg(t1.q_float)' ,'avg(t1.q_double)' ,
                     'sum(t1.q_int)' ,'sum(t1.q_bigint)' , 'sum(t1.q_smallint)' ,'sum(t1.q_tinyint)' ,'sum(t1.q_float)' ,'sum(t1.q_double)' ,
@@ -514,7 +510,7 @@ class TDTestCase:
                     'STDDEV(t2.q_int_null)' ,'STDDEV(t2.q_bigint_null)' , 'STDDEV(t2.q_smallint_null)' ,'STDDEV(t2.q_tinyint_null)' ,'STDDEV(t2.q_float_null)' ,'STDDEV(t2.q_double_null)',
                     'APERCENTILE(t2.q_int_null,10)' ,'APERCENTILE(t2.q_bigint_null,20)' , 'APERCENTILE(t2.q_smallint_null,30)' ,'APERCENTILE(t2.q_tinyint_null,40)' ,'APERCENTILE(t2.q_float_null,50)' ,'APERCENTILE(t2.q_double,60)']
 
-        self.calc_aggregate_regular_j = ['twa(t1.q_int)' ,'twa(t1.q_bigint)' , 'twa(t1.q_smallint)' ,'twa(t1.q_tinyint)' ,'twa (t1.q_float)' ,'twa(t1.q_double)' ,
+        cls.calc_aggregate_regular_j = ['twa(t1.q_int)' ,'twa(t1.q_bigint)' , 'twa(t1.q_smallint)' ,'twa(t1.q_tinyint)' ,'twa (t1.q_float)' ,'twa(t1.q_double)' ,
                     'IRATE(t1.q_int)' ,'IRATE(t1.q_bigint)' , 'IRATE(t1.q_smallint)' ,'IRATE(t1.q_tinyint)' ,'IRATE (t1.q_float)' ,'IRATE(t1.q_double)' ,
                     'LEASTSQUARES(t1.q_int,15,3)' , 'LEASTSQUARES(t1.q_bigint,10,1)' , 'LEASTSQUARES(t1.q_smallint,20,3)' ,'LEASTSQUARES(t1.q_tinyint,10,4)' ,'LEASTSQUARES(t1.q_float,6,4)' ,'LEASTSQUARES(t1.q_double,3,1)' ,
                     'twa(t2.q_int)' ,'twa(t2.q_bigint)' , 'twa(t2.q_smallint)' ,'twa(t2.q_tinyint)' ,'twa (t2.q_float)' ,'twa(t2.q_double)' ,
@@ -527,7 +523,7 @@ class TDTestCase:
                     'IRATE(t2.q_int_null)' ,'IRATE(t2.q_bigint_null)' , 'IRATE(t2.q_smallint_null)' ,'IRATE(t2.q_tinyint_null)' ,'IRATE (t2.q_float_null)' ,'IRATE(t2.q_double_null)',
                     'LEASTSQUARES(t2.q_int_null,15,3)' , 'LEASTSQUARES(t2.q_bigint_null,10,1)' , 'LEASTSQUARES(t2.q_smallint_null,20,3)' ,'LEASTSQUARES(t2.q_tinyint_null,10,4)' ,'LEASTSQUARES(t2.q_float_null,6,4)' ,'LEASTSQUARES(t2.q_double_null,3,1)' ]
 
-        self.calc_aggregate_groupbytbname_j = ['twa(t1.q_int)' ,'twa(t1.q_bigint)' , 'twa(t1.q_smallint)' ,'twa(t1.q_tinyint)' ,'twa (t1.q_float)' ,'twa(t1.q_double)' ,
+        cls.calc_aggregate_groupbytbname_j = ['twa(t1.q_int)' ,'twa(t1.q_bigint)' , 'twa(t1.q_smallint)' ,'twa(t1.q_tinyint)' ,'twa (t1.q_float)' ,'twa(t1.q_double)' ,
                     'IRATE(t1.q_int)' ,'IRATE(t1.q_bigint)' , 'IRATE(t1.q_smallint)' ,'IRATE(t1.q_tinyint)' ,'IRATE (t1.q_float)' ,'IRATE(t1.q_double)' ,
                     'twa(t2.q_int)' ,'twa(t2.q_bigint)' , 'twa(t2.q_smallint)' ,'twa(t2.q_tinyint)' ,'twa (t2.q_float)' ,'twa(t2.q_double)' ,
                     'IRATE(t2.q_int)' ,'IRATE(t2.q_bigint)' , 'IRATE(t2.q_smallint)' ,'IRATE(t2.q_tinyint)' ,'IRATE (t2.q_float)' ,'IRATE(t2.q_double)' ,
@@ -536,11 +532,11 @@ class TDTestCase:
                     'twa(t2.q_int_null)' ,'twa(t2.q_bigint_null)' , 'twa(t2.q_smallint_null)' ,'twa(t2.q_tinyint_null)' ,'twa (t2.q_float_null)' ,'twa(t2.q_double_null)' ,
                     'IRATE(t2.q_int_null)' ,'IRATE(t2.q_bigint_null)' , 'IRATE(t2.q_smallint_null)' ,'IRATE(t2.q_tinyint_null)' ,'IRATE (t2.q_float_null)' ,'IRATE(t2.q_double_null)'  ]
 
-        self.calc_calculate_all = ['SPREAD(ts)'  , 'SPREAD(q_ts)'  , 'SPREAD(q_int)' ,'SPREAD(q_bigint)' , 'SPREAD(q_smallint)' ,'SPREAD(q_tinyint)' ,'SPREAD(q_float)' ,'SPREAD(q_double)' ,
+        cls.calc_calculate_all = ['SPREAD(ts)'  , 'SPREAD(q_ts)'  , 'SPREAD(q_int)' ,'SPREAD(q_bigint)' , 'SPREAD(q_smallint)' ,'SPREAD(q_tinyint)' ,'SPREAD(q_float)' ,'SPREAD(q_double)' ,
                      '(SPREAD(q_int) + SPREAD(q_bigint))' , '(SPREAD(q_smallint) - SPREAD(q_float))', '(SPREAD(q_double) * SPREAD(q_tinyint))' , '(SPREAD(q_double) / SPREAD(q_float))',
                      'SPREAD(q_ts_null)'  , 'SPREAD(q_int_null)' ,'SPREAD(q_bigint_null)' , 'SPREAD(q_smallint_null)' ,'SPREAD(q_tinyint_null)' ,'SPREAD(q_float_null)' ,'SPREAD(q_double_null)' ,
                      '(SPREAD(q_int_null) + SPREAD(q_bigint_null))' , '(SPREAD(q_smallint_null) - SPREAD(q_float_null))', '(SPREAD(q_double_null) * SPREAD(q_tinyint_null))' , '(SPREAD(q_double_null) / SPREAD(q_float_null))']
-        self.calc_calculate_regular = ['DIFF(q_int)' ,'DIFF(q_bigint)' , 'DIFF(q_smallint)' ,'DIFF(q_tinyint)' ,'DIFF(q_float)' ,'DIFF(q_double)' ,
+        cls.calc_calculate_regular = ['DIFF(q_int)' ,'DIFF(q_bigint)' , 'DIFF(q_smallint)' ,'DIFF(q_tinyint)' ,'DIFF(q_float)' ,'DIFF(q_double)' ,
                                 'DIFF(q_int,0)' ,'DIFF(q_bigint,0)' , 'DIFF(q_smallint,0)' ,'DIFF(q_tinyint,0)' ,'DIFF(q_float,0)' ,'DIFF(q_double,0)' ,
                                 'DIFF(q_int,1)' ,'DIFF(q_bigint,1)' , 'DIFF(q_smallint,1)' ,'DIFF(q_tinyint,1)' ,'DIFF(q_float,1)' ,'DIFF(q_double,1)' ,
                                 'DERIVATIVE(q_int,15s,0)' , 'DERIVATIVE(q_bigint,10s,1)' , 'DERIVATIVE(q_smallint,20s,0)' ,'DERIVATIVE(q_tinyint,10s,1)' ,'DERIVATIVE(q_float,6s,0)' ,'DERIVATIVE(q_double,3s,1)',
@@ -548,10 +544,10 @@ class TDTestCase:
                                 'DIFF(q_int_null,0)' ,'DIFF(q_bigint_null,0)' , 'DIFF(q_smallint_null,0)' ,'DIFF(q_tinyint_null,0)' ,'DIFF(q_float_null,0)' ,'DIFF(q_double_null,0)' ,
                                 'DIFF(q_int_null,1)' ,'DIFF(q_bigint_null,1)' , 'DIFF(q_smallint_null,1)' ,'DIFF(q_tinyint_null,1)' ,'DIFF(q_float_null,1)' ,'DIFF(q_double_null,1)' ,
                                 'DERIVATIVE(q_int_null,15s,0)' , 'DERIVATIVE(q_bigint_null,10s,1)' , 'DERIVATIVE(q_smallint_null,20s,0)' ,'DERIVATIVE(q_tinyint_null,10s,1)' ,'DERIVATIVE(q_float_null,6s,0)' ,'DERIVATIVE(q_double_null,3s,1)']
-        self.calc_calculate_groupbytbname = self.calc_calculate_regular
+        cls.calc_calculate_groupbytbname = cls.calc_calculate_regular
 
         #two table join
-        self.calc_calculate_all_j = ['SPREAD(t1.ts)'  , 'SPREAD(t1.q_ts)'  , 'SPREAD(t1.q_int)' ,'SPREAD(t1.q_bigint)' , 'SPREAD(t1.q_smallint)' ,'SPREAD(t1.q_tinyint)' ,'SPREAD(t1.q_float)' ,'SPREAD(t1.q_double)' ,
+        cls.calc_calculate_all_j = ['SPREAD(t1.ts)'  , 'SPREAD(t1.q_ts)'  , 'SPREAD(t1.q_int)' ,'SPREAD(t1.q_bigint)' , 'SPREAD(t1.q_smallint)' ,'SPREAD(t1.q_tinyint)' ,'SPREAD(t1.q_float)' ,'SPREAD(t1.q_double)' ,
                     'SPREAD(t2.ts)'  , 'SPREAD(t2.q_ts)'  , 'SPREAD(t2.q_int)' ,'SPREAD(t2.q_bigint)' , 'SPREAD(t2.q_smallint)' ,'SPREAD(t2.q_tinyint)' ,'SPREAD(t2.q_float)' ,'SPREAD(t2.q_double)' ,
                     '(SPREAD(t1.q_int) + SPREAD(t1.q_bigint))' , '(SPREAD(t1.q_tinyint) - SPREAD(t1.q_float))', '(SPREAD(t1.q_double) * SPREAD(t1.q_tinyint))' , '(SPREAD(t1.q_double) / SPREAD(t1.q_tinyint))',
                     '(SPREAD(t2.q_int) + SPREAD(t2.q_bigint))' , '(SPREAD(t2.q_smallint) - SPREAD(t2.q_float))', '(SPREAD(t2.q_double) * SPREAD(t2.q_tinyint))' , '(SPREAD(t2.q_double) / SPREAD(t2.q_tinyint))',
@@ -561,7 +557,7 @@ class TDTestCase:
                     '(SPREAD(t1.q_int_null) + SPREAD(t1.q_bigint_null))' , '(SPREAD(t1.q_tinyint_null) - SPREAD(t1.q_float_null))', '(SPREAD(t1.q_double_null) * SPREAD(t1.q_tinyint_null))' , '(SPREAD(t1.q_double_null) / SPREAD(t1.q_tinyint_null))',
                     '(SPREAD(t2.q_int_null) + SPREAD(t2.q_bigint_null))' , '(SPREAD(t2.q_smallint_null) - SPREAD(t2.q_float_null))', '(SPREAD(t2.q_double_null) * SPREAD(t2.q_tinyint_null))' , '(SPREAD(t2.q_double_null) / SPREAD(t2.q_tinyint_null))',
                     '(SPREAD(t1.q_int_null) + SPREAD(t1.q_smallint_null))' , '(SPREAD(t2.q_smallint_null) - SPREAD(t2.q_float_null))', '(SPREAD(t1.q_double_null) * SPREAD(t1.q_tinyint_null))' , '(SPREAD(t1.q_double_null) / SPREAD(t1.q_float_null))']
-        self.calc_calculate_regular_j = ['DIFF(t1.q_int)' ,'DIFF(t1.q_bigint)' , 'DIFF(t1.q_smallint)' ,'DIFF(t1.q_tinyint)' ,'DIFF(t1.q_float)' ,'DIFF(t1.q_double)' ,
+        cls.calc_calculate_regular_j = ['DIFF(t1.q_int)' ,'DIFF(t1.q_bigint)' , 'DIFF(t1.q_smallint)' ,'DIFF(t1.q_tinyint)' ,'DIFF(t1.q_float)' ,'DIFF(t1.q_double)' ,
                     'DIFF(t1.q_int,0)' ,'DIFF(t1.q_bigint,0)' , 'DIFF(t1.q_smallint,0)' ,'DIFF(t1.q_tinyint,0)' ,'DIFF(t1.q_float,0)' ,'DIFF(t1.q_double,0)' ,
                     'DIFF(t1.q_int,1)' ,'DIFF(t1.q_bigint,1)' , 'DIFF(t1.q_smallint,1)' ,'DIFF(t1.q_tinyint,1)' ,'DIFF(t1.q_float,1)' ,'DIFF(t1.q_double,1)' ,
                     'DERIVATIVE(t1.q_int,15s,0)' , 'DERIVATIVE(t1.q_bigint,10s,1)' , 'DERIVATIVE(t1.q_smallint,20s,0)' ,'DERIVATIVE(t1.q_tinyint,10s,1)' ,'DERIVATIVE(t1.q_float,6s,0)' ,'DERIVATIVE(t1.q_double,3s,1)' ,
@@ -577,18 +573,18 @@ class TDTestCase:
                     'DIFF(t2.q_int_null,0)' ,'DIFF(t2.q_bigint_null,0)' , 'DIFF(t2.q_smallint_null,0)' ,'DIFF(t2.q_tinyint_null,0)' ,'DIFF(t2.q_float_null,0)' ,'DIFF(t2.q_double_null,0)' ,
                     'DIFF(t2.q_int_null,1)' ,'DIFF(t2.q_bigint_null,1)' , 'DIFF(t2.q_smallint_null,1)' ,'DIFF(t2.q_tinyint_null,1)' ,'DIFF(t2.q_float_null,1)' ,'DIFF(t2.q_double_null,1)' ,
                     'DERIVATIVE(t2.q_int_null,15s,0)' , 'DERIVATIVE(t2.q_bigint_null,10s,1)' , 'DERIVATIVE(t2.q_smallint_null,20s,0)' ,'DERIVATIVE(t2.q_tinyint_null,10s,1)' ,'DERIVATIVE(t2.q_float_null,6s,0)' ,'DERIVATIVE(t2.q_double_null,3s,1)']
-        self.calc_calculate_groupbytbname_j = self.calc_calculate_regular_j
+        cls.calc_calculate_groupbytbname_j = cls.calc_calculate_regular_j
 
-        self.interval_sliding = ['interval(4w) sliding(1w) ','interval(1w) sliding(1d) ','interval(1d) sliding(1h) ' ,
+        cls.interval_sliding = ['interval(4w) sliding(1w) ','interval(1w) sliding(1d) ','interval(1d) sliding(1h) ' ,
                     'interval(1h) sliding(1m) ','interval(1m) sliding(1s) ','interval(1s) sliding(10a) ',
                     'interval(1y) ','interval(1n) ','interval(1w) ','interval(1d) ','interval(1h) ','interval(1m) ','interval(1s) ' ,'interval(10a)',
                     'interval(1y,1n) ','interval(1n,1w) ','interval(1w,1d) ','interval(1d,1h) ','interval(1h,1m) ','interval(1m,1s) ','interval(1s,10a) ' ,'interval(100a,30a)']
 
-        self.conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
-        self.cur1 = self.conn1.cursor()
-        self.cur1.execute("use %s ;" %self.db_nest)
+        cls.conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
+        cls.cur1 = cls.conn1.cursor()
+        cls.cur1.execute("use %s ;" %cls.db_nest)
         sql = 'select /*+ para_tables_sort() */* from stable_1 limit 5;'
-        self.cur1.execute(sql)
+        cls.cur1.execute(sql)
 
 
     def dropandcreateDB_random(self,database,n):
@@ -666,7 +662,6 @@ class TDTestCase:
                     q_binary1 binary(100) , q_nchar1 nchar(100) ,q_binary2 binary(100) , q_nchar2 nchar(100) ,q_binary3 binary(100) , q_nchar3 nchar(100) ,q_binary4 binary(100) , q_nchar4 nchar(100) ,\
                     q_binary5 binary(100) , q_nchar5 nchar(100) ,q_binary6 binary(100) , q_nchar6 nchar(100) ,q_binary7 binary(100) , q_nchar7 nchar(100) ,q_binary8 binary(100) , q_nchar8 nchar(100) ,\
                     q_int_null int , q_bigint_null bigint , q_smallint_null smallint , q_tinyint_null tinyint, q_float_null float , q_double_null double , q_bool_null bool , q_binary_null binary(20) , q_nchar_null nchar(20) , q_ts_null timestamp) ;''')
-
 
         for i in range(1, num_random*n + 1):
             tdSql.execute('''insert into stable_1_1  (ts , q_int , q_bigint , q_smallint , q_tinyint , q_float , q_double , q_bool , q_binary , q_nchar, q_ts,\
@@ -774,7 +769,6 @@ class TDTestCase:
         except:
             tdLog.info("sql is not support :=====%s; " %sql)
             tdSql.error(sql)
-
 
     def math_nest(self,mathlist):
 
@@ -1484,7 +1478,6 @@ class TDTestCase:
 
         print("=========%s====over=============" %mathlist)
 
-
     def str_nest(self,strlist):
 
         print("==========%s===start=============" %strlist)
@@ -1662,7 +1655,6 @@ class TDTestCase:
             column_j_s2 = str(random.sample(fun_fix_column_s_j,i)).replace("[","").replace("]","").replace("'","")
             fun_column_join_s_2 = str(random.sample(str_functions,1))+'('+'\"'+separator+'\",'+column_j_s2+')'
             str_fun_join_s_2 = str(fun_column_join_s_2).replace("[","").replace("]","").replace("'","")
-
 
         tdSql.query("select /*+ para_tables_sort() */1-1 as str_nest from stable_1 limit 1;")
         for i in range(self.fornum):
@@ -1975,7 +1967,6 @@ class TDTestCase:
                 tdSql.query(sql)
                 self.explain_sql(sql)
 
-
         tdSql.query("select /*+ para_tables_sort() */1-10 as str_nest from stable_1 limit 1;")
         for i in range(self.fornum):
             if (strlist == ['LTRIM','RTRIM','LOWER','UPPER']) or (strlist == ['SUBSTR']) or (strlist == ['CONCAT']) or (strlist == ['CONCAT_WS']):
@@ -2263,7 +2254,6 @@ class TDTestCase:
             time_fun_2 = str(fun_column_2).replace("[","").replace("]","").replace("'","").replace(", ","").replace("\"","").replace("t_to_s","'t_to_s'")
             time_fun_2 = str(time_fun_2).replace("timeutil","%s" %timeunit).replace("t_to_s","%s" %t_to_s)
 
-
             fun_fix_column_j = ['(t1.q_ts)','(t1.ts)', '(t2.q_ts)','(t2.ts)','(1600000000000)','(1600000000000000)','(1600000000000000000)',
                         '(%d)' %t, '(%d000)' %t, '(%d000000)' %t,'t_to_s']
 
@@ -2414,7 +2404,6 @@ class TDTestCase:
             fun_column_2 = random.sample(time_functions,1)+random.sample(fun_fix_column,1)
             time_fun_2 = str(fun_column_2).replace("[","").replace("]","").replace("'","").replace(", ","").replace("time_unit","%s" %time_unit2)
 
-
             fun_fix_column_j = ['(t1.ts)', '(t2.ts)','(t1.ts,time_unit)','(t1.ts,time_unit)','(t2.ts,time_unit)','(t2.ts,time_unit)']
 
             fun_column_join_1 = random.sample(time_functions,1)+random.sample(fun_fix_column_j,1)
@@ -2422,7 +2411,6 @@ class TDTestCase:
 
             fun_column_join_2 = random.sample(time_functions,1)+random.sample(fun_fix_column_j,1)
             time_fun_join_2 = str(fun_column_join_2).replace("[","").replace("]","").replace("'","").replace(", ","").replace("time_unit","%s" %time_unit2)
-
 
         elif (timelist == ['CAST']) :
             str_functions = timelist
@@ -3045,7 +3033,6 @@ class TDTestCase:
                 sql += ") ;"
                 tdLog.info(sql)
                 tdSql.error(sql)
-
 
         tdSql.query("select /*+ para_tables_sort() */1-10 as time_nest from stable_1 limit 1;")
         for i in range(self.fornum):
@@ -4892,8 +4879,26 @@ class TDTestCase:
 
         print('=====================2.6 old function end ===========')
 
+    def test_para_tms(self):
+        """summary: xxx
 
-    def run(self):
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
 
         startTime = time.time()
@@ -4940,13 +4945,5 @@ class TDTestCase:
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
 
-
-
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

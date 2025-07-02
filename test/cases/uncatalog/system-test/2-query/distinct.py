@@ -1,20 +1,33 @@
-import taos
-import sys
+from new_test_framework.utils import tdLog, tdSql
 
-from util.log import *
-from util.sql import *
-from util.cases import *
+class TestDistinct:
 
-
-
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_distinct(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         dbname = "db"
@@ -258,6 +271,9 @@ class TDTestCase:
         
         self.ts5971()
 
+        #tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")
+
     def ts5971(self):
         dbname = "db"
                 
@@ -280,11 +296,3 @@ class TDTestCase:
         
         tdSql.query(f"SELECT DISTINCT CSUM(c1), time FROM {dbname}.t5971")
         tdSql.checkRows(2)
-
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

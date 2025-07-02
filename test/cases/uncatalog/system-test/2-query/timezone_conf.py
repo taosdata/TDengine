@@ -1,16 +1,13 @@
+from new_test_framework.utils import tdLog, tdSql
+import time
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.sqlset import *
-from util.cluster import *
 
-class TDTestCase:
+class TestTimezoneConf:
     updatecfgDict = {"clientCfg" : {'timezone': 'UTC', 'charset': 'gbk'}, 'timezone': 'UTC-8', 'charset': 'gbk'}
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql)
 
     def timezone_check(self, timezone, sql):
         tdSql.query(sql)
@@ -28,17 +25,31 @@ class TDTestCase:
                 if tdSql.getData(i, 1).find(charset) == -1:
                     tdLog.exit("show charset:%s != %s"%(tdSql.getData(i, 1), charset))
 
-    def run(self):
+    def test_timezone_conf(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.charset_check('gbk', "show local variables")
         self.charset_check('gbk', "show dnode 1 variables")
         self.timezone_check('UTC', "show local variables")
         # time.sleep(50)
         self.timezone_check('UTC-8', "show dnode 1 variables")
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

@@ -1,20 +1,16 @@
-import taos
-import sys
-import datetime
-import inspect
+import time
 import math
-from util.log import *
-from util.sql import *
-from util.cases import *
+from new_test_framework.utils import tdLog, tdSql
 
 
 
-class TDTestCase:
+class TestLog:
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def prepare_datas(self, dbname="db"):
         tdSql.execute(
@@ -99,7 +95,7 @@ class TDTestCase:
             for col_index , elem in enumerate(row):
                 tdSql.checkData(row_index , col_index ,auto_result[row_index][col_index])
                
-    def test_errors(self, dbname="db"):
+    def check_errors(self, dbname="db"):
         error_sql_lists = [
             f"select log from {dbname}.t1",
             # f"select log(-+--+c1 ,2) from {dbname}.t1",
@@ -166,7 +162,6 @@ class TDTestCase:
 
         for type_sql in type_error_sql_lists:
             tdSql.error(type_sql)
-
 
         type_sql_lists = [
             f"select log(c1,2 ) from {dbname}.t1",
@@ -258,8 +253,6 @@ class TDTestCase:
         tdSql.query(f"select log(abs(c2),2) from {dbname}.ct1;")
         tdSql.query(f"select log(abs(c2),2) from {dbname}.stb1 partition by tbname order by tbname;")
 
-
-
         # # used for regular table
         tdSql.query(f"select log(c1 ,2) from {dbname}.t1")
         tdSql.checkData(0, 0, None)
@@ -321,8 +314,6 @@ class TDTestCase:
         tdSql.query(f"select log(c1, 2) from {dbname}.stb1")
         tdSql.checkRows(25)
 
-        
-
         # used for not exists table
         tdSql.error(f"select log(c1, 2) from {dbname}.stbbb1")
         tdSql.error(f"select log(c1, 2) from {dbname}tbname")
@@ -374,7 +365,6 @@ class TDTestCase:
         tdSql.query(f"select max(c5), count(c5) from {dbname}.stb1")
         tdSql.query(f"select max(c5), count(c5) from {dbname}.ct1")
 
-
         # bug fix for count
         tdSql.query(f"select count(c1) from {dbname}.ct4 ")
         tdSql.checkData(0,0,9)
@@ -404,13 +394,12 @@ class TDTestCase:
 
         tdSql.query(f"select c1, log(c1, -10), c2, log(c2, -10), c3, log(c3, -10) from {dbname}.ct1")
 
-    def test_big_number(self, dbname="db"):
+    def check_big_number(self, dbname="db"):
 
         tdSql.query(f"select c1, log(c1, 100000000) from {dbname}.ct1")  # bigint to double data overflow
         tdSql.checkData(0, 1, 0.112886248)
         tdSql.checkData(1, 1, 0.105637255)
         tdSql.checkData(4, 1, None)
-
 
         tdSql.query(f"select c1, log(c1, 10000000000000) from {dbname}.ct1")  # bigint to double data overflow
         tdSql.checkData(0, 1, 0.069468461)
@@ -449,7 +438,6 @@ class TDTestCase:
         tdSql.checkData(0, 1, 0.000000000)
         tdSql.checkRows(13)
 
-
         # # bug for compute in functions
         # tdSql.query(f"select c1, abs(1/0) from {dbname}.ct1")
         # tdSql.checkData(0, 0, 8)
@@ -480,7 +468,6 @@ class TDTestCase:
         tdSql.checkData(1, 1, 0.356207187)
         tdSql.checkData(4, 1, None)
 
-
     def abs_func_filter(self, dbname="db"):
         tdSql.query(f"select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from {dbname}.ct4 where c1>5 ")
         tdSql.checkRows(3)
@@ -506,7 +493,6 @@ class TDTestCase:
         tdSql.checkData(0,3,8.000000000)
         tdSql.checkData(0,4,7.900000000)
         tdSql.checkData(0,5,3.000000000)
-
 
     def check_boundary_values(self, dbname="bound_test"):
 
@@ -538,7 +524,6 @@ class TDTestCase:
 
         self.check_result_auto_log( 2 , f"select c1, c2, c3 , c3, c2 ,c1 from {dbname}.sub1_bound ", f"select log(c1,2), log(c2,2) ,log(c3,2), log(c3,2), log(c2,2) ,log(c1,2) from {dbname}.sub1_bound")
         self.check_result_auto_log( None ,  f"select c1, c2, c3 , c3, c2 ,c1 from {dbname}.sub1_bound ", f"select log(c1), log(c2) ,log(c3), log(c3), log(c2) ,log(c1) from {dbname}.sub1_bound")
-
 
         self.check_result_auto_log(2 , f"select abs(abs(abs(abs(abs(abs(abs(abs(abs(c1)))))))))  nest_col_func from {dbname}.sub1_bound" , f"select log(abs(c1) ,2) from {dbname}.sub1_bound" )
 
@@ -604,7 +589,26 @@ class TDTestCase:
         self.check_result_auto_log( 2 , f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select log(t1,2) ,log(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
         self.check_result_auto_log( 2 ,f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select log(t1,2) , log(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_log(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
@@ -613,7 +617,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:test errors ==============")
 
-        self.test_errors()
+        self.check_errors()
 
         tdLog.printNoPrefix("==========step3:support types ============")
 
@@ -625,7 +629,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step5: big number log query ============")
 
-        self.test_big_number()
+        self.check_big_number()
 
         tdLog.printNoPrefix("==========step6: base  number for log query ============")
 
@@ -643,9 +647,5 @@ class TDTestCase:
 
         self.support_super_table_test()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

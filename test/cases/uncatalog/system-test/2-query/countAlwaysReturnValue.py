@@ -1,20 +1,13 @@
-import taos
-import sys
-import datetime
-import inspect
+from new_test_framework.utils import tdLog, tdSql
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-import random
-
-
-class TDTestCase:
+class TestCountalwaysreturnvalue:
     updatecfgDict = {"countAlwaysReturnValue":0}
 
-    def init(self, conn, logSql, replicaVar=1):
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def prepare_data(self, dbname="db"):
         tdSql.execute(
@@ -55,7 +48,7 @@ class TDTestCase:
         tdSql.execute(
             f"insert into {dbname}.ctb2 values (now() + 1s, NULL)")
 
-    def test_results(self, dbname="db"):
+    def check_results(self, dbname="db"):
 
         # count
         tdSql.query(f"select count(c0) from {dbname}.tb")
@@ -162,7 +155,26 @@ class TDTestCase:
         tdSql.query(f"select count(*), hyperloglog(c0), sum(1), max(c0) from {dbname}.tb_empty")
         tdSql.checkRows(0)
 
-    def run(self):
+    def test_countAlwaysReturnValue(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:prepare data ==============")
@@ -172,13 +184,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:test results ==============")
 
-        self.test_results()
+        self.check_results()
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

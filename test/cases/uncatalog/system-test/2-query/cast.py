@@ -1,22 +1,15 @@
-import taos
-import sys
+from new_test_framework.utils import tdLog, tdSql
 import datetime
 import inspect
+import sys
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
+class TestCast:
 
-
-
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
-        self.dbname = "db"
+        #tdSql.init(conn.cursor(), logSql)
+        cls.dbname = "db"
 
     def __cast_to_bigint(self, col_name, tbname):
         __sql = f"select cast({col_name} as bigint), {col_name} from {tbname}"
@@ -699,9 +692,26 @@ class TDTestCase:
         tdSql.query(f"select cast(c7 as double) as b from {self.dbname}.stb1 union all select 123 from {self.dbname}.stb1 ")
         tdSql.query(f"select cast(c8 as tinyint unsigned) as b from {self.dbname}.stb1 union all select last(cast(c8 as tinyint unsigned)) from {self.dbname}.stb1")
 
+    def test_cast(self):
+        """summary: xxx
 
+        description: xxx
 
-    def run(self):
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table")
@@ -761,9 +771,5 @@ class TDTestCase:
 
         self.all_test()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

@@ -1,22 +1,14 @@
-import taos
-import sys
-import datetime
-import inspect
 import threading
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.common import tdCom
-import random
+from new_test_framework.utils import tdLog, tdSql, common as tdCom
 
+class TestDb:
 
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def case1(self):
         tdSql.execute("create database if not exists dbms precision 'ms'")
@@ -164,9 +156,27 @@ class TDTestCase:
             thread.join()
         
         print(f"Mutithread test finished.")
-   
-   
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+
+    def test_db(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare(replica = self.replicaVar)
 
         tdLog.printNoPrefix("==========start case1 run ...............")
@@ -189,10 +199,5 @@ class TDTestCase:
         self.show_cluster_variables_like()
         tdLog.printNoPrefix("==========end show_cluster_variables_like run ...............")
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

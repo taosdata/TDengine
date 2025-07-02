@@ -1,27 +1,20 @@
-import taos
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
 import sys
 import time
 import socket
 import os
 import threading
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
 sys.path.append("./7-tmq")
-from tmqCommon import *
 
-class TDTestCase:
+class TestSmlTs3724:
     updatecfgDict = {'clientCfg': {'smlChildTableName': 'dataModelName', 'fqdn': 'localhost'}, 'fqdn': 'localhost'}
     print("===================: ", updatecfgDict)
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
-        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        #tdSql.init(conn.cursor(), logSql)
 
     def checkContent(self, dbname="sml_db"):
         simClientCfg="%s/taos.cfg"%tdDnodes.getSimCfgPath()
@@ -62,7 +55,6 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkData(0, 3, "kk")
         tdSql.checkData(1, 3, "")
-
 
         tdSql.query(f"select distinct tbname from {dbname}.`sys_if_bytes_out`")
         tdSql.checkRows(2)
@@ -111,15 +103,28 @@ class TDTestCase:
         tdSql.checkRows(1)
         return
 
-    def run(self):
+    def test_sml_TS_3724(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
         self.checkContent()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())
-

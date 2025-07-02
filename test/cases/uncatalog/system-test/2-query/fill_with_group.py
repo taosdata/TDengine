@@ -5,25 +5,25 @@ import socket
 import os
 import threading
 import math
+from datetime import timedelta
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import tdCom
+from new_test_framework.utils.sql import TDSql
 # from tmqCommon import *
 
-class TDTestCase:
+class TestFillWithGroup:
     def __init__(self):
         self.vgroups    = 4
         self.ctbNum     = 10
         self.rowsPerTbl = 10000
         self.duraion = '1h'
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=2,replica=1, duration:str='1d'):
         if dropFlag == 1:
@@ -115,7 +115,7 @@ class TDTestCase:
                 startTs=paraDict["startTs"],tsStep=paraDict["tsStep"])
         return
 
-    def test_partition_by_with_interval_fill_prev_new_group_fill_error(self):
+    def check_partition_by_with_interval_fill_prev_new_group_fill_error(self):
         ## every table has 1500 rows after fill, 10 tables, total 15000 rows.
         ## there is no data from 9-17 08:00:00 ~ 9-17 09:00:00, so first 60 rows of every group will be NULL, cause no prev value.
         sql = "select _wstart, count(*),tbname from meters where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-18 09:00:00.000' partition by tbname interval(1m) fill(PREV) order by tbname, _wstart"
@@ -130,7 +130,7 @@ class TDTestCase:
             for j in range(0,60):
                 tdSql.checkData(i*1500+j, 1, None)
 
-    def test_fill_with_order_by(self):
+    def check_fill_with_order_by(self):
         sql = "select _wstart, _wend, count(ts), sum(c1) from meters where ts > '2018-11-25 00:00:00.000' and ts < '2018-11-26 00:00:00.00' interval(1d) fill(NULL) order by _wstart"
         tdSql.query(sql)
         tdSql.checkRows(1)
@@ -144,7 +144,7 @@ class TDTestCase:
         tdSql.query(sql)
         tdSql.checkRows(6)
 
-    def test_fill_with_order_by2(self):
+    def check_fill_with_order_by2(self):
         ## window size: 5 minutes, with 6 rows in meters every 10 minutes
         sql = "select _wstart, count(*) from meters where ts >= '2018-09-20 00:00:00.000' and ts < '2018-09-20 01:00:00.000' interval(5m) fill(prev) order by _wstart asc;"
         tdSql.query(sql, queryTimes=1)
@@ -237,7 +237,7 @@ class TDTestCase:
         tdSql.checkData(12, 1, None)
         tdSql.checkData(13, 1, None)
 
-    def test_fill_with_complex_expr(self):
+    def check_fill_with_complex_expr(self):
         sql = "SELECT _wstart, _wstart + 1d, count(*), now, 1+1 FROM meters WHERE ts >= '2018-09-20 00:00:00.000' AND ts < '2018-09-20 01:00:00.000' INTERVAL(5m) FILL(NULL)"
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(12)
@@ -410,19 +410,32 @@ class TDTestCase:
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(140)
 
+    def test_fill_with_group(self):
+        """summary: xxx
 
-    def run(self):
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.prepareTestEnv()
-        self.test_partition_by_with_interval_fill_prev_new_group_fill_error()
-        self.test_fill_with_order_by()
-        self.test_fill_with_order_by2()
-        self.test_fill_with_complex_expr()
+        self.check_partition_by_with_interval_fill_prev_new_group_fill_error()
+        self.check_fill_with_order_by()
+        self.check_fill_with_order_by2()
+        self.check_fill_with_complex_expr()
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

@@ -1,17 +1,9 @@
-# from asyncio.windows_events import NULL
-import taos
-import sys
-import datetime
-import inspect
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
 import random
-from util.dnodes import TDDnode
-from util.dnodes import tdDnodes
+import time
+# from asyncio.windows_events import NULL
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-
-class TDTestCase:
+class TestTsbsquery:
 
     clientCfgDict = {'queryproxy': '1','debugFlag': 135}
     clientCfgDict["debugFlag"] = 131
@@ -20,10 +12,10 @@ class TDTestCase:
     updatecfgDict = {'keepColumnName': 1}
     updatecfgDict["clientCfg"]  = clientCfgDict
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
 
     def create_ctable(self,tsql=None, dbName='db',stbName='stb',ctbPrefix='ctb',ctbNum=1):
             tsql.execute("use %s" %dbName)
@@ -133,7 +125,6 @@ class TDTestCase:
     #     else:
     #         tdLog.info("avg value check pass , it work as expected ,sql is \"%s\"   "%check_query )
 
-
     def tsbsIotQuery(self,insertinto=True, dbname="db_tsbs"):
 
         tdSql.execute("use db_tsbs")
@@ -144,7 +135,6 @@ class TDTestCase:
         tdSql.query(f"select avg(velocity) as mean_velocity ,name,driver,fleet from {dbname}.readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet interval(10m); ")
         tdSql.checkRows(parRows)
 
-
         # test insert into
         if insertinto == True :
             tdSql.execute(f"create table {dbname}.testsnode (ts timestamp, c1 float,c2 binary(30),c3 binary(30),c4 binary(30)) ;")
@@ -152,10 +142,8 @@ class TDTestCase:
 
             tdSql.query(f"insert into {dbname}.testsnode(ts,c1,c2,c3,c4)  SELECT ts,avg(velocity) as mean_velocity,name,driver,fleet from {dbname}.readings WHERE ts > 1451606400000 AND ts <= 1451606460000 partition BY name,driver,fleet,ts interval(10m);")
 
-
         # test paitition interval fill
         tdSql.query(f"select name,floor(avg(velocity)/10)/floor(avg(velocity)/10) AS mv from {dbname}.readings   WHERE name!='' AND ts > '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition by name interval(10m) fill(value,0) ;")
-
 
         # test partition interval limit  (PRcore-TD-17410)
         tdSql.query(f"select name,driver from (SELECT name,driver,fleet ,avg(velocity) as mean_velocity from {dbname}.readings partition BY name,driver,fleet interval (10m) limit 1);")
@@ -176,13 +164,11 @@ class TDTestCase:
         # 3 long-driving-sessions
         tdSql.query(f"select name,driver FROM(SELECT name,driver,count(*) AS ten_min FROM(SELECT _wstart as ts,name,driver,avg(velocity) as mean_velocity from {dbname}.readings  where ts > '2016-01-01T00:00:34Z' AND ts <= '2016-01-01T04:00:34Z'     partition BY name,driver interval(10m)) WHERE mean_velocity > 1 GROUP BY name,driver) WHERE ten_min > 22 ;")
 
-
         #4 long-daily-sessions
         tdSql.query(f"select name,driver FROM(SELECT name,driver,count(*) AS ten_min FROM(SELECT name,driver,avg(velocity) as mean_velocity from {dbname}.readings WHERE fleet ='West' AND ts > '2016-01-01T12:31:37Z' AND ts <= '2016-01-05T12:31:37Z' partition BY name,driver  interval(10m) ) WHERE mean_velocity > 1 GROUP BY name,driver) WHERE ten_min > 60")
 
         # 5. avg-daily-driving-duration
         tdSql.query(f"select _wstart as ts,fleet,name,driver,count(mv)/6 as hours_driven from ( select _wstart as ts,fleet,name,driver,avg(velocity) as mv from {dbname}.readings where ts > '2016-01-01T00:00:00Z'     and ts < '2016-01-05T00:00:01Z'    partition by fleet,name,driver interval(10m)) where ts > '2016-01-01T00:00:00Z'  and ts < '2016-01-05T00:00:01Z'    partition by fleet,name,driver interval(1d) ;")
-
 
         # # 6. avg-daily-driving-session
         # #taosc core dumped
@@ -202,13 +188,11 @@ class TDTestCase:
 
         tdSql.query(f"select _wstart as ts,model,fleet,count(ms1)/144  FROM (SELECT _wstart as ts1,model, fleet,avg(status) AS ms1 from {dbname}.diagnostics WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'  partition by model, fleet interval(10m) ) WHERE ts1 >= '2016-01-01T00:00:00Z' AND ts1 < '2016-01-05T00:00:01Z'  AND ms1<1 partition by model, fleet interval(1d) ;")
 
-
         # 9. breakdown-frequency
         # NULL ---count(NULL)=0 expect count(NULL)= 100
         tdSql.query(f"select model,state_changed,count(state_changed)  FROM (SELECT model,diff(broken_down) AS state_changed   FROM (SELECT _wstart,model,cast(cast(floor(2*(sum(nzs)/count(nzs))) as bool) as int) AS broken_down FROM (SELECT ts,model, cast(cast(status as bool) as int) AS nzs from {dbname}.diagnostics WHERE  ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z' ) WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition BY model interval(10m)) partition BY model) where model is null  partition BY model,state_changed ")
         parRows=tdSql.queryRows
         assert parRows != 0 , "query result is wrong, query rows %d but expect > 0 " %parRows
-
 
         tdSql.query(f"select model,state_changed,count(state_changed)  FROM (SELECT model,diff(broken_down) AS state_changed   FROM (SELECT _wstart,model,cast(cast(floor(2*(sum(nzs)/count(nzs))) as bool) as int) AS broken_down FROM (SELECT ts,model, cast(cast(status as bool) as int) AS nzs from {dbname}.diagnostics WHERE  ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z' ) WHERE ts >= '2016-01-01T00:00:00Z' AND ts < '2016-01-05T00:00:01Z'   partition BY model interval(10m)) partition BY model) where state_changed =1 partition BY model,state_changed ;")
         sql=f"SELECT model,count(state_changed) FROM (SELECT _rowts,model,diff(broken_down) AS state_changed FROM (SELECT ts,model,tb,cast(cast(floor(2*(nzs)) as bool) as int) AS broken_down FROM (SELECT _wstart as ts,model,tbname as tb, sum(cast(cast(status as bool) as int))/count(cast(cast(status as bool) as int)) AS nzs FROM {dbname}.diagnostics WHERE ts >= 1451606400000 AND ts < 1451952001000 partition BY tbname,model interval(10m))order by ts) partition BY tb,model ) WHERE state_changed = 1 partition BY model;"
@@ -222,11 +206,9 @@ class TDTestCase:
                 quertR2=tdSql.queryResult
                 assert quertR1 == quertR2 , "%s != %s ,The results of multiple queries are different" %(quertR1,quertR2)
 
-
         #it's already supported:
         # last-loc
         tdSql.query(f"select last_row(ts),latitude,longitude,name,driver from {dbname}.readings WHERE fleet='South' and name IS NOT NULL partition BY name,driver order by name ;")
-
 
         #2. low-fuel
         tdSql.query(f"select last_row(ts),name,driver,fuel_state,driver from {dbname}.diagnostics WHERE fuel_state <= 0.1 AND fleet = 'South' and name IS NOT NULL GROUP BY name,driver order by name;")
@@ -234,7 +216,26 @@ class TDTestCase:
         # 3. avg-vs-projected-fuel-consumption
         tdSql.query(f"select avg(fuel_consumption) as avg_fuel_consumption,avg(nominal_fuel_consumption) as nominal_fuel_consumption from {dbname}.readings where velocity > 1 group by fleet")
 
-    def run(self):
+    def test_tsbsQuery(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdLog.printNoPrefix("==========step1:create database and table,insert data  ==============")
         self.prepareData()
         self.tsbsIotQuery()
@@ -242,9 +243,5 @@ class TDTestCase:
         tdDnodes.start(1)
         self.tsbsIotQuery(False)
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

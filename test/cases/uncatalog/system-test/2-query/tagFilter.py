@@ -1,8 +1,5 @@
+from new_test_framework.utils import tdLog, tdSql
 import datetime
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
 
 
 INT_COL     = "c1"
@@ -23,15 +20,13 @@ TS_TYPE_COL = [TS_COL]
 
 DBNAME = "db"
 
-class TDTestCase:
+class TestTagfilter:
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        tdSql.execute(f'drop database if exists db')
-        tdSql.execute(f'create database if not exists db vgroups 1')
-
+        #tdSql.init(conn.cursor(), logSql)     
+        
     def __create_tb(self, dbname="db"):
         create_stb_sql  =  f'''create table {dbname}.stb1(
                 ts timestamp, f1 int
@@ -248,8 +243,26 @@ class TDTestCase:
             nTagCtb += 1
         tdSql.execute(f'drop table {dbname}.{stbname}')
 
+    def test_tagFilter(self):
+        """summary: xxx
 
-    def run(self):
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdLog.printNoPrefix("==========step1:create table")
         self.__create_tb()
 
@@ -259,9 +272,5 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step3:check ts4421")
         self.__ts4421()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

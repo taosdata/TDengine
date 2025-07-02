@@ -10,23 +10,18 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-
-import numpy as np
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
-from util.sqlset import *
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 from hyperloglog import HyperLogLog
 '''
 Test case for TS-5150
 '''
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        self.ts = 1537146000000
+class TestAggNull:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.ts = 1537146000000
+
     def initdabase(self):
         tdSql.execute('create database if not exists db_test vgroups 2  buffer 10')
         tdSql.execute('use db_test')
@@ -123,14 +118,28 @@ class TDTestCase:
                 if key == 'count':
                     count = float(value.strip())
             assert count != 0
-    def run(self):
+    def test_agg_null(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.initdabase()
         self.insert_data()
         self.verify_agg_null()
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

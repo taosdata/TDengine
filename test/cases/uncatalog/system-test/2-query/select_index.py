@@ -11,30 +11,24 @@
 
 # -*- coding: utf-8 -*-
 
-import random
 import os
 import time
-import taos
 import subprocess
 from faker import Faker
-from util.log import tdLog
-from util.cases import tdCases
-from util.sql import tdSql
-from util.dnodes import tdDnodes
-from util.dnodes import *
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase:
+class TestSelectIndex:
     updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 143 ,"querySmaOptimize":1}
     
-    def init(self, conn, logSql, replicaVar):
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+        # tdSql.init(conn.cursor(), logSql)
 
-        self.testcasePath = os.path.split(__file__)[0]
-        self.testcaseFilename = os.path.split(__file__)[-1]
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf %s/%s.sql" % (cls.testcasePath,cls.testcaseFilename))
         
-        self.db = "ind_sel"
+        cls.db = "ind_sel"
 
     def dropandcreateDB_random(self,database,n,vgroups):
         ts = 1630000000000
@@ -93,7 +87,6 @@ class TDTestCase:
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
                         fake.pystr() ,fake.pystr() ,fake.pyfloat(),fake.pyfloat(),fake.random_int(min=-2147483647, max=2147483647, step=1)))
 
-            
             tdSql.execute('''create table %s.tj_table_%d_a using %s.stable_2 tags('tj_a_table_2_%d', '%d' , '%d', '%d' , '%d' , 1 , 'binary1.%s' , 'nchar1.%s' , '%f', '%f' ,'%d') ;''' 
                       %(database,i,database,i,fake.random_int(min=-2147483647, max=2147483647, step=1), fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1), 
                         fake.random_int(min=-32767, max=32767, step=1) , fake.random_int(min=-127, max=127, step=1) , 
@@ -237,8 +230,7 @@ class TDTestCase:
             flush_after_value_no_from = tdSql.queryResult[i][0]
         
         self.value_check(flush_before_value_no_from,flush_after_value_no_from)
-               
-        
+
     def constant_check(self,database,func,column):    
         tdLog.info("\n=============constant(%s)_check ====================\n" %column) 
         sql = " select %s(%s) from %s.stable_1 "%(func,column,database)
@@ -338,8 +330,7 @@ class TDTestCase:
             flush_after_value = tdSql.queryResult[i][0]
         
         self.value_check(flush_before_value,flush_after_value)  
-                 
-        
+
     def constant_error_check(self,database,func,column):    
         tdLog.info("\n=============constant(%s)_check ====================\n" %column) 
         error_sql = " select %s('%s')  "%(func,column)
@@ -470,8 +461,7 @@ class TDTestCase:
         
         sql = " select derivative(%s,%ds,1) from %s.stable_1 order by ts desc"%('q_double',fake_data,database) 
         self.derivative_data_check("%s" %self.db,"%s" %sql) 
-        
-        
+
         sql = " select derivative(%s,%ds,1) from %s.stable_1 order by ts desc limit 3000"%('q_smallint',fake_data,database) 
         self.derivative_data_check("%s" %self.db,"%s" %sql)
         
@@ -513,8 +503,7 @@ class TDTestCase:
         
         self.value_check(flush_before_value,flush_after_value)
         #self.value_check(flush_before_value1,flush_after_value1)
-        
-                      
+
     def value_check(self,flush_before_value,flush_after_value):
         if flush_before_value==flush_after_value:
             tdLog.info(f"checkEqual success, flush_before_value={flush_before_value},flush_after_value={flush_after_value}") 
@@ -522,7 +511,26 @@ class TDTestCase:
             tdLog.exit(f"checkEqual error, flush_before_value=={flush_before_value},flush_after_value={flush_after_value}") 
         #pass
                             
-    def run(self):      
+    def test_select_index(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+      
         fake = Faker('zh_CN')
         fake_data =  fake.random_int(min=-9223372036854775807, max=9223372036854775807, step=1)
         fake_float = fake.pyfloat()
@@ -726,24 +734,15 @@ class TDTestCase:
       
         #TD-19843
         self.derivative_sql("%s" %self.db)
-        
-        
+
         #taos -f sql 
         print("taos -f sql start!")
         taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
         _ = subprocess.check_output(taos_cmd1, shell=True)
         print("taos -f sql over!")     
-                
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
-    
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

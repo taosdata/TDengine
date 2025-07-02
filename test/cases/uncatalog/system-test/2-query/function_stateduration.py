@@ -1,14 +1,13 @@
-from util.log import *
-from util.sql import *
-from util.cases import *
+from new_test_framework.utils import tdLog, tdSql
 
 DBNAME = "db"
-class TDTestCase:
+class TestFunctionStateduration:
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def prepare_datas(self, dbname=DBNAME):
         tdSql.execute(
@@ -60,7 +59,7 @@ class TDTestCase:
             '''
         )
 
-    def test_errors(self, dbname=DBNAME):
+    def check_errors(self, dbname=DBNAME):
         error_sql_lists = [
             # f"select stateduration(c1,'GT',5,1s) from {dbname}.t1"
             f"select stateduration from {dbname}.t1",
@@ -389,7 +388,26 @@ class TDTestCase:
         tdSql.query(f"select stateduration(c1,'GT',1,1s) from {dbname}.sub1_bound")
         tdSql.checkRows(5)
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_function_stateduration(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
@@ -398,7 +416,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:test errors ==============")
 
-        self.test_errors()
+        self.check_errors()
 
         tdLog.printNoPrefix("==========step3:support types ============")
 
@@ -419,10 +437,5 @@ class TDTestCase:
 
         self.check_unit_time()
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

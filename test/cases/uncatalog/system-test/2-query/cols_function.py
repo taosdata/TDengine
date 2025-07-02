@@ -1,21 +1,15 @@
-import random
-import string
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
-from util.tserror import *
-import numpy as np
+from new_test_framework.utils import tdLog, tdSql
+import time
 
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
 
-        self.dbname = 'test'
-        
+class TestColsFunction:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.dbname = 'test'
+
     def condition_check(self, condition, row, col, expected_value):
         if condition:
             tdSql.checkData(row, col, expected_value)
@@ -1174,7 +1168,7 @@ class TDTestCase:
         self.orderby_test("(select *, tbname from test.long_col_test)", "longcolumntestlongcolumntestlongcolumntestlongcolumntest88888888", True)
         tdLog.info("long_column_name_test subquery_test: one_cols_multi_output_with_group_test from meters")
                 
-    def test_in_interval(self):
+    def check_in_interval(self):
         dbname = "db1"
         tdSql.execute(f"drop database if exists {dbname} ")
         tdSql.execute(f"create database {dbname} vgroups 6")
@@ -1331,7 +1325,7 @@ class TDTestCase:
         tdSql.error(f'select tbname, cols(last(ts), *) from test.meters group by tbname having cols(last(ts), *) = 1734574929000')
 
         
-    def test_null2(self):
+    def check_null2(self):
         dbname = "test_null2"
         tdSql.execute(f"drop database if exists {dbname}")
         tdSql.execute(f"create database test_null2 vgroups 5")
@@ -1388,7 +1382,26 @@ class TDTestCase:
         tdSql.error(f'select tbname, cols(last(ts), c0), cols(last(c2), c0) from {dbname}.stb_null1')
         tdSql.error(f'select t1, cols(last(ts), c0), cols(last(c2), c0) from {dbname}.stb_null1')
         
-    def run(self):
+    def test_cols_function(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.funcNestTest()
         self.funcSupperTableTest()
         self.create_test_data()
@@ -1398,23 +1411,17 @@ class TDTestCase:
         self.subquery_test()
         self.window_test()
         self.join_test()
-        self.test_in_interval()
+        self.check_in_interval()
         self.include_null_test()
         self.long_column_name_test()
 
         self.having_test("test.meters", False)
         self.having_test("(select tbname, * from test.meters)", True)
         self.star_test()
-        self.test_null2()
+        self.check_null2()
         self.window_test2()
         self.stream_cols_test()
         self.stream_cols_test2()
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

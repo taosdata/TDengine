@@ -1,22 +1,17 @@
+from new_test_framework.utils import tdLog, tdSql
 import random
+
 import itertools
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.sqlset import *
-from util import constant
-from util.common import *
 
-
-class TDTestCase:
+class TestTestTs4382:
     """Verify the jira TS-4382
     """
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        # tdSql.init(conn.cursor())
 
-        self.metadata_dic = {
+        cls.metadata_dic = {
             "db_tag_json": {
                 "supertables": [
                     {
@@ -331,7 +326,7 @@ class TDTestCase:
                         tdSql.execute(sql)
                         tdLog.debug(f"Insert into data into child table {'ct' + (str(i+1) if item['name'] == 'st1' else str(i+3))} successfully")
 
-    def test_tag_json(self):
+    def check_tag_json(self):
         tdSql.execute("use db_tag_json;")
 
         # super table query with correct tag name of json type
@@ -346,7 +341,7 @@ class TDTestCase:
         tdSql.query("select ts, avg(col1) from ct2 group by ts, t1->'name' order by ts;")
         tdSql.checkRows(2)
 
-    def test_db_empty(self):
+    def check_db_empty(self):
         tdSql.execute("use db_empty;")
         table_list = ["st1", "ct1"]
         column_list = ["col1", "col2", "col3", "col4", "col5"]
@@ -454,7 +449,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
 
-    def test_db_with_data(self):
+    def check_db_with_data(self):
         tdSql.execute("use db_with_data;")
 
         sql_list = [
@@ -514,15 +509,30 @@ class TDTestCase:
         tdLog.debug("Rename tag t9 to t99 successfully")
         tdSql.error("select count(*) from st1 t1, (select * from st1 where t9='POINT (4.0 8.0)' limit 5) t2 where t1.ts=t2.ts;")
 
-    def run(self):
+    def test_test_ts4382(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.prepareData()
-        self.test_tag_json()
-        self.test_db_empty()
-        self.test_db_with_data()
+        self.check_tag_json()
+        self.check_db_empty()
+        self.check_db_with_data()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

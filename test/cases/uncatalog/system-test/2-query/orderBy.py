@@ -11,17 +11,13 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
-import random
 import time
 import copy
+import datetime
+import random
+from new_test_framework.utils import tdLog, tdSql
 
-import taos
-from util.log import *
-from util.cases import *
-from util.sql import *
-
-class TDTestCase:
+class TestOrderby:
 
     # get col value and total max min ...
     def getColsValue(self, i, j):
@@ -120,7 +116,6 @@ class TDTestCase:
         f"                            total inserted rows  = {self.childCnt*self.childRow}\n")
         return
 
-
     # prepareEnv
     def prepareEnv(self):
         # init                
@@ -217,16 +212,13 @@ class TDTestCase:
 
         return True
 
-
     # init
-    def init(self, conn, logSql, replicaVar=1):
-        seed = time.time() % 10000
-        random.seed(seed)
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
-    # check time macro
     def queryBasic(self):
         # check count
         expectVal = self.childCnt * self.childRow
@@ -252,7 +244,6 @@ class TDTestCase:
         # check c3 order desc todo FIX
         #sql = f"select count(*) from (select diff(c3) as dif from st order by c3 desc) where dif!=-1"
         #self.checkExpect(sql, 0)
-
 
     # advance
     def queryAdvance(self):
@@ -354,7 +345,26 @@ class TDTestCase:
         tdSql.checkData(2, 1, 1)
 
     # run
-    def run(self):
+    def test_orderBy(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         # prepare env
         self.prepareEnv()
 
@@ -373,10 +383,5 @@ class TDTestCase:
         self.queryOrderBySameCol()
 
     # stop
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

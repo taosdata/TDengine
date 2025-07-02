@@ -1,11 +1,7 @@
+from new_test_framework.utils import tdLog, tdSql
+
 import imp
-
-
 import datetime
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
 
 
 INT_COL     = "c1"
@@ -24,12 +20,13 @@ UN_CHAR_COL = [INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, BOO
 CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
 TS_TYPE_COL = [TS_COL]
 
-class TDTestCase:
+class TestCharLength:
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def __char_length_condition(self):
         char_length_condition = []
@@ -223,8 +220,26 @@ class TDTestCase:
             '''
         )
 
+    def test_char_length(self):
+        """summary: xxx
 
-    def run(self):
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table")
@@ -246,9 +261,5 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

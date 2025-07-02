@@ -1,29 +1,24 @@
-import taos
-import sys
 import time
 import socket
 import os
 import threading
-import math
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import tdCom
 # from tmqCommon import *
 
-class TDTestCase:
+class TestFuncToCharTimestamp:
     def __init__(self):
         self.vgroups    = 4
         self.ctbNum     = 10
         self.rowsPerTbl = 10000
         self.duraion = '1h'
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=2,replica=1, duration:str='1d'):
         if dropFlag == 1:
@@ -126,7 +121,7 @@ class TDTestCase:
         tdSql.query("select to_char(to_timestamp('%s', '%s'), '%s')" % (ts_str, ts_format, ts_format), queryTimes=1)
         tdSql.checkData(0, 0, expect_ts_char)
 
-    def test_to_timestamp(self):
+    def check_to_timestamp(self):
         self.convert_ts_and_check('2023-10-10 12:13:14.123', 'YYYY-MM-DD HH:MI:SS.MS', '2023-10-10 12:13:14.123', '2023-10-10 00:13:14.123000')
         self.convert_ts_and_check('2023-10-10 12:00:00.000AM', 'YYYY-DD-MM HH12:MI:SS.MSPM', '2023-10-10 12:00:00.000AM', '2023-10-10 00:00:00.000000')
         self.convert_ts_and_check('2023-01-01 12:10:10am', 'yyyy-mm-dd HH12:MI:SSAM', '2023-01-01 12:10:10AM', '2023-1-1 00:10:10.000000')
@@ -163,10 +158,33 @@ class TDTestCase:
             time_str  = time_str + "1234567890"
         tdSql.query("select to_timestamp('%s', '%s')" % (time_str, format))
 
-    def run(self):
+    def test_func_to_char_timestamp(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.prepareTestEnv()
-        self.test_to_timestamp()
-        self.test_ns_to_timestamp()
+        self.check_to_timestamp()
+        self.check_ns_to_timestamp()
+
+        #tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")
+
 
     def create_tables(self):
         tdSql.execute("create database if not exists test_us precision 'us'")
@@ -188,7 +206,7 @@ class TDTestCase:
         tdSql.execute(f"INSERT INTO `test_ns`.`ctb2_ns` VALUES ('2023-08-01 00:00:00.123456789', 20.30000, 200, '2023-08-01 00:00:00.123456789')")
         tdLog.debug("insert data ............ [OK]")
 
-    def test_ns_to_timestamp(self):
+    def check_ns_to_timestamp(self):
         self.create_tables()
         self.insert_ns_data()
         tdSql.query("select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns')", queryTimes=1)
@@ -203,13 +221,4 @@ class TDTestCase:
         tdSql.query("select to_timestamp(to_char(ts2, 'yyyy-mm-dd hh:mi:ss.ns'), 'yyyy-mm-dd hh:mi:ss.ns') from meters_ns", queryTimes=1)
         tdSql.checkData(0, 0, 1688140800123456000)
         tdSql.checkData(1, 0, 1690819200123456789)
-
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
-
 event = threading.Event()
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

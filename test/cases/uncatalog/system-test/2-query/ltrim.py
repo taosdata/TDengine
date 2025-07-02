@@ -1,8 +1,5 @@
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-
+from new_test_framework.utils import tdLog, tdSql
+import datetime
 
 PRIMARY_COL = "ts"
 
@@ -25,12 +22,13 @@ TS_TYPE_COL = [ TS_COL, ]
 
 DBNAME = "db"
 
-class TDTestCase:
+class TestLtrim:
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def __ltrim_condition(self):  # sourcery skip: extract-method
         ltrim_condition = []
@@ -81,7 +79,6 @@ class TDTestCase:
                 tdSql.checkData(j,0, tdSql.getData(j,1).lstrip()) if tdSql.getData(j,1) else tdSql.checkData(j, 0, None)
 
             [ tdSql.query(f"select ltrim({condition})  from {tbname} {where_condition}  {group} ") for group in groups ]
-
 
     def __ltrim_err_check(self,tbname):
         sqls = []
@@ -138,11 +135,9 @@ class TDTestCase:
                 tdSql.error(sql=errsql)
             tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
 
-
     def all_test(self):
         self.__test_current()
         self.__test_error()
-
 
     def __create_tb(self, dbname=DBNAME):
 
@@ -239,7 +234,26 @@ class TDTestCase:
             '''
         )
 
-    def run(self):
+    def test_ltrim(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table")
@@ -259,9 +273,5 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

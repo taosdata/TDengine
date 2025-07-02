@@ -1,24 +1,22 @@
+from new_test_framework.utils import tdLog, tdSql
+
 import time
 from time import sleep
 
-from util.log import *
-from util.sql import *
-from util.cases import *
 import os
 
+class TestToIso8601:
 
-
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        self.rowNum = 10
-        self.ts = 1640966400000  # 2022-1-1 00:00:00.000
-        self.dbname = 'db'
-        self.stbname = f'{self.dbname}.stb'
-        self.ntbname = f'{self.dbname}.ntb'
+        #tdSql.init(conn.cursor(), logSql)
+        cls.rowNum = 10
+        cls.ts = 1640966400000  
+        cls.dbname = 'db'
+        cls.stbname = f'{cls.dbname}.stb'
+        cls.ntbname = f'{cls.dbname}.ntb'
+
     def check_timestamp_precision(self):
         time_zone = time.strftime('%z')
         tdSql.execute(f'drop database if exists {self.dbname}')
@@ -166,14 +164,29 @@ class TDTestCase:
             tdSql.checkRows(3)
             tdSql.checkData(0,0,None)
 
-    def run(self):  # sourcery skip: extract-duplicate-method
+    def test_To_iso8601(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method
         self.check_base_function()
         self.check_customize_param_ms()
         self.check_timestamp_precision()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

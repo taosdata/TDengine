@@ -1,29 +1,22 @@
-import taos
-import sys
-import datetime
-import inspect
-
-from util.log import *
-from util.sql import *
-from util.cases import *
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 import random
+import time
 
-
-class TDTestCase:
+class TestAndOrForByte:
     # updatecfgDict = {'debugFlag': 143, "cDebugFlag": 143, "uDebugFlag": 143, "rpcDebugFlag": 143, "tmrDebugFlag": 143,
     #                  "jniDebugFlag": 143, "simDebugFlag": 143, "dDebugFlag": 143, "dDebugFlag": 143, "vDebugFlag": 143, "mDebugFlag": 143, "qDebugFlag": 143,
     #                  "wDebugFlag": 143, "sDebugFlag": 143, "tsdbDebugFlag": 143, "tqDebugFlag": 143, "fsDebugFlag": 143, "udfDebugFlag": 143}
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
-        self.tb_nums = 10
-        self.row_nums = 20
-        self.ts = 1434938400000
-        self.time_step = 1000
-        self.keep_duration = 36500  # days
-        
+        #tdSql.init(conn.cursor(), logSql)
+        cls.tb_nums = 10
+        cls.row_nums = 20
+        cls.ts = 1434938400000
+        cls.time_step = 1000
+        cls.keep_duration = 36500  
+
     def insert_datas_and_check_abs(self ,tbnums , rownums , time_step ):
         dbname = "test"
         stb = f"{dbname}.stb"
@@ -67,7 +60,6 @@ class TDTestCase:
             cols = random.sample(colnames,3)
             self.check_function("&",False,tbname,cols[0],cols[1],cols[2])
             self.check_function("|",False,tbname,cols[0],cols[1],cols[2])
-
 
     def prepare_datas(self, dbname="db"):
         tdSql.execute(
@@ -275,7 +267,7 @@ class TDTestCase:
         for ind , result in enumerate(compute_result):
             tdSql.checkData(ind,0,result)
 
-    def test_errors(self, dbname="testdb"):
+    def check_errors(self, dbname="testdb"):
         tdSql.execute(f"use {dbname}")
         error_sql_lists = [
             f"select c1&&c2 from {dbname}.t1",
@@ -363,7 +355,6 @@ class TDTestCase:
         tdSql.checkData(4, 3, 0)
         tdSql.checkData(3, 2, 55555)
 
-
         # mix with common functions
         tdSql.query(f" select c1&abs(c1)&c2&c3, abs(c1), c5, floor(c5) from {dbname}.ct4 ")
         tdSql.checkData(0, 0, None)
@@ -412,9 +403,6 @@ class TDTestCase:
         tdSql.checkData(1, 0, 888)
         tdSql.checkData(1, 1, 888.000000000)
         tdSql.checkData(1, 2, 894.900000000)
-
-
-
 
     def check_boundary_values(self, dbname="bound_test"):
 
@@ -487,8 +475,7 @@ class TDTestCase:
         tdSql.checkData(
             1, 4, 169999997607218212453866206899682148352.000000000)
 
-
-    def test_tag_compute_for_scalar_function(self, dbname="testdb"):
+    def check_tag_compute_for_scalar_function(self, dbname="testdb"):
 
         tdSql.execute(f"use {dbname}")
 
@@ -539,24 +526,35 @@ class TDTestCase:
         self.check_function("&", False , f"{dbname}.stb1" , "c1","c2","abs(c3)","floor(c4)","ceil(t1)" )
         self.check_function("&", True , f"{dbname}.stb1" , "max(c1)","max(c2)","sum(abs(c3))","max(floor(c4))","min(ceil(t1))" )
 
+    def test_and_or_for_byte(self):
+        """summary: xxx
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
         self.prepare_datas()
         self.prepare_tag_datas()
-        self.test_errors()
+        self.check_errors()
         self.basic_query()
         self.check_boundary_values()
-        self.test_tag_compute_for_scalar_function()
+        self.check_tag_compute_for_scalar_function()
         self.support_super_table_test()
         self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step)
 
-
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

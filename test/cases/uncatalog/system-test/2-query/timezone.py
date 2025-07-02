@@ -1,53 +1,49 @@
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.sqlset import TDSetSql
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.sqlset import *
 import platform
 import os
+import time
 if platform.system().lower() == 'windows':
     import tzlocal
 
+class TestTimezone:
 
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        self.setsql = TDSetSql()
-        self.arithmetic_operators = ['+','-','*','/']
-        self.arithmetic_values = [0,1,100,15.5]
-        self.dbname = 'db'
-        # name of normal table
-        self.ntbname = f'{self.dbname}.ntb'
-        # name of stable
-        self.stbname = f'{self.dbname}.stb'
-        # structure of column
-        self.column_dict = {
+        #tdSql.init(conn.cursor(), logSql)
+        # cls.setsql = # TDSetSql()
+        cls.arithmetic_operators = ['+','-','*','/']
+        cls.arithmetic_values = [0,1,100,15.5]
+        cls.dbname = 'db'
+        cls.ntbname = f'{cls.dbname}.ntb'
+        cls.stbname = f'{cls.dbname}.stb'
+        cls.column_dict = {
             'ts':'timestamp',
             'c1':'int',
             'c2':'float',
             'c3':'double'
         }
         # structure of tag
-        self.tag_dict = {
+        cls.tag_dict = {
             't0':'int'
         }
         # number of child tables
-        self.tbnum = 2
+        cls.tbnum = 2
         # values of tag,the number of values should equal to tbnum
-        self.tag_values = [
+        cls.tag_values = [
             f'10',
             f'100'
         ]
         # values of rows, structure should be same as column
-        self.values_list = [
+        cls.values_list = [
             f'now,10,99.99,11.111111',
             f'today(),100,11.111,22.222222'
 
         ]
-        self.error_param = [1,'now()']
+        cls.error_param = [1,'now()']        
+
     def get_system_timezone(self):
         if platform.system().lower() == 'windows':
             time_zone_1 = tzlocal.get_localzone_name()
@@ -96,7 +92,7 @@ class TDTestCase:
         self.tb_type_check(tb_type)
     def timezone_check_ntb(self,timezone):
         tdSql.execute(f'create database {self.dbname}')
-        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        tdSql.execute(TDSetSql.set_create_normaltable_sql(self.ntbname,self.column_dict))
         for value in self.values_list:
             tdSql.execute(
                 f'insert into {self.ntbname} values({value})')
@@ -104,7 +100,7 @@ class TDTestCase:
         tdSql.execute('drop database db')
     def timezone_check_stb(self,timezone):
         tdSql.execute(f'create database {self.dbname}')
-        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
+        tdSql.execute(TDSetSql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
         for i in range(self.tbnum):
             tdSql.execute(f'create table if not exists {self.stbname}_{i} using {self.stbname} tags({self.tag_values[i]})')
             for j in self.values_list:
@@ -116,7 +112,7 @@ class TDTestCase:
 
     def timezone_format_test(self):
         tdSql.execute(f'create database {self.dbname}')
-        tdSql.execute(self.setsql.set_create_stable_sql(f'{self.dbname}.stb', {'ts':'timestamp','id':'int'}, {'status':'int'}))
+        tdSql.execute(TDSetSql.set_create_stable_sql(f'{self.dbname}.stb', {'ts':'timestamp','id':'int'}, {'status':'int'}))
 
         tdSql.execute(f"insert into {self.dbname}.d0 using {self.dbname}.stb tags (1) values ('2021-07-01 00:00:00.000',0);")
         tdSql.query(f"select ts from {self.dbname}.d0;")
@@ -197,7 +193,26 @@ class TDTestCase:
             if tdSql.getData(i, 0) == "charset" :
                 if tdSql.getData(i, 1).find(charset) == -1:
                     tdLog.exit("show charset:%s != %s"%(tdSql.getData(i, 1), charset))
-    def run(self):  # sourcery skip: extract-duplicate-method
+    def test_timezone(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method
         timezone = self.get_system_timezone()
         # timezone = "Asia/Shanghai"
         self.charset_check("show local variables", "UTF-8")
@@ -209,10 +224,5 @@ class TDTestCase:
         self.timezone_check_stb(timezone)
         self.timezone_format_test()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

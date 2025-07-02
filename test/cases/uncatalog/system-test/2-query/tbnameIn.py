@@ -11,19 +11,13 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
-import taos
-from util.log import *
-from util.cases import *
-from util.sql import *
-
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+from new_test_framework.utils import tdLog, tdSql
+class TestTbnamein:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        
+        #tdSql.init(conn.cursor(), logSql)
+
     def inTest(self, dbname="db"):
         tdSql.execute(f'drop database if exists {dbname}')
         tdSql.execute(f'create database {dbname}')
@@ -132,14 +126,27 @@ class TDTestCase:
         tdSql.checkData(0, 0, '2025-01-21 00:11:03')
         tdSql.checkData(0, 1, 113)
 
+    def test_tbnameIn(self):
+        """summary: xxx
 
-    def run(self):
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.inTest()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

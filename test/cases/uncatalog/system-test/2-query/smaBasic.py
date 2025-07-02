@@ -11,16 +11,10 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
-import random
 import time
-
-import taos
-from util.log import *
-from util.cases import *
-from util.sql import *
-
-class TDTestCase:
+from new_test_framework.utils import tdLog, tdSql
+import random
+class TestSmabasic:
 
     # get col value and total max min ...
     def getColsValue(self, i, j):
@@ -37,7 +31,6 @@ class TDTestCase:
             c2 = None
         else:
             c2 = random.randint(-87654297, 98765321)    
-
 
         value = f"({self.ts}, "
         self.ts += 1
@@ -109,7 +102,6 @@ class TDTestCase:
         f"                            inserted child rows  = {self.childRow}\n"
         f"                            total inserted rows  = {self.childCnt*self.childRow}\n")
         return
-
 
     # prepareEnv
     def prepareEnv(self):
@@ -251,7 +243,6 @@ class TDTestCase:
         stime = time.time()
         tdSql.execute(sql1, 1)
         spend1 = time.time() - stime
-        
 
         # no sma caculate
         sql2 = "select count(*) from st where c2 != 8764231 or c2 is null"
@@ -266,17 +257,32 @@ class TDTestCase:
             return 
         tdLog.info(f"performance passed! sma spend1={time1}ms no sma spend2= {time2}ms sql1={sql1} sql2= {sql2}")
 
-
     # init
-    def init(self, conn, logSql, replicaVar=1):
-        seed = time.time() % 10000
-        random.seed(seed)
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
 
-    # run
-    def run(self):
+    def test_smaBasic(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         # prepare env
         self.prepareEnv()
 
@@ -287,10 +293,5 @@ class TDTestCase:
         self.checkPerformance()
 
     # stop
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

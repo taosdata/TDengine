@@ -1,27 +1,23 @@
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.sqlset import TDSetSql
+import datetime
+
 from time import sleep
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.sqlset import TDSetSql
+class TestToUnixtimestamp:
 
-
-
-
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        self.setsql = TDSetSql()
-        self.dbname = 'db'
+        #tdSql.init(conn.cursor(), logSql)
+        # cls.setsql = # TDSetSql()
+        cls.dbname = 'db'
         # name of normal table
-        self.ntbname = f'{self.dbname}.ntb'
+        cls.ntbname = f'{cls.dbname}.ntb'
         # name of stable
-        self.stbname = f'{self.dbname}.stb'
+        cls.stbname = f'{cls.dbname}.stb'
         # structure of column
-        self.column_dict = {
+        cls.column_dict = {
             'ts':'timestamp',
             'c1':'int',
             'c2':'float',
@@ -29,23 +25,24 @@ class TDTestCase:
 
         }
         # structure of tag
-        self.tag_dict = {
+        cls.tag_dict = {
             't0':'int'
         }
         # number of child tables
-        self.tbnum = 2
+        cls.tbnum = 2
         # values of tag,the number of values should equal to tbnum
-        self.tag_values = [
+        cls.tag_values = [
             '10',
             '100'
         ]
         # values of rows, structure should be same as column
-        self.values_list = [
+        cls.values_list = [
             f'now,10,99.99,"abc"',
             f'today(),100,11.111,"abc"'
 
         ]
-        self.error_param = [1,1.5,'now()']
+        cls.error_param = [1,1.5,'now()']
+
     def data_check(self,tbname,values_list,tb_type,tb_num=1):
         for time in ['1970-01-01T08:00:00+0800','1970-01-01T08:00:00+08:00']:
             tdSql.query(f"select to_unixtimestamp('{time}') from {tbname}")
@@ -79,14 +76,14 @@ class TDTestCase:
             tdSql.error(f"select to_unixtimestamp({time}) from {tbname}")
     def timestamp_change_check_ntb(self):
         tdSql.execute(f'create database {self.dbname}')
-        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        tdSql.execute(TDSetSql.set_create_normaltable_sql(self.ntbname,self.column_dict))
         for i in range(len(self.values_list)):
             tdSql.execute(f'insert into {self.ntbname} values({self.values_list[i]})')
         self.data_check(self.ntbname,self.values_list,'ntb')
         tdSql.execute(f'drop database {self.dbname}')
     def timestamp_change_check_stb(self):
         tdSql.execute(f'create database {self.dbname}')
-        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
+        tdSql.execute(TDSetSql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
         for i in range(self.tbnum):
             tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[i]})')
             for j in range(len(self.values_list)):
@@ -105,13 +102,28 @@ class TDTestCase:
         tdSql.error(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', 'abc');")
         tdSql.error(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', true);")
         tdSql.error(f"select to_unixtimestamp('1970-01-01 08:00:00+08:00', 1, 3);")
-    def run(self):  # sourcery skip: extract-duplicate-method
+    def test_To_unixtimestamp(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method
         self.timestamp_change_check_ntb()
         self.timestamp_change_check_stb()
         self.timestamp_change_return_type()
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

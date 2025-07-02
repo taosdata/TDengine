@@ -1,21 +1,19 @@
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import TDCom, tdCom
+import random
+
 import queue
 from random import randrange
 import time
 import threading
 import secrets
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
 from datetime import timezone
 from tzlocal import get_localzone
 # from tmqCommon import *
 
-
 ROUND: int = 500
 
-class TDTestCase:
+class TestInterpExtension:
     updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'debugFlag': 143}
     check_failed: bool = False
 
@@ -25,10 +23,11 @@ class TDTestCase:
         self.rowsPerTbl = 10000
         self.duraion = '1h'
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def create_database(self, tsql, dbName, dropFlag=1, vgroups=2, replica=1, duration: str = '1d'):
         if dropFlag == 1:
@@ -140,11 +139,32 @@ class TDTestCase:
         self.init_normal_tb(tdSql, paraDict['dbName'], 'norm_tb',
                             paraDict['rowsPerTbl'], paraDict['startTs'], paraDict['tsStep'])
 
-    def run(self):
-        self.init_data()
-        self.test_interp_extension()
+    def test_interp_extension(self):
+        """summary: xxx
 
-    
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
+        self.init_data()
+        self.check_interp_extension()
+
+        #tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")
+
     def datetime_add_tz(self, dt):
         if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
             return dt.replace(tzinfo=get_localzone())
@@ -269,7 +289,7 @@ class TDTestCase:
 
     ### first(ts)               | last(ts)
     ### 2018-09-17 09:00:00.047 | 2018-09-17 10:23:19.863
-    def test_interp_fill_extension_near(self):
+    def check_interp_fill_extension_near(self):
         sql = f"select last(ts), c1, c2 from test.t0"
         tdSql.query(sql, queryTimes=1)
         lastRow = tdSql.queryResult[0]
@@ -289,7 +309,6 @@ class TDTestCase:
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(6)
         self.check_result_for_near(tdSql.queryResult, select_all_results, sql, None)
-
 
         start = 1537146000000
         end = 1537151000000
@@ -351,7 +370,7 @@ class TDTestCase:
         if self.check_failed:
             tdLog.exit("interp check near failed")
 
-    def test_interp_extension_irowts_origin(self):
+    def check_interp_extension_irowts_origin(self):
         sql = f"select _irowts, _irowts_origin, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:01:00') every(1s) fill(near)"
         tdSql.query(sql, queryTimes=1)
 
@@ -362,8 +381,7 @@ class TDTestCase:
         sql = f"select _irowts, _irowts_origin, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:01:00') every(1s) fill(NULL_F)"
         tdSql.error(sql, -2147473833)
 
-
-    def test_interp_fill_extension(self):
+    def check_interp_fill_extension(self):
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(near, 0, 0)"
         tdSql.query(sql, queryTimes=1)
 
@@ -478,8 +496,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, last_ts)
         tdSql.checkData(0, 4, False)
 
-
-    def test_interval_fill_extension(self):
+    def check_interval_fill_extension(self):
         ## not allowed
         sql = f"select count(*) from test.meters interval(1s) fill(near)"
         tdSql.error(sql, -2147473920) ## syntax error
@@ -492,8 +509,7 @@ class TDTestCase:
         sql = f"select _irowts_origin, count(*) from test.meters where ts between '2018-09-17 08:59:59' and '2018-09-17 09:00:06' interval(1s) fill(next)"
         tdSql.error(sql, -2147473918) ## invalid column name _irowts_origin
 
-
-    def test_interp_fill_extension_stream(self):
+    def check_interp_fill_extension_stream(self):
         ## near is not supported
         sql = f"create stream s1 trigger force_window_close into test.s_res_tb as select _irowts, interp(c1), interp(c2)from test.meters partition by tbname every(1s) fill(near);"
         tdSql.error(sql, -2147473851) ## TSDB_CODE_PAR_INVALID_STREAM_QUERY
@@ -505,19 +521,14 @@ class TDTestCase:
         sql = f"create stream s1 trigger force_window_close into test.s_res_tb as select _irowts, interp(c1), interp(c2)from test.meters partition by tbname every(1s) fill(next, 1, 1);"
         tdSql.error(sql, -2147473915) ## cannot specify values
 
-    def test_interp_extension(self):
-        self.test_interp_fill_extension_near()
-        self.test_interp_extension_irowts_origin()
-        self.test_interp_fill_extension()
-        self.test_interval_fill_extension()
-        self.test_interp_fill_extension_stream()
+    def check_interp_extension(self):
+        self.check_interp_fill_extension_near()
+        self.check_interp_extension_irowts_origin()
+        self.check_interp_fill_extension()
+        self.check_interval_fill_extension()
+        self.check_interp_fill_extension_stream()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
-
 event = threading.Event()
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

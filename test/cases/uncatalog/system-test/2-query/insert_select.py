@@ -15,22 +15,21 @@ import random
 import os
 import time
 import subprocess
-from util.log import tdLog
-from util.cases import tdCases
-from util.sql import tdSql
+from new_test_framework.utils import tdLog, tdSql
+import random
 
-class TDTestCase:
+class TestInsertSelect:
     updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 143 ,"querySmaOptimize":1}
     
-    def init(self, conn, logSql, replicaVar):
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+        # tdSql.init(conn.cursor(), logSql)
 
-        self.testcasePath = os.path.split(__file__)[0]
-        self.testcaseFilename = os.path.split(__file__)[-1]
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf %s/%s.sql" % (cls.testcasePath,cls.testcaseFilename))
         
-        self.db = "insert_select"
+        cls.db = "insert_select"
 
     def dropandcreateDB_random(self,database,n):
         ts = 1604298064000
@@ -181,8 +180,26 @@ class TDTestCase:
         tdSql.checkData(2,1,2)
         tdSql.checkData(3,1,-1)
                             
-    def run(self):      
-        
+    def test_insert_select(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         startTime = time.time()  
                   
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
@@ -207,13 +224,6 @@ class TDTestCase:
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
-    
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

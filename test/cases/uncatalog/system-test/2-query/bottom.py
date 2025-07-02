@@ -11,29 +11,22 @@
 
 # -*- coding: utf-8 -*-
 
-import random
-import string
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
-from util.sqlset import *
+from new_test_framework.utils import tdLog, tdSql, sqlset, common
 
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        self.dbname = 'db_test'
-        self.setsql = TDSetSql()
-        self.ntbname = f'{self.dbname}.ntb'
-        self.rowNum = 10
-        self.tbnum = 20
-        self.ts = 1537146000000
-        self.binary_str = 'taosdata'
-        self.nchar_str = '涛思数据'
-        self.column_dict = {
+class TestBottom:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.dbname = 'db_test'
+        # cls.setsql = # TDSetSql()
+        cls.ntbname = f'{cls.dbname}.ntb'
+        cls.rowNum = 10
+        cls.tbnum = 20
+        cls.ts = 1537146000000
+        cls.binary_str = 'taosdata'
+        cls.nchar_str = '涛思数据'
+        cls.column_dict = {
             'ts'  : 'timestamp',
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -50,12 +43,12 @@ class TDTestCase:
             'col13': 'nchar(20)'
         }
 
-        self.param_list = [1,100]
+        cls.param_list = [1,100]
     def insert_data(self,column_dict,tbname,row_num):
-        insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
+        insert_sql = sqlset.TDSetSql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
         for i in range(row_num):
             insert_list = []
-            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
+            sqlset.TDSetSql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
     def bottom_check_data(self,tbname,tb_type):
         new_column_dict = {}
         for param in self.param_list:
@@ -92,12 +85,12 @@ class TDTestCase:
     def bottom_check_ntb(self):
         tdSql.execute(f'create database if not exists {self.dbname} vgroups 1')
         tdSql.execute(f'use {self.dbname}')
-        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        tdSql.execute(sqlset.TDSetSql.set_create_normaltable_sql(self.ntbname,self.column_dict))
         self.insert_data(self.column_dict,self.ntbname,self.rowNum)
         self.bottom_check_data(self.ntbname,'normal_table')
         tdSql.execute(f'drop database {self.dbname}')
     def bottom_check_stb(self):
-        stbname = f'{self.dbname}.{tdCom.getLongName(5, "letters")}'
+        stbname = f'{self.dbname}.{common.tdCom.getLongName(5, "letters")}'
         tag_dict = {
             't0':'int'
         }
@@ -106,7 +99,7 @@ class TDTestCase:
             ]
         tdSql.execute(f"create database if not exists {self.dbname} vgroups 2")
         tdSql.execute(f'use {self.dbname}')
-        tdSql.execute(self.setsql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
+        tdSql.execute(sqlset.TDSetSql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
         for i in range(self.tbnum):
             tdSql.execute(f"create table {stbname}_{i} using {stbname} tags({tag_values[0]})")
             self.insert_data(self.column_dict,f'{stbname}_{i}',self.rowNum)
@@ -127,13 +120,28 @@ class TDTestCase:
         self.bottom_check_data(f'{stbname}','stable')
         tdSql.execute(f'drop database {self.dbname}')
 
-    def run(self):
+    def test_bottom(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.bottom_check_ntb()
         self.bottom_check_stb()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

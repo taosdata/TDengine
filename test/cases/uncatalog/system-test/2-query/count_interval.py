@@ -11,26 +11,40 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
-import taos
-from util.log import tdLog
-from util.cases import tdCases
-from util.sql import tdSql
-from util.dnodes import tdDnodes
-import random
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
 
+class TestCountInterval:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
-        
     def restartTaosd(self, index=1, dbname="db"):
         tdDnodes.stop(index)
         tdDnodes.startWithoutSleep(index)
         tdSql.execute(f"use d")
         
-    def run(self):
+    def test_count_interval(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.execute("drop database if exists d");
         tdSql.execute("create database d");
         tdSql.execute("use d");
@@ -51,10 +65,6 @@ class TDTestCase:
         self.restartTaosd()
         tdSql.query("select count(ts) from ct1 interval(17n, 5n)")           
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

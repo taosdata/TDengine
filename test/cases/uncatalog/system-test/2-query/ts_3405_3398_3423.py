@@ -1,19 +1,35 @@
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.sqlset import *
+from new_test_framework.utils import tdLog, tdSql
 import datetime
 import random
 
-class TDTestCase:
+class TestTs340533983423:
     """The test cases are for TS_3398, TS_3405, TS_3423
     """
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
 
-    def run(self):
+    def test_ts_3405_3398_3423(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         """This test case is used to verify the query performance for the merge scans process of
         multiple tables join
         """
@@ -150,13 +166,9 @@ class TDTestCase:
             tdLog.info("query result is wrong")
         tdLog.info("Finish the test case for ts_3423 successfully")
 
-    def stop(self):
         # clear the db
         tdSql.execute("drop database if exists statistics1;")
         tdSql.execute("drop database if exists statistics2;")
         tdSql.execute("drop database if exists ts_3423;")
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

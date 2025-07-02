@@ -11,23 +11,16 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
 import os
 import threading as thd
 import multiprocessing as mp
 import taos
-from util.dnodes import TDDnode
-from util.dnodes import *
-from util.log import *
-from util.cases import *
-from util.sql import *
-import numpy as np
-import datetime as dt
+from new_test_framework.utils import tdLog, tdSql,tdDnodes
 import time
 # constant define
 WAITS = 5 # wait seconds
 
-class TDTestCase:
+class TestQueryqnode:
     #
     # --------------- main frame -------------------
     #
@@ -63,13 +56,13 @@ class TDTestCase:
         return buildPath
 
     # init
-    def init(self, conn, logSql=True, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        # tdSql.init(conn.cursor())
         # tdSql.prepare()
         # self.create_tables();
-        self.ts = 1500000000000
+        cls.ts = 1500000000000
 
     # stop
     def stop(self):
@@ -279,7 +272,7 @@ class TDTestCase:
         return
 
     # test case : Switch back and forth among the three queryPolicy（1\2\3）
-    def test_case1(self):
+    def check_case1(self):
         self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 1, 2, 1*10)
         tdSql.execute("use db1;")
         tdSql.query("select * from information_schema.ins_dnodes;")
@@ -417,7 +410,7 @@ class TDTestCase:
         assert unionallQnode==tdSql.queryResult
 
     # test case : queryPolicy = 2
-    def test_case2(self):
+    def check_case2(self):
         self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 10, 2, 1*10)
         tdSql.query("select * from information_schema.ins_qnodes")
         if tdSql.queryRows == 1 :
@@ -450,7 +443,7 @@ class TDTestCase:
 
     # test case : queryPolicy = 3
 
-    def test_case3(self):
+    def check_case3(self):
         tdSql.execute('alter local  "queryPolicy" "3"')
         tdLog.debug("create qnode on dnode 1")
         tdSql.execute("create qnode on dnode 1")
@@ -481,27 +474,38 @@ class TDTestCase:
         tdSql.error("select c0,c1 from(select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000) order by c0,c1;")
 
     # run case
-    def run(self):
+    def test_queryQnode(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         # test qnode
-        tdLog.debug(" test_case1 ............ [start]")
-        self.test_case1()
-        tdLog.debug(" test_case1 ............ [OK]")
-        tdLog.debug(" test_case2 ............ [start]")
-        self.test_case2()
-        tdLog.debug(" test_case2 ............ [OK]")
-        tdLog.debug(" test_case3 ............ [start]")
-        self.test_case3()
-        tdLog.debug(" test_case3 ............ [OK]")
+        tdLog.debug(" check_case1 ............ [start]")
+        self.check_case1()
+        tdLog.debug(" check_case1 ............ [OK]")
+        tdLog.debug(" check_case2 ............ [start]")
+        self.check_case2()
+        tdLog.debug(" check_case2 ............ [OK]")
+        tdLog.debug(" check_case3 ............ [start]")
+        self.check_case3()
+        tdLog.debug(" check_case3 ............ [OK]")
 
-        # tdLog.debug(" LIMIT test_case3 ............ [OK]")
+        # tdLog.debug(" LIMIT check_case3 ............ [OK]")
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
-        return
-#
-# add case with filename
-#
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+    # stop

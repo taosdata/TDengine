@@ -1,20 +1,16 @@
-from util.log import *
-from util.cases import *
-from util.sql import *
+from new_test_framework.utils import tdLog, tdSql
 import numpy as np
 import random
 
-
-class TDTestCase:
+class TestDistributeAggSpread:
     updatecfgDict = {"maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug(f"start to execute {__file__}")
-        tdSql.init(conn.cursor())
-        self.vnode_disbutes = None
-        self.ts = 1537146000000
-
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.vnode_disbutes = None
+        cls.ts = 1537146000000
 
     def check_spread_functions(self, tbname , col_name):
 
@@ -259,17 +255,30 @@ class TDTestCase:
         tdSql.checkData(0,3,-999)
         tdSql.checkData(0,4,28.000000000)
 
-    def run(self):
+    def test_distribute_agg_spread(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
 
         self.prepare_datas_of_distribute()
         self.check_distribute_datas()
         self.check_spread_status()
         self.distribute_agg_query()
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

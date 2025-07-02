@@ -1,35 +1,29 @@
-import taos
-from util.log import *
-from util.cases import *
-from util.sql import *
-import numpy as np
+from new_test_framework.utils import tdLog, tdSql, autogen
+
 import time
-from datetime import datetime
-from util.gettime import *
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        print(conn)
-        self.rest_tag = str(conn).lower().split('.')[0].replace("<taos","")
-        print(self.rest_tag)
-        self.get_time = GetTime()
-        self.ts_str = [
+import datetime
+class TestTimetruncate:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.rest_tag = str(cls.conn).lower().split('.')[0].replace("<taos","")
+        cls.get_time = autogen.GetTime()
+        cls.ts_str = [
             '2020-1-1',
             '2020-2-1 00:00:01',
             '2020-3-1 00:00:00.001',
             '2020-4-1 00:00:00.001002',
             '2020-5-1 00:00:00.001002001'
         ]
-        self.unix_ts = ['1','1111','1111111','1111111111','1111111111111']
-        self.db_param_precision = ['ms','us','ns']
-        self.time_unit = ['1w','1d','1h','1m','1s','1a','1u','1b']
-        self.error_unit = ['2w','2d','2h','2m','2s','2a','2u','1c','#1']
-        self.dbname = 'db'
-        self.ntbname = f'{self.dbname}.ntb'
-        self.stbname = f'{self.dbname}.stb'
-        self.ctbname = f'{self.dbname}.ctb'
+        cls.unix_ts = ['1','1111','1111111','1111111111','1111111111111']
+        cls.db_param_precision = ['ms','us','ns']
+        cls.time_unit = ['1w','1d','1h','1m','1s','1a','1u','1b']
+        cls.error_unit = ['2w','2d','2h','2m','2s','2a','2u','1c','#1']
+        cls.dbname = 'db'
+        cls.ntbname = f'{cls.dbname}.ntb'
+        cls.stbname = f'{cls.dbname}.stb'
+        cls.ctbname = f'{cls.dbname}.ctb'
 
     def check_ms_timestamp(self,unit,date_time, ignore_tz):
         if unit.lower() == '1a':
@@ -244,14 +238,28 @@ class TDTestCase:
             self.data_check(date_time,precision,'ctb')
             self.data_check(date_time,precision,'stb')
 
+    def test_timetruncate(self):
+        """summary: xxx
 
-    def run(self):
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.function_check_ntb()
         self.function_check_stb()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

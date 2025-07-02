@@ -1,20 +1,17 @@
-from util.log import *
-from util.cases import *
-from util.sql import *
+from new_test_framework.utils import tdLog, tdSql
 import numpy as np
 
-
-class TDTestCase:
+class TestMax:
     updatecfgDict = {"maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.rowNum = 10
+        cls.ts = 1537146000000
+        cls.binary_str = 'taosdata'
+        cls.nchar_str = '涛思数据'
 
-        self.rowNum = 10
-        self.ts = 1537146000000
-        self.binary_str = 'taosdata'
-        self.nchar_str = '涛思数据'
     def max_check_stb_and_tb_base(self, dbname="db"):
         tdSql.prepare()
         intData = []
@@ -113,7 +110,6 @@ class TDTestCase:
         else:
             tdLog.info(" max function work as expected, sql : %s "% max_sql)
 
-
     def support_distributed_aggregate(self, dbname="testdb"):
 
         # prepate datas for  20 tables distributed at different vgroups
@@ -189,7 +185,6 @@ class TDTestCase:
         for vgroup_id in vgroups:
             vnode_tables[vgroup_id[0]]=[]
 
-
         # check sub_table of per vnode ,make sure sub_table has been distributed
         tdSql.query(f"select * from information_schema.ins_tables where db_name = '{dbname}' and table_name like 'ct%'")
         table_names = tdSql.queryResult
@@ -224,7 +219,25 @@ class TDTestCase:
             for colname in colnames:
                 self.check_max_functions(f"{dbname}.{tablename}", colname)
 
-    def run(self):
+    def test_max(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
 
         # max verifacation
         self.max_check_stb_and_tb_base()
@@ -232,9 +245,5 @@ class TDTestCase:
 
         self.support_distributed_aggregate()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

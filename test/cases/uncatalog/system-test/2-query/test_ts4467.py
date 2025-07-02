@@ -1,20 +1,14 @@
-import random
+from new_test_framework.utils import tdLog, tdSql
+
 import itertools
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.sqlset import *
-from util import constant
-from util.common import *
 
-
-class TDTestCase:
+class TestTestTs4467:
     """Verify the jira TS-4467
     """
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
 
     def prepareData(self):
         # db
@@ -32,7 +26,26 @@ class TDTestCase:
         tdSql.execute(sql)
         tdLog.debug("insert data successfully")
 
-    def run(self):
+    def test_test_ts4467(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.prepareData()
 
         # join query with order by
@@ -68,9 +81,5 @@ class TDTestCase:
         tdSql.query(sql)
         tdSql.checkData(0,0,0)
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

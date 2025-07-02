@@ -1,22 +1,18 @@
+from new_test_framework.utils import tdLog, tdSql
+import time
+
 from math import ceil
-import taos
-import sys
-import datetime
-import inspect
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-
-class TDTestCase:
+class TestCeil:
     # updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     # "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
     # "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def prepare_datas(self, dbname="db"):
         tdSql.execute(
@@ -91,7 +87,7 @@ class TDTestCase:
                 tdSql.checkData(row_index,col_index,auto_result[row_index][col_index])
                
 
-    def test_errors(self, dbname="db"):
+    def check_errors(self, dbname="db"):
         error_sql_lists = [
             f"select ceil from {dbname}.t1",
             f"select ceil(123--123)==1 from {dbname}.t1",
@@ -427,7 +423,26 @@ class TDTestCase:
         self.check_result_auto( f" select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select ceil(t1) , ceil(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
         pass
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_ceil(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
@@ -436,7 +451,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:test errors ==============")
 
-        self.test_errors()
+        self.check_errors()
 
         tdLog.printNoPrefix("==========step3:support types ============")
 
@@ -458,9 +473,5 @@ class TDTestCase:
 
         self.support_super_table_test()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

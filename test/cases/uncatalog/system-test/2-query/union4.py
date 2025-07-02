@@ -1,9 +1,5 @@
 import datetime
-
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
 
 PRIMARY_COL = "ts"
 
@@ -24,12 +20,12 @@ CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
 BOOLEAN_COL = [ BOOL_COL, ]
 TS_TYPE_COL = [ TS_COL, ]
 
-class TDTestCase:
+class TestUnion4:
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql)
 
     def __query_condition(self,tbname):
         query_condition = []
@@ -83,7 +79,6 @@ class TDTestCase:
             elif query_conditon.startswith("min"):
                 query_conditon = query_conditon[4:-1]
 
-
         if query_conditon:
             return f" where {query_conditon} is not null"
         if col in NUM_COL:
@@ -96,7 +91,6 @@ class TDTestCase:
             return f" where cast( {tbname}.{col} as binary(16) ) is not null "
 
         return ""
-
 
     def __group_condition(self, col, having = None):
         if isinstance(col, str):
@@ -114,7 +108,6 @@ class TDTestCase:
         if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0] != from_clause.split(".")[0]:
             return
         return f"select {select_clause} from {from_clause} {where_condition} {group_condition}"
-
 
     @property
     def __join_tblist(self):
@@ -280,7 +273,6 @@ class TDTestCase:
         self.__test_error()
         self.union_check()
 
-
     def __create_tb(self):
 
         tdLog.printNoPrefix("==========step1:create table")
@@ -377,8 +369,26 @@ class TDTestCase:
             '''
         )
 
+    def test_union4(self):
+        """summary: xxx
 
-    def run(self):
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table")
@@ -399,9 +409,5 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

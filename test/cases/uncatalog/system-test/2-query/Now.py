@@ -1,49 +1,46 @@
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.sqlset import TDSetSql
 
-from util.dnodes import *
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.sqlset import *
+class TestNow:
 
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        self.setsql = TDSetSql()
-        self.dbname = 'db'
+        #tdSql.init(conn.cursor(), logSql)
+        # cls.setsql = # TDSetSql()
+        cls.dbname = 'db'
         # name of normal table
-        self.ntbname = f'{self.dbname}.ntb'
+        cls.ntbname = f'{cls.dbname}.ntb'
         # name of stable
-        self.stbname = f'{self.dbname}.stb'
+        cls.stbname = f'{cls.dbname}.stb'
         # structure of column
-        self.column_dict = {
+        cls.column_dict = {
             'ts':'timestamp',
             'c1':'int',
             'c2':'float',
             'c3':'double'
         }
         # structure of tag
-        self.tag_dict = {
+        cls.tag_dict = {
             't0':'int'
         }
         # number of child tables
-        self.tbnum = 2
+        cls.tbnum = 2
         # values of tag,the number of values should equal to tbnum
-        self.tag_values = [
+        cls.tag_values = [
             f'10',
             f'100'
         ]
-        self.values_list = [
+        cls.values_list = [
             f'now,10,99.99,11.111111',
             f'today(),100,11.111,22.222222'
         ]
-        self.time_unit = ['b','u','a','s','m','h','d','w']
-        self.symbol = ['+','-','*','/']
-        self.error_values = ['abc','"abc"','!@','today()']
-        self.db_percision = ['ms','us','ns']
-        self.test_values = [1.5, 10]
+        cls.time_unit = ['b','u','a','s','m','h','d','w']
+        cls.symbol = ['+','-','*','/']
+        cls.error_values = ['abc','"abc"','!@','today()']
+        cls.db_percision = ['ms','us','ns']
+        cls.test_values = [1.5, 10]
+
     def tbtype_check(self,tb_type):
         if tb_type == 'normal table' or tb_type == 'child table':
             tdSql.checkRows(len(self.values_list))
@@ -80,7 +77,7 @@ class TDTestCase:
         for time_unit in self.db_percision:
             tdSql.execute(f'create database {self.dbname} precision "{time_unit}"')
             tdSql.execute(f'use {self.dbname}')
-            tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+            tdSql.execute(TDSetSql.set_create_normaltable_sql(self.ntbname,self.column_dict))
             for value in self.values_list:
                 tdSql.execute(
                     f'insert into {self.ntbname} values({value})')
@@ -91,7 +88,7 @@ class TDTestCase:
         for time_unit in self.db_percision:
             tdSql.execute(f'create database {self.dbname} precision "{time_unit}"')
             tdSql.execute(f'use {self.dbname}')
-            tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
+            tdSql.execute(TDSetSql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
             for i in range(self.tbnum):
                 tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[0]})")
                 for value in self.values_list:
@@ -100,7 +97,26 @@ class TDTestCase:
                 self.data_check(f'{self.stbname}_{i}','child table')
             self.data_check(self.stbname,'stable')
             tdSql.execute(f'drop database {self.dbname}')
-    def run(self):  # sourcery skip: extract-duplicate-method
+    def test_Now(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method
 
         self.now_check_ntb()
         self.now_check_stb()
@@ -115,12 +131,5 @@ class TDTestCase:
             tdSql.query(f"SELECT _wstart, count(*) FROM (SELECT ts, LAST(c0) FROM db1.tb WHERE ts > {func}) interval(1d);")
             tdSql.checkRows(1)
 
-
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

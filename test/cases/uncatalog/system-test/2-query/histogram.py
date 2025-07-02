@@ -5,12 +5,9 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-from util.log import tdLog
-from util.sql import tdSql
-from util.cases import tdCases
-from util.dnodes import tdDnodes
-from util.constant import *
-from util.common import *
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import tdCom, DataSet
+from new_test_framework.utils.constant import AGG_FUNC, SELECT_FUNC, TS_FUNC
 
 PRIMARY_COL = "ts"
 
@@ -141,13 +138,13 @@ class Hsgschema:
         elif isinstance(self.bin_type,str) and self.bin_type.upper().strip() == "LOG_BIN":
             self.bin_desc = self.log_bin
 
+class TestHistogram:
 
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def __create_hsg(self, sma:Hsgschema):
         return  f"""{sma.histogram_flag}({sma.col}, '{sma.bin_type}', '{sma.bin_desc}', {sma.normalized})"""
@@ -184,9 +181,9 @@ class TDTestCase:
             return False
         if sma.bin_type.upper().strip() == "USER_INPUT":
             # user_raw = eval(sma.bin_desc) if isinstance(sma.bin_desc, str) else sma.bin_desc
-            if not is_json(sma.bin_desc) and not isinstance(sma.bin_desc, list) and not isinstance(sma.bin_desc, set):
+            if not tdCom.is_json(sma.bin_desc) and not isinstance(sma.bin_desc, list) and not isinstance(sma.bin_desc, set):
                 return False
-            user_raw = json.loads(sma.bin_desc) if is_json(sma.bin_desc) else sma.bin_desc
+            user_raw = json.loads(sma.bin_desc) if tdCom.is_json(sma.bin_desc) else sma.bin_desc
             if not isinstance(user_raw, list):
                 return False
             if len(user_raw) >= 2:
@@ -202,7 +199,7 @@ class TDTestCase:
                     return False
             sma.bin_count = len(user_raw) - 1
         if sma.bin_type.upper().strip() == "LINEAR_BIN":
-            if not is_json(sma.bin_desc):
+            if not tdCom.is_json(sma.bin_desc):
                 return False
             user_raw = json.loads(sma.bin_desc)
             if not isinstance(user_raw, dict):
@@ -221,7 +218,7 @@ class TDTestCase:
             sma.bin_count = int(user_raw["count"]) + 2 if user_raw["infinity"]  else int(user_raw["count"])
 
         if sma.bin_type.upper().strip() == "LOG_BIN":
-            if not is_json(sma.bin_desc):
+            if not tdCom.is_json(sma.bin_desc):
                 return False
             user_raw = json.loads(sma.bin_desc)
             if not isinstance(user_raw, dict):
@@ -446,7 +443,7 @@ class TDTestCase:
 
         return err_sqls, cur_sqls
 
-    def test_histogram(self, dbname=DBNAME, ctb_num :int=20):
+    def check_histogram(self, dbname=DBNAME, ctb_num :int=20):
         err_sqls , cur_sqls = self.__hsg_querysql
         for err_sql in err_sqls:
             self.hsg_check_error(err_sql, dbname)
@@ -507,7 +504,7 @@ class TDTestCase:
 
 
     def all_test(self, dbname=DBNAME):
-        self.test_histogram(dbname)
+        self.check_histogram(dbname)
 
     def __create_tb(self, stb=STBNAME, ctb_num=20, ntbnum=1, dbname=DBNAME):
         tdLog.printNoPrefix("==========step: create table")
@@ -586,7 +583,26 @@ class TDTestCase:
         tdSql.execute(
             f"insert into {dbname}.{NTBNAME} values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )")
 
-    def run(self):
+    def test_histogram(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.rows = 10
 
         tdLog.printNoPrefix("==========step0:all check")
@@ -606,15 +622,9 @@ class TDTestCase:
         tdSql.execute("flush database db")
         tdSql.execute("flush database db1")
 
-
         tdLog.printNoPrefix("==========step3:after wal, all check again ")
         self.all_test(dbname="db")
         self.all_test(dbname="db1")
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

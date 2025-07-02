@@ -1,57 +1,51 @@
-
-
-from util.dnodes import *
-from util.log import *
-from util.sql import *
-from util.cases import *
+from new_test_framework.utils import tdLog, tdSql
 import datetime
 import pandas as pd
 
+class TestToday:
 
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        self.today_date = datetime.datetime.strptime(datetime.datetime.now().strftime("%Y-%m-%d"), "%Y-%m-%d")
-        self.today_ts = datetime.datetime.strptime(datetime.datetime.now().strftime("%Y-%m-%d"), "%Y-%m-%d").timestamp()
-        self.today_ts_ns = 0
-        self.time_unit = ['b','u','a','s','m','h','d','w']
-        self.error_param = ['abc','!@#','"abc"','today()']
-        self.arithmetic_operators = ['+','-','*','/']
-        self.relational_operator = ['<','<=','=','>=','>']
+        #tdSql.init(conn.cursor(), logSql)
+        cls.today_date = datetime.datetime.strptime(datetime.datetime.now().strftime("%Y-%m-%d"), "%Y-%m-%d")
+        cls.today_ts = datetime.datetime.strptime(datetime.datetime.now().strftime("%Y-%m-%d"), "%Y-%m-%d").timestamp()
+        cls.today_ts_ns = 0
+        cls.time_unit = ['b','u','a','s','m','h','d','w']
+        cls.error_param = ['abc','!@#','"abc"','today()']
+        cls.arithmetic_operators = ['+','-','*','/']
+        cls.relational_operator = ['<','<=','=','>=','>']
         # prepare data
-        self.dbname = 'db'
-        self.ntbname = f'{self.dbname}.ntb'
-        self.stbname = f'{self.dbname}.stb'
-        self.column_dict = {
+        cls.dbname = 'db'
+        cls.ntbname = f'{cls.dbname}.ntb'
+        cls.stbname = f'{cls.dbname}.stb'
+        cls.column_dict = {
             'ts':'timestamp',
             'c1':'int',
             'c2':'float',
             'c3':'double',
             'c4':'timestamp'
         }
-        self.tag_dict = {
+        cls.tag_dict = {
             't0':'int'
         }
-        self.tbnum = 2
-        self.tag_values = [
+        cls.tbnum = 2
+        cls.tag_values = [
             f'10',
             f'100'
         ]
-        self.values_list = [f'now,1,1.55,100.555555,today()',
+        cls.values_list = [f'now,1,1.55,100.555555,today()',
                         f'now+1d,10,11.11,99.999999,now()',
                         f'today(),3,3.333,333.333333,now()',
                         f'today()-1d,10,11.11,99.999999,now()',
                         f'today()+1d,1,1.55,100.555555,today()']
         
-        self.rest_tag = str(conn).lower().split('.')[0].replace("<taos","")
-        if self.rest_tag != 'rest':
-            self.db_percision = ['ms','us','ns']
+        cls.rest_tag = str(cls.conn).lower().split('.')[0].replace("<taos","")
+        if cls.rest_tag != 'rest':
+            cls.db_percision = ['ms','us','ns']
         else:
-            self.db_percision = ['ms','us']
-            
+            cls.db_percision = ['ms','us']
+
     def set_create_normaltable_sql(self, ntbname, column_dict):
         column_sql = ''
         for k, v in column_dict.items():
@@ -189,14 +183,29 @@ class TDTestCase:
             self.data_check(self.column_dict,self.stbname,self.values_list,self.tbnum,'stb',time_unit)
             tdSql.execute(f'drop database {self.dbname}')
 
-    def run(self):  # sourcery skip: extract-duplicate-method
+    def test_Today(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method
 
         self.today_check_ntb()
         self.today_check_stb_tb()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

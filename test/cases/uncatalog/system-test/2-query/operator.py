@@ -1,22 +1,15 @@
 from wsgiref.headers import tspecials
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import tdCom
-import numpy as np
+from new_test_framework.utils import tdLog, tdSql
 
+class TestOperator:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.dbname = "db"
+        cls.rowNum = 10
+        cls.ts = 1537146000000
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        
-        self.dbname = "db"
-        self.rowNum = 10
-        self.ts = 1537146000000
-
-    # test in/not in contidion with invalid value
     def ts5757(self):
         
         tdSql.execute(f"create database if not exists {self.dbname}")
@@ -186,7 +179,6 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query(f"SELECT c1 FROM {self.dbname}.t1 WHERE (time = 1641024000004 OR time BETWEEN (1641024000000) and (1641024000002)) or time in(1);")
         tdSql.checkRows(4)
- 
 
     def ts5759(self):
         tdSql.execute(f"create database if not exists {self.dbname}")
@@ -324,7 +316,26 @@ class TDTestCase:
         tdSql.query(f"SELECT ts + 8223372036854775807 from {self.dbname}.t2 order by ts")
         tdSql.query(f"SELECT ts - 8223372036854775808 from {self.dbname}.t2 order by ts")
                
-    def run(self):
+    def test_operator(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         dbname = "db"
         tdSql.prepare()
         tdSql.execute(f"create database if not exists {self.dbname}")
@@ -334,14 +345,6 @@ class TDTestCase:
         self.ts5758()
         self.ts5759()
         self.operOnTime()
-        
 
-
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-
-tdCases.addLinux(__file__, TDTestCase())

@@ -11,20 +11,16 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
 import os
 import random
+import platform
+import time
 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import *
+from new_test_framework.utils import tdLog, tdSql
 
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar):
+class TestOutOfOrder:
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -96,7 +92,6 @@ class TDTestCase:
         self.check_sub(dbname)
         sql2 = "select count(t1) from %s.meters" %dbname
         self.sql_base_check(sql1,sql2)
-
 
         self.check_sub(dbname)
         sql2 = "select count(ts) from (select * from %s.meters)" %dbname
@@ -176,14 +171,32 @@ class TDTestCase:
         #     tdSql.query(sql1)
         #     sql1_result = tdSql.getData(0,0)
         #     tdLog.info("sql:%s , result: %s" %(sql1,sql1_result))
-            
 
     def check_out_of_order(self,dbname,tables,per_table_num,order,replica):
         self.run_benchmark(dbname,tables,per_table_num,order,replica)
 
         self.run_sql(dbname)
 
-    def run(self):
+    def test_out_of_order(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         startTime = time.time()
 
         #self.check_out_of_order('db1',10,random.randint(10000,50000),random.randint(1,10),1)
@@ -198,11 +211,5 @@ class TDTestCase:
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

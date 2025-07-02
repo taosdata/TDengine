@@ -1,23 +1,17 @@
-import taos
-import sys
+from new_test_framework.utils import tdLog, tdSql, sqlset, common
 
-import math
-import numpy as np
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.sqlset import TDSetSql
-from util.common import *
-class TDTestCase:
+import time
+
+class TestAvg:
     # updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     # "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
     # "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
-        self.setsql = TDSetSql()
-        self.column_dict = {
+        #tdSql.init(conn.cursor(), logSql)
+        # cls.setsql = # TDSetSql()
+        cls.column_dict = {
             'ts':'timestamp',
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -29,17 +23,18 @@ class TDTestCase:
             'col8': 'bigint unsigned',
     
         }
-        self.dbname = tdCom.getLongName(3,"letters")
-        self.row_num = 10
-        self.ts = 1537146000000
+        cls.dbname = common.tdCom.getLongName(3,"letters")
+        cls.row_num = 10
+        cls.ts = 1537146000000
+
     def insert_data(self,column_dict,tbname,row_num):
-        insert_sql = self.setsql.set_insertsql(column_dict,tbname)
+        insert_sql = sqlset.TDSetSql.set_insertsql(column_dict,tbname)
         for i in range(row_num):
             insert_list = []
-            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
+            sqlset.TDSetSql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
 
     def avg_check_unsigned(self):
-        stbname = f'{self.dbname}.{tdCom.getLongName(5,"letters")}'
+        stbname = f'{self.dbname}.{common.tdCom.getLongName(5,"letters")}'
         tag_dict = {
             't0':'int'
         }
@@ -47,7 +42,7 @@ class TDTestCase:
             f'1'
             ]
         tdSql.execute(f"create database if not exists {self.dbname}")
-        tdSql.execute(self.setsql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
+        tdSql.execute(sqlset.TDSetSql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
         tdSql.execute(f"create table {stbname}_1 using {stbname} tags({tag_values[0]})")
         self.insert_data(self.column_dict,f'{stbname}_1',self.row_num)
         for col in self.column_dict.keys():
@@ -121,7 +116,7 @@ class TDTestCase:
             for col_index , elem in enumerate(row):
                 tdSql.checkData(row_index,col_index,origin_result[row_index][col_index])
 
-    def test_errors(self, dbname="db"):
+    def check_errors(self, dbname="db"):
         error_sql_lists = [
             f"select avg from {dbname}.t1",
             # f"select avg(-+--+c1) from {dbname}.t1",
@@ -470,7 +465,26 @@ class TDTestCase:
         tdSql.checkData(1, 0,8.223372036854776e+18)
         tdSql.checkData(1, 1,1.744674407370955e+19)
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_avg(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
@@ -479,7 +493,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:test errors ==============")
 
-        self.test_errors()
+        self.check_errors()
 
         tdLog.printNoPrefix("==========step3:support types ============")
 
@@ -500,9 +514,5 @@ class TDTestCase:
 
         # check avg overflow
         self.avg_check_overflow()
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

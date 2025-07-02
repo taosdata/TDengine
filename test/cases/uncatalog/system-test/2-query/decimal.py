@@ -5,12 +5,12 @@ import time
 import threading
 import secrets
 import numpy
+import subprocess
+from typing import List
+from datetime import datetime, timedelta
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+from new_test_framework.utils import tdLog, tdSql, TDSql
+
 from decimal import *
 from multiprocessing import Value, Lock
 from functools import cmp_to_key
@@ -1706,7 +1706,7 @@ class DecimalListExpr:
     def __str__(self):
         return f"{','.join([e for e in self.elements_])}"
 
-class TDTestCase:
+class TestDecimal:
     updatecfgDict = {
         "asynclog": 0,
         "ttlUnit": 1,
@@ -1736,10 +1736,11 @@ class TDTestCase:
         self.tsma_name = "tsma1"
         self.query_test_round = 10000
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def check_desc_for_one_ctb(
         self, ctbPrefix: str, columns: List[Column], tags: List[Column] = []
@@ -1793,7 +1794,7 @@ class TDTestCase:
                     )
                 decimal_idx += 1
 
-    def test_add_drop_columns_with_decimal(self, tbname: str, columns: List[Column]):
+    def check_add_drop_columns_with_decimal(self, tbname: str, columns: List[Column]):
         is_stb = tbname == self.stable_name
         ## alter table add column
         create_c99_sql = (
@@ -1831,7 +1832,7 @@ class TDTestCase:
         columns.append(c100)
         self.check_desc(tbname, columns)
 
-    def test_decimal_column_ddl(self):
+    def check_decimal_column_ddl(self):
         ## create decimal type table, normal/super table, decimal64/decimal128
         tdLog.printNoPrefix("-------- test create decimal column")
         self.norm_tb_columns: List[Column] = [
@@ -1915,10 +1916,10 @@ class TDTestCase:
         tdSql.error(sql, invalid_column)
 
         ## alter table add/drop column
-        self.test_add_drop_columns_with_decimal(
+        self.check_add_drop_columns_with_decimal(
             self.norm_table_name, self.norm_tb_columns
         )
-        self.test_add_drop_columns_with_decimal(self.stable_name, self.stb_columns)
+        self.check_add_drop_columns_with_decimal(self.stable_name, self.stb_columns)
 
         ## drop index from stb
         ### These ops will override the previous stbobjs and meta entries, so test it
@@ -1933,7 +1934,7 @@ class TDTestCase:
         sql = f'ALTER TABLE {self.db_name}.{self.norm_table_name} ADD COLUMN c101 decimal(37, 19) ENCODE "bit-packing" COMPRESS "zstd"'
         tdSql.error(sql, invalid_encode_param)
 
-    def test_insert_decimal_values(self):
+    def check_insert_decimal_values(self):
         tdLog.debug("start to insert decimal values")
         for i in range(self.c_table_num):
             TableInserter(
@@ -2006,13 +2007,13 @@ class TDTestCase:
         columns.append(Column(DataType(TypeEnum.INT)))
         self.check_desc(self.no_decimal_col_tb_name, columns)
 
-        self.test_add_drop_columns_with_decimal(self.no_decimal_col_tb_name, columns)
+        self.check_add_drop_columns_with_decimal(self.no_decimal_col_tb_name, columns)
 
-    def test_decimal_ddl(self):
+    def check_decimal_ddl(self):
         tdSql.execute("create database test cachemodel 'both'", queryTimes=1)
-        self.test_decimal_column_ddl()
+        self.check_decimal_column_ddl()
 
-    def test_decimal_and_stream(self):
+    def check_decimal_and_stream(self):
         create_stream = f"CREATE STREAM {self.stream_name} FILL_HISTORY 1 INTO {self.db_name}.{self.stream_out_stb} AS SELECT _wstart, count(c1), avg(c2), sum(c3) FROM {self.db_name}.{self.stable_name} INTERVAL(10s)"
         tdSql.execute(create_stream, queryTimes=1, show=True)
         self.wait_query_result(
@@ -2071,8 +2072,7 @@ class TDTestCase:
         if max_c2 != max(c2_vals):
             tdLog.exit(f"expect max(c2) = {max(c2_vals)} got: {max_c2}")
 
-
-    def test_decimal_and_tsma(self):
+    def check_decimal_and_tsma(self):
         create_tsma = f"CREATE TSMA {self.tsma_name} ON {self.db_name}.{self.stable_name} FUNCTION(count(c1), min(c2), max(c3), avg(C3)) INTERVAL(1m)"
         tdSql.execute(create_tsma, queryTimes=1, show=True)
         self.wait_query_result(
@@ -2081,7 +2081,7 @@ class TDTestCase:
             30,
         )
     
-    def test_decimal_and_view(self):
+    def check_decimal_and_view(self):
         c1 = self.norm_tb_columns[0]
         create_view_sql = f'create view {self.db_name}.view1 as select {c1} as c1, cast({c1} as decimal(38, 10)) as c2 from {self.db_name}.{self.norm_table_name}'
         tdSql.execute(create_view_sql)
@@ -2097,17 +2097,35 @@ class TDTestCase:
                 tdLog.exit(f"query from view got different results: {v_query}, expect: {v_insert}")
         #self.check_desc("view1", [c1, Column(DecimalType(TypeEnum.DECIMAL, 38, 10))])
 
-    def run(self):
-        self.test_decimal_ddl()
-        self.no_decimal_table_test()
-        self.test_insert_decimal_values()
-        self.test_query_decimal()
-        #self.test_decimal_and_tsma()
-        #self.test_decimal_and_view()
-        #self.test_decimal_and_stream()
+    def test_decimal(self):
+        """summary: xxx
 
-    def stop(self):
-        tdSql.close()
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
+        self.check_decimal_ddl()
+        self.no_decimal_table_test()
+        self.check_insert_decimal_values()
+        self.check_query_decimal()
+        #self.check_decimal_and_tsma()
+        #self.check_decimal_and_view()
+        #self.check_decimal_and_stream()
+
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
     def wait_query_result(self, sql: str, expect_result, times):
@@ -2243,7 +2261,7 @@ class TDTestCase:
         return t
 
     ## test others unsupported types operator with decimal
-    def test_decimal_unsupported_types(self):
+    def check_decimal_unsupported_types(self):
         unsupported_type = [
             TypeEnum.JSON,
             TypeEnum.GEOMETRY,
@@ -2309,10 +2327,10 @@ class TDTestCase:
                     res = res[0]
                 notInOp.check(res, tbname)
 
-    def test_decimal_operators(self):
+    def check_decimal_operators(self):
         tdLog.debug("start to test decimal operators")
         if True:
-            self.test_decimal_unsupported_types()
+            self.check_decimal_unsupported_types()
             ## tables: meters, nt
             ## columns: c1, c2, c3, c4, c5, c7, c8, c9, c10, c99, c100
             binary_operators = DecimalBinaryOperator.get_all_binary_ops()
@@ -2416,7 +2434,7 @@ class TDTestCase:
                     else:
                         tdLog.info(f"sql: {sql} got no output")
 
-    def test_query_decimal_where_clause(self):
+    def check_query_decimal_where_clause(self):
         tdLog.info("start to test decimal where filtering")
         binary_compare_ops = DecimalBinaryOperator.get_all_filtering_binary_compare_ops()
         const_cols = Column.get_decimal_oper_const_cols()
@@ -2442,12 +2460,12 @@ class TDTestCase:
         ## 5. (dec op const col) op dec
         ## 6. (dec op dec) op dec
     
-    def test_query_with_order_by_for_tb(self, tbname: str, cols: list):
+    def check_query_with_order_by_for_tb(self, tbname: str, cols: list):
         for col in cols:
             if col.type_.is_decimal_type() and col.name_ != '':
-                self.test_query_with_order_by(col, tbname)
+                self.check_query_with_order_by(col, tbname)
     
-    def test_query_with_order_by(self, order_col: Column, tbname):
+    def check_query_with_order_by(self, order_col: Column, tbname):
         sql = f"select {order_col} from {self.db_name}.{tbname} order by {order_col} asc"
         query_res = TaosShell().query(sql)[0]
         calculated_ordered_res = order_col.get_ordered_result(tbname, True)
@@ -2459,11 +2477,11 @@ class TDTestCase:
                 tdLog.exit(f"query result: {v_from_query} not equal to calculated result: {v_from_calc}")
 
 
-    def test_query_decimal_order_clause(self):
-        self.test_query_with_order_by_for_tb(self.norm_table_name, self.norm_tb_columns)
-        self.test_query_with_order_by_for_tb(self.stable_name, self.stb_columns)
+    def check_query_decimal_order_clause(self):
+        self.check_query_with_order_by_for_tb(self.norm_table_name, self.norm_tb_columns)
+        self.check_query_with_order_by_for_tb(self.stable_name, self.stb_columns)
     
-    def test_query_decimal_group_by_decimal(self, tbname: str, cols: list):
+    def check_query_decimal_group_by_decimal(self, tbname: str, cols: list):
         for col in cols:
             if col.type_.is_decimal_type() and col.name_ != '':
                 sql = f"select count(*) from {self.db_name}.{tbname} group by {col}"
@@ -2472,11 +2490,11 @@ class TDTestCase:
                 if len(query_res) != calculated_grouped_res:
                     tdLog.exit(f"query result: {len(query_res)} not equal to calculated result: {calculated_grouped_res}")
 
-    def test_query_decimal_group_by_clause(self):
-        self.test_query_decimal_group_by_decimal(self.norm_table_name, self.norm_tb_columns)
-        self.test_query_decimal_group_by_decimal(self.stable_name, self.stb_columns)
+    def check_query_decimal_group_by_clause(self):
+        self.check_query_decimal_group_by_decimal(self.norm_table_name, self.norm_tb_columns)
+        self.check_query_decimal_group_by_decimal(self.stable_name, self.stb_columns)
     
-    def test_query_decimal_group_by_with_having(self, tbname, cols: list):
+    def check_query_decimal_group_by_with_having(self, tbname, cols: list):
         for col in cols:
             if col.type_.is_decimal_type() and col.name_ != '':
                 sql = f"select count(*) from {self.db_name}.{tbname} group by {col} having {col} is not null"
@@ -2485,17 +2503,17 @@ class TDTestCase:
                 if len(query_res) != calculated_grouped_res:
                     tdLog.exit(f"query result: {len(query_res)} not equal to calculated result: {calculated_grouped_res}")
 
-    def test_query_decimal_having_clause(self):
-        self.test_query_decimal_group_by_with_having(self.norm_table_name, self.norm_tb_columns)
-        self.test_query_decimal_group_by_with_having(self.stable_name, self.stb_columns)
+    def check_query_decimal_having_clause(self):
+        self.check_query_decimal_group_by_with_having(self.norm_table_name, self.norm_tb_columns)
+        self.check_query_decimal_group_by_with_having(self.stable_name, self.stb_columns)
 
-    def test_query_decimal_interval_fill(self):
+    def check_query_decimal_interval_fill(self):
         pass
 
-    def test_query_decimal_partition_by(self):
+    def check_query_decimal_partition_by(self):
         pass
 
-    def test_query_decimal_case_when(self):
+    def check_query_decimal_case_when(self):
         sql = "select case when cast(1 as decimal(10, 4)) >= 1 then cast(88888888.88 as decimal(10,2)) else cast(3.333 as decimal(10,3)) end"
         res = TaosShell().query(sql)[0]
         if res[0] != "88888888.88":
@@ -2530,7 +2548,7 @@ class TDTestCase:
         if float(res[0]) != 0:
             tdLog.exit(f"query result for sql: {sql}: {res[0]} not equal to expected result: 0")
 
-    def test_decimal_agg_funcs(self, dbname, tbname, tb_cols: List[Column], get_agg_funcs_func):
+    def check_decimal_agg_funcs(self, dbname, tbname, tb_cols: List[Column], get_agg_funcs_func):
         agg_funcs: List[DecimalFunction] = get_agg_funcs_func()
         for func in agg_funcs:
             for col in tb_cols:
@@ -2544,7 +2562,7 @@ class TDTestCase:
                     res = res[0]
                 func.check_for_agg_func(res, tbname, func)
 
-    def test_decimal_cast_func(self, dbname, tbname, tb_cols: List[Column]):
+    def check_decimal_cast_func(self, dbname, tbname, tb_cols: List[Column]):
         for col in tb_cols:
             if col.name_ == '':
                 continue
@@ -2558,32 +2576,28 @@ class TDTestCase:
                     res = res[0]
                 cast_func.check(res, tbname)
 
-    def test_decimal_functions(self):
+    def check_decimal_functions(self):
         if not test_decimal_funcs:
             return
-        self.test_decimal_agg_funcs(
+        self.check_decimal_agg_funcs(
             self.db_name,
             self.norm_table_name,
             self.norm_tb_columns,
             DecimalFunction.get_decimal_agg_funcs,
         )
-        ##self.test_decimal_agg_funcs( self.db_name, self.stable_name, self.stb_columns, DecimalFunction.get_decimal_agg_funcs)
-        self.test_decimal_cast_func(self.db_name, self.norm_table_name, self.norm_tb_columns)
+        ##self.check_decimal_agg_funcs( self.db_name, self.stable_name, self.stb_columns, DecimalFunction.get_decimal_agg_funcs)
+        self.check_decimal_cast_func(self.db_name, self.norm_table_name, self.norm_tb_columns)
 
-    def test_query_decimal(self):
+    def check_query_decimal(self):
         if not decimal_test_query:
             return
-        self.test_decimal_operators()
-        #self.test_query_decimal_where_clause()
-        #self.test_decimal_functions()
-        #self.test_query_decimal_with_sma()
-        #self.test_query_decimal_order_clause()
-        #self.test_query_decimal_case_when()
-        #self.test_query_decimal_group_by_clause()
-        #self.test_query_decimal_having_clause()
-
+        self.check_decimal_operators()
+        #self.check_query_decimal_where_clause()
+        #self.check_decimal_functions()
+        #self.check_query_decimal_with_sma()
+        #self.check_query_decimal_order_clause()
+        #self.check_query_decimal_case_when()
+        #self.check_query_decimal_group_by_clause()
+        #self.check_query_decimal_having_clause()
 
 event = threading.Event()
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

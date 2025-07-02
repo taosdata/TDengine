@@ -1,29 +1,25 @@
-import taos
-import sys
 import time
 import socket
 import os
 import threading
 import math
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import tdCom
 # from tmqCommon import *
 
-class TDTestCase:
+class TestIntervalLimitOpt2:
     def __init__(self):
         self.vgroups    = 4
         self.ctbNum     = 10
         self.rowsPerTbl = 10000
         self.duraion = '1h'
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=2,replica=1, duration:str='1d'):
         if dropFlag == 1:
@@ -146,13 +142,13 @@ class TDTestCase:
 
             self.check_first_rows(all_rows, limited_rows, offset)
 
-    def test_interval_limit_offset(self):
+    def check_interval_limit_offset(self):
         for offset in range(0, 1000, 500):
-            self.test_interval_fill_limit(offset)
-            self.test_interval_order_by_limit(offset)
-            self.test_interval_partition_by_slimit(offset)
+            self.check_interval_fill_limit(offset)
+            self.check_interval_order_by_limit(offset)
+            self.check_interval_partition_by_slimit(offset)
 
-    def test_interval_fill_limit(self, offset: int = 0):
+    def check_interval_fill_limit(self, offset: int = 0):
         sqls = [
                 "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
                         where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-09-17 09:30:00.000' interval(1s) fill(linear)",
@@ -166,7 +162,7 @@ class TDTestCase:
         for sql in sqls:
             self.query_and_check_with_limit(sql, 5000, 1000, offset)
 
-    def test_interval_order_by_limit(self, offset: int = 0):
+    def check_interval_order_by_limit(self, offset: int = 0):
         sqls = [
                 "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
                         where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) order by b",
@@ -192,7 +188,7 @@ class TDTestCase:
         for sql in sqls:
             self.query_and_check_with_limit(sql, 6000, 2000, offset)
 
-    def test_interval_partition_by_slimit(self, offset: int = 0):
+    def check_interval_partition_by_slimit(self, offset: int = 0):
         sqls = [
                 "select _wstart as a, _wend as b, count(*), sum(c1), last(c2), first(ts) from meters "
                 "where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' partition by t1 interval(1m)",
@@ -204,19 +200,34 @@ class TDTestCase:
         for sql in sqls:
             self.query_and_check_with_slimit(sql, 10, 2, offset)
 
-    def test_group_by_operator(self):
+    def check_group_by_operator(self):
         tdSql.query('select count(*), c1+1 from meters group by tbname, c1+1', 1)
 
-    def run(self):
-        self.prepareTestEnv()
-        self.test_group_by_operator()
-        self.test_interval_limit_offset()
+    def test_interval_limit_opt_2(self):
+        """summary: xxx
 
-    def stop(self):
-        tdSql.close()
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
+        self.prepareTestEnv()
+        self.check_group_by_operator()
+        self.check_interval_limit_offset()
+
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

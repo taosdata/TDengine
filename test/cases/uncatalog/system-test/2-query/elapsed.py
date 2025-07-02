@@ -14,19 +14,15 @@
 import sys
 import os
 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import *
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
-
-        self.ts = 1420041600000 # 2015-01-01 00:00:00  this is begin time for first record
-        self.num = 10
+class TestElapsed:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.ts = 1420041600000 
+        cls.num = 10
 
     def caseDescription(self):
 
@@ -1593,7 +1589,26 @@ class TDTestCase:
                     basic_result = 90
                     tdSql.checkData(0,0,basic_result*pow(1000,index))
 
-    def run(self):
+    def test_elapsed(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
         dbNameTest="testdbV1"
         self.prepare_db(dbNameTest,1)
@@ -1633,9 +1648,5 @@ class TDTestCase:
         self.continuous_query()
         # self.query_precision()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

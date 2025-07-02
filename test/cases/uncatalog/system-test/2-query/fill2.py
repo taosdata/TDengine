@@ -6,16 +6,14 @@ import threading
 import secrets
 import numpy
 from pandas.compat import is_platform_arm
-
-from stable import query_after_reset
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import TDCom
+from new_test_framework.utils.sql import TDSql
 from decimal import *
 from multiprocessing import Value, Lock
 from functools import cmp_to_key
+from typing import List
+from datetime import datetime
 
 class AtomicCounter:
     def __init__(self, initial_value=0):
@@ -74,7 +72,6 @@ class DecimalTypeGeneratorConfig:
         self.positive_ratio = 0.7
         self.prec = 38
         self.scale = 10
-
 
 class DecimalStringRandomGenerator:
     def __init__(self):
@@ -1302,9 +1299,8 @@ class FillResValidator:
             return self.validate_fill_NULL(True)
         else:
             return True
-        
 
-class TDTestCase:
+class TestFill2:
     updatecfgDict = {
         "asynclog": 0,
         "ttlUnit": 1,
@@ -1334,12 +1330,13 @@ class TDTestCase:
         self.tsma_name = "tsma1"
         self.query_test_round = 10000
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
-    def test_decimal_column_ddl(self):
+    def check_decimal_column_ddl(self):
         ## create decimal type table, normal/super table, decimal64/decimal128
         tdLog.printNoPrefix("-------- test create columns")
         self.norm_tb_columns: List[Column] = [
@@ -1392,7 +1389,7 @@ class TDTestCase:
             self.c_table_prefix, self.c_table_num, self.tags, tag_values
         )
 
-    def test_insert_decimal_values(self):
+    def check_insert_decimal_values(self):
         tdLog.debug("start to insert values")
         for i in range(self.c_table_num):
             TableInserter(
@@ -1408,15 +1405,36 @@ class TDTestCase:
         ).insert(tb_insert_rows, 1537146000000, 5000, flush_database=True)
         tdSql.execute("flush database %s" % (self.db_name), queryTimes=1)
 
-    def test_decimal_ddl(self):
+    def check_decimal_ddl(self):
         tdSql.execute("create database test cachemodel 'both'", queryTimes=1)
-        self.test_decimal_column_ddl()
+        self.check_decimal_column_ddl()
 
-    def run(self):
-        self.test_decimal_ddl()
-        self.test_insert_decimal_values()
-        self.test_fill(self.db_name, self.norm_table_name, self.norm_tb_columns)
-        self.test_fill(self.db_name, self.stable_name, self.stb_columns)
+    def test_fill2(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
+        self.check_decimal_ddl()
+        self.check_insert_decimal_values()
+        self.check_fill(self.db_name, self.norm_table_name, self.norm_tb_columns)
+        self.check_fill(self.db_name, self.stable_name, self.stb_columns)
+        
+        tdLog.success(f"{__file__} successfully executed")
 
     def get_first_last_ts(self, dbname, tbname):
         sql = f'select cast(first(ts) as bigint), cast(last(ts) as bigint) from {dbname}.{tbname}'
@@ -1425,7 +1443,7 @@ class TDTestCase:
         last: int = tdSql.queryResult[0][1]
         return (first, last)
 
-    def test_fill(self, dbname, tbname, cols):
+    def check_fill(self, dbname, tbname, cols):
         (first, last) = self.get_first_last_ts(dbname, tbname)
         for _ in range(test_round):
             sql_generator = FillQueryGenerator(dbname, tbname, cols, first, last)
@@ -1441,10 +1459,6 @@ class TDTestCase:
             desc_res = tdSql.queryResult
             FillResValidator(fill_res, interval_res, desc_res, sql_generator).validate()
             tdLog.debug(f"validate fill res for {sql} success got fill rows: {len(fill_res)}")
-    
-    def stop(self):
-        tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
 
     def wait_query_result(self, sql: str, expect_result, times):
         for i in range(times):
@@ -1486,10 +1500,7 @@ class TDTestCase:
         t.start()
         return t
     
-    def test_query_decimal_interval_fill(self):
+    def check_query_decimal_interval_fill(self):
         pass
 
 event = threading.Event()
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

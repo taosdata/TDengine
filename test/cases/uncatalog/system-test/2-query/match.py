@@ -1,22 +1,17 @@
-import taos
-import sys
-import datetime
-import inspect
+from new_test_framework.utils import tdLog, tdSql, tdCom
+
 import threading
 import time
+import taos
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.common import tdCom
+class TestMatch:
 
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
-        
+        #tdSql.init(conn.cursor(), logSql)
+        pass
+
     def initConnection(self):        
         self.records = 10000000
         self.numOfTherads = 50
@@ -131,7 +126,26 @@ class TDTestCase:
         
         print(f"Mutithread test finished.")
    
-    def run(self):
+    def test_match(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdLog.printNoPrefix("==========start match_test run ...............")
         tdSql.prepare(replica = self.replicaVar)
         
@@ -142,10 +156,5 @@ class TDTestCase:
           
         self.stopTest()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

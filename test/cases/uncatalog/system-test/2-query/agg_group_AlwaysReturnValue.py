@@ -10,13 +10,13 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-from util.cases import tdCases
-#from .nestedQueryInterval import *
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+import random
+import time
 from .nestedQuery import *
 from faker import Faker
-import random
 
-class TDTestCase(TDTestCase):
+class TDTestCase:
     
     def data_check_tbname(self,sql,groupby='Y',partitionby='Y',base_fun='',replace_fun='',base_column='',replace_column=''):
         
@@ -168,8 +168,7 @@ class TDTestCase(TDTestCase):
             sql = sql.replace(f'{base_fun}',f'{replace_fun}').replace(f'{base_column}',f'{replace_column}')
             tdSql.query(sql)
             tdSql.checkRows(12)
-            
-            
+
         if partitionby=='Y':
             sql = sql.replace(f'{base_fun}',f'{replace_fun}').replace(f'{base_column}',f'{replace_column}')
             sql = sql.replace('group','partition')
@@ -334,7 +333,6 @@ class TDTestCase(TDTestCase):
             sql = sql.replace('group','partition')
             tdSql.query(sql)
             tdSql.checkRows(12)
-  
 
     def tbname_count(self, dbname="nested",base_fun="AGG",replace_fun="COUNT",base_column="COLUMN",replace_column="q_int",execute="Y"):
 
@@ -388,8 +386,7 @@ class TDTestCase(TDTestCase):
         
         sql2 = f"select * from ({sql}) order by tb "
         self.data_check_tbname(sql2,'UNIONALL','UNIONALL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
-        
-        
+
         #having <=0
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) = 0 order by tbname "
         self.data_check_tbname(sql,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
@@ -408,8 +405,7 @@ class TDTestCase(TDTestCase):
         
         sql2 = f"select * from ({sql}) order by tbname "
         self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
-        
-        
+
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by tbname having count(*) <= 0 order by tbname "
         self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
@@ -428,8 +424,7 @@ class TDTestCase(TDTestCase):
         
         sql2 = f"select * from ({sql}) order by tbname "
         self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
-        
-        
+
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having AGG(COLUMN) <= 0 order by tbname "
         self.data_check_tbname(sql,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
@@ -438,8 +433,7 @@ class TDTestCase(TDTestCase):
         
         sql2 = f"select * from ({sql}) order by tbname "
         self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
-        
-        
+
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by tbname having AGG(COLUMN) = 0 order by tbname "
         self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
@@ -467,8 +461,7 @@ class TDTestCase(TDTestCase):
         
         sql2 = f"select * from ({sql}) order by tbname "
         self.data_check_tbname(sql2,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
-        
-        
+
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by tbname having count(*) > 0 order by tbname "
         self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
@@ -596,8 +589,7 @@ class TDTestCase(TDTestCase):
         
         sql2 = f"select * from ({sql}) order by tbname "
         self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
-        
-        
+
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by tbname having count(*) <= 0 order by tbname "
         self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
@@ -625,8 +617,7 @@ class TDTestCase(TDTestCase):
         
         sql2 = f"select * from ({sql}) order by tbname "
         self.data_check_tbname(sql2,'HAVINGCOLUMN=0','HAVINGCOLUMN=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
-        
-        
+
         sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by tbname having count(*) != 0 order by tbname "
         self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
@@ -731,8 +722,7 @@ class TDTestCase(TDTestCase):
         all_columns = data_all_columns + data_all_tags + ts_columns + other_columns + other_null_columns
         all_column = random.sample(all_columns,1)
         all_column = str(all_column).replace("[","").replace("]","").replace("'","").replace(", ","")
-        
-        
+
         self.tbname_count_null(replace_fun='count',replace_column=f'{data_null_column}') 
         self.tbname_count_null(replace_fun='count',replace_column=f'{data_null_tag}') 
         self.tbname_count_null(replace_fun='count',replace_column=f'{other_null_column}') 
@@ -780,8 +770,7 @@ class TDTestCase(TDTestCase):
         
         sql2 = f"select * from ({sql}) order by tbname "
         self.data_check_tbname(sql2,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
-        
-        
+
         #union
         sql = f"select tbname tb,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname "
         sql = f"({sql}) union ({sql}) order by tb"
@@ -822,8 +811,7 @@ class TDTestCase(TDTestCase):
             
             sql2 = f"select * from ({sql}) order by tbname "
             self.data_check_tbname(sql2,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
-            
-            
+
             sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) != 0 order by tbname "
             self.data_check_tbname(sql,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
             
@@ -841,8 +829,7 @@ class TDTestCase(TDTestCase):
             
             sql2 = f"select * from ({sql}) order by tbname "
             self.data_check_tbname(sql2,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
-            
-            
+
             sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname,count(*) "
             self.data_check_tbname(sql,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')       
             
@@ -862,8 +849,7 @@ class TDTestCase(TDTestCase):
             
             sql2 = f"select * from ({sql}) order by tbname "
             self.data_check_tbname(sql2,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
-            
-            
+
             sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) <= 0 order by tbname "
             self.data_check_tbname(sql,'AGG10','AGG10',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')           
             
@@ -894,9 +880,7 @@ class TDTestCase(TDTestCase):
         
             sql2 = f"select * from ({sql}) order by tb "
             self.data_check_tbname(sql2,'AGG20','AGG20',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
-        
-            
-            
+
             sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) != 0 order by tbname "
             self.data_check_tbname(sql,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
             
@@ -905,8 +889,7 @@ class TDTestCase(TDTestCase):
             
             sql2 = f"select * from ({sql}) order by tbname "
             self.data_check_tbname(sql2,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
-            
-            
+
             sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname having count(*) > 0 order by tbname "
             self.data_check_tbname(sql,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')        
             
@@ -937,9 +920,7 @@ class TDTestCase(TDTestCase):
         
             sql2 = f"select * from ({sql}) order by tb "
             self.data_check_tbname(sql2,'AGG4','AGG4',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
-        
-            
-                        
+
             sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname,AGG(COLUMN) "
             self.data_check_tbname(sql,'AGG2','AGG2',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')       
             
@@ -970,9 +951,7 @@ class TDTestCase(TDTestCase):
         
             sql2 = f"select * from ({sql}) order by tb "
             self.data_check_tbname(sql2,'AGG4','AGG4',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
-            
-            
-            
+
             sql = f"select tbname,AGG(COLUMN),count(*) from {dbname}.stable_1 group by tbname order by tbname,AGG(COLUMN) "
             self.data_check_tbname(sql,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')       
             
@@ -1003,9 +982,7 @@ class TDTestCase(TDTestCase):
         
             sql2 = f"select * from ({sql}) order by tb "
             self.data_check_tbname(sql2,'AGG24','AGG24',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
-            
-            
-            
+
             sql = f"select tbname,AGG(COLUMN) from {dbname}.stable_1 group by tbname order by tbname,AGG(COLUMN),count(*) "
             self.data_check_tbname(sql,'AGG12','AGG12',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')       
             
@@ -1048,8 +1025,6 @@ class TDTestCase(TDTestCase):
         
             sql2 = f"select * from ({sql}) order by tb "
             self.data_check_tbname(sql2,'AGG24','AGG24',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')
-            
-            
 
     def tbname_agg_all(self):  
         #random data        
@@ -1144,8 +1119,6 @@ class TDTestCase(TDTestCase):
         self.tbname_agg(replace_fun='histogram',replace_column=f'{data_column},"log_bin",\'{histogram_logbin}\',1',execute='N')
         self.tbname_agg(replace_fun='histogram',replace_column=f'{data_column},"linear_bin",\'{histogram_linear_bin}\',1',execute='N')
 
-
-
     def tag_count(self, dbname="nested",base_fun="AGG",replace_fun="COUNT",base_column="COLUMN",replace_column="q_int",execute="Y"):
 
         # stable count(*)
@@ -1198,8 +1171,7 @@ class TDTestCase(TDTestCase):
         
         sql2 = f"select * from ({sql}) order by tb "
         self.data_check_tbname(sql2,'UNIONALL','UNIONALL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')  
-        
-        
+
         #having <=0
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 group by loc having count(*) = 0 order by loc "
         self.data_check_tbname(sql,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
@@ -1218,8 +1190,7 @@ class TDTestCase(TDTestCase):
         
         sql2 = f"select * from ({sql}) order by loc "
         self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
-        
-        
+
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by loc having count(*) <= 0 order by loc "
         self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
@@ -1238,8 +1209,7 @@ class TDTestCase(TDTestCase):
         
         sql2 = f"select * from ({sql}) order by loc "
         self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
-        
-        
+
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 group by loc having AGG(COLUMN) <= 0 order by loc "
         self.data_check_tbname(sql,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
@@ -1248,8 +1218,7 @@ class TDTestCase(TDTestCase):
         
         sql2 = f"select * from ({sql}) order by loc "
         self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}') 
-        
-        
+
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by loc having AGG(COLUMN) = 0 order by loc "
         self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
@@ -1277,8 +1246,7 @@ class TDTestCase(TDTestCase):
         
         sql2 = f"select * from ({sql}) order by loc "
         self.data_check_tbname(sql2,'HAVING>0','HAVING>0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
-        
-        
+
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by loc having count(*) > 0 order by loc "
         self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
@@ -1406,8 +1374,7 @@ class TDTestCase(TDTestCase):
         
         sql2 = f"select * from ({sql}) order by loc "
         self.data_check_tbname(sql2,'HAVING=0','HAVING=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
-        
-        
+
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by loc having count(*) <= 0 order by loc "
         self.data_check_tbname(sql,'NULL','NULL',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
@@ -1435,8 +1402,7 @@ class TDTestCase(TDTestCase):
         
         sql2 = f"select * from ({sql}) order by loc "
         self.data_check_tbname(sql2,'HAVINGCOLUMN=0','HAVINGCOLUMN=0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')   
-        
-        
+
         sql = f"select loc,AGG(COLUMN) from {dbname}.stable_1 where ts is null group by loc having count(*) != 0 order by loc "
         self.data_check_tbname(sql,'AGG0','AGG0',f'{base_fun}',f'{replace_fun}',f'{base_column}',f'{replace_column}')          
         
@@ -1523,8 +1489,7 @@ class TDTestCase(TDTestCase):
         all_columns = data_all_columns + data_all_tags + ts_columns + other_columns + other_null_columns
         all_column = random.sample(all_columns,1)
         all_column = str(all_column).replace("[","").replace("]","").replace("'","").replace(", ","")
-        
-        
+
         self.tag_count_null(replace_fun='count',replace_column=f'{data_null_column}') 
         self.tag_count_null(replace_fun='count',replace_column=f'{data_null_tag}') 
         self.tag_count_null(replace_fun='count',replace_column=f'{other_null_column}') 
@@ -1541,9 +1506,7 @@ class TDTestCase(TDTestCase):
         self.tag_count(replace_fun='count',replace_column=f'\'{random_data_str}\'') 
         self.tag_count(replace_fun='count',replace_column=f'{random_data_big} {calculation} (abs({data_column})+1)') 
         self.tag_count(replace_fun='count',replace_column=f'{random_data_float} {calculation} (abs({data_column})+1)')  
-                
-        
-    
+
     def modify_tables(self):
         fake = Faker('zh_CN')
         tdSql.execute('delete from stable_1_3;')
@@ -1663,7 +1626,26 @@ class TDTestCase(TDTestCase):
         tdSql.error('select meter2.tbname, count(*) from meter1, meter2 where meter1.ts = meter2.ts partition by tbname order by meter2.tbname')
         tdSql.error('select m2.tbname, count(*) from meter1 m1, meter2 m2 where meter1.ts = meter2.ts partition by m2.tbname order by meter2.tbname')
   
-    def run(self):
+    def test_agg_group_AlwaysReturnValue(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
         
         startTime = time.time() 
@@ -1681,20 +1663,9 @@ class TDTestCase(TDTestCase):
             self.tbname_count_all() 
             self.tag_count_all()  
             self.tbname_agg_all()    
-          
 
-
-    
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
 
-        
-
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

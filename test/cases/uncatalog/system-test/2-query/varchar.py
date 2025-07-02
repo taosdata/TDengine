@@ -1,20 +1,32 @@
-import taos
-import sys
+from new_test_framework.utils import tdLog, tdSql
 
-from util.log import *
-from util.sql import *
-from util.cases import *
+class TestVarchar:
 
-
-
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql)
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_varchar(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         dbname = "db"
         tdSql.prepare()
 
@@ -82,7 +94,6 @@ class TDTestCase:
         tdSql.error("create stable empty_col_stable(ts timestamp, c2 varchar(10)) tags(tg1 binary(0))")
         tdSql.error("create stable empty_col_stable(ts timestamp, c2 varchar(10)) tags(tg1 varbinary(0))")
 
-
         # tdSql.query("select c8 from ct4")
         # data_ct4 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
         # tdSql.query("select c8 from t1")
@@ -100,7 +111,6 @@ class TDTestCase:
         # tdSql.query("select cast(c8 as nchar(2)) as b from t1")
         # for i in range(len(data_t1)):
         #     tdSql.checkData( i, 0, data_t1[i][:2])
-
 
         # tdSql.error("select cast(c1 as int) as b from ct4")
         # tdSql.error("select cast(c1 as bool) as b from ct4")
@@ -127,10 +137,5 @@ class TDTestCase:
         # tdSql.error("select cast(c10 as binary(64) ) as b from ct4")
         # tdSql.error("select cast(c10 as nchar(64) ) as b from ct4")
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

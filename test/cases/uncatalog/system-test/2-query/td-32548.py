@@ -1,15 +1,34 @@
-from util.cases import *
-from util.sql import *
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
+class TestTd32548:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+
+    def test_td_32548(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
 
         tdSql.execute("drop database if exists td_32548;")
         tdSql.execute("create database td_32548 cachemodel 'last_row' keep 3650,3650,3650;")
-
-    def run(self):
+        
         tdSql.execute("use td_32548;")
 
         tdSql.execute("create table ntb1 (ts timestamp, ival int);")
@@ -24,9 +43,5 @@ class TDTestCase:
         tdSql.query('select last_row(ts) from ntb1;')
         tdSql.checkData(0, 0, '2024-07-08 17:53:49.675')
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

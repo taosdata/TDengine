@@ -2,24 +2,21 @@ import taos
 import sys
 import datetime
 import inspect
-
-from util.log import *
-from util.sql import *
-from util.cases import *
+import time
 import random
+from new_test_framework.utils import tdLog, tdSql
 
+class TestLastRow:
 
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
-        self.tb_nums = 10
-        self.row_nums = 20
-        self.ts = 1434938400000
-        self.time_step = 1000
-        self.keep_duration = 36500  # days
+        #tdSql.init(conn.cursor(), logSql)
+        cls.tb_nums = 10
+        cls.row_nums = 20
+        cls.ts = 1434938400000
+        cls.time_step = 1000
+        cls.keep_duration = 36500  
 
     def insert_datas_and_check_abs(self, tbnums, rownums, time_step, cache_value, dbname="test"):
         tdSql.execute(f"drop database if exists {dbname} ")
@@ -223,7 +220,7 @@ class TDTestCase:
             tdLog.info(
                 "abs value check pass , it work as expected ,sql is \"%s\"   " % abs_query)
 
-    def test_errors(self, dbname="testdb"):
+    def check_errors(self, dbname="testdb"):
         # bug need fix
         tdSql.error(f"select last_row(c1 ,NULL) from {dbname}.t1")
 
@@ -260,7 +257,6 @@ class TDTestCase:
                 if col_note != "TAG":
                     abs_sql = f"select last_row({colname}) from {dbname}.{tbname}"
                     tdSql.query(abs_sql)
-
 
     def basic_abs_function(self, dbname="testdb"):
 
@@ -329,7 +325,6 @@ class TDTestCase:
         tdSql.checkData(0,3,123)
         tdSql.checkData(0,4,None)
 
-
         tdSql.error(f"select last_row(c1,c2,c3,NULL,c4,t1,t2) from {dbname}.ct1")
 
         tdSql.query(f"select last_row(c1,c2,c3,123,c4,t1,t2) from {dbname}.ct1")
@@ -391,7 +386,6 @@ class TDTestCase:
         tdSql.checkData(0,0,None)
         tdSql.checkData(0,1,None)
         tdSql.checkData(0,2,None)
-
 
         tdSql.query(f'select last_row(c1) from {dbname}.t1 where ts <"2022-12-31 01:01:36.000"')
         tdSql.checkData(0,0,8)
@@ -516,7 +510,6 @@ class TDTestCase:
         tdSql.query(f"select last_row(*) ,last(*) from {dbname}.stb1  ")
         tdSql.checkRows(1)
 
-
         tdSql.query(f"select last_row(c1+abs(c1)) from {dbname}.stb1 partition by tbname order by tbname")
         tdSql.query(f"select last(c1), max(c1+abs(c1)),last_row(c1+abs(c1)) from {dbname}.stb1 partition by tbname order by tbname")
 
@@ -620,7 +613,7 @@ class TDTestCase:
         tdSql.query(
             f"select last_row(c1+1) ,last_row(c2) , last(c3*1) , last(c4/2)  from {dbname}.sub1_bound ")
 
-    def test_tag_compute_for_scalar_function(self, dbname="testdb"):
+    def check_tag_compute_for_scalar_function(self, dbname="testdb"):
         # bug need fix
 
         tdSql.query(f"select sum(c1) from {dbname}.stb1 where t1+10 >1; ")
@@ -780,7 +773,6 @@ class TDTestCase:
         tdSql.query(f"select last_row(ceil(c1-2)) , abs(floor(t1+1)) ,floor(c2-c1) from {dbname}.stb1 partition by abs(floor(c1)) order by abs(c1)")
         tdSql.checkRows(11)
 
-
         tdSql.query(f"select max(c1) from {dbname}.stb1 interval(50s) sliding(30s)")
         tdSql.checkRows(13)
 
@@ -790,7 +782,6 @@ class TDTestCase:
 
         tdSql.query(f"select last_row(c1) from {dbname}.stb1 interval(50s) sliding(30s)")
         tdSql.checkRows(27)
-
 
         tdSql.query(f"select last_row(c1) from {dbname}.ct1 interval(50s) sliding(30s)")
         tdSql.checkRows(5)
@@ -837,7 +828,6 @@ class TDTestCase:
         for ind , row in enumerate(last_row_result):
             tdSql.checkData(ind , 0 , row[0])
 
-
     def support_super_table_test(self, dbname="testdb"):
         self.check_result_auto( f"select c1 from {dbname}.stb1 order by ts " , f"select abs(c1) from {dbname}.stb1 order by ts" )
         self.check_result_auto( f"select c1 from {dbname}.stb1 order by tbname " , f"select abs(c1) from {dbname}.stb1 order by tbname" )
@@ -853,7 +843,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:test errors ==============")
 
-        self.test_errors()
+        self.check_errors()
 
         tdLog.printNoPrefix("==========step3:support types ============")
 
@@ -873,10 +863,9 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step6: tag coumpute query ============")
 
-        self.test_tag_compute_for_scalar_function()
+        self.check_tag_compute_for_scalar_function()
 
         tdLog.printNoPrefix("==========step7: check result of query ============")
-
 
         tdLog.printNoPrefix("==========step8: check abs result of  stable query ============")
 
@@ -1039,7 +1028,26 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1734574932000)
         tdSql.checkData(0, 1, 5)  
         
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_last_row(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         # tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
@@ -1074,10 +1082,5 @@ class TDTestCase:
         
         self.lastrow_in_subquery("db1")
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

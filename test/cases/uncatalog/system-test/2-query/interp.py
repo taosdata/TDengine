@@ -1,19 +1,12 @@
-import taos
-import sys
+from new_test_framework.utils import tdLog, tdSql
 
-from util.log import *
-from util.sql import *
-from util.cases import *
+class TestInterp:
 
-
-
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor())
-        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def interp_on_empty_table(self):
         dbname = "db"
@@ -273,7 +266,26 @@ class TDTestCase:
         tdSql.checkData(1, 2, 3)
         tdSql.checkData(1, 3, "_ttt_13")
     
-    def run(self):
+    def test_interp(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         dbname = "db"
         tbname = "tb"
         tbname1 = "tb1"
@@ -839,7 +851,6 @@ class TDTestCase:
         tdSql.checkData(2, 0, 3)
         tdSql.checkData(3, 0, 3)
 
-
         tdLog.printNoPrefix("==========step5:fill prev")
 
         ## {. . .}
@@ -965,7 +976,6 @@ class TDTestCase:
         ## ... {}
         tdSql.query(f"select interp(c0) from {dbname}.{tbname} range('2020-02-01 00:00:16', '2020-02-01 00:00:19') every(1s) fill(next)")
         tdSql.checkRows(0)
-
 
         tdLog.printNoPrefix("==========step7:fill linear")
 
@@ -1451,7 +1461,6 @@ class TDTestCase:
           tdSql.checkData(9,  i,  True)
           tdSql.checkData(10, i,  False)
 
-
         tdLog.printNoPrefix("==========step9:test intra block interpolation")
         tdSql.execute(f"drop database {dbname}");
 
@@ -1468,7 +1477,6 @@ class TDTestCase:
             (ts timestamp, c0 tinyint, c1 smallint, c2 int, c3 bigint, c4 double, c5 float, c6 bool, c7 varchar(10), c8 nchar(10)) tags(t1 int)
             '''
         )
-
 
         tdSql.execute(
             f'''create table if not exists {dbname}.{ctbname1} using {dbname}.{stbname} tags(1)
@@ -1496,7 +1504,6 @@ class TDTestCase:
         tdSql.execute(f"insert into {dbname}.{ctbname3} values ('2020-02-01 00:00:05', 5, 5, 5, 5, 5.0, 5.0, true, 'varchar', 'nchar')")
         tdSql.execute(f"insert into {dbname}.{ctbname3} values ('2020-02-01 00:00:11', 11, 11, 11, 11, 11.0, 11.0, true, 'varchar', 'nchar')")
         tdSql.execute(f"insert into {dbname}.{ctbname3} values ('2020-02-01 00:00:17', 17, 17, 17, 17, 17.0, 17.0, true, 'varchar', 'nchar')")
-
 
         tdSql.execute(f"flush database {dbname}");
 
@@ -1546,7 +1553,6 @@ class TDTestCase:
         tdSql.checkData(4, 0, None)
         tdSql.checkData(5, 0, None)
 
-
         # test fill value
 
         ## | {. | | .} |
@@ -1592,7 +1598,6 @@ class TDTestCase:
         tdSql.checkData(3, 0, 1)
         tdSql.checkData(4, 0, 1)
         tdSql.checkData(5, 0, 1)
-
 
         # test fill prev
 
@@ -1722,14 +1727,12 @@ class TDTestCase:
         tdSql.checkData(0, 0, 14)
         tdSql.checkData(1, 0, 15)
 
-
         tdLog.printNoPrefix("==========step10:test interp with null data")
         tdSql.execute(
             f'''create table if not exists {dbname}.{tbname1}
             (ts timestamp, c0 int, c1 int)
             '''
         )
-
 
         tdSql.execute(f"insert into {dbname}.{tbname1} values ('2020-02-02 00:00:00', 0,    NULL)")
         tdSql.execute(f"insert into {dbname}.{tbname1} values ('2020-02-02 00:00:05', NULL, NULL)")
@@ -1779,7 +1782,6 @@ class TDTestCase:
         tdSql.checkData(6, 0, None)
         tdSql.checkData(7, 0, None)
         tdSql.checkData(8, 0, None)
-
 
         tdSql.query(f"select interp(c0) from {dbname}.{tbname1} range('2020-02-02 00:00:01', '2020-02-02 00:00:03') every(1s) fill(linear)")
         tdSql.checkRows(3)
@@ -2150,7 +2152,6 @@ class TDTestCase:
         tdSql.checkData(44, 0, 44)
         tdSql.checkData(45, 0, 45)
 
-
         tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:00:55') every(1s) fill(linear)")
         tdSql.checkRows(56)
         tdSql.checkData(10, 0, 10)
@@ -2161,7 +2162,6 @@ class TDTestCase:
         tdSql.checkData(43, 0, 43)
         tdSql.checkData(44, 0, 44)
         tdSql.checkData(45, 0, 45)
-
 
         tdSql.query(f"select interp(c1) from {dbname}.{tbname1} range('2020-02-02 00:00:00', '2020-02-02 00:01:00') every(1s) fill(linear)")
         tdSql.checkRows(61)
@@ -2696,7 +2696,6 @@ class TDTestCase:
         tdSql.checkData(59, 1, 60)
         tdSql.checkData(60, 1, 60)   #
 
-
         tdLog.printNoPrefix("==========step11:test multi-interp cases")
         tdSql.query(f"select interp(c0),interp(c1),interp(c2),interp(c3) from {dbname}.{tbname} range('2020-02-09 00:00:05', '2020-02-13 00:00:05') every(1d) fill(null)")
         tdSql.checkRows(5)
@@ -2757,7 +2756,6 @@ class TDTestCase:
             (ts timestamp, c0 bool)
             '''
         )
-
 
         tdSql.execute(f"insert into {dbname}.{tbname2} values ('2020-02-02 00:00:01', false)")
         tdSql.execute(f"insert into {dbname}.{tbname2} values ('2020-02-02 00:00:03', true)")
@@ -3138,9 +3136,6 @@ class TDTestCase:
         # fill value number mismatch
         tdSql.error(f"select interp(c0) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05') every(1d) fill(value, 1, 2)")
         tdSql.error(f"select interp(c0), interp(c1) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05') every(1d) fill(value, 1)")
-
-
-
 
         tdLog.printNoPrefix("==========step13:test stable cases")
 
@@ -3767,7 +3762,6 @@ class TDTestCase:
         tdSql.checkData(9,  2, None)
         tdSql.checkData(10, 2, None)
 
-
         tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{tbname_null} where c0 is not null range('2020-02-02 00:00:01', '2020-02-02 00:00:11') every(1s) fill(NULL)")
 
         tdSql.checkRows(11)
@@ -3850,7 +3844,6 @@ class TDTestCase:
         tdSql.checkData(6,  2, 13)
         tdSql.checkData(7,  2, 15)
         tdSql.checkData(8,  2, None)
-
 
         tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(NULL)")
 
@@ -3976,7 +3969,6 @@ class TDTestCase:
         tdSql.checkData(9,  2, 0)
         tdSql.checkData(10, 2, 0)
 
-
         tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{tbname_null} where c0 is not null range('2020-02-02 00:00:01', '2020-02-02 00:00:11') every(1s) fill(value, 0)")
 
         tdSql.checkRows(11)
@@ -4059,7 +4051,6 @@ class TDTestCase:
         tdSql.checkData(6,  2, 13)
         tdSql.checkData(7,  2, 15)
         tdSql.checkData(8,  2, 0)
-
 
         tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(value, 0)")
 
@@ -4185,7 +4176,6 @@ class TDTestCase:
         tdSql.checkData(9,  2, 9)
         tdSql.checkData(10, 2, 9)
 
-
         tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{tbname_null} where c0 is not null range('2020-02-02 00:00:01', '2020-02-02 00:00:11') every(1s) fill(prev)")
 
         tdSql.checkRows(11)
@@ -4268,7 +4258,6 @@ class TDTestCase:
         tdSql.checkData(6,  2, 13)
         tdSql.checkData(7,  2, 15)
         tdSql.checkData(8,  2, 15)
-
 
         tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(prev)")
 
@@ -4384,7 +4373,6 @@ class TDTestCase:
         tdSql.checkData(7,  2, 8)
         tdSql.checkData(8,  2, 9)
 
-
         tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{tbname_null} where c0 is not null range('2020-02-02 00:00:01', '2020-02-02 00:00:11') every(1s) fill(next)")
 
         tdSql.checkRows(9)
@@ -4461,7 +4449,6 @@ class TDTestCase:
         tdSql.checkData(5,  2, 13)
         tdSql.checkData(6,  2, 13)
         tdSql.checkData(7,  2, 15)
-
 
         tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(next)")
 
@@ -4575,7 +4562,6 @@ class TDTestCase:
         tdSql.checkData(7,  2, 8)
         tdSql.checkData(8,  2, 9)
 
-
         tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{tbname_null} where c0 is not null range('2020-02-02 00:00:01', '2020-02-02 00:00:11') every(1s) fill(linear)")
 
         tdSql.checkRows(9)
@@ -4653,7 +4639,6 @@ class TDTestCase:
         tdSql.checkData(6,  2, 13)
         tdSql.checkData(7,  2, 15)
 
-
         tdSql.query(f"select _irowts, _isfilled, interp(c0) from {dbname}.{stbname_null} where c0 is not null range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(linear)")
 
         tdSql.checkRows(8)
@@ -4715,8 +4700,6 @@ class TDTestCase:
         tdSql.error(f"select _irowts, _isfilled, interp(c0, 1), interp(c1, 0), interp(c2, 0) from {dbname}.{stbname_null} range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(linear)")
         tdSql.error(f"select _irowts, _isfilled, interp(c0), interp(c1, 0), interp(c2, 1) from {dbname}.{stbname_null} range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(linear)")
         tdSql.error(f"select _irowts, _isfilled, interp(c0, 1), interp(c1, 1), interp(c2, 1) from {dbname}.{stbname_null} range('2020-02-01 00:00:01', '2020-02-01 00:00:17') every(2s) fill(linear)")
-
-
 
         tdLog.printNoPrefix("======step 15: test interp pseudo columns")
         tdSql.error(f"select _irowts, c6 from {dbname}.{tbname}")
@@ -5919,10 +5902,5 @@ class TDTestCase:
         self.interp_on_empty_table()
         self.ts5181()
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

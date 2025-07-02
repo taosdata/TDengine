@@ -1,18 +1,15 @@
-from util.log import *
-from util.sql import *
-from util.cases import *
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
-
-        self.row_nums = 1000
-        self.tb_nums = 10
-        self.ts = 1537146000000
-        self.dbname = "db1"
-        self.stable = "meters"
+class TestPartitionLimitInterval:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.row_nums = 1000
+        cls.tb_nums = 10
+        cls.ts = 1537146000000
+        cls.dbname = "db1"
+        cls.stable = "meters"
 
     def prepare_datas(self, stb_name , tb_nums , row_nums, dbname="db" ):
         tdSql.execute(f'''create database {self.dbname} MAXROWS 4096 MINROWS 100''')
@@ -91,15 +88,29 @@ class TDTestCase:
         tdSql.checkData(7, 2, 0)  
         tdSql.checkData(7, 1, 215)           
         
-    def run(self):
+    def test_partition_limit_interval(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
         self.prepare_datas("stb",self.tb_nums,self.row_nums)
         self.basic_query()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

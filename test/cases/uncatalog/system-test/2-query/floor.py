@@ -1,22 +1,21 @@
+import time
 from math import floor
 import taos
 import sys
 import datetime
 import inspect
 
-from util.log import *
-from util.sql import *
-from util.cases import *
+from new_test_framework.utils import tdLog, tdSql
 
 DBNAME = "db"
 
-class TDTestCase:
+class TestFloor:
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def prepare_datas(self, dbname=DBNAME):
         tdSql.execute(
@@ -91,7 +90,7 @@ class TDTestCase:
                 tdSql.checkData(row_index,col_index,auto_result[row_index][col_index])
                 
 
-    def test_errors(self, dbname=DBNAME):
+    def check_errors(self, dbname=DBNAME):
         error_sql_lists = [
             f"select floor from {dbname}.t1",
             # f"select floor(-+--+c1) from {dbname}.t1",
@@ -435,7 +434,26 @@ class TDTestCase:
         self.check_result_auto( f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select floor(t1) , floor(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
         pass
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_floor(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare(DBNAME)
 
         tdLog.printNoPrefix("==========step1:create table ==============")
@@ -444,7 +462,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:test errors ==============")
 
-        self.test_errors()
+        self.check_errors()
 
         tdLog.printNoPrefix("==========step3:support types ============")
 
@@ -466,9 +484,5 @@ class TDTestCase:
 
         self.support_super_table_test()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

@@ -1,17 +1,14 @@
 # author : wenzhouwww
-from util.log import *
-from util.sql import *
-from util.cases import *
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
-
-        self.row_nums = 10
-        self.tb_nums = 10
-        self.ts = 1537146000000
+class TestMaxPartition:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.row_nums = 10
+        cls.tb_nums = 10
+        cls.ts = 1537146000000
 
     def prepare_datas(self, stb_name , tb_nums , row_nums, dbname="db" ):
         tdSql.execute(f" create stable {dbname}.{stb_name} (ts timestamp , c1 int , c2 bigint , c3 float , c4 double , c5 smallint , c6 tinyint , c7 bool , c8 binary(36) , c9 nchar(36) , uc1 int unsigned,\
@@ -101,7 +98,6 @@ class TDTestCase:
         tdSql.checkRows(self.tb_nums)
         tdSql.checkData(0,1,self.row_nums-1)
 
-
         tdSql.query(f"select tbname , max(c1) from {dbname}.stb partition by t2 order by t2")
 
         tdSql.query(f"select c2, max(c1) from {dbname}.stb partition by c2 order by c2 desc")
@@ -109,7 +105,6 @@ class TDTestCase:
         tdSql.checkData(0,1,self.row_nums-1)
 
         tdSql.query(f"select tbname , max(c1) from {dbname}.stb partition by c1 order by c2")
-
 
         tdSql.query(f"select tbname , abs(t2) from {dbname}.stb partition by c2 order by t2")
         tdSql.checkRows(self.tb_nums*(self.row_nums+5))
@@ -133,10 +128,8 @@ class TDTestCase:
         tdSql.query(f"select count(c1) , max(t2) ,abs(c1) from {dbname}.stb partition by abs(c1) order by abs(c1)")
         tdSql.checkRows(self.row_nums+1)
 
-
         tdSql.query(f"select max(ceil(c2)) , max(floor(t2)) ,max(floor(c2)) from {dbname}.stb partition by abs(c2) order by abs(c2)")
         tdSql.checkRows(self.row_nums+1)
-
 
         tdSql.query(f"select max(ceil(c1-2)) , max(floor(t2+1)) ,max(c2-c1) from {dbname}.stb partition by abs(floor(c1)) order by abs(floor(c1))")
         tdSql.checkRows(self.row_nums+1)
@@ -152,7 +145,6 @@ class TDTestCase:
 
         tdSql.query(f"select c1 , sample(c1,2) from {dbname}.stb partition by tbname order by tbname ")
         tdSql.checkRows(self.tb_nums*2)
-
 
         # interval
         tdSql.query(f"select max(c1) from {dbname}.stb interval(2s) sliding(1s)")
@@ -199,7 +191,6 @@ class TDTestCase:
         # bug need fix
         tdSql.checkData(0,1,0.0)
 
-
         tdSql.query(f"select tbname , max(c1) from {dbname}.stb partition by tbname order by tbname slimit 5 soffset 0 ")
         tdSql.checkRows(10)
 
@@ -208,8 +199,26 @@ class TDTestCase:
         tdSql.query(f'select max(c1) from {dbname}.stb where ts>={self.ts} and ts < {self.ts}+1000 interval(50s) sliding(30s)')
         tdSql.query(f'select tbname , max(c1) from {dbname}.stb where ts>={self.ts} and ts < {self.ts}+1000 interval(50s) sliding(30s)')
 
+    def test_max_partition(self):
+        """summary: xxx
 
-    def run(self):
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         dbname = "db"
         tdSql.prepare()
         self.prepare_datas("stb",self.tb_nums,self.row_nums)
@@ -222,11 +231,5 @@ class TDTestCase:
         tdSql.query(f"select avg(abs(c1)) , tbname from {dbname}.stb group by tbname ")
         tdSql.query(f"select t1,c1 from {dbname}.stb where abs(t2+c1)=1 ")
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

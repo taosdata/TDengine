@@ -1,19 +1,12 @@
-import taos
-import sys
+from new_test_framework.utils import tdLog, tdSql
 
-from util.log import *
-from util.sql import *
-from util.cases import *
+class TestCountNull:
 
-
-
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor())
-        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def check_results(self):
         tdSql.query(f"select count(*) from tb1")
@@ -74,8 +67,26 @@ class TDTestCase:
             tdSql.query(f"select count(c8) from tb{i}")
             tdSql.checkData(0, 0, 10000)
 
+    def test_count_null(self):
+        """summary: xxx
 
-    def run(self):
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         dbname = 'db'
         tbnames = ['tb1', 'tb2', 'tb3', 'tb4', 'tb5', 'tb6']
         num_rows = 20000
@@ -135,10 +146,5 @@ class TDTestCase:
         tdSql.execute(f"flush database db")
         self.check_results();
 
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

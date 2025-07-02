@@ -10,24 +10,19 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-
-from util.log import *
-from util.cases import *
-from util.sql import *
-
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        self.ts = 1537146000000
-        self.param_list = ['LT', 'lt', 'Lt', 'lT', 'GT', 'gt', 'Gt', 'gT', 'LE', 'le', 'Le',
+from new_test_framework.utils import tdLog, tdSql
+class TestStateduration:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.ts = 1537146000000
+        cls.param_list = ['LT', 'lt', 'Lt', 'lT', 'GT', 'gt', 'Gt', 'gT', 'LE', 'le', 'Le',
                            'lE', 'GE', 'ge', 'Ge', 'gE', 'NE', 'ne', 'Ne', 'nE', 'EQ', 'eq', 'Eq', 'eQ']
-        self.row_num = 10
-        self.dbname = 'db'
-        self.ntbname = f'{self.dbname}.ntb'
-        self.stbname = f'{self.dbname}.stb'
+        cls.row_num = 10
+        cls.dbname = 'db'
+        cls.ntbname = f'{cls.dbname}.ntb'
+        cls.stbname = f'{cls.dbname}.stb'
 
     def duration_check(self):
         tdSql.execute(f'create database {self.dbname}')
@@ -332,12 +327,26 @@ class TDTestCase:
                     tdSql.checkEqual(tdSql.queryResult, [
                                      (-1,), (-1,), (-1,), (-1,), (-1,), (-1,), (-1,), (-1,), (-1,), (-1,)])
 
-    def run(self):
+    def test_stateduration(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.duration_check()
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

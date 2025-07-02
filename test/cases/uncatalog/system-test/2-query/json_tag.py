@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
+from new_test_framework.utils import tdLog, tdSql
 
-from util.log import tdLog
-from util.cases import tdCases
-from util.sql import tdSql
-
-class TDTestCase:
+class TestJsonTag:
     def caseDescription(self):
         '''
         Json tag test case, include create table with json tag, select json tag and query with json tag in where condition, besides, include json tag in group by/order by/join/subquery.
@@ -13,12 +10,32 @@ class TDTestCase:
         '''
         return
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
-    def run(self):
+    def test_json_tag(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         # tdSql.prepare()
         dbname = "db"
         tdSql.execute(f'drop database if exists {dbname}')
@@ -79,7 +96,7 @@ class TDTestCase:
         tdSql.error(f"create TABLE if not exists {dbname}.jsons1_14 using {dbname}.jsons1 tags('{{\"tag1\":[1,true]}}')")
         tdSql.error(f"create TABLE if not exists {dbname}.jsons1_14 using {dbname}.jsons1 tags('{{\"tag1\":{{}}}}')")
         tdSql.error(f"create TABLE if not exists {dbname}.jsons1_14 using {dbname}.jsons1 tags('{{\"。loc\":\"fff\"}}')")
-        tdSql.error(f"create TABLE if not exists {dbname}.jsons1_14 using {dbname}.jsons1 tags('{{\"\t\":\"fff\"}}')")
+        tdSql.error(f"create TABLE if not exists {dbname}.jsons1_14 using {dbname}.jsons1 tags('{{\"	\":\"fff\"}}')")
         tdSql.error(f"create TABLE if not exists {dbname}.jsons1_14 using {dbname}.jsons1 tags('{{\"试试\":\"fff\"}}')")
 
         # test invalidate json value, value number can not be inf,nan TD-12166
@@ -131,7 +148,6 @@ class TDTestCase:
         tdSql.error(f"select min(jtag) from {dbname}.jsons1")
         tdSql.error(f"select ceil(jtag->'tag1') from {dbname}.jsons1")
         tdSql.error(f"select ceil(jtag) from {dbname}.jsons1")
-
 
         #test scalar operation
         tdSql.query(f"select jtag contains 'tag1',jtag->'tag1' from {dbname}.jsons1 order by jtag->'tag1'")
@@ -195,7 +211,6 @@ class TDTestCase:
         cname_list.append("jtag->'tag1'")
         tdSql.checkColNameList(res, cname_list)
 
-
         # test where with json tag
         tdSql.query(f"select * from {dbname}.jsons1_1 where jtag is not null")
         tdSql.error(f"select * from {dbname}.jsons1 where jtag='{{\"tag1\":11,\"tag2\":\"\"}}'")
@@ -210,7 +225,6 @@ class TDTestCase:
         #tdSql.error(f"select jtag from {dbname}.jsons1 where jtag like 'fsss'")
         #tdSql.error(f"select jtag from {dbname}.jsons1 where jtag in (1)")
 
-
         # where json value is string
         tdSql.query(f"select * from {dbname}.jsons1 where jtag->'tag2'='beijing'")
         tdSql.checkRows(2)
@@ -223,7 +237,6 @@ class TDTestCase:
         tdSql.checkData(1, 0, 3)
         tdSql.checkData(1, 1, 'jsons1_3')
         tdSql.checkData(1, 2, 'false')
-
 
         tdSql.query(f"select * from {dbname}.jsons1 where jtag->'tag1'='beijing'")
         tdSql.checkRows(0)
@@ -334,7 +347,6 @@ class TDTestCase:
         tdSql.query(f"select * from {dbname}.jsons1 where jtag->'tag1'='femail' and jtag contains 'tag3'")
         tdSql.checkRows(2)
 
-
         # test with between and
         tdSql.query(f"select * from {dbname}.jsons1 where jtag->'tag1' between 1 and 30")
         tdSql.checkRows(3)
@@ -350,7 +362,6 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query(f"select * from {dbname}.jsons1 where tbname = 'jsons1_1' and jtag contains 'tag3' and dataint=23")
         tdSql.checkRows(1)
-
 
         # test where condition like
         tdSql.query(f"select * from {dbname}.jsons1 where jtag->'tag2' like 'bei%'")
@@ -414,7 +425,6 @@ class TDTestCase:
         tdSql.checkData(0, 1, '"收到货"')
         tdSql.checkData(2, 1, '"femail"')
         tdSql.checkData(7, 1, "false")
-
 
         tdSql.error(f"select count(*) from {dbname}.jsons1 group by jtag")
         tdSql.error(f"select count(*) from {dbname}.jsons1 partition by jtag")
@@ -696,10 +706,5 @@ class TDTestCase:
         tdSql.query(f"select * from {dbname}.jsons_stb")
         tdSql.checkRows(4)
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

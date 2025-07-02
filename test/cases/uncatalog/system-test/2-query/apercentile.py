@@ -10,27 +10,22 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
+from new_test_framework.utils import tdLog, tdSql, sqlset
 
-from util.log import *
-from util.cases import *
-from util.sql import *
-import numpy as np
-from util.sqlset import TDSetSql
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(),True)
-        self.rowNum = 10
-        self.ts = 1537146000000
-        self.setsql = TDSetSql()
-        self.dbname = "db"
-        self.ntbname = f"{self.dbname}.ntb"
-        self.stbname = f'{self.dbname}.stb'
-        self.binary_length = 20 # the length of binary for column_dict
-        self.nchar_length = 20  # the length of nchar for column_dict
-        self.column_dict = {
+class TestApercentile:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.rowNum = 10
+        cls.ts = 1537146000000
+        # cls.setsql = # TDSetSql()
+        cls.dbname = "db"
+        cls.ntbname = f"{cls.dbname}.ntb"
+        cls.stbname = f'{cls.dbname}.stb'
+        cls.binary_length = 20 
+        cls.nchar_length = 20  
+        cls.column_dict = {
             'ts'  : 'timestamp',
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -43,11 +38,10 @@ class TDTestCase:
             'col9': 'float',
             'col10': 'double',
             'col11': 'bool',
-            'col12': f'binary({self.binary_length})',
-            'col13': f'nchar({self.nchar_length})'
+            'col12': f'binary({cls.binary_length})',
+            'col13': f'nchar({cls.nchar_length})'
         }
-
-        self.tag_dict = {
+        cls.tag_dict = {
             'ts_tag'  : 'timestamp',
             't1': 'tinyint',
             't2': 'smallint',
@@ -60,42 +54,40 @@ class TDTestCase:
             't9': 'float',
             't10': 'double',
             't11': 'bool',
-            't12': f'binary({self.binary_length})',
-            't13': f'nchar({self.nchar_length})'
+            't12': f'binary({cls.binary_length})',
+            't13': f'nchar({cls.nchar_length})'
         }
-        self.binary_str = 'taosdata'
-        self.nchar_str = '涛思数据'
-        self.tbnum = 2
-        self.tag_ts = self.ts
-        self.tag_tinyint = 1
-        self.tag_smallint = 2
-        self.tag_int = 3
-        self.tag_bigint = 4
-        self.tag_utint = 5
-        self.tag_usint = 6
-        self.tag_uint = 7
-        self.tag_ubint = 8
-        self.tag_float = 9.1
-        self.tag_double = 10.1
-        self.tag_bool = True
-        self.tag_values = [
-            f'{self.tag_ts},{self.tag_tinyint},{self.tag_smallint},{self.tag_int},{self.tag_bigint},\
-            {self.tag_utint},{self.tag_usint},{self.tag_uint},{self.tag_ubint},{self.tag_float},{self.tag_double},{self.tag_bool},"{self.binary_str}","{self.nchar_str}"'
+        cls.binary_str = 'taosdata'
+        cls.nchar_str = '涛思数据'
+        cls.tbnum = 2
+        cls.tag_ts = cls.ts
+        cls.tag_tinyint = 1
+        cls.tag_smallint = 2
+        cls.tag_int = 3
+        cls.tag_bigint = 4
+        cls.tag_utint = 5
+        cls.tag_usint = 6
+        cls.tag_uint = 7
+        cls.tag_ubint = 8
+        cls.tag_float = 9.1
+        cls.tag_double = 10.1
+        cls.tag_bool = True
+        cls.tag_values = [
+            f'{cls.tag_ts},{cls.tag_tinyint},{cls.tag_smallint},{cls.tag_int},{cls.tag_bigint},\
+            {cls.tag_utint},{cls.tag_usint},{cls.tag_uint},{cls.tag_ubint},{cls.tag_float},{cls.tag_double},{cls.tag_bool},"{cls.binary_str}","{cls.nchar_str}"'
 
         ]
-
-        self.percent = [1,50,100]
-        self.param_list = ['default','t-digest']
+        cls.percent = [1,50,100]
+        cls.param_list = ['default','t-digest']
     def insert_data(self,column_dict,tbname,row_num):
-        insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
+        insert_sql = sqlset.TDSetSql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
         for i in range(row_num):
             insert_list = []
-            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
-
+            sqlset.TDSetSql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
 
     def function_check_ntb(self):
         tdSql.prepare()
-        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        tdSql.execute(sqlset.TDSetSql.set_create_normaltable_sql(self.ntbname,self.column_dict))
         self.insert_data(self.column_dict,self.ntbname,self.rowNum)
         for k,v in self.column_dict.items():
             for percent in self.percent:
@@ -125,13 +117,28 @@ class TDTestCase:
                             tdSql.error(f'select apercentile({k},{percent},"{param}") from {self.stbname}')
                         else:
                             tdSql.query(f"select apercentile({k},{percent},'{param}') from {self.stbname}")
-    def run(self):
+    def test_apercentile(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.function_check_ntb()
         self.function_check_stb()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

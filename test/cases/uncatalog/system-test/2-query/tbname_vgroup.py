@@ -1,11 +1,8 @@
-import sys 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import tdDnodes
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
+import datetime
 from math import inf
 
-class TDTestCase:
+class TestTbnameVgroup:
     def caseDescription(self):
         '''
         case1<shenglian zhou>: [TD-] 
@@ -22,7 +19,26 @@ class TDTestCase:
         tdDnodes.startWithoutSleep(index)
         tdSql.execute(f"use tbname_vgroup")
 
-    def run(self):
+    def test_tbname_vgroup(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         print("running {}".format(__file__))
         tdSql.execute("drop database if exists tbname_vgroup")
         tdSql.execute("create database if not exists tbname_vgroup")
@@ -202,9 +218,5 @@ class TDTestCase:
         #tdSql.execute('drop database dbvg;')
 
         tdSql.execute('drop database tbname_vgroup')
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

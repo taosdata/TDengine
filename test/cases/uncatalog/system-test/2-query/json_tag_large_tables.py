@@ -14,14 +14,11 @@
 import imp
 import sys
 import taos
-from util.log import tdLog
-from util.cases import tdCases
-from util.sql import tdSql
+from new_test_framework.utils import tdLog, tdSql
 import json
 import os
 
-
-class TDTestCase:
+class TestJsonTagLargeTables:
     def caseDescription(self):
         '''
         Json tag test case, include create table with json tag, select json tag and query with json tag in where condition, besides, include json tag in group by/order by/join/subquery.
@@ -30,15 +27,33 @@ class TDTestCase:
         '''
         return
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        self.testcasePath = os.path.split(__file__)[0]
-        self.testcaseFilename = os.path.split(__file__)[-1]
-        # os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcaseFilename = os.path.split(__file__)[-1]
 
-    def run(self):
+    def test_json_tag_large_tables(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         # tdSql.prepare()
         tdSql.execute('drop database if exists db')
         tdSql.execute('create database db vgroups 1')
@@ -76,7 +91,6 @@ class TDTestCase:
 
         tdSql.execute('drop stable jsons1')
 
-
         # drop database
         i = 0
         tdSql.execute("create table if not exists jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json)")
@@ -85,7 +99,6 @@ class TDTestCase:
             tdSql.execute(sql)
             i = i + 1
         tdSql.execute('drop database db')
-
 
         # test duplicate key using the first one. elimate empty key
         #tdSql.execute("CREATE TABLE if not exists jsons1_8 using jsons1 tags('{\"tag1\":null, \"tag1\":true, \"tag1\":45, \"1tag$\":2, \" \":90, \"\":32}')") tdSql.query("select jtag from jsons1_8") tdSql.checkRows(0);
@@ -180,7 +193,6 @@ class TDTestCase:
         #tdSql.error("select ceil(jtag->'tag1') from jsons1")
         #tdSql.error("select ceil(jtag) from jsons1")
 
-
         ##test scalar operation
         #tdSql.query("select jtag contains 'tag1',jtag->'tag1' from jsons1 order by jtag->'tag1'")
         #tdSql.checkRows(9)
@@ -243,7 +255,6 @@ class TDTestCase:
         #cname_list.append("jtag->'tag1'")
         #tdSql.checkColNameList(res, cname_list)
 
-
         ## test where with json tag
         #tdSql.query("select * from jsons1_1 where jtag is not null")
         #tdSql.query("select * from jsons1 where jtag='{\"tag1\":11,\"tag2\":\"\"}'")
@@ -258,7 +269,6 @@ class TDTestCase:
         ##tdSql.error("select jtag from jsons1 where jtag like 'fsss'")
         ##tdSql.error("select jtag from jsons1 where jtag in (1)")
 
-
         ## where json value is string
         #tdSql.query("select * from jsons1 where jtag->'tag2'='beijing'")
         #tdSql.checkRows(2)
@@ -271,7 +281,6 @@ class TDTestCase:
         #tdSql.checkData(1, 0, 3)
         #tdSql.checkData(1, 1, 'jsons1_3')
         #tdSql.checkData(1, 2, 'false')
-
 
         #tdSql.query("select * from jsons1 where jtag->'tag1'='beijing'")
         #tdSql.checkRows(0)
@@ -382,7 +391,6 @@ class TDTestCase:
         #tdSql.query("select * from jsons1 where jtag->'tag1'='femail' and jtag contains 'tag3'")
         #tdSql.checkRows(2)
 
-
         ## test with between and
         #tdSql.query("select * from jsons1 where jtag->'tag1' between 1 and 30")
         #tdSql.checkRows(3)
@@ -398,7 +406,6 @@ class TDTestCase:
         #tdSql.checkRows(0)
         #tdSql.query("select * from jsons1 where tbname = 'jsons1_1' and jtag contains 'tag3' and dataint=23")
         #tdSql.checkRows(1)
-
 
         ## test where condition like
         #tdSql.query("select * from jsons1 where jtag->'tag2' like 'bei%'")
@@ -460,7 +467,6 @@ class TDTestCase:
         #tdSql.checkData(0, 1, '"femail"')
         #tdSql.checkData(2, 1, '"收到货"')
         #tdSql.checkData(7, 1, "false")
-
 
         #tdSql.error("select count(*) from jsons1 group by jtag")
         #tdSql.error("select count(*) from jsons1 partition by jtag")
@@ -698,10 +704,5 @@ class TDTestCase:
         #tdSql.query("select jtag->'tag3' from jsons1_16")
         #tdSql.checkData(0, 0, '-2.111000000')
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

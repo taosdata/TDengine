@@ -10,12 +10,31 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-from util.cases import tdCases
+from new_test_framework.utils import tdLog, tdSql
 from .stablity import *
 
-class TDTestCase(TDTestCase):
+class TestStability1:
 
-    def run(self):
+    def test_stablity_1(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
 
         startTime = time.time()
@@ -62,12 +81,5 @@ class TDTestCase(TDTestCase):
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
 
-
-
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

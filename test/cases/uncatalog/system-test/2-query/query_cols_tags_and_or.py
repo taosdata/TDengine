@@ -10,17 +10,13 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-from util.log import tdLog
-from util.cases import tdCases
-from util.sql import tdSql
-from util.common import tdCom
+from new_test_framework.utils import tdLog, tdSql, tdCom
 import random
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        ## add for TD-6672
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
+class TestQueryColsTagsAndOr:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
 
     def insertData(self, tb_name):
         insert_sql_list = [f'insert into {tb_name} values ("2021-01-01 12:00:00", 1, 1, 1, 3, 1.1, 1.1, "binary", "nchar", true, 1, 2, 3, 4)',
@@ -136,7 +132,6 @@ class TDTestCase:
         tdSql.query(query_sql)
         tdSql.checkRows(10)
         tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
-
 
         query_sql = f'select {select_elm} from {tb_name} where ts <= "2021-01-11 12:00:00" and c2 <= 1'
         tdSql.query(query_sql)
@@ -2120,7 +2115,26 @@ class TDTestCase:
         tb_name = self.initTwoStb()
         self.queryJoin(tb_name)
 
-    def run(self):
+    def test_query_cols_tags_and_or(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         tdSql.prepare()
         column_name = random.choice(["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10", "c11", "c12", "c13"])
         for check_elm in [None, column_name]:
@@ -2140,10 +2154,5 @@ class TDTestCase:
         # self.checkMultiTbWithTag()
         # self.checkMultiStbJoin()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

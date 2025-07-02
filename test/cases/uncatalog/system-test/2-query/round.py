@@ -1,18 +1,11 @@
-import taos
-import sys
-import datetime
-import inspect
+from new_test_framework.utils import tdLog, tdSql
 
-from util.log import *
-from util.sql import *
-from util.cases import *
+class TestRound:
 
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql)
 
     def prepare_datas(self, dbname="db"):
         tdSql.execute(
@@ -85,10 +78,8 @@ class TDTestCase:
         for row_index , row in enumerate(round_result):
             for col_index , elem in enumerate(row):
                 tdSql.checkData(row_index , col_index ,auto_result[row_index][col_index])
-                    
-       
 
-    def test_errors(self, dbname="db"):
+    def check_errors(self, dbname="db"):
         error_sql_lists = [
             f"select round from {dbname}.t1",
             # f"select round(-+--+c1) from {dbname}.t1",
@@ -155,7 +146,6 @@ class TDTestCase:
 
         for type_sql in type_error_sql_lists:
             tdSql.error(type_sql)
-
 
         type_sql_lists = [
             f"select round(c1) from {dbname}.t1",
@@ -255,7 +245,6 @@ class TDTestCase:
         self.check_result_auto( f"select c1, c2, c3 , c4, c5 from {dbname}.ct4 ", f"select (c1), round(c2) ,round(c3), round(c4), round(c5) from {dbname}.ct4")
         self.check_result_auto(f"select round(round(round(round(round(round(round(round(round(round(c1)))))))))) nest_col_func from {dbname}.ct4;" , f"select c1 from {dbname}.ct4" )
 
-
         # used for not exists table
         tdSql.error(f"select round(c1) from {dbname}.stbbb1")
         tdSql.error(f"select round(c1) from {dbname}.tbname")
@@ -311,7 +300,6 @@ class TDTestCase:
 
         tdSql.query(f"select max(c5), count(c5) from {dbname}.stb1")
         tdSql.query(f"select max(c5), count(c5) from {dbname}.ct1")
-
 
         # bug fix for count
         tdSql.query(f"select count(c1) from {dbname}.ct4 ")
@@ -438,8 +426,26 @@ class TDTestCase:
         self.check_result_auto( f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select round(t1) , round(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
         pass
 
+    def test_round(self):
+        """summary: xxx
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table ==============")
@@ -448,7 +454,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:test errors ==============")
 
-        self.test_errors()
+        self.check_errors()
 
         tdLog.printNoPrefix("==========step3:support types ============")
 
@@ -470,9 +476,5 @@ class TDTestCase:
 
         self.support_super_table_test()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

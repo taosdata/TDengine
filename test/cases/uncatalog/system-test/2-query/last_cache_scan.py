@@ -1,24 +1,19 @@
 from sqlite3 import ProgrammingError
-import taos
-import sys
 import time
 import socket
 import os
 import threading
 import math
+import subprocess
 from datetime import datetime
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+from new_test_framework.utils import tdLog, tdSql, tdCom
 # from tmqCommon import *
 
 COMPARE_DATA = 0
 COMPARE_LEN = 1
 
-class TDTestCase:
+class TestLastCacheScan:
     def __init__(self):
         self.vgroups    = 4
         self.ctbNum     = 10
@@ -30,10 +25,11 @@ class TDTestCase:
         if not self.cacheEnable:
             self.cachemodel = 'none'
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql)
+        pass
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=2,replica=1, duration:str='1d'):
         if dropFlag == 1:
@@ -184,7 +180,7 @@ class TDTestCase:
             if has_last == 1:
                 self.query_check_one(sql, res)
 
-    def test_last_cache_scan(self):
+    def check_last_cache_scan(self):
         sql_template = 'select %s from meters'
         select_items = [
                 "last(ts), ts", "last(ts), c1", "last(ts), c2", "last(ts), c3",\
@@ -337,7 +333,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, '2018-11-25 19:30:00.000')
         tdSql.checkData(0, 1, '2018-11-25 19:30:01.000')
 
-    def test_cache_scan_with_drop_and_add_column(self):
+    def check_cache_scan_with_drop_and_add_column(self):
         tdSql.query("select last(c10) from meters")
         tdSql.checkData(0, 0, '2018-11-25 19:30:01')
         p = subprocess.run(["taos", '-s', "alter table test.meters drop column c10; alter table test.meters add column c11 int"])
@@ -351,7 +347,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, None)
 
-    def test_cache_scan_with_drop_and_add_column2(self):
+    def check_cache_scan_with_drop_and_add_column2(self):
         tdSql.query("select last(c1) from meters")
         tdSql.checkData(0, 0, '999')
         p = subprocess.run(["taos", '-s', "alter table test.meters drop column c1; alter table test.meters add column c12 int"])
@@ -363,7 +359,7 @@ class TDTestCase:
         #tdSql.checkData(0, 0, None)
         #tdSql.checkData(0, 1, None)
 
-    def test_cache_scan_with_drop_column(self):
+    def check_cache_scan_with_drop_column(self):
         tdSql.query('select last(*) from meters')
         print(str(tdSql.queryResult))
         tdSql.checkCols(11)
@@ -374,7 +370,7 @@ class TDTestCase:
         tdSql.checkCols(11)
         tdSql.checkData(0, 9, None)
     
-    def test_cache_scan_last_row_with_drop_column(self):
+    def check_cache_scan_last_row_with_drop_column(self):
         tdSql.query('select last_row(*) from meters')
         print(str(tdSql.queryResult))
         tdSql.checkCols(11)
@@ -385,7 +381,7 @@ class TDTestCase:
         tdSql.checkCols(11)
         tdSql.checkData(0, 10, None)
         
-    def test_cache_scan_last_row_with_drop_column2(self):
+    def check_cache_scan_last_row_with_drop_column2(self):
         tdSql.query('select last_row(c2) from meters')
         print(str(tdSql.queryResult))
         tdSql.checkCols(1)
@@ -398,7 +394,7 @@ class TDTestCase:
         #tdSql.checkData(0, 0, None)
         #tdSql.checkData(0, 1, None)
 
-    def test_cache_scan_last_row_with_partition_by(self):
+    def check_cache_scan_last_row_with_partition_by(self):
         tdSql.query('select last(c1) from meters partition by t1')
         print(str(tdSql.queryResult))
         #tdSql.checkCols(1)
@@ -413,8 +409,7 @@ class TDTestCase:
         #tdSql.checkData(0, 0, None)
         #tdSql.checkData(0, 1, None)
 
-
-    def test_cache_scan_last_row_with_partition_by_tbname(self):
+    def check_cache_scan_last_row_with_partition_by_tbname(self):
         tdSql.query('select last(c2) from meters partition by tbname')
         print(str(tdSql.queryResult))
         #tdSql.checkCols(1)
@@ -429,25 +424,38 @@ class TDTestCase:
         #tdSql.checkData(0, 0, None)
         #tdSql.checkData(0, 1, None)
 
+    def test_last_cache_scan(self):
+        """summary: xxx
 
+        description: xxx
 
-    def run(self):
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.prepareTestEnv()
         #time.sleep(99999999)
-        self.test_last_cache_scan()
-        #self.test_cache_scan_with_drop_and_add_column()
-        self.test_cache_scan_with_drop_and_add_column2()
-        #self.test_cache_scan_with_drop_column()
-        #self.test_cache_scan_last_row_with_drop_column()
-        self.test_cache_scan_last_row_with_drop_column2()
-        self.test_cache_scan_last_row_with_partition_by()
-        self.test_cache_scan_last_row_with_partition_by_tbname()
+        self.check_last_cache_scan()
+        #self.check_cache_scan_with_drop_and_add_column()
+        self.check_cache_scan_with_drop_and_add_column2()
+        #self.check_cache_scan_with_drop_column()
+        #self.check_cache_scan_last_row_with_drop_column()
+        self.check_cache_scan_last_row_with_drop_column2()
+        self.check_cache_scan_last_row_with_partition_by()
+        self.check_cache_scan_last_row_with_partition_by_tbname()
 
-    def stop(self):
-        tdSql.close()
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())
