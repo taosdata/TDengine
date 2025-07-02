@@ -6740,6 +6740,25 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
         } else {
           return DEAL_RES_CONTINUE;
         }
+      } else if (pOperator->opType == OP_TYPE_EQUAL) {
+        if (filterExtractTsNeedCollect(pOperator->pLeft, pOperator->pRight) ||
+            filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft)) {
+          SNode*      startNode = NULL;
+          SNode*      endNode = NULL;
+          SValueNode* pVal = NULL;
+          nodesCloneNode(*pNode, &startNode);
+          nodesCloneNode(*pNode, &endNode);
+          ((SOperatorNode*)startNode)->opType = OP_TYPE_GREATER_EQUAL;
+          ((SOperatorNode*)endNode)->opType = OP_TYPE_LOWER_EQUAL;
+          nodesListMakeAppend(&pCxt->pStart, startNode);
+          nodesListMakeAppend(&pCxt->pEnd, endNode);
+          nodesMakeValueNodeFromBool(true, &pVal);
+          *pNode = (SNode*)pVal;
+
+          return DEAL_RES_IGNORE_CHILD;
+        } else {
+          return DEAL_RES_CONTINUE;
+        }
       } else {
         return DEAL_RES_CONTINUE;
       }
@@ -6913,7 +6932,7 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
     }
   }
 
-  if (pCxt->createStreamCalc && pCxt->currClause == SQL_CLAUSE_WHERE) {
+  if (pCxt->createStreamCalc) {
     PAR_ERR_JRET(filterExtractTsCond(&pCond, pTimeRangeExpr));
     // some node may be replaced
     TSWAP(*pWhere, pCond);
@@ -6946,6 +6965,12 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
 
   if (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_INITIALIZER) && !pFill->pTimeRange) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
+  }
+
+  if (pFill->pTimeRange &&
+      (!((STimeRangeNode*)pFill->pTimeRange)->pStart ||
+       !((STimeRangeNode*)pFill->pTimeRange)->pEnd)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE, "Start and End time of query range required ");
   }
 
   if (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_DESC_INITIALIZER)) {
@@ -7711,7 +7736,7 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateExpr(pCxt, &pSelect->pFill);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = getQueryTimeRange(pCxt, &pSelect->pRange, &(((SFillNode*)pSelect->pFill)->timeRange), NULL);
+    code = getQueryTimeRange(pCxt, &pSelect->pRange, &(((SFillNode*)pSelect->pFill)->timeRange), &(((SFillNode*)pSelect->pFill)->pTimeRange));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true, pSelect->precision);
@@ -11183,7 +11208,7 @@ static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, ch
     return code;
   }
   snprintf(pSelect->stmtName, TSDB_TABLE_NAME_LEN, "%p", pSelect);
-
+  pSelect->hasProject = true;
   code = buildTableForSampleAst(pInfo, &pSelect->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildProjectsForSampleAst(pInfo, &pSelect->pProjectionList, pProjectionTotalLen);
@@ -13320,7 +13345,9 @@ static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const ch
     TAOS_STRNCAT(streamFName, ".", 2);
     TAOS_STRNCAT(streamFName, outTableName, TSDB_TABLE_NAME_LEN);
 
-    PAR_ERR_JRET(nodesMakeValueNodeFromString(streamFName, &pNameValue));
+    code = nodesMakeValueNodeFromString(streamFName, &pNameValue);
+    taosMemoryFree(streamFName);
+    PAR_ERR_JRET(code);
     PAR_ERR_JRET(nodesListMakeStrictAppend(&pMd5Func->pParameterList, (SNode*)pNameValue));
     PAR_ERR_JRET(nodesListMakeStrictAppend(&pConcatFunc->pParameterList, (SNode*)pMd5Func));
 
@@ -13347,12 +13374,16 @@ static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const ch
 
   PAR_ERR_JRET(translateCreateStreamTagSubtableExpr(pCxt, pPartitionByList, &pSubtableExpr));
   if (!nodesIsExprNode(pSubtableExpr) || ((SExprNode*)pSubtableExpr)->resType.type != TSDB_DATA_TYPE_BINARY) {
+    nodesDestroyNode(pSubtableExpr);
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
                                    "Subtable name expression must be a binary type expression");
   }
   PAR_ERR_JRET(createStreamSetNodeSlotId(pSubtableExpr, pTriggerSlotHash, NULL));
   PAR_ERR_JRET(nodesNodeToString(pSubtableExpr, false, subTblNameExpr, NULL));
+  nodesDestroyNode(pSubtableExpr);
+
   return code;
+  
 _return:
   nodesDestroyNode(pSubtableExpr);
   // TODO(smj) : free node
@@ -20073,6 +20104,7 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
     return code;
   }
 
+  pStmt->hasProject = true;
   pStmt->pProjectionList = pProjList;
   pStmt->pFromTable = pTempTblNode;
   snprintf(pStmt->stmtName, TSDB_TABLE_NAME_LEN, "%p", pStmt);

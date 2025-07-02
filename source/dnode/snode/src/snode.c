@@ -47,7 +47,7 @@ void sndClose(SSnode *pSnode) {
   taosMemoryFree(pSnode);
 }
 
-static int32_t handleTriggerCalcReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+static int32_t handleTriggerCalcReq(SSnode* pSnode, void* pWorkerCb, SRpcMsg* pRpcMsg) {
   SSTriggerCalcRequest req = {0};
   SStreamRunnerTask* pTask = NULL;
   void* taskAddr = NULL;
@@ -58,6 +58,7 @@ static int32_t handleTriggerCalcReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   req.brandNew = true;
   req.execId = -1;
   pTask->pMsgCb = &pSnode->msgCb;
+  pTask->pWorkerCb = pWorkerCb;
   req.curWinIdx = 0;
   TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &req));
 
@@ -275,11 +276,11 @@ _exit:
   return code;
 }
 
-int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
+int32_t sndProcessStreamMsg(SSnode *pSnode, void *pWorkerCb, SRpcMsg *pMsg) {
   int32_t code = 0, lino = 0;
   switch (pMsg->msgType) {
     case TDMT_STREAM_TRIGGER_CALC:
-      TAOS_CHECK_EXIT(handleTriggerCalcReq(pSnode, pMsg));
+      TAOS_CHECK_EXIT(handleTriggerCalcReq(pSnode, pWorkerCb, pMsg));
       break;
     case TDMT_STREAM_DELETE_CHECKPOINT:
       TAOS_CHECK_EXIT(handleSyncDeleteCheckPointReq(pSnode, pMsg));

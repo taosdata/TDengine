@@ -107,18 +107,11 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=46,
-            stream="create stream rdb.s46 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r46 as select _twstart ts, count(c1), sum(c2) from %%trows where ts >= _twstart and ts < _twend interval(1m) fill(prev)",
-            res_query="select * from rdb.r46 where tbname='t1'",
-            exp_query="select _wstart, count(c1), sum(c2), 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(1m) fill(prev);",
+            id=19,
+            stream="create stream rdb.s19 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r19 as select _twend tw, sum(c1) sumcnt from (select tbname, count(*) c1 from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and tint=%%1 partition by tbname)",
+            res_query="select tw, sumcnt from rdb.r19 where id = 1",
+            exp_query="select _wend, count(*) from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tint=1 interval(5m)",
         )
-        stream2 = StreamItem(
-            id=49,
-            stream="create stream rdb.s49   interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r49  as select _twstart ts, _twstart+1, count(c1) from tdb.triggers where ts < _twend;",
-            res_query="select * from rdb.r46 where tbname='t1'",
-            exp_query="select _wstart, count(c1), sum(c2), 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(1m) fill(prev);",
-        )
-          
         self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")

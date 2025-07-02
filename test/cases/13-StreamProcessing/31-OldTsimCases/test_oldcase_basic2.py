@@ -37,11 +37,10 @@ class TestStreamOldCaseBasic2:
 
         tdStream.createSnode()
 
-        # self.pauseAndResume()
-        self.sliding()
-        # self.tag()
-        # self.triggerInterval0()
-        # self.windowClose()
+        streams = []
+        streams.append(self.Sliding0())
+        # streams.append(self.Basic10())
+        tdStream.checkAll(streams)
 
     class PauseAndResume0(StreamCheckItem):
         def __init__(self):
@@ -345,11 +344,11 @@ class TestStreamOldCaseBasic2:
             self.db = "Sliding0"
 
         def create(self):
-            tdSql.execute(f"create database test vgroups 1;")
+            tdSql.execute(f"create database sliding0 vgroups 1 buffer 16;")
             tdSql.query(f"select * from information_schema.ins_databases;")
             tdSql.checkRows(3)
 
-            tdSql.execute(f"use test;")
+            tdSql.execute(f"use sliding0;")
             tdSql.execute(
                 f"create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int, tb int, tc int);"
             )
@@ -357,7 +356,7 @@ class TestStreamOldCaseBasic2:
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                f"create stream streams1 interval(10s) sliding (5s) from t1 options(MAX_DELAY(1s)) into streamt as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
+                f"create stream streams1 interval(10s) sliding (5s) from t1 options(MAX_DELAY(1s)) into streamt as select _twstart, _twend, first(ts), last(ts), count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
             )
             tdSql.execute(
                 f"create stream streams2 interval(10s) sliding (5s) from t1 options(MAX_DELAY(1s) | WATERMARK(1d)) into streamt2 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
@@ -388,16 +387,12 @@ class TestStreamOldCaseBasic2:
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                f"select * from streamt;",
-                lambda: tdSql.getRows() > 3
-                and tdSql.getData(0, 1) == 1
-                and tdSql.getData(0, 2) == 1
-                and tdSql.getData(1, 1) == 2
-                and tdSql.getData(1, 2) == 3
-                and tdSql.getData(2, 1) == 2
-                and tdSql.getData(2, 2) == 5
-                and tdSql.getData(3, 1) == 1
-                and tdSql.getData(3, 2) == 3,
+                f"select * from streamt;", lambda: tdSql.getRows() == 4
+            )
+            tdSql.checkResultsBySql(
+                sql="select * from streamt",
+                exp_sql="select _wstart, _wend, first(ts), last(ts), count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 interval(10s) sliding (5s);",
+                retry=1,
             )
 
             tdSql.checkResultsByFunc(
@@ -415,7 +410,7 @@ class TestStreamOldCaseBasic2:
 
             tdSql.checkResultsByFunc(
                 f"select * from streamtST",
-                lambda: tdSql.getRows() > 3
+                lambda: tdSql.getRows() >= 4
                 and tdSql.getData(0, 1) == 2
                 and tdSql.getData(0, 2) == 2
                 and tdSql.getData(1, 1) == 4

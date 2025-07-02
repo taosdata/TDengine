@@ -978,6 +978,64 @@ _OVER:
   return code;
 }
 
+static int32_t resetForecastOperState(SOperatorInfo* pOper) {
+  int32_t code = 0, lino = 0;
+  SForecastOperatorInfo* pInfo = pOper->info;
+  const char*            pId = pOper->pTaskInfo->id.str;
+  SForecastFuncPhysiNode* pForecastPhyNode = (SForecastFuncPhysiNode*)pOper->pPhyNode;
+  SExecTaskInfo* pTaskInfo = pOper->pTaskInfo;
+
+  pOper->status = OP_NOT_OPENED;
+
+  blockDataCleanup(pInfo->pRes);
+
+  taosArrayDestroy(pInfo->forecastSupp.pCovariateSlotList);
+  pInfo->forecastSupp.pCovariateSlotList = NULL;
+
+  taosAnalyBufDestroy(&pInfo->forecastSupp.analyBuf);
+
+  cleanupExprSupp(&pOper->exprSupp);
+  cleanupExprSupp(&pInfo->scalarSup);
+
+  int32_t                 numOfExprs = 0;
+  SExprInfo*              pExprInfo = NULL;
+
+  TAOS_CHECK_EXIT(createExprInfo(pForecastPhyNode->pFuncs, NULL, &pExprInfo, &numOfExprs));
+
+  TAOS_CHECK_EXIT(initExprSupp(&pOper->exprSupp, pExprInfo, numOfExprs, &pTaskInfo->storageAPI.functionStore));
+
+  TAOS_CHECK_EXIT(filterInitFromNode((SNode*)pForecastPhyNode->node.pConditions, &pOper->exprSupp.pFilterInfo, 0,
+                            pTaskInfo->pStreamRuntimeInfo));
+
+  TAOS_CHECK_EXIT(forecastParseInput(&pInfo->forecastSupp, pForecastPhyNode->pFuncs, pId));
+
+  TAOS_CHECK_EXIT(forecastParseOutput(&pInfo->forecastSupp, &pOper->exprSupp));
+
+  TAOS_CHECK_EXIT(forecastParseOpt(&pInfo->forecastSupp, pId));
+
+  TAOS_CHECK_EXIT(forecastCreateBuf(&pInfo->forecastSupp));
+
+  if (pForecastPhyNode->pExprs != NULL) {
+    int32_t    num = 0;
+    SExprInfo* pScalarExprInfo = NULL;
+    TAOS_CHECK_EXIT(createExprInfo(pForecastPhyNode->pExprs, NULL, &pScalarExprInfo, &num));
+    TAOS_CHECK_EXIT(initExprSupp(&pInfo->scalarSup, pScalarExprInfo, num, &pTaskInfo->storageAPI.functionStore));
+  }
+
+  initResultSizeInfo(&pOper->resultInfo, 4096);
+
+_exit:
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;  
+}
+
+
+
+
 int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                    SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -990,6 +1048,8 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
     code = terrno;
     goto _error;
   }
+
+  pOperator->pPhyNode = pPhyNode;
 
   const char*             pId = pTaskInfo->id.str;
   SForecastSupp*          pSupp = &pInfo->forecastSupp;
@@ -1039,6 +1099,8 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, forecastNext, NULL, destroyForecastInfo, optrDefaultBufFn,
                                          NULL, optrDefaultGetNextExtFn, NULL);
+
+  setOperatorResetStateFn(pOperator, resetForecastOperState);
 
   code = blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);

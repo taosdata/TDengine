@@ -48,6 +48,14 @@ typedef struct SStreamReaderTask {
   void*       info;
 } SStreamReaderTask;
 
+
+typedef struct SSTriggerAHandle {
+  int64_t streamId;
+  int64_t taskId;
+  void*   param;
+} SSTriggerAHandle;
+
+
 typedef struct SStreamRunnerTaskExecution {
   const char        *pPlan;
   void              *pExecutor;
@@ -96,6 +104,7 @@ typedef struct SStreamRunnerTask {
   const char*                   pPlan;
   int32_t                       parallelExecutionNun;
   void*                         pMsgCb;
+  void*                         pWorkerCb;
   void*                         pSubTableExpr;
   SArray*                       forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
   bool                          topTask;

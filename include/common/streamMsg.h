@@ -362,14 +362,13 @@ typedef struct SStreamMgmtReqCont {
   SArray*            fullTableNames;  // SArray<SStreamDbTableName>, full table names of the original tables
 } SStreamMgmtReqCont;
 
-typedef union SStreamMgmtReq {
+typedef struct SStreamMgmtReq {
   int64_t            reqId;
   SStreamMgmtReqType type;
   SStreamMgmtReqCont cont;
 } SStreamMgmtReq;
 
 typedef void (*taskUndeplyCallback)(void*);
-
 
 typedef struct SStreamTask {
   EStreamTaskType type;
@@ -392,7 +391,7 @@ typedef struct SStreamTask {
 
   SStreamMgmtReq* pMgmtReq;  // request that should be handled by stream mgmt thread
 
-  int64_t         runningStartTs;
+  // FOR LOCAL PART
 
   SRWLatch        entryLock;       
 
@@ -414,7 +413,7 @@ typedef struct SStreamMgmtRspCont {
   SArray*    recalcList;  // SArray<SStreamRecalcReq>
 } SStreamMgmtRspCont;
 
-typedef union SStreamMgmtRsp {
+typedef struct SStreamMgmtRsp {
   SStreamMsg         header;
   int64_t            reqId;
   int32_t            code;
@@ -460,7 +459,7 @@ typedef struct SStreamHbMsg {
 
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq);
 int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq);
-void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg);
+void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg, bool deepClean);
 
 typedef struct {
   char*   triggerTblName;
@@ -515,7 +514,7 @@ typedef struct {
   int8_t fillHistoryFirst;
   int8_t lowLatencyCalc;
   int8_t hasPartitionBy;
-  int8_t triggerTblType;
+  int8_t isTriggerTblVirt;
 
   // notify options
   SArray* pNotifyAddrUrls;
@@ -532,8 +531,9 @@ typedef struct {
   int64_t eventTypes;
   int64_t placeHolderBitmap;
   int16_t tsSlotId;  // only used when using %%trows
-  void*   triggerPrevFilter;  // filter for trigger table
-  void*   calcPlan;  // only for virtual table(child/normal/super) trigger
+  void*   triggerPrevFilter;
+  void*   triggerScanPlan;    // only used for virtual tables
+  void*   calcCacheScanPlan;  // only used for virtual tables
 
   SArray* readerList;  // SArray<SStreamTaskAddr>
   SArray* runnerList;  // SArray<SStreamRunnerTarget>
@@ -624,6 +624,8 @@ typedef struct {
   SStreamMgmtRsps        rsps;
 } SMStreamHbRspMsg;
 
+void tFreeSMStreamHbRspMsg(SMStreamHbRspMsg* pRsp);
+void tDeepFreeSMStreamHbRspMsg(SMStreamHbRspMsg* pRsp);
 int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp);
 int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp);
 
@@ -727,6 +729,8 @@ typedef struct SSTriggerFirstTsRequest {
 typedef struct SSTriggerTsdbMetaRequest {
   SSTriggerPullRequest base;
   int64_t              startTime;
+  int64_t              gid;
+  int8_t               order;  // 1 for asc, 2 for desc
 } SSTriggerTsdbMetaRequest;
 
 typedef struct SSTriggerTsdbTsDataRequest {
@@ -740,7 +744,8 @@ typedef struct SSTriggerTsdbTsDataRequest {
 typedef struct SSTriggerTsdbTriggerDataRequest {
   SSTriggerPullRequest base;
   int64_t              startTime;
-  int8_t               order;  // 0 for sequence, 1 for reverse
+  int64_t              gid;
+  int8_t               order;  // 1 for asc, 2 for desc
 } SSTriggerTsdbTriggerDataRequest;
 
 typedef struct SSTriggerTsdbCalcDataRequest {
@@ -757,7 +762,7 @@ typedef struct SSTriggerTsdbDataRequest {
   int64_t              skey;
   int64_t              ekey;
   SArray*              cids;  // SArray<col_id_t>, col_id starts from 0
-  int8_t               order;  // 0 for sequence, 1 for reverse
+  int8_t               order;  // 1 for asc, 2 for desc
 } SSTriggerTsdbDataRequest;
 
 typedef struct SSTriggerWalMetaRequest {
@@ -765,30 +770,13 @@ typedef struct SSTriggerWalMetaRequest {
   int64_t              lastVer;
   int64_t              ctime;
 } SSTriggerWalMetaRequest;
-
-typedef struct SSTriggerWalTsDataRequest {
+typedef struct SSTriggerWalRequest {
   SSTriggerPullRequest base;
   int64_t              uid;
   int64_t              ver;
   int64_t              skey;
   int64_t              ekey;
-} SSTriggerWalTsDataRequest;
-
-typedef struct SSTriggerWalTriggerDataRequest {
-  SSTriggerPullRequest base;
-  int64_t              uid;
-  int64_t              ver;
-  int64_t              skey;
-  int64_t              ekey;
-} SSTriggerWalTriggerDataRequest;
-
-typedef struct SSTriggerWalCalcDataRequest {
-  SSTriggerPullRequest base;
-  int64_t              uid;
-  int64_t              ver;
-  int64_t              skey;
-  int64_t              ekey;
-} SSTriggerWalCalcDataRequest;
+} SSTriggerWalRequest;
 
 typedef struct SSTriggerWalDataRequest {
   SSTriggerPullRequest base;
@@ -806,7 +794,7 @@ typedef struct SSTriggerGroupColValueRequest {
 
 typedef struct SSTriggerVirTableInfoRequest {
   SSTriggerPullRequest base;
-  SArray*              cids;  // SArray<int64_t>, col ids of the virtual table
+  SArray*              cids;  // SArray<col_id_t>, col ids of the virtual table
 } SSTriggerVirTableInfoRequest;
 
 typedef struct OTableInfoRsp {
@@ -844,9 +832,7 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerTsdbCalcDataRequest        tsdbCalcDataReq;
   SSTriggerTsdbDataRequest            tsdbDataReq;
   SSTriggerWalMetaRequest             walMetaReq;
-  SSTriggerWalTsDataRequest           walTsDataReq;
-  SSTriggerWalTriggerDataRequest      walTriggerDataReq;
-  SSTriggerWalCalcDataRequest         walCalcDataReq;
+  SSTriggerWalRequest                 walReq;
   SSTriggerWalDataRequest             walDataReq;
   SSTriggerGroupColValueRequest       groupColValueReq;
   SSTriggerVirTableInfoRequest        virTableInfoReq;

@@ -778,39 +778,48 @@ _return:
   return code;
 }
 
-static int32_t createVtbExprInfo(SNodeList* pNodeList, SExprInfo** pExprInfo, int32_t* numOfExprs, SHashObj** pTagSlotMap) {
-  QRY_PARAM_CHECK(pExprInfo);
+int32_t resetVirtualTableMergeOperState(SOperatorInfo* pOper) {
+  int32_t code = 0, lino = 0;
+  SVirtualScanMergeOperatorInfo* pMergeInfo = pOper->info;
+  SVirtualScanPhysiNode* pPhynode = (SVirtualScanPhysiNode*)pOper->pPhyNode;
+  SVirtualTableScanInfo* pInfo = &pMergeInfo->virtualScanInfo;
+  
+  pOper->status = OP_NOT_OPENED;
+  resetBasicOperatorState(&pMergeInfo->binfo);
 
-  int32_t    code = 0;
-  int32_t    lino = 0;
-  SExprInfo* pExprs = NULL;
+  tsortDestroySortHandle(pInfo->pSortHandle);
+  pInfo->pSortHandle = NULL;
+  taosArrayDestroy(pInfo->pSortInfo);
+  pInfo->pSortHandle = NULL;
 
-  *numOfExprs = LIST_LENGTH(pNodeList);
-  if (*numOfExprs == 0) {
-    return code;
+  blockDataDestroy(pInfo->pIntermediateBlock);
+  pInfo->pIntermediateBlock = NULL;
+
+  blockDataDestroy(pInfo->pInputBlock);
+  pInfo->pInputBlock = createDataBlockFromDescNode(((SPhysiNode*)pPhynode)->pOutputDataBlockDesc);
+  TSDB_CHECK_NULL(pInfo->pInputBlock, code, lino, _exit, terrno);
+
+  pInfo->tagDownStreamId = -1;
+
+  if (pInfo->pSortCtxList) {
+    for (int32_t i = 0; i < taosArrayGetSize(pInfo->pSortCtxList); i++) {
+      SLoadNextCtx* pCtx = *(SLoadNextCtx**)taosArrayGet(pInfo->pSortCtxList, i);
+      blockDataDestroy(pCtx->pIntermediateBlock);
+      taosMemoryFree(pCtx);
+    }
+    taosArrayDestroy(pInfo->pSortCtxList);
+    pInfo->pSortCtxList = NULL;
   }
 
-  pExprs = taosMemoryCalloc(*numOfExprs, sizeof(SExprInfo));
-  TSDB_CHECK_NULL(pExprs, code, lino, _return, terrno);
+  pMergeInfo->pSavedTuple = NULL;
+  pMergeInfo->pSavedTagBlock = NULL;
 
-  *pTagSlotMap = taosHashInit(*numOfExprs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+_exit:
 
-  for (int32_t i = 0; i < (*numOfExprs); ++i) {
-    STargetNode* pTargetNode = (STargetNode*)nodesListGetNode(pNodeList, i);
-    TSDB_CHECK_NULL(pExprs, code, lino, _return, terrno);
-
-    VTS_ERR_JRET(taosHashPut(*pTagSlotMap, &i, sizeof(i), &i, sizeof(i)));
-    SExprInfo* pExp = &pExprs[i];
-    VTS_ERR_JRET(createExprFromTargetNode(pExp, pTargetNode));
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 
-  *pExprInfo = pExprs;
-  return code;
-
-_return:
-  destroyExprInfo(pExprs, *numOfExprs);
-  taosMemoryFreeClear(pExprs);
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;
 }
 
@@ -827,6 +836,8 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
 
   QUERY_CHECK_NULL(pInfo, code, lino, _return, terrno);
   QUERY_CHECK_NULL(pOperator, code, lino, _return, terrno);
+
+  pOperator->pPhyNode = pVirtualScanPhyNode;
 
   pInfo->binfo.inputTsOrder = pVirtualScanPhyNode->scan.node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pVirtualScanPhyNode->scan.node.outputTsOrder;
@@ -882,6 +893,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
   pOperator->fpSet =
       createOperatorFpSet(openVirtualTableScanOperator, virtualTableGetNext, NULL, destroyVirtualTableScanOperatorInfo,
                           optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorResetStateFn(pOperator, resetVirtualTableMergeOperState);
 
   if (NULL != pDownstream) {
     VTS_ERR_JRET(appendDownstream(pOperator, pDownstream, numOfDownstream));
