@@ -473,10 +473,16 @@ static int32_t stRealtimeGroupMetaDataCompare(const void *pLeft, const void *pRi
   const SSTriggerMetaData *pLeftMeta = (const SSTriggerMetaData *)pLeft;
   const SSTriggerMetaData *pRightMeta = (const SSTriggerMetaData *)pRight;
 
-  if (pLeftMeta->ekey == pRightMeta->ekey) {
-    return pLeftMeta->skey - pRightMeta->skey;
+  if (pLeftMeta->ekey < pRightMeta->ekey) {
+    return -1;
+  } else if (pLeftMeta->ekey > pRightMeta->ekey) {
+    return 1;
+  } else if (pLeftMeta->skey < pRightMeta->skey) {
+    return -1;
+  } else if (pLeftMeta->skey > pRightMeta->skey) {
+    return 1;
   }
-  return pLeftMeta->ekey - pRightMeta->ekey;
+  return 0;
 }
 
 static int32_t stRealtimeGroupMetaDataSearch(const void *pLeft, const void *pRight) {
@@ -489,10 +495,16 @@ static int32_t stRealtimeGroupWindowCompare(const void *pLeft, const void *pRigh
   const SSTriggerWindow *pLeftWin = (const SSTriggerWindow *)pLeft;
   const SSTriggerWindow *pRightWin = (const SSTriggerWindow *)pRight;
 
-  if (pLeftWin->range.skey == pRightWin->range.skey) {
-    return pLeftWin->range.ekey - pRightWin->range.ekey;
+  if (pLeftWin->range.skey < pRightWin->range.skey) {
+    return -1;
+  } else if (pLeftWin->range.skey > pRightWin->range.skey) {
+    return 1;
+  } else if (pLeftWin->range.ekey < pRightWin->range.ekey) {
+    return -1;
+  } else if (pLeftWin->range.ekey > pRightWin->range.ekey) {
+    return 1;
   }
-  return pLeftWin->range.skey - pRightWin->range.skey;
+  return 0;
 }
 
 static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerRealtimeContext *pContext, int64_t gid) {
