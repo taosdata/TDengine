@@ -51,6 +51,13 @@ typedef struct SVnodeMgmt {
   TdThreadMutex         fileLock;
 } SVnodeMgmt;
 
+#ifdef USE_MOUNT
+typedef struct {
+  int64_t mountId;
+  char    mountName[TSDB_MOUNT_NAME_LEN];
+  char    path[TSDB_MOUNT_PATH_LEN];
+} SMountCfg;
+#endif
 typedef struct {
   int32_t vgId;
   int32_t vgVersion;

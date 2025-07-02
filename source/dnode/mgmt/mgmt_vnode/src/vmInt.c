@@ -586,17 +586,25 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
     dError("failed to init vnode creatingHash hash since %s", terrstr());
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  int32_t code = 0;
+
 #ifdef USE_MOUNT
   if (!(pMgmt->mountTfsHash =
             taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
     dError("failed to init mountTfsHash since %s", terrstr());
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  SMountCfg *pMountCfgs = NULL;
+  int32_t    numOfMounts = 0;
+  // if ((code = vmGetMountListFromFile(pMgmt, &pMountCfgs, &numOfMounts)) != 0) {
+  //   dInfo("failed to get mount list from disk since %s", tstrerror(code));
+  //   return code;
+  // }
 #endif
 
   SWrapperCfg *pCfgs = NULL;
   int32_t      numOfVnodes = 0;
-  int32_t      code = 0;
   if ((code = vmGetVnodeListFromFile(pMgmt, &pCfgs, &numOfVnodes)) != 0) {
     dInfo("failed to get vnode list from disk since %s", tstrerror(code));
     return code;

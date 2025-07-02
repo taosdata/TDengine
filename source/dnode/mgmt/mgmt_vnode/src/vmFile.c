@@ -218,7 +218,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
   int64_t size = 0;
   code = taosFStatFile(pFile, &size, NULL);
   if (code != 0) {
-    dError("failed to fstat mnode file:%s since %s", file, tstrerror(code));
+    dError("failed to fstat vnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
 
