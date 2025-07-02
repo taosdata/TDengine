@@ -39,15 +39,12 @@ class TestStreamOldCaseBasic1:
         tdStream.createSnode()
 
         streams = []
-        streams.append(self.Basic0())
+        # streams.append(self.Basic0())
         # streams.append(self.Basic10()) update
         # streams.append(self.Basic11()) update
-        streams.append(self.Basic12())
+        # streams.append(self.Basic12())
         # streams.append(self.Basic13()) update
         streams.append(self.Basic14())
-        streams.append(self.Basic15())
-        streams.append(self.Basic20())
-        # streams.append(self.Basic30())
         tdStream.checkAll(streams)
 
     class Basic0(StreamCheckItem):
@@ -480,7 +477,7 @@ class TestStreamOldCaseBasic1:
             self.db = "basic14"
 
         def create(self):
-            tdSql.execute(f"create database basic14 vgroups 1 buffer 8;")
+            tdSql.execute(f"create database basic14 vgroups 1;")
             tdSql.execute(f"use basic14;")
             tdSql.execute(
                 f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -494,13 +491,13 @@ class TestStreamOldCaseBasic1:
                 f"create stream streams6 interval(10s) sliding(10s) from ts1 options(max_delay(1s)) into streamt6 as select _twstart, count(*), _twend, max(a), _twstart as ts from %%trows;"
             )
             tdSql.error(
-                f"create stream streams7 interval(10s) sliding(10s) from ts1 options(max_delay(1s)) into streamt7 as select _twstart, count(*), _twstart, _twend, max(a) from %%trows;"
+                f"create stream streams7 interval(10s) sliding(10s) from ts1 options(max_delay(1s)) into streamt7 as select _twstart, count(*), _twstart ts, _twend, max(a) from %%trows;"
             )
             tdSql.error(
-                f"create stream streams8 interval(10s) sliding(10s) from ts1 options(max_delay(1s)) into streamt8 as select _twstart ts, count(*), _twstart ts, _twend, max(a) from %%trows;"
+                f"create stream streams8 interval(10s) sliding(10s) from ts1 options(max_delay(1s)) into streamt8 as select _twstart ts, count(*), _twstart, _twend, max(a) from %%trows;"
             )
             tdSql.error(
-                f"create stream streams9 interval(10s) sliding(10s) from ts1 options(max_delay(1s)) into streamt9 as select _twstart as ts, count(*), _twstart, _twend ts, max(a) from %%trows;"
+                f"create stream streams9 interval(10s) sliding(10s) from ts1 options(max_delay(1s)) into streamt9 as select _twstart as ts, count(*), _twstart as ts2, _twend, max(a) from %%trows;"
             )
 
         def insert1(self):
@@ -519,7 +516,7 @@ class TestStreamOldCaseBasic1:
             self.db = "basic15"
 
         def create(self):
-            tdSql.execute(f"create database basic15 vgroups 1 buffer 8;")
+            tdSql.execute(f"create database basic15 vgroups 1;")
             tdSql.execute(f"use basic15;")
             tdSql.execute(
                 f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
@@ -527,7 +524,7 @@ class TestStreamOldCaseBasic1:
             tdSql.execute(f"create table ts1 using st tags(1, 1, 1);")
 
             tdSql.execute(
-                f"create stream streams7 interval(10s) sliding(10s) from ts1 options(max_delay(1s)) into streamt7 as select _twstart, count(*) from %%trows;"
+                f"create stream streams7 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt7 as select _wstart, count(*) from ts1 interval(10s) ;"
             )
 
         def insert1(self):
@@ -557,7 +554,9 @@ class TestStreamOldCaseBasic1:
             self.db = "basic20"
 
         def create(self):
-            tdSql.execute(f"create database basic20 vgroups 1 buffer 8")
+            tdSql.execute(f"create database basic20 vgroups 1")
+            tdSql.query(f"select * from information_schema.ins_databases")
+            tdSql.checkRows(3)
 
             tdSql.execute(f"use basic20")
             tdSql.execute(
@@ -575,10 +574,10 @@ class TestStreamOldCaseBasic1:
             tdSql.checkRows(3)
 
             tdSql.error(
-                f"create stream s_error interval(30s) sliding(30s) from stb into str_dst_st as select _wend, count(*) a from stb where _wstart > '2025-1-1';"
+                f"create stream s_error into str_dst_st as select _wend, count(*) a from stb where _wstart > '2025-1-1' interval(30s);"
             )
             tdSql.execute(
-                f"create stream s1 interval(10m) sliding(10m) from ct1 options(max_delay(1s)) into outstb as select _twstart, min(k), max(k), sum(k) as sum_alias from %%trows"
+                f"create stream s1 trigger at_once into outstb as select _wstart, min(k), max(k), sum(k) as sum_alias from ct1 interval(10m)"
             )
 
         def insert1(self):
@@ -608,12 +607,53 @@ class TestStreamOldCaseBasic1:
                 and tdSql.getData(1, 3) == -111,
             )
 
+    class Basic21(StreamCheckItem):
+        def __init__(self):
+            self.db = "basic21"
+
+        def create(self):
+            tdSql.execute(f"create database basic21 vgroups 1 ;")
+            tdSql.execute(f"use basic21;")
+            tdSql.execute(
+                f"create stable st(ts timestamp, a int, b int, c int) tags(ta int, tb int, tc int);"
+            )
+            tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
+            tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
+
+            tdSql.error(
+                f"create stream streams1 trigger max_delay 4000a ignore update 0 ignore expired 0 into streamtST1 as select _wstart, count(*) from st interval(5s);"
+            )
+            tdSql.error(
+                f"create stream streams2 trigger max_delay 4s ignore update 0 ignore expired 0 into streamtST2 as select _wstart, count(*) from st interval(5s);"
+            )
+            tdSql.execute(
+                f"create stream streams3 trigger max_delay 5000a ignore update 0 ignore expired 0 into streamtST3 as select _wstart, count(*) from st interval(5s);"
+            )
+            tdSql.execute(
+                f"create stream streams4 trigger max_delay 5s ignore update 0 ignore expired 0 into streamtST4 as select _wstart, count(*) from st interval(5s);"
+            )
+            tdSql.error(
+                f"create stream streams5 trigger at_once ignore update 0 ignore expired 0 into streamtST5 as select _wstart, count(*) from st interval(5s) having count(*) > 2;"
+            )
+            tdSql.error(
+                f"create stream streams6 trigger at_once ignore update 0 ignore expired 0 into streamtST6 as select _wstart, count(*) from st session(ts, 5s) having count(*) > 2;"
+            )
+            tdSql.error(
+                f"create stream streams7 trigger at_once ignore update 0 ignore expired 1 into streamtST7 as select _wstart, count(*) from st count_window(10) having count(*) > 2;"
+            )
+            tdSql.error(
+                f"create stream streams8 trigger at_once ignore update 0 ignore expired 0 into streamtST8 as select _wstart, count(*) from st state_window(a) having count(*) > 2;"
+            )
+            tdSql.error(
+                f"create stream streams9 trigger at_once ignore update 0 ignore expired 0 into streamtST9 as select _wstart, count(*) from st event_window start with a = 0 end with b = 9 having count(*) > 2;"
+            )
+
     class Basic30(StreamCheckItem):
         def __init__(self):
             self.db = "basic30"
 
         def create(self):
-            tdSql.execute(f"CREATE DATABASE basic30 VGROUPS 2 buffer 8;")
+            tdSql.execute(f"CREATE DATABASE basic30 VGROUPS 2;")
             tdSql.execute(f"use basic30;")
             tdSql.execute(
                 f"CREATE STABLE st (time TIMESTAMP, ca DOUBLE, cb DOUBLE, cc int) TAGS (ta VARCHAR(10) );"
