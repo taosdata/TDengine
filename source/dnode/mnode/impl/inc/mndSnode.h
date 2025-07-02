@@ -36,6 +36,7 @@ SSnodeObj *mndAcquireSnode(SMnode *pMnode, int32_t qnodeId);
 void       mndReleaseSnode(SMnode *pMnode, SSnodeObj *pObj);
 SEpSet     mndAcquireEpFromSnode(SMnode *pMnode, const SSnodeObj *pSnode);
 int32_t    mndSetDropSnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SSnodeObj *pObj, bool force);
+int32_t    mndDropSnodeImpl(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj, STrans *pTrans);
 
 #ifdef __cplusplus
 }

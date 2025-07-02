@@ -1,6 +1,4 @@
 import threading
-
-import psutil
 import taos
 
 from new_test_framework.utils import tdLog, clusterComCheck, tdStream, tdSql
@@ -304,13 +302,19 @@ class TestStreamCheckpoint:
         """
         tdSql.execute("use db")
         tdSql.execute(
-            f"create stream {stream_name} interval(30s) sliding(30s) from source_table partition by tbname, a into {dst_table} as "
-            f"select _tcurrent_ts ts, count(c1) c, last(k) last_val, tbname tb, a "
+            f"create stream {stream_name} interval(30s) sliding(30s) from source_table partition by tbname, a into {dst_table} "
+            f"as "
+            f"select _tcurrent_ts ts, count(c1) c, last(k) last_val, tbname tb, %%tbname tx "
             f"from source_table group by tbname, a ")
         tdLog.info(f"create stream completed, and wait for it completed")
 
         wait_for_insert_complete(self.num_of_tables, self.num_of_rows)
-        wait_for_stream_done_r1(f"select count(*) from {dst_table}", 3)
+        wait_for_stream_done_r1(f"select count(*) from {dst_table}", 10)
+        check_all_results(f"select c, last_val, tx from {dst_table}",
+                          [[10000, 9999, "c0"], [10000, 9999, "c1"], [10000, 9999, "c2"],
+                           [10000, 9999, "c3"], [10000, 9999, "c4"], [10000, 9999, "c5"],
+                           [10000, 9999, "c6"], [10000, 9999, "c7"], [10000, 9999, "c8"],
+                           [10000, 9999, "c9"]])
 
     def create_and_check_stream_basic_8(self, stream_name, dst_table) -> None:
         """simple 8:

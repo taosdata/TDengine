@@ -43,7 +43,8 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
 static void stRunnerDestroyTaskExecution(void* pExec) {
   SStreamRunnerTaskExecution* pExecution = pExec;
   pExecution->pPlan = 0;
-  streamDestroyExecTask(pExecution->pExecutor);
+  streamDestroyExecTask(pExecution->pExecutor);  
+  dsDestroyDataSinker(pExecution->pSinkHandle);
 }
 
 static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t execId,
