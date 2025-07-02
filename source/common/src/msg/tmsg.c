@@ -11259,7 +11259,7 @@ int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper) {
   TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pWrapper->nCols));
   TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pWrapper->version));
 
-  pWrapper->pColRef = (SColRef *)tDecoderMalloc(pDecoder, pWrapper->nCols * sizeof(SColRef));
+  pWrapper->pColRef = (SColRef *)taosMemCalloc(pWrapper->nCols, sizeof(SColRef));
   if (pWrapper->pColRef == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
@@ -13217,6 +13217,9 @@ void tDestroySSubmitRsp2(SSubmitRsp2 *pRsp, int32_t flag) {
       SVCreateTbRsp *aCreateTbRsp = TARRAY_DATA(pRsp->aCreateTbRsp);
       for (int32_t i = 0; i < nCreateTbRsp; ++i) {
         if (aCreateTbRsp[i].pMeta) {
+          taosMemoryFree(aCreateTbRsp[i].pMeta->pSchemas);
+          taosMemoryFree(aCreateTbRsp[i].pMeta->pSchemaExt);
+          taosMemoryFree(aCreateTbRsp[i].pMeta->pColRefs);
           taosMemoryFree(aCreateTbRsp[i].pMeta);
         }
       }

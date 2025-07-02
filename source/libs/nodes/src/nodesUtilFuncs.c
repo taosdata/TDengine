@@ -1294,6 +1294,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pOptions->pPreFilter);
       nodesDestroyNode(pOptions->pMaxDelay);
       nodesDestroyNode(pOptions->pWaterMark);
+      nodesDestroyNode(pOptions->pExpiredTime);
+      nodesDestroyNode(pOptions->pFillHisStartTime);
       break;
     }
     case QUERY_NODE_TSMA_OPTIONS: {
