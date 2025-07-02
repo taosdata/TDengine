@@ -578,7 +578,7 @@ int32_t inserterGetVgInfo(SDBVgInfo* dbInfo, char* tbName, SVgroupInfo* pVgInfo)
   }
   
   *pVgInfo = *vgInfo;
-  qInfo("insert get vgInfo, vgId:%d epset(%s:%d)", pVgInfo->vgId, pVgInfo->epSet.eps[0].fqdn,
+  qInfo("insert get vgInfo, tbName:%s vgId:%d epset(%s:%d)", tbName, pVgInfo->vgId, pVgInfo->epSet.eps[0].fqdn,
         pVgInfo->epSet.eps[0].port);
         
   return TSDB_CODE_SUCCESS;
@@ -1667,7 +1667,7 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
   tbData->pCreateTbReq->flags |= (TD_CREATE_SUB_TB_IN_STREAM | TD_CREATE_IF_NOT_EXISTS);
 
   code = getDbVgInfoForExec(pInserter->pParam->readHandle->pMsgCb->clientRpc, pInsertParam->dbFName,
-                              pInsertParam->tbname, vgInfo);
+                              pInserterInfo->tbName, vgInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _end;
   }
@@ -1898,9 +1898,9 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
     }
   }
   stDebug("[data inserter], Handle:%p, STREAM:0x%" PRIx64 " GROUP:%" PRId64 " tbname:%s autoCreate:%d uid:%" PRId64
-          " suid:%" PRId64 " sver:%d",
+          " suid:%" PRId64 " sver:%d vgid:%d",
           pInserter, pInserterInfo->streamId, pInserterInfo->groupId, pInserterInfo->tbName,
-          pInserterInfo->isAutoCreateTable, tbData.uid, tbData.suid, tbData.sver);
+          pInserterInfo->isAutoCreateTable, tbData.uid, tbData.suid, tbData.sver, vgInfo->vgId);
 
   code = buildInsertData(pInsertParam, pDataBlock, &tbData);
   QUERY_CHECK_CODE(code, lino, _end);

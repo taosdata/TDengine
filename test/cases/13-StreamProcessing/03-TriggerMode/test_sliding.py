@@ -33,7 +33,7 @@ class TestStreamSlidingTrigger:
         "0-0-0-3-7", "0-0-0-4-41", "0-0-0-6-0", "0-0-0-10-39", 
         "0-0-0-12-40"
     ]
-    # runCaseList = [ "0-0-0-15-43"]
+    # runCaseList = [ "0-0-0-15-38","0-0-0-15-43", "1-1-0-0-38"]
     # runCaseList = ["0-0-0-8-35", "0-0-0-8-36", "0-0-0-8-37", "0-0-0-8-38", "0-0-0-8-39", "0-0-0-8-40", "0-0-0-8-41", "0-0-0-8-42", "0-0-0-8-43", "0-0-0-8-44", "0-0-0-8-45"]
     #failed 
     # runCaseList = [  "0-0-0-10-42", "0-0-0-11-40","0-0-0-12-44","0-0-0-15-37"]
@@ -94,12 +94,12 @@ class TestStreamSlidingTrigger:
         ("select _tcurrent_ts, avg(cint), max(cint) from {calcTbname} partition by cint order by cint", (1, False), True), #35
         ("select _wstart, _tcurrent_ts, avg(cint), sum(cint) from {calcTbname} interval(60s)", (0, False), True), #36
         ("select _wstart,sum({calcTbname}.cint), max({calcTbname}.cint) from {calcTbname} ,{calcTbname} as t2 where {calcTbname}.cts=t2.cts  interval(120s)", (0, False), True), #37
-        ("select _wstart, avg(cint) c, max(cint) from {calcTbname} partition by cint interval(60s) union all select _wstart, avg(cint) c, max(cint) from {calcTbname} partition by cint interval(60s) order by _wstart,c", (0, False), True), #38
+        ("(select _wstart, avg(cint) c, max(cint) from {calcTbname} partition by cint interval(60s) ) union all (select _wstart, avg(cint) c, max(cint) from {calcTbname} partition by cint interval(60s) order by _wstart,c)", (0, False), True), #38
         ("select last(cts), avg(cint), sum(cint) from %%tbname group by tbname", (1, True), True), #39
         ("select cts, cint,   %%tbname from %%trows where %%tbname like '%1' order by cts", (0, False), True), #40
         ("select cts, cint from {calcTbname} where _tcurrent_ts % 2 = 1 order by cts", (0, False), True), #41
         ("select last(cts), avg(cint), sum(cint) from %%trows group by tbname", (1, True), True), #42
-        ("select _wstart, avg(cint) c, max(cint) from {calcTbname}  interval(60s) union all select _wstart, avg(cint) c, max(cint) from {calcTbname}  interval(60s) order by _wstart,c", (0, False), True), #43
+        ("(select _wstart, avg(cint) c, max(cint) from {calcTbname}  interval(60s) order by _wstart,c) union all (select _wstart, avg(cint) c, max(cint) from {calcTbname}  interval(60s) order by _wstart,c)", (0, False), True), #43
         ("select cts, cint,   %%tbname from %%trows where cint >15 and tint >0 and  %%tbname like '%2' order by cts", (0, False), True), #44
         ("select _tcurrent_ts, avg(cint), sum(cint) from %%tbname group by cint order by cint", (1, True), True), #45
 
@@ -204,7 +204,7 @@ class TestStreamSlidingTrigger:
         #"0-0-0-10-42": [111, None, True, [], ""],#failed fillhistory还是加载不符合范围数据
         #"0-0-0-11-40": [40, None, True, [], ""],#failed，fillhistory还是加载不符合范围数据
         "0-0-0-12-40": [37, None, True, [], ""], #success
-        "0-0-0-12-44": [-1, None, True, [], ""], #failed taosd crash
+        "0-0-0-12-44": [24, None, True, [], ""], #success
         #"0-0-0-13-40": [0, None, True, [], ""], #success，只通知不计算,需要单独用例
         #"0-0-0-14-40": [0, None, True, [], ""],#success，只通知不计算,需要单独用例
         "0-0-0-15-37": [10, None, True, [], ""],#failed, sum结果不对
@@ -224,7 +224,12 @@ class TestStreamSlidingTrigger:
 
     def test_stream_sliding_trigger(self):
         """Stream sliding trigger
-
+        
+        1. create table
+        2. insert data
+        3. craete steam
+        4. check result
+        
         Catalog:
             - Streams:TriggerMode
 
