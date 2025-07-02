@@ -95,8 +95,8 @@ order_expr:
 - partition_by_expr Specify the data slicing conditions, and the data within the slice is calculated independently. It can be a column, a constant, a scalar function, or a combination thereof. Not supported for use with join clause.
 - group_by_expr Specify the data grouping aggregation rule, which can be any column in a table or view.
 - order_expr Specify the sorting rule for output data, which defaults to ascending order. You can use different sorting rules for each column in a single or multiple columns, and you can specify that null values are sorted first or last. Support the use of positional syntax.
-- SLIMIT Specify the number of output shards, which can be used in the PARTION BY clause to select the starting offset position. Only output one shard when using the ORDER BY clause.
-- LIMIT Specify the number of output data and can choose to specify the starting offset position. When using the PARTION BY clause, the output data number is the number of shards per shard.
+- SLIMIT Specify the number of output shards, which can be used in the PARTITION BY clause to select the starting offset position. Only output one shard when using the ORDER BY clause.
+- LIMIT Specify the number of output data and can choose to specify the starting offset position. When using the PARTITION BY clause, the output data number is the number of shards per shard.
 
 ## Hints
 
