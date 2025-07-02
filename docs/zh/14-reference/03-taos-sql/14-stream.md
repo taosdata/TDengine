@@ -718,7 +718,7 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 
 ### 配置参数说明
 
-流计算相关配置参数包括，详细参见 [taosd 参考手册](/reference/components/taosd/#流计算参数)  
+流计算相关配置参数包括，详细参见 [taosd 参考手册](../../components/taosd/#流计算参数)  
 
 - **numOfMnodeStreamMgmtThreads**：mnode 流计算管理线程个数
 - **numOfStreamMgmtThreads**：vnode/Snode 流计算管理线程个数
