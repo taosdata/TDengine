@@ -121,7 +121,9 @@ docker run \
     --rm --ulimit core=-1 tdengine-ci:0.1 sh -c "cd $REP_DIR;rm -rf debug;mkdir -p debug;cd debug;cmake ..  $BUILD_HTTP_OPT -DBUILD_TOOLS=true -DBUILD_TEST=false -DWEBSOCKET=true   -DBUILD_SANITIZER=1  -DTOOLS_SANITIZE=true -DCMAKE_BUILD_TYPE=Debug -DTOOLS_BUILD_TYPE=Debug -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=0 ;make -j|| exit 1 "
 
 mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugSan
-
+if [ "$build_no_asan" = "true" ]; then
+    cp -f ${WORKDIR}/debugNoSan/build/bin/tmq_sim ${WORKDIR}/debugSan/build/bin/tmq_sim
+fi
 date
 
 
