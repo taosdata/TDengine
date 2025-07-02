@@ -327,7 +327,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
   - WINDOW_OPEN：窗口打开事件，在触发表分组窗口打开时发送通知。
   - WINDOW_CLOSE：窗口关闭事件，在触发表分组窗口关闭时发送通知。
 - [WHERE condition]：指定通知需要满足的条件，`condition` 中只能指定含计算结果列和（或）常量的条件。
-- [NOTIFY_OPTIONS(notify_option[|notify_option)]]：可选，指定通知选项用于控制通知的行为，可以多选，目前支持的通知选项包括：
+- [NOTIFY_OPTIONS(notify_option[|notify_option])]：可选，指定通知选项用于控制通知的行为，可以多选，目前支持的通知选项包括：
   - NOTIFY_HISTORY：指定计算历史数据时是否发送通知，未指定时默认不发送。
   - ON_FAILURE_PAUSE：指定在向通知地址发送通知失败时暂停流计算任务，循环重试发送通知，直至发送成功才恢复流计算运行，未指定时默认直接丢失事件通知（不影响流计算继续运行）。
 
@@ -718,7 +718,7 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 
 ### 配置参数说明
 
-流计算相关配置参数包括，详细参见 [taosd 参考手册](../components/taosd#流计算参数)  
+流计算相关配置参数包括，详细参见 [taosd 参考手册](/reference/components/taosd/#流计算参数)  
 
 - **numOfMnodeStreamMgmtThreads**：mnode 流计算管理线程个数
 - **numOfStreamMgmtThreads**：vnode/Snode 流计算管理线程个数
