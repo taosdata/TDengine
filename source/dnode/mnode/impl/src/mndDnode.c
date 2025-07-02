@@ -17,6 +17,7 @@
 #include "mndDnode.h"
 #include <stdio.h>
 #include "audit.h"
+#include "mndBnode.h"
 #include "mndCluster.h"
 #include "mndDb.h"
 #include "mndMnode.h"
@@ -27,7 +28,6 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
-#include "mndBnode.h"
 #include "taos_monitor.h"
 #include "tconfig.h"
 #include "tjson.h"
@@ -133,7 +133,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   return sdbSetTable(pMnode->pSdb, table);
 }
 
-void          mndCleanupDnode(SMnode *pMnode) {}
+void mndCleanupDnode(SMnode *pMnode) {}
 
 static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   int32_t  code = -1;
@@ -1228,7 +1228,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
 
   if (pBObj != NULL) {
     mInfo("trans:%d, bnode on dnode:%d will be dropped", pTrans->id, pDnode->id);
-    TAOS_CHECK_GOTO(mndSetDropBnodeInfoToTrans(pMnode, pTrans, pBObj, force), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndSetDropBnodeInfoToTrans(pMnode, pTrans, pBObj, force), &lino, _OVER);
   }
 
   if (numOfVnodes > 0) {
@@ -1380,6 +1380,7 @@ _OVER:
   mndReleaseDnode(pMnode, pDnode);
   mndReleaseMnode(pMnode, pMObj);
   mndReleaseQnode(pMnode, pQObj);
+  mndReleaseBnode(pMnode, pBObj);
   mndReleaseSnode(pMnode, pSObj);
   tFreeSDropDnodeReq(&dropReq);
   TAOS_RETURN(code);
