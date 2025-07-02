@@ -293,7 +293,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_MNODES,          "The replica of mnode 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARBGROUP_ALREADY_EXIST,   "Arbitrator group already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARBGROUP_NOT_EXIST,       "Arbitrator group not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARB_TOKEN_MISMATCH,       "Arbitrator token mismatch")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_VNODE_NOT_OFFLINE,        "Vnode is not offline on this restoring dnode")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VNODE_NOT_OFFLINE,        "Vnode should be offline/leader/follower on this restoring dnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_OFFLINE,   "VGroup is offline")
 
 // mnode-dnode-part2
