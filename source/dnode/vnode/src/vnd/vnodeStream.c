@@ -1325,7 +1325,7 @@ end:
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
   taosArrayDestroy(lastTsRsp.tsInfo);
-  releaseStreamTask(pTask);
+  releaseStreamTask(&pTask);
   return code;
 }
 
@@ -1363,7 +1363,7 @@ end:
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
   taosArrayDestroy(firstTsRsp.tsInfo);
-  releaseStreamTask(pTask);
+  releaseStreamTask(&pTask);
   return code;
 }
 
@@ -1462,7 +1462,7 @@ end:
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
-  releaseStreamTask(pTask);
+  releaseStreamTask(&pTask);
   return code;
 }
 

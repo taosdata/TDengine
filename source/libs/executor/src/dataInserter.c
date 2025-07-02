@@ -303,6 +303,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
     tDecoderInit(&coder, pMsg->pData, pMsg->len);
     code = tDecodeSSubmitRsp2(&coder, pInserter->submitRes.pRsp);
     if (code) {
+      tDestroySSubmitRsp2(pInserter->submitRes.pRsp, TSDB_MSG_FLG_DECODE);
       taosMemoryFree(pInserter->submitRes.pRsp);
       pInserter->submitRes.code = code;
       goto _return;
@@ -320,6 +321,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
         }
         if (TSDB_CODE_SUCCESS != pRsp->code) {
           code = pRsp->code;
+          tDestroySSubmitRsp2(pInserter->submitRes.pRsp, TSDB_MSG_FLG_DECODE);
           taosMemoryFree(pInserter->submitRes.pRsp);
           pInserter->submitRes.code = code;
           goto _return;
@@ -335,6 +337,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
     pInserter->submitRes.affectedRows += pInserter->submitRes.pRsp->affectedRows;
     qDebug("submit rsp received, affectedRows:%d, total:%" PRId64, pInserter->submitRes.pRsp->affectedRows,
            pInserter->submitRes.affectedRows);
+    tDestroySSubmitRsp2(pInserter->submitRes.pRsp, TSDB_MSG_FLG_DECODE);
     taosMemoryFree(pInserter->submitRes.pRsp);
   }
 
@@ -352,7 +355,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
       if (code2 == TSDB_CODE_SUCCESS) {
         code2 = checkAndSaveCreateGrpTableInfo(pInserter, (SStreamDataInserterInfo*)pParam->putParam);
       }
-      // todo free tDecodeSSubmitRsp2 过程中分配的内存
+      tDestroySSubmitRsp2(pInserter->submitRes.pRsp, TSDB_MSG_FLG_DECODE);
       taosMemoryFree(pInserter->submitRes.pRsp);
       if (code2) {
         pInserter->submitRes.code = code2;
@@ -2274,14 +2277,31 @@ _return:
   return terrno;
 }
 
+                           
+static TdThreadOnce g_dbVgInfoMgrInit = PTHREAD_ONCE_INIT;
+
+SDBVgInfoMgr g_dbVgInfoMgr = {0};
+                           
+void dbVgInfoMgrInitOnce() {
+  g_dbVgInfoMgr.dbVgInfoMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  if (g_dbVgInfoMgr.dbVgInfoMap == NULL) {
+    stError("%s failed at line %d, error:%s", __FUNCTION__, __LINE__, tstrerror(terrno));
+    return;
+  }
+
+  taosHashSetFreeFp(g_dbVgInfoMgr.dbVgInfoMap, freeUseDbOutput_tmp);
+}
+
+
+
 int32_t createStreamDataInserter(SDataSinkManager* pManager, DataSinkHandle* pHandle, void* pParam) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
+
+  TAOS_UNUSED(taosThreadOnce(&g_dbVgInfoMgrInit, dbVgInfoMgrInitOnce));
+  TSDB_CHECK_NULL(g_dbVgInfoMgr.dbVgInfoMap, code, lino, _exit, terrno);
 
   SDataInserterHandle* inserter = taosMemoryCalloc(1, sizeof(SDataInserterHandle));
-  if (NULL == inserter) {
-    code = terrno;
-    goto _return;
-  }
+  TSDB_CHECK_NULL(inserter, code, lino, _exit, terrno);
 
   inserter->sink.fPut = putStreamDataBlock;
   inserter->sink.fEndPut = endPut;
@@ -2298,19 +2318,17 @@ int32_t createStreamDataInserter(SDataSinkManager* pManager, DataSinkHandle* pHa
   inserter->explain = false;
 
   inserter->pDataBlocks = taosArrayInit(1, POINTER_BYTES);
-  if (NULL == inserter->pDataBlocks) {
-    code = terrno;
-    goto _return;
-  }
-  QRY_ERR_JRET(taosThreadMutexInit(&inserter->mutex, NULL));
-  QRY_ERR_JRET(tsem_init(&inserter->ready, 0, 0));
+  TSDB_CHECK_NULL(inserter->pDataBlocks, code, lino, _exit, terrno);
+  
+  TAOS_CHECK_EXIT(taosThreadMutexInit(&inserter->mutex, NULL));
+  TAOS_CHECK_EXIT(tsem_init(&inserter->ready, 0, 0));
 
   inserter->dbVgInfoMap = NULL;
 
   *pHandle = inserter;
   return TSDB_CODE_SUCCESS;
 
-_return:
+_exit:
 
   if (inserter) {
     (void)destroyDataSinker((SDataSinkHandle*)inserter);
@@ -2319,33 +2337,19 @@ _return:
     taosMemoryFree(pManager);
   }
 
+  if (code) {
+    stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
   return code;
 }
 
-SDBVgInfoMgr g_dbVgInfoMgr = {NULL, 0};
 
-int32_t dbVgInfoMgrInitOnce() {
-  int8_t inited = atomic_val_compare_exchange_8(&g_dbVgInfoMgr.inited, 0, 1);
-  if (inited == 1) {
-    return TSDB_CODE_SUCCESS;
-  }
-  if (g_dbVgInfoMgr.dbVgInfoMap == NULL) {
-    g_dbVgInfoMgr.dbVgInfoMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-    if (g_dbVgInfoMgr.dbVgInfoMap == NULL) {
-      g_dbVgInfoMgr.inited = 0;  // reset inited flag
-      return terrno;
-    }
-  }
-  return TSDB_CODE_SUCCESS;
-}
 
 int32_t getDbVgInfoByTbName(void* clientRpc, const char* dbFName, SDBVgInfo** dbVgInfo) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       line = 0;
   SUseDbOutput* output = NULL;
-
-  code = dbVgInfoMgrInitOnce();
-  QUERY_CHECK_CODE(code, line, _return);
 
   SUseDbOutput** find = (SUseDbOutput**)taosHashGet(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
 
@@ -2385,35 +2389,31 @@ _return:
 
 int32_t getDbVgInfoForExec(void* clientRpc, const char* dbFName, const char* tbName, SVgroupInfo* pVgInfo) {
   SDBVgInfo* dbInfo = NULL;
-  int32_t    code = getDbVgInfoByTbName(clientRpc, dbFName, &dbInfo);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
+  int32_t code = 0, lino = 0;
   char tbFullName[TSDB_TABLE_FNAME_LEN];
   snprintf(tbFullName, TSDB_TABLE_FNAME_LEN, "%s.%s", dbFName, tbName);
+  
+  taosRLockLatch(&g_dbVgInfoMgr.lock);
+  
+  TAOS_CHECK_EXIT(getDbVgInfoByTbName(clientRpc, dbFName, &dbInfo));
 
-  code = inserterGetVgInfo(dbInfo, tbFullName, pVgInfo);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
+  TAOS_CHECK_EXIT(inserterGetVgInfo(dbInfo, tbFullName, pVgInfo));
+
+_exit:
+
+  taosRUnLockLatch(&g_dbVgInfoMgr.lock);
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  return TSDB_CODE_SUCCESS;
+
+  return code;
 }
 
 void rmDbVgInfoFromCache(const char* dbFName) {
-  if (g_dbVgInfoMgr.dbVgInfoMap == NULL) {
-    return;
-  }
-
-  SUseDbOutput** find = (SUseDbOutput**)taosHashGet(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
-  if (find == NULL) {
-    return;
-  } else {
-    SUseDbOutput* output = *find;
-    if (output) {
-      freeUseDbOutput_tmp(find);
-      taosHashRemove(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
-    }
-  }
-  return;
+  taosWLockLatch(&g_dbVgInfoMgr.lock);
+  
+  taosHashRemove(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
+  
+  taosWUnLockLatch(&g_dbVgInfoMgr.lock);
 }
