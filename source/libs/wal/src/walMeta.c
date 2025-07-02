@@ -488,14 +488,17 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
     wInfo("vgId:%d, check file %s", pWal->cfg.vgId, fnameStr);
     TAOS_CHECK_EXIT(taosStatFile(fnameStr, &fileSize, NULL, NULL));
 
-    if (pFileInfo->lastVer >= pFileInfo->firstVer && fileSize == pFileInfo->fileSize && fileIdx < sz - 1) {
+    if (pFileInfo->lastVer >= pFileInfo->firstVer && fileSize == pFileInfo->fileSize &&
+        !(fileIdx == sz - 1 && tsWalForceRepair)) {
       wInfo("vgId:%d, file %s is valid, fileSize:%" PRId64 ", fileSize in meta:%" PRId64, pWal->cfg.vgId, fnameStr,
             fileSize, pFileInfo->fileSize);
       totSize += pFileInfo->fileSize;
       continue;
     }
-    wWarn("vgId:%d, file %s is invalid, is going to repair, fileSize:%" PRId64 ", fileSize in meta:%" PRId64,
-          pWal->cfg.vgId, fnameStr, fileSize, pFileInfo->fileSize);
+    wWarn("vgId:%d, going to repair file %s, fileSize:%" PRId64 ", fileSize in meta:%" PRId64 ", LastVer:%" PRId64
+          ", firstVer:%" PRId64 ", forceRepair:%d",
+          pWal->cfg.vgId, fnameStr, fileSize, pFileInfo->fileSize, pFileInfo->lastVer, pFileInfo->firstVer,
+          tsWalForceRepair);
     updateMeta = true;
 
     TAOS_CHECK_EXIT(walTrimIdxFile(pWal, fileIdx));
@@ -512,6 +515,8 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
 
       code = TSDB_CODE_SUCCESS;
     }
+    wInfo("vgId:%d, repaired file %s, last index:%" PRId64 ", fileSize:%" PRId64 ", fileSize in meta:%" PRId64,
+          pWal->cfg.vgId, fnameStr, lastVer, fileSize, pFileInfo->fileSize);
 
     // update lastVer
     pFileInfo->lastVer = lastVer;
