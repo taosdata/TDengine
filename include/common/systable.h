@@ -74,6 +74,7 @@ extern "C" {
 #define TSDB_PERFS_TABLE_OFFSETS     "perf_offsets"
 #define TSDB_PERFS_TABLE_TRANS       "perf_trans"
 #define TSDB_PERFS_TABLE_APPS        "perf_apps"
+#define TSDB_PERFS_TABLE_WRITE_METRICS "perf_write_metrics"
 
 #define TSDB_AUDIT_DB                "audit"
 #define TSDB_AUDIT_STB_OPERATION     "operations"
