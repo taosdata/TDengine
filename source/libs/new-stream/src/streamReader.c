@@ -151,7 +151,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
 
 end:
   STREAM_PRINT_LOG_END(code, lino);
-  releaseStreamTask(pTask);
+  releaseStreamTask(&pTask);
   destroyOptions(options);
   return code;
 }
