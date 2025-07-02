@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "os.h"
+#include "tname.h"
 
 #include "ttokendef.h"
 
@@ -56,6 +57,8 @@ typedef struct {
 typedef struct {
   SValuesToken       values;     // VALUES section token
   SBoundColumnsToken boundCols;  // Bound columns token
+  SName             *pName;      // Table name (target table or using table)
+  bool               isStb;      // Whether this is a super table (using table)
 } SInsertTokens;
 
 /**

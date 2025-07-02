@@ -56,7 +56,7 @@ typedef struct SInsertParseContext {
   bool           needRequest;  // whether or not request server
   bool           isStmtBind;   // whether is stmt bind
   uint8_t        stmtTbNameFlag;
-  int32_t        numOfMissCache;
+  int32_t        numOfMissingCacheTables;
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
@@ -1394,6 +1394,31 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
         code = taosHashPut(pStmt->pSuperTableHashObj, tbFName, strlen(tbFName), &pStableMeta, POINTER_BYTES);
       } else {
         taosMemoryFreeClear(pStableMeta);
+      }
+      // Store using table to SInsertTokens when miss cache occurs
+      if (pCxt->missCache && TSDB_CODE_SUCCESS == code) {
+        char tbFNameForHash[TSDB_TABLE_FNAME_LEN] = {0};
+        tNameExtractFullName(&pStmt->targetTableName, tbFNameForHash);
+
+        SArray** pInsertTokensArray =
+            (SArray**)taosHashGet(pStmt->pInsertTokensHashObj, tbFNameForHash, strlen(tbFNameForHash));
+        if (pInsertTokensArray && taosArrayGetSize(*pInsertTokensArray) > 0) {
+          SInsertTokens** ppInsertTokens = (SInsertTokens**)taosArrayGetLast(*pInsertTokensArray);
+          if (ppInsertTokens && *ppInsertTokens) {
+            SInsertTokens* pUsingTokens = taosMemoryCalloc(1, sizeof(SInsertTokens));
+            if (NULL == pUsingTokens) {
+              return terrno;
+            }
+            pUsingTokens->pName = taosMemoryCalloc(1, sizeof(SName));
+            if (NULL == pUsingTokens->pName) {
+              taosMemoryFree(pUsingTokens);
+              return terrno;
+            }
+            memcpy(pUsingTokens->pName, &pStmt->usingTableName, sizeof(SName));
+            pUsingTokens->isStb = true;
+            taosArrayPush(*pInsertTokensArray, &pUsingTokens);
+          }
+        }
       }
     }
   }
@@ -2926,9 +2951,21 @@ static int32_t parseInsertTableClause(SInsertParseContext* pCxt, SVnodeModifyOpS
           taosArrayPush(pInsertTokensArray, &pInsertTokens);
           code = taosHashPut(pStmt->pInsertTokensHashObj, tbFName, strlen(tbFName), &pInsertTokensArray, POINTER_BYTES);
         }
-      } else {
-        code = parseInsertTableClauseBottom(pCxt, pStmt);
       }
+      if (code == TSDB_CODE_SUCCESS) {
+        // Store target table name in SInsertTokens
+        if (pInsertTokens) {
+          pInsertTokens->pName = taosMemoryCalloc(1, sizeof(SName));
+          if (NULL == pInsertTokens->pName) {
+            return terrno;
+          }
+          memcpy(pInsertTokens->pName, &pStmt->targetTableName, sizeof(SName));
+          pInsertTokens->isStb = false;
+        }
+        pCxt->numOfMissingCacheTables++;
+      }
+    } else {
+      code = parseInsertTableClauseBottom(pCxt, pStmt);
     }
   }
 
@@ -3075,7 +3112,8 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   int32_t code = TSDB_CODE_SUCCESS;
   bool    hasData = true;
   // for each table
-  while (TSDB_CODE_SUCCESS == code && hasData && !pCxt->missCache && !pStmt->fileProcessing) {
+  while (TSDB_CODE_SUCCESS == code && hasData && !pStmt->fileProcessing &&
+         pCxt->numOfMissingCacheTables < tsMaxMissCacheTableNums) {
     // pStmt->pSql -> tb_name ...
     NEXT_TOKEN(pStmt->pSql, token);
     code = checkTableClauseFirstToken(pCxt, pStmt, &token, &hasData);
@@ -3083,6 +3121,9 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
       code = parseInsertTableClause(pCxt, pStmt, &token);
     }
   }
+
+  parserDebug("parseInsertBody hasData: %d, pStmt->fileProcessing: %d, numOfMissingCacheTables: %d", hasData,
+              pStmt->fileProcessing, pCxt->numOfMissingCacheTables);
 
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = parseInsertBodyBottom(pCxt, pStmt);
@@ -3092,7 +3133,13 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
 
 static void destroySubTableHashElem(void* p) { taosMemoryFree(*(STableMeta**)p); }
 
-static void destroyInsertTokensHashElem(void* p) { taosMemoryFree(*(SInsertTokens**)p); }
+static void destroyInsertTokensHashElem(void* p) {
+  SInsertTokens* pTokens = *(SInsertTokens**)p;
+  if (pTokens) {
+    taosMemoryFree(pTokens->pName);
+    taosMemoryFree(pTokens);
+  }
+}
 
 static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, SNode** pOutput) {
   SVnodeModifyOpStmt* pStmt = NULL;
@@ -3551,23 +3598,381 @@ static int32_t buildInsertUserAuthReq(const char* pUser, SName* pName, SArray** 
 
 static int32_t buildInsertTableTagReq(SName* pName, SArray** pTables) { return buildInsertTableReq(pName, pTables); }
 
-static int32_t buildInsertCatalogReq(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SCatalogReq* pCatalogReq) {
-  int32_t code = buildInsertUserAuthReq(
-      pCxt->pComCxt->pUser, (0 == pStmt->usingTableName.type ? &pStmt->targetTableName : &pStmt->usingTableName),
-      &pCatalogReq->pUser);
-  if (TSDB_CODE_SUCCESS == code && pCxt->needTableTagVal) {
-    code = buildInsertTableTagReq(&pStmt->targetTableName, &pCatalogReq->pTableTag);
+// Build catalog request for batch tables
+static int32_t buildInsertTableBatchDbReq(SArray* pTables, SArray** pDbs) {
+  if (NULL == pTables || taosArrayGetSize(pTables) == 0) {
+    return TSDB_CODE_SUCCESS;
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    if (0 == pStmt->usingTableName.type) {
-      code = buildInsertDbReq(&pStmt->targetTableName, &pCatalogReq->pTableMeta);
-    } else {
-      code = buildInsertUsingDbReq(&pStmt->usingTableName, &pStmt->targetTableName, &pCatalogReq->pTableMeta);
+
+  if (NULL == *pDbs) {
+    *pDbs = taosArrayInit(taosArrayGetSize(pTables), sizeof(STablesReq));
+    if (NULL == *pDbs) {
+      return terrno;
     }
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = buildInsertDbReq(&pStmt->targetTableName, &pCatalogReq->pTableHash);
+
+  // Group tables by database
+  SHashObj* pDbTablesHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
+  if (NULL == pDbTablesHash) {
+    return terrno;
   }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  size_t  tableCount = taosArrayGetSize(pTables);
+
+  // Group tables by database
+  for (size_t i = 0; i < tableCount; ++i) {
+    SName* pName = (SName*)taosArrayGetP(pTables, i);
+    if (NULL == pName) continue;
+
+    char dbFName[TSDB_DB_FNAME_LEN] = {0};
+    tNameGetFullDbName(pName, dbFName);
+
+    SArray** ppDbTables = (SArray**)taosHashGet(pDbTablesHash, dbFName, strlen(dbFName));
+    if (NULL == ppDbTables) {
+      SArray* pDbTables = taosArrayInit(4, sizeof(SName));
+      if (NULL == pDbTables) {
+        code = terrno;
+        break;
+      }
+      if (NULL == taosArrayPush(pDbTables, pName)) {
+        taosArrayDestroy(pDbTables);
+        code = terrno;
+        break;
+      }
+      if (TSDB_CODE_SUCCESS != taosHashPut(pDbTablesHash, dbFName, strlen(dbFName), &pDbTables, POINTER_BYTES)) {
+        taosArrayDestroy(pDbTables);
+        code = terrno;
+        break;
+      }
+    } else {
+      if (NULL == taosArrayPush(*ppDbTables, pName)) {
+        code = terrno;
+        break;
+      }
+    }
+  }
+
+  // Create STablesReq for each database
+  if (TSDB_CODE_SUCCESS == code) {
+    void* pIter = taosHashIterate(pDbTablesHash, NULL);
+    while (NULL != pIter) {
+      SArray* pDbTables = *(SArray**)pIter;
+      size_t  keyLen = 0;
+      char*   pKey = taosHashGetKey(pIter, &keyLen);
+
+      STablesReq req = {0};
+      strncpy(req.dbFName, pKey, keyLen < TSDB_DB_FNAME_LEN ? keyLen : TSDB_DB_FNAME_LEN - 1);
+
+      code = buildInsertTableReq((SName*)taosArrayGet(pDbTables, 0), &req.pTables);
+      if (TSDB_CODE_SUCCESS == code) {
+        // Add other tables in this database
+        for (size_t j = 1; j < taosArrayGetSize(pDbTables); ++j) {
+          SName* pName = (SName*)taosArrayGet(pDbTables, j);
+          if (NULL == taosArrayPush(req.pTables, pName)) {
+            code = terrno;
+            break;
+          }
+        }
+      }
+
+      if (TSDB_CODE_SUCCESS == code) {
+        if (NULL == taosArrayPush(*pDbs, &req)) {
+          code = terrno;
+        }
+      }
+
+      if (TSDB_CODE_SUCCESS != code) {
+        taosHashCancelIterate(pDbTablesHash, pIter);
+        break;
+      }
+
+      pIter = taosHashIterate(pDbTablesHash, pIter);
+    }
+  }
+
+  // Clean up resources
+  void* pIter = taosHashIterate(pDbTablesHash, NULL);
+  while (NULL != pIter) {
+    SArray* pDbTables = *(SArray**)pIter;
+    taosArrayDestroy(pDbTables);
+    pIter = taosHashIterate(pDbTablesHash, pIter);
+  }
+  taosHashCleanup(pDbTablesHash);
+
+  return code;
+}
+
+// Build catalog request for batch using tables
+static int32_t buildInsertUsingTableBatchDbReq(SArray* pUsingTables, SArray* pTables, SArray** pDbs) {
+  if (NULL == pUsingTables || taosArrayGetSize(pUsingTables) == 0 || NULL == pTables ||
+      taosArrayGetSize(pTables) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  size_t usingTableCount = taosArrayGetSize(pUsingTables);
+  size_t tableCount = taosArrayGetSize(pTables);
+
+  if (usingTableCount != tableCount) {
+    // If using tables and target tables count mismatch, use original logic
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == *pDbs) {
+    *pDbs = taosArrayInit(usingTableCount, sizeof(STablesReq));
+    if (NULL == *pDbs) {
+      return terrno;
+    }
+  }
+
+  // Group table pairs by database
+  SHashObj* pDbTablesHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
+  if (NULL == pDbTablesHash) {
+    return terrno;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // Group table pairs by database
+  for (size_t i = 0; i < usingTableCount; ++i) {
+    SName* pUsingName = (SName*)taosArrayGetP(pUsingTables, i);
+    SName* pTableName = (SName*)taosArrayGetP(pTables, i);
+    if (NULL == pUsingName || NULL == pTableName) continue;
+
+    char dbFName[TSDB_DB_FNAME_LEN] = {0};
+    tNameGetFullDbName(pUsingName, dbFName);
+
+    SArray** ppDbTables = (SArray**)taosHashGet(pDbTablesHash, dbFName, strlen(dbFName));
+    if (NULL == ppDbTables) {
+      SArray* pDbTables = taosArrayInit(4, sizeof(SName) * 2);  // Store using table and target table pairs
+      if (NULL == pDbTables) {
+        code = terrno;
+        break;
+      }
+      if (NULL == taosArrayPush(pDbTables, pUsingName) || NULL == taosArrayPush(pDbTables, pTableName)) {
+        taosArrayDestroy(pDbTables);
+        code = terrno;
+        break;
+      }
+      if (TSDB_CODE_SUCCESS != taosHashPut(pDbTablesHash, dbFName, strlen(dbFName), &pDbTables, POINTER_BYTES)) {
+        taosArrayDestroy(pDbTables);
+        code = terrno;
+        break;
+      }
+    } else {
+      if (NULL == taosArrayPush(*ppDbTables, pUsingName) || NULL == taosArrayPush(*ppDbTables, pTableName)) {
+        code = terrno;
+        break;
+      }
+    }
+  }
+
+  // Create STablesReq for each database
+  if (TSDB_CODE_SUCCESS == code) {
+    void* pIter = taosHashIterate(pDbTablesHash, NULL);
+    while (NULL != pIter) {
+      SArray* pDbTables = *(SArray**)pIter;
+      size_t  keyLen = 0;
+      char*   pKey = taosHashGetKey(pIter, &keyLen);
+
+      STablesReq req = {0};
+      req.autoCreate = 1;
+      strncpy(req.dbFName, pKey, keyLen < TSDB_DB_FNAME_LEN ? keyLen : TSDB_DB_FNAME_LEN - 1);
+
+      req.pTables = taosArrayInit(taosArrayGetSize(pDbTables), sizeof(SName));
+      if (NULL == req.pTables) {
+        code = terrno;
+        taosHashCancelIterate(pDbTablesHash, pIter);
+        break;
+      }
+
+      // Add all table pairs
+      for (size_t j = 0; j < taosArrayGetSize(pDbTables); ++j) {
+        SName* pName = (SName*)taosArrayGet(pDbTables, j);
+        if (NULL == taosArrayPush(req.pTables, pName)) {
+          code = terrno;
+          break;
+        }
+      }
+
+      if (TSDB_CODE_SUCCESS == code) {
+        if (NULL == taosArrayPush(*pDbs, &req)) {
+          code = terrno;
+        }
+      }
+
+      if (TSDB_CODE_SUCCESS != code) {
+        taosHashCancelIterate(pDbTablesHash, pIter);
+        break;
+      }
+
+      pIter = taosHashIterate(pDbTablesHash, pIter);
+    }
+  }
+
+  // Clean up resources
+  void* pIter = taosHashIterate(pDbTablesHash, NULL);
+  while (NULL != pIter) {
+    SArray* pDbTables = *(SArray**)pIter;
+    taosArrayDestroy(pDbTables);
+    pIter = taosHashIterate(pDbTablesHash, pIter);
+  }
+  taosHashCleanup(pDbTablesHash);
+
+  return code;
+}
+
+// Build batch user auth request
+static int32_t buildInsertUserAuthBatchReq(const char* pUser, SArray* pTables, SArray* pUsingTables,
+                                           SArray** pUserAuth) {
+  if (NULL == pTables || taosArrayGetSize(pTables) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  size_t tableCount = taosArrayGetSize(pTables);
+  size_t usingTableCount = (NULL != pUsingTables) ? taosArrayGetSize(pUsingTables) : 0;
+  size_t totalTables = tableCount + usingTableCount;
+
+  *pUserAuth = taosArrayInit(totalTables, sizeof(SUserAuthInfo));
+  if (NULL == *pUserAuth) {
+    return terrno;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // Add auth requests for all target tables
+  for (size_t i = 0; i < tableCount; ++i) {
+    SName* pName = (SName*)taosArrayGetP(pTables, i);
+    if (NULL == pName) continue;
+
+    SUserAuthInfo userAuth = {.type = AUTH_TYPE_WRITE};
+    snprintf(userAuth.user, sizeof(userAuth.user), "%s", pUser);
+    memcpy(&userAuth.tbName, pName, sizeof(SName));
+
+    if (NULL == taosArrayPush(*pUserAuth, &userAuth)) {
+      code = terrno;
+      break;
+    }
+  }
+
+  // Add auth requests for all using tables
+  if (TSDB_CODE_SUCCESS == code && NULL != pUsingTables) {
+    for (size_t i = 0; i < usingTableCount; ++i) {
+      SName* pName = (SName*)taosArrayGetP(pUsingTables, i);
+      if (NULL == pName) continue;
+
+      SUserAuthInfo userAuth = {.type = AUTH_TYPE_WRITE};
+      snprintf(userAuth.user, sizeof(userAuth.user), "%s", pUser);
+      memcpy(&userAuth.tbName, pName, sizeof(SName));
+
+      if (NULL == taosArrayPush(*pUserAuth, &userAuth)) {
+        code = terrno;
+        break;
+      }
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    taosArrayDestroy(*pUserAuth);
+    *pUserAuth = NULL;
+  }
+
+  return code;
+}
+
+static int32_t buildInsertCatalogReq(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SCatalogReq* pCatalogReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // Extract table information from pInsertTokensHashObj
+  SArray* pTables = taosArrayInit(64, sizeof(SName*));
+  SArray* pUsingTables = taosArrayInit(64, sizeof(SName*));
+
+  if (NULL == pTables || NULL == pUsingTables) {
+    taosArrayDestroy(pTables);
+    taosArrayDestroy(pUsingTables);
+    return terrno;
+  }
+
+  // Iterate through pInsertTokensHashObj to extract table names
+  void* pIter = NULL;
+  while ((pIter = taosHashIterate(pStmt->pInsertTokensHashObj, pIter)) != NULL) {
+    SArray* pInsertTokensArray = *(SArray**)pIter;
+    if (pInsertTokensArray) {
+      size_t tokenCount = taosArrayGetSize(pInsertTokensArray);
+      for (size_t i = 0; i < tokenCount; ++i) {
+        SInsertTokens* pToken = *(SInsertTokens**)taosArrayGet(pInsertTokensArray, i);
+        if (pToken && pToken->pName) {
+          if (pToken->isStb) {
+            taosArrayPush(pUsingTables, &pToken->pName);
+          } else {
+            taosArrayPush(pTables, &pToken->pName);
+          }
+        }
+      }
+    }
+  }
+
+  // Handle user auth requests - including all missing cache tables
+  if (taosArrayGetSize(pTables) > 0 || taosArrayGetSize(pUsingTables) > 0) {
+    code = buildInsertUserAuthBatchReq(pCxt->pComCxt->pUser, pTables, pUsingTables, &pCatalogReq->pUser);
+  } else {
+    // Compatible with original single table logic
+    code = buildInsertUserAuthReq(pCxt->pComCxt->pUser,
+                                  (0 == pStmt->usingTableName.type ? &pStmt->targetTableName : &pStmt->usingTableName),
+                                  &pCatalogReq->pUser);
+  }
+
+  // Handle table tag value requests
+  if (TSDB_CODE_SUCCESS == code && pCxt->needTableTagVal) {
+    if (taosArrayGetSize(pTables) > 0) {
+      // Create tag value requests for all tables
+      for (size_t i = 0; i < taosArrayGetSize(pTables); ++i) {
+        SName* pName = *(SName**)taosArrayGet(pTables, i);
+        if (NULL != pName) {
+          code = buildInsertTableTagReq(pName, &pCatalogReq->pTableTag);
+          if (TSDB_CODE_SUCCESS != code) break;
+        }
+      }
+    } else {
+      // Compatible with original single table logic
+      code = buildInsertTableTagReq(&pStmt->targetTableName, &pCatalogReq->pTableTag);
+    }
+  }
+
+  // Handle table metadata requests
+  if (TSDB_CODE_SUCCESS == code) {
+    if (taosArrayGetSize(pTables) > 0) {
+      // Handle all missing cache tables
+      if (taosArrayGetSize(pUsingTables) > 0) {
+        // Case with using tables
+        code = buildInsertUsingTableBatchDbReq(pUsingTables, pTables, &pCatalogReq->pTableMeta);
+      } else {
+        // Case without using tables
+        code = buildInsertTableBatchDbReq(pTables, &pCatalogReq->pTableMeta);
+      }
+    } else {
+      // Compatible with original single table logic
+      if (0 == pStmt->usingTableName.type) {
+        code = buildInsertDbReq(&pStmt->targetTableName, &pCatalogReq->pTableMeta);
+      } else {
+        code = buildInsertUsingDbReq(&pStmt->usingTableName, &pStmt->targetTableName, &pCatalogReq->pTableMeta);
+      }
+    }
+  }
+
+  // Handle table hash requests
+  if (TSDB_CODE_SUCCESS == code) {
+    if (taosArrayGetSize(pTables) > 0) {
+      // Create hash requests for all tables
+      code = buildInsertTableBatchDbReq(pTables, &pCatalogReq->pTableHash);
+    } else {
+      // Compatible with original single table logic
+      code = buildInsertDbReq(&pStmt->targetTableName, &pCatalogReq->pTableHash);
+    }
+  }
+
+  taosArrayDestroy(pTables);
+  taosArrayDestroy(pUsingTables);
   return code;
 }
 

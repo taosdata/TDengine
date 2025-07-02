@@ -230,6 +230,7 @@ extern bool    tsMultiResultFunctionStarReturnTags;
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
 extern int32_t tsMaxInsertBatchRows;
+extern int32_t tsMaxMissCacheTableNums;
 
 // build info
 extern char td_version[];
