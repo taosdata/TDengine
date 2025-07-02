@@ -3,8 +3,6 @@ import socket
 from new_test_framework.utils import tdLog, tdSql, tdDnodes
 
 class TestTs5400:
-    """Add test case to cover TS-5400
-    """
     updatecfgDict = {
         "timezone": "UTC"
     }
@@ -14,6 +12,7 @@ class TestTs5400:
         host = socket.gethostname()
         con = taos.connect(host=f"{host}", config=tdDnodes.getSimCfgPath(), timezone='UTC')
         tdLog.debug(f"start to execute {__file__}")
+        tdSql.init(con.cursor())
 
     def prepare_data(self):
         # prepare data for TS-5400
@@ -47,7 +46,7 @@ class TestTs5400:
         tdSql.execute("use db_ts5400;")
         tdSql.query("select _wstart, count(*) from st interval(1y);")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '1970-01-01 00:00:00.000')
+        tdSql.checkData(0, 0, '1970-01-01 00:00:00.00+0000')
         tdSql.checkData(0, 1, 1)
 
         tdLog.success(f"{__file__} successfully executed")

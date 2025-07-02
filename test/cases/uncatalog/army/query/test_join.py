@@ -1,5 +1,5 @@
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
-
+import datetime
 class TestJoin:
 
     """Verify the join function
@@ -3332,25 +3332,25 @@ class TestJoin:
             tdSql.checkEqual(len(query_result), expected_result["total_rows"])
             if "value_check" in expected_result.keys():
                 if expected_result["value_check"]["type"] == "equal":
-                    tdSql.checkEqual(tdSql.res, expected_result)
+                    tdSql.checkEqual(tdSql.queryResult, expected_result)
                 elif expected_result["value_check"]["type"] == "contain":
                     for index in range(len(expected_result["value_check"]["values"][0])):
                         item = expected_result["value_check"]["values"][0][index]
                         tdLog.debug(item)
                         value = expected_result["value_check"]["values"][1][index]
-                        if type(tdSql.res[item[0]][item[1]]) is datetime and value:
+                        if type(tdSql.queryResult[item[0]][item[1]]) is datetime and value:
                             # millisecond
                             if len(value.split(".")[1]) == 3:
-                                timestamp_res = tdSql.res[item[0]][item[1]].strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                                timestamp_res = tdSql.queryResult[item[0]][item[1]].strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
                             # microsecond
                             elif len(value.split(".")[1]) == 6:
-                                timestamp_res = tdSql.res[item[0]][item[1]].strftime('%Y-%m-%d %H:%M:%S.%f')
+                                timestamp_res = tdSql.queryResult[item[0]][item[1]].strftime('%Y-%m-%d %H:%M:%S.%f')
                             # nanosecond
                             elif len(value.split(".")[1]) == 9:
-                                timestamp_res = tdSql.res[item[0]][item[1]].strftime('%Y-%m-%d %H:%M:%S.%3N')
+                                timestamp_res = tdSql.queryResult[item[0]][item[1]].strftime('%Y-%m-%d %H:%M:%S.%3N')
                             tdSql.checkEqual(timestamp_res, value)
                         else:
-                            tdSql.checkEqual(tdSql.res[item[0]][item[1]], value)
+                            tdSql.checkEqual(tdSql.queryResult[item[0]][item[1]], value)
                 else:
                     tdLog.error("Unsupported value check type: %s" % expected_result["value_check"]["type"])         
 
@@ -3360,7 +3360,7 @@ class TestJoin:
         """
         # common check points
         tdSql.query("show databases;")
-        if 'db1' not in [item[0] for item in tdSql.res]:
+        if 'db1' not in [item[0] for item in tdSql.queryResult]:
             self.create_tables(["db1", "db2", "db_us", 'db_ns', 'db_pk'], ['ms', 'ms', 'us', 'ns', 'ms'])
             self.data(["db1", "db2"], "common_ms")
             # precision 'us'
@@ -3389,8 +3389,8 @@ class TestJoin:
                     # make sure the query result is same with the expected result
                     for q in sql["sql"]:
                         tdSql.query(q)
-                        tdLog.debug(tdSql.res)
-                        self.result_validator(tdSql.res, sql["res"])
+                        tdLog.debug(tdSql.queryResult)
+                        self.result_validator(tdSql.queryResult, sql["res"])
                         sql_num += 1
         tdLog.debug("Execute %d SQLs for %s join" % (sql_num, join_type))  
         self.total_sql_num += sql_num

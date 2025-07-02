@@ -1,5 +1,5 @@
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
-
+import time
 
 class TestLast:
     """Add test case to verify TD-30816 (last/last_row accuracy)

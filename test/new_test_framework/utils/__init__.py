@@ -1,3 +1,4 @@
+from .autogen import *
 from .before_test import *
 from .eutil import *
 from .taoskeeper import *

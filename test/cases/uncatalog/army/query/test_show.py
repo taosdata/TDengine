@@ -10,7 +10,7 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-from new_test_framework.utils import tdLog, tdSql, etool, tdCom
+from new_test_framework.utils import tdLog, tdSql, etool, tdCom, AutoGen
 
 
 class TestShow:

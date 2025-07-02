@@ -10,7 +10,7 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-
+import os
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
 class TestJoinConst:
@@ -31,11 +31,11 @@ class TestJoinConst:
         tdSql.execute("create table sta(ts timestamp, f int, g int) tags (tg1 int, tg2 int, tg3 int);")
         tdSql.execute("create table stb(ts timestamp, f int, g int) tags (tg1 int, tg2 int, tg3 int);")
         tdSql.query("select today();")
-        self.today_ts = tdSql.res[0][0].strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-        self.today_date = tdSql.res[0][0].strftime('%Y-%m-%d')
+        self.today_ts = tdSql.queryResult[0][0].strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+        self.today_date = tdSql.queryResult[0][0].strftime('%Y-%m-%d')
         tdSql.query("select today() + 1d;")
-        self.tomorrow_ts = tdSql.res[0][0].strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-        self.tomorrow_date = tdSql.res[0][0].strftime('%Y-%m-%d')
+        self.tomorrow_ts = tdSql.queryResult[0][0].strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+        self.tomorrow_date = tdSql.queryResult[0][0].strftime('%Y-%m-%d')
 
         tdLog.printNoPrefix("==========step2:insert data")
         tdSql.execute(f"insert into a1 using sta tags(1, 1, 1) values('{self.today_ts}',         101, 1011);")
