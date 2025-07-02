@@ -53,9 +53,9 @@
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/concat.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/cast.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_join.py
-,,y,army,./pytest.sh python3 ./test.py -f query/test_join_const.py
-,,y,army,./pytest.sh python3 ./test.py -f query/test_compare.py
-,,y,army,./pytest.sh python3 ./test.py -f query/test_case_when.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/test_join_const.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/test_compare.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/test_case_when.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/test_column_tag_boundary.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_desc.py -N 3 -L 3 -D 2
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_null.py
@@ -64,7 +64,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/clusterBasic.py -N 5
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/tsdbSnapshot.py -N 3 -M 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/strongPassword.py
-,,y,army,./pytest.sh python3 ./test.py -f query/query_basic.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/query_basic.py -N 3
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_query_accuracy.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_ts5400.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_having.py
@@ -73,7 +73,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/splitVgroupByLearner.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f authorith/authBasic.py -N 3
 ,,n,army,python3 ./test.py -f cmdline/fullopt.py
-,,y,army,./pytest.sh python3 ./test.py -f query/show.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/show.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f alter/alterConfig.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f alter/test_alter_config.py -N 3 
 ,,y,army,./pytest.sh python3 ./test.py -f alter/test_alter_config.py -N 3 -M 3
@@ -86,10 +86,10 @@
 ,,n,army,python3 ./test.py -f user/test_passwd.py
 ,,y,army,./pytest.sh python3 ./test.py -f tmq/tmqBugs.py -N 3
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_compare_asc_desc.py
-,,y,army,./pytest.sh python3 ./test.py -f query/last/test_last.py
-,,y,army,./pytest.sh python3 ./test.py -f query/window/base.py
-,,y,army,./pytest.sh python3 ./test.py -f query/sys/tb_perf_queries_exist_test.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f query/test_having.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/last/test_last.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/window/base.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/sys/tb_perf_queries_exist_test.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/test_having.py
 ,,n,army,python3 ./test.py -f tmq/drop_lost_comsumers.py
 ,,y,army,./pytest.sh python3 ./test.py -f cmdline/taosCli.py -B
 ,,n,army,python3 ./test.py -f whole/checkErrorCode.py
