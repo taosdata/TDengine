@@ -66,7 +66,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/strongPassword.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/query_basic.py -N 3
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_query_accuracy.py
-,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_ts5400.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_ts5400.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_having.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/insert_basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f insert/auto_create_insert.py
