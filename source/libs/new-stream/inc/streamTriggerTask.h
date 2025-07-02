@@ -216,6 +216,7 @@ typedef struct SStreamTriggerTask {
 
   // checkpoint
   bool isCheckpointReady;
+  volatile int64_t mgmtReqId;
 } SStreamTriggerTask;
 
 // interfaces called by stream trigger thread

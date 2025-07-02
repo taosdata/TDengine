@@ -106,11 +106,10 @@ class TestStreamDevBasic:
     def createStreams(self):
         self.streams = []
         stream = StreamItem(
-            id=46,
-            stream="create stream rdb.s46 interval(5m) sliding(5m) from tdb.triggers into rdb.r46 as select _twstart ts, count(c1) ccnt, sum(c2) csum, first(id) cfirst from %%trows",
-            res_query="select ts, ccnt, csum, cfirst from rdb.r46 limit 1",
-            exp_query="select ts, 1, 0, 1 from tdb.t1 where ts='2025-01-01 00:00:00.000'",
-            check_func=self.check46,
+            id=14,
+            stream="create stream rdb.s14 interval(5m) sliding(5m) from tdb.triggers partition by id, tbname into rdb.r14 as select _twstart ts, %%tbname t1, %%1 t2, count(*) c1, avg(c1) c2, first(c1) c3, last(c1) c4 from %%trows;",
+            res_query="select ts, t1, t2, c1, c2, c3, c4 from rdb.r14 where id = 1",
+            exp_query="select _wstart ts, 't1', 1, count(*) c1, avg(c1) c2, first(c1) c3, last(c1) c4 from tdb.t1 where ts >='2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(5m) fill(value, 0, null, null, null);",
         )
         self.streams.append(stream)
 
@@ -118,17 +117,4 @@ class TestStreamDevBasic:
         for stream in self.streams:
             stream.createStream()
 
-    def check46(self):
-        tdSql.checkResultsByFunc(
-            sql="select ts, ccnt, csum from rdb.r46;",
-            func=lambda: tdSql.getRows() == 7
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
-            and tdSql.compareData(0, 1, 1)
-            and tdSql.compareData(0, 2, 0)
-            and tdSql.compareData(1, 0, "2025-01-01 00:05:00.000")
-            and tdSql.compareData(1, 1, 1)
-            and tdSql.compareData(1, 2, 50)
-            and tdSql.compareData(6, 0, "2025-01-01 00:30:00.000")
-            and tdSql.compareData(6, 1, 2)
-            and tdSql.compareData(6, 2, 620),
-        )
+

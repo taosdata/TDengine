@@ -119,7 +119,7 @@ typedef struct SDBVgInfoReq {
 
 typedef struct SDBVgInfoMgr {
   SHashObj* dbVgInfoMap;
-  int8_t    inited;  // 0: not initialized, 1: initialized
+  SRWLatch  lock;
 } SDBVgInfoMgr;
 
 struct SqlFunctionCtx;

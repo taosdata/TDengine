@@ -13217,6 +13217,9 @@ void tDestroySSubmitRsp2(SSubmitRsp2 *pRsp, int32_t flag) {
       SVCreateTbRsp *aCreateTbRsp = TARRAY_DATA(pRsp->aCreateTbRsp);
       for (int32_t i = 0; i < nCreateTbRsp; ++i) {
         if (aCreateTbRsp[i].pMeta) {
+          taosMemoryFree(aCreateTbRsp[i].pMeta->pSchemas);
+          taosMemoryFree(aCreateTbRsp[i].pMeta->pSchemaExt);
+          taosMemoryFree(aCreateTbRsp[i].pMeta->pColRefs);
           taosMemoryFree(aCreateTbRsp[i].pMeta);
         }
       }

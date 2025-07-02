@@ -151,7 +151,7 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
 
 end:
   STREAM_PRINT_LOG_END(code, lino);
-  releaseStreamTask(pTask);
+  releaseStreamTask(&pTask);
   destroyOptions(options);
   return code;
 }
@@ -172,11 +172,13 @@ static void releaseStreamReaderInfo(void* p) {
   taosHashCleanup(pInfo->streamTaskMap);
   taosHashCleanup(pInfo->groupIdMap);
   pInfo->streamTaskMap = NULL;
+
+  destroyCondition(pInfo->pCalcConditions);
+  destroyCondition(pInfo->pCalcTagCond);
+
   nodesDestroyNode((SNode*)(pInfo->triggerAst));
   nodesDestroyNode((SNode*)(pInfo->calcAst));
   
-  destroyCondition(pInfo->pCalcConditions);
-  destroyCondition(pInfo->pCalcTagCond);
   
   blockDataDestroy(pInfo->triggerResBlock);
   blockDataDestroy(pInfo->calcResBlock);
@@ -375,7 +377,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
   sStreamReaderInfo->groupIdMap =
       taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->groupIdMap, terrno);
-  taosHashSetFreeFp(sStreamReaderInfo->streamTaskMap, releaseGroupIdMap);
+  taosHashSetFreeFp(sStreamReaderInfo->groupIdMap, releaseGroupIdMap);
 
   sStreamReaderInfo->streamTaskMap =
       taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
