@@ -82,6 +82,22 @@ order_expr:
     {expr | position | c_alias} [DESC | ASC] [NULLS FIRST | NULLS LAST]
 ```
 
+
+### Partial Field Description
+
+- select_expr Select list expressions that can be constants, columns, operations, functions, and their mixed operations, and do not support nested aggregate functions.
+- from_clause Specify the data source for the query, which can be a single table (super table, sub table, regular table, virtual table), a view, support multi table association queries.
+- table_reference Specify the name of a single table (including views), and optionally specify an alias for the table.
+- table_expr Specify the query data source, which can be table name, view name, or subquery.
+- join_clause Association query supports sub tables, regular tables, super tables, and sub queries. For detailed information, please refer to the association query section [TDengine Join Queries](../join-queries/)
+- window_cause Specify the data split and aggregated according to the window, which is a characteristic query for time-series databases. For detailed information, please refer to the characteristic query chapter [TDengine Distinctive Queries](../time-series-extensions/).
+- interp_clause Specify the recorded value or interpolation of the time section, which can be used in any table. It supports specify the time range, output time interval, and interpolation type for the interpolation.
+- partition_by_expr Specify the data slicing conditions, and the data within the slice is calculated independently. It can be a column, a constant, a scalar function, or a combination thereof. Not supported for use with join clause.
+- group_by_expr Specify the data grouping aggregation rule, which can be any column in a table or view.
+- order_expr Specify the sorting rule for output data, which defaults to ascending order. You can use different sorting rules for each column in a single or multiple columns, and you can specify that null values are sorted first or last. Support the use of positional syntax.
+- SLIMIT Specify the number of output shards, which can be used in the PARTION BY clause to select the starting offset position. Only output one shard when using the ORDER BY clause.
+- LIMIT Specify the number of output data and can choose to specify the starting offset position. When using the PARTION BY clause, the output data number is the number of shards per shard.
+
 ## Hints
 
 Hints are a means for users to control the optimization of individual statement queries. When a Hint is not applicable to the current query statement, it will be automatically ignored. The specific instructions are as follows:
@@ -113,32 +129,6 @@ SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
 SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
 ```
-
-### Field Description
-
-- DATABASE() displays the currently selected database, for example, ```use test``` displays test.
-- CLIENT_VERSION() displays the currently used client version, such as 3.3.6.13.0628.
-- SERVER_VERSION() displays the currently used server version, such as 3.3.6.13.0628.
-- SERVER_STATUS() displays the current status of the service cluster, with 0 indicating no nodes available, 1 indicating all nodes available, and 2 indicating some nodes available.
-- NOW() displays the current time, such as 2022-04-22 21:32:26.009.
-- TODAY() displays the current date, such as April 22, 2025 00:00:00.
-- TIMEZONE() displays the current time zone, such as Asia/Shanghai (CST,+0800).
-- CURRENT_USER() displays the current user, such as Current_user(): root@localhost.
-- USER() displays a list of users, with a single line display as follows root@localhost.
-- DISTINCT deduplicate a specified data column, which can be a single column or multiple columns. When multiple columns are specified, it is a combination of multiple columns.
-- select_expr the expression and specify the columns to be displayed. For regular tables, * represents all columns, while super tables contain all columns and tags. The 'expr' expression can perform some operations, such as max (col). For longer column names, AS can be used to rename them. The maximum limit for the select expression list is 4096.
-- from_clause The 'from' statement specifies where to select data. The 'table_reference' can be selected from a single table or multiple tables, or the 'join' clause can be used to select the result.
-- table_reference can be queried using the original table name or a renamed table name.
-- table_expr selects the query data source from table, view, or subquery.
-- join_clause The join statement selects data with the same conditional characteristics from multiple tables, with selectable join types such as INNER, LEFT, RIGHT, FULL, etc. JOIN specifies which tables to associate queries with, and ON condition is used to filter data that meets the conditions. WINDOW_OFFSET specifies the offset of the left and right boundaries of the window relative to the left table primary key timestamp, such as WINDOW_OFFSET (-1a, 1a), indicating that each window is [left table primary key timestamp -1 millisecond, left table primary key timestamp+1 millisecond], and the time units can be b (nanoseconds), u (microseconds), a (milliseconds), s (seconds), m (minutes), h (hours). d (days), w (weeks), the minimum time unit supported is database precision. JLIMIT limits the maximum number of matching rows within a single window, with a default value of all rows and a value range of [0,1024].
-- window_cause window clause divides data into subsets and aggregates them according to the window. This section is a feature query for time series databases. Please refer to the feature query section for detailed information.
-- interp_cause specifies the recorded value or interpolation of the time section, and RANGE specifies the time range for interpolation. If the start and end times are not specified or are 0, the time range is the input data time range. EVERY specifies the time interval for outputting data, otherwise only one record will be output. FILL specifies the interpolation type within the range of VALUE, NULL, PREV, NEXT, LINEAR.
-- partition_by_expr specifies the data slicing conditions, and the data within the slice will be calculated independently. You can use the original column name or alias name or use the position where it at a select statement appears.
-- group_by_expr specifies the grouping aggregation condition, which can be based on the original column name, alias name, or used the position where it at a select statement appears.
-- order_expr specifies the data sorting rule, which can be ascending use ASC or descending use DESC. If not specified, it defaults to ascending. When there is a null value, you can choose to place it first and use NULLS FIRST, or after placing it, use NULLS LAST.
-  The sorting rule can specify a single or multiple columns, which can be the original column name, alias name, or use the position where it at a select statement appears.
-- SLIMIT controls the number of output shards and is used in conjunction with the PARTITION BY clause. When there is an ORDER BY clause, only one shard is output. Use SOFFSET to specify the offset start position, such as SLIMIT 5 SOFFSET 2, which means outputting the third to seventh shards and can be abbreviated as SLIMIT 2, 5.
-- LIMIT controls the number of output entries, using OFFSET to specify the offset start position, such as Limit 5 OFFSET 2, which means outputting the third to seventh data entries and can be abbreviated as Limit 2, 5.
 
 ## List
 
