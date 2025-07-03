@@ -91,7 +91,7 @@ ns: http://example.org/ns#
 ontop endpoint -p db.properties -m db.obda --port 8080
 ```
 
-访问 `http://localhost:8080` ，若显示 SPARQL 查询界面，则表示配置成功。 
+访问 `http://localhost:8080` ，若显示 SPARQL 查询界面，则表示配置成功。
 
 ## 3. 数据分析
 
@@ -224,6 +224,7 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
 ## 4. 总结
 
 本文通过 TDengine 与 Ontop 集成：
+
 - 实现了时序数据到 RDF 自动转换，支持 SPARQL 语义化查询。
 - 提供了符合 W3C 标准的统一数据访问接口。
 - 解锁了工业 IoT 的知识图谱分析与推理能力。
