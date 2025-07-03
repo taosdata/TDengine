@@ -13251,6 +13251,8 @@ void tDestroySSubmitRsp2(SSubmitRsp2 *pRsp, int32_t flag) {
       for (int32_t i = 0; i < nCreateTbRsp; ++i) {
         if (aCreateTbRsp[i].pMeta) {
           taosMemoryFreeClear(aCreateTbRsp[i].pMeta->pSchemas);
+          taosMemoryFreeClear(aCreateTbRsp[i].pMeta->pSchemaExt);
+          taosMemoryFreeClear(aCreateTbRsp[i].pMeta->pColRefs);
           taosMemoryFreeClear(aCreateTbRsp[i].pMeta);
         }
       }
