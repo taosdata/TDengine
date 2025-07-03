@@ -1550,10 +1550,10 @@ async function caculateMappingResult() {
       ElMessage.warning(t('dataIn.transformer.mappingvaildtip'));
       isbreak.value = true;
     }
-    // 不支持 VARBINARY & GEOMETRY
-    if ((item['Type'] == 'VARBINARY' || item['Type'] == 'GEOMETRY') && item['Expression']) {
+    // 不支持 GEOMETRY
+    if ((item['Type'] == 'GEOMETRY') && item['Expression']) {
       ElMessage.closeAll();
-      ElMessage.warning(t('dataIn.transformer.nonsupportTypetip', ['VARBINARY/GEOMETRY']));
+      ElMessage.warning(t('dataIn.transformer.nonsupportTypetip', ['GEOMETRY']));
       isbreak.value = true;
     }
     if (item['Expression']) {

@@ -49,6 +49,8 @@ impl ColumnMeta {
             "tinyint" => "u8".to_string(),
             "int" => "int".to_string(),
             "float" => "double".to_string(),
+            "binary" | "varbinary" => format!("varbinary({})", precision).to_string(),
+            "image" => anyhow::bail!("blob data type not supported"),
             _ => anyhow::bail!(
                 "unsupported data type: {}, precision: {}",
                 type_name,

@@ -61,8 +61,7 @@ pub fn to_record_batches(
                 | OracleType::NVarchar2(_)
                 | OracleType::Char(_)
                 | OracleType::NChar(_)
-                | OracleType::Rowid
-                | OracleType::Raw(_) => {
+                | OracleType::Rowid => {
                     let val = col.get::<String>();
                     match val {
                         Err(_) => {
@@ -295,10 +294,26 @@ pub fn to_record_batches(
                         }
                     }
                 }
-                OracleType::Object(_)
-                | OracleType::Long
-                | OracleType::LongRaw
-                | OracleType::Json => {
+                OracleType::Raw(_) | OracleType::LongRaw => {
+                    let val = col.get::<Vec<u8>>();
+                    match val {
+                        Err(_) => {
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::BinaryBuilder>()
+                                .unwrap()
+                                .append_null();
+                        }
+                        Ok(val) => {
+                            builders[col_cidx]
+                                .as_any_mut()
+                                .downcast_mut::<array::BinaryBuilder>()
+                                .unwrap()
+                                .append_value(val);
+                        }
+                    }
+                }
+                OracleType::Object(_) | OracleType::Long | OracleType::Json => {
                     let val = col.get::<String>();
                     match val {
                         Err(_) => {

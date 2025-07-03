@@ -217,6 +217,7 @@ fn to_json_value(row: &Row, idx: usize, col_type: ColumnType) -> anyhow::Result<
         ColumnType::Float4 => json!(row.try_get::<f32, _>(idx)?),
         ColumnType::Floatn | ColumnType::Float8 => json!(row.try_get::<f64, _>(idx)?),
         ColumnType::NVarchar => json!(row.try_get::<&str, _>(idx)?),
+        ColumnType::BigVarBin | ColumnType::BigBinary => json!(row.try_get::<&[u8], _>(idx)?),
         _ => {
             return Err(anyhow::anyhow!(
                 "Unsupported column index: {}, type: {:?}",

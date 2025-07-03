@@ -2482,12 +2482,15 @@ impl MessageArrowRecords {
             .fields()
             .iter()
             .map(|field| {
-                match field.data_type() {
-                    DataType::Binary
-                    | DataType::Utf8
-                    | DataType::LargeBinary
-                    | DataType::LargeUtf8 => {
-                        let cast_to = field.metadata().get("cast_to");
+                let cast_to = field.metadata().get("cast_to");
+                match (field.data_type(), cast_to) {
+                    (
+                        DataType::Binary
+                        | DataType::Utf8
+                        | DataType::LargeBinary
+                        | DataType::LargeUtf8,
+                        _,
+                    ) => {
                         if cast_to.is_some() {
                             let cast_to = cast_to.unwrap();
                             let length = field.metadata().get("length");
@@ -2524,11 +2527,20 @@ impl MessageArrowRecords {
                             ColumnMeta::Column(Described::new(field.name(), field.ty(), None))
                         }
                     }
-                    DataType::Decimal128(precision, scale) => ColumnMeta::Column(
+                    (DataType::Decimal128(precision, scale), _) => ColumnMeta::Column(
                         Described::new(field.name(), field.ty(), None).with_origin_ty_name(
                             &format!("{}({},{})", field.ty(), precision, scale),
                         ),
                     ),
+                    (DataType::List(field), Some(cast_to))
+                        if field.data_type().is_numeric() && cast_to == "VARBINARY" =>
+                    {
+                        ColumnMeta::Column(Described::new(
+                            field.name(),
+                            Ty::from_str(cast_to).unwrap(),
+                            None,
+                        ))
+                    }
                     _ => ColumnMeta::Column(Described::new(field.name(), field.ty(), None)),
                 }
             })

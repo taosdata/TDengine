@@ -283,7 +283,7 @@ fn generate_json_value(
         },
         tiberius::ColumnData::Binary(val) => match val {
             None => Ok(json!(null)),
-            Some(val) => Ok(json!(format!("{:?}", val))),
+            Some(val) => Ok(json!(val)),
         },
         tiberius::ColumnData::Numeric(val) => match val {
             None => Ok(json!(null)),

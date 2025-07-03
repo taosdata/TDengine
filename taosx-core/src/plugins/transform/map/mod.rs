@@ -5,7 +5,7 @@ use arrow::{
     datatypes::{FieldRef, Schema},
     record_batch::RecordBatch,
 };
-use arrow_schema::{ArrowError, Field};
+use arrow_schema::{ArrowError, DataType, Field};
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
@@ -115,7 +115,9 @@ trait ValueBuilder {
             m.insert(META_FIELD_TYPE.to_string(), ty.to_string());
             m.insert("cast_from".to_string(), array.data_type().to_string());
             match &ty {
-                IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
+                IpcDataType::VarChar(len)
+                | IpcDataType::NChar(len)
+                | IpcDataType::VarBinary(len) => {
                     m.insert("length".to_string(), len.to_string());
                     m.insert("cast_to".to_string(), ty.ty().name().to_string());
                 }
@@ -124,10 +126,29 @@ trait ValueBuilder {
                 }
                 _ => (),
             }
-            let ty = ty.arrow_data_type();
-            let array =
-                arrow_cast_guess_precision::cast(&array, &ty).map_err(ValueBuilderError::Cast)?;
-            Ok((Arc::new(Field::new(name, ty, true).with_metadata(m)), array))
+            let source_type = array.data_type();
+            match (source_type, ty.clone()) {
+                (DataType::Binary, IpcDataType::VarBinary(_)) => Ok((
+                    Arc::new(Field::new(name, array.data_type().clone(), true).with_metadata(m)),
+                    array.clone(),
+                )),
+                (DataType::List(field), IpcDataType::VarBinary(_))
+                    if field.data_type().is_numeric() =>
+                {
+                    Ok((
+                        Arc::new(
+                            Field::new(name, array.data_type().clone(), true).with_metadata(m),
+                        ),
+                        array.clone(),
+                    ))
+                }
+                _ => {
+                    let ty = ty.arrow_data_type();
+                    let array = arrow_cast_guess_precision::cast(&array, &ty)
+                        .map_err(ValueBuilderError::Cast)?;
+                    Ok((Arc::new(Field::new(name, ty, true).with_metadata(m)), array))
+                }
+            }
         };
 
         if let Some(ty) = r#as {

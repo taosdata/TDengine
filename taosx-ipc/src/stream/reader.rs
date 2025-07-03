@@ -9,11 +9,11 @@ use std::{
 
 use arrow::{
     array::{
-        Array, ArrayRef, BinaryArray, BooleanArray, Decimal128Array, Float16Array, Float32Array,
-        Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray,
-        LargeStringArray, ListArray, StringArray, StructArray, TimestampMicrosecondArray,
-        TimestampMillisecondArray, TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array,
-        UInt8Array,
+        Array, ArrayRef, BinaryArray, BooleanArray, Decimal128Array, FixedSizeBinaryArray,
+        Float16Array, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
+        LargeBinaryArray, LargeStringArray, ListArray, StringArray, StructArray,
+        TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
+        UInt16Array, UInt32Array, UInt64Array, UInt8Array,
     },
     datatypes::{DataType, Schema},
     error::ArrowError,
@@ -1543,249 +1543,323 @@ pub fn record_batch_to_column_view(
         .columns()
         .iter()
         .zip(record.schema().fields())
-        .map(|(column, field)| match column.data_type() {
-            DataType::Null => todo!(),
-            DataType::Boolean => {
-                let a = column.as_any().downcast_ref::<BooleanArray>().unwrap();
+        .map(|(column, field)| {
+            let cast_to = field.metadata().get("cast_to").map(|s| s.as_str());
+            match column.data_type() {
+                DataType::Null => todo!(),
+                DataType::Boolean => {
+                    let a = column.as_any().downcast_ref::<BooleanArray>().unwrap();
 
-                ColumnView::from_bools(
-                    (0..a.len())
-                        .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                        .collect_vec(),
-                )
-            }
-            DataType::Int8 => {
-                let a = column.as_any().downcast_ref::<Int8Array>().unwrap();
-                if a.null_count() == 0 {
-                    ColumnView::from_tiny_ints(a.values().to_vec())
-                } else {
-                    ColumnView::from_tiny_ints(
+                    ColumnView::from_bools(
                         (0..a.len())
                             .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
                             .collect_vec(),
                     )
                 }
-            }
-            DataType::Int16 => {
-                let a = column.as_any().downcast_ref::<Int16Array>().unwrap();
-                if a.null_count() == 0 {
-                    ColumnView::from_small_ints(a.values().to_vec())
-                } else {
-                    ColumnView::from_small_ints(
-                        (0..a.len())
-                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                            .collect_vec(),
-                    )
-                }
-            }
-            DataType::Int32 => {
-                let a = column.as_any().downcast_ref::<Int32Array>().unwrap();
-                if a.null_count() == 0 {
-                    ColumnView::from_ints(a.values().to_vec())
-                } else {
-                    ColumnView::from_ints(
-                        (0..a.len())
-                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                            .collect_vec(),
-                    )
-                }
-            }
-            DataType::Int64 => {
-                let a = column.as_any().downcast_ref::<Int64Array>().unwrap();
-                if a.null_count() == 0 {
-                    ColumnView::from_big_ints(a.values().to_vec())
-                } else {
-                    ColumnView::from_big_ints(
-                        (0..a.len())
-                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                            .collect_vec(),
-                    )
-                }
-            }
-            DataType::UInt8 => {
-                let a = column.as_any().downcast_ref::<UInt8Array>().unwrap();
-                if a.null_count() == 0 {
-                    ColumnView::from_unsigned_tiny_ints(a.values().to_vec())
-                } else {
-                    ColumnView::from_unsigned_tiny_ints(
-                        (0..a.len())
-                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                            .collect_vec(),
-                    )
-                }
-            }
-            DataType::UInt16 => {
-                let a = column.as_any().downcast_ref::<UInt16Array>().unwrap();
-                if a.null_count() == 0 {
-                    ColumnView::from_unsigned_small_ints(a.values().to_vec())
-                } else {
-                    ColumnView::from_unsigned_small_ints(
-                        (0..a.len())
-                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                            .collect_vec(),
-                    )
-                }
-            }
-            DataType::UInt32 => {
-                let a = column.as_any().downcast_ref::<UInt32Array>().unwrap();
-                if a.null_count() == 0 {
-                    ColumnView::from_unsigned_ints(a.values().to_vec())
-                } else {
-                    ColumnView::from_unsigned_ints(
-                        (0..a.len())
-                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                            .collect_vec(),
-                    )
-                }
-            }
-            DataType::UInt64 => {
-                let a = column.as_any().downcast_ref::<UInt64Array>().unwrap();
-                if a.null_count() == 0 {
-                    ColumnView::from_unsigned_big_ints(a.values().to_vec())
-                } else {
-                    ColumnView::from_unsigned_big_ints(
-                        (0..a.len())
-                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                            .collect_vec(),
-                    )
-                }
-            }
-            DataType::Float16 => {
-                let a = column.as_any().downcast_ref::<Float16Array>().unwrap();
-                if a.null_count() == 0 {
-                    ColumnView::from_floats(
-                        a.values().iter().map(|f| f.to_f32_const()).collect_vec(),
-                    )
-                } else {
-                    ColumnView::from_floats(
-                        (0..a.len())
-                            .map(|i| {
-                                if a.is_null(i) {
-                                    None
-                                } else {
-                                    Some(a.value(i).to_f32())
-                                }
-                            })
-                            .collect_vec(),
-                    )
-                }
-            }
-            DataType::Float32 => {
-                let a = column.as_any().downcast_ref::<Float32Array>().unwrap();
-                if a.null_count() == 0 {
-                    ColumnView::from_floats(a.values().to_vec())
-                } else {
-                    ColumnView::from_floats(
-                        (0..a.len())
-                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                            .collect_vec(),
-                    )
-                }
-            }
-            DataType::Float64 => {
-                let a = column.as_any().downcast_ref::<Float64Array>().unwrap();
-                if a.null_count() == 0 {
-                    ColumnView::from_doubles(a.values().to_vec())
-                } else {
-                    ColumnView::from_doubles(
-                        (0..a.len())
-                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                            .collect_vec(),
-                    )
-                }
-            }
-            DataType::Timestamp(_, _) => {
-                let precision = match target_precision {
-                    Precision::Millisecond => arrow::datatypes::TimeUnit::Millisecond,
-                    Precision::Microsecond => arrow::datatypes::TimeUnit::Microsecond,
-                    Precision::Nanosecond => arrow::datatypes::TimeUnit::Nanosecond,
-                };
-                let column = arrow::compute::cast(column, &DataType::Timestamp(precision, None))
-                    .expect("timestamp to timestamp cast should always success");
-                match precision {
-                    arrow::datatypes::TimeUnit::Second => {
-                        unreachable!("TDengine does not support second precision")
-                    }
-                    arrow::datatypes::TimeUnit::Millisecond => {
-                        let a = column
-                            .as_any()
-                            .downcast_ref::<TimestampMillisecondArray>()
-                            .unwrap();
-                        if a.null_count() == 0 {
-                            let v = a.values();
-                            ColumnView::from_millis_timestamp(v.to_vec())
-                        } else {
-                            let values = (0..a.len())
+                DataType::Int8 => {
+                    let a = column.as_any().downcast_ref::<Int8Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_tiny_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_tiny_ints(
+                            (0..a.len())
                                 .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                                .collect();
-                            ColumnView::from_millis_timestamp(values)
-                        }
+                                .collect_vec(),
+                        )
                     }
-                    arrow::datatypes::TimeUnit::Microsecond => {
-                        let a = column
-                            .as_any()
-                            .downcast_ref::<TimestampMicrosecondArray>()
-                            .unwrap();
-                        if a.null_count() == 0 {
-                            let v = a.values();
-                            ColumnView::from_micros_timestamp(v.to_vec())
-                        } else {
-                            let values = (0..a.len())
+                }
+                DataType::Int16 => {
+                    let a = column.as_any().downcast_ref::<Int16Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_small_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_small_ints(
+                            (0..a.len())
                                 .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                                .collect();
-                            ColumnView::from_micros_timestamp(values)
-                        }
+                                .collect_vec(),
+                        )
                     }
-                    arrow::datatypes::TimeUnit::Nanosecond => {
-                        let a = column
-                            .as_any()
-                            .downcast_ref::<TimestampNanosecondArray>()
-                            .unwrap();
-                        if a.null_count() == 0 {
-                            let v = a.values();
-                            ColumnView::from_nanos_timestamp(v.to_vec())
-                        } else {
-                            let values = (0..a.len())
+                }
+                DataType::Int32 => {
+                    let a = column.as_any().downcast_ref::<Int32Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_ints(
+                            (0..a.len())
                                 .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                                .collect();
-                            ColumnView::from_nanos_timestamp(values)
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::Int64 => {
+                    let a = column.as_any().downcast_ref::<Int64Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_big_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_big_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::UInt8 => {
+                    let a = column.as_any().downcast_ref::<UInt8Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_unsigned_tiny_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_unsigned_tiny_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::UInt16 => {
+                    let a = column.as_any().downcast_ref::<UInt16Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_unsigned_small_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_unsigned_small_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::UInt32 => {
+                    let a = column.as_any().downcast_ref::<UInt32Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_unsigned_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_unsigned_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::UInt64 => {
+                    let a = column.as_any().downcast_ref::<UInt64Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_unsigned_big_ints(a.values().to_vec())
+                    } else {
+                        ColumnView::from_unsigned_big_ints(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::Float16 => {
+                    let a = column.as_any().downcast_ref::<Float16Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_floats(
+                            a.values().iter().map(|f| f.to_f32_const()).collect_vec(),
+                        )
+                    } else {
+                        ColumnView::from_floats(
+                            (0..a.len())
+                                .map(|i| {
+                                    if a.is_null(i) {
+                                        None
+                                    } else {
+                                        Some(a.value(i).to_f32())
+                                    }
+                                })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::Float32 => {
+                    let a = column.as_any().downcast_ref::<Float32Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_floats(a.values().to_vec())
+                    } else {
+                        ColumnView::from_floats(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::Float64 => {
+                    let a = column.as_any().downcast_ref::<Float64Array>().unwrap();
+                    if a.null_count() == 0 {
+                        ColumnView::from_doubles(a.values().to_vec())
+                    } else {
+                        ColumnView::from_doubles(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        )
+                    }
+                }
+                DataType::Timestamp(_, _) => {
+                    let precision = match target_precision {
+                        Precision::Millisecond => arrow::datatypes::TimeUnit::Millisecond,
+                        Precision::Microsecond => arrow::datatypes::TimeUnit::Microsecond,
+                        Precision::Nanosecond => arrow::datatypes::TimeUnit::Nanosecond,
+                    };
+                    let column =
+                        arrow::compute::cast(column, &DataType::Timestamp(precision, None))
+                            .expect("timestamp to timestamp cast should always success");
+                    match precision {
+                        arrow::datatypes::TimeUnit::Second => {
+                            unreachable!("TDengine does not support second precision")
+                        }
+                        arrow::datatypes::TimeUnit::Millisecond => {
+                            let a = column
+                                .as_any()
+                                .downcast_ref::<TimestampMillisecondArray>()
+                                .unwrap();
+                            if a.null_count() == 0 {
+                                let v = a.values();
+                                ColumnView::from_millis_timestamp(v.to_vec())
+                            } else {
+                                let values = (0..a.len())
+                                    .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                    .collect();
+                                ColumnView::from_millis_timestamp(values)
+                            }
+                        }
+                        arrow::datatypes::TimeUnit::Microsecond => {
+                            let a = column
+                                .as_any()
+                                .downcast_ref::<TimestampMicrosecondArray>()
+                                .unwrap();
+                            if a.null_count() == 0 {
+                                let v = a.values();
+                                ColumnView::from_micros_timestamp(v.to_vec())
+                            } else {
+                                let values = (0..a.len())
+                                    .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                    .collect();
+                                ColumnView::from_micros_timestamp(values)
+                            }
+                        }
+                        arrow::datatypes::TimeUnit::Nanosecond => {
+                            let a = column
+                                .as_any()
+                                .downcast_ref::<TimestampNanosecondArray>()
+                                .unwrap();
+                            if a.null_count() == 0 {
+                                let v = a.values();
+                                ColumnView::from_nanos_timestamp(v.to_vec())
+                            } else {
+                                let values = (0..a.len())
+                                    .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                    .collect();
+                                ColumnView::from_nanos_timestamp(values)
+                            }
                         }
                     }
                 }
-            }
-            DataType::Binary => {
-                let a = column.as_any().downcast_ref::<BinaryArray>().unwrap();
-                let iter = (0..a.len())
-                    .map(|i| {
-                        if a.is_null(i) {
-                            None
-                        } else {
-                            Some(unsafe { std::str::from_utf8_unchecked(a.value(i)) })
-                        }
-                    })
-                    .collect_vec();
+                DataType::Binary if cast_to.is_some_and(|s| s == "VARBINARY") => {
+                    let array = column.as_any().downcast_ref::<BinaryArray>().unwrap();
+                    let iter = (0..array.len())
+                        .map(|i| {
+                            if array.is_null(i) {
+                                None
+                            } else {
+                                Some(array.value(i))
+                            }
+                        })
+                        .collect_vec();
+                    ColumnView::from_bytes::<&[u8], _, _, _>(iter)
+                }
+                DataType::Binary => {
+                    let a = column.as_any().downcast_ref::<BinaryArray>().unwrap();
+                    let iter = (0..a.len())
+                        .map(|i| {
+                            if a.is_null(i) {
+                                None
+                            } else {
+                                Some(unsafe { std::str::from_utf8_unchecked(a.value(i)) })
+                            }
+                        })
+                        .collect_vec();
 
-                match field.metadata().get("cast_to").map(|s| s.as_str()) {
-                    Some("NCHAR") => ColumnView::from_nchar::<&str, _, _, _>(iter),
-                    _ => ColumnView::from_varchar::<&str, _, _, _>(iter),
+                    match cast_to {
+                        Some("NCHAR") => ColumnView::from_nchar::<&str, _, _, _>(iter),
+                        _ => ColumnView::from_varchar::<&str, _, _, _>(iter),
+                    }
                 }
-            }
-            DataType::Utf8 => {
-                let a = column.as_any().downcast_ref::<StringArray>().unwrap();
-                match field.metadata().get("cast_to").map(|s| s.as_str()) {
-                    Some("NCHAR") => ColumnView::from_nchar::<&str, _, _, _>(
-                        (0..a.len())
-                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                            .collect_vec(),
-                    ),
-                    _ => ColumnView::from_varchar::<&str, _, _, _>(
-                        (0..a.len())
-                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                            .collect_vec(),
-                    ),
+                DataType::LargeBinary if cast_to.is_some_and(|s| s == "VARBINARY") => {
+                    let array = column.as_any().downcast_ref::<LargeBinaryArray>().unwrap();
+                    let iter = (0..array.len())
+                        .map(|i| {
+                            if array.is_null(i) {
+                                None
+                            } else {
+                                Some(array.value(i))
+                            }
+                        })
+                        .collect_vec();
+                    ColumnView::from_bytes::<&[u8], _, _, _>(iter)
                 }
+                DataType::FixedSizeBinary(_) if cast_to.is_some_and(|s| s == "VARBINARY") => {
+                    let array = column
+                        .as_any()
+                        .downcast_ref::<FixedSizeBinaryArray>()
+                        .unwrap();
+                    let iter = (0..array.len())
+                        .map(|i| {
+                            if array.is_null(i) {
+                                None
+                            } else {
+                                Some(array.value(i))
+                            }
+                        })
+                        .collect_vec();
+                    ColumnView::from_bytes::<&[u8], _, _, _>(iter)
+                }
+                DataType::Utf8 => {
+                    let a = column.as_any().downcast_ref::<StringArray>().unwrap();
+                    match cast_to {
+                        Some("NCHAR") => ColumnView::from_nchar::<&str, _, _, _>(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        ),
+                        _ => ColumnView::from_varchar::<&str, _, _, _>(
+                            (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect_vec(),
+                        ),
+                    }
+                }
+                DataType::List(field)
+                    if cast_to.is_some_and(|s| s == "VARBINARY")
+                        && field.data_type().is_numeric() =>
+                {
+                    // 判断 field 是 数字类型的列表且 metadata cast to VarBinary 类型
+                    // 转换为 \x 格式
+                    let array = column.as_any().downcast_ref::<ListArray>().unwrap();
+                    // ListArray 每一行转换为一个 Bytes 数组
+                    let mut views = Vec::with_capacity(array.len());
+                    for idx in 0..array.len() {
+                        if array.is_null(idx) {
+                            views.push(None);
+                            continue;
+                        }
+                        let row = array.value(idx);
+                        let Ok(u8_array) = arrow::compute::cast(&row, &DataType::UInt8) else {
+                            views.push(None);
+                            continue;
+                        };
+                        let Some(u8_array) = u8_array.as_any().downcast_ref::<UInt8Array>() else {
+                            views.push(None);
+                            continue;
+                        };
+                        let bytes = u8_array.values().to_vec();
+                        views.push(Some(bytes));
+                    }
+                    ColumnView::from_bytes::<Vec<u8>, _, _, _>(views)
+                }
+                _ => todo!(),
             }
-            _ => todo!(),
         })
         .collect()
 }

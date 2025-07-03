@@ -176,6 +176,8 @@ datafusion = { version = "45.0.0", default-features = false, features = [
 zstd = "0.13.2"
 awaitgroup = "0.7.0"
 
+hex.workspace = true
+
 persist-queue = { path = "../crates/persist-queue" }
 archive = { workspace = true }
 

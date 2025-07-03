@@ -8953,6 +8953,7 @@ dependencies = [
  "futures-util",
  "glob",
  "half",
+ "hex",
  "humantime",
  "itertools 0.14.0",
  "kafka",

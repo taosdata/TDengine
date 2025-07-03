@@ -24,7 +24,6 @@ impl ColumnMeta {
             OracleType::Char(_) => Ok(IpcDataType::NChar(50)),
             OracleType::NChar(_) => Ok(IpcDataType::NChar(50)),
             OracleType::Rowid => Ok(IpcDataType::NChar(50)),
-            OracleType::Raw(_) => Ok(IpcDataType::NChar(50)),
             // 浮点数
             OracleType::BinaryFloat => Ok(IpcDataType::Float32),
             OracleType::BinaryDouble => Ok(IpcDataType::Float64),
@@ -46,8 +45,10 @@ impl ColumnMeta {
             OracleType::Boolean => Ok(IpcDataType::NChar(50)),
             OracleType::Object(_) => Ok(IpcDataType::NChar(50)),
             OracleType::Long => Ok(IpcDataType::NChar(50)),
-            OracleType::LongRaw => Ok(IpcDataType::NChar(50)),
             OracleType::Json => Ok(IpcDataType::NChar(50)),
+            // 字节数组
+            OracleType::Raw(_) => Ok(IpcDataType::VarBinary(50)),
+            OracleType::LongRaw => Ok(IpcDataType::VarBinary(50)),
             // 整型数，meta 信息不准确，它可能是 Number 类型变化而来
             OracleType::Int64 => Ok(IpcDataType::NChar(50)),
             OracleType::UInt64 => Ok(IpcDataType::NChar(50)),
@@ -65,7 +66,6 @@ pub fn to_arrow_data_type(column_type: &OracleType) -> anyhow::Result<DataType> 
         OracleType::Char(_) => Ok(DataType::Utf8),
         OracleType::NChar(_) => Ok(DataType::Utf8),
         OracleType::Rowid => Ok(DataType::Utf8),
-        OracleType::Raw(_) => Ok(DataType::Utf8),
         // 浮点数
         OracleType::BinaryFloat => Ok(DataType::Float32),
         OracleType::BinaryDouble => Ok(DataType::Float64),
@@ -87,8 +87,10 @@ pub fn to_arrow_data_type(column_type: &OracleType) -> anyhow::Result<DataType> 
         OracleType::Boolean => Ok(DataType::Utf8),
         OracleType::Object(_) => Ok(DataType::Utf8),
         OracleType::Long => Ok(DataType::Utf8),
-        OracleType::LongRaw => Ok(DataType::Utf8),
         OracleType::Json => Ok(DataType::Utf8),
+        // 字节数组
+        OracleType::Raw(_) => Ok(DataType::Binary),
+        OracleType::LongRaw => Ok(DataType::Binary),
         // 整型数
         OracleType::Int64 => Ok(DataType::Utf8),
         OracleType::UInt64 => Ok(DataType::Utf8),
@@ -133,7 +135,7 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::Raw(10)).unwrap(),
-            DataType::Utf8
+            DataType::Binary
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::BinaryFloat).unwrap(),
@@ -206,7 +208,7 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::LongRaw).unwrap(),
-            DataType::Utf8
+            DataType::Binary
         );
         assert_eq!(
             to_arrow_data_type(&OracleType::Json).unwrap(),

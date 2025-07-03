@@ -83,6 +83,8 @@ thiserror = "1"
 
 archive = { path = "./crates/archive" }
 
+hex = "0.4.3"
+
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
 rev = "399d3ec9"

@@ -165,7 +165,7 @@ impl IpcDataType {
             IpcDataType::VarChar(_) => DataType::Utf8,
             IpcDataType::NChar(_) => DataType::Utf8,
             IpcDataType::Json => DataType::Utf8,
-            IpcDataType::VarBinary(_) => DataType::Utf8,
+            IpcDataType::VarBinary(_) => DataType::Binary,
             IpcDataType::Decimal(precision, scale) => DataType::Decimal128(*precision, *scale as _),
         }
     }
