@@ -97,17 +97,18 @@ typedef struct SStreamTagInfo {
 } SStreamTagInfo;
 
 typedef struct SStreamRunnerTask {
-  SStreamTask        task;
+  SStreamTask                   task;
   SStreamRunnerTaskExecMgr      execMgr;
   SStreamRunnerTaskOutput       output;
   SStreamRunnerTaskNotification notification;
-  const char*                   pPlan;
+  const char                   *pPlan;
   int32_t                       parallelExecutionNun;
-  void*                         pMsgCb;
-  void*                         pWorkerCb;
-  void*                         pSubTableExpr;
-  SArray*                       forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
+  void                         *pMsgCb;
+  void                         *pWorkerCb;
+  void                         *pSubTableExpr;
+  SArray                       *forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
   bool                          topTask;
+  char                         *streamName;
 } SStreamRunnerTask;
 
 typedef struct SStreamCacheReadInfo {
