@@ -30,30 +30,34 @@ Ontop 通过 [TDengine Java Connector](../../../reference/connector/java/) 连�
 ### 2. 配置 JDBC 驱动
 
 在 Ontop 的 `.properties` 文件中配置 JDBC 连接信息：
+
 ``` sql
-   jdbc.url = jdbc:TAOS-WS://[host]:[port]/[database]
-   jdbc.user = [用户名]
-   jdbc.password = [密码]
-   jdbc.driver = com.taosdata.jdbc.ws.WebSocketDriver  
+jdbc.url = jdbc:TAOS-WS://[host]:[port]/[database]
+jdbc.user = [用户名]
+jdbc.password = [密码]
+jdbc.driver = com.taosdata.jdbc.ws.WebSocketDriver
 ```
+
 URL 参数详情参阅：[TDengine URL 规范](../../../reference/connector/java/#url-规范)。
 
 ### 3. 配置表映射
 
 在 .obda 文件中定义 TDengine 与 Ontop 的映射关系（以智能电表场景为例）：
-``` properties
-   [PrefixDeclaration]
-   :   http://example.org/tde
-   ns: http://example.org/ns#
 
-   [MappingDeclaration] @collection [[
-     mappingId	meters-mapping
-     target	ns:{ts} a ns:Meters ; ns:ts {ts} ; ns:voltage {voltage} ; ns:phase {phase} ; ns:groupid {groupid} ; ns:location {location}^^xsd:string .
-     source	SELECT ts, voltage, phase, groupid, location  from test.meters
-   ]]
+``` properties
+[PrefixDeclaration]
+:   http://example.org/tde
+ns: http://example.org/ns#
+
+[MappingDeclaration] @collection [[
+  mappingId meters-mapping
+  target ns:{ts} a ns:Meters ; ns:ts {ts} ; ns:voltage {voltage}; ns:phase {phase}; ns:groupid {groupid}; ns:location {location}^^xsd:string .
+  source SELECT ts, voltage, phase, groupid, location  from test.meters
+]]
 ```
 
 **格式说明：**
+
 | 关键字段  | 说明  |
 |:-------  |:----------------------------------- |
 | mappingId | 映射 ID，唯一标识该映射关系            |
@@ -61,6 +65,7 @@ URL 参数详情参阅：[TDengine URL 规范](../../../reference/connector/java
 | target   | 字段映射关系（未指定类型时按默认规则转换） |
 
 **在 target 中可指定映射数据类型，若未指定则按以下规则转化：**
+
 | TDengine JDBC 数据类型 | Ontop 数据类型  |
 |:-------------------- |:----------------|
 | java.sql.Timestamp   | xsd:datetime    |  
@@ -81,11 +86,12 @@ URL 参数详情参阅：[TDengine URL 规范](../../../reference/connector/java
 ### 4. 测试连接
 
 启动 Ontop 端点服务验证配置：
-``` bash
- ontop endpoint -p db.properties -m db.obda --port 8080
-```
-访问 `http://localhost:8080` ，若显示 SPARQL 查询界面，则表示配置成功。 
 
+``` bash
+ontop endpoint -p db.properties -m db.obda --port 8080
+```
+
+访问 `http://localhost:8080` ，若显示 SPARQL 查询界面，则表示配置成功。 
 
 ## 3. 数据分析
 
@@ -96,6 +102,7 @@ URL 参数详情参阅：[TDengine URL 规范](../../../reference/connector/java
 ### 数据准备
 
 通过 taosBenchmark 生成模拟数据：
+
 ``` bash
 # 生成 100 台设备，每台 1000 条记录
 taosBenchmark -t 100 -n 1000 -y
@@ -104,20 +111,22 @@ taosBenchmark -t 100 -n 1000 -y
 ### 配置文件
 
 **db.properties**​（连接配置）：
+
 ``` sql
 jdbc.url=jdbc:TAOS-WS://localhost:6041/test
 jdbc.user=root
 jdbc.password=taosdata
 jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver   
-```  
+```
+
 **db.obda** （映射配置）：  
 复用 [3. 配置表映射](#3-配置表映射) 一节中示例内容。
-
 
 ### 执行查询
 
 1. 制作 SPARQL 查询语句。  
    查询电压超过 240V 的智能电表设备，按电压倒序排列显示前 2 条：
+
    ``` sparql
     PREFIX ns: <http://example.org/ns#>
 
@@ -134,14 +143,16 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
     ORDER BY DESC(?voltage)
     LIMIT 2
    ```
+
    [SPARQL 语法参考](https://www.w3.org/TR/sparql11-query/)
 2. 在 SPARQL 查询界面输入上述语句，点击“运行”按钮，查询结果如下：
 
    ![ontop-query](img/ontop-query.webp)
 
 3. 结果以 SPARQL JSON 格式返回，包含了电表采集时间戳、采集电压、相位、分组 ID 及设备位置等信息。
+
    ``` json
-    {
+   {
     "head" : {
         "vars" : [
         "ts",
@@ -150,7 +161,7 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
         "groupid",
         "location"
         ]
-    },
+   },
     "results" : {
         "bindings" : [
         {
@@ -207,8 +218,7 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
         }
         ]
       }
-    }
-
+   }
    ```
 
 ## 4. 总结
