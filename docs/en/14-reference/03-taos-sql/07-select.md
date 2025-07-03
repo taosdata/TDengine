@@ -85,18 +85,28 @@ order_expr:
 
 ### Partial Field Description
 
-- select_expr Select list expressions that can be constants, columns, operations, functions, and their mixed operations, and do not support nested aggregate functions.
-- from_clause Specify the data source for the query, which can be a single table (super table, sub table, regular table, virtual table), a view, support multi table association queries.
-- table_reference Specify the name of a single table (including views), and optionally specify an alias for the table.
-- table_expr Specify the query data source, which can be table name, view name, or subquery.
-- join_clause Association query supports sub tables, regular tables, super tables, and sub queries. For detailed information, please refer to the association query section [TDengine Join Queries](../join-queries/)
-- window_cause Specify the data split and aggregated according to the window, which is a characteristic query for time-series databases. For detailed information, please refer to the characteristic query chapter [TDengine Distinctive Queries](../time-series-extensions/).
-- interp_clause Specify the recorded value or interpolation of the time section, which can be used in any table. It supports specify the time range, output time interval, and interpolation type for the interpolation.
-- partition_by_expr Specify the data slicing conditions, and the data within the slice is calculated independently. It can be a column, a constant, a scalar function, or a combination thereof. Not supported for use with join clause.
-- group_by_expr Specify the data grouping aggregation rule, which can be any column in a table or view.
-- order_expr Specify the sorting rule for output data, which defaults to ascending order. You can use different sorting rules for each column in a single or multiple columns, and you can specify that null values are sorted first or last. Support the use of positional syntax.
-- SLIMIT Specify the number of output shards, which can be used in the PARTITION BY clause to select the starting offset position. Only output one shard when using the ORDER BY clause.
-- LIMIT Specify the number of output data and can choose to specify the starting offset position. When using the PARTITION BY clause, the output data number is the number of shards per shard.
+- select_expr: Select list expressions that can be constants, columns, operations, functions, and their mixed operations, and not support nested aggregate functions.
+- from_clause: Specify the data source for the query, which can be a single table (super table, sub table, regular table, virtual table), a view, support multiple table association queries.
+- table_reference: Specify the name of a single table (including views), and optionally specify an alias for the table.
+- table_expr: Specify the query data source, which can be table name, view name, or subquery.
+- join_clause: Join query, supports sub tables, regular tables, super tables, and sub queries. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision can be selected from 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), and 1w (weeks), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of rows for single line matching, with a default value of 1 and a value range of [0,1024]. For detailed information, please refer to the characteristic query chapter [TDengine Distinctive Queries](../time-series-extensions/).
+- interp_clause: Interp clause, specifying the recorded value or interpolation of the time section, can specify the time range of interpolation, output time interval, and interpolation type.
+   - RANGE: Specify a single or start end time value, the end time must be greater than the start time. ts_val is a standard timestamp type, and surrounding_timenval is optional. Specify a time range of positive values, with precision options of 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as ``` RANGE('2023-10-01T00:00:00.000')``` 、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999'，1h)```.
+   - EVERY: Time interval range, with every_val being a positive value and precision options of 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as EVERY (1s).
+   - FILL: Types can be selected as NONE (unfilled), VALUE (filled with specified value), PREV (previous non NULL value), NEXT (next non NULL value), NEAR (nearest non NULL value before and after).
+- window_cause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](../time-series-extensions/).
+   - SESSION: Session window, ts_col specifies the timestamp primary key column, tol_val is the time interval, positive value, and time precision can be selected from 1n, 1u, 1a, 1s, 1m, 1h, 1d, 1w, such as SESSION (ts, 12s).
+   - State Window: TRUE_FOR specifies the minimum duration of the window, with a positive time range and precision options of 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as TRUE_FOR (1a).
+   - INTERVAL: Time window, interval_val specifies the window size, SLIDING specifies the window sliding time, sliding_val time is limited to the interval_val range, interval_val and sliding_val time ranges are positive values, and precision can be selected from 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as interval_val (2d) and SLIDING (1d).
+   - FILL: types can be selected as NONE, VALUE, PREV, NEXT, NEAR.
+   - EVENT_WINDOW: The event window uses start_trigger_dedition and end_trigger_dedition to specify start and end conditions, supports any expression, and can specify different columns. Such as ```start with voltage>220 end with voltage<=220```.
+   - COUNT_WINDOW: Count window, specifying the division of the window by the number of rows, count_val window contains the maximum number of rows, with a range of [2,2147483647]. The sliding quantity of the window is [1, count_val].
+
+- group_by_expr: Specify data grouping and aggregation rules, supporting expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as ```select ts, current from meters order by ts desc, 2 ```, where 2 corresponds to the current column.
+- partition_by_expr: Specify the data slicing conditions, and calculate the data independently within the slice. It can be columns, constants, scalar functions, positions, and their combinations. When using positional syntax, it must appear in the selection column, such as ```select current from meters partition by 1 ```, where 1 corresponds to the current column.
+- order_expr: Specify the sorting rule for the output data, which is not sorted by default. Supports expressions, functions, positions, and column aliases. Different sorting rules can be used for each column in a single or multiple columns, and null values can be specified to be sorted first or last.
+- SLIMIT: Specify the number of output shards, limit_val and offset_val are both positive values, used in the PARTION BY and GROUP BY clauses, the starting offset position can be selected. Only output one shard when using the ORDER BY clause.
+- LIMIT: Specify the number of output data, and you can choose to specify the starting offset position. limit_val and offset_val are both positive values. When using the PARTION BY clause, the number of shards per shard is controlled.
 
 ## Hints
 
