@@ -68,6 +68,39 @@ taosExplorer 是一个可视化工具，使用户可以通过浏览器，以直�
 
 :::
 
+### 体验与 Grafana 集成
+
+[Grafana](https://grafana.com/grafana/) 是一个流行的开源数据可视化和监控平台，TDengine 能够与 Grafana 快速集成，搭建数据可视化和监控告警系统，整个过程无需任何代码开发。
+
+#### 前置准备
+
+请先安装并启动 Grafana, 目前 TDengine 支持 Grafana 7.5 及以上的版本。
+
+#### 安装 Grafana 插件
+
+Grafana 与 TDengine 之间的交互，需要通过 [TDengine Datasource](https://github.com/taosdata/grafanaplugin) 插件来完成。在 Linux 平台，该插件可以通过以下命令一键安装。
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/taosdata/grafanaplugin/master/install.sh)"
+```
+
+其它平台的安装可参考插件 Github 仓库中的[安装指南](https://github.com/taosdata/grafanaplugin/blob/master/INSTALLATION.md)。
+
+在安装完成后，请重启 Grafana 服务。
+
+```bash
+sudo systemctl restart grafana-server.service
+```
+
+#### 创建连接
+
+安装插件后，请进入 Connections - Add new connection 页面，搜索 "TDengine", 即可查询到 TDengine Datasource 插件。点击 Add new data source 按钮，进入数据源配置页面，并完成以下配置：
+
+- TDengine Host: 填写 taosAdapter 的地址和端口号，如果是在本地运行，可输入 http://localhost:6041
+- TDengine Authentication: 配置 TDengine 数据库的认证方式，默认使用用户名、密码的认证方式（默认的用户名、密码为：`root/taosdata`）
+
+填写以上信息后，请点击 Save & test 按钮，如果看到以下消息：TDengine Data source is working, 即表示 TDengine 与 Grafana 的连接已创建成功。下一步，就可以创建 Dashboard 了。具体的步骤，详见[与 Grafana 集成](https://docs.taosdata.com/third-party/visual/grafana/#%E5%88%9B%E5%BB%BA-dashboard)小节。
+
 ### 体验数据写入
 
 通过 taosX 组件，TDengine 支持从各种数据源导入数据到 TDengine 中。taosExplorer 组件提供了一个统一的界面，用户通过简单的配置和操作，就可以将数据从不同的数据源导入到 TDengine 中。
