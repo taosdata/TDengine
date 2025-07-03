@@ -2757,12 +2757,12 @@ static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, uint8_t *pData,
     if (IS_STR_DATA_BLOB(pColData->type)) {
       code = tRealloc((uint8_t **)(&pColData->aOffset), ((int64_t)(pColData->nVal + 1)) << 2);
       if (code) goto _exit;
-      pColData->aOffset[pColData->nVal] = pColData->nData;
+      pColData->aOffset[pColData->nVal] = sizeof(uint64_t);
       if (nData) {
-        code = tRealloc(&pColData->pData, pColData->nData + nData);
+        code = tRealloc(&pColData->pData, pColData->nData + sizeof(uint64_t));
         if (code) goto _exit;
-        (void)memcpy(pColData->pData + pColData->nData, pData, nData);
-        pColData->nData += nData;
+        (void)memcpy(pColData->pData + pColData->nData, pData, sizeof(uint64_t));
+        pColData->nData += sizeof(uint64_t);
       }
 
     } else {
@@ -2827,10 +2827,18 @@ static FORCE_INLINE int32_t tColDataAppendValue10(SColData *pColData, uint8_t *p
 
   if (pColData->nVal) {
     if (IS_VAR_DATA_TYPE(pColData->type)) {
-      int32_t nOffset = sizeof(int32_t) * pColData->nVal;
-      code = tRealloc((uint8_t **)(&pColData->aOffset), nOffset);
-      if (code) return code;
-      memset(pColData->aOffset, 0, nOffset);
+      if (IS_STR_DATA_BLOB(pColData->type)) {
+        int32_t nOffset = sizeof(int32_t) * pColData->nVal;
+        code = tRealloc((uint8_t **)(&pColData->aOffset), nOffset);
+        if (code) return code;
+        memset(pColData->aOffset, 0, nOffset);
+
+      } else {
+        int32_t nOffset = sizeof(int32_t) * pColData->nVal;
+        code = tRealloc((uint8_t **)(&pColData->aOffset), nOffset);
+        if (code) return code;
+        memset(pColData->aOffset, 0, nOffset);
+      }
     } else {
       pColData->nData = tDataTypes[pColData->type].bytes * pColData->nVal;
       code = tRealloc(&pColData->pData, pColData->nData);
