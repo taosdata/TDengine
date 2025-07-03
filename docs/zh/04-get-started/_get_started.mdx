@@ -1,4 +1,3 @@
-
 ## 快速体验
 
 ### 体验写入
@@ -55,57 +54,48 @@ SELECT _wstart, AVG(current), MAX(voltage), MIN(phase) FROM test.d1001 INTERVAL(
 
 ### 体验 taosExplorer
 
-taosExplorer 是 TDengine 提供的一个可视化工具，旨在帮助用户更直观地管理和查询数据。它提供了一个友好的图形界面，用户可以通过浏览器访问。
+taosExplorer 是一个可视化工具，使用户可以通过浏览器，以直观地方式使用和管理 TDeninge.
 
-1. 打开浏览器，访问 taosExplorer 的地址，默认端口为 6060。如果您在本地运行 TDengine，可以访问 `http://localhost:6060`。
-2. 如果服务运行正常，就可以看到 “TDengine 管理系统” 页面，输入 TDengine 默认的用户名和密码 `root/taosdata` 后，点击“登录”按钮。
+1. 打开浏览器，访问 taosExplorer 的地址，默认端口为 `6060`，如果您在本地运行 TDengine, 可以直接访问 [http://localhost:6060](http://localhost:6060).
+2. 进入“TDengine 管理系统”页面，输入用户名和密码（默认为：`root/taosdata`），点击“登录”按钮，即可登录。
 3. 登录后，您将进入 “数据浏览器” 页面。在这里，您可以查看数据库、超级表、子表等信息，并执行 SQL 查询。
-4. 点击左侧导航栏中的 “面板”，可以进入 “概览” 页面。在这里，您可以查看集群 id 等基本信息，以及各组件的状态和所占用的端口等。
-5. 通过左侧的导航栏，切换至 “数据写入” 页面。在这里，您可以创建代理和数据写入任务（将在下一小节做详细介绍），并查看 Prometheus, Telegraf 等数据采集代理与 TDengine 的集成方式。
-6. 通过左侧的导航栏，切换至 “编程” 页面。在这里，可以查看 TDengine 不同语言的连接器创建连接的方式，目前支持的编程语言包括：Java, Go, Python, JavaScript/Node.js, C#, Rust, R 等，除此以外，TDengine 还通过 taosAdapter 提供了 REST API 的接入方式，所有的示例代码，都可以通过 “复制/粘贴” 的方式，一键执行。
-7. 通过左侧的导航栏，切换至 “编程” 页面。在这里，可以通过向导和 SQL 语句两种方式，创建流 (stream)，并查看流的状态。
-8. 通过左侧的导航栏，切换至 “数据订阅” 页面。在这里，可以创建并分享主题 (topic), 查看消费者 (consumer) 的状态；切换至 “示例代码” 标签页后，可以查看 Go/Rust/Python/Java 等编程语言数据订阅 API 的使用方式。
-9. 通过左侧导航栏，切换至 “工具” 页面。这里列举了能够与 TDengine 进行交互的工具。除了 TDengine CLI (taos), TDengine 性能压测工具 taosBenchmark 和数据备份工具 taosDump 以外，TDengine 还可以与众多的第三方工具集成：Grafana, Seeq, Looker Studio, PowerBI, 永洪 BI, Superset, Excel, Tableau 等。您可以通过这些工具，创建丰富的可视化报表和仪表盘。
-10. 通过左侧导航栏，切换至 “配置” 页面。在这里，可以进行用户管理，集群管理，许可证管理，备份，数据同步，集群等操作，还能够查看系统中的慢 SQL, 并对敏感操作进行审计。
+
+除此以外，在“编程”页面，可以查看 TDengine 所支持的各种编程语言（包括：Java, Go, Python, JavaScript/Node.js, C#, Rust, R 等）创建连接的方式，所有的示例代码都可以通过“复制/粘贴”一键执行；在“工具” 页面，列举了能够与 TDengine 进行交互的各种工具，包括：Grafana, Seeq, Looker Studio, PowerBI, 永洪 BI, Superset, Excel, Tableau 等，您可以按照页面上提示的步骤，快速地创建出可视化报表和仪表盘。
+
+::: tip
+
+通过点击 taosExplorer 界面的右上角的 ? 图标，无需联网，即可方便地查看 TDengine 的官方文档。
+
+:::
 
 ### 体验数据写入
 
 通过 taosX 组件，TDengine 支持从各种数据源导入数据到 TDengine 中。taosExplorer 组件提供了一个统一的界面，用户通过简单的配置和操作，就可以将数据从不同的数据源导入到 TDengine 中。
 
-目前支持的数据源包括：
-- TDengine
-- PI
-- OPC-UA
-- OPC-DA
-- InfluxDB
-- OpenTSDB
-- MQTT
-- Kafka
-- CSV
-- Aveva Historian
-- MySQL
-- PostgreSQL
-- Oracle
-- Microsoft SQL Server
-- MongoDB
+::: info
 
-下面，以 MQTT 为例，介绍如何使用 taosExplorer 创建数据写入任务，从 MQTT Broker 中订阅数据，并将数据写入到 TDengine 中。
+- 已支持的数据源包括：TDengine, PI, OPC-UA, OPC-DA, InfluxDB, OpenTSDB, MQTT, Kafka, CSV, Aveva Historian, MySQL, PostgreSQL, Oracle, Microsoft SQL Server, MongoDB;
+- 如果您期望 TDengine 新增对某个数据源的支持，欢迎与我们的支持团队联系。
+
+:::
+
+下面，以 MQTT 为例，介绍如何使用 taosExplorer 创建数据写入任务，从 MQTT Broker 中订阅数据，并写入到 TDengine 中。
 
 #### 配置任务的基本信息
 
 1. 打开 taosExplorer，点击左侧导航栏中的 “数据写入” 页面
 1. 在 “数据写入任务” 标签页，点击 “+ 新增数据源” 按钮，即可进入任务配置页面
 1. 配置 MQTT 任务的基本信息：
-  - 输入任务的名称，例如：test-mqtt
-  - 选择任务的类型：MQTT
-  - 选择目标数据库：test-mqtt, 如果不存在，可以直接点击 “+ 创建数据库” 进行创建
+    - 输入任务的名称，例如：test-mqtt
+    - 选择任务的类型：MQTT
+    - 选择目标数据库：test-mqtt, 如果不存在，可以直接点击 “+ 创建数据库” 进行创建
 
 #### 配置任务的连接和认证信息
 
-1. MQTT Broker 地址：broker.emqx.io, 这里使用的是 EMX 提供的[公共 MQTT 服务器](https://www.emqx.com/zh/mqtt/public-mqtt5-broker)
+1. MQTT Broker 地址：broker.emqx.io, 这里使用的是 EMQ 提供的[公共 MQTT 服务器](https://www.emqx.com/zh/mqtt/public-mqtt5-broker)
 1. MQTT 端口：1883
 1. TLS 校验：不开启
-1. 用户名和密码不需要填写（因为公共 MQTT 服务器不需要认证）
+1. 用户名和密码不需要填写，因为公共 MQTT 服务器不需要认证
 
 #### 配置 MQTT 协议相关的信息
 
@@ -151,18 +141,21 @@ MQTT Broker 及主题应与以上 MQTT 任务的配置保持一致，详情如�
 - MQTT Broker 地址：broker.emqx.io
 - MQTT Broker 端口：1883
 - MQTT 主题：tdengine-topic1
-- 示例数据：见上方 Payload 转换的示例数据
+- 示例数据：与上方配置“Payload 转换”时，填写的示例数据格式保持一致：
+    ```
+    { "id": 1, "current": 10.42, "phase": 1.38, "voltage":200, "groupid": 7, "location": "beijing" }
+    ```
 
 #### 查看数据
 
-1. 发送数据后，您可以通过 taosExplorer 查看数据是否成功写入 TDengine。
-2. 在 taosExplorer 中，切换至 “数据浏览器” 页面，选择相应的数据库和超级表。
+1. 发送测试数据后，您可以通过 taosExplorer 查看数据是否成功写入 TDengine
+2. 在 taosExplorer 中，切换至 “数据浏览器” 页面，选择相应的数据库和超级表
 3. 执行 SQL 查询，查看数据是否存在，例如：
     ```
     SELECT * FROM `test-mqtt`.`meters`;
     ```
 4. 如果有数据返回，说明数据已从 MQTT 主题成功写入到 TDengine 中。
-5. 在数据写入任务列表中，您还可以当前任务的运行状态、数据写入速率、错误信息等。
+5. 在“数据写入”任务列表中，您还可以当前任务的运行状态、数据写入速率、错误信息等。
 
 ## 下一步
 
