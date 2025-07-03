@@ -14,15 +14,15 @@ class TestStreamStateTrigger:
         tdStream.createSnode()
 
         streams = []
-        # streams.append(self.Basic0()) 
-        # streams.append(self.Basic1())
+        # streams.append(self.Basic0())
+        streams.append(self.Basic1())
         # streams.append(self.Basic2())
         # streams.append(self.Basic3())
         # streams.append(self.Basic4())
         # streams.append(self.Basic5())
         # streams.append(self.Basic6())
         # streams.append(self.Basic7())
-        streams.append(self.Basic8())
+        # streams.append(self.Basic8())
         
         tdStream.checkAll(streams)
 
@@ -56,48 +56,44 @@ class TestStreamStateTrigger:
         def insert1(self):
             sqls = [
                 "insert into ct1 values ('2025-01-01 00:00:00', 0);",
-                "insert into ct1 values ('2025-01-01 00:00:01', 0);",
-                "insert into ct1 values ('2025-01-01 00:00:02', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:03', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:04', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:05', 2);",
+                "insert into ct1 values ('2025-01-01 00:00:02', 0);",
+                "insert into ct1 values ('2025-01-01 00:00:04', 0);",                
+                "insert into ct1 values ('2025-01-01 00:00:01', 1);", # disorder                
                 "insert into ct1 values ('2025-01-01 00:00:06', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:07', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:08', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:09', 3);",
+                "insert into ct1 values ('2025-01-01 00:00:08', 2);",                 
+                "insert into ct1 values ('2025-01-01 00:00:05', 2);", # disorder
+                "insert into ct1 values ('2025-01-01 00:00:06', 3);", # update                
+                "insert into ct1 values ('2025-01-01 00:00:09', 4);",                
                 
                 "insert into ct2 values ('2025-01-01 00:00:00', 0);",
-                "insert into ct2 values ('2025-01-01 00:00:01', 0);",
-                "insert into ct2 values ('2025-01-01 00:00:02', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:03', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:04', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:05', 2);",
+                "insert into ct2 values ('2025-01-01 00:00:02', 0);",
+                "insert into ct2 values ('2025-01-01 00:00:04', 0);",                
+                "insert into ct2 values ('2025-01-01 00:00:01', 1);", # disorder                
                 "insert into ct2 values ('2025-01-01 00:00:06', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:07', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:08', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:09', 3);",
+                "insert into ct2 values ('2025-01-01 00:00:08', 2);",                 
+                "insert into ct2 values ('2025-01-01 00:00:05', 2);", # disorder
+                "insert into ct2 values ('2025-01-01 00:00:06', 3);", # update                
+                "insert into ct2 values ('2025-01-01 00:00:09', 4);",                
                 
                 "insert into ct3 values ('2025-01-01 00:00:00', 0);",
-                "insert into ct3 values ('2025-01-01 00:00:01', 0);",
-                "insert into ct3 values ('2025-01-01 00:00:02', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:03', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:04', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:05', 2);",
+                "insert into ct3 values ('2025-01-01 00:00:02', 0);",
+                "insert into ct3 values ('2025-01-01 00:00:04', 0);",                
+                "insert into ct3 values ('2025-01-01 00:00:01', 1);", # disorder                
                 "insert into ct3 values ('2025-01-01 00:00:06', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:07', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:08', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:09', 3);",
+                "insert into ct3 values ('2025-01-01 00:00:08', 2);",                 
+                "insert into ct3 values ('2025-01-01 00:00:05', 2);", # disorder
+                "insert into ct3 values ('2025-01-01 00:00:06', 3);", # update                
+                "insert into ct3 values ('2025-01-01 00:00:09', 4);",                
                 
                 "insert into ct4 values ('2025-01-01 00:00:00', 0);",
-                "insert into ct4 values ('2025-01-01 00:00:01', 0);",
-                "insert into ct4 values ('2025-01-01 00:00:02', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:03', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:04', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:05', 2);",
+                "insert into ct4 values ('2025-01-01 00:00:02', 0);",
+                "insert into ct4 values ('2025-01-01 00:00:04', 0);",                
+                "insert into ct4 values ('2025-01-01 00:00:01', 1);", # disorder                
                 "insert into ct4 values ('2025-01-01 00:00:06', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:07', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:08', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:09', 3);",                
+                "insert into ct4 values ('2025-01-01 00:00:08', 2);",                 
+                "insert into ct4 values ('2025-01-01 00:00:05', 2);", # disorder
+                "insert into ct4 values ('2025-01-01 00:00:06', 3);", # update                
+                "insert into ct4 values ('2025-01-01 00:00:09', 4);",         
             ]
             tdSql.executes(sqls)
 
@@ -125,42 +121,72 @@ class TestStreamStateTrigger:
 
             tdSql.checkResultsByFunc(
                 sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_ct1",
-                func=lambda: tdSql.getRows() == 3
+                func=lambda: tdSql.getRows() == 6
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
-                and tdSql.compareData(0, 1, "2025-01-01 00:00:01")
-                and tdSql.compareData(0, 2, 2)
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:00")
+                and tdSql.compareData(0, 2, 1)
                 and tdSql.compareData(0, 3, 0)
                 and tdSql.compareData(0, 4, 0)
-                and tdSql.compareData(1, 0, "2025-01-01 00:00:02")
-                and tdSql.compareData(1, 1, "2025-01-01 00:00:4")
-                and tdSql.compareData(1, 2, 3)
-                and tdSql.compareData(1, 3, 3)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:01")
+                and tdSql.compareData(1, 1, "2025-01-01 00:00:01")
+                and tdSql.compareData(1, 2, 1)
+                and tdSql.compareData(1, 3, 1)
                 and tdSql.compareData(1, 4, 1)
-                and tdSql.compareData(2, 0, "2025-01-01 00:00:05")
-                and tdSql.compareData(2, 1, "2025-01-01 00:00:08")
-                and tdSql.compareData(2, 2, 4)
-                and tdSql.compareData(2, 3, 8)
-                and tdSql.compareData(2, 4, 2),
+                and tdSql.compareData(2, 0, "2025-01-01 00:00:02")
+                and tdSql.compareData(2, 1, "2025-01-01 00:00:04")
+                and tdSql.compareData(2, 2, 2)
+                and tdSql.compareData(2, 3, 0)
+                and tdSql.compareData(2, 4, 0)
+                and tdSql.compareData(3, 0, "2025-01-01 00:00:05")
+                and tdSql.compareData(3, 1, "2025-01-01 00:00:05")
+                and tdSql.compareData(3, 2, 1)
+                and tdSql.compareData(3, 3, 2)
+                and tdSql.compareData(3, 4, 2)
+                and tdSql.compareData(4, 0, "2025-01-01 00:00:06")
+                and tdSql.compareData(4, 1, "2025-01-01 00:00:06")
+                and tdSql.compareData(4, 2, 1)
+                and tdSql.compareData(4, 3, 3)
+                and tdSql.compareData(4, 4, 3)
+                and tdSql.compareData(5, 0, "2025-01-01 00:00:08")
+                and tdSql.compareData(5, 1, "2025-01-01 00:00:08")
+                and tdSql.compareData(5, 2, 1)
+                and tdSql.compareData(5, 3, 2)
+                and tdSql.compareData(5, 4, 2),
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct1",
-                func=lambda: tdSql.getRows() == 3
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct4",
+                func=lambda: tdSql.getRows() == 6
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
-                and tdSql.compareData(0, 1, "2025-01-01 00:00:01")
-                and tdSql.compareData(0, 2, 2)
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:00")
+                and tdSql.compareData(0, 2, 1)
                 and tdSql.compareData(0, 3, 0)
                 and tdSql.compareData(0, 4, 0)
-                and tdSql.compareData(1, 0, "2025-01-01 00:00:02")
-                and tdSql.compareData(1, 1, "2025-01-01 00:00:4")
-                and tdSql.compareData(1, 2, 3)
-                and tdSql.compareData(1, 3, 3)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:01")
+                and tdSql.compareData(1, 1, "2025-01-01 00:00:01")
+                and tdSql.compareData(1, 2, 1)
+                and tdSql.compareData(1, 3, 1)
                 and tdSql.compareData(1, 4, 1)
-                and tdSql.compareData(2, 0, "2025-01-01 00:00:05")
-                and tdSql.compareData(2, 1, "2025-01-01 00:00:08")
-                and tdSql.compareData(2, 2, 4)
-                and tdSql.compareData(2, 3, 8)
-                and tdSql.compareData(2, 4, 2),
+                and tdSql.compareData(2, 0, "2025-01-01 00:00:02")
+                and tdSql.compareData(2, 1, "2025-01-01 00:00:04")
+                and tdSql.compareData(2, 2, 2)
+                and tdSql.compareData(2, 3, 0)
+                and tdSql.compareData(2, 4, 0)
+                and tdSql.compareData(3, 0, "2025-01-01 00:00:05")
+                and tdSql.compareData(3, 1, "2025-01-01 00:00:05")
+                and tdSql.compareData(3, 2, 1)
+                and tdSql.compareData(3, 3, 2)
+                and tdSql.compareData(3, 4, 2)
+                and tdSql.compareData(4, 0, "2025-01-01 00:00:06")
+                and tdSql.compareData(4, 1, "2025-01-01 00:00:06")
+                and tdSql.compareData(4, 2, 1)
+                and tdSql.compareData(4, 3, 3)
+                and tdSql.compareData(4, 4, 3)
+                and tdSql.compareData(5, 0, "2025-01-01 00:00:08")
+                and tdSql.compareData(5, 1, "2025-01-01 00:00:08")
+                and tdSql.compareData(5, 2, 1)
+                and tdSql.compareData(5, 3, 2)
+                and tdSql.compareData(5, 4, 2),
             )
 
     class Basic1(StreamCheckItem):
@@ -192,89 +218,46 @@ class TestStreamStateTrigger:
 
         def insert1(self):
             sqls = [
-                "insert into ct1 values ('2025-01-01 00:00:10', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:11', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:12', 2);",
+                "insert into ct1 values ('2025-01-01 00:00:00', 0);",
+                "insert into ct1 values ('2025-01-01 00:00:01', 0);",
+                "insert into ct1 values ('2025-01-01 00:00:08', 0);",                
+                "insert into ct1 values ('2025-01-01 00:00:03', 1);", # disorder                
+                "insert into ct1 values ('2025-01-01 00:00:09', 0);",
+                "insert into ct1 values ('2025-01-01 00:00:12', 0);",                 
                 "insert into ct1 values ('2025-01-01 00:00:13', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:14', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:15', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:16', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:17', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:18', 3);",
-                "insert into ct1 values ('2025-01-01 00:00:19', 3);",
-                "insert into ct1 values ('2025-01-01 00:00:20', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:21', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:22', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:23', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:24', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:25', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:26', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:27', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:28', 3);",
-                "insert into ct1 values ('2025-01-01 00:00:29', 3);",  
+                "insert into ct1 values ('2025-01-01 00:00:09', 4);", # update                
+                "insert into ct1 values ('2025-01-01 00:00:10', 8);", # disorder
                 
-                "insert into ct2 values ('2025-01-01 00:00:10', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:11', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:12', 2);",
+                "insert into ct2 values ('2025-01-01 00:00:00', 0);",
+                "insert into ct2 values ('2025-01-01 00:00:01', 0);",
+                "insert into ct2 values ('2025-01-01 00:00:08', 0);",                
+                "insert into ct2 values ('2025-01-01 00:00:03', 1);", # disorder                
+                "insert into ct2 values ('2025-01-01 00:00:09', 0);",
+                "insert into ct2 values ('2025-01-01 00:00:12', 0);",                 
                 "insert into ct2 values ('2025-01-01 00:00:13', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:14', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:15', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:16', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:17', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:18', 3);",
-                "insert into ct2 values ('2025-01-01 00:00:19', 3);",
-                "insert into ct2 values ('2025-01-01 00:00:20', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:21', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:22', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:23', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:24', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:25', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:26', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:27', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:28', 3);",
-                "insert into ct2 values ('2025-01-01 00:00:29', 3);",
+                "insert into ct2 values ('2025-01-01 00:00:09', 4);", # update                
+                "insert into ct2 values ('2025-01-01 00:00:10', 8);", # disorder                 
                 
-                "insert into ct3 values ('2025-01-01 00:00:10', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:11', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:12', 2);",
+                "insert into ct3 values ('2025-01-01 00:00:00', 0);",
+                "insert into ct3 values ('2025-01-01 00:00:01', 0);",
+                "insert into ct3 values ('2025-01-01 00:00:08', 0);",                
+                "insert into ct3 values ('2025-01-01 00:00:03', 1);", # disorder                
+                "insert into ct3 values ('2025-01-01 00:00:09', 0);",
+                "insert into ct3 values ('2025-01-01 00:00:12', 0);",                 
                 "insert into ct3 values ('2025-01-01 00:00:13', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:14', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:15', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:16', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:17', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:18', 3);",
-                "insert into ct3 values ('2025-01-01 00:00:19', 3);",
-                "insert into ct3 values ('2025-01-01 00:00:20', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:21', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:22', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:23', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:24', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:25', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:26', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:27', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:28', 3);",
-                "insert into ct3 values ('2025-01-01 00:00:29', 3);",
-
-                "insert into ct4 values ('2025-01-01 00:00:10', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:11', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:12', 2);",
+                "insert into ct3 values ('2025-01-01 00:00:09', 4);", # update                
+                "insert into ct3 values ('2025-01-01 00:00:10', 8);", # disorder
+                
+                
+                "insert into ct4 values ('2025-01-01 00:00:00', 0);",
+                "insert into ct4 values ('2025-01-01 00:00:01', 0);",
+                "insert into ct4 values ('2025-01-01 00:00:08', 0);",                
+                "insert into ct4 values ('2025-01-01 00:00:03', 1);", # disorder 
+                "insert into ct4 values ('2025-01-01 00:00:09', 0);",
+                "insert into ct4 values ('2025-01-01 00:00:12', 0);",                 
                 "insert into ct4 values ('2025-01-01 00:00:13', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:14', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:15', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:16', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:17', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:18', 3);",
-                "insert into ct4 values ('2025-01-01 00:00:19', 3);",
-                "insert into ct4 values ('2025-01-01 00:00:20', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:21', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:22', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:23', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:24', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:25', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:26', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:27', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:28', 3);",
-                "insert into ct4 values ('2025-01-01 00:00:29', 3);",                
+                "insert into ct4 values ('2025-01-01 00:00:09', 4);", # update                
+                "insert into ct4 values ('2025-01-01 00:00:10', 8);", # disorder                
             ]
             tdSql.executes(sqls)
 
