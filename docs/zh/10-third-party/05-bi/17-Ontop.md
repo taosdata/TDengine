@@ -120,7 +120,7 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
 ```
 
 **db.obda** （映射配置）：  
-复用 [配置表映射](#3-配置表映射) 一节中示例内容。
+复用 [配置表映射](#配置表映射) 一节中示例内容。
 
 ### 分析电表负载
 
