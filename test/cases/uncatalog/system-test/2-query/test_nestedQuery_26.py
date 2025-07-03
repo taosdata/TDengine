@@ -10,11 +10,15 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-from new_test_framework.utils import tdLog, tdSql, tdCom
-from .nestedQuery import *
+from new_test_framework.utils import tdLog, tdSql
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from test_nestedQuery import TestNestedquery as NestedQueryHelper
+import time
 
-class TDTestCase:
-
+class TestNestedQuery26Case:
+            
     def test_nestedQuery_26(self):
         """summary: xxx
 
@@ -39,7 +43,8 @@ class TDTestCase:
         
         startTime = time.time() 
 
-        self.function_before_26()       
+        nested_query_test = NestedQueryHelper()
+        nested_query_test.function_before_26()       
                
         # self.math_nest(['UNIQUE'])
         # self.math_nest(['MODE']) 

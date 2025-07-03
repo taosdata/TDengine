@@ -7,16 +7,15 @@ from new_test_framework.utils import tdLog, tdSql, tdCom
 # from tmqCommon import *
 
 class TestLimit:
-    def __init__(self):
-        self.vgroups    = 2
-        self.ctbNum     = 10
-        self.rowsPerTbl = 10000
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
-        pass
+
+        cls.vgroups    = 2
+        cls.ctbNum     = 10
+        cls.rowsPerTbl = 10000
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=2,replica=1):
         if dropFlag == 1:

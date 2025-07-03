@@ -11,7 +11,11 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql
-from .primary_ts_base import *
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from test_primary_ts_base import TestPrimaryTsBase
+import time
 from faker import Faker
 
 class TestPrimaryTsBase5:
@@ -37,7 +41,7 @@ class TestPrimaryTsBase5:
         """
 
         startTime = time.time() 
-        self.dropandcreateDB_primary_key(self.database, 1 , 1 ,'yes','yes','no')
+        TestPrimaryTsBase.dropandcreateDB_primary_key(self.database, 1 , 1 ,'yes','yes','no')
 
         # self.fun_pk_interp(self.database,'interp','') 
         # self.multiple_agg_groupby(self.database,1) 
@@ -54,9 +58,9 @@ class TestPrimaryTsBase5:
         
         # self.touying_pk_1(self.database,1) 
         # self.touying_pk_where(self.database,'') 
-        self.touying_pk_where(self.database,'tags') 
+        TestPrimaryTsBase.touying_pk_where(self.database,'tags') 
         # self.touying_pk_where(self.database,'distinct') 
-        self.count_pk(self.database,1) 
+        TestPrimaryTsBase.count_pk(self.database,1) 
         
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))

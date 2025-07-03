@@ -10,8 +10,12 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
-from hyperloglog import HyperLogLog
+from new_test_framework.utils import tdLog, tdSql
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from test_hyperloglog import TestHyperloglog as HyperLogLog
+import numpy as np
 '''
 Test case for TS-5150
 '''

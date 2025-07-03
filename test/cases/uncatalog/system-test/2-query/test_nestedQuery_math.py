@@ -11,9 +11,13 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql
-from .nestedQuery import *
+import time
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from test_nestedQuery import TestNestedquery as NestedQueryHelper
 
-class TDTestCase:
+class TestNestedQueryMathCase:
 
     def test_nestedQuery_math(self):
         """summary: xxx
@@ -45,13 +49,14 @@ class TDTestCase:
         # self.math_nest(['MODE']) 
         # self.math_nest(['SAMPLE'])
                 
-        self.math_nest(['ABS','SQRT'])     
-        self.math_nest(['SIN','COS','TAN','ASIN','ACOS','ATAN'])        
-        self.math_nest(['POW','LOG']) 
-        self.math_nest(['FLOOR','CEIL','ROUND']) 
-        self.math_nest(['MAVG'])  
-        self.math_nest(['HYPERLOGLOG']) 
-        self.math_nest(['TAIL']) 
+        nested_query_test = NestedQueryHelper()
+        nested_query_test.math_nest(['ABS','SQRT'])     
+        nested_query_test.math_nest(['SIN','COS','TAN','ASIN','ACOS','ATAN'])        
+        nested_query_test.math_nest(['POW','LOG']) 
+        nested_query_test.math_nest(['FLOOR','CEIL','ROUND']) 
+        nested_query_test.math_nest(['MAVG'])  
+        nested_query_test.math_nest(['HYPERLOGLOG']) 
+        nested_query_test.math_nest(['TAIL']) 
         # self.math_nest(['CSUM'])
         # self.math_nest(['statecount','stateduration'])
         # self.math_nest(['HISTOGRAM']) 

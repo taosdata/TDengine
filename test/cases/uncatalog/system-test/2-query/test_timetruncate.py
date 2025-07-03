@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, autogen
+from new_test_framework.utils import tdLog, tdSql, gettime
 
 import time
 import datetime
@@ -8,7 +8,7 @@ class TestTimetruncate:
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
         cls.rest_tag = str(cls.conn).lower().split('.')[0].replace("<taos","")
-        cls.get_time = autogen.GetTime()
+        cls.get_time = gettime.GetTime()
         cls.ts_str = [
             '2020-1-1',
             '2020-2-1 00:00:01',

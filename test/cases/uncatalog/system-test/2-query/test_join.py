@@ -3,6 +3,7 @@ import datetime
 from dataclasses import dataclass, field
 from typing import List, Any, Tuple
 from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.tserror import TSDB_CODE_PAR_SYNTAX_ERROR
 
 PRIMARY_COL = "ts"
 

@@ -11,7 +11,11 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql
-from .primary_ts_base import *
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from test_primary_ts_base import TestPrimaryTsBase
+import time
 from faker import Faker
 
 class TestPrimaryTsBase2:
@@ -37,7 +41,7 @@ class TestPrimaryTsBase2:
         """
 
         startTime = time.time() 
-        self.dropandcreateDB_primary_key(self.database, 1 , 1 ,'yes','yes','no')
+        TestPrimaryTsBase.dropandcreateDB_primary_key(self.database, 1 , 1 ,'yes','yes','no')
 
         # self.fun_pk_interp(self.database,'interp','') 
         # self.multiple_agg_groupby(self.database,1) 
@@ -47,12 +51,12 @@ class TestPrimaryTsBase2:
         # self.fun_pk_unique(self.database,'unique','')  
         # self.fun_pk_last_init(self.database,'last','')  
         # self.fun_pk_last(self.database,'last','')  
-        self.fun_pk_last(self.database,'last_row','') 
-        self.fun_pk_first(self.database,'first','') 
+        TestPrimaryTsBase.fun_pk_last(self.database,'last_row','') 
+        TestPrimaryTsBase.fun_pk_first(self.database,'first','') 
         
-        self.query_pk_fun(self.database,'') 
+        TestPrimaryTsBase.query_pk_fun(self.database,'') 
         
-        self.touying_pk_1(self.database,1) 
+        TestPrimaryTsBase.touying_pk_1(self.database,1) 
         # self.touying_pk_where(self.database,'') 
         # self.touying_pk_where(self.database,'tags') 
         # self.touying_pk_where(self.database,'distinct') 

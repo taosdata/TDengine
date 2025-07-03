@@ -11,7 +11,11 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql
-from .primary_ts_base import *
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from test_primary_ts_base import TestPrimaryTsBase
+import time
 from faker import Faker
 
 class TestPrimaryTsBase1:
@@ -37,16 +41,17 @@ class TestPrimaryTsBase1:
         """
 
         startTime = time.time() 
-        self.dropandcreateDB_primary_key(self.database, 1 , 1 ,'yes','yes','no')
+        database = 'primary_db_1'
+        TestPrimaryTsBase.dropandcreateDB_primary_key(database, 1 , 1 ,'yes','yes','no')
 
-        self.fun_pk_interp(self.database,'interp','') 
-        self.multiple_agg_groupby(self.database,1) 
-        self.fun_pk_diff(self.database,'diff','') 
-        self.fun_pk_twa(self.database,'derivative',',1s,0') 
-        self.fun_pk_twa(self.database,'derivative',',1s,1') 
-        self.fun_pk_unique(self.database,'unique','')  
-        self.fun_pk_last_init(self.database,'last','')  
-        self.fun_pk_last(self.database,'last','')  
+        TestPrimaryTsBase.fun_pk_interp(database,'interp','') 
+        TestPrimaryTsBase.multiple_agg_groupby(database,1) 
+        TestPrimaryTsBase.fun_pk_diff(database,'diff','') 
+        TestPrimaryTsBase.fun_pk_twa(database,'derivative',',1s,0') 
+        TestPrimaryTsBase.fun_pk_twa(database,'derivative',',1s,1') 
+        TestPrimaryTsBase.fun_pk_unique(database,'unique','')  
+        TestPrimaryTsBase.fun_pk_last_init(database,'last','')  
+        TestPrimaryTsBase.fun_pk_last(database,'last','')  
         # self.fun_pk_last(self.database,'last_row','') 
         # self.fun_pk_first(self.database,'first','') 
         

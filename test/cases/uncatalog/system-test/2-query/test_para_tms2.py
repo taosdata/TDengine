@@ -584,7 +584,7 @@ class TestParaTms2:
                     'DIFF(t2.q_int_null,0)' ,'DIFF(t2.q_bigint_null,0)' , 'DIFF(t2.q_smallint_null,0)' ,'DIFF(t2.q_tinyint_null,0)' ,'DIFF(t2.q_float_null,0)' ,'DIFF(t2.q_double_null,0)' ,
                     'DIFF(t2.q_int_null,1)' ,'DIFF(t2.q_bigint_null,1)' , 'DIFF(t2.q_smallint_null,1)' ,'DIFF(t2.q_tinyint_null,1)' ,'DIFF(t2.q_float_null,1)' ,'DIFF(t2.q_double_null,1)' ,
                     'DERIVATIVE(t2.q_int_null,15s,0)' , 'DERIVATIVE(t2.q_bigint_null,10s,1)' , 'DERIVATIVE(t2.q_smallint_null,20s,0)' ,'DERIVATIVE(t2.q_tinyint_null,10s,1)' ,'DERIVATIVE(t2.q_float_null,6s,0)' ,'DERIVATIVE(t2.q_double_null,3s,1)']
-        cls.calc_calculate_groupbytbname_j = self.calc_calculate_regular_j
+        cls.calc_calculate_groupbytbname_j = cls.calc_calculate_regular_j
 
         #inter  && calc_aggregate_all\calc_aggregate_regular\calc_select_all
         cls.interval_sliding = ['interval(4w) sliding(1w) ','interval(1w) sliding(1d) ','interval(1d) sliding(1h) ' ,

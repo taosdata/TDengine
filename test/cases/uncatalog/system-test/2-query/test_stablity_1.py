@@ -11,7 +11,11 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql
-from .stablity import *
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from test_stablity import TestStablity
+import time
 
 class TestStability1:
 
@@ -39,9 +43,9 @@ class TestStability1:
 
         startTime = time.time()
 
-        self.function_before_26()
+        TestStablity.function_before_26()
 
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        TestStablity.dropandcreateDB_random("%s" %self.db_nest, 1)
 
         # self.math_nest(['UNIQUE'])
         # self.math_nest(['MODE'])

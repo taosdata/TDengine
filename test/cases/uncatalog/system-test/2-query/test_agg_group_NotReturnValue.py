@@ -10,12 +10,16 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql
 import random
-from .nestedQuery import *
+import time
 from faker import Faker
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from test_nestedQuery import TestNestedquery as NestedQueryHelper
 
-class TDTestCase:
+class TestAggGroupNotReturnValue:
     updatecfgDict = {'countAlwaysReturnValue':0}
     
     def data_check_tbname(self,sql,groupby='Y',partitionby='Y',base_fun='',replace_fun='',base_column='',replace_column=''):
@@ -1566,8 +1570,9 @@ class TDTestCase:
 
         # self.create_tables()
         # self.insert_data()     
-         
-        self.dropandcreateDB_random("nested", 1)
+        
+        nested_query_test = NestedQueryHelper()
+        nested_query_test.dropandcreateDB_random("nested", 1)
         self.modify_tables()
         tdSql.execute('alter local "countAlwaysReturnValue" "0"')
                

@@ -16,6 +16,7 @@ import random
 import numpy as np
 import re
 import platform
+import time
 from new_test_framework.utils import tdLog, tdSql, tdDnodes
 
 msec_per_min=60 * 1000

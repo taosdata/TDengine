@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from new_test_framework.utils import tdLog, tdSql
-from new_test_framework.utils.common import tdCom, DataSet
+from new_test_framework.utils.common import tdCom, DataSet, is_json
 from new_test_framework.utils.constant import AGG_FUNC, SELECT_FUNC, TS_FUNC
 
 PRIMARY_COL = "ts"
@@ -181,9 +181,9 @@ class TestHistogram:
             return False
         if sma.bin_type.upper().strip() == "USER_INPUT":
             # user_raw = eval(sma.bin_desc) if isinstance(sma.bin_desc, str) else sma.bin_desc
-            if not tdCom.is_json(sma.bin_desc) and not isinstance(sma.bin_desc, list) and not isinstance(sma.bin_desc, set):
+            if not is_json(sma.bin_desc) and not isinstance(sma.bin_desc, list) and not isinstance(sma.bin_desc, set):
                 return False
-            user_raw = json.loads(sma.bin_desc) if tdCom.is_json(sma.bin_desc) else sma.bin_desc
+            user_raw = json.loads(sma.bin_desc) if is_json(sma.bin_desc) else sma.bin_desc
             if not isinstance(user_raw, list):
                 return False
             if len(user_raw) >= 2:
@@ -199,7 +199,7 @@ class TestHistogram:
                     return False
             sma.bin_count = len(user_raw) - 1
         if sma.bin_type.upper().strip() == "LINEAR_BIN":
-            if not tdCom.is_json(sma.bin_desc):
+            if not is_json(sma.bin_desc):
                 return False
             user_raw = json.loads(sma.bin_desc)
             if not isinstance(user_raw, dict):
@@ -218,7 +218,7 @@ class TestHistogram:
             sma.bin_count = int(user_raw["count"]) + 2 if user_raw["infinity"]  else int(user_raw["count"])
 
         if sma.bin_type.upper().strip() == "LOG_BIN":
-            if not tdCom.is_json(sma.bin_desc):
+            if not is_json(sma.bin_desc):
                 return False
             user_raw = json.loads(sma.bin_desc)
             if not isinstance(user_raw, dict):

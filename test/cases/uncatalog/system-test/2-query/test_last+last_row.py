@@ -11,12 +11,17 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from test_nestedQuery import TestNestedquery as NestedQueryHelper
 #from .nestedQueryInterval import *
-from .nestedQuery import *
 from faker import Faker
 import random
+import os
+import time
 
-class TDTestCase:
+class TestLastAndLastrowCase:
     
     def explain_scan_value(self,sql,cachemodel):    
         tdLog.info(cachemodel)  
@@ -341,7 +346,8 @@ class TDTestCase:
         
         startTime = time.time() 
 
-        self.dropandcreateDB_random("nested", 1)
+        nested_query_test = NestedQueryHelper()
+        nested_query_test.dropandcreateDB_random("nested", 1)
         self.modify_tables()
                
         for i in range(2):

@@ -11,9 +11,13 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql
-from .nestedQuery import *
+import time
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from test_nestedQuery import TestNestedquery as NestedQueryHelper
 
-class TDTestCase:
+class TestNestedQueryStrCase:
 
     def test_nestedQuery_str(self):
         """summary: xxx
@@ -56,11 +60,12 @@ class TDTestCase:
         # self.math_nest(['statecount','stateduration'])
         # self.math_nest(['HISTOGRAM']) 
         
-        self.str_nest(['LTRIM','RTRIM','LOWER','UPPER']) 
-        self.str_nest(['LENGTH','CHAR_LENGTH']) 
-        self.str_nest(['SUBSTR'])   
-        self.str_nest(['CONCAT']) 
-        self.str_nest(['CONCAT_WS']) 
+        nested_query_test = NestedQueryHelper()
+        nested_query_test.str_nest(['LTRIM','RTRIM','LOWER','UPPER']) 
+        nested_query_test.str_nest(['LENGTH','CHAR_LENGTH']) 
+        nested_query_test.str_nest(['SUBSTR'])   
+        nested_query_test.str_nest(['CONCAT']) 
+        nested_query_test.str_nest(['CONCAT_WS']) 
         # self.time_nest(['CAST']) #放到time里起来弄
         # self.time_nest(['CAST_1'])
         # self.time_nest(['CAST_2'])

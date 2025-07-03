@@ -1,5 +1,6 @@
 from new_test_framework.utils import tdLog, tdSql
 import time
+import math
 
 class TestArcsin:
     # updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,

@@ -1207,8 +1207,8 @@ class TestNestedqueryinterval:
         tdSql.checkData(0, 1, 122)
         tdSql.checkData(1, 1, 200)
 
-        pd = datetime.datetime.now()
-        ts = int(datetime.datetime.timestamp(pd)*1000 - 10000)
+        pd = datetime.now()
+        ts = int(datetime.timestamp(pd)*1000 - 10000)
         print(f"start time {ts}")
 
         for i in range(10):

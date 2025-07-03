@@ -13,10 +13,9 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 import random
 import time
-from .nestedQuery import *
 from faker import Faker
 
-class TDTestCase:
+class TestAggGroupAlwarysReturnValue:
     
     def data_check_tbname(self,sql,groupby='Y',partitionby='Y',base_fun='',replace_fun='',base_column='',replace_column=''):
         

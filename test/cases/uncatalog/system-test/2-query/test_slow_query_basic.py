@@ -4,7 +4,7 @@ import string
 import platform
 import os
 
-class checkSlowQueryBasic:
+class TestSlowQueryBasic:
     updatecfgDict = {'slowLogThresholdTest': ''}
     updatecfgDict["slowLogThresholdTest"]  = 0
     

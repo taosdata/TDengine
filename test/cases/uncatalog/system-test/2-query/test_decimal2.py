@@ -8,6 +8,7 @@ import numpy
 import subprocess
 from typing import List
 from datetime import datetime, timedelta
+import re
 
 from new_test_framework.utils import tdLog, tdSql, TDSql
 from decimal import *
@@ -1581,32 +1582,30 @@ class TestDecimal2:
         "debugFlag": 143,
     }
 
-    def __init__(self):
-        self.vgroups = 4
-        self.ctbNum = 10
-        self.rowsPerTbl = 10000
-        self.duraion = "1h"
-        self.norm_tb_columns = []
-        self.tags = []
-        self.stable_name = "meters"
-        self.norm_table_name = "nt"
-        self.col_prefix = "c"
-        self.c_table_prefix = "t"
-        self.tag_name_prefix = "t"
-        self.db_name = "test"
-        self.c_table_num = ctb_num
-        self.no_decimal_col_tb_name = "tt"
-        self.stb_columns = []
-        self.stream_name = "stream1"
-        self.stream_out_stb = "stream_out_stb"
-        self.tsma_name = "tsma1"
-        self.query_test_round = 10000
-
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
-        pass
+        
+        cls.vgroups = 4
+        cls.ctbNum = 10
+        cls.rowsPerTbl = 10000
+        cls.duraion = "1h"
+        cls.norm_tb_columns = []
+        cls.tags = []
+        cls.stable_name = "meters"
+        cls.norm_table_name = "nt"
+        cls.col_prefix = "c"
+        cls.c_table_prefix = "t"
+        cls.tag_name_prefix = "t"
+        cls.db_name = "test"
+        cls.c_table_num = ctb_num
+        cls.no_decimal_col_tb_name = "tt"
+        cls.stb_columns = []
+        cls.stream_name = "stream1"
+        cls.stream_out_stb = "stream_out_stb"
+        cls.tsma_name = "tsma1"
+        cls.query_test_round = 10000
 
     def check_desc_for_one_ctb(
         self, ctbPrefix: str, columns: List[Column], tags: List[Column] = []

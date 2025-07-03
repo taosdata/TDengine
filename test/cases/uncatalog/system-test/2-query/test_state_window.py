@@ -7,16 +7,16 @@ import threading
 # from tmqCommon import *
 
 class TestStateWindow:
-    def __init__(self):
-        self.vgroups    = 4
-        self.ctbNum     = 1
-        self.rowsPerTbl = 10
-        self.duraion = '1h'
 
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
+        
+        cls.vgroups    = 4
+        cls.ctbNum     = 1
+        cls.rowsPerTbl = 10
+        cls.duraion = '1h'
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=2,replica=1, duration:str='1d'):
         if dropFlag == 1:

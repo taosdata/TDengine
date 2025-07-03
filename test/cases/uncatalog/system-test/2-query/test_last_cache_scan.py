@@ -14,22 +14,21 @@ COMPARE_DATA = 0
 COMPARE_LEN = 1
 
 class TestLastCacheScan:
-    def __init__(self):
-        self.vgroups    = 4
-        self.ctbNum     = 10
-        self.rowsPerTbl = 10000
-        self.duraion = '1h'
-        self.cachemodel = 'both'
-        self.cacheEnable = True
-        #self.cacheEnable = False
-        if not self.cacheEnable:
-            self.cachemodel = 'none'
-
+    
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
-        pass
+        
+        cls.vgroups    = 4
+        cls.ctbNum     = 10
+        cls.rowsPerTbl = 10000
+        cls.duraion = '1h'
+        cls.cachemodel = 'both'
+        cls.cacheEnable = True
+        #sclself.cacheEnable = False
+        if not cls.cacheEnable:
+            cls.cachemodel = 'none'
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=2,replica=1, duration:str='1d'):
         if dropFlag == 1:
