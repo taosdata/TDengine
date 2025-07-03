@@ -3498,8 +3498,129 @@ static int32_t parseInsertSqlFromCsv(SInsertParseContext* pCxt, SVnodeModifyOpSt
   return code;
 }
 
+static int32_t parseBoundColumnsFromToken(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,
+                                          const SBoundColumnsToken* pBoundColsToken) {
+  // Save original SQL position
+  const char* pOriginalSql = pStmt->pSql;
+
+  // Set SQL to bound columns content with precise length boundary
+  pStmt->pSql = pBoundColsToken->z;
+
+  // Create a temporary null-terminated string for parsing
+  char* pTempSql = taosMemoryMalloc(pBoundColsToken->n + 1);
+  if (NULL == pTempSql) {
+    pStmt->pSql = pOriginalSql;
+    return terrno;
+  }
+
+  memcpy(pTempSql, pBoundColsToken->z, pBoundColsToken->n);
+  pTempSql[pBoundColsToken->n] = '\0';
+
+  const char* pBoundColsSql = pTempSql;
+  int32_t     code = parseBoundColumns(pCxt, &pBoundColsSql, BOUND_COLUMNS, pStmt->pTableMeta, &pCxt->tags);
+
+  taosMemoryFree(pTempSql);
+  pStmt->pSql = pOriginalSql;
+
+  return code;
+}
+
+static int32_t parseValuesFromToken(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,
+                                    const SValuesToken* pValuesToken) {
+  // Save original SQL position
+  const char* pOriginalSql = pStmt->pSql;
+
+  // Set SQL to VALUES content with precise length boundary
+  pStmt->pSql = pValuesToken->z;
+
+  // Create a temporary null-terminated string for parsing with precise length
+  char* pTempSql = taosMemoryMalloc(pValuesToken->n + 1);
+  if (NULL == pTempSql) {
+    pStmt->pSql = pOriginalSql;
+    return terrno;
+  }
+
+  memcpy(pTempSql, pValuesToken->z, pValuesToken->n);
+  pTempSql[pValuesToken->n] = '\0';
+  pStmt->pSql = pTempSql;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // Process data with precise boundaries - similar to parseInsertTableClauseBottom
+  if (!pStmt->stbSyntax) {
+    STableDataCxt* pTableCxt = NULL;
+    code = parseSchemaClauseBottom(pCxt, pStmt, &pTableCxt);
+    if (TSDB_CODE_SUCCESS == code) {
+      SRowsDataContext rowsDataCxt;
+      rowsDataCxt.pTableDataCxt = pTableCxt;
+      code = parseDataClause(pCxt, pStmt, rowsDataCxt);
+    }
+  } else {
+    code = parseInsertStbClauseBottom(pCxt, pStmt);
+  }
+
+  taosMemoryFree(pTempSql);
+  pStmt->pSql = pOriginalSql;
+
+  return code;
+}
+
+static int32_t parseInsertTableClauseFromTokens(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+  if (NULL == pStmt->pInsertTokensHashObj) {
+    return parseInsertTableClauseBottom(pCxt, pStmt);
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  void*   pIter = taosHashIterate(pStmt->pInsertTokensHashObj, NULL);
+
+  while (NULL != pIter && TSDB_CODE_SUCCESS == code) {
+    SArray* pInsertTokensArray = *(SArray**)pIter;
+
+    // Process each SInsertTokens in the array
+    size_t arraySize = taosArrayGetSize(pInsertTokensArray);
+    for (size_t i = 0; i < arraySize && TSDB_CODE_SUCCESS == code; ++i) {
+      SInsertTokens** ppInsertTokens = (SInsertTokens**)taosArrayGet(pInsertTokensArray, i);
+      if (NULL == ppInsertTokens || NULL == *ppInsertTokens) {
+        continue;
+      }
+
+      SInsertTokens* pInsertTokens = *ppInsertTokens;
+
+      // Reset environment for each table
+      resetEnvPreTable(pCxt, pStmt);
+
+      // Set current table context
+      memcpy(&pStmt->targetTableName, pInsertTokens->pName, sizeof(SName));
+
+      // Get table schema and vgroup information
+      code = getTargetTableSchema(pCxt, pStmt);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = getTargetTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
+      }
+
+      if (TSDB_CODE_SUCCESS == code) {
+        // Parse bound columns using precise pointer and length
+        if (pInsertTokens->boundCols.n > 0) {
+          code = parseBoundColumnsFromToken(pCxt, pStmt, &pInsertTokens->boundCols);
+        }
+
+        if (TSDB_CODE_SUCCESS == code) {
+          // Parse VALUES content using precise pointer and length
+          if (pInsertTokens->values.n > 0) {
+            code = parseValuesFromToken(pCxt, pStmt, &pInsertTokens->values);
+          }
+        }
+      }
+    }
+
+    pIter = taosHashIterate(pStmt->pInsertTokensHashObj, pIter);
+  }
+
+  return code;
+}
+
 static int32_t parseInsertSqlFromTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  int32_t code = parseInsertTableClauseBottom(pCxt, pStmt);
+  int32_t code = parseInsertTableClauseFromTokens(pCxt, pStmt);
   if (TSDB_CODE_SUCCESS == code) {
     code = parseInsertBody(pCxt, pStmt);
   }
