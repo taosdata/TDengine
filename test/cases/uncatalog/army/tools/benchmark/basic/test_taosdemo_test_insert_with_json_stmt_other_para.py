@@ -48,7 +48,7 @@ class TestTaosdemoTestInsertWithJsonStmtOtherPara:
             tdLog.info("taosBenchmark use %s" % binPath)
 
         # insert:  sample json
-        os.system("%s -f ./tools/benchmark/basic/json/insert-sample-ts-stmt.json -y " % binPath)
+        os.system("%s -f %s/json/insert-sample-ts-stmt.json -y " % (binPath, os.path.dirname(__file__)))
         tdSql.execute("use dbtest123")
         tdSql.query("select c2 from stb0")
         tdSql.checkData(0, 0, 2147483647)
@@ -68,7 +68,7 @@ class TestTaosdemoTestInsertWithJsonStmtOtherPara:
         tdSql.checkRows(10)
 
         # insert: timestamp and step
-        os.system("%s -f ./tools/benchmark/basic/json/insert-timestep-stmt.json -y " % binPath)
+        os.system("%s -f %s/json/insert-timestep-stmt.json -y " % (binPath, os.path.dirname(__file__)))
         tdSql.execute("use db")
         tdSql.query("show stables")
         if major_ver == "3":
@@ -92,7 +92,7 @@ class TestTaosdemoTestInsertWithJsonStmtOtherPara:
 
         # # insert:  disorder_ratio
         os.system(
-            "%s -f ./tools/benchmark/basic/json/insert-disorder-stmt.json 2>&1  -y " % binPath
+            "%s -f %s/json/insert-disorder-stmt.json 2>&1  -y " % (binPath, os.path.dirname(__file__))
         )
         tdSql.execute("use db")
         if major_ver == "3":
@@ -124,7 +124,7 @@ class TestTaosdemoTestInsertWithJsonStmtOtherPara:
 
         # insert: test interlace parament
         os.system(
-            "%s -f ./tools/benchmark/basic/json/insert-interlace-row-stmt.json -y " % binPath
+            "%s -f %s/json/insert-interlace-row-stmt.json -y " % (binPath, os.path.dirname(__file__))
         )
         tdSql.execute("use db")
         if major_ver == "3":
@@ -141,8 +141,8 @@ class TestTaosdemoTestInsertWithJsonStmtOtherPara:
         tdSql.execute("create database db")
         tdSql.execute("use db")
         os.system(
-            "%s -y -f ./tools/benchmark/basic/json/insert-drop-exist-auto-N00-stmt.json "
-            % binPath
+            "%s -y -f %s/json/insert-drop-exist-auto-N00-stmt.json "
+            % (binPath, os.path.dirname(__file__))
         )  # drop = no, child_table_exists, auto_create_table varies
         tdSql.execute("use db")
         tdSql.query(
@@ -172,8 +172,8 @@ class TestTaosdemoTestInsertWithJsonStmtOtherPara:
 
         tdSql.execute("drop database if exists db")
         os.system(
-            "%s -y -f ./tools/benchmark/basic/json/insert-drop-exist-auto-Y00-stmt.json "
-            % binPath
+            "%s -y -f %s/json/insert-drop-exist-auto-Y00-stmt.json "
+            % (binPath, os.path.dirname(__file__))
         )  # drop = yes, child_table_exists, auto_create_table varies
         tdSql.execute("use db")
         tdSql.query(

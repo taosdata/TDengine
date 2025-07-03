@@ -41,7 +41,7 @@ class TestJsonTag:
 
         """
         binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic/json/taosc_json_tag.json" % binPath
+        cmd = "%s -f %s/json/taosc_json_tag.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")

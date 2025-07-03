@@ -41,7 +41,7 @@ class TestStmtOffsetJson:
 
         """
         binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic/json/taosc_only_create_table.json" % binPath
+        cmd = "%s -f %s/json/taosc_only_create_table.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
@@ -72,7 +72,7 @@ class TestStmtOffsetJson:
         tdSql.checkData(23, 2, 64)
         tdSql.checkData(28, 2, 64)
 
-        cmd = "%s -f ./tools/benchmark/basic/json/stmt_limit_offset.json" % binPath
+        cmd = "%s -f %s/json/stmt_limit_offset.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")

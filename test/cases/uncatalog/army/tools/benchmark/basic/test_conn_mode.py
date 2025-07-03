@@ -30,7 +30,7 @@ class TestConnMode:
         # cmd first 6041 - valid
         options = "-X http://127.0.0.1:6041"
         # json 6042 - invalid
-        json = "tools/benchmark/basic/json/connModePriorityErrDsn.json"
+        json = f"./{os.path.dirname(__file__)}/json/connModePriorityErrDsn.json"
         self.insertBenchJson(json, options, True)
 
         #
@@ -40,7 +40,7 @@ class TestConnMode:
         # env 6041 - valid
         os.environ['TDENGINE_CLOUD_DSN'] = "http://127.0.0.1:6041"
         # json 6042 - invalid
-        json = "tools/benchmark/basic/json/connModePriorityErrDsn.json"
+        json = f"./{os.path.dirname(__file__)}/json/connModePriorityErrDsn.json"
         self.insertBenchJson(json, "", True)
 
 
@@ -53,7 +53,7 @@ class TestConnMode:
         # env  6043 - invalid
         os.environ['TDENGINE_CLOUD_DSN'] = "http://127.0.0.1:6043"
         # json 6042 - invalid
-        json = "tools/benchmark/basic/json/connModePriorityErrDsn.json"
+        json = f"./{os.path.dirname(__file__)}/json/connModePriorityErrDsn.json"
         self.insertBenchJson(json, options, True)
 
         # clear env
@@ -116,15 +116,15 @@ class TestConnMode:
 
         # 6041 is default
         options = "-Z 1 -h 127.0.0.1 -P 6041 -uroot -ptaosdata"
-        json = "tools/benchmark/basic/json/connModePriorityErrHost.json"
+        json = f"./{os.path.dirname(__file__)}/json/connModePriorityErrHost.json"
         self.insertBenchJson(json, options, True)
 
         # cmd port first json port
         options = "-Z native -P 6030"
-        json = "tools/benchmark/basic/json/connModePriority.json"
+        json = f"./{os.path.dirname(__file__)}/json/connModePriority.json"
         self.insertBenchJson(json, options, True)
         options = "-Z websocket -P 6041"
-        json = "tools/benchmark/basic/json/connModePriority.json"
+        json = f"./{os.path.dirname(__file__)}/json/connModePriority.json"
         self.insertBenchJson(json, options, True)
 
     def test_conn_mode(self):

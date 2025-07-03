@@ -46,9 +46,9 @@ class TestTaosConfigJson:
 
         """
         tdLog.info(f"start to excute {__file__}")
-        cmd = "-f ./tools/benchmark/basic/json/taos_config.json"
+        cmd = f"-f {os.path.dirname(__file__)}/json/taos_config.json"
         rlist = self.benchmark(cmd, checkRun=True)
-        self.checkListString(rlist, "Set engine cfgdir successfully, dir:./tools/benchmark/basic/config")
+        self.checkListString(rlist, f"Set engine cfgdir successfully, dir:{os.path.dirname(__file__)}/config")
 
         tdLog.success(f"{__file__} successfully executed")
 

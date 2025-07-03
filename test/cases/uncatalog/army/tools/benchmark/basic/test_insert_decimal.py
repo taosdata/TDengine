@@ -276,7 +276,7 @@ class TestInsertDecimal:
         benchmark = etool.benchMarkFile()
 
         # check normal
-        json_file = "tools/benchmark/basic/json/insert-decimal.json"
+        json_file = f"./{os.path.dirname(__file__)}/json/insert-decimal.json"
         self.check_json_normal(benchmark, json_file)
 
         # check others

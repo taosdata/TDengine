@@ -39,7 +39,7 @@ class TestStmtSampleCsvJsonDoesntUseTs:
 
         """
         binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic/json/stmt_sample_doesnt_use_ts.json" % binPath
+        cmd = "%s -f %s/json/stmt_sample_doesnt_use_ts.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")

@@ -39,7 +39,7 @@ class TestCustomColTag:
 
         """
         binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic/json/custom_col_tag.json" % binPath
+        cmd = "%s -f %s/json/custom_col_tag.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")

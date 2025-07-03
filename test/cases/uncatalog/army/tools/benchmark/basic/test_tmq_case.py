@@ -45,21 +45,21 @@ class TmqCase:
         tdSql.execute("drop topic if exists tmq_topic_0")
         tdSql.execute("drop topic if exists tmq_topic_1")
         binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic/json/default.json" % binPath
+        cmd = "%s -f %s/json/default.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("alter database db WAL_RETENTION_PERIOD 3600000")
         tdSql.execute("reset query cache")
-        cmd = "%s -f ./tools/benchmark/basic/json/tmq_basic.json " % binPath
+        cmd = "%s -f %s/json/tmq_basic.json " % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         time.sleep(5)
                 
-        cmd = "%s -f ./tools/benchmark/basic/json/tmq_basic2.json " % binPath
+        cmd = "%s -f %s/json/tmq_basic2.json " % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         time.sleep(5)
-        cmd = "%s -f ./tools/benchmark/basic/json/tmq_basic3.json " % binPath
+        cmd = "%s -f %s/json/tmq_basic3.json " % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         time.sleep(5)

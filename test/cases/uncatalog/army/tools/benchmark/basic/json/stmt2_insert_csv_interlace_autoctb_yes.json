@@ -31,7 +31,7 @@
                     "start_timestamp":1700000000000,
                     "auto_create_table": "yes",
                     "data_source": "sample",
-                    "sample_file": "./tools/benchmark/basic/csv/d0.csv",
+                    "sample_file": "./cases/uncatalog/army/tools/benchmark/basic/csv/d0.csv",
                     "use_sample_ts": "yes",    
                     "columns": [
                         {"type": "FLOAT", "name": "current", "count": 1, "max": 12, "min": 8 },

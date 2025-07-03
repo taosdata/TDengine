@@ -109,7 +109,7 @@ def curFile(fullPath, filename):
 
 
 # run build/bin file
-def runBinFile(fname, command, show=True):
+def runBinFile(fname, command, show=True, checkRun = False, retFail = False ):
     """Run a binary file with the specified command.
 
     Args:
@@ -120,14 +120,14 @@ def runBinFile(fname, command, show=True):
     Returns:
         list: The output of the command as a list of strings.
     """
-    binFile = binFile(fname)
+    bin_file = binFile(fname)
     if isWin():
-        binFile += ".exe"
+        bin_file += ".exe"
 
-    cmd = f"{binFile} {command}"
+    cmd = f"{bin_file} {command}"
     if show:
         tdLog.info(cmd)
-    return runRetList(cmd)
+    return runRetList(cmd, checkRun=checkRun, retFail=retFail)
 
 # exe build/bin file
 def exeBinFile(fname, command, wait=True, show=True):

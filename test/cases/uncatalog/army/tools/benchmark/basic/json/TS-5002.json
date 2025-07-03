@@ -49,7 +49,7 @@
                     "disorder_range": 0,
                     "timestamp_step": 900000,
                     "start_timestamp": "2024-6-01 0:0:0",
-                    "tags_file": "./tools/benchmark/basic/csv/TS-5002.csv",
+                    "tags_file": "./cases/uncatalog/army/tools/benchmark/basic/csv/TS-5002.csv",
                     "columns": [
                         {
                             "type": "FLOAT",

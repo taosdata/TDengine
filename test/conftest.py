@@ -1,6 +1,8 @@
 import pytest
 import os
 import shutil
+import time
+import copy
 from new_test_framework.utils import tdSql, etool, tdLog, BeforeTest, eutil
 
 
@@ -200,6 +202,7 @@ def before_test_class(request):
     
     # 如果用例中定义了updatecfgDict，则更新配置
     if hasattr(request.cls, "updatecfgDict"):
+        tdLog.info(f"update cfg: {request.cls.updatecfgDict}")
         request.session.before_test.update_cfg(request.cls.updatecfgDict)
 
     # 部署taosd，包括启动dnode，mnode，adapter
@@ -345,7 +348,7 @@ def add_common_methods(request):
         sql = f"alter database {self.db} replica {replica}"
         tdSql.execute(sql, show=True)
         if self.waitTransactionZero() is False:
-            logger.exit(f"{sql} transaction not finished")
+            tdLog.exit(f"{sql} transaction not finished")
             return False
         return True
 
@@ -355,7 +358,7 @@ def add_common_methods(request):
         sql = f"balance vgroup"
         tdSql.execute(sql, show=True)
         if self.waitTransactionZero() is False:
-            logger.exit(f"{sql} transaction not finished")
+            tdLog.exit(f"{sql} transaction not finished")
             return False
         return True
 
@@ -365,7 +368,7 @@ def add_common_methods(request):
         sql = f"balance vgroup leader"
         tdSql.execute(sql, show=True)
         if self.waitTransactionZero() is False:
-            logger.exit(f"{sql} transaction not finished")
+            tdLog.exit(f"{sql} transaction not finished")
             return False
         return True
 
@@ -374,7 +377,7 @@ def add_common_methods(request):
         sql = f"balance vgroup leader on {vgId}"
         tdSql.execute(sql, show=True)
         if self.waitTransactionZero() is False:
-            logger.exit(f"{sql} transaction not finished")
+            tdLog.exit(f"{sql} transaction not finished")
             return False
         return True
 
@@ -384,7 +387,7 @@ def add_common_methods(request):
         sql = f"balance vgroup leader on {vgId}"
         tdSql.execute(sql, show=True)
         if self.waitTransactionZero() is False:
-            logger.exit(f"{sql} transaction not finished")
+            tdLog.exit(f"{sql} transaction not finished")
             return False
     
     request.cls.balanceVGroupLeaderOn = balanceVGroupLeaderOn
@@ -457,23 +460,23 @@ def add_common_methods(request):
 
     # check sql1 is same result with sql2
     def checkSameResult(self, sql1, sql2):
-        logger.info(f"sql1={sql1}")
-        logger.info(f"sql2={sql2}")
-        logger.info("compare sql1 same with sql2 ...")
+        tdLog.info(f"sql1={sql1}")
+        tdLog.info(f"sql2={sql2}")
+        tdLog.info("compare sql1 same with sql2 ...")
 
         # sql
         rows1 = tdSql.query(sql1,queryTimes=2)
-        res1 = copy.deepcopy(tdSql.res)
+        res1 = copy.deepcopy(tdSql.queryResult)
 
         tdSql.query(sql2,queryTimes=2)
-        res2 = tdSql.res
+        res2 = tdSql.queryResult
 
         rowlen1 = len(res1)
         rowlen2 = len(res2)
         errCnt = 0
 
         if rowlen1 != rowlen2:
-            logger.error(f"both row count not equal. rowlen1={rowlen1} rowlen2={rowlen2} ")
+            tdLog.error(f"both row count not equal. rowlen1={rowlen1} rowlen2={rowlen2} ")
             return False
         
         for i in range(rowlen1):
@@ -482,17 +485,17 @@ def add_common_methods(request):
             collen1 = len(row1)
             collen2 = len(row2)
             if collen1 != collen2:
-                logger.error(f"both col count not equal. collen1={collen1} collen2={collen2}")
+                tdLog.error(f"both col count not equal. collen1={collen1} collen2={collen2}")
                 return False
             for j in range(collen1):
                 if row1[j] != row2[j]:
-                    logger.info(f"error both column value not equal. row={i} col={j} col1={row1[j]} col2={row2[j]} .")
+                    tdLog.info(f"error both column value not equal. row={i} col={j} col1={row1[j]} col2={row2[j]} .")
                     errCnt += 1
 
         if errCnt > 0:
-            logger.error(f"sql2 column value different with sql1. different count ={errCnt} ")
+            tdLog.error(f"sql2 column value different with sql1. different count ={errCnt} ")
 
-        logger.info("sql1 same result with sql2.")
+        tdLog.info("sql1 same result with sql2.")
     
     request.cls.checkSameResult = checkSameResult
 #
@@ -549,7 +552,7 @@ def add_common_methods(request):
             sql ="show transactions;"
             rows = tdSql.query(sql)
             if rows == 0:
-                logger.info("transaction count became zero.")
+                tdLog.info("transaction count became zero.")
                 return True
             #tdLog.info(f"i={i} wait ...")
             time.sleep(interval)
@@ -563,7 +566,7 @@ def add_common_methods(request):
             sql ="show compacts;"
             rows = tdSql.query(sql)
             if rows == 0:
-                logger.info("compacts count became zero.")
+                tdLog.info("compacts count became zero.")
                 return True
             #tdLog.info(f"i={i} wait ...")
             time.sleep(interval)
@@ -575,12 +578,12 @@ def add_common_methods(request):
     # check file exist
     def checkFileExist(self, pathFile):
         if os.path.exists(pathFile) == False:
-            logger.error(f"file not exist {pathFile}")
+            tdLog.error(f"file not exist {pathFile}")
 
     # check list not exist
     def checkListNotEmpty(self, lists, tips=""):
         if len(lists) == 0:
-            logger.error(f"list is empty {tips}")
+            tdLog.error(f"list is empty {tips}")
 
     request.cls.checkListNotEmpty = checkListNotEmpty
 
@@ -641,7 +644,7 @@ def add_common_methods(request):
         except:
             vgroups = None
 
-        logger.info(f"get json info: db={db} stb={stb} child_count={child_count} insert_rows={insert_rows} \n")
+        tdLog.info(f"get json info: db={db} stb={stb} child_count={child_count} insert_rows={insert_rows} \n")
         
         # all count insert_rows * child_table_count
         sql = f"select * from {db}.{stb}"
@@ -662,7 +665,7 @@ def add_common_methods(request):
             if cachemode != None:
                 
                 value = eutil.removeQuota(cachemode)                
-                logger.info(f" deal both origin={cachemode} after={value}")
+                tdLog.info(f" deal both origin={cachemode} after={value}")
                 tdSql.checkData(0, 1, value)
 
             if vgroups != None:

@@ -44,8 +44,8 @@ class TestSmlJsonInsertAlltypesSameMinMax:
 
         binPath = etool.benchMarkFile()
         cmd = (
-            "%s -f ./tools/benchmark/basic/json/sml_json_insert_alltypes-same-min-max.json"
-            % binPath
+            "%s -f %s/json/sml_json_insert_alltypes-same-min-max.json"
+            % (binPath, os.path.dirname(__file__))
         )
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)

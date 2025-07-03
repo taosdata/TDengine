@@ -48,8 +48,8 @@ class TestTaoscInsertTableCreatingInterval:
 
         binPath = etool.benchMarkFile()
         cmd = (
-            "%s -f ./tools/benchmark/basic/json/taosc_insert_table-creating-interval.json -g 2>&1| grep sleep | wc -l"
-            % binPath
+            "%s -f %s/json/taosc_insert_table-creating-interval.json -g 2>&1| grep sleep | wc -l"
+            % (binPath, os.path.dirname(__file__))
         )
         tdLog.info("%s" % cmd)
 

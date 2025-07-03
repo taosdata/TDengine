@@ -47,7 +47,7 @@
                     "timestamp_step": 0,
                     "start_timestamp": "2020-1-1 0:0:0",
                     "sample_format": "csv",
-                    "sample_file": "./tools/benchmark/basic/csv/TD-31490.csv",
+                    "sample_file": "./cases/uncatalog/army/tools/benchmark/basic/csv/TD-31490.csv",
                     "use_sample_ts": "yes",
                     "tags_file": "",
                     "columns": [

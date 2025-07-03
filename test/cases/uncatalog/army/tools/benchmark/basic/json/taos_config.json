@@ -1,6 +1,6 @@
 {
     "filetype": "insert",
-    "cfgdir": "./tools/benchmark/basic/config",
+    "cfgdir": "./cases/uncatalog/army/tools/benchmark/basic/config",
     "host": "127.0.0.1",
     "port": 6030,
     "user": "root",

@@ -53,7 +53,7 @@ class TestCreateTableFromCsv:
             tdLog.info("taosBenchmark found in %s" % binPath)
 
         # insert: create one  or multiple tables per sql and insert multiple rows per sql
-        os.system("%s -f ./tools/benchmark/basic/json/create_table_tags.json -y " % binPath)
+        os.system("%s -f %s/json/create_table_tags.json -y " % (binPath, os.path.dirname(__file__)))
         tdSql.query("SELECT COUNT(*) FROM (SELECT DISTINCT tbname FROM test.meters);")
         tdSql.checkData(0, 0, 4)
 

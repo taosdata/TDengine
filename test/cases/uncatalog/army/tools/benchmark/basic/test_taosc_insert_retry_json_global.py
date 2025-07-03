@@ -41,7 +41,7 @@ class TestTaoscInsertRetryJsonGlobal:
 
         """
         binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic/json/taosc_insert_retry-global.json" % binPath
+        cmd = "%s -f %s/json/taosc_insert_retry-global.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         time.sleep(2)

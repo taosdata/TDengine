@@ -41,10 +41,10 @@ class TestStreamFunctionTest:
 
         """
         binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic/json/stream_exist_stb_tag_prepare.json" % binPath
+        cmd = "%s -f %s/json/stream_exist_stb_tag_prepare.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
-        cmd = "%s -f ./tools/benchmark/basic/json/stream_exist_stb_tag_insert_partition.json " % binPath
+        cmd = "%s -f %s/json/stream_exist_stb_tag_insert_partition.json " % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")

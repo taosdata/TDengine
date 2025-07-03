@@ -148,7 +148,7 @@ class BeforeTest:
         if request.session.restful:
             return taosrest.connect(url=f"http://{request.session.host}:6041", timezone="utc")
         else:
-            return taos.connect(host=request.session.host, port=request.session.port)
+            return taos.connect(host=request.session.host, port=request.session.port, config=tdDnodes.sim.cfgPath)
 
     def get_tdsql(self, conn):
         tdSql.init(conn.cursor())
@@ -252,7 +252,8 @@ class BeforeTest:
             }
             servers.append(server)
         request.session.servers = servers
-        if request.session.restful:
+        tdLog.info(f"request.session.start_taosadapter: {request.session.start_taosadapter}")
+        if request.session.start_taosadapter:
             # TODO: 增加taosAdapter的配置
             adapter_config_dir = os.path.join(work_dir, "dnode1", "cfg")
             adapter_config_file = os.path.join(adapter_config_dir, "taosadapter.toml")
@@ -356,7 +357,7 @@ class BeforeTest:
 
         # 解析settings中name=taosd的配置
         servers = []
-        request.session.restful = False
+        request.session.start_taosadapter = False
         request.session.set_taoskeeper = False
         for setting in yaml_data.get("settings", []):
             if setting.get("name") == "taosd":
@@ -376,7 +377,7 @@ class BeforeTest:
                     servers.append(server)
             if setting.get("name") == "taosAdapter":
                 # TODO: 解析taosAdapter的配置
-                request.session.restful = True
+                request.session.start_taosadapter = True
                 adapter = {}
                 adapter["host"] = setting["fqdn"][0]
                 adapter["cfg_dir"] = os.path.dirname(setting["spec"]["config_file"])
@@ -468,7 +469,7 @@ class BeforeTest:
             tdDnodes.dnodes[i].deployed = 1
             tdDnodes.dnodes[i].running = 1
         
-        if request.session.restful:
+        if request.session.start_taosadapter:
             tAdapter.init(request.session.work_dir, master_ip)
             tAdapter.log_dir = request.session.adapter["log_path"]
             tAdapter.cfg_dir = request.session.adapter["cfg_dir"]

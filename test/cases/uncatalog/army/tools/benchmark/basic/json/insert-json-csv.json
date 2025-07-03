@@ -40,7 +40,7 @@
             "timestamp_step": 1,
             "start_timestamp": "2022-10-01 00:00:00.000",
             "sample_format": "csv",
-            "sample_file": "./tools/benchmark/basic/csv/insert-json-csv.csv",
+            "sample_file": "./cases/uncatalog/army/tools/benchmark/basic/csv/insert-json-csv.csv",
             "columns": [{"type": "INT","count":2}, {"type": "BINARY", "len": 16, "count":1}],
             "tags": [{"type": "INT", "count":2}, {"type": "BINARY", "len": 16, "count":1}]
         }]

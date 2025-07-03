@@ -46,7 +46,7 @@ class TestInsertAutoCreateTableJson:
 
         # insert: create one  or multiple tables per sql and insert multiple rows per sql
         # test case for https://jira.taosdata.com:18080/browse/TD-4985
-        os.system("%s -f ./tools/benchmark/basic/json/auto_create_table.json -y " % binPath)
+        os.system("%s -f %s/json/auto_create_table.json -y " % (binPath, os.path.dirname(__file__)))
 
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 12)

@@ -65,7 +65,7 @@ class TestStt:
 
         """
         binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic/json/stt.json" % binPath
+        cmd = "%s -f %s/json/stt.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         errcode = os.system("%s" % cmd)
         if errcode != 0:

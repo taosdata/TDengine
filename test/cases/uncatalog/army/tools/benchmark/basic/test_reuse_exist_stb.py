@@ -52,7 +52,7 @@ class TestReuseExistStb:
         tdSql.execute("create table stb (ts timestamp, c0 int)  tags (t0 int)")
         tdSql.execute("insert into stb_0 using stb tags (0) values (now, 0)")
         #        sys.exit(0)
-        cmd = "%s -f ./tools/benchmark/basic/json/reuse-exist-stb.json" % binPath
+        cmd = "%s -f %s/json/reuse-exist-stb.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("select count(*) from db.new_0")

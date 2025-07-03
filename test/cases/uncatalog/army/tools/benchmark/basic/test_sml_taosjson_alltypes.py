@@ -43,7 +43,7 @@ class TestSmlTaosjsonAlltypes:
         major_ver = client_ver.split(".")[0]
 
         binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic/json/sml_taosjson_alltypes.json" % binPath
+        cmd = "%s -f %s/json/sml_taosjson_alltypes.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")

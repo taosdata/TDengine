@@ -99,10 +99,10 @@ class TestTaosdemoTestQueryWithJson:
         os.system("rm -rf ./all_query*")
 
         # taosc query: query specified  table  and query  super table
-        os.system("%s -f ./tools/benchmark/basic/json/queryInsertdata.json" % binPath)
-        os.system("%s -f ./tools/benchmark/basic/json/queryTaosc.json" % binPath)
+        os.system("%s -f %s/json/queryInsertdata.json" % (binPath, os.path.dirname(__file__)))
+        os.system("%s -f %s/json/queryTaosc.json" % (binPath, os.path.dirname(__file__)))
         # forbid parallel spec query with super query
-        os.system("%s -f ./tools/benchmark/basic/json/queryTaosc1.json" % binPath)
+        os.system("%s -f %s/json/queryTaosc1.json" % (binPath, os.path.dirname(__file__)))
         os.system("cat query_res0.txt* > all_query_res0_taosc.txt")
         os.system("cat query_res1.txt* > all_query_res1_taosc.txt")
         os.system("cat query_res2.txt* > all_query_res2_taosc.txt")
@@ -127,9 +127,9 @@ class TestTaosdemoTestQueryWithJson:
         os.system("rm -rf ./all_query*")
 
         # use restful api to query
-        os.system("%s -f ./tools/benchmark/basic/json/queryInsertrestdata.json" % binPath)
-        os.system("%s -f ./tools/benchmark/basic/json/queryRestful.json" % binPath)
-        os.system("%s -f ./tools/benchmark/basic/json/queryRestful1.json" % binPath)
+        os.system("%s -f %s/json/queryInsertrestdata.json" % (binPath, os.path.dirname(__file__)))
+        os.system("%s -f %s/json/queryRestful.json" % (binPath, os.path.dirname(__file__)))
+        os.system("%s -f %s/json/queryRestful1.json" % (binPath, os.path.dirname(__file__)))
         os.system("cat query_res0.txt*  > all_query_res0_rest.txt")
         os.system("cat query_res1.txt*  > all_query_res1_rest.txt")
         os.system("cat query_res2.txt*  > all_query_res2_rest.txt")
@@ -163,31 +163,31 @@ class TestTaosdemoTestQueryWithJson:
 
         # query times less than or equal to 100
         assert (
-            os.system("%s -f ./tools/benchmark/basic/json/queryInsertdata.json" % binPath) == 0
+            os.system("%s -f %s/json/queryInsertdata.json" % (binPath, os.path.dirname(__file__))) == 0
         )
         assert (
-            os.system("%s -f ./tools/benchmark/basic/json/querySpeciMutisql100.json" % binPath)
+            os.system("%s -f %s/json/querySpeciMutisql100.json" % (binPath, os.path.dirname(__file__)))
             != 0
         )
         assert (
-            os.system("%s -f ./tools/benchmark/basic/json/querySuperMutisql100.json" % binPath)
+            os.system("%s -f %s/json/querySuperMutisql100.json" % (binPath, os.path.dirname(__file__)))
             == 0
         )
 
         # query result print QPS
-        os.system("%s -f ./tools/benchmark/basic/json/queryInsertdata.json" % binPath)
-        exceptcode = os.system("%s -f ./tools/benchmark/basic/json/queryQps.json" % binPath)
+        os.system("%s -f %s/json/queryInsertdata.json" % (binPath, os.path.dirname(__file__)))
+        exceptcode = os.system("%s -f %s/json/queryQps.json" % (binPath, os.path.dirname(__file__)))
         assert exceptcode == 0
-        exceptcode = os.system("%s -f ./tools/benchmark/basic/json/queryQps1.json" % binPath)
+        exceptcode = os.system("%s -f %s/json/queryQps1.json" % (binPath, os.path.dirname(__file__)))
         assert exceptcode == 0
 
         # 2021.02.09 need modify taosBenchmakr code
         # use illegal or out of range parameters query json file
-        os.system("%s -f ./tools/benchmark/basic/json/queryInsertdata.json" % binPath)
+        os.system("%s -f %s/json/queryInsertdata.json" % (binPath, os.path.dirname(__file__)))
 
         # delete useless files
         os.system("rm -rf ./insert_res.txt")
-        os.system("rm -rf ./tools/benchmark/basic/*.py.sql")
+        os.system("rm -rf %s/*.py.sql" % os.path.dirname(__file__))
         os.system("rm -rf ./querySystemInfo*")
         os.system("rm -rf ./query_res*")
         os.system("rm -rf ./all_query*")

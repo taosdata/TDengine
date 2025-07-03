@@ -52,7 +52,7 @@ class TestInsertData:
 
         """
         binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic/json/dmeters.json" % binPath
+        cmd = "%s -f %s/json/dmeters.json" % (binPath, os.path.dirname(__file__))
         self.insert(cmd)
         sql = "select count(*) from dmeters.meters where current > 5 and current < 65 and voltage > 119 and voltage < 2181 and phase > 29 and phase < 571;"
         self.checkDataCorrect(sql)

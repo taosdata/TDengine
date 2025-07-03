@@ -382,11 +382,11 @@ class TestCsvExport:
         benchmark = etool.benchMarkFile()
 
         # check normal
-        json_file = "tools/benchmark/basic/json/csv-export.json"
+        json_file = f"./{os.path.dirname(__file__)}/json/csv-export.json"
         self.check_export_csv_main(benchmark, json_file)
 
         # check others
-        json_file = "tools/benchmark/basic/json/csv-export-template.json"
+        json_file = f"./{os.path.dirname(__file__)}/json/csv-export-template.json"
         self.check_export_csv_others(benchmark, json_file)
 
 

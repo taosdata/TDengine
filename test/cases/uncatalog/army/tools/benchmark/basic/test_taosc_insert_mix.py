@@ -44,7 +44,7 @@ class TestTaoscInsertMix:
         binPath = etool.benchMarkFile()
         # mix 1 ~ 4
         for i in range(4):
-            cmd = "%s -f ./tools/benchmark/basic/json/case-insert-mix%d.json" % (binPath, i + 1)
+            cmd = "%s -f %s/json/case-insert-mix%d.json" % (binPath, os.path.dirname(__file__), i + 1)
             tdLog.info("%s" % cmd)
             os.system("%s" % cmd)
 

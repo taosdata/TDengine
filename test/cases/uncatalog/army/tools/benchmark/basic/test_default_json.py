@@ -41,7 +41,7 @@ class TestDefaultJson:
 
         """
         binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic/json/default.json" % binPath
+        cmd = "%s -f %s/json/default.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")

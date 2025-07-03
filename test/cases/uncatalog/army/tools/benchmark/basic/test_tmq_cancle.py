@@ -68,7 +68,7 @@ class TmqCancle:
 
     def dbTmqThread(self):
         binPath = etool.benchMarkFile()
-        cmd = "-f ./tools/benchmark/basic/json/tmq_cancel.json"
+        cmd = f"-f {os.path.dirname(__file__)}/json/tmq_cancel.json"
         self._rlist = self.benchmark(cmd, checkRun=False)
         tdLog.info(self._rlist)
 

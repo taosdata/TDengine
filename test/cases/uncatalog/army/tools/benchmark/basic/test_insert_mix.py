@@ -79,11 +79,11 @@ class TestInsertMix:
 
         """
         binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic/json/insertMix.json" % binPath
+        cmd = "%s -f %s/json/insertMix.json" % (binPath, os.path.dirname(__file__))
         self.insert(cmd)
-        cmd = "%s -f ./tools/benchmark/basic/json/insertMixOldRule.json" % binPath
+        cmd = "%s -f %s/json/insertMixOldRule.json" % (binPath, os.path.dirname(__file__))
         self.insert(cmd)
-        cmd = "%s -f ./tools/benchmark/basic/json/insertMixAutoCreateTable.json" % binPath
+        cmd = "%s -f %s/json/insertMixAutoCreateTable.json" % (binPath, os.path.dirname(__file__))
         self.insert(cmd)
 
         tdLog.success("%s successfully executed" % __file__)

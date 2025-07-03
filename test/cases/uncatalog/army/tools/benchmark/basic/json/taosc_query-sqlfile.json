@@ -13,7 +13,7 @@
   {
     "query_interval": 1,
     "concurrent":1,
-    "sql_file": "tools/benchmark/basic/json/query-sqls.txt",
+    "sql_file": "cases/uncatalog/army/tools/benchmark/basic/json/query-sqls.txt",
     "result": "taosc_query_specified-sqlfile"
   }
 }

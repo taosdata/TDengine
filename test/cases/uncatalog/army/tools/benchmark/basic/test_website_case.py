@@ -26,7 +26,7 @@ def removeQuotation(origin):
 
     return value
 
-class Websitecase:
+class TestWebsiteCase:
     def caseDescription(self):
         """
         taosBenchmark query->Basic test cases
@@ -239,17 +239,17 @@ class Websitecase:
         benchmark = etool.benchMarkFile()
       
         # insert
-        json = "../../tools/taos-tools/example/insert.json"
+        json = "../tools/taos-tools/example/insert.json"
         self.insertBenchJson(json, checkStep=True)
 
         # query
-        json = "../../tools/taos-tools/example/query.json"
+        json = "../tools/taos-tools/example/query.json"
         self.checkAfterRun(benchmark, json, True, tbCnt)
-        json = "../../tools/taos-tools/example/queryStb.json"
+        json = "../tools/taos-tools/example/queryStb.json"
         self.checkAfterRun(benchmark, json, False, tbCnt)
 
         # tmq
-        json = "../../tools/taos-tools/example/tmq.json"
+        json = "../tools/taos-tools/example/tmq.json"
         self.checkTmqJson(benchmark, json)
         
 

@@ -42,7 +42,7 @@ class TestSmlAutoCreateTableJson:
         """
         binPath = etool.benchMarkFile()
 
-        cmd = "%s -f ./tools/benchmark/basic/json/sml_auto_create_table.json" % binPath
+        cmd = "%s -f %s/json/sml_auto_create_table.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")

@@ -44,7 +44,7 @@ class TestFromToContinue:
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
 
-        cmd = "%s -f ./tools/benchmark/basic/json/insert-from-to-continue-no.json" % binPath
+        cmd = "%s -f %s/json/insert-from-to-continue-no.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("select count(*) from test.meters")
@@ -56,7 +56,7 @@ class TestFromToContinue:
         tdSql.execute("use test")
         tdSql.execute("create table d5 using meters tags (4, 'd5')")
 
-        cmd = "%s -f ./tools/benchmark/basic/json/insert-from-to-continue-yes.json" % binPath
+        cmd = "%s -f %s/json/insert-from-to-continue-yes.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("select count(*) from test.meters")
@@ -68,7 +68,7 @@ class TestFromToContinue:
         tdSql.execute("use test")
         tdSql.execute("create table d4 using meters tags (4, 'd4')")
 
-        cmd = "%s -f ./tools/benchmark/basic/json/insert-from-to-continue-smart.json" % binPath
+        cmd = "%s -f %s/json/insert-from-to-continue-smart.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("select count(*) from test.meters")

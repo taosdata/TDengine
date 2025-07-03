@@ -196,10 +196,10 @@ class TestQueryMain:
     def threeQueryMode(self, benchmark, tbCnt, tbRow):
         # json
         args = [
-            ["./tools/benchmark/basic/json/queryModeSpec", True],
-            ["./tools/benchmark/basic/json/queryModeSpecMix", True],
-            ["./tools/benchmark/basic/json/queryModeSpecMixBatch", True],
-            ["./tools/benchmark/basic/json/queryModeSuper", False]
+            [f"./{os.path.dirname(__file__)}/json/queryModeSpec", True],
+            [f"./{os.path.dirname(__file__)}/json/queryModeSpecMix", True],
+            [f"./{os.path.dirname(__file__)}/json/queryModeSpecMixBatch", True],
+            [f"./{os.path.dirname(__file__)}/json/queryModeSuper", False]
         ]
 
         # native
@@ -217,13 +217,13 @@ class TestQueryMain:
     # check excption
     def exceptTest(self, benchmark, tbCnt, tbRow):
         # 'specified_table_query' and 'super_table_query' error
-        self.expectFailed(f"{benchmark} -f  ./tools/benchmark/basic/json/queryErrorNoSpecSuper.json")
-        self.expectFailed(f"{benchmark} -f  ./tools/benchmark/basic/json/queryErrorBothSpecSuper.json")
+        self.expectFailed(f"{benchmark} -f  {os.path.dirname(__file__)}/json/queryErrorNoSpecSuper.json")
+        self.expectFailed(f"{benchmark} -f  {os.path.dirname(__file__)}/json/queryErrorBothSpecSuper.json")
         # json format error
-        self.expectFailed(f"{benchmark} -f  ./tools/benchmark/basic/json/queryErrorFormat.json")
+        self.expectFailed(f"{benchmark} -f  {os.path.dirname(__file__)}/json/queryErrorFormat.json")
         # batch query
-        self.expectFailed(f"{benchmark} -f  ./tools/benchmark/basic/json/queryErrorBatchNoMix.json")
-        self.expectFailed(f"{benchmark} -f  ./tools/benchmark/basic/json/queryErrorBatchRest.json")
+        self.expectFailed(f"{benchmark} -f  {os.path.dirname(__file__)}/json/queryErrorBatchNoMix.json")
+        self.expectFailed(f"{benchmark} -f  {os.path.dirname(__file__)}/json/queryErrorBatchRest.json")
 
     def test_query_main(self):
         """summary: xxx

@@ -42,7 +42,7 @@ class TestStmtInsertAlltypesJson:
         """
         binPath = etool.benchMarkFile()
 
-        cmd = "%s -f ./tools/benchmark/basic/json/stmt_insert_alltypes.json" % binPath
+        cmd = "%s -f %s/json/stmt_insert_alltypes.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("select count(*) from db.stb")

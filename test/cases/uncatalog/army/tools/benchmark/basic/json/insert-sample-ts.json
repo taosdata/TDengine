@@ -40,7 +40,7 @@
             "timestamp_step": 1,
             "start_timestamp": "2020-10-01 00:00:00.000",
             "sample_format": "csv",
-            "sample_file": "./tools/benchmark/basic/csv/sample_ts.csv",
+            "sample_file": "./cases/uncatalog/army/tools/benchmark/basic/csv/sample_ts.csv",
             "use_sample_ts": "yes",
             "tags_file": "",
             "columns": [{"type": "INT", "count":3}, {"type": "DOUBLE", "count":3}, {"type": "BINARY", "len": 16, "count":1}, {"type": "BINARY", "len": 32, "count":1}, {"type": "BOOL"}],
@@ -67,8 +67,8 @@
             "timestamp_step": 10,
             "start_timestamp": "2020-10-01 00:00:00.000",
             "sample_format": "csv",
-            "sample_file": "./tools/benchmark/basic/csv/sample.csv",
-            "tags_file": "./tools/benchmark/basic/csv/tags.csv",
+            "sample_file": "./cases/uncatalog/army/tools/benchmark/basic/csv/sample_ts.csv",
+            "tags_file": "./cases/uncatalog/army/tools/benchmark/basic/csv/tags.csv",
             "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":10}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
             "tags": [{"type": "TINYINT", "count":3}, {"type": "BINARY", "len": 16, "count":2}]
         }]

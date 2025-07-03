@@ -45,7 +45,7 @@ class TestFromTo:
 
         binPath = etool.benchMarkFile()
 
-        cmd = "%s -f ./tools/benchmark/basic/json/from-to.json" % binPath
+        cmd = "%s -f %s/json/from-to.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("select count(*) from db.stb")

@@ -50,7 +50,7 @@ class TestQueryJsonWithSqlfile:
         tdSql.execute("insert into stb_0 using stb tags (0) values (now, 0)")
         tdSql.execute("insert into stb_1 using stb tags (1) values (now, 1)")
         tdSql.execute("insert into stb_2 using stb tags (2) values (now, 2)")
-        cmd = "%s -f ./tools/benchmark/basic/json/taosc_query-sqlfile.json" % binPath
+        cmd = "%s -f %s/json/taosc_query-sqlfile.json" % (binPath, os.path.dirname(__file__))
         rlist = self.benchmark(f"-f {cmd}")
         # check result
         self.checkListString(rlist, "completed total queries: 2")

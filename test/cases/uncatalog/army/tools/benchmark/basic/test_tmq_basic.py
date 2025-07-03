@@ -41,15 +41,15 @@ class TestTmqbasic:
         """
         
         # insert data
-        json = "tools/benchmark/basic/json/tmqBasicInsert.json"
+        json = f"{os.path.dirname(__file__)}/json/tmqBasicInsert.json"
         db, stb, child_count, insert_rows = self.insertBenchJson(json, checkStep = True)
 
         # tmq Sequ
-        json = "tools/benchmark/basic/json/tmqBasicSequ.json"
+        json = f"{os.path.dirname(__file__)}/json/tmqBasicSequ.json"
         self.tmqBenchJson(json)
 
         # tmq Parallel
-        json = "tools/benchmark/basic/json/tmqBasicPara.json"
+        json = f"{os.path.dirname(__file__)}/json/tmqBasicPara.json"
         self.tmqBenchJson(json)
 
         tdLog.success("%s successfully executed" % __file__)

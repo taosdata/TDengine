@@ -24,7 +24,7 @@ class TestStmt2InsertRetryJsonStb:
         tdLog.info(f"dbInsertThread start")
         # taosBenchmark run
         binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic/json/stmt2_insert_retry-stb.json" % binPath
+        cmd = "%s -f %s/json/stmt2_insert_retry-stb.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
 

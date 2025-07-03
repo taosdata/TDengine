@@ -39,7 +39,7 @@ class TestTaosadapterJson:
 
         """
         binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic/json/sml_rest_telnet.json" % binPath
+        cmd = "%s -f %s/json/sml_rest_telnet.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
@@ -51,7 +51,7 @@ class TestTaosadapterJson:
         tdSql.query("select count(*) from db.stb2")
         tdSql.checkData(0, 0, 160)
 
-        cmd = "%s -f ./tools/benchmark/basic/json/sml_rest_line.json" % binPath
+        cmd = "%s -f %s/json/sml_rest_line.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
@@ -63,7 +63,7 @@ class TestTaosadapterJson:
         tdSql.query("select count(*) from db2.stb2")
         tdSql.checkData(0, 0, 160)
 
-        cmd = "%s -f ./tools/benchmark/basic/json/sml_rest_json.json" % binPath
+        cmd = "%s -f %s/json/sml_rest_json.json" % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")

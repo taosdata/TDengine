@@ -22,9 +22,9 @@ class TestInsertBindVgroup:
     # bugs ts
     def checkBasic(self):
         # thread equal vgroups
-        self.insertBenchJson("./tools/benchmark/basic/json/insertBindVGroup.json", "-g", True)
+        self.insertBenchJson(f"./{os.path.dirname(__file__)}/json/insertBindVGroup.json", "-g", True)
         # thread is limited
-        self.insertBenchJson("./tools/benchmark/basic/json/insertBindVGroup.json", "-T 2", True)
+        self.insertBenchJson(f"./{os.path.dirname(__file__)}/json/insertBindVGroup.json", "-T 2", True)
 
     def test_insert_bind_vgroup(self):
         """summary: xxx
