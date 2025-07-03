@@ -64,7 +64,6 @@ _exit:
   return code;
 }
 
-
 static int32_t streamTriggerAddWaitContext(SSTriggerRealtimeContext *pContext, int64_t resumeTime) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
@@ -474,10 +473,16 @@ static int32_t stRealtimeGroupMetaDataCompare(const void *pLeft, const void *pRi
   const SSTriggerMetaData *pLeftMeta = (const SSTriggerMetaData *)pLeft;
   const SSTriggerMetaData *pRightMeta = (const SSTriggerMetaData *)pRight;
 
-  if (pLeftMeta->ekey == pRightMeta->ekey) {
-    return pLeftMeta->skey - pRightMeta->skey;
+  if (pLeftMeta->ekey < pRightMeta->ekey) {
+    return -1;
+  } else if (pLeftMeta->ekey > pRightMeta->ekey) {
+    return 1;
+  } else if (pLeftMeta->skey < pRightMeta->skey) {
+    return -1;
+  } else if (pLeftMeta->skey > pRightMeta->skey) {
+    return 1;
   }
-  return pLeftMeta->ekey - pRightMeta->ekey;
+  return 0;
 }
 
 static int32_t stRealtimeGroupMetaDataSearch(const void *pLeft, const void *pRight) {
@@ -490,10 +495,16 @@ static int32_t stRealtimeGroupWindowCompare(const void *pLeft, const void *pRigh
   const SSTriggerWindow *pLeftWin = (const SSTriggerWindow *)pLeft;
   const SSTriggerWindow *pRightWin = (const SSTriggerWindow *)pRight;
 
-  if (pLeftWin->range.skey == pRightWin->range.skey) {
-    return pLeftWin->range.ekey - pRightWin->range.ekey;
+  if (pLeftWin->range.skey < pRightWin->range.skey) {
+    return -1;
+  } else if (pLeftWin->range.skey > pRightWin->range.skey) {
+    return 1;
+  } else if (pLeftWin->range.ekey < pRightWin->range.ekey) {
+    return -1;
+  } else if (pLeftWin->range.ekey > pRightWin->range.ekey) {
+    return 1;
   }
-  return pLeftWin->range.skey - pRightWin->range.skey;
+  return 0;
 }
 
 static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerRealtimeContext *pContext, int64_t gid) {
@@ -510,6 +521,10 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
 
   pGroup->oldThreshold = INT64_MIN;
   pGroup->newThreshold = INT64_MIN;
+  // todo(kjq): remove threshold
+  if ((pTask->fillHistory || pTask->fillHistoryFirst) && pTask->fillHistoryStartTime > 0) {
+    pGroup->oldThreshold = pTask->fillHistoryStartTime - 1;
+  }
 
   TRINGBUF_INIT(&pGroup->winBuf);
 
@@ -760,7 +775,7 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SSDat
   int32_t maxNumHold = 0;
   pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
   while (pTableMeta != NULL) {
-    maxNumHold = TMAX(maxNumHold, TARRAY_SIZE(pTableMeta->pMetas) - pTableMeta->metaIdx);
+    maxNumHold = TMAX(maxNumHold, taosArrayGetSize(pTableMeta->pMetas) - pTableMeta->metaIdx);
     pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, pTableMeta, &iter);
   }
   if (maxNumHold < pContext->minMetaThreshold) {
@@ -772,7 +787,7 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SSDat
   pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
   pGroup->newThreshold = INT64_MAX;
   while (pTableMeta != NULL) {
-    if (TARRAY_SIZE(pTableMeta->pMetas) - pTableMeta->metaIdx >= numHoldThreshold) {
+    if (taosArrayGetSize(pTableMeta->pMetas) - pTableMeta->metaIdx >= numHoldThreshold) {
       SSTriggerMetaData *pMeta = taosArrayGetLast(pTableMeta->pMetas);
       pGroup->newThreshold = TMIN(pGroup->newThreshold, pMeta->ekey - pTask->watermark);
     }
@@ -1359,7 +1374,7 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
     int32_t             iter = 0;
     SSTriggerTableMeta *pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
     while (pTableMeta != NULL) {
-      for (int32_t i = 0; i < TARRAY_SIZE(pTableMeta->pMetas); i++) {
+      for (int32_t i = 0; i < taosArrayGetSize(pTableMeta->pMetas); i++) {
         SSTriggerMetaData *pMeta = TARRAY_GET_ELEM(pTableMeta->pMetas, i);
         ts = TMIN(ts, pMeta->skey);
       }
@@ -1503,8 +1518,10 @@ static int32_t stRealtimeGroupDoSessionCheck(SSTriggerRealtimeGroup *pGroup) {
         }
         continue;
       }
-      code = stRealtimeGroupCloseWindow(pGroup, NULL, true);
-      QUERY_CHECK_CODE(code, lino, _end);
+      if (IS_REALTIME_GROUP_OPEN_WINDOW(pGroup)) {
+        code = stRealtimeGroupCloseWindow(pGroup, NULL, true);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
       code = stRealtimeGroupOpenWindow(pGroup, nextTs, NULL, true, true);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
@@ -2081,8 +2098,8 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
     case STRIGGER_PULL_WAL_TS_DATA:
     case STRIGGER_PULL_WAL_TRIGGER_DATA:
     case STRIGGER_PULL_WAL_CALC_DATA: {
-      SSTriggerWalRequest *pReq = &pContext->pullReq.walReq;
-      SSTriggerRealtimeGroup         *pGroup = stRealtimeContextGetCurrentGroup(pContext);
+      SSTriggerWalRequest    *pReq = &pContext->pullReq.walReq;
+      SSTriggerRealtimeGroup *pGroup = stRealtimeContextGetCurrentGroup(pContext);
       QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
       SSTriggerTableMeta *pCurTableMeta = pGroup->pCurTableMeta;
       SSTriggerMetaData  *pMetaToFetch = pContext->pMetaToFetch;
@@ -2550,7 +2567,8 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     int32_t             iter = 0;
     SSTriggerTableMeta *pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
     while (pTableMeta != NULL) {
-      if ((pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) && IS_REALTIME_GROUP_OPEN_WINDOW(pGroup)) {
+      if ((pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) && IS_REALTIME_GROUP_OPEN_WINDOW(pGroup) &&
+          (taosArrayGetSize(pTableMeta->pMetas) > 0)) {
         int64_t endTime = TRINGBUF_FIRST(&pGroup->winBuf).range.skey - 1;
         int32_t idx = taosArraySearchIdx(pTableMeta->pMetas, &endTime, stRealtimeGroupMetaDataSearch, TD_GT);
         taosArrayPopFrontBatch(pTableMeta->pMetas, idx);
@@ -2779,6 +2797,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_LAST_TS);
         QUERY_CHECK_CODE(code, lino, _end);
       } else {
+        // todo(kjq): remove condition check
         if (!pTask->fillHistory && !pTask->fillHistoryFirst) {
           int32_t               iter = 0;
           SSTriggerWalProgress *pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, NULL, &iter);
@@ -2817,7 +2836,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_CONDITION(pCont == pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       }
 
-      QUERY_CHECK_CONDITION(TD_DLIST_NELES(&pContext->groupsToCheck) == 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       int32_t nrows = blockDataGetNumOfRows(pDataBlock);
       // update reader wal progress
       SStreamTaskAddr *pReader = taosArrayGet(pTask->readerList, pContext->curReaderIdx);
@@ -2875,8 +2893,11 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           }
         }
       }
-      if (pTask->triggerType == STREAM_TRIGGER_PERIOD &&
-          pContext->curReaderIdx != taosArrayGetSize(pTask->readerList) - 1) {
+      if (pTask->triggerType == STREAM_TRIGGER_PERIOD && nrows > 0) {
+        code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_META);
+        QUERY_CHECK_CODE(code, lino, _end);
+      } else if (pTask->triggerType == STREAM_TRIGGER_PERIOD &&
+                 pContext->curReaderIdx != taosArrayGetSize(pTask->readerList) - 1) {
         pContext->curReaderIdx++;
         code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_META);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -3012,6 +3033,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         }
         SStreamMgmtReq *pReq = taosMemoryCalloc(1, sizeof(SStreamMgmtReq));
         QUERY_CHECK_NULL(pReq, code, lino, _end, terrno);
+        pReq->reqId = atomic_fetch_add_64(&pTask->mgmtReqId, 1);
         pReq->type = STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER;
         pReq->cont.fullTableNames = pOrigTableNames;
         pOrigTableNames = NULL;

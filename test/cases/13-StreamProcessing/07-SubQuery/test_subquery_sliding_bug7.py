@@ -107,10 +107,10 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=64,
-            stream="create stream rdb.s64 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r64 as select cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from qdb.view1 where cts >= _twstart and cts < _twend limit 1",
-            res_query="select cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from rdb.r64 where id = 1 limit 1",
-            exp_query="select cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from qdb.view1 where cts = '2025-01-01 00:00:00.000';",
+            id=111,
+            stream="create stream rdb.s111 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r111 as select _wstart, _wend, _twstart, _twend, csmallint, count(cts), count(cbool) from qdb.meters partition by tbname state_window(csmallint)",
+            res_query="select * from rdb.r111 where `_wstart` >= '2025-01-01 00:00:00.000' and `_wstart` < '2025-01-01 00:05:00.000' and tag_tbname='t1';",
+            exp_query="select _wstart, _wend, cast('2025-01-01 00:00:00.000' as timestamp) t1, cast('2025-01-01 00:05:00.000' as timestamp) t2, csmallint, count(cts), count(cbool), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and tbname='t1' partition by tbname STATE_WINDOW(csmallint);",
         )
         self.streams.append(stream)
 

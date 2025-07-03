@@ -88,7 +88,6 @@ typedef struct SStreamReaderTaskInner {
   int32_t                              currentGroupIndex;
   SFilterInfo*                         pFilterInfo;
   char*                                idStr;
-  int32_t                              index;
   SQueryTableDataCond                  cond;
 } SStreamReaderTaskInner;
 
