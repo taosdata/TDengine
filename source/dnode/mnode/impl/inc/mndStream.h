@@ -182,7 +182,7 @@ typedef struct SStmTaskStatus {
   int64_t         flags;
   EStreamStatus   status;
   SRWLatch        detailStatusLock;
-  void*           detailStatus;     // SSTriggerRuntimeStatus*
+  void*           detailStatus;     // SSTriggerRuntimeStatus*, only for trigger task now
   int32_t         errCode;
   int64_t         runningStartTs;
   int64_t         lastUpTs;
@@ -518,6 +518,8 @@ void mndStreamUpdateTagsRefFlag(SMnode *pMnode, int64_t suid, SSchema* pTags, in
 void mstCheckDbInUse(SMnode *pMnode, char *dbFName, bool *dbStream, bool *vtableStream, bool ignoreCurrDb);
 void mstDestroySStmSnodeTasksDeploy(void* param);
 void mstDestroySStmStatus(void* param);
+void mstDestroySStmAction(void* param);
+void mstClearSStmStreamDeploy(SStmStreamDeploy* pDeploy);
 void mstDestroySStmVgroupStatus(void* param);
 void mstDestroySStmSnodeStatus(void* param);
 void mstDestroySStmVgTasksToDeploy(void* param);

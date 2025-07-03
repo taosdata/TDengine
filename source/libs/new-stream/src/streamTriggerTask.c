@@ -2409,6 +2409,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       void   *buf = NULL;
       int64_t len = 0;
       code = streamReadCheckPoint(pTask->task.streamId, &buf, &len);
+      taosMemoryFree(buf); // TODO, fix memory leak first
       QUERY_CHECK_CODE(code, lino, _end);
       pContext->haveReadCheckpoint = true;
     } else {

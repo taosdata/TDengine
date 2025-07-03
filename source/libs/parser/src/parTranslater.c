@@ -3037,6 +3037,7 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
         SFunctionNode *pTbname = NULL;
         PAR_ERR_JRET(createTbnameFunction(&pTbname));
         tstrncpy(pTbname->node.userAlias, ((SExprNode*)*pFunc)->userAlias, TSDB_COL_NAME_LEN);
+        nodesDestroyNode(*pFunc);
         *pFunc = (SNode*)pTbname;
         return translateFunction(pCxt, (SFunctionNode**)pFunc);
       } else {
@@ -3067,12 +3068,14 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
           SFunctionNode* pTbname = NULL;
           PAR_ERR_JRET(createTbnameFunction(&pTbname));
           tstrncpy(pTbname->node.userAlias, ((SExprNode*)*pFunc)->userAlias, TSDB_COL_NAME_LEN);
+          nodesDestroyNode(*pFunc);
           *pFunc = (SNode*)pTbname;
           return translateFunction(pCxt, (SFunctionNode**)pFunc);
         } else if (nodeType(pExpr) == QUERY_NODE_COLUMN) {
           SColumnNode* pCol = NULL;
           PAR_ERR_JRET(nodesCloneNode((SNode*)pExpr, (SNode**)&pCol));
           tstrncpy(pCol->node.userAlias, ((SExprNode*)*pFunc)->userAlias, TSDB_COL_NAME_LEN);
+          nodesDestroyNode(*pFunc);
           *pFunc = (SNode*)pCol;
           return translateColumn(pCxt, (SColumnNode**)pFunc);
         } else {
@@ -13716,10 +13719,12 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
 
   PAR_ERR_JRET(columnDefNodeToField(pStmt->pCols, &pReq->outCols, false, false));
   PAR_ERR_JRET(createStreamReqBuildOutSubtable(pCxt, pStmt->streamDbName, pStmt->streamName, pStmt->targetDbName, pStmt->targetTabName, pStmt->pSubtable, pTriggerSlotHash, ((SStreamTriggerNode*)pStmt->pTrigger)->pPartitionList, (char**)&pReq->subTblNameExpr));
-
-  return code;
+  
 _return:
-  parserError("createStreamReqBuildOutTable failed, code:%d", code);
+
+  if (code) {
+    parserError("createStreamReqBuildOutTable failed, code:%d", code);
+  }
   taosMemoryFreeClear(pMeta);
   return code;
 }
@@ -16787,6 +16792,7 @@ static int32_t rewriteShowStreams(STranslateContext* pCxt, SQuery* pQuery) {
   if (nodeType(pDbNode) == QUERY_NODE_VALUE) {
     SArray* pVgs = NULL;
     int32_t code = getDBVgInfo(pCxt, ((SValueNode*)pDbNode)->literal, &pVgs);
+    taosArrayDestroy(pVgs);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }

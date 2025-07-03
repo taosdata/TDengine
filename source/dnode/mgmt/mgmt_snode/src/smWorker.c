@@ -143,8 +143,8 @@ _exit:
 
   if (code) {
     taosMemoryFree(pAhandle);
-    rpcFreeCont(pMsg->pCont);
-    taosFreeQitem(pMsg);
+    //rpcFreeCont(pMsg->pCont);
+    //taosFreeQitem(pMsg);
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 

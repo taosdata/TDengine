@@ -112,10 +112,24 @@ void mstDestroySStmStatus(void* param) {
   taosMemoryFreeClear(pStatus->streamName);
   taosArrayDestroy(pStatus->trigReaders);
   taosArrayDestroy(pStatus->calcReaders);
+  taosMemoryFreeClear(pStatus->triggerTask->detailStatus);
   taosMemoryFreeClear(pStatus->triggerTask);
   for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
     taosArrayDestroy(pStatus->runners[i]);
   }
+}
+
+void mstDestroySStmAction(void* param) {
+  SStmAction* pAction = (SStmAction*)param;
+
+  taosArrayDestroy(pAction->undeploy.taskList);
+  taosArrayDestroy(pAction->recalc.recalcList);
+}
+
+void mstClearSStmStreamDeploy(SStmStreamDeploy* pDeploy) {
+  pDeploy->readerTasks = NULL;
+  pDeploy->triggerTask = NULL;
+  pDeploy->runnerTasks = NULL;
 }
 
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped) {

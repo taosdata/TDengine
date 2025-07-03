@@ -2193,7 +2193,7 @@ static int32_t msmReLaunchReaderTask(SStreamObj* pStream, SStmTaskAction* pActio
   info.task.taskIdx = pAction->id.taskIdx;
   
   bool isTriggerReader = STREAM_IS_TRIGGER_READER(pAction->flag);
-  void* scanPlan = NULL;
+  SStreamCalcScan* scanPlan = NULL;
   if (!isTriggerReader) {
     scanPlan = taosArrayGet(pStream->pCreate->calcScanPlanList, pAction->id.taskIdx);
     if (NULL == scanPlan) {
@@ -2203,7 +2203,7 @@ static int32_t msmReLaunchReaderTask(SStreamObj* pStream, SStmTaskAction* pActio
     }
   }
   
-  TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, pStream, scanPlan, pStatus, isTriggerReader));
+  TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, pStream, scanPlan->scanPlan, pStatus, isTriggerReader));
   TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, pAction->streamId));
 
 _exit:
@@ -2551,7 +2551,13 @@ int32_t msmHandleGrantExpired(SMnode *pMnode) {
   return TSDB_CODE_SUCCESS;
 }
 
-void msmDestroyStreamDeploy(SStmStreamDeploy* pStream) {
+void msmDestroyStreamDeploy(void* param) {
+  if (NULL == param) {
+    return;
+  }
+  
+  SStmStreamDeploy* pStream = (SStmStreamDeploy*)param;
+  
   taosArrayDestroy(pStream->readerTasks);
   taosArrayDestroy(pStream->runnerTasks);
 }
@@ -2790,6 +2796,8 @@ int32_t msmRspAddStreamsDeploy(SStmGrpCtx* pCtx) {
     
     SStmStreamDeploy *pDeploy = (SStmStreamDeploy *)pIter;
     TSDB_CHECK_NULL(taosArrayPush(pCtx->pRsp->deploy.streamList, pDeploy), code, lino, _exit, terrno);
+    mstClearSStmStreamDeploy(pDeploy);
+    
     TAOS_CHECK_EXIT(msmUpdateStreamLastActTs(pDeploy->streamId, pCtx->currTs));
 
     int64_t streamId = pDeploy->streamId;
@@ -4694,12 +4702,15 @@ int32_t msmInitRuntimeInfo(SMnode *pMnode) {
         mError("failed to initialize the stream runtime deployStm[%d][%d], error:%s", i, m, tstrerror(code));
         goto _exit;
       }
+      taosHashSetFreeFp(pCtx->deployStm[m], msmDestroyStreamDeploy);
+      
       pCtx->actionStm[m] = taosHashInit(snodeNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
       if (pCtx->actionStm[m] == NULL) {
         code = terrno;
         mError("failed to initialize the stream runtime actionStm[%d][%d], error:%s", i, m, tstrerror(code));
         goto _exit;
       }
+      taosHashSetFreeFp(pCtx->actionStm[m], mstDestroySStmAction);
     }
   }
   
