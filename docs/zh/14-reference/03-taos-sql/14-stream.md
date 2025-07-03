@@ -423,20 +423,20 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
 
 后续小节是通知消息中各个字段的说明。
 
-### 根级字段说明
+#### 根级字段说明
 
 - messageId：字符串类型，是通知消息的唯一标识符，确保整条消息可以被追踪和去重。
 - timestamp：长整型时间戳，表示通知消息生成的时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
 - streams：对象数组，包含多个流任务的事件信息。(详细信息见下节)
 
-### stream 对象的字段说明
+#### stream 对象的字段说明
 
 - streamName：字符串类型，流任务的名称，用于标识事件所属的流。
 - events：对象数组，该流任务下的事件列表，包含一个或多个事件对象。(详细信息见下节)
 
-### event 对象的字段说明
+#### event 对象的字段说明
 
-#### 通用字段
+##### 通用字段
 
 这部分是所有 event 对象所共有的字段。
 
@@ -447,7 +447,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
 - windowType：字符串类型，表示窗口类型，支持 Time、State、Session、Event、Count 五种类型。
 - groupId: 字符串类型，是对应分组的唯一标识符，如果是按表分组，则与对应表的 uid 一致。
 
-#### 时间窗口相关字段
+##### 时间窗口相关字段
 
 这部分是 windowType 为 Time 时 event 对象才有的字段。
 
@@ -458,7 +458,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
   - windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 
-#### 状态窗口相关字段
+##### 状态窗口相关字段
 
 这部分是 windowType 为 State 时 event 对象才有的字段。
 
@@ -473,7 +473,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
   - nextState：与状态列的类型相同，表示下一个窗口的状态值。
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 
-#### 会话窗口相关字段
+##### 会话窗口相关字段
 
 这部分是 windowType 为 Session 时 event 对象才有的字段。
 
@@ -484,7 +484,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
   - windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 
-#### 事件窗口相关字段
+##### 事件窗口相关字段
 
 这部分是 windowType 为 Event 时 event 对象才有的字段。
 
@@ -501,7 +501,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
     - fieldValue：键值对形式，包含条件列列名及其对应的值。
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 
-#### 计数窗口相关字段
+##### 计数窗口相关字段
 
 这部分是 windowType 为 Count 时 event 对象才有的字段。
 
@@ -512,7 +512,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
   - windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 
-#### 窗口失效相关字段
+##### 窗口失效相关字段
 
 因为流计算过程中会遇到数据乱序、更新、删除等情况，可能造成已生成的窗口被删除，或者结果需要重新计算。此时会向通知地址发送一条 WINDOW_INVALIDATION 的通知，说明哪些窗口已经被删除。
 
