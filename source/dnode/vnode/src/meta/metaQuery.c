@@ -16,7 +16,6 @@
 #include "meta.h"
 #include "osMemory.h"
 #include "tencode.h"
-#include "tmsg.h"
 
 void _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta *pAPI) {
   SMeta *pMeta = ((SVnode *)pVnode)->pMeta;
