@@ -15,9 +15,7 @@ def do_write_data(conf, num_of_rows, num_of_tables=1):
     passwd = "taosdata"
     tz = "Asia/Shanghai"
 
-    conn = taos.connect(
-        host=host, user=user, password=passwd, config=conf, timezone=tz
-    )
+    conn = taos.connect(host=host, user=user, password=passwd, config=conf, timezone=tz)
 
     cursor = conn.cursor()
     cursor.execute('use db')
