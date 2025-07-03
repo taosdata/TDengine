@@ -4654,6 +4654,9 @@ static int32_t jsonToPlan(const SJson* pJson, void* pObj) {
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
+    nodesClearList(pTopSubplan->pNodeList);
+    pTopSubplan->pNodeList = NULL;
+    nodesDestroyNode((SNode *)pTopSubplan);
     if (numOfSubplan != pNode->numOfSubplans) {
       code = TSDB_CODE_PLAN_INTERNAL_ERROR;
       nodesError("%s toNode error numOfSubplan %d != %d", nodesNodeName(pNode->type), numOfSubplan, pNode->numOfSubplans);

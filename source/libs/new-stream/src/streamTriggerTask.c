@@ -796,9 +796,8 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SSDat
   QUERY_CHECK_CONDITION(pGroup->newThreshold != INT64_MAX, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
 _end:
-  if (pAddedUids == NULL) {
-    tSimpleHashCleanup(pAddedUids);
-  }
+
+  tSimpleHashCleanup(pAddedUids);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -1769,6 +1768,8 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
   bool                      allTableProcessed = false;
   bool                      needFetchData = false;
   char                     *pExtraNotifyContent = NULL;
+  SColumnInfoData *psCol = NULL;
+  SColumnInfoData *peCol = NULL;
 
   while (!allTableProcessed && !needFetchData) {
     //  read all data of the current table
@@ -1785,6 +1786,9 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
     QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
     int64_t *pTsData = (int64_t *)pTsCol->pData;
     bool    *ps = NULL, *pe = NULL;
+    psCol = NULL;
+    peCol = NULL;
+    
     for (int32_t r = startIdx; r < endIdx; r++) {
       if (IS_REALTIME_GROUP_OPEN_WINDOW(pGroup)) {
         TRINGBUF_FIRST(&pGroup->winBuf).range.ekey = pTsData[r];
@@ -1796,7 +1800,6 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
           code = filterSetDataFromSlotId(pContext->pStartCond, &param);
           QUERY_CHECK_CODE(code, lino, _end);
           int32_t          status = 0;
-          SColumnInfoData *psCol = NULL;
           code = filterExecute(pContext->pStartCond, pDataBlock, &psCol, NULL, param.numOfCols, &status);
           QUERY_CHECK_CODE(code, lino, _end);
           ps = (bool *)psCol->pData;
@@ -1817,7 +1820,6 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
           code = filterSetDataFromSlotId(pContext->pEndCond, &param);
           QUERY_CHECK_CODE(code, lino, _end);
           int32_t          status = 0;
-          SColumnInfoData *peCol = NULL;
           code = filterExecute(pContext->pEndCond, pDataBlock, &peCol, NULL, param.numOfCols, &status);
           QUERY_CHECK_CODE(code, lino, _end);
           pe = (bool *)peCol->pData;
@@ -1832,9 +1834,18 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
         }
       }
     }
+
+    colDataDestroy(psCol);
+    taosMemoryFreeClear(psCol);
+    colDataDestroy(peCol);
+    taosMemoryFreeClear(peCol);
   }
 
 _end:
+
+  colDataDestroy(psCol);
+  taosMemoryFreeClear(psCol);
+
   if (pExtraNotifyContent != NULL) {
     taosMemoryFreeClear(pExtraNotifyContent);
   }
@@ -2060,6 +2071,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
   SStreamTaskAddr    *pReader = NULL;
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_PULL, .info.notFreeAhandle = 1};
 
   switch (type) {
     case STRIGGER_PULL_LAST_TS: {
@@ -2219,7 +2231,6 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
   pReq->readerTaskId = pReader->taskId;
 
   // serialize and send request
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_PULL, .info.notFreeAhandle = 1};
   QUERY_CHECK_CODE(streamTriggerAllocAhandle(pTask, pReq, &msg.info.ahandle), lino, _end);
   msg.contLen = tSerializeSTriggerPullRequest(NULL, 0, pReq);
   QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -2236,6 +2247,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(msg.info.ahandle);
     ST_TASK_ELOG("%s failed at line %d since %s, type: %d", __func__, lino, tstrerror(code), type);
   }
   return code;

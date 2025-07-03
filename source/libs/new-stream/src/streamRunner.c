@@ -41,11 +41,16 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
   return 0;
 }
 
+static void stRunnerDestroyRuntimeInfo(SStreamRuntimeInfo* pRuntime) {
+  tDestroyStRtFuncInfo(&pRuntime->funcInfo);
+}
+
 static void stRunnerDestroyTaskExecution(void* pExec) {
   SStreamRunnerTaskExecution* pExecution = pExec;
   pExecution->pPlan = 0;
   streamDestroyExecTask(pExecution->pExecutor);  
   dsDestroyDataSinker(pExecution->pSinkHandle);
+  stRunnerDestroyRuntimeInfo(&pExecution->runtimeInfo);
 }
 
 static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t execId,

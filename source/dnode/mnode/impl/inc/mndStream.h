@@ -521,6 +521,8 @@ void mstDestroySStmStatus(void* param);
 void mstDestroySStmVgroupStatus(void* param);
 void mstDestroySStmSnodeStatus(void* param);
 void mstDestroySStmVgTasksToDeploy(void* param);
+void mstDestroySStmTaskToDeployExt(void* param);
+void mstDestroyScanAddrList(void* param);
 
 
 #ifdef __cplusplus

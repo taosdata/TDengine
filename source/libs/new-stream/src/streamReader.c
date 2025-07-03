@@ -1,6 +1,7 @@
 #include "streamReader.h"
 #include "osMemPool.h"
 #include "streamInt.h"
+#include "executor.h"
 
 void destroyOptions(SStreamTriggerReaderTaskInnerOptions* options) {
   if (options == NULL) return;
@@ -19,6 +20,8 @@ void releaseStreamTask(void* p) {
   pTask->api.tsdReader.tsdReaderClose(pTask->pReader);
   filterFreeInfo(pTask->pFilterInfo);
   destroyOptions(&pTask->options);
+  cleanupQueryTableDataCond(&pTask->cond);
+  
   taosMemoryFree(pTask);
 }
 
@@ -52,6 +55,9 @@ int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order,
                                       STimeWindow twindows, uint64_t suid) {
   int32_t code = 0;
   int32_t lino = 0;
+
+  memset(pCond, 0, sizeof(*pCond));
+
   pCond->order = order;
   pCond->numOfCols = isSchema ? taosArrayGetSize((SArray*)schemas) : LIST_LENGTH((SNodeList*)schemas);
 
@@ -139,10 +145,10 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
       STREAM_CHECK_RET_GOTO(qStreamGetTableList(pTask->pTableList, -1, &pList, &pNum))
     }
 
-    SQueryTableDataCond pCond = {0};
-    STREAM_CHECK_RET_GOTO(qStreamInitQueryTableDataCond(&pCond, options->order, pTask->options.schemas, options->isSchema,
+    cleanupQueryTableDataCond(&pTask->cond);
+    STREAM_CHECK_RET_GOTO(qStreamInitQueryTableDataCond(&pTask->cond, options->order, pTask->options.schemas, options->isSchema,
                                                         options->twindows, options->suid));
-    STREAM_CHECK_RET_GOTO(pTask->api.tsdReader.tsdReaderOpen(pVnode, &pCond, pList, pNum, pTask->pResBlock,
+    STREAM_CHECK_RET_GOTO(pTask->api.tsdReader.tsdReaderOpen(pVnode, &pTask->cond, pList, pNum, pTask->pResBlock,
                                                            (void**)&pTask->pReader, pTask->idStr, NULL));
   }
   
@@ -158,11 +164,7 @@ end:
 
 static void destroyCondition(SNode* pCond) {
   if (pCond == NULL) return;
-  if (nodeType(pCond) == QUERY_NODE_LOGIC_CONDITION) {
-    nodesClearList(((SLogicConditionNode*)(pCond))->pParameterList);
-    ((SLogicConditionNode*)(pCond))->pParameterList = NULL;
-    nodesDestroyNode(pCond);
-  }
+  nodesDestroyNode(pCond);
 }
 
 static void releaseStreamReaderInfo(void* p) {
@@ -179,7 +181,7 @@ static void releaseStreamReaderInfo(void* p) {
   nodesDestroyNode((SNode*)(pInfo->triggerAst));
   nodesDestroyNode((SNode*)(pInfo->calcAst));
   
-  
+  nodesDestroyList(pInfo->partitionCols);
   blockDataDestroy(pInfo->triggerResBlock);
   blockDataDestroy(pInfo->calcResBlock);
   blockDataDestroy(pInfo->calcResBlockTmp);
@@ -251,23 +253,26 @@ static void releaseGroupIdMap(void* p) {
   taosArrayDestroyEx(gInfo, tDestroySStreamGroupValue);
 }
 
-static SNode* generateCondition(SNode* pCond1, SNode* pCond2){
+static SNode* generateCondition(SNode** pCond1, SNode** pCond2){
   int32_t code = 0;
   int32_t lino = 0;
   SNode* cond = NULL;
 
-  if (pCond1 != NULL && pCond2 != NULL) {
+  if ((*pCond1) != NULL && (*pCond2) != NULL) {
     STREAM_CHECK_RET_GOTO(nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &cond));
     ((SLogicConditionNode*)cond)->condType = LOGIC_COND_TYPE_AND;
     ((SLogicConditionNode*)cond)->node.resType.type = TSDB_DATA_TYPE_BOOL;
     ((SLogicConditionNode*)cond)->node.resType.bytes = CHAR_BYTES;
     STREAM_CHECK_RET_GOTO(nodesMakeList(&((SLogicConditionNode*)cond)->pParameterList));
-    STREAM_CHECK_RET_GOTO(nodesListAppend(((SLogicConditionNode*)cond)->pParameterList, pCond1));
-    STREAM_CHECK_RET_GOTO(nodesListAppend(((SLogicConditionNode*)cond)->pParameterList, pCond2));
-  } else if (pCond1 != NULL) {
-    cond = pCond1;
+    SNode* pTmp1 = NULL, *pTmp2 = NULL;
+    STREAM_CHECK_RET_GOTO(nodesCloneNode(*pCond1, &pTmp1));
+    STREAM_CHECK_RET_GOTO(nodesCloneNode(*pCond2, &pTmp2));
+    STREAM_CHECK_RET_GOTO(nodesListAppend(((SLogicConditionNode*)cond)->pParameterList, pTmp1));
+    STREAM_CHECK_RET_GOTO(nodesListAppend(((SLogicConditionNode*)cond)->pParameterList, pTmp2));
+  } else if ((*pCond1) != NULL) {
+    TSWAP(cond, *pCond1);
   } else {
-    cond = pCond2;
+    TSWAP(cond, *pCond2);
   }
 end:
   STREAM_PRINT_LOG_END(code, lino);
@@ -365,8 +370,8 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(const SStreamReaderDeplo
     STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->calcResBlock, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
     STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcResBlock, false, &sStreamReaderInfo->calcResBlockTmp));
     
-    sStreamReaderInfo->pCalcConditions = generateCondition(sStreamReaderInfo->calcAst->pNode->pConditions, sStreamReaderInfo->triggerAst->pNode->pConditions);
-    sStreamReaderInfo->pCalcTagCond = generateCondition(sStreamReaderInfo->calcAst->pTagCond, sStreamReaderInfo->triggerAst->pTagCond);
+    sStreamReaderInfo->pCalcConditions = generateCondition(&sStreamReaderInfo->calcAst->pNode->pConditions, &sStreamReaderInfo->triggerAst->pNode->pConditions);
+    sStreamReaderInfo->pCalcTagCond = generateCondition(&sStreamReaderInfo->calcAst->pTagCond, &sStreamReaderInfo->triggerAst->pTagCond);
 
     SNodeList* pseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanPseudoCols;
     SNodeList* pScanCols = ((STableScanPhysiNode*)(sStreamReaderInfo->calcAst->pNode))->scan.pScanCols;
