@@ -74,6 +74,7 @@ typedef struct SStreamTriggerReaderTaskInnerOptions {
   SNode*      pConditions;
   SNodeList*  partitionCols;
   bool        initReader;  // whether to init the reader
+  SArray*     uidList;
 } SStreamTriggerReaderTaskInnerOptions;
 
 typedef struct SStreamReaderTaskInner {
