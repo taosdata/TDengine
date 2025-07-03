@@ -110,7 +110,7 @@ int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t
               pAnotherDnode = mndAcquireDnode(pMnode, pVgroup->vnodeGid[i].dnodeId);
               mInfo("trans:%d, found another dnode:%d_%s", pTrans->id, pAnotherDnode->id, pAnotherDnode->ep);
             } else {
-              if (pVgroup->vnodeGid[i].syncState != TAOS_SYNC_STATE_OFFLINE) {
+              if (pVgroup->vnodeGid[i].syncState != TAOS_SYNC_STATE_OFFLINE && pVgroup->vnodeGid[i].syncState != TAOS_SYNC_STATE_LEADER && pVgroup->vnodeGid[i].syncState != TAOS_SYNC_STATE_FOLLOWER) {
                 code = TSDB_CODE_MND_VNODE_NOT_OFFLINE;
                 sdbCancelFetch(pSdb, pIter);
                 mndReleaseDb(pMnode, db);
