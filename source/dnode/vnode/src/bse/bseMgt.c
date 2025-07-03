@@ -652,7 +652,7 @@ int32_t bseBatchInit(SBse *pBse, SBseBatch **pBatch, int32_t nKeys) {
   code = bseBatchMgtGet(pBse->batchMgt, &p);
   taosThreadMutexUnlock(&pBse->mutex);
 
-  bseWarn("vgId:%d bse seq start from: %" PRId64 " to %" PRId64 "", BSE_GET_VGID(pBse), sseq, sseq + nKeys - 1);
+  bseDebug("vgId:%d bse seq start from: %" PRId64 " to %" PRId64 "", BSE_GET_VGID(pBse), sseq, sseq + nKeys - 1);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = bseBatchSetParam(p, sseq, nKeys);

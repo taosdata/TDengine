@@ -2265,8 +2265,8 @@ int32_t blockDataAppendColInfo(SSDataBlock* pBlock, SColumnInfoData* pColInfoDat
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
     pBlock->info.hasVarCol = true;
   }
-
   pBlock->info.rowSize += pColInfoData->info.bytes;
+
   return TSDB_CODE_SUCCESS;
 }
 

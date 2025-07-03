@@ -253,6 +253,7 @@ typedef struct SBoundColInfo {
 typedef struct STableColsData {
   char    tbName[TSDB_TABLE_NAME_LEN];
   SArray* aCol;
+  SBlobRow2 *pBlobRow;
   bool    getFromHash;
   bool    isOrdered;
   bool    isDuplicateTs;

@@ -1582,7 +1582,7 @@ int32_t tableOpenFile(char *name, int8_t read, TdFilePtr *pFile, int64_t *size) 
   code = taosStatFile(name, size, NULL, NULL);
   TSDB_CHECK_CODE(code, lino, _error);
   if (*size <= 0) {
-    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
+    TSDB_CHECK_CODE(code = TSDB_CODE_NOT_FOUND, lino, _error);
   }
 
   p = taosOpenFile(name, opt);

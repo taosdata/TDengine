@@ -90,7 +90,7 @@ void Test(TAOS *taos, char *qstr) {
   }
 
   int64_t start = 1546300800000;
-  for (int32_t n = 0; n < 10; ++n) {
+  for (int32_t n = 0; n < 100; ++n) {
     for (i = 0; i < 10; ++i) {
       int32_t v = n * 10 + i;
       sprintf(qstr, "insert into m1 values (%" PRId64 ",'%s')", start, buf);
@@ -106,15 +106,15 @@ void Test(TAOS *taos, char *qstr) {
       }
       taos_free_result(result1);
 
-      strcpy(qstr, "flush database demo");
-      result1 = taos_query(taos, qstr);
-      if (result1 == NULL || taos_errno(result1) != 0) {
-        printf("failed to fluash database, reason:%s\n", taos_errstr(result1));
-        taos_free_result(result1);
-        exit(1);
-      }
+      // strcpy(qstr, "flush database demo");
+      // result1 = taos_query(taos, qstr);
+      // if (result1 == NULL || taos_errno(result1) != 0) {
+      //   printf("failed to fluash database, reason:%s\n", taos_errstr(result1));
+      //   taos_free_result(result1);
+      //   exit(1);
+      // }
       start += 1;
-      taos_free_result(result1);
+      // taos_free_result(result1);
     }
   }
 
@@ -136,7 +136,7 @@ void Test(TAOS *taos, char *qstr) {
   printf("select * from table order by ts desc, result:\n");
   // fetch the records row by row
   while ((row = taos_fetch_row(result))) {
-    char *temp = calloc(1, BLOB_LEN);
+    char *temp = calloc(1, BLOB_LEN * 4);
     rows++;
     taos_print_row(temp, row, fields, num_fields);
     printf("strlen %d\n", (int)(strlen(temp)));

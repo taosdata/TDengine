@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include "taos.h"
 
-int CTB_NUMS = 10000;
+int CTB_NUMS = 100;
 int ROW_NUMS = 10;
 int CYC_NUMS = 1;
 
@@ -40,14 +40,14 @@ void createCtb(TAOS* taos, const char* tbname) {
 void initEnv(TAOS* taos) {
   do_query(taos, "drop database if exists db");
   do_query(taos, "create database db");
-  do_query(taos, "create table db.stb (ts timestamp, b binary(10)) tags(t1 int, t2 binary(10))");
+  do_query(taos, "create table db.stb (ts timestamp, b blob) tags(t1 int, t2 binary(10))");
   do_query(taos, "use db");
 }
 
 void do_stmt(TAOS* taos, const char* sql, bool hasTag) {
   initEnv(taos);
 
-  TAOS_STMT2_OPTION option = {0, false, true, NULL, NULL};
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
 
   TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
   int         code = taos_stmt2_prepare(stmt, sql, 0);
@@ -115,7 +115,7 @@ void do_stmt(TAOS* taos, const char* sql, bool hasTag) {
       // create col params
       paramv[i] = (TAOS_STMT2_BIND*)malloc(2 * sizeof(TAOS_STMT2_BIND));
       paramv[i][0] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_TIMESTAMP, &ts[i][0], &ts_len[0], NULL, ROW_NUMS};
-      paramv[i][1] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_BINARY, &b[i][0], &b_len[0], NULL, ROW_NUMS};
+      paramv[i][1] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_BLOB, &b[i][0], &b_len[0], NULL, ROW_NUMS};
     }
     // bind
     struct timespec start, end;
@@ -231,7 +231,7 @@ int main() {
   // printf("no interlace\n");
   do_stmt(taos, "insert into db.? using db.stb tags(?,?)values(?,?)", true);
 
-  do_stmt(taos, "insert into db.? values(?,?)", false);
+  // do_stmt(taos, "insert into db.? values(?,?)", false);
 
   // do_taosc(taos);
   taos_close(taos);

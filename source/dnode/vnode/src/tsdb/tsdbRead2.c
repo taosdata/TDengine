@@ -1112,7 +1112,11 @@ static int32_t doGetValueFromBseBySeq(void* arg, uint8_t* pKey, int32_t keyLen, 
   if (keyLen >= sizeof(uint64_t)) {
     tGetU64(pKey, &seq);
   } else {
-    memcpy(&seq, pKey, keyLen);
+    tGetU64(pKey, &seq);
+  }
+  if (seq == 0) {
+    tsdbError("failed to get value from bse by seq since seq is 0");
+    return TSDB_CODE_INVALID_PARA;
   }
   *len = 0;
   code = bseGet((SBse*)arg, seq, pValue, len);
@@ -1175,7 +1179,12 @@ int32_t lino = 0;
       if (IS_STR_DATA_BLOB(pColVal->value.type)) {
         if (pColVal->value.nData != 0) {
           code = doGetValueFromBseBySeq(pSup->args, pColVal->value.pData, pColVal->value.nData, &pValue, &len);
-          TSDB_CHECK_CODE(code, lino, _end);
+          if (code != 0) {
+            colDataSetNULL(pColInfoData, rowIndex);
+            return 0;
+          } else {
+            TSDB_CHECK_CODE(code, lino, _end);
+          }
         }
 
         if (IS_STR_DATA_BLOB(pColVal->value.type)) {

@@ -414,7 +414,6 @@ static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *
                 if (firstBlobCol == 1) {
                   firstBlobCol = 0;
                 }
-
                 if (code != 0) return code;
                 varlen += tPutU64(varlen, seq);
               }
@@ -855,8 +854,8 @@ int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pItem, uint64_t *seq, int8_
   if (pBlobRow == NULL || pItem == NULL || seq == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  uInfo("push blob %p, seqOffsetInRow %d, dataLen %d, nextRow %d", pBlobRow, pItem->seqOffsetInRow, pItem->dataLen,
-        nextRow);
+  uTrace("push blob %p, seqOffsetInRow %d, dataLen %d, nextRow %d", pBlobRow, pItem->seqOffsetInRow, pItem->dataLen,
+         nextRow);
   int32_t  lino = 0;
   int32_t  code = 0;
   uint64_t offset;
@@ -1324,11 +1323,18 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
           pColVal->flag = CV_FLAG_VALUE;
 
           if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+            int8_t isBlob = 0;
+            if (IS_STR_DATA_BLOB(pTColumn->type)) {
+              isBlob = 1;
+            }
             pData += tGetU32v(pData, &pColVal->value.nData);
             if (pColVal->value.nData > 0) {
               pColVal->value.pData = pData;
             } else {
               pColVal->value.pData = NULL;
+            }
+            if (isBlob == 1) {
+              pData += sizeof(uint64_t);  // skip seq
             }
           } else {
             valueSetDatum(&pColVal->value, pTColumn->type, pData, pTColumn->bytes);
@@ -1380,9 +1386,14 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
     pColVal->flag = CV_FLAG_VALUE;
     // uint8_t hasBlob = 0;
     if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+      int8_t isBlob = 0;
+      if (IS_STR_DATA_BLOB(pTColumn->type)) {
+        isBlob = 1;
+      }
       pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
       pColVal->value.pData += tGetU32v(pColVal->value.pData, &pColVal->value.nData);
-      //}
+      // if (isBlob) pColVal->value.pData += sizeof(uint64_t);  // skip seq
+      // }
     } else {
       valueSetDatum(&pColVal->value, pTColumn->type, fixed + pTColumn->offset, TYPE_BYTES[pTColumn->type]);
     }

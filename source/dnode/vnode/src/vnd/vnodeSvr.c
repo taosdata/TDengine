@@ -631,13 +631,18 @@ static int32_t inline vnodeSubmitSubRowBlobData(SVnode *pVnode, SSubmitTbData *p
       rowIdx++;
     }
     if (p->len == 0) {
+      uInfo("received invalid row");
       continue;
     }
     SRow *row = taosArrayGetP(pSubmitTbData->aRowP, rowIdx);
     if (row == NULL) {
+      int32_t tlen = taosArrayGetSize(pBlobRow->pSeqTable);
+      uTrace("blob invalid row index:%d, sz:%d, pBlobRow size:%d", rowIdx, sz, tlen);
       break;
     }
-    memcpy(row->data + p->dataOffset, (void *)&seq, sizeof(uint64_t));
+    // tPutU64(row->data+p->pdataO, uint64_t v)
+    tPutU64(row->data + p->dataOffset, seq);
+    // memcpy(row->data + p->dataOffset, (void *)&seq, sizeof(uint64_t));
   }
 
   code = bseCommitBatch(pVnode->pBse, pBatch);
@@ -709,20 +714,25 @@ _exit:
   }
   return code;
 }
-static int32_t inline vnodeSubmitBlobData(SVnode *pVnode, SSubmitReq2 *pReq) {
+static int32_t inline vnodeSubmitBlobData(SVnode *pVnode, SSubmitTbData *pData) {
   int32_t code = 0;
-
-  uInfo("vgId:%d,submit blob data, nSubmitTbData:%d", TD_VID(pVnode), (int)(TARRAY_SIZE(pReq->aSubmitTbData)));
-  for (int32_t i = 0; i < TARRAY_SIZE(pReq->aSubmitTbData); ++i) {
-    SSubmitTbData *pSubmitTbData = taosArrayGet(pReq->aSubmitTbData, i);
-    if (pSubmitTbData->flags & SUBMIT_REQ_WITH_BLOB) {
-      if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-        code = vnodeSubmitSubColBlobData(pVnode, pSubmitTbData);
-      } else {
-        code = vnodeSubmitSubRowBlobData(pVnode, pSubmitTbData);
-      }
+  // int32_t nrow = 0;
+  // int32_t nblob = 0;
+  // uTrace("vgId:%d,submit blob data, nSubmitTbData:%d", TD_VID(pVnode), (int)(TARRAY_SIZE(pReq->aSubmitTbData)));
+  // for (int32_t i = 0; i < TARRAY_SIZE(pReq->aSubmitTbData); ++i) {
+  // SSubmitTbData *pSubmitTbData = taosArrayGet(pReq->aSubmitTbData, i);
+  // nrow += taosArrayGetSize(pSubmitTbData->aRowP);
+  // nblob += taosArrayGetSize(pSubmitTbData->pBlobRow->pSeqTable);
+  if (pData->flags & SUBMIT_REQ_WITH_BLOB) {
+    if (pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      code = vnodeSubmitSubColBlobData(pVnode, pData);
+    } else {
+      code = vnodeSubmitSubRowBlobData(pVnode, pData);
     }
   }
+  //}
+  // uTrace("vgId:%d,submit blob data %d, row:%d", TD_VID(pVnode), nblob, nrow);
+
   return code;
 }
 
@@ -2258,7 +2268,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     }
 
     if (hasBlob) {
-      code = vnodeSubmitBlobData(pVnode, pSubmitReq);
+      code = vnodeSubmitBlobData(pVnode, pSubmitTbData);
       if (code) goto _exit;
     }
     // insert data

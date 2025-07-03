@@ -64,8 +64,14 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
       pNew->aCol = taosArrayInit(20, POINTER_BYTES);
     }
   }
-
   code = tBlobRowCreate(4096, flag, &pNew->pBlobRow);
+
+  if (code == TSDB_CODE_SUCCESS) {
+    pNew->aRowP = taosArrayInit(20, POINTER_BYTES);
+    if (NULL == pNew->aRowP) {
+      code = terrno;
+    }
+  }
 
   return code;
 }
@@ -730,7 +736,7 @@ static int32_t convertStmtStbNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_
 }
 
 int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                               STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt) {
+                               STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt, SBlobRow2** pBlobRow) {
   STableDataCxt*  pDataBlock = (STableDataCxt*)pBlock;
   SSchema*        pSchema = getTableColumnSchema(pDataBlock->pMeta);
   SBoundColInfo*  boundInfo = &pDataBlock->boundColsInfo;
@@ -826,9 +832,10 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
     code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered,
                               &pDataBlock->duplicateTs);
   } else {
+    code = tBlobRowCreate(4096, 1, pBlobRow);
     code = tRowBuildFromBind2WithBlob(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols,
-                                      &pDataBlock->ordered, &pDataBlock->duplicateTs, pDataBlock->pData->pBlobRow);
-    code = tBlobRowEnd(pDataBlock->pData->pBlobRow);
+                                      &pDataBlock->ordered, &pDataBlock->duplicateTs, *pBlobRow);
+    code = tBlobRowEnd(*pBlobRow);
   }
 
   parserDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
@@ -1313,6 +1320,7 @@ int32_t qResetStmtColumns(SArray* pCols, bool deepClear) {
 }
 
 int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
+  int32_t        code = 0;
   STableDataCxt* pBlock = (STableDataCxt*)block;
   int32_t        colNum = taosArrayGetSize(pBlock->pData->aCol);
 
@@ -1337,15 +1345,20 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
     }
   }
 
-  if (pBlock->pData->pBlobRow) {
-    tBlobRowDestroy(pBlock->pData->pBlobRow);
-    pBlock->pData->pBlobRow = NULL;
-    tBlobRowCreate(1024, flag, &pBlock->pData->pBlobRow);
-  } else {
-    tBlobRowCreate(1024, flag, &pBlock->pData->pBlobRow);
-  }
+  tBlobRowDestroy(pBlock->pData->pBlobRow);
+  code = tBlobRowCreate(1024, flag, &pBlock->pData->pBlobRow);
 
-  return TSDB_CODE_SUCCESS;
+  // for (int32_t i = 0; i < taosArrayGetSize(pBlock->pData->aBlobData); ++i) {
+  //   SBlobRow2* p = taosArrayGetP(pBlock->pData->aBlobData, i);
+  //   tBlobRowDestroy(p);
+  // }
+
+  // pBlock->pData->aBlobData = taosArrayInit(10, sizeof(SBlobRow2*));
+  // if (pBlock->pData->aBlobData == NULL) {
+  //   code = terrno;
+  // }
+
+  return code;
 }
 
 int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool reset) {

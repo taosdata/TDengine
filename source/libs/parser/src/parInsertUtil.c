@@ -482,16 +482,25 @@ void insDestroyTableDataCxtHashMap(SHashObj* pTableCxtHash) {
 static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCxt, bool isRebuild, bool clear) {
   if (NULL == pVgCxt->pData->aSubmitTbData) {
     pVgCxt->pData->aSubmitTbData = taosArrayInit(128, sizeof(SSubmitTbData));
+    pVgCxt->pData->aSubmitBlobData = taosArrayInit(128, sizeof(SBlobRow2*));
     if (NULL == pVgCxt->pData->aSubmitTbData) {
       return terrno;
     }
   }
 
   // push data to submit, rebuild empty data for next submit
-  uInfo("blob row transfer %p, pData %p", pTableCxt->pData->pBlobRow, pTableCxt->pData);
+  uInfo("blob row transfer %p, pData %p, %s", pTableCxt->pData->pBlobRow, pTableCxt->pData, __func__);
   if (NULL == taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData)) {
     return terrno;
   }
+  if (pTableCxt->pData->pBlobRow == NULL) {
+    uInfo("blow empty");
+  }
+  if (NULL == taosArrayPush(pVgCxt->pData->aSubmitBlobData, &pTableCxt->pData->pBlobRow)) {
+    return terrno;
+  }
+
+  pTableCxt->pData->pBlobRow = NULL;  // reset blob row to NULL, so that it will not be freed in destroy
   int32_t code = 0;
   if (isRebuild) {
     code = rebuildTableData(pTableCxt->pData, &pTableCxt->pData);
@@ -641,6 +650,7 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
   int32_t  vgId;
 
   pTbCtx->pData->aRowP = pTbData->aCol;
+  pTbCtx->pData->pBlobRow = pTbData->pBlobRow;
 
   code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId);
   if (ctbReq !=NULL && code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
@@ -672,11 +682,11 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
   }
 
   if (code == TSDB_CODE_SUCCESS && (!pTbData->isOrdered || pTbData->isDuplicateTs)) {
-    hasBlob = schemaHasBlob(pTbCtx->pSchema);
+    // hasBlob = schemaHasBlob(pTbCtx->pSchema);
     if (hasBlob == 0) {
       code = tRowMerge(pTbCtx->pData->aRowP, pTbCtx->pSchema, 0);
     } else {
-      code = tRowMergeWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobRow, 0);
+      // code = tRowMergeWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobRow, 0);
     }
   }
 
@@ -901,42 +911,21 @@ static void destroyVgDataBlocks(void* p) {
   taosMemoryFree(pVg);
 }
 
-static int32_t insRebuildBlobRow(SSubmitReq2* pReq) {
-  int32_t    code = 0;
-  SBlobRow2* pBlob = NULL;
-  if (pReq->aSubmitTbData && taosArrayGetSize(pReq->aSubmitTbData) > 0) {
-    SSubmitTbData* pSubmitTbData = taosArrayGet(pReq->aSubmitTbData, 0);
-    if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-      return TSDB_CODE_SUCCESS;  // no need to rebuild blob row
-    }
-    if (pSubmitTbData->pBlobRow == NULL || taosArrayGetSize(pSubmitTbData->pBlobRow->pSeqTable) <= 0) {
-      // no blob row, no need to rebuild
-      return TSDB_CODE_SUCCESS;
-    }
-    if (taosArrayGetSize(pSubmitTbData->aRowP) >= taosArrayGetSize(pSubmitTbData->pBlobRow->pSeqTable)) {
-      return TSDB_CODE_SUCCESS;
-    }
-    pBlob = pSubmitTbData->pBlobRow;
-  } else {
-    return code;
-  }
 
-  int32_t totalRow = 0;
-  for (uint64_t i = 0; i < taosArrayGetSize(pReq->aSubmitTbData); i++) {
-    SSubmitTbData* pSubmitTbData = taosArrayGet(pReq->aSubmitTbData, i);
-    int32_t        row = taosArrayGetSize(pSubmitTbData->aRowP);
-    if (i != 0) {
-      tBlobRowDestroy(pSubmitTbData->pBlobRow);
+int32_t insResetBlob(SSubmitReq2* p) {
+  int32_t code = 0;
+  for (int32_t i = 0; i < taosArrayGetSize(p->aSubmitTbData); i++) {
+    SSubmitTbData* pSubmitTbData = taosArrayGet(p->aSubmitTbData, i);
+    SBlobRow2*     pBlob = taosArrayGetP(p->aSubmitBlobData, i);
+    int32_t        nrow = taosArrayGetSize(pSubmitTbData->aRowP);
+    int32_t        nblob = 0;
+    if (nrow > 0) {
+      nblob = taosArrayGetSize(pBlob->pSeqTable);
     }
-    code = tBlobRowRebuild(pBlob, totalRow, row, &pSubmitTbData->pBlobRow);
-
-    totalRow += row;
+    uTrace("blob blob %p row size %d, pData size %d", pBlob, nblob, nrow);
+    pSubmitTbData->pBlobRow = pBlob;
   }
-
-  if (pBlob != NULL) {
-    tBlobRowDestroy(pBlob);
-  }
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, SArray** pVgDataBlocks, bool append) {
   size_t  numOfVg = taosArrayGetSize(pVgDataCxtList);
@@ -960,10 +949,10 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
       dst->numOfTables = taosArrayGetSize(src->pData->aSubmitTbData);
       code = taosHashGetDup(pVgroupsHashObj, (const char*)&src->vgId, sizeof(src->vgId), &dst->vg);
     }
-
     if (TSDB_CODE_SUCCESS == code) {
-      code = insRebuildBlobRow(src->pData);
+      code = insResetBlob(src->pData);
     }
+
     if (TSDB_CODE_SUCCESS == code) {
       code = buildSubmitReq(src->vgId, src->pData, &dst->pData, &dst->size);
     }
