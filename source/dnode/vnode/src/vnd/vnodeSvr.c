@@ -2108,8 +2108,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
           // only the first one needs to be processed.
           code = buildExistTalbeInStreamRsp(pVnode, pSubmitTbData, &pCreateTbRsp->pMeta);
           if (code) {
-            vInfo("vgId:%d failed to create table in stream:%s, code:%s", TD_VID(pVnode),
-                  pSubmitTbData->pCreateTbReq->name, tstrerror(code));
+            vInfo("vgId:%d failed to create table in stream:%s, code(0x%0x):%s", TD_VID(pVnode),
+                  pSubmitTbData->pCreateTbReq->name,  code, tstrerror(code));
             TSDB_CHECK_CODE(code, lino, _exit);
           }
         }
