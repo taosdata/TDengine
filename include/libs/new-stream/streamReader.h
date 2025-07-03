@@ -88,7 +88,7 @@ typedef struct SStreamReaderTaskInner {
   int32_t                              currentGroupIndex;
   SFilterInfo*                         pFilterInfo;
   char*                                idStr;
-  int32_t                              index;
+  SQueryTableDataCond                  cond;
 } SStreamReaderTaskInner;
 
 int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, void* schemas, bool isSchema,

@@ -280,11 +280,14 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
                                      EOPTR_EXEC_MODEL model, SStreamInserterParam* streamInserterParam) {
   if (pSubplan == NULL || pTaskInfo == NULL) {
     qError("invalid parameter, pSubplan:%p, pTaskInfo:%p", pSubplan, pTaskInfo);
+    nodesDestroyNode((SNode *)pSubplan);
     return TSDB_CODE_INVALID_PARA;
   }
+  int32_t lino = 0;
   int32_t code = checkInsertParam(streamInserterParam);
   if (code != TSDB_CODE_SUCCESS) {
     qError("invalid stream inserter param, code:%s", tstrerror(code));
+    nodesDestroyNode((SNode *)pSubplan);
     return code;
   }
   SInserterParam* pInserterParam = NULL;
@@ -298,24 +301,26 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
     goto _error;
   }
 
-  SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500, .maxDataBlockNumPerQuery = 50, .compress = compressResult};
-  void*           pSinkManager = NULL;
-  code = dsDataSinkMgtInit(&cfg, &(*pTask)->storageAPI, &pSinkManager);
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("failed to dsDataSinkMgtInit, code:%s, %s", tstrerror(code), (*pTask)->id.str);
-    goto _error;
-  }
-
   if (streamInserterParam) {
+    SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500, .maxDataBlockNumPerQuery = 50, .compress = compressResult};
+    void*           pSinkManager = NULL;
+    code = dsDataSinkMgtInit(&cfg, &(*pTask)->storageAPI, &pSinkManager);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("failed to dsDataSinkMgtInit, code:%s, %s", tstrerror(code), (*pTask)->id.str);
+      goto _error;
+    }
+
     pInserterParam = taosMemoryCalloc(1, sizeof(SInserterParam));
     if (NULL == pInserterParam) {
       qError("failed to taosMemoryCalloc, code:%s, %s", tstrerror(terrno), (*pTask)->id.str);
       code = terrno;
       goto _error;
     }
+    code = cloneStreamInserterParam(&pInserterParam->streamInserterParam, streamInserterParam);
+    TSDB_CHECK_CODE(code, lino, _error);
+    
     pInserterParam->readHandle = taosMemCalloc(1, sizeof(SReadHandle));
     pInserterParam->readHandle->pMsgCb = readHandle->pMsgCb;
-    cloneStreamInserterParam(&pInserterParam->streamInserterParam, streamInserterParam);
 
     code = createStreamDataInserter(pSinkManager, handle, pInserterParam);
     if (code) {
@@ -326,7 +331,9 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
          tstrerror(code));
 
 _error:
+
   if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
     if (pInserterParam != NULL) {
       taosMemoryFree(pInserterParam);
     }
@@ -359,6 +366,7 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
   SSubplan* pPlan = NULL;
   int32_t   code = qStringToSubplan(msg, &pPlan);
   if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode *)pPlan);
     return code;
   }
   // todo: add stream inserter param
@@ -1869,7 +1877,9 @@ bool qStreamUidInTableList(void* pTableListInfo, uint64_t uid) {
   return tableListGetTableGroupId(pTableListInfo, uid) != -1;
 }
 
-void streamDestroyExecTask(qTaskInfo_t tInfo) {}
+void streamDestroyExecTask(qTaskInfo_t tInfo) {
+  qDestroyTask(tInfo);
+}
 
 int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams) {
   int32_t      code = 0;
@@ -1923,6 +1933,7 @@ int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamR
   }
   nodesDestroyList(pList);
   destroyExprInfo(pExprInfo, numOfExprs);
+  taosMemoryFreeClear(pExprInfo);
   return code;
 }
 

@@ -98,6 +98,10 @@ bool taosIsOnlyWLocked(SRWLatch *pLatch) {
   return TD_RWLATCH_WRITE_FLAG == atomic_load_32(pLatch);
 }
 
+bool taosHasRWWFlag(SRWLatch *pLatch) {
+  return TD_RWLATCH_WRITE_FLAG & atomic_load_32(pLatch);
+}
+
 void taosWUnLockLatch(SRWLatch *pLatch) { atomic_store_32(pLatch, 0); }
 
 void taosRLockLatch(SRWLatch *pLatch) {

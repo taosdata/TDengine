@@ -305,6 +305,7 @@ int32_t cloneStreamInserterParam(SStreamInserterParam** pDst, SStreamInserterPar
 void    destroyStreamInserterParam(SStreamInserterParam* pParam);
 int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx);
 int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams);
+void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 
 #ifdef __cplusplus
 }

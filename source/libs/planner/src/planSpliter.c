@@ -2101,27 +2101,26 @@ static int32_t streamScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   if (!pCxt->pPlanCxt->streamTriggerQuery && !pCxt->pPlanCxt->streamCalcQuery) {
     return TSDB_CODE_SUCCESS;
   }
-  if (!splMatch(pCxt, pSubplan, 0, (FSplFindSplitNode)streamScanFindSplitNode, &info)) {
-    return TSDB_CODE_SUCCESS;
+  while (splMatch(pCxt, pSubplan, 0, (FSplFindSplitNode)streamScanFindSplitNode, &info)) {
+    PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType, false));
+    SLogicSubplan* pScanSubplan = splCreateScanSubplan(pCxt, info.pSplitNode, 0);
+    if (NULL != pScanSubplan) {
+      if (NULL != info.pSubplan->pVgroupList) {
+        info.pSubplan->numOfComputeNodes = info.pSubplan->pVgroupList->numOfVgroups;
+      } else {
+        info.pSubplan->numOfComputeNodes = 1;
+      }
+      pScanSubplan->dynTbname = pCxt->pPlanCxt->phTbnameQuery;
+      PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)pScanSubplan));
+    } else {
+      PLAN_ERR_RET(terrno);
+    }
+    info.pSubplan->subplanType = SUBPLAN_TYPE_COMPUTE;
+    ++(pCxt->groupId);
+    info.pSplitNode->splitDone = true;
+    pCxt->split = true;
   }
 
-  PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType, false));
-  SLogicSubplan* pScanSubplan = splCreateScanSubplan(pCxt, info.pSplitNode, 0);
-  if (NULL != pScanSubplan) {
-    if (NULL != info.pSubplan->pVgroupList) {
-      info.pSubplan->numOfComputeNodes = info.pSubplan->pVgroupList->numOfVgroups;
-    } else {
-      info.pSubplan->numOfComputeNodes = 1;
-    }
-    pScanSubplan->dynTbname = pCxt->pPlanCxt->phTbnameQuery;
-    PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)pScanSubplan));
-  } else {
-    PLAN_ERR_RET(terrno);
-  }
-  info.pSubplan->subplanType = SUBPLAN_TYPE_COMPUTE;
-  ++(pCxt->groupId);
-  info.pSplitNode->splitDone = true;
-  pCxt->split = false;
   return code;
 }
 
@@ -2136,7 +2135,6 @@ static const SSplitRule splitRuleSet[] = {
   {.pName = "VirtualtableSplit",      .splitFunc = virtualTableSplit},
   {.pName = "MergeAggColsSplit",      .splitFunc = mergeAggColsSplit},
   {.pName = "DynVirtualScanSplit",    .splitFunc = dynVirtualScanSplit},
-  {.pName = "StreamScanSplit",        .splitFunc = streamScanSplit},
 };
 // clang-format on
 
@@ -2163,29 +2161,23 @@ static int32_t dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) 
 static int32_t applySplitRule(SPlanContext* pCxt, SLogicSubplan* pSubplan) {
   SSplitContext cxt = {
       .pPlanCxt = pCxt, .queryId = pSubplan->id.queryId, .groupId = pSubplan->id.groupId + 1, .split = false};
-  bool split = false;
-  int32_t code = dumpLogicSubplan(NULL, pSubplan);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
-  }
+  bool    split = false;
+  int32_t code =TSDB_CODE_SUCCESS;
+  PLAN_ERR_RET(dumpLogicSubplan(NULL, pSubplan));
   do {
     split = false;
     for (int32_t i = 0; i < splitRuleNum; ++i) {
       cxt.split = false;
-      int32_t code = splitRuleSet[i].splitFunc(&cxt, pSubplan);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
+      PLAN_ERR_RET(splitRuleSet[i].splitFunc(&cxt, pSubplan));
       if (cxt.split) {
         split = true;
-        code = dumpLogicSubplan(splitRuleSet[i].pName, pSubplan);
-        if (TSDB_CODE_SUCCESS != code) {
-          return code;
-        }
+        PLAN_ERR_RET(dumpLogicSubplan(splitRuleSet[i].pName, pSubplan));
       }
     }
   } while (split);
-  return qnodeSplit(&cxt, pSubplan);
+
+  PLAN_ERR_RET(streamScanSplit(&cxt, pSubplan));
+  PLAN_RET(qnodeSplit(&cxt, pSubplan));
 }
 
 static void setVgroupsInfo(SLogicNode* pNode, SLogicSubplan* pSubplan) {

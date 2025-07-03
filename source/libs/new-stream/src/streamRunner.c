@@ -4,6 +4,7 @@
 #include "executor.h"
 #include "plannodes.h"
 #include "scalar.h"
+#include "stream.h"
 #include "streamInt.h"
 #include "tarray.h"
 #include "tdatablock.h"
@@ -40,11 +41,16 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
   return 0;
 }
 
+static void stRunnerDestroyRuntimeInfo(SStreamRuntimeInfo* pRuntime) {
+  tDestroyStRtFuncInfo(&pRuntime->funcInfo);
+}
+
 static void stRunnerDestroyTaskExecution(void* pExec) {
   SStreamRunnerTaskExecution* pExecution = pExec;
   pExecution->pPlan = 0;
   streamDestroyExecTask(pExecution->pExecutor);  
   dsDestroyDataSinker(pExecution->pSinkHandle);
+  stRunnerDestroyRuntimeInfo(&pExecution->runtimeInfo);
 }
 
 static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t execId,
@@ -168,6 +174,7 @@ int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, bool force) {
   return stRunnerTaskUndeployImpl(ppTask, &pTask->task.undeployMsg, pTask->task.undeployCb);
 }
 
+bool stRunnerTaskWaitQuit(SStreamRunnerTask* pTask) { return taosHasRWWFlag(&pTask->task.entryLock); }
 
 static int32_t streamResetTaskExec(SStreamRunnerTaskExecution* pExec, bool ignoreTbName) {
   int32_t code = 0;
@@ -301,7 +308,7 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
         SInputData              input = {.pData = pBlock, .pStreamDataInserterInfo = &d};
         bool                    cont = false;
         code = dsPutDataBlock(pExec->pSinkHandle, &input, &cont);
-        ST_TASK_DLOG("runner output block to sink code:%d, rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %" PRId64,
+        ST_TASK_DLOG("runner output block to sink code:0x%0x, rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %" PRId64,
                      code, pBlock->info.rows, pExec->tbname, createTb, pExec->runtimeInfo.funcInfo.groupId);
         printDataBlock(pBlock, "output block to sink", "runner");
       } else {
@@ -520,6 +527,10 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   bool    createTable = pReq->createTable;
   int32_t nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx;
   while (pExec->runtimeInfo.funcInfo.curOutIdx < winNum && code == 0) {
+    if (stRunnerTaskWaitQuit(pTask)) {
+      ST_TASK_ILOG("[runner calc]quit, skip calc. gid:%" PRId64 ",, status:%d", pReq->gid, pTask->task.status);
+      break;
+    }
     bool         finished = false;
     SSDataBlock* pBlock = NULL;
     uint64_t     ts = 0;

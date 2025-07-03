@@ -10454,6 +10454,7 @@ _exit:
 void    tDestroySResFetchReq(SResFetchReq* pReq){
   if (pReq != NULL) {
     tDestroyStRtFuncInfo(pReq->pStRtFuncInfo);
+    taosMemoryFree(pReq->pStRtFuncInfo);
   }
 }
 

@@ -142,6 +142,9 @@ static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, voi
 _exit:
 
   if (code) {
+    taosMemoryFree(pAhandle);
+    rpcFreeCont(pMsg->pCont);
+    taosFreeQitem(pMsg);
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
