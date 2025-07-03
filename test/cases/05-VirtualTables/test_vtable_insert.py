@@ -70,5 +70,7 @@ class TestVtableInsert:
         tdSql.error(f"insert into normal_t values(now, 1) v_sub_t0 values(now, 1) v_super_t values(now, 1)")
         tdSql.error(f"insert into normal_t values(now, 1) v_sub_t0 values(now, 1) v_super_t values(now, 1)")
         tdSql.error(f"insert into v_sub_t0 values(now, 1) normal_t values(now, 1) v_normal_t values(now, 1)")
+        tdSql.error(f"insert into v_sub_t1 using v_super_t tags (2) values(now, 1)")
+        tdSql.error(f"insert into v_super_t(tbname, t1, ts, flag) values ('v_sub_t0','t1',now, 1)")
 
         tdLog.info(f"end virtual table insert test successfully")

@@ -3060,7 +3060,10 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
       code = parseInsertTableClause(pCxt, pStmt, &token);
     }
 
-    if( TSDB_CODE_SUCCESS == code && pStmt->pTableMeta && (pStmt->pTableMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE || pStmt->pTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE)) {
+    if( TSDB_CODE_SUCCESS == code && pStmt->pTableMeta &&
+        ((pStmt->pTableMeta->virtualStb == 1) ||
+        (pStmt->pTableMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+          pStmt->pTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE))) {
       code = buildInvalidOperationMsg(&pCxt->msg, "Virtual table can not be written");
     }
   }
