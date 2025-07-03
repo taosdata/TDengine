@@ -775,7 +775,7 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SSDat
   int32_t maxNumHold = 0;
   pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
   while (pTableMeta != NULL) {
-    maxNumHold = TMAX(maxNumHold, TARRAY_SIZE(pTableMeta->pMetas) - pTableMeta->metaIdx);
+    maxNumHold = TMAX(maxNumHold, taosArrayGetSize(pTableMeta->pMetas) - pTableMeta->metaIdx);
     pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, pTableMeta, &iter);
   }
   if (maxNumHold < pContext->minMetaThreshold) {
@@ -787,7 +787,7 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SSDat
   pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
   pGroup->newThreshold = INT64_MAX;
   while (pTableMeta != NULL) {
-    if (TARRAY_SIZE(pTableMeta->pMetas) - pTableMeta->metaIdx >= numHoldThreshold) {
+    if (taosArrayGetSize(pTableMeta->pMetas) - pTableMeta->metaIdx >= numHoldThreshold) {
       SSTriggerMetaData *pMeta = taosArrayGetLast(pTableMeta->pMetas);
       pGroup->newThreshold = TMIN(pGroup->newThreshold, pMeta->ekey - pTask->watermark);
     }
@@ -1375,7 +1375,7 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
     int32_t             iter = 0;
     SSTriggerTableMeta *pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
     while (pTableMeta != NULL) {
-      for (int32_t i = 0; i < TARRAY_SIZE(pTableMeta->pMetas); i++) {
+      for (int32_t i = 0; i < taosArrayGetSize(pTableMeta->pMetas); i++) {
         SSTriggerMetaData *pMeta = TARRAY_GET_ELEM(pTableMeta->pMetas, i);
         ts = TMIN(ts, pMeta->skey);
       }
@@ -2555,7 +2555,8 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     int32_t             iter = 0;
     SSTriggerTableMeta *pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
     while (pTableMeta != NULL) {
-      if ((pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) && IS_REALTIME_GROUP_OPEN_WINDOW(pGroup)) {
+      if ((pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) && IS_REALTIME_GROUP_OPEN_WINDOW(pGroup) &&
+          (taosArrayGetSize(pTableMeta->pMetas) > 0)) {
         int64_t endTime = TRINGBUF_FIRST(&pGroup->winBuf).range.skey - 1;
         int32_t idx = taosArraySearchIdx(pTableMeta->pMetas, &endTime, stRealtimeGroupMetaDataSearch, TD_GT);
         taosArrayPopFrontBatch(pTableMeta->pMetas, idx);
