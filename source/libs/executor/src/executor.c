@@ -1844,12 +1844,25 @@ int32_t qStreamCreateTableListFromUid(uint64_t uid, void** pTableListInfo) {
 }
 
 int32_t qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size) {
+  if (pTableListInfo == NULL || pKeyInfo == NULL || size == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   if (currentGroupId == -1) {
     *size = taosArrayGetSize(((STableListInfo*)pTableListInfo)->pTableList);
     *pKeyInfo = taosArrayGet(((STableListInfo*)pTableListInfo)->pTableList, 0);
     return 0;
   }
   return tableListGetGroupList(pTableListInfo, currentGroupId, pKeyInfo, size);
+}
+
+int32_t  qStreamSetTableList(void** pTableListInfo, STableKeyInfo* data){
+  if (*pTableListInfo == NULL) {
+    *pTableListInfo = tableListCreate();
+    if (*pTableListInfo == NULL) {
+      return terrno;
+    }
+  }
+  return taosArrayPush(((STableListInfo*)(*pTableListInfo))->pTableList, data) != NULL ? 0 : terrno;
 }
 
 int32_t qStreamGetGroupIndex(void* pTableListInfo, int64_t gid) {

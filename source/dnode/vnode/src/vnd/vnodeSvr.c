@@ -1799,17 +1799,18 @@ static int32_t vnodeRebuildSubmitReqMsg(SSubmitReq2 *pSubmitReq, void **ppMsg) {
 
 static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbData, STableMetaRsp **ppRsp) {
   int32_t code = 0;
+  int32_t lino = 0;
 
   SMetaEntry *pEntry = NULL;
   code = metaFetchEntryByUid(pVnode->pMeta, pSubmitTbData->suid, &pEntry);
   if (code) {
     vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
-    return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
   if (NULL == *ppRsp) {
-    return terrno;
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
   (*ppRsp)->suid = pSubmitTbData->suid;
   (*ppRsp)->tuid = pSubmitTbData->uid;
@@ -1822,7 +1823,7 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
   if (NULL == (*ppRsp)->pSchemas) {
     taosMemoryFree(*ppRsp);
     *ppRsp = NULL;
-    return terrno;
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
   memcpy((*ppRsp)->pSchemas, pEntry->stbEntry.schemaRow.pSchema, pEntry->stbEntry.schemaRow.nCols * sizeof(SSchema));
   memcpy((*ppRsp)->pSchemas + pEntry->stbEntry.schemaRow.nCols, pEntry->stbEntry.schemaTag.pSchema,
@@ -1833,7 +1834,7 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
       taosMemoryFree((*ppRsp)->pSchemas);
       taosMemoryFree(*ppRsp);
       *ppRsp = NULL;
-      return terrno;
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
     memcpy((*ppRsp)->pSchemaExt, pEntry->pExtSchemas, pEntry->stbEntry.schemaRow.nCols * sizeof(SSchemaExt));
   }
@@ -1841,23 +1842,30 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
   if (pEntry->stbEntry.schemaRow.version == pSubmitTbData->sver) {
     return TSDB_CODE_SUCCESS;
   } else {
-    return TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
+    TSDB_CHECK_CODE(code = TSDB_CODE_TDB_TABLE_ALREADY_EXIST, lino, _exit);
   }
+_exit:
+  metaFetchEntryFree(&pEntry);
+  if (code != TSDB_CODE_SUCCESS) {
+    vError("vgId:%d, failed to build exist sub table response, code:%d, line:%d", TD_VID(pVnode), code, lino);
+  }
+  return code;
 }
 
 static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbData, STableMetaRsp **ppRsp) {
   int32_t code = 0;
+  int32_t lino = 0;
 
   SMetaEntry *pEntry = NULL;
   code = metaFetchEntryByUid(pVnode->pMeta, pSubmitTbData->uid, &pEntry);
   if (code) {
     vError("vgId:%d, table uid:%" PRId64 " not exists, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
-    return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
   if (NULL == *ppRsp) {
-    return terrno;
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
   (*ppRsp)->tuid = pEntry->uid;
@@ -1867,7 +1875,7 @@ static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTb
   (*ppRsp)->pSchemas = taosMemoryCalloc(pEntry->ntbEntry.schemaRow.nCols, sizeof(SSchema));
   if (NULL == (*ppRsp)->pSchemas) {
     taosMemoryFree(*ppRsp);
-    return terrno;
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
   memcpy((*ppRsp)->pSchemas, pEntry->ntbEntry.schemaRow.pSchema, pEntry->ntbEntry.schemaRow.nCols * sizeof(SSchema));
   if (pEntry->pExtSchemas != NULL) {
@@ -1875,11 +1883,16 @@ static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTb
     if (NULL == (*ppRsp)->pSchemaExt) {
       taosMemoryFree((*ppRsp)->pSchemas);
       taosMemoryFree(*ppRsp);
-      return terrno;
+      TSDB_CHECK_CODE(code = terrno, lino, _exit);
     }
     memcpy((*ppRsp)->pSchemaExt, pEntry->pExtSchemas, pEntry->ntbEntry.schemaRow.nCols * sizeof(SSchemaExt));
   }
 
+_exit:
+  metaFetchEntryFree(&pEntry);
+  if (code != TSDB_CODE_SUCCESS) {
+    vError("vgId:%d, failed to build exist normal table response, code:%d, line:%d", TD_VID(pVnode), code, lino);
+  }
   return code;
 }
 
@@ -1913,6 +1926,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
   void           *pAllocMsg = NULL;
   SSubmitReq2Msg *pMsg = (SSubmitReq2Msg *)pReq;
+  SDecoder* pDc = NULL;
   if (0 == taosHton64(pMsg->version)) {
     code = vnodeSubmitReqConvertToSubmitReq2(pVnode, (SSubmitReq *)pMsg, pSubmitReq);
     if (TSDB_CODE_SUCCESS == code) {
@@ -1927,12 +1941,12 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     pReq = POINTER_SHIFT(pReq, sizeof(SSubmitReq2Msg));
     len -= sizeof(SSubmitReq2Msg);
     SDecoder dc = {0};
+    pDc = &dc;
     tDecoderInit(&dc, pReq, len);
     if (tDecodeSubmitReq(&dc, pSubmitReq, NULL) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       TSDB_CHECK_CODE(code, lino, _exit);
     }
-    tDecoderClear(&dc);
   }
 
   // scan
@@ -2108,8 +2122,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
           // only the first one needs to be processed.
           code = buildExistTalbeInStreamRsp(pVnode, pSubmitTbData, &pCreateTbRsp->pMeta);
           if (code) {
-            vInfo("vgId:%d failed to create table in stream:%s, code:%s", TD_VID(pVnode),
-                  pSubmitTbData->pCreateTbReq->name, tstrerror(code));
+            vInfo("vgId:%d failed to create table in stream:%s, code(0x%0x):%s", TD_VID(pVnode),
+                  pSubmitTbData->pCreateTbReq->name,  code, tstrerror(code));
             TSDB_CHECK_CODE(code, lino, _exit);
           }
         }
@@ -2197,6 +2211,9 @@ _exit:
   }
 
   taosMemoryFree(pAllocMsg);
+  if(pDc) {
+    tDecoderClear(pDc);
+  }
 
   return code;
 }
