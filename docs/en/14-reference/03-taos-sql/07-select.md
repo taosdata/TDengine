@@ -105,7 +105,7 @@ order_expr:
 - group_by_expr: Specify data grouping and aggregation rules, supporting expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as ```select ts, current from meters order by ts desc, 2 ```, where 2 corresponds to the current column.
 - partition_by_expr: Specify the data slicing conditions, and calculate the data independently within the slice. It can be columns, constants, scalar functions, positions, and their combinations. When using positional syntax, it must appear in the selection column, such as ```select current from meters partition by 1 ```, where 1 corresponds to the current column.
 - order_expr: Specify the sorting rule for the output data, which is not sorted by default. Supports expressions, functions, positions, and column aliases. Different sorting rules can be used for each column in a single or multiple columns, and null values can be specified to be sorted first or last.
-- SLIMIT: Specify the number of output shards, limit_val and offset_val are both positive values, used in the PARTION BY and GROUP BY clauses, the starting offset position can be selected. Only output one shard when using the ORDER BY clause.
+- SLIMIT: Specify the number of output shards, limit_val and offset_val are both positive values, used in the PARTITION BY and GROUP BY clauses, the starting offset position can be selected. Only output one shard when using the ORDER BY clause.
 - LIMIT: Specify the number of output data, and you can choose to specify the starting offset position. limit_val and offset_val are both positive values. When using the PARTION BY clause, the number of shards per shard is controlled.
 
 ## Hints
