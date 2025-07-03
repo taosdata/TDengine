@@ -10,16 +10,16 @@ toc_max_heading_level: 5
 
 支持包括 MySQL、PostgreSQL、Oracle、SQL Server、SQLite 和 **TDengine** 在内的多种数据库。
 
-## 1. 前置条件
+## 前置条件
 
 Ontop 通过 [TDengine Java Connector](../../../reference/connector/java/) 连接 TDengine 数据源，需准备以下环境：
 
 - TDengine 3.3.6.0 及以上版本集群已部署并正常运行（企业及社区版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../../reference/components/taosadapter)。
 - Ontop 5.4.0 及以上版本，[下载](https://github.com/ontop/ontop)。
-- JDBC 驱动 3.6.0 及以上版本，[下载](https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver)。
+- JDBC 驱动 3.6.0 及以上版本，[下载](https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver)。
 
-## 2. 配置数据源
+## 配置数据源
 
 在 Ontop 中配置 TDengine 数据源需以下步骤：
 
@@ -93,7 +93,7 @@ ontop endpoint -p db.properties -m db.obda --port 8080
 
 访问 `http://localhost:8080` ，若显示 SPARQL 查询界面，则表示配置成功。
 
-## 3. 数据分析
+## 数据分析
 
 ### 场景介绍
 
@@ -221,7 +221,7 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
    }
    ```
 
-## 4. 总结
+## 总结
 
 本文通过 TDengine 与 Ontop 集成：
 
@@ -229,4 +229,4 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
 - 提供了符合 W3C 标准的统一数据访问接口。
 - 解锁了工业 IoT 的知识图谱分析与推理能力。
 
-集成同时也开创了时序数据库领域智能新范式，知识图谱强逻辑推理与大语言模型泛化能力，为复杂物联网场景（如设备故障根因分析、能效优化等）提供具备认知领域的智能分析解决方案。
+该集成开创了时序数据库领域的智能新范式，通过结合知识图谱的强逻辑推理和大语言模型的泛化能力，为复杂物联网场景（如设备故障根因分析、能效优化等）提供具备认知能力的智能分析解决方案。
