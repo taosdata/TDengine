@@ -25,7 +25,7 @@ Ontop 通过 [TDengine Java Connector](../../../reference/connector/java/) 连�
 
 ### 1. 安装 JDBC 驱动
 
-将下载的 JDBC 驱动包（`.jar`文件）置于 Ontop 主程序的 `jdbc/` 目录下。
+下载 JDBC 的 DIST 驱动包（`.jar`文件）置于 Ontop 主程序的 `jdbc/` 目录下。
 
 ### 2. 配置 JDBC 驱动
 
