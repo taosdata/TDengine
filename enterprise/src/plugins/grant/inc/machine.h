@@ -462,7 +462,8 @@ typedef struct {
       uint64_t dbEncryptionExpired : 1;
       uint64_t tdGptExpired : 1;  // since 3.3.6.0
       uint64_t dualReplicaHADefined : 1;
-      int64_t  reserve2 : 3;
+      uint64_t storageSizeLimited : 1;
+      int64_t  reserve2 : 2;
     };
   };
   union {
@@ -560,7 +561,7 @@ typedef struct {
   int32_t curVnodes;
   int64_t revokedExpireSec;
   int64_t limitStorageSize;  // storage limits in GB
-  int64_t curStorageSize;    // current storage size in GB
+  int64_t curStorageSize;    // current storage size in MB
   // TDasset grant items
   union {
     int64_t p32;

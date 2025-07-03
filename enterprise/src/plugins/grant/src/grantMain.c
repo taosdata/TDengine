@@ -67,13 +67,13 @@
     }                                                                                                              \
   } while (0)
 
-#define GRANT_ITEM_EXPIRE_CHECK(val, now, expired)            \
-  do {                                                        \
-    if (((val) == GRANT_UNIQ_UNLIMITED) || ((val) > (now))) { \
-      if ((expired)) (expired) = 0;                           \
-    } else {                                                  \
-      if (!(expired)) (expired) = 1;                          \
-    }                                                         \
+#define GRANT_ITEM_LIMIT_CHECK(val, now, factor, expired)                  \
+  do {                                                                     \
+    if (((val) == GRANT_UNIQ_UNLIMITED) || (((val) * (factor)) > (now))) { \
+      if ((expired)) (expired) = 0;                                        \
+    } else {                                                               \
+      if (!(expired)) (expired) = 1;                                       \
+    }                                                                      \
   } while (0)
 
 #define GRANT_ITEM_TO_DATAIN(inField, iField, iLimits, iUndef) \
@@ -102,19 +102,27 @@
     }                                                          \
   } while (0)
 
-#define GRANT_ITEM_SHOW(cur, limit, unit)                                                                          \
-  do {                                                                                                             \
-    if ((++cols) >= nCols) goto _end;                                                                              \
-    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols))) {                                                     \
-      if ((limit) != GRANT_UNIQ_UNLIMITED) {                                                                       \
-        TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%" PRIi64 "/%" PRIi64, (int64_t)(cur), (int64_t)(limit))); \
-      } else {                                                                                                     \
-        TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%" PRIi64 "/%s", (int64_t)(cur), GRANT_UNIQ_UNLIMITED_S)); \
-      }                                                                                                            \
-      src = tmp1;                                                                                                  \
-      STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));                                                              \
-      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);                                                              \
-    }                                                                                                              \
+#define GRANT_ITEM_SHOW(cur, limit, unit)                                                                            \
+  do {                                                                                                               \
+    if ((++cols) >= nCols) goto _end;                                                                                \
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols))) {                                                       \
+      if ((limit) != GRANT_UNIQ_UNLIMITED) {                                                                         \
+        if ((unit) == TSDB_DATA_TYPE_DOUBLE) {                                                                       \
+          TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%.3lf/%" PRIi64, (double)(cur), (int64_t)(limit)));        \
+        } else {                                                                                                     \
+          TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%" PRIi64 "/%" PRIi64, (int64_t)(cur), (int64_t)(limit))); \
+        }                                                                                                            \
+      } else {                                                                                                       \
+        if ((unit) == TSDB_DATA_TYPE_DOUBLE) {                                                                       \
+          TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%.3lf/%s", (double)(cur), GRANT_UNIQ_UNLIMITED_S));        \
+        } else {                                                                                                     \
+          TAOS_UNUSED(snprintf(tmp1, GRANTS_COL_MAX_LEN, "%" PRIi64 "/%s", (int64_t)(cur), GRANT_UNIQ_UNLIMITED_S)); \
+        }                                                                                                            \
+      }                                                                                                              \
+      src = tmp1;                                                                                                    \
+      STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));                                                                \
+      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);                                                                \
+    }                                                                                                                \
   } while (0)
 
 #define GRANT_VALUE_CONVERT(from, to, factor, dft) \
@@ -209,7 +217,8 @@
 #define GRANT_EXPIRED(exp) ((exp) ? TSDB_CODE_GRANT_BASIC_EXPIRED : TSDB_CODE_SUCCESS)
 #define GRANT_EXPIRED_OPT(expbasic, expopt, erropt) \
   ((expbasic) ? TSDB_CODE_GRANT_BASIC_EXPIRED : ((expopt) ? (erropt) : TSDB_CODE_SUCCESS))
-#define GRANT_EXPIRE_VAL (gStatus.expired | (gStatus.multiTierExpired ? gStatus.nDiskCfg > 1 : 0))
+#define GRANT_EXPIRE_VAL \
+  (gStatus.expired | (gStatus.multiTierExpired ? gStatus.nDiskCfg > 1 : 0) | gStatus.storageSizeLimited)
 #define GRANT_TS_SEC_LEN 20
 #define GRANT_LOG_MAX_MACHINE 300
 
@@ -774,7 +783,13 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) {
 
   uint32_t grantExpireVal = GRANT_EXPIRE_VAL;
   uint32_t tsGrantVal = 0;
-  if (grantExpireVal == 0) tsGrantVal |= GRANT_FLAG_ALL;
+  if (grantExpireVal == 0) {
+    tsGrantVal |= GRANT_FLAG_ALL;
+  } else if (gStatus.multiTierExpired && gStatus.nDiskCfg > 1) {
+    tsGrantVal |= GRANT_FLAG_EX_MULTI_TIER;
+  } else if (gStatus.storageSizeLimited) {
+    tsGrantVal |= GRANT_FLAG_EX_STORAGE;
+  }
   if (grantCheck(TSDB_GRANT_AUDIT) == 0) tsGrantVal |= GRANT_FLAG_AUDIT;
   if (grantCheckViews(false, DEBUG_DEBUG) == 0) tsGrantVal |= GRANT_FLAG_VIEW;
 
@@ -834,7 +849,13 @@ static void mndProcessGrantStatusCheck() {
 
   uint32_t grantExpireVal = GRANT_EXPIRE_VAL;
   uint32_t tsGrantVal = 0;
-  if (grantExpireVal == 0) tsGrantVal |= GRANT_FLAG_ALL;
+  if (grantExpireVal == 0) {
+    tsGrantVal |= GRANT_FLAG_ALL;
+  } else if (gStatus.multiTierExpired && gStatus.nDiskCfg > 1) {
+    tsGrantVal |= GRANT_FLAG_EX_MULTI_TIER;
+  } else if (gStatus.storageSizeLimited) {
+    tsGrantVal |= GRANT_FLAG_EX_STORAGE;
+  }
   if (grantCheck(TSDB_GRANT_AUDIT) == 0) tsGrantVal |= GRANT_FLAG_AUDIT;
   if (grantCheckViews(false, DEBUG_DEBUG) == 0) tsGrantVal |= GRANT_FLAG_VIEW;
 
@@ -1066,16 +1087,17 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
     uWarn("grant cluster expired at %s %" PRIi64 ", curtime: %" PRIi64, ts, (int64_t)expireSec, grantCurTime);
   }
 
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.auditExpireSec, grantCurTime, gStatus.auditExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.csvExpireSec, grantCurTime, gStatus.csvExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.streamExpireSec, grantCurTime, gStatus.streamExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.subscriptionExpireSec, grantCurTime, gStatus.subscriptionExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.viewExpireSec, grantCurTime, gStatus.viewExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.multiTierExpireSec, grantCurTime, gStatus.multiTierExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.objectStorageExpireSec, grantCurTime, gStatus.objectStorageExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.dualReplicaHAExpireSec, grantCurTime, gStatus.dualReplicaHAExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.dbEncryptionExpireSec, grantCurTime, gStatus.dbEncryptionExpired);
-  GRANT_ITEM_EXPIRE_CHECK(gStatus.tdGptExpireSec, grantCurTime, gStatus.tdGptExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.auditExpireSec, grantCurTime, 1, gStatus.auditExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.csvExpireSec, grantCurTime, 1, gStatus.csvExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.streamExpireSec, grantCurTime, 1, gStatus.streamExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.subscriptionExpireSec, grantCurTime, 1, gStatus.subscriptionExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.viewExpireSec, grantCurTime, 1, gStatus.viewExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.multiTierExpireSec, grantCurTime, 1, gStatus.multiTierExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.objectStorageExpireSec, grantCurTime, 1, gStatus.objectStorageExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.dualReplicaHAExpireSec, grantCurTime, 1, gStatus.dualReplicaHAExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.dbEncryptionExpireSec, grantCurTime, 1, gStatus.dbEncryptionExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.tdGptExpireSec, grantCurTime, 1, gStatus.tdGptExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.limitStorageSize, gStatus.curStorageSize, 1024, gStatus.storageSizeLimited);
 
   // extract known dataIns from grantObj to grantStatus
   int8_t  knownDataInAssigned[CONN_TYPE_DYN_MAX] = {0};
@@ -1695,6 +1717,7 @@ static void grantRetrieveGrantInfo(SMnode *pMnode) {
   gStatus.curViews = grantGetClusterCurViews(pMnode);
   gStatus.curVnodes = grantGetClusterCurVnodes(pMnode);
   gStatus.curAnodes = grantGetClusterCurAnodes(pMnode);
+  gStatus.curStorageSize = (grantGetClusterCurStorage(pMnode) >> 20);  // convert to MB
 }
 
 static int32_t tSerializeGrantNotify(void *buf, int32_t bufLen, GrantNotify *pNotify, uint32_t *pLen) {
@@ -1918,6 +1941,7 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
   gStatus.serviceExpireSec = GRANT_UNIQ_UNLIMITED;
   grantDataInsSetDefault(gStatus.dataIns, CONN_TYPE_DYN_MAX, GRANT_UNIQ_DFT_DATAIN_EXPIRE);
 #endif
+  GRANT_ITEM_LIMIT_CHECK(gStatus.limitStorageSize, gStatus.curStorageSize, 1024, gStatus.storageSizeLimited);
 }
 
 void grantReset(SMnode *pMnode, EGrantType grant, uint64_t value) {
@@ -2002,6 +2026,24 @@ static int32_t grantCheckDnodes() {
   return TSDB_CODE_GRANT_DNODE_LIMITED;
 }
 
+static int32_t grantCheckVnodes(int32_t nVnodes) {
+  if (gStatus.limitVnodes == GRANT_UNIQ_UNLIMITED) {
+    return 0;
+  }
+  if ((gStatus.curVnodes = grantGetClusterCurVnodes(grantHandle.pMnode) + nVnodes) <= gStatus.limitVnodes) {
+    return 0;
+  }
+  uError("grant failed to create %d vnode(s), exist:%d, limit:%d, reason:grant vnode limited", nVnodes,
+         gStatus.curVnodes, gStatus.limitVnodes);
+  return TSDB_CODE_GRANT_VNODE_LIMITED;
+}
+
+static int32_t grantCheckStorageSize() {
+  return gStatus.limitStorageSize == GRANT_UNIQ_UNLIMITED             ? TSDB_CODE_SUCCESS
+         : gStatus.curStorageSize <= (gStatus.limitStorageSize << 10) ? TSDB_CODE_SUCCESS
+                                                                      : TSDB_CODE_GRANT_STORAGE_LIMITED;
+}
+
 static int32_t grantCheckGrantSpeed() { return TSDB_CODE_SUCCESS; }
 static int32_t grantCheckQueryTime() { return TSDB_CODE_SUCCESS; }
 static int32_t grantCheckConns() { return TSDB_CODE_SUCCESS; }
@@ -2062,6 +2104,23 @@ static int32_t grantCheckViews(bool checkNum, int8_t traceLevel) {
   return code;
 }
 
+static int32_t grantCheckTDgpt(bool checkNum) {
+  int32_t code = 0;
+  if (gStatus.expired || gStatus.tdGptExpired) {
+    code = gStatus.expired ? TSDB_CODE_GRANT_BASIC_EXPIRED : TSDB_CODE_GRANT_TD_GPT_EXPIRED;
+  } else if (checkNum && gStatus.limitAnodes != GRANT_UNIQ_UNLIMITED) {
+    if (grantHandle.pMnode) gStatus.curAnodes = grantGetClusterCurAnodes(grantHandle.pMnode);
+    if (gStatus.curAnodes >= gStatus.limitAnodes) code = TSDB_CODE_GRANT_ANODE_LIMITED;
+  }
+
+  if (code < 0) {
+    uError("grant failed to check TDgpt, expire:%" PRIi64 ", num:%d, reason:TDgpt limited",
+           (int64_t)gStatus.tdGptExpireSec, (int32_t)gStatus.curAnodes);
+  }
+
+  return code;
+}
+
 static int32_t grantCheckCpuCores() {
   if (gStatus.limitCpuCores == GRANT_UNIQ_UNLIMITED) {
     return 0;
@@ -2083,6 +2142,8 @@ int32_t grantCheckExpire(EGrantType grant) {
       return grantCheckSubscriptions(false);
     case TSDB_GRANT_VIEW:
       return grantCheckViews(false, DEBUG_ERROR);
+    case TSDB_GRANT_TD_GPT:
+      return grantCheckTDgpt(false);
     default:
       uError("undefined grant check expire type:%d", grant);
       break;
@@ -2101,6 +2162,16 @@ int64_t grantRemain(EGrantType grant) {
   return 0;
 }
 
+int32_t grantCheckEx(EGrantType grant, void *param) {
+  switch (grant) {
+    case TSDB_GRANT_VNODE:
+      return grantCheckVnodes(*(int32_t *)param);
+    default:
+      break;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t grantCheck(EGrantType grant) {
   switch (grant) {
     case TSDB_GRANT_TIME:
@@ -2113,10 +2184,12 @@ int32_t grantCheck(EGrantType grant) {
       return grantCheckTimeSeries();
     case TSDB_GRANT_DNODE:
       return grantCheckDnodes();
+    case TSDB_GRANT_VNODE:
+      return grantCheckVnodes(1);
     case TSDB_GRANT_ACCT:
       return grantCheckAccts();
     case TSDB_GRANT_STORAGE:
-      return TSDB_CODE_SUCCESS;
+      return grantCheckStorageSize();
     case TSDB_GRANT_SPEED:
       return grantCheckGrantSpeed();
     case TSDB_GRANT_QUERY_TIME:
@@ -2144,7 +2217,7 @@ int32_t grantCheck(EGrantType grant) {
     case TSDB_GRANT_DB_ENCRYPTION:
       return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.dbEncryptionExpired, TSDB_CODE_GRANT_DB_ENCRYPTION_EXPIRED);
     case TSDB_GRANT_TD_GPT:
-      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.tdGptExpired, TSDB_CODE_GRANT_TD_GPT_EXPIRED);
+      return grantCheckTDgpt(true);
     default:
       break;
   }
@@ -2332,6 +2405,18 @@ static int32_t grantCheckGrantItems(SMnode *pMnode, SGrantUniqObj *pObj) {
     return TSDB_CODE_GRANT_CPU_LIMITED;
   }
 
+  if ((pObj->limitVnodes > GRANT_UNIQ_UNLIMITED) &&
+      ((gStatus.curVnodes = grantGetClusterCurVnodes(pMnode)) > pObj->limitVnodes)) {
+    GRANT_CHECK_ERROR_LOG("vnodes", gStatus.curVnodes, pObj->limitVnodes);
+    return TSDB_CODE_GRANT_VNODE_LIMITED;
+  }
+
+  if ((pObj->limitStorageSize > GRANT_UNIQ_UNLIMITED) &&
+      ((gStatus.curStorageSize = (grantGetClusterCurStorage(pMnode) >> 20)) > (pObj->limitStorageSize << 10))) {
+    GRANT_CHECK_ERROR_LOG("storage size", gStatus.curStorageSize, pObj->limitStorageSize << 10);
+    return TSDB_CODE_GRANT_STORAGE_LIMITED;
+  }
+
   // optional
   if ((pObj->limitStreams > GRANT_UNIQ_UNLIMITED) &&
       ((gStatus.curStreams = grantGetClusterCurStreams(pMnode)) > pObj->limitStreams)) {
@@ -2347,6 +2432,19 @@ static int32_t grantCheckGrantItems(SMnode *pMnode, SGrantUniqObj *pObj) {
       ((gStatus.curViews = grantGetClusterCurViews(pMnode)) > pObj->limitViews)) {
     GRANT_CHECK_ERROR_LOG("views", gStatus.curViews, pObj->limitViews);
     return TSDB_CODE_GRANT_VIEW_LIMITED;
+  }
+
+  int32_t nVariantGrantItems = taosArrayGetSize(pObj->pItemI64);
+  for (int32_t i = 0; i < nVariantGrantItems; ++i) {
+    SGrantItemI64 *pItemI64 = TARRAY_GET_ELEM(pObj->pItemI64, i);
+    if (pItemI64->index == GRANT_OPT_TD_GPT) {
+      if ((pItemI64->number > GRANT_UNIQ_UNLIMITED) &&
+          ((gStatus.curAnodes = grantGetClusterCurAnodes(pMnode)) > pItemI64->number)) {
+        GRANT_CHECK_ERROR_LOG("anodes", gStatus.curAnodes, pItemI64->number);
+        return TSDB_CODE_GRANT_ANODE_LIMITED;
+      }
+      break;
+    }
   }
 
   return 0;
@@ -2426,6 +2524,23 @@ static int32_t grantCheckGrantItemsAfterMerge(SMnode *pMnode, SGrantUniqObj *pOb
   } else if ((pObj->limitDnodes > GRANT_UNIQ_UNLIMITED) && (gStatus.curDnodes > pObj->limitDnodes)) {
     GRANT_CHECK_ERROR_LOG("dnodes", gStatus.curDnodes, pObj->limitDnodes);
     return TSDB_CODE_GRANT_DNODE_LIMITED;
+  }
+
+  if (pObj->limitVnodes == GRANT_UNIQ_UNDEFINED) {
+    pObj->limitVnodes = GRANT_UNIQ_DFT_BASIC_VNODES;
+  }
+  if ((pObj->limitVnodes > GRANT_UNIQ_UNLIMITED) &&
+      ((gStatus.curVnodes = grantGetClusterCurVnodes(pMnode)) > pObj->limitVnodes)) {
+    GRANT_CHECK_ERROR_LOG("vnodes", gStatus.curVnodes, pObj->limitVnodes);
+    return TSDB_CODE_GRANT_VNODE_LIMITED;
+  }
+  if (pObj->limitStorageSize == GRANT_UNIQ_UNDEFINED) {
+    pObj->limitStorageSize = GRANT_UNIQ_DFT_BASIC_STORAGE_SIZE;
+  }
+  if ((pObj->limitStorageSize > GRANT_UNIQ_UNLIMITED) &&
+      ((gStatus.curStorageSize = (grantGetClusterCurStorage(pMnode) >> 20)) > (pObj->limitStorageSize << 10))) {
+    GRANT_CHECK_ERROR_LOG("storage size", gStatus.curStorageSize, pObj->limitStorageSize << 10);
+    return TSDB_CODE_GRANT_STORAGE_LIMITED;
   }
 
   return 0;
@@ -2680,11 +2795,11 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);
     }
 
-    GRANT_ITEM_SHOW(gStatus.curTimeSeries, gStatus.limitTimeSeries, 64);
-    GRANT_ITEM_SHOW(gStatus.curDnodes, gStatus.limitDnodes, 16);
-    GRANT_ITEM_SHOW(gStatus.curCpuCores, gStatus.limitCpuCores, 32);
-    GRANT_ITEM_SHOW(gStatus.curVnodes, gStatus.limitVnodes, 32);
-    GRANT_ITEM_SHOW(gStatus.curStorageSize, gStatus.limitStorageSize, 64);
+    GRANT_ITEM_SHOW(gStatus.curTimeSeries, gStatus.limitTimeSeries, TSDB_DATA_TYPE_BIGINT);
+    GRANT_ITEM_SHOW(gStatus.curDnodes, gStatus.limitDnodes, TSDB_DATA_TYPE_SMALLINT);
+    GRANT_ITEM_SHOW(gStatus.curCpuCores, gStatus.limitCpuCores, TSDB_DATA_TYPE_INT);
+    GRANT_ITEM_SHOW(gStatus.curVnodes, gStatus.limitVnodes, TSDB_DATA_TYPE_INT);
+    GRANT_ITEM_SHOW((double)gStatus.curStorageSize / 1024.0, gStatus.limitStorageSize, TSDB_DATA_TYPE_DOUBLE);
   _end:
     ++numOfRows;
   }
@@ -2701,7 +2816,7 @@ _exit:
 static void mndCancelGetNextGrant(SMnode *pMnode, void *pIter) {}
 
 /**
- * @param type: 0x01 data-in, 0x02 display current value,
+ * @param type: 0x01 data-in, 0x02 display current value, 0x04 display current value as double pointer
  */
 static int32_t mndRetrieveGrantFullItem(SSDataBlock *pBlock, int32_t *numOfRows, const char *name, const char *display,
                                         int64_t expire, int64_t curVal, int64_t limit, int8_t type, bool optional) {
@@ -2752,13 +2867,17 @@ static int32_t mndRetrieveGrantFullItem(SSDataBlock *pBlock, int32_t *numOfRows,
                    "{\"number\":%" PRIi64 ", \"speed\":%" PRIi64 ", \"expire\":\"%" PRIi64 "\", \"expireTime\":\"%s\"}",
                    curVal, limit, expire, expire != GRANT_UNIQ_UNLIMITED ? ts : GRANT_UNIQ_UNLIMITED_S);
   } else if (limit == GRANT_UNIQ_UNLIMITED) {
-    if (type & 0x02) {
+    if (type & 0x04) {
+      (void)snprintf(qBuf, colLen, "%.3lf/%s", *(double*)curVal, GRANT_UNIQ_UNLIMITED_S);
+    } else if (type & 0x02) {
       (void)snprintf(qBuf, colLen, "%" PRIi64 "/%s", curVal, GRANT_UNIQ_UNLIMITED_S);
     } else {
       (void)snprintf(qBuf, colLen, "%s", GRANT_UNIQ_UNLIMITED_S);
     }
   } else if (limit != GRANT_UNIQ_UNUTILIZED) {
-    if (type & 0x02) {
+    if (type & 0x04) {
+      (void)snprintf(qBuf, colLen, "%.3lf/%" PRIi64, *(double*)curVal, limit);
+    } else if (type & 0x02) {
       (void)snprintf(qBuf, colLen, "%" PRIi64 "/%" PRIi64, curVal, limit);
     } else {
       (void)snprintf(qBuf, colLen, "%" PRIi64, limit);
@@ -2796,9 +2915,9 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
                                              pStatus->curCpuCores, pStatus->limitCpuCores, 2, false));
     TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "vnodes", "Vnodes", basicExpireSec, pStatus->curVnodes,
                                              pStatus->limitVnodes, 2, false));
+    double storageSize = (double)pStatus->curStorageSize / 1024.0;
     TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, "storage_size", "Storage Size", basicExpireSec,
-                                             pStatus->curStorageSize, pStatus->limitStorageSize, 2, false));
-
+                                             (int64_t)&storageSize, pStatus->limitStorageSize, 4, false));
     TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_STREAM],
                                              gGrantDisplay[GRANT_OPT_STREAM], pStatus->streamExpireSec,
                                              pStatus->curStreams, pStatus->limitStreams, 2, true));
