@@ -61,3 +61,8 @@ test/allure-results/
 .idea/
 cmake-build-debug/
 cmake-build-release/
+test/allure-results
+test/env
+test/run
+test/screenlog*
+test/output.tmp
