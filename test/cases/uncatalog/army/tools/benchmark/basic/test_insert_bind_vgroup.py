@@ -27,6 +27,24 @@ class TestInsertBindVgroup:
         self.insertBenchJson("./tools/benchmark/basic/json/insertBindVGroup.json", "-T 2", True)
 
     def test_insert_bind_vgroup(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         # basic
         self.checkBasic()
         # advance

@@ -20,6 +20,24 @@ class TestSmlTelnetInsertAlltypesSameMinMax:
         """
 
     def test_sml_telnet_insert_alltypes_same_min_max(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tdSql.query("select client_version()")
         client_ver = "".join(tdSql.res[0])
         major_ver = client_ver.split(".")[0]

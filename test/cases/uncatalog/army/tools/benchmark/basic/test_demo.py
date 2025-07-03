@@ -23,6 +23,24 @@ class TestDemo:
 
 
     def test_demo(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
         cmd = "%s -n 100 -t 100 -y" % binPath
         tdLog.info("%s" % cmd)

@@ -104,6 +104,24 @@ class TestTd12478:
             tdSql.checkData(0,0,self.num_random)
 
     def test_TD_12478(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tdSql.prepare()
 
         dcDB = self.dropandcreateDB_random(1)

@@ -22,6 +22,24 @@ class TestCommandlineRetry:
         """
 
     def test_commandline_retry(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
         cmd = (
             "%s -t 1 -n 10 -i 1000 -r 1 -k 10 -z 1000 -y &"

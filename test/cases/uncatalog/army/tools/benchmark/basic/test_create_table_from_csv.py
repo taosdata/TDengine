@@ -27,6 +27,24 @@ class TestCreateTableFromCsv:
 
     # run
     def test_create_table_from_csv(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tdLog.info(f"start to excute {__file__}")
         binPath = etool.benchMarkFile()
         if binPath == "":

@@ -24,6 +24,24 @@ class TestTaoscInsertRetryJsonStb:
 
 
     def test_taosc_insert_retry_json_stb(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
         cmd = "%s -f ./tools/benchmark/basic/json/taosc_insert_retry-stb.json" % binPath
         tdLog.info("%s" % cmd)

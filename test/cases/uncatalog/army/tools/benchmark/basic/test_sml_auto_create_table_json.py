@@ -22,6 +22,24 @@ class TestSmlAutoCreateTableJson:
 
 
     def test_sml_auto_create_table_json(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
 
         cmd = "%s -f ./tools/benchmark/basic/json/sml_auto_create_table.json" % binPath

@@ -20,6 +20,24 @@ class TestCommandlineSml:
         [TD-21932] taosBenchmark sml test cases
         """
     def test_commandline_sml(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
 
         cmd = "%s -I sml -t 1 -n 1 -y" % binPath

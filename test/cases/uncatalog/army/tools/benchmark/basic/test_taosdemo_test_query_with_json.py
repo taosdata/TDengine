@@ -70,6 +70,24 @@ class TestTaosdemoTestQueryWithJson:
         )
 
     def test_taosdemo_test_query_with_json(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
         if binPath == "":
             tdLog.exit("taosBenchmark not found!")

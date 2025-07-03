@@ -52,6 +52,24 @@ class TestStmt2Insert:
         
 
     def test_stmt2_insert(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         benchmark = etool.benchMarkFile()
         ''' stmt2 engine have some problem
         # batch - auto-create-table(yes or no)

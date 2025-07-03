@@ -40,6 +40,24 @@ class TestCommandline:
 
 
     def test_commandline(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         # check version
         self.checkVersion()
 

@@ -27,6 +27,24 @@ class TestTaosConfigJson:
         
     # run
     def test_taos_config_json(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tdLog.info(f"start to excute {__file__}")
         cmd = "-f ./tools/benchmark/basic/json/taos_config.json"
         rlist = self.benchmark(cmd, checkRun=True)

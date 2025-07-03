@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
+import json
 
 
 class TestQueryMain:
@@ -225,6 +226,24 @@ class TestQueryMain:
         self.expectFailed(f"{benchmark} -f  ./tools/benchmark/basic/json/queryErrorBatchRest.json")
 
     def test_query_main(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tbCnt = 10
         tbRow = 1000
         benchmark = etool.benchMarkFile()

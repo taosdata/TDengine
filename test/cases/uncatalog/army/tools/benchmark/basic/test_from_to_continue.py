@@ -21,6 +21,24 @@ class TestFromToContinue:
         """
 
     def test_from_to_continue(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
         cmd = "%s -t 6 -n 1 -y" % binPath
         tdLog.info("%s" % cmd)

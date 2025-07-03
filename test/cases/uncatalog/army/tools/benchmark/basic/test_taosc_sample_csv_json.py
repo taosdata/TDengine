@@ -22,6 +22,24 @@ class TestTaoscSampleCsvJson:
 
 
     def test_taosc_sample_csv_json(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
         cmd = "%s -f ./tools/benchmark/basic/json/taosc_sample_use_ts.json" % binPath
         tdLog.info("%s" % cmd)

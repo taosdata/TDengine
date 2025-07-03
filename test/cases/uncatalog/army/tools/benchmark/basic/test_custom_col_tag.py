@@ -20,6 +20,24 @@ class TestCustomColTag:
         """
 
     def test_custom_col_tag(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
         cmd = "%s -f ./tools/benchmark/basic/json/custom_col_tag.json" % binPath
         tdLog.info("%s" % cmd)

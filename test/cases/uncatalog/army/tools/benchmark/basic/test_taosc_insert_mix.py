@@ -23,6 +23,24 @@ class TestTaoscInsertMix:
         """
     @classmethod
     def test_taosc_insert_mix(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
         # mix 1 ~ 4
         for i in range(4):

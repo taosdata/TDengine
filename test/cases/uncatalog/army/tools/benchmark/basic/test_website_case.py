@@ -216,7 +216,25 @@ class Websitecase:
             tdLog.exit(f"failed: {cmd} not found {OK_RESULT} in:\n{output} \nerror:{error}")
     
 
-    def websiteCase(self):
+    def test_website_case(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tbCnt = 10
         benchmark = etool.benchMarkFile()
       

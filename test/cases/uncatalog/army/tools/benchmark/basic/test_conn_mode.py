@@ -128,6 +128,24 @@ class TestConnMode:
         self.insertBenchJson(json, options, True)
 
     def test_conn_mode(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         # init
         self.db  = "test"
         self.stb = "meters"

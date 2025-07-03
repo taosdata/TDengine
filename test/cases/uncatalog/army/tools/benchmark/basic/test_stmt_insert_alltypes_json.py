@@ -22,6 +22,24 @@ class TestStmtInsertAlltypesJson:
 
 
     def test_stmt_insert_alltypes_json(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
 
         cmd = "%s -f ./tools/benchmark/basic/json/stmt_insert_alltypes.json" % binPath

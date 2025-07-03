@@ -22,6 +22,24 @@ class TestStreamFunctionTest:
 
 
     def test_stream_function_test(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
         cmd = "%s -f ./tools/benchmark/basic/json/stream_exist_stb_tag_prepare.json" % binPath
         tdLog.info("%s" % cmd)

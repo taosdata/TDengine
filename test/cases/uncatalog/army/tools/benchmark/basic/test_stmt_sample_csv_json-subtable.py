@@ -22,6 +22,24 @@ class TestStmtSampleCsvJsonSubtable:
 
 
     def test_stmt_sample_csv_json_subtable(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
         cmd = "%s -f ./tools/benchmark/basic/json/stmt_sample_use_ts-subtable.json" % binPath
         tdLog.info("%s" % cmd)

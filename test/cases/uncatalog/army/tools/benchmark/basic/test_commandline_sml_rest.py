@@ -22,6 +22,24 @@ class TestCommandlineSmlRest:
 
 
     def test_commandline_sml_rest(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
 
         cmd = "%s -I sml-rest -t 1 -n 1 -y" % binPath

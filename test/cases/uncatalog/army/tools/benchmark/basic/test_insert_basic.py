@@ -176,6 +176,24 @@ class TestInsertBasic:
 
 
     def test_insert_basic(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         # check env
         cmd = f"pip3 list"
         output, error, code = eos.run(cmd)

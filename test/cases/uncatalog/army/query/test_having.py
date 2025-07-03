@@ -343,6 +343,25 @@ class TestHaving:
 
 
     def test_having(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
         self.prepare_global_data()
 
         self.prepare_agg_data()

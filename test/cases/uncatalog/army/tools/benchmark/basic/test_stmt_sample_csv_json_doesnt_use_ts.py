@@ -20,6 +20,24 @@ class TestStmtSampleCsvJsonDoesntUseTs:
         """
 
     def test_stmt_sample_csv_json_doesnt_use_ts(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
         cmd = "%s -f ./tools/benchmark/basic/json/stmt_sample_doesnt_use_ts.json" % binPath
         tdLog.info("%s" % cmd)

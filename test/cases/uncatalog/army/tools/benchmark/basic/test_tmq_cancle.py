@@ -74,6 +74,24 @@ class TmqCancle:
 
     # run
     def tmq_cancle(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tdLog.info(f"start to excute {__file__}")
         tdSql.execute("drop topic if exists topic_benchmark_meters")
         self.dbInsert()

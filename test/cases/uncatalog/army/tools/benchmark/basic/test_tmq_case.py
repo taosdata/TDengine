@@ -23,7 +23,25 @@ class TmqCase:
 
 
 
-    def tmq_case(self):
+    def test_tmq_case(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tdSql.execute("drop topic if exists tmq_topic_0")
         tdSql.execute("drop topic if exists tmq_topic_1")
         binPath = etool.benchMarkFile()

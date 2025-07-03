@@ -48,6 +48,24 @@ class TestInsertErrorExit:
 
     # run
     def test_insert_error_exit(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         tdLog.info(f"start to excute {__file__}")
         t1 = threading.Thread(target=self.dbInsertThread)
         t2 = threading.Thread(target=self.dnodeNodeStopThread)

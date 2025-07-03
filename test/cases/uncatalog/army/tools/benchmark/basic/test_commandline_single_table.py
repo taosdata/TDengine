@@ -23,6 +23,24 @@ class TestCommandlineSingleTable:
 
 
     def test_commandline_single_table(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
 
         cmd = "%s -N -I taosc -t 1 -n 1 -y -E" % binPath

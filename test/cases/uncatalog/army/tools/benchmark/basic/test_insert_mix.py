@@ -60,6 +60,24 @@ class TestInsertMix:
         self.checkDataCorrect()   
 
     def test_insert_mix(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
         cmd = "%s -f ./tools/benchmark/basic/json/insertMix.json" % binPath
         self.insert(cmd)

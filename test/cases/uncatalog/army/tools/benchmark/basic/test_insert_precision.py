@@ -20,7 +20,7 @@ class TestInsertPrecision:
         taosBenchmark insert->Precision test cases
         """
 
-    def testBenchmarkJson(self, benchmark, jsonFile, options = ""):
+    def run_benchmark_json(self, benchmark, jsonFile, options = ""):
         # exe insert 
         cmd = f"{benchmark} {options} -f {jsonFile}"
         os.system(cmd)
@@ -64,13 +64,31 @@ class TestInsertPrecision:
     # bugs ts
     def checkBasic(self, benchmark):
         # MS
-        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/insertPrecisionMS.json", "")
+        self.run_benchmark_json(benchmark, "./tools/benchmark/basic/json/insertPrecisionMS.json", "")
         # US
-        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/insertPrecisionUS.json", "")
+        self.run_benchmark_json(benchmark, "./tools/benchmark/basic/json/insertPrecisionUS.json", "")
         # NS
-        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/insertPrecisionNS.json", "")
+        self.run_benchmark_json(benchmark, "./tools/benchmark/basic/json/insertPrecisionNS.json", "")
 
     def test_insert_precision(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         benchmark = etool.benchMarkFile()
 
         # vgroups

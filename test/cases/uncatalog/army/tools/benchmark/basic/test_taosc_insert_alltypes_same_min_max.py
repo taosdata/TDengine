@@ -20,6 +20,24 @@ class TestTaoscInsertAlltypesSameMinMax:
         """
 
     def test_taosc_insert_alltypes_same_min_max(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
         cmd = (
             "%s -f ./tools/benchmark/basic/json/taosc_insert_alltypes-same-min-max.json"
