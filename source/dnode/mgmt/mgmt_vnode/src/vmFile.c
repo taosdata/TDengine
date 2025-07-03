@@ -480,8 +480,8 @@ static int32_t vmEncodeMountList(SVnodeMgmt *pMgmt, SJson *pJson) {
     if (!mount) TAOS_CHECK_EXIT(terrno);
     int64_t mountId = *(int64_t *)taosHashGetKey(pTfs, NULL);
     TAOS_CHECK_EXIT(tjsonAddIntegerToObject(mount, "mountId", mountId));
-    TAOS_CHECK_EXIT(tjsonAddStringToObject(mount, "name", pTfs->name));
-    TAOS_CHECK_EXIT(tjsonAddStringToObject(mount, "path", pTfs->path));
+    TAOS_CHECK_EXIT(tjsonAddStringToObject(mount, "name", (*(SMountTfs **)pTfs)->name));
+    TAOS_CHECK_EXIT(tjsonAddStringToObject(mount, "path", (*(SMountTfs **)pTfs)->path));
     TAOS_CHECK_EXIT(tjsonAddItemToArray(mounts, mount));
     mount = NULL;
   }
@@ -530,7 +530,7 @@ int32_t vmWriteMountListToFile(SVnodeMgmt *pMgmt) {
   dInfo("succeed to write mounts file:%s", realfile);
 _exit:
   if (unlock && (ret = taosThreadMutexUnlock(&pMgmt->fileLock))) {
-    dError("failed to unlock since %s", tstrerror(ret));
+    dError("failed to unlock at line %d when write mounts file since %s", __LINE__, tstrerror(ret));
   }
   if (pJson) tjsonDelete(pJson);
   if (buffer) taosMemoryFree(buffer);

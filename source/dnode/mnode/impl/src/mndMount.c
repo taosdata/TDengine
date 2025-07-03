@@ -884,7 +884,7 @@ static int32_t mndAddMountVnodeAction(SMnode *pMnode, STrans *pTrans, SMountObj 
   mndReleaseDnode(pMnode, pDnode);
 
   int32_t contLen = 0;
-  if (!(pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVg, pObj->paths[0], pObj->uid, pMountVg->diskPrimary,
+  if (!(pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVg, pObj->name, pObj->paths[0], pObj->uid, pMountVg->diskPrimary,
                                       pVg->mountVgId, pMountVg->committed, pMountVg->commitID, pMountVg->commitTerm,
                                       &contLen))) {
     return terrno ? terrno : -1;

@@ -2428,6 +2428,7 @@ typedef struct {
   int32_t  changeVersion;
   int8_t   encryptAlgorithm;
   char     mountPath[TSDB_MOUNT_FPATH_LEN];
+  char     mountName[TSDB_MOUNT_NAME_LEN];
   int64_t  mountId;
   int32_t  diskPrimary;
   int32_t  mountVgId;

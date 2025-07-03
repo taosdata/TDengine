@@ -575,12 +575,18 @@ static int32_t vmOpenMountTfs(SVnodeMgmt *pMgmt) {
   TAOS_CHECK_EXIT(vmGetMountListFromFile(pMgmt, &pMountCfgs, &numOfMounts));
   for (int32_t i = 0; i < numOfMounts; ++i) {
     SMountCfg *pCfg = &pMountCfgs[i];
-    if (taosHashGet(pMgmt->mountTfsHash, pCfg->mountId, sizeof(pCfg->mountId))) {
+    if (taosHashGet(pMgmt->mountTfsHash, &pCfg->mountId, sizeof(pCfg->mountId))) {
       TAOS_CHECK_EXIT(TSDB_CODE_INTERNAL_ERROR);
     }
     TAOS_CHECK_EXIT(vmGetMountDisks(pMgmt, pCfg->path, &pDisks));
-    TAOS_CHECK_EXIT(tfsOpen(pDisks, taosArrayGetSize(pDisks), &pTfs));
-    if ((code = taosHashPut(pMgmt->mountTfsHash, pCfg->mountId, sizeof(pCfg->mountId), pTfs, POINTER_BYTES))) {
+    int32_t nDisks = taosArrayGetSize(pDisks);
+    if (nDisks < 1 || nDisks > TFS_MAX_DISKS) {
+      dError("mount:%s, %" PRIi64 ", %s, invalid number of disks:%d, expect 1 to %d", pCfg->mountId, pCfg->name,
+             pCfg->path, nDisks, TFS_MAX_DISKS);
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
+    }
+    TAOS_CHECK_EXIT(tfsOpen(TARRAY_GET_ELEM(pDisks, 0), TARRAY_SIZE(pDisks), &pTfs));
+    if ((code = taosHashPut(pMgmt->mountTfsHash, &pCfg->mountId, sizeof(pCfg->mountId), pTfs, POINTER_BYTES))) {
       tfsClose(pTfs);
       TAOS_CHECK_EXIT(code);
     }
@@ -624,7 +630,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
     dError("failed to init mountTfsHash since %s", terrstr());
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  if ((code = vmOpenMountTfs(pMgmt)) != 0) {
+  if((code = vmOpenMountTfs(pMgmt)) != 0) {
     return code;
   }
 #endif

@@ -1102,7 +1102,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t vmGetMountTfs(SVnodeMgmt *pMgmt, int64_t mountId, const char *mountPath, STfs **ppTfs) {
+static int32_t vmGetMountTfs(SVnodeMgmt *pMgmt, int64_t mountId, const char* mountName, const char *mountPath, STfs **ppTfs) {
   int32_t    code = 0, lino = 0;
   SArray    *pDisks = NULL;
   SMountTfs *pMountTfs = NULL;
@@ -1125,7 +1125,7 @@ static int32_t vmGetMountTfs(SVnodeMgmt *pMgmt, int64_t mountId, const char *mou
     if (!(*ppTfs = (*(SMountTfs **)pMountTfs)->pTfs)) {
       TAOS_CHECK_EXIT(TSDB_CODE_INTERNAL_ERROR);
     }
-    (void)taosThreadMutexUnLock(&pMgmt->mutex);
+    (void)taosThreadMutexUnlock(&pMgmt->mutex);
     TAOS_RETURN(code);
   }
   TAOS_CHECK_EXIT(vmGetMountDisks(pMgmt, mountPath, &pDisks));
@@ -1134,11 +1134,13 @@ static int32_t vmGetMountTfs(SVnodeMgmt *pMgmt, int64_t mountId, const char *mou
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
   }
   TSDB_CHECK_NULL((pMountTfs = taosMemoryCalloc(1, sizeof(SMountTfs))), code, lino, _exit, terrno);
+  if (mountName) (void)snprintf(pMountTfs->name, sizeof(pMountTfs->name), "%s", mountName);
+  if (mountPath) (void)snprintf(pMountTfs->path, sizeof(pMountTfs->path), "%s", mountPath);
   TAOS_CHECK_EXIT(tfsOpen(TARRAY_GET_ELEM(pDisks, 0), numOfDisks, &pMountTfs->pTfs));
-  TAOS_CHECK_EXIT(taosHashPut(pMgmt->mountTfsHash, mountId, sizeof(mountId), &pMountTfs, POINTER_BYTES));
+  TAOS_CHECK_EXIT(taosHashPut(pMgmt->mountTfsHash, &mountId, sizeof(mountId), &pMountTfs, POINTER_BYTES));
 _exit:
   if (unlock) {
-    (void)taosThreadMutexUnLock(&pMgmt->mutex);
+    (void)taosThreadMutexUnlock(&pMgmt->mutex);
   }
   if (code != 0) {
     dError("mount:%d,%s, failed at line %d to get mount tfs since %s", mountId, mountPath ? mountPath : "NULL", lino,
@@ -1277,7 +1279,7 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   wrapperCfg.diskPrimary = req.diskPrimary;
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
-  TAOS_CHECK_EXIT(vmGetMountTfs(pMgmt, req.mountId, req.mountPath, &pMountTfs));
+  TAOS_CHECK_EXIT(vmGetMountTfs(pMgmt, req.mountId, req.mountName, req.mountPath, &pMountTfs));
 
   if ((code = vmMountVnode(pMgmt, path, &vnodeCfg, wrapperCfg.diskPrimary, &req, pMountTfs)) < 0) {
     dError("vgId:%d, failed to create vnode since %s", req.vgId, tstrerror(code));
@@ -1295,6 +1297,7 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
   TAOS_CHECK_EXIT(vnodeStart(pImpl));
   TAOS_CHECK_EXIT(vmWriteVnodeListToFile(pMgmt));
+  TAOS_CHECK_EXIT(vmWriteMountListToFile(pMgmt));
 _exit:
   vmCleanPrimaryDisk(pMgmt, req.vgId);
 
