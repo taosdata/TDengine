@@ -12,10 +12,10 @@ Supports multiple databases including MySQL, PostgreSQL, Oracle, SQL Server, SQL
 
 ## Prerequisites
 
-Ontop connects to TDengine data sources via the [TDengine Java Connector](../../../reference/connector/java/). Prepare the following environment:
+Ontop connects to TDengine data sources via the [TDengine Java Connector](../../../tdengine-reference/client-libraries/java). Prepare the following environment:
 
 - TDengine cluster version 3.3.6.0 or higher deployed and running (both Enterprise and Community editions supported).
-- taosAdapter running normally, see [taosAdapter Reference Manual](../../../reference/components/taosadapter) for details.
+- taosAdapter running normally, see [taosAdapter Reference Manual](../../../tdengine-reference/components/taosadapter/) for details.
 - Ontop version 5.4.0 or higher, [download](https://github.com/ontop/ontop).
 - JDBC driver version 3.6.0 or higher, [download](https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver).
 
@@ -38,7 +38,7 @@ jdbc.password = [password]
 jdbc.driver = com.taosdata.jdbc.ws.WebSocketDriver
 ```
 
-For URL parameter details, refer to: [TDengine URL Specification](../../../reference/connector/java/#url-specification).
+For URL parameter details, refer to: [TDengine URL Specification](../../../tdengine-reference/client-libraries/java/#url-specification).
 
 ### Configure Table Mapping
 
