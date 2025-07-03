@@ -2757,7 +2757,8 @@ static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, uint8_t *pData,
     if (IS_STR_DATA_BLOB(pColData->type)) {
       code = tRealloc((uint8_t **)(&pColData->aOffset), ((int64_t)(pColData->nVal + 1)) << 2);
       if (code) goto _exit;
-      pColData->aOffset[pColData->nVal] = sizeof(uint64_t);
+      pColData->aOffset[pColData->nVal] =
+          (pColData->nVal > 0) ? pColData->aOffset[pColData->nVal - 1] + sizeof(uint64_t) : 0;
       if (nData) {
         code = tRealloc(&pColData->pData, pColData->nData + sizeof(uint64_t));
         if (code) goto _exit;
