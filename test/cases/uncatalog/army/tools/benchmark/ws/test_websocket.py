@@ -10,16 +10,10 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-import frame
-import frame.etool
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
+from new_test_framework.utils import tdLog, tdSql, etool
+import os
 
-
-class TDTestCase(TBase):
+class TestWebsocket:
     def caseDescription(self):
         """
         [TD-17079] taosBenchmark test cloud
@@ -27,7 +21,22 @@ class TDTestCase(TBase):
 
 
 
-    def run(self):
+    def test_websocket(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        History:            - xxx
+            - xxx
+        """
         binPath = etool.benchMarkFile()
         cmd = "%s  -t 1 -n 1 -y -W http://localhost:6041 " % binPath
         tdLog.info("%s" % cmd)
@@ -37,10 +46,6 @@ class TDTestCase(TBase):
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 1)
 
-    def stop(self):
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

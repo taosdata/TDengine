@@ -10,33 +10,36 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
+from new_test_framework.utils import tdLog, tdSql, etool
 import os
-import subprocess
-import frame
-import frame.etool
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
 
-
-class TDTestCase(TBase):
+class TestCloudTest:
     def caseDescription(self):
         """
         [TD-22022] taosBenchmark cloud test cases
         """
 
-    def run(self):
+    def test_cloud_test(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        History:            - xxx
+            - xxx
+        """
         binPath = etool.benchMarkFile()
         cmd = "%s -T 1 -t 2 -n 10 -y" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
  
-    def stop(self):
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

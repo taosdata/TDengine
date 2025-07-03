@@ -223,6 +223,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_join.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_schema_is_old.py
 
 # 06-DataIngestion
 ## 01-Insert
@@ -656,6 +657,11 @@
 
 
 # uncatalog
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config_refresh.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config_refresh.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_db_option.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_query_accuracy.py
 #,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_ts5400.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_having.py
@@ -721,7 +727,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json_subtable.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt_sample_csv_json.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stmt2_insert.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stream_test.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stream.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stream_function_test.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_stt.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_taosc_auto_create_table_json.py
@@ -756,7 +762,8 @@
 ,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taos_config_json.py
 ,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_data.py
 ,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_auto_create_table_json.py
-
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/cloud/test_cloudtest.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/ws/test_websocket.py -R
 
 
 # taosdump cases

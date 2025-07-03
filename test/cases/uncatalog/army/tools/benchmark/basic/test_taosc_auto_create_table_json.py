@@ -42,7 +42,7 @@ class TestTaoscAutoCreateTableJson:
 
         """
         tdSql.query("select client_version()")
-        client_ver = "".join(tdSql.res[0])
+        client_ver = "".join(tdSql.queryResult[0])
         major_ver = client_ver.split(".")[0]
 
         binPath = etool.benchMarkFile()

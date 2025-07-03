@@ -13,6 +13,7 @@
 
 from new_test_framework.utils import tdLog, tdSql, etool, eos
 import json
+import os
 
 class TestInsertDecimal:
     def caseDescription(self):
@@ -23,7 +24,7 @@ class TestInsertDecimal:
 
     def exec_benchmark(self, benchmark, json_file, options=""):
         cmd = f"{benchmark} {options} -f {json_file}"
-        output, error, code = eos.run(cmd)
+        output, error, code = eos.run(cmd, ret_code=True)
         tdLog.info("output: >>>%s<<<" % output)
         tdLog.info("error: >>>%s<<<" % error)
         tdLog.info("code: >>>%s<<<" % code)
@@ -269,14 +270,14 @@ class TestInsertDecimal:
         """
         # check env
         cmd = f"pip3 list"
-        output, error, code = eos.run(cmd)
+        output, error = eos.run(cmd)
         tdLog.info("output: >>>%s<<<" % output)
 
         # path
         benchmark = etool.benchMarkFile()
 
         # check normal
-        json_file = f"./{os.path.dirname(__file__)}/json/insert-decimal.json"
+        json_file = f"{os.path.dirname(__file__)}/json/insert-decimal.json"
         self.check_json_normal(benchmark, json_file)
 
         # check others

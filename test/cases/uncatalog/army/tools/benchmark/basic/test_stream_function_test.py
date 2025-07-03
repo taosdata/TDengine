@@ -51,7 +51,7 @@ class TestStreamFunctionTest:
         tdSql.query("select count(*) from stream_test.stb")
         tdSql.checkData(0, 0, 100000)
         tdSql.query("select count(*) from stream_test.output_streamtb;")
-        tdSql.checkEqual(tdSql.res[0][0] >= 0, True)
+        tdSql.checkEqual(tdSql.queryResult[0][0] >= 0, True)
 
         tdLog.success("%s successfully executed" % __file__)
 

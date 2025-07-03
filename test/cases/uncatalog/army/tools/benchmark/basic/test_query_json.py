@@ -12,7 +12,8 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
-
+import re
+import ast
 
 class TestQueryJson:
     def caseDescription(self):

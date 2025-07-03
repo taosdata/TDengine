@@ -13,6 +13,7 @@
 
 from new_test_framework.utils import tdLog, tdSql, etool, eos
 import os
+import json
 
 
 class TestTaosdumpCommandline:

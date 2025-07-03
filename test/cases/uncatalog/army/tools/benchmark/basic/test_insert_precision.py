@@ -64,11 +64,11 @@ class TestInsertPrecision:
     # bugs ts
     def checkBasic(self, benchmark):
         # MS
-        self.run_benchmark_json(benchmark, f"./{os.path.dirname(__file__)}/json/insertPrecisionMS.json", "")
+        self.run_benchmark_json(benchmark, f"{os.path.dirname(__file__)}/json/insertPrecisionMS.json", "")
         # US
-        self.run_benchmark_json(benchmark, f"./{os.path.dirname(__file__)}/json/insertPrecisionUS.json", "")
+        self.run_benchmark_json(benchmark, f"{os.path.dirname(__file__)}/json/insertPrecisionUS.json", "")
         # NS
-        self.run_benchmark_json(benchmark, f"./{os.path.dirname(__file__)}/json/insertPrecisionNS.json", "")
+        self.run_benchmark_json(benchmark, f"{os.path.dirname(__file__)}/json/insertPrecisionNS.json", "")
 
     def test_insert_precision(self):
         """summary: xxx

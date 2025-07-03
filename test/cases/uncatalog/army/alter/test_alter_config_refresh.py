@@ -11,31 +11,18 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
-import time
+from new_test_framework.utils import tdLog, tdSql, etool, sc
+from time import sleep
 
-import taos
-import frame
-import frame.etool
 
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame.epath import *
-from frame.srvCtl import *
-from frame import *
-
-class TDTestCase:
+class TestAlterConfigRefresh:
     """This test case is used to veirfy hot refresh configurations
     """
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
 
-        self.configration_dic = {
+        cls.configration_dic = {
             "cli": [
                 {
                     "name": "asyncLog",
@@ -602,7 +589,23 @@ class TDTestCase:
             else:
                 raise Exception(f"unknown key: {key}")
 
-    def run(self):
+    def test_alter_config_refresh(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        History:
+            - xxx
+            - xxx
+        """
         self.configuration_alter()
         for key in self.configration_dic:
             if "cli" == key:
@@ -638,10 +641,6 @@ class TDTestCase:
             else:
                 raise Exception(f"unknown key: {key}")
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

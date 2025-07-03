@@ -13,6 +13,7 @@
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
 import json
+import subprocess
 
 
 class TestQueryMain:
@@ -196,10 +197,10 @@ class TestQueryMain:
     def threeQueryMode(self, benchmark, tbCnt, tbRow):
         # json
         args = [
-            [f"./{os.path.dirname(__file__)}/json/queryModeSpec", True],
-            [f"./{os.path.dirname(__file__)}/json/queryModeSpecMix", True],
-            [f"./{os.path.dirname(__file__)}/json/queryModeSpecMixBatch", True],
-            [f"./{os.path.dirname(__file__)}/json/queryModeSuper", False]
+            [f"{os.path.dirname(__file__)}/json/queryModeSpec", True],
+            [f"{os.path.dirname(__file__)}/json/queryModeSpecMix", True],
+            [f"{os.path.dirname(__file__)}/json/queryModeSpecMixBatch", True],
+            [f"{os.path.dirname(__file__)}/json/queryModeSuper", False]
         ]
 
         # native

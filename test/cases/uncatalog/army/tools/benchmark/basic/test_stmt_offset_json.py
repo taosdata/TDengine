@@ -49,7 +49,7 @@ class TestStmtOffsetJson:
         tdSql.checkRows(8)
 
         #        tdSql.query("select * from db.stb")
-        #        dbresult = tdSql.res
+        #        dbresult = tdSql.queryResult
         #        print(dbresult)
         #        if dbresult != []:
         #            for i in range(len(dbresult[0])):

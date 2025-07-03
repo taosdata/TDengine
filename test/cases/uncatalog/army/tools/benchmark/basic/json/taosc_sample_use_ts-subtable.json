@@ -41,7 +41,7 @@
       "start_timestamp": "now",
       "sample_file": "./cases/uncatalog/army/tools/benchmark/basic/csv/sample_use_ts.csv",
       "use_sample_ts": "yes",
-      "tags_file": "./cases/uncatalog/army/ tools/benchmark/basic/csv/sample_tags.csv",
+      "tags_file": "./cases/uncatalog/army/tools/benchmark/basic/csv/sample_tags.csv",
       "columns": [{"type": "INT"}],
       "tags": [{"type": "INT"}]
     }]

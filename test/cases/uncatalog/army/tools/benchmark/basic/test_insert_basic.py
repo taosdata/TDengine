@@ -109,14 +109,14 @@ class TestInsertBasic:
     # bugs ts
     def checkVGroups(self, benchmark):
         # vgroups with command line set
-        self.testBenchmarkJson(benchmark, f"./{os.path.dirname(__file__)}/json/insertBasic.json", "--vgroups=3", True)
+        self.testBenchmarkJson(benchmark, f"{os.path.dirname(__file__)}/json/insertBasic.json", "--vgroups=3", True)
         # vgroups with json file
-        self.testBenchmarkJson(benchmark, f"./{os.path.dirname(__file__)}/json/insertBasic.json", "", True)
+        self.testBenchmarkJson(benchmark, f"{os.path.dirname(__file__)}/json/insertBasic.json", "", True)
 
 
     def checkInsertManyStb(self):
         # many stb
-        self.benchInsert(f"./{os.path.dirname(__file__)}/json/insertManyStb.json")
+        self.benchInsert(f"{os.path.dirname(__file__)}/json/insertManyStb.json")
 
 
     def checkCompress(self):
@@ -168,7 +168,7 @@ class TestInsertBasic:
     def checkOther(self):
         
         # tempalte
-        template = f"./{os.path.dirname(__file__)}/json/insertBasicTemplate.json"
+        template = f"{os.path.dirname(__file__)}/json/insertBasicTemplate.json"
 
         # retry
         jsonRetry = self.genNewJson(template, self.cbRetry)
@@ -196,7 +196,7 @@ class TestInsertBasic:
         """
         # check env
         cmd = f"pip3 list"
-        output, error, code = eos.run(cmd)
+        output, error = eos.run(cmd)
         tdLog.info("output: >>>%s<<<" % output)
 
         benchmark = etool.benchMarkFile()

@@ -21,11 +21,9 @@ class TestInsertErrorExit:
         'slowLogScope' : "others"
     }
 
-    def init(self, conn, logSql, replicaVar=1):
+    def setup_class(cls):
         tdLog.info(f"start to init {__file__}")
-        self.replicaVar = int(replicaVar)
-        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
-        self._rlist = None 
+        cls._rlist = None 
         # self.configJsonFile('insert_error_exit.json', 'db', 1, 1, 'splitVgroupByLearner.json', 100000)
 
     def dnodeNodeStopThread(self):

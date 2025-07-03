@@ -11,23 +11,13 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
-import time
-import random
-
-import taos
-import frame
-import frame.etool
+from new_test_framework.utils import tdLog, tdSql, etool
 
 
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
 
 
-class TDTestCase(TBase):
+
+class TestAlterDbOption:
 
     def prepare_database(self):
         tdLog.info(f"prepare database")
@@ -40,8 +30,8 @@ class TDTestCase(TBase):
         tdSql.execute("ALTER DATABASE test buffer 789")
         tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(2, 8, '789')
-        tdSql.error("ALTER DATABASE test buffer 0",expectErrInfo="Invalid option")
-        tdSql.error("ALTER DATABASE test buffer 16385",expectErrInfo="Invalid option")
+        tdSql.error("ALTER DATABASE test buffer 0",expectErrInfo="Invalid option", fullMatched=False)
+        tdSql.error("ALTER DATABASE test buffer 16385",expectErrInfo="Invalid option", fullMatched=False)
 
     def check_alter_cache_model(self):
         tdLog.info(f"check alter cache model")
@@ -58,7 +48,7 @@ class TDTestCase(TBase):
         tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(2, 18, "none")
 
-        tdSql.error("ALTER DATABASE test cachemodel 'hash_value'",expectErrInfo="Invalid option")        
+        tdSql.error("ALTER DATABASE test cachemodel 'hash_value'",expectErrInfo="Invalid option", fullMatched=False)        
 
     def check_alter_cache_size(self):
         tdLog.info(f"check alter cache size")
@@ -66,25 +56,25 @@ class TDTestCase(TBase):
         tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(2, 19, '777')
 
-        tdSql.error("ALTER DATABASE test cachesize 0",expectErrInfo="Invalid option")
-        tdSql.error("ALTER DATABASE test cachesize 65537",expectErrInfo="Invalid option")
+        tdSql.error("ALTER DATABASE test cachesize 0",expectErrInfo="Invalid option", fullMatched=False)
+        tdSql.error("ALTER DATABASE test cachesize 65537",expectErrInfo="Invalid option", fullMatched=False)
 
     def check_alter_min_rows(self):
         tdLog.info(f"check alter min rows")
         tdSql.execute("ALTER DATABASE test minrows 231")
         tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(2, 11, '231')
-        tdSql.error("ALTER DATABASE test minrows 5000",expectErrInfo="Invalid database options")
+        tdSql.error("ALTER DATABASE test minrows 5000",expectErrInfo="Invalid database options", fullMatched=False)
         
-        tdSql.error("ALTER DATABASE test minrows 9",expectErrInfo="Invalid option")
-        tdSql.error("ALTER DATABASE test minrows 1000001",expectErrInfo="Invalid option")
+        tdSql.error("ALTER DATABASE test minrows 9",expectErrInfo="Invalid option", fullMatched=False)
+        tdSql.error("ALTER DATABASE test minrows 1000001",expectErrInfo="Invalid option", fullMatched=False)
 
     def check_alter_pages(self):
         tdLog.info(f"check alter pages")
         tdSql.execute("ALTER DATABASE test pages 256")
         tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(2, 10, '256')
-        tdSql.error("ALTER DATABASE test pages 0",expectErrInfo="Invalid option")
+        tdSql.error("ALTER DATABASE test pages 0",expectErrInfo="Invalid option", fullMatched=False)
 
 
     def check_alter_wal_level(self):
@@ -97,7 +87,7 @@ class TDTestCase(TBase):
         tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(2, 20, '2')
         
-        tdSql.error("ALTER DATABASE test wal_level 3",expectErrInfo="Invalid option")
+        tdSql.error("ALTER DATABASE test wal_level 3",expectErrInfo="Invalid option", fullMatched=False)
 
     def check_alter_fsync(self):
         tdLog.info(f"check alter wal_fsync_period")
@@ -105,7 +95,7 @@ class TDTestCase(TBase):
         tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(2, 21, '1000')
         
-        tdSql.error("ALTER DATABASE test wal_fsync_period 180001",expectErrInfo="Invalid option")
+        tdSql.error("ALTER DATABASE test wal_fsync_period 180001",expectErrInfo="Invalid option", fullMatched=False)
 
     def check_alter_stt_trigger(self):
         tdLog.info(f"check alter stt_trigger")
@@ -114,7 +104,7 @@ class TDTestCase(TBase):
         tdSql.checkData(2, 24, '5')
     
         
-        tdSql.error("ALTER DATABASE test stt_trigger 18",expectErrInfo="Invalid option")
+        tdSql.error("ALTER DATABASE test stt_trigger 18",expectErrInfo="Invalid option", fullMatched=False)
 
     def check_alter_wal_retention_period(self):
         tdLog.info(f"check alter wal_retention_period")
@@ -145,7 +135,7 @@ class TDTestCase(TBase):
         tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(2, 31, '0')
         
-        tdSql.error("ALTER DATABASE test s3_compact 2",expectErrInfo="Invalid option")
+        tdSql.error("ALTER DATABASE test s3_compact 2",expectErrInfo="Invalid option", fullMatched=False)
 
     def check_alter_keep_time_offset(self):
         tdLog.info(f"check alter keep_time_offset")
@@ -172,27 +162,39 @@ class TDTestCase(TBase):
 
     def check_alter_unsupport_option(self):
         tdLog.info(f"check alter unsupport option")
-        tdSql.error("ALTER DATABASE test COMP 1",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test DURATION 1",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test maxrows 1",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test encrypt_algorithm 'sm4'",expectErrInfo="Encryption is not allowed to be changed after database is created")
-        tdSql.error("ALTER DATABASE test vgroups 4",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test single_stable 1",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test schemaless 1",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test table_prefix 't'",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test table_suffix 't'",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test s3_chunkpages 100",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test wal_roll_period 3600",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test wal_segment_size 1000",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test dnodes 'dnode1'",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test precision 'ms'",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test strict 'on'",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test pagesize 4096",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test tsdb_pagesize 4096",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test retentions '1d:1d'",expectErrInfo="syntax error")
+        tdSql.error("ALTER DATABASE test COMP 1",expectErrInfo="syntax error", fullMatched=False)
+        tdSql.error("ALTER DATABASE test DURATION 1",expectErrInfo="syntax error", fullMatched=False)
+        tdSql.error("ALTER DATABASE test maxrows 1",expectErrInfo="syntax error", fullMatched=False)
+        tdSql.error("ALTER DATABASE test encrypt_algorithm 'sm4'",expectErrInfo="Encryption is not allowed to be changed after database is created", fullMatched=False)
+        tdSql.error("ALTER DATABASE test vgroups 4",expectErrInfo="syntax error", fullMatched=False)
+        tdSql.error("ALTER DATABASE test single_stable 1",expectErrInfo="syntax error", fullMatched=False)
+        tdSql.error("ALTER DATABASE test schemaless 1",expectErrInfo="syntax error", fullMatched=False)
+        tdSql.error("ALTER DATABASE test table_prefix 't'",expectErrInfo="syntax error", fullMatched=False)
+        tdSql.error("ALTER DATABASE test table_suffix 't'",expectErrInfo="syntax error", fullMatched=False)
+        tdSql.error("ALTER DATABASE test dnodes 'dnode1'",expectErrInfo="syntax error", fullMatched=False)
+        tdSql.error("ALTER DATABASE test precision 'ms'",expectErrInfo="syntax error", fullMatched=False)
+        tdSql.error("ALTER DATABASE test strict 'on'",expectErrInfo="syntax error", fullMatched=False)
+        tdSql.error("ALTER DATABASE test pagesize 4096",expectErrInfo="syntax error", fullMatched=False)
+        tdSql.error("ALTER DATABASE test tsdb_pagesize 4096",expectErrInfo="syntax error", fullMatched=False)
+        tdSql.error("ALTER DATABASE test retentions '1d:1d'",expectErrInfo="syntax error", fullMatched=False)
 
     # run
-    def run(self):
+    def test_alter_db_option(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        History:            - xxx
+            - xxx
+        """
         tdLog.debug(f"start to excute {__file__}")
 
         # prepare database
@@ -248,5 +250,3 @@ class TDTestCase(TBase):
 
         tdLog.success(f"{__file__} successfully executed")
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

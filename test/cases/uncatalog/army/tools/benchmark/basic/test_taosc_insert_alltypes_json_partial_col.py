@@ -88,7 +88,7 @@ class TestTaoscInsertAlltypesJsonPartialCol:
         tdSql.query("select count(*) from db.stb where c1 >= 0 and c1 <= 10")
         tdSql.checkData(0, 0, 160)
         tdSql.query("select c0,c1,c2 from db.stb limit 1")
-        dbresult = tdSql.res
+        dbresult = tdSql.queryResult
         for i in range(len(dbresult[0])):
             if i in (0, 1) and dbresult[0][i] is None:
                 tdLog.exit("result[0][%d] is NULL, which should not be" % i)

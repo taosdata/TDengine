@@ -13,9 +13,8 @@
 from new_test_framework.utils import tdLog, tdSql, etool, sc
 import os
 import time
-import subprocess
 
-class TmqCase:
+class TestTmqCase:
     def caseDescription(self):
         """
         [TD-11510] taosBenchmark test cases

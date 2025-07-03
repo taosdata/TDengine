@@ -10,19 +10,11 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
+from new_test_framework.utils import tdLog, tdSql, etool
 
-from frame import etool
-from frame.etool import *
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame.common import *
-import time
+class TestVTableSchemaIsOld:
 
-class TDTestCase(TBase):
-
-    def test_unorderd_vtable_column_and_origin_table_column(self):
+    def run_unorderd_vtable_column_and_origin_table_column(self):
         tdLog.info(f"run test_unorderd_vtable_column_and_origin_table_column")
 
         tdSql.execute("drop database if exists test_vtable_schema_is_old_origin;")
@@ -51,7 +43,7 @@ class TDTestCase(TBase):
         tdSql.query("select * from d0_vtb;")
         tdSql.checkRows(1)
 
-    def test_vtable_multi_columns_use_ts_column(self):
+    def run_vtable_multi_columns_use_ts_column(self):
         tdLog.info(f"run test_vtable_multi_columns_use_ts_column")
 
         tdSql.execute("drop database if exists test_vtable_schema_is_old_origin_1;")
@@ -79,7 +71,7 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 2, '2020-10-10 11:11:11')
         tdSql.checkData(0, 3, '2020-10-10 11:11:11')
 
-    def test_vstable_origin_table_column_has_same_prefix(self):
+    def run_vstable_origin_table_column_has_same_prefix(self):
         # TS-6448
         tdLog.info(f"run test_vstable_origin_table_column_has_same_prefix")
 
@@ -110,14 +102,28 @@ class TDTestCase(TBase):
         tdSql.query("select * from history;")
         tdSql.checkRows(4)
 
-    def run(self):
+    def test_vtable_schema_is_old(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        History: 
+            - xxx
+            - xxx
+        """
         tdLog.debug(f"start to excute {__file__}")
 
-        self.test_unorderd_vtable_column_and_origin_table_column()
-        self.test_vtable_multi_columns_use_ts_column()
-        self.test_vstable_origin_table_column_has_same_prefix()
+        self.run_unorderd_vtable_column_and_origin_table_column()
+        self.run_vtable_multi_columns_use_ts_column()
+        self.run_vstable_origin_table_column_has_same_prefix()
         tdLog.success(f"{__file__} successfully executed")
 
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

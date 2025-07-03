@@ -407,16 +407,15 @@ def add_common_methods(request):
 
     # basic
     def checkInsertCorrect(self, difCnt = 0):
-        # check count
-        sql = f"select count(*) from {self.stb}"
+        sql = f"select count(*) from {self.db}.{self.stb}"
         tdSql.checkAgg(sql, self.childtable_count * self.insert_rows)
 
         # check child table count
-        sql = f" select count(*) from (select count(*) as cnt , tbname from {self.stb} group by tbname) where cnt = {self.insert_rows} "
+        sql = f" select count(*) from (select count(*) as cnt , tbname from {self.db}.{self.stb} group by tbname) where cnt = {self.insert_rows} "
         tdSql.checkAgg(sql, self.childtable_count)
 
         # check step
-        sql = f"select count(*) from (select diff(ts) as dif from {self.stb} partition by tbname order by ts desc) where dif != {self.timestamp_step}"
+        sql = f"select count(*) from (select diff(ts) as dif from {self.db}.{self.stb} partition by tbname order by ts desc) where dif != {self.timestamp_step}"
         tdSql.checkAgg(sql, difCnt)
 
     request.cls.checkInsertCorrect = checkInsertCorrect
@@ -508,6 +507,25 @@ def add_common_methods(request):
         tdLog.info("sql1 same result with sql2.")
     
     request.cls.checkSameResult = checkSameResult
+    # check same value
+    def checkSame(self, real, expect, show = True):
+        if real == expect:
+            if show:
+                tdLog.info(f"check same succ. real={real} expect={expect}.")
+        else:
+            tdLog.exit(f"check same failed. real={real} expect={expect}.")
+    request.cls.checkSame = checkSame
+    # check except
+    def checkExcept(self, command):
+        try:
+            code = eos.exe(command)
+            if code == 0:
+                tdLog.exit(f"Failed, not report error cmd:{command}")
+            else:
+                tdLog.info(f"Passed, report error code={code} is expect, cmd:{command}")
+        except:
+            tdLog.info(f"Passed, catch expect report error for command {command}")
+    request.cls.checkExcept = checkExcept
 #
 #   get db information
 #
@@ -762,7 +780,7 @@ def add_common_methods(request):
     def tmqBenchJson(self, jsonFile, options="", checkStep=False):
         # exe insert 
         command = f"{options} -f {jsonFile}"
-        rlist = frame.etool.runBinFile("taosBenchmark", command, checkRun = True)
+        rlist = etool.runBinFile("taosBenchmark", command, checkRun = True)
 
         #
         # check insert result

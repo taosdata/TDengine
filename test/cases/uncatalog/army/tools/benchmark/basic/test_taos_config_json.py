@@ -20,10 +20,8 @@ class TestTaosConfigJson:
         'slowLogScope' : "others"
     }
 
-    def init(self, conn, logSql, replicaVar=1):
+    def setup_class(cls):
         tdLog.info(f"start to init {__file__}")
-        self.replicaVar = int(replicaVar)
-        tdSql.init(conn.cursor(), logSql)  
         
     # run
     def test_taos_config_json(self):
@@ -48,7 +46,7 @@ class TestTaosConfigJson:
         tdLog.info(f"start to excute {__file__}")
         cmd = f"-f {os.path.dirname(__file__)}/json/taos_config.json"
         rlist = self.benchmark(cmd, checkRun=True)
-        self.checkListString(rlist, f"Set engine cfgdir successfully, dir:{os.path.dirname(__file__)}/config")
+        self.checkListString(rlist, f"Set engine cfgdir successfully, dir:./cases/uncatalog/army/tools/benchmark/basic/config")
 
         tdLog.success(f"{__file__} successfully executed")
 

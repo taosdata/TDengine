@@ -106,35 +106,35 @@ class TestBugs:
 
     # bugs ts
     def bugsTS(self, benchmark):
-        self.testBenchmarkJson(benchmark, f"./{os.path.dirname(__file__)}/json/TS-5002.json")
+        self.run_benchmark_json(benchmark, f"{os.path.dirname(__file__)}/json/TS-5002.json")
         # TS-5234
-        self.testBenchmarkJson(benchmark, f"./{os.path.dirname(__file__)}/json/TS-5234-1.json")
-        self.testBenchmarkJson(benchmark, f"./{os.path.dirname(__file__)}/json/TS-5234-2.json")
-        self.testBenchmarkJson(benchmark, f"./{os.path.dirname(__file__)}/json/TS-5234-3.json")
+        self.run_benchmark_json(benchmark, f"{os.path.dirname(__file__)}/json/TS-5234-1.json")
+        self.run_benchmark_json(benchmark, f"{os.path.dirname(__file__)}/json/TS-5234-2.json")
+        self.run_benchmark_json(benchmark, f"{os.path.dirname(__file__)}/json/TS-5234-3.json")
         # TS-5846
         keys = ["completed total queries: 40"]
-        self.benchmarkQuery(benchmark, f"./{os.path.dirname(__file__)}/json/TS-5846-Query.json", keys)
+        self.benchmarkQuery(benchmark, f"{os.path.dirname(__file__)}/json/TS-5846-Query.json", keys)
         keys = ["completed total queries: 20"]
-        self.benchmarkQuery(benchmark, f"./{os.path.dirname(__file__)}/json/TS-5846-Mixed-Query.json", keys)
+        self.benchmarkQuery(benchmark, f"{os.path.dirname(__file__)}/json/TS-5846-Mixed-Query.json", keys)
 
     # bugs td
     def bugsTD(self, benchmark):
-        self.testBenchmarkJson(benchmark, f"./{os.path.dirname(__file__)}/json/TD-31490.json", checkStep = False)
-        self.testBenchmarkJson(benchmark, f"./{os.path.dirname(__file__)}/json/TD-31575.json")
-        # self.testBenchmarkJson(benchmark, f"./{os.path.dirname(__file__)}/json/TD-32846.json")
+        self.run_benchmark_json(benchmark, f"{os.path.dirname(__file__)}/json/TD-31490.json", checkStep = False)
+        self.run_benchmark_json(benchmark, f"{os.path.dirname(__file__)}/json/TD-31575.json")
+        # self.run_benchmark_json(benchmark, f"{os.path.dirname(__file__)}/json/TD-32846.json")
         
         # no drop
         db      = "td32913db"
         vgroups = 4
         tdSql.execute(f"create database {db} vgroups {vgroups}")
-        self.testBenchmarkJson(benchmark, f"./{os.path.dirname(__file__)}/json/TD-32913.json", options="-Q")
+        self.run_benchmark_json(benchmark, f"{os.path.dirname(__file__)}/json/TD-32913.json", options="-Q")
         tdSql.query(f"select `vgroups` from information_schema.ins_databases where name='{db}';")
         tdSql.checkData(0, 0, vgroups)
 
         # other
-        self.testBenchmarkJson(benchmark, f"./{os.path.dirname(__file__)}/json/TD-32913-1.json")
-        self.testBenchmarkJson(benchmark, f"./{os.path.dirname(__file__)}/json/TD-32913-2.json", options="-T 6")
-        self.testBenchmarkJson(benchmark, f"./{os.path.dirname(__file__)}/json/TD-32913-3.json")
+        self.run_benchmark_json(benchmark, f"{os.path.dirname(__file__)}/json/TD-32913-1.json")
+        self.run_benchmark_json(benchmark, f"{os.path.dirname(__file__)}/json/TD-32913-2.json", options="-T 6")
+        self.run_benchmark_json(benchmark, f"{os.path.dirname(__file__)}/json/TD-32913-3.json")
 
     def test_benchmark_bugs(self):
         """summary: xxx

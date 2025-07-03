@@ -11,23 +11,10 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
+from new_test_framework.utils import tdLog, tdSql, sc
 import time
 
-import taos
-import frame
-import frame.etool
-
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame.epath import *
-from frame.srvCtl import *
-from frame import *
-
-
-class TDTestCase(TBase):
+class TestAlterConfig:
     def alterCachemodel(self):
         """Add test case for altering cache model(TS-5390)
         """
@@ -69,8 +56,8 @@ class TDTestCase(TBase):
         tdSql.query("select `ttl` from information_schema.ins_tables where table_name='t1' and db_name='db';")
         tdSql.checkData(0, 0, ttl_max_value)
         # verify abnormal ttl value
-        tdSql.error(f"alter table t1 ttl {ttl_max_value + 1}", expectErrInfo="Value out of range")
-        tdSql.error(f"alter table t1 ttl {ttl_min_value - 1}", expectErrInfo="syntax error")
+        tdSql.error(f"alter table t1 ttl {ttl_max_value + 1}", expectErrInfo="Value out of range", fullMatched=False)
+        tdSql.error(f"alter table t1 ttl {ttl_min_value - 1}", expectErrInfo="syntax error", fullMatched=False)
         
         # TS-5291
         tdSql.execute("create database db5291 vgroups 1;")
@@ -204,7 +191,23 @@ class TDTestCase(TBase):
         tdSql.error("alter all dnodes 'minReservedMemorySize 100000000000'")
 
     # run
-    def run(self):
+    def test_alter_config(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        History:
+            - xxx
+            - xxx
+        """
         tdLog.debug(f"start to excute {__file__}")
 
         # TS-4721
@@ -226,5 +229,3 @@ class TDTestCase(TBase):
         tdLog.success(f"{__file__} successfully executed")
 
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

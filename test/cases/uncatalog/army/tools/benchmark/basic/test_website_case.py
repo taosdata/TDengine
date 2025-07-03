@@ -209,7 +209,7 @@ class TestWebsiteCase:
     def checkTmqJson(self, benchmark, json):
         OK_RESULT = "Consumed total msgs: 30, total rows: 300000"
         cmd =  benchmark + " -f " + json
-        output, error, code = eos.run(cmd, 600)
+        output, error = eos.run(cmd, 600)
         if output.find(OK_RESULT) != -1:
             tdLog.info(f"succ: {cmd} found '{OK_RESULT}'")
         else:

@@ -24,11 +24,9 @@ class TestInsertCancle:
         'slowLogScope' : "others"
     }
 
-    def init(self, conn, logSql, replicaVar=1):
+    def setup_class(cls):
         tdLog.info(f"start to init {__file__}")
-        self.replicaVar = int(replicaVar)
-        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
-        self._rlist = None
+        cls._rlist = None
 
     def get_pids_by_name(self, process_name):
         pids = []
