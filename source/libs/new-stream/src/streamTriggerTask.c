@@ -3722,7 +3722,7 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = *ppTask;
 
-  stDebug("[checkpoint] stTriggerTaskUndeploy, taskId: %" PRId64 ", streamId: %" PRIx64
+  stDebug("[checkpoint] stTriggerTaskUndeploy, taskId: %" PRIx64 ", streamId: %" PRIx64
           ", doCheckpoint: %d, doCleanup: %d",
           pTask->task.taskId, pTask->task.streamId, pMsg->doCheckpoint, pMsg->doCleanup);
 

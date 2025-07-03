@@ -3039,6 +3039,7 @@ int32_t msmGrpAddActionUndeploy(SStmGrpCtx* pCtx, int64_t streamId, SStreamTask*
   bool    dropped = false;
 
   TAOS_CHECK_EXIT(mstIsStreamDropped(pCtx->pMnode, streamId, &dropped));
+  mstsDebug("stream dropped: %d", dropped);
   
   SStmAction *pAction = taosHashGet(pCtx->actionStm, &streamId, sizeof(streamId));
   if (pAction) {

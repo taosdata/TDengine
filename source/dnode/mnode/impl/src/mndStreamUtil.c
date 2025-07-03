@@ -144,6 +144,7 @@ int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped) {
     if (pStream->pCreate->streamId == streamId) {
       *dropped = pStream->userDropped ? true : false;
       sdbRelease(pSdb, pStream);
+      mstsDebug("stream found, dropped:%d", *dropped);
       return TSDB_CODE_SUCCESS;
     }
     
