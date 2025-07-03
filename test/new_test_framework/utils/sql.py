@@ -1622,6 +1622,8 @@ class TDSql:
 
         if exit:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
+            tdLog.info(f"{name} {caller.filename}({caller.lineno})")
+            caller = inspect.getframeinfo(inspect.stack()[2][0])
             tdLog.exit(f"{name} {caller.filename}({caller.lineno})")
 
     def expectKeyData(self, key, col, data, show=False):
@@ -2488,6 +2490,8 @@ class TDSql:
         self.compareResults(res_result, exp_result, show=True)
 
         caller = inspect.getframeinfo(inspect.stack()[1][0])
+        tdLog.info(f"{caller.filename}(caller.lineno)  check result failed")
+        caller = inspect.getframeinfo(inspect.stack()[2][0])
         tdLog.exit(f"{caller.filename}(caller.lineno)  check result failed")
 
     def checkResultsBySql(self, sql, exp_sql, delay=0.0, retry=60, show=False):
