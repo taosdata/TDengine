@@ -625,7 +625,7 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
 
   rowP = (SArray**)tSimpleHashGet(pTableNameHash, tbname, strlen(tbname));
 
-  if (rowP != NULL && rowP != NULL) {
+  if (rowP != NULL && *rowP != NULL) {
     for (int32_t j = 0; j < taosArrayGetSize(*rowP); ++j) {
       SRow* pRow = (SRow*)taosArrayGetP(pTbCtx->pData->aRowP, j);
       if (pRow) {
