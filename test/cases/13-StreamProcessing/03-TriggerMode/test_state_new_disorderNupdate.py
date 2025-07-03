@@ -535,45 +535,45 @@ class TestStreamStateTrigger:
                 "insert into ct1 values ('2025-01-01 00:00:10', 1);",
                 "insert into ct1 values ('2025-01-01 00:00:11', 1);",
                 "insert into ct1 values ('2025-01-01 00:00:12', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:13', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:14', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:15', 2);",
                 "insert into ct1 values ('2025-01-01 00:00:16', 3);",
                 "insert into ct1 values ('2025-01-01 00:00:17', 3);",
                 "insert into ct1 values ('2025-01-01 00:00:18', 3);",
+                "insert into ct1 values ('2025-01-01 00:00:13', 2);",
+                "insert into ct1 values ('2025-01-01 00:00:14', 2);",
+                "insert into ct1 values ('2025-01-01 00:00:15', 2);",
                 "insert into ct1 values ('2025-01-01 00:00:19', 4);",
 
                 "insert into ct3 values ('2025-01-01 00:00:10', 1);",
                 "insert into ct3 values ('2025-01-01 00:00:11', 1);",
                 "insert into ct3 values ('2025-01-01 00:00:12', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:13', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:14', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:15', 2);",
                 "insert into ct3 values ('2025-01-01 00:00:16', 3);",
                 "insert into ct3 values ('2025-01-01 00:00:17', 3);",
                 "insert into ct3 values ('2025-01-01 00:00:18', 3);",
+                "insert into ct3 values ('2025-01-01 00:00:13', 2);",
+                "insert into ct3 values ('2025-01-01 00:00:14', 2);",
+                "insert into ct3 values ('2025-01-01 00:00:15', 2);",
                 "insert into ct3 values ('2025-01-01 00:00:19', 4);",                
 
                 "insert into ct4 values ('2025-01-01 00:00:10', 1);",
                 "insert into ct4 values ('2025-01-01 00:00:11', 1);",
                 "insert into ct4 values ('2025-01-01 00:00:12', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:13', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:14', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:15', 2);",
                 "insert into ct4 values ('2025-01-01 00:00:16', 3);",
                 "insert into ct4 values ('2025-01-01 00:00:17', 3);",
                 "insert into ct4 values ('2025-01-01 00:00:18', 3);",
+                "insert into ct4 values ('2025-01-01 00:00:13', 2);",
+                "insert into ct4 values ('2025-01-01 00:00:14', 2);",
+                "insert into ct4 values ('2025-01-01 00:00:15', 2);",
                 "insert into ct4 values ('2025-01-01 00:00:19', 4);",                
 
                 "insert into ct5 values ('2025-01-01 00:00:10', 1);",
                 "insert into ct5 values ('2025-01-01 00:00:11', 1);",
                 "insert into ct5 values ('2025-01-01 00:00:12', 1);",
-                "insert into ct5 values ('2025-01-01 00:00:13', 2);",
-                "insert into ct5 values ('2025-01-01 00:00:14', 2);",
-                "insert into ct5 values ('2025-01-01 00:00:15', 2);",
                 "insert into ct5 values ('2025-01-01 00:00:16', 3);",
                 "insert into ct5 values ('2025-01-01 00:00:17', 3);",
                 "insert into ct5 values ('2025-01-01 00:00:18', 3);",
+                "insert into ct5 values ('2025-01-01 00:00:13', 2);",
+                "insert into ct5 values ('2025-01-01 00:00:14', 2);",
+                "insert into ct5 values ('2025-01-01 00:00:15', 2);",
                 "insert into ct5 values ('2025-01-01 00:00:19', 4);",                
             ]
             tdSql.executes(sqls)
@@ -597,7 +597,7 @@ class TestStreamStateTrigger:
                     ["cnt_v", "BIGINT", 8, ""],
                     ["sum_v", "BIGINT", 8, ""],
                     ["avg_v", "DOUBLE", 8, ""],
-                    ["_twrownum", "BIGINT", 8, ""],
+                    ["rownum_s", "BIGINT", 8, ""],
                 ],
             )
 
@@ -610,12 +610,18 @@ class TestStreamStateTrigger:
                 and tdSql.compareData(0, 3, 3)
                 and tdSql.compareData(0, 4, 1)
                 and tdSql.compareData(0, 5, 3)
-                and tdSql.compareData(1, 0, "2025-01-01 00:00:16")
-                and tdSql.compareData(1, 1, "2025-01-01 00:00:18")
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:13")
+                and tdSql.compareData(1, 1, "2025-01-01 00:00:15")
                 and tdSql.compareData(1, 2, 'NULL')
                 and tdSql.compareData(1, 3, 'NULL')
                 and tdSql.compareData(1, 4, 'NULL')
-                and tdSql.compareData(1, 5, 3),
+                and tdSql.compareData(1, 5, 3)
+                and tdSql.compareData(2, 0, "2025-01-01 00:00:16")
+                and tdSql.compareData(2, 1, "2025-01-01 00:00:18")
+                and tdSql.compareData(2, 2, 3)
+                and tdSql.compareData(2, 3, 9)
+                and tdSql.compareData(2, 4, 3)
+                and tdSql.compareData(2, 5, 3),
             )
 
             tdSql.checkResultsByFunc(
@@ -627,12 +633,18 @@ class TestStreamStateTrigger:
                 and tdSql.compareData(0, 3, 3)
                 and tdSql.compareData(0, 4, 1)
                 and tdSql.compareData(0, 5, 3)
-                and tdSql.compareData(1, 0, "2025-01-01 00:00:16")
-                and tdSql.compareData(1, 1, "2025-01-01 00:00:18")
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:13")
+                and tdSql.compareData(1, 1, "2025-01-01 00:00:15")
                 and tdSql.compareData(1, 2, 'NULL')
                 and tdSql.compareData(1, 3, 'NULL')
                 and tdSql.compareData(1, 4, 'NULL')
-                and tdSql.compareData(1, 5, 3),
+                and tdSql.compareData(1, 5, 3)
+                and tdSql.compareData(2, 0, "2025-01-01 00:00:16")
+                and tdSql.compareData(2, 1, "2025-01-01 00:00:18")
+                and tdSql.compareData(2, 2, 3)
+                and tdSql.compareData(2, 3, 9)
+                and tdSql.compareData(2, 4, 3)
+                and tdSql.compareData(2, 5, 3),
             )
 
     class Basic4(StreamCheckItem):

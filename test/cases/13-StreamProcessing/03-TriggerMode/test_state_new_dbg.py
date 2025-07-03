@@ -14,15 +14,15 @@ class TestStreamStateTrigger:
         tdStream.createSnode()
 
         streams = []
-        # streams.append(self.Basic0()) 
-        # streams.append(self.Basic1())
+        streams.append(self.Basic0()) 
+        streams.append(self.Basic1())
         streams.append(self.Basic2())
-        # streams.append(self.Basic3())
-        # streams.append(self.Basic4())
-        # streams.append(self.Basic5())
-        # streams.append(self.Basic6())
-        # streams.append(self.Basic7())
-        # streams.append(self.Basic8())
+        streams.append(self.Basic3())
+        streams.append(self.Basic4())
+        streams.append(self.Basic5())
+        streams.append(self.Basic6())
+        streams.append(self.Basic7())
+        streams.append(self.Basic8())
         
         tdStream.checkAll(streams)
 
@@ -630,7 +630,7 @@ class TestStreamStateTrigger:
                     ["cnt_v", "BIGINT", 8, ""],
                     ["sum_v", "BIGINT", 8, ""],
                     ["avg_v", "DOUBLE", 8, ""],
-                    ["_twrownum", "BIGINT", 8, ""],
+                    ["rownum_s", "BIGINT", 8, ""],
                 ],
             )
 
@@ -643,12 +643,18 @@ class TestStreamStateTrigger:
                 and tdSql.compareData(0, 3, 3)
                 and tdSql.compareData(0, 4, 1)
                 and tdSql.compareData(0, 5, 3)
-                and tdSql.compareData(1, 0, "2025-01-01 00:00:16")
-                and tdSql.compareData(1, 1, "2025-01-01 00:00:18")
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:13")
+                and tdSql.compareData(1, 1, "2025-01-01 00:00:15")
                 and tdSql.compareData(1, 2, 'NULL')
                 and tdSql.compareData(1, 3, 'NULL')
                 and tdSql.compareData(1, 4, 'NULL')
-                and tdSql.compareData(1, 5, 3),
+                and tdSql.compareData(1, 5, 3)
+                and tdSql.compareData(2, 0, "2025-01-01 00:00:16")
+                and tdSql.compareData(2, 1, "2025-01-01 00:00:18")
+                and tdSql.compareData(2, 2, 3)
+                and tdSql.compareData(2, 3, 9)
+                and tdSql.compareData(2, 4, 3)
+                and tdSql.compareData(2, 5, 3),
             )
 
             tdSql.checkResultsByFunc(
@@ -660,12 +666,18 @@ class TestStreamStateTrigger:
                 and tdSql.compareData(0, 3, 3)
                 and tdSql.compareData(0, 4, 1)
                 and tdSql.compareData(0, 5, 3)
-                and tdSql.compareData(1, 0, "2025-01-01 00:00:16")
-                and tdSql.compareData(1, 1, "2025-01-01 00:00:18")
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:13")
+                and tdSql.compareData(1, 1, "2025-01-01 00:00:15")
                 and tdSql.compareData(1, 2, 'NULL')
                 and tdSql.compareData(1, 3, 'NULL')
                 and tdSql.compareData(1, 4, 'NULL')
-                and tdSql.compareData(1, 5, 3),
+                and tdSql.compareData(1, 5, 3)
+                and tdSql.compareData(2, 0, "2025-01-01 00:00:16")
+                and tdSql.compareData(2, 1, "2025-01-01 00:00:18")
+                and tdSql.compareData(2, 2, 3)
+                and tdSql.compareData(2, 3, 9)
+                and tdSql.compareData(2, 4, 3)
+                and tdSql.compareData(2, 5, 3),
             )
 
     class Basic4(StreamCheckItem):
