@@ -182,5 +182,20 @@ export default () => [
       { title: t('docs.tools.tableau.step4'), dom: 'tableau-import' },
       { title: t('docs.tools.tableau.step5'), dom: 'tableau-example' }
     ]
-  }
+  },
+  {
+    name: 'Node-RED',
+    desc: t('docs.tools.nodered.desc'),
+    docs: {
+      zh: mdx.noderedDoc,
+      en: mdx.noderedDoc
+    },
+    version: '>=3.3.2.0',
+    steps: [
+      { title: t('docs.tools.nodered.step1'), dom: 'nodered-prepare' },
+      { title: t('docs.tools.nodered.step2'), dom: 'nodered-config'  },
+      { title: t('docs.tools.nodered.step3'), dom: 'nodered-analysis'},
+      { title: t('docs.tools.nodered.step4'), dom: 'nodered-summary'}
+    ]
+  }  
 ];
