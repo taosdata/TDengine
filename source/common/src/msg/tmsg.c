@@ -8333,6 +8333,7 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->s3Compact));
 
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->mountPath));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->mountId));
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->diskPrimary));
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->mountVgId));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->committed));
@@ -8449,6 +8450,7 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->mountPath));
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->mountId));
     TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->diskPrimary));
     TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->mountVgId));
     TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->committed));

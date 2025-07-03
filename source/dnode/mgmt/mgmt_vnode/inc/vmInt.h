@@ -41,7 +41,7 @@ typedef struct SVnodeMgmt {
   SHashObj             *runngingHash;
   SHashObj             *closedHash;
   SHashObj             *creatingHash;
-  SHashObj             *mountTfsHash;  // key: mount path, value: STfs Pointer
+  SHashObj             *mountTfsHash;  // key: mountId, value: SMountTfs pointer
   TdThreadRwlock        hashLock;
   TdThreadMutex         mutex;
   SVnodesStat           state;
@@ -54,9 +54,14 @@ typedef struct SVnodeMgmt {
 #ifdef USE_MOUNT
 typedef struct {
   int64_t mountId;
-  char    mountName[TSDB_MOUNT_NAME_LEN];
+  char    name[TSDB_MOUNT_NAME_LEN];
   char    path[TSDB_MOUNT_PATH_LEN];
 } SMountCfg;
+typedef struct {
+  char  name[TSDB_MOUNT_NAME_LEN];
+  char  path[TSDB_MOUNT_PATH_LEN];
+  STfs *pTfs;
+} SMountTfs;
 #endif
 typedef struct {
   int32_t vgId;
@@ -134,6 +139,9 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt);
 int32_t vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes);
 int32_t vmGetAllVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes);
 int32_t vmGetAllVnodeListFromHashWithCreating(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes);
+int32_t vmGetMountListFromFile(SVnodeMgmt *pMgmt, SMountCfg **ppCfgs, int32_t *numOfMounts);
+int32_t vmWriteMountListToFile(SVnodeMgmt *pMgmt);
+int32_t vmGetMountDisks(SVnodeMgmt *pMgmt, const char *mountPath, SArray **ppDisks);
 
 // vmWorker.c
 int32_t vmStartWorker(SVnodeMgmt *pMgmt);

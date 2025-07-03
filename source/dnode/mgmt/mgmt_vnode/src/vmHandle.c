@@ -520,92 +520,6 @@ static int compareVgDiskPrimary(const void *p1, const void *p2) {
   return v1->dbId > v1->dbId ? 1 : -1;
 }
 
-static int32_t vmGetMountDisks(SVnodeMgmt *pMgmt, const char *mountPath, SArray **ppDisks) {
-  int32_t   code = 0, lino = 0;
-  SArray   *pDisks = NULL;
-  TdFilePtr pFile = NULL;
-  char     *content = NULL;
-  SJson    *pJson = NULL;
-  int64_t   size = 0;
-  int64_t   clusterId = 0, dropped = 0, encryptScope = 0;
-  char      file[TSDB_MOUNT_FPATH_LEN] = {0};
-
-  (void)snprintf(file, sizeof(file), "%s%s%s%sconfig%s%s", mountPath, TD_DIRSEP, dmNodeName(DNODE), TD_DIRSEP,
-                 TD_DIRSEP, "local.json");
-  TAOS_CHECK_EXIT(taosStatFile(file, &size, NULL, NULL) < 0);
-  TSDB_CHECK_NULL((pFile = taosOpenFile(file, TD_FILE_READ)), code, lino, _exit, terrno);
-  TSDB_CHECK_NULL((content = taosMemoryMalloc(size + 1)), code, lino, _exit, terrno);
-  if (taosReadFile(pFile, content, size) != size) {
-    TAOS_CHECK_EXIT(terrno);
-  }
-  content[size] = '\0';
-  pJson = tjsonParse(content);
-  if (pJson == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
-  }
-  SJson *pConfigs = tjsonGetObjectItem(pJson, "configs");
-  if (pConfigs == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
-  }
-  SJson *pDataDir = tjsonGetObjectItem(pConfigs, "dataDir");
-  if (pDataDir == NULL) {
-    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
-  }
-  int32_t nDataDir = tjsonGetArraySize(pDataDir);
-  if (!(pDisks = taosArrayInit_s(sizeof(SDiskCfg), nDataDir))) {
-    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
-  }
-  for (int32_t i = 0; i < nDataDir; ++i) {
-    char   dir[TSDB_MOUNT_PATH_LEN] = {0};
-    SJson *pItem = tjsonGetArrayItem(pDataDir, i);
-    if (pItem == NULL) {
-      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
-    }
-    code = tjsonGetStringValue(pItem, "dir", dir);
-    if (code < 0) {
-      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
-    }
-    int32_t j = strlen(dir) - 1;
-    while (j > 0 && (dir[j] == '/' || dir[j] == '\\')) {
-      dir[j--] = '\0';  // remove trailing slashes
-    }
-    SJson *pLevel = tjsonGetObjectItem(pItem, "level");
-    if (!pLevel) {
-      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
-    }
-    int32_t level = (int32_t)cJSON_GetNumberValue(pLevel);
-    if (level < 0 || level >= TFS_MAX_TIERS) {
-      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
-    }
-    SJson *pPrimary = tjsonGetObjectItem(pItem, "primary");
-    if (!pPrimary) {
-      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
-    }
-    int32_t primary = (int32_t)cJSON_GetNumberValue(pPrimary);
-    if ((primary < 0 || primary > 1) || (primary == 1 && level != 0)) {
-      dError("mount:%s, invalid primary disk, primary:%d, level:%d", mountPath, primary, level);
-      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
-    }
-    int8_t    disable = (int8_t)cJSON_GetNumberValue(pLevel);
-    SDiskCfg *pDisk = taosArrayGet(pDisks, i);
-    pDisk->level = level;
-    pDisk->primary = primary;
-    pDisk->disable = disable;
-    (void)snprintf(pDisk->dir, sizeof(pDisk->dir), "%s", dir);
-  }
-_exit:
-  if (content != NULL) taosMemoryFreeClear(content);
-  if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
-  if (code != 0) {
-    dError("failed to get mount disks at line %d since %s, path:%s", lino, tstrerror(code), mountPath);
-    taosArrayDestroy(pDisks);
-    pDisks = NULL;
-  }
-  *ppDisks = pDisks;
-  TAOS_RETURN(code);
-}
-
 static int32_t vmRetrieveMountDnode(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pReq, SMountInfo *pMountInfo) {
   int32_t   code = 0, lino = 0;
   TdFilePtr pFile = NULL;
@@ -617,7 +531,7 @@ static int32_t vmRetrieveMountDnode(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pR
   SArray   *pDisks = NULL;
   // step 1: fetch clusterId from dnode.json
   (void)snprintf(file, sizeof(file), "%s%s%s%sdnode.json", pReq->mountPath, TD_DIRSEP, dmNodeName(DNODE), TD_DIRSEP);
-  TAOS_CHECK_EXIT(taosStatFile(file, &size, NULL, NULL) < 0);
+  TAOS_CHECK_EXIT(taosStatFile(file, &size, NULL, NULL));
   TSDB_CHECK_NULL((pFile = taosOpenFile(file, TD_FILE_READ)), code, lino, _exit, terrno);
   TSDB_CHECK_NULL((content = taosMemoryMalloc(size + 1)), code, lino, _exit, terrno);
   if (taosReadFile(pFile, content, size) != size) {
@@ -651,7 +565,6 @@ static int32_t vmRetrieveMountDnode(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pR
   }
   if (pFile != NULL) taosCloseFile(&pFile);
   // step 2: fetch dataDir from dnode/config/local.json
-
   TAOS_CHECK_EXIT(vmGetMountDisks(pMgmt, pReq->mountPath, &pDisks));
   int32_t nDisks = taosArrayGetSize(pDisks);
   if (nDisks < 1 || nDisks > TFS_MAX_DISKS) {
@@ -1189,35 +1102,57 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t vmGetMountTfs(SVnodeMgmt *pMgmt, const char *mountPath, STfs **ppTfs) {
-  int32_t code = 0, lino = 0;
-  int32_t numOfDisks = 0;
-  SArray *pDisks = NULL;
-  STfs   *pTfs = NULL;
+static int32_t vmGetMountTfs(SVnodeMgmt *pMgmt, int64_t mountId, const char *mountPath, STfs **ppTfs) {
+  int32_t    code = 0, lino = 0;
+  SArray    *pDisks = NULL;
+  SMountTfs *pMountTfs = NULL;
+  bool       unlock = false;
 
-  pTfs = taosHashGet(pMgmt->mountTfsHash, mountPath, strlen(mountPath));
-  if (pTfs && *(STfs **)pTfs) {
-    *ppTfs = *(STfs **)pTfs;
+  pMountTfs = taosHashGet(pMgmt->mountTfsHash, &mountId, sizeof(mountId));
+  if (pMountTfs && *(SMountTfs **)pMountTfs) {
+    if (!(*ppTfs = (*(SMountTfs **)pMountTfs)->pTfs)) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INTERNAL_ERROR);
+    }
     TAOS_RETURN(code);
   }
-
+  if (!mountPath || mountPath[0] == 0 || mountId == 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
+  }
+  (void)(taosThreadMutexLock(&pMgmt->mutex));
+  unlock = true;
+  pMountTfs = taosHashGet(pMgmt->mountTfsHash, &mountId, sizeof(mountId));
+  if (pMountTfs && *(SMountTfs **)pMountTfs) {
+    if (!(*ppTfs = (*(SMountTfs **)pMountTfs)->pTfs)) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INTERNAL_ERROR);
+    }
+    (void)taosThreadMutexUnLock(&pMgmt->mutex);
+    TAOS_RETURN(code);
+  }
   TAOS_CHECK_EXIT(vmGetMountDisks(pMgmt, mountPath, &pDisks));
-  numOfDisks = taosArrayGetSize(pDisks);
+  int32_t numOfDisks = taosArrayGetSize(pDisks);
   if (numOfDisks <= 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
   }
-  TAOS_CHECK_EXIT(tfsOpen(TARRAY_GET_ELEM(pDisks, 0), numOfDisks, &pTfs));
-  if ((code = taosHashPut(pMgmt->mountTfsHash, mountPath, strlen(mountPath), &pTfs, POINTER_BYTES))) {
-    tfsClose(pTfs);
-    TAOS_CHECK_EXIT(code);
-  }
+  TSDB_CHECK_NULL((pMountTfs = taosMemoryCalloc(1, sizeof(SMountTfs))), code, lino, _exit, terrno);
+  TAOS_CHECK_EXIT(tfsOpen(TARRAY_GET_ELEM(pDisks, 0), numOfDisks, &pMountTfs->pTfs));
+  TAOS_CHECK_EXIT(taosHashPut(pMgmt->mountTfsHash, mountId, sizeof(mountId), &pMountTfs, POINTER_BYTES));
 _exit:
-  if (code != 0) {
-    dError("mount:%s, failed at line %d to get mount tfs since %s", mountPath, lino, tstrerror(code));
-    taosArrayDestroy(pDisks);
-    pTfs = NULL;
+  if (unlock) {
+    (void)taosThreadMutexUnLock(&pMgmt->mutex);
   }
-  *ppTfs = pTfs;
+  if (code != 0) {
+    dError("mount:%d,%s, failed at line %d to get mount tfs since %s", mountId, mountPath ? mountPath : "NULL", lino,
+           tstrerror(code));
+    taosArrayDestroy(pDisks);
+    if (pMountTfs) {
+      tfsClose(pMountTfs->pTfs);
+      taosMemoryFree(pMountTfs);
+    }
+    *ppTfs = NULL;
+  } else {
+    *ppTfs = pMountTfs->pTfs;
+  }
+
   TAOS_RETURN(code);
 }
 
@@ -1342,7 +1277,7 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   wrapperCfg.diskPrimary = req.diskPrimary;
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
-  TAOS_CHECK_EXIT(vmGetMountTfs(pMgmt, req.mountPath, &pMountTfs));
+  TAOS_CHECK_EXIT(vmGetMountTfs(pMgmt, req.mountId, req.mountPath, &pMountTfs));
 
   if ((code = vmMountVnode(pMgmt, path, &vnodeCfg, wrapperCfg.diskPrimary, &req, pMountTfs)) < 0) {
     dError("vgId:%d, failed to create vnode since %s", req.vgId, tstrerror(code));

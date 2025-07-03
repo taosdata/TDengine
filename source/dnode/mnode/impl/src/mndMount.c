@@ -876,6 +876,7 @@ static int32_t mndAddMountVnodeAction(SMnode *pMnode, STrans *pTrans, SMountObj 
   SVgObj      *pVg = &pMountVg->vg;
   SDbObj      *pDb = pMountVg->pDb;
   SVnodeGid   *pVgid = &pVg->vnodeGid[0];
+  void        *pReq = NULL;
 
   SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
   if (pDnode == NULL) TAOS_RETURN(terrno);
@@ -883,9 +884,11 @@ static int32_t mndAddMountVnodeAction(SMnode *pMnode, STrans *pTrans, SMountObj 
   mndReleaseDnode(pMnode, pDnode);
 
   int32_t contLen = 0;
-  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVg, pObj->paths[0], pMountVg->diskPrimary, pVg->mountVgId,
-                                        pMountVg->committed, pMountVg->commitID, pMountVg->commitTerm, &contLen);
-  if (pReq == NULL) return -1;
+  if (!(pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVg, pObj->paths[0], pObj->uid, pMountVg->diskPrimary,
+                                      pVg->mountVgId, pMountVg->committed, pMountVg->commitID, pMountVg->commitTerm,
+                                      &contLen))) {
+    return terrno ? terrno : -1;
+  }
 
   action.pCont = pReq;
   action.contLen = contLen;

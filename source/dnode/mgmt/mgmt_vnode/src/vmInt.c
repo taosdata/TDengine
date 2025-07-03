@@ -565,6 +565,36 @@ static void *vmOpenVnodeInThread(void *param) {
   return NULL;
 }
 
+static int32_t vmOpenMountTfs(SVnodeMgmt *pMgmt) {
+  int32_t    code = 0, lino = 0;
+  int32_t    numOfMounts = 0;
+  SMountCfg *pMountCfgs = NULL;
+  SArray    *pDisks = NULL;
+  STfs      *pTfs = NULL;
+
+  TAOS_CHECK_EXIT(vmGetMountListFromFile(pMgmt, &pMountCfgs, &numOfMounts));
+  for (int32_t i = 0; i < numOfMounts; ++i) {
+    SMountCfg *pCfg = &pMountCfgs[i];
+    if (taosHashGet(pMgmt->mountTfsHash, pCfg->mountId, sizeof(pCfg->mountId))) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INTERNAL_ERROR);
+    }
+    TAOS_CHECK_EXIT(vmGetMountDisks(pMgmt, pCfg->path, &pDisks));
+    TAOS_CHECK_EXIT(tfsOpen(pDisks, taosArrayGetSize(pDisks), &pTfs));
+    if ((code = taosHashPut(pMgmt->mountTfsHash, pCfg->mountId, sizeof(pCfg->mountId), pTfs, POINTER_BYTES))) {
+      tfsClose(pTfs);
+      TAOS_CHECK_EXIT(code);
+    }
+    taosArrayClear(pDisks);
+  }
+_exit:
+  if (code != 0) {
+    dError("failed to open mount tfs at line %d since %s", lino, tstrerror(code));
+  }
+  taosMemoryFree(pMountCfgs);
+  taosArrayDestroy(pDisks);
+  TAOS_RETURN(code);
+}
+
 static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
   pMgmt->runngingHash =
       taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
@@ -588,19 +618,15 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
   }
 
   int32_t code = 0;
-
 #ifdef USE_MOUNT
   if (!(pMgmt->mountTfsHash =
-            taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
+            taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK))) {
     dError("failed to init mountTfsHash since %s", terrstr());
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  SMountCfg *pMountCfgs = NULL;
-  int32_t    numOfMounts = 0;
-  // if ((code = vmGetMountListFromFile(pMgmt, &pMountCfgs, &numOfMounts)) != 0) {
-  //   dInfo("failed to get mount list from disk since %s", tstrerror(code));
-  //   return code;
-  // }
+  if ((code = vmOpenMountTfs(pMgmt)) != 0) {
+    return code;
+  }
 #endif
 
   SWrapperCfg *pCfgs = NULL;

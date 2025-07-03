@@ -1562,7 +1562,7 @@ int32_t syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncInd
   
   // TODO: where is the vgId 2 from?
   if(code == 0 && *ppEntry && (*ppEntry)->dataLen >= sizeof(SMsgHead)) {
-    if((2 == pNode->vgId) && (((SMsgHead*)((*ppEntry)->data))->vgId != pNode->vgId)) {
+    if(((2 == pNode->vgId) || ((3 == pNode->vgId))) && (((SMsgHead*)((*ppEntry)->data))->vgId != pNode->vgId)) {
       ((SMsgHead*)((*ppEntry)->data))->vgId = pNode->vgId;
     }
   }

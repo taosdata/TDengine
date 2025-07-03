@@ -550,7 +550,7 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
   pVgroup->pTsma = pSmaReq;
 
   int32_t contLen = 0;
-  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, NULL, 0, 0, 0,0,0, &contLen);
+  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, NULL, 0, 0, 0, 0,0,0, &contLen);
   if (pReq == NULL) {
     taosMemoryFreeClear(pSmaReq);
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;

@@ -52,8 +52,8 @@ int32_t mndBuildRaftAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pO
                                   SArray *pArray);
 
 void   *mndBuildCreateVnodeReq(SMnode *, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, const char *path,
-                               int32_t diskPrimay, int32_t mountVgId, int64_t committed, int64_t commitID,
-                               int64_t commitTerm, int32_t *pContLen);
+                               int64_t mountId, int32_t diskPrimay, int32_t mountVgId, int64_t committed,
+                               int64_t commitID, int64_t commitTerm, int32_t *pContLen);
 void *mndBuildDropVnodeReq(SMnode *, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen);
 bool  mndVgroupInDb(SVgObj *pVgroup, int64_t dbUid);
 bool  mndVgroupInDnode(SVgObj *pVgroup, int32_t dnodeId);
