@@ -920,7 +920,6 @@ typedef struct VTableInfo {
 } VTableInfo;
 
 typedef struct SStreamMsgVTableInfo {
-  SSchemaWrapper schema;
   SArray*        infos;     // SArray<VTableInfo>
 } SStreamMsgVTableInfo;
 
