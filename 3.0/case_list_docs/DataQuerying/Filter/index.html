@@ -1338,6 +1338,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#07-DataQuerying.02-Filter.test_sma_filter.TestSmaFilter.test_sma_filter" class="md-nav__link">
+        Sma Filter Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#07-DataQuerying.02-Filter.test_stable_filter_column.TestProjectSTableFilterColumn.test_project_stable_filter_column" class="md-nav__link">
         超级表投影查询(普通列筛选) 
       </a>
@@ -2956,6 +2967,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#07-DataQuerying.02-Filter.test_sma_filter.TestSmaFilter.test_sma_filter" class="md-nav__link">
+        Sma Filter Test 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#07-DataQuerying.02-Filter.test_stable_filter_column.TestProjectSTableFilterColumn.test_project_stable_filter_column" class="md-nav__link">
         超级表投影查询(普通列筛选) 
       </a>
@@ -3221,6 +3243,40 @@
                     <strong>Path:</strong>
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/07-DataQuerying/02-Filter/test_filter_where_complex.py" target="_blank">
                       cases/07-DataQuerying/02-Filter/test_filter_where_complex.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h2 id="07-DataQuerying.02-Filter.test_sma_filter.TestSmaFilter.test_sma_filter" class="doc doc-heading">
+
+<a href="#07-DataQuerying.02-Filter.test_sma_filter.TestSmaFilter.test_sma_filter" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> Sma Filter Test
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1.Create db with STT_TRIGGER option and set value to 1, will flush data to disk easily</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2.Create supper table and sub table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3.Insert some data into sub table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4.Flush database, the action will trigger the data to be written to disk</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5.Query the sub table with filter condition on flag column</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6.Check the number of rows returned by the query</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/07-DataQuerying/02-Filter/test_sma_filter.py" target="_blank">
+                      cases/07-DataQuerying/02-Filter/test_sma_filter.py
                     </a>
                   </div>
         </div>
