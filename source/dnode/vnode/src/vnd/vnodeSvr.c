@@ -1839,9 +1839,7 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
     memcpy((*ppRsp)->pSchemaExt, pEntry->pExtSchemas, pEntry->stbEntry.schemaRow.nCols * sizeof(SSchemaExt));
   }
 
-  if (pEntry->stbEntry.schemaRow.version == pSubmitTbData->sver) {
-    return TSDB_CODE_SUCCESS;
-  } else {
+  if (pEntry->stbEntry.schemaRow.version != pSubmitTbData->sver) {
     TSDB_CHECK_CODE(code = TSDB_CODE_TDB_TABLE_ALREADY_EXIST, lino, _exit);
   }
 _exit:
@@ -1926,7 +1924,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
   void           *pAllocMsg = NULL;
   SSubmitReq2Msg *pMsg = (SSubmitReq2Msg *)pReq;
-  SDecoder* pDc = NULL;
+  SDecoder dc = {0};
   if (0 == taosHton64(pMsg->version)) {
     code = vnodeSubmitReqConvertToSubmitReq2(pVnode, (SSubmitReq *)pMsg, pSubmitReq);
     if (TSDB_CODE_SUCCESS == code) {
@@ -1940,8 +1938,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     // decode
     pReq = POINTER_SHIFT(pReq, sizeof(SSubmitReq2Msg));
     len -= sizeof(SSubmitReq2Msg);
-    SDecoder dc = {0};
-    pDc = &dc;
+
     tDecoderInit(&dc, pReq, len);
     if (tDecodeSubmitReq(&dc, pSubmitReq, NULL) < 0) {
       code = TSDB_CODE_INVALID_MSG;
@@ -2211,9 +2208,7 @@ _exit:
   }
 
   taosMemoryFree(pAllocMsg);
-  if(pDc) {
-    tDecoderClear(pDc);
-  }
+  tDecoderClear(&dc);
 
   return code;
 }
