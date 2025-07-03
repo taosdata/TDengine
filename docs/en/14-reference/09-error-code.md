@@ -227,6 +227,18 @@ This document details the server error codes that may be encountered when using 
 | 0x80000483 | index already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x80000484 | index not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |
 
+## Bnode
+
+| Error Code | Description                | Possible Error Scenarios or Reasons | Recommended Actions                       |
+| ---------- | -------------------------- | ----------------------------------- | ----------------------------------------- |
+| 0x80000450 | Bnode already exists       | Already created                     | Check node status                         |
+| 0x80000451 | Bnode already deployed     | Already deployed                    | Confirm if correct                        |
+| 0x80000452 | Bnode not deployed         | Internal error                      | Report issue                              |
+| 0x80000453 | Bnode not there            | Offline                             | Confirm if correct                        |
+| 0x80000454 | Bnode not found            | Internal error                      | Report issue                              |
+| 0x80000455 | Bnode exec launch failed   | Internal error                      | Report issue                              |
+| 0x8000261C | Invalid Bnode option       | Illegal Bnode option value          | Check and correct the Bnode option values |
+
 ## dnode
 
 | Error Code | Description            | Possible Error Scenarios or Reasons | Recommended Actions |
@@ -295,6 +307,7 @@ This document details the server error codes that may be encountered when using 
 | 0x8000073A | Query memory exhausted               | Query memory in dnode is exhausted                           | Limit concurrent queries or add more physical memory         |
 | 0x8000073B | Timeout for long time no fetch       | Query without fetch for a long time                          | Correct application to fetch data asap                       |
 | 0x8000073C | Memory pool not initialized          | Memory pool not initialized in dnode                         | Confirm if the switch queryUseMemoryPool is enabled; if queryUseMemoryPool is already enabled, check if the server meets the basic conditions for enabling the memory pool: 1. The total available system memory is not less than 5GB; 2. The available system memory after deducting the reserved portion is not less than 4GB. |
+| 0x8000073D | Alter minReservedMemorySize failed since no enough system available memory | Failed to update minReservedMemorySize | Check current system memory: 1. Total available system memory should not be less than 5G; 2. Available system memory after deducting reserved portion should not be less than 4G |
 
 ## grant
 

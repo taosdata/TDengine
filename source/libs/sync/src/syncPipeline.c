@@ -732,6 +732,7 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
             pNode->vgId, pEntry->index, &rpcMsg.info, cbMeta.seqNum, num);
 
     code = pFsm->FpCommitCb(pFsm, &rpcMsg, &cbMeta);
+
     retry = (code != 0) && (terrno == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE);
 
     sGTrace(&rpcMsg.info.traceId,
@@ -1603,8 +1604,8 @@ int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex ind
   sGDebug(&msgOut.info.traceId,
           "vgId:%d, index:%" PRId64 ", replicate one msg to dest addr:0x%" PRIx64 ", term:%" PRId64 " prevterm:%" PRId64,
           pNode->vgId, pEntry->index, pDestId->addr, pEntry->term, prevLogTerm);
-  TAOS_CHECK_GOTO(syncNodeSendAppendEntries(pNode, pDestId, &msgOut), &lino, _err);
 
+  TAOS_CHECK_GOTO(syncNodeSendAppendEntries(pNode, pDestId, &msgOut), &lino, _err);
   if (!inBuf) {
     syncEntryDestroy(pEntry);
     pEntry = NULL;

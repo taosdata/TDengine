@@ -685,6 +685,32 @@ SSyncState syncGetState(int64_t rid) {
   return state;
 }
 
+SSyncMetrics syncGetMetrics(int64_t rid) {
+  SSyncMetrics metrics = {0};
+
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode != NULL) {
+    sDebug("vgId:%d, sync get metrics, wal_write_bytes:%" PRId64 ", wal_write_time:%" PRId64, pSyncNode->vgId,
+           pSyncNode->wal_write_bytes, pSyncNode->wal_write_time);
+    metrics.wal_write_bytes = atomic_load_64(&pSyncNode->wal_write_bytes);
+    metrics.wal_write_time = atomic_load_64(&pSyncNode->wal_write_time);
+    syncNodeRelease(pSyncNode);
+  }
+  return metrics;
+}
+
+void syncResetMetrics(int64_t rid, const SSyncMetrics* pOldMetrics) {
+  if (pOldMetrics == NULL) return;
+
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode != NULL) {
+    // Atomically subtract the old metrics values from current metrics
+    (void)atomic_sub_fetch_64(&pSyncNode->wal_write_bytes, pOldMetrics->wal_write_bytes);
+    (void)atomic_sub_fetch_64(&pSyncNode->wal_write_time, pOldMetrics->wal_write_time);
+    syncNodeRelease(pSyncNode);
+  }
+}
+
 void syncGetCommitIndex(int64_t rid, int64_t* syncCommitIndex) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode != NULL) {
@@ -1001,7 +1027,8 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak, int64_
       TAOS_RETURN(code);
     }
 
-    sGDebug(&pMsg->info.traceId, "vgId:%d, msg:%p, propose msg, type:%s", pSyncNode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
+    sGDebug(&pMsg->info.traceId, "vgId:%d, msg:%p, propose msg, type:%s", pSyncNode->vgId, pMsg,
+            TMSG_INFO(pMsg->msgType));
     code = (*pSyncNode->syncEqMsg)(pSyncNode->msgcb, &rpcMsg);
     if (code != 0) {
       sWarn("vgId:%d, failed to propose msg while enqueue since %s", pSyncNode->vgId, terrstr());
@@ -3477,7 +3504,7 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry, SRpcMsg* pMsg) {
   code = 0;
 _out:;
   // proceed match index, with replicating on needed
-  SyncIndex matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, NULL, "Append", pMsg);
+  SyncIndex       matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, NULL, "Append", pMsg);
   const STraceId* trace = pEntry ? &pEntry->originRpcTraceId : NULL;
 
   if (pEntry != NULL) {
@@ -3619,6 +3646,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   int64_t lastRecvTime = syncIndexMgrGetRecvTime(ths->pNextIndex, &(pMsg->srcId));
   syncIndexMgrSetRecvTime(ths->pNextIndex, &(pMsg->srcId), tsMs);
+  syncIndexMgrIncRecvCount(ths->pNextIndex, &(pMsg->srcId));
 
   int64_t netElapsed = tsMs - pMsg->timeStamp;
   int64_t timeDiff = tsMs - lastRecvTime;
@@ -3731,10 +3759,18 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
             ", processTime:%" PRId64,
             ths->vgId, DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp, processTime2);
   } else {
-    sGDebug(&rpcMsg.info.traceId,
+    if(tsSyncLogHeartbeat){
+      sGInfo(&rpcMsg.info.traceId,
             "vgId:%d, send sync-heartbeat-reply to dnode:%d term:%" PRId64 " timestamp:%" PRId64
             ", processTime:%" PRId64,
             ths->vgId, DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp, processTime2);
+    }
+    else{
+      sGDebug(&rpcMsg.info.traceId,
+            "vgId:%d, send sync-heartbeat-reply to dnode:%d term:%" PRId64 " timestamp:%" PRId64
+            ", processTime:%" PRId64,
+            ths->vgId, DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp, processTime2);
+    }
   }
 
   TAOS_CHECK_RETURN(syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg));
@@ -3760,6 +3796,7 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   syncLogRecvHeartbeatReply(ths, pMsg, tsMs - pMsg->timeStamp, &pRpcMsg->info.traceId, tsMs - lastRecvTime);
 
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
+  syncIndexMgrIncRecvCount(ths->pNextIndex, &(pMsg->srcId));
 
   return syncLogReplProcessHeartbeatReply(pMgr, ths, pMsg);
 }
@@ -3836,7 +3873,8 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
   }
 
   if (pEntry == NULL) {
-    sGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to process client request since %s", ths->vgId, pMsg, terrstr());
+    sGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to process client request since %s", ths->vgId, pMsg,
+            terrstr());
     return TSDB_CODE_SYN_INTERNAL_ERROR;
   }
 
@@ -3856,7 +3894,8 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
     if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE) {
       int32_t code = syncNodeCheckChangeConfig(ths, pEntry);
       if (code < 0) {
-        sGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to check change config since %s", ths->vgId, pMsg, terrstr());
+        sGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to check change config since %s", ths->vgId, pMsg,
+                terrstr());
         syncEntryDestroy(pEntry);
         pEntry = NULL;
         TAOS_RETURN(code);

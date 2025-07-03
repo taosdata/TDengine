@@ -9,6 +9,7 @@
 	"databases": "test",
 	"query_times": 100,
 	"query_mode": "taosc",
+	"result_json_file":"./query_res.json",
 	"specified_table_query": {
 		"threads": 4,
 		"mixed_query": "yes",

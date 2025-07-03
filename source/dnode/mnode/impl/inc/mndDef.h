@@ -80,7 +80,9 @@ typedef enum {
   MND_OPER_BALANCE_VGROUP_LEADER,
   MND_OPER_CREATE_ANODE,
   MND_OPER_UPDATE_ANODE,
-  MND_OPER_DROP_ANODE
+  MND_OPER_DROP_ANODE,
+  MND_OPER_CREATE_BNODE,
+  MND_OPER_DROP_BNODE
 } EOperType;
 
 typedef enum {
@@ -293,6 +295,14 @@ typedef struct {
 } SSnodeObj;
 
 typedef struct {
+  int32_t    id;
+  int32_t    proto;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj* pDnode;
+} SBnodeObj;
+
+typedef struct {
   int32_t dnodeId;
   char    token[TSDB_ARB_TOKEN_SIZE];
   int8_t  acked;
@@ -415,6 +425,7 @@ typedef struct {
   SHashObj* alterViews;
   SHashObj* useDbs;
   SRWLatch  lock;
+  int8_t    passEncryptAlgorithm;
 } SUserObj;
 
 typedef struct {

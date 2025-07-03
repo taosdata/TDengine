@@ -63,13 +63,16 @@ extern int32_t       tsdmConfigVersion;
 extern int32_t       tsConfigInited;
 extern int32_t       tsStatusInterval;
 extern int32_t       tsNumOfSupportVnodes;
+extern uint16_t      tsMqttPort;
 extern char          tsEncryptAlgorithm[];
 extern char          tsEncryptScope[];
 extern EEncryptAlgor tsiEncryptAlgorithm;
 extern EEncryptScope tsiEncryptScope;
 // extern char     tsAuthCode[];
-extern char tsEncryptKey[];
+extern char   tsEncryptKey[];
 extern int8_t tsEnableStrongPassword;
+extern char          tsEncryptPassAlgorithm[];
+extern EEncryptAlgor tsiEncryptPassAlgorithm;
 
 // common
 extern int32_t tsMaxShellConns;
@@ -115,7 +118,9 @@ extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeStreamThreads;
 extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsQueueMemoryAllowed;
+extern int64_t tsQueueMemoryUsed;
 extern int64_t tsApplyMemoryAllowed;
+extern int64_t tsApplyMemoryUsed;
 extern int32_t tsRetentionSpeedLimitMB;
 
 extern int32_t tsNumOfCompactThreads;
@@ -128,6 +133,7 @@ extern int32_t tsHeartbeatTimeout;
 extern int32_t tsSnapReplMaxWaitN;
 extern int64_t tsLogBufferMemoryAllowed;  // maximum allowed log buffer size in bytes for each dnode
 extern int32_t tsRoutineReportInterval;
+extern bool    tsSyncLogHeartbeat;
 
 // arbitrator
 extern int32_t tsArbHeartBeatIntervalSec;
@@ -169,6 +175,9 @@ extern uint16_t tsMonitorPort;
 extern int32_t  tsMonitorMaxLogs;
 extern bool     tsMonitorComp;
 extern bool     tsMonitorLogProtocol;
+extern int32_t  tsEnableMetrics;
+extern int32_t  tsMetricsInterval;
+extern int32_t  tsMetricsLevel;
 extern bool     tsMonitorForceV2;
 
 // audit
@@ -313,6 +322,9 @@ extern int32_t tsStreamVirtualMergeWaitMode;
 extern char     tsAdapterFqdn[];
 extern uint16_t tsAdapterPort;
 extern char     tsAdapterToken[];
+
+// insert performance
+extern bool tsInsertPerfEnabled;
 
 extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)

@@ -68,6 +68,13 @@ static const SSysDbTableSchema snodesSchema[] = {
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
 };
 
+static const SSysDbTableSchema bnodesSchema[] = {
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "protocol", .bytes = 14 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
+};
+
 static const SSysDbTableSchema arbGroupsSchema[] = {
     {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
@@ -516,6 +523,7 @@ static const SSysTableMeta infosMeta[] = {
     // {TSDB_INS_TABLE_MODULES, modulesSchema, tListLen(modulesSchema), true},
     {TSDB_INS_TABLE_QNODES, qnodesSchema, tListLen(qnodesSchema), true},
     {TSDB_INS_TABLE_SNODES, snodesSchema, tListLen(snodesSchema), true},
+    {TSDB_INS_TABLE_BNODES, bnodesSchema, tListLen(bnodesSchema), true},
     {TSDB_INS_TABLE_CLUSTER, clusterSchema, tListLen(clusterSchema), true},
     {TSDB_INS_TABLE_DATABASES, userDBSchema, tListLen(userDBSchema), false},
     {TSDB_INS_TABLE_FUNCTIONS, userFuncSchema, tListLen(userFuncSchema), false},

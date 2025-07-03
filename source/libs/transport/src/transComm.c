@@ -14,7 +14,9 @@
  */
 
 #include "transComm.h"
+#include "osTime.h"
 #include "tqueue.h"
+#include "transLog.h"
 
 #ifndef TD_ASTRA_RPC
 #define BUFFER_CAP 8 * 1024
@@ -33,6 +35,7 @@ int32_t transCompressMsg(char* msg, int32_t len) {
   int            compHdr = sizeof(STransCompMsg);
   STransMsgHead* pHead = transHeadFromCont(msg);
 
+  int64_t start = taosGetTimestampMs();
   char* buf = taosMemoryMalloc(len + compHdr + 8);  // 8 extra bytes
   if (buf == NULL) {
     tWarn("failed to allocate memory for rpc msg compression, contLen:%d", len);
@@ -59,11 +62,18 @@ int32_t transCompressMsg(char* msg, int32_t len) {
     pHead->comp = 0;
   }
   taosMemoryFree(buf);
+
+  int64_t elapse = taosGetTimestampMs() - start;
+  if (elapse >= 100) {
+    tWarn("compress msg cost %dms", (int)(elapse));
+  }
   return ret;
 }
 int32_t transDecompressMsg(char** msg, int32_t* len) {
   STransMsgHead* pHead = (STransMsgHead*)(*msg);
   if (pHead->comp == 0) return 0;
+
+  int64_t start = taosGetTimestampMs();
 
   char* pCont = transContFromHead(pHead);
 
@@ -91,6 +101,11 @@ int32_t transDecompressMsg(char** msg, int32_t* len) {
 
   taosMemoryFree(pHead);
   *msg = buf;
+
+  int64_t elapse = taosGetTimestampMs() - start;
+  if (elapse >= 100) {
+    tWarn("dcompress msg cost %dms", (int)(elapse));
+  }
   return 0;
 }
 int32_t transDecompressMsgExt(char const* msg, int32_t len, char** out, int32_t* outLen) {
@@ -105,6 +120,7 @@ int32_t transDecompressMsgExt(char const* msg, int32_t len, char** out, int32_t*
   if (buf == NULL) {
     return terrno;
   }
+  int64_t start = taosGetTimestampMs();
 
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
   int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), (char*)pNewHead->content,
@@ -121,6 +137,10 @@ int32_t transDecompressMsgExt(char const* msg, int32_t len, char** out, int32_t*
   pNewHead->msgLen = *outLen;
   pNewHead->comp = 0;
 
+  int64_t elapse = taosGetTimestampMs() - start;
+  if (elapse >= 100) {
+    tWarn("dcompress msg cost %dms", (int)(elapse));
+  }
   return 0;
 }
 

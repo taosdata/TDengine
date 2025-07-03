@@ -148,7 +148,7 @@ class BeforeTest:
         if request.session.restful:
             return taosrest.connect(url=f"http://{request.session.host}:6041", timezone="utc")
         else:
-            return taos.connect(host=request.session.host, port=request.session.port)
+            return taos.connect(host=request.session.host, port=request.session.port, config=tdDnodes.sim.cfgPath)
 
     def get_tdsql(self, conn):
         tdSql.init(conn.cursor())

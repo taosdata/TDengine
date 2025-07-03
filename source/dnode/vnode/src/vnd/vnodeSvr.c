@@ -380,7 +380,8 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
 
 _exit:
   if (code) {
-    vError("vgId:%d, %s:%d failed to vnodePreProcessSubmitTbData submit request since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+    vError("vgId:%d, %s:%d failed to vnodePreProcessSubmitTbData submit request since %s", TD_VID(pVnode), __func__,
+           lino, tstrerror(code));
   }
   return code;
 }
@@ -583,7 +584,8 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       code = vnodePreProcessDropTtlMsg(pVnode, pMsg);
     } break;
     case TDMT_VND_SUBMIT: {
-      code = vnodePreProcessSubmitMsg(pVnode, pMsg);
+      METRICS_TIMING_BLOCK(pVnode->writeMetrics.preprocess_time, METRIC_LEVEL_LOW,
+                           { code = vnodePreProcessSubmitMsg(pVnode, pMsg); });
     } break;
     case TDMT_VND_DELETE: {
       code = vnodePreProcessDeleteMsg(pVnode, pMsg);
@@ -692,16 +694,20 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       if (vnodeProcessCreateTSmaReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
     /* TSDB */
-    case TDMT_VND_SUBMIT:
-      if (vnodeProcessSubmitReq(pVnode, ver, pMsg->pCont, pMsg->contLen, pRsp, pMsg) < 0) goto _err;
+    case TDMT_VND_SUBMIT: {
+      METRICS_TIMING_BLOCK(pVnode->writeMetrics.apply_time, METRIC_LEVEL_LOW, {
+        if (vnodeProcessSubmitReq(pVnode, ver, pMsg->pCont, pMsg->contLen, pRsp, pMsg) < 0) goto _err;
+      });
+      METRICS_UPDATE(pVnode->writeMetrics.apply_bytes, METRIC_LEVEL_LOW, (int64_t)pMsg->contLen);
       break;
+    }
     case TDMT_VND_DELETE:
       if (vnodeProcessDeleteReq(pVnode, ver, pReq, len, pRsp, pMsg) < 0) goto _err;
       break;
     case TDMT_VND_BATCH_DEL:
       if (vnodeProcessBatchDeleteReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
-    /* TQ */
+      /* TQ */
 #if defined(USE_TQ) || defined(USE_STREAM)
     case TDMT_VND_TMQ_SUBSCRIBE:
       if (tqProcessSubscribeReq(pVnode->pTq, ver, pReq, len) < 0) {
@@ -838,11 +844,13 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     }
 
     // start a new one
-    code = vnodeBegin(pVnode);
-    if (code) {
-      vError("vgId:%d, failed to begin vnode since %s.", TD_VID(pVnode), tstrerror(terrno));
-      goto _err;
-    }
+    METRICS_TIMING_BLOCK(pVnode->writeMetrics.memtable_wait_time, METRIC_LEVEL_LOW, {
+      code = vnodeBegin(pVnode);
+      if (code) {
+        vError("vgId:%d, failed to begin vnode since %s.", TD_VID(pVnode), tstrerror(terrno));
+        goto _err;
+      }
+    });
   }
 
 _exit:
@@ -906,6 +914,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 }
 
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
   vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
        pMsg->msgType == TDMT_VND_BATCH_META || pMsg->msgType == TDMT_VND_TABLE_NAME ||
@@ -934,8 +943,12 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetTableMeta(pVnode, pMsg, true);
     case TDMT_VND_TABLE_CFG:
       return vnodeGetTableCfg(pVnode, pMsg, true);
-    case TDMT_VND_BATCH_META:
-      return vnodeGetBatchMeta(pVnode, pMsg);
+    case TDMT_VND_BATCH_META: {
+      METRICS_TIMING_BLOCK(pVnode->writeMetrics.fetch_batch_meta_time, METRIC_LEVEL_LOW,
+                           { code = vnodeGetBatchMeta(pVnode, pMsg); });
+      METRICS_UPDATE(pVnode->writeMetrics.fetch_batch_meta_count, METRIC_LEVEL_LOW, 1);
+      return code;
+    }
     case TDMT_VND_VSUBTABLES_META:
       return vnodeGetVSubtablesMeta(pVnode, pMsg);
     case TDMT_VND_VSTB_REF_DBS:
@@ -1136,8 +1149,8 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
   }
 
   if (ttlReq.nUids != 0) {
-    vInfo("vgId:%d, process drop ttl table request, time:%d, ntbUids:%d", pVnode->config.vgId,
-          ttlReq.timestampSec, ttlReq.nUids);
+    vInfo("vgId:%d, process drop ttl table request, time:%d, ntbUids:%d", pVnode->config.vgId, ttlReq.timestampSec,
+          ttlReq.nUids);
   }
 
   if (ttlReq.nUids > 0) {
@@ -1539,7 +1552,8 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     vAlterTbRsp.pMeta = &vMetaRsp;
   }
 
-  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL || vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
+  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ||
+      vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
     int64_t uid = metaGetTableEntryUidByName(pVnode->pMeta, vAlterTbReq.tbName);
     if (uid == 0) {
       vError("vgId:%d, %s failed at %s:%d since table %s not found", TD_VID(pVnode), __func__, __FILE__, __LINE__,
@@ -1547,8 +1561,8 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
       goto _exit;
     }
 
-    SArray* tbUids = taosArrayInit(4, sizeof(int64_t));
-    void* p = taosArrayPush(tbUids, &uid);
+    SArray *tbUids = taosArrayInit(4, sizeof(int64_t));
+    void   *p = taosArrayPush(tbUids, &uid);
     TSDB_CHECK_NULL(p, code, lino, _exit, terrno);
 
     vDebug("vgId:%d, remove tags value altered table:%s from query table list", TD_VID(pVnode), vAlterTbReq.tbName);
@@ -2167,6 +2181,11 @@ _exit:
   (void)atomic_add_fetch_64(&pVnode->statis.nInsert, pSubmitRsp->affectedRows);
   (void)atomic_add_fetch_64(&pVnode->statis.nInsertSuccess, pSubmitRsp->affectedRows);
   (void)atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
+
+  // update metrics
+  METRICS_UPDATE(pVnode->writeMetrics.total_requests, METRIC_LEVEL_LOW, 1);
+  METRICS_UPDATE(pVnode->writeMetrics.total_rows, METRIC_LEVEL_HIGH, pSubmitRsp->affectedRows);
+  METRICS_UPDATE(pVnode->writeMetrics.total_bytes, METRIC_LEVEL_LOW, pMsg->header.contLen);
 
   if (tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && pSubmitRsp->affectedRows > 0 &&
       strlen(pOriginalMsg->info.conn.user) > 0 && tsInsertCounter != NULL) {
