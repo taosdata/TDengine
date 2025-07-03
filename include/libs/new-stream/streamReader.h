@@ -74,6 +74,7 @@ typedef struct SStreamTriggerReaderTaskInnerOptions {
   SNode*      pConditions;
   SNodeList*  partitionCols;
   bool        initReader;  // whether to init the reader
+  SArray*     uidList;
 } SStreamTriggerReaderTaskInnerOptions;
 
 typedef struct SStreamReaderTaskInner {
@@ -88,7 +89,7 @@ typedef struct SStreamReaderTaskInner {
   int32_t                              currentGroupIndex;
   SFilterInfo*                         pFilterInfo;
   char*                                idStr;
-  int32_t                              index;
+  SQueryTableDataCond                  cond;
 } SStreamReaderTaskInner;
 
 int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, void* schemas, bool isSchema,

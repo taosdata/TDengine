@@ -1952,6 +1952,7 @@ void tDeepFreeSStmStreamDeploy(void* param) {
   SStmStreamDeploy* pDeploy = (SStmStreamDeploy*)param;
   taosArrayDestroyEx(pDeploy->readerTasks, tFreeSStmTaskDeploy);
   tFreeSStmTaskDeploy(pDeploy->triggerTask);
+  taosMemoryFree(pDeploy->triggerTask);
   taosArrayDestroyEx(pDeploy->runnerTasks, tFreeSStmTaskDeploy);
 }
 
@@ -3778,8 +3779,6 @@ int32_t tSerializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, const SStreamM
   tEncoderInit(&encoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
-  TAOS_CHECK_EXIT(tEncodeSSchemaWrapper(&encoder, &pRsp->schema));
-
   int32_t size = taosArrayGetSize(pRsp->infos);
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, size));
   for (int32_t i = 0; i < size; ++i) {
@@ -3814,10 +3813,8 @@ int32_t tDeserializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, SStreamMsgVT
   tDecoderInit(&decoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
 
-  TAOS_CHECK_EXIT(tDecodeSSchemaWrapper(&decoder, &vTableInfo->schema));
-
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &size));
-  vTableInfo->infos = taosArrayInit(sizeof(VTableInfo), size);
+  vTableInfo->infos = taosArrayInit(size, sizeof(VTableInfo));
   if (vTableInfo->infos == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
@@ -3841,8 +3838,6 @@ _exit:
 
 void tDestroySStreamMsgVTableInfo(SStreamMsgVTableInfo *ptr) {
   if (ptr == NULL) return;
-  taosMemoryFreeClear(ptr->schema.pSchema);
-  ptr->schema.pSchema = NULL;
   for (int32_t i = 0; i < taosArrayGetSize(ptr->infos); ++i) {
     VTableInfo* info = taosArrayGet(ptr->infos, i);
     if (info != NULL) {

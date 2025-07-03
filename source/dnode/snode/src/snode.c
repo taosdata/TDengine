@@ -190,7 +190,7 @@ end:
   return code;
 }
 
-static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* pRpcMsg) {
   int32_t code = 0, lino = 0;
   void* taskAddr = NULL;
   SResFetchReq req = {0};
@@ -218,6 +218,8 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   TAOS_CHECK_EXIT(streamAcquireTask(calcReq.streamId, calcReq.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));
 
   pTask->pMsgCb = &pSnode->msgCb;
+  pTask->pWorkerCb = pWorkerCb;
+  
   TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &calcReq));
 
   TAOS_CHECK_EXIT(buildFetchRsp(calcReq.pOutBlock, &buf, &size, 0, false));
@@ -292,7 +294,7 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, void *pWorkerCb, SRpcMsg *pMsg) {
       TAOS_CHECK_EXIT(handleSyncWriteCheckPointRsp(pSnode, pMsg));
       break;
     case TDMT_STREAM_FETCH_FROM_RUNNER:
-      TAOS_CHECK_EXIT(handleStreamFetchData(pSnode, pMsg));
+      TAOS_CHECK_EXIT(handleStreamFetchData(pSnode, pWorkerCb, pMsg));
       break;
     case TDMT_STREAM_FETCH_FROM_CACHE:
       TAOS_CHECK_EXIT(handleStreamFetchFromCache(pSnode, pMsg));

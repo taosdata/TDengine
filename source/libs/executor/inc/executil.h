@@ -203,7 +203,6 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
                                const SReadHandle* readHandle);
 int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTableDataCond* pOrgCond,
                                      const SReadHandle* readHandle, SArray* colArray);
-void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 
 int32_t convertFillType(int32_t mode);
 int32_t resultrowComparAsc(const void* p1, const void* p2);

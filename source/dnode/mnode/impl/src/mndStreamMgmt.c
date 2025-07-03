@@ -1309,6 +1309,8 @@ int32_t msmUPAddScanTask(SStmGrpCtx* pCtx, SStreamObj* pStream, char* scanPlan, 
   
 _exit:
 
+  nodesDestroyNode((SNode*)pSubplan);
+
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
@@ -2894,13 +2896,13 @@ void msmCleanDeployedSnodeTasks (int32_t snodeId) {
 
   if (atomic_load_32(&pSnode->triggerDeployed) == triggerNum) {
     atomic_sub_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, triggerNum);
-    taosArrayDestroy(pSnode->triggerList);
+    taosArrayDestroyEx(pSnode->triggerList, mstDestroySStmTaskToDeployExt);
     pSnode->triggerList = NULL;
   }
 
   if (atomic_load_32(&pSnode->runnerDeployed) == runnerNum) {
     atomic_sub_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, runnerNum);
-    taosArrayDestroy(pSnode->runnerList);
+    taosArrayDestroyEx(pSnode->runnerList, mstDestroySStmTaskToDeployExt);
     pSnode->runnerList = NULL;
   }
 
@@ -2918,6 +2920,7 @@ void msmCleanDeployedSnodeTasks (int32_t snodeId) {
         continue;
       }
 
+      mstDestroySStmTaskToDeployExt(pExt);
       atomic_sub_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
       taosArrayRemove(pSnode->triggerList, m);
     }
@@ -2932,6 +2935,7 @@ void msmCleanDeployedSnodeTasks (int32_t snodeId) {
         continue;
       }
 
+      mstDestroySStmTaskToDeployExt(pExt);
       atomic_sub_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
       taosArrayRemove(pSnode->runnerList, m);
     }
@@ -4120,6 +4124,8 @@ int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, 
 
   taosRUnLockLatch(&mStreamMgmt.runtimeLock);
 
+  tFreeSMStreamHbRspMsg(&rsp);
+
   return code;
 }
 
@@ -4757,6 +4763,7 @@ int32_t msmInitRuntimeInfo(SMnode *pMnode) {
     mError("failed to initialize the stream runtime toUpdateScanMap, error:%s", tstrerror(code));
     goto _exit;
   }
+  taosHashSetFreeFp(mStreamMgmt.toUpdateScanMap, mstDestroyScanAddrList);
 
   TAOS_CHECK_EXIT(msmSTAddSnodesToMap(pMnode));
   TAOS_CHECK_EXIT(msmSTAddDnodesToMap(pMnode));
