@@ -19,7 +19,7 @@ Ontop connects to TDengine data sources via the [TDengine Java Connector](../../
 - Ontop version 5.4.0 or higher, [download](https://github.com/ontop/ontop).
 - JDBC driver version 3.6.0 or higher, [download](https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver).
 
-## Configuring Data Source
+## Configure Data Source
 
 Configuring TDengine data source in Ontop requires the following steps:
 
@@ -95,7 +95,7 @@ Access `http://localhost:8080`. If the SPARQL query interface appears, the confi
 
 ## Data Analysis
 
-### Scenario Overview
+### Scenario Introduction
 
 Smart meter data from a residential community is stored in TDengine database. Using Ontop to transform TDengine smart meter data into a virtual knowledge graph, query devices with voltage exceeding 240V through SPARQL interface to identify high-load equipment.
 
