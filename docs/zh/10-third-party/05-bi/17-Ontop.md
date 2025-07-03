@@ -23,11 +23,11 @@ Ontop 通过 [TDengine Java Connector](../../../reference/connector/java/) 连�
 
 在 Ontop 中配置 TDengine 数据源需以下步骤：
 
-### 1. 安装 JDBC 驱动
+### 安装 JDBC 驱动
 
 下载 JDBC 的 DIST 驱动包（`.jar`文件）置于 Ontop 主程序的 `jdbc/` 目录下。
 
-### 2. 配置 JDBC 驱动
+### 配置 JDBC 驱动
 
 在 Ontop 的 `.properties` 文件中配置 JDBC 连接信息：
 
@@ -40,7 +40,7 @@ jdbc.driver = com.taosdata.jdbc.ws.WebSocketDriver
 
 URL 参数详情参阅：[TDengine URL 规范](../../../reference/connector/java/#url-规范)。
 
-### 3. 配置表映射
+### 配置表映射
 
 在 .obda 文件中定义 TDengine 与 Ontop 的映射关系（以智能电表场景为例）：
 
@@ -83,7 +83,7 @@ ns: http://example.org/ns#
 
 完整 .obda 文件格式介绍请参考 [Ontop OBDA 文档](https://ontop-vkg.org/guide/advanced/mapping-language.html)。
 
-### 4. 测试连接
+### 测试连接
 
 启动 Ontop 端点服务验证配置：
 
@@ -120,9 +120,9 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
 ```
 
 **db.obda** （映射配置）：  
-复用 [3. 配置表映射](#3-配置表映射) 一节中示例内容。
+复用 [配置表映射](#3-配置表映射) 一节中示例内容。
 
-### 执行查询
+### 分析电表负载
 
 1. 制作 SPARQL 查询语句。  
    查询电压超过 240V 的智能电表设备，按电压倒序排列显示前 2 条：
