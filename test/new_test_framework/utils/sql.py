@@ -21,6 +21,7 @@ import psutil
 import shutil
 import re
 import pandas as pd
+import csv
 from .log import *
 from .constant import *
 import ctypes
@@ -646,13 +647,22 @@ class TDSql:
             tdLog.exit("Failed to execute sql list: %s, error: %s" % (sql_list, ex))
 
     def is_err_sql(self, sql):
-        """_summary_
+        """Checks if a SQL statement will result in an error when executed.
+
+        This method executes the provided SQL statement and determines whether it 
+        causes an exception. It's useful for testing error conditions and validating
+        that certain SQL statements should fail.
 
         Args:
-            sql (_type_): _description_
+            sql (str): The SQL statement to be tested for errors.
 
         Returns:
-            _type_: _description_
+            bool: False if the SQL statement executes successfully without errors,
+                True if the SQL statement results in an error/exception.
+
+        Raises:
+            None: This method catches all exceptions internally and returns a boolean
+                result instead of raising exceptions.
         """
         err_flag = True
         try:
