@@ -11,17 +11,10 @@
 
 # -*- coding: utf-8 -*-
 
+from new_test_framework.utils import tdLog, tdSql, etool
 import os
-import frame
-import frame.etool
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
 
-
-class TDTestCase(TBase):
+class TestTaosdumpTestNanoSupport:
     def checkCommunity(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
         if "community" in selfPath:
@@ -83,7 +76,22 @@ class TDTestCase(TBase):
         else:
             print("other time precision not valid , please check! ")
 
-    def run(self):
+    def test_taosdump_test_nano_support(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        History:            - xxx
+            - xxx
+        """
         self.ts = 1625068800000000000  # this is timestamp  "2021-07-01 00:00:00"
         self.numberOfTables = 10
         self.numberOfRecords = 100
@@ -286,10 +294,6 @@ class TDTestCase(TBase):
         os.system("rm -rf ./dump_result.txt")
         os.system("rm -rf *.py.sql")
 
-    def stop(self):
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

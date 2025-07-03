@@ -11,18 +11,10 @@
 
 # -*- coding: utf-8 -*-
 
+from new_test_framework.utils import tdLog, tdSql, etool
 import os
-import json
-import frame
-import frame.etool
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
 
-
-class TDTestCase(TBase):
+class TestTaosdumpSchemaChange:
     def caseDescription(self):
         """
         case for test schema changed 
@@ -42,10 +34,10 @@ class TDTestCase(TBase):
     # insert
     def insertData(self):
         # source db
-        command = "-f tools/taosdump/native/json/schemaChange.json"
+        command = f"-f {os.path.dirname(os.path.abspath(__file__))}/json/schemaChange.json"
         self.benchmark(command)
         # des newdb
-        command = "-f tools/taosdump/native/json/schemaChangeNew.json"
+        command = f"-f {os.path.dirname(os.path.abspath(__file__))}/json/schemaChangeNew.json"
         self.benchmark(command)
 
     # dump out
@@ -230,7 +222,7 @@ class TDTestCase(TBase):
         self.clearPath(tmpdir)
 
         # des newdb re-create
-        command = "-f tools/taosdump/native/json/schemaChangeNew.json"
+        command = f"-f {os.path.dirname(os.path.abspath(__file__))}/json/schemaChangeNew.json"
         self.benchmark(command)        
 
     # dump out specify
@@ -247,7 +239,7 @@ class TDTestCase(TBase):
 
     def exceptNoSameCol(self, db, newdb, tmpdir):
         # des newdb re-create
-        command = "-f tools/taosdump/native/json/schemaChangeNew.json"
+        command = f"-f {os.path.dirname(os.path.abspath(__file__))}/json/schemaChangeNew.json"
         self.benchmark(command)        
 
         # re-create meters2 for no same column and tags
@@ -279,7 +271,22 @@ class TDTestCase(TBase):
         # dump out , des table no same column
         self.exceptNoSameCol(db, newdb, tmpdir)
 
-    def run(self):
+    def test_taosdump_schema_change(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        History:            - xxx
+            - xxx
+        """
         # init
         db    = "dd"
         newdb = "newdd"
@@ -323,10 +330,6 @@ class TDTestCase(TBase):
         # check except
         self.testExcept(db, newdb, tmpdir)
 
-    def stop(self):
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

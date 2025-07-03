@@ -11,18 +11,10 @@
 
 # -*- coding: utf-8 -*-
 
+from new_test_framework.utils import tdLog, tdSql, etool
 import os
-import json
-import frame
-import frame.etool
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
 
-
-class TDTestCase(TBase):
+class TestTaosdumpCompa:
     def caseDescription(self):
         """
         test taosdump compatible with import data coming from v3.1.0.0
@@ -94,13 +86,28 @@ class TDTestCase(TBase):
         self.checkSame(db, stb, "last(tbin)", "ywkc")
         self.checkSame(db, stb, "last(tnch)", "kEoWzCBj")
 
-    def run(self):
+    def test_taosdump_compa(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        History:            - xxx
+            - xxx
+        """
         # database
         db = "test"
         
         # find
         taosdump, tmpdir = self.findPrograme()
-        data = "./tools/taosdump/native/compa"
+        data = f"{os.path.dirname(os.path.abspath(__file__))}/compa"
 
         # dump in
         self.dumpIn(taosdump, data)
@@ -108,10 +115,6 @@ class TDTestCase(TBase):
         # verify db
         self.verifyResult(db)
 
-    def stop(self):
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

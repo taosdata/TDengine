@@ -11,17 +11,10 @@
 
 # -*- coding: utf-8 -*-
 
+from new_test_framework.utils import tdLog, tdSql, etool
 import os
-import frame
-import frame.etool
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
 
-
-class TDTestCase(TBase):
+class TestTaosdumpTest:
     def checkCommunity(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
         if "community" in selfPath:
@@ -30,7 +23,23 @@ class TDTestCase(TBase):
             return True
 
 
-    def run(self):
+    def test_taosdump_test(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        History:
+            - xxx
+            - xxx
+        """
         self.ts = 1538548685000
         self.numberOfTables = 10000
         self.numberOfRecords = 100
@@ -73,8 +82,8 @@ class TDTestCase(TBase):
         else:
             tdLog.info("taosdump found: %s" % binPath)
 
-        os.system("%s --password < cmdline/data/pwd.txt --databases db -o ./taosdumptest/tmp1 -c /etc/taos" % binPath)
-        os.system("%s -p < cmdline/data/pwd.txt --databases db1 -o ./taosdumptest/tmp2" % binPath)
+        os.system("%s --password < %s --databases db -o ./taosdumptest/tmp1 -c /etc/taos" % (binPath, os.path.dirname(os.path.abspath(__file__)) + "/pwd.txt"))
+        os.system("%s -p < %s --databases db1 -o ./taosdumptest/tmp2" % (binPath, os.path.dirname(os.path.abspath(__file__)) + "/pwd.txt"))
 
         tdSql.execute("drop database db")
         tdSql.execute("drop database db1")
@@ -87,7 +96,7 @@ class TDTestCase(TBase):
         tdSql.execute("use newdb")
         tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkRows(4)
-        dbresult = tdSql.res
+        dbresult = tdSql.queryResult
         # 6--duration,7--keep0,keep1,keep
 
         isCommunity = self.checkCommunity()
@@ -112,7 +121,7 @@ class TDTestCase(TBase):
 
         tdSql.query("show tables")
         tdSql.checkRows(2)
-        dbresult = tdSql.res
+        dbresult = tdSql.queryResult
         print(dbresult)
         for i in range(len(dbresult)):
             assert (dbresult[i][0] == "t1") or (dbresult[i][0] == "t2")
@@ -176,10 +185,6 @@ class TDTestCase(TBase):
         os.system("rm -rf ./dump_result.txt")
         os.system("rm -rf ./db.csv")
 
-    def stop(self):
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

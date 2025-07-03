@@ -11,19 +11,11 @@
 
 # -*- coding: utf-8 -*-
 
+from new_test_framework.utils import tdLog, tdSql, etool, eos
 import os
-import json
-import frame
-import frame.eos
-import frame.etool
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
 
 
-class TDTestCase(TBase):
+class TestTaosdumpCommandline:
     def caseDescription(self):
         """
         test taosdump support commandline arguments
@@ -34,14 +26,14 @@ class TDTestCase(TBase):
 
     def findPrograme(self):
         # taosdump 
-        taosdump = frame.etool.taosDumpFile()
+        taosdump = etool.taosDumpFile()
         if taosdump == "":
             tdLog.exit("taosdump not found!")
         else:
             tdLog.info("taosdump found in %s" % taosdump)
 
         # taosBenchmark
-        benchmark = frame.etool.benchMarkFile()
+        benchmark = etool.benchMarkFile()
         if benchmark == "":
             tdLog.exit("benchmark not found!")
         else:
@@ -200,7 +192,7 @@ class TDTestCase(TBase):
     # check except
     def checkExcept(self, command):
         try:
-            code = frame.eos.exe(command, show = True)
+            code = eos.exe(command, show = True)
             if code == 0:
                 tdLog.exit(f"Failed, not report error cmd:{command}")
             else:
@@ -297,7 +289,7 @@ class TDTestCase(TBase):
         # 255 char max password
         user    = "test_user"
         pwd     = ""
-        pwdFile = "cmdline/data/pwdMax.txt"
+        pwdFile = f"{os.path.dirname(os.path.abspath(__file__))}/pwdMax.txt"
         with open(pwdFile) as file:
             pwd = file.readline()
         
@@ -318,11 +310,26 @@ class TDTestCase(TBase):
             self.checkListString(rlist, "OK: Database test dumped")
 
     # run
-    def run(self):
+    def test_taosdump_commandline(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        History:            - xxx
+            - xxx
+        """
         
         # find
         taosdump, benchmark, tmpdir = self.findPrograme()
-        json = "./tools/taosdump/native/json/insertFullType.json"
+        json = f"{os.path.dirname(os.path.abspath(__file__))}/json/insertFullType.json"
 
         # insert data with taosBenchmark
         db, stb, childCount, insertRows = self.insertData(json)
@@ -356,10 +363,6 @@ class TDTestCase(TBase):
         tdLog.info("5. check conn mode  ..................................... [Passed]")
 
 
-    def stop(self):
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

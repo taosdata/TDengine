@@ -11,17 +11,10 @@
 
 # -*- coding: utf-8 -*-
 
+from new_test_framework.utils import tdLog, tdSql, etool
 import os
-import frame
-import frame.etool
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
 
-
-class TDTestCase(TBase):
+class TestTaosdumpStartEndTimeLong:
     def caseDescription(self):
         """
         case1<sdsang>: [TS-2769] taosdump start-time end-time test
@@ -30,7 +23,22 @@ class TDTestCase(TBase):
 
 
 
-    def run(self):
+    def test_taosdump_start_end_time_long(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        History:            - xxx
+            - xxx
+        """
         binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosdump not found!")
@@ -111,10 +119,6 @@ class TDTestCase(TBase):
         tdSql.query("select count(*) from db.t3")
         tdSql.checkData(0, 0, 4)
 
-    def stop(self):
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

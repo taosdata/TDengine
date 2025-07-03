@@ -11,18 +11,11 @@
 
 # -*- coding: utf-8 -*-
 
+from new_test_framework.utils import tdLog, tdSql, etool
 import os
 import json
-import frame
-import frame.etool
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
 
-
-class TDTestCase(TBase):
+class TestTaosdumpPrimaryKey:
     def caseDescription(self):
         """
         case1<sdsang>: [TS-3072] taosdump dump escaped db name test
@@ -150,14 +143,29 @@ class TDTestCase(TBase):
         # check normal table
         self.checkSame(db, newdb, "ntb", "sum(c1)")
 
-    def run(self):
+    def test_taosdump_primary_key(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        History:            - xxx
+            - xxx
+        """
         # database
         db = "pridb"
         newdb = "npridb"
         
         # find
         taosdump, benchmark, tmpdir = self.findPrograme()
-        json = "./tools/taosdump/ws/json/primaryKey.json"
+        json = f"{os.path.dirname(os.path.abspath(__file__))}/json/primaryKey.json"
 
         # insert data with taosBenchmark
         self.insertData(benchmark, json, db)
@@ -172,10 +180,6 @@ class TDTestCase(TBase):
         self.verifyResult(db, newdb, json)
 
 
-    def stop(self):
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

@@ -11,20 +11,12 @@
 
 # -*- coding: utf-8 -*-
 
-from logging.config import dictConfig
+from new_test_framework.utils import tdLog, tdSql, etool
 import os
-import frame
-import frame.etool
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
 import string
 import random
 
-
-class TDTestCase(TBase):
+class TestTaosdumpTest2:
     def generateString(self, length):
         chars = string.ascii_uppercase + string.ascii_lowercase
         v = ""
@@ -32,7 +24,22 @@ class TDTestCase(TBase):
             v += random.choice(chars)
         return v
 
-    def run(self):
+    def test_taosdump_test2(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        History:            - xxx
+            - xxx
+        """
         self.ts = 1601481600000
         self.numberOfTables = 1
         self.numberOfRecords = 150
@@ -127,10 +134,6 @@ class TDTestCase(TBase):
         tdSql.checkRows(1)
         os.system("rm -rf dump_result.txt")
 
-    def stop(self):
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

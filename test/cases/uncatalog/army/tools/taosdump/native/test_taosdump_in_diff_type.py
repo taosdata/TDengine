@@ -11,17 +11,10 @@
 
 # -*- coding: utf-8 -*-
 
+from new_test_framework.utils import tdLog, tdSql, etool
 import os
-import frame
-import frame.etool
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
 
-
-class TDTestCase(TBase):
+class TestTaosdumpInDiffType:
     def caseDescription(self):
         """
         case1<sdsang>: [TS-3102] taosdump in diff type test
@@ -30,7 +23,22 @@ class TDTestCase(TBase):
 
 
 
-    def run(self):
+    def test_taosdump_in_diff_type(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        History:            - xxx
+            - xxx
+        """
         binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosdump not found!")
@@ -69,7 +77,7 @@ class TDTestCase(TBase):
         os.system("%s -i %s -T 1" % (binPath, self.tmpdir))
 
         tdSql.query("show databases")
-        dbresult = tdSql.res
+        dbresult = tdSql.queryResult
 
         found = False
         for i in range(len(dbresult)):
@@ -83,13 +91,9 @@ class TDTestCase(TBase):
         tdSql.execute("use db")
 
         tdSql.query("SELECT * from tb")
-        for i in range(1, len(tdSql.res[0])):
+        for i in range(1, len(tdSql.queryResult[0])):
             tdSql.checkData(0, i, None)
 
-    def stop(self):
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

@@ -3,6 +3,9 @@ import os
 import shutil
 import time
 import copy
+import uuid
+import json
+import tempfile
 from new_test_framework.utils import tdSql, etool, tdLog, BeforeTest, eutil
 
 
@@ -15,6 +18,8 @@ def pytest_addoption(parser):
                     help="create mnode numbers in clusters")
     parser.addoption("-R", action="store_true",
                     help="restful realization form")
+    parser.addoption("-B", action="store_true",
+                    help="start taosAdapter but not connect with taosrest")
     parser.addoption("-Q", action="store",
                     help="set queryPolicy in one dnode")
     parser.addoption("-D", action="store",
@@ -133,10 +138,15 @@ def before_test_session(request):
         else:
             request.session.denodes_num = 1
         
+        request.session.restful = False
+        request.session.start_taosadapter = False
         if request.config.getoption("-R"):
             request.session.restful = True
-        else:
-            request.session.restful = False
+            request.session.start_taosadapter = True
+        
+        if request.config.getoption("-B"):
+            request.session.start_taosadapter = True
+        
         if request.config.getoption("-K"):
             request.session.set_taoskeeper = True
         else:
@@ -209,6 +219,9 @@ def before_test_class(request):
     if not request.session.skip_deploy:
         request.session.before_test.deploy_taos(request.cls.yaml_file, request.session.mnodes_num, request.session.clean)
    
+    # 为老用例兼容，初始化老框架部分实例
+    request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True, level=request.session.level, disk=request.session.disk)
+    
     # 建立连接
     request.cls.conn = request.session.before_test.get_taos_conn(request)
     tdSql.init(request.cls.conn.cursor())
@@ -229,9 +242,6 @@ def before_test_class(request):
         tdSql.execute("create qnode on dnode 1")
         tdSql.execute("show local variables")
 
-    # 为老用例兼容，初始化老框架部分实例
-    request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True, level=request.session.level, disk=request.session.disk)
-    
     if request.session.skip_test:
         pytest.skip("skip test")
     # ============================
@@ -541,6 +551,18 @@ def add_common_methods(request):
     
     request.cls.getDistributed = getDistributed
 
+    def taos(self, command, show = True, checkRun = False):
+        return etool.runBinFile("taos", command, show, checkRun)
+    request.cls.taos = taos
+
+    def taosdump(self, command, show = True, checkRun = True, retFail = True):
+        return etool.runBinFile("taosdump", command, show, checkRun, retFail)
+    request.cls.taosdump = taosdump
+
+    def benchmark(self, command, show = True, checkRun = True, retFail = True):
+        return etool.runBinFile("taosBenchmark", command, show, checkRun, retFail)
+    request.cls.benchmark = benchmark
+
 #
 #   util 
 #
@@ -587,6 +609,30 @@ def add_common_methods(request):
 
     request.cls.checkListNotEmpty = checkListNotEmpty
 
+    # check list have str
+    def checkListString(self, rlist, s):
+        if s is None:
+            return 
+        for i in range(len(rlist)):
+            if rlist[i].find(s) != -1:
+                # found
+                tdLog.info(f'found "{s}" on index {i} , line={rlist[i]}')
+                return 
+
+        # not found
+        
+        i = 1
+        for x in rlist:
+            print(f"{i} {x}")
+            i += 1
+        tdLog.exit(f'faild, not found "{s}" on above')
+    request.cls.checkListString = checkListString
+
+    # check many string
+    def checkManyString(self, rlist, manys):
+        for s in manys:
+            self.checkListString(rlist, s)
+    request.cls.checkManyString = checkManyString
 #
 #  str util
 #
@@ -675,7 +721,119 @@ def add_common_methods(request):
 
     request.cls.insertBenchJson = insertBenchJson
 
+# insert & check
+    def benchInsert(self, jsonFile, options = "", results = None):
+        # exe insert 
+        benchmark = frame.etool.benchMarkFile()
+        cmd   = f"{benchmark} {options} -f {jsonFile}"
+        rlist = frame.eos.runRetList(cmd, True, True, True)
+        if results != None:
+            for result in results:
+                self.checkListString(rlist, result)
+        
+        # open json
+        with open(jsonFile, "r") as file:
+            data = json.load(file)
+        
+        # read json
+        dbs = data["databases"]
+        for db in dbs:
+            dbName = db["dbinfo"]["name"]        
+            stbs   = db["super_tables"]
+            for stb in stbs:
+                stbName        = stb["name"]
+                child_count    = stb["childtable_count"]
+                insert_rows    = stb["insert_rows"]
+                timestamp_step = stb["timestamp_step"]
 
+                # check result
+
+                # count
+                sql = f"select count(*) from {dbName}.{stbName}"
+                tdSql.checkAgg(sql, child_count * insert_rows)
+                # diff
+                sql = f"select * from (select diff(ts) as dif from {dbName}.{stbName} partition by tbname) where dif != {timestamp_step};"
+                tdSql.query(sql)
+                tdSql.checkRows(0)
+                # show 
+                tdLog.info(f"insert check passed. db:{dbName} stb:{stbName} child_count:{child_count} insert_rows:{insert_rows}\n")
+    request.cls.benchInsert = benchInsert
+    # tmq
+    def tmqBenchJson(self, jsonFile, options="", checkStep=False):
+        # exe insert 
+        command = f"{options} -f {jsonFile}"
+        rlist = frame.etool.runBinFile("taosBenchmark", command, checkRun = True)
+
+        #
+        # check insert result
+        #
+        print(rlist)
+
+        return rlist
+    request.cls.tmqBenchJson = tmqBenchJson
+    # cmd
+    def benchmarkCmd(self, options, childCnt, insertRows, timeStep, results):
+        # set
+        self.childtable_count = childCnt
+        self.insert_rows      = insertRows
+        self.timestamp_step   = timeStep
+
+        # run
+        cmd = f"{options} -t {childCnt} -n {insertRows} -S {timeStep} -y"
+        rlist = self.benchmark(cmd)
+        for result in results:
+            self.checkListString(rlist, result)
+
+        # check correct
+        self.checkInsertCorrect()    
+
+    request.cls.benchmarkCmd = benchmarkCmd
+    # generate new json file
+    def genNewJson(self, jsonFile, modifyFunc=None):
+        try:
+            with open(jsonFile, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            tdLog.info(f"the specified json file '{jsonFile}' was not found.")
+            return None
+        except Exception as e:
+            tdLog.info(f"error reading the json file: {e}")
+            return None
+        
+        if callable(modifyFunc):
+            modifyFunc(data)
+        
+        tempDir = os.path.join(tempfile.gettempdir(), 'json_templates')
+        try:
+            os.makedirs(tempDir, exist_ok=True)
+        except PermissionError:
+            tdLog.info(f"no sufficient permissions to create directory at '{tempDir}'.")
+            return None
+        except Exception as e:
+            tdLog.info(f"error creating temporary directory: {e}")
+            return None
+        
+        tempPath = os.path.join(tempDir, f"temp_{uuid.uuid4().hex}.json")
+
+        try:
+            with open(tempPath, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            tdLog.info(f"error writing to temporary json file: {e}")
+            return None
+
+        tdLog.info(f"create temporary json file successfully, file: {tempPath}")
+        return tempPath
+    request.cls.genNewJson = genNewJson
+
+    # delete file
+    def deleteFile(self, filename):
+        try:
+            if os.path.exists(filename):
+                os.remove(filename)
+        except Exception as err:
+            raise Exception(err)
+    request.cls.deleteFile = deleteFile
 
 def pytest_collection_modifyitems(config, items):
     if config.getoption("--only_deploy"):

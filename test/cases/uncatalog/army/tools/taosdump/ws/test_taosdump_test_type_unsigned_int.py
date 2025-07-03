@@ -11,23 +11,31 @@
 
 # -*- coding: utf-8 -*-
 
+from new_test_framework.utils import tdLog, tdSql, etool
 import os
-import frame
-import frame.etool
-from frame.log import *
-from frame.cases import *
-from frame.sql import *
-from frame.caseBase import *
-from frame import *
 
-
-class TDTestCase(TBase):
+class TestTaosdumpTestTypeUnsignedInt:
     def caseDescription(self):
         """
         case1<sdsang>: [TD-12526] taosdump supports unsigned int
         """
 
-    def run(self):
+    def test_taosdump_test_type_unsigned_int(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        History:            - xxx
+            - xxx
+        """
         tdSql.prepare()
 
         tdSql.execute("drop database if exists db")
@@ -67,7 +75,7 @@ class TDTestCase(TBase):
         os.system("%s -R -i %s -T 1" % (binPath, self.tmpdir))
 
         tdSql.query("show databases")
-        dbresult = tdSql.res
+        dbresult = tdSql.queryResult
 
         found = False
         for i in range(len(dbresult)):
@@ -99,7 +107,7 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 2, 4294967294)
 
         tdSql.query("select * from db.st where untag is null")
-        dbresult = tdSql.res
+        dbresult = tdSql.queryResult
         print(dbresult)
 
         tdSql.checkRows(1)
@@ -107,10 +115,6 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, None)
 
-    def stop(self):
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
