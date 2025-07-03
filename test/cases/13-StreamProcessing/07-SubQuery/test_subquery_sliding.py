@@ -461,7 +461,7 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=38,
-            stream="create stream rdb.s38 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r38 as select _twstart ts, _irowts, _isfilled, interp(c1), _twend, _twduration, _twrownum from %%trows RANGE(_twend) FILL(linear);",
+            stream="create stream rdb.s38 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r38 as select _twstart ts, _irowts, _isfilled, interp(c1), _irowtsorigin, _twend, _twduration, _twrownum from %%trows RANGE(_twend) FILL(linear);",
             res_query="select * from rdb.r38 where tag_tbname='t1' limit 1",
             exp_query="select _irowts , _isfilled , interp(c1) from tdb.t1 RANGE('2025-01-01 00:05:00.000') FILL(linear);",
         )
@@ -510,7 +510,7 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=44,
-            stream="create stream rdb.s44 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r44 as select _twstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cgeometry from qdb.v1 order by cts limit 1",
+            stream="create stream rdb.s44 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r44 as select _twstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cgeometry from qdb.v1 order by cts limit 1 _qstart, _qend",
             res_query="select * from rdb.r44",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
@@ -871,7 +871,7 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=89,
-            stream="create stream rdb.s89 interval(5m) sliding(5m) from tdb.v1 into rdb.r89 as select rand() where rand() >= 0 and rand() < 1;",
+            stream="create stream rdb.s89 interval(5m) sliding(5m) from tdb.v1 into rdb.r89 as select rand() where rand() >= 0 and rand() < 1 _c0, _rowts;",
             res_query="select * from rdb.r89",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
@@ -1046,11 +1046,11 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=111,
-            stream="create stream rdb.s111 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r111 as select _wstart, _wend, _twstart, _twend, csmallint, count(cts), count(cbool) from qdb.meters partition by tbname state_window(csmallint)",
+            stream="create stream rdb.s111 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r111 as select _wstart, _wend, _twstart, _twend, csmallint, count(cts), count(cbool) from qdb.meters where cts >= _twstart and cts < _twend partition by tbname state_window(csmallint)",
             res_query="select * from rdb.r111 where `_wstart` >= '2025-01-01 00:00:00.000' and `_wstart` < '2025-01-01 00:05:00.000' and tag_tbname='t1';",
             exp_query="select _wstart, _wend, cast('2025-01-01 00:00:00.000' as timestamp) t1, cast('2025-01-01 00:05:00.000' as timestamp) t2, csmallint, count(cts), count(cbool), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and tbname='t1' partition by tbname STATE_WINDOW(csmallint);",
         )
-        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug7.py
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=112,
@@ -1062,11 +1062,12 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=113,
-            stream="create stream rdb.s113 interval(5m) sliding(5m) from tdb.t1 into rdb.r113 as select _twstart, count(cts) from qdb.meters partition by tbname session(cbigint)  where ts >= _twstart and ts < _twend;",
-            res_query="select * from rdb.r113",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s113 interval(5m) sliding(5m) from tdb.t1 into rdb.r113 as select _wstart, _wend, _twstart, _twend, first(csmallint), count(cts), count(cbool) from qdb.t1 where cts >= _twstart and cts < _twend and csmallint = 2 session(cts, 40s);",
+            res_query="select * from rdb.r113 where `_wstart` >= '2025-01-01 00:00:00.000' and `_wstart` < '2025-01-01 00:05:00.000' ",
+            exp_query="select _wstart, _wend, cast('2025-01-01 00:00:00.000' as timestamp) t1, cast('2025-01-01 00:05:00.000' as timestamp) t2, first(csmallint), count(cts), count(cbool) from qdb.t1 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and csmallint = 2 partition by tbname session(cts, 40s);",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
+
         stream = StreamItem(
             id=114,
             stream="create stream rdb.s114 interval(5m) sliding(5m) from tdb.v1 into rdb.r114 as show dnode 1 variables like 'bypassFlag'",
@@ -1085,11 +1086,11 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=116,
-            stream="create stream rdb.s116 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r116 as select _twstart, count(cts) from qdb.meters partition by tbname event(cbigint) _qstart, _qend, _wstart, _wend, _wduration, _c0, _rowts, irowts, _irowtsorigin, tbname where ts >= _twstart and ts < _twend;",
-            res_query="select * from rdb.r116",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s116 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r116 as select _wstart, _wend, _twstart, _twend, _wduration, first(csmallint), count(cts), count(cbool) from qdb.meters where tbname=%%tbname and cts >= _twstart and cts < _twend partition by tbname event_window start with csmallint = 1 end with csmallint = 2;",
+            res_query="select * from rdb.r116 where tag_tbname='t1' and `_wstart` >= '2025-01-01 00:00:00.000' and `_wstart` < '2025-01-01 00:05:00.000';",
+            exp_query="select _wstart, _wend, cast('2025-01-01 00:00:00.000' as timestamp) t1, cast('2025-01-01 00:05:00.000' as timestamp) t2, _wduration, first(csmallint), count(cts), count(cbool), 't1' from qdb.t1 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' event_window start with csmallint = 1 end with csmallint = 2;",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=117,
@@ -1097,7 +1098,7 @@ class TestStreamSubquerySliding:
             res_query="select * from rdb.r117",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream)
+        # self.streams.append(stream) todo
 
         stream = StreamItem(
             id=118,
@@ -1109,7 +1110,7 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=119,
-            stream="create stream rdb.s119 interval(5m) sliding(5m) from tdb.v1 into rdb.r119 as select dictintc from qdb.meters where tbname in(%%tbname)",
+            stream="create stream rdb.s119 interval(5m) sliding(5m) from tdb.v1 into rdb.r119 as select dictintc from qdb.meters where tbname in(%%tbname) _qstart, _qend, _c0, _rowts",
             res_query="select * from rdb.r119",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
@@ -1121,7 +1122,7 @@ class TestStreamSubquerySliding:
             res_query="select * from rdb.r120",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream)
+        # self.streams.append(stream) todo
 
         stream = StreamItem(
             id=121,
@@ -1137,7 +1138,7 @@ class TestStreamSubquerySliding:
             res_query="select * from rdb.r122",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream) toreport
+        # self.streams.append(stream) todo
 
         stream = StreamItem(
             id=123,
