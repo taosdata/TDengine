@@ -10,14 +10,14 @@ toc_max_heading_level: 5
 
 支持包括 MySQL、PostgreSQL、Oracle、SQL Server、SQLite 和 **TDengine** 在内的多种数据库。
 
-## 1. 前置条件 
+## 1. 前置条件
 
 Ontop 通过 [TDengine Java Connector](../../../reference/connector/java/) 连接 TDengine 数据源，需准备以下环境：
 
 - TDengine 3.3.6.0 及以上版本集群已部署并正常运行（企业及社区版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../../reference/components/taosadapter)。
 - Ontop 5.4.0 及以上版本，[下载](https://github.com/ontop/ontop)。
-- JDBC 驱动 3.6.4 及以上版本，[下载](https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver)。
+- JDBC 驱动 3.6.0 及以上版本，[下载](https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver)。
 
 ## 2. 配置数据源
 
@@ -30,68 +30,71 @@ Ontop 通过 [TDengine Java Connector](../../../reference/connector/java/) 连�
 ### 2. 配置 JDBC 驱动
 
 在 Ontop 的 `.properties` 文件中配置 JDBC 连接信息：
-   ``` sql
-    jdbc.url = jdbc:TAOS-WS://[host]:[port]/[database]
-    jdbc.user = [用户名]
-    jdbc.password = [密码]
-    jdbc.driver = com.taosdata.jdbc.ws.WebSocketDriver  
-   ```  
-   URL 参数详情参阅：[TDengine URL 规范](../../../reference/connector/java/#url-规范)。
+``` sql
+   jdbc.url = jdbc:TAOS-WS://[host]:[port]/[database]
+   jdbc.user = [用户名]
+   jdbc.password = [密码]
+   jdbc.driver = com.taosdata.jdbc.ws.WebSocketDriver  
+```
+URL 参数详情参阅：[TDengine URL 规范](../../../reference/connector/java/#url-规范)。
 
 ### 3. 配置表映射
 
 在 .obda 文件中定义 TDengine 与 Ontop 的映射关系（以智能电表场景为例）：
-   ``` properties
-    [PrefixDeclaration]
-    :   http://example.org/tde
-    ns:  http://example.org/ns#
+``` properties
+   [PrefixDeclaration]
+   :   http://example.org/tde
+   ns: http://example.org/ns#
 
-    [MappingDeclaration] @collection [[
-    mappingId	meters-mapping
-    target	ns:{ts} a ns:Meters ; ns:ts {ts} ; ns:voltage {voltage} ; ns:phase {phase} ; ns:groupid {groupid} ; ns:location {location}^^xsd:string .
-    source	SELECT ts, voltage, phase, groupid, location  from test.meters
-    ]]
-   ```
-   **格式说明：**
-    | 关键字段  | 说明  |
-    |:-------  |:----------------------------------- |
-    | mappingId | 映射 ID，唯一标识该映射关系            |
-    | source   | TDengine SQL 查询语句（支持复杂查询）   |  
-    | target   | 字段映射关系（未指定类型时按默认规则转换） |
-   
-   **在 target 中可指定映射数据类型，若未指定则按以下规则转化：**
+   [MappingDeclaration] @collection [[
+     mappingId	meters-mapping
+     target	ns:{ts} a ns:Meters ; ns:ts {ts} ; ns:voltage {voltage} ; ns:phase {phase} ; ns:groupid {groupid} ; ns:location {location}^^xsd:string .
+     source	SELECT ts, voltage, phase, groupid, location  from test.meters
+   ]]
+```
 
-    | TDengine JDBC 数据类型 | Ontop 数据类型  |
-    |:-------------------- |:----------------|
-    | java.sql.Timestamp   | xsd:datetime    |  
-    | java.lang.Boolean    | xsd:boolean     |
-    | java.lang.Byte       | xsd:byte        |
-    | java.lang.Short      | xsd:short       |
-    | java.lang.Integer    | xsd:int         |
-    | java.lang.Long       | xsd:long        |
-    | java.math.BigInteger | xsd:nonNegativeInteger |
-    | java.lang.Float      | xsd:float       |
-    | java.lang.Double     | xsd:double      |
-    | byte[]               | xsd:base64Binary|
-    | java.lang.String     | xsd:string      |
-    | java.math.BigDecimal | xsd:decimal     |
+**格式说明：**
+| 关键字段  | 说明  |
+|:-------  |:----------------------------------- |
+| mappingId | 映射 ID，唯一标识该映射关系            |
+| source   | TDengine SQL 查询语句（支持复杂查询）   |  
+| target   | 字段映射关系（未指定类型时按默认规则转换） |
 
-   完整 .obda 文件格式介绍请参考 [Ontop OBDA 文档](https://ontop-vkg.org/guide/advanced/mapping-language.html)。
+**在 target 中可指定映射数据类型，若未指定则按以下规则转化：**
+| TDengine JDBC 数据类型 | Ontop 数据类型  |
+|:-------------------- |:----------------|
+| java.sql.Timestamp   | xsd:datetime    |  
+| java.lang.Boolean    | xsd:boolean     |
+| java.lang.Byte       | xsd:byte        |
+| java.lang.Short      | xsd:short       |
+| java.lang.Integer    | xsd:int         |
+| java.lang.Long       | xsd:long        |
+| java.math.BigInteger | xsd:nonNegativeInteger |
+| java.lang.Float      | xsd:float       |
+| java.lang.Double     | xsd:double      |
+| byte[]               | xsd:base64Binary|
+| java.lang.String     | xsd:string      |
+| java.math.BigDecimal | xsd:decimal     |
+
+完整 .obda 文件格式介绍请参考 [Ontop OBDA 文档](https://ontop-vkg.org/guide/advanced/mapping-language.html)。
 
 ### 4. 测试连接
-   启动 Ontop 端点服务验证配置：
-   ``` bash
-   ontop endpoint -p db.properties -m db.obda --port 8080
-   ```
-   访问 `http://localhost:8080` ，若显示 SPARQL 查询界面，则表示配置成功。 
+
+启动 Ontop 端点服务验证配置：
+``` bash
+ ontop endpoint -p db.properties -m db.obda --port 8080
+```
+访问 `http://localhost:8080` ，若显示 SPARQL 查询界面，则表示配置成功。 
 
 
 ## 3. 数据分析
 
 ### 场景介绍
+
 某小区居民的智能电表数据存储在 TDengine 数据库中，使用 Ontop 将 TDengine 中的智能电表数据转化为虚拟知识图谱，通过 SPARQL 接口查询出电压超过 240V 的高负载设备。
 
 ### 数据准备
+
 通过 taosBenchmark 生成模拟数据：
 ``` bash
 # 生成 100 台设备，每台 1000 条记录
@@ -99,6 +102,7 @@ taosBenchmark -t 100 -n 1000 -y
 ```
 
 ### 配置文件
+
 **db.properties**​（连接配置）：
 ``` sql
 jdbc.url=jdbc:TAOS-WS://localhost:6041/test
@@ -111,6 +115,7 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
 
 
 ### 执行查询
+
 1. 制作 SPARQL 查询语句。  
    查询电压超过 240V 的智能电表设备，按电压倒序排列显示前 2 条：
    ``` sparql
@@ -207,6 +212,7 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
    ```
 
 ## 4. 总结
+
 本文通过 TDengine 与 Ontop 集成：
 - 实现了时序数据到 RDF 自动转换，支持 SPARQL 语义化查询。
 - 提供了符合 W3C 标准的统一数据访问接口。
