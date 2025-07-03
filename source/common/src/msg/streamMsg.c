@@ -1952,6 +1952,7 @@ void tDeepFreeSStmStreamDeploy(void* param) {
   SStmStreamDeploy* pDeploy = (SStmStreamDeploy*)param;
   taosArrayDestroyEx(pDeploy->readerTasks, tFreeSStmTaskDeploy);
   tFreeSStmTaskDeploy(pDeploy->triggerTask);
+  taosMemoryFree(pDeploy->triggerTask);
   taosArrayDestroyEx(pDeploy->runnerTasks, tFreeSStmTaskDeploy);
 }
 

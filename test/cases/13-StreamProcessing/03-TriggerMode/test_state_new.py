@@ -20,7 +20,7 @@ class TestStreamStateTrigger:
         # streams.append(self.Basic3())
         # streams.append(self.Basic4())
         streams.append(self.Basic5())
-        # streams.append(self.Basic6())
+        streams.append(self.Basic6())
         # streams.append(self.Basic7())
         # streams.append(self.Basic8())
         
@@ -606,7 +606,7 @@ class TestStreamStateTrigger:
             tdSql.executes(sqls)  
 
             tdSql.execute(
-                f"create stream s6 state_window(cint) from ct1 options(fill_history('2024-01-02 00:00:10')) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s6 state_window(cint) from ct1 options(fill_history('2024-01-02 00:00:00')) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
 
         def insert1(self):

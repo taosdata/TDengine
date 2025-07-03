@@ -1061,6 +1061,7 @@ static void destroyWinodwPhysiNode(SWindowPhysiNode* pNode) {
   nodesDestroyList(pNode->pFuncs);
   nodesDestroyNode(pNode->pTspk);
   nodesDestroyNode(pNode->pTsEnd);
+  nodesDestroyList(pNode->pProjs);
 }
 
 static void destroyPartitionPhysiNode(SPartitionPhysiNode* pNode) {
@@ -1170,6 +1171,19 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pTimeRange->pEnd);
       break;
     }
+    case QUERY_NODE_STREAM: {
+      SStreamNode* pStream = (SStreamNode*)pNode;
+      destroyExprNode((SExprNode*)pNode);
+      break;
+    }
+    case QUERY_NODE_STREAM_OUT_TABLE: {
+      SStreamOutTableNode* pOut = (SStreamOutTableNode*)pNode;
+      nodesDestroyNode(pOut->pOutTable);
+      nodesDestroyNode(pOut->pSubtable);
+      nodesDestroyList(pOut->pTags);
+      nodesDestroyList(pOut->pCols);
+      break;
+    }
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoin = (SJoinTableNode*)pNode;
       nodesDestroyNode(pJoin->pWindowOffset);
@@ -1206,12 +1220,25 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_INTERVAL_WINDOW: {
-      SIntervalWindowNode* pJoin = (SIntervalWindowNode*)pNode;
-      nodesDestroyNode(pJoin->pCol);
-      nodesDestroyNode(pJoin->pInterval);
-      nodesDestroyNode(pJoin->pOffset);
-      nodesDestroyNode(pJoin->pSliding);
-      nodesDestroyNode(pJoin->pFill);
+      SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pNode;
+      nodesDestroyNode(pInterval->pCol);
+      nodesDestroyNode(pInterval->pInterval);
+      nodesDestroyNode(pInterval->pOffset);
+      nodesDestroyNode(pInterval->pSliding);
+      nodesDestroyNode(pInterval->pSOffset);
+      nodesDestroyNode(pInterval->pFill);
+      break;
+    }
+    case QUERY_NODE_SLIDING_WINDOW: {
+      SSlidingWindowNode* pSliding = (SSlidingWindowNode*)pNode;
+      nodesDestroyNode(pSliding->pSlidingVal);
+      nodesDestroyNode(pSliding->pOffset);
+      break;
+    }
+    case QUERY_NODE_PERIOD_WINDOW: {
+      SPeriodWindowNode* pPeriod = (SPeriodWindowNode*)pNode;
+      nodesDestroyNode(pPeriod->pPeroid);
+      nodesDestroyNode(pPeriod->pOffset);
       break;
     }
     case QUERY_NODE_NODE_LIST:
@@ -1221,6 +1248,7 @@ void nodesDestroyNode(SNode* pNode) {
       SFillNode* pFill = (SFillNode*)pNode;
       nodesDestroyNode(pFill->pValues);
       nodesDestroyNode(pFill->pWStartTs);
+      nodesDestroyNode(pFill->pTimeRange);
       break;
     }
     case QUERY_NODE_RAW_EXPR:
@@ -1289,6 +1317,12 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pTrigger->pPartitionList);
       break;
     }
+    case QUERY_NODE_STREAM_CALC_RANGE: {
+      SStreamCalcRangeNode* pRange = (SStreamCalcRangeNode*)pNode;
+      nodesDestroyNode(pRange->pStart);
+      nodesDestroyNode(pRange->pEnd);
+      break;
+    }
     case QUERY_NODE_STREAM_TRIGGER_OPTIONS: {
       SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pNode;
       nodesDestroyNode(pOptions->pPreFilter);
@@ -1333,6 +1367,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_COUNT_WINDOW: {
       SCountWindowNode* pEvent = (SCountWindowNode*)pNode;
       nodesDestroyNode(pEvent->pCol);
+      nodesDestroyList(pEvent->pColList);
       break;
     }
     case QUERY_NODE_COUNT_WINDOW_ARGS: {
@@ -1379,6 +1414,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_STREAM_NOTIFY_OPTIONS: {
       SStreamNotifyOptions* pNotifyOptions = (SStreamNotifyOptions*)pNode;
       nodesDestroyList(pNotifyOptions->pAddrUrls);
+      nodesDestroyNode(pNotifyOptions->pWhere);
       break;
     }
     case QUERY_NODE_SET_OPERATOR: {
@@ -1392,6 +1428,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pStmt = (SSelectStmt*)pNode;
+      nodesDestroyNode(pStmt->pTimeRange);
       nodesDestroyList(pStmt->pProjectionList);
       nodesDestroyList(pStmt->pProjectionBindList);
       nodesDestroyNode(pStmt->pFromTable);
@@ -1788,6 +1825,11 @@ void nodesDestroyNode(SNode* pNode) {
       }
       break;
     }
+    case QUERY_NODE_RECALCULATE_STREAM_STMT: {
+      SRecalcStreamStmt* pStmt = (SRecalcStreamStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->pRange);
+      break;
+    }
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pLogicNode = (SScanLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
@@ -1802,6 +1844,7 @@ void nodesDestroyNode(SNode* pNode) {
       taosArrayDestroyEx(pLogicNode->pFuncTypes, destroyFuncParam);
       taosArrayDestroyP(pLogicNode->pTsmaTargetTbVgInfo, NULL);
       taosArrayDestroy(pLogicNode->pTsmaTargetTbInfo);
+      nodesDestroyNode(pLogicNode->pTimeRange);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
@@ -1874,6 +1917,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pStateExpr);
       nodesDestroyNode(pLogicNode->pStartCond);
       nodesDestroyNode(pLogicNode->pEndCond);
+      nodesDestroyList(pLogicNode->pColList);
+      nodesDestroyList(pLogicNode->pProjs);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_FILL: {
@@ -1964,6 +2009,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
     case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL: {
+      SExternalWindowPhysiNode* pPhyNode = (SExternalWindowPhysiNode*)pNode;
+      destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
@@ -1985,6 +2032,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pPhyNode->pGroupTags);
       nodesDestroyList(pPhyNode->pTags);
       nodesDestroyNode(pPhyNode->pSubtable);
+      nodesDestroyNode(pPhyNode->pTimeRange);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
@@ -2168,6 +2216,14 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_SUBPLAN: {
       SSubplan* pSubplan = (SSubplan*)pNode;
+      SNode* pTmp = NULL;
+      WHERE_EACH(pTmp, pSubplan->pChildren) {
+        if (QUERY_NODE_VALUE == nodeType(pTmp)) {
+          ERASE_NODE(pSubplan->pChildren);
+          continue;
+        }
+        WHERE_NEXT;
+      }
       nodesClearList(pSubplan->pChildren);
       nodesDestroyNode((SNode*)pSubplan->pNode);
       nodesDestroyNode((SNode*)pSubplan->pDataSink);

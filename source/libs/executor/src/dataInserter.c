@@ -2143,7 +2143,10 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   (void)atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pInserter->cachedSize);
   taosArrayDestroy(pInserter->pDataBlocks);
   taosMemoryFree(pInserter->pSchema);
-  destroyStreamInserterParam(pInserter->pParam->streamInserterParam);
+  if (pInserter->pParam->streamInserterParam) {
+    destroyStreamInserterParam(pInserter->pParam->streamInserterParam);
+    taosMemoryFree(pInserter->pParam->readHandle); // only for stream
+  }
   taosMemoryFree(pInserter->pParam);
   taosHashCleanup(pInserter->pCols);
   nodesDestroyNode((SNode*)pInserter->pNode);
