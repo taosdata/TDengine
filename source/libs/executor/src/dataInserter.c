@@ -2038,6 +2038,9 @@ static int32_t resetInserterTbVersion(SDataInserterHandle* pInserter, const SInp
     return code;
   }
 
+  stDebug("resetInserterTbVersion, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbName:%s, uid:%" PRId64 ", version:%d",
+          pInput->pStreamDataInserterInfo->streamId, pInput->pStreamDataInserterInfo->groupId,
+          pInput->pStreamDataInserterInfo->tbName, pTbInfo.uid, pTbInfo.version);
   pInserter->pParam->streamInserterParam->pSchema->version = pTbInfo.version;
   if (pInserter->pParam->streamInserterParam->tbType != TSDB_NORMAL_TABLE) {
     pInserter->pParam->streamInserterParam->sver = pTbInfo.version;
