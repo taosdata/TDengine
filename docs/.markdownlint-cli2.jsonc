@@ -4,19 +4,14 @@
 {
   // Disable some built-in rules
   "config": {
-	"MD001": true, // heading-increment 标题级别只能逐级递增
-	"MD011": true, // no-reversed-link 禁止反向链接，link 必须用标准格式
-	"MD012": true,  // no-multiple-blank 禁止多个连续的空行。
+	"MD001": false, // heading-increment 标题级别不需要逐级递增
+
 	"MD013": false, // line-length 禁止行长度限制
-	"MD018": true, // no-missing-space-atx 禁止 ATX # 标题前后缺少空格
-	"MD019": true, // no-multiple-space-atx 禁止 ATX # 标题前后有多个空格
-	"MD023": true, // no-heading-punctuation 标题必须顶格写，不能有前导空格
 	"MD024": false, // no-duplicate-heading 禁止重复标题
 	"MD029": false, // ol-prefix 列表前缀可以任意设置
 	"MD025": false, // single-title 同一文档只能有一个一级标题
 	"MD033": false, // no-inline-html 禁止行内HTML
 	"MD041": false, // first-line-heading 禁止第一行必须是标题
-	"MD042": true, // no-empty-links 禁止空链接
 	"MD046": {"style": "fenced"}, // code-fence-style 代码块使用围栏样式
 	"MD048": {"style": "backtick"}, // Code fence style 只允许用反引号 ``` 作为围栏
 	"MD052": false  // reference-links-image: 禁止引用链接和图片
