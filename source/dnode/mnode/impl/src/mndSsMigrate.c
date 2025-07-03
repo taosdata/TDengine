@@ -497,6 +497,7 @@ static int32_t mndUpdateSsMigrateProgress(SMnode *pMnode, SRpcMsg *pReq, SQueryS
   if (inProgress) {
     pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-ssmigrate");
     if (pTrans == NULL) {
+      mndReleaseSsMigrate(pMnode, pSsMigrate);
       mError("ssmigrate:%d, failed to create update-ssmigrate trans since %s", rsp->mnodeMigrateId, terrstr());
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
       if (terrno != 0) code = terrno;
@@ -505,6 +506,7 @@ static int32_t mndUpdateSsMigrateProgress(SMnode *pMnode, SRpcMsg *pReq, SQueryS
   } else {
     pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "drop-ssmigrate");
     if (pTrans == NULL) {
+      mndReleaseSsMigrate(pMnode, pSsMigrate);
       mError("ssmigrate:%d, failed to create drop-ssmigrate trans since %s", rsp->mnodeMigrateId, terrstr());
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
       if (terrno != 0) code = terrno;
@@ -516,28 +518,25 @@ static int32_t mndUpdateSsMigrateProgress(SMnode *pMnode, SRpcMsg *pReq, SQueryS
   mInfo("trans:%d, ssmigrate:%d, vgId:%d, %s-trans created", pTrans->id, rsp->mnodeMigrateId, rsp->vgId, pTrans->opername);
 
   SSdbRaw *pRaw = mndSsMigrateActionEncode(pSsMigrate);
+  mndReleaseSsMigrate(pMnode, pSsMigrate);
+
   if (pRaw == NULL) {
     mndTransDrop(pTrans);
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
-    mndReleaseSsMigrate(pMnode, pSsMigrate);
+    TAOS_RETURN(code);
+  }
+
+  if ((code = sdbSetRawStatus(pRaw, inProgress ? SDB_STATUS_READY : SDB_STATUS_DROPPED)) != 0) {
+    mndTransDrop(pTrans);
     TAOS_RETURN(code);
   }
 
   if ((code = mndTransAppendCommitlog(pTrans, pRaw)) != 0) {
     mError("trans:%d, ssmigrate:%d, failed to append commit log since %s", pTrans->id, rsp->mnodeMigrateId, terrstr());
     mndTransDrop(pTrans);
-    mndReleaseSsMigrate(pMnode, pSsMigrate);
     TAOS_RETURN(code);
   }
-
-  if ((code = sdbSetRawStatus(pRaw, inProgress ? SDB_STATUS_READY : SDB_STATUS_DROPPED)) != 0) {
-    mndTransDrop(pTrans);
-    mndReleaseSsMigrate(pMnode, pSsMigrate);
-    TAOS_RETURN(code);
-  }
-
-  mndReleaseSsMigrate(pMnode, pSsMigrate);
 
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mError("trans:%d, ssmigrate:%d, failed to prepare since %s", pTrans->id, rsp->mnodeMigrateId, terrstr());

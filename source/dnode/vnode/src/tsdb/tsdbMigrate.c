@@ -506,7 +506,8 @@ static int32_t downloadDataFileLastChunk(SRTNer* rtner, STFileObj* fobj) {
 // 1. without a compaction, data file is always uploaded chunk by chunk, only the last
 //    chunk may be modified.
 // 2. after a compaction, all of the data is downloaded to local, so overwriting remote
-//    data chunks won't cause any problem.
+//    data chunks won't cause any problem. (this is not likely to happen because we will
+//    cancel the migration in this case, refer comment in function shouldMigrate).
 static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
   int32_t code = 0;
   int32_t vid = TD_VID(rtner->tsdb->pVnode), mid = getSsMigrateId(rtner->tsdb);
@@ -662,7 +663,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
   int64_t mtime = 0, size = 0;
   *pCode = taosStatFile(path, &size, &mtime, NULL);
   if (*pCode != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d, fid:%d, failed to stat file %s since %s", vid, pLocalFset->fid, path, tstrerror(*pCode));
+    tsdbError("vgId:%d, fid:%d, migration cancelled, failed to stat file %s since %s", vid, pLocalFset->fid, path, tstrerror(*pCode));
     return false;
   }
 
@@ -686,29 +687,41 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     return false; // keep on local storage
   }
 
-  // this could be 2 possibilities:
-  // 1. this is the first migration, we should do it;
-  // 2. there's a compact after the last migration, we should discard the migrated files;
-  if (flocal->f->lcn < 1) {
-    tsdbInfo("vgId:%d, fid:%d, local lcn < 1, file set will be migrated", vid, pLocalFset->fid);
-    return true;
-  }
-
   // download manifest from shared storage
   STFileSet *pRemoteFset = NULL;
   *pCode = downloadManifest(rtner->tsdb->pVnode, pLocalFset->fid, &pRemoteFset);
-  if (*pCode == TSDB_CODE_NOT_FOUND) {
-    tsdbError("vgId:%d, fid:%d, remote manifest not found, but local manifest is initialized", vid, pLocalFset->fid);
-    tsdbTFileSetClear(&pRemoteFset);
-    *pCode = TSDB_CODE_FILE_CORRUPTED;
-    return false;
-  }
+  if (*pCode == TSDB_CODE_SUCCESS) {
+    // remote file exists but local file has not been migrated, there are two possibilities:
+    // 1. there's a compact after the last migration, this is a normal case, we can discard
+    //    the remote files and continue the migration;
+    // 2. in the last migration, this node was a follower, the leader did its job successfully,
+    //    but this node did not, continue the migration may overwrite remote file and result in
+    //    data corruption on other nodes.
+    // however, it is hard to distinguish them, so just treat both as a migration error. hope
+    // the user could do something to recover, such as remove remote files.
+    if (flocal->f->lcn < 1) {
+      tsdbTFileSetClear(&pRemoteFset);
+      tsdbError("vgId:%d, fid:%d, migration cancelled, remote manifest found but local lcn < 1", vid, pLocalFset->fid);
+      *pCode = TSDB_CODE_FILE_CORRUPTED;
+      return false;
+    }
 
-  if (*pCode != TSDB_CODE_SUCCESS) {
+  } else if (*pCode == TSDB_CODE_NOT_FOUND) {
+    if (flocal->f->lcn >= 1) {
+      tsdbError("vgId:%d, fid:%d, migration cancelled, remote manifest not found but local lcn >= 1", vid, pLocalFset->fid);
+      *pCode = TSDB_CODE_FILE_CORRUPTED;
+      return false;
+    }
+
+    // this is the first migration, we should do it.
+    *pCode = TSDB_CODE_SUCCESS;
+    return true;
+
+  } else {
     tsdbError("vgId:%d, fid:%d, migration cancelled, failed to download manifest, code: %d", vid, pLocalFset->fid, *pCode);
     return false;
   }
-  
+
   STFileObj *fremote = pRemoteFset->farr[TSDB_FTYPE_DATA];
   if (fremote == NULL) {
     tsdbError("vgId:%d, fid:%d, migration cancelled, cannot find data file information from remote manifest", vid, pLocalFset->fid);

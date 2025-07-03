@@ -280,7 +280,7 @@ class TDTestCase:
             'audit':'Audit',
             'storage':'Multi-Tier Storage',
             'backup_restore':'Data Backup & Restore',
-            'shared_storage':'Shared Storage',
+            'object_storage':'Shared Storage',
             'active_active':'Active-Active',
             'dual_replica':'Dual-Replica HA',
             'db_encryption':'Database Encryption',
