@@ -205,7 +205,7 @@ static int32_t mndSetUpdateSnodeRedoLogs(STrans *pTrans, SSnodeObj *pObj) {
     if (terrno != 0) code = terrno;
     TAOS_RETURN(code);
   }
-  TAOS_CHECK_RETURN(mndTransAppendRedolog(pTrans, pRedoRaw));
+  TAOS_CHECK_RETURN(mndTransAppendGroupRedolog(pTrans, pRedoRaw, -1));
   TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_UPDATE));
   TAOS_RETURN(code);
 }
@@ -314,6 +314,7 @@ static int32_t mndSetUpdateSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   action.contLen = contLen;
   action.msgType = TDMT_DND_ALTER_SNODE;
   action.acceptableCode = 0;
+  action.groupId = -1;
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);
@@ -630,7 +631,7 @@ static int32_t mndSetDropSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSn
   action.contLen = contLen;
   action.msgType = TDMT_DND_DROP_SNODE;
   action.acceptableCode = TSDB_CODE_SNODE_NOT_DEPLOYED;
-  action.groupId = 1;
+  action.groupId = -1;
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);
@@ -759,11 +760,9 @@ static void mndSnodeAddLeaderId(SSnodeObj *pObj, int32_t leaderId) {
   mError("snode %d can't add new leaderId %d since already has two leaders:%d, %d", pObj->id, leaderId, pObj->leadersId[0], pObj->leadersId[1]);
 }
 
-
-static int32_t mndDropSnode(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj) {
+int32_t mndDropSnodeImpl(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj, STrans *pTrans) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  STrans *pTrans = NULL;
   SArray* streamList = NULL;
   SSnodeObj asReplicaOf[2] = {0};
   SSnodeObj replicaSnode = {0};
@@ -771,31 +770,26 @@ static int32_t mndDropSnode(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj) {
 
   if (pObj->leadersId[0] > 0) {
     pTmp = mndAcquireSnode(pMnode, pObj->leadersId[0]);
+    TSDB_CHECK_NULL(pTmp, code, lino, _exit, terrno);
     asReplicaOf[0] = *pTmp;
     mndReleaseSnode(pMnode, pTmp);
   }  
 
   if (pObj->leadersId[1] > 0) {
     pTmp = mndAcquireSnode(pMnode, pObj->leadersId[1]);
+    TSDB_CHECK_NULL(pTmp, code, lino, _exit, terrno);
     asReplicaOf[1] = *pTmp;
     mndReleaseSnode(pMnode, pTmp);
   }
 
   if (pObj->replicaId > 0 && pObj->replicaId != pObj->leadersId[0] && pObj->replicaId != pObj->leadersId[1]) {
     pTmp = mndAcquireSnode(pMnode, pObj->replicaId);
+    TSDB_CHECK_NULL(pTmp, code, lino, _exit, terrno);
     replicaSnode = *pTmp;
     mndReleaseSnode(pMnode, pTmp);
   }
   
   TAOS_CHECK_EXIT(msmCheckSnodeReassign(pMnode, pObj, &streamList));
-
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-snode");
-  if (pTrans == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    goto _exit;
-  }
-  mndTransSetSerial(pTrans);
 
   int32_t streamNum = taosArrayGetSize(streamList);
   if (streamNum > 0) {
@@ -842,12 +836,36 @@ static int32_t mndDropSnode(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj) {
   mInfo("trans:%d, used to drop snode:%d", pTrans->id, pObj->id);
   TAOS_CHECK_GOTO(mndSetDropSnodeInfoToTrans(pMnode, pTrans, pObj, false), NULL, _exit);
   
-  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _exit);
+_exit:
+
+  taosArrayDestroy(streamList);
+
+  if (code) {
+    mError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+  
+  TAOS_RETURN(code);
+}
+
+
+static int32_t mndDropSnode(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-snode");
+  if (pTrans == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    goto _exit;
+  }
+  mndTransSetSerial(pTrans);
+
+  TAOS_CHECK_GOTO(mndDropSnodeImpl(pMnode, pReq, pObj, pTrans), &lino, _exit);
+  
+  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), &lino, _exit);
 
 _exit:
 
   mndTransDrop(pTrans);
-  taosArrayDestroy(streamList);
 
   if (code) {
     mError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));

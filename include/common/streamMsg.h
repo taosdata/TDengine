@@ -729,6 +729,8 @@ typedef struct SSTriggerFirstTsRequest {
 typedef struct SSTriggerTsdbMetaRequest {
   SSTriggerPullRequest base;
   int64_t              startTime;
+  int64_t              gid;
+  int8_t               order;  // 1 for asc, 2 for desc
 } SSTriggerTsdbMetaRequest;
 
 typedef struct SSTriggerTsdbTsDataRequest {
@@ -742,7 +744,8 @@ typedef struct SSTriggerTsdbTsDataRequest {
 typedef struct SSTriggerTsdbTriggerDataRequest {
   SSTriggerPullRequest base;
   int64_t              startTime;
-  int8_t               order;  // 0 for sequence, 1 for reverse
+  int64_t              gid;
+  int8_t               order;  // 1 for asc, 2 for desc
 } SSTriggerTsdbTriggerDataRequest;
 
 typedef struct SSTriggerTsdbCalcDataRequest {
@@ -759,7 +762,7 @@ typedef struct SSTriggerTsdbDataRequest {
   int64_t              skey;
   int64_t              ekey;
   SArray*              cids;  // SArray<col_id_t>, col_id starts from 0
-  int8_t               order;  // 0 for sequence, 1 for reverse
+  int8_t               order;  // 1 for asc, 2 for desc
 } SSTriggerTsdbDataRequest;
 
 typedef struct SSTriggerWalMetaRequest {
@@ -767,30 +770,13 @@ typedef struct SSTriggerWalMetaRequest {
   int64_t              lastVer;
   int64_t              ctime;
 } SSTriggerWalMetaRequest;
-
-typedef struct SSTriggerWalTsDataRequest {
+typedef struct SSTriggerWalRequest {
   SSTriggerPullRequest base;
   int64_t              uid;
   int64_t              ver;
   int64_t              skey;
   int64_t              ekey;
-} SSTriggerWalTsDataRequest;
-
-typedef struct SSTriggerWalTriggerDataRequest {
-  SSTriggerPullRequest base;
-  int64_t              uid;
-  int64_t              ver;
-  int64_t              skey;
-  int64_t              ekey;
-} SSTriggerWalTriggerDataRequest;
-
-typedef struct SSTriggerWalCalcDataRequest {
-  SSTriggerPullRequest base;
-  int64_t              uid;
-  int64_t              ver;
-  int64_t              skey;
-  int64_t              ekey;
-} SSTriggerWalCalcDataRequest;
+} SSTriggerWalRequest;
 
 typedef struct SSTriggerWalDataRequest {
   SSTriggerPullRequest base;
@@ -846,9 +832,7 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerTsdbCalcDataRequest        tsdbCalcDataReq;
   SSTriggerTsdbDataRequest            tsdbDataReq;
   SSTriggerWalMetaRequest             walMetaReq;
-  SSTriggerWalTsDataRequest           walTsDataReq;
-  SSTriggerWalTriggerDataRequest      walTriggerDataReq;
-  SSTriggerWalCalcDataRequest         walCalcDataReq;
+  SSTriggerWalRequest                 walReq;
   SSTriggerWalDataRequest             walDataReq;
   SSTriggerGroupColValueRequest       groupColValueReq;
   SSTriggerVirTableInfoRequest        virTableInfoReq;

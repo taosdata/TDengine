@@ -391,7 +391,7 @@ class TestStreamCheckpoint:
         tdSql.execute("use db")
         tdSql.execute(
             f"create stream {stream_name} PERIOD(30s) from source_table partition by tbname  into {dst_table} as "
-            f"select cast(_tlocaltime/1000000 as timestamp) ts, count(*) k, last(k) c, tbname tb, a"
+            f"select cast(_tlocaltime/1000000 as timestamp) ts, count(1) k, last(k) c, tbname tb, a "
             f"from source_table group by tbname, a")
         tdLog.info(f"create stream completed, and wait for it completed")
 
