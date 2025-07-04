@@ -1,6 +1,4 @@
 use anyhow::{anyhow, bail, Context};
-use archive::utils::files::read_parquet_file;
-use archive::{get_rewrite_files, Archive, ArchiveConsumer, ArchiveType, Cache};
 use arrow::array::{Array, StringArray, UInt8Array};
 use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions, record_batch::RecordBatch};
 use arrow_compute_ext::RecordBatchExt;
@@ -53,10 +51,12 @@ use crate::plugins::transform::handling_strategy::HandlingResult;
 use crate::plugins::transform::WrittenMethod;
 use crate::plugins::*;
 use crate::utils::breakpoints::BreakpointDb;
+use crate::utils::files::{read_parquet_dir_files, read_parquet_file};
 use crate::utils::sql::get_minimum_timestamp;
 use crate::utils::trace::{BatchCounter, Qid};
 use crate::AGENT_COMPRESSION;
 use crate::{utils::breakpoints::breakpoints_set, ConnectorLicense, Parser, Transferred};
+use crate::{ArchiveConsumer, ArchiveType};
 
 use self::point::handle_transform;
 use self::point::point_records_to_sql;
@@ -1095,7 +1095,7 @@ async fn consume_lush_record_with_transform(
     lush_model_config: Arc<LushModelConfig>,
     table_cache: Arc<TableTagCache>,
     breakpoint_db: BreakpointDb,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     if unsafe { crate::global::DRY_RUN } {
         tracing::trace!("consume lush record in dry-run mode with transform");
@@ -1929,7 +1929,7 @@ async fn consume_flat_record(
     target_precision: taos::Precision,
     metrics: &IpcMetrics,
     notifier: Option<&crate::TaskNotifySender>,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     if unsafe { crate::global::DRY_RUN } {
         metrics.add_processed_rows(batch.num_rows() as u64);
@@ -2150,10 +2150,13 @@ async fn consume_flat_record(
     Ok(())
 }
 
-fn process_cache(batch: &RecordBatch, archive_tx: Sender<ArchiveType>) -> anyhow::Result<()> {
+fn process_cache(
+    batch: &RecordBatch,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+) -> anyhow::Result<()> {
     if batch.num_rows() > 0 {
         archive_tx
-            .send(ArchiveType::Cache(batch.clone()))
+            .send((ArchiveType::Cache, batch.clone()))
             .context("archive process task exit")?;
     }
     Ok(())
@@ -2162,17 +2165,22 @@ fn process_cache(batch: &RecordBatch, archive_tx: Sender<ArchiveType>) -> anyhow
 fn process_archive(
     err: &str,
     batch: &RecordBatch,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     // possible difference in schema, so archive them separately
-    let err_vec = vec![err.to_string(); batch.num_rows()];
-    let err_timestamp_vec = vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
-    archive_records(
-        batch,
-        err_vec.clone(),
-        err_timestamp_vec.clone(),
-        archive_tx.clone(),
-    )
+    if batch.num_rows() > 0 {
+        let err_vec = vec![err.to_string(); batch.num_rows()];
+        let err_timestamp_vec = vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
+        if let Err(e) = archive_records(
+            batch,
+            err_vec.clone(),
+            err_timestamp_vec.clone(),
+            archive_tx.clone(),
+        ) {
+            tracing::error!("archive error: {e:#}");
+        }
+    }
+    Ok(())
 }
 
 #[instrument(skip_all)]
@@ -2186,7 +2194,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     ipc_error_strategy: IpcErrorStrategy,
     metrics: &IpcMetrics,
     metrics_arc: &Arc<CoreMetrics>,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     // let taos = pool.get().await?;
     let columns = ipc_reader
@@ -2459,7 +2467,7 @@ async fn ipc_flat_stream_worker(
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
     let parser = parser.ok_or_else(|| anyhow::anyhow!("Parser should be set with flat stream"))?;
@@ -2547,7 +2555,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
     let stream = ipc_reader.into_raw_stream_with_capycity(
@@ -2728,22 +2736,9 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
             tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
         });
         if parser_clone.is_some() && task_id.is_some() {
-            let (cache, archive) = match parser_clone {
-                Some(parser) => (
-                    parser.global().process_on_abnormal.cache.clone(),
-                    parser.global().process_on_abnormal.archive.clone(),
-                ),
-                None => (Cache::default(), Archive::default()),
-            };
-            let metrics = get_metrics_arc_from_i64(Some(task_id.unwrap())).await;
-
-            ArchiveConsumer::new(task_id.unwrap(), cache, archive, |num_rows: u64| {
-                let metrics = metrics.ipc();
-                metrics.add_archived_rows(num_rows);
-                Ok::<_, anyhow::Error>(())
-            })
-            .consume(archive_rx)
-            .await
+            ArchiveConsumer::new(task_id.unwrap(), parser_clone)
+                .consume(archive_rx)
+                .await
         } else {
             loop {
                 tokio::select! {
@@ -2767,9 +2762,6 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
         let _a = crate::utils::defer::defer(|| {
             tracing::info!("the 'rewrite file' thread has completed, task id: {task_id:?}",);
         });
-        if task_id.is_none() {
-            return Ok(());
-        }
         if let Some(parser) = parser_clone {
             read_cache_and_rewrite(
                 task_id.unwrap(),
@@ -3109,7 +3101,7 @@ impl IpcStreamWorker {
         metrics_arc: &Arc<CoreMetrics>,
         tables_messages_in_progress: &Arc<AtomicUsize>,
         notifier: Option<&crate::TaskNotifySender>,
-        archive_tx: Sender<ArchiveType>,
+        archive_tx: Sender<(ArchiveType, RecordBatch)>,
     ) -> anyhow::Result<usize> {
         let taos = unsafe { &mut *self.taos.as_ptr() };
         if taos.is_none() {
@@ -3704,34 +3696,25 @@ pub async fn channel_based_transformer(
             tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
         });
 
-        if parser_clone.is_some() && task_id.is_some() {
-            let (cache, archive) = match parser_clone {
-                Some(parser) => (
-                    parser.global().process_on_abnormal.cache.clone(),
-                    parser.global().process_on_abnormal.archive.clone(),
-                ),
-                None => (Cache::default(), Archive::default()),
-            };
-            let metrics = get_metrics_arc_from_i64(Some(task_id.unwrap())).await;
-
-            ArchiveConsumer::new(task_id.unwrap(), cache, archive, |num_rows: u64| {
-                let metrics = metrics.ipc();
-                metrics.add_archived_rows(num_rows);
-                Ok::<_, anyhow::Error>(())
-            })
-            .consume(archive_rx)
-            .await
-        } else {
-            loop {
-                tokio::select! {
-                    _ = cancel_clone.cancelled() => {
-                        tracing::info!("stop the 'cache & archive' thread, task cancelled");
-                        break;
-                    }
-                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
-                }
+        match (parser_clone, task_id) {
+            (Some(parser), Some(task_id)) => {
+                ArchiveConsumer::new(task_id, Some(parser))
+                    .consume(archive_rx)
+                    .await
             }
-            Ok(())
+            _ => {
+                loop {
+                    tokio::select! {
+                        _ = cancel_clone.cancelled() => {
+                            tracing::info!("stop the 'cache & archive' thread, task cancelled");
+                            break;
+                        }
+                        _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                        }
+                    }
+                }
+                Ok(())
+            }
         }
     });
 
@@ -3830,7 +3813,7 @@ pub async fn read_cache_and_rewrite(
     task_id: i64,
     pool: &TaosPool,
     parser: &Parser,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
     cancel: &CancellationToken,
 ) -> anyhow::Result<()> {
     let cache_path = parser.global().process_on_abnormal.cache.location.clone();
@@ -3844,20 +3827,10 @@ pub async fn read_cache_and_rewrite(
             }
             _ = tokio::time::sleep(Duration::from_secs(5)) => {
                 if let Ok(taos) = pool.get().await {
-                    let target_precision = match get_current_precision(&taos).in_current_span().await {
-                        Ok(precision) => precision,
-                        Err(e) => {
-                            tracing::error!("get current precision error, e: {e:#}");
-                            continue;
-                        }
-                    };
-                    //get all cached files at current time point
-                    let files = match get_rewrite_files(archive_tx.clone()).await {
+                    let target_precision = get_current_precision(&taos).in_current_span().await?;
+                    let files = match read_parquet_dir_files(task_id, &cache_path) {
                         Ok(files) => files,
-                        Err(e) => {
-                            tracing::error!("get rewrite files error, e: {e:#}");
-                            continue;
-                        }
+                        Err(e) => anyhow::bail!(format!("{e:#}")),
                     };
                     let mut taos_mut = Some(taos);
                     for file in files {
@@ -3894,7 +3867,7 @@ async fn read_file_and_rewrite(
     target_precision: taos::Precision,
     metrics: &IpcMetrics,
     parser: &Parser,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
     cancel: &CancellationToken,
 ) -> anyhow::Result<()> {
     let batches = read_parquet_file(file.clone())?;

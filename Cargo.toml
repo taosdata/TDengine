@@ -13,8 +13,6 @@ members = [
   "tests/tools",
   "crates/spawners/x-replication",
   "crates/persist-queue",
-  "crates/archive",
-  "crates/rotate-file",
 ]
 exclude = ["crates/transform/parsers/hebeipower"]
 
@@ -79,9 +77,6 @@ actix-files = "0.6.6"
 actix-multipart = "0.7.2"
 actix-web = { version = "4.9.0", features = ["rustls-0_23"] }
 actix-ws = "0.3.0"
-thiserror = "1"
-
-archive = { path = "./crates/archive" }
 
 hex = "0.4.3"
 
@@ -144,7 +139,7 @@ linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 log = { version = "0.4", features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 serde_yaml = "0.9.19"
-thiserror = { workspace = true }
+thiserror = "1"
 tokio = { workspace = true, features = [
   "rt",
   "rt-multi-thread",
@@ -243,7 +238,6 @@ tikv-jemalloc-sys = { version = "0.6.0", features = [
 ], optional = true }
 tikv-jemalloc-ctl = { version = "0.6.0", optional = true }
 jemalloc_pprof = { version = "0.7.0", git = "https://github.com/polarsignals/rust-jemalloc-pprof.git", optional = true }
-archive = { workspace =  true }
 
 [build-dependencies]
 sqlx = { version = "0.8", features = ["sqlite", "chrono", "mysql"] }

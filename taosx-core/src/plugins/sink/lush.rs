@@ -5,15 +5,17 @@ use super::{
     transform::{modeler::Modeler, Parser},
 };
 use crate::{
-    plugins::transform::{handling_strategy::HandlingResult, MessageTableMeta, TableOptions},
-    runners::pi::transform::{
-        PIElementModelConfig, PIPointModelConfig, PiModelType, SuperTableConfig,
+    plugins::{
+        runners::pi::transform::{PIElementModelConfig, PIPointModelConfig, SuperTableConfig},
+        transform::{
+            archive_records, handling_strategy::HandlingResult, MessageTableMeta, TableOptions,
+        },
     },
-    sink::{process_archive, process_cache},
+    runners::pi::transform::PiModelType,
     utils::{breakpoints::BreakpointDb, sql::values_to_sqls, trace::Qid},
+    ArchiveType,
 };
 use anyhow::{anyhow, Context};
-use archive::ArchiveType;
 use arrow::array::{ArrayRef, StringArray, UInt16Builder};
 use arrow::{array::Array, record_batch::RecordBatch};
 use arrow_compute_ext::*;
@@ -430,7 +432,7 @@ pub async fn write(
     table_id_column: &str,
     breakpoints: BreakpointDb,
     parser: &Parser,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<(usize, Duration, Duration)> {
     let table_break_points = get_break_point(&messages, table_id_column);
     let timeout = parser
@@ -456,7 +458,7 @@ pub async fn write(
                         Ok((HandlingResult::Archive, err)) => {
                             messages.iter().for_each(|m| {
                                 if let Err(e) =
-                                    process_archive(&err, &m.records, archive_tx.clone())
+                                    process_archive(err.clone(), &m.records, archive_tx.clone())
                                 {
                                     tracing::error!("archive error: {e:#}");
                                 }
@@ -541,7 +543,8 @@ pub async fn write(
                             }
                             Ok((HandlingResult::Archive, err)) => {
                                 records.batches.iter().for_each(|batch| {
-                                    if let Err(e) = process_archive(&err, batch, archive_tx.clone())
+                                    if let Err(e) =
+                                        process_archive(err.clone(), batch, archive_tx.clone())
                                     {
                                         tracing::error!("archive error: {e:#}");
                                     }
@@ -669,7 +672,8 @@ pub async fn write(
                     }
                     Ok((HandlingResult::Archive, err)) => {
                         records.batches.iter().for_each(|batch| {
-                            if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                            if let Err(e) = process_archive(err.clone(), batch, archive_tx.clone())
+                            {
                                 tracing::error!("archive error: {e:#}");
                             }
                         });
@@ -710,7 +714,7 @@ async fn handle_field_length_overflow_and_rewrite(
     field: &str,
     batches: &Vec<RecordBatch>,
     err: &WriteError,
-    archive_tx: Sender<ArchiveType>,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     // get the length of the field
     let desc = taos.as_ref().unwrap().describe(stable).await;
@@ -749,7 +753,7 @@ async fn handle_field_length_overflow_and_rewrite(
                 // do nothing
             }
             Ok((HandlingResult::Archive, err)) => {
-                let res = process_archive(&err, batch, archive_tx.clone());
+                let res = process_archive(err, batch, archive_tx.clone());
                 if let Err(e) = res {
                     tracing::error!("archive error: {e:#}");
                 }
@@ -792,7 +796,7 @@ async fn handle_field_length_overflow_and_rewrite(
                     tracing::error!("rewrite error: {e:#}");
                 }
                 // archive
-                if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                if let Err(e) = process_archive(err, batch, archive_tx.clone()) {
                     tracing::error!("archive error: {e:#}");
                 }
             }
@@ -841,6 +845,32 @@ async fn modify_batch_and_rewrite(
             .await?;
     }
     Ok(())
+}
+
+fn process_cache(
+    batch: &RecordBatch,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+) -> anyhow::Result<()> {
+    if batch.num_rows() > 0 {
+        archive_tx.send((ArchiveType::Cache, batch.clone()))?;
+    }
+    Ok(())
+}
+
+fn process_archive(
+    err: String,
+    batch: &RecordBatch,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+) -> anyhow::Result<()> {
+    // possible difference in schema, so archive them separately
+    let err_vec = vec![err.clone(); batch.num_rows()];
+    let err_timestamp_vec = vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
+    archive_records(
+        batch,
+        err_vec.clone(),
+        err_timestamp_vec.clone(),
+        archive_tx.clone(),
+    )
 }
 
 // 获取每个子表的最后时间戳，作为断点信息
@@ -1566,7 +1596,7 @@ mod tests {
         let messages = builder.build();
         let (tx, _rx) = flume::bounded(10);
 
-        if let Err(e) = process_archive("error", &messages[0].records, tx) {
+        if let Err(e) = process_archive("error".to_string(), &messages[0].records, tx) {
             dbg!(e);
         }
     }
