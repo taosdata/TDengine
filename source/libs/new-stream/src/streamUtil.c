@@ -221,7 +221,12 @@ int32_t stmBuildHbStreamsStatusReq(SStreamHbMsg* pMsg) {
   return code;
 }
 
-void stmDestroySStreamInfo(SStreamInfo* p) {
+void stmDestroySStreamInfo(void* param) {
+  if (NULL == param) {
+    return;
+  }
+  
+  SStreamInfo* p = (SStreamInfo*)param;
   tdListFree(p->readerList);
   p->readerList = NULL;
   taosMemoryFreeClear(p->triggerTask);

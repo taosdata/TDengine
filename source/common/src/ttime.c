@@ -55,6 +55,9 @@ bool checkTzPresent(const char* str, int32_t len) {
 
   char* c = &seg[seg_len - 1];
   for (int32_t i = 0; i < seg_len; ++i) {
+    if (0 == *c) {
+      break;
+    }
     if (*c == 'Z' || *c == 'z' || *c == '+' || *c == '-') {
       return true;
     }

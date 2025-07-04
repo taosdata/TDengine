@@ -154,6 +154,8 @@ int32_t stRunnerTaskUndeployImpl(SStreamRunnerTask** ppTask, const SStreamUndepl
   taosThreadMutexDestroy(&pMgr->lock);
   NODES_DESTORY_NODE(pTask->pSubTableExpr);
   NODES_DESTORY_LIST(pTask->output.pTagValExprs);
+  taosArrayDestroy(pTask->output.outCols);
+  taosArrayDestroy(pTask->output.outTags);
   taosMemoryFreeClear(pTask->pPlan);
   taosArrayDestroyEx(pTask->forceOutCols, destroySStreamOutCols);
   taosArrayDestroyP(pTask->notification.pNotifyAddrUrls, taosMemFree);

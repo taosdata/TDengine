@@ -272,6 +272,7 @@ int32_t smDeployTasks(SStmStreamDeploy* pDeploy) {
   if (NULL == pGrp) {
     gStreamMgmt.stmGrp[gid] = taosHashInit(STREAM_GRP_STREAM_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
     TSDB_CHECK_NULL(gStreamMgmt.stmGrp[gid], code, lino, _exit, terrno);
+    taosHashSetFreeFp(gStreamMgmt.stmGrp[gid], stmDestroySStreamInfo);
     pGrp = gStreamMgmt.stmGrp[gid];
   }
   

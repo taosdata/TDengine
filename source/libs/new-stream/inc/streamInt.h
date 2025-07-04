@@ -114,7 +114,7 @@ int32_t stReaderTaskExecute(SStreamReaderTask* pTask, SStreamMsg* pMsg);
 void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, bool isReader);
 void smUndeployVgTasks(int32_t vgId);
 int32_t smDeployStreams(SStreamDeployActions* actions);
-void stmDestroySStreamInfo(SStreamInfo* p);
+void stmDestroySStreamInfo(void* param);
 void stmDestroySStreamMgmtReq(SStreamMgmtReq* pReq);
 int32_t streamBuildStateNotifyContent(ESTriggerEventType eventType, int16_t dataType, const char* pFromState,
                                       const char* pToState, char** ppContent);
