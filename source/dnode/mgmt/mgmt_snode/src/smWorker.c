@@ -49,7 +49,8 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   STraceId   *trace = &pMsg->info.traceId;
   void       *taskAddr = NULL;
   dGDebug("msg:%p, get from snode-stream-trigger queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
-  SSTriggerAHandle* pAhandle = pMsg->info.ahandle;
+  SMsgSendInfo* ahandle = pMsg->info.ahandle;
+  SSTriggerAHandle* pAhandle = ahandle->param;
 
   int32_t      code = TSDB_CODE_SUCCESS;
   SStreamTask *pTask = NULL;
@@ -90,7 +91,7 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   }
 
   streamReleaseTask(taskAddr);
-  taosMemoryFree(pAhandle);
+  destroyAhandle(ahandle);
 
   dTrace("msg:%p, is freed, code:%d", pMsg, code);
   rpcFreeCont(pMsg->pCont);
@@ -100,8 +101,8 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, void *pParam, int32_t *pWorkerIdx) {
   int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   SRpcMsg *pMsg = (SRpcMsg *)pParam;
-  SSTriggerAHandle* pAhandle = pMsg->info.ahandle;
-  if (pAhandle == NULL) {
+  SMsgSendInfo* ahandle = pMsg->info.ahandle;
+  if (ahandle == NULL) {
     code = TSDB_CODE_INVALID_PARA;
     dError("empty ahandle for msg %s", TMSG_INFO(pMsg->msgType));
     return code;
@@ -109,6 +110,7 @@ static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, voi
 
   SStreamTask *pTask = NULL;  
   void       *taskAddr = NULL;  
+  SSTriggerAHandle* pAhandle = ahandle->param;
   TAOS_CHECK_EXIT(streamAcquireTask(pAhandle->streamId, pAhandle->taskId, &pTask, &taskAddr));
 
   switch (pMsg->msgType) {
@@ -142,7 +144,7 @@ static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, voi
 _exit:
 
   if (code) {
-    taosMemoryFree(pAhandle);
+    destroyAhandle(ahandle);
     //rpcFreeCont(pMsg->pCont);
     //taosFreeQitem(pMsg);
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
