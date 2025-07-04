@@ -193,14 +193,13 @@ class TestStreamCheckpoint:
         # except Exception as e:
         #     tdLog.error(f"case 9 error: {e}")
 
-        # clear_output("sm9", "tb9")
-        # info.start_write = False
-        #
-        # self.write_data(1000, 10, info)
-        # try:
-        #     self.create_and_check_stream_basic_10("sm10", "tb10", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 10 error: {e}")
+        clear_output("sm9", "tb9")
+        info.start_write = False
+        self.write_data(1000, 10, info)
+        try:
+            self.create_and_check_stream_basic_10("sm10", "tb10", info)
+        except Exception as e:
+            tdLog.error(f"case 10 error: {e}")
 
         clear_output("sm10", "tb10")
         info.start_write = False
@@ -210,19 +209,6 @@ class TestStreamCheckpoint:
         except Exception as e:
             tdLog.error(f"case 11 error: {e}")
 
-        # clear_output("sm11", "tb11")
-        # self.write_data(10000, 10)
-        # try:
-        #     self.create_and_check_stream_basic_12("sm12", "tb12")
-        # except Exception as e:
-        #     tdLog.error(f"case 12 error: {e}")
-        #
-        # clear_output("sm12", "tb12")
-        # self.write_data(10000, 10)
-        # try:
-        #     self.create_and_check_stream_basic_13("sm13", "tb13")
-        # except Exception as e:
-        #     tdLog.error(f"case 13 error: {e}")
 
     def create_env(self):
         tdLog.info(f"create {self.num_snode} snode(s)")
@@ -403,6 +389,8 @@ class TestStreamCheckpoint:
         """simple 10:
            Error: recalculate failed
         """
+        time.sleep(10)
+
         tdSql.execute("use db")
         tdSql.execute(
             f"create stream {stream_name} session(ts, 1100a) from source_table partition by tbname into {dst_table} as "
@@ -410,7 +398,7 @@ class TestStreamCheckpoint:
             f"from source_table "
             f"where _c0 >= _twstart and _c0 <= _twend group by tbname")
 
-        tdLog.info(f"create stream completed, and wait for stream completed")
+        tdLog.info(f"create stream completed, and wait for stream completed, start to write data after 10sec")
         time.sleep(10)
 
         info.start_write = True
@@ -419,18 +407,18 @@ class TestStreamCheckpoint:
         wait_for_insert_complete_local(info)
 
         wait_for_stream_done_r1(f"select max(c) from {dst_table}", info.num_of_rows - 1)
-        check_all_results(f"select max(c) from {dst_table} group by tbname",
-                          [[9999], [9999], [9999], [9999], [9999], [9999], [9999], [9999], [9999], [9999]])
+        check_all_results(f"select count(*) from {dst_table} ", [[5000]])
 
 
     def create_and_check_stream_basic_11(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 10:
-           Error: recalculate failed
+        """simple 11: Pass
         """
+        time.sleep(10)
+
         tdSql.execute("use db")
         tdSql.execute(
             f"create stream {stream_name} session(ts, 30s) from source_table partition by tbname into {dst_table} as "
-            f"select _twstart st, _twend et, count(*),  max(k) c "
+            f"select _twstart st, _twend et, count(*),  max(k) c, sum(k), first(ts), last(ts) "
             f"from source_table "
             f"where _c0 >= _twstart and _c0 <= _twend group by tbname")
 
@@ -441,4 +429,9 @@ class TestStreamCheckpoint:
         wait_for_insert_complete_local(info)
 
         wait_for_stream_done_r1(f"select count(*) from {dst_table}", info.num_of_tables)
-        # check_all_results(f"select count(*) from {dst_table} ", [[10000]])
+        check_all_results(f"select `count(*)`, `c`, `sum(k)` from {dst_table} ",
+                          [[1000, 1999, 999500], [1000, 1999, 999500],
+                           [1000, 1999, 999500], [1000, 1999, 999500],
+                           [1000, 1999, 999500], [1000, 1999, 999500],
+                           [1000, 1999, 999500], [1000, 1999, 999500],
+                           [1000, 1999, 999500], [1000, 1999, 999500]])

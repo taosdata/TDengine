@@ -48,7 +48,7 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SSnodeMgmt *pMgmt = pInfo->ahandle;
   STraceId   *trace = &pMsg->info.traceId;
   void       *taskAddr = NULL;
-  dGTrace("msg:%p, get from snode-stream-trigger queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+  dGDebug("msg:%p, get from snode-stream-trigger queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
   SSTriggerAHandle* pAhandle = pMsg->info.ahandle;
 
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -143,8 +143,8 @@ _exit:
 
   if (code) {
     taosMemoryFree(pAhandle);
-    rpcFreeCont(pMsg->pCont);
-    taosFreeQitem(pMsg);
+    //rpcFreeCont(pMsg->pCont);
+    //taosFreeQitem(pMsg);
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
