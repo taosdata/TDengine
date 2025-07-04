@@ -133,7 +133,10 @@
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to-continue.py
 
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/json_tag.py
-
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_sml.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_sql.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_stmt.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_stmt2.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert-json-csv.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/insertBasic.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertBindVGroup.py

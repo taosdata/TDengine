@@ -27,7 +27,7 @@ int64_t  getTSRandTail(int64_t timeStampStep, int32_t seq, int disorderRatio, in
 int generateRandData(SSuperTable *stbInfo, char *sampleDataBuf,
         int64_t bufLen,
         int lenOfOneRow, BArray * fields, int64_t loop,
-        bool tag, BArray *childCols);
+        bool tag, BArray *childCols, int64_t loopBegin);
 // prepare
 int prepareStmt (TAOS_STMT  *stmt,  SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db);
 int prepareStmt2(TAOS_STMT2 *stmt2, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db);
@@ -54,7 +54,7 @@ void generateSmlJsonValues(
         char **sml_tags_json_array, SSuperTable *stbInfo, int tableSeq);
 
 // generateTag data from random or csv file, cnt is get count for each
-bool generateTagData(SSuperTable *stbInfo, char *buf, int64_t cnt, FILE* csv, BArray* tagsStmt);
+bool generateTagData(SSuperTable *stbInfo, char *buf, int64_t cnt, FILE* csv, BArray* tagsStmt, int64_t loopBegin);
 // get tag from csv file
 FILE* openTagCsv(SSuperTable* stbInfo, uint64_t seek);
 

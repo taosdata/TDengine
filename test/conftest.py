@@ -219,7 +219,6 @@ def before_test_class(request):
     # 部署taosd，包括启动dnode，mnode，adapter
     if not request.session.skip_deploy:
         request.session.before_test.deploy_taos(request.cls.yaml_file, request.session.mnodes_num, request.session.clean)
-   
     # 为老用例兼容，初始化老框架部分实例
     request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True, level=request.session.level, disk=request.session.disk)
     

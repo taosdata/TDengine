@@ -153,6 +153,8 @@ jobs:
         if: ${{ steps.check-doc-lang.outputs.zh_doc_changed == 'true'}}
         run: |
           cd ${{ env.DOC_WKC }}/${{ env.ZH_DOC_REPO }}
+          rm -rf docs/* && git restore docs/ 
+          git checkout -f master && git pull origin master 
           yarn ass local
           yarn build
 
@@ -160,5 +162,7 @@ jobs:
         if: ${{ steps.check-doc-lang.outputs.en_doc_changed == 'true'}}
         run: |
           cd ${{ env.DOC_WKC }}/${{ env.EN_DOC_REPO }}
+          rm -rf docs/* && git restore docs/
+          git checkout -f main && git pull origin main 
           yarn ass local
           yarn build

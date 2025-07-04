@@ -80,6 +80,7 @@ You can change the behavior of the TDengine CLI by configuring command line para
 - -w DISPLAYWIDTH: Client column display width.
 - -z TIMEZONE: Specifies the timezone, default is the local timezone.
 - -V: Print the current version number.
+- -Z：The connection method, with 0 indicating the use of native connection method, 1 indicating the use of WebSocket connection method, and default to native connection method.
 
 ## Data Export/Import
 

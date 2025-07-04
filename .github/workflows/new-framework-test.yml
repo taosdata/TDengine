@@ -4,6 +4,8 @@ on:
   pull_request:
     branches:
       - '3.0'
+      - 'main'
+      - 'new_testcases'
     paths-ignore:
       - 'packaging/**'
       - 'docs/**'
@@ -14,7 +16,7 @@ on:
       - 'include/common/tanalytics.h'
       - 'source/common/src/tanalytics.c'
       - 'tests/parallel/tdgpt_cases.task'
-      - 'tests/script/tsim/analytics'
+      - 'tests/script/tsim/analytics/**'
       - '**/*.md'
 
 concurrency:
