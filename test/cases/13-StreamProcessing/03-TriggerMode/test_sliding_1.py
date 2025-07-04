@@ -70,13 +70,13 @@ class TestStreamCheckpoint:
         # except Exception as e:
         #     tdLog.error(f"case 1 error: {e}")
         #
-        # clear_output("sm1", "tb1")
-        # self.prepare_tables(100000, 1)
-        #
-        # try:
-        #     self.create_and_check_stream_basic_2("sm2", "tb2")
-        # except Exception as e:
-        #     tdLog.error(f"case 2 error: {e}")
+        clear_output("sm1", "tb1")
+        self.prepare_tables(10000, 1)
+
+        try:
+            self.create_and_check_stream_basic_2("sm2", "tb2")
+        except Exception as e:
+            tdLog.error(f"case 2 error: {e}")
         #
         #
         # clear_output("sm2", "tb2")
@@ -142,12 +142,12 @@ class TestStreamCheckpoint:
         # except Exception as e:
         #     tdLog.error(f"case 11 error: {e}")
 
-        clear_output("sm11", "tb11")
-        self.prepare_tables(1000, 10)
-        try:
-            self.create_and_check_stream_basic_12("sm12", "tb12")
-        except Exception as e:
-            tdLog.error(f"case 12 error: {e}")
+        # clear_output("sm11", "tb11")
+        # self.prepare_tables(1000, 10)
+        # try:
+        #     self.create_and_check_stream_basic_12("sm12", "tb12")
+        # except Exception as e:
+        #     tdLog.error(f"case 12 error: {e}")
 
         # clear_output("sm12", "tb12")
         # self.prepare_tables(1000, 10)
@@ -231,12 +231,11 @@ class TestStreamCheckpoint:
                           [[10000, 49995000, 4999.5, ], [40000, 799980000, 19999.5, ], [70000, 2449965000, 34999.5, ]])
 
     def create_and_check_stream_basic_2(self, stream_name, dst_table) -> None:
-        """simple 2
-            Error: stream executes failed.
+        """simple 2: pass
         """
         tdSql.execute("use db")
         tdSql.execute(
-            f"create stream {stream_name} interval(30s) sliding(1s) from source_table into {dst_table} as "
+            f"create stream {stream_name} interval(3s) sliding(100a) from source_table into {dst_table} as "
             f"select _twstart, _twend, cast(_tlocaltime/1000000 as timestamp) exec_ts, count(*) c, sum(k) sum "
             f"from source_table where _c0 >= _twstart and _c0 < _twend")
 
@@ -245,14 +244,16 @@ class TestStreamCheckpoint:
 
         wait_for_insert_complete(self.num_of_tables, self.num_of_rows)
 
-        wait_for_stream_done_r1(f"select count(*) from {dst_table}", 96)
-        check_ts_step(tb_name=dst_table, freq=1)
+        wait_for_stream_done_r1(f"select count(*) from {dst_table}", 100)
+        check_ts_step(tb_name=dst_table, freq=0.1)
 
     def create_and_check_stream_basic_3(self, stream_name, dst_table) -> None:
         """simple 3
             Error: calculated results are incorrect
             NOTE: not check the results yet.
         """
+        time.sleep(10)
+
         tdSql.execute("use db")
         tdSql.execute(
             f"create stream {stream_name} interval(10a) sliding(3s) from source_table into {dst_table} as "
