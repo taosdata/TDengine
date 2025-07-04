@@ -61,6 +61,8 @@ static int32_t streamTriggerAllocAhandle(SStreamTriggerTask *pTask, void *param,
   pRes->taskId = pTask->task.taskId;
   pRes->param = param;
 
+  *ppAhandle = pInfo;
+
 _exit:
 
   if (code) {
