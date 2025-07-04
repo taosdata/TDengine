@@ -21,6 +21,24 @@ class TestCommandlinePartialColNumpy:
         """
 
     def test_commandline_partial_col_numpy(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
         binPath = etool.benchMarkFile()
         cmd = "%s -t 1 -n 1 -y -L 2 " % binPath
         tdLog.info("%s" % cmd)
