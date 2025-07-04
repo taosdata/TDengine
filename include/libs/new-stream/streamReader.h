@@ -14,6 +14,7 @@ extern "C" {
 #endif
 
 typedef struct SStreamTriggerReaderInfo {
+  void*        pTask;
   int32_t      order;
   // SArray*      schemas;
   STimeWindow  twindows;
@@ -45,6 +46,7 @@ typedef struct SStreamTriggerReaderInfo {
 } SStreamTriggerReaderInfo;
 
 typedef struct SStreamTriggerReaderCalcInfo {
+  void*       pTask;
   void*       pFilterInfo;
   void*       tsConditions;
   SSubplan*    calcAst;
