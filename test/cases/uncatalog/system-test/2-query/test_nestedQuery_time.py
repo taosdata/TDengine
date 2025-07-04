@@ -16,7 +16,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from test_nestedQuery import *
 
-class TDTestCase:
+class TestNestedQueryCase:
 
     def test_nestedQuery_time(self):
         """summary: xxx
