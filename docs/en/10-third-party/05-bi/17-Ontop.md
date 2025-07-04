@@ -16,8 +16,8 @@ Ontop connects to TDengine data sources via the [TDengine Java Connector](../../
 
 - TDengine cluster version 3.3.6.0 or higher deployed and running (both Enterprise and Community editions supported).
 - taosAdapter running normally, see [taosAdapter Reference Manual](../../../tdengine-reference/components/taosadapter/) for details.
-- Ontop version 5.4.0 or higher, [download](https://github.com/ontop/ontop).
 - JDBC driver version 3.6.0 or higher, [download](https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver).
+- Ontop's TDengine support has been merged into the `version5` branch but not yet released. Please [download the source code](https://github.com/ontop/ontop) and build according to the README.
 
 ## Configure Data Source
 
