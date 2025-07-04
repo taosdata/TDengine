@@ -256,7 +256,7 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
       break;
     }
 
-    if (pLogStore->syncLogGetEntry(pLogStore, index, &pEntry) < 0) {
+    if ((code = pLogStore->syncLogGetEntry(pLogStore, index, &pEntry)) < 0) {
       sWarn("vgId:%d, failed to get log entry since %s, index:%" PRId64, pNode->vgId, tstrerror(code), index);
       break;
     }
