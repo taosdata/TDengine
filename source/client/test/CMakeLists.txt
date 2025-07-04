@@ -39,7 +39,7 @@ TARGET_LINK_LIBRARIES(
 #        PUBLIC os util common transport monitor parser catalog scheduler function gtest ${TAOS_NATIVE_LIB_STATIC} qcom executor
 #)
 
-ADD_EXECUTABLE(userOperTest ../../../tests/script/api/passwdTest.c)
+ADD_EXECUTABLE(userOperTest ../../../test/new_test-framework/script/api/passwdTest.c)
 if (TD_WINDOWS)
 TARGET_LINK_LIBRARIES(
         userOperTest
