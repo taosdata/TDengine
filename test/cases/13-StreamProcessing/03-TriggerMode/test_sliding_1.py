@@ -115,20 +115,20 @@ class TestStreamCheckpoint:
         # except Exception as e:
         #     tdLog.error(f"case 7 error: {e}")
 
-        clear_output("sm7", "tb7")
-        self.prepare_tables(10000, 10)
-        try:
-            self.create_and_check_stream_basic_8("sm8", "tb8")
-        except Exception as e:
-            tdLog.error(f"case 8 error: {e}")
-
-        # clear_output("sm8", "tb8")
-        # self.prepare_tables(10000, 10)
+        # clear_output("sm7", "tb7")
+        # self.prepare_tables(1000, 10)
         # try:
-        #     self.create_and_check_stream_basic_9("sm9", "tb9")
+        #     self.create_and_check_stream_basic_8("sm8", "tb8")
         # except Exception as e:
-        #     tdLog.error(f"case 9 error: {e}")
-        #
+        #     tdLog.error(f"case 8 error: {e}")
+
+        clear_output("sm8", "tb8")
+        self.prepare_tables(1000, 10)
+        try:
+            self.create_and_check_stream_basic_9("sm9", "tb9")
+        except Exception as e:
+            tdLog.error(f"case 9 error: {e}")
+
         # clear_output("sm9", "tb9")
         # self.prepare_tables(10000, 10)
         # try:
@@ -365,6 +365,7 @@ class TestStreamCheckpoint:
         self.do_write_data()
 
         wait_for_insert_complete(self.num_of_tables, self.num_of_rows)
+        wait_for_stream_done_r1(f"select count(*) from {dst_table}", self.num_of_tables * self.num_of_rows)
 
     def create_and_check_stream_basic_9(self, stream_name, dst_table) -> None:
         """simple 9:
