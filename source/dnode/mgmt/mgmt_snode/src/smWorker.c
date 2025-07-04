@@ -48,10 +48,11 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SSnodeMgmt *pMgmt = pInfo->ahandle;
   STraceId   *trace = &pMsg->info.traceId;
   void       *taskAddr = NULL;
+  dGDebug("msg:%p, get from snode-stream-trigger queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+  SMsgSendInfo* ahandle = pMsg->info.ahandle;
+  SSTriggerAHandle* pAhandle = ahandle->param;
   SBatchReq   batchReq = {0};
 
-  dGTrace("msg:%p, get from snode-stream-trigger queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
-  SSTriggerAHandle* pAhandle = pMsg->info.ahandle;
 
   int32_t      code = TSDB_CODE_SUCCESS;
   SStreamTask *pTask = NULL;
@@ -110,19 +111,19 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   }
 
   streamReleaseTask(taskAddr);
-  taosMemoryFree(pAhandle);
+  destroyAhandle(ahandle);
 
   dTrace("msg:%p, is freed, code:%d", pMsg, code);
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
 static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, void *pParam, int32_t *pWorkerIdx) {
-  int32_t           code = TSDB_CODE_SUCCESS, lino = 0;
-  SRpcMsg*          pMsg = (SRpcMsg *)pParam;
-  void*             taskAddr = NULL;
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   SBatchReq         batchReq = {0};
-  int64_t           streamId = 0, taskId = 0, sessionId = 0;
-  SSTriggerAHandle *pAhandle = NULL;
+  SRpcMsg *pMsg = (SRpcMsg *)pParam;
+  int64_t  streamId = 0, taskId = 0, sessionId = 0;
+  void    *taskAddr = NULL;  
+  SMsgSendInfo* ahandle = NULL;
 
   if (pMsg->msgType == TDMT_SND_BATCH_META) {
     code = tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq);
@@ -141,11 +142,13 @@ static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, voi
     taskId = req.taskId;
     sessionId = 1;
   } else {
-    pAhandle = pMsg->info.ahandle;
-    if (pAhandle == NULL) {
+    ahandle = pMsg->info.ahandle;
+    if (ahandle == NULL) {
       dError("empty ahandle for msg %s", TMSG_INFO(pMsg->msgType));
       TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
     }
+	  
+    SSTriggerAHandle* pAhandle = ahandle->param;
     SStreamTask *pTask = NULL;
     TAOS_CHECK_EXIT(streamAcquireTask(pAhandle->streamId, pAhandle->taskId, &pTask, &taskAddr));
     if (pMsg->msgType == TDMT_STREAM_TRIGGER_PULL_RSP) {
@@ -182,7 +185,7 @@ _exit:
     streamReleaseTask(taskAddr);
   }
   if (code) {
-    taosMemoryFree(pAhandle);
+    destroyAhandle(ahandle);
     //rpcFreeCont(pMsg->pCont);
     //taosFreeQitem(pMsg);
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));

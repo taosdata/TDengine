@@ -48,17 +48,25 @@ typedef struct StreamTriggerWaitInfo {
 static int32_t streamTriggerAllocAhandle(SStreamTriggerTask *pTask, void *param, void **ppAhandle) {
   int32_t code = 0, lino = 0;
 
-  *ppAhandle = taosMemoryCalloc(1, sizeof(SSTriggerAHandle));
-  TSDB_CHECK_NULL(*ppAhandle, code, lino, _exit, terrno);
+  SMsgSendInfo* pInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  TSDB_CHECK_NULL(pInfo, code, lino, _exit, terrno);
 
-  SSTriggerAHandle *pRes = *ppAhandle;
+  pInfo->param = taosMemoryCalloc(1, sizeof(SSTriggerAHandle));
+  TSDB_CHECK_NULL(pInfo->param, code, lino, _exit, terrno);
+
+  pInfo->paramFreeFp = taosAutoMemoryFree;
+
+  SSTriggerAHandle *pRes = pInfo->param;
   pRes->streamId = pTask->task.streamId;
   pRes->taskId = pTask->task.taskId;
   pRes->param = param;
 
+  *ppAhandle = pInfo;
+
 _exit:
 
   if (code) {
+    taosMemoryFree(pInfo);
     ST_TASK_ELOG("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
@@ -2072,7 +2080,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
   SStreamTaskAddr    *pReader = NULL;
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_PULL, .info.notFreeAhandle = 1};
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_PULL};
 
   switch (type) {
     case STRIGGER_PULL_LAST_TS: {
@@ -2248,7 +2256,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    taosMemoryFree(msg.info.ahandle);
+    destroyAhandle(msg.info.ahandle);
     ST_TASK_ELOG("%s failed at line %d since %s, type: %d", __func__, lino, tstrerror(code), type);
   }
   return code;
@@ -2373,7 +2381,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   }
 
   // serialize and send request
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_CALC, .info.notFreeAhandle = 1};
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_CALC};
   QUERY_CHECK_CODE(streamTriggerAllocAhandle(pTask, pCalcReq, &msg.info.ahandle), lino, _end);
   msg.contLen = tSerializeSTriggerCalcRequest(NULL, 0, pCalcReq);
   QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -2394,6 +2402,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    destroyAhandle(msg.info.ahandle);
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
@@ -2752,7 +2761,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
   QUERY_CHECK_CONDITION(pRsp->code == TSDB_CODE_SUCCESS || pRsp->code == TSDB_CODE_STREAM_NO_DATA, code, lino, _end,
                         TSDB_CODE_INVALID_PARA);
 
-  SSTriggerAHandle *pAhandle = pRsp->info.ahandle;
+  SMsgSendInfo* ahandle = pRsp->info.ahandle;
+  SSTriggerAHandle* pAhandle = ahandle->param;
   pReq = pAhandle->param;
   switch (pReq->type) {
     case STRIGGER_PULL_LAST_TS: {
@@ -3158,7 +3168,8 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
 
   QUERY_CHECK_CONDITION(pRsp->code == TSDB_CODE_SUCCESS, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  SSTriggerAHandle *pAhandle = pRsp->info.ahandle;
+  SMsgSendInfo* ahandle = pRsp->info.ahandle;
+  SSTriggerAHandle* pAhandle = ahandle->param;
   pReq = pAhandle->param;
 
   code = stTriggerTaskReleaseRequest(pTask, &pReq);
@@ -4143,7 +4154,8 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
     goto _end;
   }
 
-  SSTriggerAHandle *pAhandle = pRsp->info.ahandle;
+  SMsgSendInfo* ahandle = pRsp->info.ahandle;
+  SSTriggerAHandle* pAhandle = ahandle->param;
 
   if (pRsp->msgType == TDMT_STREAM_TRIGGER_PULL_RSP) {
     SSTriggerPullRequest *pReq = pAhandle->param;

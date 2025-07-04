@@ -2196,7 +2196,7 @@ static int32_t msmReLaunchReaderTask(SStreamObj* pStream, SStmTaskAction* pActio
     }
   }
   
-  TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, pStream, scanPlan->scanPlan, pStatus, isTriggerReader));
+  TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, pStream, scanPlan ? scanPlan->scanPlan : NULL, pStatus, isTriggerReader));
   TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, pAction->streamId));
 
 _exit:
