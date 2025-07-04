@@ -113,7 +113,8 @@ sudo systemctl restart grafana-server.service
 1. 点击 building a dashboard -> Add visualization, 并选择刚刚添加的 data source
 2. 在 Input SQL 文本框，输入以下 SQL 语句后，点击 Apply 按钮，即可查看到平均电流变化情况的曲线图。
 ```
-select _wstart as ts, avg(current) as current from test.meters where groupid =1 and ts > $from and ts < $to interval($interval) fill(null)
+SELECT _wstart AS ts, avg(voltage) AS voltage, avg(phase) AS phase FROM test.meters
+WHERE groupid =1 and ts > $from AND ts < $to interval($interval) fill(null)
 ```
 
 更多细节，请参考：[与 Grafana 集成](../../third-party/visual/grafana)。
