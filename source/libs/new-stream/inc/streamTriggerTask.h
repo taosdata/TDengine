@@ -215,7 +215,9 @@ typedef struct SStreamTriggerTask {
   SSHashObj *pGroupRunning;  // SSHashObj<gid, bool[]>
 
   // checkpoint
-  bool isCheckpointReady;
+  bool             isCheckpointReady;
+  volatile int64_t mgmtReqId;
+  char            *streamName;
 } SStreamTriggerTask;
 
 // interfaces called by stream trigger thread
