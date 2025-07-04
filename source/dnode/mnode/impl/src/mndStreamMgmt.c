@@ -777,6 +777,7 @@ int32_t msmBuildTriggerRunnerTargets(SMnode* pMnode, SStmStatus* pInfo, int64_t 
     
     SStreamRunnerTarget runner;
     runner.addr.taskId = pStatus->id.taskId;
+    runner.addr.nodeId = pStatus->id.nodeId;
     runner.addr.epset = mndGetDnodeEpsetById(pMnode, pStatus->id.nodeId);
     runner.execReplica = pInfo->runnerReplica; 
     TSDB_CHECK_NULL(taosArrayPush(*ppRes, &runner), code, lino, _exit, terrno);
@@ -2106,15 +2107,7 @@ static void msmResetStreamForRedeploy(int64_t streamId, SStmStatus* pStatus) {
   
   msmSTRemoveStream(streamId, false);  
 
-  taosArrayDestroy(pStatus->trigReaders);
-  pStatus->trigReaders = NULL;
-  taosArrayDestroy(pStatus->calcReaders);
-  pStatus->calcReaders = NULL;
-  taosMemoryFreeClear(pStatus->triggerTask);
-  for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
-    taosArrayDestroy(pStatus->runners[i]);
-    pStatus->runners[i] = NULL;
-  }
+  mstResetSStmStatus(pStatus);
 
   pStatus->deployTimes++;
 }
@@ -2193,7 +2186,7 @@ static int32_t msmReLaunchReaderTask(SStreamObj* pStream, SStmTaskAction* pActio
   info.task.taskIdx = pAction->id.taskIdx;
   
   bool isTriggerReader = STREAM_IS_TRIGGER_READER(pAction->flag);
-  void* scanPlan = NULL;
+  SStreamCalcScan* scanPlan = NULL;
   if (!isTriggerReader) {
     scanPlan = taosArrayGet(pStream->pCreate->calcScanPlanList, pAction->id.taskIdx);
     if (NULL == scanPlan) {
@@ -2203,7 +2196,7 @@ static int32_t msmReLaunchReaderTask(SStreamObj* pStream, SStmTaskAction* pActio
     }
   }
   
-  TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, pStream, scanPlan, pStatus, isTriggerReader));
+  TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, pStream, scanPlan->scanPlan, pStatus, isTriggerReader));
   TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, pAction->streamId));
 
 _exit:
@@ -2551,7 +2544,13 @@ int32_t msmHandleGrantExpired(SMnode *pMnode) {
   return TSDB_CODE_SUCCESS;
 }
 
-void msmDestroyStreamDeploy(SStmStreamDeploy* pStream) {
+void msmDestroyStreamDeploy(void* param) {
+  if (NULL == param) {
+    return;
+  }
+  
+  SStmStreamDeploy* pStream = (SStmStreamDeploy*)param;
+  
   taosArrayDestroy(pStream->readerTasks);
   taosArrayDestroy(pStream->runnerTasks);
 }
@@ -2790,6 +2789,8 @@ int32_t msmRspAddStreamsDeploy(SStmGrpCtx* pCtx) {
     
     SStmStreamDeploy *pDeploy = (SStmStreamDeploy *)pIter;
     TSDB_CHECK_NULL(taosArrayPush(pCtx->pRsp->deploy.streamList, pDeploy), code, lino, _exit, terrno);
+    mstClearSStmStreamDeploy(pDeploy);
+    
     TAOS_CHECK_EXIT(msmUpdateStreamLastActTs(pDeploy->streamId, pCtx->currTs));
 
     int64_t streamId = pDeploy->streamId;
@@ -3031,6 +3032,7 @@ int32_t msmGrpAddActionUndeploy(SStmGrpCtx* pCtx, int64_t streamId, SStreamTask*
   bool    dropped = false;
 
   TAOS_CHECK_EXIT(mstIsStreamDropped(pCtx->pMnode, streamId, &dropped));
+  mstsDebug("stream dropped: %d", dropped);
   
   SStmAction *pAction = taosHashGet(pCtx->actionStm, &streamId, sizeof(streamId));
   if (pAction) {
@@ -3075,9 +3077,6 @@ int32_t msmGrpAddActionRecalc(SStmGrpCtx* pCtx, int64_t streamId, SArray* recalc
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t action = STREAM_ACT_RECALC;
-  bool    dropped = false;
-
-  TAOS_CHECK_EXIT(mstIsStreamDropped(pCtx->pMnode, streamId, &dropped));
   
   SStmAction *pAction = taosHashGet(pCtx->actionStm, &streamId, sizeof(streamId));
   if (pAction) {
@@ -4694,12 +4693,15 @@ int32_t msmInitRuntimeInfo(SMnode *pMnode) {
         mError("failed to initialize the stream runtime deployStm[%d][%d], error:%s", i, m, tstrerror(code));
         goto _exit;
       }
+      taosHashSetFreeFp(pCtx->deployStm[m], msmDestroyStreamDeploy);
+      
       pCtx->actionStm[m] = taosHashInit(snodeNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
       if (pCtx->actionStm[m] == NULL) {
         code = terrno;
         mError("failed to initialize the stream runtime actionStm[%d][%d], error:%s", i, m, tstrerror(code));
         goto _exit;
       }
+      taosHashSetFreeFp(pCtx->actionStm[m], mstDestroySStmAction);
     }
   }
   
