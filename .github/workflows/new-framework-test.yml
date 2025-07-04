@@ -5,6 +5,7 @@ on:
     branches:
       - '3.0'
       - 'main'
+      - 'new_testcases'
     paths-ignore:
       - 'packaging/**'
       - 'docs/**'
