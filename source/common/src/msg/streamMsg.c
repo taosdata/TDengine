@@ -2843,9 +2843,8 @@ static int32_t tEncodeStreamProgressReq(SEncoder *pEncoder, const SStreamProgres
   int32_t lino;
 
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->streamId));
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->vgId));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->taskId));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->fetchIdx));
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->subFetchIdx));
 
 _exit:
   return code;
@@ -2878,9 +2877,8 @@ static int32_t tDecodeStreamProgressReq(SDecoder *pDecoder, SStreamProgressReq *
   int32_t lino;
 
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->streamId));
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->vgId));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->taskId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->fetchIdx));
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->subFetchIdx));
 
 _exit:
   return code;
@@ -2908,11 +2906,9 @@ static int32_t tEncodeStreamProgressRsp(SEncoder *pEncoder, const SStreamProgres
   int32_t lino;
 
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pRsp->streamId));
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->vgId));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pRsp->fillHisFinished));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pRsp->progressDelay));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->fetchIdx));
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->subFetchIdx));
 
 _exit:
   return code;
@@ -2945,11 +2941,9 @@ static int32_t tDecodeStreamProgressRsp(SDecoder *pDecoder, SStreamProgressRsp *
   int32_t lino;
 
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pRsp->streamId));
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->vgId));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, (int8_t *)&pRsp->fillHisFinished));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pRsp->progressDelay));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->fetchIdx));
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->subFetchIdx));
 
 _exit:
   return code;

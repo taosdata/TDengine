@@ -4296,6 +4296,11 @@ typedef struct {
   SArray* pVgroupVerList;
   int8_t  recursiveTsma;
   char    baseTsmaName[TSDB_TABLE_FNAME_LEN];  // base tsma name for recursively created tsma
+  char*   createStreamReq;
+  int32_t streamReqLen;
+  char*   dropStreamReq;
+  int32_t dropStreamReqLen;
+  int64_t uid;
 } SMCreateSmaReq;
 
 int32_t tSerializeSMCreateSmaReq(void* buf, int32_t bufLen, SMCreateSmaReq* pReq);
@@ -4305,6 +4310,8 @@ void    tFreeSMCreateSmaReq(SMCreateSmaReq* pReq);
 typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];
   int8_t igNotExists;
+  char*   dropStreamReq;
+  int32_t dropStreamReqLen;
 } SMDropSmaReq;
 
 int32_t tSerializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
@@ -4985,6 +4992,8 @@ typedef struct {
   int64_t rspTs;
   int64_t delayDuration;  // ms
   bool    fillHistoryFinished;
+
+  void*   streamAddr;  // for stream task, the address of the stream task
 } STableTSMAInfo;
 
 int32_t tSerializeTableTSMAInfoRsp(void* buf, int32_t bufLen, const STableTSMAInfoRsp* pRsp);

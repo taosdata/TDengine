@@ -64,7 +64,7 @@ static int32_t stbSplCreateMergeKeys(SNodeList* pSortKeys, SNodeList* pTargets, 
 
 static void splSetSubplanVgroups(SLogicSubplan* pSubplan, SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
-    cloneVgroups(&pSubplan->pVgroupList, ((SScanLogicNode*)pNode)->pVgroupList);
+    TSWAP(pSubplan->pVgroupList, ((SScanLogicNode*)pNode)->pVgroupList);
   } else if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pNode)) {
     // do nothing, since virtual table scan node is SUBPLAN_TYPE_MERGE
   } else if (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(pNode) && ((SDynQueryCtrlLogicNode *)pNode)->qType == DYN_QTYPE_VTB_SCAN) {
