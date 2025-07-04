@@ -13845,7 +13845,7 @@ static int32_t createStreamReqBuildForceOutput(STranslateContext* pCxt, SCreateS
       PAR_ERR_JRET(nodesNodeToString(pNode, false, (char**)&pOutCol.expr, NULL));
     } else {
       if (index == 0) {
-        taosArrayDestroy(pReq->forceOutCols);
+        taosArrayDestroyEx(pReq->forceOutCols, tFreeStreamOutCol);
         pReq->forceOutCols = NULL;
         return code;
       }
@@ -13859,6 +13859,7 @@ static int32_t createStreamReqBuildForceOutput(STranslateContext* pCxt, SCreateS
     if (NULL == taosArrayPush(pReq->forceOutCols, &pOutCol)) {
       PAR_ERR_JRET(terrno);
     }
+    index++;
   }
 
   return code;
