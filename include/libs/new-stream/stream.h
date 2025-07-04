@@ -174,6 +174,13 @@ typedef struct SStreamCacheReadInfo {
     stDebug("%s done success", __func__);                                      \
   }
 
+#define STREAM_PRINT_LOG_END_WITHID(code, lino)                                              \
+  if (code != 0) {                                                             \
+    ST_TASK_DLOG("%s failed at line %d since %s", __func__, lino, tstrerror(code)); \
+  } else {                                                                     \
+    ST_TASK_DLOG("%s done success", __func__);                                      \
+  }
+
 // clang-format off
 #define stFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("STM FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }} while(0)
 #define stError(...) do { if (stDebugFlag & DEBUG_ERROR) { taosPrintLog("STM ERROR ", DEBUG_ERROR, 255,         __VA_ARGS__); }} while(0)
