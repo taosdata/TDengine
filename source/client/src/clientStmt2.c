@@ -438,7 +438,7 @@ static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClea
     } else {
       pStmt->sql.siInfo.pTableColsIdx = 0;
       stmtResetQueueTableBuf(&pStmt->sql.siInfo.tbBuf, &pStmt->queue);
-      tSimpleHashClear(pStmt->sql.siInfo.pTableUidHash);
+      tSimpleHashClear(pStmt->sql.siInfo.pTableRowDataHash);
     }
     if (NULL != pStmt->exec.pRequest) {
       pStmt->exec.pRequest->body.resInfo.numOfRows = 0;
@@ -536,7 +536,7 @@ static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
   taos_free_result(pStmt->sql.siInfo.pRequest);
   taosHashCleanup(pStmt->sql.siInfo.pVgroupHash);
   tSimpleHashCleanup(pStmt->sql.siInfo.pTableHash);
-  tSimpleHashCleanup(pStmt->sql.siInfo.pTableUidHash);
+  tSimpleHashCleanup(pStmt->sql.siInfo.pTableRowDataHash);
   taosArrayDestroyEx(pStmt->sql.siInfo.tbBuf.pBufList, stmtFreeTbBuf);
   taosMemoryFree(pStmt->sql.siInfo.pTSchema);
   qDestroyStmtDataBlock(pStmt->sql.siInfo.pDataCtx);
@@ -920,9 +920,9 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
       return NULL;
     }
 
-    pStmt->sql.siInfo.pTableUidHash = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-    if (NULL == pStmt->sql.siInfo.pTableUidHash) {
-      STMT2_ELOG("fail to allocate memory for pTableUidHash:%s", tstrerror(terrno));
+    pStmt->sql.siInfo.pTableRowDataHash = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    if (NULL == pStmt->sql.siInfo.pTableRowDataHash) {
+      STMT2_ELOG("fail to allocate memory for pTableRowDataHash:%s", tstrerror(terrno));
       (void)stmtClose2(pStmt);
       return NULL;
     }
@@ -1032,8 +1032,8 @@ static int32_t stmtResetStbInterlaceCache(STscStmt2* pStmt) {
     return terrno;
   }
 
-  pStmt->sql.siInfo.pTableUidHash = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-  if (NULL == pStmt->sql.siInfo.pTableUidHash) {
+  pStmt->sql.siInfo.pTableRowDataHash = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (NULL == pStmt->sql.siInfo.pTableRowDataHash) {
     return terrno;
   }
 
@@ -1137,9 +1137,9 @@ static int32_t stmtDeepReset(STscStmt2* pStmt) {
     pStmt->sql.siInfo.pTableHash = NULL;
   }
 
-  if (pStmt->sql.siInfo.pTableUidHash) {
-    tSimpleHashCleanup(pStmt->sql.siInfo.pTableUidHash);
-    pStmt->sql.siInfo.pTableUidHash = NULL;
+  if (pStmt->sql.siInfo.pTableRowDataHash) {
+    tSimpleHashCleanup(pStmt->sql.siInfo.pTableRowDataHash);
+    pStmt->sql.siInfo.pTableRowDataHash = NULL;
   }
 
   if (pStmt->sql.siInfo.pVgroupHash) {
