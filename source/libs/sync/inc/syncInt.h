@@ -110,6 +110,7 @@ typedef struct SPeerState {
 struct SSyncNode {
   // init by SSyncInfo
   SyncGroupId vgId;
+  SyncGroupId mountVgId;
   SRaftCfg    raftCfg;
   char        path[TSDB_FILENAME_LEN];
   char        raftStorePath[TSDB_FILENAME_LEN * 2];

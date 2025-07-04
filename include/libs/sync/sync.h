@@ -237,6 +237,7 @@ typedef struct SSyncInfo {
   bool          isStandBy;
   ESyncStrategy snapshotStrategy;
   SyncGroupId   vgId;
+  SyncGroupId   mountVgId;
   int32_t       batchSize;
   SSyncCfg      syncCfg;
   char          path[TSDB_FILENAME_LEN];

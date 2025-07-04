@@ -643,17 +643,6 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
   }
 
   int32_t code = 0;
-#ifdef USE_MOUNT
-  if (!(pMgmt->mountTfsHash =
-            taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK))) {
-    dError("failed to init mountTfsHash since %s", terrstr());
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  if((code = vmOpenMountTfs(pMgmt)) != 0) {
-    return code;
-  }
-#endif
-
   SWrapperCfg *pCfgs = NULL;
   int32_t      numOfVnodes = 0;
   if ((code = vmGetVnodeListFromFile(pMgmt, &pCfgs, &numOfVnodes)) != 0) {
@@ -993,6 +982,16 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     dError("tfs is null.");
     goto _OVER;
   }
+#ifdef USE_MOUNT
+  if (!(pMgmt->mountTfsHash =
+            taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK))) {
+    dError("failed to init mountTfsHash since %s", terrstr());
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if ((code = vmOpenMountTfs(pMgmt)) != 0) {
+    return code;
+  }
+#endif
   tmsgReportStartup("vnode-tfs", "initialized");
   if ((code = walInit(pInput->stopDnodeFp)) != 0) {
     dError("failed to init wal since %s", tstrerror(code));

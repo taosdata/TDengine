@@ -524,10 +524,16 @@ int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncNode* pNode, SSyncRaf
   lastVer = pLogStore->syncLogLastIndex(pLogStore);
   if (pEntry->index != lastVer + 1) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
+#ifdef USE_MOUNT
+  if (pNode->mountVgId && (pEntry->dataLen >= sizeof(SMsgHead))) {
+    SMsgHead* pHead = (SMsgHead*)pEntry->data;
+    if (pHead->vgId != pNode->mountVgId) pHead->vgId = pNode->mountVgId;
+  }
+#endif
   bool doFsync = syncLogStoreNeedFlush(pEntry, pNode->replicaNum);
   if ((code = pLogStore->syncLogAppendEntry(pLogStore, pEntry, doFsync)) < 0) {
-    sError("failed to persist raft entry since %s, index:%" PRId64 ", term:%" PRId64, tstrerror(code),
-           pEntry->index, pEntry->term);
+    sError("failed to persist raft entry since %s, index:%" PRId64 ", term:%" PRId64, tstrerror(code), pEntry->index,
+           pEntry->term);
     TAOS_RETURN(code);
   }
 
@@ -1559,13 +1565,19 @@ int32_t syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncInd
       sWarn("vgId:%d, failed to get log entry since %s, index:%" PRId64, pNode->vgId, tstrerror(code), index);
     }
   }
-  
+
   // TODO: where is the vgId 2 from?
   if(code == 0 && *ppEntry && (*ppEntry)->dataLen >= sizeof(SMsgHead)) {
-    if(((2 == pNode->vgId) || ((3 == pNode->vgId))) && (((SMsgHead*)((*ppEntry)->data))->vgId != pNode->vgId)) {
+    if(((2 == pNode->vgId) || ((6 == pNode->vgId))) && (((SMsgHead*)((*ppEntry)->data))->vgId != pNode->vgId)) {
       ((SMsgHead*)((*ppEntry)->data))->vgId = pNode->vgId;
     }
   }
+  // if (pNode->mountVgId && (code == 0)) {
+  //   SSyncRaftEntry* pEntry = *ppEntry;
+  //   if (pEntry && (pEntry->dataLen >= sizeof(SMsgHead)) && (((SMsgHead*)(pEntry->data))->vgId != pNode->vgId)) {
+  //     ((SMsgHead*)(pEntry->data))->vgId = pNode->vgId;
+  //   }
+  // }
 
   TAOS_RETURN(code);
 }

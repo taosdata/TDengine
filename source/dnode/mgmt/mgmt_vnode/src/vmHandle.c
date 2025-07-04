@@ -235,7 +235,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->tsdbCfg.encryptAlgorithm = 0;
 #endif
 
-  pCfg->walCfg.vgId = pCreate->vgId;
+  pCfg->walCfg.vgId = pCreate->mountVgId ? pCreate->mountVgId : pCreate->vgId;
   pCfg->walCfg.fsyncPeriod = pCreate->walFsyncPeriod;
   pCfg->walCfg.retentionPeriod = pCreate->walRetentionPeriod;
   pCfg->walCfg.rollPeriod = pCreate->walRollPeriod;
