@@ -498,8 +498,8 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
     if (NULL == pTscObj) {
       tscDebug("tscObj rid %" PRIx64 " not exist", pRsp->connKey.tscRid);
     } else {
-      if (pRsp->query->totalDnodes > 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &pRsp->query->epSet)) {
         SEpSet  originEpset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+        if (pRsp->query->totalDnodes > 1 && !isEpsetEqual(&originEpset, &pRsp->query->epSet)) {
         SEpSet *pOrig = &originEpset;
         SEp    *pOrigEp = &pOrig->eps[pOrig->inUse];
         SEp    *pNewEp = &pRsp->query->epSet.eps[pRsp->query->epSet.inUse];
@@ -508,7 +508,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
                  pNewEp->port);
 
         updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &pRsp->query->epSet);
-      }
+        }
 
       pTscObj->pAppInfo->totalDnodes = pRsp->query->totalDnodes;
       pTscObj->pAppInfo->onlineDnodes = pRsp->query->onlineDnodes;
