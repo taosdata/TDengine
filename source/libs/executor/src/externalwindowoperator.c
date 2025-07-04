@@ -85,9 +85,11 @@ typedef struct SExternalWindowOperator {
   bool               scalarMode;
   SArray*            pWins;
   SArray*            pOutputBlocks;  // for each window, we have a list of blocks
+  // SArray*            pOffsetList;  // for each window
   int32_t            outputWinId;
   SListNode*         pOutputBlockListNode;  // block index in block array used for output
   SSDataBlock*       pTmpBlock;
+  // SLimitInfo         limitInfo;  // limit info for each window
 } SExternalWindowOperator;
 
 
@@ -128,6 +130,9 @@ static int32_t mergeAlignedExternalWindowNext(SOperatorInfo* pOperator, SSDataBl
     size_t size = taosArrayGetSize(pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPesudoFuncVals);
     pExtW->pWins = taosArrayInit(size, sizeof(STimeWindow));
     if (!pExtW->pWins) QUERY_CHECK_CODE(terrno, lino, _end);
+    // pExtW->pOffsetList = taosArrayInit(size, sizeof(SLimitInfo));
+    // if (!pExtW->pOffsetList) QUERY_CHECK_CODE(terrno, lino, _end);
+
     for (int32_t i = 0; i < size; ++i) {
       SSTriggerCalcParam* pParam = taosArrayGet(pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPesudoFuncVals, i);
       STimeWindow win = {.skey = pParam->wstart, .ekey = pParam->wend};
@@ -135,6 +140,7 @@ static int32_t mergeAlignedExternalWindowNext(SOperatorInfo* pOperator, SSDataBl
         win.ekey++;
       }
       (void)taosArrayPush(pExtW->pWins, &win);
+      // (void)taosArrayPush(pExtW->pOffsetList, &pExtW->limitInfo);
 
     }
     pExtW->outputWinId = pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx;
@@ -208,6 +214,9 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
   pExtW->binfo.outputTsOrder = pExtW->binfo.inputTsOrder;
 
+  // pExtW->limitInfo = (SLimitInfo){0};
+  // initLimitInfo(pPhynode->window.node.pLimit, pPhynode->window.node.pSlimit, &pExtW->limitInfo);
+
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   initResultSizeInfo(&pOperator->resultInfo, 512);
 
@@ -259,10 +268,12 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   resetBasicOperatorState(&pExtW->binfo);
   pExtW->outputWinId = 0;
   taosArrayDestroyEx(pExtW->pOutputBlocks, blockListDestroy);
+  // taosArrayDestroy(pExtW->pOffsetList);
   taosArrayDestroy(pExtW->pWins);
   pExtW->pWins = NULL;
   pExtW->pOutputBlockListNode = NULL;
   pExtW->pOutputBlocks = NULL;
+  // pExtW->pOffsetList = NULL;
   initResultSizeInfo(&pOperator->resultInfo, 512);
   int32_t code = blockDataEnsureCapacity(pExtW->binfo.pRes, pOperator->resultInfo.capacity);
   if (code == 0) {
@@ -311,6 +322,9 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   pExtW->scalarMode = pPhynode->window.pProjs;
   pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
   pExtW->binfo.outputTsOrder = pExtW->binfo.inputTsOrder;
+
+  // pExtW->limitInfo = (SLimitInfo){0};
+  // initLimitInfo(pPhynode->window.node.pLimit, pPhynode->window.node.pSlimit, &pExtW->limitInfo);
 
   if (pExtW->scalarMode) {
   } else {
@@ -622,6 +636,8 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
     if (!pExtW->pWins) QUERY_CHECK_CODE(terrno, lino, _end);
     pExtW->pOutputBlocks = taosArrayInit(size, sizeof(SBlockList));
     if (!pExtW->pOutputBlocks) QUERY_CHECK_CODE(terrno, lino, _end);
+    // pExtW->pOffsetList = taosArrayInit(size, sizeof(SLimitInfo));
+    // if (!pExtW->pOffsetList) QUERY_CHECK_CODE(terrno, lino, _end);
     for (int32_t i = 0; i < size; ++i) {
       SSTriggerCalcParam* pParam = taosArrayGet(pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPesudoFuncVals, i);
       STimeWindow win = {.skey = pParam->wstart, .ekey = pParam->wend};
@@ -634,6 +650,7 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
       code = blockListInit(&bl, 4096);
       if (code != 0) QUERY_CHECK_CODE(code, lino, _end);
       (void)taosArrayPush(pExtW->pOutputBlocks, &bl);
+      // (void)taosArrayPush(pExtW->pOffsetList, &pExtW->limitInfo);
     }
     pExtW->outputWinId = pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx;
   }
@@ -670,6 +687,42 @@ _end:
   return code;
 }
 
+// enum {
+//   EXTERNAL_RETRIEVE_CONTINUE = 0x1,
+//   EXTERNAL_RETRIEVE_NEXT_WINDOW = 0x2,
+//   EXTERNAL_RETRIEVE_DONE = 0x3,
+// };
+
+// static int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock){
+//   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+
+//   if (pLimitInfo->remainGroupOffset > 0) {
+//       pLimitInfo->remainGroupOffset -= 1;
+//       blockDataCleanup(pBlock);
+//       return EXTERNAL_RETRIEVE_CONTINUE;
+//   }
+
+//   if (pLimitInfo->slimit.limit > 0) {
+//     if (pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups) {
+//       blockDataCleanup(pBlock);
+//       return EXTERNAL_RETRIEVE_NEXT_WINDOW;
+//     }
+//     if (pLimitInfo->currentGroupId != pBlock->info.id.groupId) {
+//       pLimitInfo->numOfOutputGroups += 1;
+//       // reset the value for a new group data
+//       resetLimitInfoForNextGroup(pLimitInfo);
+//       pLimitInfo->currentGroupId = pBlock->info.id.groupId;
+//     }
+//   }  
+
+//   // here we reach the start position, according to the limit/offset requirements.
+//   (void)applyLimitOffset(pLimitInfo, pBlock, pTaskInfo);
+//   if (pBlock->info.rows == 0) {
+//     return PROJECT_RETRIEVE_CONTINUE;
+//   }
+//   return EXTERNAL_RETRIEVE_DONE;
+// }
+
 static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                  code = 0;
   int32_t                  lino = 0;
@@ -694,6 +747,7 @@ static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
         break;
       }
       SBlockList* pList = taosArrayGet(pExtW->pOutputBlocks, pExtW->outputWinId);
+      // SLimitInfo* pLimitInfo = taosArrayGet(pExtW->pOffsetList, pExtW->outputWinId);
       if (pExtW->pOutputBlockListNode == NULL) {
         pExtW->pOutputBlockListNode = tdListGetHead(pList->pBlocks);
       } else {
@@ -709,6 +763,18 @@ static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
       if (pExtW->pOutputBlockListNode) {
         code = blockDataMerge(pBlock, *(SSDataBlock**)pExtW->pOutputBlockListNode->data);
         if (code != 0) goto _end;
+
+        // int32_t status = handleLimitOffset(pOperator, pLimitInfo, pBlock);
+        // if (status == EXTERNAL_RETRIEVE_CONTINUE) {
+        //   continue;
+        // } else if (status == EXTERNAL_RETRIEVE_NEXT_WINDOW) {
+        //   pExtW->pOutputBlockListNode = NULL;
+        //   pExtW->outputWinId++;
+        //   incExtWinOutIdx(pOperator);
+        //   continue;
+        // } else if (status == EXTERNAL_RETRIEVE_DONE) {
+        //   // do nothing, just break
+        // }
       } else {
         pExtW->outputWinId++;
         incExtWinOutIdx(pOperator);
@@ -857,6 +923,18 @@ void doMergeAlignExternalWindow(SOperatorInfo* pOperator) {
     } else {
       code = doMergeAlignExtWindowAgg(pOperator, &pExtW->binfo.resultRowInfo, pBlock, pRes);
     }
+
+    // int32_t status = handleLimitOffset(pOperator, pLimitInfo, pBlock);
+    // if (status == EXTERNAL_RETRIEVE_CONTINUE) {
+    //   continue;
+    // } else if (status == EXTERNAL_RETRIEVE_NEXT_WINDOW) {
+    //   pExtW->pOutputBlockListNode = NULL;
+    //   pExtW->outputWinId++;
+    //   incExtWinOutIdx(pOperator);
+    //   continue;
+    // } else if (status == EXTERNAL_RETRIEVE_DONE) {
+    //   // do nothing, just break
+    // }
   }
 _end:
   if (code != 0) {
