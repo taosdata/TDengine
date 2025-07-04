@@ -1722,7 +1722,6 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
     PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
     PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_WINDOW, NULL));
     PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
-    pSelect->hasProject = false;
   } else {
     // has agg func, collect again with placeholder func
     nodesDestroyList(pWindow->pFuncs);
