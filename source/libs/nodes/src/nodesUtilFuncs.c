@@ -1598,10 +1598,6 @@ void nodesDestroyNode(SNode* pNode) {
       SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->pOptions);
       nodesDestroyList(pStmt->pCols);
-      if (pStmt->pReq) {
-        tFreeSMCreateSmaReq(pStmt->pReq);
-        taosMemoryFreeClear(pStmt->pReq);
-      }
       break;
     }
     case QUERY_NODE_DROP_INDEX_STMT:    // no pointer field
@@ -1819,10 +1815,6 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_CREATE_TSMA_STMT: {
       SCreateTSMAStmt* pStmt = (SCreateTSMAStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->pOptions);
-      if (pStmt->pReq) {
-        tFreeSMCreateSmaReq(pStmt->pReq);
-        taosMemoryFreeClear(pStmt->pReq);
-      }
       break;
     }
     case QUERY_NODE_RECALCULATE_STREAM_STMT: {
@@ -3277,6 +3269,30 @@ const char* dataOrderStr(EDataOrderLevel order) {
       break;
   }
   return "unknown";
+}
+
+int32_t nodesMakeDurationValueNodeFromString(char* literal, SValueNode** ppValNode) {
+  int32_t     lenStr = strlen(literal);
+  SValueNode* pValNode = NULL;
+  int32_t     code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pValNode);
+  if (pValNode) {
+    pValNode->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    pValNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    pValNode->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+    char* p = taosMemoryMalloc(lenStr + 1 + VARSTR_HEADER_SIZE);
+    if (p == NULL) {
+      return terrno;
+    }
+    varDataSetLen(p, lenStr);
+    memcpy(varDataVal(p), literal, lenStr + 1);
+    pValNode->datum.p = p;
+    pValNode->literal = tstrdup(literal);
+    pValNode->flag |= VALUE_FLAG_IS_DURATION;
+    pValNode->translate = false;
+    pValNode->isNull = false;
+    *ppValNode = pValNode;
+  }
+  return code;
 }
 
 int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode) {

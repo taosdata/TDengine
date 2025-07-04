@@ -51,6 +51,8 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   dGDebug("msg:%p, get from snode-stream-trigger queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
   SMsgSendInfo* ahandle = pMsg->info.ahandle;
   SSTriggerAHandle* pAhandle = ahandle->param;
+  SBatchReq   batchReq = {0};
+
 
   int32_t      code = TSDB_CODE_SUCCESS;
   SStreamTask *pTask = NULL;
@@ -75,6 +77,24 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       code = streamAcquireTask(pAhandle->streamId, pAhandle->taskId, &pTask, &taskAddr);
       break;
     }
+    case TDMT_SND_BATCH_META: {
+      code = tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("msg:%p, invalid batch meta request in snode-stream-trigger queue", pMsg);
+        break;
+      }
+      SBatchMsg         *pReq = TARRAY_DATA(batchReq.pMsgs);
+      SStreamProgressReq req = {0};
+      code = tDeserializeStreamProgressReq(pReq->msg, pReq->msgLen, &req);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("msg:%p, invalid stream progress request in snode-stream-trigger queue", pMsg);
+        code = TSDB_CODE_INVALID_PARA;
+        break;
+      }
+
+      code = streamAcquireTask(req.streamId, req.taskId, &pTask, &taskAddr);
+      break;
+    }
     default: {
       dError("msg:%p, invalid msg type %d in snode-stream-trigger queue", pMsg, pMsg->msgType);
       code = TSDB_CODE_INVALID_PARA;
@@ -97,60 +117,79 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
-
 static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, void *pParam, int32_t *pWorkerIdx) {
   int32_t code = TSDB_CODE_SUCCESS, lino = 0;
+  SBatchReq         batchReq = {0};
   SRpcMsg *pMsg = (SRpcMsg *)pParam;
-  SMsgSendInfo* ahandle = pMsg->info.ahandle;
-  if (ahandle == NULL) {
-    code = TSDB_CODE_INVALID_PARA;
-    dError("empty ahandle for msg %s", TMSG_INFO(pMsg->msgType));
-    return code;
-  }
+  int64_t  streamId = 0, taskId = 0, sessionId = 0;
+  void    *taskAddr = NULL;  
+  SMsgSendInfo* ahandle = NULL;
 
-  SStreamTask *pTask = NULL;  
-  void       *taskAddr = NULL;  
-  SSTriggerAHandle* pAhandle = ahandle->param;
-  TAOS_CHECK_EXIT(streamAcquireTask(pAhandle->streamId, pAhandle->taskId, &pTask, &taskAddr));
-
-  switch (pMsg->msgType) {
-    case TDMT_STREAM_TRIGGER_PULL_RSP: {
-      SSTriggerPullRequest *pReq = pAhandle->param;
-      if (pReq == NULL){
-        dError("msg:%p, invalid trigger-pull-resp without request ahandle", pMsg);
-        TAOS_CHECK_EXIT(TSDB_CODE_MSG_NOT_PROCESSED);
-        break;
-      }
-      int64_t               buf[] = {pReq->streamId, pReq->triggerTaskId, pReq->sessionId};
-      uint32_t              hashVal = MurmurHash3_32((const char *)buf, sizeof(buf));
-      *pWorkerIdx = hashVal % tsNumOfStreamTriggerThreads;
-      break;
-    }
-
-    case TDMT_STREAM_TRIGGER_CALC_RSP: {
-      SSTriggerCalcRequest *pReq = pAhandle->param;
-      int64_t               buf[] = {pReq->streamId, pReq->triggerTaskId, pReq->sessionId};
-      uint32_t              hashVal = MurmurHash3_32((const char *)buf, sizeof(buf));
-      *pWorkerIdx = hashVal % tsNumOfStreamTriggerThreads;
-      break;
-    }
-
-    default: {
+  if (pMsg->msgType == TDMT_SND_BATCH_META) {
+    code = tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("msg:%p, failed to deserialize batch meta request", pMsg);
       TAOS_CHECK_EXIT(TSDB_CODE_MSG_NOT_PROCESSED);
-      break;
+    }
+    SBatchMsg         *pReq = TARRAY_DATA(batchReq.pMsgs);
+    SStreamProgressReq req = {0};
+    code = tDeserializeStreamProgressReq(pReq->msg, pReq->msgLen, &req);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("msg:%p, failed to deserialize stream progress request", pMsg);
+      TAOS_CHECK_EXIT(TSDB_CODE_MSG_NOT_PROCESSED);
+    }
+    streamId = req.streamId;
+    taskId = req.taskId;
+    sessionId = 1;
+  } else {
+    ahandle = pMsg->info.ahandle;
+    if (ahandle == NULL) {
+      dError("empty ahandle for msg %s", TMSG_INFO(pMsg->msgType));
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
+    }
+	  
+    SSTriggerAHandle* pAhandle = ahandle->param;
+    SStreamTask *pTask = NULL;
+    TAOS_CHECK_EXIT(streamAcquireTask(pAhandle->streamId, pAhandle->taskId, &pTask, &taskAddr));
+    if (pMsg->msgType == TDMT_STREAM_TRIGGER_PULL_RSP) {
+      SSTriggerPullRequest *pReq = pAhandle->param;
+      if (pReq == NULL) {
+        dError("msg:%p, invalid trigger-pull-rsp without request ahandle", pMsg);
+        TAOS_CHECK_EXIT(TSDB_CODE_MSG_NOT_PROCESSED);
+      }
+      streamId = pReq->streamId;
+      taskId = pReq->triggerTaskId;
+      sessionId = pReq->sessionId;
+    } else if (pMsg->msgType == TDMT_STREAM_TRIGGER_CALC_RSP) {
+      SSTriggerCalcRequest *pReq = pAhandle->param;
+      if (pReq == NULL) {
+        dError("msg:%p, invalid trigger-calc-rsp without request ahandle", pMsg);
+        TAOS_CHECK_EXIT(TSDB_CODE_MSG_NOT_PROCESSED);
+      }
+      streamId = pReq->streamId;
+      taskId = pReq->triggerTaskId;
+      sessionId = pReq->sessionId;
+    } else {
+      dError("msg:%p, invalid msg type %d in snode-stream-trigger queue", pMsg, pMsg->msgType);
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
     }
   }
+
+  int64_t  buf[] = {streamId, taskId, sessionId};
+  uint32_t hashVal = MurmurHash3_32((const char *)buf, sizeof(buf));
+  *pWorkerIdx = hashVal % tsNumOfStreamTriggerThreads;
 
 _exit:
-
+  taosArrayDestroyEx(batchReq.pMsgs, tFreeSBatchReqMsg);
+  if (taskAddr != NULL) {
+    streamReleaseTask(taskAddr);
+  }
   if (code) {
     destroyAhandle(ahandle);
     //rpcFreeCont(pMsg->pCont);
     //taosFreeQitem(pMsg);
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
-
-  streamReleaseTask(taskAddr);
 
   return code;
 }

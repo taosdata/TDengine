@@ -3188,6 +3188,143 @@ _end:
   return code;
 }
 
+static FORCE_INLINE void snodeFreeSBatchRspMsg(void *p) {
+  if (NULL == p) {
+    return;
+  }
+
+  SBatchRspMsg *pRsp = (SBatchRspMsg *)p;
+  rpcFreeCont(pRsp->msg);
+}
+
+static int32_t snodeGetStreamProgress(SSTriggerRealtimeContext *pContext, SRpcMsg *pMsg) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask* pTask = pContext->pTask;
+  SStreamProgressReq  req = {0};
+  SStreamProgressRsp  rsp = {0};
+  int32_t             rspLen = 0;
+  void*               pRsp = NULL;
+  SRpcMsg             rspMsg = {0};
+
+  // decode req
+  code = tDeserializeStreamProgressReq(pMsg->pCont, pMsg->contLen, &req);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  rsp.fetchIdx = req.fetchIdx;
+  rsp.streamId = req.streamId;
+  rsp.fillHisFinished = true;
+  rsp.progressDelay = 0;
+
+  // encode and send response
+  rspLen = tSerializeStreamProgressRsp(NULL, 0, &rsp);
+  QUERY_CHECK_CONDITION(rspLen >= 0, code, lino, _end, terrno);
+
+  pRsp = taosMemoryCalloc(1, rspLen);
+  QUERY_CHECK_NULL(pRsp, code, lino, _end, terrno);
+
+  rspLen = tSerializeStreamProgressRsp(pRsp, rspLen, &rsp);
+  QUERY_CHECK_CONDITION(rspLen >= 0, code, lino, _end, terrno);
+
+_end:
+
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = pRsp;
+  rspMsg.contLen = rspLen;
+  rspMsg.code = code;
+  rspMsg.msgType = pMsg->msgType;
+
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  *pMsg = rspMsg;
+
+  return code;
+}
+
+static int32_t stRealtimeContextProcProgressRequest(SSTriggerRealtimeContext *pContext, SRpcMsg *pMsg) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pContext->pTask;
+  int32_t             rspSize = 0;
+  SBatchReq           batchReq = {0};
+  SBatchMsg*          req = NULL;
+  SBatchRspMsg        rsp = {0};
+  SBatchRsp           batchRsp = {0};
+  SRpcMsg             reqMsg = *pMsg;
+  SRpcMsg             rspMsg = {0};
+  void*               pRsp = NULL;
+
+  code = tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  int32_t msgNum = taosArrayGetSize(batchReq.pMsgs);
+  QUERY_CHECK_CONDITION(msgNum < MAX_META_MSG_IN_BATCH, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  batchRsp.pRsps = taosArrayInit(msgNum, sizeof(SBatchRspMsg));
+  QUERY_CHECK_NULL(batchRsp.pRsps, code, lino, _end, terrno);
+
+  for (int32_t i = 0; i < msgNum; ++i) {
+    req = taosArrayGet(batchReq.pMsgs, i);
+    QUERY_CHECK_NULL(batchRsp.pRsps, code, lino, _end, terrno);
+
+    reqMsg.msgType = req->msgType;
+    reqMsg.pCont = req->msg;
+    reqMsg.contLen = req->msgLen;
+
+    switch (req->msgType) {
+      case TDMT_MND_GET_STREAM_PROGRESS: {
+        code = snodeGetStreamProgress(pContext, &reqMsg);
+        QUERY_CHECK_CODE(code, lino, _end);
+        break;
+      }
+      default: {
+        reqMsg.code = TSDB_CODE_INVALID_MSG;
+        reqMsg.pCont = NULL;
+        reqMsg.contLen = 0;
+        break;
+      }
+    }
+
+    rsp.msgIdx = req->msgIdx;
+    rsp.reqType = reqMsg.msgType;
+    rsp.msgLen = reqMsg.contLen;
+    rsp.rspCode = reqMsg.code;
+    rsp.msg = reqMsg.pCont;
+
+    QUERY_CHECK_NULL(taosArrayPush(batchRsp.pRsps, &rsp), code, lino, _end, terrno);
+  }
+
+  rspSize = tSerializeSBatchRsp(NULL, 0, &batchRsp);
+  QUERY_CHECK_CONDITION(rspSize >= 0, code, lino, _end, terrno);
+
+  pRsp = rpcMallocCont(rspSize);
+  QUERY_CHECK_NULL(pRsp, code, lino, _end, terrno)
+
+  int32_t rspLen = tSerializeSBatchRsp(pRsp, rspSize, &batchRsp);
+  QUERY_CHECK_CONDITION(rspSize == rspSize, code, lino, _end, terrno);
+
+_end:
+
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = pRsp;
+  rspMsg.contLen = rspSize;
+  rspMsg.code = code;
+  rspMsg.msgType = pMsg->msgType;
+
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  taosArrayDestroyEx(batchReq.pMsgs, tFreeSBatchReqMsg);
+  taosArrayDestroyEx(batchRsp.pRsps, tFreeSBatchRspMsg);
+
+  tmsgSendRsp(&rspMsg);
+
+  return code;
+}
+
 static void stTriggerTaskDestroyCalcNode(void *ptr) {
   SSTriggerCalcNode *pNode = ptr;
   if (pNode->pSlots != NULL) {
@@ -4052,6 +4189,9 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
       code = pRsp->code;
       QUERY_CHECK_CODE(code, lino, _end);
     }
+  } else if (pRsp->msgType == TDMT_SND_BATCH_META) {
+    code = stRealtimeContextProcProgressRequest(pTask->pRealtimeContext, pRsp);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:

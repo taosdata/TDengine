@@ -1722,8 +1722,6 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
     PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
     PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_WINDOW, NULL));
     PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
-    TSWAP(pWindow->node.pLimit, pSelect->pLimit);
-    TSWAP(pWindow->node.pSlimit, pSelect->pSlimit);
     pSelect->hasProject = false;
   } else {
     // has agg func, collect again with placeholder func
@@ -2319,9 +2317,6 @@ static int32_t createColumnByProjections(SLogicPlanContext* pCxt, const char* pS
 }
 
 static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (!pSelect->hasProject) {
-    return TSDB_CODE_SUCCESS;
-  }
   SProjectLogicNode* pProject = NULL;
   int32_t            code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT, (SNode**)&pProject);
   if (NULL == pProject) {
