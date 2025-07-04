@@ -3352,7 +3352,7 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
     TSDB_CHECK_NULL(pStream, code, lino, _exit, TSDB_CODE_MND_STREAM_NOT_EXIST);
     if (STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags)) {
       mndReleaseStream(pCtx->pMnode, pStream);
-      msttDebug("virtual table task ignored, status:%d", gStreamStatusStr[pTask->status]);
+      msttDebug("virtual table task ignored, status:%s", gStreamStatusStr[pTask->status]);
       return code;
     }
 
