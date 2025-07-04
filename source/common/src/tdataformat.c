@@ -564,7 +564,7 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
   if (*ppRow == NULL) {
     return terrno;
   }
-  int8_t withBlob = 0;
+  int8_t hasBlob = 0;
   (*ppRow)->flag = sinfo->kvFlag;
   (*ppRow)->numOfPKs = sinfo->numOfPKs;
   (*ppRow)->sver = schema->version;
@@ -597,17 +597,16 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
         if (COL_VAL_IS_VALUE(&colValArray[colValIndex])) {  // value
           tRowBuildKVRowSetIndex(sinfo->kvFlag, indices, payloadSize);
           if (IS_VAR_DATA_TYPE(schema->columns[i].type)) {
-            if (schema->columns[i].type == TSDB_DATA_TYPE_BINARY) {
-              withBlob = 1;
+            if (IS_STR_DATA_BLOB(schema->columns[i].type)) {
+              hasBlob = 1;
             }
             payloadSize += tPutI16v(payload + payloadSize, colValArray[colValIndex].cid);
             payloadSize += tPutU32v(payload + payloadSize, colValArray[colValIndex].value.nData);
             if (colValArray[colValIndex].value.nData > 0) {
-              if (sinfo->scanType == ROW_BUILD_MERGE && withBlob) {
+              if (sinfo->scanType == ROW_BUILD_MERGE && hasBlob) {
                 memcpy(payload + payloadSize, colValArray[colValIndex].value.pData, sizeof(uint64_t));
                 payloadSize += sizeof(uint64_t);
-              }
-              {
+              } else {
                 (void)memcpy(payload + payloadSize, colValArray[colValIndex].value.pData,
                              colValArray[colValIndex].value.nData);
                 payloadSize += colValArray[colValIndex].value.nData;
