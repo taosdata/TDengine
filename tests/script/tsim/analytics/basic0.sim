@@ -169,6 +169,78 @@ if $data10 != @23-11-15 06:13:20.100@ then
   return -1
 endi
 
+print ==================== forecast on table with primary key
+sql create table if not exists pkstb (ts timestamp, c1 int primary key, c2 float, c3 int) tags (t1 int unsigned)
+sql create table pk_stb_ct1 using pkstb tags(1);
+sql create table pk_stb_ct2 using pkstb tags(2);
+sql create table pk_stb_ct3 using pkstb tags(3);
+
+sql insert into pk_stb_ct1 values(now, 1, 1.0, 10)
+sql insert into pk_stb_ct1 values(now+1s, 1, 2.0, 11)
+sql insert into pk_stb_ct1 values(now+2s, 1, 3.0, 12)
+sql insert into pk_stb_ct1 values(now+3s, 1, 4.0, 13)
+sql insert into pk_stb_ct1 values(now+4s, 1, 5.0, 14)
+sql insert into pk_stb_ct1 values(now+5s, 1, 6.0, 15)
+sql insert into pk_stb_ct1 values(now+6s, 1, 7.0, 16)
+sql insert into pk_stb_ct1 values(now+7s, 1, 8.0, 17)
+sql insert into pk_stb_ct1 values(now+8s, 1, 9.0, 18)
+sql insert into pk_stb_ct1 values(now+9s, 1, 10.0, 19)
+sql insert into pk_stb_ct1 values(now+10s, 1, 11.0, 20)
+sql insert into pk_stb_ct1 values(now+11s, 1, 12.0, 21)
+
+sql select forecast(c2) from pk_stb_ct1;
+sql select forecast(c2, 'algo=arima') from pk_stb_ct1;
+sql_error select forecast(c2, c3) from pk_stb_ct1;
+sql_error select forecast(c2, c3, 'algo=arima') from pk_stb_ct1;
+
+print ==================== co-variate query test and future co-variate query test
+sql select forecast(c2, c3, c1, 'algo=moirai') from pk_stb_ct1;
+
+sql select forecast(c2, c2, c3, 'algo=moirai') from pk_stb_ct1;
+sql select forecast(c2, c2, c2, c2, 'algo=moirai') from pk_stb_ct1;
+sql select forecast(c2, c2, c2, c2, 'algo=holtwinters') from pk_stb_ct1;
+
+# not exist column
+sql_error select forecast(c2, c3, c1, c4, 'algo=moirai') from pk_stb_ct1;
+
+# not support algorithm
+sql_error select forecast(c2, c3, c1, 'algo=holtwinters') from pk_stb_ct1;
+
+#rows not match
+sql_error select forecast(c2, c3, c1, 'algo=moirai,dynamic_real_1=[1 1 1 1], rows=22') from pk_stb_ct1;
+
+# missing columns in future dynamic real parameter
+sql_error select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[1 1 1],rows=3,dynamic_real_100_col=c4') from pk_stb_ct1;
+
+# name mismatch
+sql_error select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[1 1 1],rows=3,dynamic_real_100_col=c2') from pk_stb_ct1;
+
+# name mismatch
+sql_error select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[1 1 1],rows=3,dynamic_real_1_col=c1') from pk_stb_ct1;
+
+# invalid input - 1
+sql_error select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=(1 1 1),rows=3,dynamic_real_1_col=c1') from pk_stb_ct1;
+
+# invalid input - 2
+sql_error select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[1, 1, 1],rows=3,dynamic_real_1_col=c1') from pk_stb_ct1;
+
+# invalid input - 3
+sql_error select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=["abc"],rows=1,dynamic_real_1_col=c1') from pk_stb_ct1;
+sql_error select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[1 110 31.92],rows=abc,dynamic_real_x_col=c1') from pk_stb_ct1;
+
+print  ============== future dynamic real column test
+sql select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[1 1 1],rows=3,dynamic_real_100_col=c3') from pk_stb_ct1;
+if $rows != 3 then
+  return -1
+endi
+
+print  ============== too long parameter test
+sql select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000],rows=100,dynamic_real_100_col=c3') from pk_stb_ct1;
+
+if $rows != 100 then
+  return -1
+endi
+
 sql drop anode 1
 sql show anodes
 

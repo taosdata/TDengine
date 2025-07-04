@@ -48,7 +48,6 @@ typedef struct SVnodeMgmt {
   STfs                 *pTfs;
   TdThread              thread;
   bool                  stop;
-  TdThreadMutex         fileLock;
 } SVnodeMgmt;
 
 #ifdef USE_MOUNT

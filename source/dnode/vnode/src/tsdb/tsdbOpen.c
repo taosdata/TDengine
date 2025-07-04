@@ -80,7 +80,7 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (pTsdb->pFS->fsstate == TSDB_FS_STATE_INCOMPLETE && force == false) {
-    TAOS_CHECK_GOTO(TSDB_CODE_NEED_RETRY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno = TSDB_CODE_NEED_RETRY, &lino, _exit);
   }
 
   code = tsdbOpenCache(pTsdb);
