@@ -134,7 +134,7 @@ class TestPartitionByColAgg:
             if str(row).find(plan_str_not_expect) >= 0:
                 tdLog.exit('plan: [%s] found in: [%s]' % (plan_str_not_expect, str(row)))
 
-    def test_sort_for_partition_hint(self):
+    def check_sort_for_partition_hint(self):
         pass
 
     def add_order_by(self, sql: str, order_by: str, select_list: str = "*") -> str:
