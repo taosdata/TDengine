@@ -2544,17 +2544,6 @@ int32_t msmHandleGrantExpired(SMnode *pMnode) {
   return TSDB_CODE_SUCCESS;
 }
 
-void msmDestroyStreamDeploy(void* param) {
-  if (NULL == param) {
-    return;
-  }
-  
-  SStmStreamDeploy* pStream = (SStmStreamDeploy*)param;
-  
-  taosArrayDestroy(pStream->readerTasks);
-  taosArrayDestroy(pStream->runnerTasks);
-}
-
 static int32_t msmInitStreamDeploy(SStmStreamDeploy* pStream, SStmTaskDeploy* pDeploy) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -2564,23 +2553,25 @@ static int32_t msmInitStreamDeploy(SStmStreamDeploy* pStream, SStmTaskDeploy* pD
     case STREAM_READER_TASK:
       if (NULL == pStream->readerTasks) {
         pStream->streamId = streamId;
-        pStream->readerTasks = taosArrayInit(20, POINTER_BYTES);
+        pStream->readerTasks = taosArrayInit(20, sizeof(SStmTaskDeploy));
         TSDB_CHECK_NULL(pStream->readerTasks, code, lino, _exit, terrno);
       }
       
-      TSDB_CHECK_NULL(taosArrayPush(pStream->readerTasks, &pDeploy), code, lino, _exit, terrno);
+      TSDB_CHECK_NULL(taosArrayPush(pStream->readerTasks, pDeploy), code, lino, _exit, terrno);
       break;
     case STREAM_TRIGGER_TASK:
       pStream->streamId = streamId;
-      pStream->triggerTask = pDeploy;
+      pStream->triggerTask = taosMemoryMalloc(sizeof(SStmTaskDeploy));
+      TSDB_CHECK_NULL(pStream->triggerTask, code, lino, _exit, terrno);
+      memcpy(pStream->triggerTask, pDeploy, sizeof(SStmTaskDeploy));
       break;
     case STREAM_RUNNER_TASK:
       if (NULL == pStream->runnerTasks) {
         pStream->streamId = streamId;
-        pStream->runnerTasks = taosArrayInit(20, POINTER_BYTES);
+        pStream->runnerTasks = taosArrayInit(20, sizeof(SStmTaskDeploy));
         TSDB_CHECK_NULL(pStream->runnerTasks, code, lino, _exit, terrno);
       }      
-      TSDB_CHECK_NULL(taosArrayPush(pStream->runnerTasks, &pDeploy), code, lino, _exit, terrno);
+      TSDB_CHECK_NULL(taosArrayPush(pStream->runnerTasks, pDeploy), code, lino, _exit, terrno);
       break;
     default:
       break;
@@ -2616,7 +2607,7 @@ static int32_t msmGrpAddDeployTask(SHashObj* pHash, SStmTaskDeploy* pDeploy) {
         goto _exit;
       }    
 
-      msmDestroyStreamDeploy(&streamDeploy);
+      tFreeSStmStreamDeploy(&streamDeploy);
       continue;
     }
 
@@ -4693,7 +4684,7 @@ int32_t msmInitRuntimeInfo(SMnode *pMnode) {
         mError("failed to initialize the stream runtime deployStm[%d][%d], error:%s", i, m, tstrerror(code));
         goto _exit;
       }
-      taosHashSetFreeFp(pCtx->deployStm[m], msmDestroyStreamDeploy);
+      taosHashSetFreeFp(pCtx->deployStm[m], tDeepFreeSStmStreamDeploy);
       
       pCtx->actionStm[m] = taosHashInit(snodeNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
       if (pCtx->actionStm[m] == NULL) {

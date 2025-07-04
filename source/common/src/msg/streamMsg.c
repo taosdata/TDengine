@@ -1103,8 +1103,8 @@ int32_t tEncodeSStmStreamDeploy(SEncoder* pEncoder, const SStmStreamDeploy* pStr
   int32_t readerNum = taosArrayGetSize(pStream->readerTasks);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, readerNum));
   for (int32_t i = 0; i < readerNum; ++i) {
-    SStmTaskDeploy** ppDeploy = taosArrayGet(pStream->readerTasks, i);
-    TAOS_CHECK_EXIT(tEncodeSStmTaskDeploy(pEncoder, *ppDeploy));
+    SStmTaskDeploy* pDeploy = taosArrayGet(pStream->readerTasks, i);
+    TAOS_CHECK_EXIT(tEncodeSStmTaskDeploy(pEncoder, pDeploy));
   }
 
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pStream->triggerTask ? 1 : 0));
@@ -1115,8 +1115,8 @@ int32_t tEncodeSStmStreamDeploy(SEncoder* pEncoder, const SStmStreamDeploy* pStr
   int32_t runnerNum = taosArrayGetSize(pStream->runnerTasks);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, runnerNum));
   for (int32_t i = 0; i < runnerNum; ++i) {
-    SStmTaskDeploy** ppDeploy = taosArrayGet(pStream->runnerTasks, i);
-    TAOS_CHECK_EXIT(tEncodeSStmTaskDeploy(pEncoder, *ppDeploy));
+    SStmTaskDeploy* pDeploy = taosArrayGet(pStream->runnerTasks, i);
+    TAOS_CHECK_EXIT(tEncodeSStmTaskDeploy(pEncoder, pDeploy));
   }
 
 _exit:
@@ -1941,6 +1941,7 @@ void tFreeSStmStreamDeploy(void* param) {
   
   SStmStreamDeploy* pDeploy = (SStmStreamDeploy*)param;
   taosArrayDestroy(pDeploy->readerTasks);
+  taosMemoryFree(pDeploy->triggerTask);
   taosArrayDestroy(pDeploy->runnerTasks);
 }
 
