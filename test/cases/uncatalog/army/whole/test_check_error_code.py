@@ -212,6 +212,7 @@ class TestCheckErrorCode:
 
         Catalog:
             - xxx:xxx
+        
         History:
             - xxx
             - xxx
