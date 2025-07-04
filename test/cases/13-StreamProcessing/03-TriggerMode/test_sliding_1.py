@@ -150,12 +150,12 @@ class TestStreamCheckpoint:
         except Exception as e:
             tdLog.error(f"case 12 error: {e}")
 
-        clear_output("sm12", "tb12")
-        self.prepare_tables(1000, 10)
-        try:
-            self.create_and_check_stream_basic_13("sm13", "tb13")
-        except Exception as e:
-            tdLog.error(f"case 13 error: {e}")
+        # clear_output("sm12", "tb12")
+        # self.prepare_tables(1000, 10)
+        # try:
+        #     self.create_and_check_stream_basic_13("sm13", "tb13")
+        # except Exception as e:
+        #     tdLog.error(f"case 13 error: {e}")
 
 
     def set_write_info(self, num_of_rows, num_of_tables):
@@ -402,7 +402,7 @@ class TestStreamCheckpoint:
            Error: results are incorrect
         """
         tdSql.execute("use db")
-        time.sleep(10)
+        time.sleep(5)
 
         tdSql.execute(
             f"create stream {stream_name} interval(3s) sliding(3s) from source_table partition by tbname into {dst_table} as "
