@@ -3112,6 +3112,14 @@ bool msmCheckStreamStartCond(int64_t streamId, int32_t snodeId) {
     }
   }
 
+  readerNum = taosArrayGetSize(pStream->trigOReaders);
+  for (int32_t i = 0; i < readerNum; ++i) {
+    SStmTaskStatus* pStatus = taosArrayGet(pStream->trigOReaders, i);
+    if (STREAM_STATUS_INIT != pStatus->status && STREAM_STATUS_RUNNING != pStatus->status) {
+      return false;
+    }
+  }
+
   readerNum = taosArrayGetSize(pStream->calcReaders);
   for (int32_t i = 0; i < readerNum; ++i) {
     SStmTaskStatus* pStatus = taosArrayGet(pStream->calcReaders, i);
@@ -3342,7 +3350,15 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
     SStmStatus status = {0};
     TAOS_CHECK_EXIT(mndAcquireStreamById(pCtx->pMnode, streamId, &pStream));
     TSDB_CHECK_NULL(pStream, code, lino, _exit, TSDB_CODE_MND_STREAM_NOT_EXIST);
+    if (STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags)) {
+      mndReleaseStream(pCtx->pMnode, pStream);
+      msttDebug("virtual table task ignored, status:%d", gStreamStatusStr[pTask->status]);
+      return code;
+    }
+
     TAOS_CHECK_EXIT(msmInitStmStatus(pCtx, &status, pStream, true));
+    mndReleaseStream(pCtx->pMnode, pStream);
+
     TAOS_CHECK_EXIT(taosHashPut(mStreamMgmt.streamMap, &streamId, sizeof(streamId), &status, sizeof(status)));
     pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
     TSDB_CHECK_NULL(pStatus, code, lino, _exit, terrno);
@@ -3822,21 +3838,11 @@ _exit:
   return code;
 }
 
-int32_t msmCheckDeployTrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask, int32_t vgId, SStreamMgmtRsp* pRsp) {
+int32_t msmCheckDeployTrigReader(SStmGrpCtx* pCtx, SStmStatus* pStatus, SStmTaskStatusMsg* pTask, int32_t vgId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   bool    readerExists = false;
   int64_t streamId = pTask->streamId;
-  SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
-  if (NULL == pStatus) {
-    mstsError("stream not deployed, remainStreams:%d", taosHashGetSize(mStreamMgmt.streamMap));
-    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_NOT_RUNNING);
-  }
-
-  if (atomic_load_8(&pStatus->stopped)) {
-    msttInfo("stream stopped, ignore deploy trigger reader, vgId:%d", vgId);
-    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_STOPPED);
-  }
 
   int32_t readerNum = taosArrayGetSize(pStatus->trigReaders);
   for (int32_t i = 0; i < readerNum; ++i) {
@@ -3867,6 +3873,7 @@ int32_t msmProcessDeployOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t vgId = 0;
+  int64_t streamId = pTask->streamId;
   SArray* pTbs = pTask->pMgmtReq->cont.fullTableNames;
   int32_t tbNum = taosArrayGetSize(pTbs);
   SStreamDbTableName* pName = NULL;
@@ -3878,19 +3885,45 @@ int32_t msmProcessDeployOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   pTask->pMgmtReq = NULL;
   rsp.task = *(SStreamTask*)pTask;
 
-  if (tbNum > 0) {
-    TAOS_CHECK_EXIT(mstBuildDBVgroupsMap(pCtx->pMnode, &pDbVgroups));
-    rsp.cont.vgIds = taosArrayInit(tbNum, sizeof(int32_t));
-    TSDB_CHECK_NULL(rsp.cont.vgIds, code, lino, _exit, terrno);
-    rsp.cont.readerList = taosArrayInit(tbNum, sizeof(SStreamTaskAddr));
-    TSDB_CHECK_NULL(rsp.cont.readerList, code, lino, _exit, terrno);
+  SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+  if (NULL == pStatus) {
+    mstsError("stream not deployed, remainStreams:%d", taosHashGetSize(mStreamMgmt.streamMap));
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_NOT_RUNNING);
   }
+
+  if (atomic_load_8(&pStatus->stopped)) {
+    msttInfo("stream stopped, ignore deploy trigger reader, vgId:%d", vgId);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_STOPPED);
+  }
+
+  if (tbNum <= 0) {
+    mstsWarn("empty table list in origReader req, array:%p", pTask->pMgmtReq->cont.fullTableNames);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  TAOS_CHECK_EXIT(mstBuildDBVgroupsMap(pCtx->pMnode, &pDbVgroups));
+  rsp.cont.vgIds = taosArrayInit(tbNum, sizeof(int32_t));
+  TSDB_CHECK_NULL(rsp.cont.vgIds, code, lino, _exit, terrno);
   
   for (int32_t i = 0; i < tbNum; ++i) {
     pName = (SStreamDbTableName*)taosArrayGet(pTbs, i);
     TAOS_CHECK_EXIT(mstGetTableVgId(pDbVgroups, pName->dbFName, pName->tbName, &vgId));
     TSDB_CHECK_NULL(taosArrayPush(rsp.cont.vgIds, &vgId), code, lino, _exit, terrno);
-    TAOS_CHECK_EXIT(msmCheckDeployTrigReader(pCtx, pTask, vgId, &rsp));
+    TAOS_CHECK_EXIT(msmCheckDeployTrigReader(pCtx, pStatus, pTask, vgId));
+  }
+
+  int32_t vgNum = taosArrayGetSize(pStatus->trigOReaders);
+  rsp.cont.readerList = taosArrayInit(vgNum, sizeof(SStreamTaskAddr));
+  TSDB_CHECK_NULL(rsp.cont.readerList, code, lino, _exit, terrno);
+
+  SStreamTaskAddr addr;
+  for (int32_t i = 0; i < vgNum; ++i) {
+    SStmTaskStatus* pOTask = taosArrayGet(pStatus->trigOReaders, i);
+    addr.taskId = pOTask->id.taskId;
+    addr.nodeId = pOTask->id.nodeId;
+    addr.epset = mndGetVgroupEpsetById(pCtx->pMnode, pOTask->id.nodeId);
+    TSDB_CHECK_NULL(taosArrayPush(rsp.cont.readerList, &addr), code, lino, _exit, terrno);
+    mstsDebug("the %dth otrigReader src added to trigger's virtual orig readerList, TASK:%" PRIx64 " nodeId:%d", i, addr.taskId, addr.nodeId);
   }
 
   if (NULL == pCtx->pRsp->rsps.rspList) {
