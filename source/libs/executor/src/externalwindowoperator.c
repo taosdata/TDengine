@@ -24,6 +24,24 @@ typedef struct SBlockList {
   int32_t            blockRowNumThreshold;
 } SBlockList;
 
+
+typedef struct SExternalWindowOperator {
+  SOptrBasicInfo     binfo;
+  SAggSupporter      aggSup;
+  SExprSupp          scalarSupp;
+  STimeWindowAggSupp twAggSup;
+  SGroupResInfo      groupResInfo;
+  int32_t            primaryTsIndex;
+  bool               scalarMode;
+  SArray*            pWins;
+  SArray*            pOutputBlocks;  // for each window, we have a list of blocks
+  int32_t            outputWinId;
+  SListNode*         pOutputBlockListNode;  // block index in block array used for output
+  SSDataBlock*       pTmpBlock;
+} SExternalWindowOperator;
+
+
+
 static int32_t blockListInit(SBlockList* pBlockList, int32_t threshold) {
   pBlockList->pBlocks = tdListNew(sizeof(SSDataBlock*));
   if (!pBlockList->pBlocks) {
@@ -75,25 +93,33 @@ static void blockListDestroy(void* p) {
   }
 }
 
-typedef struct SExternalWindowOperator {
-  SOptrBasicInfo     binfo;
-  SAggSupporter      aggSup;
-  SExprSupp          scalarSupp;
-  STimeWindowAggSupp twAggSup;
-  SGroupResInfo      groupResInfo;
-  int32_t            primaryTsIndex;
-  bool               scalarMode;
-  SArray*            pWins;
-  SArray*            pOutputBlocks;  // for each window, we have a list of blocks
-  int32_t            outputWinId;
-  SListNode*         pOutputBlockListNode;  // block index in block array used for output
-  SSDataBlock*       pTmpBlock;
-} SExternalWindowOperator;
+
+
+void destroyExternalWindowOperatorInfo(void* param) {
+  if (NULL == param) {
+    return;
+  }
+  SExternalWindowOperator* pInfo = (SExternalWindowOperator*)param;
+  cleanupBasicInfo(&pInfo->binfo);
+
+  taosArrayDestroyEx(pInfo->pOutputBlocks, blockListDestroy);
+  taosArrayDestroy(pInfo->pWins);
+  colDataDestroy(&pInfo->twAggSup.timeWindowData);
+  cleanupGroupResInfo(&pInfo->groupResInfo);
+ 
+  blockDataDestroy(pInfo->pTmpBlock);
+
+  cleanupAggSup(&pInfo->aggSup);
+  cleanupExprSupp(&pInfo->scalarSupp);
+
+  pInfo->binfo.resultRowInfo.openWindow = tdListFree(pInfo->binfo.resultRowInfo.openWindow);
+
+  taosMemoryFreeClear(pInfo);
+}
 
 
 static int32_t doOpenExternalWindow(SOperatorInfo* pOperator);
 static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
-static void    destroyExternalWindowOperatorInfo(void* pOperator);
 
 typedef struct SMergeAlignedExternalWindowOperator {
   SExternalWindowOperator* pExtW;
@@ -741,24 +767,6 @@ _end:
   }
   (*ppRes) = (pExtW->binfo.pRes->info.rows == 0) ? NULL : pExtW->binfo.pRes;
   return code;
-}
-
-void destroyExternalWindowOperatorInfo(SExternalWindowOperator* pInfo) {
-  cleanupBasicInfo(&pInfo->binfo);
-
-  taosArrayDestroyEx(pInfo->pOutputBlocks, blockListDestroy);
-  taosArrayDestroy(pInfo->pWins);
-  colDataDestroy(&pInfo->twAggSup.timeWindowData);
-  cleanupGroupResInfo(&pInfo->groupResInfo);
- 
-  blockDataDestroy(pInfo->pTmpBlock);
-
-  cleanupAggSup(&pInfo->aggSup);
-  cleanupExprSupp(&pInfo->scalarSupp);
-
-  pInfo->binfo.resultRowInfo.openWindow = tdListFree(pInfo->binfo.resultRowInfo.openWindow);
-
-  taosMemoryFreeClear(pInfo);
 }
 
 static int32_t setSingleOutputTupleBuf(SResultRowInfo* pResultRowInfo, const STimeWindow* pWin, SResultRow** pResult,
