@@ -107,16 +107,27 @@ void mstDestroySStmVgroupStatus(void* param) {
   taosHashCleanup(pVg->streamTasks);
 }
 
-void mstDestroySStmStatus(void* param) {
-  SStmStatus* pStatus = (SStmStatus*)param;
+void mstResetSStmStatus(SStmStatus* pStatus) {
   taosMemoryFreeClear(pStatus->streamName);
   taosArrayDestroy(pStatus->trigReaders);
+  pStatus->trigReaders = NULL;
   taosArrayDestroy(pStatus->calcReaders);
-  taosMemoryFreeClear(pStatus->triggerTask->detailStatus);
+  pStatus->calcReaders = NULL;
+  if (pStatus->triggerTask) {
+    taosMemoryFreeClear(pStatus->triggerTask->detailStatus);
+  }
   taosMemoryFreeClear(pStatus->triggerTask);
   for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
     taosArrayDestroy(pStatus->runners[i]);
+    pStatus->runners[i] = NULL;
   }
+}
+
+void mstDestroySStmStatus(void* param) {
+  SStmStatus* pStatus = (SStmStatus*)param;
+  taosMemoryFreeClear(pStatus->streamName);
+
+  mstResetSStmStatus(pStatus);
 }
 
 void mstDestroySStmAction(void* param) {

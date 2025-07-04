@@ -2107,15 +2107,7 @@ static void msmResetStreamForRedeploy(int64_t streamId, SStmStatus* pStatus) {
   
   msmSTRemoveStream(streamId, false);  
 
-  taosArrayDestroy(pStatus->trigReaders);
-  pStatus->trigReaders = NULL;
-  taosArrayDestroy(pStatus->calcReaders);
-  pStatus->calcReaders = NULL;
-  taosMemoryFreeClear(pStatus->triggerTask);
-  for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
-    taosArrayDestroy(pStatus->runners[i]);
-    pStatus->runners[i] = NULL;
-  }
+  mstResetSStmStatus(pStatus);
 
   pStatus->deployTimes++;
 }
