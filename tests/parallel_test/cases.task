@@ -92,7 +92,7 @@
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/test_having.py
 # has migrate to new,,n,army,python3 ./test.py -f tmq/drop_lost_comsumers.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f cmdline/taosCli.py -B
-,,n,army,python3 ./test.py -f whole/checkErrorCode.py
+# has migrate to new,,n,army,python3 ./test.py -f whole/checkErrorCode.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f create/create_stb_keep.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f create/create_stb_keep.py -N 3
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py

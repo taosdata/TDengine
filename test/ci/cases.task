@@ -863,3 +863,5 @@
 ,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_tiny_int.py -B
 
 ,,n,.,pytest cases/uncatalog/army/user/test_passwd.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/whole/test_check_error_code.py
