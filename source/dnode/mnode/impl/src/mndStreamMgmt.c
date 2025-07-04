@@ -2914,7 +2914,7 @@ void msmCleanDeployedSnodeTasks (int32_t snodeId) {
     return;
   }
 
-  if (atomic_load_32(&pSnode->triggerDeployed) > 0) {
+  if (atomic_load_32(&pSnode->triggerDeployed) > 0 && pSnode->triggerList) {
     for (int32_t m = triggerNum - 1; m >= 0; --m) {
       SStmTaskToDeployExt* pExt = taosArrayGet(pSnode->triggerList, m);
       if (!pExt->deployed) {
@@ -2929,7 +2929,7 @@ void msmCleanDeployedSnodeTasks (int32_t snodeId) {
     pSnode->triggerDeployed = 0;
   }
 
-  if (atomic_load_32(&pSnode->runnerDeployed) > 0) {
+  if (atomic_load_32(&pSnode->runnerDeployed) > 0 && pSnode->runnerList) {
     for (int32_t m = runnerNum - 1; m >= 0; --m) {
       SStmTaskToDeployExt* pExt = taosArrayGet(pSnode->runnerList, m);
       if (!pExt->deployed) {

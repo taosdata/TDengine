@@ -93,7 +93,7 @@ typedef struct SExternalWindowOperator {
 
 static int32_t doOpenExternalWindow(SOperatorInfo* pOperator);
 static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
-static void    destroyExternalWindowOperator(void* pOperator);
+static void    destroyExternalWindowOperatorInfo(void* pOperator);
 
 typedef struct SMergeAlignedExternalWindowOperator {
   SExternalWindowOperator* pExtW;
@@ -104,7 +104,7 @@ typedef struct SMergeAlignedExternalWindowOperator {
 
 void destroyMergeAlignedExternalWindowOperator(void* pOperator) {
   SMergeAlignedExternalWindowOperator* pMlExtInfo = (SMergeAlignedExternalWindowOperator*)pOperator;
-  destroyExternalWindowOperator(pMlExtInfo->pExtW);
+  destroyExternalWindowOperatorInfo(pMlExtInfo->pExtW);
 }
 
 void doMergeAlignExternalWindow(SOperatorInfo* pOperator);
@@ -347,7 +347,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   initResultRowInfo(&pExtW->binfo.resultRowInfo);
   setOperatorInfo(pOperator, "ExternalWindowOperator", QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW, true, OP_NOT_OPENED,
                   pExtW, pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(doOpenExternalWindow, externalWindowNext, NULL, destroyExternalWindowOperator,
+  pOperator->fpSet = createOperatorFpSet(doOpenExternalWindow, externalWindowNext, NULL, destroyExternalWindowOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorResetStateFn(pOperator, resetExternalWindowOperator);
   code = appendDownstream(pOperator, &pDownstream, 1);
@@ -357,7 +357,13 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
 
   *pOptrOut = pOperator;
   return code;
+
 _error:
+
+  if (pExtW != NULL) {
+    destroyExternalWindowOperatorInfo(pExtW);
+  }
+
   destroyOperatorAndDownstreams(pOperator, &pDownstream, 1);
   pTaskInfo->code = code;
   qError("error happens at %s %d, code:%s", __func__, lino, tstrerror(code));
@@ -737,8 +743,22 @@ _end:
   return code;
 }
 
-void destroyExternalWindowOperator(void* pOperator) {
+void destroyExternalWindowOperatorInfo(SExternalWindowOperator* pInfo) {
+  cleanupBasicInfo(&pInfo->binfo);
 
+  taosArrayDestroyEx(pInfo->pOutputBlocks, blockListDestroy);
+  taosArrayDestroy(pInfo->pWins);
+  colDataDestroy(&pInfo->twAggSup.timeWindowData);
+  cleanupGroupResInfo(&pInfo->groupResInfo);
+ 
+  blockDataDestroy(pInfo->pTmpBlock);
+
+  cleanupAggSup(&pInfo->aggSup);
+  cleanupExprSupp(&pInfo->scalarSupp);
+
+  pInfo->binfo.resultRowInfo.openWindow = tdListFree(pInfo->binfo.resultRowInfo.openWindow);
+
+  taosMemoryFreeClear(pInfo);
 }
 
 static int32_t setSingleOutputTupleBuf(SResultRowInfo* pResultRowInfo, const STimeWindow* pWin, SResultRow** pResult,
