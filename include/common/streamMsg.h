@@ -580,10 +580,14 @@ typedef struct {
 
 typedef struct {
   int64_t         streamId;
-  SArray*         readerTasks;  // SArray<SStmTaskDeploy> in v/sNode and SArray<SStmTaskDeploy*> in mNode
+  SArray*         readerTasks;  // SArray<SStmTaskDeploy>
   SStmTaskDeploy* triggerTask;
-  SArray*         runnerTasks;  // SArray<SStmTaskDeploy> in v/sNode and SArray<SStmTaskDeploy*> in mNode
+  SArray*         runnerTasks;  // SArray<SStmTaskDeploy>
 } SStmStreamDeploy;
+
+
+void tFreeSStmStreamDeploy(void* param);
+void tDeepFreeSStmStreamDeploy(void* param);
 
 typedef struct {
   SArray* streamList;  // SArray<SStmStreamDeploy>
@@ -623,6 +627,7 @@ typedef struct {
   SStreamUndeployActions undeploy;
   SStreamMgmtRsps        rsps;
 } SMStreamHbRspMsg;
+
 
 void tFreeSMStreamHbRspMsg(SMStreamHbRspMsg* pRsp);
 void tDeepFreeSMStreamHbRspMsg(SMStreamHbRspMsg* pRsp);
