@@ -2038,6 +2038,9 @@ static int32_t resetInserterTbVersion(SDataInserterHandle* pInserter, const SInp
     return code;
   }
 
+  stDebug("resetInserterTbVersion, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbName:%s, uid:%" PRId64 ", version:%d",
+          pInput->pStreamDataInserterInfo->streamId, pInput->pStreamDataInserterInfo->groupId,
+          pInput->pStreamDataInserterInfo->tbName, pTbInfo.uid, pTbInfo.version);
   pInserter->pParam->streamInserterParam->pSchema->version = pTbInfo.version;
   if (pInserter->pParam->streamInserterParam->tbType != TSDB_NORMAL_TABLE) {
     pInserter->pParam->streamInserterParam->sver = pTbInfo.version;
@@ -2095,8 +2098,8 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
       QUERY_CHECK_CODE(code, lino, _return);
     }
 
-    if (pInserter->submitRes.code == TSDB_CODE_TDB_TABLE_NOT_EXIST &&
-        !pInput->pStreamDataInserterInfo->isAutoCreateTable) {
+    if ((pInserter->submitRes.code == TSDB_CODE_TDB_TABLE_NOT_EXIST &&
+        !pInput->pStreamDataInserterInfo->isAutoCreateTable) || pInserter->submitRes.code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
       rmDbVgInfoFromCache(pInserter->pParam->streamInserterParam->dbFName);
       stInfo("putStreamDataBlock, stream inserter table info not found, groupId:%" PRId64
              ", tbName:%s. so reset dbVgInfo",

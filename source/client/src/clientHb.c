@@ -499,7 +499,8 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
       tscDebug("tscObj rid %" PRIx64 " not exist", pRsp->connKey.tscRid);
     } else {
       if (pRsp->query->totalDnodes > 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &pRsp->query->epSet)) {
-        SEpSet *pOrig = &pTscObj->pAppInfo->mgmtEp.epSet;
+        SEpSet  originEpset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+        SEpSet *pOrig = &originEpset;
         SEp    *pOrigEp = &pOrig->eps[pOrig->inUse];
         SEp    *pNewEp = &pRsp->query->epSet.eps[pRsp->query->epSet.inUse];
         tscDebug("mnode epset updated from %d/%d=>%s:%d to %d/%d=>%s:%d in hb", pOrig->inUse, pOrig->numOfEps,

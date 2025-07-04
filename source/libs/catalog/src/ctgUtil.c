@@ -654,7 +654,7 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       }
       break;
     }
-    case TDMT_VND_GET_STREAM_PROGRESS: {
+    case TDMT_MND_GET_STREAM_PROGRESS: {
       if (pCtx->out) {
         taosMemoryFreeClear(pCtx->out);
       }
@@ -1806,14 +1806,15 @@ int32_t ctgCloneTableIndex(SArray* pIndex, SArray** pRes) {
 
 int32_t ctgUpdateSendTargetInfo(SMsgSendInfo* pMsgSendInfo, int32_t msgType, char* dbFName, int32_t vgId) {
   if (msgType == TDMT_VND_TABLE_META || msgType == TDMT_VND_TABLE_CFG || msgType == TDMT_VND_BATCH_META ||
-      msgType == TDMT_VND_TABLE_NAME || msgType == TDMT_VND_GET_STREAM_PROGRESS ||
-      msgType == TDMT_VND_VSTB_REF_DBS) {
+      msgType == TDMT_VND_TABLE_NAME || msgType == TDMT_VND_VSTB_REF_DBS) {
     pMsgSendInfo->target.type = TARGET_TYPE_VNODE;
     pMsgSendInfo->target.vgId = vgId;
     pMsgSendInfo->target.dbFName = taosStrdup(dbFName);
     if (NULL == pMsgSendInfo->target.dbFName) {
       CTG_ERR_RET(terrno);
     }
+  } else if (msgType == TDMT_SND_BATCH_META) {
+    pMsgSendInfo->target.type = TARGET_TYPE_OTHER;
   } else {
     pMsgSendInfo->target.type = TARGET_TYPE_MNODE;
   }

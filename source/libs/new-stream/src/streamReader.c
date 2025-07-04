@@ -127,22 +127,31 @@ int32_t createStreamTask(void* pVnode, SStreamTriggerReaderTaskInnerOptions* opt
     STREAM_CHECK_RET_GOTO(createDataBlockForStream(pTask->options.schemas, &pTask->pResBlock));
   }
   if (options->initReader) {
-    STREAM_CHECK_RET_GOTO(filterInitFromNode(options->pConditions, &pTask->pFilterInfo, 0, NULL));
-    STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(
-        pVnode, options->suid, options->uid, options->tableType, options->partitionCols, options->groupSort,
-        options->pTagCond, options->pTagIndexCond, api, &pTask->pTableList, groupIdMap));
-    if (options->gid != 0) {
-      int32_t index = qStreamGetGroupIndex(pTask->pTableList, options->gid);
-      STREAM_CHECK_CONDITION_GOTO(index < 0, TSDB_CODE_INVALID_PARA);
-      pTask->currentGroupIndex = index;
-    }
-
     int32_t        pNum = 0;
     STableKeyInfo* pList = NULL;
-    if (options->scanMode == STREAM_SCAN_GROUP_ONE_BY_ONE) {
-      STREAM_CHECK_RET_GOTO(qStreamGetTableList(pTask->pTableList, pTask->currentGroupIndex, &pList, &pNum))
-    } else if (options->scanMode == STREAM_SCAN_ALL) {
+    if (options->uidList != NULL) {
+      for (int32_t i = 0; i < taosArrayGetSize(options->uidList); ++i) {
+        int64_t* uid = taosArrayGet(options->uidList, i);
+        STREAM_CHECK_NULL_GOTO(uid, terrno);
+        STableKeyInfo data = {uid[1], 0};
+        STREAM_CHECK_RET_GOTO(qStreamSetTableList(&pTask->pTableList, &data));
+      }
       STREAM_CHECK_RET_GOTO(qStreamGetTableList(pTask->pTableList, -1, &pList, &pNum))
+    } else {
+      STREAM_CHECK_RET_GOTO(filterInitFromNode(options->pConditions, &pTask->pFilterInfo, 0, NULL));
+      STREAM_CHECK_RET_GOTO(qStreamCreateTableListForReader(
+          pVnode, options->suid, options->uid, options->tableType, options->partitionCols, options->groupSort,
+          options->pTagCond, options->pTagIndexCond, api, &pTask->pTableList, groupIdMap));
+      if (options->gid != 0) {
+        int32_t index = qStreamGetGroupIndex(pTask->pTableList, options->gid);
+        STREAM_CHECK_CONDITION_GOTO(index < 0, TSDB_CODE_INVALID_PARA);
+        pTask->currentGroupIndex = index;
+      }
+      if (options->scanMode == STREAM_SCAN_GROUP_ONE_BY_ONE) {
+        STREAM_CHECK_RET_GOTO(qStreamGetTableList(pTask->pTableList, pTask->currentGroupIndex, &pList, &pNum))
+      } else if (options->scanMode == STREAM_SCAN_ALL) {
+        STREAM_CHECK_RET_GOTO(qStreamGetTableList(pTask->pTableList, -1, &pList, &pNum))
+      }
     }
 
     cleanupQueryTableDataCond(&pTask->cond);
