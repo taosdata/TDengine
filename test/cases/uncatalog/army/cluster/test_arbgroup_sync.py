@@ -22,6 +22,7 @@ class TestArbgroupSync:
         Labels: xxx
 
         Jira: xxx
+        
         Catalog:
             - xxx:xxx
 

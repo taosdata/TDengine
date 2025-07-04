@@ -1,4 +1,5 @@
-from new_test_framework.utils import tdLog, tdSql, epath, sc
+import time
+import taos
 
 conn = taos.connect()
 

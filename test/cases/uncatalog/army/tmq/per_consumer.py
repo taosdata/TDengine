@@ -1,5 +1,14 @@
-from new_test_framework.utils import tdLog, tdSql, epath, sc
+import os
+import taos
+import sys
+from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from frame.log import tdLog
+import subprocess
+from multiprocessing import Process
+import threading
+from taos.tmq import Consumer
+import click
 
 # TDDO
 # 1. using tmq common class to replace the function, file drop_lost_consumers.py has the same function

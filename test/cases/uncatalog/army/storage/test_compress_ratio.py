@@ -1,7 +1,7 @@
 from new_test_framework.utils import tdLog, tdSql, epath, sc
 
 
-class TDTestCase:
+class TestCompressRatio:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
