@@ -13,9 +13,9 @@
 #,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_fill_history.py
 #,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/03-TriggerMode/test_sliding.py
 
-,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_state.py
+,,y,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_state.py
 ,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_count.py
-,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_event.py
+,,y,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_event.py
 ,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_fill_history.py
 ,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_sliding.py
 
