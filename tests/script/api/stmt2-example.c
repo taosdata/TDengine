@@ -172,6 +172,80 @@ void do_stmt_col(TAOS* taos) {
   taos_stmt2_close(stmt);
 }
 
+int32_t do_stmt_getresult(TAOS* taos) {
+  int32_t           code = 0;
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+
+  TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+
+  const char* sql = "select * from db.stb where ts < ? or ts < ? limit ?";
+  code = taos_stmt2_prepare(stmt, sql, 0);
+
+  int             t64_len[1] = {sizeof(int64_t)};
+  int             b_len[1] = {3};
+  int             x = 1000;
+  int             x_len = sizeof(int);
+  int64_t         ts[2] = {1791060627000, 1791060628005};
+  TAOS_STMT2_BIND params[3] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], t64_len, NULL, 1},
+                               {TSDB_DATA_TYPE_TIMESTAMP, &ts[1], t64_len, NULL, 1},
+                               {TSDB_DATA_TYPE_INT, &x, &x_len, NULL, 1}};
+
+  TAOS_STMT2_BIND* paramv = &params[0];
+  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv};
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  if (code != 0) {
+    printf("failed to bind params,ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_stmt2_error(stmt));
+    taos_stmt2_close(stmt);
+    return code;
+  }
+
+  code = taos_stmt2_exec(stmt, NULL);
+  if (code != 0) {
+    printf("failed to execute select statement,ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_stmt2_error(stmt));
+    taos_stmt2_close(stmt);
+    return code;
+  }
+
+  TAOS_RES* pRes = taos_stmt2_result(stmt);
+  int       getRecordCounts = 0;
+  TAOS_ROW  row;
+  while ((row = taos_fetch_row(pRes))) {
+    getRecordCounts++;
+    if (row) {
+      int32_t numFields = taos_num_fields(pRes);
+      char*   str = (char*)malloc(1024);
+      taos_print_row_with_size(str, 1024, row, taos_fetch_fields(pRes), numFields);
+      printf("Row %d: %s\n", getRecordCounts, str);
+      free(str);
+    } else {
+      printf("No more rows.\n");
+    }
+  }
+
+  taos_stmt2_close(stmt);
+
+  return code;
+}
+int32_t do_stmt_query(TAOS* taos) {
+  TAOS_STMT2_OPTION option = {0};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+
+  int code = taos_stmt2_prepare(stmt, "select * from db.stb", 0);
+  // checkError(stmt, code);
+
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL* pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, NULL);
+  if (code != 0) {
+    printf("failed get col,ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_stmt2_error(stmt));
+  }
+
+  taos_stmt2_free_fields(stmt, NULL);
+
+  taos_stmt2_close(stmt);
+  return code;
+}
+
 int main() {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   if (!taos) {
@@ -180,7 +254,13 @@ int main() {
   }
 
   do_stmt_row(taos);
-  // do_stmt_col(taos);
+
+  do_stmt_col(taos); 
+
+  do_stmt_query(taos);
+
+  do_stmt_getresult(taos);
+
   taos_close(taos);
   taos_cleanup();
 }

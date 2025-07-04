@@ -721,6 +721,10 @@ static int32_t doSetBlobVal(SColumnInfoData* pColumnInfoData, int32_t idx, SColV
   // TODO(yhDeng)
   if (COL_VAL_IS_VALUE(pColVal)) {
     char* val = taosMemCalloc(1, pColVal->value.nData + sizeof(BlobDataLenT));
+    if (val == NULL) {
+      return terrno;
+    }
+
     uint64_t seq = 0;
     int32_t  len = 0;
     if (pColVal->value.pData != NULL) {

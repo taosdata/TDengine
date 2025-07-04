@@ -634,10 +634,6 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
       }
     }
   }
-
-  // if (withBlob) {
-  //   (*ppRow)->flag |= HAS_BLOB;
-  // }
   return 0;
 }
 
@@ -1114,147 +1110,6 @@ _exit:
   taosArrayDestroy(colValArray);
   return code;
 }
-int32_t tRowGetBlobSeq(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal, uint64_t *seq) {
-  if (!(iCol < pTSchema->numOfCols)) return TSDB_CODE_INVALID_PARA;
-  if (!(pRow->sver == pTSchema->version)) return TSDB_CODE_INVALID_PARA;
-
-  uint8_t   hasBlob = 0;
-  STColumn *pTColumn = pTSchema->columns + iCol;
-
-  if (iCol == 0) {
-    pColVal->cid = pTColumn->colId;
-    pColVal->value.type = pTColumn->type;
-    pColVal->flag = CV_FLAG_VALUE;
-    (void)memcpy(&pColVal->value.val, &pRow->ts, sizeof(TSKEY));
-    return 0;
-  }
-
-  if (pRow->flag == HAS_NONE) {
-    *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
-    return 0;
-  }
-
-  if (pRow->flag == HAS_NULL) {
-    *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
-    return 0;
-  }
-
-  SPrimaryKeyIndex index;
-  uint8_t         *data = pRow->data;
-  for (int32_t i = 0; i < pRow->numOfPKs; i++) {
-    data += tGetPrimaryKeyIndex(data, &index);
-  }
-
-  if (pRow->flag >> 4) {  // KV Row
-    SKVIdx  *pIdx = (SKVIdx *)data;
-    uint8_t *pv = NULL;
-
-    if (pRow->flag & KV_FLG_LIT) {
-      pv = pIdx->idx + pIdx->nCol;
-    } else if (pRow->flag & KV_FLG_MID) {
-      pv = pIdx->idx + (pIdx->nCol << 1);
-    } else {
-      pv = pIdx->idx + (pIdx->nCol << 2);
-    }
-
-    int16_t lidx = 0;
-    int16_t ridx = pIdx->nCol - 1;
-    while (lidx <= ridx) {
-      int16_t  mid = (lidx + ridx) >> 1;
-      uint8_t *pData = NULL;
-      if (pRow->flag & KV_FLG_LIT) {
-        pData = pv + ((uint8_t *)pIdx->idx)[mid];
-      } else if (pRow->flag & KV_FLG_MID) {
-        pData = pv + ((uint16_t *)pIdx->idx)[mid];
-      } else {
-        pData = pv + ((uint32_t *)pIdx->idx)[mid];
-      }
-
-      int16_t cid;
-      pData += tGetI16v(pData, &cid);
-
-      if (TABS(cid) == pTColumn->colId) {
-        if (cid < 0) {
-          *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
-        } else {
-          pColVal->cid = pTColumn->colId;
-          pColVal->value.type = pTColumn->type;
-          pColVal->flag = CV_FLAG_VALUE;
-
-          if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-            pData += tGetU32v(pData, &pColVal->value.nData);
-            if (pColVal->value.nData > 0) {
-              pColVal->value.pData = pData;
-            } else {
-              pColVal->value.pData = NULL;
-            }
-          } else {
-            (void)memcpy(&pColVal->value.val, pData, pTColumn->bytes);
-          }
-        }
-        return 0;
-      } else if (TABS(cid) < pTColumn->colId) {
-        lidx = mid + 1;
-      } else {
-        ridx = mid - 1;
-      }
-    }
-
-    *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
-  } else {  // Tuple Row
-    uint8_t *bitmap = data;
-    uint8_t *fixed;
-    uint8_t *varlen;
-    uint8_t  bit;
-
-    if (pRow->flag == HAS_VALUE) {
-      fixed = bitmap;
-      bit = BIT_FLG_VALUE;
-    } else if (pRow->flag == (HAS_NONE | HAS_NULL | HAS_VALUE)) {
-      fixed = BIT2_SIZE(pTSchema->numOfCols - 1) + bitmap;
-      bit = GET_BIT2(bitmap, iCol - 1);
-    } else {
-      fixed = BIT1_SIZE(pTSchema->numOfCols - 1) + bitmap;
-      bit = GET_BIT1(bitmap, iCol - 1);
-
-      if (pRow->flag == (HAS_NONE | HAS_VALUE)) {
-        if (bit) bit++;
-      } else if (pRow->flag == (HAS_NULL | HAS_VALUE)) {
-        bit++;
-      }
-    }
-    varlen = fixed + pTSchema->flen;
-
-    if (bit == BIT_FLG_NONE) {
-      *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
-      return 0;
-    } else if (bit == BIT_FLG_NULL) {
-      *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
-      return 0;
-    }
-
-    pColVal->cid = pTColumn->colId;
-    pColVal->value.type = pTColumn->type;
-    pColVal->flag = CV_FLAG_VALUE;
-    if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-      if (IS_STR_DATA_BLOB(pTColumn->type)) {
-        hasBlob = 1;
-      }
-      if (hasBlob == 1) {
-        pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
-        pColVal->value.pData += tGetU32v(pColVal->value.pData, &pColVal->value.nData);
-        memcpy(seq, pColVal->value.pData, sizeof(uint64_t));
-      } else {
-        pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
-        pColVal->value.pData += tGetU32v(pColVal->value.pData, &pColVal->value.nData);
-      }
-    } else {
-      (void)memcpy(&pColVal->value.val, fixed + pTColumn->offset, TYPE_BYTES[pTColumn->type]);
-    }
-  }
-
-  return 0;
-}
 
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
   if (!(iCol < pTSchema->numOfCols)) return TSDB_CODE_INVALID_PARA;
@@ -1392,8 +1247,9 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
       }
       pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
       pColVal->value.pData += tGetU32v(pColVal->value.pData, &pColVal->value.nData);
-      // if (isBlob) pColVal->value.pData += sizeof(uint64_t);  // skip seq
-      // }
+      // TODO(yhDeng): support tuple
+      //  if (isBlob) pColVal->value.pData += sizeof(uint64_t);  // skip seq
+      //  }
     } else {
       valueSetDatum(&pColVal->value, pTColumn->type, fixed + pTColumn->offset, TYPE_BYTES[pTColumn->type]);
     }
@@ -2764,6 +2620,8 @@ static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, uint8_t *pData,
         if (code) goto _exit;
         (void)memcpy(pColData->pData + pColData->nData, pData, sizeof(uint64_t));
         pColData->nData += sizeof(uint64_t);
+      } else {
+        pColData->aOffset[pColData->nVal] = (pColData->nVal > 0) ? pColData->aOffset[pColData->nVal - 1] : 0;
       }
 
     } else {
