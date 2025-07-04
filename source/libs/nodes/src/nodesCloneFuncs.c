@@ -1064,10 +1064,8 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_SCALAR_FIELD(tagScan);
   COPY_SCALAR_FIELD(joinContains);
   COPY_SCALAR_FIELD(mixSysTableAndActualTable);
-  COPY_SCALAR_FIELD(hasProject);
 
   CLONE_NODE_LIST_FIELD(pHint);
-  COPY_SCALAR_FIELD(hasProject);
   return TSDB_CODE_SUCCESS;
 }
 
