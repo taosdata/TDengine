@@ -585,7 +585,7 @@ static int32_t vmOpenMountTfs(SVnodeMgmt *pMgmt) {
   int32_t    numOfMounts = 0;
   SMountCfg *pMountCfgs = NULL;
   SArray    *pDisks = NULL;
-  STfs      *pTfs = NULL;
+  SMountTfs *pMountTfs = NULL;
 
   TAOS_CHECK_EXIT(vmGetMountListFromFile(pMgmt, &pMountCfgs, &numOfMounts));
   for (int32_t i = 0; i < numOfMounts; ++i) {
@@ -600,19 +600,23 @@ static int32_t vmOpenMountTfs(SVnodeMgmt *pMgmt) {
              pCfg->path, nDisks, TFS_MAX_DISKS);
       TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
     }
-    TAOS_CHECK_EXIT(tfsOpen(TARRAY_GET_ELEM(pDisks, 0), TARRAY_SIZE(pDisks), &pTfs));
-    if ((code = taosHashPut(pMgmt->mountTfsHash, &pCfg->mountId, sizeof(pCfg->mountId), pTfs, POINTER_BYTES))) {
-      tfsClose(pTfs);
-      TAOS_CHECK_EXIT(code);
-    }
-    taosArrayClear(pDisks);
+    TSDB_CHECK_NULL((pMountTfs = taosMemoryCalloc(1, sizeof(SMountTfs))), code, lino, _exit, terrno);
+    TAOS_CHECK_EXIT(tfsOpen(TARRAY_GET_ELEM(pDisks, 0), TARRAY_SIZE(pDisks), &pMountTfs->pTfs));
+    TAOS_CHECK_EXIT(taosHashPut(pMgmt->mountTfsHash, &pCfg->mountId, sizeof(pCfg->mountId), &pMountTfs, POINTER_BYTES));
+    taosArrayDestroy(pDisks);
+    pDisks = NULL;
+    pMountTfs = NULL;
   }
 _exit:
   if (code != 0) {
     dError("failed to open mount tfs at line %d since %s", lino, tstrerror(code));
+    if (pMountTfs) {
+      tfsClose(pMountTfs->pTfs);
+      taosMemoryFree(pMountTfs);
+    }
+    taosArrayDestroy(pDisks);
   }
   taosMemoryFree(pMountCfgs);
-  taosArrayDestroy(pDisks);
   TAOS_RETURN(code);
 }
 #endif
@@ -865,6 +869,12 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
   }
 
 #ifdef USE_MOUNT
+  pIter = NULL;
+  while ((pIter = taosHashIterate(pMgmt->mountTfsHash, pIter))) {
+    SMountTfs *mountTfs = *(SMountTfs **)pIter;
+    tfsClose(mountTfs->pTfs);
+    taosMemoryFree(mountTfs);
+  }
   taosHashCleanup(pMgmt->mountTfsHash);
   pMgmt->mountTfsHash = NULL;
 #endif

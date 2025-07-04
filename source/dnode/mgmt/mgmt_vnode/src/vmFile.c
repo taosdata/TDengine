@@ -175,8 +175,7 @@ static int32_t vmDecodeVnodeList(SJson *pJson, SVnodeMgmt *pMgmt, SWrapperCfg **
     if (code != 0) goto _OVER;
     tjsonGetInt32ValueFromDouble(vnode, "toVgId", pCfg->toVgId, code);
     if (code != 0) goto _OVER;
-    tjsonGetNumberValue(vnode, "mountId", pCfg->mountId, code);
-    if (code != 0) goto _OVER;
+    if ((code = tjsonGetBigIntValue(vnode, "mountId", &pCfg->mountId)) != 0) goto _OVER;
 
     snprintf(pCfg->path, sizeof(pCfg->path), "%s%svnode%d", pMgmt->path, TD_DIRSEP, pCfg->vgId);
   }
@@ -284,7 +283,7 @@ static int32_t vmEncodeVnodeList(SJson *pJson, SVnodeObj **ppVnodes, int32_t num
       if ((code = tjsonAddDoubleToObject(vnode, "toVgId", pVnode->toVgId)) < 0) return code;
     }
     if (pVnode->mountId) {
-      if ((code = tjsonAddDoubleToObject(vnode, "mountId", pVnode->mountId)) < 0) return code;
+      if ((code = tjsonAddIntegerToObject(vnode, "mountId", pVnode->mountId)) < 0) return code;
     }
     if ((code = tjsonAddItemToArray(vnodes, vnode)) < 0) return code;
   }
