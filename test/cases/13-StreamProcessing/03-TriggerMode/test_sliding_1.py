@@ -143,12 +143,12 @@ class TestStreamCheckpoint:
         # except Exception as e:
         #     tdLog.error(f"case 11 error: {e}")
 
-        # clear_output("sm11", "tb11")
-        # self.prepare_tables(1000, 10)
-        # try:
-        #     self.create_and_check_stream_basic_12("sm12", "tb12")
-        # except Exception as e:
-        #     tdLog.error(f"case 12 error: {e}")
+        clear_output("sm11", "tb11")
+        self.prepare_tables(1000, 10)
+        try:
+            self.create_and_check_stream_basic_12("sm12", "tb12")
+        except Exception as e:
+            tdLog.error(f"case 12 error: {e}")
 
         clear_output("sm12", "tb12")
         self.prepare_tables(1000, 10)
@@ -402,6 +402,8 @@ class TestStreamCheckpoint:
            Error: results are incorrect
         """
         tdSql.execute("use db")
+        time.sleep(10)
+
         tdSql.execute(
             f"create stream {stream_name} interval(3s) sliding(3s) from source_table partition by tbname into {dst_table} as "
             f"select _twstart st, _twend et, count(*),  max(k) c "
@@ -426,9 +428,11 @@ class TestStreamCheckpoint:
            Error: no results generated
         """
         tdSql.execute("use db")
+        time.sleep(5)
+
         tdSql.execute(
-            f"create stream {stream_name} interval(30s) sliding(30s) from source_table partition by tbname, a into {dst_table} as "
-            f"select _twstart st, _twend et, count(*),  max(k) c "
+            f"create stream {stream_name} interval(3s) sliding(3s) from source_table partition by tbname, a into {dst_table} as "
+            f"select _twstart st, _twend et, first(ts), last(ts), count(*),  max(k) c "
             f"from source_table "
             f"where _c0 >= _twstart and _c0 <= _twend  "
             f" partition by a ")
