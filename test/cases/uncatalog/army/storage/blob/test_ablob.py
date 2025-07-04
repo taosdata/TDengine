@@ -285,6 +285,7 @@ class TestAblob:
 
         Catalog:
             - xxx:xxx
+        
         History:
             - xxx
             - xxx

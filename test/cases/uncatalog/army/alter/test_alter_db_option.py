@@ -192,7 +192,9 @@ class TestAlterDbOption:
 
         Catalog:
             - xxx:xxx
-        History:            - xxx
+        
+        History:
+            - xxx
             - xxx
         """
         tdLog.debug(f"start to excute {__file__}")

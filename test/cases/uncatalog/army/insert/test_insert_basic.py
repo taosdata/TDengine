@@ -73,6 +73,7 @@ class TestInsertBasic:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

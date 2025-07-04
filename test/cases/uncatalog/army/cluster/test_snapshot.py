@@ -118,6 +118,7 @@ class TestSnapshot:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

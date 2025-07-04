@@ -36,6 +36,7 @@ class TestTaosdumpTest:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

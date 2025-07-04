@@ -397,6 +397,7 @@ class TestTaosCli:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

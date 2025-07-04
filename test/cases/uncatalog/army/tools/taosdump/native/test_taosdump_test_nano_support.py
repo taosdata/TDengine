@@ -89,7 +89,9 @@ class TestTaosdumpTestNanoSupport:
 
         Catalog:
             - xxx:xxx
-        History:            - xxx
+
+        History:
+            - xxx
             - xxx
         """
         self.ts = 1625068800000000000  # this is timestamp  "2021-07-01 00:00:00"

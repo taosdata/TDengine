@@ -34,7 +34,10 @@ class TestTaosdumpTestTypeDouble:
 
         Catalog:
             - xxx:xxx
-        History:            - xxx
+
+        History:
+            - xxx
+            - xxx
             - xxx
         """
         tdSql.prepare()

@@ -302,6 +302,7 @@ class TestS3Basic:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

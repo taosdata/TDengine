@@ -274,6 +274,7 @@ class TestStreamVtable:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

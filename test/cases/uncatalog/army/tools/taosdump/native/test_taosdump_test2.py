@@ -37,7 +37,10 @@ class TestTaosdumpTest2:
 
         Catalog:
             - xxx:xxx
-        History:            - xxx
+
+        History:
+            - xxx
+            - xxx
             - xxx
         """
         self.ts = 1601481600000

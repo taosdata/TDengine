@@ -208,6 +208,7 @@ class TestSelectFromStbKeep:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

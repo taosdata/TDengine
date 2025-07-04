@@ -37,7 +37,11 @@ class TestTaosdumpTestTypeFloat:
 
         Catalog:
             - xxx:xxx
-        History:            - xxx
+
+        History:
+            - xxx
+            - xxx
+            - xxx
             - xxx
         """
         tdSql.prepare()

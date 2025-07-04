@@ -355,6 +355,7 @@ class TestCompressBasic:
 
         Catalog:
             - xxx:xxx
+        
         History:
             - xxx
             - xxx

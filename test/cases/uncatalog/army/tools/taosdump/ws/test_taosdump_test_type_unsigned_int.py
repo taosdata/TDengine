@@ -33,7 +33,9 @@ class TestTaosdumpTestTypeUnsignedInt:
 
         Catalog:
             - xxx:xxx
-        History:            - xxx
+
+        History:
+            - xxx
             - xxx
         """
         tdSql.prepare()

@@ -324,7 +324,9 @@ class TestTaosdumpCommandline:
 
         Catalog:
             - xxx:xxx
-        History:            - xxx
+
+        History:
+            - xxx
             - xxx
         """
         

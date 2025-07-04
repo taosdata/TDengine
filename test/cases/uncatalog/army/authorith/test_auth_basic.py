@@ -201,6 +201,7 @@ class TestAuthBasic:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

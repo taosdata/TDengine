@@ -77,6 +77,7 @@ class TestBasic:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

@@ -51,7 +51,10 @@ class TestTaosdumpEscapedDb:
 
         Catalog:
             - xxx:xxx
-        History:            - xxx
+
+        History:
+            - xxx
+            - xxx
             - xxx
         """
         # check version

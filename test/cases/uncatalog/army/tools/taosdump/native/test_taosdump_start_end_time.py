@@ -36,7 +36,9 @@ class TestTaosdumpStartEndTime:
 
         Catalog:
             - xxx:xxx
-        History:            - xxx
+
+        History:
+            - xxx
             - xxx
         """
         binPath = etool.taosDumpFile()

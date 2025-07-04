@@ -325,6 +325,7 @@ class TestS3azure:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

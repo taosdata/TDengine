@@ -191,7 +191,11 @@ class TestTaosdumpTypeVarbinary:
 
         Catalog:
             - xxx:xxx
-        History:            - xxx
+
+        History:
+            - xxx
+            - xxx
+            - xxx
             - xxx
         """
 

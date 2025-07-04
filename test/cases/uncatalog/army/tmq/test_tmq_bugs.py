@@ -85,6 +85,7 @@ class TestTmqBugs:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

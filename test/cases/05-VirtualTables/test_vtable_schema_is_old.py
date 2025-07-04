@@ -115,6 +115,7 @@ class TestVTableSchemaIsOld:
 
         Catalog:
             - xxx:xxx
+        
         History: 
             - xxx
             - xxx

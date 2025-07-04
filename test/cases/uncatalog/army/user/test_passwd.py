@@ -32,6 +32,7 @@ class TestPasswd:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

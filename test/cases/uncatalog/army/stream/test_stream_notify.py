@@ -36,6 +36,7 @@ class StreamNotifyServer:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx
@@ -449,6 +450,7 @@ class TestStreamNotifySinglePass():
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx
@@ -523,6 +525,7 @@ class TestStreamNotify:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

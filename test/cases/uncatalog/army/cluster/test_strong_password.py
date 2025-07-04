@@ -21,6 +21,7 @@ class TestStrongPassword:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

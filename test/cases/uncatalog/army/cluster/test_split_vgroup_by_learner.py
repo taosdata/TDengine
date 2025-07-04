@@ -108,6 +108,7 @@ class TestSplitVgroupByLearner:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

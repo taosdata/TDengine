@@ -33,7 +33,9 @@ class TestTaosdumpDbWithNonRoot:
 
         Catalog:
             - xxx:xxx
-        History:            - xxx
+
+        History:
+            - xxx
             - xxx
         """
         tdSql.prepare()

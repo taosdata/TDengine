@@ -204,6 +204,7 @@ class TestAlterConfig:
 
         Catalog:
             - xxx:xxx
+        
         History:
             - xxx
             - xxx

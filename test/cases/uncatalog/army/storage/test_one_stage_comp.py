@@ -112,6 +112,7 @@ class TestOneStageComp:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

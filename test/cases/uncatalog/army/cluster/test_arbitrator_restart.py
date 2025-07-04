@@ -24,6 +24,7 @@ class TestArbitratorRestart:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

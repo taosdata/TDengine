@@ -32,7 +32,9 @@ class TestCloudTest:
 
         Catalog:
             - xxx:xxx
-        History:            - xxx
+
+        History:
+            - xxx
             - xxx
         """
         binPath = etool.benchMarkFile()

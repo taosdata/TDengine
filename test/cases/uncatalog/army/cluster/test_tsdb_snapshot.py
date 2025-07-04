@@ -222,6 +222,7 @@ class TestTsdbSnapshot:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

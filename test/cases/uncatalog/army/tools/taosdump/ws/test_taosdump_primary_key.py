@@ -156,7 +156,10 @@ class TestTaosdumpPrimaryKey:
 
         Catalog:
             - xxx:xxx
-        History:            - xxx
+
+        History:
+            - xxx
+            - xxx
             - xxx
         """
         # database

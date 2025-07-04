@@ -205,7 +205,10 @@ class TestTaosdumpRetry:
 
         Catalog:
             - xxx:xxx
-        History:            - xxx
+
+        History:
+            - xxx
+            - xxx
             - xxx
         """
         # database

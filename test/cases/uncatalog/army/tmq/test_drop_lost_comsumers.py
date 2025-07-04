@@ -314,6 +314,7 @@ class TestDropLostComsumers:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

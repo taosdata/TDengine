@@ -99,7 +99,9 @@ class TestTaosdumpCompa:
 
         Catalog:
             - xxx:xxx
-        History:            - xxx
+
+        History:
+            - xxx
             - xxx
         """
         # database

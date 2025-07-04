@@ -35,7 +35,9 @@ class TestTaosdumpTestInspect:
 
         Catalog:
             - xxx:xxx
-        History:            - xxx
+
+        History:
+            - xxx
             - xxx
         """
         tdSql.prepare()

@@ -89,6 +89,7 @@ class TestClusterBasic:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

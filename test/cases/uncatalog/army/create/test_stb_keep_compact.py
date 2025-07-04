@@ -681,6 +681,7 @@ class TestStbKeepCompact:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

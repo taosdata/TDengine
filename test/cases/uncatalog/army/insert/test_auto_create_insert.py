@@ -173,6 +173,7 @@ class TestAutoCreateInsert:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

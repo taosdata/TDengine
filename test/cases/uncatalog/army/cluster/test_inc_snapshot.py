@@ -27,6 +27,7 @@ class TestIncSnapshot:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

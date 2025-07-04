@@ -168,6 +168,7 @@ class TestFullopt:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

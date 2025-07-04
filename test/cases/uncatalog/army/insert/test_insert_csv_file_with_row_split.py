@@ -52,6 +52,7 @@ class TestInsertCsvFileWithRowSplit:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

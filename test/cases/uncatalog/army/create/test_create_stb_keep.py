@@ -126,6 +126,7 @@ class TestCreateStbKeep:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

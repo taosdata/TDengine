@@ -602,6 +602,7 @@ class TestAlterConfigRefresh:
 
         Catalog:
             - xxx:xxx
+        
         History:
             - xxx
             - xxx

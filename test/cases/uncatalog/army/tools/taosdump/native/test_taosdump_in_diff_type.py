@@ -36,7 +36,9 @@ class TestTaosdumpInDiffType:
 
         Catalog:
             - xxx:xxx
-        History:            - xxx
+
+        History:
+            - xxx
             - xxx
         """
         binPath = etool.taosDumpFile()

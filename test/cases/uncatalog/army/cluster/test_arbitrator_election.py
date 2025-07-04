@@ -29,6 +29,7 @@ class TestArbitratorElection:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

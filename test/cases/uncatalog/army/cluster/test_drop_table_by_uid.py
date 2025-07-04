@@ -343,6 +343,7 @@ class TestDropTableByUid:
 
         Catalog:
             - xxx:xxx
+
         History:
             - 2024-09-23 created by Charles
             - xxx

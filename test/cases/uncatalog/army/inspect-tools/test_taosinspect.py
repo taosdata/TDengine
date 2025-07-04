@@ -234,6 +234,7 @@ class TestTaosinspect:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

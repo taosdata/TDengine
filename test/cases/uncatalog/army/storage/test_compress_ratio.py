@@ -91,6 +91,7 @@ class TDTestCase:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

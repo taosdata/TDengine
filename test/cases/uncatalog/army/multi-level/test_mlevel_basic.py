@@ -51,6 +51,7 @@ class TestMlevelBasic:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

@@ -175,6 +175,7 @@ class TestColumnTagBoundary:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx

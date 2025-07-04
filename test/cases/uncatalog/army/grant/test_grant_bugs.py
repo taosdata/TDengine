@@ -72,6 +72,7 @@ class TestGrantBugs:
 
         Catalog:
             - xxx:xxx
+
         History:
             - xxx
             - xxx
