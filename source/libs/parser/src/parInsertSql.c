@@ -3500,49 +3500,18 @@ static int32_t parseInsertSqlFromCsv(SInsertParseContext* pCxt, SVnodeModifyOpSt
 
 static int32_t parseBoundColumnsFromToken(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,
                                           const SBoundColumnsToken* pBoundColsToken) {
-  // Save original SQL position
-  const char* pOriginalSql = pStmt->pSql;
-
-  // Set SQL to bound columns content with precise length boundary
+  // Set SQL to bound columns content directly
   pStmt->pSql = pBoundColsToken->z;
-
-  // Create a temporary null-terminated string for parsing
-  char* pTempSql = taosMemoryMalloc(pBoundColsToken->n + 1);
-  if (NULL == pTempSql) {
-    pStmt->pSql = pOriginalSql;
-    return terrno;
-  }
-
-  memcpy(pTempSql, pBoundColsToken->z, pBoundColsToken->n);
-  pTempSql[pBoundColsToken->n] = '\0';
-
-  const char* pBoundColsSql = pTempSql;
+  const char* pBoundColsSql = pBoundColsToken->z;
   int32_t     code = parseBoundColumns(pCxt, &pBoundColsSql, BOUND_COLUMNS, pStmt->pTableMeta, &pCxt->tags);
-
-  taosMemoryFree(pTempSql);
-  pStmt->pSql = pOriginalSql;
 
   return code;
 }
 
 static int32_t parseValuesFromToken(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,
                                     const SValuesToken* pValuesToken) {
-  // Save original SQL position
-  const char* pOriginalSql = pStmt->pSql;
-
-  // Set SQL to VALUES content with precise length boundary
+  // Set SQL to VALUES content directly
   pStmt->pSql = pValuesToken->z;
-
-  // Create a temporary null-terminated string for parsing with precise length
-  char* pTempSql = taosMemoryMalloc(pValuesToken->n + 1);
-  if (NULL == pTempSql) {
-    pStmt->pSql = pOriginalSql;
-    return terrno;
-  }
-
-  memcpy(pTempSql, pValuesToken->z, pValuesToken->n);
-  pTempSql[pValuesToken->n] = '\0';
-  pStmt->pSql = pTempSql;
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -3559,9 +3528,6 @@ static int32_t parseValuesFromToken(SInsertParseContext* pCxt, SVnodeModifyOpStm
     code = parseInsertStbClauseBottom(pCxt, pStmt);
   }
 
-  taosMemoryFree(pTempSql);
-  pStmt->pSql = pOriginalSql;
-
   return code;
 }
 
@@ -3569,6 +3535,9 @@ static int32_t parseInsertTableClauseFromTokens(SInsertParseContext* pCxt, SVnod
   if (NULL == pStmt->pInsertTokensHashObj) {
     return parseInsertTableClauseBottom(pCxt, pStmt);
   }
+
+  // Save original SQL position once at the top level
+  const char* pOriginalSql = pStmt->pSql;
 
   int32_t code = TSDB_CODE_SUCCESS;
   void*   pIter = taosHashIterate(pStmt->pInsertTokensHashObj, NULL);
@@ -3615,6 +3584,9 @@ static int32_t parseInsertTableClauseFromTokens(SInsertParseContext* pCxt, SVnod
 
     pIter = taosHashIterate(pStmt->pInsertTokensHashObj, pIter);
   }
+
+  // Restore original SQL position once at the end
+  pStmt->pSql = pOriginalSql;
 
   return code;
 }
