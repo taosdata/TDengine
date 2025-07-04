@@ -662,6 +662,40 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config_refresh.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_config_refresh.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/alter/test_alter_db_option.py -N 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/authorith/test_auth_basic.py -N 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_arbitrator.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_arbitrator_restart.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_snapshot.py -N 3 -L 3 -D 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_drop_table_by_uid.py -N 3
+# ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_inc_snapshot.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_tsdb_snapshot.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_strong_password.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cluster/test_split_vgroup_by_learner.py -N 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/cmdline/test_taos_cli.py -B
+,,n,.,pytest cases/uncatalog/army/cmdline/test_fullopt.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_stb_keep.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_stb_keep.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_stb_keep_compact.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_stb_keep_compact.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_stb_keep_compact.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_ctb_using_csv_file.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/create/test_create_ctb_using_csv_file.py -N 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/db-encrypt/test_basic.py -N 3 -M 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/grant/test_grant_bugs.py -N 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_column_tag_boundary.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_insert_basic.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_auto_create_insert.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/insert/test_insert_csv_file_with_row_split.py 
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/inspect-tools/test_taosinspect.py
+
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_query_accuracy.py
 #,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_ts5400.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/accuracy/test_having.py
@@ -684,6 +718,14 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_concat.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_cast.py
 
+,,n,.,pytest cases/uncatalog/army/storage/s3/test_s3_basic.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/storage/test_one_stage_comp.py -N 3 -L 3 -D 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/storage/test_compress_basic.py -N 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/stream/test_stream_vtable.py
+
+,,n,.,pytest cases/uncatalog/army/tmq/test_drop_lost_comsumers.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tmq/test_tmq_bugs.py -N 3
 
 # army/tools
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_commandline.py
@@ -815,3 +857,5 @@
 ,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_bool.py -B
 ,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_retry.py -B
 ,,n,.,pytest cases/uncatalog/army/tools/taosdump/ws/test_taosdump_test_type_tiny_int.py -B
+
+,,n,.,pytest cases/uncatalog/army/user/test_passwd.py

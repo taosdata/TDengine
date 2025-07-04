@@ -24,6 +24,12 @@ from .eos import *
 from .log import *
 from .sql import tdSql
 
+def taosFile():
+    bin_file = binFile("taos")
+    if isWin():
+        bin_file += ".exe"
+    return bin_file
+
 # taosdump
 def taosDumpFile():
     """Get the path to the `taosdump` binary file.
@@ -150,15 +156,15 @@ def exeBinFile(fname, command, wait=True, show=True):
              while a non-zero value indicates failure.
              - If `wait` is False, the return value is the exit status of the `nohup` or `mintty` command.
     """
-    binFile = binFile(fname)
+    bin_file = binFile(fname)
     if isWin():
-        binFile += ".exe"
+        bin_file += ".exe"
 
-    cmd = f"{binFile} {command}"
+    cmd = f"{bin_file} {command}"
     if wait:
         if show:
             tdLog.info("wait exe:" + cmd)
-        return exe(f"{binFile} {command}")
+        return exe(f"{bin_file} {command}")
     else:
         if show:
             tdLog.info("no wait exe:" + cmd)

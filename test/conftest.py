@@ -6,6 +6,7 @@ import copy
 import uuid
 import json
 import tempfile
+import random
 from new_test_framework.utils import tdSql, etool, tdLog, BeforeTest, eutil
 
 
@@ -226,7 +227,7 @@ def before_test_class(request):
     request.cls.conn = request.session.before_test.get_taos_conn(request)
     tdSql.init(request.cls.conn.cursor())
     tdSql.replica = request.session.replicaVar
-    tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
+    #tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
 
     # 为兼容老用例，初始化原框架连接
     #tdSql_pytest.init(request.cls.conn.cursor())
@@ -235,6 +236,14 @@ def before_test_class(request):
     # 处理 -C 参数，如果未设置 -C 参数，create_dnode_num 和 -N 参数相同
     for i in range(1, request.session.create_dnode_num):
         tdSql.execute(f"create dnode localhost port {6030+i*100}")
+        time.sleep(1)
+
+    tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
+
+    if request.session.mnodes_num:
+        for i in range(2, request.session.mnodes_num + 1):
+            tdSql.execute(f"create mnode on dnode {i}")
+        tdLog.debug(tdSql.query(f"show mnodes", row_tag=True))
 
     # 处理-Q参数，如果-Q参数不等于1，则创建qnode，并设置queryPolicy
     if request.session.query_policy != 1:
@@ -305,6 +314,35 @@ def before_test_class(request):
 @pytest.fixture(scope="class", autouse=True)
 def add_common_methods(request):
     # 兼容原老框架，添加CaseBase方法
+    def init(cls, replicaVar=1, db="db", stb="stb", checkColName="ic"):
+        
+        # init
+        cls.childtable_count = 0
+        cls.insert_rows      = 0
+        cls.timestamp_step   = 0
+
+        # save param
+        cls.replicaVar = int(replicaVar)
+        cls.tmpdir = "tmp"
+
+        # record server information
+        cls.dnodeNum = 0
+        cls.mnodeNum = 0
+        cls.mLevel = 0
+        cls.mLevelDisk = 0
+
+        # test case information
+        cls.db     = db
+        cls.stb    = stb
+
+        # sql 
+        cls.sqlSum = f"select sum({checkColName}) from {db}.{cls.stb}"
+        cls.sqlMax = f"select max({checkColName}) from {db}.{cls.stb}"
+        cls.sqlMin = f"select min({checkColName}) from {db}.{cls.stb}"
+        cls.sqlAvg = f"select avg({checkColName}) from {db}.{cls.stb}"
+        cls.sqlFirst = f"select first(ts) from {db}.{cls.stb}"
+        cls.sqlLast  = f"select last(ts) from {db}.{cls.stb}"
+    request.cls.init = init
 
     def stop(self):
         tdSql.close()
@@ -852,6 +890,21 @@ def add_common_methods(request):
         except Exception as err:
             raise Exception(err)
     request.cls.deleteFile = deleteFile
+
+    # read file to list
+    def readFileToList(self, filePath):
+        try:
+            with open(filePath, 'r', encoding='utf-8') as file:
+                lines = file.readlines()
+            # Strip trailing newline characters
+            return [line.rstrip('\n') for line in lines]
+        except FileNotFoundError:
+            tdLog.info(f"Error: File not found {filePath}")
+            return []
+        except Exception as e:
+            tdLog.info(f"Error reading file: {e}")
+            return []
+    request.cls.readFileToList = readFileToList
 
 def pytest_collection_modifyitems(config, items):
     if config.getoption("--only_deploy"):

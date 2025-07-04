@@ -80,7 +80,7 @@ class BeforeTest:
         setup_params = {
             "test_root": self.root_dir,
             "setup": yaml_file,
-            "mnode_count": mnodes_num,
+            #"mnode_count": mnodes_num,
             "log_level": self.log_level
         }
         if clean:
@@ -90,9 +90,9 @@ class BeforeTest:
             #subprocess.run([sys.executable, f"taostest --setup {yaml_file} --mnode-count {mnodes_num}"], check=True, text=True, shell=True, env=env_vars)
             result = taostest.main(setup_params)
             if result != 0:
-                tdLog.error(f"Error run taostest --setup {yaml_file} --mnode-count {mnodes_num}: {result}")
+                tdLog.error(f"Error run taostest --setup {yaml_file}: {result}")
         except Exception as e:
-            tdLog.error(f"Exception run taostest --setup {yaml_file} --mnode-count {mnodes_num}: {e}")
+            tdLog.error(f"Exception run taostest --setup {yaml_file}: {e}")
 
     def configure_test(self, yaml_file):
 
@@ -437,10 +437,10 @@ class BeforeTest:
         #logger.info(f"tdDnodes_pytest in init_dnode_cluster: {tdDnodes_pytest}")
         if dnode_nums > 1:
             dnodes_list = cluster.configure_cluster(dnodeNums=dnode_nums, mnodeNums=mnode_nums, independentMnode=independentMnode)
-            #clusterDnodes.init(dnodes_list, request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
-            #clusterDnodes.setTestCluster(False)
-            #clusterDnodes.setValgrind(0)
-            #clusterDnodes.setAsan(request.session.asan)
+            clusterDnodes.init(dnodes_list, request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
+            clusterDnodes.setTestCluster(False)
+            clusterDnodes.setValgrind(0)
+            clusterDnodes.setAsan(request.session.asan)
             tdDnodes.dnodes = dnodes_list #clusterDnodes.dnodes
             tdDnodes.init(request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
         else:
