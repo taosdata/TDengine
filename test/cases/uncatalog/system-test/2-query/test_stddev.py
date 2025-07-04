@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 
 import string
+import numpy as np
 from new_test_framework.utils import tdLog, tdSql
 from new_test_framework.utils.sqlset import TDSetSql
 
@@ -21,7 +22,7 @@ class TestStddev:
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
         cls.dbname = 'db_test'
-        # cls.setsql = # TDSetSql()
+        cls.setsql = TDSetSql()
         cls.ntbname = f'{cls.dbname}.ntb'
         cls.row_num = 10
         cls.ts = 1537146000000
@@ -38,10 +39,10 @@ class TestStddev:
     
         }
     def insert_data(self,column_dict,tbname,row_num):
-        insert_sql = TDSetSql.set_insertsql(column_dict,tbname)
+        insert_sql = self.setsql.set_insertsql(column_dict,tbname)
         for i in range(row_num):
             insert_list = []
-            TDSetSql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
+            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
     def stddev_check(self):
         stbname = f"{self.dbname}.test_stb"
         tag_dict = {
@@ -51,7 +52,7 @@ class TestStddev:
             f'1'
             ]
         tdSql.execute(f"create database if not exists {self.dbname}")
-        tdSql.execute(TDSetSql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
+        tdSql.execute(self.setsql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
         tdSql.execute(f"create table {stbname}_1 using {stbname} tags({tag_values[0]})")
         self.insert_data(self.column_dict,f'{stbname}_1',self.row_num)
         for col in self.column_dict.keys():

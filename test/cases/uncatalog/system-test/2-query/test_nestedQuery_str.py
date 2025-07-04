@@ -61,6 +61,7 @@ class TestNestedQueryStrCase:
         # self.math_nest(['HISTOGRAM']) 
         
         nested_query_test = NestedQueryHelper()
+        nested_query_test.case_init()
         nested_query_test.str_nest(['LTRIM','RTRIM','LOWER','UPPER']) 
         nested_query_test.str_nest(['LENGTH','CHAR_LENGTH']) 
         nested_query_test.str_nest(['SUBSTR'])   

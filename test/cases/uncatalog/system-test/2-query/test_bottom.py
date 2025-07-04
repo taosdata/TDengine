@@ -11,7 +11,8 @@
 
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql, sqlset, common
+from new_test_framework.utils import tdLog, tdSql, common
+from new_test_framework.utils.sqlset import TDSetSql
 
 class TestBottom:
     def setup_class(cls):
@@ -19,7 +20,7 @@ class TestBottom:
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
         cls.dbname = 'db_test'
-        # cls.setsql = # TDSetSql()
+        cls.setsql = TDSetSql()
         cls.ntbname = f'{cls.dbname}.ntb'
         cls.rowNum = 10
         cls.tbnum = 20
@@ -45,10 +46,10 @@ class TestBottom:
 
         cls.param_list = [1,100]
     def insert_data(self,column_dict,tbname,row_num):
-        insert_sql = sqlset.TDSetSql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
+        insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
         for i in range(row_num):
             insert_list = []
-            sqlset.TDSetSql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
+            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
     def bottom_check_data(self,tbname,tb_type):
         new_column_dict = {}
         for param in self.param_list:
@@ -85,7 +86,7 @@ class TestBottom:
     def bottom_check_ntb(self):
         tdSql.execute(f'create database if not exists {self.dbname} vgroups 1')
         tdSql.execute(f'use {self.dbname}')
-        tdSql.execute(sqlset.TDSetSql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
         self.insert_data(self.column_dict,self.ntbname,self.rowNum)
         self.bottom_check_data(self.ntbname,'normal_table')
         tdSql.execute(f'drop database {self.dbname}')
@@ -99,7 +100,7 @@ class TestBottom:
             ]
         tdSql.execute(f"create database if not exists {self.dbname} vgroups 2")
         tdSql.execute(f'use {self.dbname}')
-        tdSql.execute(sqlset.TDSetSql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
+        tdSql.execute(self.setsql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
         for i in range(self.tbnum):
             tdSql.execute(f"create table {stbname}_{i} using {stbname} tags({tag_values[0]})")
             self.insert_data(self.column_dict,f'{stbname}_{i}',self.rowNum)

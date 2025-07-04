@@ -50,6 +50,7 @@ class TestNestedQueryMathCase:
         # self.math_nest(['SAMPLE'])
                 
         nested_query_test = NestedQueryHelper()
+        nested_query_test.case_init()
         nested_query_test.math_nest(['ABS','SQRT'])     
         nested_query_test.math_nest(['SIN','COS','TAN','ASIN','ACOS','ATAN'])        
         nested_query_test.math_nest(['POW','LOG']) 

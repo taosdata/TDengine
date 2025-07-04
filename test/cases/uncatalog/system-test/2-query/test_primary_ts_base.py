@@ -16,10 +16,11 @@ class TestPrimaryTsBase:
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
-        cls.database = 'primary_db'
-        cls.testcasePath = os.path.split(__file__)[0]
-        cls.testcaseFilename = os.path.split(__file__)[-1]
-        os.system("rm -rf %s/%s.sql" % (cls.testcasePath,cls.testcaseFilename))
+    def case_init(self):
+        self.database = 'primary_db'
+        self.testcasePath = os.path.split(__file__)[0]
+        self.testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
@@ -3224,6 +3225,7 @@ class TestPrimaryTsBase:
         """
 
         startTime = time.time() 
+        self.case_init()
         self.dropandcreateDB_primary_key(self.database, 1 , 1 ,'yes','yes','no')
 
         self.query_pk(self.database,1) 

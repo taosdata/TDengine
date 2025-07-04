@@ -1,4 +1,5 @@
-from new_test_framework.utils import tdLog, tdSql, sqlset
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.sqlset import TDSetSql
 
 import os
 
@@ -7,7 +8,7 @@ class TestCount:
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
-        # cls.setsql = # TDSetSql()
+        cls.setsql = TDSetSql()
         cls.rowNum = 10
         cls.ts = 1537146000000
         dbname = "db"
@@ -211,13 +212,13 @@ class TestCount:
         for k in column_dict.keys():
             self.query_ntb(k,ntbname,rownum)
     def insert_data(self,column_dict,tbname,row_num):
-        insert_sql = sqlset.TDSetSql.set_insertsql(column_dict,tbname)
+        insert_sql = self.setsql.set_insertsql(column_dict,tbname)
         for i in range(row_num):
             insert_list = []
-            sqlset.TDSetSql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
+            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
     def check_ntb(self):
         tdSql.prepare()
-        tdSql.execute(sqlset.TDSetSql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
         self.query_empty_ntb()
         tdSql.execute('flush database db')
         tdSql.query(f'select count(tbname) from {self.ntbname}')
@@ -230,7 +231,7 @@ class TestCount:
         tdSql.execute('drop database db')
     def check_stb(self):
         tdSql.prepare()
-        tdSql.execute(sqlset.TDSetSql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
+        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
         for i in range(self.tbnum):
             tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[i]})')
         self.query_empty_stb()
@@ -250,9 +251,17 @@ class TestCount:
         tdSql.execute('drop database db')
 
     def check_count_with_sma_data(self):
-        sql_file = './2-query/count_test.sql'
+        sql_file = os.path.join(os.path.dirname(__file__), "count_test.sql")
+        
+        with open(sql_file, 'r', encoding='utf-8') as f:
+            sql_content = f.read()
+        current_dir = os.path.dirname(__file__)
+        modified_content = sql_content.replace('CSV_PATH', current_dir)
+        temp_sql_file = os.path.join(current_dir, "temp_count_test.sql")
+        with open(temp_sql_file, 'w', encoding='utf-8') as f:
+            f.write(modified_content)
 
-        os.system(f'taos -f {sql_file}')
+        os.system(f'taos -f {temp_sql_file}')
         tdSql.query('select count(c_1) from d2.t2 where c_1 < 10', queryTimes=1)
         tdSql.checkData(0, 0, 0)
         tdSql.query('select count(c_1), min(c_1),tbname from d2.can partition by tbname order by 3', queryTimes=1)

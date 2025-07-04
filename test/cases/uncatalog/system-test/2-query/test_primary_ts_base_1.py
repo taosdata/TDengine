@@ -14,7 +14,7 @@ from new_test_framework.utils import tdLog, tdSql
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from test_primary_ts_base import TestPrimaryTsBase
+from test_primary_ts_base import TestPrimaryTsBase as PrimaryTsBaseHelper
 import time
 from faker import Faker
 
@@ -41,17 +41,18 @@ class TestPrimaryTsBase1:
         """
 
         startTime = time.time() 
-        database = 'primary_db_1'
-        TestPrimaryTsBase.dropandcreateDB_primary_key(database, 1 , 1 ,'yes','yes','no')
+        primary_base_test = PrimaryTsBaseHelper()
+        primary_base_test.case_init()
+        primary_base_test.dropandcreateDB_primary_key(primary_base_test.database, 1 , 1 ,'yes','yes','no')
 
-        TestPrimaryTsBase.fun_pk_interp(database,'interp','') 
-        TestPrimaryTsBase.multiple_agg_groupby(database,1) 
-        TestPrimaryTsBase.fun_pk_diff(database,'diff','') 
-        TestPrimaryTsBase.fun_pk_twa(database,'derivative',',1s,0') 
-        TestPrimaryTsBase.fun_pk_twa(database,'derivative',',1s,1') 
-        TestPrimaryTsBase.fun_pk_unique(database,'unique','')  
-        TestPrimaryTsBase.fun_pk_last_init(database,'last','')  
-        TestPrimaryTsBase.fun_pk_last(database,'last','')  
+        primary_base_test.fun_pk_interp(primary_base_test.database,'interp','') 
+        primary_base_test.multiple_agg_groupby(primary_base_test.database,1)
+        primary_base_test.fun_pk_diff(primary_base_test.database,'diff','') 
+        primary_base_test.fun_pk_twa(primary_base_test.database,'derivative',',1s,0') 
+        primary_base_test.fun_pk_twa(primary_base_test.database,'derivative',',1s,1') 
+        primary_base_test.fun_pk_unique(primary_base_test.database,'unique','')  
+        primary_base_test.fun_pk_last_init(primary_base_test.database,'last','')
+        primary_base_test.fun_pk_last(primary_base_test.database,'last','')  
         # self.fun_pk_last(self.database,'last_row','') 
         # self.fun_pk_first(self.database,'first','') 
         

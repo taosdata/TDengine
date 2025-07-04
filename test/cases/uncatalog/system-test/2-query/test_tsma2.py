@@ -605,6 +605,9 @@ class TestTsma2:
         cls.ctbNum = 10
         cls.rowsPerTbl = 10000
         cls.duraion = '1h'
+        
+        cls.tsma_tester: TSMATester = TSMATester(tdSql)
+        cls.tsma_sql_generator: TSMATestSQLGenerator = TSMATestSQLGenerator()
 
     def create_database(self, tsql, dbName, dropFlag=1, vgroups=2, replica=1, duration: str = '1d'):
         if dropFlag == 1:

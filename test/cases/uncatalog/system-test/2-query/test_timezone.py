@@ -13,7 +13,7 @@ class TestTimezone:
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
-        # cls.setsql = # TDSetSql()
+        cls.setsql = TDSetSql()
         cls.arithmetic_operators = ['+','-','*','/']
         cls.arithmetic_values = [0,1,100,15.5]
         cls.dbname = 'db'
@@ -90,9 +90,9 @@ class TestTimezone:
             tdSql.error(f'select timezone({param}) from {tbname}')
         tdSql.query(f"select * from {tbname} where timezone()='{timezone}'")
         self.tb_type_check(tb_type)
-    def timezone_check_ntb(self,timezone):
+    def timezone_check_ntb(self,timezone):  
         tdSql.execute(f'create database {self.dbname}')
-        tdSql.execute(TDSetSql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
         for value in self.values_list:
             tdSql.execute(
                 f'insert into {self.ntbname} values({value})')
@@ -100,7 +100,7 @@ class TestTimezone:
         tdSql.execute('drop database db')
     def timezone_check_stb(self,timezone):
         tdSql.execute(f'create database {self.dbname}')
-        tdSql.execute(TDSetSql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
+        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
         for i in range(self.tbnum):
             tdSql.execute(f'create table if not exists {self.stbname}_{i} using {self.stbname} tags({self.tag_values[i]})')
             for j in self.values_list:
@@ -112,7 +112,7 @@ class TestTimezone:
 
     def timezone_format_test(self):
         tdSql.execute(f'create database {self.dbname}')
-        tdSql.execute(TDSetSql.set_create_stable_sql(f'{self.dbname}.stb', {'ts':'timestamp','id':'int'}, {'status':'int'}))
+        tdSql.execute(self.setsql.set_create_stable_sql(f'{self.dbname}.stb', {'ts':'timestamp','id':'int'}, {'status':'int'}))
 
         tdSql.execute(f"insert into {self.dbname}.d0 using {self.dbname}.stb tags (1) values ('2021-07-01 00:00:00.000',0);")
         tdSql.query(f"select ts from {self.dbname}.d0;")

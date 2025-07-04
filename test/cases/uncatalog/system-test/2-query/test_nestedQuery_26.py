@@ -44,6 +44,7 @@ class TestNestedQuery26Case:
         startTime = time.time() 
 
         nested_query_test = NestedQueryHelper()
+        nested_query_test.case_init()
         nested_query_test.function_before_26()       
                
         # self.math_nest(['UNIQUE'])

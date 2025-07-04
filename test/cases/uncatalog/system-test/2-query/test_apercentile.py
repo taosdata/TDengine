@@ -10,7 +10,8 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-from new_test_framework.utils import tdLog, tdSql, sqlset
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.sqlset import TDSetSql
 
 class TestApercentile:
     def setup_class(cls):
@@ -19,7 +20,7 @@ class TestApercentile:
         #tdSql.init(conn.cursor(), logSql)
         cls.rowNum = 10
         cls.ts = 1537146000000
-        # cls.setsql = # TDSetSql()
+        cls.setsql = TDSetSql()
         cls.dbname = "db"
         cls.ntbname = f"{cls.dbname}.ntb"
         cls.stbname = f'{cls.dbname}.stb'
@@ -80,14 +81,14 @@ class TestApercentile:
         cls.percent = [1,50,100]
         cls.param_list = ['default','t-digest']
     def insert_data(self,column_dict,tbname,row_num):
-        insert_sql = sqlset.TDSetSql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
+        insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
         for i in range(row_num):
             insert_list = []
-            sqlset.TDSetSql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
+            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
 
     def function_check_ntb(self):
         tdSql.prepare()
-        tdSql.execute(sqlset.TDSetSql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
         self.insert_data(self.column_dict,self.ntbname,self.rowNum)
         for k,v in self.column_dict.items():
             for percent in self.percent:

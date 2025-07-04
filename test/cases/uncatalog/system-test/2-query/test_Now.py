@@ -7,7 +7,7 @@ class TestNow:
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
-        # cls.setsql = # TDSetSql()
+        cls.setsql = TDSetSql()
         cls.dbname = 'db'
         # name of normal table
         cls.ntbname = f'{cls.dbname}.ntb'
@@ -77,7 +77,7 @@ class TestNow:
         for time_unit in self.db_percision:
             tdSql.execute(f'create database {self.dbname} precision "{time_unit}"')
             tdSql.execute(f'use {self.dbname}')
-            tdSql.execute(TDSetSql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+            tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
             for value in self.values_list:
                 tdSql.execute(
                     f'insert into {self.ntbname} values({value})')
@@ -88,7 +88,7 @@ class TestNow:
         for time_unit in self.db_percision:
             tdSql.execute(f'create database {self.dbname} precision "{time_unit}"')
             tdSql.execute(f'use {self.dbname}')
-            tdSql.execute(TDSetSql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
+            tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
             for i in range(self.tbnum):
                 tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[0]})")
                 for value in self.values_list:

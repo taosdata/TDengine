@@ -1,6 +1,8 @@
-from new_test_framework.utils import tdLog, tdSql, sqlset, common
+from new_test_framework.utils import tdLog, tdSql, common
+from new_test_framework.utils.sqlset import TDSetSql
 
 import time
+import numpy as np
 
 class TestAvg:
     # updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
@@ -10,7 +12,7 @@ class TestAvg:
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
-        # cls.setsql = # TDSetSql()
+        cls.setsql = TDSetSql()
         cls.column_dict = {
             'ts':'timestamp',
             'col1': 'tinyint',
@@ -28,10 +30,10 @@ class TestAvg:
         cls.ts = 1537146000000
 
     def insert_data(self,column_dict,tbname,row_num):
-        insert_sql = sqlset.TDSetSql.set_insertsql(column_dict,tbname)
+        insert_sql = self.setsql.set_insertsql(column_dict,tbname)
         for i in range(row_num):
             insert_list = []
-            sqlset.TDSetSql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
+            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
 
     def avg_check_unsigned(self):
         stbname = f'{self.dbname}.{common.tdCom.getLongName(5,"letters")}'
@@ -42,7 +44,7 @@ class TestAvg:
             f'1'
             ]
         tdSql.execute(f"create database if not exists {self.dbname}")
-        tdSql.execute(sqlset.TDSetSql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
+        tdSql.execute(self.setsql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
         tdSql.execute(f"create table {stbname}_1 using {stbname} tags({tag_values[0]})")
         self.insert_data(self.column_dict,f'{stbname}_1',self.row_num)
         for col in self.column_dict.keys():

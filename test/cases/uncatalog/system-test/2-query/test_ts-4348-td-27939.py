@@ -27,6 +27,13 @@ class TestTs4348Td27939:
         """
 
         # TS-4348
+        tdSql.execute("drop database if exists ts_4338;")
+        tdSql.execute("create database ts_4338;")
+        tdSql.execute("drop table if exists ts_4338.t;")
+        tdSql.execute("create database if not exists ts_4338;")
+        tdSql.execute("create table ts_4338.t (ts timestamp, i8 tinyint);")
+        tdSql.execute("insert into ts_4338.t (ts, i8) values (now(), 1) (now()+1s, 2);")
+        
         tdSql.query(f'select i8 from ts_4338.t;')
         tdSql.checkRows(2)
 

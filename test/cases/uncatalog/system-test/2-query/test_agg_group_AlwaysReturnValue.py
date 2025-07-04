@@ -14,6 +14,10 @@ from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 import random
 import time
 from faker import Faker
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from test_nestedQuery import TestNestedquery as NestedQueryHelper
 
 class TestAggGroupAlwarysReturnValue:
     
@@ -1653,7 +1657,8 @@ class TestAggGroupAlwarysReturnValue:
         # self.insert_data()
         
         #self.testTBNameUseJoin()
-        self.dropandcreateDB_random("nested", 1)
+        nested_query_test = NestedQueryHelper()
+        nested_query_test.dropandcreateDB_random("nested", 1)
         self.testTBNameUseJoin()
 
         self.modify_tables()

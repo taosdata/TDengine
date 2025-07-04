@@ -14,7 +14,7 @@ from new_test_framework.utils import tdLog, tdSql
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from test_stablity import TestStablity
+from test_stablity import TestStablity as StabilityHelper
 import time
 
 class TestStability1:
@@ -43,9 +43,10 @@ class TestStability1:
 
         startTime = time.time()
 
-        TestStablity.function_before_26()
-
-        TestStablity.dropandcreateDB_random("%s" %self.db_nest, 1)
+        stability_test = StabilityHelper()
+        stability_test.case_init()
+        stability_test.function_before_26()
+        stability_test.dropandcreateDB_random("%s" %stability_test.db_nest, 1)
 
         # self.math_nest(['UNIQUE'])
         # self.math_nest(['MODE'])
@@ -62,25 +63,25 @@ class TestStability1:
         # self.math_nest(['statecount','stateduration'])
         # self.math_nest(['HISTOGRAM'])
 
-        self.str_nest(['LTRIM','RTRIM','LOWER','UPPER'])
-        self.str_nest(['LENGTH','CHAR_LENGTH'])
-        self.str_nest(['SUBSTR'])
-        self.str_nest(['CONCAT'])
-        self.str_nest(['CONCAT_WS'])
-        self.time_nest(['CAST'])
-        self.time_nest(['CAST_1'])
-        self.time_nest(['CAST_2'])
-        self.time_nest(['CAST_3'])
-        self.time_nest(['CAST_4'])
+        stability_test.str_nest(['LTRIM','RTRIM','LOWER','UPPER'])
+        stability_test.str_nest(['LENGTH','CHAR_LENGTH'])
+        stability_test.str_nest(['SUBSTR'])
+        stability_test.str_nest(['CONCAT'])
+        stability_test.str_nest(['CONCAT_WS'])
+        stability_test.time_nest(['CAST'])
+        stability_test.time_nest(['CAST_1'])
+        stability_test.time_nest(['CAST_2'])
+        stability_test.time_nest(['CAST_3'])
+        stability_test.time_nest(['CAST_4'])
 
-        self.time_nest(['NOW','TODAY'])
-        self.time_nest(['TIMEZONE'])
-        self.time_nest(['TIMETRUNCATE'])
-        self.time_nest(['TO_ISO8601'])
-        self.time_nest(['TO_UNIXTIMESTAMP'])
-        self.time_nest(['ELAPSED'])
-        self.time_nest(['TIMEDIFF_1'])
-        self.time_nest(['TIMEDIFF_2'])
+        stability_test.time_nest(['NOW','TODAY'])
+        stability_test.time_nest(['TIMEZONE'])
+        stability_test.time_nest(['TIMETRUNCATE'])
+        stability_test.time_nest(['TO_ISO8601'])
+        stability_test.time_nest(['TO_UNIXTIMESTAMP'])
+        stability_test.time_nest(['ELAPSED'])
+        stability_test.time_nest(['TIMEDIFF_1'])
+        stability_test.time_nest(['TIMEDIFF_2'])
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))

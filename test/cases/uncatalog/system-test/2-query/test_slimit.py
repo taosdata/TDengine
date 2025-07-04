@@ -16,7 +16,7 @@ import os
 import random
 import re
 
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, etool
 
 class TestSlimit:
     def setup_class(cls):
@@ -45,15 +45,19 @@ class TestSlimit:
         return buildPath
 
     def run_benchmark(self,dbname,tables,per_table_num,vgroups,replica):
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
-            tdLog.exit("taosd not found!")
-        else:
-            tdLog.info("taosd found in %s" % buildPath)
-        binPath = buildPath+ "/build/bin/"
-
-        print("%staosBenchmark -d %s -t %d -n %d  -v %d -a %d -y " % (binPath,dbname,tables,per_table_num,vgroups,replica))
-        os.system("%staosBenchmark -d %s -t %d -n %d  -v %d -a %d -y " % (binPath,dbname,tables,per_table_num,vgroups,replica))
+        # buildPath = self.getBuildPath()
+        # if (buildPath == ""):
+        #     tdLog.exit("taosd not found!")
+        # else:
+        #     tdLog.info("taosd found in %s" % buildPath)
+        # binPath = buildPath+ "/build/bin/"
+        
+        # print("%staosBenchmark -d %s -t %d -n %d  -v %d -a %d -y " % (binPath,dbname,tables,per_table_num,vgroups,replica))
+        # os.system("%staosBenchmark -d %s -t %d -n %d  -v %d -a %d -y " % (binPath,dbname,tables,per_table_num,vgroups,replica))
+        
+        # use etool to run benchmark
+        command = " -d %s -t %d -n %d -v %d -a %d -y" % (dbname, tables, per_table_num, vgroups, replica)
+        etool.benchMark(command=command)
 
     def sql_query_time_cost(self,sql):
         startTime = time.time()

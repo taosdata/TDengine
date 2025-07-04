@@ -14,7 +14,7 @@ from new_test_framework.utils import tdLog, tdSql
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from test_primary_ts_base import TestPrimaryTsBase
+from test_primary_ts_base import TestPrimaryTsBase as PrimaryTsBaseHelper
 import time
 from faker import Faker
 
@@ -41,7 +41,9 @@ class TestPrimaryTsBase3:
         """
 
         startTime = time.time() 
-        TestPrimaryTsBase.dropandcreateDB_primary_key(self.database, 1 , 1 ,'yes','yes','no')
+        primary_base_test = PrimaryTsBaseHelper()
+        primary_base_test.case_init()
+        primary_base_test.dropandcreateDB_primary_key(primary_base_test.database, 1 , 1 ,'yes','yes','no')
 
         # self.fun_pk_interp(self.database,'interp','') 
         # self.multiple_agg_groupby(self.database,1) 
@@ -57,7 +59,7 @@ class TestPrimaryTsBase3:
         # self.query_pk_fun(self.database,'') 
         
         # self.touying_pk_1(self.database,1) 
-        TestPrimaryTsBase.touying_pk_where(self.database,'') 
+        primary_base_test.touying_pk_where(primary_base_test.database,'') 
         # self.touying_pk_where(self.database,'tags') 
         # self.touying_pk_where(self.database,'distinct') 
         # self.count_pk(self.database,1) 

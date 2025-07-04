@@ -593,7 +593,7 @@ class TestAbs:
 
         """
   # sourcery skip: extract-duplicate-method, remove-redundant-fstring
-        tdSql.prepare(replica=f"{self.replicaVar}")
+        tdSql.prepare(replica=self.replicaVar)
 
         tdLog.printNoPrefix("==========step1:create table ==============")
 

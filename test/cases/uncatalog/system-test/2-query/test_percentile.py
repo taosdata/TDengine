@@ -23,7 +23,7 @@ class TestPercentile:
         #tdSql.init(conn.cursor(), logSql)
         cls.rowNum = 10
         cls.ts = 1537146000000
-        # self.setsql = TDSetSql()
+        cls.setsql = TDSetSql()
         cls.dbname = 'db'
         cls.ntbname = f'{cls.dbname}.ntb'
         cls.stbname = f'{cls.dbname}.stb'
@@ -89,10 +89,10 @@ class TestPercentile:
     def insert_data(self,column_dict,tbname,row_num):
         intData = []
         floatData = []
-        insert_sql = TDSetSql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
+        insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
         for i in range(row_num):
             insert_list = []
-            TDSetSql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
+            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
             intData.append(i)
             floatData.append(i + 0.1)
         return intData,floatData
@@ -101,7 +101,7 @@ class TestPercentile:
         tdSql.checkEqual(tdSql.queryResult[0][0], value)
     def function_check_ntb(self):
         tdSql.execute(f'create database {self.dbname}')
-        tdSql.execute(TDSetSql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
         intData,floatData = self.insert_data(self.column_dict,self.ntbname,self.rowNum)
         for k,v in self.column_dict.items():
             for param in self.param:
@@ -133,7 +133,7 @@ class TestPercentile:
         tdSql.execute(f'drop database {self.dbname}')
     def function_check_ctb(self):
         tdSql.execute(f'create database {self.dbname}')
-        tdSql.execute(TDSetSql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
+        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
         for i in range(self.tbnum):
             tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[0]})")
             intData,floatData = self.insert_data(self.column_dict,f'{self.stbname}_{i}',self.rowNum)

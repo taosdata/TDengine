@@ -37,7 +37,7 @@ class TestParaTms:
         cls.fornum = 5
 
         cls.db_nest = "stab"
-        cls.dropandcreateDB_random("%s" %cls.db_nest, 1)
+        # cls.dropandcreateDB_random("%s" %cls.db_nest, 1)
 
         # regular column select
         cls.q_select= ['q_int', 'q_bigint' , 'q_bigint' , 'q_smallint' , 'q_tinyint' , 'q_bool' , 'q_binary' , 'q_nchar' ,'q_float' , 'q_double' ,'q_ts ', 'q_int_null ', 'q_bigint_null ' , 'q_bigint_null ' , 'q_smallint_null ' , 'q_tinyint_null ' , 'q_bool_null ' , 'q_binary_null ' , 'q_nchar_null ' ,'q_float_null ' , 'q_double_null ' ,'q_ts_null ']
@@ -580,11 +580,11 @@ class TestParaTms:
                     'interval(1y) ','interval(1n) ','interval(1w) ','interval(1d) ','interval(1h) ','interval(1m) ','interval(1s) ' ,'interval(10a)',
                     'interval(1y,1n) ','interval(1n,1w) ','interval(1w,1d) ','interval(1d,1h) ','interval(1h,1m) ','interval(1m,1s) ','interval(1s,10a) ' ,'interval(100a,30a)']
 
-        cls.conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
-        cls.cur1 = cls.conn1.cursor()
-        cls.cur1.execute("use %s ;" %cls.db_nest)
-        sql = 'select /*+ para_tables_sort() */* from stable_1 limit 5;'
-        cls.cur1.execute(sql)
+        # cls.conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
+        # cls.cur1 = cls.conn1.cursor()
+        # cls.cur1.execute("use %s ;" %cls.db_nest)
+        # sql = 'select /*+ para_tables_sort() */* from stable_1 limit 5;'
+        # cls.cur1.execute(sql)
 
 
     def dropandcreateDB_random(self,database,n):
@@ -4906,6 +4906,11 @@ class TestParaTms:
         #self.function_before_26()
 
         self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        self.conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
+        self.cur1 = self.conn1.cursor()
+        self.cur1.execute("use %s ;" %self.db_nest)
+        sql = 'select /*+ para_tables_sort() */* from stable_1 limit 5;'
+        self.cur1.execute(sql)
 
         self.math_nest(['UNIQUE'])
         self.math_nest(['MODE'])

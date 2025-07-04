@@ -20,7 +20,7 @@ class TestTop:
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
-        # cls.setsql = # TDSetSql()
+        cls.setsql = TDSetSql()
         cls.dbname = 'db'
         cls.stbname = f'{cls.dbname}.stb'
         cls.ntbname = f'{cls.dbname}.ntb'
@@ -49,10 +49,10 @@ class TestTop:
         cls.param_list = [1,100]
 
     def insert_data(self,column_dict,tbname,row_num):
-        insert_sql = TDSetSql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
+        insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
         for i in range(row_num):
             insert_list = []
-            TDSetSql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
+            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
     def top_check_data(self,tbname,tb_type):
         new_column_dict = {}
         for param in self.param_list:
@@ -105,7 +105,7 @@ class TestTop:
             ]
         tdSql.execute(f"create database if not exists {self.dbname} vgroups 2")
         tdSql.execute(f'use {self.dbname}')
-        tdSql.execute(TDSetSql.set_create_stable_sql(self.stbname,self.column_dict,tag_dict))
+        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,tag_dict))
 
         for i in range(self.tbnum):
             tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({tag_values[0]})")
@@ -130,7 +130,7 @@ class TestTop:
     def top_check_ntb(self):
         tdSql.execute(f"create database if not exists {self.dbname}")
         tdSql.execute(f'use {self.dbname}')
-        tdSql.execute(TDSetSql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
         self.insert_data(self.column_dict,self.ntbname,self.rowNum)
         self.top_check_data(self.ntbname,'normal_table')
         tdSql.execute(f'drop database {self.dbname}')

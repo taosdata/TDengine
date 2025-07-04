@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, TDSql, tdCom
+from new_test_framework.utils import tdLog, tdSql, TDSql, tdCom, etool
 import random
 from typing import List
 
@@ -610,6 +610,8 @@ class TestTsma:
         cls.ctbNum = 10
         cls.rowsPerTbl = 10000
         cls.duraion = '1h'
+        cls.tsma_tester: TSMATester = TSMATester(tdSql)
+        cls.tsma_sql_generator: TSMATestSQLGenerator = TSMATestSQLGenerator()
 
     def create_database(self, tsql, dbName, dropFlag=1, vgroups=2, replica=1, duration: str = '1d'):
         if dropFlag == 1:
@@ -1559,9 +1561,10 @@ class TestTsma:
     def check_create_tsma_maxlist_function(self):
         function_name = sys._getframe().f_code.co_name
         tdLog.debug(f'-----{function_name}------')
-        json_file = "2-query/compa4096_tsma.json"
+        json_file = os.path.join(os.path.dirname(__file__), "compa4096_tsma.json")
         tdCom.update_json_file_replica(json_file, self.replicaVar)
-        os.system(f"taosBenchmark -f {json_file} -y ")
+        etool.benchMark(command="", json=json_file)
+        # os.system(f"taosBenchmark -f {json_file} -y ")
         # max number of list is 4093: 4096 - 3 - 2(原始表tag个数) - 1(tbname)
         tdSql.execute('use db4096')
 

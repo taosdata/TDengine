@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, etool
 
 import string
 import platform
@@ -44,7 +44,7 @@ class TestSlowQueryBasic:
         os.system(cmd)
         
     def checkSlowQuery(self):
-        self.taosBenchmark(" -d db -t 2 -v 2 -n 1000000 -y")
+        etool.benchMark(command =" -d db -t 2 -v 2 -n 1000000 -y")
         sql = "select count(*) from db.meters"
         for i in range(10):            
             tdSql.query(sql)

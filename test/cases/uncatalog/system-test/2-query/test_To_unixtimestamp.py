@@ -10,7 +10,7 @@ class TestToUnixtimestamp:
         cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
-        # cls.setsql = # TDSetSql()
+        cls.setsql = TDSetSql()
         cls.dbname = 'db'
         # name of normal table
         cls.ntbname = f'{cls.dbname}.ntb'
@@ -76,14 +76,14 @@ class TestToUnixtimestamp:
             tdSql.error(f"select to_unixtimestamp({time}) from {tbname}")
     def timestamp_change_check_ntb(self):
         tdSql.execute(f'create database {self.dbname}')
-        tdSql.execute(TDSetSql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
         for i in range(len(self.values_list)):
             tdSql.execute(f'insert into {self.ntbname} values({self.values_list[i]})')
         self.data_check(self.ntbname,self.values_list,'ntb')
         tdSql.execute(f'drop database {self.dbname}')
     def timestamp_change_check_stb(self):
         tdSql.execute(f'create database {self.dbname}')
-        tdSql.execute(TDSetSql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
+        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
         for i in range(self.tbnum):
             tdSql.execute(f'create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[i]})')
             for j in range(len(self.values_list)):

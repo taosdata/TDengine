@@ -15,7 +15,7 @@ import os
 import threading as thd
 import multiprocessing as mp
 import taos
-from new_test_framework.utils import tdLog, tdSql,tdDnodes
+from new_test_framework.utils import tdLog, tdSql,tdDnodes, etool
 import time
 # constant define
 WAITS = 5 # wait seconds
@@ -213,13 +213,14 @@ class TestQueryqnode:
 
 
     def taosBench(self,jsonFile):
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
-            tdLog.exit("taosd not found!")
-        else:
-            tdLog.info("taosd found in %s" % buildPath)
-        taosBenchbin = buildPath+ "/build/bin/taosBenchmark"
-        os.system("%s -f %s -y " %(taosBenchbin,jsonFile))
+        # buildPath = self.getBuildPath()
+        # if (buildPath == ""):
+        #     tdLog.exit("taosd not found!")
+        # else:
+        #     tdLog.info("taosd found in %s" % buildPath)
+        # taosBenchbin = buildPath+ "/build/bin/taosBenchmark"
+        # os.system("%s -f %s -y " %(taosBenchbin,jsonFile))
+        etool.benchMark(command="", json=jsonFile)
 
         return
     def taosBenchCreate(self,host,dropdb,dbname,stbname,vgroups,processNumbers,count):
@@ -240,8 +241,10 @@ class TestQueryqnode:
 
         threads = []
         for i in range(processNumbers):
-            jsonfile="1-insert/Vgroups%d%d.json"%(vgroups,i)
-            os.system("cp -f 1-insert/manyVgroups.json   %s"%(jsonfile))
+            current_dir = os.path.dirname(__file__)
+            sourcejsonfile = os.path.join(os.path.dirname(__file__), "manyVgroups.json")
+            jsonfile = os.path.join(current_dir, "Vgroups%d%d.json" % (vgroups, i))
+            os.system("cp -f %s %s"%(sourcejsonfile, jsonfile))
             os.system("sed -i 's/\"name\": \"db\",/\"name\": \"%s\",/g' %s"%(dbname,jsonfile))
             os.system("sed -i 's/\"drop\": \"no\",/\"drop\": \"%s\",/g' %s"%(dropdb,jsonfile))
             os.system("sed -i 's/\"host\": \"127.0.0.1\",/\"host\": \"%s\",/g' %s"%(host,jsonfile))

@@ -161,7 +161,7 @@ class TestGeometry:
         for i in range(tdSql.queryRows):
             tdSql.checkData(i, 0, expectedResults[5][i+1])
 
-    def test_td28365(self):
+    def check_td28365(self):
         # verify TD-28365
         tdSql.execute("create database db2;")
         tdSql.execute("use db2;")
@@ -276,7 +276,7 @@ class TestGeometry:
             [1, self.point]               # in where clause
         ]
         self.geomRelationFunc_test('ST_ContainsProperly', expectedResults)
-        self.test_td28365()
+        self.check_td28365()
 
         #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
