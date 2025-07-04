@@ -462,16 +462,18 @@ pub async fn flat_write_with_sql(
         .iter()
         .into_group_map_by(|m| m.stable_name().map(|s| s.to_string()));
 
-    let database_name =
-        match get_database(pool, taos, DEFAULT_MAX_RETRIES_FOR_CONNECTION, cancel).await {
-            Ok(db) => Some(db),
-            Err(err) => {
-                match handling_database_not_exist(global, messages, err, archive_tx.clone()).await {
-                    Ok(_) => return Ok(0),
-                    Err(e) => return Err(e),
-                }
+    let db_name = match get_database(pool, taos, DEFAULT_MAX_RETRIES_FOR_CONNECTION, cancel).await {
+        Ok(db) => Some(db),
+        Err(err) => {
+            return match handling_database_not_exist(global, messages, err, archive_tx.clone())
+                .await
+            {
+                Ok(_) => Ok(0),
+                Err(e) => Err(e),
             }
-        };
+        }
+    };
+
     // insert into stable
     for (stable, messages) in groups.into_iter() {
         let instant = std::time::Instant::now();
@@ -480,9 +482,9 @@ pub async fn flat_write_with_sql(
             target_precision,
             true,
             true,
-            database_name.as_deref(),
+            db_name.as_deref(),
         );
-        tracing::trace!(
+        trace!(
             stable = stable.as_deref(),
             sqls = sqls.len(),
             cost = ?instant.elapsed(),
@@ -491,15 +493,13 @@ pub async fn flat_write_with_sql(
         );
 
         let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
-        // debug_assert!(qid.task_id() > 0);
-        // debug_assert!(qid.batch_id() > 0);
         for records in sqls {
             let archive_tx = archive_tx.clone();
             loop {
                 qid.add_sub_batch_id();
                 match write_stable_with_sql(pool, taos, qid.get(), &records, cancel).await {
                     Ok(n) => {
-                        tracing::trace!(stable, rows = n, "write stable success");
+                        trace!(stable, rows = n, "write stable success");
 
                         count += n;
                         metrics_success!(n, cols);
@@ -669,7 +669,7 @@ pub async fn flat_write_with_sql(
                                     &messages[0].opts,
                                     &qid,
                                     cancel,
-                                    database_name.as_deref(),
+                                    db_name.as_deref(),
                                     stable.as_deref().unwrap_or_default(),
                                     &records.batches,
                                     &err,
@@ -792,7 +792,7 @@ pub async fn flat_write_with_sql(
                                         &messages[0].opts,
                                         &qid,
                                         cancel,
-                                        database_name.as_deref(),
+                                        db_name.as_deref(),
                                         stable,
                                         field,
                                         &records.batches,
@@ -1830,37 +1830,6 @@ pub async fn flat_write_with_raw_block(
                         .inspect(|_| metrics.add_created_tables(1))?;
                     }
                     continue;
-                // } else if errno == 0x2605 {
-                //     // 0x2605: wrong value type
-                //     // container length is too short.
-                //     let desc = describe_table_with_connection_retries(
-                //         pool,
-                //         taos,
-                //         &table_name,
-                //         DEFAULT_MAX_RETRIES_FOR_CONNECTION,
-                //         cancel,
-                //     )
-                //     .in_current_span()
-                //     .await?;
-                //     let table = records.stable_name().unwrap_or(&table_name);
-                //     for f in desc.iter().filter(|f| !f.is_tag() && f.ty().is_var_type()) {
-                //         let sql = format!(
-                //             "alter table `{table}` modify column `{}` {}({})",
-                //             f.field(),
-                //             f.ty(),
-                //             f.length() * 2
-                //         );
-                //         qid.add_sub_batch_id();
-                //         let _ = exec_sql_with_connection_retries(
-                //             pool,
-                //             taos,
-                //             &sql,
-                //             qid.get(),
-                //             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
-                //             cancel,
-                //         )
-                //         .await;
-                //     }
                 } else if errno == 0x0118 {
                     // 0x0118: invalid parameter
                     // Code([0x0118] Unknown or common error)
@@ -2841,7 +2810,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
 
     let qid = Span.get_qid().unwrap_or_else(Qid::init);
     // debug_assert!(qid.task_id() > 0);
-    tracing::info!(num = workers, "create flat stream concurrent workers");
+    info!(num = workers, "create flat stream concurrent workers");
     for i in 0..workers {
         let count = count.clone();
         let context = context.clone();
