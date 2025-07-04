@@ -512,7 +512,7 @@ class TDCom:
         elif "TDengine" in selfPath:
             projPath = selfPath[:selfPath.find("TDengine")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            projPath = selfPath[:selfPath.find("test")]
 
         for root, dirs, files in os.walk(projPath):
             if ("taosd" in files or "taosd.exe" in files):

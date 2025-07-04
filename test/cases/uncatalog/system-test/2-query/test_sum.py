@@ -211,7 +211,7 @@ class TestSum:
         self.autoGen.create_db(dbname)
         self.autoGen.create_stable(stbname, 16, colnum, 8, 16)
         self.autoGen.create_child(stbname, "d", 4)
-        self.autoGen.insert_data_sys(10000)
+        self.autoGen.insert_data(10000)
 
         # check correct
         i = 0

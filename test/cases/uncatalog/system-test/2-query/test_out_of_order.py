@@ -16,7 +16,7 @@ import random
 import platform
 import time
 
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, etool
 
 class TestOutOfOrder:
     def setup_class(cls):
@@ -29,7 +29,7 @@ class TestOutOfOrder:
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            projPath = selfPath[:selfPath.find("test")]
 
         for root, dirs, files in os.walk(projPath):
             taosdFileName = "taosd"
