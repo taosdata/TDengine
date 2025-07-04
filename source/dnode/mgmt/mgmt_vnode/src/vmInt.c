@@ -536,10 +536,22 @@ static void *vmOpenVnodeInThread(void *param) {
       pThread->updateVnodesList = true;
     }
 
-    int32_t diskPrimary = pCfg->diskPrimary;
+    int32_t diskPrimary = pCfg->mountId == 0 ? pCfg->diskPrimary : 0;
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pCfg->vgId);
 
-    SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, NULL, pMgmt->msgCb, false);
+    STfs *pMountTfs = NULL;
+#ifdef USE_MOUNT
+    if (pCfg->mountId) {
+      SMountTfs *mountTfs = taosHashGet(pMgmt->mountTfsHash, &pCfg->mountId, sizeof(pCfg->mountId));
+      if (!(mountTfs && *(SMountTfs **)mountTfs && (pMountTfs = (*(SMountTfs **)mountTfs)->pTfs))) {
+        dError("vgId:%d, failed to get mount tfs by thread:%d", pCfg->vgId, pThread->threadIndex);
+        pThread->failed++;
+        continue;
+      }
+    }
+#endif
+
+    SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMountTfs, pMgmt->msgCb, false);
 
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d since %s", pCfg->vgId, pThread->threadIndex, terrstr());
@@ -567,6 +579,7 @@ static void *vmOpenVnodeInThread(void *param) {
   return NULL;
 }
 
+#ifdef USE_MOUNT
 static int32_t vmOpenMountTfs(SVnodeMgmt *pMgmt) {
   int32_t    code = 0, lino = 0;
   int32_t    numOfMounts = 0;
@@ -602,7 +615,7 @@ _exit:
   taosArrayDestroy(pDisks);
   TAOS_RETURN(code);
 }
-
+#endif
 static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
   pMgmt->runngingHash =
       taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
