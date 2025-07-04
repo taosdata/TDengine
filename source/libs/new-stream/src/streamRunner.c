@@ -118,6 +118,7 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
   pTask->topTask = pMsg->topPlan;
   pTask->notification.calcNotifyOnly = pMsg->calcNotifyOnly;
   pTask->notification.notifyErrorHandle = pMsg->notifyErrorHandle;
+  pTask->streamName = taosStrdup(pMsg->streamName);
 
   int32_t code = nodesStringToList(pMsg->tagValueExpr, &pTask->output.pTagValExprs);
   ST_TASK_DLOG("pTagValExprs: %s", (char*)pMsg->tagValueExpr);
@@ -158,6 +159,7 @@ int32_t stRunnerTaskUndeployImpl(SStreamRunnerTask** ppTask, const SStreamUndepl
   taosMemoryFreeClear(pTask->pPlan);
   taosArrayDestroyEx(pTask->forceOutCols, destroySStreamOutCols);
   taosArrayDestroyP(pTask->notification.pNotifyAddrUrls, taosMemFree);
+  taosMemoryFreeClear(pTask->streamName);
 
   cb(ppTask);
   
@@ -344,7 +346,7 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
     }
     pTriggerCalcParams->resultNotifyContent = pContent;
 
-    code = streamSendNotifyContent(&pTask->task, pExec->runtimeInfo.funcInfo.triggerType,
+    code = streamSendNotifyContent(&pTask->task, pTask->streamName, pExec->runtimeInfo.funcInfo.triggerType,
                                    pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
                                    pTask->notification.notifyErrorHandle, pTriggerCalcParams, 1);
   }

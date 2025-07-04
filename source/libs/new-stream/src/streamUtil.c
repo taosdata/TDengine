@@ -708,8 +708,9 @@ static void streamNotifyClose(CURL** pConn, const char* url) {
 
 #define STREAM_EVENT_NOTIFY_RETRY_MS 50  // 50 ms
 
-int32_t streamSendNotifyContent(SStreamTask* pTask, int32_t triggerType, int64_t groupId, const SArray* pNotifyAddrUrls,
-                                int32_t errorHandle, const SSTriggerCalcParam* pParams, int32_t nParam) {
+int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, int32_t triggerType, int64_t groupId,
+                                const SArray* pNotifyAddrUrls, int32_t errorHandle, const SSTriggerCalcParam* pParams,
+                                int32_t nParam) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SStringBuilder sb = {0};
@@ -717,6 +718,10 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, int32_t triggerType, int64_t
   char*          msg = NULL;
   CURL*          conn = NULL;
   bool           shouldNotify = false;
+
+  // Remove prefix 1. 
+  char*          pos = strstr(streamName, TS_PATH_DELIMITER);
+  if (pos != NULL) streamName = ++pos;
 
   if (nParam <= 0 || taosArrayGetSize(pNotifyAddrUrls) <= 0) {
     goto _end;
@@ -735,8 +740,8 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, int32_t triggerType, int64_t
 
   taosStringBuilderEnsureCapacity(&sb, 1024);
   size_t msgTailLen = strlen(msgTail);
-  // todo(kjq): fix stream name
-  code = streamAppendNotifyHeader("<fake_stream_name>", &sb);
+
+  code = streamAppendNotifyHeader(streamName, &sb);
   QUERY_CHECK_CODE(code, lino, _end);
   sb.pos -= msgTailLen;
   for (int32_t i = 0; i < nParam; ++i) {

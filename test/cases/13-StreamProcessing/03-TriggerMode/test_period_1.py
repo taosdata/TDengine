@@ -89,7 +89,7 @@ def wait_for_insert_complete(num_of_tables, num_of_rows):
         tdSql.query(f"select count(*) from db.source_table", None, queryTimes=50)
         val = tdSql.getData(0, 0)
 
-        if val == total_rows:
+        if val >= total_rows:
             print(f"insert completed, total rows:{total_rows} for {num_of_tables} tables")
             break
         time.sleep(1)
@@ -98,6 +98,11 @@ def wait_for_insert_complete(num_of_tables, num_of_rows):
 def wait_for_stream_done_r1(sql: str, expect: int):
     while True:
         tdSql.query(sql)
+        if tdSql.getRows() == 0:
+            print("stream not completed")
+            time.sleep(2)
+            continue
+
         if tdSql.getData(0, 0) == expect:
             print("stream completed")
             break

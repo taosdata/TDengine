@@ -2098,8 +2098,8 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
       QUERY_CHECK_CODE(code, lino, _return);
     }
 
-    if (pInserter->submitRes.code == TSDB_CODE_TDB_TABLE_NOT_EXIST &&
-        !pInput->pStreamDataInserterInfo->isAutoCreateTable) {
+    if ((pInserter->submitRes.code == TSDB_CODE_TDB_TABLE_NOT_EXIST &&
+        !pInput->pStreamDataInserterInfo->isAutoCreateTable) || pInserter->submitRes.code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
       rmDbVgInfoFromCache(pInserter->pParam->streamInserterParam->dbFName);
       stInfo("putStreamDataBlock, stream inserter table info not found, groupId:%" PRId64
              ", tbName:%s. so reset dbVgInfo",

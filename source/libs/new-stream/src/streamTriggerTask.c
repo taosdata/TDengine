@@ -16,6 +16,7 @@
 #include "streamTriggerTask.h"
 
 #include "dataSink.h"
+#include "osMemPool.h"
 #include "plannodes.h"
 #include "streamInt.h"
 #include "streamReader.h"
@@ -2539,7 +2540,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       }
 
       if (taosArrayGetSize(pContext->pNotifyParams) > 0) {
-        code = streamSendNotifyContent(&pTask->task, pTask->triggerType, pGroup->gid, pTask->pNotifyAddrUrls,
+        code = streamSendNotifyContent(&pTask->task, pTask->streamName, pTask->triggerType, pGroup->gid, pTask->pNotifyAddrUrls,
                                        pTask->notifyErrorHandle, TARRAY_DATA(pContext->pNotifyParams),
                                        TARRAY_SIZE(pContext->pNotifyParams));
         QUERY_CHECK_CODE(code, lino, _end);
@@ -2653,9 +2654,9 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       }
 
       if (taosArrayGetSize(pContext->pNotifyParams) > 0) {
-        code = streamSendNotifyContent(&pTask->task, pTask->triggerType, pGroup->gid, pTask->pNotifyAddrUrls,
-                                       pTask->notifyErrorHandle, TARRAY_DATA(pContext->pNotifyParams),
-                                       TARRAY_SIZE(pContext->pNotifyParams));
+        code = streamSendNotifyContent(&pTask->task, pTask->streamName, pTask->triggerType, pGroup->gid,
+                                       pTask->pNotifyAddrUrls, pTask->notifyErrorHandle,
+                                       TARRAY_DATA(pContext->pNotifyParams), TARRAY_SIZE(pContext->pNotifyParams));
         QUERY_CHECK_CODE(code, lino, _end);
       }
       stRealtimeGroupClearTemp(pGroup);
@@ -3646,6 +3647,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->hasPartitionBy = pMsg->hasPartitionBy;
   pTask->isVirtualTable = pMsg->isTriggerTblVirt;
   pTask->placeHolderBitmap = pMsg->placeHolderBitmap;
+  pTask->streamName = taosStrdup(pMsg->streamName);
   code = nodesStringToNode(pMsg->triggerPrevFilter, &pTask->triggerFilter);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -3867,6 +3869,10 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
   if (pTask->pGroupRunning != NULL) {
     tSimpleHashCleanup(pTask->pGroupRunning);
     pTask->pGroupRunning = NULL;
+  }
+  if(pTask->streamName != NULL) {
+    taosMemoryFree(pTask->streamName);
+    pTask->streamName = NULL;
   }
 
 _end:
