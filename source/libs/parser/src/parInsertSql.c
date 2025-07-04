@@ -2952,8 +2952,16 @@ static int32_t parseInsertTableClause(SInsertParseContext* pCxt, SVnodeModifyOpS
       parserDebug("QID:0x%" PRIx64 ", miss cache, parse values: %s, len: %d", pCxt->pComCxt->requestId,
                   pInsertTokens->values.z, pInsertTokens->values.n);
       pStmt->pSql += pInsertTokens->values.n;
+      // Set totalRowsNum to indicate there is data available
       char tbFName[TSDB_TABLE_FNAME_LEN];
       code = tNameExtractFullName(&pStmt->targetTableName, tbFName);
+      pInsertTokens->pName = taosMemoryCalloc(1, sizeof(SName));
+      if (NULL == pInsertTokens->pName) {
+        taosMemoryFree(pInsertTokens);
+        return terrno;
+      }
+      memcpy(pInsertTokens->pName, &pStmt->targetTableName, sizeof(SName));
+      pInsertTokens->isStb = false;
       if (TSDB_CODE_SUCCESS == code) {
         SArray* pInsertTokensArray = taosHashGet(pStmt->pInsertTokensHashObj, tbFName, strlen(tbFName));
         if (pInsertTokensArray != NULL) {
@@ -2961,22 +2969,27 @@ static int32_t parseInsertTableClause(SInsertParseContext* pCxt, SVnodeModifyOpS
         } else {
           pInsertTokensArray = taosArrayInit(1, sizeof(SInsertTokens*));
           if (pInsertTokensArray == NULL) {
+            taosMemoryFree(pInsertTokens->pName);
+            taosMemoryFree(pInsertTokens);
             return terrno;
           }
           taosArrayPush(pInsertTokensArray, &pInsertTokens);
           code = taosHashPut(pStmt->pInsertTokensHashObj, tbFName, strlen(tbFName), &pInsertTokensArray, POINTER_BYTES);
+          if (TSDB_CODE_SUCCESS != code) {
+            // If hash put failed, we need to clean up the array and its contents
+            for (int i = 0; i < taosArrayGetSize(pInsertTokensArray); i++) {
+              SInsertTokens** ppTokens = (SInsertTokens**)taosArrayGet(pInsertTokensArray, i);
+              if (ppTokens && *ppTokens) {
+                SInsertTokens* pTokens = *ppTokens;
+                taosMemoryFree(pTokens->pName);
+                taosMemoryFree(pTokens);
+              }
+            }
+            taosArrayDestroy(pInsertTokensArray);
+          }
         }
       }
       if (code == TSDB_CODE_SUCCESS) {
-        // Store target table name in SInsertTokens
-        if (pInsertTokens) {
-          pInsertTokens->pName = taosMemoryCalloc(1, sizeof(SName));
-          if (NULL == pInsertTokens->pName) {
-            return terrno;
-          }
-          memcpy(pInsertTokens->pName, &pStmt->targetTableName, sizeof(SName));
-          pInsertTokens->isStb = false;
-        }
         pCxt->numOfMissingCacheTables++;
       }
     } else {
@@ -3140,7 +3153,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   parserDebug("parseInsertBody hasData: %d, pStmt->fileProcessing: %d, numOfMissingCacheTables: %d", hasData,
               pStmt->fileProcessing, pCxt->numOfMissingCacheTables);
 
-  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
+  if (TSDB_CODE_SUCCESS == code && pCxt->numOfMissingCacheTables == 0) {
     code = parseInsertBodyBottom(pCxt, pStmt);
   }
   return code;
@@ -3149,10 +3162,17 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
 static void destroySubTableHashElem(void* p) { taosMemoryFree(*(STableMeta**)p); }
 
 static void destroyInsertTokensHashElem(void* p) {
-  SInsertTokens* pTokens = *(SInsertTokens**)p;
-  if (pTokens) {
-    taosMemoryFree(pTokens->pName);
-    taosMemoryFree(pTokens);
+  SArray* pInsertTokensArray = *(SArray**)p;
+  if (pInsertTokensArray) {
+    for (int i = 0; i < taosArrayGetSize(pInsertTokensArray); i++) {
+      SInsertTokens** ppTokens = (SInsertTokens**)taosArrayGet(pInsertTokensArray, i);
+      if (ppTokens && *ppTokens) {
+        SInsertTokens* pTokens = *ppTokens;
+        taosMemoryFree(pTokens->pName);
+        taosMemoryFree(pTokens);
+      }
+    }
+    taosArrayDestroy(pInsertTokensArray);
   }
 }
 
