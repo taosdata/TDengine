@@ -175,6 +175,8 @@ static int32_t vmDecodeVnodeList(SJson *pJson, SVnodeMgmt *pMgmt, SWrapperCfg **
     if (code != 0) goto _OVER;
     tjsonGetInt32ValueFromDouble(vnode, "toVgId", pCfg->toVgId, code);
     if (code != 0) goto _OVER;
+    tjsonGetNumberValue(vnode, "mountId", pCfg->mountId, code);
+    if (code != 0) goto _OVER;
 
     snprintf(pCfg->path, sizeof(pCfg->path), "%s%svnode%d", pMgmt->path, TD_DIRSEP, pCfg->vgId);
   }
@@ -280,6 +282,9 @@ static int32_t vmEncodeVnodeList(SJson *pJson, SVnodeObj **ppVnodes, int32_t num
     if ((code = tjsonAddDoubleToObject(vnode, "diskPrimary", pVnode->diskPrimary)) < 0) return code;
     if (pVnode->toVgId) {
       if ((code = tjsonAddDoubleToObject(vnode, "toVgId", pVnode->toVgId)) < 0) return code;
+    }
+    if (pVnode->mountId) {
+      if ((code = tjsonAddDoubleToObject(vnode, "mountId", pVnode->mountId)) < 0) return code;
     }
     if ((code = tjsonAddItemToArray(vnodes, vnode)) < 0) return code;
   }
@@ -503,7 +508,7 @@ int32_t vmWriteMountListToFile(SVnodeMgmt *pMgmt) {
   TSDB_CHECK_NULL((pJson = tjsonCreateObject()), code, lino, _exit, terrno);
   TAOS_CHECK_EXIT(vmEncodeMountList(pMgmt, pJson));
   TSDB_CHECK_NULL((buffer = tjsonToString(pJson)), code, lino, _exit, terrno);
-  TAOS_CHECK_EXIT(taosThreadMutexLock(&pMgmt->fileLock));
+  TAOS_CHECK_EXIT(taosThreadMutexLock(&pMgmt->mutex));
   unlock = true;
   TSDB_CHECK_NULL((pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH)),
                   code, lino, _exit, terrno);
@@ -517,7 +522,7 @@ int32_t vmWriteMountListToFile(SVnodeMgmt *pMgmt) {
   TAOS_CHECK_EXIT(taosRenameFile(file, realfile));
   dInfo("succeed to write mounts file:%s", realfile);
 _exit:
-  if (unlock && (ret = taosThreadMutexUnlock(&pMgmt->fileLock))) {
+  if (unlock && (ret = taosThreadMutexUnlock(&pMgmt->mutex))) {
     dError("failed to unlock at line %d when write mounts file since %s", __LINE__, tstrerror(ret));
   }
   if (pJson) tjsonDelete(pJson);

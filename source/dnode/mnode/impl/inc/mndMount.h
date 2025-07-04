@@ -38,6 +38,7 @@ bool    mndMountIsExist(SMnode *pMnode, const char *db);
 void    mndBuildMountDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList);
 void    mndMountFreeObj(SMountObj *pObj);
 void    mndMountDestroyObj(SMountObj *pObj);
+bool    mndHasMountOnDnode(SMnode *pMnode, int32_t dnodeId);
 
 const char *mndGetMountStr(const char *src);
 

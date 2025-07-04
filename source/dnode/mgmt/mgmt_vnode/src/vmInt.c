@@ -269,6 +269,7 @@ static int32_t vmRegisterClosedState(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   pClosedVnode->vgVersion = pVnode->vgVersion;
   pClosedVnode->diskPrimary = pVnode->diskPrimary;
   pClosedVnode->toVgId = pVnode->toVgId;
+  pClosedVnode->mountId = pVnode->mountId;
 
   SVnodeObj *pOld = NULL;
   int32_t    r = taosHashGetDup(pMgmt->closedHash, &pVnode->vgId, sizeof(int32_t), (void *)&pOld);
@@ -314,6 +315,7 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   pVnode->vgId = pCfg->vgId;
   pVnode->vgVersion = pCfg->vgVersion;
   pVnode->diskPrimary = pCfg->diskPrimary;
+  pVnode->mountId = pCfg->mountId;
   pVnode->refCount = 0;
   pVnode->dropped = 0;
   pVnode->failed = 0;

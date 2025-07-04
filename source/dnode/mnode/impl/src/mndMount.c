@@ -1701,10 +1701,30 @@ static int32_t mndBuildDropMountRsp(SMountObj *pObj, int32_t *pRspLen, void **pp
   TAOS_RETURN(code);
 }
 
+bool mndHasMountOnDnode(SMnode *pMnode, int32_t dnodeId) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+
+  while (1) {
+    SMountObj *pMount = NULL;
+    pIter = sdbFetch(pSdb, SDB_MOUNT, pIter, (void **)&pMount);
+    if (pIter == NULL) break;
+
+    for (int32_t i = 0; i < pMount->nMounts; ++i) {
+      if (pMount->dnodeIds[i] == dnodeId) {
+        sdbRelease(pSdb, pMount);
+        return true;
+      }
+    }
+    sdbRelease(pSdb, pMount);
+  }
+  return false;
+}
+
 static int32_t mndDropMount(SMnode *pMnode, SRpcMsg *pReq, SMountObj *pObj) {
   int32_t code = -1, lino = 0;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "drop-mount");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "drop-mount");
   if (pTrans == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;

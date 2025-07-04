@@ -1267,6 +1267,8 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
   vmGenerateVnodeCfg(&req, &vnodeCfg);
   vmGenerateWrapperCfg(pMgmt, &req, &wrapperCfg);
+  // TODO: refact
+  wrapperCfg.mountId = req.mountId;
 
   SVnodeObj *pVnode = vmAcquireVnodeImpl(pMgmt, req.vgId, false);
   if (pVnode != NULL && (req.replica == 1 || !pVnode->failed)) {

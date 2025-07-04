@@ -21,6 +21,7 @@
 #include "mndCluster.h"
 #include "mndDb.h"
 #include "mndMnode.h"
+#include "mndMount.h"
 #include "mndPrivilege.h"
 #include "mndQnode.h"
 #include "mndShow.h"
@@ -1191,6 +1192,9 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
   mInfo("trans:%d, used to drop dnode:%d, force:%d", pTrans->id, pDnode->id, force);
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), &lino, _OVER);
 
+
+  
+
   pRaw = mndDnodeActionEncode(pDnode);
   if (pRaw == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -1363,6 +1367,14 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
            numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
     goto _OVER;
   }
+
+#ifdef USE_MOUNT
+  if (mndHasMountOnDnode(pMnode, pDnode->id) && !force) {
+    code = TSDB_CODE_MND_MOUNT_NOT_EMPTY;
+    mError("dnode:%d, failed to drop since %s", pDnode->id, tstrerror(code));
+    goto _OVER;
+  }
+#endif
 
   code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, pBObj, numOfVnodes, force, dropReq.unsafe);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;

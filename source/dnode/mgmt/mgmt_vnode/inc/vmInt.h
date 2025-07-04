@@ -68,6 +68,7 @@ typedef struct {
   int8_t  dropped;
   int32_t diskPrimary;
   int32_t toVgId;
+  int64_t mountId;
   char    path[PATH_MAX + 20];
 } SWrapperCfg;
 
@@ -80,6 +81,7 @@ typedef struct {
   int8_t       disable;
   int32_t      diskPrimary;
   int32_t      toVgId;
+  int64_t      mountId;
   char        *path;
   SVnode      *pImpl;
   SMultiWorker pWriteW;
