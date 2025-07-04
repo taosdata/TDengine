@@ -182,13 +182,13 @@ cmd ::= CREATE XNODE NK_STRING(A).                                              
 cmd ::= CREATE XNODE NK_STRING(A) USER user_name(B) PASS NK_STRING(C).            { pCxt->pRootNode = createCreateXnodeWithUserPassStmt(pCxt, &A, &B, &C); }
 cmd ::= UPDATE XNODE NK_INTEGER(A).                                               { pCxt->pRootNode = createUpdateXnodeStmt(pCxt, &A, false); }
 cmd ::= UPDATE ALL XNODES.                                                        { pCxt->pRootNode = createUpdateXnodeStmt(pCxt, NULL, true); }
-cmd ::= DROP XNODE xnode_endpoint(A).                                             { pCxt->pRootNode = createDropXnodeStmt(pCxt, &A); }
+cmd ::= DROP XNODE xnode_endpoint(A) force_opt(B).                                { pCxt->pRootNode = createDropXnodeStmt(pCxt, &A, B); }
+cmd ::= DROP XNODE FORCE xnode_endpoint(A).                                       { pCxt->pRootNode = createDropXnodeStmt(pCxt, &A, true); }
 
 %type xnode_endpoint                                                              { SToken }
 %destructor xnode_endpoint                                                        { }
 xnode_endpoint(A) ::= NK_STRING(B).                                               { A = B; }
 xnode_endpoint(A) ::= NK_INTEGER(B).                                              { A = B; }
-xnode_endpoint(A) ::= NK_ID(B).                                                   { A = B; }
 
 /* create xnode agent 'a1' */
 cmd ::= CREATE XNODE xnode_resource_type(A) NK_STRING(B) with_task_options_opt(E).
@@ -221,8 +221,14 @@ xnode_task_options(A) ::= NK_ID(C) NK_STRING(D).                                
 xnode_task_options(A) ::= NK_ID(C) NK_EQ NK_STRING(D).                            { A = setXnodeTaskOption(pCxt, NULL, &C, &D); }
 xnode_task_options(A) ::= xnode_task_options(B) NK_ID(C) NK_STRING(D).            { A = setXnodeTaskOption(pCxt, B, &C, &D); }
 xnode_task_options(A) ::= xnode_task_options(B) NK_ID(C) NK_EQ NK_STRING(D).      { A = setXnodeTaskOption(pCxt, B, &C, &D); }
-xnode_task_options(A) ::= xnode_task_options(B) TRIGGER NK_STRING(D).             { A = setXnodeTaskOption(pCxt, B, NULL, &D); }
-xnode_task_options(A) ::= xnode_task_options(B) TRIGGER NK_EQ NK_STRING(D).       { A = setXnodeTaskOption(pCxt, B, NULL, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C) NK_EQ NK_STRING(D).      { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C) NK_EQ NK_STRING(D).  { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C).                { A = setXnodeTaskOption(pCxt, B, &C, NULL); }
+xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C).                     { A = setXnodeTaskOption(pCxt, B, &C, NULL); }
+xnode_task_options(A) ::= xnode_task_options(B) TRIGGER NK_STRING(D).             { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+xnode_task_options(A) ::= xnode_task_options(B) TRIGGER NK_EQ NK_STRING(D).       { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA TRIGGER NK_EQ NK_STRING(D).       { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+xnode_task_options(A) ::= xnode_task_options(B) AND TRIGGER NK_EQ NK_STRING(D).       { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
 
 with_task_options_opt(A) ::= .                                                    { A = NULL; }
 with_task_options_opt(A) ::= WITH xnode_task_options(B).                          { A = B; }

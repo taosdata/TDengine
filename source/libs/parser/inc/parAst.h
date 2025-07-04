@@ -313,20 +313,21 @@ typedef enum EXnodeResourceType {
 
 EXnodeResourceType setXnodeResourceType(SAstCreateContext* pCxt, const SToken* pResourceId);
 
-SNode* createXnodeSourceAsDsn(SAstCreateContext* pCxt, const SToken* pDsn);
-SNode* createXnodeSourceAsDatabase(SAstCreateContext* pCxt, const SToken* pDatabase);
-SNode* createXnodeSourceAsTopic(SAstCreateContext* pCxt, const SToken* pTopic);
-SNode* createXnodeSinkAsDsn(SAstCreateContext* pCxt, const SToken* pDsn);
-SNode* createXnodeSinkAsDatabase(SAstCreateContext* pCxt, const SToken* pDatabase);
+SNode* createXnodeSourceAsDsn(SAstCreateContext* pCxt, const SToken* pToken);
+SNode* createXnodeSourceAsDatabase(SAstCreateContext* pCxt, const SToken* pToken);
+SNode* createXnodeSourceAsTopic(SAstCreateContext* pCxt, const SToken* pToken);
+SNode* createXnodeSinkAsDsn(SAstCreateContext* pCxt, const SToken* pToken);
+SNode* createXnodeSinkAsDatabase(SAstCreateContext* pCxt, const SToken* pToken);
 SNode* createCreateXnodeWithUserPassStmt(SAstCreateContext* pCxt, const SToken* pUrl, SToken* pUser,
                                          const SToken* pPass);
 SNode* createCreateXnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl);
-SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode);
 SNode* createUpdateXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool updateAll);
+SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool force);
 
 SNode* createXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResourceName,
                                   SNode* pB, SNode* pC, SNode* pNode);
 SNode* createDefaultXnodeTaskOptions(SAstCreateContext* pCxt);
+SToken* createTriggerToken();
 SNode* setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pOptions, SToken* pKey, SToken* pVal);
 SNode* dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResourceName);
 /** end @section xnode */

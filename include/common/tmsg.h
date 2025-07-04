@@ -385,8 +385,12 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_XNODE_STMT,    // XNode
   QUERY_NODE_UPDATE_XNODE_STMT,  // XNode for taosx
   QUERY_NODE_XNODE_TASK_OPTIONS,  // XNode task options
+  QUERY_NODE_XNODE_TASK_SOURCE_OPT,  // XNode task source
+  QUERY_NODE_XNODE_TASK_SINK_OPT,    // XNode task sink
+  QUERY_NODE_CREATE_XNODE_AGENT_STMT,  // XNode agent
   QUERY_NODE_CREATE_XNODE_TASK_STMT,  // XNode task
   QUERY_NODE_DROP_XNODE_TASK_STMT,    // XNode task
+  QUERY_NODE_DROP_XNODE_AGENT_STMT,   // XNode agent
   QUERY_NODE_ALTER_XNODE_TASK_STMT,  // XNode task
 
   // show statement nodes

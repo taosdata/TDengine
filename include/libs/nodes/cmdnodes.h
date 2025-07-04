@@ -16,13 +16,14 @@
 #ifndef _TD_CMD_NODES_H_
 #define _TD_CMD_NODES_H_
 
+#include "tmsg.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "tdef.h"
 #include "query.h"
 #include "querynodes.h"
+#include "tdef.h"
 
 #define DESCRIBE_RESULT_COLS               4
 #define DESCRIBE_RESULT_COLS_COMPRESS      7
@@ -31,7 +32,7 @@ extern "C" {
 #define DESCRIBE_RESULT_TYPE_LEN           (20 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_NOTE_LEN           (16 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_COPRESS_OPTION_LEN (TSDB_CL_COMPRESS_OPTION_LEN + VARSTR_HEADER_SIZE)
-#define DESCRIBE_RESULT_COL_REF_LEN         (TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_COL_REF_LEN        (TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE)
 
 #define SHOW_CREATE_DB_RESULT_COLS       2
 #define SHOW_CREATE_DB_RESULT_FIELD1_LEN (TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE)
@@ -186,22 +187,22 @@ typedef struct SCompactVgroupsStmt {
 } SCompactVgroupsStmt;
 
 typedef struct STableOptions {
-  ENodeType  type;
-  bool       virtualStb;
-  bool       commentNull;
-  char       comment[TSDB_TB_COMMENT_LEN];
-  SNodeList* pMaxDelay;
-  int64_t    maxDelay1;
-  int64_t    maxDelay2;
-  SNodeList* pWatermark;
-  int64_t    watermark1;
-  int64_t    watermark2;
-  SNodeList* pDeleteMark;
-  int64_t    deleteMark1;
-  int64_t    deleteMark2;
-  SNodeList* pRollupFuncs;
-  int32_t    ttl;
-  SNodeList* pSma;
+  ENodeType   type;
+  bool        virtualStb;
+  bool        commentNull;
+  char        comment[TSDB_TB_COMMENT_LEN];
+  SNodeList*  pMaxDelay;
+  int64_t     maxDelay1;
+  int64_t     maxDelay2;
+  SNodeList*  pWatermark;
+  int64_t     watermark1;
+  int64_t     watermark2;
+  SNodeList*  pDeleteMark;
+  int64_t     deleteMark1;
+  int64_t     deleteMark2;
+  SNodeList*  pRollupFuncs;
+  int32_t     ttl;
+  SNodeList*  pSma;
   SValueNode* pKeepNode;
   int32_t     keep;
 } STableOptions;
@@ -239,24 +240,24 @@ typedef struct SCreateTableStmt {
 } SCreateTableStmt;
 
 typedef struct SCreateVTableStmt {
-  ENodeType      type;
-  char           dbName[TSDB_DB_NAME_LEN];
-  char           tableName[TSDB_TABLE_NAME_LEN];
-  bool           ignoreExists;
-  SNodeList*     pCols;
+  ENodeType  type;
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       tableName[TSDB_TABLE_NAME_LEN];
+  bool       ignoreExists;
+  SNodeList* pCols;
 } SCreateVTableStmt;
 
 typedef struct SCreateVSubTableStmt {
-  ENodeType      type;
-  char           dbName[TSDB_DB_NAME_LEN];
-  char           tableName[TSDB_TABLE_NAME_LEN];
-  char           useDbName[TSDB_DB_NAME_LEN];
-  char           useTableName[TSDB_TABLE_NAME_LEN];
-  bool           ignoreExists;
-  SNodeList*     pSpecificTags;
-  SNodeList*     pValsOfTags;
-  SNodeList*     pSpecificColRefs;
-  SNodeList*     pColRefs;
+  ENodeType  type;
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       tableName[TSDB_TABLE_NAME_LEN];
+  char       useDbName[TSDB_DB_NAME_LEN];
+  char       useTableName[TSDB_TABLE_NAME_LEN];
+  bool       ignoreExists;
+  SNodeList* pSpecificTags;
+  SNodeList* pValsOfTags;
+  SNodeList* pSpecificColRefs;
+  SNodeList* pColRefs;
 } SCreateVSubTableStmt;
 
 typedef struct SCreateSubTableClause {
@@ -343,28 +344,28 @@ typedef struct SAlterTableMultiStmt {
 } SAlterTableMultiStmt;
 
 typedef struct SCreateUserStmt {
-  ENodeType   type;
-  char        userName[TSDB_USER_LEN];
-  char        password[TSDB_USET_PASSWORD_LONGLEN];
-  int8_t      sysinfo;
-  int8_t      createDb;
-  int8_t      isImport;
-  int32_t     numIpRanges;
-  SIpRange*   pIpRanges;
+  ENodeType type;
+  char      userName[TSDB_USER_LEN];
+  char      password[TSDB_USET_PASSWORD_LONGLEN];
+  int8_t    sysinfo;
+  int8_t    createDb;
+  int8_t    isImport;
+  int32_t   numIpRanges;
+  SIpRange* pIpRanges;
 
   SNodeList* pNodeListIpRanges;
 } SCreateUserStmt;
 
 typedef struct SAlterUserStmt {
-  ENodeType   type;
-  char        userName[TSDB_USER_LEN];
-  int8_t      alterType;
-  char        password[TSDB_USET_PASSWORD_LONGLEN];
-  int8_t      enable;
-  int8_t      sysinfo;
-  int8_t      createdb;
-  int32_t     numIpRanges;
-  SIpRange*   pIpRanges;
+  ENodeType type;
+  char      userName[TSDB_USER_LEN];
+  int8_t    alterType;
+  char      password[TSDB_USET_PASSWORD_LONGLEN];
+  int8_t    enable;
+  int8_t    sysinfo;
+  int8_t    createdb;
+  int32_t   numIpRanges;
+  SIpRange* pIpRanges;
 
   SNodeList* pNodeListIpRanges;
 } SAlterUserStmt;
@@ -446,6 +447,7 @@ typedef struct {
 typedef struct {
   ENodeType type;
   int32_t   xnodeId;
+  bool      force;
 } SDropXnodeStmt;
 
 typedef struct {
@@ -457,25 +459,65 @@ typedef struct {
   ENodeType type;
   // taosX Agent ID.
   int32_t via;
-  char    name[TSDB_XNODE_TASK_NAME_LEN + 3];
   char    trigger[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
   char    health[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
   char    parser[TSDB_XNODE_TASK_PARSER_LEN + 3];
-} SXTaskOptions;
+  int32_t optionsNum;
+  char*   options[TSDB_XNODE_TASK_OPTIONS_MAX_NUM];  // options in the form of "key=value", e.g., "group.id=task1",
+                                                     // "via=1", "parser=taosx"
+} SXnodeTaskOptions;
+
+typedef enum {
+  XNODE_TASK_SOURCE_DSN = 1,
+  XNODE_TASK_SOURCE_DATABASE,
+  XNODE_TASK_SOURCE_TOPIC,
+} ENodeXTaskSourceType;
+
+typedef enum {
+  XNODE_TASK_SINK_DSN = 1,
+  XNODE_TASK_SINK_DATABASE,
+} ENodeXTaskSinkType;
 typedef struct {
-  ENodeType type;
-  int32_t sourceType;
-  char database[TSDB_DB_NAME_LEN + 3];
-  char topic[TSDB_TOPIC_NAME_LEN + 3];
-  char dsn[TSDB_XNODE_TASK_SOURCE_LEN + 3];
+  ENodeType            type;
+  ENodeXTaskSourceType sourceType;
+  char                 database[TSDB_DB_NAME_LEN + 3];
+  char                 topic[TSDB_TOPIC_NAME_LEN + 3];
+  char                 dsn[TSDB_XNODE_TASK_SOURCE_LEN + 3];
 } SXTaskSource;
 typedef struct {
-  ENodeType type;
-  int32_t sinkType;
-  char database[TSDB_DB_NAME_LEN + 3];
-  char dsn[TSDB_XNODE_TASK_SOURCE_LEN + 3];
+  ENodeType          type;
+  ENodeXTaskSinkType sinkType;
+  char               database[TSDB_DB_NAME_LEN + 3];
+  char               dsn[TSDB_XNODE_TASK_SOURCE_LEN + 3];
 } SXTaskSink;
 
+typedef struct {
+  ENodeType          type;
+  char               name[TSDB_TABLE_NAME_LEN + 3];
+  SXTaskSource*      source;
+  SXTaskSink*        sink;
+  SXnodeTaskOptions* options;
+} SXnodeTaskCreateStmt;
+
+typedef struct {
+  ENodeType          type;
+  char               name[TSDB_TABLE_NAME_LEN + 3];
+  SXnodeTaskOptions* options;
+} SXnodeAgentCreateStmt;
+
+typedef struct {
+  ENodeType          type;
+  char               name[TSDB_TABLE_NAME_LEN + 3];
+  SXTaskSource*      source;
+  SXTaskSink*        sink;
+  SXnodeTaskOptions* options;
+} SXnodeTaskAlterStmt;
+typedef struct {
+  ENodeType type;
+  char      name[TSDB_TABLE_NAME_LEN + 3];
+  bool      force;  // DROP XNODE TASK FORCE 'name'
+} SXnodeTaskDropStmt;
+typedef SXnodeTaskDropStmt SXnodeAgentDropStmt;
 
 typedef struct SShowStmt {
   ENodeType     type;

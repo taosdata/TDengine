@@ -17,6 +17,7 @@
 #include "functionMgt.h"
 #include "nodes.h"
 #include "nodesUtil.h"
+#include "osMemory.h"
 #include "plannodes.h"
 #include "querynodes.h"
 #include "taos.h"
@@ -1035,7 +1036,13 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
     case QUERY_NODE_XNODE_TASK_OPTIONS:
-      code = makeNode(type, sizeof(SXTaskOptions), &pNode);
+      code = makeNode(type, sizeof(SXnodeTaskOptions), &pNode);
+      break;
+    case QUERY_NODE_XNODE_TASK_SOURCE_OPT:
+      code =makeNode(type, sizeof(SXTaskSource), &pNode); 
+      break;
+    case QUERY_NODE_XNODE_TASK_SINK_OPT:
+      code =makeNode(type, sizeof(SXTaskSink), &pNode); 
       break;
     default:
       break;
@@ -2191,6 +2198,14 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN:
       nodesDestroyList(((SQueryPlan*)pNode)->pSubplans);
       break;
+    case QUERY_NODE_XNODE_TASK_OPTIONS: {
+      SXnodeTaskOptions* pOptions = (SXnodeTaskOptions*)pNode;
+      printf("Destroying Xnode task options with %d options\n", pOptions->optionsNum);
+      for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
+        taosMemFreeClear(pOptions->options[i]);
+      }
+      break;
+    }
     default:
       break;
   }
