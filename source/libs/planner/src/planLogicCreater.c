@@ -1722,9 +1722,6 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
     PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
     PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_WINDOW, NULL));
     PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
-    TSWAP(pWindow->node.pLimit, pSelect->pLimit);
-    TSWAP(pWindow->node.pSlimit, pSelect->pSlimit);
-    pSelect->hasProject = false;
   } else {
     // has agg func, collect again with placeholder func
     nodesDestroyList(pWindow->pFuncs);
@@ -2015,7 +2012,9 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
 static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList ||
       !pCxt->pPlanCxt->streamCalcQuery || !pCxt->pPlanCxt->withExtWindow ||
-      nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE || nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE || pSelect->isSubquery) {
+      nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
+      nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE ||
+      pSelect->isSubquery || NULL != pSelect->pSlimit || NULL != pSelect->pLimit) {
     return TSDB_CODE_SUCCESS;
   }
   int32_t code = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, &pSelect->pWindow);
@@ -2319,9 +2318,6 @@ static int32_t createColumnByProjections(SLogicPlanContext* pCxt, const char* pS
 }
 
 static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (!pSelect->hasProject) {
-    return TSDB_CODE_SUCCESS;
-  }
   SProjectLogicNode* pProject = NULL;
   int32_t            code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT, (SNode**)&pProject);
   if (NULL == pProject) {

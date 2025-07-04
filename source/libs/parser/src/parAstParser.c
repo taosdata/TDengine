@@ -137,7 +137,8 @@ static EDealRes collectMetaKeyFromFunction(SCollectMetaKeyFromExprCxt* pCxt, SFu
 }
 
 static bool needGetTableIndex(SNode* pStmt) {
-  if (QUERY_SMA_OPTIMIZE_ENABLE == tsQuerySmaOptimize && QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+  return false;
+  if (QUERY_SMA_OPTIMIZE_ENABLE == tsQuerySmaOptimize && QUERY_NODE_SELECT_STMT == nodeType(pStmt) && !QUERY_SMA_OPTIMIZE_NOT_SUPPORT) {
     SSelectStmt* pSelect = (SSelectStmt*)pStmt;
     return (NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow));
   }
@@ -197,7 +198,7 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
     code = collectMetaKeyFromInsTags(pCxt);
   }
   if (TSDB_CODE_SUCCESS == code && QUERY_SMA_OPTIMIZE_ENABLE == tsQuerySmaOptimize &&
-      QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
+      QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt) && !QUERY_SMA_OPTIMIZE_NOT_SUPPORT) {
     code = reserveTableTSMAInfoInCache(pCxt->pParseCxt->acctId, pDb, pTable, pCxt->pMetaCache);
   }
   return code;

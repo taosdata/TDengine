@@ -495,6 +495,9 @@ typedef struct SStreamTaskAddr {
   SEpSet  epset;
 } SStreamTaskAddr;
 
+int32_t tDecodeSStreamTaskAddr(SDecoder* pDecoder, SStreamTaskAddr* pMsg);
+int32_t tEncodeSStreamTaskAddr(SEncoder* pEncoder, const SStreamTaskAddr* pMsg);
+
 typedef struct SStreamRunnerTarget {
   SStreamTaskAddr addr;
   int32_t         execReplica;
@@ -580,10 +583,14 @@ typedef struct {
 
 typedef struct {
   int64_t         streamId;
-  SArray*         readerTasks;  // SArray<SStmTaskDeploy> in v/sNode and SArray<SStmTaskDeploy*> in mNode
+  SArray*         readerTasks;  // SArray<SStmTaskDeploy>
   SStmTaskDeploy* triggerTask;
-  SArray*         runnerTasks;  // SArray<SStmTaskDeploy> in v/sNode and SArray<SStmTaskDeploy*> in mNode
+  SArray*         runnerTasks;  // SArray<SStmTaskDeploy>
 } SStmStreamDeploy;
+
+
+void tFreeSStmStreamDeploy(void* param);
+void tDeepFreeSStmStreamDeploy(void* param);
 
 typedef struct {
   SArray* streamList;  // SArray<SStmStreamDeploy>
@@ -624,6 +631,7 @@ typedef struct {
   SStreamMgmtRsps        rsps;
 } SMStreamHbRspMsg;
 
+
 void tFreeSMStreamHbRspMsg(SMStreamHbRspMsg* pRsp);
 void tDeepFreeSMStreamHbRspMsg(SMStreamHbRspMsg* pRsp);
 int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp);
@@ -649,9 +657,8 @@ int32_t tDecodeStreamTaskStopReq(SDecoder* pDecoder, SStreamTaskStopReq* pReq);
 
 typedef struct SStreamProgressReq {
   int64_t streamId;
-  int32_t vgId;
+  int64_t taskId;
   int32_t fetchIdx;
-  int32_t subFetchIdx;
 } SStreamProgressReq;
 
 int32_t tSerializeStreamProgressReq(void* buf, int32_t bufLen, const SStreamProgressReq* pReq);
@@ -659,11 +666,9 @@ int32_t tDeserializeStreamProgressReq(void* buf, int32_t bufLen, SStreamProgress
 
 typedef struct SStreamProgressRsp {
   int64_t streamId;
-  int32_t vgId;
   bool    fillHisFinished;
   int64_t progressDelay;
   int32_t fetchIdx;
-  int32_t subFetchIdx;
 } SStreamProgressRsp;
 
 int32_t tSerializeStreamProgressRsp(void* buf, int32_t bufLen, const SStreamProgressRsp* pRsp);

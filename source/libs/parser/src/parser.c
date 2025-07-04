@@ -315,14 +315,6 @@ int32_t qContinueParseSql(SParseContext* pCxt, struct SCatalogReq* pCatalogReq, 
 int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, SSDataBlock* pBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
-    case QUERY_NODE_CREATE_INDEX_STMT: {
-      code = translatePostCreateSmaIndex(pCxt, pQuery, pBlock);
-      break;
-    }
-    case QUERY_NODE_CREATE_TSMA_STMT: {
-      code = translatePostCreateTSMA(pCxt, pQuery, pBlock);
-      break;
-    }
     default:
       break;
   }

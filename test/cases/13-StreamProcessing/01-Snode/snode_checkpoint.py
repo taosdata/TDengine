@@ -135,7 +135,7 @@ class TestStreamCheckpoint:
 
     def checkpoint(self) -> None:
         tdLog.info("do check checkpoint info")
-        base = os.getcwd() + "/new_test_framework/utils/sim/dnode1/data/snode/snode1/"
+        base = os.getcwd() + "/new_test_framework/utils/sim/dnode1/data/snode/"
 
         if not os.path.exists(base + "checkpoint"):
             print("checkpoint file not exists")

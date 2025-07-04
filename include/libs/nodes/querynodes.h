@@ -591,7 +591,6 @@ typedef struct SSelectStmt {
   bool            tagScan;
   bool            joinContains;
   bool            mixSysTableAndActualTable;
-  bool            hasProject;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -796,6 +795,7 @@ int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value);
 char*   nodesGetStrValueFromNode(SValueNode* pNode);
 int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode);
+int32_t nodesMakeDurationValueNodeFromString(char* literal, SValueNode** ppValNode);
 int32_t nodesMakeValueNodeFromBool(bool b, SValueNode** ppValNode);
 int32_t nodesMakeValueNodeFromInt32(int32_t value, SNode** ppNode);
 int32_t nodesMakeValueNodeFromInt64(int64_t value, SNode** ppNode);
