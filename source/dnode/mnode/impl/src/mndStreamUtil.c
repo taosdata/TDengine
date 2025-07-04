@@ -108,7 +108,6 @@ void mstDestroySStmVgroupStatus(void* param) {
 }
 
 void mstResetSStmStatus(SStmStatus* pStatus) {
-  taosMemoryFreeClear(pStatus->streamName);
   taosArrayDestroy(pStatus->trigReaders);
   pStatus->trigReaders = NULL;
   taosArrayDestroy(pStatus->calcReaders);
