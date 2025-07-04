@@ -2110,6 +2110,9 @@ static int32_t streamScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
       } else {
         info.pSubplan->numOfComputeNodes = 1;
       }
+      if (!pScanSubplan->pVgroupList) {
+        PLAN_ERR_RET(cloneVgroups(&pScanSubplan->pVgroupList, info.pSubplan->pVgroupList));
+      }
       pScanSubplan->dynTbname = pCxt->pPlanCxt->phTbnameQuery;
       PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)pScanSubplan));
     } else {
