@@ -62,9 +62,11 @@ use tracing::instrument;
 
 use super::expr;
 use crate::core_metrics::CoreMetrics;
-use crate::global::TABLE_TAG_CACHE;
 use crate::plugins::transform::parse::ArrayForTaos;
-use crate::{global::SQL_TAG_CACHE_CAPACITY, ArchiveType};
+use crate::{
+    global::{SQL_TAG_CACHE_CAPACITY, TABLE_TAG_CACHE},
+    ArchiveType,
+};
 
 use self::{
     modeler::{ModeledRecordBatch, Modeler},

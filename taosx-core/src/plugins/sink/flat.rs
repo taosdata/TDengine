@@ -2869,19 +2869,27 @@ pub async fn ipc_flat_stream_worker_concurrent(
                     }
                     tracing::trace!("Writing batch");
                     let mut written = 0;
-                    let res = consume_flat_record(
-                        &context.pool,
-                        &mut taos,
-                        &record,
-                        &mut written,
-                        &cancel,
-                        &context.parser,
-                        context.target_precision,
-                        metrics,
-                        Some(&notifier),
-                        archive_tx.clone(),
-                    )
-                    .await;
+                    let res = if unsafe { crate::global::DRY_RUN_DATASOURCE } {
+                        let num_rows = record.num_rows();
+                        if num_rows != 0 {
+                            metrics.add_processed_rows(num_rows as u64);
+                        }
+                        Ok(())
+                    } else {
+                        consume_flat_record(
+                            &context.pool,
+                            &mut taos,
+                            &record,
+                            &mut written,
+                            &cancel,
+                            &context.parser,
+                            context.target_precision,
+                            metrics,
+                            Some(&notifier),
+                            archive_tx.clone(),
+                        )
+                        .await
+                    };
                     worker_written += written;
                     count.fetch_add(written, Ordering::SeqCst);
                     metrics.add_processed_messages(raw_rows as u64);
