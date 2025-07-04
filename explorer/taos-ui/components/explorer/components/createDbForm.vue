@@ -725,7 +725,6 @@ function handleCreateDb() {
       data.name = formData.value.name;
     }
     requesting.value = true;
-    console.log('ddddd:', data);
     props
       .updateApi(data)
       .then(() => {
