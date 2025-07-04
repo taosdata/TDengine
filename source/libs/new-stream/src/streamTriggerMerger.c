@@ -289,11 +289,20 @@ static int32_t stTimestampSorterMetaListCompare(const void *pLeft, const void *p
       // sort by version in descending order
       int64_t verLeft = TD_DLIST_HEAD(pLeftList)->pMeta->ver;
       int64_t verRight = TD_DLIST_HEAD(pRightList)->pMeta->ver;
-      return -(verLeft - verRight);
+      if (verLeft < verRight) {
+        return 1;
+      } else if (verLeft > verRight) {
+        return -1;
+      }
     }
   }
   // fallback to index comparison
-  return left - right;
+  if (left < right) {
+    return -1;
+  } else if (left > right) {
+    return 1;
+  }
+  return 0;
 }
 
 static int32_t stTimestampSorterBuildDataMerger(SSTriggerTimestampSorter *pSorter) {
@@ -512,10 +521,16 @@ _end:
 static int32_t stTimestampSorterWindowReverseCompare(const void *pLeft, const void *pRight) {
   STimeWindow *pLeftWin = (STimeWindow *)pLeft;
   STimeWindow *pRightWin = (STimeWindow *)pRight;
-  if (pLeftWin->ekey == pRightWin->ekey) {
-    return -(pLeftWin->skey - pRightWin->skey);
+  if (pLeftWin->ekey < pRightWin->ekey) {
+    return 1;
+  } else if (pLeftWin->ekey > pRightWin->ekey) {
+    return -1;
+  } else if (pLeftWin->skey < pRightWin->skey) {
+    return 1;
+  } else if (pLeftWin->skey > pRightWin->skey) {
+    return -1;
   }
-  return -(pLeftWin->ekey - pRightWin->ekey);
+  return 0;
 }
 
 static int32_t stTimestampSorterBuildSessWin(SSTriggerTimestampSorter *pSorter, int64_t gap) {
@@ -770,7 +785,12 @@ static int32_t stVtableMergerReaderInfoCompare(const void *pLeft, const void *pR
     }
   }
   // fallback to index comparison
-  return left - right;
+  if (left < right) {
+    return -1;
+  } else if (left > right) {
+    return 1;
+  }
+  return 0;
 }
 
 int32_t stVtableMergerInit(SSTriggerVtableMerger *pMerger, struct SStreamTriggerTask *pTask, SSDataBlock **ppDataBlock,
@@ -1046,7 +1066,7 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
 
     if (pReaderInfo->pDataBlock == NULL) {
       // get next data block from reader
-      SSTriggerTimestampSorter *pReader = TARRAY_GET_ELEM(pMerger->pReaders, idx);
+      SSTriggerTimestampSorter *pReader = *(SSTriggerTimestampSorter **)TARRAY_GET_ELEM(pMerger->pReaders, idx);
       code = stTimestampSorterNextDataBlock(pReader, &pReaderInfo->pDataBlock, &pReaderInfo->startIdx,
                                             &pReaderInfo->endIdx);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -1134,7 +1154,7 @@ int32_t stVtableMergerGetMetaToFetch(SSTriggerVtableMerger *pMerger, SSTriggerMe
                         TSDB_CODE_INVALID_PARA);
   int32_t                   idx = tMergeTreeGetChosenIndex(pMerger->pDataMerger);
   SVtableMergerReaderInfo  *pReaderInfo = TARRAY_GET_ELEM(pMerger->pReaderInfos, idx);
-  SSTriggerTimestampSorter *pReader = TARRAY_GET_ELEM(pMerger->pReaders, idx);
+  SSTriggerTimestampSorter *pReader = *(SSTriggerTimestampSorter **)TARRAY_GET_ELEM(pMerger->pReaders, idx);
   if (pReaderInfo->pDataBlock == NULL) {
     code = stTimestampSorterGetMetaToFetch(pReader, ppMeta);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1161,7 +1181,7 @@ int32_t stVtableMergerBindDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
 
   int32_t                   idx = tMergeTreeGetChosenIndex(pMerger->pDataMerger);
   SVtableMergerReaderInfo  *pReaderInfo = TARRAY_GET_ELEM(pMerger->pReaderInfos, idx);
-  SSTriggerTimestampSorter *pReader = TARRAY_GET_ELEM(pMerger->pReaders, idx);
+  SSTriggerTimestampSorter *pReader = *(SSTriggerTimestampSorter **)TARRAY_GET_ELEM(pMerger->pReaders, idx);
   QUERY_CHECK_CONDITION(pReaderInfo->pDataBlock == NULL, code, lino, _end, TSDB_CODE_INVALID_PARA);
   code = stTimestampSorterBindDataBlock(pReader, ppDataBlock);
   QUERY_CHECK_CODE(code, lino, _end);

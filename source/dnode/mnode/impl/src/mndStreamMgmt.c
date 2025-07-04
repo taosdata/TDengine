@@ -826,7 +826,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->fillHistoryFirst = pStream->pCreate->fillHistoryFirst;
   pMsg->lowLatencyCalc = pStream->pCreate->lowLatencyCalc;
   pMsg->hasPartitionBy = (pStream->pCreate->partitionCols != NULL);
-  pMsg->triggerTblType = pStream->pCreate->triggerTblType;
+  pMsg->isTriggerTblVirt = STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags);
 
   pMsg->pNotifyAddrUrls = pStream->pCreate->pNotifyAddrUrls;
   pMsg->notifyEventTypes = pStream->pCreate->notifyEventTypes;
@@ -842,10 +842,11 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->eventTypes = pStream->pCreate->eventTypes;
   pMsg->placeHolderBitmap = pStream->pCreate->placeHolderBitmap;
   pMsg->tsSlotId = pStream->pCreate->tsSlotId;
-  if (STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags)) {
-    pMsg->calcPlan = pStream->pCreate->calcPlan;
-  }
   pMsg->triggerPrevFilter = pStream->pCreate->triggerPrevFilter;
+  if (STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags)) {
+    pMsg->triggerScanPlan = pStream->pCreate->triggerScanPlan;
+    pMsg->calcCacheScanPlan = msmSearchCalcCacheScanPlan(pStream->pCreate->calcScanPlanList);
+  }
 
   SStreamTaskAddr addr;
   int32_t triggerReaderNum = taosArrayGetSize(pInfo->trigReaders);
@@ -1308,6 +1309,8 @@ int32_t msmUPAddScanTask(SStmGrpCtx* pCtx, SStreamObj* pStream, char* scanPlan, 
   
 _exit:
 
+  nodesDestroyNode((SNode*)pSubplan);
+
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
@@ -1345,6 +1348,8 @@ int32_t msmUPAddCacheTask(SStmGrpCtx* pCtx, SStreamCalcScan* pScan, SStreamObj* 
   
 _exit:
 
+  nodesDestroyNode((SNode*)pSubplan);
+  
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
@@ -1826,6 +1831,9 @@ int32_t msmReBuildRunnerTasks(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* pI
 
     TAOS_CHECK_EXIT(msmSTAddToSnodeMap(pCtx, streamId, pInfo->runners[deployId], NULL, 0, deployId));
 
+    nodesDestroyNode((SNode *)pDag);
+    pDag = NULL;
+
     TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pDag));
   }
 
@@ -1835,6 +1843,7 @@ _exit:
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
+  nodesDestroyNode((SNode *)pDag);
   taosArrayDestroy(deployTaskList);
 
   return code;
@@ -2887,13 +2896,13 @@ void msmCleanDeployedSnodeTasks (int32_t snodeId) {
 
   if (atomic_load_32(&pSnode->triggerDeployed) == triggerNum) {
     atomic_sub_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, triggerNum);
-    taosArrayDestroy(pSnode->triggerList);
+    taosArrayDestroyEx(pSnode->triggerList, mstDestroySStmTaskToDeployExt);
     pSnode->triggerList = NULL;
   }
 
   if (atomic_load_32(&pSnode->runnerDeployed) == runnerNum) {
     atomic_sub_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, runnerNum);
-    taosArrayDestroy(pSnode->runnerList);
+    taosArrayDestroyEx(pSnode->runnerList, mstDestroySStmTaskToDeployExt);
     pSnode->runnerList = NULL;
   }
 
@@ -2911,6 +2920,7 @@ void msmCleanDeployedSnodeTasks (int32_t snodeId) {
         continue;
       }
 
+      mstDestroySStmTaskToDeployExt(pExt);
       atomic_sub_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
       taosArrayRemove(pSnode->triggerList, m);
     }
@@ -2925,6 +2935,7 @@ void msmCleanDeployedSnodeTasks (int32_t snodeId) {
         continue;
       }
 
+      mstDestroySStmTaskToDeployExt(pExt);
       atomic_sub_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
       taosArrayRemove(pSnode->runnerList, m);
     }
@@ -4113,6 +4124,8 @@ int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, 
 
   taosRUnLockLatch(&mStreamMgmt.runtimeLock);
 
+  tFreeSMStreamHbRspMsg(&rsp);
+
   return code;
 }
 
@@ -4750,6 +4763,7 @@ int32_t msmInitRuntimeInfo(SMnode *pMnode) {
     mError("failed to initialize the stream runtime toUpdateScanMap, error:%s", tstrerror(code));
     goto _exit;
   }
+  taosHashSetFreeFp(mStreamMgmt.toUpdateScanMap, mstDestroyScanAddrList);
 
   TAOS_CHECK_EXIT(msmSTAddSnodesToMap(pMnode));
   TAOS_CHECK_EXIT(msmSTAddDnodesToMap(pMnode));

@@ -47,9 +47,11 @@ static SLogicSubplan* singleCloneSubLogicPlan(SScaleOutContext* pCxt, SLogicSubp
 static int32_t doSetScanVgroup(SLogicNode* pNode, const SVgroupInfo* pVgroup, bool* pFound) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-    pScan->pVgroupList = taosMemoryCalloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
-    if (NULL == pScan->pVgroupList) {
-      return terrno;
+    if (!pScan->pVgroupList) {
+      pScan->pVgroupList = taosMemoryCalloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
+      if (NULL == pScan->pVgroupList) {
+        return terrno;
+      }
     }
     memcpy(pScan->pVgroupList->vgroups, pVgroup, sizeof(SVgroupInfo));
     pScan->pVgroupList->numOfVgroups = 1;

@@ -215,6 +215,7 @@ typedef struct SSTriggerColMatch {
 typedef struct SSTriggerTableColRef {
   int64_t otbSuid;
   int64_t otbUid;
+  int32_t otbVgId;
   SArray *pColMatches;  // SArray<SSTriggerColMatch>
 } SSTriggerTableColRef;
 

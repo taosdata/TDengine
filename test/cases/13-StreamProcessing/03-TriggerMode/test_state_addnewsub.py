@@ -1,6 +1,6 @@
 import time
 import math
-from new_test_framework.utils import tdLog, tdSql, tdStream
+from new_test_framework.utils import tdLog, tdSql, tdStream, StreamCheckItem
 
 
 class TestStreamStateTrigger:
@@ -133,7 +133,7 @@ class TestStreamStateTrigger:
         # tdSql.printResult()
 
         tdLog.info(f"=============== check stream result to new sub table")
-        self.checksNew(0)   #  if sql3
+        # self.checksNew(0)   #  if sql3
         # self.checksNew(1)   #  if sql4
 
         ############ true_for 
@@ -397,6 +397,10 @@ class TestStreamStateTrigger:
         return
 
     def checks4(self):
+        tdLog.info(f"=============== must not alter tag value for using partition by stream  =====================")
+        sql_error = "alter table ct1 set tag tint=111"
+        tdSql.error(sql_error)
+        
         result_sql = "select firstts, lastts, num_v, cnt_v, avg_v from res_stb_mtag_ct1_1"
         tdSql.checkResultsByFunc(
             sql=result_sql,

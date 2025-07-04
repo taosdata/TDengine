@@ -4,6 +4,7 @@
 #include "executor.h"
 #include "plannodes.h"
 #include "scalar.h"
+#include "stream.h"
 #include "streamInt.h"
 #include "tarray.h"
 #include "tdatablock.h"
@@ -40,10 +41,16 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
   return 0;
 }
 
+static void stRunnerDestroyRuntimeInfo(SStreamRuntimeInfo* pRuntime) {
+  tDestroyStRtFuncInfo(&pRuntime->funcInfo);
+}
+
 static void stRunnerDestroyTaskExecution(void* pExec) {
   SStreamRunnerTaskExecution* pExecution = pExec;
   pExecution->pPlan = 0;
-  streamDestroyExecTask(pExecution->pExecutor);
+  streamDestroyExecTask(pExecution->pExecutor);  
+  dsDestroyDataSinker(pExecution->pSinkHandle);
+  stRunnerDestroyRuntimeInfo(&pExecution->runtimeInfo);
 }
 
 static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t execId,
@@ -111,6 +118,7 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
   pTask->topTask = pMsg->topPlan;
   pTask->notification.calcNotifyOnly = pMsg->calcNotifyOnly;
   pTask->notification.notifyErrorHandle = pMsg->notifyErrorHandle;
+  pTask->streamName = taosStrdup(pMsg->streamName);
 
   int32_t code = nodesStringToList(pMsg->tagValueExpr, &pTask->output.pTagValExprs);
   ST_TASK_DLOG("pTagValExprs: %s", (char*)pMsg->tagValueExpr);
@@ -149,6 +157,7 @@ int32_t stRunnerTaskUndeployImpl(SStreamRunnerTask** ppTask, const SStreamUndepl
   taosMemoryFreeClear(pTask->pPlan);
   taosArrayDestroyEx(pTask->forceOutCols, destroySStreamOutCols);
   taosArrayDestroyP(pTask->notification.pNotifyAddrUrls, taosMemFree);
+  taosMemoryFreeClear(pTask->streamName);
 
   cb(ppTask);
   
@@ -167,6 +176,7 @@ int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, bool force) {
   return stRunnerTaskUndeployImpl(ppTask, &pTask->task.undeployMsg, pTask->task.undeployCb);
 }
 
+bool stRunnerTaskWaitQuit(SStreamRunnerTask* pTask) { return taosHasRWWFlag(&pTask->task.entryLock); }
 
 static int32_t streamResetTaskExec(SStreamRunnerTaskExecution* pExec, bool ignoreTbName) {
   int32_t code = 0;
@@ -300,7 +310,7 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
         SInputData              input = {.pData = pBlock, .pStreamDataInserterInfo = &d};
         bool                    cont = false;
         code = dsPutDataBlock(pExec->pSinkHandle, &input, &cont);
-        ST_TASK_DLOG("runner output block to sink code:%d, rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %" PRId64,
+        ST_TASK_DLOG("runner output block to sink code:0x%0x, rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %" PRId64,
                      code, pBlock->info.rows, pExec->tbname, createTb, pExec->runtimeInfo.funcInfo.groupId);
         printDataBlock(pBlock, "output block to sink", "runner");
       } else {
@@ -321,11 +331,20 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   code = streamBuildBlockResultNotifyContent(pBlock, &pContent, pTask->output.outCols);
   if (code == 0) {
     ST_TASK_DLOG("start to send notify:%s", pContent);
+    int32_t index = pExec->runtimeInfo.funcInfo.curOutIdx;
+    if (pExec->runtimeInfo.funcInfo.curOutIdx >= pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size) {
+      pExec->runtimeInfo.funcInfo.curOutIdx = pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size - 1;
+    }
     SSTriggerCalcParam* pTriggerCalcParams =
         taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, pExec->runtimeInfo.funcInfo.curOutIdx);
+    if (pTriggerCalcParams == NULL) {
+      ST_TASK_ELOG("failed to get trigger calc params for index:%d, size:%d", index,
+                   (int32_t)pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size);
+      return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+    }
     pTriggerCalcParams->resultNotifyContent = pContent;
 
-    code = streamSendNotifyContent(&pTask->task, pExec->runtimeInfo.funcInfo.triggerType,
+    code = streamSendNotifyContent(&pTask->task, pTask->streamName, pExec->runtimeInfo.funcInfo.triggerType,
                                    pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
                                    pTask->notification.notifyErrorHandle, pTriggerCalcParams, 1);
   }
@@ -337,7 +356,10 @@ static int32_t stRunnerHandleResultBlock(SStreamRunnerTask* pTask, SStreamRunner
   int32_t code = stRunnerOutputBlock(pTask, pExec, pBlock, *pCreateTb);
   //*pCreateTb = false;
   if (code == 0) {
-    return streamDoNotification(pTask, pExec, pBlock);
+    code = streamDoNotification(pTask, pExec, pBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("failed to send notification for block, code:%s", tstrerror(code));
+    }
   }
   return code;
 }
@@ -507,6 +529,10 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   bool    createTable = pReq->createTable;
   int32_t nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx;
   while (pExec->runtimeInfo.funcInfo.curOutIdx < winNum && code == 0) {
+    if (stRunnerTaskWaitQuit(pTask)) {
+      ST_TASK_ILOG("[runner calc]quit, skip calc. gid:%" PRId64 ",, status:%d", pReq->gid, pTask->task.status);
+      break;
+    }
     bool         finished = false;
     SSDataBlock* pBlock = NULL;
     uint64_t     ts = 0;

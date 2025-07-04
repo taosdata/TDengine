@@ -97,6 +97,9 @@ void dsScheduleProcess(void* ahandle, void* pItem) {
 }
 
 void dsDestroyDataSinker(DataSinkHandle handle) {
+  if (NULL == handle) {
+    return;
+  }
   SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
   (void)pHandleImpl->fDestroy(pHandleImpl);
   taosMemoryFree(pHandleImpl);

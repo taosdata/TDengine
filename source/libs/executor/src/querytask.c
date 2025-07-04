@@ -105,6 +105,8 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
     return code;
   }
 
+  (*pTaskInfo)->pSubplan = pPlan;
+
   if (pHandle) {
     if (pHandle->pStateBackend) {
       (*pTaskInfo)->streamInfo.pState = pHandle->pStateBackend;
@@ -116,14 +118,12 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
     (*pTaskInfo)->sql = taosStrdup(sql);
     if (NULL == (*pTaskInfo)->sql) {
       code = terrno;
-      nodesDestroyNode((SNode*)pPlan);
       doDestroyTask(*pTaskInfo);
       (*pTaskInfo) = NULL;
       return code;
     }
   }
 
-  (*pTaskInfo)->pSubplan = pPlan;
   (*pTaskInfo)->pWorkerCb = pHandle->pWorkerCb;
   (*pTaskInfo)->pStreamRuntimeInfo = pHandle->streamRtInfo;
   code = createOperator(pPlan->pNode, *pTaskInfo, pHandle, pPlan->pTagCond, pPlan->pTagIndexCond, pPlan->user,

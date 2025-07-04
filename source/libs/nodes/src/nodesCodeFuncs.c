@@ -4654,6 +4654,9 @@ static int32_t jsonToPlan(const SJson* pJson, void* pObj) {
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
+    nodesClearList(pTopSubplan->pNodeList);
+    pTopSubplan->pNodeList = NULL;
+    nodesDestroyNode((SNode *)pTopSubplan);
     if (numOfSubplan != pNode->numOfSubplans) {
       code = TSDB_CODE_PLAN_INTERNAL_ERROR;
       nodesError("%s toNode error numOfSubplan %d != %d", nodesNodeName(pNode->type), numOfSubplan, pNode->numOfSubplans);
@@ -7086,6 +7089,7 @@ static const char* jkSelectStmtInterpFuncs = "HasInterpFuncs";
 static const char* jkSelectStmtInterpFill = "InterpFill";
 static const char* jkSelectStmtInterpEvery = "InterpEvery";
 static const char* jkSelectStmtTwaOrElapsedFuncs = "HasTwaOrElapsedFuncs";
+static const char* jkSelectStmtHasProject = "HasProject";
 
 static int32_t selectStmtToJson(const void* pObj, SJson* pJson) {
   const SSelectStmt* pNode = (const SSelectStmt*)pObj;
@@ -7141,6 +7145,9 @@ static int32_t selectStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkSelectStmtInterpEvery, nodeToJson, pNode->pEvery);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkSelectStmtHasProject, pNode->hasProject);
   }
 
   return code;
@@ -7200,6 +7207,9 @@ static int32_t jsonToSelectStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkSelectStmtInterpEvery, &pNode->pEvery);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkSelectStmtHasProject, &pNode->hasProject);
   }
 
   return code;

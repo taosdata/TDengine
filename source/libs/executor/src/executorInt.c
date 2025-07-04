@@ -1095,7 +1095,9 @@ void cleanupExprSuppWithoutFilter(SExprSupp* pSupp) {
   }
 
   taosMemoryFreeClear(pSupp->rowEntryInfoOffset);
-  memset(pSupp, 0, sizeof(SExprSupp));
+  pSupp->numOfExprs = 0;
+  pSupp->hasWindowOrGroup = false;
+  pSupp->pCtx = NULL;
 }
 
 void cleanupBasicInfo(SOptrBasicInfo* pInfo) {

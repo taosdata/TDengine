@@ -78,6 +78,14 @@ void mstDestroySStmTaskToDeployExt(void* param) {
   }
 }
 
+void mstDestroyScanAddrList(void* param) {
+  if (NULL == param) {
+    return;
+  }
+  SArray* pList = *(SArray**)param;
+  taosArrayDestroy(pList);
+}
+
 void mstDestroySStmSnodeTasksDeploy(void* param) {
   SStmSnodeTasksDeploy* pSnode = (SStmSnodeTasksDeploy*)param;
   taosArrayDestroyEx(pSnode->triggerList, mstDestroySStmTaskToDeployExt);

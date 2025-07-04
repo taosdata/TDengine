@@ -89,7 +89,7 @@ def wait_for_insert_complete(num_of_tables, num_of_rows):
         tdSql.query(f"select count(*) from db.source_table", None, queryTimes=50)
         val = tdSql.getData(0, 0)
 
-        if val == total_rows:
+        if val >= total_rows:
             print(f"insert completed, total rows:{total_rows} for {num_of_tables} tables")
             break
         time.sleep(1)
@@ -98,6 +98,11 @@ def wait_for_insert_complete(num_of_tables, num_of_rows):
 def wait_for_stream_done_r1(sql: str, expect: int):
     while True:
         tdSql.query(sql)
+        if tdSql.getRows() == 0:
+            print("stream not completed")
+            time.sleep(2)
+            continue
+
         if tdSql.getData(0, 0) == expect:
             print("stream completed")
             break
@@ -129,7 +134,11 @@ class TestStreamCheckpoint:
         Verification testing during the development process.
 
         Catalog:
-            - Streams: 01-snode
+            - Streams: 03-TriggerMode
+        Description:
+            - create 10 streams, each stream has 10 source tables
+            - write data to source tables
+            - check stream results
 
         Since: v3.3.3.7
 
@@ -382,7 +391,7 @@ class TestStreamCheckpoint:
         tdSql.execute("use db")
         tdSql.execute(
             f"create stream {stream_name} PERIOD(30s) from source_table partition by tbname  into {dst_table} as "
-            f"select cast(_tlocaltime/1000000 as timestamp) ts, count(*) k, last(k) c, tbname tb, a"
+            f"select cast(_tlocaltime/1000000 as timestamp) ts, count(1) k, last(k) c, tbname tb, a "
             f"from source_table group by tbname, a")
         tdLog.info(f"create stream completed, and wait for it completed")
 

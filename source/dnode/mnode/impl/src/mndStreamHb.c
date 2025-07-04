@@ -45,7 +45,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   code = tDecodeStreamHbMsg(&decoder, &req);
   if (code < 0) {
     mstError("failed to decode stream hb msg, error:%s", tstrerror(terrno));
-    tCleanupStreamHbMsg(&req);
+    tCleanupStreamHbMsg(&req, true);
     tDecoderClear(&decoder);
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
@@ -67,7 +67,7 @@ _exit:
   }
   
   mndStreamHbSendRsp(&pReq->info, &rspMsg);
-  tCleanupStreamHbMsg(&req);
+  tCleanupStreamHbMsg(&req, true);
   tFreeSMStreamHbRspMsg(&rsp);
 
   mstDebug("end to process stream hb req msg, code:%d", code);
