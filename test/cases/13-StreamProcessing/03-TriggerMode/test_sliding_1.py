@@ -114,14 +114,14 @@ class TestStreamCheckpoint:
         #     self.create_and_check_stream_basic_7("sm7", "tb7")
         # except Exception as e:
         #     tdLog.error(f"case 7 error: {e}")
-        #
-        # clear_output("sm7", "tb7")
-        # self.prepare_tables(10000, 10)
-        # try:
-        #     self.create_and_check_stream_basic_8("sm8", "tb8")
-        # except Exception as e:
-        #     tdLog.error(f"case 8 error: {e}")
-        #
+
+        clear_output("sm7", "tb7")
+        self.prepare_tables(10000, 10)
+        try:
+            self.create_and_check_stream_basic_8("sm8", "tb8")
+        except Exception as e:
+            tdLog.error(f"case 8 error: {e}")
+
         # clear_output("sm8", "tb8")
         # self.prepare_tables(10000, 10)
         # try:
@@ -143,12 +143,12 @@ class TestStreamCheckpoint:
         # except Exception as e:
         #     tdLog.error(f"case 11 error: {e}")
 
-        clear_output("sm11", "tb11")
-        self.prepare_tables(1000, 10)
-        try:
-            self.create_and_check_stream_basic_12("sm12", "tb12")
-        except Exception as e:
-            tdLog.error(f"case 12 error: {e}")
+        # clear_output("sm11", "tb11")
+        # self.prepare_tables(1000, 10)
+        # try:
+        #     self.create_and_check_stream_basic_12("sm12", "tb12")
+        # except Exception as e:
+        #     tdLog.error(f"case 12 error: {e}")
 
         # clear_output("sm12", "tb12")
         # self.prepare_tables(1000, 10)
@@ -340,6 +340,8 @@ class TestStreamCheckpoint:
            Expect: report error message
            Error: no results generated
         """
+        time.sleep(10)
+
         tdSql.execute("use db")
         tdSql.execute(
             f"create stream {stream_name} interval(30s) sliding(30s) from source_table partition by tbname into {dst_table} as "
