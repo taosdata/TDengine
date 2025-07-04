@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - '3.0'
+      - 'newtest_3.0'
     paths-ignore:
       - 'packaging/**'
       - 'docs/**'
