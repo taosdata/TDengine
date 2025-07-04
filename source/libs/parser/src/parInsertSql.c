@@ -1337,6 +1337,7 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTargetTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
   }
+
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     if (TSDB_SUPER_TABLE != pStmt->pTableMeta->tableType) {
       pCxt->needTableTagVal = (NULL != pTagCond);
@@ -3058,6 +3059,13 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
     if (TSDB_CODE_SUCCESS == code && hasData) {
       code = parseInsertTableClause(pCxt, pStmt, &token);
     }
+
+    if( TSDB_CODE_SUCCESS == code && pStmt->pTableMeta &&
+        (((pStmt->pTableMeta->virtualStb == 1) && (pStmt->pTableMeta->tableType == TSDB_SUPER_TABLE)) ||
+        (pStmt->pTableMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+          pStmt->pTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE))) {
+      code = buildInvalidOperationMsg(&pCxt->msg, "Virtual table can not be written");
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
@@ -3225,6 +3233,7 @@ static int32_t processTableSchemaFromMetaData(SInsertParseContext* pCxt, const S
   if (!isStb && TSDB_SUPER_TABLE == pStmt->pTableMeta->tableType) {
     code = buildInvalidOperationMsg(&pCxt->msg, "insert data into super table is not supported");
   }
+
   if (TSDB_CODE_SUCCESS == code && isStb) {
     code = storeChildTableMeta(pCxt, pStmt);
   }
@@ -3571,6 +3580,7 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
   if (TSDB_CODE_SUCCESS == code) {
     code = parseInsertSqlImpl(&context, (SVnodeModifyOpStmt*)((*pQuery)->pRoot));
   }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = setNextStageInfo(&context, *pQuery, pCatalogReq);
   }

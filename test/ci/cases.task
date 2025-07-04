@@ -226,6 +226,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_join.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_insert.py
 
 # 06-DataIngestion
 ## 01-Insert
