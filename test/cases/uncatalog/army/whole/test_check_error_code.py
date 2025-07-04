@@ -11,22 +11,9 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
-import time
-import random
-import taos
+from new_test_framework.utils import tdLog, tdSql, epath, sc, tdFindPath
 
-import frame
-import frame.eos
-import frame.etime
-import frame.etool
 
-from frame.log import *
-from frame.sql import *
-from frame.cases import *
-from frame.caseBase import *
-from frame.srvCtl import *
-from frame import *
 
 ignoreCodes = [
     '0x80000023', '0x80000024', '0x80000025', '0x80000026', '0x80000027', '0x80000028', '0x80000029', '0x8000002A', '0x80000109', '0x80000110', 
@@ -65,7 +52,7 @@ ignoreCodes = [
     '0x80004019']
 
 
-class TDTestCase(TBase):
+class TestCheckErrorCode:
     # parse line
     def parseLine(self, line, show):
         line = line.strip()
@@ -161,7 +148,7 @@ class TDTestCase(TBase):
         return codes
 
     # check
-    def checkConsistency(self, docCodes, codes, checkCol2=True, checkCol3=True):
+    def check_consistency(self, docCodes, codes, checkCol2=True, checkCol3=True):
         failed = 0
         ignored = 0
         # len
@@ -212,31 +199,46 @@ class TDTestCase(TBase):
 
 
     # run
-    def run(self):
+    def test_check_error_code(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+        History:
+            - xxx
+            - xxx
+        """
         tdLog.debug(f"start to excute {__file__}")
 
         # read head error code
-        hFile = "../../include/util/taoserror.h"
+        hFile = f"{tdFindPath.getTDenginePath()}/include/util/taoserror.h"
+        tdLog.info(f"hFile: {hFile}")
         codes = self.readHeadCodes(hFile)
 
         # read zh codes
-        zhDoc = "../../docs/zh/14-reference/09-error-code.md"
+        zhDoc = f"{tdFindPath.getTDenginePath()}/docs/zh/14-reference/09-error-code.md"
         zhCodes = self.readDocCodes(zhDoc)
 
         # read en codes
-        enDoc = "../../docs/en/14-reference/09-error-code.md"
+        enDoc = f"{tdFindPath.getTDenginePath()}/docs/en/14-reference/09-error-code.md"
         enCodes = self.readDocCodes(enDoc)
 
         # check zh
         tdLog.info(f"check zh docs ...")
-        self.checkConsistency(zhCodes, codes)
+        self.check_consistency(zhCodes, codes)
 
         # check en
         tdLog.info(f"check en docs ...")
-        self.checkConsistency(enCodes, codes)
+        self.check_consistency(enCodes, codes)
 
         tdLog.success(f"{__file__} successfully executed")
 
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())
