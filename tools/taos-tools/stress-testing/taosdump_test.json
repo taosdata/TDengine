@@ -1,0 +1,37 @@
+{
+   "filetype":"insert",
+    "cfgdir":"/etc/taos",
+    "host":"127.0.0.1",
+    "port":6030,
+    "user":"root",
+    "password":"taosdata",
+    "thread_count":4,
+    "create_table_thread_count":4,
+    "confirm_parameter_prompt":"no",
+    "num_of_records_per_req":2000,
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "power",
+                "drop": "yes",
+                "vgroups": 10
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 10,
+                    "insert_rows": 20000,
+                    "interlace_rows": 0,
+                    "childtable_prefix": "d",
+                    "insert_mode": "stmt2",
+                    "timestamp_step": 1000,
+                    "start_timestamp":"now",
+                    "auto_create_table": "no",
+                    "columns": [],
+                    "tags": []
+                }
+            ]
+        }
+    ]
+}
