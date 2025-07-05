@@ -4000,10 +4000,6 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     pTask->pVirCalcSlots = NULL;
   }
   if (pTask->pVirTableInfoRsp != NULL) {
-    for (int32_t i = 0; i < TARRAY_SIZE(pTask->pVirTableInfoRsp); i++) {
-      VTableInfo *pInfo = TARRAY_GET_ELEM(pTask->pVirTableInfoRsp, i);
-      taosMemoryFreeClear(pInfo->cols.pColRef);
-    }
     taosArrayDestroy(pTask->pVirTableInfoRsp);
   }
   if (pTask->pOrigTableCols != NULL) {
