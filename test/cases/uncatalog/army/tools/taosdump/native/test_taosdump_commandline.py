@@ -99,7 +99,7 @@ class TestTaosdumpCommandline:
         
         return db, stb, child_count, insert_rows
 
-    def checkSame(self, db, newdb, stb, aggfun):
+    def check_same(self, db, newdb, stb, aggfun):
         # sum pk db
         sql = f"select {aggfun} from {db}.{stb}"
         tdSql.query(sql)
@@ -120,18 +120,18 @@ class TestTaosdumpCommandline:
         
         #  compare sum(pk)
         stb = "meters"
-        self.checkSame(db, newdb, stb, "sum(fc)")
-        self.checkSame(db, newdb, stb, "sum(ti)")
-        self.checkSame(db, newdb, stb, "sum(si)")
-        self.checkSame(db, newdb, stb, "sum(ic)")
-        self.checkSame(db, newdb, stb, "avg(bi)")
-        self.checkSame(db, newdb, stb, "sum(uti)")
-        self.checkSame(db, newdb, stb, "sum(usi)")
-        self.checkSame(db, newdb, stb, "sum(ui)")
-        self.checkSame(db, newdb, stb, "avg(ubi)")
+        self.check_same(db, newdb, stb, "sum(fc)")
+        self.check_same(db, newdb, stb, "sum(ti)")
+        self.check_same(db, newdb, stb, "sum(si)")
+        self.check_same(db, newdb, stb, "sum(ic)")
+        self.check_same(db, newdb, stb, "avg(bi)")
+        self.check_same(db, newdb, stb, "sum(uti)")
+        self.check_same(db, newdb, stb, "sum(usi)")
+        self.check_same(db, newdb, stb, "sum(ui)")
+        self.check_same(db, newdb, stb, "avg(ubi)")
 
         # check normal table
-        self.checkSame(db, newdb, "ntb", "sum(c1)")
+        self.check_same(db, newdb, "ntb", "sum(c1)")
 
     #  with Native Rest and WebSocket
     def dumpInOutMode(self, mode, db, json, tmpdir):

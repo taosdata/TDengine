@@ -114,7 +114,7 @@ class TestTaosdumpPrimaryKey:
         # dump in
         self.exec(f'{taosdump} -W "{db}={newdb}" -i {indir}')
 
-    def checkSame(self, db, newdb, stb, aggfun):
+    def check_same(self, db, newdb, stb, aggfun):
         # sum pk db
         sql = f"select {aggfun} from {db}.{stb}"
         tdSql.query(sql)
@@ -136,12 +136,12 @@ class TestTaosdumpPrimaryKey:
         
         #  compare sum(pk)
         stb = "meters"
-        self.checkSame(db, newdb, stb, "sum(pk)")
-        self.checkSame(db, newdb, stb, "sum(usi)")
-        self.checkSame(db, newdb, stb, "sum(ic)")
+        self.check_same(db, newdb, stb, "sum(pk)")
+        self.check_same(db, newdb, stb, "sum(usi)")
+        self.check_same(db, newdb, stb, "sum(ic)")
 
         # check normal table
-        self.checkSame(db, newdb, "ntb", "sum(c1)")
+        self.check_same(db, newdb, "ntb", "sum(c1)")
 
     def test_taosdump_primary_key(self):
         """summary: xxx

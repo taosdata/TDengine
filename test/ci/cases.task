@@ -148,7 +148,7 @@
 ,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_taos_config_json.py
 ,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_data.py
 ,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_auto_create_table_json.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/cloud/test_cloudtest.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/cloud/test_cloud.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/ws/test_websocket.py -R
 
 
