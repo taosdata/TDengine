@@ -56,6 +56,7 @@ typedef struct SInsertParseContext {
   bool           needRequest;  // whether or not request server
   bool           isStmtBind;   // whether is stmt bind
   uint8_t        stmtTbNameFlag;
+  SArray*        pParsedValues;  // for stmt bind col
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
@@ -2373,13 +2374,33 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
         break;
       }
 
-      if (pCxt->isStmtBind) {
-        code = buildInvalidOperationMsg(&pCxt->msg, "stmt bind param does not support normal value in sql");
-        break;
-      }
-
       if (TSDB_CODE_SUCCESS == code) {
         code = parseValueToken(pCxt, pSql, pToken, pSchema, pExtSchema, getTableInfo(pTableCxt->pMeta).precision, pVal);
+
+        if (TSDB_CODE_SUCCESS == code && NULL != pCxt->pComCxt->pStmtCb) {
+          if (NULL == pCxt->pParsedValues) {
+            pCxt->pParsedValues = taosArrayInit(10, sizeof(SColVal));
+            if (NULL == pCxt->pParsedValues) {
+              code = terrno;
+              break;
+            }
+          }
+
+          SColVal clonedVal = *pVal;
+          if (COL_VAL_IS_VALUE(&clonedVal) && IS_VAR_DATA_TYPE(clonedVal.value.type)) {
+            clonedVal.value.pData = taosMemoryMalloc(clonedVal.value.nData);
+            if (NULL == clonedVal.value.pData) {
+              code = terrno;
+              break;
+            }
+            memcpy(clonedVal.value.pData, pVal->value.pData, clonedVal.value.nData);
+          }
+
+          if (taosArrayPush(pCxt->pParsedValues, &clonedVal) == NULL) {
+            code = terrno;
+            break;
+          }
+        }
       }
     }
 
@@ -2878,6 +2899,7 @@ static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeMod
 
 static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   insDestroyBoundColInfo(&pCxt->tags);
+  taosArrayDestroy(pCxt->pParsedValues);
   taosMemoryFreeClear(pStmt->pTableMeta);
   nodesDestroyNode(pStmt->pTagCond);
   taosArrayDestroy(pStmt->pTableTag);
@@ -2995,9 +3017,9 @@ static int32_t setStmtInfo(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt)
   memcpy(tags, &pCxt->tags, sizeof(pCxt->tags));
 
   SStmtCallback* pStmtCb = pCxt->pComCxt->pStmtCb;
-  int32_t        code = (*pStmtCb->setInfoFn)(pStmtCb->pStmt, pStmt->pTableMeta, tags, &pStmt->targetTableName,
-                                       pStmt->usingTableProcessing, pStmt->pVgroupsHashObj, pStmt->pTableBlockHashObj,
-                                       pStmt->usingTableName.tname, pCxt->stmtTbNameFlag);
+  int32_t        code = (*pStmtCb->setInfoFn)(pStmtCb->pStmt, pStmt->pTableMeta, tags, pCxt->pParsedValues,
+                                       &pStmt->targetTableName, pStmt->usingTableProcessing, pStmt->pVgroupsHashObj,
+                                       pStmt->pTableBlockHashObj, pStmt->usingTableName.tname, pCxt->stmtTbNameFlag);
 
   memset(&pCxt->tags, 0, sizeof(pCxt->tags));
   pStmt->pVgroupsHashObj = NULL;
@@ -3625,10 +3647,10 @@ static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile) {
   // Skip the header line and look for the first quote character in data
   bool foundFirstQuote = false;
   bool inFirstLine = true;
-  
+
   for (size_t i = 0; i < parser->bufferLen && !foundFirstQuote; i++) {
     char ch = parser->buffer[i];
-    
+
     // Skip the first line (header)
     if (inFirstLine) {
       if (ch == '\n') {
@@ -3636,7 +3658,7 @@ static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile) {
       }
       continue;
     }
-    
+
     // Look for the first quote character in data lines
     if (ch == CSV_QUOTE_SINGLE) {
       parser->quote = CSV_QUOTE_SINGLE;
@@ -3648,7 +3670,7 @@ static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile) {
   }
 
   // If no quotes found, keep default (single quote for TDengine compatibility)
-  
+
   // Reset buffer position for actual parsing
   parser->bufferPos = 0;
 

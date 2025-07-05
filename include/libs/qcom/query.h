@@ -284,7 +284,7 @@ typedef struct STableDataCxt {
   STableMeta*    pMeta;
   STSchema*      pSchema;
   SBoundColInfo  boundColsInfo;
-  SArray*        pValues;
+  SArray*        pValues;  // SColVal
   SSubmitTbData* pData;
   SRowKey        lastKey;
   bool           ordered;
