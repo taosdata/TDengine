@@ -22,11 +22,9 @@
 
 static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapMeta *pMeta,
                                     SBseRawFileWriter **pWriter);
-static int32_t bseRawFileWriterWrite(SBseRawFileWriter *p, uint8_t *data, int32_t len);
+static int32_t bseRawFileWriterDoWrite(SBseRawFileWriter *p, uint8_t *data, int32_t len);
 static void    bseRawFileWriterClose(SBseRawFileWriter *p, int8_t rollback);
 static void    bseRawFileGenLiveInfo(SBseRawFileWriter *p, SBseLiveFileInfo *pInfo);
-static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapMeta *pMeta,
-                                    SBseRawFileWriter **pWriter);
 
 static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBseSnapMeta *pMeta,
                                     SBseRawFileWriter **pWriter) {
@@ -43,6 +41,7 @@ static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBse
 
   char name[TSDB_FILENAME_LEN] = {0};
   char path[TSDB_FILENAME_LEN] = {0};
+
   bseBuildDataFullName(p->pBse, name, path);
   p->pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
   if (p->pFile == NULL) {
@@ -68,7 +67,7 @@ _error:
   return code;
 }
 
-static int32_t bseRawFileWriterWrite(SBseRawFileWriter *p, uint8_t *data, int32_t len) {
+static int32_t bseRawFileWriterDoWrite(SBseRawFileWriter *p, uint8_t *data, int32_t len) {
   int32_t code = 0;
   int32_t nwrite = taosWriteFile(p->pFile, data, len);
   if (nwrite != len) {
@@ -104,8 +103,7 @@ static int32_t bseSnapShouldOpenNewFile(SBseSnapWriter *pWriter, SBseSnapMeta *p
 
   SBseRawFileWriter *pOld = pWriter->pWriter;
 
-  if (pOld == NULL ||
-      (pOld->fileType != pMeta->fileType || memcmp(&pOld->range, &pMeta->range, sizeof(SSeqRange)) != 0)) {
+  if (pOld == NULL || (pOld->fileType != pMeta->fileType) || pOld->blockType != pMeta->blockType) {
     if (pOld != NULL) {
       SBseLiveFileInfo info;
       bseRawFileGenLiveInfo(pOld, &info);
@@ -172,7 +170,7 @@ int32_t bseSnapWriterWrite(SBseSnapWriter *p, uint8_t *data, int32_t len) {
   code = bseSnapShouldOpenNewFile(p, pMeta);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = bseRawFileWriterWrite(p->pWriter, pBuf, tlen);
+  code = bseRawFileWriterDoWrite(p->pWriter, pBuf, tlen);
   TSDB_CHECK_CODE(code, lino, _error);
 _error:
   if (code) {
@@ -289,7 +287,7 @@ int32_t bseOpenIter(SBse *pBse, SBseIter **ppIter) {
   pIter->pBse = pBse;
 
   SArray *pAliveFile = NULL;
-  code = bseTableMgtGetLiveFileSet(pBse->pTableMgt, &pAliveFile);
+  code = bseGetAliveFileList(pBse, &pAliveFile);
   TSDB_CHECK_CODE(code, line, _error);
 
   pIter->index = 0;
@@ -320,6 +318,7 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
       code = tableReaderIterNext(pTableIter, pValue, len);
       TSDB_CHECK_CODE(code, lino, _error);
 
+      pTableIter->fileType = pIter->fileType;
       if (!tableReaderIterValid(pTableIter)) {
         // current file is over
         tableReaderIterDestroy(pTableIter);
@@ -330,11 +329,57 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
     }
 
     if (pIter->index >= taosArrayGetSize(pIter->pFileSet)) {
-      pIter->fileType = BSE_CURRENT_SNAP;
+      pIter->fileType = BSE_TABLE_META_SNAP;
+      pTableIter->fileType = pIter->fileType;
+      pIter->index = 0;
     } else {
+      if (pIter->pTableIter != NULL) {
+        tableReaderIterDestroy(pIter->pTableIter);
+        pIter->pTableIter = NULL;
+      }
+
       SBseLiveFileInfo *pInfo = taosArrayGet(pIter->pFileSet, pIter->index);
 
-      code = tableReaderIterInit(pInfo->name, &pTableIter, pIter->pBse);
+      code = tableReaderIterInit(pInfo->retentionTs, BSE_TABLE_DATA_TYPE, &pTableIter, pIter->pBse);
+      TSDB_CHECK_CODE(code, lino, _error);
+
+      code = tableReaderIterNext(pTableIter, pValue, len);
+      TSDB_CHECK_CODE(code, lino, _error);
+
+      pIter->pTableIter = pTableIter;
+
+      pIter->index++;
+      return code;
+    }
+  }
+
+  if (pIter->fileType == BSE_TABLE_META_SNAP) {
+    pTableIter = pIter->pTableIter;
+    if (pTableIter != NULL && tableReaderIterValid(pTableIter)) {
+      code = tableReaderIterNext(pTableIter, pValue, len);
+      TSDB_CHECK_CODE(code, lino, _error);
+
+      pTableIter->fileType = pIter->fileType;
+
+      if (!tableReaderIterValid(pTableIter)) {
+        // current file is over
+        tableReaderIterDestroy(pTableIter);
+        pIter->pTableIter = NULL;
+      } else {
+        return code;
+      }
+    }
+    if (pIter->index >= taosArrayGetSize(pIter->pFileSet)) {
+      pIter->fileType = BSE_CURRENT_SNAP;
+      pTableIter->fileType = pIter->fileType;
+    } else {
+      if (pIter->pTableIter != NULL) {
+        tableReaderIterDestroy(pIter->pTableIter);
+        pIter->pTableIter = NULL;
+      }
+
+      SBseLiveFileInfo *pInfo = taosArrayGet(pIter->pFileSet, pIter->index);
+      code = tableReaderIterInit(pInfo->retentionTs, BSE_TABLE_META_TYPE, &pTableIter, pIter->pBse);
       TSDB_CHECK_CODE(code, lino, _error);
 
       code = tableReaderIterNext(pTableIter, pValue, len);
@@ -349,6 +394,7 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
   if (pIter->fileType == BSE_CURRENT_SNAP) {
     // do read current
     pIter->fileType = BSE_MAX_SNAP;
+    pTableIter->fileType = pIter->fileType;
   } else if (pIter->fileType == BSE_MAX_SNAP) {
     pIter->isOver = 1;
   }

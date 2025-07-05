@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-enum { BSE_TABLE_SNAP = 0x1, BSE_CURRENT_SNAP = 0x2, BSE_MAX_SNAP = 0x4 };
+enum { BSE_TABLE_SNAP = 0x1, BSE_TABLE_META_SNAP = 0x2, BSE_CURRENT_SNAP = 0x3, BSE_MAX_SNAP = 0x4 };
 
 struct SBseSnapReader {
   SBse *pBse;
@@ -34,6 +34,7 @@ struct SBseSnapReader {
 struct SBseRawFileWriter {
   char      name[TSDB_FILENAME_LEN];
   int8_t    fileType;  // fileType
+  int8_t    blockType;  // blockType
   SSeqRange range;
   TdFilePtr pFile;
   int32_t   keepDays;
@@ -61,6 +62,7 @@ typedef struct {
   int8_t           isOver;
 
   void *pTableIter;
+
 } SBseIter;
 
 typedef struct {

@@ -40,7 +40,7 @@ extern "C" {
 enum {
   BSE_TABLE_DATA_TYPE = 0x1,
   BSE_TABLE_META_TYPE = 0x2,
-  BSE_TABLE_INDEX_TYPE = 0x4,
+  BSE_TABLE_META_INDEX_TYPE = 0x4,
   BSE_TABLE_FOOTER_TYPE = 0x8,
   BSE_TABLE_END_TYPE = 0x10,
 };
@@ -211,12 +211,15 @@ int32_t tableMetaCommit(SBTableMeta *pMeta, SArray *pBlock);
 int32_t tableMetaAppend(SBTableMeta *pMeta, SMetaBlock *pBlock);
 int32_t tableMetaWriterAppendBlock(SBtableMetaWriter *pMeta, SArray *pBlock);
 int32_t tableMetaReaderLoadBlockMeta(SBtableMetaReader *pMeta, int64_t seq, SMetaBlock *pBlock);
+
+int32_t tableMetaReaderLoadAllDataHandle(SBtableMetaReader *p, SArray *dataHandle);
+int32_t tableMetaReaderLoadMetaHandle(SBtableMetaReader *p, SArray *metaHandle);
+
 void    tableMetaClose(SBTableMeta *p);
 
 typedef struct {
   STableReader *pReader;
   char          name[TSDB_FILENAME_LEN];
-  int8_t        blockType;  // BSE_TABLE_DATA_TYPE, BSE_TABLE_META_TYPE, BSE_TABLE_FOOTER_TYPE
   int8_t        isOver;
   SSeqRange     range;
   STableReader *pTableReader;
@@ -224,9 +227,12 @@ typedef struct {
   int32_t       blockIndex;
   int64_t       offset;
   SBlockWrapper blockWrapper;
+  int8_t        blockType;  // BSE_TABLE_DATA_TYPE, BSE_TABLE_META_TYPE, BSE_TABLE_FOOTER_TYPE
+  int8_t        fileType;
+  int64_t       retentionTs;
 } STableReaderIter;
 
-int32_t tableReaderIterInit(char *name, STableReaderIter **ppIter, SBse *pBse);
+int32_t tableReaderIterInit(int64_t retetion, int8_t type, STableReaderIter **ppIter, SBse *pBse);
 
 int32_t tableReaderIterNext(STableReaderIter *pIter, uint8_t **pValue, int32_t *len);
 

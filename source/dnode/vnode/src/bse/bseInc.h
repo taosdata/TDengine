@@ -75,6 +75,9 @@ struct SBseBatch {
   int8_t   commited;
   bsequeue node;
 };
+
+int32_t bseGetAliveFileList(SBse *pBse, SArray **pFileList);
+
 #ifdef __cplusplus
 }
 #endif
