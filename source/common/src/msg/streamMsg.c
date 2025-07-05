@@ -3834,13 +3834,6 @@ _exit:
 
 void tDestroySStreamMsgVTableInfo(SStreamMsgVTableInfo *ptr) {
   if (ptr == NULL) return;
-  for (int32_t i = 0; i < taosArrayGetSize(ptr->infos); ++i) {
-    VTableInfo* info = taosArrayGet(ptr->infos, i);
-    if (info != NULL) {
-      taosMemoryFree(info->cols.pColRef);
-      info->cols.pColRef = NULL;
-    }
-  }
   taosArrayDestroy(ptr->infos);
   ptr->infos = NULL;
 }
