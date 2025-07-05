@@ -49,6 +49,7 @@ static int32_t blockSeek(SBlock *p, int64_t seq, uint8_t **pValue, int32_t *len)
 static int8_t  blockGetType(SBlock *p);
 
 static int32_t blockSeekMeta(SBlock *p, int64_t seq, SMetaBlock *pMeta);
+static int32_t blockGetAllMeta(SBlock *p, SArray *pResult);
 static int32_t metaBlockAddIndex(SBlock *p, SBlkHandle *pInfo);
 
 int32_t tableMetaWriterInit(SBTableMeta *pMeta, char *name, SBtableMetaWriter **ppWriter);
@@ -154,7 +155,7 @@ int32_t tableBuilderOpen(int64_t ts, STableBuilder **pBuilder, SBse *pBse) {
 
   char name[TSDB_FILENAME_LEN] = {0};
   char path[TSDB_FILENAME_LEN] = {0};
-  bseBuildDataName(pBse, ts, name);
+  bseBuildDataName(ts, name);
   bseBuildFullName(pBse, name, path);
 
   STableBuilder *p = taosMemoryCalloc(1, sizeof(STableBuilder));
@@ -573,6 +574,8 @@ int32_t tableReaderOpen(int64_t retentionTs, STableReader **pReader, void *pRead
   int64_t size = 0;
 
   STableReaderMgt *pMgt = (STableReaderMgt *)pReaderMgt;
+  if (pMgt == NULL) {
+  }
   SSubTableMgt    *pMeta = pMgt->pMgt;
 
   STableReader *p = taosMemCalloc(1, sizeof(STableReader));
@@ -582,7 +585,7 @@ int32_t tableReaderOpen(int64_t retentionTs, STableReader **pReader, void *pRead
 
   p->blockCap = 1024;
   p->pReaderMgt = pReaderMgt;
-  bseBuildDataName(pMgt->pBse, retentionTs, data);
+  bseBuildDataName(retentionTs, data);
   memcpy(p->name, data, strlen(data));
 
   bseBuildFullName(pMgt->pBse, data, dataPath);
@@ -665,10 +668,7 @@ int32_t tableReaderGetMeta(STableReader *p, SArray **pMeta) {
   }
 
   code = tableMetaReaderLoadAllDataHandle(p->pMetaReader, pMetaHandle);
-
-  if (taosArrayAddAll(pMetaHandle, p->pMetaHandle) == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _error);
-  }
+  TSDB_CHECK_CODE(code, lino, _error);
 
   *pMeta = pMetaHandle;
 
@@ -843,6 +843,24 @@ int32_t blockSeekMeta(SBlock *pBlock, int64_t seq, SMetaBlock *pMeta) {
   }
   return TSDB_CODE_NOT_FOUND;
 }
+int32_t blockGetAllMeta(SBlock *pBlock, SArray *pMeta) {
+  int32_t  code = 0;
+  int32_t  len = 0;
+  uint8_t *p = (uint8_t *)pBlock->data;
+
+  while (len < pBlock->len) {
+    SMetaBlock meta = {0};
+    int32_t    offset = metaBlockDecode(&meta, (char *)p);
+    if (taosArrayPush(pMeta, &meta) == NULL) {
+      return terrno;
+    }
+    len += offset;
+    p += offset;
+  }
+
+  return code;
+}
+
 int32_t metaBlockEncode(SMetaBlock *pMeta, char *buf) {
   char   *p = buf;
   int32_t len = 0;
@@ -1075,6 +1093,7 @@ void blockWrapperTransfer(SBlockWrapper *dst, SBlockWrapper *src) {
 int32_t blockWrapperResize(SBlockWrapper *p, int32_t newCap) {
   if (p->cap < newCap) {
     int32_t cap = p->cap;
+    if (cap == 0) cap = 1024;
     while (cap < newCap) {
       cap = cap * 2;
     }
@@ -1109,25 +1128,30 @@ int32_t tableReaderIterInit(int64_t retention, int8_t type, STableReaderIter **p
   }
 
   p->retentionTs = retention;
+  SSubTableMgt *retentionMgt = NULL;
 
-  code = tableReaderOpen(retention, &p->pReader, NULL);
+  code = createSubTableMgt(retention, 1, pBse->pTableMgt, &retentionMgt);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  tableReaderShouldPutToCache(p->pReader, 0);
+  p->pSubMgt = retentionMgt;
+
+  code = tableReaderOpen(retention, &p->pTableReader, retentionMgt->pReaderMgt);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  tableReaderShouldPutToCache(p->pTableReader, 0);
 
   p->blockIndex = 0;
   p->blockType = type;
 
   if (p->blockType == BSE_TABLE_DATA_TYPE) {
-    code = tableReaderGetMeta(p->pReader, &p->pMetaHandle);
+    code = tableReaderGetMeta(p->pTableReader, &p->pMetaHandle);
     TSDB_CHECK_CODE(code, lino, _error);
   } else if (p->blockType == BSE_TABLE_META_TYPE) {
     p->pMetaHandle = taosArrayInit(8, sizeof(SBlkHandle));
     if (p->pMetaHandle == NULL) {
       TSDB_CHECK_CODE(code = terrno, lino, _error);
     }
-    code = tableMetaReaderLoadMetaHandle(p->pReader->pMetaReader, p->pMetaHandle);
-
+    code = tableMetaReaderLoadMetaHandle(p->pTableReader->pMetaReader, p->pMetaHandle);
   } else {
     p->isOver = 1;
   }
@@ -1154,42 +1178,42 @@ int32_t tableReaderIterNext(STableReaderIter *pIter, uint8_t **pValue, int32_t *
   if (pIter->blockType == BSE_TABLE_DATA_TYPE) {
     SBlkHandle *pHandle = NULL;
     if (pIter->blockIndex >= taosArrayGetSize(pIter->pMetaHandle)) {
-      pIter->isOver = 1;
-      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
-    }
-
-    pHandle = taosArrayGet(pIter->pMetaHandle, pIter->blockIndex);
-    code = tableReaderLoadRawBlock(pIter->pTableReader, pHandle, &pIter->blockWrapper);
-    TSDB_CHECK_CODE(code, lino, _error);
-
-    pIter->blockIndex++;
-    if (pIter->blockIndex >= taosArrayGetSize(pIter->pMetaHandle)) {
       taosArrayDestroy(pIter->pMetaHandle);
       pIter->pMetaHandle = NULL;
       pIter->blockIndex = 0;
       pIter->isOver = 1;
-    }
-  } else if (pIter->blockType == BSE_TABLE_META_TYPE) {
-    SBlkHandle *pHandle = NULL;
-    if (pIter->blockIndex >= taosArrayGetSize(pIter->pMetaHandle)) {
-      pIter->isOver = 1;
-      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
+      return 0;
     }
 
     pHandle = taosArrayGet(pIter->pMetaHandle, pIter->blockIndex);
-    code = tableReaderLoadRawMeta(pIter->pTableReader, pHandle, &pIter->blockWrapper);
+    for (int32_t i = 0; i < taosArrayGetSize(pIter->pMetaHandle); i++) {
+      SBlkHandle *pH = taosArrayGet(pIter->pMetaHandle, i);
+      bseInfo("block index %d, offset %" PRId64 ", size %" PRId64 ", range [%" PRId64 ", %" PRId64 "]", i, pH->offset,
+              pH->size, pH->range.sseq, pH->range.eseq);
+    }
+    code = tableReaderLoadRawBlock(pIter->pTableReader, pHandle, &pIter->blockWrapper);
     TSDB_CHECK_CODE(code, lino, _error);
 
     pIter->blockIndex++;
+  } else if (pIter->blockType == BSE_TABLE_META_TYPE) {
+    SBlkHandle *pHandle = NULL;
     if (pIter->blockIndex >= taosArrayGetSize(pIter->pMetaHandle)) {
       taosArrayDestroy(pIter->pMetaHandle);
       pIter->pMetaHandle = NULL;
       pIter->blockIndex = 0;
       pIter->blockType = BSE_TABLE_META_INDEX_TYPE;
     }
-  } else if (pIter->blockType == BSE_TABLE_META_INDEX_TYPE) {
+
+    pHandle = taosArrayGet(pIter->pMetaHandle, pIter->blockIndex);
+    code = tableReaderLoadRawMeta(pIter->pTableReader, pHandle, &pIter->blockWrapper);
+    TSDB_CHECK_CODE(code, lino, _error);
+    pIter->blockIndex++;
+  }
+
+  if (pIter->blockType == BSE_TABLE_META_INDEX_TYPE) {
     code = tableReaderLoadRawMetaIndex(pIter->pTableReader, &pIter->blockWrapper);
     TSDB_CHECK_CODE(code, lino, _error);
+
     pIter->blockType = BSE_TABLE_FOOTER_TYPE;
   } else if (pIter->blockType == BSE_TABLE_FOOTER_TYPE) {
     code = tableReaderLoadRawFooter(pIter->pTableReader, &pIter->blockWrapper);
@@ -1226,8 +1250,9 @@ void tableReaderIterDestroy(STableReaderIter *pIter) {
   if (pIter == NULL) return;
 
   taosArrayDestroy(pIter->pMetaHandle);
-  tableReaderClose(pIter->pReader);
+  tableReaderClose(pIter->pTableReader);
   blockWrapperCleanup(&pIter->blockWrapper);
+  destroySubTableMgt(pIter->pSubMgt);
   taosMemoryFree(pIter);
 }
 
@@ -1326,6 +1351,7 @@ int32_t tableMetaOpen(char *name, SBTableMeta **pMeta, void *pMetaMgt) {
   if (p == NULL) {
     TSDB_CHECK_CODE(code, lino, _error);
   }
+
   if (name != NULL) {
     memcpy(p->name, name, strlen(name) + 1);
   }
@@ -1820,25 +1846,31 @@ _error:
 int32_t tableMetaReaderLoadAllDataHandle(SBtableMetaReader *p, SArray *dataHandle) {
   int32_t lino = 0;
   int32_t code = 0;
+  SArray *pMeta = taosArrayInit(8, sizeof(SMetaBlock));
   for (int32_t i = 0; i < taosArrayGetSize(p->pBlkHandle); i++) {
     SBlkHandle *pHandle = taosArrayGet(p->pBlkHandle, i);
-    SMetaBlock  block = {0};
     if (pHandle == NULL) {
-      return TSDB_CODE_FILE_CORRUPTED;
+      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
     }
     code = tableLoadBlock(p->pFile, pHandle, &p->blockWrapper);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    code = blockSeekMeta(p->blockWrapper.data, pHandle->range.sseq, &block);
+    code = blockGetAllMeta(p->blockWrapper.data, pMeta);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    SBlkHandle handle = {.offset = pHandle->offset, .size = pHandle->size, .range = pHandle->range};
-
-    if (taosArrayPush(dataHandle, &handle) == NULL) {
-      TSDB_CHECK_CODE(code = terrno, lino, _exit);
+    if (taosArrayGetSize(pMeta) == 0) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+    }
+    for (int32_t j = 0; j < taosArrayGetSize(pMeta); j++) {
+      SMetaBlock *pBlk = taosArrayGet(pMeta, j);
+      SBlkHandle  handle = {.offset = pBlk->offset, .size = pBlk->size, .range = pBlk->range};
+      if (taosArrayPush(dataHandle, &handle) == NULL) {
+        TSDB_CHECK_CODE(code = terrno, lino, _exit);
+      }
     }
   }
 _exit:
+  taosArrayDestroy(pMeta);
   return code;
 }
 

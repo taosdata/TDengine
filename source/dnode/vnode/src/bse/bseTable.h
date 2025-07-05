@@ -123,9 +123,10 @@ typedef struct {
 
 typedef struct {
   int32_t            blkIdx;
-  SBlockWrapper      pBlockWrapper;
   int8_t             isOver;
   SBtableMetaReader *pReader;
+  SBlockWrapper      pBlockWrapper;
+
 } SBtableMetaReaderIter;
 
 typedef struct {
@@ -218,7 +219,6 @@ int32_t tableMetaReaderLoadMetaHandle(SBtableMetaReader *p, SArray *metaHandle);
 void    tableMetaClose(SBTableMeta *p);
 
 typedef struct {
-  STableReader *pReader;
   char          name[TSDB_FILENAME_LEN];
   int8_t        isOver;
   SSeqRange     range;
@@ -230,6 +230,8 @@ typedef struct {
   int8_t        blockType;  // BSE_TABLE_DATA_TYPE, BSE_TABLE_META_TYPE, BSE_TABLE_FOOTER_TYPE
   int8_t        fileType;
   int64_t       retentionTs;
+
+  void *pSubMgt;
 } STableReaderIter;
 
 int32_t tableReaderIterInit(int64_t retetion, int8_t type, STableReaderIter **ppIter, SBse *pBse);

@@ -35,14 +35,22 @@ static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBse
   if (p == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
-
-  SSeqRange *range = &pMeta->range;
-  bseBuildDataName(p->pBse, range->sseq, p->name);
-
   char name[TSDB_FILENAME_LEN] = {0};
   char path[TSDB_FILENAME_LEN] = {0};
 
-  bseBuildDataFullName(p->pBse, name, path);
+  SSeqRange *range = &pMeta->range;
+  if (pMeta->fileType == BSE_TABLE_SNAP) {
+    bseBuildDataName(pMeta->keepDays, name);
+    bseBuildFullName(pBse, name, path);
+  } else if (pMeta->fileType == BSE_TABLE_META_TYPE) {
+    bseBuildMetaName(pMeta->keepDays, name);
+    bseBuildFullMetaName(pBse, name, path);
+  } else if (pMeta->fileType == BSE_CURRENT_SNAP) {
+    bseBuildCurrentName(pBse, path);
+  } else {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   p->pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
   if (p->pFile == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
@@ -165,7 +173,7 @@ int32_t bseSnapWriterWrite(SBseSnapWriter *p, uint8_t *data, int32_t len) {
   SBseSnapMeta *pMeta = (SBseSnapMeta *)pHdr->data;
 
   uint8_t *pBuf = pHdr->data + sizeof(SBseSnapMeta);
-  int64_t  tlen = len - sizeof(SSnapDataHdr);
+  int64_t  tlen = len - sizeof(SSnapDataHdr) - sizeof(SBseSnapMeta);
 
   code = bseSnapShouldOpenNewFile(p, pMeta);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -261,6 +269,46 @@ _error:
   }
   return code;
 }
+int32_t bseSnapReaderRead2(SBseSnapReader *p, uint8_t **data, int32_t *len) {
+  int32_t code = 0;
+  int32_t line = 0;
+  int32_t size = 0;
+
+  uint8_t *pBuf = NULL;
+  int32_t  bufLen = 0;
+
+  if (bseIterValid(p->pIter) == 0) {
+    *data = NULL;
+    return code;
+  }
+
+  code = bseIterNext(p->pIter, &pBuf, &bufLen);
+  TSDB_CHECK_CODE(code, line, _error);
+
+  *data = taosMemoryCalloc(1, sizeof(SSnapDataHdr) + bufLen);
+  if (*data == NULL) {
+    TSDB_CHECK_CODE(code = terrno, line, _error);
+  }
+
+  SSnapDataHdr *pHdr = (SSnapDataHdr *)(*data);
+  pHdr->type = SNAP_DATA_BSE;
+  pHdr->size = bufLen;
+  uint8_t *tdata = pHdr->data;
+  memcpy(tdata, pBuf, bufLen);
+
+  *len = sizeof(SSnapDataHdr) + bufLen;
+
+_error:
+  if (code) {
+    if (*data != NULL) {
+      taosMemoryFree(*data);
+      *data = NULL;
+    }
+    bseError("vgId:%d failed to read snapshot data at line %d since %s", BSE_GET_VGID((SBse *)p->pBse), line,
+             tstrerror(code));
+  }
+  return code;
+}
 
 int32_t bseSnapReaderClose(SBseSnapReader **p) {
   int32_t code = 0;
@@ -339,10 +387,10 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
       }
 
       SBseLiveFileInfo *pInfo = taosArrayGet(pIter->pFileSet, pIter->index);
-
       code = tableReaderIterInit(pInfo->retentionTs, BSE_TABLE_DATA_TYPE, &pTableIter, pIter->pBse);
       TSDB_CHECK_CODE(code, lino, _error);
 
+      pTableIter->fileType = BSE_TABLE_SNAP;
       code = tableReaderIterNext(pTableIter, pValue, len);
       TSDB_CHECK_CODE(code, lino, _error);
 
@@ -382,6 +430,7 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
       code = tableReaderIterInit(pInfo->retentionTs, BSE_TABLE_META_TYPE, &pTableIter, pIter->pBse);
       TSDB_CHECK_CODE(code, lino, _error);
 
+      pTableIter->fileType = BSE_TABLE_META_SNAP;
       code = tableReaderIterNext(pTableIter, pValue, len);
       TSDB_CHECK_CODE(code, lino, _error);
 

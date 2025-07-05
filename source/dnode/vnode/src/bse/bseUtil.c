@@ -156,7 +156,7 @@ void bseBuildFullName(SBse *pBse, char *name, char *fullname) {
   snprintf(fullname, BSE_FILE_FULL_LEN, "%s%s%s", pBse->path, TD_DIRSEP, name);
 }
 
-void bseBuildDataName(SBse *pBse, int64_t ts, char *name) {
+void bseBuildDataName(int64_t ts, char *name) {
   snprintf(name, BSE_FILE_FULL_LEN, "%" PRId64 ".%s", ts, BSE_DATA_SUFFIX);
 }
 

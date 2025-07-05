@@ -113,6 +113,9 @@ int32_t blockWithMetaCleanup(SBlockWithMeta *p);
 int32_t blockWithMetaSeek(SBlockWithMeta *p, int64_t seq, uint8_t **pValue, int32_t *len);
 
 int32_t bseTableMgtRecoverTable(STableMgt *pMgt, SBseLiveFileInfo *pInfo);
+
+int32_t createSubTableMgt(int64_t retenTs, int32_t readOnly, STableMgt *pMgt, SSubTableMgt **pSubMgt);
+void    destroySubTableMgt(SSubTableMgt *p);
 #ifdef __cplusplus
 }
 #endif

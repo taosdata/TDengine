@@ -40,9 +40,7 @@ static void    tableMetaMgtDestroy(STableMetaMgt *pMgt);
 
 static void tableReaderFree(void *pReader);
 
-static void    blockFree(void *pBlock);
-static int32_t createSubTableMgt(int64_t retenTs, int32_t readOnly, STableMgt *pMgt, SSubTableMgt **pSubMgt);
-static void    destroySubTableMgt(SSubTableMgt *p);
+static void blockFree(void *pBlock);
 
 int32_t bseTableMgtCreate(SBse *pBse, void **pMgt) {
   int32_t code = 0;
@@ -92,7 +90,7 @@ _error:
   return code;
 }
 
-static int32_t createSubTableMgt(int64_t retenTs, int32_t readOnly, STableMgt *pMgt, SSubTableMgt **pSubMgt) {
+int32_t createSubTableMgt(int64_t retenTs, int32_t readOnly, STableMgt *pMgt, SSubTableMgt **pSubMgt) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -127,7 +125,7 @@ _error:
   }
   return code;
 }
-static void destroySubTableMgt(SSubTableMgt *p) {
+void destroySubTableMgt(SSubTableMgt *p) {
   if (p != NULL) {
     tableBuilderMgtDestroy(p->pBuilderMgt);
     tableReaderMgtDestroy(p->pReaderMgt);

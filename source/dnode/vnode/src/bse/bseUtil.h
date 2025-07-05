@@ -56,7 +56,7 @@ void bseBuildTempCurrentName(SBse *pBse, char *name);
 void bseBuildFullMetaName(SBse *pBse,char *name, char *path);
 void bseBuildFullTempMetaName(SBse *pBse, char *name, char *path);
 void bseBuildFullName(SBse *pBse, char *name, char *fullname);
-void bseBuildDataName(SBse *pBse, int64_t seq, char *name);
+void bseBuildDataName(int64_t seq, char *name);
 
 void bseBuildMetaName(int64_t ts, char *name); 
 void bseBuildTempMetaName(int64_t ts, char *name); 

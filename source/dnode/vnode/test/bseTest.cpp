@@ -23,6 +23,8 @@
 #include <tmsg.h>
 #include <random> 
 #include <string>
+#include "osDir.h"
+#include "osMemory.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -172,9 +174,10 @@ int32_t benchTest() {
     {
         SBseCfg cfg = {.compressType = kNoCompres};
         bseUpdateCfg(bse, &cfg);
-
+    
     }
 
+    
     putData(bse, 10000, 1000, &data);
     //getData(bse, &data);
 
@@ -228,15 +231,66 @@ int32_t funcTest() {
     code = bseOpen("/tmp/bse", &cfg, &bse);
     getData(bse, &data); 
     bseClose(bse);
-
     }
 
     return 0;
 }
-TEST(bseCase, openTest) {
+
+int32_t snapTest()  {
+    int32_t code = 0;
+    SBse *bse = NULL, *bseDst = NULL;
+    SBse *pDstBse = NULL;
+    SBseCfg cfg = {.vgId = 2};
+    std::vector<int64_t> data;
+    {
+        taosRemoveDir("/tmp/bseSrc");
+        taosRemoveDir("/tmp/bseDst");
+        int32_t code = bseOpen("/tmp/bseSrc", &cfg, &bse);
+        putData(bse, 10000, 1000, &data);
+        bseCommit(bse);
+        //getData(bse, &data); 
+    }
+    {
+        int32_t code = bseOpen("/tmp/bseDst", &cfg, &bseDst);
+        //putData(bse, 10000, 1000, &data);
+        //bseCommit(bse);
+        //getData(bse, &data); 
+    }
+    {
+        SBseSnapWriter *pWriter = NULL;
+        SBseSnapReader *pReader = NULL;
+
+        int32_t code = bseSnapReaderOpen(bse, 0, 0, &pReader);
+
+        code = bseSnapWriterOpen(bseDst, 0, 0, &pWriter);
+        uint8_t *data = NULL;
+        int32_t ndata = 0;
+        while (bseSnapReaderRead2(pReader, &data, &ndata) == 0) {
+            if (data != NULL) code = bseSnapWriterWrite(pWriter, data, ndata);     
+            else {
+                break;
+            }
+            taosMemFreeClear(data) ;
+        }
+        bseSnapReaderClose(&pReader);
+        bseSnapWriterClose(&pWriter, 0);
+
+    }
+    return code; 
+    
+
+}
+
+// TEST(bseCase, openTest) {
+//     initLog();
+//     benchTest();
+//     funcTest();
+// }
+TEST(bseCase, snapTest) {
     initLog();
-    benchTest();
-    funcTest();
+    // benchTest();
+    // funcTest();
+    snapTest();
 }
 
 #pragma GCC diagnostic pop
