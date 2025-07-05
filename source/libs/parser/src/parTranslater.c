@@ -6926,7 +6926,8 @@ static bool filterHasPlaceHolderRangeEnd(SOperatorNode *pOperator, bool equal) {
   return false;
 }
 
-static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeWindow* pTimeRange, SNode** pTimeRangeExpr) {
+static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeWindow* pTimeRange,
+                                 SNode** pTimeRangeExpr, SNode* pFromTable) {
   if (NULL == *pWhere) {
     TAOS_SET_OBJ_ALIGNED(pTimeRange, TSWINDOW_INITIALIZER);
     return TSDB_CODE_SUCCESS;
@@ -6949,7 +6950,7 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
     }
   }
 
-  if (pCxt->createStreamCalc) {
+  if (pCxt->createStreamCalc && nodeType(pFromTable) != QUERY_NODE_TEMP_TABLE) {
     PAR_ERR_JRET(filterExtractTsCond(&pCond, pTimeRangeExpr));
     // some node may be replaced
     TSWAP(*pWhere, pCond);
@@ -7753,7 +7754,7 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateExpr(pCxt, &pSelect->pFill);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = getQueryTimeRange(pCxt, &pSelect->pRange, &(((SFillNode*)pSelect->pFill)->timeRange), &(((SFillNode*)pSelect->pFill)->pTimeRange));
+    code = getQueryTimeRange(pCxt, &pSelect->pRange, &(((SFillNode*)pSelect->pFill)->timeRange), &(((SFillNode*)pSelect->pFill)->pTimeRange), pSelect->pFromTable);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true, pSelect->precision);
@@ -8359,7 +8360,7 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_WHERE;
   int32_t code = translateExpr(pCxt, &pSelect->pWhere);
   if (TSDB_CODE_SUCCESS == code) {
-    code = getQueryTimeRange(pCxt, &pSelect->pWhere, &pSelect->timeRange, &pSelect->pTimeRange);
+    code = getQueryTimeRange(pCxt, &pSelect->pWhere, &pSelect->timeRange, &pSelect->pTimeRange, pSelect->pFromTable);
   }
   if (pSelect->pWhere != NULL && pCxt->pParseCxt->topicQuery == false) {
     PAR_ERR_RET(setTableVgroupsFromEqualTbnameCond(pCxt, pSelect));
