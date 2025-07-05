@@ -1312,7 +1312,6 @@ int32_t tableMetaCommit(SBTableMeta *pMeta, SArray *pBlock) {
     blockWrapperSetType(&wrapper, BSE_TABLE_META_TYPE);
 
     code = tableMetaWriteAppendRawBlock(pWriter, &wrapper, &blkHandle);
-
     TSDB_CHECK_CODE(code, lino, _error);
 
     seqRangeUpdate(&pMeta->range, &blkHandle.range);

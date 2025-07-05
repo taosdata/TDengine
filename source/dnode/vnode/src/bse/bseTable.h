@@ -138,19 +138,19 @@ typedef struct {
   char    name[TSDB_FILENAME_LEN];
   int32_t blockCap;
 
-  SBse *pBse;
-
-  int64_t retentionTs;
-
   SBtableMetaWriter *pWriter;
   SBtableMetaReader *pReader;
-  SSeqRange          range;
-  // SArray *pReaderBlkHandle;
+
+  SSeqRange range;
+  int64_t   retentionTs;
+  SBse     *pBse;
 } SBTableMeta;
 typedef struct {
   char             name[TSDB_FILENAME_LEN];
+
   TdFilePtr        pDataFile;
   SArray          *pMeta;
+
   SArray       *pMetaHandle;
   SBlockWrapper pBlockWrapper;
   int32_t       blockCap;
@@ -159,12 +159,12 @@ typedef struct {
   int32_t       blockId;
   SSeqRange     tableRange;
   SSeqRange     blockRange;
-  SBTableMeta     *pTableMeta;
-  SBse   *pBse;
   int32_t nRef;
 
+  SBTableMeta *pTableMeta;
   int64_t retentionTs;
 
+  SBse *pBse;
 } STableBuilder;
 
 typedef struct {

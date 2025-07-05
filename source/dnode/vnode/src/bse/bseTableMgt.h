@@ -32,12 +32,12 @@ typedef struct {
   int8_t         inUse;
 
   int8_t inited;
-  SBse  *pBse;
 
   TdThreadMutex mutex;
   int64_t       retenTs;
-
   SSubTableMgt *pMgt;
+
+  SBse *pBse;
 } STableBuilderMgt;
 
 typedef struct {

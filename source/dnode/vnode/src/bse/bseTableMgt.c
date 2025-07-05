@@ -27,7 +27,7 @@ static void    tableReaderMgtDestroy(STableReaderMgt *pReader);
 static int32_t tableBuilderMgtInit(STableBuilderMgt *pMgt, SBse *pBse, int64_t retention);
 static void    tableBuilderMgtSetRetion(STableBuilderMgt *pMgt, int64_t retention);
 static int32_t tableBuilderMgtGetBuilder(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **p);
-static int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo, int8_t *commited);
+static int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo);
 static int32_t tableBuilderMgtSeek(STableBuilderMgt *pMgt, int64_t seq, uint8_t **pValue, int32_t *len);
 static int32_t tableBuilderMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch);
 static int32_t tableBuilderMgtClear(STableBuilderMgt *pMgt);
@@ -36,7 +36,6 @@ static void    tableBuilderMgtDestroy(STableBuilderMgt *pMgt);
 static int32_t tableBuilderMgtRecoverTable(STableBuilderMgt *pMgt, int64_t seq, STableBuilder **pBuilder, int64_t size);
 
 static int32_t tableMetaMgtInit(STableMetaMgt *pMgt, SBse *pBse, int64_t retention);
-static int32_t tableMetaMgtSetRetion(STableMetaMgt *pMgt, int64_t retention);
 static void    tableMetaMgtDestroy(STableMetaMgt *pMgt);
 
 static void tableReaderFree(void *pReader);
@@ -98,11 +97,15 @@ static int32_t createSubTableMgt(int64_t retenTs, int32_t readOnly, STableMgt *p
   int32_t lino = 0;
 
   SSubTableMgt *p = taosMemCalloc(1, sizeof(SSubTableMgt));
+  if (p == NULL) {
+    code = terrno;
+    TSDB_CHECK_CODE(terrno, lino, _error);
+  }
+
   if (!readOnly) {
     code = tableBuilderMgtInit(p->pBuilderMgt, pMgt->pBse, retenTs);
     TSDB_CHECK_CODE(code, lino, _error);
 
-    tableBuilderMgtSetRetion(p->pBuilderMgt, retenTs);
     p->pBuilderMgt->pMgt = p;
   }
 
@@ -262,15 +265,14 @@ int32_t bseTableMgtCommit(STableMgt *pMgt, SBseLiveFileInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
   int8_t  flushIdx = -1;
-  int8_t  commited = 0;
 
-  SSubTableMgt    *pSubMgt = pMgt->pCurrTableMgt;
-  if (pMgt->pCurrTableMgt == NULL) {
+  SSubTableMgt *pSubMgt = pMgt->pCurrTableMgt;
+  if (pSubMgt == NULL) {
     bseInfo("nothing to commit table");
     return code;
   }
 
-  code = tableBuilderMgtCommit(pSubMgt->pBuilderMgt, pInfo, &commited);
+  code = tableBuilderMgtCommit(pSubMgt->pBuilderMgt, pInfo);
   TSDB_CHECK_CODE(code, lino, _error);
 _error:
   if (code != 0) {
@@ -419,8 +421,6 @@ int32_t tableBuilderMgtClear(STableBuilderMgt *pMgt) {
   return code;
 }
 
-void tableBuilderMgtSetRetion(STableBuilderMgt *pMgt, int64_t retention) { pMgt->retenTs = retention; }
-
 int32_t tableBuilderMgtPutBatch(STableBuilderMgt *pMgt, SBseBatch *pBatch) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -506,7 +506,7 @@ _error:
 
   return code;
 }
-int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo, int8_t *commited) {
+int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo) {
   int32_t        code = 0;
   int32_t        lino = 0;
   int8_t         flushIdx = -1;
@@ -519,7 +519,6 @@ int32_t tableBuilderMgtCommit(STableBuilderMgt *pMgt, SBseLiveFileInfo *pInfo, i
   if (pBuilder != NULL) {
     code = tableBuilderCommit(pBuilder, pInfo);
     TSDB_CHECK_CODE(code, lino, _error);
-    *commited = 1;
   }
 _error:
   if (code != 0) {
@@ -556,13 +555,6 @@ _error:
   return code;
 }
 
-int32_t tableMetaMgtSetRetion(STableMetaMgt *pMgt, int64_t retention) {
-  int32_t code = 0;
-  int32_t lino = 0;
-
-  pMgt->retenTs = retention;
-  return code;
-}
 static void tableMetaMgtDestroy(STableMetaMgt *pMgt) {
   if (pMgt->pTableMeta != NULL) {
     tableMetaClose(pMgt->pTableMeta);

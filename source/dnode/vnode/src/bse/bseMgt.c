@@ -796,6 +796,7 @@ int32_t bseGenCommitInfo(SBse *pBse, SArray *pFileSet) {
   char     *pBuf = NULL;
   int32_t   len = 0;
   TdFilePtr fd = NULL;
+
   code = bseSerailCommitInfo(pBse, pFileSet, &pBuf, &len);
   TSDB_CHECK_CODE(code, lino, _error);
 

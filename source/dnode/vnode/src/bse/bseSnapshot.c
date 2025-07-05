@@ -92,8 +92,6 @@ static void bseRawFileWriterClose(SBseRawFileWriter *p, int8_t rollback) {
 }
 
 void bseRawFileGenLiveInfo(SBseRawFileWriter *p, SBseLiveFileInfo *pInfo) {
-  // pInfo->sseq = p->range.sseq;
-  // pInfo->eseq = p->range.eseq;
   pInfo->range = p->range;
   pInfo->size = p->offset;
   memcpy(pInfo->name, p->name, sizeof(p->name));
