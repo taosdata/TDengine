@@ -3708,7 +3708,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   int32_t lino = 0;
 
   EWindowType type = pMsg->triggerType;
-  pTask->trigTsIndex = 0;
+  pTask->trigTsIndex = pMsg->triTsSlotId;
   switch (pMsg->triggerType) {
     case WINDOW_TYPE_INTERVAL: {
       pTask->triggerType = STREAM_TRIGGER_SLIDING;
@@ -3787,7 +3787,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   }
 
   pTask->leaderSnodeId = pMsg->leaderSnodeId;
-  pTask->calcTsIndex = pMsg->tsSlotId;
+  pTask->calcTsIndex = pMsg->calcTsSlotId;
   pTask->maxDelay = pMsg->maxDelay * NANOSECOND_PER_MSEC;
   pTask->fillHistoryStartTime = pMsg->fillHistoryStartTime;
   pTask->watermark = pMsg->watermark;
