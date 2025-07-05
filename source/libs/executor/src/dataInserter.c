@@ -414,14 +414,16 @@ static int32_t processUseDbRspForInserter(void* param, SDataBuf* pMsg, int32_t c
   code = tDeserializeSUseDbRsp(pMsg->pData, (int32_t)pMsg->len, pVgInfoReq->pRsp);
   QUERY_CHECK_CODE(code, lino, _return);
 
-  taosMemoryFreeClear(pMsg->pData);
-
-  code = tsem_post(&pVgInfoReq->ready);
-  QUERY_CHECK_CODE(code, lino, _return);
-
-  return code;
 _return:
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  taosMemoryFreeClear(pMsg->pData);
+  taosMemoryFreeClear(pMsg->pEpSet);
+  if (code != 0){
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  int ret = tsem_post(&pVgInfoReq->ready);
+  if (ret != 0) {
+    qError("%s failed code: %d", __func__, ret);
+  }
   return code;
 }
 
