@@ -960,7 +960,8 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
 
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->eventTypes));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->placeHolderBitmap));
-  TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->tsSlotId));
+  TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->calcTsSlotId));
+  TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->triTsSlotId));
   int32_t triggerPrevFilterLen = (pMsg->triggerPrevFilter == NULL) ? 0 : ((int32_t)strlen(pMsg->triggerPrevFilter) + 1);
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->triggerPrevFilter, triggerPrevFilterLen));
   int32_t triggerScanPlanLen = (pMsg->triggerScanPlan == NULL) ? 0 : ((int32_t)strlen(pMsg->triggerScanPlan) + 1);
@@ -1481,7 +1482,8 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
 
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->eventTypes));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->placeHolderBitmap));
-  TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->tsSlotId));
+  TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->calcTsSlotId));
+  TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->triTsSlotId));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->triggerPrevFilter, NULL));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->triggerScanPlan, NULL));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->calcCacheScanPlan, NULL));
@@ -2248,7 +2250,8 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->flags));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->tsmaId));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->placeHolderBitmap));
-  TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pReq->tsSlotId));
+  TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pReq->calcTsSlotId));
+  TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pReq->triTsSlotId));
 
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->triggerTblVgId));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->outTblVgId));
@@ -2504,7 +2507,8 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->flags));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->tsmaId));
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->placeHolderBitmap));
-  TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pReq->tsSlotId));
+  TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pReq->calcTsSlotId));
+  TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pReq->triTsSlotId));
 
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->triggerTblVgId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->outTblVgId));
@@ -3799,16 +3803,14 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, SStreamMsgVTableInfo *vTableInfo){
-  SDecoder decoder = {0};
-  int32_t  code = TSDB_CODE_SUCCESS;
-  int32_t  lino = 0;
-  int32_t  size = 0;
+int32_t tDeserializeSStreamMsgVTableInfo(SDecoder* decoder, SStreamMsgVTableInfo* vTableInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t size = 0;
 
-  tDecoderInit(&decoder, buf, bufLen);
-  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tStartDecode(decoder));
 
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &size));
+  TAOS_CHECK_EXIT(tDecodeI32(decoder, &size));
   vTableInfo->infos = taosArrayInit(size, sizeof(VTableInfo));
   if (vTableInfo->infos == NULL) {
     TAOS_CHECK_EXIT(terrno);
@@ -3818,16 +3820,15 @@ int32_t tDeserializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, SStreamMsgVT
     if (info == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &info->gId));
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &info->uid));
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &info->ver));
-    TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(&decoder, &info->cols));
+    TAOS_CHECK_EXIT(tDecodeI64(decoder, &info->gId));
+    TAOS_CHECK_EXIT(tDecodeI64(decoder, &info->uid));
+    TAOS_CHECK_EXIT(tDecodeI64(decoder, &info->ver));
+    TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(decoder, &info->cols));
   }
 
-  tEndDecode(&decoder);
+  tEndDecode(decoder);
 
 _exit:
-  tDecoderClear(&decoder);
   return code;
 }
 
