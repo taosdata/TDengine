@@ -137,6 +137,13 @@ add_test(
     COMMAND decompressTest
 )
 
+add_executable(sortTest "sortTest.cpp")
+DEP_ext_gtest(sortTest)
+target_link_libraries(sortTest PRIVATE os util common)
+add_test(
+        NAME sortTest
+        COMMAND sortTest
+)
 
 if(${TD_LINUX})
     add_executable(utilTests utilTests.cpp stringTest.cpp)
