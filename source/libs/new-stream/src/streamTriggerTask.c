@@ -2757,6 +2757,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
   SStreamMsgVTableInfo      vtableInfo = {0};
   SSTriggerOrigTableInfoRsp otableInfo = {0};
   SArray                   *pOrigTableNames = NULL;
+  SDecoder                  decoder = {0};
 
   QUERY_CHECK_CONDITION(pRsp->code == TSDB_CODE_SUCCESS || pRsp->code == TSDB_CODE_STREAM_NO_DATA, code, lino, _end,
                         TSDB_CODE_INVALID_PARA);
@@ -2965,7 +2966,9 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
     case STRIGGER_PULL_VTABLE_INFO: {
       QUERY_CHECK_CONDITION(pContext->status == STRIGGER_CONTEXT_GATHER_VTABLE_INFO, code, lino, _end,
                             TSDB_CODE_INTERNAL_ERROR);
-      code = tDeserializeSStreamMsgVTableInfo(pRsp->pCont, pRsp->contLen, &vtableInfo);
+
+      tDecoderInit(&decoder, pRsp->pCont, pRsp->contLen);
+      code = tDeserializeSStreamMsgVTableInfo(&decoder, &vtableInfo);
       QUERY_CHECK_CODE(code, lino, _end);
       SStreamTaskAddr *pReader = taosArrayGet(pTask->virtReaderList, pContext->curReaderIdx);
       QUERY_CHECK_NULL(pReader, code, lino, _end, terrno);
@@ -3151,6 +3154,7 @@ _end:
   if (pTempDataBlock != NULL) {
     blockDataDestroy(pTempDataBlock);
   }
+  tDecoderClear(&decoder);
   tDestroySStreamMsgVTableInfo(&vtableInfo);
   tDestroySTriggerOrigTableInfoRsp(&otableInfo);
   if (code != TSDB_CODE_SUCCESS) {

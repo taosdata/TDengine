@@ -3799,16 +3799,14 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, SStreamMsgVTableInfo *vTableInfo){
-  SDecoder decoder = {0};
-  int32_t  code = TSDB_CODE_SUCCESS;
-  int32_t  lino = 0;
-  int32_t  size = 0;
+int32_t tDeserializeSStreamMsgVTableInfo(SDecoder* decoder, SStreamMsgVTableInfo* vTableInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t size = 0;
 
-  tDecoderInit(&decoder, buf, bufLen);
-  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tStartDecode(decoder));
 
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &size));
+  TAOS_CHECK_EXIT(tDecodeI32(decoder, &size));
   vTableInfo->infos = taosArrayInit(size, sizeof(VTableInfo));
   if (vTableInfo->infos == NULL) {
     TAOS_CHECK_EXIT(terrno);
@@ -3818,16 +3816,15 @@ int32_t tDeserializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, SStreamMsgVT
     if (info == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &info->gId));
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &info->uid));
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &info->ver));
-    TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(&decoder, &info->cols));
+    TAOS_CHECK_EXIT(tDecodeI64(decoder, &info->gId));
+    TAOS_CHECK_EXIT(tDecodeI64(decoder, &info->uid));
+    TAOS_CHECK_EXIT(tDecodeI64(decoder, &info->ver));
+    TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(decoder, &info->cols));
   }
 
-  tEndDecode(&decoder);
+  tEndDecode(decoder);
 
 _exit:
-  tDecoderClear(&decoder);
   return code;
 }
 
