@@ -364,9 +364,6 @@ description: TDengine 保留关键字的详细列表
 ### S
 |关键字 | 说明|
 |----------------------|-|
-| S3_CHUNKPAGES        | |
-| S3_COMPACT           | |
-| S3_KEEPLOCAL         | |
 | SCHEMALESS           | |
 | SCORES               | |
 | SELECT               | |
@@ -387,6 +384,10 @@ description: TDengine 保留关键字的详细列表
 | SNODES               | |
 | SOFFSET              | |
 | SPLIT                | |
+| SS_CHUNKPAGES        | |
+| SS_COMPACT           | |
+| SS_KEEPLOCAL         | |
+| SSMIGRATE            | |
 | STABLE               | |
 | STABLES              | |
 | STAR                 | |

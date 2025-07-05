@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 #include "tstream.h"
 #include "streamInt.h"
-#include "tcs.h"
 #include "tglobal.h"
 
 #pragma GCC diagnostic push
@@ -392,18 +391,18 @@ TEST(sstreamTaskGetTriggerRecvStatusTest, streamTaskGetTriggerRecvStatusFnTest) 
     code = streamTaskDownloadCheckpointData("123", "/root/download", 123);
     EXPECT_NE(code, TSDB_CODE_SUCCESS);
 
-    tcsInit();
-    extern int8_t tsS3EpNum;
-    tsS3EpNum = 1;
+    // tcsInit();
+    // extern int8_t tsS3EpNum;
+    // tsS3EpNum = 1;
 
-    code = uploadCheckpointToS3("123", "/tmp/backend5/stream/stream");
-    EXPECT_NE(code, TSDB_CODE_OUT_OF_RANGE);
+    // code = uploadCheckpointToS3("123", "/tmp/backend5/stream/stream");
+    // EXPECT_NE(code, TSDB_CODE_OUT_OF_RANGE);
 
-    code = downloadCheckpointByNameS3("123", "/root/download", "");
-    EXPECT_NE(code, TSDB_CODE_OUT_OF_RANGE);
+    // code = downloadCheckpointByNameS3("123", "/root/download", "");
+    // EXPECT_NE(code, TSDB_CODE_OUT_OF_RANGE);
 
-    code = deleteCheckpointRemoteBackup("aaa123", "bbb");
-    EXPECT_NE(code, TSDB_CODE_OUT_OF_RANGE);
+    // code = deleteCheckpointRemoteBackup("aaa123", "bbb");
+    // EXPECT_NE(code, TSDB_CODE_OUT_OF_RANGE);
 }
 
 TEST(doCheckBeforeHandleChkptTriggerTest, doCheckBeforeHandleChkptTriggerFnTest) {

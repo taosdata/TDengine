@@ -31,33 +31,45 @@ from frame.eos import *
 
 
 #  
-# 192.168.1.52 MINIO S3 
+# 192.168.1.52 MINIO
 #
 
 '''
-s3EndPoint     http://192.168.1.52:9000
-s3AccessKey    'zOgllR6bSnw2Ah3mCNel:cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX'
-s3BucketName   ci-bucket
-s3UploadDelaySec 60
+Common:
+    ssEnabled               : 2,
+    ssPageCacheSize         : 10240,
+    ssUploadDelaySec        : 10,
+    ssAutoMigrateIntervalSec: 600,
 
-for test:
-"s3AccessKey" : "fGPPyYjzytw05nw44ViA:vK1VcwxgSOykicx6hk8fL1x15uEtyDSFU3w4hTaZ"
-"s3BucketName": "test-bucket"
+ssAccessString Common:
+    Endpoint        : 192.168.1.52:9000
+    Protocol        : http
+    UriStyle        : path
+    ChunkSize       : 64MB
+    MaxChunks       : 10000
+    MaxRetry        : 3
+
+ssAccessTring For CI:
+    Bucket          : ci-bucket
+    AccessKeyId     : zOgllR6bSnw2Ah3mCNel
+    SecretAccessKey : cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX
+
+ssAccessString For Test:
+    Bucket          : test-bucket
+    AccessKeyId     : fGPPyYjzytw05nw44ViA
+    SecretAccessKey : vK1VcwxgSOykicx6hk8fL1x15uEtyDSFU3w4hTaZ
 '''
-
 
 class TDTestCase(TBase):
     index = eutil.cpuRand(40) + 1
     bucketName = f"ci-bucket{index}"
     updatecfgDict = {
         "supportVnodes":"1000",
-        's3EndPoint': 'http://192.168.1.52:9000', 
-        's3AccessKey': 'zOgllR6bSnw2Ah3mCNel:cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX', 
-        's3BucketName': f'{bucketName}',
-        's3PageCacheSize': '10240',
-        "s3UploadDelaySec": "10",
-        's3MigrateIntervalSec': '600',
-        's3MigrateEnabled': '1'
+        "ssEnabled": "2",
+        "ssAccessString": f's3:endpoint=192.168.1.52:9000;bucket={bucketName};uriStyle=path;protocol=http;accessKeyId=zOgllR6bSnw2Ah3mCNel;secretAccessKey=cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX;chunkSize=64;maxChunks=10000;maxRetry=3',
+        'ssPageCacheSize': '10240',
+        "ssUploadDelaySec": "10",
+        'ssAutoMigrateIntervalSec': '600',
     }
 
     tdLog.info(f"assign bucketName is {bucketName}\n")
@@ -70,11 +82,11 @@ class TDTestCase(TBase):
     def insertData(self):
         tdLog.info(f"insert data.")
         # taosBenchmark run
-        json = etool.curFile(__file__, "s3Basic.json")
+        json = etool.curFile(__file__, "ssBasic.json")
         etool.benchMark(json=json)
 
         tdSql.execute(f"use {self.db}")
-        # come from s3_basic.json
+        # come from ss_basic.json
         self.childtable_count = 6
         self.insert_rows = 2000000
         self.timestamp_step = 100
@@ -83,9 +95,9 @@ class TDTestCase(TBase):
         sql = f"create stream {sname} fill_history 1 into stm1 as select count(*) from {self.db}.{self.stb} interval(10s);"
         tdSql.execute(sql)
 
-    def migrateDbS3(self):
-        sql = f"s3migrate database {self.db}"
-        tdSql.execute(sql, show=True)
+    def migrateDbSs(self):
+        sql = f"ssmigrate database {self.db}"
+        tdSql.execute(sql, queryTimes=60, show=True)
 
     def checkDataFile(self, lines, maxFileSize):
         # ls -l
@@ -104,7 +116,7 @@ class TDTestCase(TBase):
                 
         return overCnt
 
-    def checkUploadToS3(self):
+    def checkUploadToSs(self):
         rootPath = sc.clusterRootPath()
         cmd = f"ls -l {rootPath}/dnode*/data/vnode/vnode*/tsdb/*.data"
         tdLog.info(cmd)
@@ -114,7 +126,7 @@ class TDTestCase(TBase):
         while loop < 150:
             time.sleep(2)
 
-            # check upload to s3
+            # check upload to ss
             rets = eos.runRetList(cmd)
             cnt = len(rets)
             if cnt == 0:
@@ -124,7 +136,7 @@ class TDTestCase(TBase):
             overCnt = self.checkDataFile(rets, self.maxFileSize)
             if overCnt == 0:
                 uploadOK = True
-                tdLog.info(f"All data files({len(rets)}) size bellow {self.maxFileSize}, check upload to s3 ok.")
+                tdLog.info(f"All data files({len(rets)}) size bellow {self.maxFileSize}, check upload to ss ok.")
                 break
 
             tdLog.info(f"loop={loop} no upload {overCnt} data files wait 3s retry ...")
@@ -134,11 +146,11 @@ class TDTestCase(TBase):
                 sc.dnodeStart(1)
             loop += 1
             # migrate
-            self.migrateDbS3()
+            self.migrateDbSs()
                 
         # check can pass
         if overCnt > 0:
-            self.exit(f"s3 have {overCnt} files over size.")
+            self.exit(f"ss have {overCnt} files over size.")
 
 
     def doAction(self):
@@ -148,10 +160,10 @@ class TDTestCase(TBase):
         #self.compactDb(show=True)
 
         # sleep 70s
-        self.migrateDbS3()
+        self.migrateDbSs()
 
-        # check upload to s3
-        self.checkUploadToS3()
+        # check upload to ss
+        self.checkUploadToSs()
 
     def checkStreamCorrect(self):
         sql = f"select count(*) from {self.db}.stm1"
@@ -170,15 +182,15 @@ class TDTestCase(TBase):
         # keyword
         kw1 = kw2 = kw3 = "" 
         if keepLocal is not None:
-            kw1 = f"s3_keeplocal {keepLocal}"
+            kw1 = f"ss_keeplocal {keepLocal}"
         if chunkSize is not None:
-            kw2 = f"s3_chunkpages {chunkSize}"
+            kw2 = f"ss_chunkpages {chunkSize}"
         if compact is not None:
-            kw3 = f"s3_compact {compact}"    
+            kw3 = f"ss_compact {compact}"    
 
         sql = f" create database db1 vgroups 1 duration 1h {kw1} {kw2} {kw3}"
         tdSql.execute(sql, show=True)
-        #sql = f"select name,s3_keeplocal,s3_chunkpages,s3_compact from information_schema.ins_databases where name='db1';"
+        #sql = f"select name,ss_keeplocal,ss_chunkpages,ss_compact from information_schema.ins_databases where name='db1';"
         sql = f"select * from information_schema.ins_databases where name='db1';"
         tdSql.query(sql)
         # 29 30 31 -> chunksize keeplocal compact
@@ -195,15 +207,15 @@ class TDTestCase(TBase):
     def checkExcept(self):
         # errors
         sqls = [
-            f"create database db2 s3_keeplocal -1",
-            f"create database db2 s3_keeplocal 0",
-            f"create database db2 s3_keeplocal 365001",
-            f"create database db2 s3_chunkpages -1",
-            f"create database db2 s3_chunkpages 0",
-            f"create database db2 s3_chunkpages 900000000",
-            f"create database db2 s3_compact -1",
-            f"create database db2 s3_compact 100",
-            f"create database db2 duration 1d s3_keeplocal 1d"
+            f"create database db2 ss_keeplocal -1",
+            f"create database db2 ss_keeplocal 0",
+            f"create database db2 ss_keeplocal 365001",
+            f"create database db2 ss_chunkpages -1",
+            f"create database db2 ss_chunkpages 0",
+            f"create database db2 ss_chunkpages 900000000",
+            f"create database db2 ss_compact -1",
+            f"create database db2 ss_compact 100",
+            f"create database db2 duration 1d ss_keeplocal 1d"
         ]
         tdSql.errors(sqls)
 
@@ -220,11 +232,11 @@ class TDTestCase(TBase):
                     self.checkCreateDb(keep, chunk, comp)
 
         
-        # --checks3
+        # --checkss
         idx = 1
         taosd = sc.taosdFile(idx)
         cfg   = sc.dnodeCfgPath(idx)
-        cmd = f"{taosd} -c {cfg} --checks3"
+        cmd = f"{taosd} -c {cfg} --checkss"
 
         eos.exe(cmd)
         #output, error = eos.run(cmd)
@@ -232,16 +244,16 @@ class TDTestCase(TBase):
 
         '''
         tips = [
-            "put object s3test.txt: success",
+            "put object sstest.txt: success",
             "listing bucket ci-bucket: success",
-            "get object s3test.txt: success",
-            "delete object s3test.txt: success"
+            "get object sstest.txt: success",
+            "delete object sstest.txt: success"
         ]
         pos = 0
         for tip in tips:
             pos = output.find(tip, pos)
             #if pos == -1:
-            #    tdLog.exit(f"checks3 failed not found {tip}. cmd={cmd} output={output}")
+            #    tdLog.exit(f"checkss failed not found {tip}. cmd={cmd} output={output}")
         '''
         
         # except
@@ -261,10 +273,10 @@ class TDTestCase(TBase):
     def insertHistory(self):
         tdLog.info(f"insert history data.")
         # taosBenchmark run
-        json = etool.curFile(__file__, "s3Basic1.json")
+        json = etool.curFile(__file__, "ssBasic_History.json")
         etool.benchMark(json=json)
 
-        # come from s3_basic.json
+        # come from ss_basic.json
         self.insert_rows += self.insert_rows/4
         self.timestamp_step = 50
 
@@ -352,7 +364,7 @@ class TDTestCase(TBase):
             self.checkDelete()
             self.doAction()
 
-            # drop database and free s3 file
+            # drop database and free ss file
             self.dropDb()
 
 
