@@ -512,7 +512,7 @@ class TDCom:
         elif "TDengine" in selfPath:
             projPath = selfPath[:selfPath.find("TDengine")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            projPath = selfPath[:selfPath.find("test")]
 
         for root, dirs, files in os.walk(projPath):
             if ("taosd" in files or "taosd.exe" in files):
@@ -1676,16 +1676,16 @@ class TDCom:
             int: second
         """
         if "d" in str(runtime).lower():
-            d_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            d_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
             s_num = float(d_num) * 24 * 60 * 60
         elif "h" in str(runtime).lower():
-            h_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            h_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
             s_num = float(h_num) * 60 * 60
         elif "m" in str(runtime).lower():
-            m_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            m_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
             s_num = float(m_num) * 60
         elif "s" in str(runtime).lower():
-            s_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            s_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
         else:
             s_num = 60
         return int(s_num)
@@ -2150,6 +2150,14 @@ def dict2toml(in_dict: dict, file:str):
     with open(file, 'w') as f:
         toml.dump(in_dict, f)
 
-
+def is_json(msg):
+    if isinstance(msg, str):
+        try:
+            json.loads(msg)
+            return True
+        except:
+            return False
+    else:
+        return False
 
 tdCom = TDCom()
