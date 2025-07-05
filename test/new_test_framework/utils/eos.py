@@ -63,21 +63,47 @@ def exeNoWait(file):
         cmd = f"nohup {file} > /dev/null 2>&1 & "
     return exe(cmd)
 
+def readFileContext(filename):
+    file = open(filename)
+    context = file.read()
+    file.close()
+    return context
+
 # run return output and error
-def run(command, timeout = 10):
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    process.wait(timeout)
+def run(command, timeout = 20, ret_code=False):
+    id = time.time_ns() % 100000
+    out = f"out_{id}.txt"
+    err = f"err_{id}.txt"
+    
+    code = exe(command + f" 1>{out} 2>{err}")
 
-    output = process.stdout.read().decode(encoding="gbk")
-    error = process.stderr.read().decode(encoding="gbk")
+    # read from file
+    output = readFileContext(out)
+    error  = readFileContext(err)
 
-    return output, error
+    # del
+    if os.path.exists(out):
+        os.remove(out)
+    if os.path.exists(err):
+        os.remove(err)
+
+    if ret_code:
+        return output, error, code
+    else:
+        return output, error
 
 
 # return list after run
-def runRetList(command, timeout=10):
-    output,error = run(command, timeout)
-    return output.splitlines()
+def runRetList(command, timeout=10, checkRun=False, retFail=False):
+    output, error, code = run(command, ret_code=True)
+    if checkRun and code != 0:
+        print(f"eos.runRetList checkRun return code failed. code={code} error={error}")
+        assert code == 0
+    
+    rList = output.splitlines()
+    if retFail and error != "":
+        rList += error.splitlines()
+    return rList
 
 #
 #   file 
