@@ -175,10 +175,18 @@ typedef struct SStreamCacheReadInfo {
   }
 
 #define STREAM_PRINT_LOG_END_WITHID(code, lino)                                              \
-  if (code != 0) {                                                             \
-    ST_TASK_DLOG("%s failed at line %d since %s", __func__, lino, tstrerror(code)); \
-  } else {                                                                     \
-    ST_TASK_DLOG("%s done success", __func__);                                      \
+  if (sStreamReaderInfo) {                                                              \
+    if (code != 0) {                                                             \
+      ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code)); \
+    } else {                                                                     \
+      ST_TASK_DLOG("%s done success", __func__);                                      \
+    }                                                                                 \
+  } else {                                                                            \
+    if (code != 0) {                                                             \
+      stError("%s failed at line %d since %s", __func__, lino, tstrerror(code)); \
+    } else {                                                                     \
+      stDebug("%s done success", __func__);                                      \
+    }                                                                                 \
   }
 
 // clang-format off
