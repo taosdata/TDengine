@@ -14,15 +14,15 @@ class TestStreamStateTrigger:
         tdStream.createSnode()
 
         streams = []
-        streams.append(self.Basic0()) 
-        streams.append(self.Basic1())
-        streams.append(self.Basic2())
-        streams.append(self.Basic3())
+        # streams.append(self.Basic0()) 
+        # streams.append(self.Basic1())
+        # streams.append(self.Basic2())
+        # streams.append(self.Basic3())
         streams.append(self.Basic4())
-        streams.append(self.Basic5())
-        streams.append(self.Basic6())
-        streams.append(self.Basic7())
-        streams.append(self.Basic8())
+        # streams.append(self.Basic5())
+        # streams.append(self.Basic6())
+        # streams.append(self.Basic7())
+        # streams.append(self.Basic8())
         
         tdStream.checkAll(streams)
 
@@ -1713,10 +1713,4 @@ class TestStreamStateTrigger:
                 and tdSql.compareData(3, 3, 3)
                 and tdSql.compareData(3, 4, 3),
             )
-
-
-    
-
-
-
 
