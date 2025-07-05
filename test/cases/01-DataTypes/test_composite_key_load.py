@@ -9,8 +9,9 @@ class TestCompositeKeyLoad:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_project_column_1(self):
-        """1 读取 内存中数据和 stt 中复合主键数据出现错误，原因是：minKey 采用浅拷贝，导致stt向后迭代时候，
-           修改了 minKey 的值， 导致内存中的 key 和 stt 中key 合并后， 出现错误
+        """读取内存中数据和 stt 中复合主键数据出现错误
+
+        原因是：minKey 采用浅拷贝，导致stt向后迭代时候，修改了 minKey 的值， 导致内存中的 key 和 stt 中key 合并后， 出现错误
 
         1. 创建单表，时间列和composite key 字符串列。向 stt 中写入 4 条记录，内存中写入一条记录
         2. 查询出错
