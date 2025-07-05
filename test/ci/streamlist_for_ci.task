@@ -25,7 +25,7 @@
 ## 07-SubQuery
 ,,n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_basic.py
 ,,n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_limit.py
-#,,n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding.py
+,,n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding.py
 
 ## 08-ReCalculate
 
