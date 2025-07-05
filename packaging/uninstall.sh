@@ -22,6 +22,7 @@ TAOSX_AGENT_LOG_NAME="${PREFIX}x_agent_*.log*"
 TAOS_EXPLORER_LOG_NAME="${PREFIX}explorer_*.log*"
 
 target=${agentname}
+verNumber=3.0
 
 if command -v ${xName} >/dev/null; then
   target=${xName}
@@ -82,6 +83,17 @@ elif echo $osinfo | grep -qwi "Linx"; then
   service_mod=0
   initd_mod=0
   SERVICE_CONFIG_DIR="/etc/systemd/system"
+elif echo `uname` | grep -qwi "Darwin"; then
+  os_type=3
+  if [ -d "/usr/local/Cellar/" ]; then
+    TAOSX_ROOT_DIR="/usr/local/Cellar/tdengine/${verNumber}"
+  elif [ -d "/opt/homebrew/Cellar/" ]; then
+    TAOSX_ROOT_DIR="/opt/homebrew/Cellar/tdengine/${verNumber}"
+  else
+    TAOSX_ROOT_DIR="/usr/local/taos"
+  fi
+  INSTALL_DIR="/usr/local/bin"
+  SERVICE_CONFIG_DIR="/Library/LaunchDaemons"
 else
   echo " osinfo: ${osinfo}"
   echo " This is an officially unverified linux system,"
@@ -114,7 +126,17 @@ stop_taosx_agent_service(){
     fi
 }
 
-stop_explore_service(){
+stop_explorer_service(){
+  if echo `uname` | grep -qwi "Darwin"; then
+    service=com.tdengine.taos-explorer
+    explore_service_config=${SERVICE_CONFIG_DIR}/${service}.plist
+    if [ -e "$explore_service_config" ]; then
+      ${csudo}launchctl stop ${service}
+      ${csudo}launchctl unload -w ${explore_service_config} || :
+      ${csudo}launchctl remove ${service} || :
+      ${csudo}rm ${explore_service_config} >/dev/null 2>&1 || :
+    fi
+  else
     explore_service_config="${SERVICE_CONFIG_DIR}/${explorerName}.service"
     if [ -e "$explore_service_config" ]; then
       if systemctl is-active --quiet ${explorerName}; then
@@ -124,13 +146,14 @@ stop_explore_service(){
       ${csudo}systemctl disable ${explorerName} &>/dev/null || echo &>/dev/null
       ${csudo}rm -f ${explore_service_config}
     fi
+  fi
 }
 
 # remove old taosx and taosx-agent
 remove_taosx() {
     stop_taosx_agent_service
     stop_taosx_service
-    stop_explore_service
+    stop_explorer_service
 
     hasAgent=0
     if [ -f ${INSTALL_DIR}/${agentname} ]; then
@@ -181,6 +204,32 @@ remove_taosx() {
     fi
 
     remove_plugin_logs
+}
+
+
+# remove old taosx and taosx-agent
+remove_explorer() {
+    stop_explorer_service
+
+    ${csudo}rm -rf ${INSTALL_DIR}/${explorerName}
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/bin/${explorerName}
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall_explorer.sh
+
+    if ! need_remove_data $COMMAND_ARGS; then
+        echo "${xName} is removed successfully!"
+        echo "${explorerName} is removed successfully!"
+        if [ $hasAgent -eq 1 ]; then
+            echo "${agentname} is removed successfully!"
+        fi
+        return
+    fi
+
+    remove_custom_data_dir ${CONFIG_DIR}/${EXPLORER_CONFIG_NAME}.toml
+    remove_custom_log_dir ${CONFIG_DIR}/${EXPLORER_CONFIG_NAME}.toml
+    ${csudo}rm -rf ${DATA_DIR}/${EXPLORER_CONFIG_NAME}
+    ${csudo}rm -rf ${LOG_DIR}/${TAOS_EXPLORER_LOG_NAME}
+    ${csudo}rm -rf ${CONFIG_DIR}/${EXPLORER_CONFIG_NAME}.toml*
+    echo "${explorerName} is removed successfully!"
 }
 
 remove_custom_data_dir() {
@@ -259,6 +308,8 @@ remove_taos_agent() {
 remove_target() {
     if [ "$target" = ${xName} ]; then
       remove_taosx
+    elif  [ "$target" = ${explorerName} ]; then
+      remove_explorer
     else
       remove_taos_agent
     fi
