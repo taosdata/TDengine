@@ -54,9 +54,9 @@ class TestCommandlineRetry:
         sc.dnodeStart(1)
         time.sleep(2)
 
-        psCmd = "ps -ef|grep -w taosBenchmark| grep -v grep | awk '{print $2}'"
+        psCmd = "ps -efww |grep -w taosBenchmark| grep -v grep | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True)
-
+        tdLog.info("taosBenchmark processID: %s" % processID)
         while processID:
             time.sleep(1)
             processID = subprocess.check_output(psCmd, shell=True)

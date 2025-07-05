@@ -779,7 +779,7 @@ def add_common_methods(request):
 # insert & check
     def benchInsert(self, jsonFile, options = "", results = None):
         # exe insert 
-        benchmark = frame.etool.benchMarkFile()
+        benchmark = etool.benchMarkFile()
         cmd   = f"{benchmark} {options} -f {jsonFile}"
         rlist = frame.eos.runRetList(cmd, True, True, True)
         if results != None:
