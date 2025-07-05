@@ -2991,6 +2991,7 @@ static int32_t parseInsertTableClause(SInsertParseContext* pCxt, SVnodeModifyOpS
       }
       if (code == TSDB_CODE_SUCCESS) {
         pCxt->numOfMissingCacheTables++;
+        pStmt->totalRowsNum++;
       }
     } else {
       code = parseInsertTableClauseBottom(pCxt, pStmt);
@@ -3551,8 +3552,9 @@ static int32_t parseValuesFromToken(SInsertParseContext* pCxt, SVnodeModifyOpStm
   return code;
 }
 
-static int32_t parseInsertTableClauseFromTokens(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  if (NULL == pStmt->pInsertTokensHashObj) {
+static int32_t parseInsertTableClauseFromTokens(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,
+                                                const SMetaData* pMetaData) {
+  if (NULL == pStmt->pInsertTokensHashObj || NULL == pMetaData || NULL == pMetaData->pTableMeta) {
     return parseInsertTableClauseBottom(pCxt, pStmt);
   }
 
@@ -3560,12 +3562,29 @@ static int32_t parseInsertTableClauseFromTokens(SInsertParseContext* pCxt, SVnod
   const char* pOriginalSql = pStmt->pSql;
 
   int32_t code = TSDB_CODE_SUCCESS;
-  void*   pIter = taosHashIterate(pStmt->pInsertTokensHashObj, NULL);
+
+  // Iterate through all insert tokens hash table entries
+  void*  pIter = taosHashIterate(pStmt->pInsertTokensHashObj, NULL);
+  size_t metaIdx = 0;  // Index to track position in metadata array
 
   while (NULL != pIter && TSDB_CODE_SUCCESS == code) {
+    size_t  keyLen = 0;
+    char*   pKey = taosHashGetKey(pIter, &keyLen);
     SArray* pInsertTokensArray = *(SArray**)pIter;
 
-    // Process each SInsertTokens in the array
+    // Get corresponding table meta from metadata array
+    // The metadata array should be in the same order as requests were made
+    STableMeta* pTableMeta = NULL;
+    if (metaIdx < taosArrayGetSize(pMetaData->pTableMeta)) {
+      pTableMeta = (STableMeta*)taosArrayGetP(pMetaData->pTableMeta, metaIdx++);
+    }
+
+    if (NULL == pTableMeta) {
+      pIter = taosHashIterate(pStmt->pInsertTokensHashObj, pIter);
+      continue;
+    }
+
+    // Process each SInsertTokens in the array for this table
     size_t arraySize = taosArrayGetSize(pInsertTokensArray);
     for (size_t i = 0; i < arraySize && TSDB_CODE_SUCCESS == code; ++i) {
       SInsertTokens** ppInsertTokens = (SInsertTokens**)taosArrayGet(pInsertTokensArray, i);
@@ -3581,10 +3600,21 @@ static int32_t parseInsertTableClauseFromTokens(SInsertParseContext* pCxt, SVnod
       // Set current table context
       memcpy(&pStmt->targetTableName, pInsertTokens->pName, sizeof(SName));
 
-      // Get table schema and vgroup information
-      code = getTargetTableSchema(pCxt, pStmt);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = getTargetTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
+      // Use table meta from MetaData directly
+      pStmt->pTableMeta = pTableMeta;
+
+      // Set table type flags
+      if (pStmt->pTableMeta->tableType == TSDB_SUPER_TABLE && !pStmt->usingTableProcessing) {
+        pStmt->stbSyntax = true;
+      }
+
+      // Process table schema from metadata
+      if (!pStmt->stbSyntax) {
+        if (pStmt->usingTableProcessing) {
+          code = processTableSchemaFromMetaData(pCxt, pMetaData, pStmt, true);
+        } else {
+          code = processTableSchemaFromMetaData(pCxt, pMetaData, pStmt, false);
+        }
       }
 
       if (TSDB_CODE_SUCCESS == code) {
@@ -3611,15 +3641,16 @@ static int32_t parseInsertTableClauseFromTokens(SInsertParseContext* pCxt, SVnod
   return code;
 }
 
-static int32_t parseInsertSqlFromTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  int32_t code = parseInsertTableClauseFromTokens(pCxt, pStmt);
+static int32_t parseInsertSqlFromTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,
+                                       const SMetaData* pMetaData) {
+  int32_t code = parseInsertTableClauseFromTokens(pCxt, pStmt, pMetaData);
   if (TSDB_CODE_SUCCESS == code) {
     code = parseInsertBody(pCxt, pStmt);
   }
   return code;
 }
 
-static int32_t parseInsertSqlImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+static int32_t parseInsertSqlImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, const SMetaData* pMetaData) {
   if (pStmt->pSql == pCxt->pComCxt->pSql || NULL != pCxt->pComCxt->pStmtCb) {
     return parseInsertSqlFromStart(pCxt, pStmt);
   }
@@ -3628,7 +3659,7 @@ static int32_t parseInsertSqlImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt*
     return parseInsertSqlFromCsv(pCxt, pStmt);
   }
 
-  return parseInsertSqlFromTable(pCxt, pStmt);
+  return parseInsertSqlFromTable(pCxt, pStmt, pMetaData);
 }
 
 static int32_t buildUsingInsertTableReq(SName* pSName, SName* pCName, SArray** pTables) {
@@ -4132,7 +4163,7 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
 
   int32_t code = initInsertQuery(&context, pCatalogReq, pMetaData, pQuery);
   if (TSDB_CODE_SUCCESS == code) {
-    code = parseInsertSqlImpl(&context, (SVnodeModifyOpStmt*)((*pQuery)->pRoot));
+    code = parseInsertSqlImpl(&context, (SVnodeModifyOpStmt*)((*pQuery)->pRoot), pMetaData);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = setNextStageInfo(&context, *pQuery, pCatalogReq);
