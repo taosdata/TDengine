@@ -243,8 +243,8 @@ void setCreateStreamPlaceHolderBitmap(SCMCreateStreamReq *expect, int64_t placeH
   expect->placeHolderBitmap = placeHolderBitmap;
 }
 
-void setCreateStreamTsSlotId(SCMCreateStreamReq *expect, int16_t tsSlotId) {
-  expect->tsSlotId = tsSlotId;
+void setCreateStreamCalcTsSlotId(SCMCreateStreamReq *expect, int16_t calcTsSlotId) {
+  expect->calcTsSlotId = calcTsSlotId;
 }
 
 void setCreateStreamOption(SCMCreateStreamReq *expect, int8_t igExists, int8_t igDisorder, int8_t deleteReCalc,
@@ -267,7 +267,7 @@ void setCreateStreamOption(SCMCreateStreamReq *expect, int8_t igExists, int8_t i
   setCreateStreamFlags(expect, flags);
   setCreateStreamTsmaId(expect, tsmaId);
   setCreateStreamPlaceHolderBitmap(expect, placeHolderBitmap);
-  setCreateStreamTsSlotId(expect, tsSlotId);
+  setCreateStreamCalcTsSlotId(expect, tsSlotId);
 }
 
 
@@ -671,7 +671,7 @@ void checkCreateStreamReq(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
   ASSERT_EQ(req->tsmaId, expect->tsmaId);
   ASSERT_EQ(req->placeHolderBitmap, expect->placeHolderBitmap);
   if (BIT_FLAG_TEST_MASK(req->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS)) {
-    ASSERT_EQ(req->tsSlotId, expect->tsSlotId);
+    ASSERT_EQ(req->calcTsSlotId, expect->calcTsSlotId);
   }
 
   ASSERT_EQ(req->triggerTblVgId, expect->triggerTblVgId);
@@ -1519,7 +1519,7 @@ TEST_F(ParserStreamTest, TestQuery) {
   resetCreateStreamOutCols(&expect);
   resetCreateStreamTriggerCols(&expect);
   resetCreateStreamQueryScanPlan(&expect);
-  setCreateStreamTsSlotId(&expect, 1);
+  setCreateStreamCalcTsSlotId(&expect, 1);
   addCreateStreamOutCols(&expect, "_tlocaltime", TSDB_DATA_TYPE_TIMESTAMP, 0, 8, 0, 0);
   addCreateStreamOutCols(&expect, "%%tbname", TSDB_DATA_TYPE_VARCHAR, 0, 274, 0, 0);
   addCreateStreamOutCols(&expect, "avg(c1)", TSDB_DATA_TYPE_DOUBLE, 0, 8, 0, 0);
