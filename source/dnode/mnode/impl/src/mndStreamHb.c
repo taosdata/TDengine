@@ -68,7 +68,7 @@ _exit:
   
   mndStreamHbSendRsp(&pReq->info, &rspMsg);
   tCleanupStreamHbMsg(&req, true);
-  tDeepFreeSMStreamHbRspMsg(&rsp);
+  tFreeSMStreamHbRspMsg(&rsp);
 
   mstDebug("end to process stream hb req msg, code:%d", code);
 

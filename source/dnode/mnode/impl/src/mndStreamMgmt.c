@@ -4175,7 +4175,7 @@ int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, 
 
   taosRUnLockLatch(&mStreamMgmt.runtimeLock);
 
-  tDeepFreeSMStreamHbRspMsg(&rsp);
+  tFreeSMStreamHbRspMsg(&rsp);
 
   return code;
 }
