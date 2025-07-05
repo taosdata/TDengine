@@ -107,10 +107,10 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=54,
-            stream="create stream rdb.s54 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r54 as select _twstart ts, cint, CAST(cint as varchar(20)) c1, cuint, cts, TO_CHAR(cts, 'yyyy-mm-dd hh24:mi:ss') c2, TO_ISO8601(cts) c3, TO_TIMESTAMP(TO_CHAR(cts, 'yyyy-mm-dd'), 'yyyy-mm-dd') c4, TO_UNIXTIMESTAMP(TO_CHAR(cts, 'yyyy-mm-dd')) c5 from qdb.v1 where cts >= _twstart and cts <_twend and _tlocaltime > '2024-12-30' order by cts limit 1",
-            res_query="select * from rdb.r54 where tag_tbname='t1' limit 1 offset 3;",
-            exp_query="select cts ts, cint, CAST(cint as varchar(20)) c1, cuint, cts, TO_CHAR(cts, 'yyyy-mm-dd hh24:mi:ss') c2, TO_ISO8601(cts) c3, TO_TIMESTAMP(TO_CHAR(cts, 'yyyy-mm-dd'), 'yyyy-mm-dd') c4, TO_UNIXTIMESTAMP(TO_CHAR(cts, 'yyyy-mm-dd')) c5, 't1' from qdb.v1 where cts='2025-01-01 00:15:00.000';",
+            id=73,
+            stream="create stream rdb.s73 interval(5m) sliding(5m) from tdb.triggers into rdb.r73 as select _rowts, _twstart ts, CSUM(cint) + CSUM(cuint) from qdb.v1 where cts >= _twstart and cts < _twend;",
+            res_query="select * from rdb.r73 limit 1 offset 3",
+            exp_query="select _rowts, CSUM(cint) + CSUM(cuint) from qdb.v1 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
         )
         self.streams.append(stream)
 
