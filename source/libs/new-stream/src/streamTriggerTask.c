@@ -1702,7 +1702,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
     if (allTableProcessed || needFetchData) {
       break;
     }
-    SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, 0);
+    SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->trigTsIndex);
     QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
     int64_t         *pTsData = (int64_t *)pTsCol->pData;
     SColumnInfoData *pStateCol = taosArrayGet(pDataBlock->pDataBlock, pTask->stateSlotId);
