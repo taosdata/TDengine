@@ -97,10 +97,10 @@ def wait_for_insert_complete(info: WriteDataInfo):
         time.sleep(5)
         print("wait for inserting completed")
 
-
 def wait_for_stream_done_r1(table_name:str, sql: str, expect: int):
     while True:
-        tdSql.query(f"select count(*) from information_schema.ins_tables where table_name = '{table_name}'")
+        tdSql.query(f"select count(*) from information_schema.ins_tables "
+                    f"where table_name = '{table_name}' or stable_name='{table_name}'")
         if tdSql.getData(0, 0) == 0:
             print("results not generated, waiting...")
             time.sleep(1)
