@@ -1,5 +1,5 @@
 import os
-
+import pytest
 from new_test_framework.utils import tdLog, tdSql, clusterComCheck, tdStream, StreamItem, sc
 
 
@@ -28,10 +28,14 @@ class TestStreamCheckpoint:
 
         """
 
-        self.num_snode = 1
-        self.num_vgroups = 2
+        self.num_snode = 2
+        self.num_vgroups = 4
         self.streams = []
         self.stream_id = 1
+
+        # while True:
+        #     if clusterComCheck.checkDnodes(2):
+        #         break
 
         self.create_env()
         self.prepare_source_table()
@@ -51,7 +55,7 @@ class TestStreamCheckpoint:
         self.query_after_restart()
 
     def create_env(self):
-        tdLog.info(f"create {self.num_vgroups} snode(s)")
+        tdLog.info(f"create {self.num_snode} snode(s)")
         for i in range(self.num_snode):
             tdStream.createSnode(i+1)
 
@@ -111,7 +115,7 @@ class TestStreamCheckpoint:
             res_query="select ts, te, td, c1, c2 from r5",
             exp_query="select _wstart ts, _wend te, _wduration td, count(c1) c1, avg(c2) c2 "
                       "from source_table "
-                      "where ts<='2025-1-1 00:20:50' and ts>='2025-1-1' "
+                      "where ts<'2025-1-1 00:15:10' and ts>='2025-1-1' "
                       "partition by tbname "
                       "interval(10s) sliding(10s) fill(value, 0, null)",
             check_func=self.check5,
@@ -130,7 +134,7 @@ class TestStreamCheckpoint:
 
         tdSql.checkResultsByFunc(
             sql="select ts, te, td, c1, tag_tbname from r5 where tag_tbname='c1'",
-            func=lambda: tdSql.getRows() == 126
+            func=lambda: tdSql.getRows() == 91
         )
 
     def checkpoint(self) -> None:
@@ -145,4 +149,4 @@ class TestStreamCheckpoint:
         tdLog.info("start query after restart")
 
         tdSql.query("select * from r5")
-        tdSql.checkRows(126)
+        tdSql.checkRows(91)

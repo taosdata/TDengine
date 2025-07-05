@@ -8,7 +8,7 @@ from test_period_1 import wait_for_insert_complete, check_all_results, wait_for_
     clear_output, get_conf_dir, WriteDataInfo, do_write_data_fn
 
 
-class TestStreamCheckpoint:
+class TestStreamTriggerSliding:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")

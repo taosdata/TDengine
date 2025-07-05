@@ -96,7 +96,7 @@ def _do_build_results():
     return results
 
 
-class TestStreamCheckpoint:
+class TestStreamTriggerSession:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
