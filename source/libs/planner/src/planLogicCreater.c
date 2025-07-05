@@ -1713,10 +1713,8 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
   pWindow->node.outputTsOrder = ORDER_ASC;
 
   int32_t code = TSDB_CODE_SUCCESS;
-  PLAN_ERR_RET(nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL, fmIsWindowClauseFunc, &pWindow->pFuncs));
-
   // no agg func
-  if (!pWindow->pFuncs) {
+  if (!pSelect->hasAggFuncs) {
     PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
     PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_WINDOW, NULL));
     PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
