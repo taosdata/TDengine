@@ -790,8 +790,8 @@ int32_t resetVirtualTableMergeOperState(SOperatorInfo* pOper) {
 
   tsortDestroySortHandle(pInfo->pSortHandle);
   pInfo->pSortHandle = NULL;
-  taosArrayDestroy(pInfo->pSortInfo);
-  pInfo->pSortInfo = NULL;
+  // taosArrayDestroy(pInfo->pSortInfo);
+  // pInfo->pSortInfo = NULL;
 
   blockDataDestroy(pInfo->pIntermediateBlock);
   pInfo->pIntermediateBlock = NULL;
