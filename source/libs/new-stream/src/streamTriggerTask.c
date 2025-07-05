@@ -3899,20 +3899,19 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
       int32_t leaderSid = pTask->leaderSnodeId;
       SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
       if (epSet != NULL) {
-        code = streamSyncWriteCheckpoint(pTask->task.streamId, epSet, buf, len);
+        streamSyncWriteCheckpoint(pTask->task.streamId, epSet, buf, len);
         buf = NULL;
       }
     } while (0);
     taosMemoryFree(buf);
-    QUERY_CHECK_CODE(code, lino, _end);
   }
+  
   if (pMsg->doCleanup) {
     streamDeleteCheckPoint(pTask->task.streamId);
     int32_t leaderSid = pTask->leaderSnodeId;
     SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
     if (epSet != NULL) {
-      code = streamSyncDeleteCheckpoint(pTask->task.streamId, epSet);
-      QUERY_CHECK_CODE(code, lino, _end);
+      streamSyncDeleteCheckpoint(pTask->task.streamId, epSet);
     }
   }
 
