@@ -2859,6 +2859,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       }
       if (pResInfo->numOfRes == 0 || pInfo->ts < pts[i] ||
           (pInfo->ts == pts[i] && pkCompareFn && pkCompareFn(pkData, pInfo->pkData) < 0)) {
+        assert(i < pInput->numOfRows + pInput->startRowIndex);
         char*   data = colDataGetData(pInputCol, i);
         int32_t code = doSaveCurrentVal(pCtx, i, pts[i], pkData, type, data);
         if (code != TSDB_CODE_SUCCESS) {
