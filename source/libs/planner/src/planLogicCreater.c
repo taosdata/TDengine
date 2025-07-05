@@ -653,18 +653,16 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 static int32_t createRefScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable,
                                       SLogicNode** pLogicNode) {
   SScanLogicNode* pScan = NULL;
-  int32_t         code = makeScanLogicNode(pCxt, pRealTable, pSelect->hasRepeatScanFuncs, (SLogicNode**)&pScan);
+  int32_t         code = TSDB_CODE_SUCCESS;
 
+  PLAN_ERR_RET(makeScanLogicNode(pCxt, pRealTable, pSelect->hasRepeatScanFuncs, (SLogicNode**)&pScan));
   pScan->node.groupAction = GROUP_ACTION_NONE;
   pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
 
-  if (TSDB_CODE_SUCCESS == code) {
-    pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType, pSelect->tagScan);
-  }
+  pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType, pSelect->tagScan);
 
-  if (TSDB_CODE_SUCCESS == code) {
-    code = addDefaultScanCol(pRealTable, &pScan->pScanCols);
-  }
+  PLAN_ERR_RET(nodesCloneNode(pSelect->pTimeRange, (SNode**)&pScan->pTimeRange));
+  PLAN_ERR_RET(addDefaultScanCol(pRealTable, &pScan->pScanCols));
 
   SNode *pTsCol = nodesListGetNode(pScan->pScanCols, 0);
   ((SColumnNode*)pTsCol)->hasDep = true;
@@ -1715,10 +1713,8 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
   pWindow->node.outputTsOrder = ORDER_ASC;
 
   int32_t code = TSDB_CODE_SUCCESS;
-  PLAN_ERR_RET(nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL, fmIsWindowClauseFunc, &pWindow->pFuncs));
-
   // no agg func
-  if (!pWindow->pFuncs) {
+  if (!pSelect->hasAggFuncs) {
     PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
     PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_WINDOW, NULL));
     PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
