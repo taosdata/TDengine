@@ -11,20 +11,11 @@
 
 # -*- coding: utf-8 -*-
 
-import random
+from new_test_framework.utils import tdLog, tdSql
 import os
 import time
-import taos
-import subprocess
-import string
-from faker import Faker
-from util.log import tdLog
-from util.cases import tdCases
-from util.sql import tdSql
-from util.dnodes import tdDnodes
-from util.dnodes import *
 
-class TDTestCase:
+class TestRowlength64kBenchmark:
     updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 143 ,"querySmaOptimize":1}
     
     def init(self, conn, logSql, replicaVar):
@@ -55,10 +46,28 @@ class TDTestCase:
                     break
         return buildPath
 
-    def run(self):
+    def test_rowlength64k_benchmark(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdSql.prepare()
         
-        startTime_all = time.time()  
+        startTime_all = time.time()
 
         buildPath = self.getBuildPath()
         if (buildPath == ""):
@@ -180,13 +189,5 @@ class TDTestCase:
         print("total time %ds" % (endTime - startTime))      
 
         endTime_all = time.time()
-        print("total time %ds" % (endTime_all - startTime_all))        
-
-
-    def stop(self):
-        tdSql.close()
+        print("total time %ds" % (endTime_all - startTime_all))
         tdLog.success("%s successfully executed" % __file__)
-        
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

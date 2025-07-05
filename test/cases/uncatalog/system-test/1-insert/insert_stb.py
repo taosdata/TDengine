@@ -1,22 +1,18 @@
-import sys 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import tdDnodes
-from math import inf
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
+import os
+import time
+import datetime
 import taos
 
-class TDTestCase:
+class TestInsertStb:
     def caseDescription(self):
         '''
         case1<shenglian zhou>: [TS-3932] insert into stb 
         ''' 
         return
     
-    def init(self, conn, logSql, replicaVer=1):
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
-        self.conn = conn
         
         
     def restartTaosd(self, index=1, dbname="db"):
@@ -612,16 +608,30 @@ class TDTestCase:
 
         tdSql.execute('drop database insert_stb3')
         
-    def run(self):
+    def test_insert_stb(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.run_normal()
         self.run_insert_stb()
         self.run_stmt_error()
         self.run_consecutive_seq()
         
+        #tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")
         
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

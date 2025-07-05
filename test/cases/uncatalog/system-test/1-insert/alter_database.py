@@ -1,26 +1,20 @@
-import taos
-import sys
-import time
-import socket
+from new_test_framework.utils import tdLog, tdSql
 import os
-import threading
-import psutil
+import time
 import platform
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
 
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+
+class TestAlterDatabase:
+ 
+    def setup_class(cls):
+        #tdSql.init(conn.cursor(), logSql)
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+        #tdSql.init(conn.cursor(), logSql), logSql)
         if platform.system().lower() == 'windows':
-            self.buffer_boundary = [3, 4097]
+            cls.buffer_boundary = [3, 4097]
         else:
-            self.buffer_boundary = [3, 4097, 8193, 12289, 16384]
+            cls.buffer_boundary = [3, 4097, 8193, 12289, 16384]
         # remove the value > free_memory, 70% is the weight to calculate the max value
         # if platform.system() == "Linux" and platform.machine() == "aarch64":
             # mem = psutil.virtual_memory()
@@ -29,11 +23,11 @@ class TDTestCase:
             #     if item > free_memory:
             #         self.buffer_boundary.remove(item)
 
-        self.buffer_error = [self.buffer_boundary[0] -
-                             1, self.buffer_boundary[-1]+1]
+        cls.buffer_error = [cls.buffer_boundary[0] -
+                             1, cls.buffer_boundary[-1]+1]
         # pages_boundary >= 64
-        self.pages_boundary = [64, 128, 512]
-        self.pages_error = [self.pages_boundary[0]-1]
+        cls.pages_boundary = [64, 128, 512]
+        cls.pages_error = [cls.pages_boundary[0]-1]
 
     def alter_buffer(self):
         tdSql.execute('create database db')
@@ -146,18 +140,31 @@ class TDTestCase:
         tdSql.execute('alter database db keep_time_offset 0')
         self.showCreateDbCheck('db', "CREATE DATABASE `db` BUFFER 256 CACHESIZE 1 CACHEMODEL 'none' COMP 2 DURATION 10d WAL_FSYNC_PERIOD 3000 MAXROWS 4096 MINROWS 100 STT_TRIGGER 2 KEEP 3650d,3650d,3650d PAGES 256 PAGESIZE 4 PRECISION 'ms' REPLICA 1 WAL_LEVEL 1 VGROUPS 2 SINGLE_STABLE 0 TABLE_PREFIX 0 TABLE_SUFFIX 0 TSDB_PAGESIZE 4 WAL_RETENTION_PERIOD 3600 WAL_RETENTION_SIZE 0 KEEP_TIME_OFFSET 0 ENCRYPT_ALGORITHM 'none' S3_CHUNKPAGES 131072 S3_KEEPLOCAL 525600m S3_COMPACT 1 COMPACT_INTERVAL 0d COMPACT_TIME_RANGE 0d,0d COMPACT_TIME_OFFSET 0h", 30, True, True)
 
-    def run(self):
-        
+    def test_alter_database(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.alter_buffer()
         self.alter_pages()
         self.alter_encrypt_alrogithm()
         self.alter_same_options()
         self.alter_keep_time_offset()
-
-    def stop(self):
-        tdSql.close()
+        
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())
+        

@@ -1,13 +1,6 @@
-import os
-import sys 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import tdDnodes
-from math import inf
-import taos
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase:
+class TestTs4295:
     """Verify inserting varbinary type data of ts-4295
     """
     def init(self, conn, logSql, replicaVer=1):
@@ -17,7 +10,25 @@ class TDTestCase:
         self.db_name = "db"
         self.stable_name = "st"
 
-    def run(self):
+    def test_ts4295(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdSql.execute("create database if not exists %s" % self.db_name)
         tdSql.execute("use %s" % self.db_name)
         # create super table
@@ -39,11 +50,5 @@ class TDTestCase:
                 tdLog.info("Insert data into %s successfully" % child_table)
             tdLog.info("Insert data round %s successfully" % str(i+1))
         tdSql.execute("flush database %s" % self.db_name)
-
-    def stop(self):
-        tdSql.execute("drop database if exists %s" % self.db_name)
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        
+        tdLog.success(f"{__file__} successfully executed")

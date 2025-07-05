@@ -11,40 +11,39 @@
 
 # -*- coding: utf-8 -*-
 
-import random
-import string
+from new_test_framework.utils import tdLog, tdSql, constant
+from new_test_framework.utils.common import tdCom
+from new_test_framework.utils.sqlset import TDSetSql
+import os
+import time
 import threading
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.sqlset import *
-from util import constant
-from util.common import *
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        self.setsql = TDSetSql()
-        self.fname = __file__ + '.tmp.sql'
-        self.dbname = 'db1'
-        self.ntbname = 'ntb'
-        self.stbname = 'stb'
-        self.stbnum = 10
-        self.ntbnum = 10
-        self.colnum = 52
-        self.tagnum = 15
-        self.collen = 320
-        self.colnum_modify = 40
-        self.tagnum_modify = 40
-        self.collen_old_modify = 160
-        self.collen_new_modify = 455
-        self.taglen_old_modify = 80
-        self.taglen_new_modify = 155
-        self.binary_length = 20 # the length of binary for column_dict
-        self.nchar_length = 20  # the length of nchar for column_dict
-        self.threadnum = 2
-        self.column_dict = {
+import shutil
+
+class TestAlterStable:
+
+    def setup_class(cls):
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.setsql = TDSetSql()
+        cls.fname = __file__ + '.tmp.sql'
+        cls.dbname = 'db1'
+        cls.ntbname = 'ntb'
+        cls.stbname = 'stb'
+        cls.stbnum = 10
+        cls.ntbnum = 10
+        cls.colnum = 52
+        cls.tagnum = 15
+        cls.collen = 320
+        cls.colnum_modify = 40
+        cls.tagnum_modify = 40
+        cls.collen_old_modify = 160
+        cls.collen_new_modify = 455
+        cls.taglen_old_modify = 80
+        cls.taglen_new_modify = 155
+        cls.binary_length = 20 # the length of binary for column_dict
+        cls.nchar_length = 20  # the length of nchar for column_dict
+        cls.threadnum = 2
+        cls.column_dict = {
             'ts'  : 'timestamp',
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -57,10 +56,10 @@ class TDTestCase:
             'col9': 'float',
             'col10': 'double',
             'col11': 'bool',
-            'col12': f'binary({self.binary_length})',
-            'col13': f'nchar({self.nchar_length})'
+            'col12': f'binary({cls.binary_length})',
+            'col13': f'nchar({cls.nchar_length})'
         }
-        self.tag_dict = {
+        cls.tag_dict = {
             'ts_tag'  : 'timestamp',
             't1': 'tinyint',
             't2': 'smallint',
@@ -73,17 +72,17 @@ class TDTestCase:
             't9': 'float',
             't10': 'double',
             't11': 'bool',
-            't12': f'binary({self.binary_length})',
-            't13': f'nchar({self.nchar_length})'
+            't12': f'binary({cls.binary_length})',
+            't13': f'nchar({cls.nchar_length})'
         }
-        self.tag_list = [
+        cls.tag_list = [
             f'now,1,2,3,4,5,6,7,8,9.9,10.1,true,"abcd","涛思数据"'
         ]
-        self.tbnum = 1
-        self.values_list = [
+        cls.tbnum = 1
+        cls.values_list = [
             f'now,1,2,3,4,5,6,7,8,9.9,10.1,true,"abcd","涛思数据"'
         ]
-        self.column_add_dict = {
+        cls.column_add_dict = {
             'col_time'      : 'timestamp',
             'col_tinyint'   : 'tinyint',
             'col_smallint'  : 'smallint',
@@ -302,13 +301,29 @@ class TDTestCase:
             self.destroyAlterTable()
         self.destroyAlterEnv()
 
-    def run(self):
+    def test_alter_stable(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.alter_stable_check()
         self.alter_stable_column_varchar_39001()
         self.alter_stable_multi_client_check()
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        
+        #tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")
+        

@@ -1,17 +1,13 @@
 # -*- coding: utf-8 -*-
 
-import sys
-from util.log import *
-from util.cases import *
-from util.sql import *
+from new_test_framework.utils import tdLog, tdSql
 import threading
 
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestInsertDrop:
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+        #tdSql.init(conn.cursor(), logSql), logSql)
 
     def genMultiThreadSeq(self, sql_list):
         tlist = list()
@@ -26,11 +22,29 @@ class TDTestCase:
         for t in tlist:
             t.join()
 
-    def run(self):
+    def test_insert_drop(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdSql.prepare()
         tdSql.execute('create database if not exists test;')
         tdSql.execute('create table test.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int );')
-        tdSql.execute('create table test.tb using test.stb TAGS (1, 1);')
+        tdSql.execute('create table test.tb using test.stb TAGS (1, 1);')        
 
         # double comma insert check error
         tdSql.error("insert into test.tb(ts, c11) values(now,,100)")
@@ -43,12 +57,4 @@ class TDTestCase:
         tlist = self.genMultiThreadSeq(sql_list)
         self.multiThreadRun(tlist)
         tdSql.query(f'select * from information_schema.ins_databases')
-
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        tdLog.success(f"{__file__} successfully executed")

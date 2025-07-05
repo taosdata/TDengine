@@ -11,23 +11,21 @@
 
 # -*- coding: utf-8 -*-
 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
+from new_test_framework.utils import tdLog, tdSql
+import os
+import time
 
-class TDTestCase:
+class TestTableParamTtl:
     updatecfgDict = {'ttlUnit':5,'ttlPushInterval':3, 'mdebugflag':143}
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        self.ntbname = 'ntb'
-        self.stbname = 'stb'
-        self.tbnum = 10
-        self.ttl_param = 1
-        self.default_ttl = 100
-        self.modify_ttl = 1
+        #tdSql.init(conn.cursor(), logSql))
+        cls.ntbname = 'ntb'
+        cls.stbname = 'stb'
+        cls.tbnum = 10
+        cls.ttl_param = 1
+        cls.default_ttl = 100
+        cls.modify_ttl = 1
 
     def wait_query(self, sql: str, expected_row_num: int, timeout_in_seconds: float):
         timeout = timeout_in_seconds
@@ -93,14 +91,26 @@ class TDTestCase:
         timeout = self.updatecfgDict['ttlUnit']*self.ttl_param+self.updatecfgDict['ttlPushInterval'];
         self.wait_query('show db.tables', 0, timeout + 5)
         tdSql.execute('drop database db')
-    def run(self):
+    def test_table_param_ttl(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.ttl_check_ntb()
         self.ttl_check_ctb()
         self.ttl_check_insert()
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        tdLog.success(f"{__file__} successfully executed")

@@ -14,26 +14,24 @@
 
 import math
 from random import randint
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
-from util.sqlset import *
-from util.boundary import *
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import tdCom
+from new_test_framework.utils.sqlset import TDSetSql
+from new_test_framework.utils.boundary import DataBoundary
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestBoundary:
+    @classmethod
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        self.boundary = DataBoundary()
-        self.dbname_length_boundary = self.boundary.DBNAME_MAX_LENGTH
-        self.tbname_length_boundary = self.boundary.TBNAME_MAX_LENGTH
-        self.stbname_length_boundary = self.boundary.STBNAME_MAX_LENGTH
-        self.colname_length_boundary = self.boundary.COL_KEY_MAX_LENGTH
-        self.tagname_length_boundary = self.boundary.TAG_KEY_MAX_LENGTH
-        self.username_length_boundary = 23
-        self.password_length_boundary = 253
+        #tdSql.init(conn.cursor())
+        cls.boundary = DataBoundary()
+        cls.dbname_length_boundary = cls.boundary.DBNAME_MAX_LENGTH
+        cls.tbname_length_boundary = cls.boundary.TBNAME_MAX_LENGTH
+        cls.stbname_length_boundary = cls.boundary.STBNAME_MAX_LENGTH
+        cls.colname_length_boundary = cls.boundary.COL_KEY_MAX_LENGTH
+        cls.tagname_length_boundary = cls.boundary.TAG_KEY_MAX_LENGTH
+        cls.username_length_boundary = 23
+        cls.password_length_boundary = 253
     def dbname_length_check(self):
         dbname_length = randint(1,self.dbname_length_boundary-1)
         for dbname in [tdCom.get_long_name(self.dbname_length_boundary),tdCom.get_long_name(dbname_length)]:
@@ -231,7 +229,25 @@ class TDTestCase:
 
         tdSql.execute('drop database db')
 
-    def run(self):
+    def test_boundary(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.dbname_length_check()
         self.tbname_length_check()
         self.colname_length_check()
@@ -240,10 +256,7 @@ class TDTestCase:
         self.password_length_check()
         self.sql_length_check()
         self.row_col_tag_maxlen_check()
-
-    def stop(self):
-        tdSql.close()
+        
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

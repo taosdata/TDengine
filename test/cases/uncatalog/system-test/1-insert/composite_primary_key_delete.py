@@ -1,15 +1,8 @@
 from enum import Enum
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.csv import *
+from new_test_framework.utils import tdLog, tdSql
 import os
-import taos
-import json
-from taos import SmlProtocol, SmlPrecision
-from taos.error import SchemalessError
-
+import time
 
 class LegalDataType(Enum):  
     INT        = 'INT'
@@ -28,23 +21,22 @@ class TableType(Enum):
 SHOW_LOG = True
 STAET_TS = '2023-10-01 00:00:00.000'
 
-class TDTestCase:
+class TestCompositePrimaryKeyDelete:
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        self.database = "db_insert_composite_primary_key"
+    def setup_class(cls):
+        cls.database = "db_insert_composite_primary_key"
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql), True)
 
-        self.testcasePath = os.path.split(__file__)[0]
-        self.testcasePath = self.testcasePath.replace('\\', '//')
-        self.testcaseFilename = os.path.split(__file__)[-1]
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcasePath = cls.testcasePath.replace('\\', '//')
+        cls.testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf %s/%s.sql" % (cls.testcasePath,cls.testcaseFilename))
 
-        self.stable_name = 's_table'
-        self.ctable_name = 'c_table'
-        self.ntable_name = 'n_table'
-        self.ts_list = {}
+        cls.stable_name = 's_table'
+        cls.ctable_name = 'c_table'
+        cls.ntable_name = 'n_table'
+        cls.ts_list = {}
 
 
     def prepare_db(self):
@@ -152,7 +144,7 @@ class TDTestCase:
 
         
 
-    def test_delete_data(self):
+    def check_delete_data(self):
         # delete with ts
         tdSql.execute(f"delete from {self.stable_name} where ts={self.ts_list['child_ts_1']} ", show=SHOW_LOG)
         tdSql.query(f'select * from {self.stable_name}')
@@ -198,7 +190,7 @@ class TDTestCase:
         tdSql.query(f'select * from {self.ntable_name}')
         tdSql.checkRows(0)
     
-    def test_delete_data_illegal(self, dtype: LegalDataType):
+    def check_delete_data_illegal(self, dtype: LegalDataType):
         if dtype == LegalDataType.VARCHAR or dtype == LegalDataType.BINARY:
             pk_condition_value = '\'1\''
         else:
@@ -224,21 +216,31 @@ class TDTestCase:
                 if result1[i][j] != result2[i][j]:
                     tdSql.checkEqual(False, True)
 
-    def run(self):  
+    def test_composite_primary_key_delete(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdSql.prepare(replica = self.replicaVar)
         self.prepare_db()
 
         for date_type in LegalDataType.__members__.items():
             self.prepare_data(date_type[1])
-            self.test_delete_data_illegal(date_type[1])
-        self.test_delete_data()
-            
-        
-
-    def stop(self):
-        tdSql.close()
+            self.check_delete_data_illegal(date_type[1])
+        self.check_delete_data()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())
+        

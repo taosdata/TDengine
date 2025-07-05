@@ -1,13 +1,10 @@
 from datetime import datetime
 from platform import platform
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
+from new_test_framework.utils import DataSet
+import os
 import time
 
-from typing import List, Any, Tuple
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
 
 PRIMARY_COL = "ts"
 
@@ -55,14 +52,13 @@ DATA_PRE0 = f"data0"
 DATA_PRE1 = f"data1"
 DATA_PRE2 = f"data2"
 
-class TDTestCase:
+class TestMutilStage:
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
-        self.taos_cfg_path = tdDnodes.dnodes[0].cfgPath
-        self.taos_data_dir = tdDnodes.dnodes[0].dataDir
+        #tdSql.init(conn.cursor(), logSql), True)
+        cls.taos_cfg_path = tdDnodes.dnodes[0].cfgPath
+        cls.taos_data_dir = tdDnodes.dnodes[0].dataDir
 
 
     def cfg(self, filename, **update_dict):
@@ -245,7 +241,25 @@ class TDTestCase:
             tdSql.execute(
                 f"insert into {dbname}.{NTB_PRE}1 values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )")
 
-    def run(self):
+    def test_mutil_stage(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.rows = 10
         self.cfg_check()
         tdSql.prepare(dbname=DBNAME, **{"keep": "1d, 1500m, 26h", "duration":"1h", "vgroups": 10})
@@ -253,10 +267,6 @@ class TDTestCase:
         self.__insert_data(rows=self.rows, dbname=DBNAME)
         tdSql.query(f"select count(*) from {DBNAME}.{NTB_PRE}1")
         tdSql.execute(f"flush database {DBNAME}")
-
-    def stop(self):
-        tdSql.close()
+        
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

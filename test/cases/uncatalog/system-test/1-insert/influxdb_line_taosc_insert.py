@@ -11,29 +11,22 @@
 
 # -*- coding: utf-8 -*-
 
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import tdCom
+from new_test_framework.utils.types import TDSmlProtocolType, TDSmlTimestampType
+from taos.error import SchemalessError
 import traceback
 import random
-from taos.error import SchemalessError
+from random import randint
+import os
 import time
-from copy import deepcopy
-import numpy as np
-from util.log import *
-from util.cases import *
-from util.sql import *
 import threading
-from util.types import TDSmlProtocolType, TDSmlTimestampType
-from util.common import tdCom
-import platform
-import io
-if platform.system().lower() == 'windows':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf8')
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestInfluxdbLineTaoscInsert:
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
-        self._conn = conn
+        #tdSql.init(conn.cursor(), logSql), True)
+        # self._conn = conn
 
     def createDb(self, name="test", db_update_tag=0):
         if db_update_tag == 0:
@@ -1356,7 +1349,25 @@ class TDTestCase:
 
 
 
-    def run(self):
+    def test_influxdb_line_taosc_insert(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         print("running {}".format(__file__))
         self.createDb()
         try:
@@ -1366,10 +1377,6 @@ class TDTestCase:
             raise err
         # self.tagColIllegalValueCheckCase()
         # self.test()
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        
+        #tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")

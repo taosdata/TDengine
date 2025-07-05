@@ -1,22 +1,15 @@
-import taos
-import sys
-import time
-import socket
+from new_test_framework.utils import tdLog, tdSql
 import os
-import threading
+import time
 import datetime
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
+class TestAlterReplica:
 
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)        
+    def setup_class(cls):
+        cls.replicaVar = 1
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+      
         
     def checkVgroups(self, dbName, vgNum):
         sleepNum = vgNum * 60
@@ -102,13 +95,26 @@ class TDTestCase:
         if (0 != res):
             tdLog.exit(f'fail: alter database {dbName} replica 3')
 
-    def run(self):
+    def test_alter_replica(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.alter_replica()
-
-    def stop(self):
-        tdSql.close()
+        
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

@@ -12,24 +12,18 @@
 # -*- coding: utf-8 -*-
 
 
-import sys
+from new_test_framework.utils import tdLog, tdSql
 import os
-selfPath = os.path.dirname(os.path.realpath(__file__))
-utilPath="%s/../../pytest/"%selfPath
 import threading
 import multiprocessing as mp
 import taos
-sys.path.append(utilPath)
-from util.log import *
-from util.cases import *
-from util.sql import *
 import numpy as np
 import datetime as dt
 import time
 # constant define
 WAITS = 5 # wait seconds
 
-class TDTestCase:
+class TestMutipythonnodebugtaosd:
     #
     # --------------- main frame -------------------
     #
@@ -59,29 +53,46 @@ class TDTestCase:
         return buildPath
 
     # init
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        # tdSql.init(conn.cursor())
+        # #tdSql.init(conn.cursor(), logSql))
         # tdSql.prepare()
-        # self.create_tables();
-        self.ts = 1500000000000
+        # cls.create_tables();
+        cls.ts = 1500000000000
 
 
     # run case
-    def run(self):
+    def test_mutipythonnodebugtaosd(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
+
+        
+        #tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")
 
         #  test base case
-        self.test_case1()
+        self.check_case1()
         tdLog.debug(" LIMIT test_case1 ............ [OK]")
 
         # test advance case
-        # self.test_case2()
-        # tdLog.debug(" LIMIT test_case2 ............ [OK]")
-
-    # stop
-    def stop(self):
-        tdSql.close()
+        # self.check_case2()
+        # tdLog.debug(" LIMIT test_case2 ............ [OK]") 
         tdLog.success("%s successfully executed" % __file__)
 
     # --------------- case  -------------------
@@ -190,7 +201,7 @@ class TDTestCase:
 
 
     # test case1 base
-    def test_case1(self):
+    def check_case1(self):
         tdLog.debug("-----create database and tables test------- ")
         # tdSql.execute("drop database if exists db1")
         # tdSql.execute("drop database if exists db4")
@@ -250,7 +261,7 @@ class TDTestCase:
         return
 
     # test case2 base:insert data
-    def test_case2(self):
+    def check_case2(self):
 
         tdLog.debug("-----insert data test------- ")
         # drop database
@@ -293,7 +304,3 @@ class TDTestCase:
 #
 # add case with filename
 #
-# tdCases.addWindows(__file__, TDTestCase())
-# tdCases.addLinux(__file__, TDTestCase())
-case=TDTestCase()
-case.test_case1()

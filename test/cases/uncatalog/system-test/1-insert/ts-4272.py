@@ -1,35 +1,30 @@
 
+from new_test_framework.utils import tdLog, tdSql
 import csv
+import os
+import platform
 from datetime import datetime
 
-import taos
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        self.testcasePath = os.path.split(__file__)[0]
-        self.testcasefilename = os.path.split(__file__)[-1]
-        self.ts = 1700638570000  # 2023-11-22T07:36:10.000Z
-        self.db = 'db1'
-        self.tb1 = 'd001'
-        self.tb2 = 'd002'
-        self.stable0 = "meters"
-        self.stable1 = "stb_1"
-        self.stable2 = "stb_null"
-        self.tag1 = f'using {self.stable0}(groupId) tags(1)'
-        self.tag2 = f'using {self.stable0}(groupId) tags(2)'
-        self.file1 = f"{self.testcasePath}/b.csv"
-        self.file2 = f"{self.testcasePath}/c.csv"
+class TestTs4272:
+    def setup_class(cls):
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcasefilename = os.path.split(__file__)[-1]
+        cls.ts = 1700638570000  # 2023-11-22T07:36:10.000Z
+        cls.db = 'db1'
+        cls.tb1 = 'd001'
+        cls.tb2 = 'd002'
+        cls.stable0 = "meters"
+        cls.stable1 = "stb_1"
+        cls.stable2 = "stb_null"
+        cls.tag1 = f'using {cls.stable0}(groupId) tags(1)'
+        cls.tag2 = f'using {cls.stable0}(groupId) tags(2)'
+        cls.file1 = f"{cls.testcasePath}/b.csv"
+        cls.file2 = f"{cls.testcasePath}/c.csv"
         if platform.system().lower() == 'windows':
-            self.file1 = self.file1.replace("\\","\\\\")
-            self.file2 = self.file2.replace("\\","\\\\")
+            cls.file1 = cls.file1.replace("\\","\\\\")
+            cls.file2 = cls.file2.replace("\\","\\\\")
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), logSql)
+        #tdSql.init(conn.cursor(), logSql), logSql)
 
     def check_count(self, rows, records):
         tdSql.query(f"select tbname,count(*) from {self.stable0} group by tbname order by tbname;")
@@ -50,7 +45,7 @@ class TDTestCase:
         tdSql.execute(f"create table {self.stable1}_1 using {self.stable1}(t_int) tags(1);")
         tdSql.execute(f"create table {self.stable2}_1 using {self.stable2}(t_int) tags(2);")
 
-    def test(self, sql):
+    def check_test(self, sql):
         # sql = f"use {self.db};" + sql
         # os.system(f'taos -s "{sql}"')
         print(f'{sql}\n')
@@ -59,35 +54,35 @@ class TDTestCase:
     def check(self):
         # same table, auto create + create
         sql = f"insert into {self.tb1} {self.tag1} file '{self.file1}' {self.tb1} {self.tag1} file '{self.file2}';"
-        self.test(sql)
+        self.check_test(sql)
 
         # same table, create + insert
         sql = f"insert into {self.tb1} {self.tag1} file '{self.file1}' {self.tb1} file '{self.file2}';"
-        self.test(sql)
+        self.check_test(sql)
 
         # same table, insert + create
         sql = f"insert into {self.tb1} file '{self.file1}' {self.tb1} {self.tag1} file '{self.file2}';"
-        self.test(sql)
+        self.check_test(sql)
 
         # same table, insert + insert
         sql = f"insert into {self.tb1} file '{self.file1}' {self.tb1} file '{self.file2}';"
-        self.test(sql)
+        self.check_test(sql)
 
         # diff table auto create + create
         sql = f"insert into {self.tb1} {self.tag1} file '{self.file1}' {self.tb2} {self.tag2} file '{self.file2}';"
-        self.test(sql)
+        self.check_test(sql)
 
         # diff table, create + insert
         sql = f"insert into {self.tb1} {self.tag1} file '{self.file1}' {self.tb2} file '{self.file2}';"
-        self.test(sql)
+        self.check_test(sql)
 
         # diff table, insert + create
         sql = f"insert into {self.tb1} file '{self.file1}' {self.tb2} {self.tag2} file '{self.file2}';"
-        self.test(sql)
+        self.check_test(sql)
 
         # diff table, insert + insert
         sql = f"insert into {self.tb1} file '{self.file1}' {self.tb2} file '{self.file2}';"
-        self.test(sql)
+        self.check_test(sql)
 
         self.check_count(2, [2010000, 1000000])
 
@@ -105,12 +100,12 @@ class TDTestCase:
         f.close()
         print(datetime.now(), filepath, " ready!")
 
-    def test_mix(self):
+    def check_mix(self):
         #forbid use both value and file in one insert
         self.make_csv(self.file2, 10, 10, self.ts)
         tdSql.error(f"insert into {self.tb1} file '{self.file2}' {self.tb2} values('2021-07-13 14:06:34.630', 10.2, 219, 0.32);")
 
-    def test_bigcsv(self):
+    def check_bigcsv(self):
         # prepare csv
         print("start csv data prepare")
         once = 10000
@@ -124,11 +119,11 @@ class TDTestCase:
    
         # auto create + insert
         sql = f"insert into {self.tb1} {self.tag1} file '{self.file1}';"
-        self.test(sql)
+        self.check_test(sql)
 
         # only insert 
         sql = f"insert into {self.tb2} file '{self.file2}';"
-        self.test(sql)
+        self.check_test(sql)
         print("end insert to table")
 
         tdSql.query(f"select tbname,count(*) from {self.stable0} group by tbname order by tbname;")
@@ -151,7 +146,7 @@ class TDTestCase:
         f.close()
         print(datetime.now(), filepath, " ready!")
 
-    def test_stable_csv(self):
+    def check_stable_csv(self):
         # prepare csv
         print("start stable_csv data prepare")
         once = 10000
@@ -164,7 +159,7 @@ class TDTestCase:
         print("end stable_csv data prepare")
 
         sql = f"insert into {self.db}.{self.stable1}(tbname,ts,q_int,q_binary) file '{self.file1}' {self.db}.{self.stable2}(tbname,ts,q_int,q_binary) file '{self.file2}';"
-        self.test(sql)
+        self.check_test(sql)
         print("end insert to stable")
 
         tdSql.query(f"select tbname,count(*) from {self.stable1} group by tbname;")
@@ -175,19 +170,35 @@ class TDTestCase:
         tdSql.checkData(0, 1, qtime2 * once)
         print("check stable success")
 
-    def run(self):
+    def test_ts_4272(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdSql.prepare()
         self.reset_tb()
-        self.test_stable_csv()
-        self.test_bigcsv()
+        self.check_stable_csv()
+        self.check_bigcsv()
         self.check()
-        self.test_mix()
+        self.check_mix()
         os.system(f"rm -rf {self.file1}")
         os.system(f"rm -rf {self.file2}")
         tdSql.close()
-
-    def stop(self):
+        
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())
+        

@@ -11,16 +11,12 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
+from new_test_framework.utils import tdLog, tdSql
 import random
 import time
 import platform
-import taos
-from util.log import *
-from util.cases import *
-from util.sql import *
 
-class TDTestCase:
+class TestPrecisionns:
 
     # get col value and total max min ...
     def getColsValue(self, i, j):
@@ -260,12 +256,10 @@ class TDTestCase:
         tdSql.checkData(0,8, -1)
 
     # init
-    def init(self, conn, logSql, replicaVar=1):
+    def setup_class(cls):
         seed = time.time() % 10000 
         random.seed(seed)
-        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
 
     # where
     def checkWhere(self):
@@ -305,7 +299,25 @@ class TDTestCase:
         self.checkExpect(sql, 0)
 
     # run
-    def run(self):
+    def test_precisionNS(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         # prepare env
         self.prepareEnv()
 
@@ -319,11 +331,5 @@ class TDTestCase:
         if platform.system().lower() != 'windows':
             self.checkStream()
 
-    # stop
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

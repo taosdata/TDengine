@@ -13,27 +13,26 @@
 
 
 import math
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
-from util.sqlset import *
+import time
+import platform
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import tdCom
+from new_test_framework.utils.sqlset import TDSetSql
 
-class TDTestCase:
+class TestDrop:
     updatecfgDict = {'stdebugflag':143}
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        self.setsql = TDSetSql()
-        self.dbname = 'db'
-        self.ntbname = f"{self.dbname}.ntb"
-        self.rowNum = 10
-        self.tbnum = 20
-        self.ts = 1537146000000
-        self.binary_str = 'taosdata'
-        self.nchar_str = '涛思数据'
-        self.column_dict = {
+        #tdSql.init(conn.cursor())
+        cls.setsql = TDSetSql()
+        cls.dbname = 'db'
+        cls.ntbname = f"{cls.dbname}.ntb"
+        cls.rowNum = 10
+        cls.tbnum = 20
+        cls.ts = 1537146000000
+        cls.binary_str = 'taosdata'
+        cls.nchar_str = '涛思数据'
+        cls.column_dict = {
             'ts'  : 'timestamp',
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -49,12 +48,12 @@ class TDTestCase:
             'col12': 'binary(20)',
             'col13': 'nchar(20)'
         }
-        self.db_names = [ f'dbtest_0', f'dbtest_1']
-        self.stb_names = [ f'aa\u00bf\u200bstb0']
-        self.ctb_names = [ f'ctb0', 'ctb1', f'aa\u00bf\u200bctb0', f'aa\u00bf\u200bctb1']
-        self.ntb_names = [ f'ntb0', f'aa\u00bf\u200bntb0', f'ntb1', f'aa\u00bf\u200bntb1']
-        self.vgroups_opt = f'vgroups 4'
-        self.err_dup_cnt = 5
+        cls.db_names = [ f'dbtest_0', f'dbtest_1']
+        cls.stb_names = [ f'aa\u00bf\u200bstb0']
+        cls.ctb_names = [ f'ctb0', 'ctb1', f'aa\u00bf\u200bctb0', f'aa\u00bf\u200bctb1']
+        cls.ntb_names = [ f'ntb0', f'aa\u00bf\u200bntb0', f'ntb1', f'aa\u00bf\u200bntb1']
+        cls.vgroups_opt = f'vgroups 4'
+        cls.err_dup_cnt = 5
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
         for i in range(row_num):
@@ -299,7 +298,7 @@ class TDTestCase:
         tdSql.query(f'select * from information_schema.ins_streams where stream_name = "{stream_name}"')
         tdSql.checkEqual(tdSql.queryResult[0][4],f'create stream {stream_name} trigger at_once ignore expired 0 into stb1 as select * from tb')
         tdSql.execute(f'drop database {self.dbname}')
-    def test_table_name_with_star(self):
+    def check_table_name_with_star(self):
         dbname = "test_tbname_with_star"
         tbname = 's_*cszl01_207602da'
         tdSql.execute(f'create database {dbname} replica 1 wal_retention_period 3600')
@@ -307,8 +306,26 @@ class TDTestCase:
         tdSql.execute(f"drop table {dbname}.`{tbname}`")
         tdSql.execute(f"drop database {dbname}")
 
-    def run(self):
-        self.test_table_name_with_star()
+    def test_drop(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
+        self.check_table_name_with_star()
         self.drop_ntb_check()
         self.drop_stb_ctb_check()
         self.drop_stable_with_check()
@@ -318,9 +335,6 @@ class TDTestCase:
         if platform.system().lower() != 'windows':        
             self.drop_stream_check()
         pass
-    def stop(self):
-        tdSql.close()
+        
+        #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

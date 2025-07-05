@@ -1,24 +1,33 @@
+from new_test_framework.utils import tdLog, tdSql
 import os
-import sys 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import tdDnodes
-from math import inf
-import taos
 
-
-class TDTestCase:
+class TestTs4479:
     """Verify inserting varbinary type data of ts-4479
     """
-    def init(self, conn, logSql, replicaVer=1):
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
-        self.conn = conn
-        self.db_name = "db"
-        self.stable_name = "st"
+        cls.db_name = "db"
+        cls.stable_name = "st"
 
-    def run(self):
+    def test_ts4479(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdSql.execute("create database if not exists %s" % self.db_name)
         tdSql.execute("use %s" % self.db_name)
         # create super table
@@ -65,11 +74,6 @@ class TDTestCase:
         tdSql.query("select * from st where t1='';")
         tdSql.checkRows(1)
         tdSql.checkData(0, 2, b'')
-
-    def stop(self):
+        
         tdSql.execute("drop database if exists %s" % self.db_name)
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

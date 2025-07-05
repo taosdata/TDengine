@@ -1,23 +1,37 @@
 from enum import Enum
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.csv import *
-import os
+from new_test_framework.utils import tdLog, tdSql
 import taos
 import json
 from taos import SmlProtocol, SmlPrecision
 from taos.error import SchemalessError
 
-class TDTestCase:
+class TestTd29793:
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdSql.init(conn.cursor(), True)
+    def setup_class(cls):
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql), True)
 
 
-    def run(self):  
+    def test_td29793(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         conn = taos.connect()
 
         conn.execute("drop database if exists reproduce")
@@ -78,11 +92,5 @@ class TDTestCase:
             # tdSql.checkEqual('expected error', 'no error occurred')     TD-29850
         except SchemalessError as errMsg:
             tdSql.checkEqual(errMsg.msg, 'Duplicated column names')
-
-    def stop(self):
-        tdSql.close()
+        
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

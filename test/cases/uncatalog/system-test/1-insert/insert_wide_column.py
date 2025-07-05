@@ -11,28 +11,14 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
-import threading
-import random
-import string
-import time
+from new_test_framework.utils import tdLog, tdSql, autogen
+import os
 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.autogen import *
-
-
-#
-# Test Main class
-#
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestInsertWideColumn:
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
-        self.autoGen = AutoGen()
+        #tdSql.init(conn.cursor(), logSql), logSql)
+        cls.autoGen = autogen.AutoGen()
 
     def query_test(self, stbname):
         sql = f"select count(*) from {stbname}"
@@ -45,7 +31,7 @@ class TDTestCase:
         tdLog.info(" test query ok!")
 
 
-    def test_db(self, dbname, stbname, childname, tag_cnt, column_cnt, child_cnt, insert_rows, binary_len, nchar_len):    
+    def check_db(self, dbname, stbname, childname, tag_cnt, column_cnt, child_cnt, insert_rows, binary_len, nchar_len):    
         self.autoGen.create_db(dbname)
         self.autoGen.create_stable(stbname, tag_cnt, column_cnt, binary_len, nchar_len)
         self.autoGen.create_child(stbname, childname, child_cnt)
@@ -53,7 +39,25 @@ class TDTestCase:
         self.autoGen.insert_samets(insert_rows)
         self.query_test(stbname)
 
-    def run(self):  
+    def test_insert_wide_column(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         dbname = "test"
         stbname = "st"
         childname = "d"
@@ -66,7 +70,7 @@ class TDTestCase:
         self.autoGen.set_batch_size(1)
         
         # normal
-        self.test_db(dbname, stbname, childname, tag_cnt, column_cnt, child_cnt, insert_rows, binary_len, nchar_len)
+        self.check_db(dbname, stbname, childname, tag_cnt, column_cnt, child_cnt, insert_rows, binary_len, nchar_len)        
 
         # max
         dbname = "test_max_col"
@@ -77,11 +81,5 @@ class TDTestCase:
         nchar_len = 4
         column_cnt = 4096 - tag_cnt
         self.autoGen.set_batch_size(1)
-        self.test_db(dbname, stbname, childname, tag_cnt, column_cnt, child_cnt, insert_rows, binary_len, nchar_len)
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        self.check_db(dbname, stbname, childname, tag_cnt, column_cnt, child_cnt, insert_rows, binary_len, nchar_len)
+        tdLog.success(f"{__file__} successfully executed")

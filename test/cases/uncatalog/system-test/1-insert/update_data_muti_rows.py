@@ -11,30 +11,25 @@
 
 # -*- coding: utf-8 -*-
 
+from new_test_framework.utils import tdLog, tdSql, constant
+from new_test_framework.utils.common import tdCom
 import random
-import string
+from random import randint
+import os
+import time
 
-from numpy import logspace
-from util import constant
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
-
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestUpdateDataMutiRows:
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        self.dbname = 'db_test'
-        self.ntbname = 'ntb'
-        self.stbname = 'stb'
-        self.rowNum = 10
-        self.tbnum = 5
-        self.ts = 1537146000000
-        self.str_length = 20
-        self.column_dict = {
+        #tdSql.init(conn.cursor(), logSql))
+        cls.dbname = 'db_test'
+        cls.ntbname = 'ntb'
+        cls.stbname = 'stb'
+        cls.rowNum = 10
+        cls.tbnum = 5
+        cls.ts = 1537146000000
+        cls.str_length = 20
+        cls.column_dict = {
             'col1': 'tinyint',
             'col2': 'smallint',
             'col3': 'int',
@@ -46,36 +41,36 @@ class TDTestCase:
             'col9': 'float',
             'col10': 'double',
             'col11': 'bool',
-            'col12': f'binary({self.str_length})',
-            'col13': f'nchar({self.str_length})'
+            'col12': f'binary({cls.str_length})',
+            'col13': f'nchar({cls.str_length})'
         }
-        self.tinyint_val = random.randint(constant.TINYINT_MIN,constant.TINYINT_MAX)
-        self.smallint_val = random.randint(constant.SMALLINT_MIN,constant.SMALLINT_MAX)
-        self.int_val = random.randint(constant.INT_MIN,constant.INT_MAX)
-        self.bigint_val = random.randint(constant.BIGINT_MIN,constant.BIGINT_MAX)
-        self.untingint_val = random.randint(constant.TINYINT_UN_MIN,constant.TINYINT_UN_MAX)
-        self.unsmallint_val = random.randint(constant.SMALLINT_UN_MIN,constant.SMALLINT_UN_MAX)
-        self.unint_val = random.randint(constant.INT_UN_MIN,constant.INT_MAX)
-        self.unbigint_val = random.randint(constant.BIGINT_UN_MIN,constant.BIGINT_UN_MAX)
-        self.float_val = random.uniform(constant.FLOAT_MIN,constant.FLOAT_MAX)
-        self.double_val = random.uniform(constant.DOUBLE_MIN*(1E-300),constant.DOUBLE_MAX*(1E-300))
-        self.bool_val = random.randint(0,2)%2
-        self.binary_val = tdCom.getLongName(random.randint(0,self.str_length))
-        self.nchar_val = tdCom.getLongName(random.randint(0,self.str_length))
-        self.data = {
-            'tinyint':self.tinyint_val,
-            'smallint':self.smallint_val,
-            'int':self.int_val,
-            'bigint':self.bigint_val,
-            'tinyint unsigned':self.untingint_val,
-            'smallint unsigned':self.unsmallint_val,
-            'int unsigned':self.unint_val,
-            'bigint unsigned':self.unbigint_val,
-            'bool':self.bool_val,
-            'float':self.float_val,
-            'double':self.double_val,
-            'binary':self.binary_val,
-            'nchar':self.nchar_val
+        cls.tinyint_val = random.randint(constant.TINYINT_MIN,constant.TINYINT_MAX)
+        cls.smallint_val = random.randint(constant.SMALLINT_MIN,constant.SMALLINT_MAX)
+        cls.int_val = random.randint(constant.INT_MIN,constant.INT_MAX)
+        cls.bigint_val = random.randint(constant.BIGINT_MIN,constant.BIGINT_MAX)
+        cls.untingint_val = random.randint(constant.TINYINT_UN_MIN,constant.TINYINT_UN_MAX)
+        cls.unsmallint_val = random.randint(constant.SMALLINT_UN_MIN,constant.SMALLINT_UN_MAX)
+        cls.unint_val = random.randint(constant.INT_UN_MIN,constant.INT_MAX)
+        cls.unbigint_val = random.randint(constant.BIGINT_UN_MIN,constant.BIGINT_UN_MAX)
+        cls.float_val = random.uniform(constant.FLOAT_MIN,constant.FLOAT_MAX)
+        cls.double_val = random.uniform(constant.DOUBLE_MIN*(1E-300),constant.DOUBLE_MAX*(1E-300))
+        cls.bool_val = random.randint(0,2)%2
+        cls.binary_val = tdCom.getLongName(random.randint(0,cls.str_length))
+        cls.nchar_val = tdCom.getLongName(random.randint(0,cls.str_length))
+        cls.data = {
+            'tinyint':cls.tinyint_val,
+            'smallint':cls.smallint_val,
+            'int':cls.int_val,
+            'bigint':cls.bigint_val,
+            'tinyint unsigned':cls.untingint_val,
+            'smallint unsigned':cls.unsmallint_val,
+            'int unsigned':cls.unint_val,
+            'bigint unsigned':cls.unbigint_val,
+            'bool':cls.bool_val,
+            'float':cls.float_val,
+            'double':cls.double_val,
+            'binary':cls.binary_val,
+            'nchar':cls.nchar_val
                     }
     def update_data(self,dbname,tbname,tb_num,rows,values,col_type):
         sql = f'insert into '
@@ -167,14 +162,26 @@ class TDTestCase:
             tdSql.execute('reset query cache')
             self.data_check(self.dbname,self.stbname,self.tbnum,self.rowNum,self.data,col_name,col_type)
             tdSql.execute(f'drop table {self.stbname}')
-    def run(self):
+    def test_update_data_muti_rows(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.update_data_ntb()
         self.update_data_ctb()
-
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        
+        tdLog.success(f"{__file__} successfully executed")

@@ -1,9 +1,6 @@
-from util.log import *
-from util.cases import *
-from util.sql import *
+from new_test_framework.utils import tdLog, tdSql
 
-
-class TDTestCase:
+class TestTd29157:
     """Verify td-29157
     """
     def init(self, conn, logSql, replicaVer=1):
@@ -12,7 +9,25 @@ class TDTestCase:
         self.conn = conn
         self.db_name = "td29157"
 
-    def run(self):
+    def test_td29157(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.conn.execute(f"drop database if exists {self.db_name}")
         self.conn.execute(f"CREATE DATABASE {self.db_name}")
         self.conn.execute(f"USE {self.db_name}")
@@ -44,12 +59,5 @@ class TDTestCase:
         tdSql.checkData(1, 3, 't1')
         tdSql.checkData(1, 4, 'VARBINARY(10)')
         tdSql.checkData(1, 5, '\\x30783033')
-
-
-    def stop(self):
         tdSql.execute("drop database if exists %s" % self.db_name)
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

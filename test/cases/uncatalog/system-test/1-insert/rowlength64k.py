@@ -11,20 +11,13 @@
 
 # -*- coding: utf-8 -*-
 
+from new_test_framework.utils import tdLog, tdSql
 import random
 import os
 import time
-import taos
-import subprocess
 import string
-from faker import Faker
-from util.log import tdLog
-from util.cases import tdCases
-from util.sql import tdSql
-from util.dnodes import tdDnodes
-from util.dnodes import *
 
-class TDTestCase:
+class TestRowlength64k:
     updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 143 ,"querySmaOptimize":1}
     
     def init(self, conn, logSql, replicaVar):
@@ -1264,7 +1257,25 @@ class TDTestCase:
 
         self.ins_query()
 
-    def run(self):
+    def test_rowlength64k(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdSql.prepare()
         
         startTime_all = time.time() 
@@ -1279,13 +1290,6 @@ class TDTestCase:
         # self.run_7() 
         
         endTime_all = time.time()
-        print("total time %ds" % (endTime_all - startTime_all))        
-
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+        print("total time %ds" % (endTime_all - startTime_all))
         
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        tdLog.success(f"{__file__} successfully executed")

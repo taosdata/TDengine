@@ -3,20 +3,16 @@ from taos import *
 
 from ctypes import *
 from datetime import datetime
+from new_test_framework.utils import tdLog, tdSql
 import taos
 
-import taos
 import time
 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import *
 
-class TDTestCase:
-    def __init__(self):
-        self.err_case = 0
-        self.curret_case = 0
+class TestStmtError:
+    # def __init__(self):
+    #     self.err_case = 0
+    #     self.curret_case = 0
 
     def caseDescription(self):
 
@@ -25,16 +21,17 @@ class TDTestCase:
         '''
         return
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+        #tdSql.init(conn.cursor(), logSql), logSql)
+        cls.err_case = 0
+        cls.curret_case = 0
 
     def conn(self):
     # type: () -> taos.TaosConnection
-        return connect()
+        return taos.connect()
 
-    def test_stmt_insert(self,conn):
+    def check_stmt_insert(self,conn):
         # type: (TaosConnection) -> None
 
         dbname = "pytest_taos_stmt"
@@ -52,7 +49,7 @@ class TDTestCase:
 
 
             stmt = conn.statement("insert into log values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-            params = new_bind_params(16)
+            params = taos.new_bind_params(16)
             params[0].timestamp(1626861392589, PrecisionEnum.Milliseconds)
             params[1].bool(True)
             params[2].tinyint(None)
@@ -108,7 +105,7 @@ class TDTestCase:
             conn.close()
             raise err
 
-    def test_stmt_insert_error(self,conn):
+    def check_stmt_insert_error(self,conn):
         # type: (TaosConnection) -> None
 
         dbname = "pytest_taos_stmt_error"
@@ -154,7 +151,7 @@ class TDTestCase:
             conn.close()
             raise err
 
-    def test_stmt_insert_vtb_error(self,conn):
+    def check_stmt_insert_vtb_error(self,conn):
         # type: (TaosConnection) -> None
 
         dbname = "pytest_taos_stmt_vtb_error"
@@ -235,7 +232,7 @@ class TDTestCase:
             conn.close()
             raise err
 
-    def test_stmt_insert_vstb_error(self,conn):
+    def check_stmt_insert_vstb_error(self,conn):
 
         dbname = "pytest_taos_stmt_vstb_error"
         try:
@@ -277,7 +274,7 @@ class TDTestCase:
             conn.close()
             raise err
 
-    def test_stmt_insert_error_null_timestamp(self,conn):
+    def check_stmt_insert_error_null_timestamp(self,conn):
 
         dbname = "pytest_taos_stmt_error_null_ts"
         try:
@@ -319,7 +316,7 @@ class TDTestCase:
             conn.close()
             raise err
 
-    def test_stmt_nornmal_value_error(self, conn):
+    def check_stmt_nornmal_value_error(self, conn):
         # type: (TaosConnection) -> None
         dbname = "pytest_taos_stmt_error"
         try:
@@ -364,11 +361,29 @@ class TDTestCase:
             conn.close()
             raise err
 
-    def run(self):
+    def test_stmt_error(self):
+        """summary: xxx
 
-        self.test_stmt_insert(self.conn())
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
+
+        self.check_stmt_insert(self.conn())
         try:
-            self.test_stmt_insert_error(self.conn())
+            self.check_stmt_insert_error(self.conn())
         except Exception as error :
 
             if str(error)=='[0x0200]: stmt bind param does not support normal value in sql':
@@ -377,7 +392,7 @@ class TDTestCase:
                 tdLog.exit("expect error(%s) not occured" % str(error))
 
         try:
-            self.test_stmt_nornmal_value_error(self.conn())
+            self.check_stmt_nornmal_value_error(self.conn())
         except Exception as error :
 
             if str(error)=='[0x0200]: stmt bind param does not support normal value in sql':
@@ -386,7 +401,7 @@ class TDTestCase:
                 tdLog.exit("expect error(%s) not occured" % str(error))
 
         try:
-            self.test_stmt_insert_error_null_timestamp(self.conn())
+            self.check_stmt_insert_error_null_timestamp(self.conn())
             tdLog.exit("expect error not occured - 1")
         except Exception as error :
             if str(error)=='[0x060b]: Timestamp data out of range':
@@ -395,7 +410,7 @@ class TDTestCase:
                 tdLog.exit("expect error(%s) not occured - 2" % str(error))
 
         try:
-            self.test_stmt_insert_vtb_error(self.conn())
+            self.check_stmt_insert_vtb_error(self.conn())
         except Exception as error :
 
             if str(error)=='[0x6205]: Virtual table not support in STMT query and STMT insert':
@@ -404,16 +419,12 @@ class TDTestCase:
                 tdLog.exit("expect error(%s) not occured" % str(error))
 
         try:
-            self.test_stmt_insert_vstb_error(self.conn())
+            self.check_stmt_insert_vstb_error(self.conn())
         except Exception as error :
 
             if str(error)=='[0x6205]: Virtual table not support in STMT query and STMT insert':
                 tdLog.info('=========stmt error occured for bind part column ==============')
             else:
                 tdLog.exit("expect error(%s) not occured" % str(error))
-    def stop(self):
-        tdSql.close()
+        
         tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

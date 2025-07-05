@@ -1,13 +1,11 @@
-import datetime
-import re
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
+import os
+import time
 
 from dataclasses import dataclass, field
 from typing import List, Any, Tuple
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.constant import *
+import re
+import datetime
 
 PRIMARY_COL = "ts"
 
@@ -45,9 +43,6 @@ DBNAME  = "db"
 STBNAME = "stb1"
 CTBNAME = "ct1"
 NTBNAME = "nt1"
-
-
-@dataclass
 class DataSet:
     ts_data     : List[int]     = field(default_factory=list)
     int_data    : List[int]     = field(default_factory=list)
@@ -140,15 +135,14 @@ class BSMAschema:
 # from ...pytest.util.sql import *
 # from ...pytest.util.constant import *
 
-class TDTestCase:
+class TestBlockWise:
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
-        self.precision = "ms"
-        self.sma_count = 0
-        self.sma_created_index = []
+        #tdSql.init(conn.cursor(), logSql), True)
+        cls.precision = "ms"
+        cls.sma_count = 0
+        cls.sma_created_index = []
 
     def __create_sma_index(self, sma:BSMAschema):
         if sma.create_tabel_sql:
@@ -274,7 +268,7 @@ class TDTestCase:
 
         return err_sqls, cur_sqls
 
-    def test_create_sma(self):
+    def check_create_sma(self):
         err_sqls , cur_sqls = self.__create_sma_sql
         for err_sql in err_sqls:
             self.bsma_create_check(err_sql)
@@ -289,7 +283,7 @@ class TDTestCase:
         ## case 1: required fields check
         return err_sqls, cur_sqls
 
-    def test_drop_sma(self):
+    def check_drop_sma(self):
         err_sqls , cur_sqls = self.__drop_sma_sql
         for err_sql in err_sqls:
             self.sma_drop_check(err_sql)
@@ -297,7 +291,7 @@ class TDTestCase:
             self.sma_drop_check(cur_sql)
 
     def all_test(self):
-        self.test_create_sma()
+        self.check_create_sma()
 
     def __create_tb(self, rollup=None):
         tdLog.printNoPrefix("==========step: create table")
@@ -399,8 +393,29 @@ class TDTestCase:
             tdSql.execute(
                 f"insert into {NTBNAME} values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )")
 
-    def run(self):
+    def test_block_wise(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.rows = 10
+        
+        #tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")
 
         tdLog.printNoPrefix("==========step0:all check")
 
@@ -457,11 +472,5 @@ class TDTestCase:
         self.__create_tb()
         self.__insert_data()
         self.all_test()
-
-    def stop(self):
-        tdSql.close()
+        
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

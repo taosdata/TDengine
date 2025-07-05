@@ -1,36 +1,25 @@
-import taos
-import sys
+from new_test_framework.utils import tdLog, tdSql
 import random
+import os
 import time
 import csv
 
-from datetime import datetime
-
-from util.log import *
-from util.sql import *
-from util.cases import *
-
-
-
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestInsertPerf:
+    def setup_class(cls):
         
-        self.testcasePath = os.path.split(__file__)[0]
-        self.testcasefilename = os.path.split(__file__)[-1]
-        self.file1 = f"{self.testcasePath}/int.csv"
-        self.file2 = f"{self.testcasePath}/double.csv"
-        self.file3 = f"{self.testcasePath}/d+.csv"
-        self.file4 = f"{self.testcasePath}/uint.csv"
-        self.ts = 1700638570000  # 2023-11-22T07:36:10.000Z
-        self.database = "db1"
-        self.tb1 = "t1"
-        self.tb2 = "t2"
-        self.tb3 = "t3"
-        self.once = 1000
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcasefilename = os.path.split(__file__)[-1]
+        cls.file1 = f"{cls.testcasePath}/int.csv"
+        cls.file2 = f"{cls.testcasePath}/double.csv"
+        cls.file3 = f"{cls.testcasePath}/d+.csv"
+        cls.file4 = f"{cls.testcasePath}/uint.csv"
+        cls.ts = 1700638570000  # 2023-11-22T07:36:10.000Z
+        cls.database = "db1"
+        cls.tb1 = "t1"
+        cls.tb2 = "t2"
+        cls.tb3 = "t3"
+        cls.once = 1000
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
 
     def prepare_db(self):
         tdSql.execute(f"drop database if exists {self.database}")
@@ -72,7 +61,7 @@ class TDTestCase:
         f.close()
         print(f"{filepath} ready!")
 
-    def test_insert(self, tbname, qtime, startts, intype, outtype):
+    def check_insert(self, tbname, qtime, startts, intype, outtype):
         filepath = self.file1
         dinfo = "int"
         if intype == 2:
@@ -121,26 +110,39 @@ class TDTestCase:
         # tdSql.query(f"select count(*) from {self.database}.{tbname};")
         # tdSql.checkData(0, 0, once*qtime)
 
-    def run(self):
+    def test_insert_perf(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdSql.prepare(replica = self.replicaVar)
         # self.make_csv(self.once, 1)
         # self.make_csv(self.once, 2)
         # self.make_csv(self.once, 3)
         # self.make_csv(self.once, 4)
-
-        self.prepare_db()
-        self.test_insert(self.tb1, 1000, self.ts-10000000, 1, 1)
-        self.test_insert(self.tb2, 1000, self.ts-10000000, 2, 2)
-        self.test_insert(self.tb3, 1000, self.ts-10000000, 4, 3)
-        self.test_insert(self.tb2, 1000, self.ts, 1, 2)
         
-        self.test_insert(self.tb1, 1000, self.ts, 2, 1)
-        self.test_insert(self.tb3, 1000, self.ts, 3, 3)
-
-    def stop(self):
-        tdSql.close()
+        self.prepare_db()
+        self.check_insert(self.tb1, 1000, self.ts-10000000, 1, 1)
+        self.check_insert(self.tb2, 1000, self.ts-10000000, 2, 2)
+        self.check_insert(self.tb3, 1000, self.ts-10000000, 4, 3)
+        self.check_insert(self.tb2, 1000, self.ts, 1, 2)
+        
+        self.check_insert(self.tb1, 1000, self.ts, 2, 1)
+        self.check_insert(self.tb3, 1000, self.ts, 3, 3)
+        
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

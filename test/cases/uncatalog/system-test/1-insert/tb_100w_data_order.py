@@ -1,17 +1,15 @@
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
 
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import tdCom
+
+class TestTb100wDataOrder:
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        self.ts = 1537146000000
-        self.binary_str = 'taosdata'
-        self.nchar_str = '涛思数据'
+        #tdSql.init(conn.cursor(), logSql))
+        cls.ts = 1537146000000
+        cls.binary_str = 'taosdata'
+        cls.nchar_str = '涛思数据'
 
     def set_create_normaltable_sql(self, ntbname, column_dict):
         column_sql = ''
@@ -66,13 +64,25 @@ class TDTestCase:
         tdSql.execute(f'flush database db')
 
 
-    def run(self):
+    def test_tb_100w_data_order(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.query_ntb_order_by_col(batch_num=1000, rows_count=1000000)
 
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        tdLog.success(f"{__file__} successfully executed")

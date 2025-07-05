@@ -1,11 +1,7 @@
-from datetime import datetime
+from datetime import time, datetime
+from new_test_framework.utils import tdLog, tdSql
 import time
-
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+from new_test_framework.utils import DataSet
 
 PRIMARY_COL = "ts"
 
@@ -41,13 +37,11 @@ DB4     = "db4"
 STBNAME = "stb1"
 CTBNAME = "ct1"
 NTBNAME = "nt1"
+class TestCreateRetentions:
 
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql), True)
 
     @property
     def create_databases_sql_err(self):
@@ -172,7 +166,7 @@ class TDTestCase:
             f"create stable stb7 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) watermark 5s max_delay 1m sma({INT_COL})",
         ]
 
-    def test_create_stb(self, db=DB2):
+    def check_create_stb(self, db=DB2):
         tdSql.execute(f"use {db}")
         for err_sql in self.create_stable_sql_err:
             tdSql.error(err_sql)
@@ -186,7 +180,7 @@ class TDTestCase:
         tdSql.error(f"create stable db.nor_db_rollup_stb ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) watermark 5s max_delay 1m")
 
 
-    def test_create_databases(self):
+    def check_create_databases(self):
         for err_sql in self.create_databases_sql_err:
             tdSql.error(err_sql)
         index = 0
@@ -204,8 +198,8 @@ class TDTestCase:
             tdSql.error(alter_sql)
 
     def all_test(self):
-        self.test_create_databases()
-        self.test_create_stb()
+        self.check_create_databases()
+        self.check_create_stb()
 
     def __create_tb(self, stb=STBNAME, ctb_num=20, ntbnum=1, rsma=False, dbname=DBNAME, rsma_type="sum"):
         tdLog.printNoPrefix("==========step: create table")
@@ -292,7 +286,25 @@ class TDTestCase:
                 tdSql.execute( f"insert into {dbname}.ct{j+1} values ( {NOW - i * TIME_STEP}, {row_data} )" )
 
 
-    def run(self):
+    def test_create_retentions(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.rows = 10
         tdSql.prepare(dbname=DBNAME)
 
@@ -396,9 +408,5 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

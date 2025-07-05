@@ -1,9 +1,10 @@
 from enum import Enum
 
-from util.log import *
-from util.sql import *
-from util.cases import *
 
+
+from new_test_framework.utils import tdLog, tdSql
+import os
+import time
 
 class IllegalDataType(Enum):
     NULL       = 'null'
@@ -57,13 +58,13 @@ class TableType(Enum):
 
 SHOW_LOG = True
 
-class TDTestCase:
+class TestCompositePrimaryKeyCreate:
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        self.database = "db_create_composite_primary_key"
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        cls.database = "db_create_composite_primary_key"
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql), True)
 
     def prepare_db(self):
         tdSql.execute(f"drop database if exists {self.database}")
@@ -87,7 +88,7 @@ class TDTestCase:
 
         tdSql.checkEqual("COMPOSITE KEY" in result[0][1], True)
 
-    def test_pk_datatype_legal(self, stable_name: str, ctable_name: str, ntable_name: str, dtype: LegalDataType):
+    def check_pk_datatype_legal(self, stable_name: str, ctable_name: str, ntable_name: str, dtype: LegalDataType):
         # create super table and child table
         tdSql.execute(f"drop table if exists {stable_name}", show=SHOW_LOG)
         tdSql.execute(f"drop table if exists {ntable_name}", show=SHOW_LOG)
@@ -102,7 +103,7 @@ class TDTestCase:
         tdSql.execute(f"create table {ntable_name} (ts timestamp, pk {dtype.value} COMPOSITE key, c2 int)", show=SHOW_LOG)
         self.check_pk_definition(ntable_name, dtype, TableType.NORNALTABLE)
 
-    def test_pk_datatype_illegal(self, stable_name: str, ntable_name: str, dtype: LegalDataType):
+    def check_pk_datatype_illegal(self, stable_name: str, ntable_name: str, dtype: LegalDataType):
         # create super table and child table
         tdSql.execute(f"drop table if exists {stable_name}", show=SHOW_LOG)
         tdSql.execute(f"drop table if exists {ntable_name}", show=SHOW_LOG)
@@ -112,7 +113,7 @@ class TDTestCase:
         # create normal table
         tdSql.error(f"create table {ntable_name} (ts timestamp, pk {dtype.value} primary key, c2 int)", show=SHOW_LOG)
 
-    def test_pk_spell_legal(self, stable_name: str, ntable_name: str, pk_spell: LegalSpell):
+    def check_pk_spell_legal(self, stable_name: str, ntable_name: str, pk_spell: LegalSpell):
         # create super table and child table
         tdSql.execute(f"drop table if exists {stable_name}", show=SHOW_LOG)
         tdSql.execute(f"drop table if exists {ntable_name}", show=SHOW_LOG)
@@ -122,7 +123,7 @@ class TDTestCase:
         # create normal table
         tdSql.execute(f"create table {ntable_name} (ts timestamp, pk int {pk_spell.value}, c2 int)", show=SHOW_LOG)
 
-    def test_pk_spell_illegal(self, stable_name: str, ntable_name: str, pk_spell: LegalSpell):
+    def check_pk_spell_illegal(self, stable_name: str, ntable_name: str, pk_spell: LegalSpell):
         # create super table and child table
         tdSql.execute(f"drop table if exists {stable_name}", show=SHOW_LOG)
         tdSql.execute(f"drop table if exists {ntable_name}", show=SHOW_LOG)
@@ -132,7 +133,7 @@ class TDTestCase:
         # create normal table
         tdSql.error(f"create table {ntable_name} (ts timestamp, pk int {pk_spell.value}, c2 int)", show=SHOW_LOG)
 
-    def test_update_pk(self, table_name: str, t_type: TableType):
+    def check_update_pk(self, table_name: str, t_type: TableType):
         # create super table and child table
         tdSql.execute(f"drop table if exists {table_name}", show=SHOW_LOG)
         
@@ -161,25 +162,43 @@ class TDTestCase:
         tdSql.error(f"alter table {table_name} rename column pk new_pk", show=SHOW_LOG)
         tdSql.error(f"alter table {table_name} drop column pk", show=SHOW_LOG)
 
-    def run(self):  
+    def test_composite_primary_key_create(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdSql.prepare(replica = self.replicaVar)
         self.prepare_db()
 
         # 1.check legal data type
         for date_type in LegalDataType.__members__.items():
-            self.test_pk_datatype_legal('s_table', 'c_table', 'n_table', date_type[1])
+            self.check_pk_datatype_legal('s_table', 'c_table', 'n_table', date_type[1])
         
         # 2.check illegal data type
         for date_type in IllegalDataType.__members__.items():
-            self.test_pk_datatype_illegal('s_table', 'n_table', date_type[1])
+            self.check_pk_datatype_illegal('s_table', 'n_table', date_type[1])
 
         # 3.check legal spell
         for date_type in LegalSpell.__members__.items():
-            self.test_pk_spell_legal('s_table', 'n_table', date_type[1])
+            self.check_pk_spell_legal('s_table', 'n_table', date_type[1])
 
         # 4.check illegal spell
         for date_type in IllegalSpell.__members__.items():
-            self.test_pk_spell_illegal('s_table', 'n_table', date_type[1])
+            self.check_pk_spell_illegal('s_table', 'n_table', date_type[1])
 
         # 5.only define ts and pk columns
         # create super table and child table
@@ -212,13 +231,8 @@ class TDTestCase:
         tdSql.error(f"create table n_table (ts timestamp, pk1 int primary key, c2 int, pk2 int primary key)", show=SHOW_LOG)
 
         # 7.add\update\delete pk column is not support
-        self.test_update_pk('s_table', TableType.SUPERTABLE)
-        self.test_update_pk('n_table', TableType.NORNALTABLE)
-
-    def stop(self):
-        tdSql.close()
+        self.check_update_pk('s_table', TableType.SUPERTABLE)
+        self.check_update_pk('n_table', TableType.NORNALTABLE)
+        
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())
+        

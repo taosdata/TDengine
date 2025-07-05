@@ -1,25 +1,16 @@
-import taos
-import sys
-import datetime
-import inspect
-import random
-from util.dnodes import TDDnode
-from util.dnodes import tdDnodes
+from new_test_framework.utils import tdLog, tdSql
+import os
+import time
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestInsertFromCsv:
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql), True)
 
-        self.testcasePath = os.path.split(__file__)[0]
-        self.testcasePath = self.testcasePath.replace('\\', '//')
-        self.database = "test_insert_csv_db"
-        self.table = "test_insert_csv_tbl"
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcasePath = cls.testcasePath.replace('\\', '//')
+        cls.database = "test_insert_csv_db"
+        cls.table = "test_insert_csv_tbl"
 
     def insert_from_csv(self):
         tdSql.execute(f"drop database if exists {self.database}")
@@ -30,18 +21,30 @@ class TDTestCase:
         tdSql.query(f"select count(*) from {self.table}")
         tdSql.checkData(0, 0, 5)
 
-    def run(self):
+    def test_insert_from_csv(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdSql.prepare()
         
         startTime_all = time.time() 
         self.insert_from_csv()
         endTime_all = time.time()
-        print("total time %ds" % (endTime_all - startTime_all))        
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+        print("total time %ds" % (endTime_all - startTime_all))
         
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        tdLog.success(f"{__file__} successfully executed")

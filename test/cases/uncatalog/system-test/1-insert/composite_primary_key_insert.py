@@ -1,16 +1,13 @@
 from enum import Enum
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.csv import *
-import platform
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.csv import TDCsv
 import os
+import time
 import taos
 import json
 from taos import SmlProtocol, SmlPrecision
 from taos.error import SchemalessError
-
 
 class IllegalData(Enum):
     NULL       = 'null'
@@ -48,26 +45,25 @@ class HasPK(Enum):
 SHOW_LOG = True
 STAET_TS = '2023-10-01 00:00:00.000'
 
-class TDTestCase:
+class TestCompositePrimaryKeyInsert:
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        self.database = "db_insert_composite_primary_key"
+    def setup_class(cls):
+        cls.database = "db_insert_composite_primary_key"
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql), True)
 
-        self.testcasePath = os.path.split(__file__)[0]
-        self.testcaseFilename = os.path.split(__file__)[-1]
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf %s/%s.sql" % (cls.testcasePath,cls.testcaseFilename))
         # tdSql.execute(f"insert into db4096.ctb00 file '{self.testcasePath}//tableColumn4096csvLength64k.csv'")
 
-        self.tdCsv = TDCsv()
-        self.tdCsv.file_path = self.testcasePath
-        self.tdCsv.file_name = 'file1.csv'
+        cls.tdCsv = TDCsv()
+        cls.tdCsv.file_path = cls.testcasePath
+        cls.tdCsv.file_name = 'file1.csv'
 
-        self.stable_name = 's_table'
-        self.ctable_name = 'c_table'
-        self.ntable_name = 'n_table'
+        cls.stable_name = 's_table'
+        cls.ctable_name = 'c_table'
+        cls.ntable_name = 'n_table'
 
 
     def prepare_db(self):
@@ -80,7 +76,7 @@ class TDTestCase:
         now_time = tdSql.queryResult[0][0].strftime("%Y-%m-%d %H:%M:%S.%f")
         return f"'{now_time}'"
     
-    def test_insert_data(self, dtype: LegalDataType, hasPk: HasPK):
+    def check_insert_data(self, dtype: LegalDataType, hasPk: HasPK):
         # drop super table and child table
         tdSql.execute(f"drop table if exists {self.stable_name}")
         tdSql.execute(f"drop table if exists {self.ntable_name}_1")
@@ -237,7 +233,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         self._check_select(table_name)
 
-    def test_insert_data_illegal(self, dtype: LegalDataType, illegal_data: IllegalData):
+    def check_insert_data_illegal(self, dtype: LegalDataType, illegal_data: IllegalData):
         # drop tables
         tdSql.execute(f"drop table if exists {self.stable_name}")
         tdSql.execute(f"drop table if exists {self.ntable_name}_1")
@@ -304,7 +300,7 @@ class TDTestCase:
         tdSql.checkRows(0)
         self._check_select(table_name)
     
-    def test_insert_select(self, dtype: LegalDataType):
+    def check_insert_select(self, dtype: LegalDataType):
         # # 1.pk table to non-pk table, throw error
         tdSql.execute(f"drop table if exists source_{self.stable_name}")
         tdSql.execute(f"drop table if exists source_{self.ctable_name}")
@@ -416,7 +412,7 @@ class TDTestCase:
         tdSql.execute(f"delete from dest_{self.ntable_name}", show=SHOW_LOG)
         self._check_select(f'dest_{self.ntable_name}')
 
-    def test_schemaless_error(self):
+    def check_schemaless_error(self):
         # 5.1.insert into values via influxDB
         lines = ["meters,location=California.LosAngeles,groupid=2 current=11i32,voltage=221,phase=0.28 1648432611249000",
          "meters,location=California.LosAngeles,groupid=2 current=13i32,voltage=223,phase=0.29 1648432611249000",
@@ -478,7 +474,7 @@ class TDTestCase:
 
         tdSql.execute(f"flush database {self.database}", show=SHOW_LOG)
 
-    def test_insert_values_special(self, dtype: LegalDataType):
+    def check_insert_values_special(self, dtype: LegalDataType):
         # 4.insert into values without ts column 
         # drop tables
         tdSql.execute(f"drop table if exists {self.stable_name}")
@@ -532,7 +528,7 @@ class TDTestCase:
         tdSql.checkRows(0)
         self._check_select(self.ntable_name)
 
-    def test_insert_into_mutiple_tables(self, dtype: LegalDataType):
+    def check_insert_into_mutiple_tables(self, dtype: LegalDataType):
         # drop super table and child table
         tdSql.execute(f"drop table if exists {self.stable_name}")
         tdSql.execute(f"create table {self.stable_name} (ts timestamp, pk {dtype.value} primary key, c2 {dtype.value}) tags (engine int)", show=SHOW_LOG)
@@ -697,7 +693,7 @@ class TDTestCase:
         self._check_select(self.stable_name)
         self._check_select(self.ntable_name)
 
-    def test_stmt(self, dtype: LegalDataType):
+    def check_stmt(self, dtype: LegalDataType):
         tdSql.execute(f"drop table if exists {self.stable_name}", show=SHOW_LOG)
         tdSql.execute(f"create table {self.stable_name} (ts timestamp, pk {dtype.value} primary key, c2 {dtype.value}, c3 float) tags (engine int)", show=SHOW_LOG)
 
@@ -862,7 +858,7 @@ class TDTestCase:
             tdSql.checkEqual(tdSql.queryResult[0][2] == 1000, True)
         stmt.close()
 
-    def test_implicit_conversion(self, dtype: LegalDataType):
+    def check_implicit_conversion(self, dtype: LegalDataType):
         
         tdSql.execute(f"drop table if exists dest_table", show=SHOW_LOG)
         tdSql.execute(f"create table dest_table (ts timestamp, pk {dtype.value} primary key, c2 {dtype.value})", show=SHOW_LOG)
@@ -904,7 +900,25 @@ class TDTestCase:
         tdSql.query(f'select * from {table_nam} order by ts asc, pk desc')
         tdSql.query(f'select * from {table_nam} order by ts desc, pk asc')
 
-    def run(self):  
+    def test_composite_primary_key_insert(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdSql.prepare(replica = self.replicaVar)
         self.prepare_db()
 
@@ -912,47 +926,41 @@ class TDTestCase:
             tdLog.info(f'<dateType={date_type}>')
             # 1.insert into value with pk - pass
             tdLog.info('[1.insert into value with pk]')
-            self.test_insert_data(date_type[1], HasPK.YES)
+            self.check_insert_data(date_type[1], HasPK.YES)
 
             # 2.insert into value without pk - pass
             tdLog.info('[2.insert into value without pk]')
-            self.test_insert_data(date_type[1], HasPK.NO)
+            self.check_insert_data(date_type[1], HasPK.NO)
 
             # 3.insert into illegal data - pass
             tdLog.info('[3.insert into illegal data]')
             for illegal_data in IllegalData.__members__.items():
-                self.test_insert_data_illegal(date_type[1], illegal_data[1])
+                self.check_insert_data_illegal(date_type[1], illegal_data[1])
 
             # 4. insert into select - pass
             tdLog.info('[4. insert into select]')
-            self.test_insert_select(date_type[1])
+            self.check_insert_select(date_type[1])
 
             # 5. insert into values special cases  - pass
             tdLog.info('[5. insert into values special cases]')
-            self.test_insert_values_special(date_type[1])
+            self.check_insert_values_special(date_type[1])
             
             # 6. test implicit conversion  - pass
             tdLog.info('[6. test implicit conversion]')
-            self.test_implicit_conversion(date_type[1])
+            self.check_implicit_conversion(date_type[1])
 
             # 7. insert into value to mutiple tables  - pass
             tdLog.info('[7. insert into value to mutiple tables]')
-            self.test_insert_into_mutiple_tables(date_type[1])
+            self.check_insert_into_mutiple_tables(date_type[1])
 
             # 8. stmt  wait for test!!!!
             tdLog.info('[8. stmt  wait for test]')
-            self.test_stmt(date_type[1])  
+            self.check_stmt(date_type[1])  
         
         # 9. insert data by schemaless model is not allowed - pass
         tdLog.info('[9. insert data by schemaless model is not allowed]')
-        self.test_schemaless_error()
+        self.check_schemaless_error()
         # while(True):
         #     self.test_stmt(LegalDataType.VARCHAR) 
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

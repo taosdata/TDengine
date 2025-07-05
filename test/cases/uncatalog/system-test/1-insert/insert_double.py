@@ -1,28 +1,21 @@
-import taos
-import sys
-import datetime
-import inspect
-
-from util.log import *
-from util.sql import *
-from util.cases import *
-import random
+from new_test_framework.utils import tdLog, tdSql
 
 
-class TDTestCase:
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        self.database = "db1"
+class TestInsertDouble:
+
+    @classmethod
+    def setup_class(cls):
+        cls.database = "db1"
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), True)
 
     def prepare_db(self):
         tdSql.execute(f"drop database if exists {self.database}")
         tdSql.execute(f"create database {self.database}")
         tdSql.execute(f"use {self.database}")
 
-    def test_value(self, table_name, dtype, bits):
+    def check_value(self, table_name, dtype, bits):
         tdSql.execute(f"drop table if exists {table_name}")
         tdSql.execute(f"create table {table_name}(ts timestamp, i1 {dtype}, i2 {dtype} unsigned)")
 
@@ -81,7 +74,7 @@ class TDTestCase:
         tdSql.error(f"insert into {table_name} values(1717122974000, {min_i-1}, 0)")
         tdSql.error(f"insert into {table_name} values(1717122975000, '{min_i-1}', 0)")
 
-    def test_tags(self, stable_name, dtype, bits):
+    def check_tags(self, stable_name, dtype, bits):
         tdSql.execute(f"create stable {stable_name}(ts timestamp, i1 {dtype}, i2 {dtype} unsigned) tags(id {dtype})")
 
         baseval = 2**(bits/2)
@@ -111,26 +104,41 @@ class TDTestCase:
         tdSql.query(f"select * from {stable_name}")
         tdSql.checkRows(12)
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_insert_double(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdSql.prepare(replica = self.replicaVar)
         self.prepare_db()
 
-        self.test_value("t1", "bigint", 64)
-        self.test_value("t2", "int", 32)
-        self.test_value("t3", "smallint", 16)
-        self.test_value("t4", "tinyint", 8)
+        self.check_value("t1", "bigint", 64)
+        self.check_value("t2", "int", 32)
+        self.check_value("t3", "smallint", 16)
+        self.check_value("t4", "tinyint", 8)
         tdLog.printNoPrefix("==========end case1 run ...............")
 
-        self.test_tags("t_big", "bigint", 64)
-        self.test_tags("t_int", "int", 32)
-        self.test_tags("t_small", "smallint", 16)
-        self.test_tags("t_tiny", "tinyint", 8)
+        self.check_tags("t_big", "bigint", 64)
+        self.check_tags("t_int", "int", 32)
+        self.check_tags("t_small", "smallint", 16)
+        self.check_tags("t_tiny", "tinyint", 8)
         tdLog.printNoPrefix("==========end case2 run ...............")
-
-    def stop(self):
-        tdSql.close()
+        
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

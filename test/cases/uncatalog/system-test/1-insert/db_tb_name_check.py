@@ -24,18 +24,18 @@
 
 # -*- coding: utf-8 -*-
 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
 
-class TDTestCase:
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import tdCom
+import os
+import time
+
+class TestDbTbNameCheck:
     
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        self.special_name = ['!','@','#','$','%','^','&','*','(',')','[',']','{','}',\
+        #tdSql.init(conn.cursor(), logSql))
+        cls.special_name = ['!','@','#','$','%','^','&','*','(',')','[',']','{','}',\
                             ':',';','\'','\"',',','<','>','/','?','-','_','+','=','~']
     def db_name_check(self):
         dbname = tdCom.getLongName(10)
@@ -102,14 +102,28 @@ class TDTestCase:
         tdSql.execute(f'trim database `{dbname}`')
         tdSql.execute(f'drop database `{dbname}`')
 
-    def run(self):
+    def test_db_tb_name_check(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.db_name_check()
         self.tb_name_check()
         self.tb_name_len_check()
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        
+        #tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")

@@ -1,8 +1,6 @@
-from util.sql import *
-from util.common import *
-import taos
-taos.taos_connect
-class TDTestCase:
+from new_test_framework.utils import tdLog, tdSql
+
+class TestMultiInsert:
     def init(self, conn, logSql, replicaVar = 1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
@@ -21,12 +19,25 @@ class TDTestCase:
             tdSql.execute("insert into t0 values(1721265436000,now(),'0',192) t0(quality,w_ts,ts) values(192,now(),1721265326000) t0(quality,w_t\
 s,ts) values(190,now()+1s,1721265326000) t0 values(1721265436000,now()+2s,'1',191) t0(quality,w_ts,ts) values(192,now()+3s,\
 1721265326002) t0(ts,w_ts,opc,quality) values(1721265436003,now()+4s,'3',193) t0 values(now(), now() + 4s , '2', 192)")
-    def run(self):
+    def test_multi_insert(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.initdb()
         self.multi_insert()
-
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

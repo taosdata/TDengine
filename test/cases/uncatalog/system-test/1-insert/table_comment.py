@@ -11,36 +11,32 @@
 
 # -*- coding: utf-8 -*-
 
-import random
-import string
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import tdCom
+import os
+import time
 
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+class TestTableComment:
+    def setup_class(cls):
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
         # prepare data
-        self.ntbname = 'ntb'
-        self.stbname = 'stb'
-        self.column_dict = {
+        cls.ntbname = 'ntb'
+        cls.stbname = 'stb'
+        cls.column_dict = {
             'ts':'timestamp',
             'c1':'int',
             'c2':'float',
             'c3':'double',
             'c4':'timestamp'
         }
-        self.tag_dict = {
+        cls.tag_dict = {
             't0':'int'
         }
-        self.comment_length = [0,1024]
-        self.error_comment_length = [1025]
-        self.table_type_list = ['normal_table','stable','child_table']
-        self.comment_flag_list = [True,False]
+        cls.comment_length = [0,1024]
+        cls.error_comment_length = [1025]
+        cls.table_type_list = ['normal_table','stable','child_table']
+        cls.comment_flag_list = [True,False]
 
     def __set_and_alter_comment(self,tb_type='',comment_flag= False):
 
@@ -124,12 +120,26 @@ class TDTestCase:
                 self.__set_and_alter_comment(tb,flag)
         tdSql.execute('drop database db')
 
-    def run(self):
+    def test_table_comment(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.comment_check_case(self.table_type_list,self.comment_flag_list)
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        
+        #tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")

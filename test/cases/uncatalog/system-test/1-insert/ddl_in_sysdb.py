@@ -12,27 +12,20 @@
 
 # -*- coding: utf-8 -*-
 
-import random
-import string
+from new_test_framework.utils import tdLog, tdSql,tdDnodes
+import os
+import time
 
-from numpy import logspace
-from util import constant
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
-from util.sqlset import TDSetSql
 
 sysdb_tables = { 
     "information_schema": ["ins_dnodes", "ins_mnodes", "ins_modules", "ins_qnodes", "ins_snodes", "ins_cluster", "ins_databases", "ins_functions", "ins_indexes", "ins_stables", "ins_tables", "ins_tags", "ins_columns", "ins_users", "ins_grants", "ins_vgroups", "ins_configs", "ins_dnode_variables", "ins_topics", "ins_subscriptions", "ins_streams", "ins_streams_tasks", "ins_vnodes", "ins_user_privileges", "undefined"], 
     "performance_schema": ["perf_connections", "perf_queries", "perf_consumers", "perf_trans", "perf_apps", "undefined"]
     }
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestDdlInSysdb:
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql))
 
     def ddl_sysdb(self):
         for db, _ in sysdb_tables.items():
@@ -82,14 +75,28 @@ class TDTestCase:
         self.ddl_sysdb()
         self.ddl_systb()
 
-    def run(self):
+    def test_ddl_in_sysdb(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.ddl_in_sysdb()
         tdDnodes.stoptaosd(1)
         tdDnodes.starttaosd(1)
         self.ddl_in_sysdb()
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        tdLog.success("%s successfully executed" % __file__)

@@ -3,13 +3,10 @@ import time
 
 from dataclasses import dataclass
 from typing import List, Any, Tuple
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.constant import *
-from util.common import *
-
+from new_test_framework.utils import tdLog, tdSql, DataSet
+from new_test_framework.utils.constant import *
+import os
+import time
 PRIMARY_COL = "ts"
 
 INT_COL = "c_int"
@@ -131,16 +128,15 @@ class SMAschema:
                     del self.other[k]
 
 
-class TDTestCase:
+class TestTimeRangeWise:
     updatecfgDict = {"querySmaOptimize": 1}
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
-        self.precision = "ms"
-        self.sma_count = 0
-        self.sma_created_index = []
+        #tdSql.init(conn.cursor(), logSql), True)
+        cls.precision = "ms"
+        cls.sma_count = 0
+        cls.sma_created_index = []
 
     """
         create sma index :
@@ -441,7 +437,7 @@ class TDTestCase:
 
         return err_sqls, cur_sqls
 
-    def test_create_sma(self):
+    def check_create_sma(self):
         err_sqls , cur_sqls = self.__create_sma_sql
         for err_sql in err_sqls:
             self.sma_create_check(err_sql)
@@ -463,7 +459,7 @@ class TDTestCase:
 
         return err_sqls, cur_sqls
 
-    def test_drop_sma(self):
+    def check_drop_sma(self):
         err_sqls , cur_sqls = self.__drop_sma_sql
         for err_sql in err_sqls:
             self.sma_drop_check(err_sql)
@@ -471,8 +467,8 @@ class TDTestCase:
             self.sma_drop_check(cur_sql)
 
     def all_test(self):
-        self.test_create_sma()
-        self.test_drop_sma()
+        self.check_create_sma()
+        self.check_drop_sma()
 
     def __create_tb(self, stb=STBNAME, ctb_num=20, ntbnum=1, dbname=DBNAME):
         tdLog.printNoPrefix("==========step: create table")
@@ -517,7 +513,25 @@ class TDTestCase:
             for j in range(ctb_num):
                 tdSql.execute( f"insert into {dbname}.ct{j+1} values ( {star_time - j * i * TIME_STEP}, {row_data} )" )
 
-    def run(self):
+    def test_time_range_wise(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.rows = 10
 
         tdLog.printNoPrefix("==========step0:all check")
@@ -604,11 +618,5 @@ class TDTestCase:
         for i in range(self.rows):
             tdSql.execute("drop database if exists db3 ")
             tdSql.execute("create database db3 retentions -:4m,2s:8m,3s:12m")
-
-    def stop(self):
-        tdSql.close()
+        
         tdLog.success(f"{__file__} successfully executed")
-
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

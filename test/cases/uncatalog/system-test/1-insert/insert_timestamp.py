@@ -1,18 +1,32 @@
+from new_test_framework.utils import tdLog, tdSql
+import os
+import time
 import datetime
-import sys
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.dnodes import tdDnodes
-from math import inf
 
-
-class TDTestCase:
+class TestInsertTimestamp:
     def init(self, conn, logSql, replicaVer=1):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), True)
 
-    def run(self):
+    def test_insert_timestamp(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdSql.execute("create database test_insert_timestamp PRECISION 'ns';")
         tdSql.execute("use test_insert_timestamp;")
         tdSql.execute("create stable st(ts timestamp, c1 int) tags(id int);")
@@ -119,6 +133,7 @@ class TDTestCase:
         tdSql.execute("drop table if exists test_t ;")
         tdSql.execute("drop stable if exists st;")
         tdSql.execute("drop database if exists test_insert_timestamp;")
+        tdLog.success("%s successfully executed" % __file__)
 
     def __convert_ts_to_date(self, ts: int) -> str:
         dt_object = datetime.datetime.fromtimestamp(ts / 1e9)
@@ -129,10 +144,3 @@ class TDTestCase:
 
     def __get_today_ts(self) -> int:
         return int(time.mktime(time.strptime(str(datetime.date.today()), "%Y-%m-%d"))) * 1000000000
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

@@ -11,24 +11,15 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
+from new_test_framework.utils import tdLog
 import os
-import threading as thd
-import multiprocessing as mp
 import taos
 from taos import *
-from util.log import *
-from util.cases import *
-from util.sql import *
-import numpy as np
-import datetime as dt
-from datetime import datetime
 from ctypes import *
-import time
 # constant define
 WAITS = 5 # wait seconds
 
-class TDTestCase:
+class TestStmtSetTbnameTag:
     #
     # --------------- main frame -------------------
     def caseDescription(self):
@@ -56,18 +47,14 @@ class TDTestCase:
         return buildPath
 
     # init
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql))
         # tdSql.prepare()
-        # self.create_tables();
-        self.ts = 1500000000000
+        # cls.create_tables();
+        cls.ts = 1500000000000
 
     # stop
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
 
 
     # --------------- case  -------------------
@@ -89,7 +76,7 @@ class TDTestCase:
             rows=result.fetch_all()
             return rows
 
-    def test_stmt_set_tbname_tag(self,conn):
+    def check_stmt_set_tbname_tag(self,conn):
         dbname = "stmt_tag"
         stablename = 'log'
         try:
@@ -245,17 +232,35 @@ class TDTestCase:
             conn.close()
             raise err
 
-    def run(self):
+    def test_stmt_set_tbname_tag(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         buildPath = self.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
         host="localhost"
         connectstmt=self.newcon(host,config)
-        self.test_stmt_set_tbname_tag(connectstmt)
+        self.check_stmt_set_tbname_tag(connectstmt)
+
+        tdLog.success(f"{__file__} successfully executed")
 
         return
 
 
 # add case with filename
 #
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

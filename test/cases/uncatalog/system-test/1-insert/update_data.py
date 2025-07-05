@@ -11,28 +11,28 @@
 
 # -*- coding: utf-8 -*-
 
+from new_test_framework.utils import tdLog, tdSql, constant
+from new_test_framework.utils.common import tdCom
+from new_test_framework.utils.sqlset import TDSetSql
 import random
+from random import randint
+import os
+import time
 from datetime import datetime
-from util import constant
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
-from util.sqlset import TDSetSql
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+
+class TestUpdateData:
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        self.setsql = TDSetSql()
-        self.dbname = 'db_test'
-        self.ntbname = 'ntb'
-        self.stbname = 'stb'
-        self.ctbname = 'ctb'
-        self.ts = 1537146000000
-        self.str_length = 20
-        self.block_update_times = 10000
-        self.column_dict = {
+        #tdSql.init(conn.cursor(), logSql))
+        cls.setsql = TDSetSql()
+        cls.dbname = 'db_test'
+        cls.ntbname = 'ntb'
+        cls.stbname = 'stb'
+        cls.ctbname = 'ctb'
+        cls.ts = 1537146000000
+        cls.str_length = 20
+        cls.block_update_times = 10000
+        cls.column_dict = {
             'col1': 'tinyint',
             'col2': 'smallint',
             'col3': 'int',
@@ -44,15 +44,15 @@ class TDTestCase:
             'col9': 'float',
             'col10': 'double',
             'col11': 'bool',
-            'col12': f'binary({self.str_length})',
-            'col13': f'nchar({self.str_length})',
+            'col12': f'binary({cls.str_length})',
+            'col13': f'nchar({cls.str_length})',
             'col_ts'  : 'timestamp'
         }
-        self.tag_dict = {
+        cls.tag_dict = {
             't0':'int'
         }
         # The number of tag_values should be same as tbnum
-        self.tag_values = [
+        cls.tag_values = [
             f'10',
             f'100'
         ]
@@ -271,17 +271,31 @@ class TDTestCase:
         tdSql.query(f'select count(*) from {self.stbname}')
         tdSql.query(f'select * from {self.stbname}')
 
-    def run(self):
-        #!bug TD-17708 and TD-17709
+    def test_update_data(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
+        # bug TD-17708 and TD-17709
         # for i in range(10):
-            self.update_check()
-            self.update_check_error()
-            self.update_10000times_and_query()
+        self.update_check()
+        self.update_check_error()
+        self.update_10000times_and_query()
             # i+=1
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        
+        #tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")

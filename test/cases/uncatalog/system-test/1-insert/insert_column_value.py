@@ -1,14 +1,7 @@
+from new_test_framework.utils import tdLog, tdSql
 import datetime, time
 from enum import Enum
 import binascii
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.common import *
-from util.dnodes import *
-from util.sqlset import *
-
-
 DBNAME = "db"
 
 class TDDataType(Enum):
@@ -37,17 +30,15 @@ class TDDataType(Enum):
     MAX        = 21
 
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestInsertColumnValue:
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        self.TIMESTAMP_MIN = -1000
-        self.TIMESTAMP_BASE = 1706716800
-        tdSql.init(conn.cursor())
+        cls.TIMESTAMP_MIN = -1000
+        cls.TIMESTAMP_BASE = 1706716800
+        #tdSql.init(conn.cursor(), logSql))
         tdSql.execute(f'drop database if exists db')
         tdSql.execute(f'create database if not exists db vgroups 1 keep 10512000m')
         tdLog.printNoPrefix("create table")
-        self.__create_tb()
 
     def __create_tb(self, dbname="db"):
         CREATE_STB_LIST = [ f"create table {dbname}.stb_vc (ts timestamp, c0 varchar(50), c1 varchar(50)) tags(t0 varchar(50), t1 varchar(50));",
@@ -526,14 +517,28 @@ class TDTestCase:
             tdSql.query(f'select * from {dbname}.{_tb}', show=True)
             tdSql.checkRows(4)
 
-    def run(self):
+    def test_insert_column_value(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
+        self.__create_tb()
         self.__insert_query_exec()
         self.__insert_query_ts5184()
-
-
-    def stop(self):
-        tdSql.close()
+        
+        #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

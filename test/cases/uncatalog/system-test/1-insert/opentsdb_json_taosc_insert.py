@@ -11,27 +11,29 @@
 
 # -*- coding: utf-8 -*-
 
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import tdCom
+from new_test_framework.utils.types import TDSmlProtocolType
+import random
+from random import randint
+import os
 import traceback
 import random
 from taos.error import SchemalessError
 import time
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import tdCom
-from util.types import TDSmlProtocolType
 import threading
 import json
+import sys
+import datetime
 
-class TDTestCase:
+class TestOpentsdbJsonTaoscInsert:
     updatecfgDict = {'clientCfg': {'smlDot2Underline': 0}}
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
-        self._conn = conn
-        self.defaultJSONStrType_value = "BINARY"
+        #tdSql.init(conn.cursor(), logSql), logSql)
+        # cls._conn = conn
+        cls.defaultJSONStrType_value = "BINARY"
 
     def createDb(self, name="test", db_update_tag=0, protocol=None):
         if protocol == "telnet-tcp":
@@ -1774,7 +1776,25 @@ class TDTestCase:
         # self.sStbDtbDdataDtsMtInsertMultiThreadCheckCase()
         # self.lengthIcreaseCrashCheckCase()
 
-    def run(self):
+    def test_opentsdb_json_taosc_insert(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         print("running {}".format(__file__))
         self.createDb()
         try:
@@ -1782,10 +1802,6 @@ class TDTestCase:
         except Exception as err:
             print(''.join(traceback.format_exception(None, err, err.__traceback__)))
             raise err
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        
+        #tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")

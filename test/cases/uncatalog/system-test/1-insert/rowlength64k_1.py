@@ -10,16 +10,34 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-from util.cases import tdCases
-from .rowlength64k import *
+from new_test_framework.utils import tdLog, tdSql
+import time
+from .rowlength64k import TestRowlength64k as Rowlength64kHelper
 
-class TDTestCase(TDTestCase):
+class TestRowlength64k1():
 
-                        
-    def run(self):
+    def test_rowlength64k_1(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdSql.prepare()
         
-        startTime_all = time.time() 
+        startTime_all = time.time()
         #self.run_1() 
         # self.run_2() 
         self.run_3() 
@@ -27,14 +45,7 @@ class TDTestCase(TDTestCase):
         
         endTime_all = time.time()
         print("total time %ds" % (endTime_all - startTime_all))  
-
         
-
-
-    def stop(self):
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

@@ -11,32 +11,27 @@
 
 # -*- coding: utf-8 -*-
 
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import tdCom
 import random
+from random import randint
 import os
 import time
-import taos
-import subprocess
 from faker import Faker
-from util.log import tdLog
-from util.cases import tdCases
-from util.sql import tdSql
-from util.dnodes import tdDnodes
-from util.dnodes import *
-from util.common import *
+import subprocess
 
-class TDTestCase:
+class TestDatabasePreSuf:
     updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 135}
     
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+        #tdSql.init(conn.cursor(), logSql), logSql)
 
-        self.testcasePath = os.path.split(__file__)[0]
-        self.testcaseFilename = os.path.split(__file__)[-1]
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf %s/%s.sql" % (cls.testcasePath,cls.testcaseFilename))
         
-        self.db = "pre_suf"
+        cls.db = "pre_suf"
 
     def dropandcreateDB_random(self,database,n,vgroups,table_prefix,table_suffix,check_result_positive,check_result_negative):
         #check_result_positive 检查前缀后缀是正数的，check_result_negative 检查前缀后缀是负数的(TS-3249)
@@ -528,7 +523,25 @@ class TDTestCase:
         else :
             tdLog.exit(f"checkEqual error, stream_data=={stream_data},sql_data={sql_data}") 
                             
-    def run(self):       
+    def test_database_pre_suf(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         startTime = time.time()  
                   
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
@@ -563,13 +576,4 @@ class TDTestCase:
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
-    
-
-
-    def stop(self):
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

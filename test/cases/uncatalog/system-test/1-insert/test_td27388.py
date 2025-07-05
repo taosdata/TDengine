@@ -1,27 +1,18 @@
-import random
-import string
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.sqlset import *
-from util import constant
-from util.common import *
+from new_test_framework.utils import tdLog, tdSql
 
-
-class TDTestCase:
+class TestTd27388:
     """Verify the insert with format exception for task TD-27388
     """
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        self.dbname = 'db'
-        self.stbname = 'st'
-        tdSql.execute("create database {};".format(self.dbname))
-        tdSql.execute("use {};".format(self.dbname))
+        #tdSql.init(conn.cursor(), logSql))
+        cls.dbname = 'db'
+        cls.stbname = 'st'
+        tdSql.execute("create database {};".format(cls.dbname))
+        tdSql.execute("use {};".format(cls.dbname))
         tdSql.execute("create table st (ts timestamp, col1 int, col2 varchar(64)) tags (t1 int, t2 varchar(32));")
 
-    def test_half_quotes(self):
+    def check_half_quotes(self):
         sql_list = [
             "insert into t1 using st tags(1, 'tag1) values(now, 1, 'test msg');",
             "insert into t1 using st tags(1, tag1') values(now, 1, 'test msg');",
@@ -41,7 +32,7 @@ class TDTestCase:
             tdLog.debug("execute harlf quotes sql: %s" % sql)
             tdSql.error(sql)
 
-    def test_esc(self):
+    def check_esc(self):
         sql_list = [
             "insert into t1 using st tags(1, 'tag1\\') values(now, 1, 'test msg');",
             "insert into t1 using st tags(1, \\'tag1') values(now, 1, 'test msg');",
@@ -61,7 +52,7 @@ class TDTestCase:
             tdLog.debug("execute escape character sql: %s" % sql)
             tdSql.error(sql)
 
-    def test_specific_character(self):
+    def check_specific_character(self):
         sql_list = [
             "insert into t1 using st tags(1, 'tag1$) values(now, 1, 'test msg');",
             "insert into t1 using st tags(1, 'tag1,) values(now, 1, 'test msg');",
@@ -84,14 +75,26 @@ class TDTestCase:
             tdLog.debug("execute specific character sql: %s" % sql)
             tdSql.error(sql)
 
-    def run(self):
-        self.test_half_quotes()
-        self.test_esc()
-        self.test_specific_character()
+    def test_td27388(self):
+        """summary: xxx
 
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+        description: xxx
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
+        self.check_half_quotes()
+        self.check_esc()
+        self.check_specific_character()
+        tdLog.success(f"{__file__} successfully executed")

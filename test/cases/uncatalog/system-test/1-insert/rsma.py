@@ -1,17 +1,10 @@
-from datetime import datetime
-import time
+from datetime import time, datetime
+from time import sleep
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
-
-from util.cluster import *
-sys.path.append("./6-cluster")
-from clusterCommonCreate import *
-from clusterCommonCheck import clusterComCheck
-
+from new_test_framework.utils import tdLog, tdSql
+import os
+import platform
+from new_test_framework.utils.clusterCommonCheck import clusterComCheck
 
 PRIMARY_COL = "ts"
 
@@ -47,13 +40,11 @@ DB4     = "db4"
 STBNAME = "stb1"
 CTBNAME = "ct1"
 NTBNAME = "nt1"
+class TestRsma:
 
-class TDTestCase:
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        #tdSql.init(conn.cursor(), logSql), True)
 
     def create_ctable(self,tsql=None, dbName='dbx',stbName='stb',ctbPrefix='ctb',ctbNum=1):
         tsql.execute("use %s" %dbName)
@@ -99,7 +90,25 @@ class TDTestCase:
             return paths[0]    
         
 
-    def run(self):
+    def test_rsma(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         binPath = self.getPath()
 
         self.rows = 10
@@ -136,11 +145,5 @@ class TDTestCase:
         # os.system(f"{binPath} -f ./1-insert/benchmark-tbl-rsma.json")
         # tdSql.query(f" select count(*) from db_update.stb1;")
         # tdSql.checkData(0, 0, 360000)
-
-
-    def stop(self):
-        tdSql.close()
+                
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

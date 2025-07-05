@@ -16,26 +16,26 @@ import random
 from taos.error import SchemalessError
 import time
 import numpy as np
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import tdCom
-from util.types import TDSmlProtocolType, TDSmlTimestampType
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.common import tdCom
+from new_test_framework.utils.types import TDSmlProtocolType, TDSmlTimestampType, TDSmlTimestampType
 import threading
 import platform
 import io
+import sys
+import datetime
+
 if platform.system().lower() == 'windows':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf8')
 
-class TDTestCase:
+class TestOpentsdbTelnetLineTaoscInsert:
     updatecfgDict = {'clientCfg': {'smlDot2Underline': 0}}
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
-        self._conn = conn
-        self.smlChildTableName_value = "id"
+        #tdSql.init(conn.cursor(), logSql), True)
+        # cls._conn = conn
+        cls.smlChildTableName_value = "id"
 
     def createDb(self, name="test", db_update_tag=0, protocol=None):
         if protocol == "telnet-tcp":
@@ -1466,7 +1466,25 @@ class TDTestCase:
         # self.sStbDtbDdataDtsInsertMultiThreadCheckCase()
         # self.sStbDtbDdataDtsMtInsertMultiThreadCheckCase()
 
-    def run(self):
+    def test_opentsdb_telnet_line_taosc_insert(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         print("running {}".format(__file__))
 
         try:
@@ -1486,10 +1504,4 @@ class TDTestCase:
         except Exception as err:
             print(''.join(traceback.format_exception(None, err, err.__traceback__)))
             raise err
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        tdLog.success(f"{__file__} successfully executed")

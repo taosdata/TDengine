@@ -11,21 +11,13 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
+from new_test_framework.utils import tdLog, tdSql
 import os
 import threading as thd
 import multiprocessing as mp
 import taos
-from util.log import *
-from util.cases import *
-from util.sql import *
-import numpy as np
-import datetime as dt
 import time
-# constant define
-WAITS = 5 # wait seconds
-
-class TDTestCase:
+class TestInsertwithmorevgroup:
     #
     # --------------- main frame -------------------
     #
@@ -61,18 +53,14 @@ class TDTestCase:
         return buildPath
 
     # init
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql))
         # tdSql.prepare()
-        # self.create_tables();
-        self.ts = 1500000000000
+        # cls.create_tables();
+        cls.ts = 1500000000000
 
     # stop
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
 
 
     # --------------- case  -------------------
@@ -278,7 +266,7 @@ class TDTestCase:
 
 
     # test case1 base
-    def test_case1(self):
+    def check_case1(self):
         #stableCount=threadNumbersCtb
         parameterDict = {'vgroups':        1,    \
                          'threadNumbersCtb': 5,  \
@@ -316,7 +304,7 @@ class TDTestCase:
 
         self.checkData(dbname=parameterDict['dbname'],stbname=parameterDict['stbname'], stableCount=parameterDict['threadNumbersCtb'],CtableCount=tableCount,rowsPerSTable=rowsPerStable)
 
-    def test_case3(self):
+    def check_case3(self):
         #stableCount=threadNumbersCtb
         parameterDict = {'vgroups':        1,    \
                          'threadNumbersCtb': 8,  \
@@ -356,15 +344,39 @@ class TDTestCase:
         return
 
     # run case
-    def run(self):
+    def test_insertWithMoreVgroup(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
+
+        
+        #tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")
 
         # create database and tables。
-        self.test_case1()
+        self.check_case1()
         tdLog.debug(" LIMIT test_case1 ............ [OK]")
 
         # taosBenchmark：create database/table and insert data
-        self.test_case3()
+        self.check_case3()
         tdLog.debug(" LIMIT test_case3 ............ [OK]")
+        
+        tdLog.success("%s successfully executed" % __file__)
 
 
 
@@ -372,5 +384,3 @@ class TDTestCase:
 #
 # add case with filename
 #
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())

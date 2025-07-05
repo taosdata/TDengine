@@ -11,26 +11,25 @@
 
 # -*- coding: utf-8 -*-
 
+from new_test_framework.utils import tdLog, tdSql, constant
+from new_test_framework.utils.common import tdCom
+from new_test_framework.utils.sqlset import TDSetSql
 import random
-import string
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util import constant
-from util.common import *
-from util.sqlset import *
+from random import randint
+import os
+import time
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
-        self.setsql = TDSetSql()
-        self.ntbname = 'ntb'
-        self.stbname = 'stb'
-        self.binary_length = 20 # the length of binary for column_dict
-        self.nchar_length = 20  # the length of nchar for column_dict
-        self.column_dict = {
+class TestAlterTable:
+
+    def setup_class(cls):
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql))
+        cls.setsql = TDSetSql()
+        cls.ntbname = 'ntb'
+        cls.stbname = 'stb'
+        cls.binary_length = 20 # the length of binary for column_dict
+        cls.nchar_length = 20  # the length of nchar for column_dict
+        cls.column_dict = {
             'ts'  : 'timestamp',
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -43,10 +42,10 @@ class TDTestCase:
             'col9': 'float',
             'col10': 'double',
             'col11': 'bool',
-            'col12': f'binary({self.binary_length})',
-            'col13': f'nchar({self.nchar_length})'
+            'col12': f'binary({cls.binary_length})',
+            'col13': f'nchar({cls.nchar_length})'
         }
-        self.tag_dict = {
+        cls.tag_dict = {
             'ts_tag'  : 'timestamp',
             't1': 'tinyint',
             't2': 'smallint',
@@ -59,17 +58,17 @@ class TDTestCase:
             't9': 'float',
             't10': 'double',
             't11': 'bool',
-            't12': f'binary({self.binary_length})',
-            't13': f'nchar({self.nchar_length})'
+            't12': f'binary({cls.binary_length})',
+            't13': f'nchar({cls.nchar_length})'
         }
-        self.tag_list = [
+        cls.tag_list = [
             f'now,1,2,3,4,5,6,7,8,9.9,10.1,true,"abcd","涛思数据"'
         ]
-        self.tbnum = 1
-        self.values_list = [
+        cls.tbnum = 1
+        cls.values_list = [
             f'now,1,2,3,4,5,6,7,8,9.9,10.1,true,"abcd","涛思数据"'
         ]
-        self.column_add_dict = {
+        cls.column_add_dict = {
             'col_time'      : 'timestamp',
             'col_tinyint'   : 'tinyint',
             'col_smallint'  : 'smallint',
@@ -318,14 +317,28 @@ class TDTestCase:
             tdSql.error(f'alter table {self.stbname} rename column {key} {rename_str}')
             for i in range(self.tbnum):
                 tdSql.error(f'alter table {self.stbname}_{i} rename column {key} {rename_str}')
-    def run(self):
+    def test_alter_table(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.alter_check_ntb()
         self.alter_check_tb()
         self.alter_check_stb()
-
-    def stop(self):
-        tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
-
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+        
+        #tdSql.close()
+        tdLog.success(f"{__file__} successfully executed")
