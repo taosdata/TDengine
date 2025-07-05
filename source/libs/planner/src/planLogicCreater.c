@@ -653,18 +653,16 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 static int32_t createRefScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable,
                                       SLogicNode** pLogicNode) {
   SScanLogicNode* pScan = NULL;
-  int32_t         code = makeScanLogicNode(pCxt, pRealTable, pSelect->hasRepeatScanFuncs, (SLogicNode**)&pScan);
+  int32_t         code = TSDB_CODE_SUCCESS;
 
+  PLAN_ERR_RET(makeScanLogicNode(pCxt, pRealTable, pSelect->hasRepeatScanFuncs, (SLogicNode**)&pScan));
   pScan->node.groupAction = GROUP_ACTION_NONE;
   pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
 
-  if (TSDB_CODE_SUCCESS == code) {
-    pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType, pSelect->tagScan);
-  }
+  pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType, pSelect->tagScan);
 
-  if (TSDB_CODE_SUCCESS == code) {
-    code = addDefaultScanCol(pRealTable, &pScan->pScanCols);
-  }
+  PLAN_ERR_RET(nodesCloneNode(pSelect->pTimeRange, (SNode**)&pScan->pTimeRange));
+  PLAN_ERR_RET(addDefaultScanCol(pRealTable, &pScan->pScanCols));
 
   SNode *pTsCol = nodesListGetNode(pScan->pScanCols, 0);
   ((SColumnNode*)pTsCol)->hasDep = true;
@@ -2012,7 +2010,9 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
 static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList ||
       !pCxt->pPlanCxt->streamCalcQuery || !pCxt->pPlanCxt->withExtWindow ||
-      nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE || nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE || pSelect->isSubquery) {
+      nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
+      nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE ||
+      pSelect->isSubquery || NULL != pSelect->pSlimit || NULL != pSelect->pLimit) {
     return TSDB_CODE_SUCCESS;
   }
   int32_t code = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, &pSelect->pWindow);

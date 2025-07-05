@@ -577,7 +577,9 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   char*   temp = NULL;
 
   const char* eventType = NULL;
-  if (pParam->notifyType == STRIGGER_EVENT_WINDOW_OPEN) {
+  if (STREAM_TRIGGER_SLIDING == triggerType) {
+    eventType = "SLIDING";
+  } else if (pParam->notifyType == STRIGGER_EVENT_WINDOW_OPEN) {
     eventType = "WINDOW_OPEN";
   } else if (pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) {
     eventType = "WINDOW_CLOSE";

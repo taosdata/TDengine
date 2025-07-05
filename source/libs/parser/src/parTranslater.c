@@ -13614,6 +13614,20 @@ static int32_t createStreamReqBuildTriggerPlan(STranslateContext* pCxt, SSelectS
     PAR_ERR_JRET(terrno);
   }
 
+  pReq->triTsSlotId = -1;
+  FOREACH(pNode, pScanNode->pScanCols) {
+    STargetNode *pTarget = (STargetNode*)pNode;
+    if (nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN) {
+      if (((SColumnNode*)pTarget->pExpr)->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        pReq->triTsSlotId = pTarget->slotId;
+        break;
+      }
+    }
+  }
+  if (pReq->triTsSlotId == -1) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY, "Can not find timestamp primary key in trigger query scan"));
+  }
+
   FOREACH(pNode, pScanTuple->pSlots) {
     SSlotDescNode *pSlot = (SSlotDescNode*)pNode;
     PAR_ERR_JRET(taosHashPut(*pTriggerSlotHash, pSlot->name, strlen(pSlot->name), &pSlot->slotId, sizeof(int16_t)));
@@ -13844,7 +13858,7 @@ static int32_t createStreamReqBuildForceOutput(STranslateContext* pCxt, SCreateS
       PAR_ERR_JRET(nodesNodeToString(pNode, false, (char**)&pOutCol.expr, NULL));
     } else {
       if (index == 0) {
-        taosArrayDestroy(pReq->forceOutCols);
+        taosArrayDestroyEx(pReq->forceOutCols, tFreeStreamOutCol);
         pReq->forceOutCols = NULL;
         return code;
       }
@@ -13858,6 +13872,7 @@ static int32_t createStreamReqBuildForceOutput(STranslateContext* pCxt, SCreateS
     if (NULL == taosArrayPush(pReq->forceOutCols, &pOutCol)) {
       PAR_ERR_JRET(terrno);
     }
+    index++;
   }
 
   return code;
@@ -14280,7 +14295,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan*
     PAR_ERR_JRET(terrno);
   }
 
-  pReq->tsSlotId = -1;
+  pReq->calcTsSlotId = -1;
   for (int32_t i = 0; i < taosArrayGetSize(pVgArray); i++) {
     pCalcScan = taosArrayGet(pVgArray, i);
     if (pCalcScan == NULL) {
@@ -14332,12 +14347,12 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan*
         STargetNode *pTarget = (STargetNode*)pNode;
         if (nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN) {
           if (((SColumnNode*)pTarget->pExpr)->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-            pReq->tsSlotId = pTarget->slotId;
+            pReq->calcTsSlotId = pTarget->slotId;
             break;
           }
         }
       }
-      if (pReq->tsSlotId == -1) {
+      if (pReq->calcTsSlotId == -1) {
         PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY, "Can not find timestamp primary key in trigger query scan"));
       }
     }

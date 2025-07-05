@@ -503,9 +503,7 @@ class TestStreamStateTrigger:
             # ct2 is data calc table
             # ct1, ct3, ct4, ct5 are trigger tables
             tdSql.execute(f"create table ct1 using stb tags(1)")
-            tdSql.execute(f"create table ct2 using stb tags(2)")
-            
-            
+            tdSql.execute(f"create table ct2 using stb tags(2)")            
             tdSql.execute(f"create table ct3 using stb tags(3)")
             tdSql.execute(f"create table ct4 using stb tags(3)")
             tdSql.execute(f"create table ct5 using stb tags(3)")
@@ -514,10 +512,10 @@ class TestStreamStateTrigger:
             tdSql.checkRows(5)
 
             tdSql.execute(
-                f"create stream s3 state_window(cint) from ct1 options(force_output) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v, rownum_s) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint), _twrownum from ct2 where _c0 >= _twstart and _c0 < _twend;"
+                f"create stream s3 state_window(cint) from ct1 options(force_output) into res_ct1 (startts, firstts, lastts, cnt_v, sum_v, avg_v, rownum_s) as select _twstart, first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint), _twrownum from ct2 where _c0 >= _twstart and _c0 < _twend;"
             )
             tdSql.execute(
-                f"create stream s3_g state_window(cint) from {self.stbName} partition by tbname, tint options(force_output | pre_filter(tint=3)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v, rownum_s) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint), _twrownum from ct2 where _c0 >= _twstart and _c0 < _twend;"
+                f"create stream s3_g state_window(cint) from {self.stbName} partition by tbname, tint options(force_output | pre_filter(tint=3)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (startts, firstts, lastts, cnt_v, sum_v, avg_v, rownum_s) as select _twstart, first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint), _twrownum from ct2 where _c0 >= _twstart and _c0 < _twend;"
             )
 
         def insert1(self):
@@ -592,6 +590,7 @@ class TestStreamStateTrigger:
                 dbname=self.db,
                 tbname="res_ct1",
                 schema=[
+                    ["startts", "TIMESTAMP", 8, ""],
                     ["firstts", "TIMESTAMP", 8, ""],
                     ["lastts", "TIMESTAMP", 8, ""],
                     ["cnt_v", "BIGINT", 8, ""],
@@ -602,49 +601,55 @@ class TestStreamStateTrigger:
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v, rownum_s from {self.db}.res_ct1",
+                sql=f"startts, select firstts, lastts, cnt_v, sum_v, avg_v, rownum_s from {self.db}.res_ct1",
                 func=lambda: tdSql.getRows() == 3
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:10")
-                and tdSql.compareData(0, 1, "2025-01-01 00:00:12")
-                and tdSql.compareData(0, 2, 3)
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:10")
+                and tdSql.compareData(0, 2, "2025-01-01 00:00:12")
                 and tdSql.compareData(0, 3, 3)
-                and tdSql.compareData(0, 4, 1)
-                and tdSql.compareData(0, 5, 3)
+                and tdSql.compareData(0, 4, 3)
+                and tdSql.compareData(0, 5, 1)
+                and tdSql.compareData(0, 6, 3)
                 and tdSql.compareData(1, 0, "2025-01-01 00:00:13")
-                and tdSql.compareData(1, 1, "2025-01-01 00:00:15")
+                and tdSql.compareData(1, 1, 'NULL')
                 and tdSql.compareData(1, 2, 'NULL')
-                and tdSql.compareData(1, 3, 'NULL')
+                and tdSql.compareData(1, 3, 0)
                 and tdSql.compareData(1, 4, 'NULL')
-                and tdSql.compareData(1, 5, 3)
+                and tdSql.compareData(1, 5, 'NULL')
+                and tdSql.compareData(1, 6, 3)
                 and tdSql.compareData(2, 0, "2025-01-01 00:00:16")
-                and tdSql.compareData(2, 1, "2025-01-01 00:00:18")
-                and tdSql.compareData(2, 2, 3)
-                and tdSql.compareData(2, 3, 9)
-                and tdSql.compareData(2, 4, 3)
-                and tdSql.compareData(2, 5, 3),
+                and tdSql.compareData(2, 1, "2025-01-01 00:00:16")
+                and tdSql.compareData(2, 2, "2025-01-01 00:00:18")
+                and tdSql.compareData(2, 3, 3)
+                and tdSql.compareData(2, 4, 9)
+                and tdSql.compareData(2, 5, 3)
+                and tdSql.compareData(2, 6, 3),
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v, rownum_s from {self.db}.res_stb_ct5",
+                sql=f"select startts, firstts, lastts, cnt_v, sum_v, avg_v, rownum_s from {self.db}.res_stb_ct5",
                 func=lambda: tdSql.getRows() == 3
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:10")
-                and tdSql.compareData(0, 1, "2025-01-01 00:00:12")
-                and tdSql.compareData(0, 2, 3)
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:10")
+                and tdSql.compareData(0, 2, "2025-01-01 00:00:12")
                 and tdSql.compareData(0, 3, 3)
-                and tdSql.compareData(0, 4, 1)
-                and tdSql.compareData(0, 5, 3)
+                and tdSql.compareData(0, 4, 3)
+                and tdSql.compareData(0, 5, 1)
+                and tdSql.compareData(0, 6, 3)
                 and tdSql.compareData(1, 0, "2025-01-01 00:00:13")
-                and tdSql.compareData(1, 1, "2025-01-01 00:00:15")
+                and tdSql.compareData(1, 1, 'NULL')
                 and tdSql.compareData(1, 2, 'NULL')
-                and tdSql.compareData(1, 3, 'NULL')
+                and tdSql.compareData(1, 3, 0)
                 and tdSql.compareData(1, 4, 'NULL')
-                and tdSql.compareData(1, 5, 3)
+                and tdSql.compareData(1, 5, 'NULL')
+                and tdSql.compareData(1, 6, 3)
                 and tdSql.compareData(2, 0, "2025-01-01 00:00:16")
-                and tdSql.compareData(2, 1, "2025-01-01 00:00:18")
-                and tdSql.compareData(2, 2, 3)
-                and tdSql.compareData(2, 3, 9)
-                and tdSql.compareData(2, 4, 3)
-                and tdSql.compareData(2, 5, 3),
+                and tdSql.compareData(2, 1, "2025-01-01 00:00:16")
+                and tdSql.compareData(2, 2, "2025-01-01 00:00:18")
+                and tdSql.compareData(2, 3, 3)
+                and tdSql.compareData(2, 4, 9)
+                and tdSql.compareData(2, 5, 3)
+                and tdSql.compareData(2, 6, 3),
             )
 
     class Basic4(StreamCheckItem):

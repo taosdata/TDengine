@@ -715,7 +715,7 @@ void destroyVirtualTableScanOperatorInfo(void* param) {
   tsortDestroySortHandle(pInfo->pSortHandle);
   pInfo->pSortHandle = NULL;
   taosArrayDestroy(pInfo->pSortInfo);
-  pInfo->pSortHandle = NULL;
+  pInfo->pSortInfo = NULL;
 
   blockDataDestroy(pInfo->pIntermediateBlock);
   pInfo->pIntermediateBlock = NULL;
@@ -733,6 +733,7 @@ void destroyVirtualTableScanOperatorInfo(void* param) {
       taosMemoryFree(pCtx);
     }
     taosArrayDestroy(pInfo->pSortCtxList);
+    pInfo->pSortCtxList = NULL;
   }
   taosMemoryFreeClear(param);
 }
@@ -789,8 +790,8 @@ int32_t resetVirtualTableMergeOperState(SOperatorInfo* pOper) {
 
   tsortDestroySortHandle(pInfo->pSortHandle);
   pInfo->pSortHandle = NULL;
-  taosArrayDestroy(pInfo->pSortInfo);
-  pInfo->pSortHandle = NULL;
+  // taosArrayDestroy(pInfo->pSortInfo);
+  // pInfo->pSortInfo = NULL;
 
   blockDataDestroy(pInfo->pIntermediateBlock);
   pInfo->pIntermediateBlock = NULL;
