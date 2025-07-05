@@ -1883,7 +1883,6 @@ void tFreeSStreamTriggerDeployMsg(SStreamTriggerDeployMsg* pTrigger) {
 
   taosArrayDestroy(pTrigger->readerList);
   taosArrayDestroy(pTrigger->runnerList);
-
   taosMemoryFree(pTrigger->streamName);
 }
 
@@ -1943,7 +1942,17 @@ void tFreeSStmStreamDeploy(void* param) {
   
   SStmStreamDeploy* pDeploy = (SStmStreamDeploy*)param;
   taosArrayDestroy(pDeploy->readerTasks);
-  taosMemoryFree(pDeploy->triggerTask);
+  if (pDeploy->triggerTask) {
+    taosArrayDestroy(pDeploy->triggerTask->msg.trigger.readerList);
+    taosArrayDestroy(pDeploy->triggerTask->msg.trigger.runnerList);
+    taosMemoryFree(pDeploy->triggerTask);
+  }
+
+  int32_t runnerNum = taosArrayGetSize(pDeploy->runnerTasks);
+  for (int32_t i = 0; i < runnerNum; ++i) {
+    SStmTaskDeploy* pRunner = taosArrayGet(pDeploy->runnerTasks, i);
+    taosMemoryFree(pRunner->msg.runner.pPlan);
+  }
   taosArrayDestroy(pDeploy->runnerTasks);
 }
 
@@ -1967,7 +1976,7 @@ void tFreeSMStreamHbRspMsg(SMStreamHbRspMsg* pRsp) {
   taosArrayDestroyEx(pRsp->deploy.streamList, tFreeSStmStreamDeploy);
   taosArrayDestroy(pRsp->start.taskList);
   taosArrayDestroy(pRsp->undeploy.taskList);
-  taosArrayDestroy(pRsp->rsps.rspList);
+  taosArrayDestroyEx(pRsp->rsps.rspList, tFreeSStreamMgmtRsp);
 }
 
 void tDeepFreeSMStreamHbRspMsg(SMStreamHbRspMsg* pRsp) {

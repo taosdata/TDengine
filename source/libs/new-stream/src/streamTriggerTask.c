@@ -2158,7 +2158,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
       pReq->gid = pGroup->gid;
       if (pTask->isVirtualTable) {
-        SSTriggerVirTableInfo *pTable = TARRAY_DATA(pGroup->pVirTableInfos);
+        SSTriggerVirTableInfo *pTable = taosArrayGetP(pGroup->pVirTableInfos, 0);
         QUERY_CHECK_NULL(pTable, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         int32_t nReaders = taosArrayGetSize(pTask->virtReaderList);
         for (int32_t i = 0; i < nReaders; i++) {
@@ -3899,20 +3899,19 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
       int32_t leaderSid = pTask->leaderSnodeId;
       SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
       if (epSet != NULL) {
-        code = streamSyncWriteCheckpoint(pTask->task.streamId, epSet, buf, len);
+        streamSyncWriteCheckpoint(pTask->task.streamId, epSet, buf, len);
         buf = NULL;
       }
     } while (0);
     taosMemoryFree(buf);
-    QUERY_CHECK_CODE(code, lino, _end);
   }
+  
   if (pMsg->doCleanup) {
     streamDeleteCheckPoint(pTask->task.streamId);
     int32_t leaderSid = pTask->leaderSnodeId;
     SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
     if (epSet != NULL) {
-      code = streamSyncDeleteCheckpoint(pTask->task.streamId, epSet);
-      QUERY_CHECK_CODE(code, lino, _end);
+      streamSyncDeleteCheckpoint(pTask->task.streamId, epSet);
     }
   }
 
