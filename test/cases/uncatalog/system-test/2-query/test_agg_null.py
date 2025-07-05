@@ -21,7 +21,6 @@ Test case for TS-5150
 '''
 class TestAggNull:
     def setup_class(cls):
-        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
         #tdSql.init(conn.cursor(), logSql)
         cls.ts = 1537146000000
