@@ -342,6 +342,7 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
     if (pTriggerCalcParams == NULL) {
       ST_TASK_ELOG("failed to get trigger calc params for index:%d, size:%d", index,
                    (int32_t)pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size);
+      taosMemoryFreeClear(pContent);
       return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
     }
     pTriggerCalcParams->resultNotifyContent = pContent;
@@ -349,6 +350,7 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
     code = streamSendNotifyContent(&pTask->task, pTask->streamName, pExec->runtimeInfo.funcInfo.triggerType,
                                    pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
                                    pTask->notification.notifyErrorHandle, pTriggerCalcParams, 1);
+    taosMemoryFreeClear(pTriggerCalcParams->resultNotifyContent);
   }
   return code;
 }
