@@ -2158,7 +2158,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
       pReq->gid = pGroup->gid;
       if (pTask->isVirtualTable) {
-        SSTriggerVirTableInfo *pTable = TARRAY_DATA(pGroup->pVirTableInfos);
+        SSTriggerVirTableInfo *pTable = taosArrayGetP(pGroup->pVirTableInfos, 0);
         QUERY_CHECK_NULL(pTable, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         int32_t nReaders = taosArrayGetSize(pTask->virtReaderList);
         for (int32_t i = 0; i < nReaders; i++) {
