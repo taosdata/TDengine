@@ -2649,7 +2649,7 @@ static FORCE_INLINE void tFreeStreamCalcScan(void* pScan) {
   taosMemoryFreeClear(pCalcScan->scanPlan);
 }
 
-static FORCE_INLINE void tFreeStreamOutCol(void* pCol) {
+void tFreeStreamOutCol(void* pCol) {
   if (pCol == NULL) {
     return;
   }

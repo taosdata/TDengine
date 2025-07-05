@@ -2269,6 +2269,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   SSTriggerCalcRequest *pCalcReq = pContext->pCalcReq;
   SStreamRunnerTarget  *pCalcRunner = NULL;
   bool                  needTagValue = false;
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_CALC};
 
   QUERY_CHECK_NULL(pCalcReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
@@ -2381,7 +2382,6 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   }
 
   // serialize and send request
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_CALC};
   QUERY_CHECK_CODE(streamTriggerAllocAhandle(pTask, pCalcReq, &msg.info.ahandle), lino, _end);
   msg.contLen = tSerializeSTriggerCalcRequest(NULL, 0, pCalcReq);
   QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);

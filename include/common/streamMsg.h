@@ -678,6 +678,7 @@ typedef struct {
   int64_t streamId;
 } SCMCreateStreamRsp;
 
+void tFreeStreamOutCol(void* pCol);
 int32_t tSerializeSCMCreateStreamReq(void* buf, int32_t bufLen, const SCMCreateStreamReq* pReq);
 int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStreamReq* pReq);
 void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);

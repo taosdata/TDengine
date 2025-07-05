@@ -90,6 +90,7 @@ static void blockListDestroy(void* p) {
       pNode = pNode->dl_next_;
     }
   }
+  taosMemoryFree(pBlockList->pBlocks);
 }
 
 void destroyExternalWindowOperatorInfo(void* param) {

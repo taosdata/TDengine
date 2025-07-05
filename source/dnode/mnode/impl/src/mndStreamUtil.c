@@ -110,6 +110,8 @@ void mstDestroySStmVgroupStatus(void* param) {
 void mstResetSStmStatus(SStmStatus* pStatus) {
   taosArrayDestroy(pStatus->trigReaders);
   pStatus->trigReaders = NULL;
+  taosArrayDestroy(pStatus->trigOReaders);
+  pStatus->trigOReaders = NULL;
   taosArrayDestroy(pStatus->calcReaders);
   pStatus->calcReaders = NULL;
   if (pStatus->triggerTask) {
@@ -757,6 +759,7 @@ void mstLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
   }
 
   int32_t trigReaderNum = taosArrayGetSize(p->trigReaders);
+  int32_t trigOReaderNum = taosArrayGetSize(p->trigOReaders);
   int32_t calcReaderNum = taosArrayGetSize(p->calcReaders);
   int32_t triggerNum = p->triggerTask ? 1 : 0;
   int32_t runnerNum = 0;
@@ -767,14 +770,19 @@ void mstLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
 
   mstsDebug("%s: stream status", tips);
   mstsDebug("name:%s runnerNum:%d runnerDeploys:%d runnerReplica:%d lastActionTs:%" PRId64
-           " trigReaders:%d calcReaders:%d trigger:%d runners:%d",
+           " trigReaders:%d trigOReaders:%d calcReaders:%d trigger:%d runners:%d",
       p->streamName, p->runnerNum, p->runnerDeploys, p->runnerReplica, p->lastActionTs,
-      trigReaderNum, calcReaderNum, triggerNum, runnerNum);
+      trigReaderNum, trigOReaderNum, calcReaderNum, triggerNum, runnerNum);
 
   SStmTaskStatus* pTask = NULL;
   for (int32_t i = 0; i < trigReaderNum; ++i) {
     pTask = taosArrayGet(p->trigReaders, i);
     mstLogSStmTaskStatus("trigReader task", streamId, pTask, i);
+  }
+
+  for (int32_t i = 0; i < trigOReaderNum; ++i) {
+    pTask = taosArrayGet(p->trigOReaders, i);
+    mstLogSStmTaskStatus("trigOReader task", streamId, pTask, i);
   }
 
   for (int32_t i = 0; i < calcReaderNum; ++i) {
@@ -1133,7 +1141,7 @@ _end:
 }
 
 int32_t mstGetNumOfStreamTasks(SStmStatus* pStatus) {
-  int32_t num = taosArrayGetSize(pStatus->trigReaders) + taosArrayGetSize(pStatus->calcReaders) + (pStatus->triggerTask ? 1 : 0);
+  int32_t num = taosArrayGetSize(pStatus->trigReaders) + taosArrayGetSize(pStatus->trigOReaders) + taosArrayGetSize(pStatus->calcReaders) + (pStatus->triggerTask ? 1 : 0);
   for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
     num += taosArrayGetSize(pStatus->runners[i]);
   }
@@ -1180,6 +1188,17 @@ int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int3
       (*numOfRows)++;
     }
   }
+
+  trigReaderNum = taosArrayGetSize(pStatus->trigOReaders);
+  for (int32_t i = 0; i < trigReaderNum; ++i) {
+    pTask = taosArrayGet(pStatus->trigOReaders, i);
+  
+    code = mstSetStreamTaskResBlock(pStream, pTask, pBlock, *numOfRows);
+    if (code == TSDB_CODE_SUCCESS) {
+      (*numOfRows)++;
+    }
+  }
+
 
   int32_t calcReaderNum = taosArrayGetSize(pStatus->calcReaders);
   for (int32_t i = 0; i < calcReaderNum; ++i) {
