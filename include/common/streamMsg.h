@@ -274,7 +274,8 @@ typedef struct {
   int64_t  flags;
   int64_t  tsmaId;
   int64_t  placeHolderBitmap;
-  int16_t  tsSlotId; // only used when using %%trows
+  int16_t  calcTsSlotId; // only used when using %%trows
+  int16_t  triTsSlotId; // only used when using %%trows
 
   // only for (virtual) child table and normal table
   int32_t triggerTblVgId;
@@ -533,7 +534,8 @@ typedef struct {
 
   int64_t eventTypes;
   int64_t placeHolderBitmap;
-  int16_t tsSlotId;  // only used when using %%trows
+  int16_t calcTsSlotId;  // only used when using %%trows
+  int16_t triTsSlotId;  // only used when using %%trows
   void*   triggerPrevFilter;
   void*   triggerScanPlan;    // only used for virtual tables
   void*   calcCacheScanPlan;  // only used for virtual tables
@@ -678,6 +680,7 @@ typedef struct {
   int64_t streamId;
 } SCMCreateStreamRsp;
 
+void tFreeStreamOutCol(void* pCol);
 int32_t tSerializeSCMCreateStreamReq(void* buf, int32_t bufLen, const SCMCreateStreamReq* pReq);
 int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStreamReq* pReq);
 void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
@@ -929,7 +932,7 @@ typedef struct SStreamMsgVTableInfo {
 } SStreamMsgVTableInfo;
 
 int32_t tSerializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, const SStreamMsgVTableInfo* pRsp);
-int32_t tDeserializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, SStreamMsgVTableInfo *pBlock);
+int32_t tDeserializeSStreamMsgVTableInfo(SDecoder* decoder, SStreamMsgVTableInfo *pBlock);
 void    tDestroySStreamMsgVTableInfo(SStreamMsgVTableInfo *ptr);
 
 typedef struct SStreamTsResponse {
