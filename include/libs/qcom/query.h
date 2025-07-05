@@ -242,12 +242,20 @@ typedef struct STargetInfo {
   int32_t     vgId;
 } STargetInfo;
 
+typedef struct STagsInfo {
+  SArray*  STagNames;  // STagVal
+  SArray*  pTagVals;
+  uint8_t* pTagIndex;
+  int32_t  numOfTags;
+} STagsInfo;
+
 typedef struct SBoundColInfo {
   int16_t* pColIndex;  // bound index => schema index
   int32_t  numOfCols;
   int32_t  numOfBound;
   bool     hasBoundCols;
   bool     mixTagsCols;
+  STagsInfo* parseredTags;  // used for partial fixed value stmt
 } SBoundColInfo;
 
 typedef struct STableColsData {

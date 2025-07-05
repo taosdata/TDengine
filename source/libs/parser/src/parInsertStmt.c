@@ -510,12 +510,28 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
     return buildInvalidOperationMsg(&pBuf, "tags is null");
   }
 
-  SArray* pTagArray = taosArrayInit(tags->numOfBound, sizeof(STagVal));
+  SArray* pTagArray;
+  if (tags->parseredTags) {
+    pTagArray = taosArrayDup(tags->parseredTags->pTagVals, NULL);
+  } else {
+    pTagArray = taosArrayInit(tags->numOfBound, sizeof(STagVal));
+  }
   if (!pTagArray) {
     return buildInvalidOperationMsg(&pBuf, "out of memory");
   }
 
-  SArray* tagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
+  SArray* tagName;
+  if (tags->parseredTags) {
+    tagName = taosArrayDup(tags->parseredTags->STagNames, NULL);
+  } else {
+    tagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
+  }
+
+  int32_t numOfFixedTags = 0;
+  if (tags->parseredTags) {
+    numOfFixedTags = tags->parseredTags->numOfTags;
+  }
+
   if (!tagName) {
     code = buildInvalidOperationMsg(&pBuf, "out of memory");
     goto end;
@@ -526,22 +542,29 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
   bool  isJson = false;
   STag* pTag = NULL;
 
+  int bind_idx = 0;
   for (int c = 0; c < tags->numOfBound; ++c) {
     if (bind == NULL) {
       break;
     }
-    if (bind[c].is_null && bind[c].is_null[0]) {
+    if (tags->parseredTags && tags->parseredTags->pTagIndex[tags->pColIndex[c]]) {
+      continue;
+    }
+
+    TAOS_STMT2_BIND bindData = bind[bind_idx++];
+
+    if (bindData.is_null && bindData.is_null[0]) {
       continue;
     }
 
     SSchema* pTagSchema = &pSchema[tags->pColIndex[c]];
     int32_t  colLen = pTagSchema->bytes;
     if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
-      if (!bind[c].length) {
+      if (!bindData.length) {
         code = buildInvalidOperationMsg(&pBuf, "var tag length is null");
         goto end;
       }
-      colLen = bind[c].length[0];
+      colLen = bindData.length[0];
       if ((colLen + VARSTR_HEADER_SIZE) > pTagSchema->bytes) {
         code = buildInvalidOperationMsg(&pBuf, "tag length is too big");
         goto end;
@@ -553,7 +576,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
     }
     if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
       if (colLen > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
-        code = buildSyntaxErrMsg(&pBuf, "json string too long than 4095", bind[c].buffer);
+        code = buildSyntaxErrMsg(&pBuf, "json string too long than 4095", bindData.buffer);
         goto end;
       }
 
@@ -563,7 +586,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
         code = terrno;
         goto end;
       }
-      memcpy(tmp, bind[c].buffer, colLen);
+      memcpy(tmp, bindData.buffer, colLen);
       code = parseJsontoTagData(tmp, pTagArray, &pTag, &pBuf, charsetCxt);
       taosMemoryFree(tmp);
       if (code != TSDB_CODE_SUCCESS) {
@@ -580,13 +603,13 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
             qError("geometry init failed:%s", tstrerror(code));
             goto end;
           }
-          code = checkWKB(bind[c].buffer, colLen);
+          code = checkWKB(bindData.buffer, colLen);
           if (code) {
-            qError("stmt2 bind invalid geometry tag:%s, must be WKB format", (char*)bind[c].buffer);
+            qError("stmt2 bind invalid geometry tag:%s, must be WKB format", (char*)bindData.buffer);
             goto end;
           }
         }
-        val.pData = (uint8_t*)bind[c].buffer;
+        val.pData = (uint8_t*)bindData.buffer;
         val.nData = colLen;
       } else if (pTagSchema->type == TSDB_DATA_TYPE_NCHAR) {
         int32_t output = 0;
@@ -595,7 +618,7 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
           code = terrno;
           goto end;
         }
-        if (!taosMbsToUcs4(bind[c].buffer, colLen, (TdUcs4*)(p), colLen * TSDB_NCHAR_SIZE, &output, charsetCxt)) {
+        if (!taosMbsToUcs4(bindData.buffer, colLen, (TdUcs4*)(p), colLen * TSDB_NCHAR_SIZE, &output, charsetCxt)) {
           if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
             taosMemoryFree(p);
             code = generateSyntaxErrMsg(&pBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pTagSchema->name);
@@ -604,13 +627,13 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
           char buf[512] = {0};
           snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(terrno));
           taosMemoryFree(p);
-          code = buildSyntaxErrMsg(&pBuf, buf, bind[c].buffer);
+          code = buildSyntaxErrMsg(&pBuf, buf, bindData.buffer);
           goto end;
         }
         val.pData = p;
         val.nData = output;
       } else {
-        memcpy(&val.i64, bind[c].buffer, colLen);
+        memcpy(&val.i64, bindData.buffer, colLen);
       }
       if (IS_VAR_DATA_TYPE(pTagSchema->type) && val.nData > pTagSchema->bytes) {
         code = TSDB_CODE_PAR_VALUE_TOO_LONG;

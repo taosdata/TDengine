@@ -1005,9 +1005,10 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   SArray*  pTagName = NULL;
   uint8_t  precision = pStmt->pTableMeta->tableInfo.precision;
   SToken   token;
-  bool     isParseBindParam = false;
   bool     isJson = false;
   STag*    pTag = NULL;
+  uint8_t*    pTagsIndex = taosMemoryCalloc(pCxt->tags.numOfBound, sizeof(uint8_t));
+  int32_t     numOfTags = 0;
 
   if (!(pTagVals = taosArrayInit(pCxt->tags.numOfBound, sizeof(STagVal))) ||
       !(pTagName = taosArrayInit(pCxt->tags.numOfBound, TSDB_COL_NAME_LEN))) {
@@ -1019,22 +1020,12 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     NEXT_TOKEN_WITH_PREV(pStmt->pSql, token);
 
     if (token.type == TK_NK_QUESTION) {
-      isParseBindParam = true;
       if (NULL == pCxt->pComCxt->pStmtCb) {
         code = buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", token.z);
         break;
       }
-      if (pTagVals->size != 0) {
-        code = buildSyntaxErrMsg(&pCxt->msg, "no mix usage for ? and tag values", token.z);
-        break;
-      }
 
       continue;
-    }
-
-    if (isParseBindParam) {
-      code = buildInvalidOperationMsg(&pCxt->msg, "no mix usage for ? and tag values");
-      break;
     }
 
     SSchema* pTagSchema = &pSchema[pCxt->tags.pColIndex[i]];
@@ -1046,34 +1037,53 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     if (TSDB_CODE_SUCCESS == code) {
       code = parseTagValue(&pCxt->msg, &pStmt->pSql, precision, pTagSchema, &token, pTagName, pTagVals, &pTag, pCxt->pComCxt->timezone, pCxt->pComCxt->charsetCxt);
     }
+    pTagsIndex[pCxt->tags.pColIndex[i]] = 1;
+    numOfTags++;
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pTagCond) {
     code = checkSubtablePrivilege(pTagVals, pTagName, &pStmt->pTagCond);
   }
 
-  if (TSDB_CODE_SUCCESS == code && !isParseBindParam && !isJson) {
+  if (TSDB_CODE_SUCCESS == code && pCxt->isStmtBind) {
+    if (numOfTags > 0) {
+      if (pTagVals->size == pCxt->tags.numOfBound) {
+        pCxt->stmtTbNameFlag |= IS_FIXED_TAG;
+      } else {
+        pCxt->stmtTbNameFlag &= ~IS_FIXED_TAG;
+        pCxt->tags.parseredTags = taosMemoryMalloc(sizeof(STagsInfo));
+        pCxt->tags.parseredTags->numOfTags = numOfTags;
+        pCxt->tags.parseredTags->pTagIndex = pTagsIndex;
+        pCxt->tags.parseredTags->pTagVals = pTagVals;
+        pCxt->tags.parseredTags->STagNames = pTagName;
+      }
+    } else {
+      goto _exit;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && !isJson) {
     code = tTagNew(pTagVals, 1, false, &pTag);
   }
 
-  if (TSDB_CODE_SUCCESS == code && !isParseBindParam && !autoCreate) {
+  if (TSDB_CODE_SUCCESS == code && !autoCreate) {
     code = buildCreateTbReq(pStmt, pTag, pTagName);
     pTag = NULL;
   }
 
-  if (code == TSDB_CODE_SUCCESS && !isParseBindParam) {
-    pCxt->stmtTbNameFlag |= IS_FIXED_TAG;
+_exit:
+  if (pCxt->tags.parseredTags == NULL) {
+    for (int32_t i = 0; i < taosArrayGetSize(pTagVals); ++i) {
+      STagVal* p = (STagVal*)TARRAY_GET_ELEM(pTagVals, i);
+      if (IS_VAR_DATA_TYPE(p->type)) {
+        taosMemoryFreeClear(p->pData);
+      }
+    }
+    taosArrayDestroy(pTagVals);
+    taosArrayDestroy(pTagName);
+    taosMemoryFree(pTagsIndex);
   }
 
-_exit:
-  for (int32_t i = 0; i < taosArrayGetSize(pTagVals); ++i) {
-    STagVal* p = (STagVal*)TARRAY_GET_ELEM(pTagVals, i);
-    if (IS_VAR_DATA_TYPE(p->type)) {
-      taosMemoryFreeClear(p->pData);
-    }
-  }
-  taosArrayDestroy(pTagVals);
-  taosArrayDestroy(pTagName);
   tTagFree(pTag);
   return code;
 }
