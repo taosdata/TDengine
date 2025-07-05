@@ -960,7 +960,8 @@ SValuesToken tStrGetValues(const char* str) {
       case TK_NK_STRING:
         if (parenLevel == 0 && foundValues) {
           // We're outside parentheses and found an identifier
-          // This is likely a table name, end parsing
+          // This is likely a table name, backtrack to start of identifier
+          i = token.z - str;
           goto parse_end;
         }
         break;
@@ -973,6 +974,8 @@ SValuesToken tStrGetValues(const char* str) {
       case TK_VALUES:
       case TK_FILE:
         if (parenLevel == 0 && foundValues) {
+          // Backtrack to start of keyword
+          i = token.z - str;
           goto parse_end;
         }
         break;
