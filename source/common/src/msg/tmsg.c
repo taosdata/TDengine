@@ -15129,13 +15129,12 @@ void tFreeMountInfo(SMountInfo *pReq, bool stbExtracted) {
 
 int32_t tSerializeSMountVnodeReq(void *buf, int32_t *cBufLen, int32_t *tBufLen, SMountVnodeReq *pReq) {
   SEncoder encoder = {0};
-  int32_t  code = 0;
-  int32_t  lino;
+  int32_t  code = 0, lino = 0;
   int32_t  clen = 0, tlen = 0;
 
   tEncoderInit(&encoder, buf, *tBufLen);
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, *cBufLen));  // createReq
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, *cBufLen));  // createReq
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->mountName));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->mountPath));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->mountId));
