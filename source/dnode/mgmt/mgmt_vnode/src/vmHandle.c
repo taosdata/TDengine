@@ -235,7 +235,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->tsdbCfg.encryptAlgorithm = 0;
 #endif
 
-  pCfg->walCfg.vgId = pCreate->mountVgId ? pCreate->mountVgId : pCreate->vgId;
+  pCfg->walCfg.vgId = pCreate->vgId; // pCreate->mountVgId ? pCreate->mountVgId : pCreate->vgId;
   pCfg->walCfg.fsyncPeriod = pCreate->walFsyncPeriod;
   pCfg->walCfg.retentionPeriod = pCreate->walRetentionPeriod;
   pCfg->walCfg.rollPeriod = pCreate->walRollPeriod;
@@ -1142,10 +1142,10 @@ _exit:
   if (unlock) {
     (void)taosThreadMutexUnlock(&pMgmt->mutex);
   }
+  taosArrayDestroy(pDisks);
   if (code != 0) {
     dError("mount:%d,%s, failed at line %d to get mount tfs since %s", mountId, mountPath ? mountPath : "NULL", lino,
            tstrerror(code));
-    taosArrayDestroy(pDisks);
     if (pMountTfs) {
       tfsClose(pMountTfs->pTfs);
       taosMemoryFree(pMountTfs);

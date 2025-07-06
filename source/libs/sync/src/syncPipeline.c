@@ -106,15 +106,6 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   if (pNode->vgId > 1) {
     pBuf->bytes += pEntry->bytes;
     (void)atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
-    sInfo("prop:%s:%d vgId:%d, headVgId:%d, append log entry:%p, index:%" PRId64 "  term:%" PRId64 ", bytes:%" PRId64 ", total bytes:%" PRId64,
-          __func__, __LINE__, pNode->vgId, ((SMsgHead*)pEntry->data)->vgId, pEntry, pEntry->index, pEntry->term, pEntry->bytes, pBuf->bytes);
-
-    if (pNode->vgId == 2) {
-      SMsgHead* pMsgHead = (SMsgHead*)pEntry->data;
-      if (pNode->vgId != pMsgHead->vgId) {
-        assert(0);
-      }
-    }
   }
 
   (void)taosThreadMutexUnlock(&pBuf->mutex);
@@ -283,16 +274,6 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
       if (pNode->vgId > 1) {
         pBuf->bytes += pEntry->bytes;
         (void)atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
-        sInfo("prop:%s:%d vgId:%d, headVgId:%d, append log entry:%p, index:%" PRId64 "  term:%" PRId64
-              ", bytes:%" PRId64 ", total bytes:%" PRId64,
-              __func__, __LINE__, pNode->vgId, ((SMsgHead*)pEntry->data)->vgId, pEntry, pEntry->index, pEntry->term,
-              pEntry->bytes, pBuf->bytes);
-        if (pNode->vgId == 2) {
-          SMsgHead* pMsgHead = (SMsgHead*)pEntry->data;
-          if (pNode->vgId != pMsgHead->vgId) {
-            assert(0);
-          }
-        }
       }
     }
 
@@ -323,16 +304,6 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
     if (pNode->vgId > 1) {
       pBuf->bytes += pDummy->bytes;
       (void)atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pDummy->bytes);
-      sInfo("prop:%s:%d vgId:%d, headVgId:%d, append log entry:%p, index:%" PRId64 "  term:%" PRId64 ", bytes:%" PRId64
-            ", total bytes:%" PRId64,
-            __func__, __LINE__, pNode->vgId, ((SMsgHead*)pDummy->data)->vgId, pDummy, pDummy->index, pDummy->term,
-            pDummy->bytes, pBuf->bytes);
-      if (pNode->vgId == 2) {
-        SMsgHead* pMsgHead = (SMsgHead*)pDummy->data;
-        if (pNode->vgId != pMsgHead->vgId) {
-          assert(0);
-        }
-      }
     }
 
     if (index < toIndex) {
@@ -523,16 +494,6 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   if (pNode->vgId > 1) {
     pBuf->bytes += pEntry->bytes;
     (void)atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
-    sInfo("prop:%s:%d vgId:%d, headVgId:%d, append log entry:%p, index:%" PRId64 "  term:%" PRId64 ", bytes:%" PRId64
-          ", total bytes:%" PRId64,
-          __func__, __LINE__, pNode->vgId, ((SMsgHead*)pEntry->data)->vgId, pEntry, pEntry->index, pEntry->term,
-          pEntry->bytes, pBuf->bytes);
-    if (pNode->vgId == 2) {
-      SMsgHead* pMsgHead = (SMsgHead*)pEntry->data;
-      if (pNode->vgId != pMsgHead->vgId) {
-        assert(0);
-      }
-    }
   }
   pEntry = NULL;
 
@@ -1602,41 +1563,19 @@ int32_t syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncInd
   if (index > pBuf->startIndex) {  // startIndex might be dummy
     *pInBuf = true;
     *ppEntry = pBuf->entries[index % pBuf->size].pItem;
-    if (code == 0 && *ppEntry && (*ppEntry)->dataLen >= sizeof(SMsgHead)) {
-      if (((2 == pNode->vgId) || ((6 == pNode->vgId))) && (((SMsgHead*)((*ppEntry)->data))->vgId != pNode->vgId)) {
-        // ((SMsgHead*)((*ppEntry)->data))->vgId = pNode->vgId;
-        // assert(0);
-        sInfo("prop:%s:%d vgId:%d, msgVgId:%d, get one entry:%p, index:%" PRId64, __func__, __LINE__, pNode->vgId,
-              ((SMsgHead*)((*ppEntry)->data))->vgId, *ppEntry, index);
-      }
+#ifdef USE_MOUNT
+    if (pNode->mountVgId) {
+      SMsgHead* pMsgHead = (SMsgHead*)(*ppEntry)->data;
+      if (pMsgHead->vgId != pNode->vgId) pMsgHead->vgId = pNode->vgId;
     }
+#endif
   } else {
     *pInBuf = false;
 
     if ((code = pNode->pLogStore->syncLogGetEntry(pNode->pLogStore, index, ppEntry)) < 0) {
       sWarn("vgId:%d, failed to get log entry since %s, index:%" PRId64, pNode->vgId, tstrerror(code), index);
     }
-    if (pNode->mountVgId && (code == 0)) {
-      SMsgHead* pMsgHead = (SMsgHead*)(*ppEntry)->data;
-      if (pMsgHead->vgId != pNode->vgId) {
-        pMsgHead->vgId = pNode->vgId;
-      }
-    }
-    if (code == 0 && *ppEntry && (*ppEntry)->dataLen >= sizeof(SMsgHead)) {
-      if (((2 == pNode->vgId) || ((6 == pNode->vgId))) && (((SMsgHead*)((*ppEntry)->data))->vgId != pNode->vgId)) {
-        ((SMsgHead*)((*ppEntry)->data))->vgId = pNode->vgId;
-        assert(0);
-      }
-    }
   }
-
-  // TODO: where is the vgId 2 from?
-  // if(code == 0 && *ppEntry && (*ppEntry)->dataLen >= sizeof(SMsgHead)) {
-  //   if(((2 == pNode->vgId) || ((6 == pNode->vgId))) && (((SMsgHead*)((*ppEntry)->data))->vgId != pNode->vgId)) {
-  //     ((SMsgHead*)((*ppEntry)->data))->vgId = pNode->vgId;
-  //   }
-  // }
-
 
   TAOS_RETURN(code);
 }
