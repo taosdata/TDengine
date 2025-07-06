@@ -494,7 +494,7 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
     return terrno;
   }
   if (pTableCxt->pData->pBlobRow == NULL) {
-    uTrace("blow empty");
+    uWarn("blow empty");
   }
   if (NULL == taosArrayPush(pVgCxt->pData->aSubmitBlobData, &pTableCxt->pData->pBlobRow)) {
     return terrno;
