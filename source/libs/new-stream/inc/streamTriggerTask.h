@@ -116,6 +116,7 @@ typedef struct SSTriggerRealtimeContext {
 
   bool        retryPull;
   bool        haveReadCheckpoint;
+  bool        haveToRecalc;
   int64_t     lastCheckpointTime;
   STimeWindow periodWindow;  // for period trigger
 } SSTriggerRealtimeContext;
@@ -218,6 +219,7 @@ typedef struct SStreamTriggerTask {
   bool             isCheckpointReady;
   volatile int64_t mgmtReqId;
   char            *streamName;
+  SSHashObj       *pRecalcLastVer;  // SSHashObj<vgId, int64_t>
 } SStreamTriggerTask;
 
 // interfaces called by stream trigger thread
