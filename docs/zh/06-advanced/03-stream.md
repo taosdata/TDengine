@@ -69,6 +69,7 @@ subquery 支持会话窗口、状态窗口、时间窗口、事件窗口与计�
 窗口的定义与时序数据窗口查询中的定义完全相同，具体可参考 TDengine 窗口函数部分。
 
 如下 SQL 将创建一个流计算，执行后 TDengine 会自动创建名为 avg_vol 的超级表，此流计算以 1min 为时间窗口、30s 为前向增量统计这些智能电表的平均电压，并将来自 meters 的数据的计算结果写入 avg_vol，不同分区的数据会分别创建子表并写入不同子表。
+
 ```sql
 CREATE STREAM avg_vol_s INTO avg_vol AS
 SELECT _wstart, count(*), avg(voltage) FROM power.meters PARTITION BY tbname INTERVAL(1m) SLIDING(30s);
@@ -89,6 +90,7 @@ SELECT _wstart, count(*), avg(voltage) FROM power.meters PARTITION BY tbname INT
 在创建流时，如果不使用 substable 子句，流计算所创建的超级表将包含一个唯一的标签列 groupId。每个分区将被分配一个唯一的 groupId，并通过 MD5 算法计算相应的子表名称。TDengine 将自动创建这些子表，以便存储各个分区的计算结果。这种机制使得数据管理更加灵活和高效，同时也方便后续的数据查询和分析。
 
 若创建流的语句中包含 substable 子句，用户可以为每个分区对应的子表生成自定义的表名。示例如下。
+
 ```sql
 CREATE STREAM avg_vol_s INTO avg_vol SUBTABLE(CONCAT('new-', tname)) AS SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname tname INTERVAL(1m);
 ```
@@ -185,6 +187,7 @@ TDengine 对于修改数据提供两种处理方式，由 IGNORE UPDATE 选项�
 ### 自定义目标表的标签
 
 用户可以为每个 partition 对应的子表生成自定义的 TAG 值，如下创建流的语句，
+
 ```sql
 CREATE STREAM output_tag trigger at_once INTO output_tag_s TAGS(alias_tag varchar(100)) as select _wstart, count(*) from power.meters partition by concat("tag-", tbname) as alias_tag interval(10s);
 ```
@@ -199,6 +202,7 @@ CREATE STREAM output_tag trigger at_once INTO output_tag_s TAGS(alias_tag varcha
 ```sql
 DELETE_MARK time
 ```
+
 DELETE_MARK 用于删除缓存的窗口状态，也就是删除流计算的中间结果。缓存的窗口状态主要用于过期数据导致的窗口结果更新操作。如果不设置，默认值是 10 年。
 
 ## 流计算的具体操作
@@ -206,6 +210,7 @@ DELETE_MARK 用于删除缓存的窗口状态，也就是删除流计算的中�
 ### 删除流计算
 
 仅删除流计算任务，由流计算写入的数据不会被删除，SQL 如下：
+
 ```sql
 DROP STREAM [IF EXISTS] stream_name;
 ```
@@ -226,9 +231,11 @@ SELECT * from information_schema.`ins_streams`;
 ### 暂停流计算任务
 
 暂停流计算任务的 SQL 如下：
+
 ```sql
 PAUSE STREAM [IF EXISTS] stream_name; 
 ```
+
 没有指定 IF EXISTS，如果该 stream 不存在，则报错。如果存在，则暂停流计算。指定了 IF EXISTS，如果该 stream 不存在，则返回成功。如果存在，则暂停流计算。
 
 ### 恢复流计算任务
