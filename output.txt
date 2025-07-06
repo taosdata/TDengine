@@ -1,0 +1,32 @@
+[07/06 16:29:47.574863] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:47.878640] SUCC: created database (test)
+[07/06 16:29:47.879785] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:47.884981] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:47.933308] INFO: start creating 10000 table(s) with 8 thread(s)
+[07/06 16:29:47.933894] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:47.934860] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:47.935618] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:47.936778] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:47.937836] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:47.939080] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:47.940126] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:47.941072] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:49.199623] SUCC: Spent 1.2660 seconds to create 10000 table(s) with 8 thread(s) speed: 7899 tables/s, already exist 0 table(s), actual 10000 table(s) pre created, 0 table(s) will be auto created
+[07/06 16:29:49.200528] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:49.200566] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:49.200546] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:49.200756] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:49.200620] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:49.200627] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:49.200692] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:29:49.200606] SUCC: host:(null) port:0  connect successfully.
+[07/06 16:30:18.948533] SUCC: thread[5] progressive mode, completed total inserted rows: 12500000, 471618.35 records/second
+[07/06 16:30:19.340387] SUCC: thread[4] progressive mode, completed total inserted rows: 12500000, 464620.63 records/second
+[07/06 16:30:20.009549] SUCC: thread[7] progressive mode, completed total inserted rows: 12500000, 455034.64 records/second
+[07/06 16:30:20.045576] SUCC: thread[2] progressive mode, completed total inserted rows: 12500000, 454582.47 records/second
+[07/06 16:30:20.370444] SUCC: thread[6] progressive mode, completed total inserted rows: 12500000, 448610.84 records/second
+[07/06 16:30:20.396068] SUCC: thread[0] progressive mode, completed total inserted rows: 12500000, 448258.96 records/second
+[07/06 16:30:20.733247] SUCC: thread[3] progressive mode, completed total inserted rows: 12500000, 443508.68 records/second
+[07/06 16:30:20.813414] SUCC: thread[1] progressive mode, completed total inserted rows: 12500000, 443103.24 records/second
+[07/06 16:30:20.817639] SUCC: Spent 31.611459 (real 27.565035) seconds to insert rows: 100000000 with 8 thread(s) into test 3163409.83 (real 3627784.26) records/second
+[07/06 16:30:20.817709] SUCC: insert delay, min: 11.0320ms, avg: 22.0520ms, p90: 33.1530ms, p95: 51.4190ms, p99: 89.8710ms, max: 167.6270ms
