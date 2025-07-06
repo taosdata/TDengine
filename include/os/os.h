@@ -20,10 +20,6 @@
 extern "C" {
 #endif
 
-#ifndef  USE_MOUNT
-#define USE_MOUNT // TODO: remove after mount is ready
-#endif
-
 #include <assert.h>
 #include <ctype.h>
 

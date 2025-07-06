@@ -256,9 +256,8 @@ SSdb *sdbInit(SSdbOpt *pOption);
  * @brief Stop and cleanup the sdb.
  *
  * @param pSdb The sdb object to close.
- * @param freeRow Whether to free the row.
  */
-void sdbCleanup(SSdb *pSdb, bool freeRow);
+void sdbCleanup(SSdb *pSdb);
 
 /**
  * @brief Set the properties of sdb table.

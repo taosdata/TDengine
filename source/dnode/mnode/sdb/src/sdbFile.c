@@ -342,7 +342,6 @@ static int32_t sdbReadFileImp(SSdb *pSdb, SdbRawFp fp, int32_t encryptAlgo, int3
 
     if (ret < 0) {
       code = terrno;
-      assert(0);
       mError("failed to read sdb file:%s since %s", file, tstrerror(code));
       goto _OVER;
     }
@@ -350,7 +349,6 @@ static int32_t sdbReadFileImp(SSdb *pSdb, SdbRawFp fp, int32_t encryptAlgo, int3
     if (ret != readLen) {
       code = TSDB_CODE_FILE_CORRUPTED;
       mError("failed to read sdb file:%s since %s, ret:%" PRId64 " != readLen:%d", file, tstrerror(code), ret, readLen);
-      assert(0);
       goto _OVER;
     }
 
@@ -364,7 +362,6 @@ static int32_t sdbReadFileImp(SSdb *pSdb, SdbRawFp fp, int32_t encryptAlgo, int3
       if (pNewRaw == NULL) {
         code = terrno;
         mError("failed read sdb file since malloc new sdbRaw size:%d failed", bufLen);
-        assert(0);
         goto _OVER;
       }
       mInfo("malloc new sdb raw size:%d, type:%d", bufLen, pRaw->type);
@@ -377,14 +374,12 @@ static int32_t sdbReadFileImp(SSdb *pSdb, SdbRawFp fp, int32_t encryptAlgo, int3
     if (ret < 0) {
       code = terrno;
       mError("failed to read sdb file:%s since %s, ret:%" PRId64 " readLen:%d", file, tstrerror(code), ret, readLen);
-      assert(0);
       goto _OVER;
     }
 
     if (ret != readLen) {
       code = TSDB_CODE_FILE_CORRUPTED;
       mError("failed to read sdb file:%s since %s, ret:%" PRId64 " != readLen:%d", file, tstrerror(code), ret, readLen);
-      assert(0);
       goto _OVER;
     }
 
@@ -417,7 +412,6 @@ static int32_t sdbReadFileImp(SSdb *pSdb, SdbRawFp fp, int32_t encryptAlgo, int3
     if ((!taosCheckChecksumWhole((const uint8_t *)pRaw, totalLen)) != 0) {
       code = TSDB_CODE_CHECKSUM_ERROR;
       mError("failed to read sdb file:%s since %s, readLen:%d", file, tstrerror(code), readLen);
-      assert(0);
       goto _OVER;
     }
 
@@ -429,7 +423,6 @@ static int32_t sdbReadFileImp(SSdb *pSdb, SdbRawFp fp, int32_t encryptAlgo, int3
     code = fp(pSdb, pRaw);
     if (code != 0) {
       mError("failed to exec sdbWrite while read sdb file:%s since %s", file, terrstr());
-      assert(0);
       goto _OVER;
     }
   }
@@ -450,34 +443,6 @@ _OVER:
 
   TAOS_RETURN(code);
 }
-
-#ifdef USE_MOUNT
-extern int32_t sdbWriteWithoutFreeStb(SSdb *pSdb, SSdbRaw *pRaw);
-int32_t        sdbReadStables(SSdb **ppSdb, const char *path) {
-  int32_t code = 0, lino = 0;
-  SSdb   *pSdb = NULL;
-  SSdbOpt opt = {0};
-  opt.path = path;
-  // opt.pMnode = pMnode;
-  // opt.pWal = pMnode->pWal;
-  mInfo("start to read sdb stb");
-  TSDB_CHECK_NULL((pSdb = sdbInit(&opt)), code, lino, _exit, terrno != 0 ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL);
-  SSdbTable table = {.sdbType = SDB_STB, .keyType = SDB_KEY_BINARY};
-  sdbSetTable(pSdb, table);
-  TAOS_CHECK_EXIT(sdbReadFileImp(pSdb, sdbWriteWithoutFreeStb, 0, 0, NULL));
-_exit:
-  if (pSdb) pSdb->applyIndex = pSdb->commitIndex = 0;  // skip sdbWrite file
-  if (code != 0) {
-    mError("failed to read sdb stb at line %d  since %s, path:%s", lino, tstrerror(code), path);
-    pSdb->applyIndex = pSdb->commitIndex = 0;
-    if (pSdb) sdbCleanup(pSdb, false);
-    *ppSdb = NULL;
-  } else {
-    *ppSdb = pSdb;
-  }
-  return code;
-}
-#endif
 
 int32_t sdbReadFile(SSdb *pSdb) {
   (void)taosThreadMutexLock(&pSdb->filelock);

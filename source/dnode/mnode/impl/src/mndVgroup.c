@@ -1268,6 +1268,10 @@ _OVER:
   if (pDb != NULL) {
     mndReleaseDb(pMnode, pDb);
   }
+  if (code != 0) {
+    mError("failed to retrieve vgroup info at line %d since %s", lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
 
   pShow->numOfRows += numOfRows;
   return numOfRows;

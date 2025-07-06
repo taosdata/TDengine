@@ -610,7 +610,7 @@ static int32_t mndOpenSdb(SMnode *pMnode) {
 
 static void mndCleanupSdb(SMnode *pMnode) {
   if (pMnode->pSdb) {
-    sdbCleanup(pMnode->pSdb, true);
+    sdbCleanup(pMnode->pSdb);
     pMnode->pSdb = NULL;
   }
 }

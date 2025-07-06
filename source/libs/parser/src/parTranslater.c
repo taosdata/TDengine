@@ -9483,7 +9483,7 @@ static int32_t checkCreateMount(STranslateContext* pCxt, SCreateMountStmt* pStmt
                                    "The mount name cannot equal system database: `%s`", pStmt->mountName);
   }
 
-  if (!pStmt->mountPath || pStmt->mountPath[0] == '\0') {
+  if (pStmt->mountPath[0] == '\0') {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_INPUT, "The mount path is invalid");
   }
 
@@ -9887,7 +9887,7 @@ _exit:
 }
 
 static int32_t translateDropMount(STranslateContext* pCxt, SDropMountStmt* pStmt) {
-  if (!pStmt->mountName || pStmt->mountName[0] == '\0' || IS_SYS_DBNAME(pStmt->mountName)) {
+  if (pStmt->mountName[0] == '\0' || IS_SYS_DBNAME(pStmt->mountName)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "Invalid mount name: `%s`",
                                    pStmt->mountName ? pStmt->mountName : "NULL");
   }

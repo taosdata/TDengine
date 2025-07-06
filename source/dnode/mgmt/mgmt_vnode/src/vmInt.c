@@ -741,9 +741,9 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  int32_t code = 0;
   SWrapperCfg *pCfgs = NULL;
   int32_t      numOfVnodes = 0;
+  int32_t      code = 0;
   if ((code = vmGetVnodeListFromFile(pMgmt, &pCfgs, &numOfVnodes)) != 0) {
     dInfo("failed to get vnode list from disk since %s", tstrerror(code));
     return code;
@@ -793,7 +793,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
     (void)taosThreadAttrDestroy(&thAttr);
   }
 
-  bool    updateVnodesList = false;
+  bool updateVnodesList = false;
 
   for (int32_t t = 0; t < threadNum; ++t) {
     SVnodeThread *pThread = &threads[t];

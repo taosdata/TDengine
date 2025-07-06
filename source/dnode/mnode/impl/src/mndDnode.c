@@ -1192,9 +1192,6 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
   mInfo("trans:%d, used to drop dnode:%d, force:%d", pTrans->id, pDnode->id, force);
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), &lino, _OVER);
 
-
-  
-
   pRaw = mndDnodeActionEncode(pDnode);
   if (pRaw == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;

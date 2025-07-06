@@ -303,33 +303,6 @@ int32_t sdbWrite(SSdb *pSdb, SSdbRaw *pRaw) {
   return code;
 }
 
-#ifdef USE_MOUNT
-int32_t sdbWriteWithoutFreeStb(SSdb *pSdb, SSdbRaw *pRaw) {
-  if (pRaw->type != SDB_STB) {
-    return 0;
-  }
-  SHashObj *hash = sdbGetHash(pSdb, pRaw->type);
-  if (hash == NULL) {
-    return terrno;
-  }
-
-  int32_t keySize = sizeof(SSdbRaw) + pRaw->dataLen;
-  int32_t code = 0;
-  switch (pRaw->status) {
-    case SDB_STATUS_READY:
-    case SDB_STATUS_UPDATE:
-      code = taosHashPut(hash, pRaw, keySize, NULL, 0);
-      break;
-    case SDB_STATUS_CREATING:
-    case SDB_STATUS_DROPPING:
-    case SDB_STATUS_DROPPED:
-      break;
-  }
-
-  return code;
-}
-#endif
-
 void *sdbAcquireAll(SSdb *pSdb, ESdbType type, const void *pKey, bool onlyReady) {
   terrno = 0;
 

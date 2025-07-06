@@ -58,7 +58,7 @@ static void mmProcessRpcMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   if (pInfo->timestamp != 0) {
     int64_t cost = taosGetTimestampUs() - pInfo->timestamp;
     if (cost > PROCESS_THRESHOLD) {
-      dGDebug("worker:%d,message has been processed for too long, type:%s, cost: %" PRId64 "s", pInfo->threadNum,
+      dGWarn("worker:%d,message has been processed for too long, type:%s, cost: %" PRId64 "s", pInfo->threadNum,
              TMSG_INFO(pMsg->msgType), cost / (1000 * 1000));
     }
   }

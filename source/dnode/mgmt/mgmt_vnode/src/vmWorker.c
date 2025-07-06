@@ -74,9 +74,6 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_DROP_VNODE:
       code = vmProcessDropVnodeReq(pMgmt, pMsg);
       break;
-    case TDMT_DND_UMOUNT_VNODE:
-      // TODO
-      break;
     case TDMT_VND_ALTER_REPLICA:
       code = vmProcessAlterVnodeReplicaReq(pMgmt, pMsg);
       break;

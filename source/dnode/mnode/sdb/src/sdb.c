@@ -34,14 +34,14 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   snprintf(path, sizeof(path), "%s%stmp", pOption->path, TD_DIRSEP);
   pSdb->tmpDir = taosStrdup(path);
   if (pSdb->currDir == NULL || pSdb->tmpDir == NULL) {
-    sdbCleanup(pSdb, true);
+    sdbCleanup(pSdb);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to init sdb since %s", terrstr());
     return NULL;
   }
 
   if (sdbCreateDir(pSdb) != 0) {
-    sdbCleanup(pSdb, true);
+    sdbCleanup(pSdb);
     return NULL;
   }
 
@@ -65,7 +65,7 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   return pSdb;
 }
 
-void sdbCleanup(SSdb *pSdb, bool freeRow) {
+void sdbCleanup(SSdb *pSdb) {
   mInfo("start to cleanup sdb");
 
   int32_t code = 0;
@@ -83,19 +83,17 @@ void sdbCleanup(SSdb *pSdb, bool freeRow) {
     taosMemoryFreeClear(pSdb->tmpDir);
   }
 
-  if (freeRow) {
-    for (ESdbType i = 0; i < SDB_MAX; ++i) {
-      SHashObj *hash = pSdb->hashObjs[i];
-      if (hash == NULL) continue;
+  for (ESdbType i = 0; i < SDB_MAX; ++i) {
+    SHashObj *hash = pSdb->hashObjs[i];
+    if (hash == NULL) continue;
 
-      SSdbRow **ppRow = taosHashIterate(hash, NULL);
-      while (ppRow != NULL) {
-        SSdbRow *pRow = *ppRow;
-        if (pRow == NULL) continue;
+    SSdbRow **ppRow = taosHashIterate(hash, NULL);
+    while (ppRow != NULL) {
+      SSdbRow *pRow = *ppRow;
+      if (pRow == NULL) continue;
 
-        sdbFreeRow(pSdb, pRow, true);
-        ppRow = taosHashIterate(hash, ppRow);
-      }
+      sdbFreeRow(pSdb, pRow, true);
+      ppRow = taosHashIterate(hash, ppRow);
     }
   }
 

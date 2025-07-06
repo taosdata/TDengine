@@ -96,7 +96,7 @@ static void *tQWorkerThreadFp(SQueueWorker *worker) {
     if (qinfo.timestamp != 0) {
       int64_t cost = taosGetTimestampUs() - qinfo.timestamp;
       if (cost > QUEUE_THRESHOLD) {
-        uDebug("worker:%s,message has been queued for too long, cost: %" PRId64 "s", pool->name, cost / QUEUE_THRESHOLD);
+        uWarn("worker:%s,message has been queued for too long, cost: %" PRId64 "s", pool->name, cost / QUEUE_THRESHOLD);
       }
     }
 
@@ -239,7 +239,7 @@ static void *tAutoQWorkerThreadFp(SQueueWorker *worker) {
     if (qinfo.timestamp != 0) {
       int64_t cost = taosGetTimestampUs() - qinfo.timestamp;
       if (cost > QUEUE_THRESHOLD) {
-        uDebug("worker:%s,message has been queued for too long, cost: %" PRId64 "s", pool->name, cost / QUEUE_THRESHOLD);
+        uWarn("worker:%s,message has been queued for too long, cost: %" PRId64 "s", pool->name, cost / QUEUE_THRESHOLD);
       }
     }
 
@@ -406,7 +406,7 @@ static void *tWWorkerThreadFp(SWWorker *worker) {
     if (qinfo.timestamp != 0) {
       int64_t cost = taosGetTimestampUs() - qinfo.timestamp;
       if (cost > QUEUE_THRESHOLD) {
-        uDebug("worker:%s,message has been queued for too long, cost: %" PRId64 "s", pool->name, cost / QUEUE_THRESHOLD);
+        uWarn("worker:%s,message has been queued for too long, cost: %" PRId64 "s", pool->name, cost / QUEUE_THRESHOLD);
       }
     }
 
@@ -679,7 +679,7 @@ static void *tQueryAutoQWorkerThreadFp(SQueryAutoQWorker *worker) {
     if (qinfo.timestamp != 0) {
       int64_t cost = taosGetTimestampUs() - qinfo.timestamp;
       if (cost > QUEUE_THRESHOLD) {
-        uDebug("worker:%s,message has been queued for too long, cost: %" PRId64 "s", pool->name, cost / QUEUE_THRESHOLD);
+        uWarn("worker:%s,message has been queued for too long, cost: %" PRId64 "s", pool->name, cost / QUEUE_THRESHOLD);
       }
     }
 
