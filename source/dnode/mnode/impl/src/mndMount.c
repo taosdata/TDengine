@@ -869,6 +869,147 @@ _exit:
 
 //   TAOS_RETURN(code);
 // }
+// static int32_t mndBuildMountVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, const char *mountName,
+//                              const char *mountPath, int64_t mountId, int32_t diskPrimary, int32_t mountVgId,
+//                              int64_t committed, int64_t commitID, int64_t commitTerm, int32_t *pContLen) {
+static int32_t mndBuildMountVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, SMountObj *pObj,
+                                     SMountVgObj *pMountVg, int32_t *pContLen, void *ppReq) {
+  int32_t code = 0, lino = 0;
+  int32_t createLen = 0, totalLen = 0;
+  void   *pBuf = NULL;
+
+  SMountVnodeReq   mountReq = {0};
+  SCreateVnodeReq *pCreateReq = &mountReq.createReq;
+  pCreateReq->vgId = pVgroup->vgId;
+  memcpy(pCreateReq->db, pDb->name, TSDB_DB_FNAME_LEN);
+  pCreateReq->dbUid = pDb->uid;
+  pCreateReq->vgVersion = pVgroup->version;
+  pCreateReq->numOfStables = pDb->cfg.numOfStables;
+  pCreateReq->buffer = pDb->cfg.buffer;
+  pCreateReq->pageSize = pDb->cfg.pageSize;
+  pCreateReq->pages = pDb->cfg.pages;
+  pCreateReq->cacheLastSize = pDb->cfg.cacheLastSize;
+  pCreateReq->daysPerFile = pDb->cfg.daysPerFile;
+  pCreateReq->daysToKeep0 = pDb->cfg.daysToKeep0;
+  pCreateReq->daysToKeep1 = pDb->cfg.daysToKeep1;
+  pCreateReq->daysToKeep2 = pDb->cfg.daysToKeep2;
+  pCreateReq->keepTimeOffset = pDb->cfg.keepTimeOffset;
+  pCreateReq->s3ChunkSize = pDb->cfg.s3ChunkSize;
+  pCreateReq->s3KeepLocal = pDb->cfg.s3KeepLocal;
+  pCreateReq->s3Compact = pDb->cfg.s3Compact;
+  pCreateReq->minRows = pDb->cfg.minRows;
+  pCreateReq->maxRows = pDb->cfg.maxRows;
+  pCreateReq->walFsyncPeriod = pDb->cfg.walFsyncPeriod;
+  pCreateReq->walLevel = pDb->cfg.walLevel;
+  pCreateReq->precision = pDb->cfg.precision;
+  pCreateReq->compression = pDb->cfg.compression;
+  pCreateReq->strict = pDb->cfg.strict;
+  pCreateReq->cacheLast = pDb->cfg.cacheLast;
+  pCreateReq->replica = 0;
+  pCreateReq->learnerReplica = 0;
+  pCreateReq->selfIndex = -1;
+  pCreateReq->learnerSelfIndex = -1;
+  pCreateReq->hashBegin = pVgroup->hashBegin;
+  pCreateReq->hashEnd = pVgroup->hashEnd;
+  pCreateReq->hashMethod = pDb->cfg.hashMethod;
+  pCreateReq->numOfRetensions = pDb->cfg.numOfRetensions;
+  pCreateReq->pRetensions = pDb->cfg.pRetensions;
+  pCreateReq->isTsma = pVgroup->isTsma;
+  pCreateReq->pTsma = pVgroup->pTsma;
+  pCreateReq->walRetentionPeriod = pDb->cfg.walRetentionPeriod;
+  pCreateReq->walRetentionSize = pDb->cfg.walRetentionSize;
+  pCreateReq->walRollPeriod = pDb->cfg.walRollPeriod;
+  pCreateReq->walSegmentSize = pDb->cfg.walSegmentSize;
+  pCreateReq->sstTrigger = pDb->cfg.sstTrigger;
+  pCreateReq->hashPrefix = pDb->cfg.hashPrefix;
+  pCreateReq->hashSuffix = pDb->cfg.hashSuffix;
+  pCreateReq->tsdbPageSize = pDb->cfg.tsdbPageSize;
+  pCreateReq->changeVersion = ++(pVgroup->syncConfChangeVer);
+  pCreateReq->encryptAlgorithm = pDb->cfg.encryptAlgorithm;
+
+  for (int32_t v = 0; v < pVgroup->replica; ++v) {
+    SReplica *pReplica = NULL;
+
+    if (pVgroup->vnodeGid[v].nodeRole == TAOS_SYNC_ROLE_VOTER) {
+      pReplica = &pCreateReq->replicas[pCreateReq->replica];
+    } else {
+      pReplica = &pCreateReq->learnerReplicas[pCreateReq->learnerReplica];
+    }
+
+    SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
+    SDnodeObj *pVgidDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+    if (pVgidDnode == NULL) {
+      return NULL;
+    }
+
+    pReplica->id = pVgidDnode->id;
+    pReplica->port = pVgidDnode->port;
+    memcpy(pReplica->fqdn, pVgidDnode->fqdn, TSDB_FQDN_LEN);
+    mndReleaseDnode(pMnode, pVgidDnode);
+
+    if (pVgroup->vnodeGid[v].nodeRole == TAOS_SYNC_ROLE_VOTER) {
+      if (pDnode->id == pVgid->dnodeId) {
+        pCreateReq->selfIndex = pCreateReq->replica;
+      }
+    } else {
+      if (pDnode->id == pVgid->dnodeId) {
+        pCreateReq->learnerSelfIndex = pCreateReq->learnerReplica;
+      }
+    }
+
+    if (pVgroup->vnodeGid[v].nodeRole == TAOS_SYNC_ROLE_VOTER) {
+      pCreateReq->replica++;
+    } else {
+      pCreateReq->learnerReplica++;
+    }
+  }
+  if (pCreateReq->selfIndex == -1 && pCreateReq->learnerSelfIndex == -1) {
+    terrno = TSDB_CODE_APP_ERROR;
+    return NULL;
+  }
+  pCreateReq->changeVersion = pVgroup->syncConfChangeVer;
+
+  if (mountName) {
+    snprintf(mountReq.mountName, sizeof(mountReq.mountName), "%s", mountName);
+  }
+  if (mountPath) {
+    snprintf(mountReq.mountPath, sizeof(mountReq.mountPath), "%s", mountPath);
+  }
+  mountReq.mountId = mountId;
+  mountReq.diskPrimary = diskPrimary;
+  mountReq.mountVgId = mountVgId;
+  mountReq.committed = committed;
+  mountReq.commitID = commitID;
+  mountReq.commitTerm = commitTerm;
+
+  mInfo("vgId:%d, mountVgId:%d, mountId:%" PRIi64
+        ", name:%s, path:%s, build mount vnode req, replica:%d selfIndex:%d learnerReplica:%d learnerSelfIndex:%d "
+        "strict:%d "
+        "changeVersion:%d",
+        pCreateReq->vgId, mountReq.mountVgId, mountReq.mountId, mountReq.mountName, mountReq.mountPath,
+        pCreateReq->replica, pCreateReq->selfIndex, pCreateReq->learnerReplica, pCreateReq->learnerSelfIndex,
+        pCreateReq->strict, pCreateReq->changeVersion);
+  for (int32_t i = 0; i < pCreateReq->replica; ++i) {
+    mInfo("vgId:%d, mountVgId:%d, mountId:%" PRIi64 ", replica:%d ep:%s:%u", pCreateReq->vgId, mountReq.mountVgId,
+          mountReq.mountId, i, pCreateReq->replicas[i].fqdn, pCreateReq->replicas[i].port);
+  }
+  for (int32_t i = 0; i < pCreateReq->learnerReplica; ++i) {
+    mInfo("vgId:%d, mountVgId:%d, mountId:%" PRIi64 ", replica:%d ep:%s:%u", pCreateReq->vgId, mountReq.mountVgId,
+          mountReq.mountId, i, pCreateReq->learnerReplicas[i].fqdn, pCreateReq->learnerReplicas[i].port);
+  }
+  
+  TAOS_CHECK_EXIT(tSerializeSMountVnodeReq(NULL, &createLen, &totalLen, &mountReq));
+  TSDB_CHECK_NULL((pBuf = taosMemoryMalloc(totalLen)), code, lino, _exit, terrno);
+  TAOS_CHECK_EXIT(tSerializeSMountVnodeReq(pBuf, &createLen, &totalLen, &mountReq));
+_exit:
+  if (code < 0) {
+    taosMemoryFree(pBuf);
+    terrno = code;
+    return NULL;
+  }
+  *pContLen = contLen;
+  return pReq;
+}
 
 static int32_t mndAddMountVnodeAction(SMnode *pMnode, STrans *pTrans, SMountObj *pObj, SMountVgObj *pMountVg) {
   int32_t      code = 0;
@@ -884,11 +1025,13 @@ static int32_t mndAddMountVnodeAction(SMnode *pMnode, STrans *pTrans, SMountObj 
   mndReleaseDnode(pMnode, pDnode);
 
   int32_t contLen = 0;
-  if (!(pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVg, pObj->name, pObj->paths[0], pObj->uid, pMountVg->diskPrimary,
+  if (!(pReq = mndBuildMountVnodeReq(pMnode, pDnode, pDb, pVg, pObj->name, pObj->paths[0], pObj->uid, pMountVg->diskPrimary,
                                       pVg->mountVgId, pMountVg->committed, pMountVg->commitID, pMountVg->commitTerm,
                                       &contLen))) {
     return terrno ? terrno : -1;
   }
+
+  code = mndBuildMountVnodeReq(pMnode, pDnode, pDb, pVg, pObj, pMountVg, &contLen, pReq);
 
   action.pCont = pReq;
   action.contLen = contLen;
