@@ -1253,9 +1253,9 @@ _exit:
     dError("vgId:%d, vnode management handle msgType:%s, failed at line %d to mount vnode since %s", req.vgId,
            TMSG_INFO(pMsg->msgType), lino, tstrerror(code));
     vmCloseFailedVnode(pMgmt, req.vgId);
-    if (releaseTfs) vmReleaseMountTfs(pMgmt, req.mountId);
     vnodeClose(pImpl);
     vnodeDestroy(0, path, pMgmt->pTfs, 0);
+    if (releaseTfs) vmReleaseMountTfs(pMgmt, req.mountId, 1);
   } else {
     dInfo("vgId:%d, vnode management handle msgType:%s, success to mount vnode", req.vgId, TMSG_INFO(pMsg->msgType));
   }

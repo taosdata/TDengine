@@ -123,7 +123,7 @@ void       vmCleanPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId);
 void       vmCloseFailedVnode(SVnodeMgmt *pMgmt, int32_t vgId);
 int32_t    vmAcquireMountTfs(SVnodeMgmt *pMgmt, int64_t mountId, const char *mountName, const char *mountPath,
                              STfs **ppTfs);
-void       vmReleaseMountTfs(SVnodeMgmt *pMgmt, int64_t mountId);
+bool       vmReleaseMountTfs(SVnodeMgmt *pMgmt, int64_t mountId, int32_t minRef);
 
 // vmHandle.c
 SArray *vmGetMsgHandles();
