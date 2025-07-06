@@ -242,7 +242,7 @@ void tableReaderIterDestroy(STableReaderIter *pIter);
 
 int8_t tableReaderIterValid(STableReaderIter *pIter);
 
-int32_t bseOpenCurrent(SBse *pBse, uint8_t **pValue, int32_t *len);
+int32_t bseReadCurrentSnap(SBse *pBse, uint8_t **pValue, int32_t *len);
 
 #ifdef __cplusplus
 }

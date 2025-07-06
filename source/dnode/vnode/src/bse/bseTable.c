@@ -1264,7 +1264,7 @@ _error:
 
 int8_t tableReaderIterValid(STableReaderIter *pIter) { return pIter->isOver == 0; }
 
-int32_t bseOpenCurrent(SBse *pBse, uint8_t **pValue, int32_t *len) {
+int32_t bseReadCurrentSnap(SBse *pBse, uint8_t **pValue, int32_t *len) {
   int32_t   code = 0;
   char      path[128] = {0};
   int32_t   lino = 0;

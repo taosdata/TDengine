@@ -270,6 +270,7 @@ _error:
   }
   return code;
 }
+// test func
 int32_t bseSnapReaderRead2(SBseSnapReader *p, uint8_t **data, int32_t *len) {
   int32_t code = 0;
   int32_t line = 0;
@@ -441,7 +442,7 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
   }
 
   if (pIter->fileType == BSE_CURRENT_SNAP) {
-    code = bseOpenCurrent(pIter->pBse, pValue, len);
+    code = bseReadCurrentSnap(pIter->pBse, pValue, len);
     // do read current
     pIter->fileType = BSE_MAX_SNAP;
     pTableIter->fileType = pIter->fileType;
