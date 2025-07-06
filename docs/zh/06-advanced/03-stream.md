@@ -111,8 +111,11 @@ PARTITION 子句中，为 tbname 定义了一个别名 tname，在 PARTITION 子
 - 另外，不要同时异步创建多个流，可能由于事务冲突导致后面创建的流失败。
 
 比如，创建一个流，统计所有智能电表每 10s 产生的数据条数，并且计算历史数据。SQL 如下：
+
 ```sql
+
 create stream if not exists count_history_s fill_history 1 into count_history as select count(*) from power.meters interval(10s)
+
 ```
 
 如果该流任务已经彻底过期，并且不再想让它检测或处理数据，您可以手动删除它，被计算出的数据仍会被保留。
