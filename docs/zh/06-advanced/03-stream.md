@@ -19,6 +19,7 @@ TDengine 的流计算能够支持分布在多个节点中的超级表聚合，�
 ## 创建流计算
 
 语法如下：
+
 ```sql
 CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name
 [(field1_name, ...)] [TAGS (column_definition [, column_definition] ...)] 
@@ -38,6 +39,7 @@ column_definition:
 ```
 
 其中 subquery 是 select 普通查询语法的子集。
+
 ```sql
 subquery: SELECT select_list
     from_clause
@@ -76,6 +78,7 @@ SELECT _wstart, count(*), avg(voltage) FROM power.meters PARTITION BY tbname INT
 ```
 
 本节涉及的相关参数的说明如下。
+
 - stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，则会自动创建；如果已存在，则检查列的 schema 信息。
 - tags 子句定义了流计算中创建标签的规则。通过 tags 字段可以为每个分区对应的子表生成自定义的标签值。
 
@@ -125,14 +128,17 @@ create stream if not exists count_history_s fill_history 1 into count_history as
 ### 流计算的触发模式
 
 在创建流时，可以通过 TRIGGER 指令指定流计算的触发模式。对于非窗口计算，流计算的触发是实时的，对于窗口计算，目前提供 4 种触发模式，默认为 WINDOW_CLOSE。
+
 1. AT_ONCE：写入立即触发。
 2. WINDOW_CLOSE：窗口关闭时触发（窗口关闭由事件时间决定，可配合 watermark 使用）。
 3. MAX_DELAY time：若窗口关闭，则触发计算。若窗口未关闭，且未关闭时长超过 max delay 指定的时间，则触发计算。
 4. FORCE_WINDOW_CLOSE：以操作系统当前时间为准，只计算当前关闭窗口的结果，并推送出去。窗口只会在被关闭的时刻计算一次，后续不会再重复计算。该模式当前只支持 INTERVAL 窗口（支持滑动）；该模式时，FILL_HISTORY 自动设置为 0，IGNORE EXPIRED 自动设置为 1，IGNORE UPDATE 自动设置为 1；FILL 只支持 PREV、NULL、NONE、VALUE。
    - 该模式可用于实现连续查询，比如，创建一个流，每隔 1s 查询一次过去 10s 窗口内的数据条数。SQL 如下：
+     
    ```sql
    create stream if not exists continuous_query_s trigger force_window_close into continuous_query as select count(*) from power.meters interval(10s) sliding(1s)
    ```
+   
 5. CONTINUOUS_WINDOW_CLOSE：窗口关闭时输出结果。修改、删除数据，并不会立即触发重算，每等待 rec_time_val 时长，会进行周期性重算。如果不指定 rec_time_val，那么重算周期是 60 分钟。如果重算的时间长度超过 rec_time_val，在本次重算后，自动开启下一次重算。该模式当前只支持 INTERVAL 窗口。如果使用 FILL，需要配置 adapter 的相关信息：adapterFqdn、adapterPort、adapterToken。adapterToken 为 `{username}:{password}` 经过 Base64 编码之后的字符串，例如 `root:taosdata` 编码后为 `cm9vdDp0YW9zZGF0YQ==`。
 
 窗口关闭是由事件时间决定的，如事件流中断、或持续延迟，此时事件时间无法更新，可能导致无法得到最新的计算结果。
@@ -219,11 +225,13 @@ DROP STREAM [IF EXISTS] stream_name;
 ### 展示流计算
 
 查看流计算任务的 SQL 如下：
+
 ```sql
 SHOW STREAMS;
 ```
 
 若要展示更详细的信息，可以使用
+
 ```sql
 SELECT * from information_schema.`ins_streams`;
 ```
