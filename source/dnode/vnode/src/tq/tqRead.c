@@ -743,10 +743,6 @@ static int32_t doSetBlobVal(SColumnInfoData* pColumnInfoData, int32_t idx, SColV
       len = item.dataLen;
     }
 
-    char buf[1024] = {0};
-    memcpy(buf, pBlobRow2->data, pBlobRow2->len);
-    uInfo("tq set blob val,seq:%" PRId64 ", idx:%d, data:%s, len:%d", seq, idx, buf, (int)(pBlobRow2->len));
-
     blobDataSetLen(val, len);
     code = colDataSetVal(pColumnInfoData, idx, val, false);
 

@@ -631,7 +631,7 @@ static int32_t inline vnodeSubmitSubRowBlobData(SVnode *pVnode, SSubmitTbData *p
       rowIdx++;
     }
     if (p->len == 0) {
-      uInfo("received invalid row");
+      uWarn("received invalid row");
       continue;
     }
     SRow *row = taosArrayGetP(pSubmitTbData->aRowP, rowIdx);

@@ -13148,7 +13148,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
     uint64_t nRow = 0;
     TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &nRow));
 
-    uInfo("decode %d row data", (int32_t)nRow);
+    uTrace("decode %d row data", (int32_t)nRow);
     pSubmitTbData->aRowP = taosArrayInit(nRow, sizeof(SRow *));
     if (pSubmitTbData->aRowP == NULL) {
       TAOS_CHECK_EXIT(terrno);

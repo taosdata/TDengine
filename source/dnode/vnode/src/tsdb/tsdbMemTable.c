@@ -555,7 +555,7 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
     memcpy(pNode->row.pTSRow, pRow->pTSRow, pRow->pTSRow->len);
     uint64_t seq = 0;
     tGetU64(pRow->pTSRow->data + 5, &seq);
-    uInfo("blob get mem len %d, seq %d", pRow->pTSRow->len, (int)(seq));
+    uTrace("blob get mem len %d, seq %d", pRow->pTSRow->len, (int)(seq));
   }
 
   // set node

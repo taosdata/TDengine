@@ -489,12 +489,12 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
   }
 
   // push data to submit, rebuild empty data for next submit
-  uInfo("blob row transfer %p, pData %p, %s", pTableCxt->pData->pBlobRow, pTableCxt->pData, __func__);
+  uTrace("blob row transfer %p, pData %p, %s", pTableCxt->pData->pBlobRow, pTableCxt->pData, __func__);
   if (NULL == taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData)) {
     return terrno;
   }
   if (pTableCxt->pData->pBlobRow == NULL) {
-    uInfo("blow empty");
+    uTrace("blow empty");
   }
   if (NULL == taosArrayPush(pVgCxt->pData->aSubmitBlobData, &pTableCxt->pData->pBlobRow)) {
     return terrno;
