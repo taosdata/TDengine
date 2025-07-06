@@ -79,10 +79,10 @@ int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order,
     SColumnInfo* pColInfo = &pCond->colList[i];
     if (isSchema) {
       SSchema* pSchema = taosArrayGet((SArray*)schemas, i);
-      pCond->colList[i].type = pSchema[i].type;
-      pCond->colList[i].bytes = pSchema[i].bytes;
-      pCond->colList[i].colId = pSchema[i].colId;
-      pCond->colList[i].pk = pSchema[i].flags & COL_IS_KEY;
+      pCond->colList[i].type = pSchema->type;
+      pCond->colList[i].bytes = pSchema->bytes;
+      pCond->colList[i].colId = pSchema->colId;
+      pCond->colList[i].pk = pSchema->flags & COL_IS_KEY;
 
       pCond->pSlotList[i] = i;
     } else {
