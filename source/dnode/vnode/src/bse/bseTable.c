@@ -18,6 +18,7 @@
 #include "bseSnapshot.h"
 #include "bseTableMgt.h"
 #include "osMemPool.h"
+#include "vnodeInt.h"
 
 // table footer func
 static int32_t footerEncode(STableFooter *pFooter, char *buf);
@@ -481,6 +482,12 @@ static void addSnapshotToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
   pSnapMeta->keepDays = keepDays;
   return;
 }
+static void rewriteSnapshotToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
+                                   int32_t keepDays) {
+  SBseSnapMeta *pSnapMeta = (SBseSnapMeta *)pBlkWrapper->data;
+  pSnapMeta->keepDays = keepDays;
+  return;
+}
 
 int32_t tableReaderLoadRawBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrapper *blkWrapper) {
   int32_t code = 0;
@@ -524,12 +531,13 @@ int32_t tableReaderLoadRawMetaIndex(STableReader *p, SBlockWrapper *blkWrapper) 
   int32_t code = 0;
   int32_t lino = 0;
 
+  SBtableMetaReader *pReader = p->pMetaReader;
   SBlkHandle *pHandle = p->pMetaReader->footer.metaHandle;
 
   code = blockWrapperResize(blkWrapper, pHandle->size + sizeof(SBseSnapMeta));
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = tableLoadRawBlock(p->pDataFile, pHandle, blkWrapper, 1);
+  code = tableLoadRawBlock(pReader->pFile, pHandle, blkWrapper, 1);
   TSDB_CHECK_CODE(code, lino, _error);
 
   addSnapshotToBlock(blkWrapper, p->range, BSE_TABLE_META_SNAP, BSE_TABLE_META_INDEX_TYPE, 365);
@@ -543,17 +551,25 @@ _error:
 int32_t tableReaderLoadRawFooter(STableReader *p, SBlockWrapper *blkWrapper) {
   int32_t code = 0;
   int32_t lino = 0;
+  char    buf[kEncodeLen] = {0};
 
-  SBlkHandle *pHandle = p->pMetaReader->footer.metaHandle;
+  SBtableMetaReader *pReader = p->pMetaReader;
+  code = footerEncode(&pReader->footer, buf);
+  int32_t len = sizeof(buf);
 
-  int64_t    footerOffset = pHandle->offset + pHandle->size;
-  SBlkHandle footerHandle = {.offset = footerOffset, .size = p->pMetaReader->size - footerOffset};
-
-  code = blockWrapperResize(blkWrapper, pHandle->size + sizeof(SBseSnapMeta));
+  taosLSeekFile(pReader->pFile, -kEncodeLen, SEEK_END);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = tableLoadRawBlock(p->pMetaReader->pFile, pHandle, blkWrapper, 0);
+  if (taosReadFile(pReader->pFile, buf, sizeof(buf)) != len) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
+
+  code = blockWrapperResize(blkWrapper, len + sizeof(SBseSnapMeta));
   TSDB_CHECK_CODE(code, lino, _error);
+
+  memcpy(blkWrapper->data + sizeof(SBseSnapMeta), buf, sizeof(buf));
+  blkWrapper->size = len + sizeof(SBseSnapMeta);
 
   addSnapshotToBlock(blkWrapper, p->range, BSE_TABLE_META_SNAP, BSE_TABLE_FOOTER_TYPE, 365);
 _error:
@@ -1146,6 +1162,7 @@ int32_t tableReaderIterInit(int64_t retention, int8_t type, STableReaderIter **p
   if (p->blockType == BSE_TABLE_DATA_TYPE) {
     code = tableReaderGetMeta(p->pTableReader, &p->pMetaHandle);
     TSDB_CHECK_CODE(code, lino, _error);
+
   } else if (p->blockType == BSE_TABLE_META_TYPE) {
     p->pMetaHandle = taosArrayInit(8, sizeof(SBlkHandle));
     if (p->pMetaHandle == NULL) {
@@ -1183,18 +1200,18 @@ int32_t tableReaderIterNext(STableReaderIter *pIter, uint8_t **pValue, int32_t *
       pIter->blockIndex = 0;
       pIter->isOver = 1;
       return 0;
+    } else {
+      pHandle = taosArrayGet(pIter->pMetaHandle, pIter->blockIndex);
+      bseDebug("file type %d, block type: %d,block index %d, offset %" PRId64 ", size %" PRId64 ", range [%" PRId64
+               ", %" PRId64 "]",
+               pIter->fileType, pIter->blockType, pIter->blockIndex, pHandle->offset, pHandle->size,
+               pHandle->range.sseq, pHandle->range.eseq);
+      code = tableReaderLoadRawBlock(pIter->pTableReader, pHandle, &pIter->blockWrapper);
+      TSDB_CHECK_CODE(code, lino, _error);
+
+      pIter->blockIndex++;
     }
 
-    pHandle = taosArrayGet(pIter->pMetaHandle, pIter->blockIndex);
-    for (int32_t i = 0; i < taosArrayGetSize(pIter->pMetaHandle); i++) {
-      SBlkHandle *pH = taosArrayGet(pIter->pMetaHandle, i);
-      bseInfo("block index %d, offset %" PRId64 ", size %" PRId64 ", range [%" PRId64 ", %" PRId64 "]", i, pH->offset,
-              pH->size, pH->range.sseq, pH->range.eseq);
-    }
-    code = tableReaderLoadRawBlock(pIter->pTableReader, pHandle, &pIter->blockWrapper);
-    TSDB_CHECK_CODE(code, lino, _error);
-
-    pIter->blockIndex++;
   } else if (pIter->blockType == BSE_TABLE_META_TYPE) {
     SBlkHandle *pHandle = NULL;
     if (pIter->blockIndex >= taosArrayGetSize(pIter->pMetaHandle)) {
@@ -1202,12 +1219,17 @@ int32_t tableReaderIterNext(STableReaderIter *pIter, uint8_t **pValue, int32_t *
       pIter->pMetaHandle = NULL;
       pIter->blockIndex = 0;
       pIter->blockType = BSE_TABLE_META_INDEX_TYPE;
-    }
+    } else {
+      pHandle = taosArrayGet(pIter->pMetaHandle, pIter->blockIndex);
 
-    pHandle = taosArrayGet(pIter->pMetaHandle, pIter->blockIndex);
-    code = tableReaderLoadRawMeta(pIter->pTableReader, pHandle, &pIter->blockWrapper);
-    TSDB_CHECK_CODE(code, lino, _error);
-    pIter->blockIndex++;
+      bseDebug("file type %d, block type: %d,block index %d, offset %" PRId64 ", size %" PRId64 ", range [%" PRId64
+               ", %" PRId64 "]",
+               pIter->fileType, pIter->blockType, pIter->blockIndex, pHandle->offset, pHandle->size,
+               pHandle->range.sseq, pHandle->range.eseq);
+      code = tableReaderLoadRawMeta(pIter->pTableReader, pHandle, &pIter->blockWrapper);
+      TSDB_CHECK_CODE(code, lino, _error);
+      pIter->blockIndex++;
+    }
   }
 
   if (pIter->blockType == BSE_TABLE_META_INDEX_TYPE) {
@@ -1224,17 +1246,13 @@ int32_t tableReaderIterNext(STableReaderIter *pIter, uint8_t **pValue, int32_t *
     pIter->isOver = 1;
     return code;
   }
+  SSeqRange range = {0};
 
-  uint8_t *pVal = taosMemoryCalloc(1, pIter->blockWrapper.size + sizeof(SBseSnapMeta));
-  if (pVal == NULL) {
-    code = terrno;
-    TSDB_CHECK_CODE(code, lino, _error);
+  if (pIter->blockWrapper.data != NULL) {
+    rewriteSnapshotToBlock(&pIter->blockWrapper, range, pIter->fileType, pIter->blockType, snapMeta.keepDays);
+    *pValue = pIter->blockWrapper.data;
+    *len = pIter->blockWrapper.size;
   }
-  memcpy(pVal + sizeof(SBseSnapMeta), pIter->blockWrapper.data, pIter->blockWrapper.size);
-  memcpy(pVal, &snapMeta, sizeof(SBseSnapMeta));
-
-  *pValue = pVal;
-  *len = pIter->blockWrapper.size + sizeof(SBseSnapMeta);
 
 _error:
   if (code != 0) {
@@ -1245,6 +1263,54 @@ _error:
 }
 
 int8_t tableReaderIterValid(STableReaderIter *pIter) { return pIter->isOver == 0; }
+
+int32_t bseOpenCurrent(SBse *pBse, uint8_t **pValue, int32_t *len) {
+  int32_t   code = 0;
+  char      path[128] = {0};
+  int32_t   lino = 0;
+  TdFilePtr fd = NULL;
+  int64_t   sz = 0;
+  char      name[TSDB_FILENAME_LEN] = {0};
+
+  uint8_t *pCurrent = NULL;
+
+  bseBuildCurrentName(pBse, name);
+  if (taosCheckExistFile(name) == 0) {
+    bseInfo("vgId:%d, no current meta file found, skip recover", pBse->cfg.vgId);
+    return 0;
+  }
+  code = taosStatFile(name, &sz, NULL, NULL);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  fd = taosOpenFile(name, TD_FILE_READ);
+  if (fd == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+  pCurrent = (uint8_t *)taosMemoryCalloc(1, sizeof(SBseSnapMeta) + sz);
+  if (pCurrent == NULL) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+
+  int64_t nread = taosReadFile(fd, pCurrent + sizeof(SBseSnapMeta), sz);
+  if (nread != sz) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+  taosCloseFile(&fd);
+
+  SBseSnapMeta *pMeta = (SBseSnapMeta *)(pCurrent);
+  pMeta->fileType = BSE_CURRENT_SNAP;
+
+  *pValue = pCurrent;
+
+  *len = sz + sizeof(SBseSnapMeta);
+_error:
+  if (code != 0) {
+    bseError("vgId:%d, failed to read current at line %d since %s", pBse->cfg.vgId, lino, tstrerror(code));
+    taosCloseFile(&fd);
+    taosMemoryFree(pCurrent);
+  }
+  return code;
+}
 
 void tableReaderIterDestroy(STableReaderIter *pIter) {
   if (pIter == NULL) return;
@@ -1561,7 +1627,7 @@ _error:
 }
 
 int32_t tableMetaWriterFlushFooter(SBtableMetaWriter *p) {
-  char buf[kEncodeLen];
+  char buf[kEncodeLen] = {0};
 
   int32_t code = 0;
   int32_t lino = 0;

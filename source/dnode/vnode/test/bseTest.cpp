@@ -248,6 +248,10 @@ int32_t snapTest()  {
         int32_t code = bseOpen("/tmp/bseSrc", &cfg, &bse);
         putData(bse, 10000, 1000, &data);
         bseCommit(bse);
+        int64_t seq = data[0]; 
+        uint8_t *value = NULL;  
+        int32_t len = 0;
+        bseGet(bse, seq, &value, &len);
         //getData(bse, &data); 
     }
     {

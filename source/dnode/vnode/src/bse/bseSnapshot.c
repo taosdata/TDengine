@@ -44,7 +44,7 @@ static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBse
     bseBuildFullName(pBse, name, path);
   } else if (pMeta->fileType == BSE_TABLE_META_TYPE) {
     bseBuildMetaName(pMeta->keepDays, name);
-    bseBuildFullMetaName(pBse, name, path);
+    bseBuildFullName(pBse, name, path);
   } else if (pMeta->fileType == BSE_CURRENT_SNAP) {
     bseBuildCurrentName(pBse, path);
   } else {
@@ -104,14 +104,14 @@ void bseRawFileGenLiveInfo(SBseRawFileWriter *p, SBseLiveFileInfo *pInfo) {
   memcpy(pInfo->name, p->name, sizeof(p->name));
 }
 
-static int32_t bseSnapShouldOpenNewFile(SBseSnapWriter *pWriter, SBseSnapMeta *pMeta) {
+static int32_t bseSnapMayOpenNewFile(SBseSnapWriter *pWriter, SBseSnapMeta *pMeta) {
   int32_t code = 0;
 
   SBse *pBse = pWriter->pBse;
 
   SBseRawFileWriter *pOld = pWriter->pWriter;
 
-  if (pOld == NULL || (pOld->fileType != pMeta->fileType) || pOld->blockType != pMeta->blockType) {
+  if (pOld == NULL || (pOld->fileType != pMeta->fileType)) {
     if (pOld != NULL) {
       SBseLiveFileInfo info;
       bseRawFileGenLiveInfo(pOld, &info);
@@ -122,6 +122,7 @@ static int32_t bseSnapShouldOpenNewFile(SBseSnapWriter *pWriter, SBseSnapMeta *p
         return code;
       }
       bseRawFileWriterClose(pOld, 0);
+      pWriter->pWriter = NULL;
     }
 
     SBseRawFileWriter *pNew = NULL;
@@ -175,7 +176,7 @@ int32_t bseSnapWriterWrite(SBseSnapWriter *p, uint8_t *data, int32_t len) {
   uint8_t *pBuf = pHdr->data + sizeof(SBseSnapMeta);
   int64_t  tlen = len - sizeof(SSnapDataHdr) - sizeof(SBseSnapMeta);
 
-  code = bseSnapShouldOpenNewFile(p, pMeta);
+  code = bseSnapMayOpenNewFile(p, pMeta);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = bseRawFileWriterDoWrite(p->pWriter, pBuf, tlen);
@@ -410,7 +411,6 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
       pTableIter->fileType = pIter->fileType;
 
       if (!tableReaderIterValid(pTableIter)) {
-        // current file is over
         tableReaderIterDestroy(pTableIter);
         pIter->pTableIter = NULL;
       } else {
@@ -441,6 +441,7 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
   }
 
   if (pIter->fileType == BSE_CURRENT_SNAP) {
+    code = bseOpenCurrent(pIter->pBse, pValue, len);
     // do read current
     pIter->fileType = BSE_MAX_SNAP;
     pTableIter->fileType = pIter->fileType;
