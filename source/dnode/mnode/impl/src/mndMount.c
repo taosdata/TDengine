@@ -869,15 +869,11 @@ _exit:
 
 //   TAOS_RETURN(code);
 // }
-// static int32_t mndBuildMountVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, const char *mountName,
-//                              const char *mountPath, int64_t mountId, int32_t diskPrimary, int32_t mountVgId,
-//                              int64_t committed, int64_t commitID, int64_t commitTerm, int32_t *pContLen) {
 static int32_t mndBuildMountVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, SMountObj *pObj,
-                                     SMountVgObj *pMountVg, int32_t *pContLen, void *ppReq) {
+                                     SMountVgObj *pMountVg, int32_t *pContLen, void **ppReq) {
   int32_t code = 0, lino = 0;
   int32_t createLen = 0, totalLen = 0;
   void   *pBuf = NULL;
-
   SMountVnodeReq   mountReq = {0};
   SCreateVnodeReq *pCreateReq = &mountReq.createReq;
   pCreateReq->vgId = pVgroup->vgId;
@@ -939,7 +935,7 @@ static int32_t mndBuildMountVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *
     SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
     SDnodeObj *pVgidDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
     if (pVgidDnode == NULL) {
-      return NULL;
+      TAOS_CHECK_EXIT(terrno);
     }
 
     pReplica->id = pVgidDnode->id;
@@ -964,23 +960,19 @@ static int32_t mndBuildMountVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *
     }
   }
   if (pCreateReq->selfIndex == -1 && pCreateReq->learnerSelfIndex == -1) {
-    terrno = TSDB_CODE_APP_ERROR;
-    return NULL;
+    TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
   }
   pCreateReq->changeVersion = pVgroup->syncConfChangeVer;
 
-  if (mountName) {
-    snprintf(mountReq.mountName, sizeof(mountReq.mountName), "%s", mountName);
-  }
-  if (mountPath) {
-    snprintf(mountReq.mountPath, sizeof(mountReq.mountPath), "%s", mountPath);
-  }
-  mountReq.mountId = mountId;
-  mountReq.diskPrimary = diskPrimary;
-  mountReq.mountVgId = mountVgId;
-  mountReq.committed = committed;
-  mountReq.commitID = commitID;
-  mountReq.commitTerm = commitTerm;
+  // mount info
+  (void)snprintf(mountReq.mountName, sizeof(mountReq.mountName), "%s", pObj->name);
+  (void)snprintf(mountReq.mountPath, sizeof(mountReq.mountPath), "%s", pObj->paths[0]);
+  mountReq.mountId = pObj->uid;
+  mountReq.diskPrimary = pMountVg->diskPrimary;
+  mountReq.mountVgId = pVgroup->mountVgId;
+  mountReq.committed = pMountVg->committed;
+  mountReq.commitID = pMountVg->commitID;
+  mountReq.commitTerm = pMountVg->commitTerm;
 
   mInfo("vgId:%d, mountVgId:%d, mountId:%" PRIi64
         ", name:%s, path:%s, build mount vnode req, replica:%d selfIndex:%d learnerReplica:%d learnerSelfIndex:%d "
@@ -1002,36 +994,31 @@ static int32_t mndBuildMountVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *
   TSDB_CHECK_NULL((pBuf = taosMemoryMalloc(totalLen)), code, lino, _exit, terrno);
   TAOS_CHECK_EXIT(tSerializeSMountVnodeReq(pBuf, &createLen, &totalLen, &mountReq));
 _exit:
-  if (code < 0) {
-    taosMemoryFree(pBuf);
-    terrno = code;
-    return NULL;
+  if (code != 0) {
+    mError("mount:%s, failed at line %d to build mount vnode req since %s", pObj->name, lino, tstrerror(code));
+    taosMemoryFreeClear(pBuf);
+    totalLen = 0;
   }
-  *pContLen = contLen;
-  return pReq;
+  *pContLen = totalLen;
+  *ppReq = pBuf;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndAddMountVnodeAction(SMnode *pMnode, STrans *pTrans, SMountObj *pObj, SMountVgObj *pMountVg) {
-  int32_t      code = 0;
+  int32_t      code = 0, lino = 0;
+  int32_t      contLen = 0;
+  void        *pReq = NULL;
   STransAction action = {0};
   SVgObj      *pVg = &pMountVg->vg;
   SDbObj      *pDb = pMountVg->pDb;
   SVnodeGid   *pVgid = &pVg->vnodeGid[0];
-  void        *pReq = NULL;
 
   SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
-  if (pDnode == NULL) TAOS_RETURN(terrno);
+  if (pDnode == NULL) TAOS_CHECK_EXIT(terrno);
   action.epSet = mndGetDnodeEpset(pDnode);
   mndReleaseDnode(pMnode, pDnode);
 
-  int32_t contLen = 0;
-  if (!(pReq = mndBuildMountVnodeReq(pMnode, pDnode, pDb, pVg, pObj->name, pObj->paths[0], pObj->uid, pMountVg->diskPrimary,
-                                      pVg->mountVgId, pMountVg->committed, pMountVg->commitID, pMountVg->commitTerm,
-                                      &contLen))) {
-    return terrno ? terrno : -1;
-  }
-
-  code = mndBuildMountVnodeReq(pMnode, pDnode, pDb, pVg, pObj, pMountVg, &contLen, pReq);
+  TAOS_CHECK_EXIT(mndBuildMountVnodeReq(pMnode, pDnode, pDb, pVg, pObj, pMountVg, &contLen, &pReq));
 
   action.pCont = pReq;
   action.contLen = contLen;
@@ -1039,11 +1026,12 @@ static int32_t mndAddMountVnodeAction(SMnode *pMnode, STrans *pTrans, SMountObj 
   action.acceptableCode = TSDB_CODE_VND_ALREADY_EXIST;
   action.groupId = pVg->vgId;
 
-  if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
+  TAOS_CHECK_EXIT(mndTransAppendRedoAction(pTrans, &action));
+_exit:
+  if (code < 0) {
+    mError("mount:%s, failed at line %d to add mount vnode action since %s", pObj->name, lino, tstrerror(code));
     taosMemoryFree(pReq);
-    TAOS_RETURN(code);
   }
-
   TAOS_RETURN(code);
 }
 

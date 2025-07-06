@@ -200,7 +200,6 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   memcpy(pCfg, &vnodeCfgDefault, sizeof(SVnodeCfg));
 
   pCfg->vgId = pCreate->vgId;
-  pCfg->mountVgId = pCreate->mountVgId;
   tstrncpy(pCfg->dbname, pCreate->db, sizeof(pCfg->dbname));
   pCfg->dbId = pCreate->dbUid;
   pCfg->szPage = pCreate->pageSize * 1024;
@@ -235,7 +234,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->tsdbCfg.encryptAlgorithm = 0;
 #endif
 
-  pCfg->walCfg.vgId = pCreate->vgId; // pCreate->mountVgId ? pCreate->mountVgId : pCreate->vgId;
+  pCfg->walCfg.vgId = pCreate->vgId;  // pCreate->mountVgId ? pCreate->mountVgId : pCreate->vgId;
   pCfg->walCfg.fsyncPeriod = pCreate->walFsyncPeriod;
   pCfg->walCfg.retentionPeriod = pCreate->walRetentionPeriod;
   pCfg->walCfg.rollPeriod = pCreate->walRollPeriod;
@@ -1103,7 +1102,7 @@ _exit:
 }
 
 static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg, int32_t diskPrimary,
-                            SCreateVnodeReq *req, STfs *pMountTfs) {
+                            SMountVnodeReq *req, STfs *pMountTfs) {
   int32_t    code = 0;
   SVnodeInfo info = {0};
   char       hostDir[TSDB_FILENAME_LEN] = {0};
@@ -1111,13 +1110,14 @@ static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg
   char       mountVnode[32] = {0};
 
   if ((code = vnodeCheckCfg(pCfg)) < 0) {
-    vError("vgId:%d, failed to mount vnode since:%s", pCfg->vgId, tstrerror(code));
+    vError("vgId:%d, mount:%s, failed to mount vnode since:%s", pCfg->vgId, req->mountName, tstrerror(code));
     return code;
   }
 
   vnodeGetPrimaryDir(path, 0, pMgmt->pTfs, hostDir, TSDB_FILENAME_LEN);
   if ((code = taosMkDir(hostDir))) {
-    vError("vgId:%d, failed to prepare vnode dir since %s, host path: %s", pCfg->vgId, tstrerror(code), hostDir);
+    vError("vgId:%d, mount:%s, failed to prepare vnode dir since %s, host path: %s", pCfg->vgId, req->mountName,
+           tstrerror(code), hostDir);
     return code;
   }
 
@@ -1134,14 +1134,14 @@ static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg
   if (vnodeLoadInfo(hostDir, &oldInfo) == 0) {
     if (oldInfo.config.dbId != info.config.dbId) {
       code = TSDB_CODE_VND_ALREADY_EXIST_BUT_NOT_MATCH;
-      vError("vgId:%d, mount:vnode config info already exists at %s. oldDbId:%" PRId64 "(%s) at cluster:%" PRId64
+      vError("vgId:%d, mount:%s, vnode config info already exists at %s. oldDbId:%" PRId64 "(%s) at cluster:%" PRId64
              ", newDbId:%" PRId64 "(%s) at cluser:%" PRId64 ", code:%s",
-             oldInfo.config.vgId, hostDir, oldInfo.config.dbId, oldInfo.config.dbname,
+             oldInfo.config.vgId, req->mountName, hostDir, oldInfo.config.dbId, oldInfo.config.dbname,
              oldInfo.config.syncCfg.nodeInfo[oldInfo.config.syncCfg.myIndex].clusterId, info.config.dbId,
              info.config.dbname, info.config.syncCfg.nodeInfo[info.config.syncCfg.myIndex].clusterId, tstrerror(code));
 
     } else {
-      vWarn("vgId:%d, mount:vnode config info already exists at %s.", oldInfo.config.vgId, hostDir);
+      vWarn("vgId:%d, mount:%s, vnode config info already exists at %s.", oldInfo.config.vgId, req->mountName, hostDir);
     }
     return code;
   }
@@ -1155,89 +1155,85 @@ static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg
     (void)snprintf(hostSubDir, sizeof(hostSubDir), "%s%s%s", hostDir, TD_DIRSEP, vndSubDirs[i]);
     (void)snprintf(mountSubDir, sizeof(mountSubDir), "%s%s%s", mountDir, TD_DIRSEP, vndSubDirs[i]);
     if ((code = taosSymLink(mountSubDir, hostSubDir)) != 0) {
-      vError("vgId:%d, failed to create vnode symlink %s -> %s since %s", info.config.vgId, mountSubDir, hostSubDir,
-             tstrerror(code));
+      vError("vgId:%d, mount:%s, failed to create vnode symlink %s -> %s since %s", info.config.vgId, req->mountName,
+             mountSubDir, hostSubDir, tstrerror(code));
       return code;
     }
   }
   vInfo("vgId:%d, mount:save vnode config while create", info.config.vgId);
   if ((code = vnodeSaveInfo(hostDir, &info)) < 0 || (code = vnodeCommitInfo(hostDir)) < 0) {
-    vError("vgId:%d, failed to save vnode config since %s, mount path: %s", pCfg ? pCfg->vgId : 0, tstrerror(code),
-           hostDir);
+    vError("vgId:%d, mount:%s, failed to save vnode config since %s, mount path: %s", pCfg ? pCfg->vgId : 0,
+           req->mountName, tstrerror(code), hostDir);
     return code;
   }
-  vInfo("vgId:%d, vnode is mounted from %s to %s", info.config.vgId, mountDir, hostDir);
+  vInfo("vgId:%d, mount:%s, vnode is mounted from %s to %s", info.config.vgId, req->mountName, mountDir, hostDir);
   return 0;
 }
 
 int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  int32_t         code = 0, lino = 0;
-  SCreateVnodeReq req = {0};
-  SVnodeCfg       vnodeCfg = {0};
-  SWrapperCfg     wrapperCfg = {0};
-  STfs           *pMountTfs = NULL;
-  char            path[TSDB_FILENAME_LEN] = {0};
-  bool            releaseTfs = false;
+  int32_t          code = 0, lino = 0;
+  SMountVnodeReq   req = {0};
+  SCreateVnodeReq *pCreateReq = &req.createReq;
+  SVnodeCfg        vnodeCfg = {0};
+  SWrapperCfg      wrapperCfg = {0};
+  SVnode          *pImpl = NULL;
+  STfs            *pMountTfs = NULL;
+  char             path[TSDB_FILENAME_LEN] = {0};
+  bool             releaseTfs = false;
 
-  if (tDeserializeSCreateVnodeReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
-    dError("vgId:%d, failed to mount vnode since deserialize request error", req.vgId);
+  if (tDeserializeSMountVnodeReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
+    dError("vgId:%d, failed to mount vnode since deserialize request error", pCreateReq->vgId);
     return TSDB_CODE_INVALID_MSG;
   }
 
-  if (req.learnerReplica == 0) {
-    req.learnerSelfIndex = -1;
+  if (pCreateReq->learnerReplica == 0) {
+    pCreateReq->learnerSelfIndex = -1;
   }
-  for (int32_t i = 0; i < req.replica; ++i) {
-    dInfo("mount:%s, vgId:%d, replica:%d ep:%s:%u dnode:%d", req.mountPath, req.vgId, i, req.replicas[i].fqdn,
-          req.replicas[i].port, req.replicas[i].id);
+  for (int32_t i = 0; i < pCreateReq->replica; ++i) {
+    dInfo("mount:%s, vgId:%d, replica:%d ep:%s:%u dnode:%d", req.mountName, pCreateReq->vgId, i,
+          pCreateReq->replicas[i].fqdn, pCreateReq->replicas[i].port, pCreateReq->replicas[i].id);
   }
-  for (int32_t i = 0; i < req.learnerReplica; ++i) {
-    dInfo("mount:%s, vgId:%d, learnerReplica:%d ep:%s:%u dnode:%d", req.mountPath, req.vgId, i,
-          req.learnerReplicas[i].fqdn, req.learnerReplicas[i].port, req.replicas[i].id);
+  for (int32_t i = 0; i < pCreateReq->learnerReplica; ++i) {
+    dInfo("mount:%s, vgId:%d, learnerReplica:%d ep:%s:%u dnode:%d", req.mountName, pCreateReq->vgId, i,
+          pCreateReq->learnerReplicas[i].fqdn, pCreateReq->learnerReplicas[i].port, pCreateReq->replicas[i].id);
   }
 
   SReplica *pReplica = NULL;
-  if (req.selfIndex != -1) {
-    pReplica = &req.replicas[req.selfIndex];
+  if (pCreateReq->selfIndex != -1) {
+    pReplica = &pCreateReq->replicas[pCreateReq->selfIndex];
   } else {
-    pReplica = &req.learnerReplicas[req.learnerSelfIndex];
+    pReplica = &pCreateReq->learnerReplicas[pCreateReq->learnerSelfIndex];
   }
   if (pReplica->id != pMgmt->pData->dnodeId || pReplica->port != tsServerPort ||
       strcmp(pReplica->fqdn, tsLocalFqdn) != 0) {
-    (void)tFreeSCreateVnodeReq(&req);
+    (void)tFreeSMountVnodeReq(&req);
     code = TSDB_CODE_INVALID_MSG;
-    dError("vgId:%d, dnodeId:%d ep:%s:%u not matched with local dnode, reason:%s", req.vgId, pReplica->id,
-           pReplica->fqdn, pReplica->port, tstrerror(code));
+    dError("mount:%s, vgId:%d, dnodeId:%d ep:%s:%u not matched with local dnode, reason:%s", req.mountName,
+           pCreateReq->vgId, pReplica->id, pReplica->fqdn, pReplica->port, tstrerror(code));
     return code;
   }
-  vmGenerateVnodeCfg(&req, &vnodeCfg);
-  vmGenerateWrapperCfg(pMgmt, &req, &wrapperCfg);
-  // TODO: refact
+  vmGenerateVnodeCfg(pCreateReq, &vnodeCfg);
+  vnodeCfg.mountVgId = req.mountVgId;
+  vmGenerateWrapperCfg(pMgmt, pCreateReq, &wrapperCfg);
   wrapperCfg.mountId = req.mountId;
 
-  SVnodeObj *pVnode = vmAcquireVnodeImpl(pMgmt, req.vgId, false);
-  if (pVnode != NULL && (req.replica == 1 || !pVnode->failed)) {
-    dError("vgId:%d, already exist", req.vgId);
-    (void)tFreeSCreateVnodeReq(&req);
+  SVnodeObj *pVnode = vmAcquireVnodeImpl(pMgmt, pCreateReq->vgId, false);
+  if (pVnode != NULL && (pCreateReq->replica == 1 || !pVnode->failed)) {
+    dError("mount:%s, vgId:%d, already exist", req.mountName, pCreateReq->vgId);
+    (void)tFreeSMountVnodeReq(&req);
     vmReleaseVnode(pMgmt, pVnode);
     code = TSDB_CODE_VND_ALREADY_EXIST;
     return 0;
   }
+  vmReleaseVnode(pMgmt, pVnode);
 
   wrapperCfg.diskPrimary = req.diskPrimary;
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
   TAOS_CHECK_EXIT(vmAcquireMountTfs(pMgmt, req.mountId, req.mountName, req.mountPath, &pMountTfs));
   releaseTfs = true;
 
-  if ((code = vmMountVnode(pMgmt, path, &vnodeCfg, wrapperCfg.diskPrimary, &req, pMountTfs)) < 0) {
-    dError("vgId:%d, failed to create vnode since %s", req.vgId, tstrerror(code));
-    vmReleaseVnode(pMgmt, pVnode);
-    vmCleanPrimaryDisk(pMgmt, req.vgId);
-    (void)tFreeSCreateVnodeReq(&req);
-    return code;
-  }
-  SVnode *pImpl = vnodeOpen(path, 0, pMgmt->pTfs, pMountTfs, pMgmt->msgCb, true);
-  if (pImpl == NULL) {
+  TAOS_CHECK_EXIT(vmMountVnode(pMgmt, path, &vnodeCfg, wrapperCfg.diskPrimary, &req, pMountTfs));
+  if (!(pImpl = vnodeOpen(path, 0, pMgmt->pTfs, pMountTfs, pMgmt->msgCb, true))) {
     TAOS_CHECK_EXIT(terrno != 0 ? terrno : -1);
   }
   if ((code = vmOpenVnode(pMgmt, &wrapperCfg, pImpl)) != 0) {
@@ -1247,26 +1243,25 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   TAOS_CHECK_EXIT(vmWriteVnodeListToFile(pMgmt));
   TAOS_CHECK_EXIT(vmWriteMountListToFile(pMgmt));
 _exit:
-  vmCleanPrimaryDisk(pMgmt, req.vgId);
-
+  vmCleanPrimaryDisk(pMgmt, pCreateReq->vgId);
   if (code != 0) {
-    dError("vgId:%d, vnode management handle msgType:%s, failed at line %d to mount vnode since %s", req.vgId,
+    dError("mount:%s, vgId:%d, msgType:%s, failed at line %d to mount vnode since %s", req.mountName, pCreateReq->vgId,
            TMSG_INFO(pMsg->msgType), lino, tstrerror(code));
-    vmCloseFailedVnode(pMgmt, req.vgId);
+    vmCloseFailedVnode(pMgmt, pCreateReq->vgId);
     vnodeClose(pImpl);
     vnodeDestroy(0, path, pMgmt->pTfs, 0);
     if (releaseTfs) vmReleaseMountTfs(pMgmt, req.mountId, 1);
   } else {
-    dInfo("vgId:%d, vnode management handle msgType:%s, success to mount vnode", req.vgId, TMSG_INFO(pMsg->msgType));
+    dInfo("mount:%s, vgId:%d, msgType:%s, success to mount vnode", req.mountName, pCreateReq->vgId,
+          TMSG_INFO(pMsg->msgType));
   }
 
   pMsg->code = code;
   pMsg->info.rsp = NULL;
   pMsg->info.rspLen = 0;
 
-  (void)tFreeSCreateVnodeReq(&req);
-  terrno = code;
-  return code;
+  (void)tFreeSMountVnodeReq(&req);
+  TAOS_RETURN(code);
 }
 
 #endif  // USE_MOUNT
