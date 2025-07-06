@@ -115,16 +115,6 @@ PARTITION 子句中，为 tbname 定义了一个别名 tname，在 PARTITION 子
 create stream if not exists count_history_s fill_history 1 into count_history as select count(*) from power.meters interval(10s)
 ```
 
-结合 fill_history 1 选项，可以实现只处理特定历史时间范围的数据，例如只处理某历史时刻（2020 年 1 月 30 日）之后的数据。
-```sql
-create stream if not exists count_history_s fill_history 1 into count_history  as select count(*) from power.meters where ts > '2020-01-30' interval(10s)
-```
-
-再如，仅处理某时间段内的数据，结束时间可以是未来时间。
-```sql
-create stream if not exists count_history_s fill_history 1 into count_history as select count(*) from power.meters where ts > '2020-01-30' and ts < '2023-01-01' interval(10s)
-```
-
 如果该流任务已经彻底过期，并且不再想让它检测或处理数据，您可以手动删除它，被计算出的数据仍会被保留。
 
 ### 流计算的触发模式
