@@ -57,9 +57,10 @@ typedef struct {
   char    path[TSDB_MOUNT_PATH_LEN];
 } SMountCfg;
 typedef struct {
-  char  name[TSDB_MOUNT_NAME_LEN];
-  char  path[TSDB_MOUNT_PATH_LEN];
-  STfs *pTfs;
+  char    name[TSDB_MOUNT_NAME_LEN];
+  char    path[TSDB_MOUNT_PATH_LEN];
+  STfs   *pTfs;
+  int32_t nRef;
 } SMountTfs;
 #endif
 typedef struct {
@@ -120,6 +121,9 @@ int32_t    vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl);
 void       vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal, bool keepClosed);
 void       vmCleanPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId);
 void       vmCloseFailedVnode(SVnodeMgmt *pMgmt, int32_t vgId);
+int32_t    vmAcquireMountTfs(SVnodeMgmt *pMgmt, int64_t mountId, const char *mountName, const char *mountPath,
+                             STfs **ppTfs);
+void       vmReleaseMountTfs(SVnodeMgmt *pMgmt, int64_t mountId);
 
 // vmHandle.c
 SArray *vmGetMsgHandles();

@@ -1645,7 +1645,7 @@ static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;

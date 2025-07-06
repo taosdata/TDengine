@@ -1102,62 +1102,6 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t vmGetMountTfs(SVnodeMgmt *pMgmt, int64_t mountId, const char* mountName, const char *mountPath, STfs **ppTfs) {
-  int32_t    code = 0, lino = 0;
-  SArray    *pDisks = NULL;
-  SMountTfs *pMountTfs = NULL;
-  bool       unlock = false;
-
-  pMountTfs = taosHashGet(pMgmt->mountTfsHash, &mountId, sizeof(mountId));
-  if (pMountTfs && *(SMountTfs **)pMountTfs) {
-    if (!(*ppTfs = (*(SMountTfs **)pMountTfs)->pTfs)) {
-      TAOS_CHECK_EXIT(TSDB_CODE_INTERNAL_ERROR);
-    }
-    TAOS_RETURN(code);
-  }
-  if (!mountPath || mountPath[0] == 0 || mountId == 0) {
-    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
-  }
-  (void)(taosThreadMutexLock(&pMgmt->mutex));
-  unlock = true;
-  pMountTfs = taosHashGet(pMgmt->mountTfsHash, &mountId, sizeof(mountId));
-  if (pMountTfs && *(SMountTfs **)pMountTfs) {
-    if (!(*ppTfs = (*(SMountTfs **)pMountTfs)->pTfs)) {
-      TAOS_CHECK_EXIT(TSDB_CODE_INTERNAL_ERROR);
-    }
-    (void)taosThreadMutexUnlock(&pMgmt->mutex);
-    TAOS_RETURN(code);
-  }
-  TAOS_CHECK_EXIT(vmGetMountDisks(pMgmt, mountPath, &pDisks));
-  int32_t numOfDisks = taosArrayGetSize(pDisks);
-  if (numOfDisks <= 0) {
-    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
-  }
-  TSDB_CHECK_NULL((pMountTfs = taosMemoryCalloc(1, sizeof(SMountTfs))), code, lino, _exit, terrno);
-  if (mountName) (void)snprintf(pMountTfs->name, sizeof(pMountTfs->name), "%s", mountName);
-  if (mountPath) (void)snprintf(pMountTfs->path, sizeof(pMountTfs->path), "%s", mountPath);
-  TAOS_CHECK_EXIT(tfsOpen(TARRAY_GET_ELEM(pDisks, 0), numOfDisks, &pMountTfs->pTfs));
-  TAOS_CHECK_EXIT(taosHashPut(pMgmt->mountTfsHash, &mountId, sizeof(mountId), &pMountTfs, POINTER_BYTES));
-_exit:
-  if (unlock) {
-    (void)taosThreadMutexUnlock(&pMgmt->mutex);
-  }
-  taosArrayDestroy(pDisks);
-  if (code != 0) {
-    dError("mount:%d,%s, failed at line %d to get mount tfs since %s", mountId, mountPath ? mountPath : "NULL", lino,
-           tstrerror(code));
-    if (pMountTfs) {
-      tfsClose(pMountTfs->pTfs);
-      taosMemoryFree(pMountTfs);
-    }
-    *ppTfs = NULL;
-  } else {
-    *ppTfs = pMountTfs->pTfs;
-  }
-
-  TAOS_RETURN(code);
-}
-
 static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg, int32_t diskPrimary,
                             SCreateVnodeReq *req, STfs *pMountTfs) {
   int32_t    code = 0;
@@ -1233,6 +1177,7 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SWrapperCfg     wrapperCfg = {0};
   STfs           *pMountTfs = NULL;
   char            path[TSDB_FILENAME_LEN] = {0};
+  bool            releaseTfs = false;
 
   if (tDeserializeSCreateVnodeReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
     dError("vgId:%d, failed to mount vnode since deserialize request error", req.vgId);
@@ -1281,7 +1226,8 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   wrapperCfg.diskPrimary = req.diskPrimary;
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
-  TAOS_CHECK_EXIT(vmGetMountTfs(pMgmt, req.mountId, req.mountName, req.mountPath, &pMountTfs));
+  TAOS_CHECK_EXIT(vmAcquireMountTfs(pMgmt, req.mountId, req.mountName, req.mountPath, &pMountTfs));
+  releaseTfs = true;
 
   if ((code = vmMountVnode(pMgmt, path, &vnodeCfg, wrapperCfg.diskPrimary, &req, pMountTfs)) < 0) {
     dError("vgId:%d, failed to create vnode since %s", req.vgId, tstrerror(code));
@@ -1307,6 +1253,7 @@ _exit:
     dError("vgId:%d, vnode management handle msgType:%s, failed at line %d to mount vnode since %s", req.vgId,
            TMSG_INFO(pMsg->msgType), lino, tstrerror(code));
     vmCloseFailedVnode(pMgmt, req.vgId);
+    if (releaseTfs) vmReleaseMountTfs(pMgmt, req.mountId);
     vnodeClose(pImpl);
     vnodeDestroy(0, path, pMgmt->pTfs, 0);
   } else {

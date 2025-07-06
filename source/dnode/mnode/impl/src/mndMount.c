@@ -1649,27 +1649,29 @@ static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
 }
 #endif
 static int32_t mndSetDropMountRedoActions(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
-  int32_t code = 0;
-#if 0
+  int32_t code = 0, lino = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
 
   while (1) {
-    SVgObj *pVgroup = NULL;
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    SDbObj *pDb = NULL;
+    pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb);
     if (pIter == NULL) break;
-
-    if (pVgroup->dbUid == pDb->uid) {
-      if ((code = mndBuildDropVgroupAction(pMnode, pTrans, pDb, pVgroup)) != 0) {
-        sdbCancelFetch(pSdb, pIter);
-        sdbRelease(pSdb, pVgroup);
-        TAOS_RETURN(code);
+    if (pDb->cfg.isMount) {
+      const char *pDbName = strstr(pDb->name, ".");
+      const char *pMountPrefix = pDbName ? strstr(pDbName + 1, pObj->name) : NULL;
+      if (pMountPrefix && (pMountPrefix == (pDbName + 1)) && (pMountPrefix[strlen(pObj->name)] == '_')) {
+        mInfo("db:%s, is mount db, start to drop", pDb->name);
+        if ((code = mndSetDropDbRedoActions(pMnode, pTrans, pDb)) != 0) {
+          sdbCancelFetch(pSdb, pIter);
+          sdbRelease(pSdb, pDb);
+          TAOS_CHECK_EXIT(code);
+        }
       }
     }
-
-    sdbRelease(pSdb, pVgroup);
+    sdbRelease(pSdb, pDb);
   }
-#endif
+_exit:
   TAOS_RETURN(code);
 }
 
@@ -1736,23 +1738,10 @@ static int32_t mndDropMount(SMnode *pMnode, SRpcMsg *pReq, SMountObj *pObj) {
   mndTransSetDbName(pTrans, pObj->name, NULL);  // TODO
   TAOS_CHECK_EXIT(mndTransCheckConflict(pMnode, pTrans));
 
-#if 0
-  if (mndTopicExistsForDb(pMnode, pDb)) {
-    code = TSDB_CODE_MND_TOPIC_MUST_BE_DELETED;
-    goto _exit;
-  }
-#endif
-
   TAOS_CHECK_EXIT(mndSetDropMountPrepareLogs(pMnode, pTrans, pObj));
   TAOS_CHECK_EXIT(mndSetDropMountCommitLogs(pMnode, pTrans, pObj));
   TAOS_CHECK_EXIT(mndSetDropMountDbLogs(pMnode, pTrans, pObj));  // drop mount dbs/vgs/stbs
-  //   TAOS_CHECK_GOTO(mndDropStreamByDb(pMnode, pTrans, pDb), NULL, _exit);
-  // #ifdef TD_ENTERPRISE
-  //   TAOS_CHECK_GOTO(mndDropViewByDb(pMnode, pTrans, pDb), NULL, _exit);
-  // #endif
-  // TAOS_CHECK_GOTO(mndDropSmasByDb(pMnode, pTrans, pDb), NULL, _exit);
-  // TAOS_CHECK_GOTO(mndDropIdxsByDb(pMnode, pTrans, pDb), NULL, _exit);
-  // TAOS_CHECK_GOTO(mndStreamSetStopStreamTasksActions(pMnode, pTrans, pDb->uid), NULL, _exit);
+
   TAOS_CHECK_EXIT(mndSetDropMountRedoActions(pMnode, pTrans, pObj));
   // TAOS_CHECK_GOTO(mndUserRemoveMount(pMnode, pTrans, pDb->name), NULL, _exit);
 

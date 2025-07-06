@@ -304,6 +304,80 @@ static void vmUnRegisterClosedState(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
     }
   }
 }
+#ifdef USE_MOUNT
+int32_t vmAcquireMountTfs(SVnodeMgmt *pMgmt, int64_t mountId, const char* mountName, const char *mountPath, STfs **ppTfs) {
+  int32_t    code = 0, lino = 0;
+  SArray    *pDisks = NULL;
+  SMountTfs *pMountTfs = NULL;
+  bool       unlock = false;
+
+  pMountTfs = taosHashGet(pMgmt->mountTfsHash, &mountId, sizeof(mountId));
+  if (pMountTfs && *(SMountTfs **)pMountTfs) {
+    if (!(*ppTfs = (*(SMountTfs **)pMountTfs)->pTfs)) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INTERNAL_ERROR);
+    }
+    atomic_add_fetch_32(&(*(SMountTfs **)pMountTfs)->nRef, 1);
+    TAOS_RETURN(code);
+  }
+  if (!mountPath || mountPath[0] == 0 || mountId == 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
+  }
+  (void)(taosThreadMutexLock(&pMgmt->mutex));
+  unlock = true;
+  pMountTfs = taosHashGet(pMgmt->mountTfsHash, &mountId, sizeof(mountId));
+  if (pMountTfs && *(SMountTfs **)pMountTfs) {
+    if (!(*ppTfs = (*(SMountTfs **)pMountTfs)->pTfs)) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INTERNAL_ERROR);
+    }
+    (void)taosThreadMutexUnlock(&pMgmt->mutex);
+    atomic_add_fetch_32(&(*(SMountTfs **)pMountTfs)->nRef, 1);
+    TAOS_RETURN(code);
+  }
+  TAOS_CHECK_EXIT(vmGetMountDisks(pMgmt, mountPath, &pDisks));
+  int32_t numOfDisks = taosArrayGetSize(pDisks);
+  if (numOfDisks <= 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
+  }
+  TSDB_CHECK_NULL((pMountTfs = taosMemoryCalloc(1, sizeof(SMountTfs))), code, lino, _exit, terrno);
+  if (mountName) (void)snprintf(pMountTfs->name, sizeof(pMountTfs->name), "%s", mountName);
+  if (mountPath) (void)snprintf(pMountTfs->path, sizeof(pMountTfs->path), "%s", mountPath);
+  atomic_store_32(&pMountTfs->nRef, 2);  // init and acquire
+  TAOS_CHECK_EXIT(tfsOpen(TARRAY_GET_ELEM(pDisks, 0), numOfDisks, &pMountTfs->pTfs));
+  TAOS_CHECK_EXIT(taosHashPut(pMgmt->mountTfsHash, &mountId, sizeof(mountId), &pMountTfs, POINTER_BYTES));
+_exit:
+  if (unlock) {
+    (void)taosThreadMutexUnlock(&pMgmt->mutex);
+  }
+  taosArrayDestroy(pDisks);
+  if (code != 0) {
+    dError("mount:%d,%s, failed at line %d to get mount tfs since %s", mountId, mountPath ? mountPath : "NULL", lino,
+           tstrerror(code));
+    if (pMountTfs) {
+      tfsClose(pMountTfs->pTfs);
+      taosMemoryFree(pMountTfs);
+    }
+    *ppTfs = NULL;
+  } else {
+    *ppTfs = pMountTfs->pTfs;
+  }
+
+  TAOS_RETURN(code);
+}
+
+void vmReleaseMountTfs(SVnodeMgmt *pMgmt, int64_t mountId) {
+  SMountTfs *pMountTfs = NULL;
+  int32_t    nRef = INT32_MAX;
+
+  pMountTfs = taosHashGet(pMgmt->mountTfsHash, &mountId, sizeof(mountId));
+  if (pMountTfs && *(SMountTfs **)pMountTfs) {
+    if ((nRef = atomic_sub_fetch_32(&(*(SMountTfs **)pMountTfs)->nRef, 1)) <= 0) {
+      tfsClose((*(SMountTfs **)pMountTfs)->pTfs);
+      taosMemoryFree(*(SMountTfs **)pMountTfs);
+      taosHashRemove(pMgmt->mountTfsHash, &mountId, sizeof(mountId));
+    }
+  }
+}
+#endif
 
 int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   SVnodeObj *pVnode = taosMemoryCalloc(1, sizeof(SVnodeObj));
@@ -541,13 +615,14 @@ static void *vmOpenVnodeInThread(void *param) {
 
     STfs *pMountTfs = NULL;
 #ifdef USE_MOUNT
+    bool releaseTfs = false;
     if (pCfg->mountId) {
-      SMountTfs *mountTfs = taosHashGet(pMgmt->mountTfsHash, &pCfg->mountId, sizeof(pCfg->mountId));
-      if (!(mountTfs && *(SMountTfs **)mountTfs && (pMountTfs = (*(SMountTfs **)mountTfs)->pTfs))) {
+      if (vmAcquireMountTfs(pMgmt, pCfg->mountId, NULL, NULL, &pMountTfs) != 0) {
         dError("vgId:%d, failed to get mount tfs by thread:%d", pCfg->vgId, pThread->threadIndex);
         pThread->failed++;
         continue;
       }
+      releaseTfs = true;
     }
 #endif
 
@@ -557,6 +632,9 @@ static void *vmOpenVnodeInThread(void *param) {
       dError("vgId:%d, failed to open vnode by thread:%d since %s", pCfg->vgId, pThread->threadIndex, terrstr());
       if (terrno != TSDB_CODE_NEED_RETRY) {
         pThread->failed++;
+#ifdef USE_MOUNT
+        if (releaseTfs) vmReleaseMountTfs(pMgmt, pCfg->mountId);
+#endif
         continue;
       }
     }
@@ -565,6 +643,9 @@ static void *vmOpenVnodeInThread(void *param) {
       if (vmOpenVnode(pMgmt, pCfg, pImpl) != 0) {
         dError("vgId:%d, failed to open vnode by thread:%d", pCfg->vgId, pThread->threadIndex);
         pThread->failed++;
+#ifdef USE_MOUNT
+        if (releaseTfs) vmReleaseMountTfs(pMgmt, pCfg->mountId);
+#endif
         continue;
       }
     }
@@ -602,6 +683,9 @@ static int32_t vmOpenMountTfs(SVnodeMgmt *pMgmt) {
     }
     TSDB_CHECK_NULL((pMountTfs = taosMemoryCalloc(1, sizeof(SMountTfs))), code, lino, _exit, terrno);
     TAOS_CHECK_EXIT(tfsOpen(TARRAY_GET_ELEM(pDisks, 0), TARRAY_SIZE(pDisks), &pMountTfs->pTfs));
+    (void)snprintf(pMountTfs->name, sizeof(pMountTfs->name), "%s", pCfg->name);
+    (void)snprintf(pMountTfs->path, sizeof(pMountTfs->path), "%s", pCfg->path);
+    pMountTfs->nRef = 1;
     TAOS_CHECK_EXIT(taosHashPut(pMgmt->mountTfsHash, &pCfg->mountId, sizeof(pCfg->mountId), &pMountTfs, POINTER_BYTES));
     taosArrayDestroy(pDisks);
     pDisks = NULL;
