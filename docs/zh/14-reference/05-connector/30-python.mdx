@@ -172,14 +172,15 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
 #### URL 规范
 
 ```text
-[+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<k1>=<v1>[&...<kN>=<vN>]]
-|-----------|---|----------|-----------|-------------------------------------|------------|--------------------------|
-|  protocol |   | username | password  |  addresses                          |   database |   params                 |
+[+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<key1>=<value1>[&...<keyN>=<valueN>]]
+|-----------|---|----------|-----------|-------------------------------------|------------|--------------------------------------|
+|  protocol |   | username | password  |  addresses                          |   database |   params                             |
 ```
 
 - **protocol**：使用 WebSocket 协议建立连接。例如 `ws://localhost:6041`。
 - **username/password**：用于创建连接的用户名及密码。
-- **addresses**：指定创建连接的一个或多个服务器地址，多个地址用英文逗号分隔。对于 IPv6 地址，必须使用中括号括起来（如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。
+- **addresses**：指定创建连接的服务器地址，多个地址间用英文逗号分隔。对于 IPv6 地址，必须使用中括号括起来（如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。
+  - 示例：`ws://host1:6041,host2:6041`。
 - **database**：指定默认连接的数据库名，可选参数。
 - **params**：其他可选参数。例如 token。
 
