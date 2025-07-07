@@ -12,11 +12,14 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql
 import time
-from .rowlength64k import TestRowlength64k
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from test_rowlength64k import TestRowlength64k as Rowlength64kHelper
 
-class TestRowlength64k2():
+class TestRowlength64k3():
 
-    def test_rowlength64k_2(self):
+    def test_rowlength64k_3(self):
         """summary: xxx
 
         description: xxx
@@ -38,14 +41,14 @@ class TestRowlength64k2():
         tdSql.prepare()
         
         startTime_all = time.time() 
+        test_rowlength64k = Rowlength64kHelper()
+        test_rowlength64k.case_init()
         # self.run_1() 
         # self.run_2() 
         # self.run_3() 
-        self.run_4() 
-        #self.run_5() 
-        # self.run_5() 
-        # self.run_6() 
-        # self.run_7() 
+        # self.run_4() 
+        test_rowlength64k.run_6() 
+        test_rowlength64k.run_7() 
         
         endTime_all = time.time()
         print("total time %ds" % (endTime_all - startTime_all))  

@@ -3,10 +3,9 @@ from taos import *
 
 from ctypes import *
 from datetime import datetime
-from new_test_framework.utils import tdLog, tdSql
 import taos
 
-import time
+from new_test_framework.utils import tdLog
 
 
 class TestStmtError:
@@ -28,7 +27,7 @@ class TestStmtError:
         cls.curret_case = 0
 
     def conn(self):
-    # type: () -> taos.TaosConnection
+        # type: () -> taos.TaosConnection
         return taos.connect()
 
     def check_stmt_insert(self,conn):

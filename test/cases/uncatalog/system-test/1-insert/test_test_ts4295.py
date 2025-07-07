@@ -3,12 +3,10 @@ from new_test_framework.utils import tdLog, tdSql
 class TestTs4295:
     """Verify inserting varbinary type data of ts-4295
     """
-    def init(self, conn, logSql, replicaVer=1):
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
-        self.conn = conn
-        self.db_name = "db"
-        self.stable_name = "st"
+        cls.db_name = "db"
+        cls.stable_name = "st"
 
     def test_ts4295(self):
         """summary: xxx

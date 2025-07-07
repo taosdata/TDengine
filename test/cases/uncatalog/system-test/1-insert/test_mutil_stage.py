@@ -1,5 +1,5 @@
 from datetime import datetime
-from platform import platform
+import platform
 from new_test_framework.utils import tdLog, tdSql, tdDnodes
 from new_test_framework.utils import DataSet
 import os

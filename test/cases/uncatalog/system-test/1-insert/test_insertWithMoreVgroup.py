@@ -38,11 +38,12 @@ class TestInsertwithmorevgroup:
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
+        buildPath = ""
 
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            projPath = selfPath[:selfPath.find("test")]
 
         for root, dirs, files in os.walk(projPath):
             if ("taosd" in files or "taosd.exe" in files):
@@ -232,8 +233,10 @@ class TestInsertwithmorevgroup:
 
         threads = []
         for i in range(processNumbers):
-            jsonfile="1-insert/Vgroups%d%d.json"%(vgroups,i)
-            os.system("cp -f 1-insert/manyVgroups.json   %s"%(jsonfile))
+            current_dir = os.path.dirname(__file__)
+            sourcejsonfile = os.path.join(os.path.dirname(__file__), "manyVgroups.json")
+            jsonfile = os.path.join(current_dir, "Vgroups%d%d.json" % (vgroups, i))
+            os.system("cp -f %s %s"%(sourcejsonfile, jsonfile))
             os.system("sed -i 's/\"name\": \"db\",/\"name\": \"%s\",/g' %s"%(dbname,jsonfile))
             os.system("sed -i 's/\"drop\": \"no\",/\"drop\": \"%s\",/g' %s"%(dropdb,jsonfile))
             os.system("sed -i 's/\"host\": \"127.0.0.1\",/\"host\": \"%s\",/g' %s"%(host,jsonfile))

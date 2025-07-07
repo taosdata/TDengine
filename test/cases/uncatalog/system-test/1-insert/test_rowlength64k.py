@@ -20,10 +20,10 @@ import string
 class TestRowlength64k:
     updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 143 ,"querySmaOptimize":1}
     
-    def init(self, conn, logSql, replicaVar):
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
 
+    def case_init(self):
         self.testcasePath = os.path.split(__file__)[0]
         self.testcasePath = self.testcasePath.replace('\\', '//')
         self.testcaseFilename = os.path.split(__file__)[-1]
@@ -1279,6 +1279,7 @@ class TestRowlength64k:
         tdSql.prepare()
         
         startTime_all = time.time() 
+        self.case_init()
         self.run_8() 
         self.run_9() 
         self.run_1() 

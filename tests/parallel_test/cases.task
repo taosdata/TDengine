@@ -402,9 +402,9 @@
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmqDropConsumer.py
 
 
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_stb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_stable.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/stt_blocks_check.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_stb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_stable.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/stt_blocks_check.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_null.py
@@ -413,7 +413,7 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 2
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/database_pre_suf.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/database_pre_suf.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py -Q 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 2
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 4
@@ -469,7 +469,7 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/checkpoint_info.py -N 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/checkpoint_info2.py -N 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_multi_insert.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_multi_insert.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3 -i False
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3 -i False
@@ -641,71 +641,71 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact.py -N 3
 
 
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_create.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_insert.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_delete.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_double.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_replica.py -N 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_stable.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_table.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/boundary.py
-,,n,system-test,python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_comment.py
-#,,n,system-test,python3 ./test.py -f 1-insert/time_range_wise.py
-#,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/block_wise.py
-#,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/create_retentions.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/mutil_stage.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/update_data_muti_rows.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/db_tb_name_check.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/InsertFuturets.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_wide_column.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_column_value.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_from_csv.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_benchmark.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/precisionUS.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/precisionNS.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4219.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/ts-4272.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4295.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td27388.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4479.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td29793.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_timestamp.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td29157.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/ddl_in_sysdb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_create.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_insert.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_delete.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_double.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_replica.py -N 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_stable.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_table.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/boundary.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_comment.py
+#has migrate to new#,,n,system-test,python3 ./test.py -f 1-insert/time_range_wise.py
+#has migrate to new#,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/block_wise.py
+#has migrate to new#,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/create_retentions.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/mutil_stage.py
+#has migrate to new#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/update_data_muti_rows.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/db_tb_name_check.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/InsertFuturets.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_wide_column.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_column_value.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_from_csv.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_benchmark.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/precisionUS.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/precisionNS.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4219.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/ts-4272.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4295.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td27388.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4479.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td29793.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_timestamp.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td29157.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/ddl_in_sysdb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_tag_index.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/information_schema.py
@@ -948,14 +948,14 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -R
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/update_data.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/tb_100w_data_order.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_childtable.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_normaltable.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/keep_expired.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/stmt_error.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py -N 3 -M 3 -i False -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/update_data.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/tb_100w_data_order.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_childtable.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_normaltable.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/keep_expired.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/stmt_error.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py -N 3 -M 3 -i False -n 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union1.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat2.py

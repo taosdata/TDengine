@@ -3,11 +3,9 @@ from new_test_framework.utils import tdLog, tdSql
 class TestTd29157:
     """Verify td-29157
     """
-    def init(self, conn, logSql, replicaVer=1):
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
-        self.conn = conn
-        self.db_name = "td29157"
+        cls.db_name = "td29157"
 
     def test_td29157(self):
         """summary: xxx

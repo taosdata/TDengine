@@ -18,25 +18,25 @@ import time
 class TestRowlength64kBenchmark:
     updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 143 ,"querySmaOptimize":1}
     
-    def init(self, conn, logSql, replicaVar):
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
 
-        self.testcasePath = os.path.split(__file__)[0]
-        self.testcaseFilename = os.path.split(__file__)[-1]
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf %s/%s.sql" % (cls.testcasePath,cls.testcaseFilename))
         
         now = time.time()
-        self.ts = int(round(now * 1000))
-        self.num = 100
+        cls.ts = int(round(now * 1000))
+        cls.num = 100
     
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
+        buildPath = ""
 
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            projPath = selfPath[:selfPath.find("test")]
 
         for root, dirs, files in os.walk(projPath):
             if ("taosd" in files or "taosd.exe" in files):
