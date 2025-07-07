@@ -1032,13 +1032,11 @@ function updateProduct() {
 
   if grep -q "export PATH=$bin_link_dir:\$PATH" ~/.bashrc; then
       echo  "taos bin env has been added to PATH"
-      return
   else
       echo -e  "\n# taos bin env\nexport PATH=$bin_link_dir:\$PATH\n" >> ~/.bashrc
   fi
   if grep -q "export LD_LIBRARY_PATH=$lib_link_dir" ~/.bashrc; then
       echo "taos lib env has been added to LD_LIBRARY_PATH"
-      return
   else
       echo -e  "\n# taos lib env\nexport LD_LIBRARY_PATH=$lib_link_dir\n" >> ~/.bashrc
   fi

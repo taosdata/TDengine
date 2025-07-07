@@ -97,6 +97,10 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -?, --help                 Give this help list.
       --usage                Give a short usage message.
   -V, --version              Print program version.
+  -Z, --connect-mode         The connection method, with 0 indicating the use of 
+                             native connection method, 1 indicating the use of 
+                             WebSocket connection method, and default to native 
+                             connection method. 
 
 Mandatory or optional arguments to long options are also mandatory or optional
 for any corresponding short options.
