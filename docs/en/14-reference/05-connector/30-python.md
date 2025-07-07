@@ -198,7 +198,6 @@ Feel free to [ask questions or report issues](https://github.com/taosdata/taos-c
       - `host`: Host address
       - `port`: Port number
       - `database`: Database name
-      - `websocket`: Specifies the protocol used for the WebSocket connection. Supported values ​​are `http` or `https`.
   - **Return Value**: Connection object.
   - **Exception**: Throws `ConnectionError` exception on operation failure.
 - `fn cursor(&self) -> PyResult<Cursor>`
