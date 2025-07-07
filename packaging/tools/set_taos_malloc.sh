@@ -66,13 +66,13 @@ case "$mode" in
     SH_VARS[2]="export HEAPPROFILE=${install_dir}/taos/log"
     CONF_VARS[0]="LD_PRELOAD=${install_dir}/taos/driver/libtcmalloc.so"
     CONF_VARS[1]="HEAPCHECK=strict"
-    CONF_VARS[2]="HEAPPROFILE=/${install_dir}/taos/log/report"
+    CONF_VARS[2]="HEAPPROFILE=${install_dir}/taos/log/report"
     ;;
   3)
     SH_VARS[0]="export LD_PRELOAD=${install_dir}/taos/driver/libjemalloc.so"
-    SH_VARS[1]="export MALLOC_CONF=\"percpu_arena:percpu,metadata_thp:auto,dirty_decay_ms:10000,metadata_thp:disabled\""
+    SH_VARS[1]="export MALLOC_CONF=\"percpu_arena:percpu,metadata_thp:auto,dirty_decay_ms:10000\""
     CONF_VARS[0]="LD_PRELOAD=${install_dir}/taos/driver/libjemalloc.so"
-    CONF_VARS[1]="MALLOC_CONF=\"percpu_arena:percpu,metadata_thp:auto,dirty_decay_ms:10000,metadata_thp:disabled\""
+    CONF_VARS[1]="MALLOC_CONF=\"percpu_arena:percpu,metadata_thp:auto,dirty_decay_ms:10000\""
     ;;
   4)
     SH_VARS[0]="export LD_PRELOAD=${install_dir}/taos/driver/libjemalloc.so"
