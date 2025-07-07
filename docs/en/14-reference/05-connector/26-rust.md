@@ -101,9 +101,9 @@ TaosBuilder creates a connection builder through a DSN connection description st
 The basic structure of the DSN description string is as follows:
 
 ```text
-<driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
-|------|------------|---|-----------|-----------|------|------|------------|-----------------------|
-|driver|   protocol |   | username  | password  | host | port |  database  |  params               |
+<driver>[+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<key1>=<value1>[&...<keyN>=<valueN>]]
+|------|------------|---|----------|-----------|-------------------------------------|------------|--------------------------------------|
+|driver|   protocol |   | username | password  |  addresses                          |   database |   params                             |
 ```
 
 The meanings of each part are as follows:
@@ -115,7 +115,11 @@ The meanings of each part are as follows:
   - **http/ws**: Create a connection using WebSocket.
   - **https/wss**: Explicitly enable SSL/TLS connection under WebSocket connection mode.
 - **username/password**: Username and password used to create the connection.
-- **host/port**: Specifies the server and port for creating the connection. When the server address and port are not specified (`taos://`), the default for native connections is `localhost:6030`, and for WebSocket connections, it is `localhost:6041`.
+- **addresses**: Specifies the server addresses to create a connection. The following configuration methods are supported:
+  - Native connection: only supports a single address. When the address is not specified, the default is `localhost:6030`.
+    - Example: `taos://localhost:6030` or `taos://` (equivalent to the former).
+  - WebSocket connection: supports multiple addresses, separated by commas. When the address is not specified, the default is `localhost:6041`.
+    - Example: `ws://host1:6041,host2:6041` or `ws://` (equivalent to `ws://localhost:6041`).
 - **database**: Specifies the default database name to connect to, optional parameter.
 - **params**: Other optional parameters.
 
