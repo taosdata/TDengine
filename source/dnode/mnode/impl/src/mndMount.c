@@ -1755,7 +1755,9 @@ static int32_t mndSetDropMountDbLogs(SMnode *pMnode, STrans *pTrans, SMountObj *
       if (pMountPrefix && (pMountPrefix == (pDbName + 1)) && (pMountPrefix[strlen(pObj->name)] == '_')) {
         mInfo("db:%s, is mount db, start to drop", pDb->name);
         if ((code = mndSetDropDbPrepareLogs(pMnode, pTrans, pDb)) != 0 ||
-            (code = mndSetDropDbCommitLogs(pMnode, pTrans, pDb)) != 0) {
+            (code = mndSetDropDbCommitLogs(pMnode, pTrans, pDb)) != 0 ||
+            (code = mndUserRemoveDb(pMnode, pTrans, pDb->name)) != 0 ||
+            (code = mndRemoveAllStbUser(pMnode, pTrans, pDb)) != 0) {
           sdbCancelFetch(pSdb, pIter);
           sdbRelease(pSdb, pDb);
           TAOS_CHECK_EXIT(code);
@@ -1780,6 +1782,33 @@ static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
 }
 #endif
 static int32_t mndSetDropMountRedoActions(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
+  int32_t code = 0, lino = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+
+  while (1) {
+    SDbObj *pDb = NULL;
+    pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb);
+    if (pIter == NULL) break;
+    if (pDb->cfg.isMount) {
+      const char *pDbName = strstr(pDb->name, ".");
+      const char *pMountPrefix = pDbName ? strstr(pDbName + 1, pObj->name) : NULL;
+      if (pMountPrefix && (pMountPrefix == (pDbName + 1)) && (pMountPrefix[strlen(pObj->name)] == '_')) {
+        mInfo("db:%s, is mount db, start to drop", pDb->name);
+        if ((code = mndSetDropDbRedoActions(pMnode, pTrans, pDb)) != 0) {
+          sdbCancelFetch(pSdb, pIter);
+          sdbRelease(pSdb, pDb);
+          TAOS_CHECK_EXIT(code);
+        }
+      }
+    }
+    sdbRelease(pSdb, pDb);
+  }
+_exit:
+  TAOS_RETURN(code);
+}
+
+static int32_t mndUserRemoveMount(SMnode *pMnode, STrans *pTrans, SMountObj *pObj) {
   int32_t code = 0, lino = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
@@ -1872,9 +1901,7 @@ static int32_t mndDropMount(SMnode *pMnode, SRpcMsg *pReq, SMountObj *pObj) {
   TAOS_CHECK_EXIT(mndSetDropMountPrepareLogs(pMnode, pTrans, pObj));
   TAOS_CHECK_EXIT(mndSetDropMountCommitLogs(pMnode, pTrans, pObj));
   TAOS_CHECK_EXIT(mndSetDropMountDbLogs(pMnode, pTrans, pObj));  // drop mount dbs/vgs/stbs
-
   TAOS_CHECK_EXIT(mndSetDropMountRedoActions(pMnode, pTrans, pObj));
-  // TAOS_CHECK_GOTO(mndUserRemoveMount(pMnode, pTrans, pDb->name), NULL, _exit);
 
   int32_t rspLen = 0;
   void   *pRsp = NULL;

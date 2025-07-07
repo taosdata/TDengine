@@ -1322,6 +1322,14 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     }
   }
 
+#ifdef USE_MOUNT
+  if (mndHasMountOnDnode(pMnode, dropReq.dnodeId) && !force) {
+    code = TSDB_CODE_MND_MOUNT_NOT_EMPTY;
+    mError("dnode:%d, failed to drop since %s", dropReq.dnodeId, tstrerror(code));
+    goto _OVER;
+  }
+#endif
+
   int32_t numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
   bool    isonline = mndIsDnodeOnline(pDnode, taosGetTimestampMs());
 
@@ -1364,14 +1372,6 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
            numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
     goto _OVER;
   }
-
-#ifdef USE_MOUNT
-  if (mndHasMountOnDnode(pMnode, pDnode->id) && !force) {
-    code = TSDB_CODE_MND_MOUNT_NOT_EMPTY;
-    mError("dnode:%d, failed to drop since %s", pDnode->id, tstrerror(code));
-    goto _OVER;
-  }
-#endif
 
   code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, pBObj, numOfVnodes, force, dropReq.unsafe);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;

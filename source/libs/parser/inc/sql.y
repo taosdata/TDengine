@@ -727,7 +727,6 @@ tag_item(A) ::= column_name(B) AS column_alias(C).                              
 db_kind_opt(A) ::= .                                                              { A = SHOW_KIND_ALL; }
 db_kind_opt(A) ::= USER.                                                          { A = SHOW_KIND_DATABASES_USER; }
 db_kind_opt(A) ::= SYSTEM.                                                        { A = SHOW_KIND_DATABASES_SYSTEM; }
-db_kind_opt(A) ::= MOUNT.                                                         { A = SHOW_KIND_DATABASES_MOUNT; }
 
 
 /************************************************ tsma ********************************************************/

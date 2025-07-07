@@ -1367,6 +1367,11 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  if (pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
+
   (void)memcpy(&dbObj, pDb, sizeof(SDbObj));
   if (dbObj.cfg.pRetensions != NULL) {
     dbObj.cfg.pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);
@@ -1697,7 +1702,7 @@ static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bo
   TAOS_RETURN(code);
 }
 
-static int32_t mndRemoveAllStbUser(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+int32_t mndRemoveAllStbUser(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   int32_t code = -1;
   void   *pIter = NULL;
   while (1) {
@@ -2227,11 +2232,16 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb), NULL, _OVER);
 
+  if (pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
+
   code = mndTrimDb(pMnode, pDb);
 
 _OVER:
   if (code != 0) {
-    mError("db:%s, failed to process trim db req since %s", trimReq.db, terrstr());
+    mError("db:%s, failed to process trim db req since %s", trimReq.db, tstrerror(code));
   }
 
   mndReleaseDb(pMnode, pDb);
@@ -2300,11 +2310,16 @@ static int32_t mndProcessS3MigrateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb), NULL, _OVER);
 
+  if(pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
+
   code = mndS3MigrateDb(pMnode, pDb);
 
 _OVER:
   if (code != 0) {
-    mError("db:%s, failed to process s3migrate db req since %s", s3migrateReq.db, terrstr());
+    mError("db:%s, failed to process s3migrate db req since %s", s3migrateReq.db, tstrerror(code));
   }
 
   mndReleaseDb(pMnode, pDb);

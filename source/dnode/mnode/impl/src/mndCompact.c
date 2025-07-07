@@ -945,6 +945,11 @@ static int32_t mndCompactDispatch(SRpcMsg *pReq) {
       continue;
     }
 
+    if (pDb->cfg.isMount) {
+      sdbRelese(pSdb, pDb);
+      continue;
+    }
+
     // daysToKeep2 would be altered
     if (pDb->cfg.compactEndTime && (pDb->cfg.compactEndTime <= -pDb->cfg.daysToKeep2)) {
       mWarn("db:%p,%s, compact end time:%dm <= -keep2:%dm , skip", pDb, pDb->name, pDb->cfg.compactEndTime,

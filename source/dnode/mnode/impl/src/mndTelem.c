@@ -52,6 +52,10 @@ static void mndGetStat(SMnode* pMnode, SMnodeStat* pStat) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
     if (pIter == NULL) break;
 
+    if (pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
     pStat->numOfChildTable += pVgroup->numOfTables;
     pStat->numOfColumn += pVgroup->numOfTimeSeries;
     pStat->totalPoints += pVgroup->pointsWritten;

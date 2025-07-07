@@ -220,6 +220,10 @@ SVgObj* mndSchedFetchOneVg(SMnode* pMnode, SStreamObj* pStream) {
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
     if (pIter == NULL) break;
+    if (pVgroup->mountVgId) {
+      sdbRelease(pMnode->pSdb, pVgroup);
+      continue;
+    }
     if (pVgroup->dbUid != pStream->sourceDbUid) {
       sdbRelease(pMnode->pSdb, pVgroup);
       continue;
@@ -297,6 +301,10 @@ static int32_t doAddShuffleSinkTask(SMnode* pMnode, SStreamObj* pStream, SEpSet*
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
     if (pIter == NULL) {
       break;
+    }
+    if (pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
     }
 
     if (!mndVgroupInDb(pVgroup, pStream->targetDbUid)) {
@@ -768,6 +776,10 @@ static int32_t addSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream
     if (pIter == NULL) {
       break;
     }
+    if (pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
 
     if (!mndVgroupInDb(pVgroup, pStream->sourceDbUid)) {
       sdbRelease(pSdb, pVgroup);
@@ -1104,6 +1116,10 @@ static int32_t buildDBVgroupsMap(SMnode* pMnode, SSHashObj* pDbVgroup) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
     if (pIter == NULL) {
       break;
+    }
+    if (pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
     }
 
     pDbInfo = (SDBVgHashInfo*)tSimpleHashGet(pDbVgroup, pVgroup->dbName, strlen(pVgroup->dbName) + 1);
@@ -1608,6 +1624,10 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
     if (pIter == NULL) {
       break;
+    }
+    if (pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
     }
 
     if (!mndVgroupInDb(pVgroup, pTopic->dbUid)) {

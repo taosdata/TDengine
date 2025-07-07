@@ -2558,7 +2558,10 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
     if (terrno != 0) code = terrno;
     goto _OVER;
   }
-
+  if (pVgroup->mountVgId) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
   pDb = mndAcquireDb(pMnode, pVgroup->dbName);
   if (pDb == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -3710,6 +3713,11 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
 
   mInfo("start to balance vgroup");
   if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_BALANCE_VGROUP)) != 0) {
+    goto _OVER;
+  }
+
+  if (sdbGetSize(pMnode->pSdb, SDB_MOUNT) > 0) {
+    code = TSDB_CODE_MND_MOUNT_NOT_EMPTY;
     goto _OVER;
   }
 

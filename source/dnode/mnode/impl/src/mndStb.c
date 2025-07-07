@@ -1095,7 +1095,7 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    if (pVgroup->mountVgId > 0) {
+    if (pVgroup->mountVgId) {
       sdbRelease(pSdb, pVgroup);
       continue;
     }
@@ -1141,6 +1141,10 @@ static int32_t mndProcessTrimDbTimer(SRpcMsg *pReq) {
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
+    if (pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
 
     int32_t code = 0;
 
@@ -1182,6 +1186,10 @@ static int32_t mndProcessS3MigrateDbTimer(SRpcMsg *pReq) {
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
+    if (pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
 
     int32_t code = 0;
 
@@ -1420,6 +1428,10 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   }
 
   if ((code = mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb)) != 0) {
+    goto _OVER;
+  }
+  if (pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
     goto _OVER;
   }
 
@@ -2793,6 +2805,10 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
     code = TSDB_CODE_MND_DB_NOT_EXIST;
     goto _OVER;
   }
+  if (pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
 
   pStb = mndAcquireStb(pMnode, alterReq.name);
   if (pStb == NULL) {
@@ -3090,6 +3106,11 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
 
   if (mndCheckDropStbForStream(pMnode, dropReq.name, pStb->uid) < 0) {
     code = TSDB_CODE_MND_STREAM_MUST_BE_DELETED;
+    goto _OVER;
+  }
+
+  if (pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
     goto _OVER;
   }
 

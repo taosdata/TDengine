@@ -9889,7 +9889,7 @@ _exit:
 static int32_t translateDropMount(STranslateContext* pCxt, SDropMountStmt* pStmt) {
   if (pStmt->mountName[0] == '\0' || IS_SYS_DBNAME(pStmt->mountName)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "Invalid mount name: `%s`",
-                                   pStmt->mountName ? pStmt->mountName : "NULL");
+                                   pStmt->mountName);
   }
   int32_t       code = 0;
   SDropMountReq dropReq = {0};
@@ -15932,8 +15932,6 @@ static int32_t addShowKindCond(const SShowStmt* pShow, SSelectStmt* pSelect) {
         PAR_ERR_RET(addShowUserDatabasesCond(pSelect));
       } else if (pShow->showKind == SHOW_KIND_DATABASES_SYSTEM) {
         PAR_ERR_RET(addShowSystemDatabasesCond(pSelect));
-      } else if (pShow->showKind == SHOW_KIND_DATABASES_MOUNT) {
-        PAR_RET(TSDB_CODE_SUCCESS); // TODO: MOUNT
       } else {
         PAR_RET(TSDB_CODE_SUCCESS);
       }
