@@ -3262,11 +3262,13 @@ static int32_t checkAuthFromMetaData(const SArray* pUsers, SNode** pTagCond) {
 }
 
 static int32_t getTableMetaFromMetaData(const SArray* pTables, STableMeta** pMeta) {
-  if (1 != taosArrayGetSize(pTables) && 2 != taosArrayGetSize(pTables)) {
+  if (0 == taosArrayGetSize(pTables)) {
     return TSDB_CODE_FAILED;
   }
 
   taosMemoryFreeClear(*pMeta);
+  // In single-table scenarios, take the first (and usually only) table
+  // In batch scenarios, this function typically won't be called
   SMetaRes* pRes = taosArrayGet(pTables, 0);
   if (TSDB_CODE_SUCCESS == pRes->code) {
     *pMeta = tableMetaDup((const STableMeta*)pRes->pRes);
@@ -3278,21 +3280,34 @@ static int32_t getTableMetaFromMetaData(const SArray* pTables, STableMeta** pMet
 }
 
 static int32_t addTableVgroupFromMetaData(const SArray* pTables, SVnodeModifyOpStmt* pStmt, bool isStb) {
-  if (1 != taosArrayGetSize(pTables)) {
-    return TSDB_CODE_FAILED;
+  size_t tableCount = taosArrayGetSize(pTables);
+  if (0 == tableCount) {
+    return TSDB_CODE_SUCCESS;
   }
 
-  SMetaRes* pRes = taosArrayGet(pTables, 0);
-  if (TSDB_CODE_SUCCESS != pRes->code) {
-    return pRes->code;
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (size_t i = 0; i < tableCount && TSDB_CODE_SUCCESS == code; ++i) {
+    SMetaRes* pRes = taosArrayGet(pTables, i);
+    if (TSDB_CODE_SUCCESS != pRes->code) {
+      code = pRes->code;
+      break;
+    }
+
+    SVgroupInfo* pVg = pRes->pRes;
+    if (isStb && i == 0) {
+      // For the first table in STB scenario, set vgId
+      pStmt->pTableMeta->vgId = pVg->vgId;
+    }
+
+    // Add vgroup info to hash, skip duplicates
+    void* pExist = taosHashGet(pStmt->pVgroupsHashObj, (const char*)&pVg->vgId, sizeof(pVg->vgId));
+    if (NULL == pExist) {
+      code = taosHashPut(pStmt->pVgroupsHashObj, (const char*)&pVg->vgId, sizeof(pVg->vgId), (char*)pVg,
+                         sizeof(SVgroupInfo));
+    }
   }
 
-  SVgroupInfo* pVg = pRes->pRes;
-  if (isStb) {
-    pStmt->pTableMeta->vgId = pVg->vgId;
-  }
-  return taosHashPut(pStmt->pVgroupsHashObj, (const char*)&pVg->vgId, sizeof(pVg->vgId), (char*)pVg,
-                     sizeof(SVgroupInfo));
+  return code;
 }
 
 static int32_t buildTagNameFromMeta(STableMeta* pMeta, SArray** pTagName) {
@@ -3314,20 +3329,27 @@ static int32_t buildTagNameFromMeta(STableMeta* pMeta, SArray** pTagName) {
 }
 
 static int32_t checkSubtablePrivilegeForTable(const SArray* pTables, SVnodeModifyOpStmt* pStmt) {
-  if (1 != taosArrayGetSize(pTables)) {
-    return TSDB_CODE_FAILED;
-  }
-
-  SMetaRes* pRes = taosArrayGet(pTables, 0);
-  if (TSDB_CODE_SUCCESS != pRes->code) {
-    return pRes->code;
+  size_t tableCount = taosArrayGetSize(pTables);
+  if (0 == tableCount) {
+    return TSDB_CODE_SUCCESS;
   }
 
   SArray* pTagName = NULL;
   int32_t code = buildTagNameFromMeta(pStmt->pTableMeta, &pTagName);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checkSubtablePrivilege((SArray*)pRes->pRes, pTagName, &pStmt->pTagCond);
+
+  // Check privileges for all tables
+  for (size_t i = 0; i < tableCount && TSDB_CODE_SUCCESS == code; ++i) {
+    SMetaRes* pRes = taosArrayGet(pTables, i);
+    if (TSDB_CODE_SUCCESS != pRes->code) {
+      code = pRes->code;
+      break;
+    }
+
+    if (TSDB_CODE_SUCCESS == code) {
+      code = checkSubtablePrivilege((SArray*)pRes->pRes, pTagName, &pStmt->pTagCond);
+    }
   }
+
   taosArrayDestroy(pTagName);
   return code;
 }
@@ -3745,7 +3767,11 @@ static int32_t buildInsertUserAuthReq(const char* pUser, SName* pName, SArray** 
 
   SUserAuthInfo userAuth = {.type = AUTH_TYPE_WRITE};
   snprintf(userAuth.user, sizeof(userAuth.user), "%s", pUser);
-  memcpy(&userAuth.tbName, pName, sizeof(SName));
+  // Set database name for database-level auth instead of table-level auth
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(pName, dbFName);
+  tNameFromString(&userAuth.tbName, dbFName, T_NAME_ACCT | T_NAME_DB);
+
   if (NULL == taosArrayPush(*pUserAuth, &userAuth)) {
     taosArrayDestroy(*pUserAuth);
     *pUserAuth = NULL;
@@ -4071,9 +4097,15 @@ static int32_t buildInsertCatalogReq(SInsertParseContext* pCxt, SVnodeModifyOpSt
     }
   }
 
-  // Handle user auth requests - including all missing cache tables
-  if (taosArrayGetSize(pTables) > 0 || taosArrayGetSize(pUsingTables) > 0) {
-    code = buildInsertUserAuthBatchReq(pCxt->pComCxt->pUser, pTables, pUsingTables, &pCatalogReq->pUser);
+  // Handle user auth request - only need to check current user's permission once
+  if (taosArrayGetSize(pTables) > 0) {
+    // Use the first table for user auth check (user permission is not table-specific)
+    SName* pFirstTable = *(SName**)taosArrayGet(pTables, 0);
+    code = buildInsertUserAuthReq(pCxt->pComCxt->pUser, pFirstTable, &pCatalogReq->pUser);
+  } else if (taosArrayGetSize(pUsingTables) > 0) {
+    // Use the first using table for user auth check
+    SName* pFirstUsingTable = *(SName**)taosArrayGet(pUsingTables, 0);
+    code = buildInsertUserAuthReq(pCxt->pComCxt->pUser, pFirstUsingTable, &pCatalogReq->pUser);
   } else {
     // Compatible with original single table logic
     code = buildInsertUserAuthReq(pCxt->pComCxt->pUser,
