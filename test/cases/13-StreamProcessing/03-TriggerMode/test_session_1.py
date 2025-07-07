@@ -1,10 +1,10 @@
-import threading
 import time
 
 import taos
 from new_test_framework.utils import tdLog, clusterComCheck, tdStream, tdSql
-from test_period_1 import wait_for_insert_complete, check_all_results, wait_for_stream_done_r1, check_ts_step, \
-    clear_output, get_conf_dir
+from test_period_1 import check_all_results, wait_for_stream_done_r1, check_ts_step, \
+    clear_output, do_write_data
+
 
 class WriteDataInfo:
     def __init__(self, num_of_rows, num_of_tables):
@@ -16,15 +16,8 @@ class WriteDataInfo:
         self.delete_data = False
         self.update_data = False
 
-def wait_for_insert_complete_local(info: WriteDataInfo):
-    time.sleep(10)
-    info.start_write = True
 
-    while not info.insert_complete:
-        time.sleep(5)
-        print("wait for inserting completed")
-
-def do_write_data(conf, info: WriteDataInfo):
+def do_write_data_fn(conf, info: WriteDataInfo):
     tdLog.info("start to write data to source table")
     start_ts = 1700000000000
 
@@ -131,85 +124,91 @@ class TestStreamTriggerSession:
         self.stream_id = 1
 
         self.create_env()
-        info = WriteDataInfo(100000, 1)
+        info = WriteDataInfo(1000, 10)
 
-        # self.write_data(100000, 1)
+        self.prepare_source_table(100000, 1, info)
         # try:
         #     self.create_and_check_stream_basic_1("sm1", "tb1")
         # except Exception as e:
         #     tdLog.error(f"case 1 error: {e}")
 
         # clear_output("sm1", "tb1")
-        # self.write_data(100000, 1)
+        # self.prepare_source_table(100000, 1, info)
         # try:
-        #     self.create_and_check_stream_basic_2("sm2", "tb2")
+        #     self.create_and_check_stream_basic_2("sm2", "tb2", info)
         # except Exception as e:
         #     tdLog.error(f"case 2 error: {e}")
 
         # clear_output("sm2", "tb2")
-        # self.write_data(100000, 1)
+        # self.prepare_source_table(100000, 1, info)
         #
         # try:
-        #     self.create_and_check_stream_basic_3("sm3", "tb3")
+        #     self.create_and_check_stream_basic_3("sm3", "tb3", info)
         # except Exception as e:
         #     tdLog.error(f"case 3 error: {e}")
 
         # clear_output("sm3", "tb3")
-        # self.write_data(100000, 1)
+        # self.prepare_source_table(100000, 1, info)
         # try:
-        #     self.create_and_check_stream_basic_4("sm4", "tb4")
+        #     self.create_and_check_stream_basic_4("sm4", "tb4", info)
         # except Exception as e:
         #     tdLog.error(f"case 4 error: {e}")
 
         # clear_output("sm4", "tb4")
-        # self.write_data(10000, 10, False)
+        # self.prepare_source_table(10000, 10, info)
         # try:
-        #     self.create_and_check_stream_basic_5("sm5", "tb5")
+        #     self.create_and_check_stream_basic_5("sm5", "tb5", info)
         # except Exception as e:
         #     tdLog.error(f"case 5 error: {e}")
         #
         # clear_output("sm5", "tb5")
-        # self.write_data(100000, 1)
+        # self.prepare_source_table(100000, 1, info)
         # try:
-        #     self.create_and_check_stream_basic_6("sm6", "tb6")
+        #     self.create_and_check_stream_basic_6("sm6", "tb6", info)
         # except Exception as e:
         #     tdLog.error(f"case 6 error: {e}")
 
         # clear_output("sm6", "tb6")
-        # self.write_data(10000, 10)
+        # self.prepare_source_table(10000, 10, info)
         # try:
-        #     self.create_and_check_stream_basic_7("sm7", "tb7")
+        #     self.create_and_check_stream_basic_7("sm7", "tb7", info)
         # except Exception as e:
         #     tdLog.error(f"case 7 error: {e}")
         #
         # clear_output("sm7", "tb7")
-        # self.write_data(10000, 10)
+        # self.prepare_source_table(10000, 10, info)
         # try:
-        #     self.create_and_check_stream_basic_8("sm8", "tb8")
+        #     self.create_and_check_stream_basic_8("sm8", "tb8", info)
         # except Exception as e:
         #     tdLog.error(f"case 8 error: {e}")
         #
-        clear_output("sm8", "tb8")
-        self.write_data(1000, 10, False, info)
-        try:
-            self.create_and_check_stream_basic_9("sm9", "tb9", info)
-        except Exception as e:
-            tdLog.error(f"case 9 error: {e}")
+        # clear_output("sm8", "tb8")
+        # self.prepare_source_table(1000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_9("sm9", "tb9", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 9 error: {e}")
 
         # clear_output("sm9", "tb9")
-        # self.write_data(1000, 10, False, info)
+        # self.prepare_source_table(1000, 10, False, info)
         # try:
         #     self.create_and_check_stream_basic_10("sm10", "tb10", info)
         # except Exception as e:
         #     tdLog.error(f"case 10 error: {e}")
         #
         # clear_output("sm10", "tb10")
-        # self.write_data(1000, 10, False, info)
+        self.prepare_source_table(1000, 10, info)
         # try:
         #     self.create_and_check_stream_basic_11("sm11", "tb11", info)
         # except Exception as e:
         #     tdLog.error(f"case 11 error: {e}")
 
+        clear_output("sm11", "tb11")
+        self.prepare_source_table(1000, 10, info)
+        try:
+            self.create_and_check_stream_basic_12("sm12", "tb12", info)
+        except Exception as e:
+            tdLog.error(f"case 12 error: {e}")
 
     def create_env(self):
         tdLog.info(f"create {self.num_snode} snode(s)")
@@ -230,7 +229,8 @@ class TestStreamTriggerSession:
         tdLog.info("prepare normal tables for query")
         tdStream.prepareNormalTables(tables=10, rowBatch=1)
 
-    def do_prepare_source_table(self, num_of_tables) -> None:
+    def prepare_source_table(self, num_of_rows, num_of_tables, info: WriteDataInfo) -> None:
+        info.num_of_tables, info.num_of_rows = num_of_tables, num_of_rows
         tdLog.info("prepare tables for trigger")
 
         tdSql.execute("use db")
@@ -240,24 +240,7 @@ class TestStreamTriggerSession:
 
         for i in range(num_of_tables):
             tdSql.execute(f"create table if not exists c{i} using source_table tags({i})")
-
-
-    def write_data(self, num_of_rows, num_of_tables, start_write, info: WriteDataInfo) -> None:
-        info.num_of_tables, info.num_of_rows = num_of_tables, num_of_rows
-        info.start_write = start_write
-
-        tdLog.info("write data to source table in other thread")
-
-        conf = get_conf_dir("taosd")
-        self.do_prepare_source_table(info.num_of_tables)
-
-        try:
-            t = threading.Thread(target=do_write_data, args=(conf, info))
-            t.start()
-        except Exception as e:
-            print("Error: unable to start thread, %s" % e)
-            exit(-1)
-
+            
     def wait_for_stream_completed(self) -> None:
         tdLog.info(f"wait total:{len(self.streams)} streams run finish")
         tdStream.checkStreamStatus()
@@ -267,10 +250,8 @@ class TestStreamTriggerSession:
         for stream in self.streams:
             stream.checkResults()
 
-    def create_and_check_stream_basic_1(self, stream_name, dst_table) -> None:
-        """simple 1
-            Pass
-        """
+    def create_and_check_stream_basic_1(self, stream_name, dst_table, info:WriteDataInfo) -> None:
+        """simple 1 Pass """
         tdSql.execute("use db")
         tdSql.execute(
             f"create stream {stream_name} session(ts, 100s) from source_table into {dst_table} as "
@@ -279,11 +260,11 @@ class TestStreamTriggerSession:
             f"where _c0 >= _twstart and _c0 <= _twend")
         tdLog.info(f"create stream completed, and wait for it completed")
 
-        wait_for_insert_complete(self.num_of_tables, self.num_of_rows)
-        wait_for_stream_done_r1(f"select last(c) from {dst_table}", self.num_of_rows)
+        do_write_data(stream_name, info)
+        wait_for_stream_done_r1(dst_table, f"select last(c) from {dst_table}", info.num_of_rows)
         # check_ts_step(tb_name=dst_table, freq=30)
 
-    def create_and_check_stream_basic_2(self, stream_name, dst_table) -> None:
+    def create_and_check_stream_basic_2(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 2
             Error: results are incorrect
         """
@@ -295,15 +276,14 @@ class TestStreamTriggerSession:
             f"where _c0 >= _twstart and _c0 <= _twend")
         tdLog.info(f"create stream completed, and wait for it completed")
 
-        wait_for_insert_complete(self.num_of_tables, self.num_of_rows)
-        wait_for_stream_done_r1(f"select count(*) from {dst_table}", self.num_of_rows * self.num_of_tables)
+        do_write_data(stream_name, info)
+        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", info.num_of_rows * info.num_of_tables)
         # check_ts_step(tb_name=dst_table, freq=30)
 
 
-    def create_and_check_stream_basic_3(self, stream_name, dst_table) -> None:
-        """simple 3:
-            Error: may report error???
-        pass"""
+    def create_and_check_stream_basic_3(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 3: pass"""
+        
         tdSql.execute("use db")
         tdSql.execute(
             f"create stream {stream_name} session(ts, 30s) from source_table into {dst_table} as "
@@ -311,12 +291,12 @@ class TestStreamTriggerSession:
             f"from source_table interval(1s)")
         tdLog.info(f"create stream completed, and wait for it completed")
 
-        wait_for_insert_complete(self.num_of_tables, self.num_of_rows)
+        do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(f"select last(c) from {dst_table}", self.num_of_rows)
+        wait_for_stream_done_r1(dst_table, f"select last(c) from {dst_table}", info.num_of_rows)
         check_ts_step(tb_name=dst_table, freq=1)
 
-    def create_and_check_stream_basic_4(self, stream_name, dst_table) -> None:
+    def create_and_check_stream_basic_4(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """
         simple 6:
         Error: maybe report error???
@@ -328,12 +308,12 @@ class TestStreamTriggerSession:
 
         tdLog.info(f"create stream completed, and wait for it completed")
 
-        wait_for_insert_complete(self.num_of_tables, self.num_of_rows)
-        wait_for_stream_done_r1(f"select max(c) from {dst_table}", self.num_of_rows - 1)
+        do_write_data(stream_name, info)
+        wait_for_stream_done_r1(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
 
         check_ts_step(tb_name=dst_table, freq=30)
 
-    def create_and_check_stream_basic_5(self, stream_name, dst_table) -> None:
+    def create_and_check_stream_basic_5(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 5: Pass """
         tdSql.execute("use db")
         tdSql.execute(
@@ -344,16 +324,11 @@ class TestStreamTriggerSession:
 
         tdLog.info(f"create stream completed, and wait for it completed")
 
-        time.sleep(10)
-
-        self.enable_write_data()
-        print("start to insert data")
-
-        wait_for_insert_complete(self.num_of_tables, self.num_of_rows)
-        wait_for_stream_done_r1(f"select max(last_k) from tb5", self.num_of_rows - 1)
+        do_write_data(stream_name, info)
+        wait_for_stream_done_r1(dst_table, f"select max(last_k) from tb5", info.num_of_rows - 1)
         # check_ts_step(tb_name=dst_table, freq=30)
 
-    def create_and_check_stream_basic_6(self, stream_name, dst_table) -> None:
+    def create_and_check_stream_basic_6(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 6:
            Error: expect return error
         """
@@ -364,10 +339,10 @@ class TestStreamTriggerSession:
             f"from source_table partition by tbname")
         tdLog.info(f"create stream completed, and wait for it completed")
 
-        wait_for_insert_complete(self.num_of_tables, self.num_of_rows)
-        wait_for_stream_done_r1(f"select max(c) from {dst_table}", self.num_of_rows - 1)
+        do_write_data(stream_name, info)
+        wait_for_stream_done_r1(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
 
-        check_all_results(f"select count(*) from {dst_table}", [[self.num_of_tables * self.num_of_rows]])
+        check_all_results(f"select count(*) from {dst_table}", [[info.num_of_tables * info.num_of_rows]])
 
     def create_and_check_stream_basic_9(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 9:
@@ -386,9 +361,9 @@ class TestStreamTriggerSession:
 
         info.delete_data = False
         info.update_data = False
-        wait_for_insert_complete_local(info)
+        do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(f"select max(c) from {dst_table}", info.num_of_rows - 1)
+        wait_for_stream_done_r1(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
         check_all_results(f"select max(c) from {dst_table} group by tbname",
                           [[999], [999], [999], [999], [999], [999], [999], [999], [999], [999]])
 
@@ -408,9 +383,9 @@ class TestStreamTriggerSession:
         tdLog.info(f"create stream completed, start to write data after 10sec")
 
         info.delete_data = True
-        wait_for_insert_complete_local(info)
+        do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(f"select max(c) from {dst_table}", info.num_of_rows - 1)
+        wait_for_stream_done_r1(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
         check_all_results(f"select count(*) from {dst_table} ", [[5000]])
 
 
@@ -429,12 +404,38 @@ class TestStreamTriggerSession:
         tdLog.info(f"create stream completed, start to write data after 10sec")
 
         info.update_data = True
-        wait_for_insert_complete_local(info)
+        do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(f"select count(*) from {dst_table}", info.num_of_tables)
+        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
         check_all_results(f"select `count(*)`, `c`, `sum(k)` from {dst_table} ",
                           [[1000, 1999, 999500], [1000, 1999, 999500],
                            [1000, 1999, 999500], [1000, 1999, 999500],
                            [1000, 1999, 999500], [1000, 1999, 999500],
                            [1000, 1999, 999500], [1000, 1999, 999500],
                            [1000, 1999, 999500], [1000, 1999, 999500]])
+
+    def create_and_check_stream_basic_12(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 12: Pass
+        """
+        time.sleep(10)
+
+        tdSql.execute("use db")
+        tdSql.execute(
+            f"create stream {stream_name} session(ts, 3s) from source_table partition by tbname into {dst_table} as "
+            f"select _twstart st, _twend et, count(*),  max(k) c, sum(k), first(ts), last(ts) "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 <= _twend group by tbname")
+
+        tdLog.info(f"create stream completed, start to write data after 10sec")
+
+        info.insert_complete = True
+        # do_write_data(stream_name, info)
+
+        tdSql.execute("insert into c0 values('2025-01-01 10:10:10.5', '1', '1', '1') ('2025-01-01 10:10:15.5', '2', '2', '2')"
+                      "('2025-01-01 10:10:20.5', '3', '3', '3')('2025-01-01 10:10:25.5', '4', '4', '4')"
+                      "('2025-01-01 10:10:30.5', '5', '5', '5')")
+
+        wait_for_stream_done_r1(dst_table, dst_table,f"select count(*) from {dst_table}", 4)
+
+        tdSql.execute("insert into c0 values('2025-01-01 10:10:13', '1', '1', '1')('2025-01-01 10:10:18', '1', '1', '1')"
+                      "('2025-01-01 10:10:23', '1', '1', '1')('2025-01-01 10:10:28', '1', '1', '1')")
