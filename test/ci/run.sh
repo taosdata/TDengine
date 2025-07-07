@@ -123,23 +123,55 @@ function prepare_cases() {
     done
 }
 
-function clean_tmp() {
-    # clean tmp dir
+# 判断是否本地host
+function is_local_host() {
+    local check_host="$1"
+    local local_hostnames=("127.0.0.1" "localhost" "::1" "$(hostname)" "$(hostname -I | awk '{print $1}')")
+    for lh in "${local_hostnames[@]}"; do
+        if [[ "$check_host" == "$lh" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+function get_remote_ssh_command() {
     local index=$1
-    local ssh_script="sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
     if [ -z "${passwords[index]}" ]; then
-        ssh_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+        echo "ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+    else
+        echo "sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
     fi
-    local cmd="${ssh_script} rm -rf ${workdirs[index]}/tmp"
-    ${cmd}
+}
+
+function get_remote_scp_command() {
+    local index=$1
+    if [ -z "${passwords[index]}" ]; then
+        echo "scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+    else
+        echo "sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+    fi
+}
+
+function clean_tmp() {
+    local index=$1
+    local cmd=""
+    if is_local_host "${hosts[index]}"; then
+        cmd="rm -rf ${workdirs[index]}/tmp"
+    else
+        local ssh_script=""
+        ssh_script=$(get_remote_ssh_command "$index")
+        cmd="${ssh_script} rm -rf ${workdirs[index]}/tmp"
+    fi
+    $cmd
 }
 
 function run_thread() {
     local index=$1
     local thread_no=$2
-    local runcase_script="sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
-    if [ -z "${passwords[index]}" ]; then
-        runcase_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+    local runcase_script=""
+    if ! is_local_host "${hosts[index]}"; then
+        runcase_script=$(get_remote_ssh_command "$index")
     fi
     local count=0
     local script="${workdirs[index]}/TDengine/test/ci/run_container.sh"
@@ -153,13 +185,11 @@ function run_thread() {
         local line
         line=$(flock -x "$lock_file" -c "head -n1 $task_file;sed -i \"1d\" $task_file")
         if [ "x$line" = "x%%FINISHED%%" ]; then
-            # echo "$index . $thread_no EXIT"
             break
         fi
         if [ -z "$line" ]; then
             continue
         fi
-
         if echo "$line" | grep -q "^#"; then
             continue
         fi
@@ -185,7 +215,6 @@ function run_thread() {
         local case_cmd
         case_cmd=$(echo "$line" | cut -d, -f5)
         local case_file=""
-
         # get the docs-examples test case from cases.task file
         if echo "$case_cmd" | grep -q "\.sh"; then
             case_file=$(echo "$case_cmd" | grep -o ".*\.sh" | awk '{print $NF}')
@@ -223,8 +252,6 @@ function run_thread() {
         if [ -z "$case_file" ]; then
             continue
         fi
-        # case_sql_file="$exec_dir/${case_file}.sql"
-        # case_file="$exec_dir/${case_file}.${index}.${thread_no}.${count}"
         if [ "$exec_dir" == "." ]; then
             case_sql_file="${case_file}.sql"
             case_file="${case_file}.${index}.${thread_no}.${count}"
@@ -260,9 +287,12 @@ function run_thread() {
             echo "$current_time" >>"$case_log_file"
             local real_start_time
             real_start_time=$(date +%s)
-            # $cmd 2>&1 | tee -a $case_log_file
-            # ret=${PIPESTATUS[0]}
-            $cmd >>"$case_log_file" 2>&1
+            # echo "cmd:${cmd}"
+            if ! is_local_host "${hosts[index]}"; then
+                $cmd >>"$case_log_file" 2>&1
+            else
+                bash -c "$cmd" >>"$case_log_file" 2>&1
+            fi
             ret=$?
             local real_end_time
             real_end_time=$(date +%s)
@@ -313,16 +343,17 @@ function run_thread() {
         echo "${hosts[index]} total time: ${total_time}s" >>"$case_log_file"
         # echo "$thread_no ${line} DONE"
 
-        local scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-        if [ -z "${passwords[index]}" ]; then
-            scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-        fi
-        # save allure report results
+        local scpcmd=""
         local allure_report_results="${workdirs[index]}/tmp/thread_volume/$thread_no/allure-results"
-        cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
-        $cmd
-        echo "Save allure report results to $log_dir/allure-results/ from $allure_report_results with cmd: $cmd"
-
+        if ! is_local_host "${hosts[index]}"; then
+            scpcmd=$(get_remote_scp_command "$index")
+            cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
+            bash -c "$cmd"
+        else
+            cmd="cp -rf ${allure_report_results}/* $log_dir/allure-results/"
+            bash -c "$cmd"
+        fi
+        echo "Save allure report results to $log_dir/allure-results/ from ${allure_report_results} with cmd: $cmd"
         if [ $ret -eq 0 ]; then
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[32m success\e[0m"
             flock -x "$lock_file" -c "echo \"${case_info}|success|${total_time}\" >>${success_case_file}"
@@ -334,8 +365,12 @@ function run_thread() {
             fi
             mkdir -p "${log_dir}"/"${case_file}".coredump
             local remote_coredump_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/coredump"
-            cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
-            $cmd # 2>/dev/null
+            if ! is_local_host "${hosts[index]}"; then
+                cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+            else
+                cmd="cp -rf ${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+            fi
+            bash -c "$cmd" >/dev/null
             local corefile
             corefile=$(ls "$log_dir/${case_file}.coredump/")
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[31m failed\e[0m"
@@ -349,51 +384,58 @@ function run_thread() {
             if [ -n "$corefile" ]; then
                 echo -e "\e[34m corefiles: $corefile \e[0m"
             fi
-            # scp build binary and unit test log
             local build_dir=$log_dir/build_${hosts[index]}
             local remote_build_dir="${workdirs[index]}/${DEBUGPATH}/build"
             local remote_unit_test_log_dir="${workdirs[index]}/${DEBUGPATH}/Testing/Temporary/"
-
-            mkdir "$build_dir" 2>/dev/null
+            mkdir "$build_dir" >/dev/null
             if [ $? -eq 0 ]; then
-                cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
-                echo "$cmd"
-                $cmd >/dev/null
-                cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
-                echo "$cmd"
-                $cmd >/dev/null
+                if ! is_local_host "${hosts[index]}"; then
+                    cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
+                    echo "$cmd"
+                    bash -c "$cmd" >/dev/null
+                    cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
+                    echo "$cmd"
+                    bash -c "$cmd" >/dev/null
+                else
+                    cmd="cp -rf ${remote_build_dir}/* ${build_dir}/"
+                    echo "$cmd"
+                    bash -c "$cmd" >/dev/null
+                    cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
+                    echo "$cmd"
+                    bash -c "$cmd" >/dev/null
+                fi
             fi
-
-            # get remote sim dir
             local remote_sim_dir="${workdirs[index]}/tmp/thread_volume/$thread_no"
-            local tarcmd="sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-            if [ -z "${passwords[index]}" ]; then
-                tarcmd="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+            if ! is_local_host "${hosts[index]}"; then
+                cmd="$runcase_script sh -c \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
+            else
+                cmd="cd $remote_sim_dir; tar -czf sim.tar.gz sim"
             fi
-            cmd="$tarcmd sh -c \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
-            $cmd
+            bash -c "$cmd"
             local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
             local remote_case_sql_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${case_sql_file}"
-            local scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
-            if [ -z "${passwords[index]}" ]; then
-                scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+            if ! is_local_host "${hosts[index]}"; then
+                cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
+                bash -c "$cmd"
+                cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
+                bash -c "$cmd"
+            else
+                cmd="cp -f ${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
+                bash -c "$cmd"
+                cmd="cp -f ${remote_case_sql_file} $log_dir/${case_file}.sql"
+                bash -c "$cmd"
             fi
-            cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
-            $cmd
-            cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
-            $cmd
-            
-            # backup source code (disabled)
-            source_tar_dir=$log_dir/TDengine_${hosts[index]}
-            source_tar_file=TDengine.tar.gz
-            if [ $ent -ne 0 ]; then
-                source_tar_dir=$log_dir/TDinternal_${hosts[index]}
-                source_tar_file=TDinternal.tar.gz
-            fi
-            mkdir "$source_tar_dir" 2>/dev/null
-            if [ $? -eq 0 ]; then
-                cmd="$scpcmd:${workdirs[index]}/$source_tar_file $source_tar_dir"
-            fi
+            # # backup source code (disabled)
+            # source_tar_dir=$log_dir/TDengine_${hosts[index]}
+            # source_tar_file=TDengine.tar.gz
+            # if [ $ent -ne 0 ]; then
+            #     source_tar_dir=$log_dir/TDinternal_${hosts[index]}
+            #     source_tar_file=TDinternal.tar.gz
+            # fi
+            # mkdir "$source_tar_dir" 2>/dev/null
+            # if [ $? -eq 0 ]; then
+            #     cmd="$scpcmd:${workdirs[index]}/$source_tar_file $source_tar_dir"
+            # fi
         fi
     done
 }
