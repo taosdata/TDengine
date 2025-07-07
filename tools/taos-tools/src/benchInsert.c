@@ -3303,13 +3303,7 @@ static void initStmtData(char dataType, void **data, uint32_t length) {
             errorPrint("Not implemented data type in func initStmtData: %s\n",
                        convertDatatypeToString(dataType));
             exit(EXIT_FAILURE);
-        case TSDB_DATA_TYPE_BLOB: {
-            tmpP = calloc(1, g_arguments->prepared_rand * (TSDB_MAX_BLOB_LEN - 4));
-            assert(tmpP);
-            tmfree(*data);
-            *data = (void *)tmpP;
-            break;
-        }
+
         default:
             errorPrint("Unknown data type on initStmtData: %s\n",
                        convertDatatypeToString(dataType));

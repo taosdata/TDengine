@@ -6,7 +6,7 @@
     "user": "root",
     "password": "taosdata",
     "connection_pool_size": 8,
-    "thread_count": 1,
+    "thread_count": 4,
     "create_table_thread_count": 4,
     "result_file": "./insert_res.txt",
     "confirm_parameter_prompt": "no",
@@ -50,8 +50,7 @@
                     "columns": [
                         {"type": "FLOAT", "name": "current", "count": 1, "max": 12, "min": 8 },
                         { "type": "INT", "name": "voltage", "max": 225, "min": 215 },
-                        { "type": "FLOAT", "name": "phase", "max": 1, "min": 0 },
-                        { "type": "BLOB", "name": "bob" }
+                        { "type": "FLOAT", "name": "phase", "max": 1, "min": 0 }
                     ],
                     "tags": [
                         {"type": "TINYINT", "name": "groupid", "max": 10, "min": 1},

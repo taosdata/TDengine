@@ -472,8 +472,6 @@ char *convertDatatypeToString(int type) {
             return "varbinary";
         case TSDB_DATA_TYPE_GEOMETRY:
             return "geometry";
-        case TSDB_DATA_TYPE_BLOB:
-            return "blob";
         case TSDB_DATA_TYPE_DECIMAL:
         case TSDB_DATA_TYPE_DECIMAL64:
             return "decimal";
@@ -766,8 +764,6 @@ int convertStringToDatatype(char *type, int length, void* ctx) {
             return TSDB_DATA_TYPE_DECIMAL;
         else
             return TSDB_DATA_TYPE_DECIMAL64;
-    } else if (0 == strCompareN(type, "blob", length)) {
-        return TSDB_DATA_TYPE_BLOB;
     } else {
         errorPrint("unknown data type: %s\n", type);
         exit(EXIT_FAILURE);

@@ -725,7 +725,8 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
     }
 
     SRow* pRow = NULL;
-    if ((terrno = tRowBuild(pVals, pTSchema, &pRow)) < 0) {
+    SRowBuildScanInfo sinfo = {0};
+    if ((terrno = tRowBuild(pVals, pTSchema, &pRow, &sinfo)) < 0) {
       tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
       goto _end;
     }
