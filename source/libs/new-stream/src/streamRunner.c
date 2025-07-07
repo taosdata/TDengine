@@ -408,46 +408,69 @@ static int32_t stRunnerForceOutput(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
   int32_t             rowIdx = 0;
   int32_t             rowsToCopy = 0;
   SSDataBlock*        pSecondBlock = NULL;
-  bool                allRowsConsumed = false;
 
   for (; curWinIdx < totalWinNum && code == 0;) {
     int64_t ts = INT64_MAX;
     if (rowIdx < rowsInput) {
       ts = *(int64_t*)colDataGetNumData(pTsCol, rowIdx);
-      assert(ts >= curWin.skey);
+      if (ts < curWin.skey) {
+        ST_TASK_ILOG("ts:%" PRId64 " is less than current window start key:%" PRId64
+                     ", skip this row, curWinIdx:%d, totalWinNum:%d", ts, curWin.skey, curWinIdx, totalWinNum);
+        rowIdx++;
+        continue;
+      }
     }
     if (ts < curWin.ekey) {
       // cur window already has data
       rowIdx++;
       rowsToCopy++;
-      if (rowIdx >= rowsInput) {
-        allRowsConsumed = true;
-      }
       continue;
     } else if (ts >= curWin.ekey) {
+      if(ts  == curWin.ekey) {
+        rowIdx++;
+        rowsToCopy++;
+      }
       if (rowsToCopy > 0) {
         // copy rows of prev windows
         if (!*ppForceOutBlock) {
           code = createOneDataBlock(pBlock, false, ppForceOutBlock);
+          if (code == 0) {
+            code = blockDataEnsureCapacity(*ppForceOutBlock, totalWinNum);
+          }
         }
-        if (code == 0) code = blockDataMergeNRows(*ppForceOutBlock, pBlock, rowIdx - rowsToCopy, rowsToCopy);
+        if (code == 0) {
+          code = blockDataEnsureCapacity(*ppForceOutBlock, (*ppForceOutBlock)->info.capacity + rowIdx - rowsToCopy);
+        }
+        if (code == 0) {
+          code = blockDataMergeNRows(*ppForceOutBlock, pBlock, rowIdx - rowsToCopy, rowsToCopy);
+        }
         if (code != 0) break;
-        rowsToCopy = 0;
-        if (allRowsConsumed) break;
+      } else {
+        code = streamForceOutput(pExec->pExecutor, ppForceOutBlock, curWinIdx);
       }
+      rowsToCopy = 0; // reset for next window
+
       curWinIdx++;
-      assert(curWinIdx < taosArrayGetSize(pTriggerCalcParams));
+      if(curWinIdx >= totalWinNum) {
+        // no more windows to process
+        break;
+      }
+
       pTriggerCalcParam = taosArrayGet(pTriggerCalcParams, curWinIdx);
       curWin.skey = pTriggerCalcParam->wstart;
       curWin.ekey = pTriggerCalcParam->wend;
-      if (ts >= curWin.ekey) {
-        // cur win has no data
-        code = streamForceOutput(pExec->pExecutor, ppForceOutBlock, curWinIdx);
-      }
     }
   }
   *pWinIdx = curWinIdx;
   pExec->runtimeInfo.funcInfo.curOutIdx = curWinIdx;
+  if (code != 0) {
+    ST_TASK_ELOG("failed to force output for stream task, code:%s", tstrerror(code));
+    if (*ppForceOutBlock) {
+      blockDataDestroy(*ppForceOutBlock);
+      *ppForceOutBlock = NULL;
+    }
+    return code;
+  }
   return code;
 }
 

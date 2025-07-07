@@ -498,6 +498,7 @@ static int32_t setExtWindowOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindow
 
 static int32_t extWindowDoHashAgg(SOperatorInfo* pOperator, int32_t startPos, int32_t forwardRows,
                                   SSDataBlock* pInputBlock) {
+  if (forwardRows == 0) return 0;
   SExprSupp*               pSup = &pOperator->exprSupp;
   SExternalWindowOperator* pExtW = pOperator->info;
   return applyAggFunctionOnPartialTuples(pOperator->pTaskInfo, pSup->pCtx, &pExtW->twAggSup.timeWindowData, startPos,
