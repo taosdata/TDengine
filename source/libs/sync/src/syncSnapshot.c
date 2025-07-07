@@ -197,6 +197,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
     dataLen = sizeof(SSyncTLV) + datHead->len;
   }
 
+  sInfo("vgId:%d, step:1:leader send msg:%s", pSyncNode->vgId, TMSG_INFO(type));
   if ((code = syncSnapSendMsg(pSender, pSender->seq, pData, dataLen, type)) != 0) {
     goto _out;
   }
@@ -1058,8 +1059,9 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
 
   // prepare
   if (pMsg->seq == SYNC_SNAPSHOT_SEQ_PREP) {
-    sInfo("vgId:%d, prepare snap replication. msg signature:(%" PRId64 ", %" PRId64 ")", pSyncNode->vgId, pMsg->term,
-          pMsg->startTime);
+    sInfo("vgId:%d, step:2:follower, recv msg:%s, snap seq:%d, prepare snap replication. msg signature:(%" PRId64
+          ", %" PRId64 ")",
+          pSyncNode->vgId, TMSG_INFO(pRpcMsg->msgType), pMsg->seq, pMsg->term, pMsg->startTime);
     code = syncNodeOnSnapshotPrep(pSyncNode, pMsg);
     goto _out;
   }
@@ -1132,7 +1134,8 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
 
   if (pMsg->snapBeginIndex > pSyncNode->commitIndex) {
     sSError(pSender,
-            "snapshot begin index is greater than commit index. snapBeginIndex:%" PRId64 ", commitIndex:%" PRId64,
+            "snapshot begin index is greater than commit index. msg snapBeginIndex:%" PRId64
+            ", node commitIndex:%" PRId64,
             pMsg->snapBeginIndex, pSyncNode->commitIndex);
     TAOS_RETURN(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG);
   }
@@ -1307,7 +1310,7 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
 
   // send begin
   if (pMsg->ack == SYNC_SNAPSHOT_SEQ_PREP) {
-    sSInfo(pSender, "process prepare rsp");
+    sSInfo(pSender, "step:3:leader, msg:%s, snap ack:%d, process prepare rsp", TMSG_INFO(pRpcMsg->msgType), pMsg->ack);
     if ((code = syncNodeOnSnapshotPrepRsp(pSyncNode, pSender, pMsg)) != 0) {
       goto _ERROR;
     }
