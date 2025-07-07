@@ -572,6 +572,12 @@ _exit:
 int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
 
+  if (pVnode->config.mountVgId) {
+    vError("vgId:%d, mountVgId:%d, skip write msg:%s", TD_VID(pVnode), pVnode->config.mountVgId,
+           TMSG_INFO(pMsg->msgType));
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+
   switch (pMsg->msgType) {
     case TDMT_VND_CREATE_TABLE: {
       code = vnodePreProcessCreateTableMsg(pVnode, pMsg);
