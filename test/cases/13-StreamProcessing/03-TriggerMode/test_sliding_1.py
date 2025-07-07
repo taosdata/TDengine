@@ -132,19 +132,19 @@ class TestStreamTriggerSliding:
         # except Exception as e:
         #     tdLog.error(f"case 13 error: {e}")
 
-        # clear_output("sm13", "tb13")
-        # self.prepare_tables(1000, 10, info)
-        # try:
-        #     self.create_and_check_stream_basic_14("sm14", "tb14", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 14 error: {e}")
-
-        clear_output("sm14", "tb14")
-        self.prepare_tables(10000, 10, info)
+        clear_output("sm13", "tb13")
+        self.prepare_tables(1000, 10, info)
         try:
-            self.create_and_check_stream_basic_15("sm15", "tb15", info)
+            self.create_and_check_stream_basic_14("sm14", "tb14", info)
         except Exception as e:
-            tdLog.error(f"case 15 error: {e}")
+            tdLog.error(f"case 14 error: {e}")
+
+        # clear_output("sm14", "tb14")
+        # self.prepare_tables(10000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_15("sm15", "tb15", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 15 error: {e}")
 
     def create_env(self):
         tdLog.info(f"create {self.num_snode} snode(s)")
@@ -487,7 +487,7 @@ class TestStreamTriggerSliding:
 
         tdSql.execute("use db")
         tdSql.execute(
-            f"create stream {stream_name} interval(3s) sliding(3s) from source_table partition by tbname into {dst_table} as "
+            f"create stream {stream_name} interval(3s) sliding(3s) from source_table partition by tbname options(DELETE_OUTPUT_TABLE) into {dst_table} as "
             f"select _twstart st, _twend et, count(*),  max(k) c, sum(k), first(ts), last(ts) "
             f"from source_table "
             f"where _c0 >= _twstart and _c0 <= _twend group by tbname")
@@ -509,8 +509,8 @@ class TestStreamTriggerSliding:
                       "('2025-01-01 10:10:23', '1', '1', '1')('2025-01-01 10:10:28', '1', '1', '1')")
 
         time.sleep(5)
-        check_all_results(f"select st, et, `count(*)`, c, `sum(k)` from {dst_table} ",
-                          [['2025-01-01 10:10:10.500', '', 9, 5, 19]])
+        check_all_results(f"select count(*) from information_schema.ins_tables where stable_name='{dst_table}'",
+                          [[1]])
 
     def create_and_check_stream_basic_15(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 5: invalid results"""
