@@ -39,7 +39,8 @@ typedef struct {
   int8_t  compressType;
   int32_t blockSize;
   int8_t  clearUncommittedFile;
-  int32_t keepDays;
+  int64_t keepDays;
+  int64_t retention;
 
   int32_t tableCacheSize;
   int32_t blockCacheSize;
@@ -88,17 +89,18 @@ int32_t bseSnapReaderClose(SBseSnapReader **reader);
 int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse);
 void    bseClose(SBse *pBse);
 
-int32_t bseReload(SBse *pBse);
 int32_t bseAppend(SBse *pBse, uint64_t *seq, uint8_t *value, int32_t len);
 int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len);
 int32_t bseCommit(SBse *pBse);
 int32_t bseRollback(SBse *pBse, int64_t ver);
-int32_t bseBeginSnapshot(SBse *pBse, int64_t ver);
-int32_t bseEndSnapshot(SBse *pBse);
-int32_t bseStopSnapshot(SBse *pBse);
+// int32_t bseBeginSnapshot(SBse *pBse, int64_t ver);
+// int32_t bseEndSnapshot(SBse *pBse);
+// int32_t bseStopSnapshot(SBse *pBse);
 int32_t bseCompact(SBse *pBse);
 int32_t bseDelete(SBse *pBse, SSeqRange range);
 int32_t bseCommitBatch(SBse *pBse, SBseBatch *pBatch);
+int32_t bseReload(SBse *pBse);
+int32_t bseTrim(SBse *pBse);
 
 #ifdef __cplusplus
 }

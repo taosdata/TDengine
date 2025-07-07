@@ -33,6 +33,8 @@ exe:
 	gcc $(CFLAGS) ./stmt2-insert-dupkeys.c  -o $(ROOT)stmt2-insert-dupkeys $(LFLAGS)
 	gcc $(CFLAGS) ./insertBlob.c  -o $(ROOT)insertBlob $(LFLAGS)
 	gcc $(CFLAGS) ./stmt2-performance.c  -o $(ROOT)stmt2-performance $(LFLAGS)
+	gcc $(CFLAGS) ./stmt2-blob-performance.c  -o $(ROOT)stmt2-blob-performance $(LFLAGS)
+	gcc $(CFLAGS) ./stmt2-blob-example.c  -o $(ROOT)stmt2-blob-example $(LFLAGS)
 
 clean:
 	rm $(ROOT)batchprepare
@@ -51,3 +53,6 @@ clean:
 	rm $(ROOT)stmt2-insert-dupkeys
 	rm $(ROOT)insertBlob
 	rm $(ROOT)stmt2-performance
+	rm $(root)stmt2-blob-performance
+	rm $(root)stmt2-blob-example
+

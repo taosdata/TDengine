@@ -412,7 +412,13 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
     TSDB_CHECK_CODE(code = terrno, lino, _err);
   }
 
-  p->retention = 10 * 3600 * 24;
+  p->retention = pCfg->retention;
+  if (p->retention <= 0) {
+    p->retention = 10 * 24 * 3600;  // default to 1 year
+  }
+
+  p->keepDays = pCfg->keepDays;
+
   p->cfg = *pCfg;
   bseCfgSetDefault(&p->cfg);
 
@@ -533,6 +539,10 @@ _error:
     bseError("vgId:%d failed to reload bse at line %d since %s", BSE_GET_VGID(pBse), lino, tstrerror(code));
   }
   taosThreadMutexUnlock(&pBse->mutex);
+  return code;
+}
+int32_t bseTrim(SBse *pBse) {
+  int32_t code = 0;
   return code;
 }
 
@@ -981,22 +991,8 @@ int32_t bseRollbackImpl(SBse *pBse) {
   return code;
 }
 
-int32_t bseBeginSnapshot(SBse *pBse, int64_t ver) {
-  int32_t code = 0;
-  return 0;
-}
-
-int32_t bseEndSnapshot(SBse *pBse) {
-  int32_t code = 0;
-  return code;
-}
-
-int32_t bseStopSnapshot(SBse *pBse) {
-  int32_t code = 0;
-  return code;
-}
-
 int32_t bseCompact(SBse *pBse) {
+  // impl later
   int32_t code = 0;
   return code;
 }

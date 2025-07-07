@@ -61,6 +61,7 @@ struct SBse {
 
   int64_t latestSt;
   int64_t retention;
+  int64_t keepDays;
 };
 
 struct SBseBatch {

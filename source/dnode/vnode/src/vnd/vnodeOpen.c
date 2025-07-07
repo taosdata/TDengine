@@ -521,7 +521,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   vInfo("vgId:%d, start to open blob store engine", TD_VID(pVnode));
   (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_BSE_DIR);
 
-  SBseCfg cfg = {.vgId = pVnode->config.vgId};
+  SBseCfg cfg = {.vgId = pVnode->config.vgId, .keepDays = 365 * 24 * 3600};
   code = bseOpen(tdir, &cfg, &pVnode->pBse);
   if (code != 0) {
     vError("vgId:%d, failed to open blob store engine since %s", TD_VID(pVnode), tstrerror(code));
