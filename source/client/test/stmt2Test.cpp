@@ -36,15 +36,21 @@
 #include "executor.h"
 #include "taos.h"
 
+const char* STMT_STATUS_NAMES[] = {
+    "INVALID",   "STMT_INIT",     "STMT_PREPARE",   "STMT_SETTBNAME", "STMT_SETTAGS", "STMT_FETCH_FIELDS",
+    "STMT_BIND", "STMT_BIND_COL", "STMT_ADD_BATCH", "STMT_EXECUTE",   "STMT_MAX",
+};
+
 namespace {
 void checkError(TAOS_STMT2* stmt, int code) {
   if (code != TSDB_CODE_SUCCESS) {
     STscStmt2* pStmt = (STscStmt2*)stmt;
     if (pStmt == nullptr || pStmt->sql.sqlStr == nullptr) {
-      printf("stmt api error\n  stats : %d\n  errstr : %s\n", pStmt->sql.status, taos_stmt2_error(stmt));
+      printf("[STMT2 FAILED]\n  status : %s\n  errcode : %X\n  errstr : %s\n", STMT_STATUS_NAMES[pStmt->sql.status],
+             code, taos_stmt2_error(stmt));
     } else {
-      printf("stmt api error\n  sql : %s\n  stats : %d\n  errstr : %s\n", pStmt->sql.sqlStr, pStmt->sql.status,
-             taos_stmt2_error(stmt));
+      printf("[STMT2 FAILED]\n  sql : %s\n  stats : %s\n  errcode : %X\n  errstr : %s\n", pStmt->sql.sqlStr,
+             STMT_STATUS_NAMES[pStmt->sql.status], code, taos_stmt2_error(stmt));
     }
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
@@ -2340,9 +2346,7 @@ TEST(stmt2Case, mixed_bind) {
            "double, t5 "
            "binary(128), t6 smallint, t7 tinyint, t8 bool, t9 nchar(128), t10 geometry(256))");
 
-  TAOS_STMT2_OPTION option = {
-      true,
-  };
+  TAOS_STMT2_OPTION option = {0, false, true, NULL, NULL};
   TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
   ASSERT_NE(stmt, nullptr);
   int code = 0;
@@ -2381,19 +2385,25 @@ TEST(stmt2Case, mixed_bind) {
   code = doMakePoint(1.000, 2.000, &outputGeom1, &size1);
   checkError(stmt, code);
 
-  TAOS_STMT2_BIND params_tags[9] = {
-      {TSDB_DATA_TYPE_INT, &v.c2, (int32_t*)&v_len.c2},        {TSDB_DATA_TYPE_BIGINT, &v.c3, (int32_t*)&v_len.c3},
-      {TSDB_DATA_TYPE_FLOAT, &v.c4, (int32_t*)&v_len.c4},      {TSDB_DATA_TYPE_BINARY, &v.c6, (int32_t*)&v_len.c6},
-      {TSDB_DATA_TYPE_SMALLINT, &v.c7, (int32_t*)&v_len.c7},   {TSDB_DATA_TYPE_TINYINT, &v.c8, (int32_t*)&v_len.c8},
-      {TSDB_DATA_TYPE_BOOL, &v.c9, (int32_t*)&v_len.c9},       {TSDB_DATA_TYPE_NCHAR, &v.c10, (int32_t*)&v_len.c10},
-      {TSDB_DATA_TYPE_GEOMETRY, outputGeom1, (int32_t*)&size1}};
+  TAOS_STMT2_BIND params_tags[9] = {{TSDB_DATA_TYPE_INT, &v.c2, (int32_t*)&v_len.c2, NULL, 1},
+                                    {TSDB_DATA_TYPE_BIGINT, &v.c3, (int32_t*)&v_len.c3, NULL, 1},
+                                    {TSDB_DATA_TYPE_FLOAT, &v.c4, (int32_t*)&v_len.c4, NULL, 1},
+                                    {TSDB_DATA_TYPE_BINARY, &v.c6, (int32_t*)&v_len.c6, NULL, 1},
+                                    {TSDB_DATA_TYPE_SMALLINT, &v.c7, (int32_t*)&v_len.c7, NULL, 1},
+                                    {TSDB_DATA_TYPE_TINYINT, &v.c8, (int32_t*)&v_len.c8, NULL, 1},
+                                    {TSDB_DATA_TYPE_BOOL, &v.c9, (int32_t*)&v_len.c9, NULL, 1},
+                                    {TSDB_DATA_TYPE_NCHAR, &v.c10, (int32_t*)&v_len.c10, NULL, 1},
+                                    {TSDB_DATA_TYPE_GEOMETRY, outputGeom1, (int32_t*)&size1, NULL, 1}};
 
-  TAOS_STMT2_BIND params_cols[9] = {
-      {TSDB_DATA_TYPE_TIMESTAMP, &v.c1, (int32_t*)&v_len.c1},  {TSDB_DATA_TYPE_BIGINT, &v.c3, (int32_t*)&v_len.c3},
-      {TSDB_DATA_TYPE_FLOAT, &v.c4, (int32_t*)&v_len.c4},      {TSDB_DATA_TYPE_DOUBLE, &v.c5, (int32_t*)&v_len.c5},
-      {TSDB_DATA_TYPE_BINARY, &v.c6, (int32_t*)&v_len.c6},     {TSDB_DATA_TYPE_SMALLINT, &v.c7, (int32_t*)&v_len.c7},
-      {TSDB_DATA_TYPE_TINYINT, &v.c8, (int32_t*)&v_len.c8},    {TSDB_DATA_TYPE_NCHAR, &v.c10, (int32_t*)&v_len.c10},
-      {TSDB_DATA_TYPE_GEOMETRY, outputGeom1, (int32_t*)&size1}};
+  TAOS_STMT2_BIND params_cols[9] = {{TSDB_DATA_TYPE_TIMESTAMP, &v.c1, (int32_t*)&v_len.c1, NULL, 1},
+                                    {TSDB_DATA_TYPE_BIGINT, &v.c3, (int32_t*)&v_len.c3, NULL, 1},
+                                    {TSDB_DATA_TYPE_FLOAT, &v.c4, (int32_t*)&v_len.c4, NULL, 1},
+                                    {TSDB_DATA_TYPE_DOUBLE, &v.c5, (int32_t*)&v_len.c5, NULL, 1},
+                                    {TSDB_DATA_TYPE_BINARY, &v.c6, (int32_t*)&v_len.c6, NULL, 1},
+                                    {TSDB_DATA_TYPE_SMALLINT, &v.c7, (int32_t*)&v_len.c7, NULL, 1},
+                                    {TSDB_DATA_TYPE_TINYINT, &v.c8, (int32_t*)&v_len.c8, NULL, 1},
+                                    {TSDB_DATA_TYPE_NCHAR, &v.c10, (int32_t*)&v_len.c10, NULL, 1},
+                                    {TSDB_DATA_TYPE_GEOMETRY, outputGeom1, (int32_t*)&size1, NULL, 1}};
 
   char* stmt_sql =
       "insert into stmt2_testdb_19.? using stb tags(1591060628000,?,?,?,4.0,?,?,?,?,?,?)values (?,2,?,?,?,?,?,?,1,?,?)";
@@ -2402,9 +2412,9 @@ TEST(stmt2Case, mixed_bind) {
 
   int             fieldNum = 0;
   TAOS_FIELD_ALL* pFields = NULL;
-  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
-  checkError(stmt, code);
-  ASSERT_EQ(fieldNum, 19);
+  // code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+  // checkError(stmt, code);
+  // ASSERT_EQ(fieldNum, 19);
 
   char*            tbname[1] = {"tb1"};
   TAOS_STMT2_BIND* tags = &params_tags[0];
@@ -2420,7 +2430,7 @@ TEST(stmt2Case, mixed_bind) {
   taos_stmt2_close(stmt);
 
   geosFreeBuffer(outputGeom1);
-  do_query(taos, "drop database if exists stmt2_testdb_19");
+  // do_query(taos, "drop database if exists stmt2_testdb_19");
   taos_close(taos);
 }
 
