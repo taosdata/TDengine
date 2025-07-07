@@ -2719,9 +2719,7 @@ int32_t msmGrpAddDeploySnodeTasks(SStmGrpCtx* pCtx) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (mstWaitLock(&pSnode->lock, false)) {
-    return TSDB_CODE_SUCCESS;
-  }
+  mstWaitLock(&pSnode->lock, false);
   
   if (atomic_load_32(&pSnode->triggerDeployed) < taosArrayGetSize(pSnode->triggerList)) {
     TAOS_CHECK_EXIT(msmGrpAddDeployTasks(pCtx->deployStm, pSnode->triggerList, &pSnode->triggerDeployed));
