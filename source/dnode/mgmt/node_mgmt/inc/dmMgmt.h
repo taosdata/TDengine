@@ -49,6 +49,7 @@ typedef struct {
 
 typedef struct {
   void        *serverRpc;
+  void        *serverRpc2;
   void        *clientRpc;
   void        *statusRpc;
   void        *syncRpc;
@@ -121,6 +122,7 @@ int32_t dmRunDnode(SDnode *pDnode);
 
 // dmTransport.c
 int32_t dmInitServer(SDnode *pDnode);
+
 void    dmCleanupServer(SDnode *pDnode);
 int32_t dmInitClient(SDnode *pDnode);
 int32_t dmInitStatusClient(SDnode *pDnode);

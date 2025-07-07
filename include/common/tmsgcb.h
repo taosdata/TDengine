@@ -59,6 +59,7 @@ typedef struct {
   void*                   mgmt;
   void*                   clientRpc;
   void*                   serverRpc;
+  void*                   serverRpc2;  // for mnode
   void*                   statusRpc;
   void*                   syncRpc;
   PutToQueueFp            putToQueueFp;

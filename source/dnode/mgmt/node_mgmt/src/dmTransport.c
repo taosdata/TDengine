@@ -178,12 +178,15 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       break;
     case TDMT_MND_RETRIEVE_IP_WHITE_RSP:
       dmUpdateRpcIpWhiteUnused(&pDnode->data, pTrans->serverRpc, pRpc);
+      dmUpdateRpcIpWhiteUnused(&pDnode->data, pTrans->serverRpc2, pRpc);
       return;
     case TDMT_MND_RETRIEVE_IP_WHITE_DUAL_RSP:
       dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
+      dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc2, pRpc);
       return;
     case TDMT_MND_RETRIEVE_ANAL_ALGO_RSP:
       dmUpdateAnalyticFunc(&pDnode->data, pTrans->serverRpc, pRpc);
+      dmUpdateAnalyticFunc(&pDnode->data, pTrans->serverRpc2, pRpc);
       return;
     default:
       break;
@@ -375,7 +378,12 @@ static inline int32_t dmSendSyncReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
            pMsg->info.handle);
     return code;
   } else {
-    return rpcSendRequest(pDnode->trans.syncRpc, pEpSet, pMsg, NULL);
+    SEpSet epset = {0};
+    memcpy(&epset, pEpSet, sizeof(SEpSet));
+    for (int32_t i = 0; i < epset.numOfEps; ++i) {
+      epset.eps[i].port = epset.eps[i].port + 1;  // sync rpc port is +1 of client rpc port
+    }
+    return rpcSendRequest(pDnode->trans.syncRpc, &epset, pMsg, NULL);
   }
 }
 
@@ -594,27 +602,51 @@ int32_t dmInitServer(SDnode *pDnode) {
 
   SRpcInit rpcInit = {0};
   tstrncpy(rpcInit.localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+  {
+    rpcInit.localPort = tsServerPort;
+    rpcInit.label = "DND-S";
+    rpcInit.numOfThreads = tsNumOfRpcThreads;
+    rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+    rpcInit.sessions = tsMaxShellConns;
+    rpcInit.connType = TAOS_CONN_SERVER;
+    rpcInit.idleTime = tsShellActivityTimer * 1000;
+    rpcInit.parent = pDnode;
+    rpcInit.compressSize = tsCompressMsgSize;
+    rpcInit.shareConnLimit = tsShareConnLimit * 16;
+    rpcInit.ipv6 = tsEnableIpv6;
 
-  rpcInit.localPort = tsServerPort;
-  rpcInit.label = "DND-S";
-  rpcInit.numOfThreads = tsNumOfRpcThreads;
-  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
-  rpcInit.sessions = tsMaxShellConns;
-  rpcInit.connType = TAOS_CONN_SERVER;
-  rpcInit.idleTime = tsShellActivityTimer * 1000;
-  rpcInit.parent = pDnode;
-  rpcInit.compressSize = tsCompressMsgSize;
-  rpcInit.shareConnLimit = tsShareConnLimit * 16;
-  rpcInit.ipv6 = tsEnableIpv6;
+    if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
+      dError("failed to convert version string:%s to int", td_version);
+    }
 
-  if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
-    dError("failed to convert version string:%s to int", td_version);
+    pTrans->serverRpc = rpcOpen(&rpcInit);
+    if (pTrans->serverRpc == NULL) {
+      dError("failed to init dnode rpc server since:%s", tstrerror(terrno));
+      return terrno;
+    }
   }
+  {
+    rpcInit.localPort = tsServerPort + 1;
+    rpcInit.label = "DND-S-2";
+    rpcInit.numOfThreads = tsNumOfRpcThreads;
+    rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+    rpcInit.sessions = tsMaxShellConns;
+    rpcInit.connType = TAOS_CONN_SERVER;
+    rpcInit.idleTime = tsShellActivityTimer * 1000;
+    rpcInit.parent = pDnode;
+    rpcInit.compressSize = tsCompressMsgSize;
+    rpcInit.shareConnLimit = tsShareConnLimit * 16;
+    rpcInit.ipv6 = tsEnableIpv6;
 
-  pTrans->serverRpc = rpcOpen(&rpcInit);
-  if (pTrans->serverRpc == NULL) {
-    dError("failed to init dnode rpc server since:%s", tstrerror(terrno));
-    return terrno;
+    if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
+      dError("failed to convert version string:%s to int", td_version);
+    }
+
+    pTrans->serverRpc2 = rpcOpen(&rpcInit);
+    if (pTrans->serverRpc2 == NULL) {
+      dError("failed to init dnode rpc server since:%s", tstrerror(terrno));
+      return terrno;
+    }
   }
 
   dDebug("dnode rpc server is initialized");
@@ -625,7 +657,9 @@ void dmCleanupServer(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
   if (pTrans->serverRpc) {
     rpcClose(pTrans->serverRpc);
+    rpcClose(pTrans->serverRpc2);
     pTrans->serverRpc = NULL;
+    pTrans->serverRpc2 = NULL;
     dDebug("dnode rpc server is closed");
   }
 }
@@ -634,6 +668,7 @@ SMsgCb dmGetMsgcb(SDnode *pDnode) {
   SMsgCb msgCb = {
       .clientRpc = pDnode->trans.clientRpc,
       .serverRpc = pDnode->trans.serverRpc,
+      .serverRpc2 = pDnode->trans.serverRpc2,
       .statusRpc = pDnode->trans.statusRpc,
       .syncRpc = pDnode->trans.syncRpc,
       .sendReqFp = dmSendReq,
