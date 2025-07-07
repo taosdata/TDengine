@@ -14,15 +14,15 @@ class TestStreamStateTrigger:
         tdStream.createSnode()
 
         streams = []
-        # streams.append(self.Basic0()) 
-        # streams.append(self.Basic1())
-        # streams.append(self.Basic2())
-        # streams.append(self.Basic3())
-        streams.append(self.Basic4())
-        # streams.append(self.Basic5())
-        # streams.append(self.Basic6())
-        # streams.append(self.Basic7())
-        # streams.append(self.Basic8())
+        streams.append(self.Basic0()) # OK
+        streams.append(self.Basic1()) # OK
+        # streams.append(self.Basic2()) # fail
+        # streams.append(self.Basic3()) # fail
+        streams.append(self.Basic4()) # OK
+        streams.append(self.Basic5()) # OK
+        streams.append(self.Basic6()) # OK
+        # streams.append(self.Basic7()) # fail
+        # streams.append(self.Basic8()) # fail
         
         tdStream.checkAll(streams)
 
@@ -351,10 +351,10 @@ class TestStreamStateTrigger:
             tdSql.checkRows(4)
 
             tdSql.execute(
-                f"create stream s2 state_window(cint) from ct1 options(max_delay(3s)) into res_ct1 (lastts, firstts, cnt_v, sum_v, avg_v) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s2 state_window(cint) from ct1 options(max_delay(3s)) into res_ct1 (lastts, firstts, cnt_v, sum_v, avg_v, nowts) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint), now() from %%trows;"
             )
             tdSql.execute(
-                f"create stream s2_g state_window(cint) from {self.stbName} partition by tbname, tint options(max_delay(3s)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (lastts, firstts, cnt_v, sum_v, avg_v) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s2_g state_window(cint) from {self.stbName} partition by tbname, tint options(max_delay(3s)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (lastts, firstts, cnt_v, sum_v, avg_v, nowts) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint), now() from %%trows;"
             )
 
         def insert1(self):
@@ -470,11 +470,12 @@ class TestStreamStateTrigger:
                     ["cnt_v", "BIGINT", 8, ""],
                     ["sum_v", "BIGINT", 8, ""],
                     ["avg_v", "DOUBLE", 8, ""],
+                    ["nowts", "TIMESTAMP", 8, ""],
                 ],
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select lastts, firstts, cnt_v, sum_v, avg_v from {self.db}.res_ct1",
+                sql=f"select lastts, firstts, cnt_v, sum_v, avg_v, nowts from {self.db}.res_ct1",
                 func=lambda: tdSql.getRows() == 7
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:12")
                 and tdSql.compareData(0, 1, "2025-01-01 00:00:10")
@@ -499,7 +500,7 @@ class TestStreamStateTrigger:
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select lastts, firstts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct4",
+                sql=f"select lastts, firstts, cnt_v, sum_v, avg_v, nowts from {self.db}.res_stb_ct4",
                 func=lambda: tdSql.getRows() == 7
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:12")
                 and tdSql.compareData(0, 1, "2025-01-01 00:00:10")

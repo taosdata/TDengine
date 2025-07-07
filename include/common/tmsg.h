@@ -653,7 +653,7 @@ typedef struct {
 } SColRefWrapper;
 
 int32_t tEncodeSColRefWrapper(SEncoder *pCoder, const SColRefWrapper *pWrapper);
-int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper);
+int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper, bool decoderMalloc);
 typedef struct {
   int32_t vgId;
   SColRef colRef;
@@ -2045,6 +2045,24 @@ typedef struct {
   int64_t bufferSegmentUsed;
   int64_t bufferSegmentSize;
 } SVnodeLoad;
+
+typedef struct {
+  int64_t total_requests;
+  int64_t total_rows;
+  int64_t total_bytes;
+  double  write_size;
+  double  cache_hit_ratio;
+  int64_t rpc_queue_wait;
+  int64_t preprocess_time;
+
+  int64_t memory_table_size;
+  int64_t commit_count;
+  int64_t merge_count;
+  double  commit_time;
+  double  merge_time;
+  int64_t block_commit_time;
+  int64_t memtable_wait_time;
+} SVnodeMetrics;
 
 typedef struct {
   int32_t     vgId;
@@ -4848,6 +4866,7 @@ int32_t tDeserializeSMqSeekReq(void* buf, int32_t bufLen, SMqSeekReq* pReq);
 #define SUBMIT_REQ_COLUMN_DATA_FORMAT 0x2
 #define SUBMIT_REQ_FROM_FILE          0x4
 #define TD_REQ_FROM_TAOX              0x8
+#define TD_REQ_FROM_SML               0x10
 #define SUBMIT_REQUEST_VERSION        (1)
 
 #define TD_REQ_FROM_TAOX_OLD 0x1  // for compatibility

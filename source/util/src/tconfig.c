@@ -111,8 +111,10 @@ int32_t cfgUpdateFromArray(SConfig *pCfg, SArray *pArgs) {
 
     SConfigItem *pItemOld = cfgGetItem(pCfg, pItemNew->name);
     if (pItemOld == NULL) {
+      uInfo("cfg:%s, type:%s src:%s, not found, skip to update", pItemNew->name, cfgDtypeStr(pItemNew->dtype),
+            cfgStypeStr(pItemNew->stype));
       (void)taosThreadMutexUnlock(&pCfg->lock);
-      TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
+      continue;
     }
     switch (pItemNew->dtype) {
       case CFG_DTYPE_BOOL:

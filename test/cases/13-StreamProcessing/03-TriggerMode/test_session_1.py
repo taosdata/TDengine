@@ -1,9 +1,10 @@
+import threading
 import time
 
 import taos
 from new_test_framework.utils import tdLog, clusterComCheck, tdStream, tdSql
-from test_period_1 import check_all_results, wait_for_stream_done_r1, check_ts_step, \
-    clear_output, do_write_data
+from test_period_1 import check_all_results, wait_for_stream_done, check_ts_step, \
+    clear_output, get_conf_dir, wait_for_insert_complete
 
 
 class WriteDataInfo:
@@ -74,6 +75,29 @@ def do_write_data_fn(conf, info: WriteDataInfo):
 
     cursor.close()
 
+def do_write_data(stream_name:str, info: WriteDataInfo):
+    tdLog.info(f"insert data after 10sec")
+
+    while True:
+        tdSql.query(f"select status from information_schema.ins_streams where stream_name='{stream_name}'")
+        if tdSql.getData(0, 0) != "Running":
+            print("stream not running, waiting....")
+            time.sleep(10)
+        else:
+            break
+
+    conf = get_conf_dir("taosd")
+
+    # start another thread to write data
+    try:
+        t = threading.Thread(target=do_write_data_fn, args=(conf, info))
+        t.start()
+    except Exception as e:
+        print("Error: unable to start thread, %s" % e)
+        exit(-1)
+
+    # wait for insert completed
+    wait_for_insert_complete(info)
 
 def _do_build_results():
     num_of_cols = tdSql.getCols()
@@ -268,7 +292,7 @@ class TestStreamTriggerSession:
         tdLog.info(f"create stream completed, and wait for it completed")
 
         do_write_data(stream_name, info)
-        wait_for_stream_done_r1(dst_table, f"select last(c) from {dst_table}", info.num_of_rows)
+        wait_for_stream_done(dst_table, f"select last(c) from {dst_table}", info.num_of_rows)
         # check_ts_step(tb_name=dst_table, freq=30)
 
     def create_and_check_stream_basic_2(self, stream_name, dst_table, info: WriteDataInfo) -> None:
@@ -284,7 +308,7 @@ class TestStreamTriggerSession:
         tdLog.info(f"create stream completed, and wait for it completed")
 
         do_write_data(stream_name, info)
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", info.num_of_rows * info.num_of_tables)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_rows * info.num_of_tables)
         # check_ts_step(tb_name=dst_table, freq=30)
 
 
@@ -300,7 +324,7 @@ class TestStreamTriggerSession:
 
         do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select last(c) from {dst_table}", info.num_of_rows)
+        wait_for_stream_done(dst_table, f"select last(c) from {dst_table}", info.num_of_rows)
         check_ts_step(tb_name=dst_table, freq=1)
 
     def create_and_check_stream_basic_4(self, stream_name, dst_table, info: WriteDataInfo) -> None:
@@ -316,7 +340,7 @@ class TestStreamTriggerSession:
         tdLog.info(f"create stream completed, and wait for it completed")
 
         do_write_data(stream_name, info)
-        wait_for_stream_done_r1(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
+        wait_for_stream_done(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
 
         check_ts_step(tb_name=dst_table, freq=30)
 
@@ -332,7 +356,7 @@ class TestStreamTriggerSession:
         tdLog.info(f"create stream completed, and wait for it completed")
 
         do_write_data(stream_name, info)
-        wait_for_stream_done_r1(dst_table, f"select max(last_k) from tb5", info.num_of_rows - 1)
+        wait_for_stream_done(dst_table, f"select max(last_k) from tb5", info.num_of_rows - 1)
         # check_ts_step(tb_name=dst_table, freq=30)
 
     def create_and_check_stream_basic_6(self, stream_name, dst_table, info: WriteDataInfo) -> None:
@@ -347,7 +371,7 @@ class TestStreamTriggerSession:
         tdLog.info(f"create stream completed, and wait for it completed")
 
         do_write_data(stream_name, info)
-        wait_for_stream_done_r1(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
+        wait_for_stream_done(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
 
         check_all_results(f"select count(*) from {dst_table}", [[info.num_of_tables * info.num_of_rows]])
 
@@ -370,7 +394,7 @@ class TestStreamTriggerSession:
         info.update_data = False
         do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
+        wait_for_stream_done(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
         check_all_results(f"select max(c) from {dst_table} group by tbname",
                           [[999], [999], [999], [999], [999], [999], [999], [999], [999], [999]])
 
@@ -392,7 +416,7 @@ class TestStreamTriggerSession:
         info.delete_data = True
         do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
+        wait_for_stream_done(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
         check_all_results(f"select count(*) from {dst_table} ", [[5000]])
 
 
@@ -413,7 +437,7 @@ class TestStreamTriggerSession:
         info.update_data = True
         do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
         check_all_results(f"select `count(*)`, `c`, `sum(k)` from {dst_table} ",
                           [[1000, 1999, 999500], [1000, 1999, 999500],
                            [1000, 1999, 999500], [1000, 1999, 999500],
@@ -441,7 +465,7 @@ class TestStreamTriggerSession:
                       "('2025-01-01 10:10:20.5', '3', '3', '3')('2025-01-01 10:10:25.5', '4', '4', '4')"
                       "('2025-01-01 10:10:30.5', '5', '5', '5')")
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 4)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 4)
 
 
     def create_and_check_stream_basic_13(self, stream_name, dst_table, info: WriteDataInfo) -> None:
@@ -463,7 +487,7 @@ class TestStreamTriggerSession:
                       "('2025-01-01 10:10:20.5', '3', '3', '3')('2025-01-01 10:10:25.5', '4', '4', '4')"
                       "('2025-01-01 10:10:30.5', '5', '5', '5')")
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 4)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 4)
 
         tdSql.execute("insert into c0 values('2025-01-01 10:10:13', '1', '1', '1')('2025-01-01 10:10:18', '1', '1', '1')"
                       "('2025-01-01 10:10:23', '1', '1', '1')('2025-01-01 10:10:28', '1', '1', '1')")

@@ -183,12 +183,15 @@ int32_t streamTriggerEnvInit() {
 }
 
 void streamTriggerEnvStop() {
+  streamTmrStop(gStreamTriggerTimerId);
   taosWLockLatch(&gStreamTriggerWaitLatch);
   tdListEmpty(&gStreamTriggerWaitList);
   taosWUnLockLatch(&gStreamTriggerWaitLatch);
 }
 
-void streamTriggerEnvCleanup() {}
+void streamTriggerEnvCleanup() {
+  streamTriggerEnvStop();
+}
 
 static STimeWindow stTriggerTaskGetIntervalWindow(const SInterval *pInterval, int64_t ts) {
   STimeWindow win;
@@ -3404,6 +3407,7 @@ static void stTriggerTaskDestroyCalcNode(void *ptr) {
   }
 }
 
+
 int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId, int64_t gid,
                                     SSTriggerCalcRequest **ppRequest) {
   int32_t            code = TSDB_CODE_SUCCESS;
@@ -4079,7 +4083,7 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     pTask->pVirCalcSlots = NULL;
   }
   if (pTask->pVirTableInfoRsp != NULL) {
-    taosArrayDestroy(pTask->pVirTableInfoRsp);
+    taosArrayDestroyEx(pTask->pVirTableInfoRsp, tDestroyVTableInfo);
   }
   if (pTask->pOrigTableCols != NULL) {
     tSimpleHashCleanup(pTask->pOrigTableCols);

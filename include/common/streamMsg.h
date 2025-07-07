@@ -931,9 +931,11 @@ typedef struct SStreamMsgVTableInfo {
   SArray*        infos;     // SArray<VTableInfo>
 } SStreamMsgVTableInfo;
 
+void tDestroyVTableInfo(void *ptr);
 int32_t tSerializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, const SStreamMsgVTableInfo* pRsp);
 int32_t tDeserializeSStreamMsgVTableInfo(SDecoder* decoder, SStreamMsgVTableInfo *pBlock);
 void    tDestroySStreamMsgVTableInfo(SStreamMsgVTableInfo *ptr);
+
 
 typedef struct SStreamTsResponse {
   int64_t ver;

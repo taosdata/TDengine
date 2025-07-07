@@ -97,7 +97,7 @@ def wait_for_insert_complete(info: WriteDataInfo):
         time.sleep(5)
         print("wait for inserting completed")
 
-def wait_for_stream_done_r1(table_name:str, sql: str, expect: int):
+def wait_for_stream_done(table_name:str, sql: str, expect: int):
     while True:
         tdSql.query(f"select count(*) from information_schema.ins_tables "
                     f"where table_name = '{table_name}' or stable_name='{table_name}'")
@@ -317,7 +317,7 @@ class TestStreamCheckpoint:
             f"create stream {stream_name} PERIOD(3s) into {dst_table} as select cast(_tlocaltime/1000000 as timestamp) ts, count(*) c from source_table")
 
         do_write_data(stream_name, info)
-        wait_for_stream_done_r1(dst_table, f"select last(c) from {dst_table}", info.num_of_rows)
+        wait_for_stream_done(dst_table, f"select last(c) from {dst_table}", info.num_of_rows)
         check_ts_step(tb_name=dst_table, freq=3)
 
     def create_and_check_stream_basic_2(self, stream_name, dst_table, info: WriteDataInfo) -> None:
@@ -328,7 +328,7 @@ class TestStreamCheckpoint:
 
         do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select last(c) from {dst_table}", info.num_of_rows)
+        wait_for_stream_done(dst_table, f"select last(c) from {dst_table}", info.num_of_rows)
         # check_ts_step(tb_name=dst_table, freq=0.01)  # not precisely equals to 0.01
 
     def create_and_check_stream_basic_3(self, stream_name, dst_table, info: WriteDataInfo) -> None:
@@ -341,7 +341,7 @@ class TestStreamCheckpoint:
 
         do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select max(top_k_1) from {dst_table}", info.num_of_rows - 1)
+        wait_for_stream_done(dst_table, f"select max(top_k_1) from {dst_table}", info.num_of_rows - 1)
         check_ts_step(tb_name=dst_table, freq=3)
 
     def create_and_check_stream_basic_4(self, stream_name, dst_table, info: WriteDataInfo) -> None:
@@ -354,7 +354,7 @@ class TestStreamCheckpoint:
         
         do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select last(c) from {dst_table}", info.num_of_rows - 1)
+        wait_for_stream_done(dst_table, f"select last(c) from {dst_table}", info.num_of_rows - 1)
         check_ts_step(tb_name=dst_table, freq=0.1)
         check_all_results(f"select k, c from {dst_table}",
                           [[100, 99], [100, 199], [100, 299], [100, 399], [100, 499], [100, 599], [100, 699],
@@ -369,7 +369,7 @@ class TestStreamCheckpoint:
 
         do_write_data(stream_name, info)
         
-        wait_for_stream_done_r1(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
+        wait_for_stream_done(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
         check_ts_step(tb_name=dst_table, freq=3)
 
     def create_and_check_stream_basic_6(self, stream_name, dst_table, info: WriteDataInfo) -> None:
@@ -384,7 +384,7 @@ class TestStreamCheckpoint:
         
         do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
+        wait_for_stream_done(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
         # check_ts_step(tb_name=dst_table, freq=3)
 
     def create_and_check_stream_basic_7(self, stream_name, dst_table, info: WriteDataInfo) -> None:
@@ -399,7 +399,7 @@ class TestStreamCheckpoint:
         
         do_write_data(stream_name, info)
         
-        wait_for_stream_done_r1(dst_table, f"select count(c) from {dst_table}", info.num_of_rows * info.num_of_tables)
+        wait_for_stream_done(dst_table, f"select count(c) from {dst_table}", info.num_of_rows * info.num_of_tables)
         # check_all_results(f"select count(*) from {dst_table}", [[info.num_of_tables * info.num_of_rows]])
 
     def create_and_check_stream_basic_8(self, stream_name, dst_table, info: WriteDataInfo) -> None:
@@ -413,7 +413,7 @@ class TestStreamCheckpoint:
 
         do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
+        wait_for_stream_done(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
 
     def create_and_check_stream_basic_9(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 9: Pass"""
@@ -425,7 +425,7 @@ class TestStreamCheckpoint:
             f"session(ts, 10s)")
 
         do_write_data(stream_name, info)
-        wait_for_stream_done_r1(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
+        wait_for_stream_done(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
 
     def create_and_check_stream_basic_10(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 10: invalid results """
@@ -439,6 +439,6 @@ class TestStreamCheckpoint:
 
         do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", info.num_of_rows)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_rows)
         check_all_results(f"select count(*) from {dst_table} where max_k={info.num_of_rows-1}", [[10]])
 
