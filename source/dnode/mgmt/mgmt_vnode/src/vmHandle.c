@@ -496,27 +496,27 @@ static int compareVnodeInfo(const void *p1, const void *p2) {
   SVnodeInfo *v1 = (SVnodeInfo *)p1;
   SVnodeInfo *v2 = (SVnodeInfo *)p2;
 
-  if (v1->config.dbId == v1->config.dbId) {
+  if (v1->config.dbId == v2->config.dbId) {
     if (v1->config.vgId == v2->config.vgId) {
       return 0;
     }
     return v1->config.vgId > v2->config.vgId ? 1 : -1;
   }
 
-  return v1->config.dbId > v1->config.dbId ? 1 : -1;
+  return v1->config.dbId > v2->config.dbId ? 1 : -1;
 }
 static int compareVgDiskPrimary(const void *p1, const void *p2) {
   SMountDbVgId *v1 = (SMountDbVgId *)p1;
   SMountDbVgId *v2 = (SMountDbVgId *)p2;
 
-  if (v1->dbId == v1->dbId) {
+  if (v1->dbId == v2->dbId) {
     if (v1->vgId == v2->vgId) {
       return 0;
     }
     return v1->vgId > v2->vgId ? 1 : -1;
   }
 
-  return v1->dbId > v1->dbId ? 1 : -1;
+  return v1->dbId > v2->dbId ? 1 : -1;
 }
 
 static int32_t vmRetrieveMountDnode(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pReq, SMountInfo *pMountInfo) {
@@ -826,7 +826,6 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
       SVnode        vnode = {
                  .config.vgId = pVgInfo->vgId,
                  .config.dbId = pVgInfo->dbId,
-                 .config.vgId = pVgInfo->vgId,
                  .config.cacheLastSize = pVgInfo->cacheLastSize,
                  .config.szPage = pVgInfo->szPage,
                  .config.szCache = pVgInfo->szCache,
@@ -888,7 +887,7 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
         taosArrayClear(suidList);
         TSDB_CHECK_CODE(vnodeGetStbIdList(&vnode, 0, suidList), lino, _exit0);
         dInfo("mount:%s, vnode:%d, db:%" PRId64 ", stbs num:%d on dnode:%d", pReq->mountName, pVgInfo->vgId,
-              pVgInfo->dbId, taosArrayGetSize(suidList), pReq->dnodeId);
+              pVgInfo->dbId, (int32_t)taosArrayGetSize(suidList), pReq->dnodeId);
         int32_t nStbs = taosArrayGetSize(suidList);
         if (!pDbInfo->pStbs && !(pDbInfo->pStbs = taosArrayInit(nStbs, sizeof(void *)))) {
           TSDB_CHECK_CODE(terrno, lino, _exit0);

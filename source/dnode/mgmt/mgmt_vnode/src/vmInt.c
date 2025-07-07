@@ -350,8 +350,8 @@ _exit:
   }
   taosArrayDestroy(pDisks);
   if (code != 0) {
-    dError("mount:%d,%s, failed at line %d to get mount tfs since %s", mountId, mountPath ? mountPath : "NULL", lino,
-           tstrerror(code));
+    dError("mount:%" PRIi64 ",%s, failed at line %d to get mount tfs since %s", mountId, mountPath ? mountPath : "NULL",
+           lino, tstrerror(code));
     if (pMountTfs) {
       tfsClose(pMountTfs->pTfs);
       taosMemoryFree(pMountTfs);
@@ -374,7 +374,7 @@ bool vmReleaseMountTfs(SVnodeMgmt *pMgmt, int64_t mountId, int32_t minRef) {
       (void)(taosThreadMutexLock(&pMgmt->mutex));
       SMountTfs *pTmp = taosHashGet(pMgmt->mountTfsHash, &mountId, sizeof(mountId));
       if (pTmp && *(SMountTfs **)pTmp) {
-        dInfo("mount:%d, ref:%d, release mount tfs", mountId, nRef);
+        dInfo("mount:%" PRIi64 ", ref:%d, release mount tfs", mountId, nRef);
         tfsClose((*(SMountTfs **)pTmp)->pTfs);
         taosMemoryFree(*(SMountTfs **)pTmp);
         taosHashRemove(pMgmt->mountTfsHash, &mountId, sizeof(mountId));
@@ -692,7 +692,7 @@ static int32_t vmOpenMountTfs(SVnodeMgmt *pMgmt) {
     TAOS_CHECK_EXIT(vmGetMountDisks(pMgmt, pCfg->path, &pDisks));
     int32_t nDisks = taosArrayGetSize(pDisks);
     if (nDisks < 1 || nDisks > TFS_MAX_DISKS) {
-      dError("mount:%s, %" PRIi64 ", %s, invalid number of disks:%d, expect 1 to %d", pCfg->mountId, pCfg->name,
+      dError("mount:%s, %" PRIi64 ", %s, invalid number of disks:%d, expect 1 to %d", pCfg->name, pCfg->mountId,
              pCfg->path, nDisks, TFS_MAX_DISKS);
       TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
     }
@@ -834,7 +834,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
     }
   }
   if (updateMountList && (code = vmWriteMountListToFile(pMgmt)) != 0) {
-    dError("failed to write mount list at line %d since %s", tstrerror(code), __LINE__);
+    dError("failed to write mount list at line %d since %s", __LINE__, tstrerror(code));
     return code;
   }
 #endif
