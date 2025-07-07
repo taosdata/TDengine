@@ -1,5 +1,5 @@
 import os
-
+import pytest
 from new_test_framework.utils import tdLog, tdSql, clusterComCheck, tdStream, StreamItem, sc
 
 
@@ -28,8 +28,24 @@ class TestStreamCheckpoint:
 
         """
 
+        # self.case_1()
+        self.case_2()
+
+
+    def case_2(self):
+        """add new snode
+        Verification testing during the development process.
+        Catalog:
+            - Streams: 01-snode
+        Since: v3.3.3.7
+        Labels: common,ci
+        Jira: None
+        History:
+            - 2025-07-07
+        """
+
         self.num_snode = 1
-        self.num_vgroups = 2
+        self.num_vgroups = 4
         self.streams = []
         self.stream_id = 1
 
@@ -45,13 +61,22 @@ class TestStreamCheckpoint:
         # no checkpoint yet
         # self.checkpoint()
 
-        sc.dnodeStopAll()
-        sc.dnodeStartAll()
+        # sc.dnodeStopAll()
+        # sc.dnodeStartAll()
+        #
+        # self.query_after_restart()
 
-        self.query_after_restart()
+        tdSql.execute("create snode on dnode 2")
+
+        while True:
+            if clusterComCheck.checkDnodes(2):
+                break
+
+        # wait for 10min to check if the checkpoint transfer to second snode
+
 
     def create_env(self):
-        tdLog.info(f"create {self.num_vgroups} snode(s)")
+        tdLog.info(f"create {self.num_snode} snode(s)")
         for i in range(self.num_snode):
             tdStream.createSnode(i+1)
 
@@ -106,12 +131,13 @@ class TestStreamCheckpoint:
         stream = StreamItem(
             id=1,
             stream="create stream s5 interval(10s) sliding(10s) from source_table partition by tbname into r5 as "
-                   "select _twstart ts, _twend te, _twduration td, _twrownum tw, %%tbname as tb, count(c1) c1, avg(c2) c2, now() from %%tbname "
+                   "select _twstart ts, _twend te, _twduration td, _twrownum tw, %%tbname as tb, count(c1) c1, avg(c2) c2, now() "
+                   "from %%tbname "
                    "where ts >= _twstart and ts < _twend",
             res_query="select ts, te, td, c1, c2 from r5",
             exp_query="select _wstart ts, _wend te, _wduration td, count(c1) c1, avg(c2) c2 "
                       "from source_table "
-                      "where ts<='2025-1-1 00:20:50' and ts>='2025-1-1' "
+                      "where ts<'2025-1-1 00:15:10' and ts>='2025-1-1' "
                       "partition by tbname "
                       "interval(10s) sliding(10s) fill(value, 0, null)",
             check_func=self.check5,
@@ -130,7 +156,7 @@ class TestStreamCheckpoint:
 
         tdSql.checkResultsByFunc(
             sql="select ts, te, td, c1, tag_tbname from r5 where tag_tbname='c1'",
-            func=lambda: tdSql.getRows() == 126
+            func=lambda: tdSql.getRows() == 91
         )
 
     def checkpoint(self) -> None:
@@ -145,4 +171,31 @@ class TestStreamCheckpoint:
         tdLog.info("start query after restart")
 
         tdSql.query("select * from r5")
-        tdSql.checkRows(126)
+        tdSql.checkRows(91)
+
+    def case_1(self):
+        self.num_snode = 2
+        self.num_vgroups = 4
+        self.streams = []
+        self.stream_id = 1
+
+        # while True:
+        #     if clusterComCheck.checkDnodes(2):
+        #         break
+
+        self.create_env()
+        self.prepare_source_table()
+
+        self.create_streams()
+        tdStream.checkStreamStatus()
+
+        self.do_write_data()
+        self.check_results()
+
+        # no checkpoint yet
+        # self.checkpoint()
+
+        sc.dnodeStopAll()
+        sc.dnodeStartAll()
+
+        self.query_after_restart()
