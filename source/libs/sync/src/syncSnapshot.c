@@ -1130,12 +1130,14 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
   int32_t   code = 0;
   SSnapshot snapshot = {0};
 
+  /*
   if (pMsg->snapBeginIndex > pSyncNode->commitIndex) {
     sSError(pSender,
             "snapshot begin index is greater than commit index. snapBeginIndex:%" PRId64 ", commitIndex:%" PRId64,
             pMsg->snapBeginIndex, pSyncNode->commitIndex);
     TAOS_RETURN(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG);
   }
+  */
 
   (void)taosThreadMutexLock(&pSender->pSndBuf->mutex);
   TAOS_CHECK_GOTO(pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot), NULL, _out);
