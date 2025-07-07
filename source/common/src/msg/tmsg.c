@@ -4674,6 +4674,7 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->precision));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->compression));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->replications));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->strict));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->cacheLast));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->schemaless));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->walRetentionPeriod));
@@ -4747,6 +4748,7 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->precision));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->compression));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->replications));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->strict));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->cacheLast));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->schemaless));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->walRetentionPeriod));

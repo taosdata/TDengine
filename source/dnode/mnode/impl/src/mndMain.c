@@ -1027,13 +1027,6 @@ int64_t mndGenerateUid(const char *name, int32_t len) {
   } while (true);
 }
 
-/// @brief 
-/// @param pMnode 
-/// @param pClusterInfo 
-/// @param pVgroupInfo 
-/// @param pStbInfo 
-/// @param pGrantInfo 
-/// @return 
 int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
                           SMonStbInfo *pStbInfo, SMonGrantInfo *pGrantInfo) {
   int32_t code = mndAcquireRpc(pMnode);
