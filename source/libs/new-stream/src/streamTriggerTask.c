@@ -48,7 +48,7 @@ typedef struct StreamTriggerWaitInfo {
 static int32_t streamTriggerAllocAhandle(SStreamTriggerTask *pTask, void *param, void **ppAhandle) {
   int32_t code = 0, lino = 0;
 
-  SMsgSendInfo* pInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  SMsgSendInfo *pInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   TSDB_CHECK_NULL(pInfo, code, lino, _exit, terrno);
 
   pInfo->param = taosMemoryCalloc(1, sizeof(SSTriggerAHandle));
@@ -803,6 +803,27 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SSDat
     pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, pTableMeta, &iter);
   }
   QUERY_CHECK_CONDITION(pGroup->newThreshold != INT64_MAX, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+
+  if (pContext->haveToRecalc) {
+    pGroup->newThreshold = pGroup->oldThreshold;
+  } else if (tSimpleHashGetSize(pTask->pRecalcLastVer) > 0) {
+    int32_t iter = 0;
+    void   *px = tSimpleHashIterate(pTask->pRecalcLastVer, NULL, &iter);
+    bool    needMoreMeta = false;
+    while (px != NULL) {
+      int32_t               vgId = *(int32_t *)tSimpleHashGetKey(px, NULL);
+      int64_t               lastVer = *(int64_t *)px;
+      SSTriggerWalProgress *pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &vgId, sizeof(int32_t));
+      if (pProgress == NULL || pProgress->lastScanVer < lastVer) {
+        needMoreMeta = true;
+        break;
+      }
+      px = tSimpleHashIterate(pTask->pRecalcLastVer, px, &iter);
+    }
+    if (needMoreMeta) {
+      pGroup->newThreshold = pGroup->oldThreshold;
+    }
+  }
 
 _end:
 
@@ -1702,7 +1723,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
     if (allTableProcessed || needFetchData) {
       break;
     }
-    SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, 0);
+    SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->trigTsIndex);
     QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
     int64_t         *pTsData = (int64_t *)pTsCol->pData;
     SColumnInfoData *pStateCol = taosArrayGet(pDataBlock->pDataBlock, pTask->stateSlotId);
@@ -1777,8 +1798,8 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
   bool                      allTableProcessed = false;
   bool                      needFetchData = false;
   char                     *pExtraNotifyContent = NULL;
-  SColumnInfoData *psCol = NULL;
-  SColumnInfoData *peCol = NULL;
+  SColumnInfoData          *psCol = NULL;
+  SColumnInfoData          *peCol = NULL;
 
   while (!allTableProcessed && !needFetchData) {
     //  read all data of the current table
@@ -1797,7 +1818,7 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
     bool    *ps = NULL, *pe = NULL;
     psCol = NULL;
     peCol = NULL;
-    
+
     for (int32_t r = startIdx; r < endIdx; r++) {
       if (IS_REALTIME_GROUP_OPEN_WINDOW(pGroup)) {
         TRINGBUF_FIRST(&pGroup->winBuf).range.ekey = pTsData[r];
@@ -1808,7 +1829,7 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
                                       .pDataBlock = pDataBlock->pDataBlock};
           code = filterSetDataFromSlotId(pContext->pStartCond, &param);
           QUERY_CHECK_CODE(code, lino, _end);
-          int32_t          status = 0;
+          int32_t status = 0;
           code = filterExecute(pContext->pStartCond, pDataBlock, &psCol, NULL, param.numOfCols, &status);
           QUERY_CHECK_CODE(code, lino, _end);
           ps = (bool *)psCol->pData;
@@ -1828,7 +1849,7 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
                                       .pDataBlock = pDataBlock->pDataBlock};
           code = filterSetDataFromSlotId(pContext->pEndCond, &param);
           QUERY_CHECK_CODE(code, lino, _end);
-          int32_t          status = 0;
+          int32_t status = 0;
           code = filterExecute(pContext->pEndCond, pDataBlock, &peCol, NULL, param.numOfCols, &status);
           QUERY_CHECK_CODE(code, lino, _end);
           pe = (bool *)peCol->pData;
@@ -2080,7 +2101,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
   SStreamTaskAddr    *pReader = NULL;
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_PULL};
+  SRpcMsg             msg = {.msgType = TDMT_STREAM_TRIGGER_PULL};
 
   switch (type) {
     case STRIGGER_PULL_LAST_TS: {
@@ -2157,21 +2178,26 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       SSTriggerRealtimeGroup        *pGroup = stRealtimeContextGetCurrentGroup(pContext);
       QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
       pReq->gid = pGroup->gid;
-      int32_t vgId = 0;
       if (pTask->isVirtualTable) {
-        int32_t                iter = 0;
-        SSTriggerVirTableInfo *pTable = TARRAY_DATA(pGroup->pVirTableInfos);
+        SSTriggerVirTableInfo *pTable = taosArrayGetP(pGroup->pVirTableInfos, 0);
         QUERY_CHECK_NULL(pTable, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-        vgId = pTable->vgId;
+        int32_t nReaders = taosArrayGetSize(pTask->virtReaderList);
+        for (int32_t i = 0; i < nReaders; i++) {
+          SStreamTaskAddr *pVirtReader = TARRAY_GET_ELEM(pTask->virtReaderList, i);
+          if (pVirtReader->nodeId == pTable->vgId) {
+            pReader = pVirtReader;
+            break;
+          }
+        }
+        QUERY_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       } else {
         int32_t             iter = 0;
         SSTriggerTableMeta *pTable = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
         QUERY_CHECK_NULL(pTable, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-        vgId = pTable->vgId;
+        SSTriggerWalProgress *pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pTable->vgId, sizeof(int32_t));
+        QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        pReader = pProgress->pTaskAddr;
       }
-      SSTriggerWalProgress *pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &vgId, sizeof(int32_t));
-      QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-      pReader = pProgress->pTaskAddr;
       break;
     }
 
@@ -2269,6 +2295,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   SSTriggerCalcRequest *pCalcReq = pContext->pCalcReq;
   SStreamRunnerTarget  *pCalcRunner = NULL;
   bool                  needTagValue = false;
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_CALC};
 
   QUERY_CHECK_NULL(pCalcReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
@@ -2381,7 +2408,6 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   }
 
   // serialize and send request
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_CALC};
   QUERY_CHECK_CODE(streamTriggerAllocAhandle(pTask, pCalcReq, &msg.info.ahandle), lino, _end);
   msg.contLen = tSerializeSTriggerCalcRequest(NULL, 0, pCalcReq);
   QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -2419,7 +2445,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       void   *buf = NULL;
       int64_t len = 0;
       code = streamReadCheckPoint(pTask->task.streamId, &buf, &len);
-      taosMemoryFree(buf); // TODO, fix memory leak first
+      taosMemoryFree(buf);  // TODO, fix memory leak first
       QUERY_CHECK_CODE(code, lino, _end);
       pContext->haveReadCheckpoint = true;
     } else {
@@ -2549,9 +2575,9 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       }
 
       if (taosArrayGetSize(pContext->pNotifyParams) > 0) {
-        code = streamSendNotifyContent(&pTask->task, pTask->streamName, pTask->triggerType, pGroup->gid, pTask->pNotifyAddrUrls,
-                                       pTask->notifyErrorHandle, TARRAY_DATA(pContext->pNotifyParams),
-                                       TARRAY_SIZE(pContext->pNotifyParams));
+        code = streamSendNotifyContent(&pTask->task, pTask->streamName, pTask->triggerType, pGroup->gid,
+                                       pTask->pNotifyAddrUrls, pTask->notifyErrorHandle,
+                                       TARRAY_DATA(pContext->pNotifyParams), TARRAY_SIZE(pContext->pNotifyParams));
         QUERY_CHECK_CODE(code, lino, _end);
       }
       stRealtimeGroupClearTemp(pGroup);
@@ -2748,6 +2774,40 @@ _end:
   return code;
 }
 
+static int32_t stRealtimeContextRestart(SSTriggerRealtimeContext *pContext) {
+  int32_t               code = TSDB_CODE_SUCCESS;
+  int32_t               lino = 0;
+  SStreamTriggerTask   *pTask = pContext->pTask;
+  int32_t               iter = 0;
+  SSTriggerWalProgress *pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, NULL, &iter);
+  while (pProgress != NULL) {
+    if (!pTask->fillHistory && !pTask->fillHistoryFirst) {
+      void *px = tSimpleHashGet(pTask->pRealtimeStartVer, &pProgress->pTaskAddr->nodeId, sizeof(int32_t));
+      QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      pProgress->lastScanVer = pProgress->latestVer = *(int64_t *)px;
+    } else {
+      pProgress->lastScanVer = pProgress->latestVer = 0;
+    }
+    pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, pProgress, &iter);
+  }
+  tSimpleHashClear(pContext->pGroups);
+  TD_DLIST_INIT(&pContext->groupsToCheck);
+  TD_DLIST_INIT(&pContext->groupsMaxDelay);
+  pContext->haveToRecalc = false;
+
+  pContext->status = STRIGGER_CONTEXT_FETCH_META;
+  pContext->curReaderIdx = 0;
+  pContext->getWalMetaThisRound = false;
+  code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_META);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, SRpcMsg *pRsp) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
@@ -2757,12 +2817,13 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
   SStreamMsgVTableInfo      vtableInfo = {0};
   SSTriggerOrigTableInfoRsp otableInfo = {0};
   SArray                   *pOrigTableNames = NULL;
+  SDecoder                  decoder = {0};
 
   QUERY_CHECK_CONDITION(pRsp->code == TSDB_CODE_SUCCESS || pRsp->code == TSDB_CODE_STREAM_NO_DATA, code, lino, _end,
                         TSDB_CODE_INVALID_PARA);
 
-  SMsgSendInfo* ahandle = pRsp->info.ahandle;
-  SSTriggerAHandle* pAhandle = ahandle->param;
+  SMsgSendInfo     *ahandle = pRsp->info.ahandle;
+  SSTriggerAHandle *pAhandle = ahandle->param;
   pReq = pAhandle->param;
   switch (pReq->type) {
     case STRIGGER_PULL_LAST_TS: {
@@ -2905,7 +2966,10 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           }
         }
       }
-      if (pTask->triggerType == STREAM_TRIGGER_PERIOD && nrows > 0) {
+      if (pContext->haveToRecalc) {
+        code = stRealtimeContextRestart(pContext);
+        QUERY_CHECK_CODE(code, lino, _end);
+      } else if (pTask->triggerType == STREAM_TRIGGER_PERIOD && nrows > 0) {
         code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_META);
         QUERY_CHECK_CODE(code, lino, _end);
       } else if (pTask->triggerType == STREAM_TRIGGER_PERIOD &&
@@ -2965,7 +3029,9 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
     case STRIGGER_PULL_VTABLE_INFO: {
       QUERY_CHECK_CONDITION(pContext->status == STRIGGER_CONTEXT_GATHER_VTABLE_INFO, code, lino, _end,
                             TSDB_CODE_INTERNAL_ERROR);
-      code = tDeserializeSStreamMsgVTableInfo(pRsp->pCont, pRsp->contLen, &vtableInfo);
+
+      tDecoderInit(&decoder, pRsp->pCont, pRsp->contLen);
+      code = tDeserializeSStreamMsgVTableInfo(&decoder, &vtableInfo);
       QUERY_CHECK_CODE(code, lino, _end);
       SStreamTaskAddr *pReader = taosArrayGet(pTask->virtReaderList, pContext->curReaderIdx);
       QUERY_CHECK_NULL(pReader, code, lino, _end, terrno);
@@ -3151,6 +3217,7 @@ _end:
   if (pTempDataBlock != NULL) {
     blockDataDestroy(pTempDataBlock);
   }
+  tDecoderClear(&decoder);
   tDestroySStreamMsgVTableInfo(&vtableInfo);
   tDestroySTriggerOrigTableInfoRsp(&otableInfo);
   if (code != TSDB_CODE_SUCCESS) {
@@ -3168,8 +3235,8 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
 
   QUERY_CHECK_CONDITION(pRsp->code == TSDB_CODE_SUCCESS, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  SMsgSendInfo* ahandle = pRsp->info.ahandle;
-  SSTriggerAHandle* pAhandle = ahandle->param;
+  SMsgSendInfo     *ahandle = pRsp->info.ahandle;
+  SSTriggerAHandle *pAhandle = ahandle->param;
   pReq = pAhandle->param;
 
   code = stTriggerTaskReleaseRequest(pTask, &pReq);
@@ -3200,11 +3267,11 @@ static FORCE_INLINE void snodeFreeSBatchRspMsg(void *p) {
 static int32_t snodeGetStreamProgress(SSTriggerRealtimeContext *pContext, SRpcMsg *pMsg) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
-  SStreamTriggerTask* pTask = pContext->pTask;
+  SStreamTriggerTask *pTask = pContext->pTask;
   SStreamProgressReq  req = {0};
   SStreamProgressRsp  rsp = {0};
   int32_t             rspLen = 0;
-  void*               pRsp = NULL;
+  void               *pRsp = NULL;
   SRpcMsg             rspMsg = {0};
 
   // decode req
@@ -3249,12 +3316,12 @@ static int32_t stRealtimeContextProcProgressRequest(SSTriggerRealtimeContext *pC
   SStreamTriggerTask *pTask = pContext->pTask;
   int32_t             rspSize = 0;
   SBatchReq           batchReq = {0};
-  SBatchMsg*          req = NULL;
+  SBatchMsg          *req = NULL;
   SBatchRspMsg        rsp = {0};
   SBatchRsp           batchRsp = {0};
   SRpcMsg             reqMsg = *pMsg;
   SRpcMsg             rspMsg = {0};
-  void*               pRsp = NULL;
+  void               *pRsp = NULL;
 
   code = tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -3482,8 +3549,27 @@ _end:
 int32_t stTriggerTaskMarkRecalc(SStreamTriggerTask *pTask, int64_t groupId, int64_t skey, int64_t ekey) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  SSTriggerRealtimeContext *pContext = pTask->pRealtimeContext;
 
   // todo(kjq): mark recalculation interval
+
+  if ((pTask->fillHistory || pTask->fillHistoryFirst) && pTask->fillHistoryStartTime > 0 &&
+      ekey < pTask->fillHistoryStartTime) {
+    goto _end;
+  }
+
+  pContext->haveToRecalc = true;
+  SSDataBlock *pDataBlock = pContext->pullRes[STRIGGER_PULL_WAL_META];
+  QUERY_CHECK_NULL(pDataBlock, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  int32_t          nRows = blockDataGetNumOfRows(pDataBlock);
+  int32_t          nCols = blockDataGetNumOfCols(pDataBlock);
+  SColumnInfoData *pVerCol = taosArrayGet(pDataBlock->pDataBlock, nCols - 2);
+  QUERY_CHECK_NULL(pVerCol, code, lino, _end, terrno);
+  int64_t          lastVer = ((int64_t *)pVerCol->pData)[nRows - 1];
+  SStreamTaskAddr *pReader = taosArrayGet(pTask->readerList, pContext->curReaderIdx);
+  QUERY_CHECK_NULL(pReader, code, lino, _end, terrno);
+  code = tSimpleHashPut(pTask->pRecalcLastVer, &pReader->nodeId, sizeof(int32_t), &lastVer, sizeof(int64_t));
+  QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -3704,7 +3790,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   int32_t lino = 0;
 
   EWindowType type = pMsg->triggerType;
-  pTask->trigTsIndex = 0;
+  pTask->trigTsIndex = pMsg->triTsSlotId;
   switch (pMsg->triggerType) {
     case WINDOW_TYPE_INTERVAL: {
       pTask->triggerType = STREAM_TRIGGER_SLIDING;
@@ -3783,7 +3869,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   }
 
   pTask->leaderSnodeId = pMsg->leaderSnodeId;
-  pTask->calcTsIndex = pMsg->tsSlotId;
+  pTask->calcTsIndex = pMsg->calcTsSlotId;
   pTask->maxDelay = pMsg->maxDelay * NANOSECOND_PER_MSEC;
   pTask->fillHistoryStartTime = pMsg->fillHistoryStartTime;
   pTask->watermark = pMsg->watermark;
@@ -3856,6 +3942,9 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->pGroupRunning = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
   QUERY_CHECK_NULL(pTask->pGroupRunning, code, lino, _end, terrno);
 
+  pTask->pRecalcLastVer = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  QUERY_CHECK_NULL(pTask->pRecalcLastVer, code, lino, _end, terrno);
+
   pTask->task.status = STREAM_STATUS_INIT;
 
 _end:
@@ -3890,20 +3979,19 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
       int32_t leaderSid = pTask->leaderSnodeId;
       SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
       if (epSet != NULL) {
-        code = streamSyncWriteCheckpoint(pTask->task.streamId, epSet, buf, len);
+        streamSyncWriteCheckpoint(pTask->task.streamId, epSet, buf, len);
         buf = NULL;
       }
     } while (0);
     taosMemoryFree(buf);
-    QUERY_CHECK_CODE(code, lino, _end);
   }
+  
   if (pMsg->doCleanup) {
     streamDeleteCheckPoint(pTask->task.streamId);
     int32_t leaderSid = pTask->leaderSnodeId;
     SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
     if (epSet != NULL) {
-      code = streamSyncDeleteCheckpoint(pTask->task.streamId, epSet);
-      QUERY_CHECK_CODE(code, lino, _end);
+      streamSyncDeleteCheckpoint(pTask->task.streamId, epSet);
     }
   }
 
@@ -3991,10 +4079,6 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     pTask->pVirCalcSlots = NULL;
   }
   if (pTask->pVirTableInfoRsp != NULL) {
-    for (int32_t i = 0; i < TARRAY_SIZE(pTask->pVirTableInfoRsp); i++) {
-      VTableInfo *pInfo = TARRAY_GET_ELEM(pTask->pVirTableInfoRsp, i);
-      taosMemoryFreeClear(pInfo->cols.pColRef);
-    }
     taosArrayDestroy(pTask->pVirTableInfoRsp);
   }
   if (pTask->pOrigTableCols != NULL) {
@@ -4018,9 +4102,14 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     tSimpleHashCleanup(pTask->pGroupRunning);
     pTask->pGroupRunning = NULL;
   }
-  if(pTask->streamName != NULL) {
+
+  if (pTask->streamName != NULL) {
     taosMemoryFree(pTask->streamName);
     pTask->streamName = NULL;
+  }
+  if (pTask->pRecalcLastVer != NULL) {
+    tSimpleHashCleanup(pTask->pRecalcLastVer);
+    pTask->pRecalcLastVer = NULL;
   }
 
 _end:
@@ -4154,8 +4243,8 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
     goto _end;
   }
 
-  SMsgSendInfo* ahandle = pRsp->info.ahandle;
-  SSTriggerAHandle* pAhandle = ahandle->param;
+  SMsgSendInfo     *ahandle = pRsp->info.ahandle;
+  SSTriggerAHandle *pAhandle = ahandle->param;
 
   if (pRsp->msgType == TDMT_STREAM_TRIGGER_PULL_RSP) {
     SSTriggerPullRequest *pReq = pAhandle->param;

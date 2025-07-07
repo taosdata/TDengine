@@ -6926,7 +6926,8 @@ static bool filterHasPlaceHolderRangeEnd(SOperatorNode *pOperator, bool equal) {
   return false;
 }
 
-static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeWindow* pTimeRange, SNode** pTimeRangeExpr) {
+static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeWindow* pTimeRange,
+                                 SNode** pTimeRangeExpr, SNode* pFromTable) {
   if (NULL == *pWhere) {
     TAOS_SET_OBJ_ALIGNED(pTimeRange, TSWINDOW_INITIALIZER);
     return TSDB_CODE_SUCCESS;
@@ -6949,7 +6950,7 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
     }
   }
 
-  if (pCxt->createStreamCalc) {
+  if (pCxt->createStreamCalc && nodeType(pFromTable) != QUERY_NODE_TEMP_TABLE) {
     PAR_ERR_JRET(filterExtractTsCond(&pCond, pTimeRangeExpr));
     // some node may be replaced
     TSWAP(*pWhere, pCond);
@@ -7753,7 +7754,7 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateExpr(pCxt, &pSelect->pFill);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = getQueryTimeRange(pCxt, &pSelect->pRange, &(((SFillNode*)pSelect->pFill)->timeRange), &(((SFillNode*)pSelect->pFill)->pTimeRange));
+    code = getQueryTimeRange(pCxt, &pSelect->pRange, &(((SFillNode*)pSelect->pFill)->timeRange), &(((SFillNode*)pSelect->pFill)->pTimeRange), pSelect->pFromTable);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true, pSelect->precision);
@@ -8359,7 +8360,7 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_WHERE;
   int32_t code = translateExpr(pCxt, &pSelect->pWhere);
   if (TSDB_CODE_SUCCESS == code) {
-    code = getQueryTimeRange(pCxt, &pSelect->pWhere, &pSelect->timeRange, &pSelect->pTimeRange);
+    code = getQueryTimeRange(pCxt, &pSelect->pWhere, &pSelect->timeRange, &pSelect->pTimeRange, pSelect->pFromTable);
   }
   if (pSelect->pWhere != NULL && pCxt->pParseCxt->topicQuery == false) {
     PAR_ERR_RET(setTableVgroupsFromEqualTbnameCond(pCxt, pSelect));
@@ -13614,6 +13615,20 @@ static int32_t createStreamReqBuildTriggerPlan(STranslateContext* pCxt, SSelectS
     PAR_ERR_JRET(terrno);
   }
 
+  pReq->triTsSlotId = -1;
+  FOREACH(pNode, pScanNode->pScanCols) {
+    STargetNode *pTarget = (STargetNode*)pNode;
+    if (nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN) {
+      if (((SColumnNode*)pTarget->pExpr)->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        pReq->triTsSlotId = pTarget->slotId;
+        break;
+      }
+    }
+  }
+  if (pReq->triTsSlotId == -1) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY, "Can not find timestamp primary key in trigger query scan"));
+  }
+
   FOREACH(pNode, pScanTuple->pSlots) {
     SSlotDescNode *pSlot = (SSlotDescNode*)pNode;
     PAR_ERR_JRET(taosHashPut(*pTriggerSlotHash, pSlot->name, strlen(pSlot->name), &pSlot->slotId, sizeof(int16_t)));
@@ -13844,7 +13859,7 @@ static int32_t createStreamReqBuildForceOutput(STranslateContext* pCxt, SCreateS
       PAR_ERR_JRET(nodesNodeToString(pNode, false, (char**)&pOutCol.expr, NULL));
     } else {
       if (index == 0) {
-        taosArrayDestroy(pReq->forceOutCols);
+        taosArrayDestroyEx(pReq->forceOutCols, tFreeStreamOutCol);
         pReq->forceOutCols = NULL;
         return code;
       }
@@ -13858,6 +13873,7 @@ static int32_t createStreamReqBuildForceOutput(STranslateContext* pCxt, SCreateS
     if (NULL == taosArrayPush(pReq->forceOutCols, &pOutCol)) {
       PAR_ERR_JRET(terrno);
     }
+    index++;
   }
 
   return code;
@@ -14280,7 +14296,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan*
     PAR_ERR_JRET(terrno);
   }
 
-  pReq->tsSlotId = -1;
+  pReq->calcTsSlotId = -1;
   for (int32_t i = 0; i < taosArrayGetSize(pVgArray); i++) {
     pCalcScan = taosArrayGet(pVgArray, i);
     if (pCalcScan == NULL) {
@@ -14332,12 +14348,12 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan*
         STargetNode *pTarget = (STargetNode*)pNode;
         if (nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN) {
           if (((SColumnNode*)pTarget->pExpr)->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-            pReq->tsSlotId = pTarget->slotId;
+            pReq->calcTsSlotId = pTarget->slotId;
             break;
           }
         }
       }
-      if (pReq->tsSlotId == -1) {
+      if (pReq->calcTsSlotId == -1) {
         PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY, "Can not find timestamp primary key in trigger query scan"));
       }
     }

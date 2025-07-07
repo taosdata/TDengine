@@ -90,6 +90,7 @@ static void blockListDestroy(void* p) {
       pNode = pNode->dl_next_;
     }
   }
+  taosMemoryFree(pBlockList->pBlocks);
 }
 
 void destroyExternalWindowOperatorInfo(void* param) {
@@ -464,12 +465,17 @@ static const STimeWindow* getExtNextWindow(SExternalWindowOperator* pExtW, SExec
   return taosArrayGet(pExtW->pWins, curIdx + 1);
 }
 
-static int32_t getNextStartPos(STimeWindow win, const SDataBlockInfo* pBlockInfo, int32_t lastEndPos, int32_t order) {
+static int32_t getNextStartPos(STimeWindow win, const SDataBlockInfo* pBlockInfo, int32_t lastEndPos, int32_t order, int32_t* nextPos) {
   bool ascQuery = order == TSDB_ORDER_ASC;
+
+  if (win.ekey < pBlockInfo->window.skey && ascQuery) return -2;
+  if (win.skey > pBlockInfo->window.ekey && !ascQuery) return -2;
 
   if (win.skey > pBlockInfo->window.ekey && ascQuery) return -1;
   if (win.ekey < pBlockInfo->window.skey && !ascQuery) return -1;
-  return lastEndPos + 1;
+
+  *nextPos = lastEndPos + 1;
+  return 0;
 }
 
 static int32_t setExtWindowOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindow* win,                                      SResultRow** pResult, int64_t tableGroupId, SqlFunctionCtx* pCtx,
@@ -614,6 +620,7 @@ static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
     T_LONG_JMP(pTaskInfo->env, ret);
   }
 
+  int32_t nextPosGot = 0;
   while (1) {
     int32_t prevEndPos = forwardRows + startPos - 1;
     pWin = getExtNextWindow(pExtW, pTaskInfo);
@@ -621,10 +628,20 @@ static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
       break;
     else
       win = *pWin;
+      
     qDebug("ext window2 start:%" PRId64 ", end:%" PRId64 ", ts:%" PRId64 ", ascScan:%d",
            win.skey, win.ekey, ts, ascScan);
-    startPos = getNextStartPos(win, &pInputBlock->info, prevEndPos, pExtW->binfo.inputTsOrder);
-    if (startPos < 0) break;
+           
+    nextPosGot = getNextStartPos(win, &pInputBlock->info, prevEndPos, pExtW->binfo.inputTsOrder, &startPos);
+    if (-1 == nextPosGot) {
+      qDebug("ignore current block");
+      break;
+    }
+    if (-2 == nextPosGot) {
+      qDebug("skip current window");
+      continue;
+    }
+    
     incExtWinCurIdx(pOperator);
 
     ekey = ascScan ? win.ekey : win.skey;

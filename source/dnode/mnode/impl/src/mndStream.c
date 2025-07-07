@@ -524,6 +524,7 @@ static bool mndStreamUpdateTagsFlag(SMnode *pMnode, void *pObj, void *p1, void *
   SNodeList* pList = NULL;
   int32_t code = nodesStringToList(pStream->pCreate->partitionCols, &pList);
   if (code) {
+    nodesDestroyList(pList);
     mstError("partitionCols [%s] nodesStringToList failed with error:%s", (char*)pStream->pCreate->partitionCols, tstrerror(code));
     return true;
   }
@@ -541,6 +542,8 @@ static bool mndStreamUpdateTagsFlag(SMnode *pMnode, void *pObj, void *p1, void *
       }
     }
   }
+
+  nodesDestroyList(pList);
   
   return true;
 }

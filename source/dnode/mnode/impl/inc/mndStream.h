@@ -266,6 +266,7 @@ typedef struct SStmStatus {
   int64_t           fatalRetryTimes;
 
   SArray*           trigReaders;        // SArray<SStmTaskStatus>
+  SArray*           trigOReaders;       // SArray<SStmTaskStatus>, virtable table only
   SArray*           calcReaders;        // SArray<SStmTaskStatus>  
   SStmTaskStatus*   triggerTask;
   SArray*           runners[MND_STREAM_RUNNER_DEPLOY_NUM];  // SArray<SStmTaskStatus>
@@ -308,7 +309,7 @@ typedef struct SStmVgroupStatus {
 } SStmVgroupStatus;
 
 typedef struct SStmTaskToDeployExt {
-  bool            deployed;
+  volatile bool   deployed;
   int32_t         deployId;     // only for runner task
   SStmTaskDeploy  deploy;
 } SStmTaskToDeployExt;
