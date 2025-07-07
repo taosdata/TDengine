@@ -725,11 +725,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       TSDB_CHECK_CODE(code, lino, _err);
       break;
       /* TQ */
-<<<<<<< HEAD
-#if defined(USE_TQ)
-=======
 #if defined(USE_TQ) || defined(USE_STREAM)
->>>>>>> 3.0
     case TDMT_VND_TMQ_SUBSCRIBE:
       code = tqProcessSubscribeReq(pVnode->pTq, ver, pReq, len);
       TSDB_CHECK_CODE(code, lino, _err);
