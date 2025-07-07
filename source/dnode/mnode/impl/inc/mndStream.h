@@ -309,7 +309,7 @@ typedef struct SStmVgroupStatus {
 } SStmVgroupStatus;
 
 typedef struct SStmTaskToDeployExt {
-  bool            deployed;
+  volatile bool   deployed;
   int32_t         deployId;     // only for runner task
   SStmTaskDeploy  deploy;
 } SStmTaskToDeployExt;

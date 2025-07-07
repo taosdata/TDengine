@@ -65,6 +65,10 @@ void mstDestroyVgroupStatus(SStmVgroupStatus* pVgStatus) {
 
 void mstDestroySStmTaskToDeployExt(void* param) {
   SStmTaskToDeployExt* pExt = (SStmTaskToDeployExt*)param;
+  if (pExt->deployed) {
+    return;
+  }
+  
   switch (pExt->deploy.task.type) {
     case STREAM_TRIGGER_TASK:
       taosArrayDestroy(pExt->deploy.msg.trigger.readerList);
@@ -94,7 +98,7 @@ void mstDestroySStmSnodeTasksDeploy(void* param) {
 
 void mstDestroySStmVgTasksToDeploy(void* param) {
   SStmVgTasksToDeploy* pVg = (SStmVgTasksToDeploy*)param;
-  taosArrayDestroy(pVg->taskList);
+  taosArrayDestroyEx(pVg->taskList, mstDestroySStmTaskToDeployExt);
 }
 
 void mstDestroySStmSnodeStatus(void* param) {

@@ -545,6 +545,7 @@ static int32_t mndProcessCreateSnodeReq(SRpcMsg *pReq) {
   pObj = mndAcquireSnode(pMnode, createReq.dnodeId);
   if (pObj != NULL) {
     code = TSDB_CODE_MND_SNODE_ALREADY_EXIST;
+    mndReleaseSnode(pMnode, pObj);
     goto _OVER;
   } else if (terrno != TSDB_CODE_MND_SNODE_NOT_EXIST) {
     goto _OVER;
@@ -574,10 +575,8 @@ _OVER:
 
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("snode:%d, failed to create since %s", createReq.dnodeId, tstrerror(code));
-    TAOS_RETURN(code);
   }
 
-  //  mndReleaseSnode(pMnode, pObj);
   mndReleaseDnode(pMnode, pDnode);
   tFreeSMCreateQnodeReq(&createReq);
   TAOS_RETURN(code);

@@ -2781,13 +2781,14 @@ int32_t msmRspAddStreamsDeploy(SStmGrpCtx* pCtx) {
     
     SStmStreamDeploy *pDeploy = (SStmStreamDeploy *)pIter;
     TSDB_CHECK_NULL(taosArrayPush(pCtx->pRsp->deploy.streamList, pDeploy), code, lino, _exit, terrno);
-    mstClearSStmStreamDeploy(pDeploy);
-    
-    TAOS_CHECK_EXIT(msmUpdateStreamLastActTs(pDeploy->streamId, pCtx->currTs));
 
     int64_t streamId = pDeploy->streamId;
     mstsDebug("stream DEPLOY added to dnode %d hb rsp, readerTasks:%zu, triggerTask:%d, runnerTasks:%zu", 
         pCtx->pReq->dnodeId, taosArrayGetSize(pDeploy->readerTasks), pDeploy->triggerTask ? 1 : 0, taosArrayGetSize(pDeploy->runnerTasks));
+
+    mstClearSStmStreamDeploy(pDeploy);
+    
+    TAOS_CHECK_EXIT(msmUpdateStreamLastActTs(pDeploy->streamId, pCtx->currTs));
   }
   
 _exit:
@@ -2830,7 +2831,7 @@ void msmCleanDeployedVgTasks(SArray* pVgLeaders) {
     int32_t taskNum = taosArrayGetSize(pVg->taskList);
     if (atomic_load_32(&pVg->deployed) == taskNum) {
       atomic_sub_fetch_32(&mStreamMgmt.toDeployVgTaskNum, taskNum);
-      taosArrayDestroy(pVg->taskList);
+      taosArrayDestroyEx(pVg->taskList, mstDestroySStmTaskToDeployExt);
       pVg->taskList = NULL;
       taosHashRemove(mStreamMgmt.toDeployVgMap, vgId, sizeof(*vgId));
       taosWUnLockLatch(&pVg->lock);
@@ -2843,6 +2844,9 @@ void msmCleanDeployedVgTasks(SArray* pVgLeaders) {
       if (!pExt->deployed) {
         continue;
       }
+
+      mstDestroySStmTaskToDeployExt(pExt);
+
       taosArrayRemove(pVg->taskList, m);
       atomic_sub_fetch_32(&mStreamMgmt.toDeployVgTaskNum, 1);
     }
