@@ -40,7 +40,10 @@ void vmGetVnodeLoadsLite(void *pMgmt, SMonVloadInfo *pInfo);
 void mmGetMnodeLoads(void *pMgmt, SMonMloadInfo *pInfo);
 void qmGetQnodeLoads(void *pMgmt, SQnodeLoad *pInfo);
 
+void vmUpdateMetricsInfo(void *pMgmt, int64_t clusterId);
+
 void vmCleanExpriedSamples(void *pMgmt);
+void vmCleanExpiredMetrics(void *pMgmt);
 
 #ifdef __cplusplus
 }

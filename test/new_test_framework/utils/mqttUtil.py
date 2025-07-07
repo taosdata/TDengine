@@ -102,7 +102,7 @@ class MqttUtil:
         client.on_log = self.on_log
 
         client.username_pw_set(conf['user'], conf['passwd'])
-        client.connect(conf['host'], conf['port'])
+        client.connect(conf['host'], conf['port'], properties=conf['conn_prop'], keepalive=60)
         client.loop_start()
 
         tdLog.info(f"=============== subscription loop started.")
@@ -125,8 +125,10 @@ class MqttUtil:
         print("log: ", buf)
 
     def on_disconnect_async(client, userdata, rc=0):
-        tdLog.debug("DisConnected result code: "+str(rc))
-        print("DisConnected result code: "+str(rc))
+        tdLog.debug("DisConnected result code: "+ str(rc))
+        print("DisConnected result code: "+ str(rc))
+
+        client.reconnect()
         #client.loop_stop()
 
     def subscribe(self, conf):
@@ -140,10 +142,11 @@ class MqttUtil:
 
         client.on_connect = self.on_connect
         client.on_subscribe = self.on_subscribe
+        client.on_unsubscribe = self.on_unsubscribe
         client.on_message = self.on_message
 
         client.username_pw_set(self.mqttConf['user'], self.mqttConf['passwd'])
-        client.connect(self.mqttConf['host'], self.mqttConf['port'])
+        client.connect(self.mqttConf['host'], self.mqttConf['port'], properties=conf['conn_prop'], keepalive=60)
         client.loop_start()
 
         self.loop_count = 0
@@ -171,6 +174,9 @@ class MqttUtil:
     def on_subscribe(self, client, userdata, mid, granted_qos, properties=None):
         print("Subscribed: " + str(mid) + " " + str(granted_qos))
 
+    def on_unsubscribe(self, client, userdata, mid):
+        print("Unsubscribed: " + str(mid))
+
     def on_message(self, client, userdata, msg):
         # print(msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
 
@@ -188,12 +194,15 @@ class MqttUtil:
         self.qos = msg.qos
 
         if self.subRows >= self.mqttConf['rows']:
+            client.unsubscribe(self.mqttConf['topic'])
+            tdLog.sleep(self.mqttConf['loop_time'] * 20)
+
             self.loop_stop = True
         
 
     def on_disconnect(client, userdata,rc=0):
         tdLog.debug("DisConnected result code: "+str(rc))
-        client.loop_stop()
+        # client.loop_stop()
 
     def checkQos(self, expectedQos, show=False):
         """

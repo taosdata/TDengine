@@ -87,6 +87,7 @@ taosBenchmark -f <json file>
 | -v/--vgroups \<NUMBER>           | 创建数据库时指定 vgroups 数，仅对 TDengine v3.0+ 有效|
 | -V/--version                     | 显示版本信息并退出。不能与其它参数混用|
 | -?/--help                        | 显示帮助信息并退出。不能与其它参数混用|
+| -Z/--connect-mode \<NUMBER>      | 指定连接方式，0 表示采用原生连接方式，1 表示采用 WebSocket 连接方式，默认采用原生连接方式。|
 
 ## 配置文件参数
 
@@ -267,6 +268,8 @@ taosBenchmark -f <json file>
 - **create_table_thread_count**：建表的线程数量，默认为 8。
 
 - **result_file**：结果输出文件的路径，默认值为 ./output.txt。
+
+- **result_json_file**：结果输出的 JSON 文件路径，若未配置则不输出该文件。
 
 - **confirm_parameter_prompt**：开关参数，要求用户在提示后确认才能继续，可取值 "yes" or "no"。默认值为 "no" 。
 

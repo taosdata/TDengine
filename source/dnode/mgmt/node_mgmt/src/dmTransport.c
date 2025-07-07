@@ -103,6 +103,14 @@ static void dmUpdateRpcIpWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
 
   rpcFreeCont(pRpc->pCont);
 }
+
+static void dmUpdateRpcIpWhiteUnused(SDnodeData *pDnode, void *pTrans, SRpcMsg *pRpc) {
+  int32_t code = TSDB_CODE_INVALID_MSG;
+  dError("failed to update rpc ip-white since: %s", tstrerror(code));
+  rpcFreeCont(pRpc->pCont);
+  pRpc->pCont = NULL;
+  return;
+}
 static bool dmIsForbiddenIp(int8_t forbidden, char *user, SIpAddr *clientIp) {
   if (forbidden) {
     dError("User:%s host:%s not in ip white list", user, IP_ADDR_STR(clientIp));
@@ -172,7 +180,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       }
       break;
     case TDMT_MND_RETRIEVE_IP_WHITE_RSP:
-      dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
+      dmUpdateRpcIpWhiteUnused(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
     case TDMT_MND_RETRIEVE_IP_WHITE_DUAL_RSP:
       dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
@@ -258,8 +266,11 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   pRpc->info.wrapper = pWrapper;
 
   EQItype itype = RPC_QITEM;  // rsp msg is not restricted by tsQueueMemoryUsed
-  if (IsReq(pRpc) && pRpc->msgType != TDMT_SYNC_HEARTBEAT && pRpc->msgType != TDMT_SYNC_HEARTBEAT_REPLY)
-    itype = RPC_QITEM;
+  if (pRpc->msgType == TDMT_SYNC_HEARTBEAT || pRpc->msgType == TDMT_SYNC_HEARTBEAT_REPLY) {
+    itype = DEF_QITEM;
+  } else if (IsReq(pRpc)) {
+    itype = APPLY_QITEM;
+  }
   code = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg);
   if (code) goto _OVER;
 
