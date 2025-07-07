@@ -174,14 +174,15 @@ Feel free to [ask questions or report issues](https://github.com/taosdata/taos-c
 #### URL Specification
 
 ```text
-[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
-|------------|---|-----------|-----------|------|------|------------|-----------------------|
-|   protocol |   | username  | password  | host | port |  database  |  params               |
+[+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<key1>=<value1>[&...<keyN>=<valueN>]]
+|-----------|---|----------|-----------|-------------------------------------|------------|--------------------------------------|
+|  protocol |   | username | password  |  addresses                          |   database |   params                             |
 ```
 
-- **protocol**: Establish a connection using the websocket protocol. For example, `ws://localhost:6041`
+- **protocol**: Establish a connection using the WebSocket protocol. For example, `ws://localhost:6041`.
 - **username/password**: Username and password for the database.
-- **host/port**: The host_name parameter supports valid domain names or IP addresses. The `taos-ws-py` supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number parsing conflicts.
+- **addresses**: Specifies the server addresses to create a connection. Multiple addresses are separated by commas. For IPv6 addresses, square brackets must be used (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number parsing conflicts.
+  - Example: `ws://host1:6041,host2:6041`.
 - **database**: Database name.
 - **params**: Other parameters. For example, token.
 
@@ -193,10 +194,11 @@ Feel free to [ask questions or report issues](https://github.com/taosdata/taos-c
     - `dsn`: Type `Option<&str>` optional, Data Source Name (DSN), used to specify the location and authentication information of the database to connect to.
     - `args`: Type `Option<&PyDict>` optional, provided in the form of a Python dictionary, can be used to set
       - `user`: Username for the database
-      - `password`: Password for the database.
+      - `password`: Password for the database
       - `host`: Host address
       - `port`: Port number
       - `database`: Database name
+      - `websocket`: Specifies the protocol used for the WebSocket connection. Supported values ​​are `http` or `https`.
   - **Return Value**: Connection object.
   - **Exception**: Throws `ConnectionError` exception on operation failure.
 - `fn cursor(&self) -> PyResult<Cursor>`
