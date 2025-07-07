@@ -14,9 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "metrics.h"
 #include "dmMgmt.h"
 #include "dmNodes.h"
+#include "metrics.h"
 
 static void collectDnodeMetricsInfo(SDnode *pDnode) {
   SRawDnodeMetrics rawMetrics = {0};
