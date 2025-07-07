@@ -1474,7 +1474,7 @@ _exit:
   return code;
 }
 
-int32_t msmUpdatePlanSourceAddr(int64_t streamId, SSubplan* plan, int64_t clientId, SStmTaskSrcAddr* pSrc, int32_t msgType) {
+int32_t msmUpdatePlanSourceAddr(SStreamTask* pTask, int64_t streamId, SSubplan* plan, int64_t clientId, SStmTaskSrcAddr* pSrc, int32_t msgType) {
   SDownstreamSourceNode source = {
       .type = QUERY_NODE_DOWNSTREAM_SOURCE,
       .clientId = clientId,
@@ -1488,13 +1488,13 @@ int32_t msmUpdatePlanSourceAddr(int64_t streamId, SSubplan* plan, int64_t client
   source.addr.epSet = pSrc->epset;
   source.addr.nodeId = pSrc->vgId;
 
-  mstsDebug("try to update subplan %d sourceAddr, clientId:%" PRId64 ", taskId:%" PRId64 ", msgType:%d", 
-      plan->id.subplanId, source.clientId, source.taskId, source.fetchMsgType);
+  msttDebug("try to update subplan %d's sourceAddr, clientId:%" PRId64 ", srcTaskId:%" PRId64 ", srcNodeId:%d, msgType:%d", 
+      plan->id.subplanId, source.clientId, source.taskId, source.addr.nodeId, source.fetchMsgType);
   
   return qSetSubplanExecutionNode(plan, pSrc->groupId, &source);
 }
 
-int32_t msmGetTaskIdFromSubplanId(SStreamObj* pStream, SArray* pRunners, int32_t beginIdx, int32_t subplanId, int64_t* taskId) {
+int32_t msmGetTaskIdFromSubplanId(SStreamObj* pStream, SArray* pRunners, int32_t beginIdx, int32_t subplanId, int64_t* taskId, SStreamTask** ppParent) {
   int64_t streamId = pStream->pCreate->streamId;
   int32_t runnerNum = taosArrayGetSize(pRunners);
   for (int32_t i = beginIdx; i < runnerNum; ++i) {
@@ -1502,6 +1502,7 @@ int32_t msmGetTaskIdFromSubplanId(SStreamObj* pStream, SArray* pRunners, int32_t
     SSubplan* pPlan = pDeploy->msg.runner.pPlan;
     if (pPlan->id.subplanId == subplanId) {
       *taskId = pDeploy->task.taskId;
+      *ppParent = &pDeploy->task;
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -1516,15 +1517,16 @@ int32_t msmUpdateLowestPlanSourceAddr(SSubplan* pPlan, SStmTaskDeploy* pDeploy, 
   int32_t lino = 0;
   int64_t key[2] = {streamId, -1};
   SNode* pNode = NULL;
+  SStreamTask* pTask = &pDeploy->task;
   FOREACH(pNode, pPlan->pChildren) {
     if (QUERY_NODE_VALUE != nodeType(pNode)) {
-      mstsDebug("node type %d is not valueNode", nodeType(pNode));
+      msttDebug("node type %d is not valueNode, skip it", nodeType(pNode));
       break;
     }
     
     SValueNode* pVal = (SValueNode*)pNode;
     if (TSDB_DATA_TYPE_BIGINT != pVal->node.resType.type) {
-      mstsDebug("invalid value node data type %d for runner's child subplan", pVal->node.resType.type);
+      msttWarn("invalid value node data type %d for runner's child subplan", pVal->node.resType.type);
       break;
     }
 
@@ -1532,14 +1534,14 @@ int32_t msmUpdateLowestPlanSourceAddr(SSubplan* pPlan, SStmTaskDeploy* pDeploy, 
 
     SArray** ppRes = taosHashGet(mStreamMgmt.toUpdateScanMap, key, sizeof(key));
     if (NULL == ppRes) {
-      mstsError("lowest runner subplan ID:%d,%d can't get its child ID:%" PRId64 " addr", pPlan->id.groupId, pPlan->id.subplanId, key[1]);
+      msttError("lowest runner subplan ID:%d,%d can't get its child ID:%" PRId64 " addr", pPlan->id.groupId, pPlan->id.subplanId, key[1]);
       TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
     }
 
     int32_t childrenNum = taosArrayGetSize(*ppRes);
     for (int32_t i = 0; i < childrenNum; ++i) {
       SStmTaskSrcAddr* pAddr = taosArrayGet(*ppRes, i);
-      TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(streamId, pPlan, pDeploy->task.taskId, pAddr, pAddr->isFromCache ? TDMT_STREAM_FETCH_FROM_CACHE : TDMT_STREAM_FETCH));
+      TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(pTask, streamId, pPlan, pDeploy->task.taskId, pAddr, pAddr->isFromCache ? TDMT_STREAM_FETCH_FROM_CACHE : TDMT_STREAM_FETCH));
     }
   }
 
@@ -1556,6 +1558,8 @@ int32_t msmUpdateRunnerPlan(SStmGrpCtx* pCtx, SArray* pRunners, int32_t beginIdx
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SSubplan* pPlan = pDeploy->msg.runner.pPlan;
+  SStreamTask* pTask = &pDeploy->task;
+  SStreamTask* parentTask = NULL;
   int64_t streamId = pStream->pCreate->streamId;
 
   TAOS_CHECK_EXIT(msmUpdateLowestPlanSourceAddr(pPlan, pDeploy, streamId));
@@ -1573,8 +1577,8 @@ int32_t msmUpdateRunnerPlan(SStmGrpCtx* pCtx, SArray* pRunners, int32_t beginIdx
   addr.epset = mndGetDnodeEpsetById(pCtx->pMnode, pDeploy->task.nodeId);
   FOREACH(pNode, pPlan->pParents) {
     SSubplan* pSubplan = (SSubplan*)pNode;
-    TAOS_CHECK_EXIT(msmGetTaskIdFromSubplanId(pStream, pRunners, beginIdx, pSubplan->id.subplanId, &parentTaskId));
-    TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(streamId, pSubplan, parentTaskId, &addr, TDMT_STREAM_FETCH_FROM_RUNNER));
+    TAOS_CHECK_EXIT(msmGetTaskIdFromSubplanId(pStream, pRunners, beginIdx, pSubplan->id.subplanId, &parentTaskId, &parentTask));
+    TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(parentTask, streamId, pSubplan, parentTaskId, &addr, TDMT_STREAM_FETCH_FROM_RUNNER));
   }
   
 _exit:
@@ -2715,7 +2719,7 @@ int32_t msmGrpAddDeploySnodeTasks(SStmGrpCtx* pCtx) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (taosRTryLockLatch(&pSnode->lock)) {
+  if (mstWaitLock(&pSnode->lock, false)) {
     return TSDB_CODE_SUCCESS;
   }
   
@@ -2727,13 +2731,13 @@ int32_t msmGrpAddDeploySnodeTasks(SStmGrpCtx* pCtx) {
     TAOS_CHECK_EXIT(msmGrpAddDeployTasks(pCtx->deployStm, pSnode->runnerList, &pSnode->runnerDeployed));
   }
   
-  taosRUnLockLatch(&pSnode->lock);
+  taosWUnLockLatch(&pSnode->lock);
 
 _exit:
 
   if (code) {
     if (pSnode) {
-      taosRUnLockLatch(&pSnode->lock);
+      taosWUnLockLatch(&pSnode->lock);
     }
 
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));

@@ -497,7 +497,8 @@ int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** pp
         continue;
       }
       colName = pField->name;
-      code = jsonAddColumnField(colName, pCol->info.type, colDataIsNull_s(pCol, rowIdx), colDataGetData(pCol, rowIdx),
+      bool isNull = colDataIsNull_s(pCol, rowIdx);
+      code = jsonAddColumnField(colName, pCol->info.type, isNull, isNull ? NULL : colDataGetData(pCol, rowIdx),
                                 pRow);
       QUERY_CHECK_CODE(code, lino, _end);
     }
