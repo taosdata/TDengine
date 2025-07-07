@@ -538,7 +538,7 @@ static int32_t mndMountSetVgInfo(SMnode *pMnode, SDnodeObj *pDnode, SMountInfo *
   pVgroup->version = 1;
   pVgroup->hashBegin = pVg->hashBegin;
   pVgroup->hashEnd = pVg->hashEnd;
-  (void)snprintf(pVgroup->dbName, sizeof(pVgroup->dbName), pDb->name);
+  (void)snprintf(pVgroup->dbName, sizeof(pVgroup->dbName), "%s", pDb->name);
   pVgroup->dbUid = pDb->uid;
   pVgroup->replica = pVg->replications;
   pVgroup->mountVgId = pVg->vgId;
@@ -1438,9 +1438,9 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
 
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("mount:%s, dnode:%d, path:%s, failed to create at line:%d since %s",
-           createReq.mountName ? createReq.mountName : "NULL", createReq.dnodeIds ? createReq.dnodeIds[0] : 0,
-           createReq.mountPaths ? createReq.mountPaths[0] : "", lino, tstrerror(code));  // TODO: mutiple mounts
+    mError("mount:%s, dnode:%d, path:%s, failed to create at line:%d since %s", createReq.mountName,
+           createReq.dnodeIds ? createReq.dnodeIds[0] : 0, createReq.mountPaths ? createReq.mountPaths[0] : "", lino,
+           tstrerror(code));  // TODO: mutiple mounts
   }
 
   mndReleaseMount(pMnode, pObj);
