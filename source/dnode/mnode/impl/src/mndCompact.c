@@ -946,7 +946,7 @@ static int32_t mndCompactDispatch(SRpcMsg *pReq) {
     }
 
     if (pDb->cfg.isMount) {
-      sdbRelese(pSdb, pDb);
+      sdbRelease(pSdb, pDb);
       continue;
     }
 
