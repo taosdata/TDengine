@@ -553,12 +553,12 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pInst = pConn->pInst;
   SWorkThrd* pThrd = pConn->hostThrd;
-
+  int64_t        ts1 = taosGetTimestampUs();
   int8_t         acquire = 0;
   STransMsgHead* pHead = NULL;
 
   int8_t resetBuf = 0;
-  int    msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0);
+  int    msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 1);
   if (msgLen <= 0) {
     tError("%s conn:%p, read invalid packet", transLabel(pInst), pConn);
     return false;
@@ -639,7 +639,19 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   transReleaseExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
 
+  int64_t ts2 = taosGetTimestampUs();
   (*pInst->cfp)(pInst->parent, &transMsg, NULL);
+  int64_t ts3 = taosGetTimestampUs();
+
+  int64_t readCost = ts2 - ts1;
+  int64_t handleCost = ts3 - ts2;
+  if (readCost > 1000 || handleCost > 1000) {
+    tWarn("%s conn:%p, read %s cost too much time:%" PRId64 "us, handle cost %" PRId64 ", seqNum:%" PRId64
+          ", sid:%" PRId64,
+          transLabel(pInst), pConn, TMSG_INFO(transMsg.msgType), readCost, handleCost, transMsg.info.seqNum,
+          transMsg.info.qId);
+  }
+
   return true;
 }
 
@@ -656,6 +668,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     destroyConn(conn, true);
     return;
   }
+  tInfo("active reqs %d", cli->loop->active_reqs.count);
 
   code = transSetReadOption((uv_handle_t*)cli);
   if (code != 0) {
