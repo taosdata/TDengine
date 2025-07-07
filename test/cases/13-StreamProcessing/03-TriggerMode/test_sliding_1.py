@@ -4,7 +4,7 @@ import time
 import taos
 
 from new_test_framework.utils import tdLog, clusterComCheck, tdStream, tdSql
-from test_period_1 import wait_for_insert_complete, check_all_results, wait_for_stream_done_r1, check_ts_step, \
+from test_period_1 import wait_for_insert_complete, check_all_results, wait_for_stream_done, check_ts_step, \
     clear_output, get_conf_dir, WriteDataInfo, do_write_data_fn
 
 
@@ -55,12 +55,12 @@ class TestStreamTriggerSliding:
         # except Exception as e:
         #     tdLog.error(f"case 2 error: {e}")
         #
-        clear_output("sm2", "tb2")
-        self.prepare_tables(1000, 1, info)
-        try:
-            self.create_and_check_stream_basic_3("sm3", "tb3", info)
-        except Exception as e:
-            tdLog.error(f"case 3 error: {e}")
+        # clear_output("sm2", "tb2")
+        # self.prepare_tables(1000, 1, info)
+        # try:
+        #     self.create_and_check_stream_basic_3("sm3", "tb3", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 3 error: {e}")
 
         # clear_output("sm3", "tb3")
         # self.prepare_tables(1000, 1, info)
@@ -69,12 +69,12 @@ class TestStreamTriggerSliding:
         # except Exception as e:
         #     tdLog.error(f"case 4 error: {e}")
         #
-        # clear_output("sm4", "tb4")
-        # self.prepare_tables(100000, 1, info)
-        # try:
-        #     self.create_and_check_stream_basic_5("sm5", "tb5", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 5 error: {e}")
+        clear_output("sm4", "tb4")
+        self.prepare_tables(10000, 10, info)
+        try:
+            self.create_and_check_stream_basic_5("sm5", "tb5", info)
+        except Exception as e:
+            tdLog.error(f"case 5 error: {e}")
         #
         # clear_output("sm5", "tb5")
         # self.prepare_tables(100000, 1, info)
@@ -129,6 +129,13 @@ class TestStreamTriggerSliding:
         # self.prepare_tables(1000, 10, info)
         # try:
         #     self.create_and_check_stream_basic_13("sm13", "tb13", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 13 error: {e}")
+
+        # clear_output("sm12", "tb12")
+        # self.prepare_tables(1000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_14("sm14", "tb14", info)
         # except Exception as e:
         #     tdLog.error(f"case 13 error: {e}")
 
@@ -211,7 +218,7 @@ class TestStreamTriggerSliding:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 3)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 3)
 
         check_all_results(f"select c, `sum`, `avg_val` from {dst_table}",
                           [[10000, 49995000, 4999.5, ], [40000, 799980000, 19999.5, ], [70000, 2449965000, 34999.5, ]])
@@ -230,7 +237,7 @@ class TestStreamTriggerSliding:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 10)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 10)
         check_ts_step(tb_name=dst_table, freq=0.1)
 
     def create_and_check_stream_basic_3(self, stream_name, dst_table, info: WriteDataInfo) -> None:
@@ -252,7 +259,7 @@ class TestStreamTriggerSliding:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         
         self.do_write_data(stream_name, info)
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 3)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 3)
 
         # check_results_by_compare(tb_name=dst_table, freq=30)
 
@@ -272,26 +279,25 @@ class TestStreamTriggerSliding:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 100)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 100)
         # self.check_results_by_compare(tb_name=dst_table, freq=30)
 
     def create_and_check_stream_basic_5(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 5: pass
-           Expect: report error message
-           NOTE: interval should be disabled at the end of sql statement
-        """
+        """simple 5: invalid results        """
         tdLog.info(f"start exec stream {stream_name}")
 
         tdSql.execute("use db")
         tdSql.execute(
-            f"create stream {stream_name} interval(3s) sliding(3s) from source_table into {dst_table} as "
-            f"select _tcurrent_ts ts, _wstart wstart, count(*) k, first(c2), sum(c2), last(k) c "
-            f"from source_table interval(1s)")
+            f"create stream {stream_name} interval(2s) sliding(2s) from source_table into {dst_table} as "
+            f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend "
+            )
 
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 3)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 5)
 
 
     def create_and_check_stream_basic_6(self, stream_name, dst_table, info: WriteDataInfo) -> None:
@@ -312,13 +318,12 @@ class TestStreamTriggerSliding:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 4)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 4)
         check_all_results(f"select k, c, tag_tbname from {dst_table}",
                           [[10000, 10000, "c0"], [30000, 30000, 'c0'], [30000, 30000, 'c0'], [30000, 30000, 'c0']])
 
     def create_and_check_stream_basic_7(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 7:
-           Error: invalid sql: Duplicated column names
+        """simple 7: Pass
         """
         tdLog.info(f"start exec stream {stream_name}")
 
@@ -332,7 +337,7 @@ class TestStreamTriggerSliding:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 10)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 10)
         check_all_results(f"select c, last_val, tx from {dst_table}",
                           [[10000, 9999, "c0"], [10000, 9999, "c1"], [10000, 9999, "c2"],
                            [10000, 9999, "c3"], [10000, 9999, "c4"], [10000, 9999, "c5"],
@@ -357,7 +362,7 @@ class TestStreamTriggerSliding:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", info.num_of_tables * self.num_of_rows)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_tables * self.num_of_rows)
 
     def create_and_check_stream_basic_9(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 9:
@@ -378,7 +383,7 @@ class TestStreamTriggerSliding:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 10)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 10)
 
     def create_and_check_stream_basic_10(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 10:
@@ -398,7 +403,7 @@ class TestStreamTriggerSliding:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
 
     def create_and_check_stream_basic_11(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 11:
@@ -418,7 +423,7 @@ class TestStreamTriggerSliding:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
 
     def create_and_check_stream_basic_12(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 12:
@@ -442,7 +447,7 @@ class TestStreamTriggerSliding:
         tdSql.execute(f"insert into c_new values(1710000000000, 999, '10', 999)(1710000010000, 1000, '10', 1000)"
                       f"(1710000020000, 2000, '20', 2000)")
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
         # self.check_all_results(f"select count(*) from {dst_table} ", [(10000,)])
 
     def create_and_check_stream_basic_13(self, stream_name, dst_table, info: WriteDataInfo) -> None:
@@ -466,6 +471,38 @@ class TestStreamTriggerSliding:
         # tdSql.execute(f"alter table c2 set tag a=1")
         # tdSql.execute(f"insert into c2 values(1710000000000, 999, '10', 999)")
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
 
         # self.check_all_results(f"select count(*) from {dst_table} ", [(10000,)])
+
+    def create_and_check_stream_basic_14(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 14: Pass """
+        tdLog.info(f"start exec stream {stream_name}")
+        time.sleep(10)
+
+        tdSql.execute("use db")
+        tdSql.execute(
+            f"create stream {stream_name} interval(3s) sliding(3s) from source_table partition by tbname into {dst_table} as "
+            f"select _twstart st, _twend et, count(*),  max(k) c, sum(k), first(ts), last(ts) "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 <= _twend group by tbname")
+
+        tdLog.info(f"create stream completed, start to write data after 10sec")
+        tdStream.checkStreamStatus(stream_name)
+
+        info.insert_complete = True
+        tdSql.execute("insert into c0 values('2025-01-01 10:10:10.5', '1', '1', '1') ('2025-01-01 10:10:15.5', '2', '2', '2')"
+                      "('2025-01-01 10:10:20.5', '3', '3', '3')('2025-01-01 10:10:25.5', '4', '4', '4')"
+                      "('2025-01-01 10:10:30.5', '5', '5', '5')")
+
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 7)
+
+        tdSql.execute("drop table c0")
+        tdSql.execute("create table c0 using source_table tags(1234567)")
+
+        tdSql.execute("insert into c0 values('2025-01-01 10:10:13', '1', '1', '1')('2025-01-01 10:10:18', '1', '1', '1')"
+                      "('2025-01-01 10:10:23', '1', '1', '1')('2025-01-01 10:10:28', '1', '1', '1')")
+
+        time.sleep(5)
+        check_all_results(f"select st, et, `count(*)`, c, `sum(k)` from {dst_table} ",
+                          [['2025-01-01 10:10:10.500', '', 9, 5, 19]])
