@@ -172,16 +172,16 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
 #### URL 规范
 
 ```text
-[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
-|------------|---|-----------|-----------|------|------|------------|-----------------------|
-|   protocol |   | username  | password  | host | port |  database  |  params               |
+[+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<k1>=<v1>[&...<kN>=<vN>]]
+|-----------|---|----------|-----------|-------------------------------------|------------|--------------------------|
+|  protocol |   | username | password  |  addresses                          |   database |   params                 |
 ```
 
-- **protocol**：使用 websocket 协议建立连接。例如`ws://localhost:6041`
-- **username/password**：数据库的用户名和密码。
-- **host/port**：host 参数支持合法的域名或 IP 地址。`taos-ws-py` 同时支持 IPv4 和 IPv6 格式。对于 IPv6 地址，必须使用中括号括起来（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。
-- **database**：数据库名称。
-- **params**：其他参数。例如 token。
+- **protocol**：使用 WebSocket 协议建立连接。例如 `ws://localhost:6041`。
+- **username/password**：用于创建连接的用户名及密码。
+- **addresses**：指定创建连接的一个或多个服务器地址，多个地址用英文逗号分隔。对于 IPv6 地址，必须使用中括号括起来（如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。
+- **database**：指定默认连接的数据库名，可选参数。
+- **params**：其他可选参数。例如 token。
 
 #### 建立连接
 
@@ -191,10 +191,11 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对
         - `dsn`：类型 `Option<&str>` 可选，数据源名称（DSN），用于指定要连接的数据库的位置和认证信息。 
         - `args`：类型 `Option<&PyDict>` 可选，以 Python 字典的形式提供，可用于设置
             - `user`：数据库的用户名
-            - `password`：数据库的密码。
+            - `password`：数据库的密码
             - `host`：主机地址
             - `port`：端口号
-            - `database`：数据库名称   
+            - `database`：数据库名称
+            - `websocket`：指定 WebSocket 连接所用的协议，支持的值为 `http` 或 `https`。
     - **返回值**：连接对象。
     - **异常**：操作失败抛出 `ConnectionError` 异常。
 - `fn cursor(&self) -> PyResult<Cursor>`
