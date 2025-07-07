@@ -1,9 +1,10 @@
+import threading
 import time
 
 import taos
 from new_test_framework.utils import tdLog, clusterComCheck, tdStream, tdSql
 from test_period_1 import check_all_results, wait_for_stream_done, check_ts_step, \
-    clear_output, do_write_data
+    clear_output, get_conf_dir, wait_for_insert_complete
 
 
 class WriteDataInfo:
@@ -74,6 +75,29 @@ def do_write_data_fn(conf, info: WriteDataInfo):
 
     cursor.close()
 
+def do_write_data(stream_name:str, info: WriteDataInfo):
+    tdLog.info(f"insert data after 10sec")
+
+    while True:
+        tdSql.query(f"select status from information_schema.ins_streams where stream_name='{stream_name}'")
+        if tdSql.getData(0, 0) != "Running":
+            print("stream not running, waiting....")
+            time.sleep(10)
+        else:
+            break
+
+    conf = get_conf_dir("taosd")
+
+    # start another thread to write data
+    try:
+        t = threading.Thread(target=do_write_data_fn, args=(conf, info))
+        t.start()
+    except Exception as e:
+        print("Error: unable to start thread, %s" % e)
+        exit(-1)
+
+    # wait for insert completed
+    wait_for_insert_complete(info)
 
 def _do_build_results():
     num_of_cols = tdSql.getCols()

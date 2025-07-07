@@ -68,13 +68,13 @@ class TestStreamTriggerSliding:
         #     self.create_and_check_stream_basic_4("sm4", "tb4", info)
         # except Exception as e:
         #     tdLog.error(f"case 4 error: {e}")
-        #
-        clear_output("sm4", "tb4")
-        self.prepare_tables(10000, 10, info)
-        try:
-            self.create_and_check_stream_basic_5("sm5", "tb5", info)
-        except Exception as e:
-            tdLog.error(f"case 5 error: {e}")
+
+        # clear_output("sm4", "tb4")
+        # self.prepare_tables(10000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_5("sm5", "tb5", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 5 error: {e}")
         #
         # clear_output("sm5", "tb5")
         # self.prepare_tables(100000, 1, info)
@@ -132,12 +132,19 @@ class TestStreamTriggerSliding:
         # except Exception as e:
         #     tdLog.error(f"case 13 error: {e}")
 
-        # clear_output("sm12", "tb12")
+        # clear_output("sm13", "tb13")
         # self.prepare_tables(1000, 10, info)
         # try:
         #     self.create_and_check_stream_basic_14("sm14", "tb14", info)
         # except Exception as e:
-        #     tdLog.error(f"case 13 error: {e}")
+        #     tdLog.error(f"case 14 error: {e}")
+
+        clear_output("sm14", "tb14")
+        self.prepare_tables(10000, 10, info)
+        try:
+            self.create_and_check_stream_basic_15("sm15", "tb15", info)
+        except Exception as e:
+            tdLog.error(f"case 15 error: {e}")
 
     def create_env(self):
         tdLog.info(f"create {self.num_snode} snode(s)")
@@ -171,9 +178,6 @@ class TestStreamTriggerSliding:
         self.do_prepare_source_table(num_of_tables)
 
     def do_write_data(self, stream_name:str, info: WriteDataInfo):
-        tdLog.info(f"insert data after 10sec")
-
-        # time.sleep(10)
         while True:
             tdSql.query(f"select status from information_schema.ins_streams where stream_name='{stream_name}'")
             if tdSql.getData(0, 0) != "Running":
@@ -184,6 +188,7 @@ class TestStreamTriggerSliding:
 
         conf = get_conf_dir("taosd")
 
+        tdLog.info(f"stream {stream_name} is ready, start to insert data")
         # start another thread to write data
         try:
             t = threading.Thread(target=do_write_data_fn, args=(conf, info))
@@ -506,3 +511,19 @@ class TestStreamTriggerSliding:
         time.sleep(5)
         check_all_results(f"select st, et, `count(*)`, c, `sum(k)` from {dst_table} ",
                           [['2025-01-01 10:10:10.500', '', 9, 5, 19]])
+
+    def create_and_check_stream_basic_15(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 5: invalid results"""
+        tdLog.info(f"start exec stream {stream_name}")
+
+        tdSql.execute("use db")
+        tdSql.execute(
+            f"create stream {stream_name} interval(2s) sliding(2s) from source_table into {dst_table} as "
+            f"select _twstart, _tcurrent_ts ts, _wstart wst, count(*) k, first(c2), sum(c2), last(k) c "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend "
+            f"interval(1s) order by wst desc limit 1 offset 0")
+
+        tdLog.info(f"create stream completed, and start to write data after 10sec")
+        self.do_write_data(stream_name, info)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 5)
