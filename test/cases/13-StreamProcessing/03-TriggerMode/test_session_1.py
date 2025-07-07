@@ -197,18 +197,25 @@ class TestStreamTriggerSession:
         #     tdLog.error(f"case 10 error: {e}")
         #
         # clear_output("sm10", "tb10")
-        self.prepare_source_table(1000, 10, info)
+        # self.prepare_source_table(1000, 10, info)
         # try:
         #     self.create_and_check_stream_basic_11("sm11", "tb11", info)
         # except Exception as e:
         #     tdLog.error(f"case 11 error: {e}")
 
-        clear_output("sm11", "tb11")
+        # clear_output("sm11", "tb11")
+        # self.prepare_source_table(1000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_12("sm12", "tb12", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 12 error: {e}")
+
+        clear_output("sm12", "tb12")
         self.prepare_source_table(1000, 10, info)
         try:
-            self.create_and_check_stream_basic_12("sm12", "tb12", info)
+            self.create_and_check_stream_basic_13("sm13", "tb13", info)
         except Exception as e:
-            tdLog.error(f"case 12 error: {e}")
+            tdLog.error(f"case 13 error: {e}")
 
     def create_env(self):
         tdLog.info(f"create {self.num_snode} snode(s)")
@@ -415,7 +422,7 @@ class TestStreamTriggerSession:
                            [1000, 1999, 999500], [1000, 1999, 999500]])
 
     def create_and_check_stream_basic_12(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 12: Pass
+        """simple 12: invalid results
         """
         time.sleep(10)
 
@@ -427,15 +434,40 @@ class TestStreamTriggerSession:
             f"where _c0 >= _twstart and _c0 <= _twend group by tbname")
 
         tdLog.info(f"create stream completed, start to write data after 10sec")
+        tdStream.checkStreamStatus(stream_name)
 
         info.insert_complete = True
-        # do_write_data(stream_name, info)
-
         tdSql.execute("insert into c0 values('2025-01-01 10:10:10.5', '1', '1', '1') ('2025-01-01 10:10:15.5', '2', '2', '2')"
                       "('2025-01-01 10:10:20.5', '3', '3', '3')('2025-01-01 10:10:25.5', '4', '4', '4')"
                       "('2025-01-01 10:10:30.5', '5', '5', '5')")
 
-        wait_for_stream_done_r1(dst_table, dst_table,f"select count(*) from {dst_table}", 4)
+        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 4)
+
+
+    def create_and_check_stream_basic_13(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 13: invalid results """
+        time.sleep(10)
+
+        tdSql.execute("use db")
+        tdSql.execute(
+            f"create stream {stream_name} session(ts, 3s) from source_table partition by tbname into {dst_table} as "
+            f"select _twstart st, _twend et, count(*),  max(k) c, sum(k), first(ts), last(ts) "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 <= _twend group by tbname")
+
+        tdLog.info(f"create stream completed, start to write data after 10sec")
+        tdStream.checkStreamStatus(stream_name)
+
+        info.insert_complete = True
+        tdSql.execute("insert into c0 values('2025-01-01 10:10:10.5', '1', '1', '1') ('2025-01-01 10:10:15.5', '2', '2', '2')"
+                      "('2025-01-01 10:10:20.5', '3', '3', '3')('2025-01-01 10:10:25.5', '4', '4', '4')"
+                      "('2025-01-01 10:10:30.5', '5', '5', '5')")
+
+        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 4)
 
         tdSql.execute("insert into c0 values('2025-01-01 10:10:13', '1', '1', '1')('2025-01-01 10:10:18', '1', '1', '1')"
                       "('2025-01-01 10:10:23', '1', '1', '1')('2025-01-01 10:10:28', '1', '1', '1')")
+
+        time.sleep(5)
+        check_all_results(f"select st, et, `count(*)`, c, `sum(k)` from {dst_table} ",
+                          [['2025-01-01 10:10:10.500', '', 9, 5, 19]])
