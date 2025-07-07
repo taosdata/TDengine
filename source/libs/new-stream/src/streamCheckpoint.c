@@ -248,7 +248,7 @@ int32_t streamSyncWriteCheckpoint(int64_t streamId, SEpSet* epSet, void* data, i
 
   if (data == NULL) {
     int32_t ret = streamReadCheckPoint(streamId, &data, &dataLen);
-    if (ret != TSDB_CODE_SUCCESS) {
+    if (errno == ENOENT || ret != TSDB_CODE_SUCCESS) {
       dataLen = INT_BYTES + LONG_BYTES;
       data = taosMemoryCalloc(1, INT_BYTES + LONG_BYTES);
       STREAM_CHECK_NULL_GOTO(data, terrno);
