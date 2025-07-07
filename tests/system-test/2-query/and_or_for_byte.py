@@ -22,14 +22,15 @@ class TDTestCase:
         self.row_nums = 20
         self.ts = 1434938400000
         self.time_step = 1000
-
+        self.keep_duration = 36500  # days
+        
     def insert_datas_and_check_abs(self ,tbnums , rownums , time_step ):
         dbname = "test"
         stb = f"{dbname}.stb"
         ctb_pre = f"{dbname}.sub_tb_"
         tdLog.info(" prepare datas for auto check abs function ")
 
-        tdSql.execute(f" create database {dbname} ")
+        tdSql.execute(f" create database {dbname} keep {self.keep_duration} ")
         tdSql.execute(f" use {dbname} ")
         tdSql.execute(f" create stable {stb} (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint,\
              c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp) tags (t1 int)")
@@ -128,7 +129,7 @@ class TDTestCase:
     def prepare_tag_datas(self, dbname="testdb"):
         # prepare datas
         tdSql.execute(
-            f"create database if not exists {dbname} keep 3650 duration 100")
+            f"create database if not exists {dbname} keep {self.keep_duration} duration 100")
         tdSql.execute(f" use {dbname} ")
         tdSql.execute(
             f'''create table {dbname}.stb1
@@ -418,7 +419,7 @@ class TDTestCase:
     def check_boundary_values(self, dbname="bound_test"):
 
         tdSql.execute(f"drop database if exists {dbname}")
-        tdSql.execute(f"create database if not exists {dbname}")
+        tdSql.execute(f"create database if not exists {dbname} keep {self.keep_duration} ")
         time.sleep(3)
         tdSql.execute(f"use {dbname}")
         tdSql.execute(

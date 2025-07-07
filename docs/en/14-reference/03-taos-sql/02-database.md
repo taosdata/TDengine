@@ -136,11 +136,11 @@ The command to modify database parameters is simple, but the difficulty lies in 
 
 You can view the specific values of these cachesize through select * from information_schema.ins_databases;.
 
-2. How to view cacheload?
+1. How to view cacheload?
 
 You can view cacheload through show \<db_name>.vgroups;
 
-3. Determine if cachesize is sufficient
+1. Determine if cachesize is sufficient
 
 If cacheload is very close to cachesize, then cachesize may be too small. If cacheload is significantly less than cachesize, then cachesize is sufficient. You can decide whether to modify cachesize based on this principle. The specific modification value can be determined based on the available system memory, whether to double it or increase it several times.
 
@@ -213,17 +213,18 @@ SHOW db_name.ALIVE;
 
 Query the availability status of the database db_name, with return values of 0 (unavailable), 1 (fully available), or 2 (partially available, indicating that some VNODEs in the database are available while others are not).
 
-## View DB Disk Usage 
+## View DB Disk Usage
 
-```sql 
+```sql
 select * from  INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name'   
-```  
+```
 
 View the disk usage of each module in the DB.
 
 ```sql
 SHOW db_name.disk_info;
 ```
+
 View the compression ratio and disk usage of the database db_name
 
 This command is essentially equivalent to `select sum(data1 + data2 + data3)/sum(raw_data), sum(data1 + data2 + data3) from information_schema.ins_disk_usage where db_name="dbname"`

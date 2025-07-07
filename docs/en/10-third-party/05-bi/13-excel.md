@@ -19,19 +19,19 @@ Prepare the following environment:
 
 **Step 1**, Search and open the [ODBC Data Source (64 bit)] management tool in the Start menu of the Windows operating system and configure it, refer to [Install ODBC Driver](../../../tdengine-reference/client-libraries/odbc/#installation).
 
-**Step 2**, Start Excel in the Windows system environment, then select [Data] -> [Get Data] -> [From Other Sources] -> [From ODBC].   
+**Step 2**, Start Excel in the Windows system environment, then select [Data] -> [Get Data] -> [From Other Sources] -> [From ODBC].
 
-![excel-odbc](./excel/odbc-menu.webp) 
+![excel-odbc](./excel/odbc-menu.webp)
 
 **Step 3**, In the pop-up window, select the data source you need to connect to from the drop-down list of [Data source name (DSN)], and then click the [OK] button.  
 
-![excel-odbc](./excel/odbc-select.webp) 
+![excel-odbc](./excel/odbc-select.webp)
 
-**Step 4**, Enter the username and password for TDengine. 
+**Step 4**, Enter the username and password for TDengine.
 
-![excel-odbc](./excel/odbc-config.webp) 
+![excel-odbc](./excel/odbc-config.webp)
 
-**Step 5**, In the pop-up [Navigator] dialog box, select the database tables you want to load, and then click [Load] to complete the data loading. 
+**Step 5**, In the pop-up [Navigator] dialog box, select the database tables you want to load, and then click [Load] to complete the data loading.
 
 ![excel-odbc](./excel/odbc-load.webp)
 

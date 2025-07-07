@@ -383,6 +383,14 @@ TAOS_DEFINE_ERROR(TSDB_CODE_ANA_INTERNAL_ERROR,          "Analysis internal erro
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS,   "Analysis failed since not enough rows")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_NOT_SUPPORT_FORECAST,    "Not support co-variate/multi-variate forecast")
 
+// Bnode
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_BNODE_ALREADY_EXIST,      "Bnode already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_BNODE_ALREADY_DEPLOYED,       "Bnode already deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_BNODE_NOT_DEPLOYED,           "Bnode not deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_BNODE_NOT_EXIST,          "Bnode not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_BNODE_NOT_FOUND,              "Bnode not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_BNODE_UV_EXEC_FAILURE,        "Bnode exec launch failed")
+
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_NOT_EXIST,            "sma not exist")
@@ -532,6 +540,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED,      "Query memory exhauste
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NO_FETCH_TIMEOUT,         "Timeout for long time no fetch")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_SUCC_TO_PARTSUSS,    "Change task status from success to partial success")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_MEMORY_POOL_NOT_INITIALIZED, "Memory pool not initialized")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_MEMORY_POOL_MEMORY_NOT_ENOUGH, "Alter minReservedMemorySize failed since no enough system available memory")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
@@ -575,6 +584,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_OBJECT_STROAGE_EXPIRED, "License expired for o
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DUAL_REPLICA_HA_EXPIRED,"License expired for dual-replica HA function")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DB_ENCRYPTION_EXPIRED,  "License expired for database encryption function")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TD_GPT_EXPIRED,         "License expired for TDgpt function")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_VNODE_LIMITED,          "Number of vnodes has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_ANODE_LIMITED,          "Number of anodes has reached the licensed upper limit")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_LACK_OF_TA_BASIC,       "Lack of TDasset basic functions in active code")
 
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TIMEOUT,                  "Sync timeout")
@@ -674,6 +686,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,   "Invalid identifier n
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_CORRESPONDING_STABLE_ERR,  "Corresponding super table not in this db")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_DB_OPTION,         "Invalid database option")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TABLE_OPTION,      "Invalid table option")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_BNODE_OPTION,      "Invalid Bnode option")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_GROUPBY_WINDOW_COEXIST,    "GROUP BY and WINDOW-clause can't be used together")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_AGG_FUNC_NESTING,          "Aggregate functions do not support nesting")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE,    "Only support STATE_WINDOW on integer/bool/varchar column")

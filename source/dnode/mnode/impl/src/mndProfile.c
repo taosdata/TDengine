@@ -14,12 +14,13 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndProfile.h"
 #include "audit.h"
+#include "crypt.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
-#include "mndProfile.h"
 #include "mndQnode.h"
 #include "mndShow.h"
 #include "mndSma.h"
@@ -136,6 +137,21 @@ void mndCleanupProfile(SMnode *pMnode) {
   }
 }
 
+static void getUserIpFromConnObj(SConnObj *pConn, char *dst) {
+  static char *none = "0.0.0.0";
+  if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE) {
+    taosInetNtoa(varDataVal(dst), pConn->userIp);
+    varDataLen(dst) = strlen(varDataVal(dst));
+  }
+
+  if (pConn->addr.ipv4[0] != 0 && strncmp(pConn->addr.ipv4, none, strlen(none)) != 0) {
+    char   *ipstr = IP_ADDR_STR(&pConn->addr);
+    int32_t len = strlen(ipstr);
+    memcpy(varDataVal(dst), ipstr, len);
+    varDataLen(dst) = len;
+  }
+  return;
+}
 static void setUserInfo2Conn(SConnObj *connObj, char *userApp, uint32_t userIp) {
   if (connObj == NULL) {
     return;
@@ -279,8 +295,20 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {
-    mGError("user:%s, failed to login from %s since invalid pass, input:%s", pReq->info.conn.user, ip, connReq.passwd);
+  char tmpPass[TSDB_PASSWORD_LEN] = {0};
+  tstrncpy(tmpPass, connReq.passwd, TSDB_PASSWORD_LEN);
+
+  if (pUser->passEncryptAlgorithm != 0) {
+    if (pUser->passEncryptAlgorithm != tsiEncryptPassAlgorithm) {
+      code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      goto _OVER;
+    }
+    TAOS_CHECK_GOTO(mndEncryptPass(tmpPass, NULL), NULL, _OVER);
+  }
+
+  if (strncmp(tmpPass, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {
+    mGError("user:%s, failed to login from %s since pass not match, input:%s", pReq->info.conn.user, ip,
+            connReq.passwd);
     code = TSDB_CODE_MND_AUTH_FAILURE;
     goto _OVER;
   }
@@ -962,16 +990,7 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
 
     char userIp[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE) {
-      taosInetNtoa(varDataVal(userIp), pConn->userIp);
-      varDataLen(userIp) = strlen(varDataVal(userIp));
-    }
-
-    if (pConn->addr.ipv4[0] != 0) {
-      int32_t len = strlen(IP_ADDR_STR(&pConn->addr));
-      memcpy(varDataVal(userIp), IP_ADDR_STR(&pConn->addr), len);
-      varDataLen(userIp) = len;
-    }
+    getUserIpFromConnObj(pConn, userIp);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)userIp, false);
@@ -1165,10 +1184,8 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     }
 
     char userIp[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE) {
-      taosInetNtoa(varDataVal(userIp), pConn->userIp);
-      varDataLen(userIp) = strlen(varDataVal(userIp));
-    }
+    getUserIpFromConnObj(pConn, userIp);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)userIp, false);
     if (code != 0) {

@@ -443,19 +443,14 @@ skip:
         Field * col = benchArrayGet(stbInfo->cols, i);
         if (col->sma) {
             if (first_sma) {
-                n = snprintf(command + length,
-                                   TSDB_MAX_ALLOWED_SQL_LEN - length,
-                        " SMA(%s", col->name);
+                n = snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length, " SMA(%s", col->name);
                 first_sma = false;
             } else {
-                n = snprintf(command + length,
-                                   TSDB_MAX_ALLOWED_SQL_LEN - length,
-                        ",%s", col->name);
+                n = snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length, ",%s", col->name);
             }
 
             if (n < 0 || n > TSDB_MAX_ALLOWED_SQL_LEN - length) {
-                errorPrint("%s() LN%d snprintf overflow on %d iteral\n",
-                           __func__, __LINE__, i);
+                errorPrint("%s() LN%d snprintf overflow on %d iteral\n", __func__, __LINE__, i);
                 break;
             } else {
                 length += n;
@@ -879,6 +874,7 @@ static void *createTable(void *sarg) {
     int         w = 0; // record tagData
 
     int smallBatchCount = 0;
+    int index=  pThreadInfo->start_table_from;
     for (uint64_t i = pThreadInfo->start_table_from;
                   i <= pThreadInfo->end_table_to && !g_arguments->terminate;
                   i++) {
@@ -909,7 +905,7 @@ static void *createTable(void *sarg) {
             }
             // generator
             if (w == 0) {
-                if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
+                if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL, index)) {
                     goto create_table_end;
                 }
             }
@@ -920,6 +916,7 @@ static void *createTable(void *sarg) {
             if (++w >= TAG_BATCH_COUNT) {
                 // reset for gen again
                 w = 0;
+                index += TAG_BATCH_COUNT;
             }                           
 
             batchNum++;
@@ -1820,7 +1817,7 @@ static void *syncWriteInterlace(void *sarg) {
             goto free_of_interlace;
         }
     }    
-
+    int64_t index = tableSeq;
     while (insertRows > 0) {
         int64_t tmp_total_insert_rows = 0;
         uint32_t generated = 0;
@@ -1872,7 +1869,7 @@ static void *syncWriteInterlace(void *sarg) {
 
                     // generator
                     if (stbInfo->autoTblCreating && w == 0) {
-                        if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
+                        if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL, index)) {
                             goto free_of_interlace;
                         }
                     }
@@ -1915,6 +1912,7 @@ static void *syncWriteInterlace(void *sarg) {
                     if (stbInfo->autoTblCreating && ++w >= TAG_BATCH_COUNT) {
                         // reset for gen again
                         w = 0;
+                        index += TAG_BATCH_COUNT;
                     }  
 
                     // write child data with interlaceRows
@@ -1991,7 +1989,7 @@ static void *syncWriteInterlace(void *sarg) {
 
                     // generator
                     if (stbInfo->autoTblCreating && w == 0) {
-                        if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
+                        if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL, index)) {
                             goto free_of_interlace;
                         }
                     }
@@ -2034,6 +2032,7 @@ static void *syncWriteInterlace(void *sarg) {
                         if (w >= TAG_BATCH_COUNT) {
                             // reset for gen again
                             w = 0;
+                            index += TAG_BATCH_COUNT;
                         }
                     }
 
@@ -2048,7 +2047,7 @@ static void *syncWriteInterlace(void *sarg) {
                         // create
                         if (w == 0) {
                             // recreate sample tags
-                            if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, pThreadInfo->tagsStmt)) {
+                            if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, pThreadInfo->tagsStmt, index)) {
                                 goto free_of_interlace;
                             }
                         }
@@ -2078,6 +2077,7 @@ static void *syncWriteInterlace(void *sarg) {
                         if (w >= TAG_BATCH_COUNT) {
                             // reset for gen again
                             w = 0;
+                            index += TAG_BATCH_COUNT;
                         }
                     }
 
@@ -2786,6 +2786,7 @@ void *syncWriteProgressive(void *sarg) {
     //
     // loop write each child table
     //
+    int16_t index = pThreadInfo->start_table_from;
     for (uint64_t tableSeq = pThreadInfo->start_table_from;
             tableSeq <= pThreadInfo->end_table_to; tableSeq++) {
         char *sampleDataBuf;
@@ -2816,7 +2817,7 @@ void *syncWriteProgressive(void *sarg) {
         if(stmt || smart || acreate) {
             // generator
             if (w == 0) {
-                if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
+                if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL, index)) {
                     g_fail = true;
                     goto free_of_progressive;
                 }
@@ -2842,6 +2843,7 @@ void *syncWriteProgressive(void *sarg) {
             if (++w >= TAG_BATCH_COUNT) {
                 // reset for gen again
                 w = 0;
+                index += TAG_BATCH_COUNT;
             } 
         }
 
@@ -2921,7 +2923,7 @@ void *syncWriteProgressive(void *sarg) {
 
                         // generator
                         if (w == 0) {
-                            if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
+                            if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL, index)) {
                                 g_fail = true;
                                 goto free_of_progressive;
                             }
@@ -2939,6 +2941,7 @@ void *syncWriteProgressive(void *sarg) {
                         if (++w >= TAG_BATCH_COUNT) {
                             // reset for gen again
                             w = 0;
+                            index += TAG_BATCH_COUNT;
                         }
 
                         code = execInsert(pThreadInfo, generated, &delay3);
@@ -3484,15 +3487,35 @@ static int printTotalDelay(SDataBase *database,
                 totalDelay3/threads/1E6);
     }
 
+    double time_cost = spend / 1E6;
+    double real_time_cost = totalDelay/threads/1E6;
+    double records_per_second = (double)(totalInsertRows / (spend/1E6));
+    double real_records_per_second = (double)(totalInsertRows / (totalDelay/threads/1E6));
+
     succPrint("Spent %.6f (real %.6f) seconds to insert rows: %" PRIu64
               " with %d thread(s) into %s %.2f (real %.2f) records/second%s\n",
-              spend/1E6, totalDelay/threads/1E6, totalInsertRows, threads,
-              database->dbName,
-              (double)(totalInsertRows / (spend/1E6)),
-              (double)(totalInsertRows / (totalDelay/threads/1E6)), subDelay);
+              time_cost, real_time_cost, totalInsertRows, threads,
+              database->dbName, records_per_second,
+              real_records_per_second, subDelay);
+
     if (!total_delay_list->size) {
         return -1;
     }
+    
+    double minDelay = *(int64_t *)(benchArrayGet(total_delay_list, 0))/1E3;
+    double avgDelay = (double)totalDelay/total_delay_list->size/1E3;
+    double p90 = *(int64_t *)(benchArrayGet(total_delay_list,
+                                         (int32_t)(total_delay_list->size
+                                         * 0.9)))/1E3;
+    double p95 = *(int64_t *)(benchArrayGet(total_delay_list,
+                                         (int32_t)(total_delay_list->size
+                                         * 0.95)))/1E3;
+    double p99 = *(int64_t *)(benchArrayGet(total_delay_list,
+                                         (int32_t)(total_delay_list->size
+                                         * 0.99)))/1E3;
+    double maxDelay = *(int64_t *)(benchArrayGet(total_delay_list,
+                                         (int32_t)(total_delay_list->size
+                                         - 1)))/1E3;                                     
 
     succPrint("insert delay, "
               "min: %.4fms, "
@@ -3501,20 +3524,41 @@ static int printTotalDelay(SDataBase *database,
               "p95: %.4fms, "
               "p99: %.4fms, "
               "max: %.4fms\n",
-              *(int64_t *)(benchArrayGet(total_delay_list, 0))/1E3,
-              (double)totalDelay/total_delay_list->size/1E3,
-              *(int64_t *)(benchArrayGet(total_delay_list,
-                                         (int32_t)(total_delay_list->size
-                                         * 0.9)))/1E3,
-              *(int64_t *)(benchArrayGet(total_delay_list,
-                                         (int32_t)(total_delay_list->size
-                                         * 0.95)))/1E3,
-              *(int64_t *)(benchArrayGet(total_delay_list,
-                                         (int32_t)(total_delay_list->size
-                                         * 0.99)))/1E3,
-              *(int64_t *)(benchArrayGet(total_delay_list,
-                                         (int32_t)(total_delay_list->size
-                                         - 1)))/1E3);
+            minDelay, avgDelay, p90, p95, p99, maxDelay);
+    
+    if (g_arguments->output_json_file) {
+        tools_cJSON *root = tools_cJSON_CreateObject();
+        if (root) {
+            tools_cJSON_AddStringToObject(root, "db_name", database->dbName);
+            tools_cJSON_AddNumberToObject(root, "inserted_rows", totalInsertRows);
+            tools_cJSON_AddNumberToObject(root, "threads", threads);
+            tools_cJSON_AddNumberToObject(root, "time_cost", time_cost);
+            tools_cJSON_AddNumberToObject(root, "real_time_cost", real_time_cost);
+            tools_cJSON_AddNumberToObject(root, "records_per_second",  records_per_second);
+            tools_cJSON_AddNumberToObject(root, "real_records_per_second", real_records_per_second);
+            
+            tools_cJSON_AddNumberToObject(root, "avg", avgDelay);
+            tools_cJSON_AddNumberToObject(root, "min", minDelay);
+            tools_cJSON_AddNumberToObject(root, "max", maxDelay);
+            tools_cJSON_AddNumberToObject(root, "p90", p90);
+            tools_cJSON_AddNumberToObject(root, "p95", p95);
+            tools_cJSON_AddNumberToObject(root, "p99", p99);
+            
+            char *jsonStr = tools_cJSON_PrintUnformatted(root);
+            if (jsonStr) {
+                FILE *fp = fopen(g_arguments->output_json_file, "w");
+                if (fp) {
+                    fprintf(fp, "%s\n", jsonStr);
+                    fclose(fp);
+                } else {
+                    errorPrint("Failed to open output JSON file, file name %s\n",
+                            g_arguments->output_json_file);
+                }
+                free(jsonStr);
+            }
+            tools_cJSON_Delete(root);
+        }
+    }        
     return 0;
 }
 
@@ -3648,10 +3692,6 @@ int64_t obtainTableCount(SDataBase* database, SSuperTable* stbInfo) {
 
 // assign table to thread with vgroups, return assign thread count
 int32_t assignTableToThread(SDataBase* database, SSuperTable* stbInfo) {
-    SBenchConn* conn = initBenchConn();
-    if (NULL == conn) {
-        return 0;
-    }
     int32_t threads = 0;
 
     // calc table count per vgroup
@@ -3691,7 +3731,6 @@ int32_t assignTableToThread(SDataBase* database, SSuperTable* stbInfo) {
         vg->childTblArray[vg->tbOffset] = stbInfo->childTblArray[i];
         vg->tbOffset++;
     }
-    closeBenchConn(conn);
     return threads;
 }
 
@@ -3853,13 +3892,13 @@ void *genInsertTheadInfo(void* arg) {
                 for (int t = 0; t < pThreadInfo->ntables; t++) {
                     pThreadInfo->sml_tags[t] = benchCalloc(1, stbInfo->lenOfTags, true);
                 }
-
+                int64_t index = pThreadInfo->start_table_from;
                 for (int t = 0; t < pThreadInfo->ntables; t++) {
                     if (generateRandData(
                                 stbInfo, pThreadInfo->sml_tags[t],
                                 stbInfo->lenOfTags,
                                 stbInfo->lenOfCols + stbInfo->lenOfTags,
-                                stbInfo->tags, 1, true, NULL)) {
+                                stbInfo->tags, 1, true, NULL, index++)) {
                         g_fail = true;            
                         goto END;
                     }

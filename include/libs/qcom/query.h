@@ -295,9 +295,10 @@ typedef struct SStbInterlaceInfo {
   uint64_t       requestId;
   int64_t        requestSelf;
   bool           tbFromHash;
-  SHashObj*      pVgroupHash;
-  SArray*        pVgroupList;
-  SSHashObj*     pTableHash;
+  SHashObj*      pVgroupHash;        // key:vgId, value:SVgroupDataCxt
+  SArray*        pVgroupList;        // SVgroupDataCxt
+  SSHashObj*     pTableHash;         // key:tbname, value:STableVgUid
+  SSHashObj*     pTableRowDataHash;  // key:tbname, value:SSubmitTbData->aRowP
   int64_t        tbRemainNum;
   STableBufInfo  tbBuf;
   char           firstName[TSDB_TABLE_NAME_LEN];

@@ -172,6 +172,7 @@ typedef struct {
   tsem_t         asyncExecSem;
   bool           execSemWaited;
   AsyncBindParam asyncBindParam;
+  bool           asyncExecCb;
   SStmtStatInfo  stat;
 } STscStmt2;
 /*
@@ -224,6 +225,8 @@ do {                               \
 } while (0)
 
 */
+#define LEGAL_INSERT(type) ((type) == QUERY_NODE_VNODE_MODIFY_STMT || (type) == QUERY_NODE_INSERT_STMT)
+#define LEGAL_SELECT(type) ((type) == QUERY_NODE_SELECT_STMT || (type) == QUERY_NODE_SET_OPERATOR)
 
 #define STMT2_FLOG(param, ...) qFatal("stmt2:%p, " param, pStmt, __VA_ARGS__)
 #define STMT2_ELOG(param, ...) qError("stmt2:%p, " param, pStmt, __VA_ARGS__)

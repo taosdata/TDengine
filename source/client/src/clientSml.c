@@ -893,10 +893,10 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
     smlBuildCreateStbReq(&pReq, 1, 1, 0, TD_REQ_FROM_APP);
   } else if (action == SCHEMA_ACTION_ADD_TAG || action == SCHEMA_ACTION_CHANGE_TAG_SIZE) {
     pSql = (action == SCHEMA_ACTION_ADD_TAG) ? "sml_add_tag" : "sml_modify_tag_size";
-    smlBuildCreateStbReq(&pReq, pTableMeta->sversion, pTableMeta->tversion + 1, pTableMeta->uid, TD_REQ_FROM_TAOX);
+    smlBuildCreateStbReq(&pReq, pTableMeta->sversion, pTableMeta->tversion + 1, pTableMeta->uid, TD_REQ_FROM_SML);
   } else if (action == SCHEMA_ACTION_ADD_COLUMN || action == SCHEMA_ACTION_CHANGE_COLUMN_SIZE) {
     pSql = (action == SCHEMA_ACTION_ADD_COLUMN) ? "sml_add_column" : "sml_modify_column_size";
-    smlBuildCreateStbReq(&pReq, pTableMeta->sversion + 1, pTableMeta->tversion, pTableMeta->uid, TD_REQ_FROM_TAOX);
+    smlBuildCreateStbReq(&pReq, pTableMeta->sversion + 1, pTableMeta->tversion, pTableMeta->uid, TD_REQ_FROM_SML);
   } else {
     SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
   }

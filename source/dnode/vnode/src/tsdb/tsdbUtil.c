@@ -910,7 +910,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
           }
         }
       } else {
-        return TSDB_CODE_INVALID_PARA;
+        return TSDB_CODE_SUCCESS;  // same version, no need to merge
       }
     }
 

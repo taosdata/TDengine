@@ -137,9 +137,9 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pShowCols = {"*"}
   },
   {
-    .showType = QUERY_NODE_SHOW_BNODES_STMT,
+    .showType = QUERY_NODE_SHOW_BACKUP_NODES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
-    .pTableName = TSDB_INS_TABLE_BNODES,
+    .pTableName = TSDB_INS_TABLE_BACKUP_NODES,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
@@ -390,13 +390,20 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pTableName = TSDB_INS_TABLE_TRANSACTION_DETAILS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
-  },
+  }, 
   {
     .showType = QUERY_NODE_SHOW_VTABLES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_TABLES,
     .numOfShowCols = 1,
     .pShowCols = {"table_name"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_BNODES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_BNODES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
   },
 };
 // clang-format on
@@ -1557,8 +1564,25 @@ static bool isInternalPrimaryKey(const SColumnNode* pCol) {
          (0 == strcmp(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME) || 0 == strcmp(pCol->colName, C0_PSEUDO_COLUMN_NAME));
 }
 
-static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** pColRef, STableNode* pTable,
-                                         bool* pFound) {
+static int32_t createTbnameFunctionNode(SColumnNode* pCol, SFunctionNode** pFuncNode) {
+  int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)pFuncNode);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  tstrncpy((*pFuncNode)->functionName, "tbname", TSDB_FUNC_NAME_LEN);
+  (*pFuncNode)->node.resType.type = TSDB_DATA_TYPE_BINARY;
+  (*pFuncNode)->node.resType.bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
+  (*pFuncNode)->funcType = FUNCTION_TYPE_TBNAME;
+  if (pCol->tableAlias[0] != '\0') {
+    snprintf((*pFuncNode)->node.userAlias, sizeof((*pFuncNode)->node.userAlias), "%s.tbname", pCol->tableAlias);
+  } else {
+    snprintf((*pFuncNode)->node.userAlias, sizeof((*pFuncNode)->node.userAlias), "tbname");
+  }
+
+  tstrncpy((*pFuncNode)->node.aliasName, (*pFuncNode)->functionName, TSDB_COL_NAME_LEN);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** pColRef, STableNode* pTable, bool* pFound) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SColumnNode* pCol = *pColRef;
   *pFound = false;
@@ -1574,6 +1598,19 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
     *pFound = true;
     return TSDB_CODE_SUCCESS;
   }
+  if (TSDB_SUPER_TABLE == pMeta->tableType && pCxt->pCurrStmt->type == QUERY_NODE_INSERT_STMT) {
+    if (0 == strcmp(pCol->colName, "tbname")) {
+      SFunctionNode* tbnameFuncNode = NULL;
+      code = createTbnameFunctionNode(pCol, &tbnameFuncNode);
+      if (TSDB_CODE_SUCCESS != code) return code;
+
+      nodesDestroyNode((SNode*)*pColRef);
+      *pColRef = (SColumnNode*)tbnameFuncNode;
+      *pFound = true;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
   int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
   for (int32_t i = 0; i < nums; ++i) {
     if (0 == strcmp(pCol->colName, pMeta->schema[i].name) &&
@@ -5651,6 +5688,7 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
       if (TSDB_CODE_SUCCESS == code) {
         pJoinTable->table.precision = calcJoinTablePrecision(pJoinTable);
         pJoinTable->table.singleTable = joinTableIsSingleTable(pJoinTable);
+        pCurrSmt->precision = pJoinTable->table.precision;
         code = translateExpr(pCxt, &pJoinTable->pOnCond);
       }
       if (TSDB_CODE_SUCCESS == code) {
@@ -8681,12 +8719,12 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
 static int32_t translateInsertTable(STranslateContext* pCxt, SNode** pTable) {
   int32_t code = translateFrom(pCxt, pTable);
   if (TSDB_CODE_SUCCESS == code && TSDB_CHILD_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType &&
+      TSDB_SUPER_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType &&
       TSDB_NORMAL_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType) {
     code = buildInvalidOperationMsg(&pCxt->msgBuf, "insert data into super table or virtual table is not supported");
   }
   return code;
 }
-
 static int32_t translateInsert(STranslateContext* pCxt, SInsertStmt* pInsert) {
   pCxt->pCurrStmt = (SNode*)pInsert;
   int32_t code = translateInsertTable(pCxt, &pInsert->pTable);
@@ -9543,6 +9581,15 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
     }
     case TDMT_MND_UPDATE_ANODE: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMUpdateAnodeReq, pReq);
+      break;
+    }
+
+    case TDMT_MND_CREATE_BNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateBnodeReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_BNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropBnodeReq, pReq);
       break;
     }
 
@@ -11276,6 +11323,43 @@ static int32_t translateUpdateAnode(STranslateContext* pCxt, SUpdateAnodeStmt* p
   return code;
 }
 
+static int32_t checkCreateBnode(STranslateContext* pCxt, SCreateBnodeStmt* pStmt) {
+  SBnodeOptions* pOptions = pStmt->pOptions;
+
+  if ('\0' != pOptions->protoStr[0]) {
+    if (0 == strcasecmp(pOptions->protoStr, TSDB_BNODE_OPT_PROTO_STR_MQTT)) {
+      pOptions->proto = TSDB_BNODE_OPT_PROTO_MQTT;
+    } else {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_BNODE_OPTION, "Invalid option protocol: %s",
+                                     pOptions->protoStr);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateCreateBnode(STranslateContext* pCxt, SCreateBnodeStmt* pStmt) {
+  SMCreateBnodeReq createReq = {.dnodeId = pStmt->dnodeId};
+
+  int32_t code = checkCreateBnode(pCxt, pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    createReq.bnodeProto = pStmt->pOptions->proto;
+
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_BNODE, (FSerializeFunc)tSerializeSMCreateBnodeReq, &createReq);
+  }
+
+  tFreeSMCreateBnodeReq(&createReq);
+  return code;
+}
+
+static int32_t translateDropBnode(STranslateContext* pCxt, SDropBnodeStmt* pStmt) {
+  SMDropBnodeReq dropReq = {0};
+  dropReq.dnodeId = pStmt->dnodeId;
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_BNODE, (FSerializeFunc)tSerializeSMDropBnodeReq, &dropReq);
+  tFreeSMDropBnodeReq(&dropReq);
+  return code;
+}
+
 static int32_t translateCreateDnode(STranslateContext* pCxt, SCreateDnodeStmt* pStmt) {
   SCreateDnodeReq createReq = {0};
   tstrncpy(createReq.fqdn, pStmt->fqdn, TSDB_FQDN_LEN);
@@ -11665,8 +11749,8 @@ static int16_t getCreateComponentNodeMsgType(ENodeType type) {
   switch (type) {
     case QUERY_NODE_CREATE_QNODE_STMT:
       return TDMT_MND_CREATE_QNODE;
-    case QUERY_NODE_CREATE_BNODE_STMT:
-      return TDMT_MND_CREATE_BNODE;
+    case QUERY_NODE_CREATE_BACKUP_NODE_STMT:
+      return TDMT_MND_CREATE_BACKUP_NODE;
     case QUERY_NODE_CREATE_SNODE_STMT:
       return TDMT_MND_CREATE_SNODE;
     case QUERY_NODE_CREATE_MNODE_STMT:
@@ -11689,8 +11773,8 @@ static int16_t getDropComponentNodeMsgType(ENodeType type) {
   switch (type) {
     case QUERY_NODE_DROP_QNODE_STMT:
       return TDMT_MND_DROP_QNODE;
-    case QUERY_NODE_DROP_BNODE_STMT:
-      return TDMT_MND_DROP_BNODE;
+    case QUERY_NODE_DROP_BACKUP_NODE_STMT:
+      return TDMT_MND_DROP_BACKUP_NODE;
     case QUERY_NODE_DROP_SNODE_STMT:
       return TDMT_MND_DROP_SNODE;
     case QUERY_NODE_DROP_MNODE_STMT:
@@ -14949,6 +15033,12 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_UPDATE_ANODE_STMT:
       code = translateUpdateAnode(pCxt, (SUpdateAnodeStmt*)pNode);
       break;
+    case QUERY_NODE_CREATE_BNODE_STMT:
+      code = translateCreateBnode(pCxt, (SCreateBnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_BNODE_STMT:
+      code = translateDropBnode(pCxt, (SDropBnodeStmt*)pNode);
+      break;
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = translateCreateIndex(pCxt, (SCreateIndexStmt*)pNode);
       break;
@@ -14956,13 +15046,13 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       code = translateDropIndex(pCxt, (SDropIndexStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_QNODE_STMT:
-    case QUERY_NODE_CREATE_BNODE_STMT:
+    case QUERY_NODE_CREATE_BACKUP_NODE_STMT:
     case QUERY_NODE_CREATE_SNODE_STMT:
     case QUERY_NODE_CREATE_MNODE_STMT:
       code = translateCreateComponentNode(pCxt, (SCreateComponentNodeStmt*)pNode);
       break;
     case QUERY_NODE_DROP_QNODE_STMT:
-    case QUERY_NODE_DROP_BNODE_STMT:
+    case QUERY_NODE_DROP_BACKUP_NODE_STMT:
     case QUERY_NODE_DROP_SNODE_STMT:
     case QUERY_NODE_DROP_MNODE_STMT:
       code = translateDropComponentNode(pCxt, (SDropComponentNodeStmt*)pNode);
@@ -19253,8 +19343,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:
     case QUERY_NODE_SHOW_STREAMS_STMT:
-    case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
+    case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:

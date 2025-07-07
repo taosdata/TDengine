@@ -546,6 +546,7 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         BDecimal decMax = {0};
         BDecimal decMin = {0};
         int32_t length = 4;
+        uint8_t tagGen = GEN_RANDOM;
         tools_cJSON *tagObj = tools_cJSON_GetArrayItem(tags, k);
         if (!tools_cJSON_IsObject(tagObj)) {
             errorPrint("%s", "Invalid tag format in json\n");
@@ -720,6 +721,13 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             }
         }
 
+        tools_cJSON *tagDataGen = tools_cJSON_GetObjectItem(tagObj, "gen");
+        if (tools_cJSON_IsString(tagDataGen)) {
+            if (strcasecmp(tagDataGen->valuestring, "order") == 0) {
+                tagGen = GEN_ORDER;
+            }
+        }
+
         for (int n = 0; n < count; ++n) {
             Field * tag = benchCalloc(1, sizeof(Field), true);
             benchArrayPush(stbInfo->tags, tag);
@@ -739,6 +747,7 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             tag->decMax = decMax;
             tag->decMin = decMin;
             tag->values = dataValues;
+            tag->gen = tagGen;
             if (customName) {
                 if (n >= 1) {
                     snprintf(tag->name, TSDB_COL_NAME_LEN,
@@ -1888,6 +1897,16 @@ static int getMetaFromInsertJsonFile(tools_cJSON *json) {
         g_arguments->output_file = resultfile->valuestring;
     }
 
+    tools_cJSON *resultJsonFile = tools_cJSON_GetObjectItem(json, "result_json_file");
+    if (resultJsonFile && resultJsonFile->type == tools_cJSON_String
+            && resultJsonFile->valuestring != NULL) {
+        g_arguments->output_json_file = resultJsonFile->valuestring;
+        if (check_write_permission(g_arguments->output_json_file)) {
+            errorPrint("json file %s does not have write permission.\n", g_arguments->output_json_file);
+            goto PARSE_OVER;
+        }
+    }
+
     tools_cJSON *threads = tools_cJSON_GetObjectItem(json, "thread_count");
     if (threads && threads->type == tools_cJSON_Number) {
         if(!(g_argFlag & ARG_OPT_THREAD)) {
@@ -2456,6 +2475,17 @@ static int getMetaFromQueryJsonFile(tools_cJSON *json) {
             return -1;
         }
     }
+
+    tools_cJSON *resultJsonFile = tools_cJSON_GetObjectItem(json, "result_json_file");
+    if (resultJsonFile && resultJsonFile->type == tools_cJSON_String
+            && resultJsonFile->valuestring != NULL) {
+        g_arguments->output_json_file = resultJsonFile->valuestring;
+        if (check_write_permission(g_arguments->output_json_file)) {
+            errorPrint("json file %s does not have write permission.\n", g_arguments->output_json_file);
+            return -1;
+        }
+    }
+
     // init sqls
     g_queryInfo.specifiedQueryInfo.sqls = benchArrayInit(1, sizeof(SSQL));
 
@@ -2502,6 +2532,16 @@ static int getMetaFromTmqJsonFile(tools_cJSON *json) {
     if (resultfile && resultfile->type == tools_cJSON_String
             && resultfile->valuestring != NULL) {
         g_arguments->output_file = resultfile->valuestring;
+    }
+
+    tools_cJSON *resultJsonFile = tools_cJSON_GetObjectItem(json, "result_json_file");
+    if (resultJsonFile && resultJsonFile->type == tools_cJSON_String
+            && resultJsonFile->valuestring != NULL) {
+        g_arguments->output_json_file = resultJsonFile->valuestring;
+        if (check_write_permission(g_arguments->output_json_file)) {
+            errorPrint("json file %s does not have write permission.\n", g_arguments->output_json_file);
+            goto TMQ_PARSE_OVER;
+        }
     }
 
     tools_cJSON *answerPrompt =

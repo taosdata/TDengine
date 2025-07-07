@@ -130,7 +130,7 @@ pip3 install kafka-python==2.1.2
 python3 kafka_example_consumer.py
 
 # 21
-pip3 install taos-ws-py==0.3.8
+pip3 install taos-ws-py==0.5.3
 python3 conn_websocket_pandas.py
 
 # 22
@@ -180,6 +180,18 @@ python3 stmt_native.py
 
 python3 stmt_ws.py
 
+taos -s "drop database power"
+check_transactions || exit 1
+reset_cache || exit 1
+echo "stmt2_native.py"
+python3 stmt2_native.py
+
+taos -s "drop database power"
+check_transactions || exit 1
+reset_cache || exit 1
+echo "stmt2_ws.py"
+python3 stmt2_ws.py
+
 taos -s "drop topic if exists topic_meters"
 check_transactions || exit 1
 reset_cache || exit 1
@@ -196,5 +208,4 @@ check_transactions || exit 1
 reset_cache || exit 1
 python3 tmq_websocket_example.py
 
-python3 stmt2_native.py
 

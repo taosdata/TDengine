@@ -19,12 +19,11 @@ Prepare the following environment:
 - The Python connector taospy version 2.7.18 or higher is installed, [Install reference link](https://pypi.org/project/taospy/).
 - The Python connector (WebSocket) taos-ws-py version 0.3.9 or higher is installed, [Install reference link](https://pypi.org/project/taos-ws-py/).
 
-
 ## Configure Data Source
 
 1. Enter the new database connection page, "Superset" -> "Setting" -> "Database Connections" -> "+DATABASE".
 
-2. Select the last item "Other" from the drop-down list of "SUPPORTED DATABASES". 
+2. Select the last item "Other" from the drop-down list of "SUPPORTED DATABASES".
 
 3. Enter a connection name in "DISPLAY NAME", you can enter any name.
 
@@ -37,12 +36,12 @@ Prepare the following environment:
 
    | Parameter  | <center>Parameter Description</center>                      |
    |:---------- |:---------------------------------------------------------   |
-   |user        | Username for logging into TDengine database                 |   
+   |user        | Username for logging into TDengine database                 |
    |password    | Password for logging into TDengine database                 |
    |host        | Name of the host where the TDengine database is located     |
    |port        | The port that provides WebSocket services, default is 6041  |
 
-   Example: 
+   Example:
 
    The TDengine database installed on this machine provides WebSocket service port 6041, using the default username and password, "SQLALCHEMY URI" is:
 
@@ -52,12 +51,12 @@ Prepare the following environment:
 
 5. Test the connection.  
    Click "TEST CONNECTION" to check if the connection is successful. After the test passes, click the "CONNECT" button to save the configuration.
-       
+
 ## Data Analysis
 
 ### Data preparation
 
-There is no difference in the use of TDengine data source compared to other data sources. Here is a brief introduction to basic data queries: 
+There is no difference in the use of TDengine data source compared to other data sources. Here is a brief introduction to basic data queries:
 
 1. Click the "+" button in the upper right corner of the Superset interface, select "SQL query", and enter the query interface.  
 2. Select the previously created "TDengine" data source from the "Database" dropdown list in the upper left corner.
@@ -74,4 +73,4 @@ We chose two popular templates from the "Superset Chart" template to showcase th
    ![superset-demo1](./superset-demo1.webp)
 
 2. "RAW RECORDS" Type, which displays the collected values of current and voltage during the specified time period in Group 4.  
-    ![superset-demo2](./superset-demo2.webp)    
+    ![superset-demo2](./superset-demo2.webp)

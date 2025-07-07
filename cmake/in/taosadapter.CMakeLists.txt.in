@@ -1,0 +1,97 @@
+cmake_minimum_required(VERSION 3.16)
+
+project(taosadapter)
+
+include(ExternalProject)
+
+message(STATUS "TAOS_H_DIR:${TAOS_H_DIR}")
+message(STATUS "TAOS_LIB_DIR:${TAOS_LIB_DIR}")
+message(STATUS "TAOS_VERSION:${TAOS_VERSION}")
+message(STATUS "TD_VER_OSTYPE:${TD_VER_OSTYPE}")
+message(STATUS "TD_VER_CPUTYPE:${TD_VER_CPUTYPE}")
+message(STATUS "TD_VER_DATE:${TD_VER_DATE}")
+# NOTE: if you wanna pass other go build options, such as -a -x
+#       you can pass -DTD_GO_BUILD_OPTIONS:STRING="-a:-x"
+#       Attention: use ':' as a separator
+message(STATUS "TD_GO_BUILD_OPTIONS:${TD_GO_BUILD_OPTIONS}")
+message(STATUS "CMAKE_INSTALL_PREFIX:${CMAKE_INSTALL_PREFIX}")
+
+string(REPLACE ":" ";" _td_go_build_options "${TD_GO_BUILD_OPTIONS}")
+
+if(NOT DEFINED TAOS_VERSION)
+  message(FATAL_ERROR "must specify -DTAOS_VERSION:STRING=<...>")
+endif()
+
+if(APPLE)
+    set(_rpath                 "-Wl,-rpath,\$ORIGIN/../lib")
+elseif(UNIX)
+    set(_rpath                 "-Wl,-rpath=\$ORIGIN/../lib")
+elseif(WIN32)
+    set(_rpath                 "")
+endif()
+
+set(_cgo_cflags_list)
+set(_cgo_ldflags_list)
+set(_ldflags_list)
+
+if(DEFINED TAOS_H_DIR)
+  list(APPEND _cgo_cflags_list
+    "-I${TAOS_H_DIR}"
+  )
+endif()
+if(DEFINED TAOS_LIB_DIR)
+  list(APPEND _cgo_ldflags_list
+    "-L${TAOS_LIB_DIR}"
+  )
+  list(APPEND _cgo_ldflags_list
+    "${_rpath}"
+  )
+endif()
+
+list(APPEND _ldflags_list
+    "-X 'github.com/taosdata/taosadapter/v3/version.Version=${TAOS_VERSION}'"
+)
+
+EXECUTE_PROCESS(
+    COMMAND git rev-parse HEAD
+    RESULT_VARIABLE commit_sha1
+    OUTPUT_VARIABLE taosadapter_commit_sha1
+)
+
+message(STATUS "taosadapter_commit_sha1:${taosadapter_commit_sha1}")
+STRING(STRIP "${taosadapter_commit_sha1}" taosadapter_commit_sha1)
+
+if("z${taosadapter_commit_sha1}" STREQUAL "z")
+  message(FATAL_ERROR "internal logic error")
+endif()
+
+list(APPEND _ldflags_list
+    "-X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}'"
+)
+
+list(APPEND _ldflags_list
+    "-X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+)
+
+string(JOIN " " _cgo_cflags ${_cgo_cflags_list})
+string(JOIN " " _cgo_ldflags ${_cgo_ldflags_list})
+string(JOIN " " _ldflags ${_ldflags_list})
+
+message(STATUS "_cgo_cflags:${_cgo_cflags_list}")
+message(STATUS "_cgo_ldflags:${_cgo_ldflags_list}")
+message(STATUS "_ldflags ${_ldflags_list}")
+
+add_custom_target(build_with_cmake ALL
+  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  COMMAND_EXPAND_LISTS
+  VERBATIM
+  # NOTE: remove -a option, because we wanna avoid unnecessary recompilation.
+  # NOTE: cgo does not trace modification of header files
+  #       thus go build will not comply with taos.h in a consistent way
+  # TODO: if you really wanna a rebuild
+  #       you can pass -DTD_GO_BUILD_OPTIONS:STRING="-a"
+  COMMAND "${CMAKE_COMMAND}" -E env "CGO_CFLAGS=${_cgo_cflags}"
+                                    "CGO_LDFLAGS=${_cgo_ldflags}"
+          go build "${_td_go_build_options}" -ldflags "${_ldflags}"
+)
+

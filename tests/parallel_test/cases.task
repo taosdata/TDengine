@@ -119,7 +119,6 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-vgroups.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/connMode.py -B
-
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/custom_col_tag.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_json.py
@@ -133,7 +132,10 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to-continue.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/json_tag.py
-
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_sml.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_sql.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_stmt.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_stmt2.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert-json-csv.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/insertBasic.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertBindVGroup.py
@@ -1344,6 +1346,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f eco-system/manager/schema_change.py -N 3 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_window_true_for.py
+,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 
 #tsim test
 ,,y,script,./test.sh -f tsim/query/timeline.sim
@@ -1888,4 +1891,4 @@
 # new test
 ,,y,test_new,./pytest.sh python3 ./test.py -f storage/compact/test_compact_meta.py
 
-,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
+

@@ -148,20 +148,20 @@ class TDTestCase:
             http.server.HTTPServer(serverAddress, RequestHandlerImpl).serve_forever()
 
     def createTbThread(self, sql, newTdSql):
+        tdLog.info("create tb")
+        sql = "create table db3.tb using db3.stb tags (1)"
+        tdSql.execute(sql, queryTimes = 1)
+
+        tdLog.info("delete tb")
+        sql = "delete from db3.tb"
+        tdSql.execute(sql, queryTimes = 1)
+        
         global threadisExit
         while True:
                 
             tdLog.info("threadisExit = %s"%threadisExit)
             if threadisExit == True:
                 break
-
-            tdLog.info("create tb")
-            sql = "create table db3.tb using db3.stb tags (1)"
-            tdSql.query(sql)
-
-            tdLog.info("delete tb")
-            sql = "delete from db3.tb"
-            tdSql.query(sql)
 
             time.sleep(5)
 

@@ -593,10 +593,25 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
 
     SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
     if (rsp.code == 0) {
-      if (vnodeProcessWriteMsg(pVnode, pMsg, pMsg->info.conn.applyIndex, &rsp) < 0) {
-        rsp.code = terrno;
-        vGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to apply since %s, index:%" PRId64, vgId, pMsg, terrstr(),
-                pMsg->info.conn.applyIndex);
+      int32_t ret = 0;
+      int32_t count = 0;
+      while (1) {
+        ret = vnodeProcessWriteMsg(pVnode, pMsg, pMsg->info.conn.applyIndex, &rsp);
+        if (ret < 0) {
+          rsp.code = ret;
+          vGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to apply since %s, index:%" PRId64, vgId, pMsg,
+                  tstrerror(ret), pMsg->info.conn.applyIndex);
+        }
+        if (ret == TSDB_CODE_VND_WRITE_DISABLED) {
+          if (count % 100 == 0)
+            vGError(&pMsg->info.traceId,
+                    "vgId:%d, msg:%p, failed to apply since %s, retry after 200ms, retry count:%d index:%" PRId64, vgId,
+                    pMsg, tstrerror(ret), count, pMsg->info.conn.applyIndex);
+          count++;
+          taosMsleep(200);  // wait for a while before retrying
+        } else{
+          break;
+        } 
       }
     }
 

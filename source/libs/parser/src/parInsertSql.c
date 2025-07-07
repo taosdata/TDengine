@@ -1426,6 +1426,21 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     pCxt->missCache = true;
     return TSDB_CODE_SUCCESS;
   }
+  char stableFName[TSDB_TABLE_FNAME_LEN];
+  code = tNameExtractFullName(&pStmt->usingTableName, stableFName);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  char ctableFName[TSDB_TABLE_FNAME_LEN];
+  code = tNameExtractFullName(&pStmt->targetTableName, ctableFName);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (strcmp(stableFName, ctableFName) == 0) {
+    return TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
+  }
   if (!pCxt->missCache) {
     char tbFName[TSDB_TABLE_FNAME_LEN];
     code = tNameExtractFullName(&pStmt->usingTableName, tbFName);
@@ -1487,7 +1502,7 @@ static int32_t parseUsingTableNameImpl(SInsertParseContext* pCxt, SVnodeModifyOp
   int32_t code = preParseUsingTableName(pCxt, pStmt, &token);
   if (TSDB_CODE_SUCCESS == code) {
     code = getUsingTableSchema(pCxt, pStmt, &ctbCacheHit);
-    if (TSDB_CODE_SUCCESS == code && ctbCacheHit) {
+    if (TSDB_CODE_SUCCESS == code && ctbCacheHit && !pCxt->missCache) {
       pStmt->usingTableProcessing = false;
       return ignoreUsingClauseAndCheckTagValues(pCxt, pStmt);
     }

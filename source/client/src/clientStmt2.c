@@ -140,7 +140,6 @@ static int32_t stmtSwitchStatus(STscStmt2* pStmt, STMT_STATUS newStatus) {
   int32_t code = 0;
 
   if (newStatus >= STMT_INIT && newStatus < STMT_MAX) {
-    STMT2_ELOG("stmt already failed with err:%s", tstrerror(pStmt->errCode));
     STMT_LOG_SEQ(newStatus);
   }
 
@@ -315,21 +314,35 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
 
   pStmt->bInfo.needParse = false;
 
-  if (pStmt->sql.pQuery->pRoot && 0 == pStmt->sql.type) {
-    pStmt->sql.type = STMT_TYPE_INSERT;
-    pStmt->sql.stbInterlaceMode = false;
-  } else if (pStmt->sql.pQuery->pPrepareRoot) {
-    pStmt->sql.type = STMT_TYPE_QUERY;
-    pStmt->sql.stbInterlaceMode = false;
+  if (pStmt->sql.type == 0) {
+    if (pStmt->sql.pQuery->pRoot && LEGAL_INSERT(nodeType(pStmt->sql.pQuery->pRoot))) {
+      pStmt->sql.type = STMT_TYPE_INSERT;
+      pStmt->sql.stbInterlaceMode = false;
+    } else if (pStmt->sql.pQuery->pPrepareRoot && LEGAL_SELECT(nodeType(pStmt->sql.pQuery->pPrepareRoot))) {
+      pStmt->sql.type = STMT_TYPE_QUERY;
+      pStmt->sql.stbInterlaceMode = false;
 
+      return TSDB_CODE_SUCCESS;
+    } else {
+      pStmt->bInfo.needParse = true;
+      STMT2_ELOG_E("only support select or insert sql");
+      if (pStmt->exec.pRequest->msgBuf) {
+        tstrncpy(pStmt->exec.pRequest->msgBuf, "stmt only support select or insert", pStmt->exec.pRequest->msgBufLen);
+      }
+      return TSDB_CODE_TSC_STMT_API_ERROR;
+    }
+  } else if (pStmt->sql.type == STMT_TYPE_QUERY) {
+    pStmt->sql.stbInterlaceMode = false;
     return TSDB_CODE_SUCCESS;
+  } else if (pStmt->sql.type == STMT_TYPE_INSERT) {
+    pStmt->sql.stbInterlaceMode = false;
   }
 
   STableDataCxt** pSrc =
       (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
   if (NULL == pSrc || NULL == *pSrc) {
     STMT2_ELOG("fail to get exec.pBlockHash, maybe parse failed, tbFName:%s", pStmt->bInfo.tbFName);
-    return terrno;
+    STMT_ERR_RET(TSDB_CODE_TSC_STMT_CACHE_ERROR);
   }
 
   STableDataCxt* pTableCtx = *pSrc;
@@ -425,6 +438,7 @@ static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClea
     } else {
       pStmt->sql.siInfo.pTableColsIdx = 0;
       stmtResetQueueTableBuf(&pStmt->sql.siInfo.tbBuf, &pStmt->queue);
+      tSimpleHashClear(pStmt->sql.siInfo.pTableRowDataHash);
     }
     if (NULL != pStmt->exec.pRequest) {
       pStmt->exec.pRequest->body.resInfo.numOfRows = 0;
@@ -522,6 +536,7 @@ static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
   taos_free_result(pStmt->sql.siInfo.pRequest);
   taosHashCleanup(pStmt->sql.siInfo.pVgroupHash);
   tSimpleHashCleanup(pStmt->sql.siInfo.pTableHash);
+  tSimpleHashCleanup(pStmt->sql.siInfo.pTableRowDataHash);
   taosArrayDestroyEx(pStmt->sql.siInfo.tbBuf.pBufList, stmtFreeTbBuf);
   taosMemoryFree(pStmt->sql.siInfo.pTSchema);
   qDestroyStmtDataBlock(pStmt->sql.siInfo.pDataCtx);
@@ -897,12 +912,21 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
     pStmt->sql.siInfo.acctId = taos->acctId;
     pStmt->sql.siInfo.dbname = taos->db;
     pStmt->sql.siInfo.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
+
     pStmt->sql.siInfo.pTableHash = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
     if (NULL == pStmt->sql.siInfo.pTableHash) {
       STMT2_ELOG("fail to allocate memory for pTableHash:%s", tstrerror(terrno));
       (void)stmtClose2(pStmt);
       return NULL;
     }
+
+    pStmt->sql.siInfo.pTableRowDataHash = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    if (NULL == pStmt->sql.siInfo.pTableRowDataHash) {
+      STMT2_ELOG("fail to allocate memory for pTableRowDataHash:%s", tstrerror(terrno));
+      (void)stmtClose2(pStmt);
+      return NULL;
+    }
+
     pStmt->sql.siInfo.pTableCols = taosArrayInit(STMT_TABLE_COLS_NUM, POINTER_BYTES);
     if (NULL == pStmt->sql.siInfo.pTableCols) {
       STMT2_ELOG("fail to allocate memory for pTableCols:%s", tstrerror(terrno));
@@ -1008,6 +1032,11 @@ static int32_t stmtResetStbInterlaceCache(STscStmt2* pStmt) {
     return terrno;
   }
 
+  pStmt->sql.siInfo.pTableRowDataHash = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (NULL == pStmt->sql.siInfo.pTableRowDataHash) {
+    return terrno;
+  }
+
   pStmt->sql.siInfo.pTableCols = taosArrayInit(STMT_TABLE_COLS_NUM, POINTER_BYTES);
   if (NULL == pStmt->sql.siInfo.pTableCols) {
     return terrno;
@@ -1029,12 +1058,19 @@ static int32_t stmtResetStbInterlaceCache(STscStmt2* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t stmtResetStmtForPrepare(STscStmt2* pStmt) {
+static int32_t stmtDeepReset(STscStmt2* pStmt) {
   char*             db = pStmt->db;
   bool              stbInterlaceMode = pStmt->stbInterlaceMode;
   TAOS_STMT2_OPTION options = pStmt->options;
   uint32_t          reqid = pStmt->reqid;
 
+  if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
+    if (tsem_wait(&pStmt->asyncExecSem) != 0) {
+      STMT2_ELOG_E("bind param wait asyncExecSem failed");
+    }
+    pStmt->execSemWaited = true;
+  }
+  pStmt->sql.autoCreateTbl = false;
   taosMemoryFree(pStmt->sql.pBindInfo);
   pStmt->sql.pBindInfo = NULL;
 
@@ -1101,6 +1137,11 @@ static int32_t stmtResetStmtForPrepare(STscStmt2* pStmt) {
     pStmt->sql.siInfo.pTableHash = NULL;
   }
 
+  if (pStmt->sql.siInfo.pTableRowDataHash) {
+    tSimpleHashCleanup(pStmt->sql.siInfo.pTableRowDataHash);
+    pStmt->sql.siInfo.pTableRowDataHash = NULL;
+  }
+
   if (pStmt->sql.siInfo.pVgroupHash) {
     taosHashCleanup(pStmt->sql.siInfo.pVgroupHash);
     pStmt->sql.siInfo.pVgroupHash = NULL;
@@ -1159,7 +1200,7 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
 
   if (pStmt->sql.status >= STMT_PREPARE) {
     STMT2_DLOG("stmt status is %d, need to reset stmt2 cache before prepare", pStmt->sql.status);
-    STMT_ERR_RET(stmtResetStmtForPrepare(pStmt));
+    STMT_ERR_RET(stmtDeepReset(pStmt));
   }
 
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
@@ -1810,7 +1851,7 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
 
   cleanup_root:
     STMT2_ELOG("parse query statment unexpected failed code:%d, need to clean node", code);
-    if (pStmt->sql.pQuery->pRoot) {
+    if (pStmt->sql.pQuery && pStmt->sql.pQuery->pRoot) {
       nodesDestroyNode(pStmt->sql.pQuery->pRoot);
       pStmt->sql.pQuery->pRoot = NULL;
     }
@@ -2115,6 +2156,7 @@ static int32_t createParseContext(const SRequestObj* pRequest, SParseContext** p
 static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
   STscStmt2*        pStmt = userdata;
   __taos_async_fn_t fp = pStmt->options.asyncExecFn;
+  pStmt->asyncExecCb = true;
 
   pStmt->exec.affectedRows = taos_affected_rows(pStmt->exec.pRequest);
   pStmt->affectedRows += pStmt->exec.affectedRows;
@@ -2128,7 +2170,7 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
   ++pStmt->sql.runTimes;
 
   if (tsem_post(&pStmt->asyncExecSem) != 0) {
-    tscError("fail to post asyncExecSem");
+    STMT2_ELOG_E("fail to post asyncExecSem");
   }
 }
 
@@ -2143,17 +2185,18 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     return pStmt->errCode;
   }
 
-  TSC_ERR_RET(taosThreadMutexLock(&pStmt->asyncBindParam.mutex));
+  STMT_ERR_RET(taosThreadMutexLock(&pStmt->asyncBindParam.mutex));
   while (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 0) {
     (void)taosThreadCondWait(&pStmt->asyncBindParam.waitCond, &pStmt->asyncBindParam.mutex);
   }
-  TSC_ERR_RET(taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex));
+  STMT_ERR_RET(taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex));
 
   if (pStmt->sql.stbInterlaceMode) {
     STMT_ERR_RET(stmtAddBatch2(pStmt));
   }
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_EXECUTE));
+  pStmt->asyncExecCb = false;
 
   if (STMT_TYPE_QUERY != pStmt->sql.type) {
     if (pStmt->sql.stbInterlaceMode) {
@@ -2274,7 +2317,6 @@ int stmtClose2(TAOS_STMT2* stmt) {
   (void)taosThreadMutexDestroy(&pStmt->asyncBindParam.mutex);
 
   if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
-    STMT2_TLOG_E("wait for asyncExecSem");
     if (tsem_wait(&pStmt->asyncExecSem) != 0) {
       STMT2_ELOG_E("fail to wait asyncExecSem");
     }
@@ -2313,7 +2355,10 @@ const char* stmtErrstr2(TAOS_STMT2* stmt) {
     return (char*)tstrerror(terrno);
   }
 
-  pStmt->exec.pRequest->code = terrno;
+  // if stmt async exec ,error code is pStmt->exec.pRequest->code
+  if (!(pStmt->sql.status >= STMT_EXECUTE && pStmt->options.asyncExecFn != NULL && pStmt->asyncExecCb)) {
+    pStmt->exec.pRequest->code = terrno;
+  }
 
   SRequestObj* pRequest = pStmt->exec.pRequest;
   if (NULL != pRequest->msgBuf && (strlen(pRequest->msgBuf) > 0 || pRequest->code == TSDB_CODE_RPC_FQDN_ERROR)) {

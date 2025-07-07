@@ -307,7 +307,8 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
   }
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = pTableCxt;
-    parserDebug("uid:%" PRId64 ", create table data context, code:%d, vgId:%d", pTableMeta->uid, code, pTableMeta->vgId);
+    parserDebug("uid:%" PRId64 ", create table data context, code:%d, vgId:%d", pTableMeta->uid, code,
+                pTableMeta->vgId);
   } else {
     insDestroyTableDataCxt(pTableCxt);
   }
@@ -515,8 +516,7 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
   return code;
 }
 
-static int32_t createVgroupDataCxt(int32_t vgId, SHashObj* pVgroupHash, SArray* pVgroupList,
-                                   SVgroupDataCxt** pOutput) {
+static int32_t createVgroupDataCxt(int32_t vgId, SHashObj* pVgroupHash, SArray* pVgroupList, SVgroupDataCxt** pOutput) {
   SVgroupDataCxt* pVgCxt = taosMemoryCalloc(1, sizeof(SVgroupDataCxt));
   if (NULL == pVgCxt) {
     return terrno;
@@ -642,6 +642,65 @@ int32_t qBuildStmtFinOutput1(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDa
   return code;
 }
 
+int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCxt* pVgCxt, SSHashObj* pTableNameHash,
+                                            char* tbname) {
+  if (NULL == pVgCxt->pData->aSubmitTbData) {
+    pVgCxt->pData->aSubmitTbData = taosArrayInit(128, sizeof(SSubmitTbData));
+    if (NULL == pVgCxt->pData->aSubmitTbData) {
+      return terrno;
+    }
+  }
+
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SArray**       rowP = NULL;
+
+  rowP = (SArray**)tSimpleHashGet(pTableNameHash, tbname, strlen(tbname));
+
+  if (rowP != NULL && *rowP != NULL) {
+    for (int32_t j = 0; j < taosArrayGetSize(*rowP); ++j) {
+      SRow* pRow = (SRow*)taosArrayGetP(pTbCtx->pData->aRowP, j);
+      if (pRow) {
+        if (NULL == taosArrayPush(*rowP, &pRow)) {
+          return terrno;
+        }
+      }
+
+      code = tRowSort(*rowP);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      code = tRowMerge(*rowP, pTbCtx->pSchema, 0);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+
+    parserDebug("merge same uid data: %" PRId64 ", vgId:%d", pTbCtx->pData->uid, pVgCxt->vgId);
+
+    if (pTbCtx->pData->pCreateTbReq != NULL) {
+      tdDestroySVCreateTbReq(pTbCtx->pData->pCreateTbReq);
+      taosMemoryFree(pTbCtx->pData->pCreateTbReq);
+      pTbCtx->pData->pCreateTbReq = NULL;
+    }
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == taosArrayPush(pVgCxt->pData->aSubmitTbData, pTbCtx->pData)) {
+    return terrno;
+  }
+
+  code = tSimpleHashPut(pTableNameHash, tbname, strlen(tbname), &pTbCtx->pData->aRowP, sizeof(SArray*));
+
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  parserDebug("uid:%" PRId64 ", add table data context to vgId:%d", pTbCtx->pMeta->uid, pVgCxt->vgId);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
                                   SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq) {
   int8_t   hasBlob = 0;
@@ -653,12 +712,14 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
   pTbCtx->pData->pBlobRow = pTbData->pBlobRow;
 
   code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId);
-  if (ctbReq !=NULL && code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+  if (ctbReq != NULL && code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
     pTbCtx->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
     vgId = (int32_t)ctbReq->uid;
     uid = 0;
     pTbCtx->pMeta->vgId = (int32_t)ctbReq->uid;
     ctbReq->uid = 0;
+    pTbCtx->pMeta->uid = 0;
+    pTbCtx->pData->uid = 0;
     pTbCtx->pData->pCreateTbReq = ctbReq;
     code = TSDB_CODE_SUCCESS;
   } else {
@@ -707,8 +768,8 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     pVgCxt = *(SVgroupDataCxt**)pp;
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
-    code = fillVgroupDataCxt(pTbCtx, pVgCxt, false, false);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = checkAndMergeSVgroupDataCxtByTbname(pTbCtx, pVgCxt, pBuildInfo->pTableRowDataHash, pTbData->tbName);
   }
 
   if (taosArrayGetSize(pVgCxt->pData->aSubmitTbData) >= 20000) {
@@ -1001,7 +1062,7 @@ int32_t checkSchema(SSchema* pColSchema, SSchemaExt* pColExtSchema, int8_t* fiel
   if (IS_DECIMAL_TYPE(pColSchema->type)) {
     uint8_t precision = 0, scale = 0;
     decimalFromTypeMod(pColExtSchema->typeMod, &precision, &scale);
-    uint8_t precisionData = 0, scaleData  = 0;
+    uint8_t precisionData = 0, scaleData = 0;
     int32_t bytes = *(int32_t*)(fields + sizeof(int8_t));
     extractDecimalTypeInfoFromBytes(&bytes, &precisionData, &scaleData);
     if (precision != precisionData || scale != scaleData) {
@@ -1037,7 +1098,7 @@ int32_t checkSchema(SSchema* pColSchema, SSchemaExt* pColExtSchema, int8_t* fiel
 }
 
 #define PRCESS_DATA(i, j)                                                                                 \
-  ret = checkSchema(pColSchema, pColExtSchema, fields, errstr, errstrLen);                                               \
+  ret = checkSchema(pColSchema, pColExtSchema, fields, errstr, errstrLen);                                \
   if (ret != 0) {                                                                                         \
     goto end;                                                                                             \
   }                                                                                                       \
@@ -1136,8 +1197,8 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
 
   char* pStart = p;
 
-  SSchema*          pSchema     = getTableColumnSchema(pTableCxt->pMeta);
-  SSchemaExt*       pExtSchemas = getTableColumnExtSchema(pTableCxt->pMeta);
+  SSchema*       pSchema = getTableColumnSchema(pTableMeta);
+  SSchemaExt*    pExtSchemas = getTableColumnExtSchema(pTableMeta);
   SBoundColInfo* boundInfo = &pTableCxt->boundColsInfo;
 
   if (tFields != NULL && numFields != numOfCols) {
@@ -1150,16 +1211,16 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
   if (tFields == NULL) {
     int32_t len = TMIN(numOfCols, boundInfo->numOfBound);
     for (int j = 0; j < len; j++) {
-      SSchema* pColSchema = &pSchema[j];
+      SSchema*    pColSchema = &pSchema[j];
       SSchemaExt* pColExtSchema = &pExtSchemas[j];
       PRCESS_DATA(j, j)
     }
   } else {
     for (int i = 0; i < numFields; i++) {
       for (int j = 0; j < boundInfo->numOfBound; j++) {
-        SSchema* pColSchema = &pSchema[j];
+        SSchema*    pColSchema = &pSchema[j];
         SSchemaExt* pColExtSchema = &pExtSchemas[j];
-        char*    fieldName = NULL;
+        char*       fieldName = NULL;
         if (raw) {
           fieldName = ((SSchemaWrapper*)tFields)->pSchema[i].name;
         } else {
@@ -1198,14 +1259,14 @@ end:
 
 int rawBlockBindRawData(SHashObj* pVgroupHash, SArray* pVgroupList, STableMeta* pTableMeta, void* data) {
   int code = transformRawSSubmitTbData(data, pTableMeta->suid, pTableMeta->uid, pTableMeta->sversion);
-  if (code != 0){
+  if (code != 0) {
     return code;
   }
   SVgroupDataCxt* pVgCxt = NULL;
   void**          pp = taosHashGet(pVgroupHash, &pTableMeta->vgId, sizeof(pTableMeta->vgId));
   if (NULL == pp) {
     code = createVgroupDataCxt(pTableMeta->vgId, pVgroupHash, pVgroupList, &pVgCxt);
-    if (code != 0){
+    if (code != 0) {
       return code;
     }
   } else {

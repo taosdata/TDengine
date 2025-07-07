@@ -92,3 +92,79 @@ class TestInsertSelect:
         tdSql.checkData(1, 1, 12)
 
         tdSql.checkData(1, 2, 11)
+
+    def test_insert_stb_select(self):
+        """insert super table (select)
+
+        1. create table
+        2. insert data
+        3. query data
+
+        Catalog:
+            - DataIngestion
+
+        Since: v3.3.6
+
+        Labels: common,ci
+
+        Jira: TS-6150
+
+        """
+
+        tdLog.info(f"======== ctb not exists")
+        tdSql.prepare(dbname="db2", vgroups=3)
+        tdSql.execute(f"use db2;")
+        tdSql.execute(
+            f"CREATE STABLE IF NOT EXISTS dst_smeters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS(groupId INT, location BINARY(24));"
+        )
+        tdSql.execute(f"CREATE TABLE IF NOT EXISTS meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT);")
+        tdSql.execute(f"INSERT INTO meters values('2021-04-19 08:00:07', 1, 1, 1)('2021-04-19 08:00:08', 2, 2, 2);")
+        tdSql.execute(f"INSERT INTO dst_smeters(tbname, ts, current, voltage, location) select concat(tbname,'_', to_char(ts, 'SS')) as sub_table_name,ts, current, voltage,to_char(ts, 'SS') as location from meters partition by tbname;")
+        tdSql.query(f"select * from dst_smeters;")
+        tdSql.checkRows(2)
+        tdSql.query(f"select location, groupId, ts, current, voltage, phase from meters_07;")
+        tdSql.checkData(0, 0, "07")
+        tdSql.checkData(0, 1, None)
+        tdSql.checkRows(1)
+        tdSql.query(f"select location, groupId, ts, current, voltage, phase from meters_08;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "08")
+        tdSql.checkData(0, 1, None)
+
+
+        tdLog.info(f"======== ctb exists")
+        tdSql.execute(f"INSERT INTO dst_smeters(tbname, ts, current, voltage,location) select concat(tbname,'_', to_char(ts, 'SS')) as sub_table_name,ts+1000, current, voltage, to_char(ts+10000, 'SS') as location from meters partition by tbname;")
+        tdSql.query(f"select location, groupId, ts, current, voltage, phase from meters_08;")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "08")
+        tdSql.checkData(1, 0, "08")
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 1, None)
+        tdSql.checkData(0, 2, "2021-04-19 08:00:08")
+        tdSql.checkData(0, 3, 2)
+        tdSql.checkData(0, 4, 2)
+        tdSql.checkData(0, 5, None)
+        tdSql.checkData(1, 2, "2021-04-19 08:00:09")
+        tdSql.checkData(1, 3, 2)
+        tdSql.checkData(1, 4, 2)
+        tdSql.checkData(1, 5, None)
+
+        tdLog.info(f"======== ctb not exists and no tags")
+        tdSql.execute(f"INSERT INTO dst_smeters(tbname, ts, current, voltage)select concat(tbname,'_', to_char(ts+10000, 'SS')) as sub_table_name,ts, current, voltage from meters partition by tbname;")
+        tdSql.query(f"select location, groupId, ts, current, voltage, phase from meters_17;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, "2021-04-19 08:00:07")
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 1)
+        tdSql.checkData(0, 5, None)
+
+        tdLog.info(f"======== no tbname")
+        tdSql.error(f"INSERT INTO dst_smeters(ts, current, voltage, phase) select ts, current, voltage, phase from meters partition by tbname;")
+
+        tdLog.info(f"======== no pk")
+        tdSql.error(f"INSERT INTO dst_smeters(tbname, current, voltage,location) select concat(tbname,'_', to_char(ts, 'SS')) as sub_table_name, current, voltage, to_char(ts+10000, 'SS') as location from meters partition by tbname;")
+
+        tdLog.info(f"======== tbname isn't in first field")
+        tdSql.error(f"INSERT INTO dst_smeters(tbname, current, voltage,location) select concat(tbname,'_', to_char(ts, 'SS')) as sub_table_name, current, voltage, to_char(ts+10000, 'SS') as location from meters partition by tbname;")

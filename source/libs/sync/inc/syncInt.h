@@ -235,12 +235,16 @@ struct SSyncNode {
 
   bool isStart;
 
+  int32_t applyQueueErrorCount;
+
   // statis
   int64_t sendCount;
   int64_t recvCount;
   int64_t slowCount;
 
-  int32_t applyQueueErrorCount;
+  // metrics
+  int64_t wal_write_bytes;
+  int64_t wal_write_time;
 };
 
 // open/close --------------

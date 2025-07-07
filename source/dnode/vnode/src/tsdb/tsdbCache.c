@@ -4240,6 +4240,8 @@ void tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *
     _taos_lru_deleter_t deleter = deleteBCache;
     uint8_t            *pPg = taosMemoryMalloc(charge);
     if (!pPg) {
+      (void)taosThreadMutexUnlock(&pFD->pTsdb->pgMutex);
+
       return;  // ignore error with s3 cache and leave error untouched
     }
     memcpy(pPg, pPage, charge);

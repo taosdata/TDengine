@@ -13,7 +13,7 @@ When inserting data using parameter binding, it can avoid the resource consumpti
 - Precompilation: When using parameter binding, the SQL statement can be precompiled and cached. When executed later with different parameter values, the precompiled version can be used directly, improving execution efficiency.  
 - Reduced network overhead: Parameter binding also reduces the amount of data sent to the database because only parameter values need to be sent, not the complete SQL statement, especially when performing a large number of similar insert or update operations, this difference is particularly noticeable.
 
-**Tips: It is recommended to use parameter binding for data insertion**
+It is recommended to use parameter binding for data insertion.
 
    :::note
    We only recommend using the following two forms of SQL for parameter binding data insertion:
@@ -56,6 +56,14 @@ This is a [more detailed parameter binding example](https://github.com/taosdata/
 
 </TabItem>
 <TabItem label="Python" value="python">
+
+The following is an example code for using stmt2 to bind parameters (applicable to Python connector version 0.5.1 and above, and TDengine v3.3.5.0 and above):  
+
+```python
+{{#include docs/examples/python/stmt2_ws.py}}
+```
+
+The example code for stmt to bind parameters is as follows:
 
 ```python
 {{#include docs/examples/python/stmt_ws.py}}

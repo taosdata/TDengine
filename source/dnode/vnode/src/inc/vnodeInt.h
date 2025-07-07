@@ -50,6 +50,7 @@
 #include "bse.h"
 #include "vnode.h"
 
+#include "metrics.h"
 #include "taos_monitor.h"
 
 #ifdef __cplusplus
@@ -473,6 +474,29 @@ typedef struct {
   int64_t id;
 } SVATaskID;
 
+struct SVnodeWriteMetrics {
+  int64_t total_requests;
+  int64_t total_rows;
+  int64_t total_bytes;
+  int64_t cache_hit_ratio;
+  int64_t rpc_queue_wait;
+  int64_t preprocess_time;
+  int64_t apply_time;
+  int64_t apply_bytes;
+  int64_t fetch_batch_meta_time;
+  int64_t fetch_batch_meta_count;
+  int64_t memory_table_size;
+  int64_t commit_count;
+  int64_t merge_count;
+  int64_t commit_time;
+  int64_t merge_time;
+  int64_t block_commit_time;
+  int64_t blocked_commit_count;
+  int64_t memtable_wait_time;
+  int64_t last_cache_commit_time;
+  int64_t last_cache_commit_count;
+};
+
 struct SVnode {
   SVState   state;
   SVStatis  statis;
@@ -482,6 +506,9 @@ struct SVnode {
   SVnodeCfg config;
   SMsgCb    msgCb;
   bool      disableWrite;
+
+  //  Metrics
+  SVnodeWriteMetrics writeMetrics;
 
   // Buffer Pool
   TdThreadMutex mutex;

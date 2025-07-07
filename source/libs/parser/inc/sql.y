@@ -218,13 +218,20 @@ cmd ::= CREATE QNODE ON DNODE NK_INTEGER(A).                                    
 cmd ::= DROP QNODE ON DNODE NK_INTEGER(A).                                        { pCxt->pRootNode = createDropComponentNodeStmt(pCxt, QUERY_NODE_DROP_QNODE_STMT, &A); }
 cmd ::= RESTORE QNODE ON DNODE NK_INTEGER(A).                                     { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_QNODE_STMT, &A); }
 
-/************************************************ create/drop bnode ***************************************************/
-cmd ::= CREATE BNODE ON DNODE NK_INTEGER(A).                                      { pCxt->pRootNode = createCreateComponentNodeStmt(pCxt, QUERY_NODE_CREATE_BNODE_STMT, &A); }
-cmd ::= DROP BNODE ON DNODE NK_INTEGER(A).                                        { pCxt->pRootNode = createDropComponentNodeStmt(pCxt, QUERY_NODE_DROP_BNODE_STMT, &A); }
+/************************************************ create/drop backup node ***************************************************/
+// cmd ::= CREATE BACKUPNODE ON DNODE NK_INTEGER(A).                                      { pCxt->pRootNode = createCreateComponentNodeStmt(pCxt, QUERY_NODE_CREATE_BACKUP_NODE_STMT, &A); }
+// cmd ::= DROP BACKUPNODE ON DNODE NK_INTEGER(A).                                        { pCxt->pRootNode = createDropComponentNodeStmt(pCxt, QUERY_NODE_DROP_BACKUP_NODE_STMT, &A); }
 
 /************************************************ create/drop snode ***************************************************/
 cmd ::= CREATE SNODE ON DNODE NK_INTEGER(A).                                      { pCxt->pRootNode = createCreateComponentNodeStmt(pCxt, QUERY_NODE_CREATE_SNODE_STMT, &A); }
 cmd ::= DROP SNODE ON DNODE NK_INTEGER(A).                                        { pCxt->pRootNode = createDropComponentNodeStmt(pCxt, QUERY_NODE_DROP_SNODE_STMT, &A); }
+
+/************************************************ create/drop bnode ***************************************/
+cmd ::= CREATE BNODE ON DNODE NK_INTEGER(A) bnode_options(B).                     { pCxt->pRootNode = createCreateBnodeStmt(pCxt, &A, B); }
+cmd ::= DROP BNODE ON DNODE NK_INTEGER(A).                                        { pCxt->pRootNode = createDropBnodeStmt(pCxt, &A); }
+
+bnode_options(A) ::= .                                                            { A = createDefaultBnodeOptions(pCxt); }
+bnode_options(A) ::= bnode_options(B) PROTOCOL NK_STRING(C).                      { A = setBnodeOption(pCxt, B, BNODE_OPTION_PROTOCOL, &C); }
 
 /************************************************ create/drop/restore mnode ***************************************************/
 cmd ::= CREATE MNODE ON DNODE NK_INTEGER(A).                                      { pCxt->pRootNode = createCreateComponentNodeStmt(pCxt, QUERY_NODE_CREATE_MNODE_STMT, &A); }
@@ -598,6 +605,7 @@ col_name_list(A) ::= col_name(B).                                               
 col_name_list(A) ::= col_name_list(B) NK_COMMA col_name(C).                       { A = addNodeToList(pCxt, B, C); }
 
 col_name(A) ::= column_name(B).                                                   { A = createColumnNode(pCxt, NULL, &B); }
+col_name(A) ::= TBNAME(B).                                                        { A = createColumnNode(pCxt, NULL, &B); }
 
 /************************************************ show ****************************************************************/
 cmd ::= SHOW DNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DNODES_STMT); }
@@ -649,8 +657,9 @@ cmd ::= SHOW VARIABLES like_pattern_opt(B).                                     
 cmd ::= SHOW CLUSTER VARIABLES like_pattern_opt(B).                               { pCxt->pRootNode = createShowStmtWithLike(pCxt, QUERY_NODE_SHOW_VARIABLES_STMT, B); }
 cmd ::= SHOW LOCAL VARIABLES like_pattern_opt(B).                                 { pCxt->pRootNode = createShowStmtWithLike(pCxt, QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT, B); }
 cmd ::= SHOW DNODE NK_INTEGER(A) VARIABLES like_pattern_opt(B).                   { pCxt->pRootNode = createShowDnodeVariablesStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A), B); }
-cmd ::= SHOW BNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_BNODES_STMT); }
+// cmd ::= SHOW BNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_BACKUP_NODES_STMT); }
 cmd ::= SHOW SNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SNODES_STMT); }
+cmd ::= SHOW BNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_BNODES_STMT); }
 cmd ::= SHOW CLUSTER.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CLUSTER_STMT); }
 cmd ::= SHOW TRANSACTIONS.                                                        { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TRANSACTIONS_STMT); }
 cmd ::= SHOW TRANSACTION NK_INTEGER(A).                                           { pCxt->pRootNode = createShowTransactionDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }

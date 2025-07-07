@@ -68,11 +68,11 @@ extern "C" {
     token = tStrGetToken(pSql, &index, false, NULL); \
   } while (0)
 
-#define NEXT_VALID_TOKEN(pSql, token)           \
-  do {                                          \
-    (token).n = tGetToken(pSql, &(token).type); \
-    (token).z = (char*)pSql;                    \
-    pSql += (token).n;                          \
+#define NEXT_VALID_TOKEN(pSql, token)                 \
+  do {                                                \
+    (token).n = tGetToken(pSql, &(token).type, NULL); \
+    (token).z = (char*)pSql;                          \
+    pSql += (token).n;                                \
   } while (TK_NK_SPACE == (token).type)
 
 typedef struct SMsgBuf {

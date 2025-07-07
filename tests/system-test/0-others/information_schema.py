@@ -58,7 +58,7 @@ class TDTestCase:
             ]
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
-        self.ins_list = ['ins_dnodes','ins_mnodes','ins_qnodes','ins_snodes','ins_cluster','ins_databases','ins_functions',\
+        self.ins_list = ['ins_dnodes','ins_mnodes','ins_qnodes','ins_snodes','ins_bnodes','ins_cluster','ins_databases','ins_functions',\
             'ins_indexes','ins_stables','ins_tables','ins_tags','ins_columns','ins_users','ins_grants','ins_vgroups','ins_configs','ins_dnode_variables',\
                 'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges','ins_views',
                 'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes", "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details"]
@@ -222,7 +222,7 @@ class TDTestCase:
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
         tdLog.info(len(tdSql.queryResult))
-        tdSql.checkEqual(True, len(tdSql.queryResult) in range(327, 328))
+        tdSql.checkEqual(True, len(tdSql.queryResult) in range(333, 334))
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
         tdSql.checkEqual(62, len(tdSql.queryResult))
 
@@ -272,6 +272,8 @@ class TDTestCase:
             'timeseries':'Timeseries',
             'dnodes':'Dnodes',
             'cpu_cores':'CPU Cores',
+            'vnodes':'Vnodes',
+            'storage_size':'Storage Size',
             'stream':'Stream',
             'subscription':'Subscription',
             'view':'View',
@@ -300,6 +302,17 @@ class TDTestCase:
             'mongodb':'MongoDB',
             'csv':'CSV',
             'sparkplugb':"SparkplugB",
+            'ta_ts_attr':'TDasset Time-Series Attributes',
+            'ta_nts_attr':'TDasset Non-Time-Series Attributes',
+            'ta_element':'TDasset Elements',
+            'ta_server':'TDasset Servers',
+            'ta_cpu_core':'TDasset CPU Cores',
+            'ta_user':'TDasset Users',
+            'ta_version_ctrl':'TDasset Version Control',
+            'ta_data_forecast':'TDasset Data Forecast',
+            'ta_data_detect':'TDasset Data Detect',
+            'ta_data_quality':'TDasset Data Quality',
+            'ta_ai_chat_gen':'TDasset AI Chat/Generate',
         }
 
         tdSql.execute('drop database if exists db2')

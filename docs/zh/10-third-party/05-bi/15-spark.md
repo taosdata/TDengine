@@ -181,7 +181,7 @@ driverClass 指定为“com.taosdata.jdbc.ws.WebSocketDriver”。
         config.setProperty("enable.auto.commit",          "true");
         config.setProperty("auto.commit.interval.ms",     "1000");
         config.setProperty("group.id",                    "group1");
-        config.setProperty("client.id",                   "clinet1");
+        config.setProperty("client.id",                   "client1");
         config.setProperty("td.connect.user",             "root");
         config.setProperty("td.connect.pass",             "taosdata");
         config.setProperty("value.deserializer",          cls);

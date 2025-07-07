@@ -19,10 +19,10 @@
 #include "index.h"
 #include "qworker.h"
 #include "tcompression.h"
+#include "tconv.h"
 #include "tglobal.h"
 #include "tgrant.h"
 #include "tstream.h"
-#include "tconv.h"
 
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
@@ -55,6 +55,7 @@ int32_t dmInitDnode(SDnode *pDnode) {
   pDnode->wrappers[VNODE].func = vmGetMgmtFunc();
   pDnode->wrappers[QNODE].func = qmGetMgmtFunc();
   pDnode->wrappers[SNODE].func = smGetMgmtFunc();
+  pDnode->wrappers[BNODE].func = bmGetMgmtFunc();
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
@@ -320,6 +321,9 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
         break;
       case SNODE:
         code = TSDB_CODE_SNODE_NOT_FOUND;
+        break;
+      case BNODE:
+        code = TSDB_CODE_BNODE_NOT_FOUND;
         break;
       case VNODE:
         code = TSDB_CODE_VND_STOPPED;

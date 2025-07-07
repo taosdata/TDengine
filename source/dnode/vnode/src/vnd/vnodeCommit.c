@@ -359,12 +359,16 @@ static int32_t vnodeCommit(void *arg) {
   SVnode      *pVnode = pInfo->pVnode;
 
   // commit
-  if ((code = vnodeCommitImpl(pInfo))) {
-    vFatal("vgId:%d, failed to commit vnode since %s", TD_VID(pVnode), terrstr());
-    taosMsleep(100);
-    exit(EXIT_FAILURE);
-    goto _exit;
-  }
+  METRICS_TIMING_BLOCK(pVnode->writeMetrics.commit_time, METRIC_LEVEL_HIGH, {
+    if ((code = vnodeCommitImpl(pInfo))) {
+      vFatal("vgId:%d, failed to commit vnode since %s", TD_VID(pVnode), terrstr());
+      taosMsleep(100);
+      exit(EXIT_FAILURE);
+      goto _exit;
+    }
+  });
+
+  METRICS_UPDATE(pVnode->writeMetrics.commit_count, METRIC_LEVEL_HIGH, 1);
 
   vnodeReturnBufPool(pVnode);
 
@@ -465,7 +469,9 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (!TSDB_CACHE_NO(pVnode->config)) {
-    code = tsdbCacheCommit(pVnode->pTsdb);
+    METRICS_TIMING_BLOCK(pVnode->writeMetrics.last_cache_commit_time, METRIC_LEVEL_HIGH,
+                         { code = tsdbCacheCommit(pVnode->pTsdb); });
+    METRICS_UPDATE(pVnode->writeMetrics.last_cache_commit_count, METRIC_LEVEL_HIGH, 1);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 

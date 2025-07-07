@@ -52,7 +52,7 @@ uWSGI==2.0.27
 Werkzeug==3.0.6
 Flask-Testing==0.8.1
 xlsxwriter==3.2.1
-taospy==2.7.23
+taospy==2.8.2
 accelerate==0.34.2
 # chronos-forecasting==1.5.0
 # jax==0.5.3

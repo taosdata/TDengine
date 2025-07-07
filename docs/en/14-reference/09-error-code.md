@@ -15,7 +15,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80000015 | Unable to resolve FQDN                       | Invalid fqdn set                                             | Check fqdn settings                                          |
 | 0x80000017 | Port already in use                          | The port is already occupied by some service, and the newly started service still tries to bind to that port | 1. Change the server port of the new service 2. Kill the service that previously occupied the port |
 | 0x80000018 | Conn is broken                               | Due to network jitter or request time being too long (over 900 seconds), the system actively disconnects | 1. Set the system's maximum timeout duration 2. Check request duration |
-| 0x80000019 | Conn read timeout                            | 1. The request processing time is too long 2. The server is overwhelmed 3. The server is deadlocked | 1. Explicitly configure the readTimeout parameter 2. Analyze the stack on taos | 
+| 0x80000019 | Conn read timeout                            | 1. The request processing time is too long 2. The server is overwhelmed 3. The server is deadlocked | 1. Explicitly configure the readTimeout parameter 2. Analyze the stack on taos |
 | 0x80000020 | some vnode/qnode/mnode(s) out of service     | After multiple retries, still unable to connect to the cluster, possibly all nodes have crashed, or the surviving nodes are not Leader nodes | 1. Check the status of taosd, analyze the reasons for taosd crash 2. Analyze why the surviving taosd cannot elect a Leader |
 | 0x80000021 | some vnode/qnode/mnode(s) conn is broken     | After multiple retries, still unable to connect to the cluster, possibly due to network issues, request time too long, server deadlock, etc. | 1. Check network 2. Request execution time                   |
 | 0x80000022 | rpc open too many session                    | 1. High concurrency causing the number of occupied connections to reach the limit 2. Server BUG, causing connections not to be released | 1. Adjust configuration parameter numOfRpcSessions 2. Adjust configuration parameter timeToGetAvailableConn 3. Analyze reasons for server not releasing connections |
@@ -28,7 +28,6 @@ This document details the server error codes that may be encountered when using 
 | 0x80000029  | RPC no state                                | 1. Engine error, can be ignored, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
 | 0x8000002A  | RPC state already dropped                   | 1. Engine error, can be ignored, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
 | 0x8000002B  | RPC msg exceed limit                        | 1. Single RPC message exceeds the limit, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
-
 
 ## common  
 
@@ -77,7 +76,6 @@ This document details the server error codes that may be encountered when using 
 | 0x8000013C | Invalid disk id                   | Invalid disk id                                              | Check users whether the mounted disk is invalid or use the parameter diskIDCheckEnabled to skip the disk check. |
 | 0x8000013D | Decimal value overflow            | Decimal value overflow                                       | Check query expression and decimal values |
 | 0x8000013E | Division by zero error            | Division by zero                                             | Check division expression |
-
 
 ## tsc
 
@@ -229,6 +227,18 @@ This document details the server error codes that may be encountered when using 
 | 0x80000483 | index already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x80000484 | index not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |
 
+## Bnode
+
+| Error Code | Description                | Possible Error Scenarios or Reasons | Recommended Actions                       |
+| ---------- | -------------------------- | ----------------------------------- | ----------------------------------------- |
+| 0x80000450 | Bnode already exists       | Already created                     | Check node status                         |
+| 0x80000451 | Bnode already deployed     | Already deployed                    | Confirm if correct                        |
+| 0x80000452 | Bnode not deployed         | Internal error                      | Report issue                              |
+| 0x80000453 | Bnode not there            | Offline                             | Confirm if correct                        |
+| 0x80000454 | Bnode not found            | Internal error                      | Report issue                              |
+| 0x80000455 | Bnode exec launch failed   | Internal error                      | Report issue                              |
+| 0x8000261C | Invalid Bnode option       | Illegal Bnode option value          | Check and correct the Bnode option values |
+
 ## dnode
 
 | Error Code | Description            | Possible Error Scenarios or Reasons | Recommended Actions |
@@ -297,6 +307,7 @@ This document details the server error codes that may be encountered when using 
 | 0x8000073A | Query memory exhausted               | Query memory in dnode is exhausted                           | Limit concurrent queries or add more physical memory         |
 | 0x8000073B | Timeout for long time no fetch       | Query without fetch for a long time                          | Correct application to fetch data asap                       |
 | 0x8000073C | Memory pool not initialized          | Memory pool not initialized in dnode                         | Confirm if the switch queryUseMemoryPool is enabled; if queryUseMemoryPool is already enabled, check if the server meets the basic conditions for enabling the memory pool: 1. The total available system memory is not less than 5GB; 2. The available system memory after deducting the reserved portion is not less than 4GB. |
+| 0x8000073D | Alter minReservedMemorySize failed since no enough system available memory | Failed to update minReservedMemorySize | Check current system memory: 1. Total available system memory should not be less than 5G; 2. Available system memory after deducting reserved portion should not be less than 4G |
 
 ## grant
 
@@ -576,7 +587,6 @@ This document details the server error codes that may be encountered when using 
 | 0x80000449 | Analysis failed since not enough rows               | Input data for forecasting are not enough                     | Increase the number of input rows (10 rows for forecasting at least)   |
 | 0x8000044A | Not support co-variate/multi-variate forecast       | The algorithm not support co-variate/multi-variate forecasting | Change the specified algorithm                                         |
 
-
 ## virtual table
 
 | Error Code | Description                                             | Possible Error Scenarios or Reasons                                                                                                                                  | Recommended Actions for Users                                                 |
@@ -588,4 +598,4 @@ This document details the server error codes that may be encountered when using 
 | 0x80006204 | Virtual table not support decimal type                  | Create virtual table using decimal type                                                                                                                              | create virtual table without using decimal type                               |
 | 0x80006205 | Virtual table not support in STMT query and STMT insert | Use virtual table in stmt query and stmt insert                                                                                                                      | do not use virtual table in stmt query and insert                             |
 | 0x80006206 | Virtual table not support in Topic                      | Use virtual table in topic                                                                                                                                           | do not use virtual table in topic                                             |
-| 0x80006207 | Virtual super table query not support origin table from different databases                      | Virtual super table ‘s child table's origin table from different databases                                                                               | make sure virtual super table's child table's origin table from same database |
+| 0x80006207 | Virtual super table query not support origin table from different databases                      | Virtual super table's child table's origin table from different databases                                                                               | make sure virtual super table's child table's origin table from same database |

@@ -75,7 +75,7 @@ void __taos_async_whitelist_dual_stack_cb(void *param, int code, TAOS *taos, int
     printf("fetch whitelist cb. user: %s numofWhitelist: %d\n", param ? (char *)param : NULL, numOfWhiteLists);
     for (int i = 0; i < numOfWhiteLists && pWhiteList; ++i) {
       if (pWhiteList[i]) {
-        printf("fetch ip %s", pWhiteList[i]);
+        printf("fetch ip %s\n", pWhiteList[i]);
       }
     }
   } else {
@@ -176,9 +176,9 @@ void createUsers(TAOS *taos, const char *host) {
     sprintf(qstr, "alter user %s add host '%d.%d.%d.%d/24'", users[i], i, i, i, i);
     queryDB(taos, qstr);
 
-    printf("=================================test old interface ====================================");
+    printf("=================================test old interface ====================================\n");
     taos_fetch_whitelist_a(taosu[i], __taos_async_whitelist_cb, users[i]);
-    printf("=================================test new interface ====================================");
+    printf("=================================test new interface ====================================\n");
     taos_fetch_whitelist_dual_stack_a(taosu[i], __taos_async_whitelist_dual_stack_cb, users[i]);
   }
 

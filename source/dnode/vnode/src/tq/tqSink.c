@@ -205,17 +205,18 @@ static int32_t tqPutReqToQueue(SVnode* pVnode, void* pReqs,
                                tmsg_t msgType) {
   void*   buf = NULL;
   int32_t tlen = 0;
+  int32_t vgId = TD_VID(pVnode);
 
   int32_t code = encoder(pReqs, TD_VID(pVnode), &buf, &tlen);
   if (code) {
-    tqError("vgId:%d failed to encode create table msg, create table failed, code:%s", TD_VID(pVnode), tstrerror(code));
+    tqError("vgId:%d failed to encode create table msg, create table failed, code:%s", vgId, tstrerror(code));
     return code;
   }
 
   SRpcMsg msg = {.msgType = msgType, .pCont = buf, .contLen = tlen};
   code = tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg);
   if (code) {
-    tqError("failed to put into write-queue since %s", terrstr());
+    tqError("vgId:%d failed to put into write-queue since %s", vgId, tstrerror(code));
   }
 
   return code;

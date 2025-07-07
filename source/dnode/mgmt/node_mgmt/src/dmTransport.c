@@ -103,13 +103,17 @@ static void dmUpdateRpcIpWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
 
   rpcFreeCont(pRpc->pCont);
 }
-static bool dmIsForbiddenIp(int8_t forbidden, char *user, uint32_t clientIp) {
-  if (forbidden) {
-    SIpV4Range range = {.ip = clientIp, .mask = 32};
-    char       buf[36] = {0};
 
-    (void)rpcUtilSIpRangeToStr(&range, buf);
-    dError("User:%s host:%s not in ip white list", user, buf);
+static void dmUpdateRpcIpWhiteUnused(SDnodeData *pDnode, void *pTrans, SRpcMsg *pRpc) {
+  int32_t code = TSDB_CODE_INVALID_MSG;
+  dError("failed to update rpc ip-white since: %s", tstrerror(code));
+  rpcFreeCont(pRpc->pCont);
+  pRpc->pCont = NULL;
+  return;
+}
+static bool dmIsForbiddenIp(int8_t forbidden, char *user, SIpAddr *clientIp) {
+  if (forbidden) {
+    dError("User:%s host:%s not in ip white list", user, IP_ADDR_STR(clientIp));
     return true;
   } else {
     return false;
@@ -149,7 +153,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
 
-  bool isForbidden = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, 0);
+  bool isForbidden = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, &pRpc->info.conn.cliAddr);
   if (isForbidden) {
     code = TSDB_CODE_IP_NOT_IN_WHITE_LIST;
     goto _OVER;
@@ -173,7 +177,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       }
       break;
     case TDMT_MND_RETRIEVE_IP_WHITE_RSP:
-      dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
+      dmUpdateRpcIpWhiteUnused(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
     case TDMT_MND_RETRIEVE_IP_WHITE_DUAL_RSP:
       dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
@@ -259,8 +263,11 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   pRpc->info.wrapper = pWrapper;
 
   EQItype itype = RPC_QITEM;  // rsp msg is not restricted by tsQueueMemoryUsed
-  if (IsReq(pRpc) && pRpc->msgType != TDMT_SYNC_HEARTBEAT && pRpc->msgType != TDMT_SYNC_HEARTBEAT_REPLY)
-    itype = RPC_QITEM;
+  if (pRpc->msgType == TDMT_SYNC_HEARTBEAT || pRpc->msgType == TDMT_SYNC_HEARTBEAT_REPLY) {
+    itype = DEF_QITEM;
+  } else if (IsReq(pRpc)) {
+    itype = APPLY_QITEM;
+  }
   code = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg);
   if (code) goto _OVER;
 

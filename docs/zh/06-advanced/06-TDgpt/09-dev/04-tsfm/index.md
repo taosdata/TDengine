@@ -32,6 +32,12 @@ pip install flask==3.0.3
 pip install transformers==4.40.0
 pip install accelerate
 ```
+> 脚本中安装了 CPU 驱动版本的 PyTorch，如果您服务是部署在具有 GPU 的服务器上，可以在虚拟环境中安装支持 GPU 加速的 PyTorch。例如：
+
+```shell
+pip install torch==2.3.1 -f https://download.pytorch.org/whl/torch_stable.html
+```
+
 您可以使用 TDgpt 的虚拟环境，也可以新创建一个虚拟环境，使用该虚拟环境之前，确保正确安装了上述依赖包。
 
 
@@ -64,8 +70,9 @@ def time_moe():
 nohup python timemoe-server.py > service_output.out 2>&1 &
 ```
 
-第一次启动脚本会从 huggingface 自动加载 2 亿参数的[time-moe 模型](https://huggingface.co/Maple728/TimeMoE-200M)。
-该模型是 Time-MoE 200M 参数版本，如果您需要部署参数规模更小的版本请将 `time-moe.py` 文件中 `'Maple728/TimeMoE-200M'` 修改为 `Maple728/TimeMoE-50M`，此时将加载 [0.5 亿参数模型](https://huggingface.co/Maple728/TimeMoE-50M)。
+第一次启动脚本会从 huggingface 自动加载 [0.5 亿参数模型](https://huggingface.co/Maple728/TimeMoE-50M) (`Maple728/TimeMoE-50M`),
+如果您需要部署参数规模更大参数规模的版本（`'Maple728/TimeMoE-200M'`）请将 `timemoe-server.py` 文件中 `_model_list[0],`  
+修改为 `_model_list[1],` 即可。
 
 如果加载失败，请尝试执行如下命令切换为国内镜像下载模型。
 
@@ -73,7 +80,7 @@ nohup python timemoe-server.py > service_output.out 2>&1 &
 export HF_ENDPOINT=https://hf-mirror.com
 ```
 
-然后再次启动服务。
+然后再次尝试启动服务。
 
 
 检查 `service_output.out` 文件，有如下输出，则说明加载成功
@@ -167,6 +174,7 @@ chronos, timesfm, chronos 时序基础服务，适配文件已经默认提供，
 为避免依赖库冲突，建议准备干净的 python 虚拟环境，在虚拟环境中安装依赖库。
 
 ```shell
+pip install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
 pip install uni2ts
 pip install flask
 ```
@@ -198,6 +206,7 @@ nohup python moirai-server.py > service_output.out 2>&1 &
 在干净的 python 虚拟环境中安装依赖库。
 
 ```shell
+pip install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
 pip install chronos-forecasting
 pip install flask
 ```
@@ -240,10 +249,10 @@ nohup python chronos-server.py > service_output.out 2>&1 &
 在干净的 python 虚拟环境中安装依赖库。
 
 ```shell
+pip install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
 pip install timesfm
-pip install torch==2.4.1
 pip install jax
-pip intall flask
+pip install flask
 ```
 
 调整 timesfm-server.py 文件中设置服务地址（如果需要）。然后执行下述命令启动服务。

@@ -23,9 +23,6 @@ static void *dmStatusThreadFp(void *param) {
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-status");
 
-  int32_t upTimeCount = 0;
-  int64_t upTime = 0;
-
   while (1) {
     taosMsleep(200);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
@@ -36,11 +33,6 @@ static void *dmStatusThreadFp(void *param) {
     if (interval >= tsStatusInterval) {
       dmSendStatusReq(pMgmt);
       lastTime = curTime;
-
-      if ((upTimeCount = ((upTimeCount + 1) & 63)) == 0) {
-        upTime = taosGetOsUptime() - tsDndStartOsUptime;
-        tsDndUpTime = TMAX(tsDndUpTime, upTime);
-      }
     }
   }
 
@@ -292,7 +284,7 @@ static void *dmCrashReportThreadFp(void *param) {
     }
     if (loopTimes++ < reportPeriodNum) {
       taosMsleep(sleepTime);
-      if(loopTimes < 0) loopTimes = reportPeriodNum;
+      if (loopTimes < 0) loopTimes = reportPeriodNum;
       continue;
     }
     taosReadCrashInfo(filepath, &pMsg, &msgLen, &pFile);
@@ -336,6 +328,26 @@ static void *dmCrashReportThreadFp(void *param) {
   return NULL;
 }
 #endif
+
+static void *dmMetricsThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  int64_t     lastTime = taosGetTimestampMs();
+  setThreadName("dnode-metrics");
+  while (1) {
+    taosMsleep(200);
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+
+    int64_t curTime = taosGetTimestampMs();
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = (curTime - lastTime) / 1000.0f;
+    if (interval >= tsMetricsInterval) {
+      (*pMgmt->sendMetricsReportFp)();
+      (*pMgmt->metricsCleanExpiredSamplesFp)();
+      lastTime = curTime;
+    }
+  }
+  return NULL;
+}
 
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
   int32_t      code = 0;
@@ -481,6 +493,24 @@ int32_t dmStartAuditThread(SDnodeMgmt *pMgmt) {
   return 0;
 }
 
+int32_t dmStartMetricsThread(SDnodeMgmt *pMgmt) {
+  int32_t code = 0;
+#ifdef USE_MONITOR
+  TdThreadAttr thAttr;
+  (void)taosThreadAttrInit(&thAttr);
+  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMgmt->metricsThread, &thAttr, dmMetricsThreadFp, pMgmt) != 0) {
+    code = TAOS_SYSTEM_ERROR(ERRNO);
+    dError("failed to create metrics thread since %s", tstrerror(code));
+    return code;
+  }
+
+  (void)taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("dnode-metrics", "initialized");
+#endif
+  return 0;
+}
+
 void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
 #ifdef USE_MONITOR
   if (taosCheckPthreadValid(pMgmt->monitorThread)) {
@@ -534,6 +564,13 @@ void dmStopCrashReportThread(SDnodeMgmt *pMgmt) {
 #endif
 }
 
+void dmStopMetricsThread(SDnodeMgmt *pMgmt) {
+  if (taosCheckPthreadValid(pMgmt->metricsThread)) {
+    (void)taosThreadJoin(pMgmt->metricsThread, NULL);
+    taosThreadClear(&pMgmt->metricsThread);
+  }
+}
+
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
@@ -567,6 +604,12 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     case TDMT_DND_DROP_SNODE:
       code = (*pMgmt->processDropNodeFp)(SNODE, pMsg);
+      break;
+    case TDMT_DND_CREATE_BNODE:
+      code = (*pMgmt->processCreateNodeFp)(BNODE, pMsg);
+      break;
+    case TDMT_DND_DROP_BNODE:
+      code = (*pMgmt->processDropNodeFp)(BNODE, pMsg);
       break;
     case TDMT_DND_ALTER_MNODE_TYPE:
       code = (*pMgmt->processAlterNodeTypeFp)(MNODE, pMsg);

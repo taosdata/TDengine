@@ -568,9 +568,17 @@ static void tlrtrimspace(char *input, char *output, int32_t type, int32_t charLe
   int32_t resLen;
   if (type == TSDB_DATA_TYPE_VARCHAR) {
     resLen = charLen - (numOfLeftSpaces + numOfRightSpaces);
+    if (resLen < 0) {
+      resLen = 0;
+    }
+
     (void)memcpy(varDataVal(output), varDataVal(input) + numOfLeftSpaces, resLen);
   } else {
     resLen = (charLen - (numOfLeftSpaces + numOfRightSpaces)) * TSDB_NCHAR_SIZE;
+    if (resLen < 0) {
+      resLen = 0;
+    }
+
     (void)memcpy(varDataVal(output), varDataVal(input) + numOfLeftSpaces * TSDB_NCHAR_SIZE, resLen);
   }
 

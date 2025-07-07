@@ -334,6 +334,7 @@ static SKeyword keywordTable[] = {
     {"WINDOW_OFFSET",        TK_WINDOW_OFFSET},
     {"WITH",                 TK_WITH},
     {"WRITE",                TK_WRITE},
+    {"PROTOCOL",             TK_PROTOCOL},
     {"_C0",                  TK_ROWTS},
     {"_IROWTS",              TK_IROWTS},
     {"_IROWTS_ORIGIN",       TK_IROWTS_ORIGIN},
@@ -434,7 +435,7 @@ static int32_t tKeywordCode(const char* z, int n) {
  * Return the length of the token that begins at z[0].
  * Store the token type in *type before returning.
  */
-uint32_t tGetToken(const char* z, uint32_t* tokenId) {
+uint32_t tGetToken(const char* z, uint32_t* tokenId, char *dupQuoteChar) {
   uint32_t i;
   switch (*z) {
     case ' ':
@@ -581,6 +582,9 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
 
         if (z[i] == delim) {
           if (z[i + 1] == delim) {
+            if (dupQuoteChar && (*dupQuoteChar != *z)) {
+              *dupQuoteChar = *z;
+            }
             i++;
           } else {
             strEnd = true;
@@ -790,7 +794,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
       t = str[++(*i)];
     }
 
-    t0.n = tGetToken(&str[*i], &t0.type);
+    t0.n = tGetToken(&str[*i], &t0.type, NULL);
     break;
 
     // not support user specfied ignored symbol list
@@ -820,7 +824,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
 
   // support parse the 'db.tbl' format, notes: There should be no space on either side of the dot!
   if ('.' == str[*i + t0.n]) {
-    len = tGetToken(&str[*i + t0.n + 1], &type);
+    len = tGetToken(&str[*i + t0.n + 1], &type, NULL);
 
     // only id、string and ? are valid
     if (((TK_NK_STRING != t0.type) && (TK_NK_ID != t0.type)) ||
@@ -833,7 +837,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
 
     // check the table name is '?', db.?asf is not valid.
     if (TK_NK_QUESTION == type) {
-      (void)tGetToken(&str[*i + t0.n + 2], &type);
+      (void)tGetToken(&str[*i + t0.n + 2], &type, NULL);
       if (TK_NK_SPACE != type) {
         t0.type = TK_NK_ILLEGAL;
         t0.n = 0;
@@ -846,7 +850,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr, bool* pIgnoreC
   } else {
     // support parse the -/+number format
     if ((isPrevOptr) && (t0.type == TK_NK_MINUS || t0.type == TK_NK_PLUS)) {
-      len = tGetToken(&str[*i + t0.n], &type);
+      len = tGetToken(&str[*i + t0.n], &type, NULL);
       if (type == TK_NK_INTEGER || type == TK_NK_FLOAT || type == TK_NK_BIN || type == TK_NK_HEX) {
         t0.type = type;
         t0.n += len;

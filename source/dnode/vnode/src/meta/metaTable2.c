@@ -821,6 +821,13 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
     TAOS_RETURN(TSDB_CODE_PAR_INVALID_ROW_LENGTH);
   }
 
+  if (pSchema->nCols + 1 > TSDB_MAX_COLUMNS) {
+    metaError("vgId:%d, %s failed at %s:%d since column count %d + 1 > %d, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pSchema->nCols, TSDB_MAX_COLUMNS, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_PAR_TOO_MANY_COLUMNS);
+  }
+
   SSchema *pNewSchema = taosMemoryRealloc(pSchema->pSchema, sizeof(SSchema) * (pSchema->nCols + 1));
   if (NULL == pNewSchema) {
     metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
