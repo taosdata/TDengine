@@ -12,6 +12,7 @@ entMode=full
 
 iplist=""
 serverFqdn=""
+ostype=`uname`
 
 # -----------------------Variables definition---------------------
 script_dir=$(dirname $(readlink -f "$0"))
@@ -158,7 +159,7 @@ done
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
-tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh set_taos_malloc.sh)
 if [ "${verMode}" == "cluster" ]; then
   if [ "${entMode}" == "lite" ]; then
     services=(${serverName} ${adapterName} ${explorerName} ${keeperName})
@@ -168,7 +169,7 @@ if [ "${verMode}" == "cluster" ]; then
 elif [ "${verMode}" == "edge" ]; then
   if [ "${pkgMode}" == "full" ]; then
     services=(${serverName} ${adapterName} ${keeperName} ${explorerName})
-    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh set_taos_malloc.sh)
   else
     services=(${serverName})
     tools=(${clientName} ${benchmarkName} remove.sh start_pre.sh)
@@ -176,6 +177,8 @@ elif [ "${verMode}" == "edge" ]; then
 else
   services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
 fi
+driver_path=${install_main_dir}/driver
+
 
 function install_services() {
   for service in "${services[@]}"; do
@@ -194,7 +197,7 @@ function install_main_path() {
   #create install main dir and all sub dir
   ${csudo}rm -rf ${install_main_dir}/cfg || :
   ${csudo}rm -rf ${install_main_dir}/bin || :
-  ${csudo}rm -rf ${install_main_dir}/driver || :
+  ${csudo}rm -rf ${driver_path}/ || :
   ${csudo}rm -rf ${install_main_dir}/examples || :
   ${csudo}rm -rf ${install_main_dir}/include || :
   ${csudo}rm -rf ${install_main_dir}/share || :
@@ -204,7 +207,7 @@ function install_main_path() {
   ${csudo}mkdir -p ${install_main_dir}/cfg
   ${csudo}mkdir -p ${install_main_dir}/bin
   #  ${csudo}mkdir -p ${install_main_dir}/connector
-  ${csudo}mkdir -p ${install_main_dir}/driver
+  ${csudo}mkdir -p ${driver_path}/
   ${csudo}mkdir -p ${install_main_dir}/examples
   ${csudo}mkdir -p ${install_main_dir}/include
   ${csudo}mkdir -p ${configDir}
@@ -253,6 +256,14 @@ function install_bin() {
     ${csudo}cp -r ${script_dir}/bin/quick_deploy.sh ${install_main_dir}/bin
   fi
 
+  # set taos_malloc.sh as bin script
+  if [ -f ${script_dir}/bin/set_taos_malloc.sh ] && [ "${verType}" != "client" ]; then
+    ${csudo}cp -r ${script_dir}/bin/set_taos_malloc.sh ${install_main_dir}/bin
+  else
+    echo -e "${RED}Warning: set_taos_malloc.sh not found in bin directory.${NC}"
+  fi
+
+
   ${csudo}chmod 0555 ${install_main_dir}/bin/*
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}mv ${install_main_dir}/bin/remove.sh ${install_main_dir}/uninstall.sh || :
 
@@ -281,31 +292,37 @@ function install_lib() {
   ${csudo}rm -f ${lib_link_dir}/libtaosws.* || :
   ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
   #${csudo}rm -rf ${v15_java_app_dir}              || :
-  ${csudo}cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
+  ${csudo}cp -rf ${script_dir}/driver/* ${driver_path}/ && ${csudo}chmod 777 ${driver_path}/*
 
   #link lib/link_dir
-  ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
+  ${csudo}ln -sf ${driver_path}/libtaos.* ${lib_link_dir}/libtaos.so.1
   ${csudo}ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
-  ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.* ${lib_link_dir}/libtaosnative.so.1
   ${csudo}ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
 
-  ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so.* ${lib_link_dir}/libtaosws.so || :
+  ${csudo}ln -sf ${driver_path}/libtaosws.so.* ${lib_link_dir}/libtaosws.so || :
+
+  #link jemalloc.so and tcmalloc.so
+  jemalloc_file="${driver_path}/libjemalloc.so.2"
+  tcmalloc_file="${driver_path}/libtcmalloc.so.4.5.18"
+  [ -f "${jemalloc_file}" ] && ${csudo}ln -sf "${jemalloc_file}" "${driver_path}/libjemalloc.so" || echo "jemalloc file not found: ${jemalloc_file}"
+  [ -f "${tcmalloc_file}" ] && ${csudo}ln -sf "${tcmalloc_file}" "${driver_path}/libtcmalloc.so" || echo "tcmalloc file not found: ${tcmalloc_file}"
+
 
   #link lib64/link_dir
   if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
-    ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1 || :
+    ${csudo}ln -sf ${driver_path}/libtaos.* ${lib64_link_dir}/libtaos.so.1 || :
     ${csudo}ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so || :
-    ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.1 || :
+    ${csudo}ln -sf ${driver_path}/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.1 || :
     ${csudo}ln -sf ${lib64_link_dir}/libtaosnative.so.1 ${lib64_link_dir}/libtaosnative.so || :
 
-    ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so.* ${lib64_link_dir}/libtaosws.so || :
+    ${csudo}ln -sf ${driver_path}/libtaosws.so.* ${lib64_link_dir}/libtaosws.so || :
   fi
 
   ${csudo}ldconfig
 }
 
 function install_avro() {
-  if [ "$osType" != "Darwin" ]; then
+  if [ "$ostype" != "Darwin" ]; then
     avro_dir=${script_dir}/avro
     if [ -f "${avro_dir}/lib/libavro.so.23.0.0" ] && [ -d /usr/local/$1 ]; then
       ${csudo}/usr/bin/install -c -d /usr/local/$1
@@ -790,6 +807,10 @@ function install_service_on_systemd() {
 
   if [ -f ${cfg_source_dir}/$1.service ]; then
     ${csudo}cp ${cfg_source_dir}/$1.service ${service_config_dir}/ || :
+  fi
+  # set default malloc config for cluster(enterprise) and edge(community)
+  if [ "$verMode" == "cluster" ] && [ "$ostype" == "Linux" ] ;then
+    ${install_main_dir}/bin/set_taos_malloc.sh -m 0
   fi
 
   ${csudo}systemctl enable $1

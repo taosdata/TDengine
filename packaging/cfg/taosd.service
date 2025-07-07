@@ -16,6 +16,7 @@ StandardOutput=null
 Restart=always
 StartLimitBurst=3
 StartLimitInterval=900s
+EnvironmentFile=/usr/local/taos/cfg/taos_env.conf
 
 [Install]
 WantedBy=multi-user.target
