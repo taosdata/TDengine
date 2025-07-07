@@ -132,12 +132,12 @@ class TestStreamTriggerSliding:
         # except Exception as e:
         #     tdLog.error(f"case 13 error: {e}")
 
-        clear_output("sm13", "tb13")
-        self.prepare_tables(1000, 10, info)
-        try:
-            self.create_and_check_stream_basic_14("sm14", "tb14", info)
-        except Exception as e:
-            tdLog.error(f"case 14 error: {e}")
+        # clear_output("sm13", "tb13")
+        # self.prepare_tables(1000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_14("sm14", "tb14", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 14 error: {e}")
 
         # clear_output("sm14", "tb14")
         # self.prepare_tables(10000, 10, info)
@@ -145,6 +145,13 @@ class TestStreamTriggerSliding:
         #     self.create_and_check_stream_basic_15("sm15", "tb15", info)
         # except Exception as e:
         #     tdLog.error(f"case 15 error: {e}")
+
+        clear_output("sm15", "tb15")
+        self.prepare_tables(10000, 10, info)
+        try:
+            self.create_and_check_stream_basic_16("sm16", "tb16", info)
+        except Exception as e:
+            tdLog.error(f"case 16 error: {e}")
 
     def create_env(self):
         tdLog.info(f"create {self.num_snode} snode(s)")
@@ -526,4 +533,44 @@ class TestStreamTriggerSliding:
 
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 5)
+
+
+    def create_and_check_stream_basic_16(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 16: no equals"""
+        tdLog.info(f"start exec stream {stream_name}")
+
+        tdSql.execute("use db")
+        tdSql.execute(
+            f"create stream {stream_name}_0 interval(10a) sliding(10a) from source_table partition by tbname options(LOW_LATENCY_CALC) into {dst_table}_0 as "
+            f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend ")
+
+        tdSql.execute(
+            f"create stream {stream_name}_1 interval(10a) sliding(10a) from source_table options(LOW_LATENCY_CALC) into {dst_table}_1 as "
+            f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend ")
+
+        tdSql.execute(
+            f"create stream {stream_name}_2 interval(10a) sliding(10a) from source_table options(LOW_LATENCY_CALC) into {dst_table}_2 as "
+            f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend ")
+
+        tdSql.execute(
+            f"create stream {stream_name}_3 interval(10a) sliding(10a) from source_table options(LOW_LATENCY_CALC) into {dst_table}_3 as "
+            f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend ")
+
+        tdSql.execute(
+            f"create stream {stream_name}_4 interval(10a) sliding(10a) from source_table options(LOW_LATENCY_CALC) into {dst_table}_4 as "
+            f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend ")
+
+        tdLog.info(f"create stream completed, and start to write data after 10sec")
+        self.do_write_data(f"{stream_name}_4", info)
         wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 5)
