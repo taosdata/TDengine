@@ -182,7 +182,7 @@ Feel free to [ask questions or report issues](https://github.com/taosdata/taos-c
 - **protocol**: Establish a connection using the WebSocket protocol. For example, `ws://localhost:6041`.
 - **username/password**: Username and password for the database.
 - **addresses**: Specifies the server addresses to create a connection. Multiple addresses are separated by commas. For IPv6 addresses, square brackets must be used (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number parsing conflicts.
-  - Example: `ws://host1:6041,host2:6041`.
+  - Example: `ws://host1:6041,host2:6041` or `ws://` (equivalent to `ws://localhost:6041`).
 - **database**: Database name.
 - **params**: Other parameters. For example, token.
 
