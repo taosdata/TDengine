@@ -129,6 +129,7 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
                             TSKEY end, void*** pppIter);
 void streamTimerCleanUp();
 void smRemoveTaskPostCheck(int64_t streamId, SStreamInfo* pStream, bool* isLastTask);
+void streamTmrStop(tmr_h tmrId);
 
 #ifdef __cplusplus
 }

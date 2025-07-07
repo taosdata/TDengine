@@ -653,7 +653,7 @@ typedef struct {
 } SColRefWrapper;
 
 int32_t tEncodeSColRefWrapper(SEncoder *pCoder, const SColRefWrapper *pWrapper);
-int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper);
+int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper, bool decoderMalloc);
 typedef struct {
   int32_t vgId;
   SColRef colRef;

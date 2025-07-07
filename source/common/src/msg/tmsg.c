@@ -11301,14 +11301,14 @@ _exit:
   return code;
 }
 
-int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper) {
+int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper, bool decoderMalloc) {
   int32_t code = 0;
   int32_t lino;
 
   TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pWrapper->nCols));
   TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pWrapper->version));
 
-  pWrapper->pColRef = (SColRef *)tDecoderMalloc(pDecoder, pWrapper->nCols * sizeof(SColRef));
+  pWrapper->pColRef = decoderMalloc ? (SColRef *)tDecoderMalloc(pDecoder, pWrapper->nCols * sizeof(SColRef)) : (SColRef *)taosMemoryCalloc(pWrapper->nCols, sizeof(SColRef));
   if (pWrapper->pColRef == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
@@ -11612,7 +11612,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
       }
     } else if (pReq->type == TSDB_VIRTUAL_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
       if (!tDecodeIsEnd(pCoder)) {
-        TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(pCoder, &pReq->colRef));
+        TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(pCoder, &pReq->colRef, true));
       }
     }
 

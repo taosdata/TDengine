@@ -3832,7 +3832,7 @@ int32_t tDeserializeSStreamMsgVTableInfo(SDecoder* decoder, SStreamMsgVTableInfo
     TAOS_CHECK_EXIT(tDecodeI64(decoder, &info->gId));
     TAOS_CHECK_EXIT(tDecodeI64(decoder, &info->uid));
     TAOS_CHECK_EXIT(tDecodeI64(decoder, &info->ver));
-    TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(decoder, &info->cols));
+    TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(decoder, &info->cols, false));
   }
 
   tEndDecode(decoder);
@@ -3841,9 +3841,18 @@ _exit:
   return code;
 }
 
+
+void tDestroyVTableInfo(void *ptr) {
+  if (NULL == ptr) {
+    return;
+  }
+  VTableInfo* pTable = (VTableInfo*)ptr;
+  taosMemoryFree(pTable->cols.pColRef);
+}
+
 void tDestroySStreamMsgVTableInfo(SStreamMsgVTableInfo *ptr) {
   if (ptr == NULL) return;
-  taosArrayDestroy(ptr->infos);
+  taosArrayDestroyEx(ptr->infos, tDestroyVTableInfo);
   ptr->infos = NULL;
 }
 
