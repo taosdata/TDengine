@@ -241,14 +241,14 @@ int32_t snapTest()  {
     SBse *bse = NULL, *bseDst = NULL;
     SBse *pDstBse = NULL;
     SBseCfg cfg = {.vgId = 2};
-    std::vector<int64_t> data;
+    std::vector<int64_t> data1;
     {
         taosRemoveDir("/tmp/bseSrc");
         taosRemoveDir("/tmp/bseDst");
         int32_t code = bseOpen("/tmp/bseSrc", &cfg, &bse);
-        putData(bse, 10000, 1000, &data);
+        putData(bse, 10000, 1000, &data1);
         bseCommit(bse);
-        int64_t seq = data[0]; 
+        int64_t seq = data1[0]; 
         uint8_t *value = NULL;  
         int32_t len = 0;
         bseGet(bse, seq, &value, &len);
@@ -279,6 +279,21 @@ int32_t snapTest()  {
         bseSnapReaderClose(&pReader);
         bseSnapWriterClose(&pWriter, 0);
 
+        uint8_t *value = NULL;
+        int32_t len = 0;
+        bseReload(bseDst);
+        int64_t seq = data1[0]; 
+        for (int32_t i = 0; i < data1.size(); i++) {
+          seq = data1[i];
+          code = bseGet(bseDst, seq, &value, &len);
+          if (code != 0) {
+            printf("failed to get key %d error code: %d\n", i, code);
+            ASSERT(0);
+          } else {
+          }
+        }
+         
+
     }
     return code; 
     
@@ -292,8 +307,8 @@ int32_t snapTest()  {
 // }
 TEST(bseCase, snapTest) {
     initLog();
-    // benchTest();
-    // funcTest();
+    benchTest();
+    funcTest();
     snapTest();
 }
 

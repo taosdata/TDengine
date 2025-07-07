@@ -80,6 +80,8 @@ void bseIterDestroy(SBseIter *pIter);
 
 int8_t bseIterValid(SBseIter *pIter);
 
+int8_t bseIterIsOver(SBseIter *pIter);
+
 #ifdef __cplusplus
 }
 #endif

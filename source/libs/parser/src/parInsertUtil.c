@@ -480,28 +480,28 @@ void insDestroyTableDataCxtHashMap(SHashObj* pTableCxtHash) {
 }
 
 static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCxt, bool isRebuild, bool clear) {
+  int32_t code = 0;
   if (NULL == pVgCxt->pData->aSubmitTbData) {
     pVgCxt->pData->aSubmitTbData = taosArrayInit(128, sizeof(SSubmitTbData));
     pVgCxt->pData->aSubmitBlobData = taosArrayInit(128, sizeof(SBlobRow2*));
-    if (NULL == pVgCxt->pData->aSubmitTbData) {
+    if (NULL == pVgCxt->pData->aSubmitTbData || NULL == pVgCxt->pData->aSubmitBlobData) {
       return terrno;
     }
   }
 
   // push data to submit, rebuild empty data for next submit
-  uTrace("blob row transfer %p, pData %p, %s", pTableCxt->pData->pBlobRow, pTableCxt->pData, __func__);
+  parserDebug("blob row transfer %p, pData %p, %s", pTableCxt->pData->pBlobRow, pTableCxt->pData, __func__);
   if (NULL == taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData)) {
     return terrno;
   }
   if (pTableCxt->pData->pBlobRow == NULL) {
-    uWarn("blow empty");
+    parserDebug("blow empty");
   }
   if (NULL == taosArrayPush(pVgCxt->pData->aSubmitBlobData, &pTableCxt->pData->pBlobRow)) {
     return terrno;
   }
 
   pTableCxt->pData->pBlobRow = NULL;  // reset blob row to NULL, so that it will not be freed in destroy
-  int32_t code = 0;
   if (isRebuild) {
     code = rebuildTableData(pTableCxt->pData, &pTableCxt->pData);
   } else if (clear) {

@@ -25,6 +25,7 @@
 
 static void bseCfgSetDefault(SBseCfg *pCfg);
 
+static int32_t bseClear(SBse *pBse);
 static int32_t bseInitEnv(SBse *p);
 static int32_t bseInitStartSeq(SBse *pBse);
 static int32_t bseRecover(SBse *pBse, int8_t rm);
@@ -440,6 +441,19 @@ _err:
   return code;
 }
 
+static int32_t bseClear(SBse *pBse) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  code = bseTableMgtClear(pBse->pTableMgt);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+_error:
+  if (code != 0) {
+    bseError("vgId:%d failed to clear bse at line %d since %s", BSE_GET_VGID(pBse), lino, tstrerror(code));
+  }
+  return code;
+}
 void bseClose(SBse *pBse) {
   int32_t code;
   if (pBse == NULL) {
@@ -503,6 +517,25 @@ _error:
   return code;
 }
 
+int32_t bseReload(SBse *pBse) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  taosThreadMutexLock(&pBse->mutex);
+  code = bseClear(pBse);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+  code = bseRecover(pBse, 1);
+  TSDB_CHECK_CODE(code, lino, _error);
+
+_error:
+  if (code != 0) {
+    bseError("vgId:%d failed to reload bse at line %d since %s", BSE_GET_VGID(pBse), lino, tstrerror(code));
+  }
+  taosThreadMutexUnlock(&pBse->mutex);
+  return code;
+}
+
 int32_t bseRecycleBatch(SBse *pBse, SBseBatch *pBatch) {
   int32_t code = 0;
   if (pBatch == NULL) return code;
@@ -532,9 +565,17 @@ static int32_t bseBatchMgtInit(SBatchMgt *pBatchMgt, SBse *pBse) {
     bseBatchDestroy(b);
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
+
   BSE_QUEUE_INIT(&pBatchMgt->queue);
 _error:
   if (code != 0) {
+    if (pBatchMgt->pBatchList != NULL) {
+      for (int32_t i = 0; i < taosArrayGetSize(pBatchMgt->pBatchList); i++) {
+        SBseBatch **p = taosArrayGet(pBatchMgt->pBatchList, i);
+        bseBatchDestroy(*p);
+      }
+      taosArrayDestroy(pBatchMgt->pBatchList);
+    }
     bseError("vgId:%d failed to init batch mgt at line %d since %s", BSE_GET_VGID(pBse), lino, tstrerror(code));
   }
   return code;
@@ -848,6 +889,7 @@ int32_t bseCommitDo(SBse *pBse, SArray *pFileSet) {
   TSDB_CHECK_CODE(code, lino, _error);
 _error:
   if (code != 0) {
+    bseError("vgId:%d failed to commit at line %d since %s", BSE_GET_VGID(pBse), lino, tstrerror(code));
   }
   return code;
 }

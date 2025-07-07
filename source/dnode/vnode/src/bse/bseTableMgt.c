@@ -17,6 +17,7 @@
 #include "bse.h"
 #include "bseTable.h"
 #include "bseUtil.h"
+#include "thash.h"
 
 static int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse, int64_t retention);
 static void    tableReaderMgtSetRetion(STableReaderMgt *pReader, int64_t retention);
@@ -303,12 +304,15 @@ int32_t bseTableMgtClear(STableMgt *pMgt) {
   int32_t lino = 0;
   if (pMgt == NULL) return 0;
 
-  SSubTableMgt *pSubMgt = pMgt->pCurrTableMgt;
-  code = tableBuilderMgtClear(pSubMgt->pBuilderMgt);
-  TSDB_CHECK_CODE(code, lino, _error);
+  destroySubTableMgt(pMgt->pCurrTableMgt);
 
-  code = tableReaderMgtClear(pSubMgt->pReaderMgt);
-  TSDB_CHECK_CODE(code, lino, _error);
+  void *pIter = taosHashIterate(pMgt->pHashObj, NULL);
+  while (pIter) {
+    SSubTableMgt **ppSubMgt = pIter;
+    destroySubTableMgt(*ppSubMgt);
+    pIter = taosHashIterate(pMgt->pHashObj, pIter);
+  }
+  taosHashClear(pMgt->pHashObj);
 
 _error:
   if (code != 0) {

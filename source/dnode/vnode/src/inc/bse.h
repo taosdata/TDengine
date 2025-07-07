@@ -88,6 +88,7 @@ int32_t bseSnapReaderClose(SBseSnapReader **reader);
 int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse);
 void    bseClose(SBse *pBse);
 
+int32_t bseReload(SBse *pBse);
 int32_t bseAppend(SBse *pBse, uint64_t *seq, uint8_t *value, int32_t len);
 int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len);
 int32_t bseCommit(SBse *pBse);

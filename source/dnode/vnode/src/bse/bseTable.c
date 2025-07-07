@@ -473,8 +473,8 @@ int32_t tableBuilderClose(STableBuilder *p, int8_t commited) {
   return code;
 }
 
-static void addSnapshotToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
-                               int32_t keepDays) {
+static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
+                                   int32_t keepDays) {
   SBseSnapMeta *pSnapMeta = pBlkWrapper->data;
   pSnapMeta->range = range;
   pSnapMeta->fileType = fileType;
@@ -482,8 +482,8 @@ static void addSnapshotToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, int8
   pSnapMeta->keepDays = keepDays;
   return;
 }
-static void rewriteSnapshotToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
-                                   int32_t keepDays) {
+static void updateSnapshotMeta(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
+                               int32_t keepDays) {
   SBseSnapMeta *pSnapMeta = (SBseSnapMeta *)pBlkWrapper->data;
   pSnapMeta->keepDays = keepDays;
   return;
@@ -499,7 +499,7 @@ int32_t tableReaderLoadRawBlock(STableReader *p, SBlkHandle *pHandle, SBlockWrap
   code = tableLoadRawBlock(p->pDataFile, pHandle, blkWrapper, 1);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  addSnapshotToBlock(blkWrapper, p->range, BSE_TABLE_SNAP, BSE_TABLE_DATA_TYPE, 365);
+  addSnapshotMetaToBlock(blkWrapper, p->range, BSE_TABLE_SNAP, BSE_TABLE_DATA_TYPE, 365);
 
 _error:
   if (code != 0) {
@@ -520,7 +520,7 @@ int32_t tableReaderLoadRawMeta(STableReader *p, SBlkHandle *pHandle, SBlockWrapp
   code = tableLoadRawBlock(pReader->pFile, pHandle, blkWrapper, 1);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  addSnapshotToBlock(blkWrapper, p->range, BSE_TABLE_META_SNAP, BSE_TABLE_META_TYPE, 365);
+  addSnapshotMetaToBlock(blkWrapper, p->range, BSE_TABLE_META_SNAP, BSE_TABLE_META_TYPE, 365);
 _error:
   if (code != 0) {
     bseError("failed to load raw meta from table pReaderMgt at line %d lino since %s", lino, tstrerror(code));
@@ -540,7 +540,7 @@ int32_t tableReaderLoadRawMetaIndex(STableReader *p, SBlockWrapper *blkWrapper) 
   code = tableLoadRawBlock(pReader->pFile, pHandle, blkWrapper, 1);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  addSnapshotToBlock(blkWrapper, p->range, BSE_TABLE_META_SNAP, BSE_TABLE_META_INDEX_TYPE, 365);
+  addSnapshotMetaToBlock(blkWrapper, p->range, BSE_TABLE_META_SNAP, BSE_TABLE_META_INDEX_TYPE, 365);
 _error:
   if (code != 0) {
     bseError("failed to load raw meta from table pReaderMgt at line %d lino since %s", lino, tstrerror(code));
@@ -571,7 +571,7 @@ int32_t tableReaderLoadRawFooter(STableReader *p, SBlockWrapper *blkWrapper) {
   memcpy(blkWrapper->data + sizeof(SBseSnapMeta), buf, sizeof(buf));
   blkWrapper->size = len + sizeof(SBseSnapMeta);
 
-  addSnapshotToBlock(blkWrapper, p->range, BSE_TABLE_META_SNAP, BSE_TABLE_FOOTER_TYPE, 365);
+  addSnapshotMetaToBlock(blkWrapper, p->range, BSE_TABLE_META_SNAP, BSE_TABLE_FOOTER_TYPE, 365);
 _error:
   if (code != 0) {
     bseError("failed to load raw footer from table pReaderMgt at lino %d since %s", lino, tstrerror(code));
@@ -1246,10 +1246,10 @@ int32_t tableReaderIterNext(STableReaderIter *pIter, uint8_t **pValue, int32_t *
     pIter->isOver = 1;
     return code;
   }
-  SSeqRange range = {0};
 
+  SSeqRange range = {0};
   if (pIter->blockWrapper.data != NULL) {
-    rewriteSnapshotToBlock(&pIter->blockWrapper, range, pIter->fileType, pIter->blockType, snapMeta.keepDays);
+    updateSnapshotMeta(&pIter->blockWrapper, range, pIter->fileType, pIter->blockType, snapMeta.keepDays);
     *pValue = pIter->blockWrapper.data;
     *len = pIter->blockWrapper.size;
   }

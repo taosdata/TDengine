@@ -51,7 +51,7 @@ static int32_t bseRawFileWriterOpen(SBse *pBse, int64_t sver, int64_t ever, SBse
     return TSDB_CODE_INVALID_MSG;
   }
 
-  p->pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
+  p->pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND | TD_FILE_TRUNC);
   if (p->pFile == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
@@ -240,7 +240,7 @@ int32_t bseSnapReaderRead(SBseSnapReader *p, uint8_t **data) {
   uint8_t *pBuf = NULL;
   int32_t  bufLen = 0;
 
-  if (bseIterValid(p->pIter) == 0) {
+  if (bseIterIsOver(p->pIter)) {
     *data = NULL;
     return code;
   }
@@ -279,7 +279,7 @@ int32_t bseSnapReaderRead2(SBseSnapReader *p, uint8_t **data, int32_t *len) {
   uint8_t *pBuf = NULL;
   int32_t  bufLen = 0;
 
-  if (bseIterValid(p->pIter) == 0) {
+  if (bseIterIsOver(p->pIter)) {
     *data = NULL;
     return code;
   }
@@ -445,6 +445,7 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
     code = bseReadCurrentSnap(pIter->pBse, pValue, len);
     // do read current
     pIter->fileType = BSE_MAX_SNAP;
+    pIter->isOver = 1;
     pTableIter->fileType = pIter->fileType;
   } else if (pIter->fileType == BSE_MAX_SNAP) {
     pIter->isOver = 1;
@@ -474,4 +475,10 @@ int8_t bseIterValid(SBseIter *pIter) {
     return 0;
   }
   return pIter->isOver == 0;
+}
+int8_t bseIterIsOver(SBseIter *pIter) {
+  if (pIter == NULL) {
+    return 1;
+  }
+  return pIter->isOver == 1;
 }
