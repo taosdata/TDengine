@@ -54,8 +54,8 @@ tools/taosadapter
 # test file when running test
 tests/**/__pycache__/
 sim/
+test/run/
 test/allure-results/
-test/run
 test/screenlog.0
 test/output.txt
 test/env/ci_default.yaml
@@ -64,3 +64,8 @@ test/env/ci_default.yaml
 .idea/
 cmake-build-debug/
 cmake-build-release/
+test/allure-results
+test/env
+test/run
+test/screenlog*
+test/output.tmp

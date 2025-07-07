@@ -15,7 +15,7 @@ on:
       - 'include/common/tanalytics.h'
       - 'source/common/src/tanalytics.c'
       - 'tests/parallel/tdgpt_cases.task'
-      - 'tests/script/tsim/analytics'
+      - 'tests/script/tsim/analytics/**'
       - '**/*.md'
 
 concurrency:

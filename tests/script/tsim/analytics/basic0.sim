@@ -192,7 +192,54 @@ sql select forecast(c2) from pk_stb_ct1;
 sql select forecast(c2, 'algo=arima') from pk_stb_ct1;
 sql_error select forecast(c2, c3) from pk_stb_ct1;
 sql_error select forecast(c2, c3, 'algo=arima') from pk_stb_ct1;
-#sql select forecast(c2, c3, 'algo=moirai') from pk_stb_ct1;
+
+print ==================== co-variate query test and future co-variate query test
+sql select forecast(c2, c3, c1, 'algo=moirai') from pk_stb_ct1;
+
+sql select forecast(c2, c2, c3, 'algo=moirai') from pk_stb_ct1;
+sql select forecast(c2, c2, c2, c2, 'algo=moirai') from pk_stb_ct1;
+sql select forecast(c2, c2, c2, c2, 'algo=holtwinters') from pk_stb_ct1;
+
+# not exist column
+sql_error select forecast(c2, c3, c1, c4, 'algo=moirai') from pk_stb_ct1;
+
+# not support algorithm
+sql_error select forecast(c2, c3, c1, 'algo=holtwinters') from pk_stb_ct1;
+
+#rows not match
+sql_error select forecast(c2, c3, c1, 'algo=moirai,dynamic_real_1=[1 1 1 1], rows=22') from pk_stb_ct1;
+
+# missing columns in future dynamic real parameter
+sql_error select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[1 1 1],rows=3,dynamic_real_100_col=c4') from pk_stb_ct1;
+
+# name mismatch
+sql_error select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[1 1 1],rows=3,dynamic_real_100_col=c2') from pk_stb_ct1;
+
+# name mismatch
+sql_error select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[1 1 1],rows=3,dynamic_real_1_col=c1') from pk_stb_ct1;
+
+# invalid input - 1
+sql_error select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=(1 1 1),rows=3,dynamic_real_1_col=c1') from pk_stb_ct1;
+
+# invalid input - 2
+sql_error select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[1, 1, 1],rows=3,dynamic_real_1_col=c1') from pk_stb_ct1;
+
+# invalid input - 3
+sql_error select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=["abc"],rows=1,dynamic_real_1_col=c1') from pk_stb_ct1;
+sql_error select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[1 110 31.92],rows=abc,dynamic_real_x_col=c1') from pk_stb_ct1;
+
+print  ============== future dynamic real column test
+sql select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[1 1 1],rows=3,dynamic_real_100_col=c3') from pk_stb_ct1;
+if $rows != 3 then
+  return -1
+endi
+
+print  ============== too long parameter test
+sql select forecast(c2, c3, c1, 'algo=moirai, dynamic_real_100=[10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000 10000],rows=100,dynamic_real_100_col=c3') from pk_stb_ct1;
+
+if $rows != 100 then
+  return -1
+endi
 
 sql drop anode 1
 sql show anodes
