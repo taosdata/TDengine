@@ -171,7 +171,7 @@ static int32_t saveCreateGrpTableInfo(SStreamDataInserterInfo* pInserterInfo, co
 static int32_t initTableInfo(SStreamDataInserterInfo* pInserterInfo) {
   int32_t         code = TSDB_CODE_SUCCESS;
   SInsertTableRes res = {0};
-  res.tbname = taosStrdupi(pInserterInfo->tbName);
+  res.tbname = taosStrdup(pInserterInfo->tbName);
   if (res.tbname == NULL) {
     stError("failed to allocate memory for table name");
     return terrno;
