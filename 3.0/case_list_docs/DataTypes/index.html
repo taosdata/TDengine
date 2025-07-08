@@ -354,6 +354,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#01-DataTypes.test_composite_key_load.TestCompositeKeyLoad.test_project_column_1" class="md-nav__link">
+        读取内存中数据和 stt 中复合主键数据出现错误 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#01-DataTypes.test_datatype_bigint.TestDatatypeBigInt.test_datatype_bigint" class="md-nav__link">
         bigint datatype 
       </a>
@@ -2987,6 +2998,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#01-DataTypes.test_composite_key_load.TestCompositeKeyLoad.test_project_column_1" class="md-nav__link">
+        读取内存中数据和 stt 中复合主键数据出现错误 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#01-DataTypes.test_datatype_bigint.TestDatatypeBigInt.test_datatype_bigint" class="md-nav__link">
         bigint datatype 
       </a>
@@ -3255,6 +3277,38 @@
 
 <h1 id="01-datatypes">01-DataTypes<a class="headerlink" href="#01-datatypes" title="Permanent link">&para;</a></h1>
 
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+<h2 id="01-DataTypes.test_composite_key_load.TestCompositeKeyLoad.test_project_column_1" class="doc doc-heading">
+
+<a href="#01-DataTypes.test_composite_key_load.TestCompositeKeyLoad.test_project_column_1" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Summary:</strong> 读取内存中数据和 stt 中复合主键数据出现错误
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <strong>Description:</strong>
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">原因是：minKey 采用浅拷贝，导致stt向后迭代时候，修改了 minKey 的值， 导致内存中的 key 和 stt 中key 合并后， 出现错误</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. 创建单表，时间列和composite key 字符串列。向 stt 中写入 4 条记录，内存中写入一条记录</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. 查询出错</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    <strong>Path:</strong>
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/01-DataTypes/test_composite_key_load.py" target="_blank">
+                      cases/01-DataTypes/test_composite_key_load.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
   
 <div class="doc doc-object doc-function">
   
