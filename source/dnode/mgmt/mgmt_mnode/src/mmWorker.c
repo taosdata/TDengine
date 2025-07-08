@@ -292,7 +292,7 @@ static int32_t mmProcessStreamFetchMsg(SMnodeMgmt *pMgmt, SRpcMsg* pMsg) {
     }
     
     SReadHandle handle = {0};
-    handle.vnode = pMgmt->pMnode;
+    handle.mnd = pMgmt->pMnode;
     handle.uid = uid;
     handle.pMsgCb = &pMgmt->msgCb;
 

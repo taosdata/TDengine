@@ -843,6 +843,12 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 }
 
 
+void testAsan() {
+  int32_t size = 1024;
+  char* p = taosMemoryMalloc(size);
+  memset(p, 0, size + 1);
+}
+
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
@@ -850,6 +856,8 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     lino = 0;
   STrans     *pTrans = NULL;
+
+  testAsan();
   
   SCMCreateStreamReq* pCreate = taosMemoryCalloc(1, sizeof(SCMCreateStreamReq));
   TSDB_CHECK_NULL(pCreate, code, lino, _OVER, terrno);

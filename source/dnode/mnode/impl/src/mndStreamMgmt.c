@@ -3916,6 +3916,12 @@ int32_t msmProcessDeployOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
     return TSDB_CODE_SUCCESS;
   }
 
+  int32_t oReaderNum = taosArrayGetSize(pStatus->trigOReaders);
+  if (oReaderNum > 0) {
+    mstsWarn("origReaders already exits, num:%d", oReaderNum);
+    return TSDB_CODE_SUCCESS;
+  }
+
   TAOS_CHECK_EXIT(mstBuildDBVgroupsMap(pCtx->pMnode, &pDbVgroups));
   rsp.cont.vgIds = taosArrayInit(tbNum, sizeof(int32_t));
   TSDB_CHECK_NULL(rsp.cont.vgIds, code, lino, _exit, terrno);
