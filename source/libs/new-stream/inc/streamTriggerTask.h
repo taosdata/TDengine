@@ -52,6 +52,7 @@ typedef struct SSTriggerRealtimeGroup {
 
   int64_t oldThreshold;
   int64_t newThreshold;
+  int64_t prevWindowEnd;
 
   int32_t                tbIter;
   SSTriggerVirTableInfo *pCurVirTable;  // only for virtual tables
