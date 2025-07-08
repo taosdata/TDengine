@@ -1337,7 +1337,7 @@ static void cliBatchSendCb(uv_write_t* req, int status) {
     SCliReq* pReq = QUEUE_DATA(h, SCliReq, sendQ);
     removeReqFromSendQ(pReq);
 
-    if ((now - pReq->st) >= limit) {
+    if (pReq && (now - pReq->st) >= limit) {
       STraceId* trace = &pReq->msg.info.traceId;
       tGWarn("msg %s send out cost %dms", TMSG_INFO(pReq->msg.msgType), (int32_t)((now - pReq->st) / 1000));
     }
