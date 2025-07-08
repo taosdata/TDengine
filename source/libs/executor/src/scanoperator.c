@@ -494,7 +494,6 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
 
   if (pOperator->exprSupp.pFilterInfo != NULL) {
     code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, &pTableScanInfo->matchInfo);
-    ASSERT(code == 0);
     QUERY_CHECK_CODE(code, lino, _end);
 
     int64_t st = taosGetTimestampUs();
