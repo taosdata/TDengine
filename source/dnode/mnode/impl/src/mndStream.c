@@ -845,8 +845,9 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
 void testAsan() {
   int32_t size = 1024;
-  char* p = taosMemoryMalloc(size);
-  memset(p, 0, size + 1);
+  char* p = taosMemoryCalloc(1, size);
+  printf("%s", p + size);
+  //memset(p, 0, size + 1);
 }
 
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
@@ -858,12 +859,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   STrans     *pTrans = NULL;
 
   testAsan();
-  
-  SCMCreateStreamReq* pCreate = taosMemoryCalloc(1, sizeof(SCMCreateStreamReq));
-  TSDB_CHECK_NULL(pCreate, code, lino, _OVER, terrno);
-  
-  code = tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, pCreate);
-  TSDB_CHECK_CODE(code, lino, _OVER);
 
 #ifdef WINDOWS
   code = TSDB_CODE_MND_INVALID_PLATFORM;
