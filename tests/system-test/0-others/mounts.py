@@ -1,46 +1,42 @@
-from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
-import taos
-import sys
-import time
-import os
+# -*- coding: utf-8 -*-
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.dnodes import TDDnodes
-from util.dnodes import TDDnode
 import time
-import socket
-import subprocess
+from util.log import *
+from util.cases import *
+from util.sql import *
+from util.common import *
+from util.sqlset import *
 
 class TDTestCase:
-    clientCfgDict = {'debugFlag': '135'}
+
+    path_parts = os.getcwd().split(os.sep)
+    try:
+        tdinternal_index = path_parts.index("TDinternal")
+    except ValueError:
+        raise ValueError("The specified directory 'TDinternal' was not found in the path.")
+    TDinternal = os.sep.join(path_parts[:tdinternal_index + 1])
+    dnode1Path = os.path.join(TDinternal, "sim", "dnode1")
+    multiPath = os.path.join(dnode1Path, "multi")
+    mountPath = os.path.join(dnode1Path, "mnt")
+    mountPrimary = os.path.join(mountPath, "taos01")
+    clientCfgDict = {'debugFlag': 135}
     updatecfgDict = {
-        "debugFlag"        : "135",
-        "dataDir"          : "/var/lib/taos00 0 1",
-        "dataDir"          : "/var/lib/taos01 0 0",
-        "dataDir"          : "/var/lib/taos02 0 0",
-        "dataDir"          : "/var/lib/taos10 1 0",
-        "dataDir"          : "/var/lib/taos11 1 0",
-        "dataDir"          : "/var/lib/taos12 1 0",
+        "debugFlag"        : 135,
+        "forceReadConfig"  : 1,
+        "dataDir"          : [  f"%s%staos00 0 0" % (multiPath, os.sep),
+                                f"%s%staos01 0 1" % (multiPath, os.sep),
+                                f"%s%staos02 0 0" % (multiPath, os.sep),
+                                f"%s%staos10 1 0" % (multiPath, os.sep),
+                                f"%s%staos11 1 0" % (multiPath, os.sep),
+                                f"%s%staos12 1 0" % (multiPath, os.sep)],
         'clientCfg'        : clientCfgDict
     }
-
-    def getTDinternalPath():
-        path_parts = os.getcwd().split(os.sep)
-        try:
-            tdinternal_index = path_parts.index("TDinternal")
-        except ValueError:
-            raise ValueError("The specified directory 'TDinternal' was not found in the path.")
-        return os.sep.join(path_parts[:tdinternal_index + 1])
 
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), True)
         self.setsql = TDSetSql()
-        self.TDinternal = TDTestCase.getTDinternalPath()
         self.workPath = os.path.join(self.TDinternal, "debug", "build", "bin")
         tdLog.info(self.workPath)
 
@@ -107,7 +103,7 @@ class TDTestCase:
     #     time.sleep(2)
     #     tdLog.info(" create cluster done! ")
 
-    def s0_prepare_mount_path():
+    def s0_prepare_mount_path(self):
         tdSql.query("select * from information_schema.ins_dnodes;")
         # tdSql.checkData(0,1,'%s:6030'%self.host)
         # tdSql.checkData(4,1,'%s:6430'%self.host)
@@ -127,6 +123,7 @@ class TDTestCase:
         tdSql.execute("create topic topic_stb_all as select ts, c1, c2, c3 from stb0")
         tdSql.execute("create topic topic_stb_function as select ts, abs(c1), sin(c2) from stb0")
         tdSql.execute("create view view1 as select * from stb0")
+        tdLog.info("prepare mount path done! sleep 86400")
         time.sleep(86400)
     
     # def getShowGrantsTimeSeries(self, maxRetry=10):
@@ -338,9 +335,8 @@ class TDTestCase:
         # self.s4_check_mount_sdbobj_conflicts()
 
     def stop(self):
-        # self.clearEnv()
         tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success("%s successfully executed" % __file__)
 
-tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())
+tdCases.addLinux(__file__, TDTestCase())
