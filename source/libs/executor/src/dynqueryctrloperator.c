@@ -1397,6 +1397,7 @@ typedef struct {
   char*    colrefName;
   tb_uid_t uid;
   col_id_t colId;
+  int32_t  vgId;
 } SColRefKV;
 
 int32_t extractColRefName(const char *colref, char **refDb, char** refTb, char** refCol) {
@@ -1465,6 +1466,7 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
       SColumnInfoData *pUidCol = taosArrayGet(pChildInfo->pDataBlock, 3);
       SColumnInfoData *pColIdCol = taosArrayGet(pChildInfo->pDataBlock, 4);
       SColumnInfoData *pRefCol = taosArrayGet(pChildInfo->pDataBlock, 5);
+      SColumnInfoData *pVgIdCol = taosArrayGet(pChildInfo->pDataBlock, 6);
 
       for (int32_t i = 0; i < pChildInfo->info.rows; i++) {
         if (!colDataIsNull_s(pStbNameCol, i)) {
@@ -1490,6 +1492,9 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
             }
             if (!colDataIsNull_s(pColIdCol, i)) {
               GET_TYPED_DATA(kv.colId, int32_t, TSDB_DATA_TYPE_INT, colDataGetNumData(pColIdCol, i), 0);
+            }
+            if (!colDataIsNull_s(pVgIdCol, i)) {
+              GET_TYPED_DATA(kv.vgId, int32_t, TSDB_DATA_TYPE_INT, colDataGetNumData(pVgIdCol, i), 0);
             }
             if (taosHashGet(pVtbScan->childTableMap, varDataVal(ctbName), varDataLen(ctbName)) == NULL) {
               SArray *pColRefArray = taosArrayInit(1, sizeof(SColRefKV));
@@ -1533,9 +1538,11 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
       SArray* pColMap = (SArray*)taosArrayGetP(pVtbScan->childTableList, pVtbScan->curTableIdx);
       QUERY_CHECK_NULL(pColMap, code, line, _return, terrno);
       tb_uid_t uid = 0;
+      int32_t  vgId = 0;
       for (int32_t j = 0; j < taosArrayGetSize(pColMap); j++) {
         SColRefKV *pKV = (SColRefKV*)taosArrayGet(pColMap, j);
         uid = pKV->uid;
+        vgId = pKV->vgId;
         if (pKV->colrefName != NULL && colNeedScan(pOperator, pKV->colId)) {
           char *refDbName = NULL;
           char *refTbName = NULL;
@@ -1592,7 +1599,7 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
       }
 
       SOperatorParam*  pExchangeParam = NULL;
-      code = buildExchangeOperatorParamForVTagScan(&pExchangeParam, 0, pOperator->pTaskInfo->id.vgId, uid);
+      code = buildExchangeOperatorParamForVTagScan(&pExchangeParam, 0, vgId, uid);
       QUERY_CHECK_CODE(code, line, _return);
       ((SVTableScanOperatorParam*)pVtbScan->vtbScanParam->value)->pTagScanOp = pExchangeParam;
 

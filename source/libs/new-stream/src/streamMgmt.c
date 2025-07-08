@@ -496,7 +496,10 @@ int32_t smUndeployTask(SStreamTaskUndeploy* pUndeploy, bool rmFromVg) {
   SStreamTask task = **ppTask;
   pTask= &task;
 
-  (void)taosHashRemove(gStreamMgmt.taskMap, key, sizeof(key));
+  code = taosHashRemove(gStreamMgmt.taskMap, key, sizeof(key));
+  if (code) {
+    ST_TASK_WLOG("task remove from taskMap failed, error:%s, tidx:%d", tstrerror(code), pTask->taskIdx);
+  }
 
   (*ppTask)->undeployMsg = pUndeploy->undeployMsg;
   (*ppTask)->undeployCb = smRemoveTaskCb;

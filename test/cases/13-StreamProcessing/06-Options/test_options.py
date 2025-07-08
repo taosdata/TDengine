@@ -2,27 +2,27 @@ import time
 from new_test_framework.utils import (tdLog,tdSql,tdStream,StreamCheckItem,)
 
 
-class TestStreamStateTrigger:
+class TestStreamOptionsTrigger:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stream_state_trigger(self):
+    def test_stream_options_trigger(self):
         """Stream basic test 1
         """
 
         tdStream.createSnode()
 
         streams = []
-        # streams.append(self.Basic0()) # OK
-        # streams.append(self.Basic1()) # OK
-        # streams.append(self.Basic2()) # fail
-        streams.append(self.Basic3()) # fail
-        # streams.append(self.Basic4()) # OK
-        # streams.append(self.Basic5()) # OK
-        # streams.append(self.Basic6()) # OK
-        # streams.append(self.Basic7()) # fail
-        # streams.append(self.Basic8()) # fail
+        # streams.append(self.Basic0())
+        # streams.append(self.Basic1()) # expired_time 
+        streams.append(self.Basic2())
+        # streams.append(self.Basic3())
+        # streams.append(self.Basic4())
+        # streams.append(self.Basic5())
+        # streams.append(self.Basic6())
+        # streams.append(self.Basic7())
+        # streams.append(self.Basic8())
         
         tdStream.checkAll(streams)
 
@@ -167,130 +167,69 @@ class TestStreamStateTrigger:
         def __init__(self):
             self.db  = "sdb1"
             self.stbName = "stb"
+            self.vstbName = "vstb"
 
         def create(self):
             tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
             tdSql.execute(f"use {self.db}")
-            tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
+            tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
+            tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
             tdSql.query(f"show stables")
-            tdSql.checkRows(1)
+            tdSql.checkRows(2)
 
-            tdSql.execute(f"create table ct1 using stb tags(1)")
-            tdSql.execute(f"create table ct2 using stb tags(1)")
-            tdSql.execute(f"create table ct3 using stb tags(1)")
-            tdSql.execute(f"create table ct4 using stb tags(1)")
+            tdSql.execute(f"create table {self.db}.ct1 using {self.db}.{self.stbName} tags(1)")
+            # tdSql.execute(f"create table {self.db}.ct2 using {self.db}.{self.stbName} tags(1)")
+            # tdSql.execute(f"create table {self.db}.ct3 using {self.db}.{self.stbName} tags(1)")
+            # tdSql.execute(f"create table {self.db}.ct4 using {self.db}.{self.stbName} tags(1)")
+            
+            tdSql.execute(f"create vtable {self.db}.vct1 (cint from ct1.cint) using {self.db}.{self.vstbName} tags(101)")
+            tdSql.execute(f"create vtable {self.db}.vct2 (cint from ct1.cint) using {self.db}.{self.vstbName} tags(101)")
+            tdSql.execute(f"create vtable {self.db}.vct3 (cint from ct1.cint) using {self.db}.{self.vstbName} tags(101)")
+            tdSql.execute(f"create vtable {self.db}.vct4 (cint from ct1.cint) using {self.db}.{self.vstbName} tags(101)")           
 
             tdSql.query(f"show tables")
+            tdSql.checkRows(1)
+            tdSql.query(f"show vtables")
             tdSql.checkRows(4)
 
             tdSql.execute(
-                f"create stream s1 state_window(cint) true_for(5s) from ct1 into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s1 state_window(cint) from vct1 into res_vct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
-            tdSql.execute(
-                f"create stream s1_g state_window(cint) true_for(5s) from {self.stbName} partition by tbname, tint into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
-            )
+            # tdSql.execute(
+            #     f"create stream s1_g state_window(cint) from {self.vstbName} partition by tbname, tint options(expired_time(10s)) into res_vstb OUTPUT_SUBTABLE(CONCAT('res_vstb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+            # )
 
         def insert1(self):
             sqls = [
+                "insert into ct1 values ('2025-01-01 00:00:00', 1);",
+                "insert into ct1 values ('2025-01-01 00:00:05', 1);",
                 "insert into ct1 values ('2025-01-01 00:00:10', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:11', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:12', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:13', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:14', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:15', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:16', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:17', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:18', 3);",
-                "insert into ct1 values ('2025-01-01 00:00:19', 3);",
+                "insert into ct1 values ('2025-01-01 00:00:15', 1);",
                 "insert into ct1 values ('2025-01-01 00:00:20', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:21', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:22', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:23', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:24', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:25', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:26', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:27', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:28', 3);",
-                "insert into ct1 values ('2025-01-01 00:00:29', 3);",  
-                
-                "insert into ct2 values ('2025-01-01 00:00:10', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:11', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:12', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:13', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:14', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:15', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:16', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:17', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:18', 3);",
-                "insert into ct2 values ('2025-01-01 00:00:19', 3);",
-                "insert into ct2 values ('2025-01-01 00:00:20', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:21', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:22', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:23', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:24', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:25', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:26', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:27', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:28', 3);",
-                "insert into ct2 values ('2025-01-01 00:00:29', 3);",
-                
-                "insert into ct3 values ('2025-01-01 00:00:10', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:11', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:12', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:13', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:14', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:15', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:16', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:17', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:18', 3);",
-                "insert into ct3 values ('2025-01-01 00:00:19', 3);",
-                "insert into ct3 values ('2025-01-01 00:00:20', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:21', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:22', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:23', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:24', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:25', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:26', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:27', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:28', 3);",
-                "insert into ct3 values ('2025-01-01 00:00:29', 3);",
-
-                "insert into ct4 values ('2025-01-01 00:00:10', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:11', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:12', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:13', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:14', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:15', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:16', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:17', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:18', 3);",
-                "insert into ct4 values ('2025-01-01 00:00:19', 3);",
-                "insert into ct4 values ('2025-01-01 00:00:20', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:21', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:22', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:23', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:24', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:25', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:26', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:27', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:28', 3);",
-                "insert into ct4 values ('2025-01-01 00:00:29', 3);",                
+                "insert into ct1 values ('2025-01-01 00:00:25', 1);",
+                "insert into ct1 values ('2025-01-01 00:00:30', 2);",
+                "insert into ct1 values ('2025-01-01 00:00:35', 2);",
+                "insert into ct1 values ('2025-01-01 00:00:40', 2);",
+                "insert into ct1 values ('2025-01-01 00:00:45', 2);",
+                "insert into ct1 values ('2025-01-01 00:00:50', 2);",
+                "insert into ct1 values ('2025-01-01 00:00:55', 2);",  
+                "insert into ct1 values ('2025-01-01 00:01:00', 3);",               
             ]
             tdSql.executes(sqls)
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name="res_ct1"',
+                sql=f'select * from information_schema.ins_vtables where db_name="{self.db}" and table_name="res_vct1"',
                 func=lambda: tdSql.getRows() == 1,
             )
-            tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_ct%"',
-                func=lambda: tdSql.getRows() == 4,
-            )
+            # tdSql.checkResultsByFunc(
+            #     sql=f'select * from information_schema.ins_vtables where db_name="{self.db}" and table_name like "res_vstb_ct%"',
+            #     func=lambda: tdSql.getRows() == 4,
+            # )
             
             tdSql.checkTableSchema(
                 dbname=self.db,
-                tbname="res_ct1",
+                tbname="res_vct1",
                 schema=[
                     ["firstts", "TIMESTAMP", 8, ""],
                     ["lastts", "TIMESTAMP", 8, ""],
@@ -301,228 +240,245 @@ class TestStreamStateTrigger:
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_ct1",
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_vct1",
                 func=lambda: tdSql.getRows() == 2
-                and tdSql.compareData(0, 0, "2025-01-01 00:00:12")
-                and tdSql.compareData(0, 1, "2025-01-01 00:00:17")
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:25")
                 and tdSql.compareData(0, 2, 6)
-                and tdSql.compareData(0, 3, 12)
-                and tdSql.compareData(0, 4, 2)
-                and tdSql.compareData(1, 0, "2025-01-01 00:00:22")
-                and tdSql.compareData(1, 1, "2025-01-01 00:00:27")
+                and tdSql.compareData(0, 3, 6)
+                and tdSql.compareData(0, 4, 1)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:30")
+                and tdSql.compareData(1, 1, "2025-01-01 00:00:55")
                 and tdSql.compareData(1, 2, 6)
                 and tdSql.compareData(1, 3, 12)
                 and tdSql.compareData(1, 4, 2),
             )
 
+            # tdSql.checkResultsByFunc(
+            #     sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_vstb_ct4",
+            #     func=lambda: tdSql.getRows() == 2
+            #     and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+            #     and tdSql.compareData(0, 1, "2025-01-01 00:00:25")
+            #     and tdSql.compareData(0, 2, 6)
+            #     and tdSql.compareData(0, 3, 6)
+            #     and tdSql.compareData(0, 4, 1)
+            #     and tdSql.compareData(1, 0, "2025-01-01 00:00:30")
+            #     and tdSql.compareData(1, 1, "2025-01-01 00:00:55")
+            #     and tdSql.compareData(1, 2, 6)
+            #     and tdSql.compareData(1, 3, 12)
+            #     and tdSql.compareData(1, 4, 2),
+            # )
+
+        def insert2(self):
+            sqls = [
+                # "insert into ct1 values ('2025-01-01 00:00:00', 1);",
+                # "insert into ct1 values ('2025-01-01 00:00:05', 1);",
+                # "insert into ct1 values ('2025-01-01 00:00:10', 1);",
+                # "insert into ct1 values ('2025-01-01 00:00:15', 1);",
+                # "insert into ct1 values ('2025-01-01 00:00:20', 1);",
+                # "insert into ct1 values ('2025-01-01 00:00:25', 1);",
+                # "insert into ct1 values ('2025-01-01 00:00:30', 2);",
+                # "insert into ct1 values ('2025-01-01 00:00:35', 2);",
+                # "insert into ct1 values ('2025-01-01 00:00:40', 2);",
+                # "insert into ct1 values ('2025-01-01 00:00:45', 2);",
+                # "insert into ct1 values ('2025-01-01 00:00:50', 2);",
+                # "insert into ct1 values ('2025-01-01 00:00:55', 2);",
+                
+                "insert into ct1 values ('2025-01-01 00:00:26', 1);",
+                "insert into ct1 values ('2025-01-01 00:00:51', 2);",
+            ]
+            tdSql.executes(sqls)
+
+        def check2(self):            
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct4",
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_vct1",
                 func=lambda: tdSql.getRows() == 2
-                and tdSql.compareData(0, 0, "2025-01-01 00:00:12")
-                and tdSql.compareData(0, 1, "2025-01-01 00:00:17")
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:25")
                 and tdSql.compareData(0, 2, 6)
-                and tdSql.compareData(0, 3, 12)
-                and tdSql.compareData(0, 4, 2)
-                and tdSql.compareData(1, 0, "2025-01-01 00:00:22")
-                and tdSql.compareData(1, 1, "2025-01-01 00:00:27")
-                and tdSql.compareData(1, 2, 6)
-                and tdSql.compareData(1, 3, 12)
+                and tdSql.compareData(0, 3, 6)
+                and tdSql.compareData(0, 4, 1)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:30")
+                and tdSql.compareData(1, 1, "2025-01-01 00:00:55")
+                and tdSql.compareData(1, 2, 7)
+                and tdSql.compareData(1, 3, 14)
                 and tdSql.compareData(1, 4, 2),
             )
+
+            # tdSql.checkResultsByFunc(
+            #     sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_vstb_ct4",
+            #     func=lambda: tdSql.getRows() == 2
+            #     and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+            #     and tdSql.compareData(0, 1, "2025-01-01 00:00:25")
+            #     and tdSql.compareData(0, 2, 6)
+            #     and tdSql.compareData(0, 3, 6)
+            #     and tdSql.compareData(0, 4, 1)
+            #     and tdSql.compareData(1, 0, "2025-01-01 00:00:30")
+            #     and tdSql.compareData(1, 1, "2025-01-01 00:00:55")
+            #     and tdSql.compareData(1, 2, 7)
+            #     and tdSql.compareData(1, 3, 14)
+            #     and tdSql.compareData(1, 4, 2),
+            # )    
 
     class Basic2(StreamCheckItem):
         def __init__(self):
             self.db  = "sdb2"
             self.stbName = "stb"
+            self.vstbName = "vstb"
 
         def create(self):
             tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
             tdSql.execute(f"use {self.db}")
-            tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
+            tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
+            tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
             tdSql.query(f"show stables")
-            tdSql.checkRows(1)
+            tdSql.checkRows(2)
 
-            tdSql.execute(f"create table ct1 using stb tags(1)")
-            tdSql.execute(f"create table ct2 using stb tags(2)")
-            tdSql.execute(f"create table ct3 using stb tags(3)")
-            tdSql.execute(f"create table ct4 using stb tags(4)")
+            tdSql.execute(f"create table {self.db}.ct1 using {self.db}.{self.stbName} tags(1)")
+            
+            tdSql.execute(f"create vtable {self.db}.vct1 (cint from ct1.cint) using {self.db}.{self.vstbName} tags(101)")
+            # tdSql.execute(f"create vtable {self.db}.vct2 (cint from ct1.cint) using {self.db}.{self.vstbName} tags(101)")
+            # tdSql.execute(f"create vtable {self.db}.vct3 (cint from ct1.cint) using {self.db}.{self.vstbName} tags(101)")
+            # tdSql.execute(f"create vtable {self.db}.vct4 (cint from ct1.cint) using {self.db}.{self.vstbName} tags(101)")           
 
             tdSql.query(f"show tables")
-            tdSql.checkRows(4)
+            tdSql.checkRows(1)
+            tdSql.query(f"show vtables")
+            tdSql.checkRows(1)
 
+            # tdSql.execute(
+            #     f"create stream s1 state_window(cint) from vct1 options(expired_time(10s)) into res_vct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from vct1;"
+            # )
             tdSql.execute(
-                f"create stream s2 state_window(cint) from ct1 options(max_delay(3s)) into res_ct1 (lastts, firstts, cnt_v, sum_v, avg_v, nowts) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint), now() from %%trows;"
-            )
-            tdSql.execute(
-                f"create stream s2_g state_window(cint) from {self.stbName} partition by tbname, tint options(max_delay(3s)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (lastts, firstts, cnt_v, sum_v, avg_v, nowts) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint), now() from %%trows;"
+                f"create stream s1_g state_window(cint) from {self.vstbName} partition by tbname, tint options(expired_time(10s)) into res_vstb OUTPUT_SUBTABLE(CONCAT('res_vstb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%tbname;"
             )
 
         def insert1(self):
             sqls = [
+                "insert into ct1 values ('2025-01-01 00:00:00', 1);",
+                "insert into ct1 values ('2025-01-01 00:00:05', 1);",
                 "insert into ct1 values ('2025-01-01 00:00:10', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:11', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:12', 1);",
-                
-                "insert into ct2 values ('2025-01-01 00:00:10', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:11', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:12', 1);",
-                
-                "insert into ct3 values ('2025-01-01 00:00:10', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:11', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:12', 1);",
-                
-                "insert into ct4 values ('2025-01-01 00:00:10', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:11', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:12', 1);",
+                "insert into ct1 values ('2025-01-01 00:00:15', 1);",
+                "insert into ct1 values ('2025-01-01 00:00:20', 1);",
+                "insert into ct1 values ('2025-01-01 00:00:25', 1);",
+                "insert into ct1 values ('2025-01-01 00:00:30', 2);",
+                "insert into ct1 values ('2025-01-01 00:00:35', 2);",
+                "insert into ct1 values ('2025-01-01 00:00:40', 2);",
+                "insert into ct1 values ('2025-01-01 00:00:45', 2);",
+                "insert into ct1 values ('2025-01-01 00:00:50', 2);",
+                "insert into ct1 values ('2025-01-01 00:00:55', 2);",  
+                "insert into ct1 values ('2025-01-01 00:01:00', 3);",               
             ]
             tdSql.executes(sqls)
-            time.sleep(5)
-            sqls = [
-                "insert into ct1 values ('2025-01-01 00:00:13', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:14', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:15', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:16', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:17', 2);",
-                
-                "insert into ct2 values ('2025-01-01 00:00:13', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:14', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:15', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:16', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:17', 2);",
-
-                "insert into ct3 values ('2025-01-01 00:00:13', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:14', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:15', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:16', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:17', 2);",                
-
-                "insert into ct4 values ('2025-01-01 00:00:13', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:14', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:15', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:16', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:17', 2);",  
-            ]
-            tdSql.executes(sqls)
-            time.sleep(5)  
-            sqls = [
-                "insert into ct1 values ('2025-01-01 00:00:18', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:19', 2);",
-                "insert into ct1 values ('2025-01-01 00:00:20', 3);",
-                "insert into ct1 values ('2025-01-01 00:00:21', 3);",
-                "insert into ct1 values ('2025-01-01 00:00:22', 3);",
-                
-                "insert into ct2 values ('2025-01-01 00:00:18', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:19', 2);",
-                "insert into ct2 values ('2025-01-01 00:00:20', 3);",
-                "insert into ct2 values ('2025-01-01 00:00:21', 3);",
-                "insert into ct2 values ('2025-01-01 00:00:22', 3);",             
-
-                "insert into ct3 values ('2025-01-01 00:00:18', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:19', 2);",
-                "insert into ct3 values ('2025-01-01 00:00:20', 3);",
-                "insert into ct3 values ('2025-01-01 00:00:21', 3);",
-                "insert into ct3 values ('2025-01-01 00:00:22', 3);",                
-
-                "insert into ct4 values ('2025-01-01 00:00:18', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:19', 2);",
-                "insert into ct4 values ('2025-01-01 00:00:20', 3);",
-                "insert into ct4 values ('2025-01-01 00:00:21', 3);",
-                "insert into ct4 values ('2025-01-01 00:00:22', 3);",
-            ]
-            tdSql.executes(sqls)
-            time.sleep(5)  
-            sqls = [
-                "insert into ct1 values ('2025-01-01 00:00:23', 3);",
-                "insert into ct1 values ('2025-01-01 00:00:24', 3);",
-                "insert into ct1 values ('2025-01-01 00:00:25', 4);",
-                
-                "insert into ct2 values ('2025-01-01 00:00:23', 3);",
-                "insert into ct2 values ('2025-01-01 00:00:24', 3);",
-                "insert into ct2 values ('2025-01-01 00:00:25', 4);",                
-                                                                                     
-                "insert into ct3 values ('2025-01-01 00:00:23', 3);",                
-                "insert into ct3 values ('2025-01-01 00:00:24', 3);",                
-                "insert into ct3 values ('2025-01-01 00:00:25', 4);",                
-                                                                                     
-                "insert into ct4 values ('2025-01-01 00:00:23', 3);",                
-                "insert into ct4 values ('2025-01-01 00:00:24', 3);",                
-                "insert into ct4 values ('2025-01-01 00:00:25', 4);",
-            ]
-            tdSql.executes(sqls)
-            time.sleep(1)   
 
         def check1(self):
+            # tdSql.checkResultsByFunc(
+            #     sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name="res_vct1"',
+            #     func=lambda: tdSql.getRows() == 1,
+            # )
             tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name="res_ct1"',
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_vstb_vct%"',
                 func=lambda: tdSql.getRows() == 1,
-            )
-            tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_ct%"',
-                func=lambda: tdSql.getRows() == 4,
             )
             
             tdSql.checkTableSchema(
                 dbname=self.db,
-                tbname="res_ct1",
+                tbname="res_vstb_vct1",
                 schema=[
-                    ["lastts", "TIMESTAMP", 8, ""],
                     ["firstts", "TIMESTAMP", 8, ""],
+                    ["lastts", "TIMESTAMP", 8, ""],
                     ["cnt_v", "BIGINT", 8, ""],
                     ["sum_v", "BIGINT", 8, ""],
                     ["avg_v", "DOUBLE", 8, ""],
-                    ["nowts", "TIMESTAMP", 8, ""],
                 ],
             )
 
-            tdSql.checkResultsByFunc(
-                sql=f"select lastts, firstts, cnt_v, sum_v, avg_v, nowts from {self.db}.res_ct1",
-                func=lambda: tdSql.getRows() == 7
-                and tdSql.compareData(0, 0, "2025-01-01 00:00:12")
-                and tdSql.compareData(0, 1, "2025-01-01 00:00:10")
-                and tdSql.compareData(0, 2, 3)
-                and tdSql.compareData(0, 3, 3)
-                and tdSql.compareData(0, 4, 1.0)
-                and tdSql.compareData(1, 0, "2025-01-01 00:00:14")
-                and tdSql.compareData(1, 1, "2025-01-01 00:00:10")
-                and tdSql.compareData(1, 2, 5)
-                and tdSql.compareData(1, 3, 5)
-                and tdSql.compareData(1, 4, 1.0)
-                and tdSql.compareData(5, 0, "2025-01-01 00:00:24")
-                and tdSql.compareData(5, 1, "2025-01-01 00:00:20")
-                and tdSql.compareData(5, 2, 5)
-                and tdSql.compareData(5, 3, 15)
-                and tdSql.compareData(5, 4, 3.0)
-                and tdSql.compareData(6, 0, "2025-01-01 00:00:25")
-                and tdSql.compareData(6, 1, "2025-01-01 00:00:25")
-                and tdSql.compareData(6, 2, 1)
-                and tdSql.compareData(6, 3, 4)
-                and tdSql.compareData(6, 4, 4.0),
-            )
+            # tdSql.checkResultsByFunc(
+            #     sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_vct1",
+            #     # func=lambda: tdSql.getRows() == 2
+            #     # and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+            #     # and tdSql.compareData(0, 1, "2025-01-01 00:00:25")
+            #     # and tdSql.compareData(0, 2, 6)
+            #     # and tdSql.compareData(0, 3, 6)
+            #     # and tdSql.compareData(0, 4, 1)
+            #     # and tdSql.compareData(1, 0, "2025-01-01 00:00:30")
+            #     # and tdSql.compareData(1, 1, "2025-01-01 00:00:55")
+            #     # and tdSql.compareData(1, 2, 6)
+            #     # and tdSql.compareData(1, 3, 12)
+            #     # and tdSql.compareData(1, 4, 2),
+            #     func=lambda: tdSql.getRows() == 1
+            #     and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+            #     and tdSql.compareData(0, 1, "2025-01-01 00:00:25")
+            #     and tdSql.compareData(0, 2, 13)
+            #     and tdSql.compareData(0, 3, 21)
+            #     # and tdSql.compareData(0, 4, 1.615),
+            # )
 
             tdSql.checkResultsByFunc(
-                sql=f"select lastts, firstts, cnt_v, sum_v, avg_v, nowts from {self.db}.res_stb_ct4",
-                func=lambda: tdSql.getRows() == 7
-                and tdSql.compareData(0, 0, "2025-01-01 00:00:12")
-                and tdSql.compareData(0, 1, "2025-01-01 00:00:10")
-                and tdSql.compareData(0, 2, 3)
-                and tdSql.compareData(0, 3, 3)
-                and tdSql.compareData(0, 4, 1.0)
-                and tdSql.compareData(1, 0, "2025-01-01 00:00:14")
-                and tdSql.compareData(1, 1, "2025-01-01 00:00:10")
-                and tdSql.compareData(1, 2, 5)
-                and tdSql.compareData(1, 3, 5)
-                and tdSql.compareData(1, 4, 1.0)
-                and tdSql.compareData(5, 0, "2025-01-01 00:00:24")
-                and tdSql.compareData(5, 1, "2025-01-01 00:00:20")
-                and tdSql.compareData(5, 2, 5)
-                and tdSql.compareData(5, 3, 15)
-                and tdSql.compareData(5, 4, 3.0)
-                and tdSql.compareData(6, 0, "2025-01-01 00:00:25")
-                and tdSql.compareData(6, 1, "2025-01-01 00:00:25")
-                and tdSql.compareData(6, 2, 1)
-                and tdSql.compareData(6, 3, 4)
-                and tdSql.compareData(6, 4, 4.0),
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_vstb_vct1",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:25")
+                and tdSql.compareData(0, 2, 6)
+                and tdSql.compareData(0, 3, 6)
+                and tdSql.compareData(0, 4, 1)
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:30")
+                and tdSql.compareData(1, 1, "2025-01-01 00:00:55")
+                and tdSql.compareData(1, 2, 6)
+                and tdSql.compareData(1, 3, 12)
+                and tdSql.compareData(1, 4, 2),
             )
+
+        # def insert2(self):
+        #     sqls = [
+        #         # "insert into ct1 values ('2025-01-01 00:00:00', 1);",
+        #         # "insert into ct1 values ('2025-01-01 00:00:05', 1);",
+        #         # "insert into ct1 values ('2025-01-01 00:00:10', 1);",
+        #         # "insert into ct1 values ('2025-01-01 00:00:15', 1);",
+        #         # "insert into ct1 values ('2025-01-01 00:00:20', 1);",
+        #         # "insert into ct1 values ('2025-01-01 00:00:25', 1);",
+        #         # "insert into ct1 values ('2025-01-01 00:00:30', 2);",
+        #         # "insert into ct1 values ('2025-01-01 00:00:35', 2);",
+        #         # "insert into ct1 values ('2025-01-01 00:00:40', 2);",
+        #         # "insert into ct1 values ('2025-01-01 00:00:45', 2);",
+        #         # "insert into ct1 values ('2025-01-01 00:00:50', 2);",
+        #         # "insert into ct1 values ('2025-01-01 00:00:55', 2);",
+                
+        #         "insert into ct1 values ('2025-01-01 00:00:26', 1);",
+        #         "insert into ct1 values ('2025-01-01 00:00:51', 2);",
+        #     ]
+        #     tdSql.executes(sqls)
+
+        # def check2(self):            
+        #     tdSql.checkResultsByFunc(
+        #         sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_vct1",
+        #         func=lambda: tdSql.getRows() == 2
+        #         and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+        #         and tdSql.compareData(0, 1, "2025-01-01 00:00:25")
+        #         and tdSql.compareData(0, 2, 6)
+        #         and tdSql.compareData(0, 3, 6)
+        #         and tdSql.compareData(0, 4, 1)
+        #         and tdSql.compareData(1, 0, "2025-01-01 00:00:30")
+        #         and tdSql.compareData(1, 1, "2025-01-01 00:00:55")
+        #         and tdSql.compareData(1, 2, 7)
+        #         and tdSql.compareData(1, 3, 14)
+        #         and tdSql.compareData(1, 4, 2),
+        #     )
+
+        #     # tdSql.checkResultsByFunc(
+        #     #     sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_vstb_ct4",
+        #     #     func=lambda: tdSql.getRows() == 2
+        #     #     and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+        #     #     and tdSql.compareData(0, 1, "2025-01-01 00:00:25")
+        #     #     and tdSql.compareData(0, 2, 6)
+        #     #     and tdSql.compareData(0, 3, 6)
+        #     #     and tdSql.compareData(0, 4, 1)
+        #     #     and tdSql.compareData(1, 0, "2025-01-01 00:00:30")
+        #     #     and tdSql.compareData(1, 1, "2025-01-01 00:00:55")
+        #     #     and tdSql.compareData(1, 2, 7)
+        #     #     and tdSql.compareData(1, 3, 14)
+        #     #     and tdSql.compareData(1, 4, 2),
+        #     # )
 
     class Basic3(StreamCheckItem):
         def __init__(self):

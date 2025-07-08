@@ -53,9 +53,9 @@ extern "C" {
 #endif
 
 #ifdef WINDOWS
-typedef struct {
-  void  *base;
-  size_t len;
+typedef struct TaosIOVec {
+  void  *iov_base;
+  size_t iov_len;
 } TaosIOVec;
 #else
 #include <sys/uio.h>
