@@ -123,9 +123,24 @@ class TDTestCase:
         tdSql.execute("create topic topic_stb_all as select ts, c1, c2, c3 from stb0")
         tdSql.execute("create topic topic_stb_function as select ts, abs(c1), sin(c2) from stb0")
         tdSql.execute("create view view1 as select * from stb0")
-        tdLog.info("prepare mount path done! sleep 86400")
-        time.sleep(86400)
-    
+        for r in range(0, 50000, 50):
+            tdLog.info(f"insert data {r} into stb0")
+            tdSql.query(f"insert into db.ctb0 values(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)  "%(r, r*2, r*4, r*3, float(r)/39, float(r)/23,r+1, (r+1)*2, (r+1)*4, (r+1)*3, float(r)/139, float(r)/123,r+2, (r+2)*2, (r+2)*4, (r+2)*3, float(r)/239, float(r)/223,r+3, (r+3)*2, (r+3)*4, (r+3)*3, float(r)/339, float(r)/323,r+4, (r+4)*2, (r+4)*4, (r+4)*3, float(r)/439, float(r)/423,r+5, r+5*2, r+5*4, r+5*3, float(r)/539, float(r)/523,r+6, r+6*2, r+6*4, r+6*3, float(r)/639, float(r)/623,r+7, r+7*2, r+7*4, r+7*3, float(r)/739, float(r)/723,r+8, r+8*2, r+8*4, r+8*3, float(r)/839, float(r)/823,r+9, r+9*2, r+9*4, r*3, float(r)/939, float(r)/923))
+        tdSql.execute("flush database db")
+        tdDnodes.stop(1)
+        try:
+            if(os.path.exists(self.mountPath)):
+                shutil.rmtree(self.mountPath)
+            shutil.move(self.multiPath, self.mountPath)
+        except Exception as e:
+            raise Exception(repr(e))
+        
+    def s1_prepare_host_cluster(self):
+        tdDnodes.start(1)
+        tdSql.query("select * from information_schema.ins_dnodes;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,4,'ready')
+
     # def getShowGrantsTimeSeries(self, maxRetry=10):
     #     for nRetry in range(maxRetry):
     #         tdSql.query("show grants")
@@ -329,7 +344,7 @@ class TDTestCase:
 
     def run(self):
         self.s0_prepare_mount_path()
-        # self.s1_prepare_host_cluster()
+        self.s1_prepare_host_cluster()
         # self.s2_check_mount_error()
         # self.s3_create_drop_show_mount()
         # self.s4_check_mount_sdbobj_conflicts()
