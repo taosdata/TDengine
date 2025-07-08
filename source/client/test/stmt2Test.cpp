@@ -2345,6 +2345,7 @@ TEST(stmt2Case, mixed_bind) {
            "tinyint, c8 bool, c9 nchar(128), c10 geometry(256))TAGS(tts timestamp, t1 int, t2 bigint, t3 float, t4 "
            "double, t5 "
            "binary(128), t6 smallint, t7 tinyint, t8 bool, t9 nchar(128), t10 geometry(256))");
+  do_query(taos, "use stmt2_testdb_19");
 
   TAOS_STMT2_OPTION option = {0, false, true, NULL, NULL};
   TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
@@ -2416,17 +2417,38 @@ TEST(stmt2Case, mixed_bind) {
   // checkError(stmt, code);
   // ASSERT_EQ(fieldNum, 19);
 
-  char*            tbname[1] = {"tb1"};
+  char*            tbname[2] = {"tb1", "tb2"};
   TAOS_STMT2_BIND* tags = &params_tags[0];
   TAOS_STMT2_BIND* cols = &params_cols[0];
   TAOS_STMT2_BINDV bindv = {1, &tbname[0], &tags, &cols};
-  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  for (int i = 0; i < 3; i++) {
+    v.c1 += i * 10000;
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  }
   checkError(stmt, code);
 
   int affected_rows;
   code = taos_stmt2_exec(stmt, &affected_rows);
   checkError(stmt, code);
-  ASSERT_EQ(affected_rows, 1);
+  ASSERT_EQ(affected_rows, 3);
+
+  stmt_sql =
+      "insert into stb (tbname, tts, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, ts, c1, c2, c3, c4, c5, c6, c7, c8, c9, "
+      "c10) values("
+      "?,1591060628000,?,?,?,4.0,?,?,?,?,?,?,?,2,?,?,?,?,?,?,1,?,?)";
+  code = taos_stmt2_prepare(stmt, stmt_sql, 0);
+  checkError(stmt, code);
+
+  bindv = {1, &tbname[1], &tags, &cols};
+  for (int i = 0; i < 3; i++) {
+    v.c1 += i * 10000;
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  }
+  checkError(stmt, code);
+
+  code = taos_stmt2_exec(stmt, &affected_rows);
+  checkError(stmt, code);
+  ASSERT_EQ(affected_rows, 3);
   taos_stmt2_close(stmt);
 
   geosFreeBuffer(outputGeom1);
