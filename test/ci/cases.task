@@ -1486,16 +1486,16 @@
 
 
 ### 99-TDcase
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/TD-19201.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/TD-21561.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/TS-3404.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/TS-3581.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/TS-3311.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/TS-3821.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/TS-5130.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/TS-5580.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/TD-21561.py -Q 2
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/TD-21561.py -Q 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/TD-21561.py -Q 4
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/TD-20582.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_19201.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_21561.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_3404.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_3581.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_3311.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_3821.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_5130.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TS_5580.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_21561.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_21561.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_21561.py -Q 4
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_20582.py
 
