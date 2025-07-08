@@ -98,6 +98,14 @@ typedef struct SInsertTableRes {
   char*   tbname;
 } SInsertTableRes;
 
+static void freeCacheTbInfo(void* p) {
+  SInsertTableRes* pTbRes = (SInsertTableRes*)p;
+  if (pTbRes->tbname) {
+    taosMemFree(pTbRes->tbname);
+    pTbRes->tbname = NULL;
+  }
+}
+
 int32_t initInserterGrpInfo() {
   static int8_t initGrpInfo = 0;
   int8_t        flag = atomic_val_compare_exchange_8(&initGrpInfo, 0, 1);
@@ -110,6 +118,7 @@ int32_t initInserterGrpInfo() {
     qError("failed to create stream group table hash");
     return terrno;
   }
+  taosHashSetFreeFp(gStreamGrpTableHash, freeCacheTbInfo);
   return TSDB_CODE_SUCCESS;
 }
 
