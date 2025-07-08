@@ -119,7 +119,9 @@ void mstResetSStmStatus(SStmStatus* pStatus) {
   taosArrayDestroy(pStatus->calcReaders);
   pStatus->calcReaders = NULL;
   if (pStatus->triggerTask) {
+    mstWaitLock(&pStatus->triggerTask->detailStatusLock, false);
     taosMemoryFreeClear(pStatus->triggerTask->detailStatus);
+    taosWUnLockLatch(&pStatus->triggerTask->detailStatusLock);
   }
   taosMemoryFreeClear(pStatus->triggerTask);
   for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {

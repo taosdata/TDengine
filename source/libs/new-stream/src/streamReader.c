@@ -79,10 +79,10 @@ int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order,
     SColumnInfo* pColInfo = &pCond->colList[i];
     if (isSchema) {
       SSchema* pSchema = taosArrayGet((SArray*)schemas, i);
-      pCond->colList[i].type = pSchema[i].type;
-      pCond->colList[i].bytes = pSchema[i].bytes;
-      pCond->colList[i].colId = pSchema[i].colId;
-      pCond->colList[i].pk = pSchema[i].flags & COL_IS_KEY;
+      pCond->colList[i].type = pSchema->type;
+      pCond->colList[i].bytes = pSchema->bytes;
+      pCond->colList[i].colId = pSchema->colId;
+      pCond->colList[i].pk = pSchema->flags & COL_IS_KEY;
 
       pCond->pSlotList[i] = i;
     } else {
@@ -539,4 +539,43 @@ end:
   terrno = code;
   return NULL;
 }
+
+
+int32_t streamBuildFetchRsp(SSDataBlock* pBlock, void** data, size_t* size, int8_t precision) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  void*   buf = NULL;
+
+  int32_t blockSize = pBlock == NULL ? 0 : blockGetEncodeSize(pBlock);
+  size_t  dataEncodeBufSize = sizeof(SRetrieveTableRsp) + INT_BYTES * 2 + blockSize;
+  buf = rpcMallocCont(dataEncodeBufSize);
+  STREAM_CHECK_NULL_GOTO(buf, terrno);
+
+  SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
+  pRetrieve->version = 0;
+  pRetrieve->precision = precision;
+  pRetrieve->compressed = 0;
+  *((int32_t*)(pRetrieve->data)) = blockSize;
+  *((int32_t*)(pRetrieve->data + INT_BYTES)) = blockSize;
+  if (pBlock == NULL || pBlock->info.rows == 0) {
+    pRetrieve->numOfRows = 0;
+    pRetrieve->numOfBlocks = 0;
+    pRetrieve->completed = 1;
+  } else {
+    pRetrieve->numOfRows = htobe64((int64_t)pBlock->info.rows);
+    pRetrieve->numOfBlocks = htonl(1);
+    int32_t actualLen =
+        blockEncode(pBlock, pRetrieve->data + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
+    STREAM_CHECK_CONDITION_GOTO(actualLen < 0, terrno);
+  }
+
+  *data = buf;
+  *size = dataEncodeBufSize;
+  buf = NULL;
+
+end:
+  rpcFreeCont(buf);
+  return code;
+}
+
 

@@ -16,6 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 #include "streamMsg.h"
+#include "stream.h"
+#include "streamReader.h"
 
 #define PROCESS_THRESHOLD (2000 * 1000)
 
@@ -183,12 +185,12 @@ int32_t mmPutMsgToStreamReaderQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
   int32_t         code = 0;
   if ((code = mmAcquire(pMgmt)) == 0) {
-    dGTrace("msg:%p, put into %s queue, type:%s", pMsg, pMgmt->streamReaderPool.name, TMSG_INFO(pMsg->msgType));
+    dGDebug("msg:%p, put into %s queue, type:%s", pMsg, pMgmt->streamReaderPool.name, TMSG_INFO(pMsg->msgType));
     code = taosWriteQitem(pMgmt->pStreamReaderQ, pMsg);
     mmRelease(pMgmt);
     return code;
   } else {
-    dGTrace("msg:%p, failed to put into %s queue since %s, type:%s", pMsg, pMgmt->streamReaderPool.name, tstrerror(code),
+    dGDebug("msg:%p, failed to put into %s queue since %s, type:%s", pMsg, pMgmt->streamReaderPool.name, tstrerror(code),
             TMSG_INFO(pMsg->msgType));
     return code;
   }
@@ -256,8 +258,85 @@ int32_t mmDispatchStreamHbMsg(struct SDispatchWorkerPool* pPool, void* pParam, i
 }
 
 static int32_t mmProcessStreamFetchMsg(SMnodeMgmt *pMgmt, SRpcMsg* pMsg) {
-  // STREAMTODO
-  return TSDB_CODE_APP_ERROR;
+  int32_t            code = 0;
+  int32_t            lino = 0;
+  void*              buf = NULL;
+  size_t             size = 0;
+  SSDataBlock*       pBlock = NULL;
+  void*              taskAddr = NULL;
+
+  SResFetchReq req = {0};
+  STREAM_CHECK_CONDITION_GOTO(tDeserializeSResFetchReq(pMsg->pCont, pMsg->contLen, &req) < 0,
+                              TSDB_CODE_QRY_INVALID_INPUT);
+  SArray* calcInfoList = (SArray*)qStreamGetReaderInfo(req.queryId, req.taskId, &taskAddr);
+  STREAM_CHECK_NULL_GOTO(calcInfoList, terrno);
+
+  STREAM_CHECK_CONDITION_GOTO(req.execId < 0, TSDB_CODE_INVALID_PARA);
+  SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo = taosArrayGetP(calcInfoList, req.execId);
+  STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo, terrno);
+  void* pTask = sStreamReaderCalcInfo->pTask;
+  ST_TASK_DLOG("mnode %s start", __func__);
+
+  if (req.reset || sStreamReaderCalcInfo->pTaskInfo == NULL) {
+    qDestroyTask(sStreamReaderCalcInfo->pTaskInfo);
+    int64_t uid = 0;
+    if (req.dynTbname) {
+      SArray* vals = req.pStRtFuncInfo->pStreamPartColVals;
+      for (int32_t i = 0; i < taosArrayGetSize(vals); ++i) {
+        SStreamGroupValue* pValue = taosArrayGet(vals, i);
+        if (pValue != NULL && pValue->isTbname) {
+          uid = pValue->uid;
+          break;
+        }
+      }
+    }
+    
+    SReadHandle handle = {0};
+    handle.vnode = pMgmt->pMnode;
+    handle.uid = uid;
+    handle.pMsgCb = &pMgmt->msgCb;
+
+    //initStorageAPI(&handle.api);
+
+    TSWAP(sStreamReaderCalcInfo->rtInfo.funcInfo, *req.pStRtFuncInfo);
+    handle.streamRtInfo = &sStreamReaderCalcInfo->rtInfo;
+
+    STREAM_CHECK_RET_GOTO(qCreateStreamExecTaskInfo(&sStreamReaderCalcInfo->pTaskInfo,
+                                                    sStreamReaderCalcInfo->calcScanPlan, &handle, NULL, MNODE_HANDLE,
+                                                    req.taskId));
+
+
+    STREAM_CHECK_RET_GOTO(qSetTaskId(sStreamReaderCalcInfo->pTaskInfo, req.taskId, req.queryId));
+  }
+
+  while (1) {
+    uint64_t ts = 0;
+    STREAM_CHECK_RET_GOTO(qExecTask(sStreamReaderCalcInfo->pTaskInfo, &pBlock, &ts));
+    printDataBlock(pBlock, __func__, "fetch");
+
+    if (sStreamReaderCalcInfo->rtInfo.funcInfo.withExternalWindow && pBlock != NULL) {
+      STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, sStreamReaderCalcInfo->pFilterInfo));
+      printDataBlock(pBlock, __func__, "fetch filter");
+
+      if (pBlock->info.rows == 0 && !qTaskIsDone(sStreamReaderCalcInfo->pTaskInfo)) {
+        continue;
+      }
+    }
+    break;
+  }
+
+  ST_TASK_DLOG("mnode %s get result rows:%" PRId64, __func__, pBlock != NULL ? pBlock->info.rows : -1);
+  STREAM_CHECK_RET_GOTO(streamBuildFetchRsp(pBlock, &buf, &size, TSDB_TIME_PRECISION_MILLI));
+
+end:
+
+  streamReleaseTask(taskAddr);
+
+  STREAM_PRINT_LOG_END(code, lino);
+  SRpcMsg rsp = {.msgType = TDMT_STREAM_FETCH_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
+  tmsgSendRsp(&rsp);
+  tDestroySResFetchReq(&req);
+  return code;
 }
 
 int32_t mmProcessStreamReaderMsg(SMnodeMgmt *pMgmt, SRpcMsg* pMsg) {
@@ -266,10 +345,10 @@ int32_t mmProcessStreamReaderMsg(SMnodeMgmt *pMgmt, SRpcMsg* pMsg) {
   pMsg->info.node = pMgmt->pMnode;
 
   const STraceId *trace = &pMsg->info.traceId;
-  dGTrace("msg:%p, get from mnode-stream-mgmt queue", pMsg);
+  dDebug("msg:%p, get from mnode-stream-reader queue", pMsg);
 
   if (pMsg->msgType == TDMT_STREAM_FETCH) {
-    return mmProcessStreamFetchMsg(pMgmt, pMsg);
+    TAOS_CHECK_EXIT(mmProcessStreamFetchMsg(pMgmt, pMsg));
   } else {
     dError("unknown msg type:%d in stream reader queue", pMsg->msgType);
     TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
@@ -292,12 +371,12 @@ static void mmProcessStreamReaderQueue(SQueueInfo *pInfo, STaosQall *qall, int32
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
     const STraceId *trace = &pMsg->info.traceId;
-    dGTrace("msg:%p, get from mnode-stream-reader queue", pMsg);
+    dGDebug("msg:%p, get from mnode-stream-reader queue", pMsg);
 
     terrno = 0;
     int32_t code = mmProcessStreamReaderMsg(pMnode, pMsg);
 
-    dGTrace("msg:%p, is freed, code:0x%x [mmProcessStreamReaderQueue]", pMsg, code);
+    dGDebug("msg:%p, is freed, code:0x%x [mmProcessStreamReaderQueue]", pMsg, code);
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }
