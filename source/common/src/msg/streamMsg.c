@@ -2144,6 +2144,7 @@ int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStre
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->fillHistoryFirst));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->calcNotifyOnly));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->lowLatencyCalc));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->igNoDataTrigger));
 
   // notify part
   int32_t addrSize = (int32_t)taosArrayGetSize(pReq->pNotifyAddrUrls);
@@ -2383,6 +2384,7 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->fillHistoryFirst));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->calcNotifyOnly));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->lowLatencyCalc));
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->igNoDataTrigger));
 
   int32_t addrSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &addrSize));

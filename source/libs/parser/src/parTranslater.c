@@ -13202,6 +13202,7 @@ static void createStreamReqBuildDefaultTriggerOptions(SCMCreateStreamReq* pReq) 
     pReq->fillHistoryFirst = 0;
     pReq->calcNotifyOnly = 0;
     pReq->lowLatencyCalc = 0;
+    pReq->igNoDataTrigger = 0;
 }
 
 static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, const char* streamDb,
@@ -13249,6 +13250,7 @@ static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, const
   pReq->fillHistoryFirst = (int8_t)pOptions->fillHistoryFirst;
   pReq->calcNotifyOnly = (int8_t)pOptions->calcNotifyOnly;
   pReq->lowLatencyCalc = (int8_t)pOptions->lowLatencyCalc;
+  pReq->igNoDataTrigger = (int8_t)pOptions->ignoreNoDataTrigger;
 
   return code;
 
