@@ -1342,14 +1342,18 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
   }
 
   code = TSDB_CODE_INVALID_PARA;
+
   for (int i = 0; i < oStbEntry.stbEntry.schemaTag.nCols; i++) {
     SSchema *schema = oStbEntry.stbEntry.schemaTag.pSchema + i;
-    if (schema->colId == param->cid && param->type == schema->type && (IS_IDX_ON(schema))) {
-      code = 0;
-    } else {
-      TAOS_CHECK_GOTO(code, NULL, END);
+    if (IS_IDX_ON(schema)) {
+      if (schema->colId == param->cid && param->type == schema->type) {
+        code = 0;
+        break;
+      }
     }
   }
+
+  TAOS_CHECK_GOTO(code, NULL, END);
 
   code = tdbTbcOpen(pMeta->pTagIdx, &pCursor->pCur, NULL);
   if (code != 0) {
