@@ -14424,6 +14424,7 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   PAR_ERR_JRET(calculateConstant(pCxt->pParseCxt, &pQuery));
 
   SPlanContext calcCxt = {.acctId = pCxt->pParseCxt->acctId,
+                          .mgmtEpSet = pCxt->pParseCxt->mgmtEpSet,
                           .pAstRoot = pStmt->pQuery,
                           .streamCalcQuery = true,
                           .pStreamCalcVgArray = pVgArray,

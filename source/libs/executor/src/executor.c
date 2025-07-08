@@ -1895,6 +1895,10 @@ void streamDestroyExecTask(qTaskInfo_t tInfo) {
 }
 
 int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams) {
+  return streamCalcOneScalarExprInRange(pExpr, pDst, -1, -1, pExtraParams);
+}
+
+int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t rowStartIdx, int32_t rowEndIdx, const SStreamRuntimeFuncInfo* pExtraParams) {
   int32_t      code = 0;
   SNode*       pNode = 0;
   SNodeList*   pList = NULL;
@@ -1941,7 +1945,7 @@ int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamR
     block.info.rows = 1;
     SSDataBlock* pBlock = &block;
     taosArrayPush(pBlockList, &pBlock);
-    if (code == 0) code = scalarCalculate(pSclNode, pBlockList, pDst, pExtraParams, NULL);
+    if (code == 0) code = scalarCalculateInRange(pSclNode, pBlockList, pDst, rowStartIdx, rowEndIdx, pExtraParams, NULL);
     taosArrayDestroy(pBlockList);
   }
   nodesDestroyList(pList);
@@ -1972,7 +1976,7 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx)
     }
   }
 
-  blockDataEnsureCapacity(*pRes, 4096);
+  blockDataEnsureCapacity(*pRes, (*pRes)->info.rows + 1);
 
   // loop all exprs for force output, execute all exprs
   int32_t idx = 0;
@@ -1990,9 +1994,9 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx)
       code = colDataSetVal(pInfo, rowIdx, p, ((SValueNode*)pNode)->isNull);
     } else {
       dst.columnData = pInfo;
-      dst.numOfRows = 1;
+      dst.numOfRows = rowIdx;
       dst.colAlloced = false;
-      code = streamCalcOneScalarExpr(pNode, &dst, &pTaskInfo->pStreamRuntimeInfo->funcInfo);
+      code = streamCalcOneScalarExprInRange(pNode, &dst, rowIdx,  rowIdx, &pTaskInfo->pStreamRuntimeInfo->funcInfo);
     }
     ++idx;
     // TODO sclFreeParam(&dst);
