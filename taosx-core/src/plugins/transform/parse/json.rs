@@ -143,7 +143,7 @@ impl Parse for Json {
                 }
                 Err(e) => {
                     tracing::warn!(
-                        "{:#}",
+                        "Parse json row {i} error: {:#}",
                         super::ParseError::JsonDeserializeError(s.to_string(), e)
                     );
                     JsonValue::Null
@@ -241,7 +241,7 @@ impl Parse for Json {
                     }
                     Err(e) => {
                         tracing::warn!(
-                            "{:#}",
+                            "Get values error: {:#}",
                             super::ParseError::JsonDeserializeError(str.to_string(), e)
                         );
                         vec![(n, None)]
