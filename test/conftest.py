@@ -781,7 +781,7 @@ def add_common_methods(request):
         # exe insert 
         benchmark = etool.benchMarkFile()
         cmd   = f"{benchmark} {options} -f {jsonFile}"
-        rlist = frame.eos.runRetList(cmd, True, True, True)
+        rlist = eos.runRetList(cmd, True, True, True)
         if results != None:
             for result in results:
                 self.checkListString(rlist, result)
