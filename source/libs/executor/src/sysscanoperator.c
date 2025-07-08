@@ -160,7 +160,7 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
 
 static int32_t sysTableUserColsFillOneVirtualChildTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
                                                             const SSDataBlock* dataBlock, char* tName, char* stName,
-                                                            SSchemaWrapper* schemaRow, char* tableType, SColRefWrapper *colRef, tb_uid_t uid);
+                                                            SSchemaWrapper* schemaRow, char* tableType, SColRefWrapper *colRef, tb_uid_t uid, int32_t vgId);
 
 static void relocateAndFilterSysTagsScanResult(SSysTableScanInfo* pInfo, int32_t numOfRows, SSDataBlock* dataBlock,
                                                SFilterInfo* pFilterInfo, SExecTaskInfo* pTaskInfo);
@@ -936,7 +936,7 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
       }
     }
     // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock
-    code = sysTableUserColsFillOneVirtualChildTableCols(pInfo, dbname, &numOfRows, pDataBlock, tableName, stableName, schemaRow, typeName, colRef, pInfo->pCur->mr.me.uid);
+    code = sysTableUserColsFillOneVirtualChildTableCols(pInfo, dbname, &numOfRows, pDataBlock, tableName, stableName, schemaRow, typeName, colRef, pInfo->pCur->mr.me.uid, pOperator->pTaskInfo->id.vgId);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -1523,7 +1523,8 @@ _end:
 
 static int32_t sysTableUserColsFillOneVirtualChildTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
                                                             const SSDataBlock* dataBlock, char* tName, char* stName,
-                                                            SSchemaWrapper* schemaRow, char* tableType, SColRefWrapper *colRef, tb_uid_t uid) {
+                                                            SSchemaWrapper* schemaRow, char* tableType, SColRefWrapper *colRef,
+                                                            tb_uid_t uid, int32_t vgId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (schemaRow == NULL) {
@@ -1596,6 +1597,12 @@ static int32_t sysTableUserColsFillOneVirtualChildTableCols(const SSysTableScanI
       code = colDataSetVal(pColInfoData, numOfRows, (char *)refColName, false);
       QUERY_CHECK_CODE(code, lino, _end);
     }
+
+    // vgid
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 7);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     ++numOfRows;
   }

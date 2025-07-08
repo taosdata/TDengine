@@ -4391,6 +4391,7 @@ SNode* createStreamTriggerOptions(SAstCreateContext* pCxt) {
   pOptions->lowLatencyCalc = false;
   pOptions->forceOutput = false;
   pOptions->ignoreDisorder = false;
+  pOptions->ignoreNoDataTrigger = false;
   return (SNode*)pOptions;
 _err:
   nodesDestroyNode((SNode*)pOptions);
@@ -4542,6 +4543,14 @@ SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStream
         goto _err;
       }
       pStreamOptions->pEventType = pOptionUnit->flag;
+      break;
+    case STREAM_TRIGGER_OPTION_IGNORE_NODATA_TRIGGER:
+      if (pStreamOptions->ignoreNoDataTrigger) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                "IGNORE_NODATA_TRIGGER specified multiple times");
+        goto _err;
+      }
+      pStreamOptions->ignoreNoDataTrigger = true;
       break;
     default:
       break;
