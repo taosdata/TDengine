@@ -926,6 +926,7 @@ void stVtableMergerReset(SSTriggerVtableMerger *pMerger) {
 
   pMerger->flags = 0;
   pMerger->readRange = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN};
+  blockDataEmpty(pMerger->pDataBlock);
 
   if (pMerger->pReaderInfos != NULL) {
     taosArrayClear(pMerger->pReaderInfos);
