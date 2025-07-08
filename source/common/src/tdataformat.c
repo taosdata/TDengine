@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "types.h"
 #define _DEFAULT_SOURCE
 #include "tdataformat.h"
 #include "decimal.h"
@@ -4443,8 +4444,8 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
             value.nData = length;
             if (value.nData > (BLOB_MAX_LEN - BLOBSTR_HEADER_SIZE)) {
               code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-              uError("stmt bind param[%d] length:%d  greater than type maximum lenght: %d", iInfo, value.nData,
-                     infos[iInfo].bytes);
+              uError("stmt bind param[%d] length:%d  greater than type maximum lenght: %d", iInfo,
+                     value.nData + (uint32_t)(BLOBSTR_HEADER_SIZE), infos[iInfo].bytes);
               goto _exit;
             }
             value.pData = *data;
@@ -4455,8 +4456,8 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
             value.nData = length;
             if (value.nData > infos[iInfo].bytes - VARSTR_HEADER_SIZE) {
               code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-              uError("stmt bind param[%d] length:%d  greater than type maximum lenght: %d", iInfo, value.nData,
-                     infos[iInfo].bytes);
+              uError("stmt bind param[%d] length:%d  greater than type maximum lenght: %d", iInfo,
+                     value.nData + (uint32_t)(VARSTR_HEADER_SIZE), infos[iInfo].bytes);
               goto _exit;
             }
             value.pData = *data;
