@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tgrant.h"
 #define _DEFAULT_SOURCE
 #include "mndAnode.h"
 #include "audit.h"
