@@ -1411,11 +1411,6 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   mInfo("mount:%s, start to create on dnode %d from %s", createReq.mountName, *createReq.dnodeIds,
         createReq.mountPaths[0]);  // TODO: mutiple mounts
 
-  if ((pDb = mndAcquireDb(pMnode, createReq.mountName))) {
-    mndReleaseDb(pMnode, pDb);
-    TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_DUP_DB_NAME_EXIST);
-  }
-
   if ((pObj = mndAcquireMount(pMnode, createReq.mountName))) {
     if (createReq.ignoreExist) {
       mInfo("mount:%s, already exist, ignore exist is set", createReq.mountName);
@@ -1436,12 +1431,15 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_MOUNT, (SDbObj *)pObj));
   TAOS_CHECK_EXIT(grantCheck(TSDB_GRANT_MOUNT));
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
+  char fullMountName[TSDB_MOUNT_NAME_LEN + 32] = {0};
+  (void)snprintf(fullMountName, sizeof(fullMountName), "%d.%s", pUser->acctId, createReq.mountName);
+  if ((pDb = mndAcquireDb(pMnode, fullMountName))) {
+    mndReleaseDb(pMnode, pDb);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_DUP_DB_NAME_EXIST);
+  }
+
   TAOS_CHECK_EXIT(mndRetrieveMountInfo(pMnode, pReq, &createReq));
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-
-  // SName name = {0};
-  // if (tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB) < 0)
-  //   mError("db:%s, failed to parse db name", createReq.db);
 
   auditRecord(pReq, pMnode->clusterId, "createMount", createReq.mountName, "", createReq.sql, createReq.sqlLen);
 

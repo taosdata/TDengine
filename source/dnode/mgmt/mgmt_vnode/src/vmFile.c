@@ -604,7 +604,11 @@ int32_t vmGetMountDisks(SVnodeMgmt *pMgmt, const char *mountPath, SArray **ppDis
     pDisk->level = level;
     pDisk->primary = primary;
     pDisk->disable = disable;
-    (void)snprintf(pDisk->dir, sizeof(pDisk->dir), "%s", dir);
+    if (primary == 1 && level == 0) {
+      (void)snprintf(pDisk->dir, sizeof(pDisk->dir), "%s", mountPath);
+    } else {
+      (void)snprintf(pDisk->dir, sizeof(pDisk->dir), "%s", dir);
+    }
   }
 _exit:
   if (content != NULL) taosMemoryFreeClear(content);
