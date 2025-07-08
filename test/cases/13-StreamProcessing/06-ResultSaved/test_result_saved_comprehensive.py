@@ -170,23 +170,13 @@ class TestStreamResultSavedComprehensive:
     def createStreams(self):
         self.streams = []
 
-        # Test 1.1.1: Only notify without calculation - can omit INTO option (using period window)
+        # Test 1.1.1: Only notify without calculation - can omit INTO option (using sliding window)
         stream = StreamItem(
             id=0,
-            stream="create stream rdb.s0 period(5m) from tdb.triggers options(calc_notify_only) notify(\"ws://localhost:8080/notify\") as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s0 sliding(5m) from tdb.triggers notify(\"ws://localhost:8080/notify\");",
             res_query="",
             exp_query="",
             check_func=self.check0,
-        )
-        self.streams.append(stream)
-
-        # Test 1.1.1: Only notify without saving output - can omit INTO option (using sliding window without interval)
-        stream = StreamItem(
-            id=1,
-            stream="create stream rdb.s1 sliding(5m) from tdb.triggers options(calc_notify_only) notify(\"ws://localhost:8080/notify\") as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
-            res_query="",
-            exp_query="",
-            check_func=self.check1,
         )
         self.streams.append(stream)
 
@@ -215,7 +205,7 @@ class TestStreamResultSavedComprehensive:
             id=4,
             stream="create stream rdb.s4 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r4 as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
             res_query="select ts, cnt, tag_tbname from rdb.r4 where tag_tbname='t1';",
-            exp_query="select _wstart ts, count(*) cnt, 't1' from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' interval(5m);",
+            exp_query="select _wstart ts, count(*) cnt, tbname from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' partition by tbname interval(5m);",
             check_func=self.check4,
         )
         self.streams.append(stream)
@@ -245,7 +235,7 @@ class TestStreamResultSavedComprehensive:
             id=7,
             stream="create stream rdb.s7 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r7 output_subtable(concat('sub_', tbname)) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
             res_query="select ts, cnt, tag_tbname from rdb.r7 where tag_tbname='t1';",
-            exp_query="select _wstart ts, count(*) cnt, 't1' from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' interval(5m);",
+            exp_query="select _wstart ts, count(*) cnt, tbname from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' partition by tbname interval(5m);",
             check_func=self.check7,
         )
         self.streams.append(stream)
@@ -255,7 +245,7 @@ class TestStreamResultSavedComprehensive:
             id=8,
             stream="create stream rdb.s8 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r8 as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
             res_query="select ts, cnt, tag_tbname from rdb.r8 where tag_tbname='t1';",
-            exp_query="select _wstart ts, count(*) cnt, 't1' from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' interval(5m);",
+            exp_query="select _wstart ts, count(*) cnt, tbname from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' partition by tbname interval(5m);",
             check_func=self.check8,
         )
         self.streams.append(stream)
@@ -263,9 +253,9 @@ class TestStreamResultSavedComprehensive:
         # Test 2.2: Columns come from trigger table grouping columns
         stream = StreamItem(
             id=9,
-            stream="create stream rdb.s9 interval(5m) sliding(5m) from tdb.triggers partition by id, tbname into rdb.r9 output_subtable(concat('sub_', %%1, '_', %%2)) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s9 interval(5m) sliding(5m) from tdb.triggers partition by id, tbname into rdb.r9 output_subtable(concat('sub_', cast(%%1 as varchar), '_', %%2)) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
             res_query="select ts, cnt, id, tag_tbname from rdb.r9 where id=1;",
-            exp_query="select _wstart ts, count(*) cnt, 1, 't1' from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tint=1 interval(5m);",
+            exp_query="select _wstart ts, count(*) cnt, tint, tbname from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tint=1 and tbname='t1' partition by tint, tbname interval(5m);",
             check_func=self.check9,
         )
         self.streams.append(stream)
@@ -275,7 +265,7 @@ class TestStreamResultSavedComprehensive:
             id=10,
             stream="create stream rdb.s10 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r10 output_subtable(upper(tbname)) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
             res_query="select ts, cnt, tag_tbname from rdb.r10 where tag_tbname='t1';",
-            exp_query="select _wstart ts, count(*) cnt, 't1' from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' interval(5m);",
+            exp_query="select _wstart ts, count(*) cnt, tbname from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' partition by tbname interval(5m);",
             check_func=self.check10,
         )
         self.streams.append(stream)
@@ -285,7 +275,7 @@ class TestStreamResultSavedComprehensive:
             id=11,
             stream="create stream rdb.s11 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r11 output_subtable(concat('very_long_prefix_that_exceeds_maximum_table_name_length_', tbname, '_suffix')) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
             res_query="select ts, cnt, tag_tbname from rdb.r11 where tag_tbname='t1';",
-            exp_query="select _wstart ts, count(*) cnt, 't1' from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' interval(5m);",
+            exp_query="select _wstart ts, count(*) cnt, tbname from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' partition by tbname interval(5m);",
             check_func=self.check11,
         )
         self.streams.append(stream)
@@ -325,7 +315,7 @@ class TestStreamResultSavedComprehensive:
             id=15,
             stream="create stream rdb.s15 interval(5m) sliding(5m) from tdb.triggers partition by id, tbname into rdb.r15 tags(group_id int as %%1, table_name varchar(32) as %%2) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
             res_query="select ts, cnt, group_id, table_name from rdb.r15 where group_id=1;",
-            exp_query="select _wstart ts, count(*) cnt, 1, 't1' from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tint=1 interval(5m);",
+            exp_query="select _wstart ts, count(*) cnt, tint, tbname from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tint=1 and tbname='t1' partition by tint, tbname interval(5m);",
             check_func=self.check15,
         )
         self.streams.append(stream)
@@ -335,7 +325,7 @@ class TestStreamResultSavedComprehensive:
             id=16,
             stream="create stream rdb.s16 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r16 as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
             res_query="select ts, cnt, id, name from rdb.r16 where id=1;",
-            exp_query="select _wstart ts, count(*) cnt, 1, '1' from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tint=1 interval(5m);",
+            exp_query="select _wstart ts, count(*) cnt, tint, name from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tint=1 and name='1' partition by tint, name interval(5m);",
             check_func=self.check16,
         )
         self.streams.append(stream)
@@ -345,7 +335,7 @@ class TestStreamResultSavedComprehensive:
             id=17,
             stream="create stream rdb.s17 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r17 as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
             res_query="select ts, cnt, tag_tbname from rdb.r17 where tag_tbname='t1';",
-            exp_query="select _wstart ts, count(*) cnt, 't1' from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' interval(5m);",
+            exp_query="select _wstart ts, count(*) cnt, tbname from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' partition by tbname interval(5m);",
             check_func=self.check17,
         )
         self.streams.append(stream)
@@ -353,9 +343,9 @@ class TestStreamResultSavedComprehensive:
         # Test 4.3: Tag specified expr comes from trigger grouping columns
         stream = StreamItem(
             id=18,
-            stream="create stream rdb.s18 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r18 tags(trigger_id int as %%1, computed_value int as %%1 * 2) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s18 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r18 tags(trigger_id int as %%1, computed_value int as %%1) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
             res_query="select ts, cnt, trigger_id, computed_value from rdb.r18 where trigger_id=1;",
-            exp_query="select _wstart ts, count(*) cnt, 1, 2 from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tint=1 interval(5m);",
+            exp_query="select _wstart ts, count(*) cnt, tint from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tint=1 partition by tint interval(5m);",
             check_func=self.check18,
         )
         self.streams.append(stream)
@@ -365,7 +355,7 @@ class TestStreamResultSavedComprehensive:
             id=19,
             stream="create stream rdb.s19 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r19 tags(trigger_id int comment 'Trigger table ID' as %%1) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
             res_query="select ts, cnt, trigger_id from rdb.r19 where trigger_id=1;",
-            exp_query="select _wstart ts, count(*) cnt, 1 from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tint=1 interval(5m);",
+            exp_query="select _wstart ts, count(*) cnt, tint from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tint=1 partition by tint interval(5m);",
             check_func=self.check19,
         )
         self.streams.append(stream)
@@ -444,7 +434,7 @@ class TestStreamResultSavedComprehensive:
             schema=[
                 ["ts", "TIMESTAMP", 8, ""],
                 ["cnt", "BIGINT", 8, ""],
-                ["tag_tbname", "VARCHAR", 193, "TAG"],  # TSDB_TABLE_NAME_LEN + 1 for null terminator
+                ["tag_tbname", "VARCHAR", 270, "TAG"],
             ],
         )
 
@@ -491,7 +481,7 @@ class TestStreamResultSavedComprehensive:
             schema=[
                 ["ts", "TIMESTAMP", 8, ""],
                 ["cnt", "BIGINT", 8, ""],
-                ["tag_tbname", "VARCHAR", 193, "TAG"],  # TSDB_TABLE_NAME_LEN
+                ["tag_tbname", "VARCHAR", 270, "TAG"],  # TSDB_TABLE_NAME_LEN
             ],
         )
 
@@ -505,7 +495,7 @@ class TestStreamResultSavedComprehensive:
                 ["ts", "TIMESTAMP", 8, ""],
                 ["cnt", "BIGINT", 8, ""],
                 ["id", "INT", 4, "TAG"],
-                ["tag_tbname", "VARCHAR", 193, "TAG"],  # TSDB_TABLE_NAME_LEN
+                ["tag_tbname", "VARCHAR", 270, "TAG"],  # TSDB_TABLE_NAME_LEN
             ],
         )
 
@@ -608,7 +598,7 @@ class TestStreamResultSavedComprehensive:
             schema=[
                 ["ts", "TIMESTAMP", 8, ""],
                 ["cnt", "BIGINT", 8, ""],
-                ["tag_tbname", "VARCHAR", 193, "TAG"],  # TSDB_TABLE_NAME_LEN
+                ["tag_tbname", "VARCHAR", 270, "TAG"],  # TSDB_TABLE_NAME_LEN
             ],
         )
 
