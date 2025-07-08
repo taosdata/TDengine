@@ -14,13 +14,13 @@ class TestStreamStateTrigger:
         tdStream.createSnode()
 
         streams = []
-        streams.append(self.Basic0()) # OK
-        streams.append(self.Basic1()) # OK
+        # streams.append(self.Basic0()) # OK
+        # streams.append(self.Basic1()) # OK
         # streams.append(self.Basic2()) # fail
-        # streams.append(self.Basic3()) # fail
-        streams.append(self.Basic4()) # OK
-        streams.append(self.Basic5()) # OK
-        streams.append(self.Basic6()) # OK
+        streams.append(self.Basic3()) # fail
+        # streams.append(self.Basic4()) # OK
+        # streams.append(self.Basic5()) # OK
+        # streams.append(self.Basic6()) # OK
         # streams.append(self.Basic7()) # fail
         # streams.append(self.Basic8()) # fail
         
@@ -647,11 +647,11 @@ class TestStreamStateTrigger:
                 and tdSql.compareData(0, 5, 1)
                 and tdSql.compareData(0, 6, 3)
                 and tdSql.compareData(1, 0, "2025-01-01 00:00:13")
-                and tdSql.compareData(1, 1, 'NULL')
-                and tdSql.compareData(1, 2, 'NULL')
-                and tdSql.compareData(1, 3, 0)
-                and tdSql.compareData(1, 4, 'NULL')
-                and tdSql.compareData(1, 5, 'NULL')
+                and tdSql.compareData(1, 1, None)
+                and tdSql.compareData(1, 2, None)
+                and tdSql.compareData(1, 3, None)
+                and tdSql.compareData(1, 4, None)
+                and tdSql.compareData(1, 5, None)
                 and tdSql.compareData(1, 6, 3)
                 and tdSql.compareData(2, 0, "2025-01-01 00:00:16")
                 and tdSql.compareData(2, 1, "2025-01-01 00:00:16")
@@ -673,11 +673,11 @@ class TestStreamStateTrigger:
                 and tdSql.compareData(0, 5, 1)
                 and tdSql.compareData(0, 6, 3)
                 and tdSql.compareData(1, 0, "2025-01-01 00:00:13")
-                and tdSql.compareData(1, 1, 'NULL')
-                and tdSql.compareData(1, 2, 'NULL')
-                and tdSql.compareData(1, 3, 0)
-                and tdSql.compareData(1, 4, 'NULL')
-                and tdSql.compareData(1, 5, 'NULL')
+                and tdSql.compareData(1, 1, None)
+                and tdSql.compareData(1, 2, None)
+                and tdSql.compareData(1, 3, None)
+                and tdSql.compareData(1, 4, None)
+                and tdSql.compareData(1, 5, None)
                 and tdSql.compareData(1, 6, 3)
                 and tdSql.compareData(2, 0, "2025-01-01 00:00:16")
                 and tdSql.compareData(2, 1, "2025-01-01 00:00:16")

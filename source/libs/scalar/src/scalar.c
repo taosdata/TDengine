@@ -978,20 +978,33 @@ _return:
   SCL_RET(code);
 }
 
-static int64_t getTs(SScalarParam* param){
+static int32_t getTs(SScalarParam* param, int64_t* ts){
+  int32_t code = 0, lino = 0;
   int64_t skey = 0;
+  char* buf = NULL;
+  
   void* p = colDataGetData(param->columnData, 0);
   if (IS_VAR_DATA_TYPE(param->columnData->info.type)){
-    char* buf = taosMemoryCalloc(1, varDataTLen(p));
+    buf = taosMemoryCalloc(1, varDataTLen(p));
     if (buf != NULL){
       memcpy(buf, varDataVal(p), varDataLen(p));
-      (void)taosParseTime(buf, &skey, strlen(buf), param->columnData->info.precision, param->tz);
+      TAOS_CHECK_EXIT(taosParseTime(buf, &skey, strlen(buf), param->columnData->info.precision, param->tz));
     } 
-    taosMemoryFree(buf);
   } else {
     skey = *(int64_t*)p;
   }
-  return skey;
+  
+  *ts = skey;
+
+_exit:
+
+  taosMemoryFree(buf);
+
+  if (code) {
+    sclError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;
 }
 
 static bool isTimeStampCol(SNode *pNode) {
@@ -1020,7 +1033,7 @@ static bool isReqRangeTS(SOperatorNode *node) {
 }
 
 static int32_t getExprTSValue(SScalarCtx *ctx, SNode *pNode, int64_t *tsValue) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   if (nodeType(pNode) == QUERY_NODE_OPERATOR || nodeType(pNode) == QUERY_NODE_FUNCTION) {
     SScalarParam *res = (SScalarParam *)taosHashGet(ctx->pRes, (void *)&pNode, POINTER_BYTES);
     if (res == NULL || res->columnData == NULL) {
@@ -1032,7 +1045,7 @@ static int32_t getExprTSValue(SScalarCtx *ctx, SNode *pNode, int64_t *tsValue) {
       return TSDB_CODE_QRY_INVALID_INPUT;
     }
     if (res->columnData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-      *tsValue = getTs(res);
+      TAOS_CHECK_EXIT(getTs(res, tsValue));
     } else {
       sclError("invalid type for ts range expr, type:%d, node:%p", res->columnData->info.type, pNode);
       return TSDB_CODE_QRY_INVALID_INPUT;
@@ -1050,6 +1063,12 @@ static int32_t getExprTSValue(SScalarCtx *ctx, SNode *pNode, int64_t *tsValue) {
   } else {
     sclError("invalid node type for ts range expr, type:%d, node:%p", nodeType(pNode), pNode);
     return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+_exit:
+
+  if (code) {
+    sclError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
   return code;
