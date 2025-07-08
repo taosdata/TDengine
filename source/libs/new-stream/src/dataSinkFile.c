@@ -397,7 +397,7 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
           pSlidingGrp->groupId, moveWinCount, needSize, fileBlockInfo.groupOffset, fileBlockInfo.capacity,
           fileBlockInfo.dataLen);
 
-  if (false) {  // 续写
+  if (false) {  // 续写时， 可以不进行 taosLSeekFile, todo
 
   } else {  // 第一次写入
     int64_t ret = taosLSeekFile(pFileMgr->writeFilePtr, fileBlockInfo.groupOffset, SEEK_SET);
