@@ -3,12 +3,7 @@ use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
-use arrow::array::RecordBatch;
 use chrono::NaiveDate;
-use core_metrics::get_metrics_arc_from_i64;
-use flume::Receiver;
-use plugins::transform::handling_strategy::archive::Archive;
-use plugins::transform::handling_strategy::cache::Cache;
 use serde::Deserialize;
 use serde_with::serde_as;
 use taos::Dsn;
@@ -27,7 +22,6 @@ pub use plugins::*;
 pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::{get_table_progress, tmq_offsets, tmq_to_td};
 pub use transform::Action;
-use utils::files::{delete_oldest_parquet_file, write_to_parquet_file};
 use utils::port_pool::PortPool;
 use utils::trace::Qid;
 
@@ -608,103 +602,6 @@ impl TaskOpts {
                 from
             }
         }
-    }
-}
-
-#[derive(Debug)]
-pub enum ArchiveType {
-    Cache,
-    Archive,
-}
-
-pub struct ArchiveConsumer {
-    task_id: i64,
-    parser: Option<Parser>,
-}
-
-impl ArchiveConsumer {
-    pub fn new(task_id: i64, parser: Option<Parser>) -> Self {
-        Self { task_id, parser }
-    }
-
-    pub async fn consume(
-        &mut self,
-        receiver: Receiver<(ArchiveType, RecordBatch)>,
-    ) -> anyhow::Result<()> {
-        // get configurations
-        let (cache, archive) = match self.parser.clone() {
-            Some(parser) => (
-                parser.global().process_on_abnormal.cache.clone(),
-                parser.global().process_on_abnormal.archive.clone(),
-            ),
-            None => (Cache::default(), Archive::default()),
-        };
-        tracing::debug!(
-            "start the 'cache & archive' thread, task id: {}, cache: {:?}, archive: {:?}",
-            self.task_id,
-            cache,
-            archive
-        );
-        // get metrics
-        let metrics = get_metrics_arc_from_i64(Some(self.task_id)).await;
-        let metrics = metrics.ipc();
-        // receive data and write to files
-        while let Ok((archive_type, batch)) = receiver.recv_async().await {
-            match archive_type {
-                ArchiveType::Cache => {
-                    match write_to_parquet_file(self.task_id, &cache.location, 0, 0, "", &batch) {
-                        Ok(_) => {
-                            tracing::debug!("cache records success, {} rows", batch.num_rows());
-                        }
-                        Err(e) => match cache.on_fail.handle(format!("{e:#}")) {
-                            Ok(_) => {}
-                            Err(e) => return Err(e),
-                        },
-                    }
-                }
-                ArchiveType::Archive => {
-                    match write_to_parquet_file(
-                        self.task_id,
-                        &archive.location,
-                        archive.keep_days_value,
-                        archive.max_size_value,
-                        archive.max_size_unit.as_str(),
-                        &batch,
-                    ) {
-                        Ok(_) => {
-                            metrics.add_archived_rows(batch.num_rows() as u64);
-                            tracing::debug!("archive records success, {} rows", batch.num_rows());
-                        }
-                        Err(e) => match archive.on_fail.handle(format!("{e:#}")) {
-                            Ok(retry) => {
-                                if retry {
-                                    if let Err(e) =
-                                        delete_oldest_parquet_file(self.task_id, &archive.location)
-                                    {
-                                        tracing::error!("rotate archive file failed, err: {e:#}");
-                                    }
-                                    if let Err(e) = write_to_parquet_file(
-                                        self.task_id,
-                                        &archive.location,
-                                        archive.keep_days_value,
-                                        archive.max_size_value,
-                                        archive.max_size_unit.as_str(),
-                                        &batch,
-                                    ) {
-                                        tracing::error!(
-                                            "retry archive records failed, {} rows, err: {e:#}",
-                                            batch.num_rows()
-                                        );
-                                    }
-                                }
-                            }
-                            Err(e) => return Err(e),
-                        },
-                    }
-                }
-            }
-        }
-        Ok(())
     }
 }
 

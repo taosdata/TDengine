@@ -17,6 +17,7 @@ use std::{
 };
 
 use anyhow::Context;
+use archive::ArchiveType;
 use arrow::{
     array::{
         Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Decimal128Array, Float16Array,
@@ -62,8 +63,8 @@ use tracing::instrument;
 use crate::core_metrics::CoreMetrics;
 use crate::plugins::transform::parse::ArrayForTaos;
 use crate::{
+    get_data_dir,
     global::{SQL_TAG_CACHE_CAPACITY, TABLE_TAG_CACHE},
-    ArchiveType,
 };
 
 use super::expr;
@@ -1029,6 +1030,24 @@ impl Parser {
     pub fn set_minimum_timestamp(&mut self, ts: DateTime<Utc>) {
         Arc::make_mut(&mut self.global).minimum_timestamp = Some(ts);
     }
+
+    pub fn organize_cache(&mut self, task_id: i64) -> Result<(), ParserError> {
+        let cache = &mut Arc::make_mut(&mut self.global).process_on_abnormal.cache;
+        let data_dir = get_data_dir();
+        cache
+            .organize_params(task_id, data_dir, true)
+            .map_err(|error| ParserError::OrganizeCacheError { error })?;
+        Ok(())
+    }
+
+    pub fn organize_archive(&mut self, task_id: i64) -> Result<(), ParserError> {
+        let archive = &mut Arc::make_mut(&mut self.global).process_on_abnormal.archive;
+        let data_dir = get_data_dir();
+        archive
+            .organize_params(task_id, data_dir, false)
+            .map_err(|error| ParserError::OrganizeArchiveError { error })?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Error)]
@@ -1043,6 +1062,10 @@ pub enum ParserError {
         input: String,
         error: serde_json::Error,
     },
+    #[error("Organize archive error: {error}")]
+    OrganizeArchiveError { error: archive::CollateError },
+    #[error("Organize cache error: {error}")]
+    OrganizeCacheError { error: archive::CollateError },
 }
 impl FromStr for Parser {
     type Err = ParserError;
@@ -1161,7 +1184,7 @@ impl Parser {
         &self,
         records: &RecordBatch,
         filter_ts: bool,
-        archive_tx: Sender<(ArchiveType, RecordBatch)>,
+        archive_tx: Sender<ArchiveType>,
     ) -> Result<Message, Error> {
         // (ts, value, point_name, ${point_name}, site_controller_id)
         let transformed_batch = self.transform_records(records)?;
@@ -1807,7 +1830,7 @@ pub fn archive_records(
     batch: &RecordBatch,
     err_vec: Vec<String>,
     err_timestamp_vec: Vec<i64>,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     if batch.num_rows() > 0 {
         // get fields and columns
@@ -1833,7 +1856,7 @@ pub fn archive_records(
         let new_schema = Arc::new(Schema::new(fields_vec));
         let new_batch = RecordBatch::try_new(new_schema, columns_vec)?;
 
-        archive_tx.send((ArchiveType::Archive, new_batch))?;
+        archive_tx.send(ArchiveType::Archive(new_batch))?;
     }
     Ok(())
 }
