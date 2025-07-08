@@ -23,8 +23,9 @@
 
 SStreamMgmtInfo gStreamMgmt = {0};
 
-void streamSetSnodeEnabled(void) {
+void streamSetSnodeEnabled(  SMsgCb* msgCb) {
   gStreamMgmt.snodeEnabled = true;
+  gStreamMgmt.msgCb = *msgCb;
   stInfo("snode %d enabled", (*gStreamMgmt.getDnode)(gStreamMgmt.dnode));
 }
 

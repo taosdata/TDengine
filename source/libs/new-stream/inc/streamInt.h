@@ -69,6 +69,7 @@ typedef struct SStreamMgmtInfo {
   SRWLatch               snodeLock;
   SNodeEpSet             snodeLeaders[2];
   SNodeEpSet             snodeReplica;
+  SMsgCb                 msgCb;
   
 //  SStorageAPI*           api;
   getMnodeEpset_f         getMnode;

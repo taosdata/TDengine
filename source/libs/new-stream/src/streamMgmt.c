@@ -751,6 +751,7 @@ int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp) {
       SStreamMgmtReq* pReq = atomic_load_ptr(&pTask->pMgmtReq);
       if (pReq && pReq->reqId == pRsp->reqId && pReq == atomic_val_compare_exchange_ptr(&pTask->pMgmtReq, pReq, NULL)) {
         stmDestroySStreamMgmtReq(pReq);
+        taosMemoryFree(pReq);
       }
       STM_CHK_SET_ERROR_EXIT(stTriggerTaskExecute((SStreamTriggerTask*)pTask, &pRsp->header));
       break;
