@@ -541,8 +541,8 @@ static int32_t extWindowCopyRows(SOperatorInfo* pOperator, SSDataBlock* pInputBl
   if (rowsToCopy > 0) {
     code = blockDataMergeNRows(pExtW->pTmpBlock, pInputBlock, startPos, rowsToCopy);
     if (code == 0) {
-      code = projectApplyFunctions(pExprSup->pExprInfo, pResBlock, pExtW->pTmpBlock, pExprSup->pCtx, pExprSup->numOfExprs,
-          NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+      code = projectApplyFunctionsWithSelect(pExprSup->pExprInfo, pResBlock, pExtW->pTmpBlock, pExprSup->pCtx, pExprSup->numOfExprs,
+          NULL, GET_STM_RTINFO(pOperator->pTaskInfo), true);
     }
   }
 
