@@ -1330,11 +1330,17 @@ static void cliBatchSendCb(uv_write_t* req, int status) {
 
   SCliThrd* pThrd = conn->hostThrd;
   STrans*   pInst = pThrd->pInst;
-
+  int64_t   limit = 50000;
+  int64_t   now = taosGetTimestampUs();
   while (!QUEUE_IS_EMPTY(&wrapper->node)) {
     queue*   h = QUEUE_HEAD(&wrapper->node);
     SCliReq* pReq = QUEUE_DATA(h, SCliReq, sendQ);
     removeReqFromSendQ(pReq);
+
+    if ((now - pReq->st) >= limit) {
+      STraceId* trace = &pReq->msg.info.traceId;
+      tGWarn("msg %s send out cost %dms", TMSG_INFO(pReq->msg.msgType), (int32_t)((now - pReq->st) / 1000));
+    }
   }
   freeWReqToWQ(&conn->wq, wrapper);
 
