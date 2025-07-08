@@ -571,14 +571,14 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/walRemoveLog.py -N 3
 
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeReplicate.py -M 3 -N 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-19201.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3404.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3581.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3311.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3821.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-5130.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-5580.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-19201.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3404.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3581.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3311.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3821.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-5130.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-5580.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
@@ -1124,7 +1124,7 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 2
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 2
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 2
 
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 3
@@ -1224,7 +1224,7 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 4
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 4
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -Q 4
@@ -1337,8 +1337,8 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py -Q 2
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py -Q 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
 ,,n,system-test,python3 ./test.py -f eco-system/meta/database/keep_time_offset.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 2
