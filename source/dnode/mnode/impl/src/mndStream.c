@@ -842,14 +842,6 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   TAOS_RETURN(code);
 }
 
-
-void testAsan() {
-  int32_t size = 1024;
-  char* p = taosMemoryCalloc(1, size);
-  printf("%s", p + size);
-  //memset(p, 0, size + 1);
-}
-
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
@@ -857,8 +849,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     lino = 0;
   STrans     *pTrans = NULL;
-
-  testAsan();
 
 #ifdef WINDOWS
   code = TSDB_CODE_MND_INVALID_PLATFORM;
@@ -961,12 +951,14 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
 
   SMRecalcStreamReq recalcReq = {0};
   if (tDeserializeSMRecalcStreamReq(pReq->pCont, pReq->contLen, &recalcReq) < 0) {
+    tFreeMRecalcStreamReq(&recalcReq);
     TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
 
   code = mndAcquireStream(pMnode, recalcReq.name, &pStream);
   if (pStream == NULL || code != 0) {
     mError("stream:%s not exist, failed to recalc stream", recalcReq.name);
+    tFreeMRecalcStreamReq(&recalcReq);
     TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
   }
 
@@ -978,6 +970,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
   if (code != TSDB_CODE_SUCCESS) {
     mstsError("user %s failed to recalc stream %s since %s", pReq->info.conn.user, recalcReq.name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
+    tFreeMRecalcStreamReq(&recalcReq);
     return code;
   }
 
@@ -985,6 +978,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
     code = TSDB_CODE_MND_STREAM_DROPPING;
     mstsError("user %s failed to recalc stream %s since %s", pReq->info.conn.user, recalcReq.name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
+    tFreeMRecalcStreamReq(&recalcReq);
     return code;
   }
 
@@ -992,6 +986,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
     code = TSDB_CODE_MND_STREAM_STOPPED;
     mstsError("user %s failed to recalc stream %s since %s", pReq->info.conn.user, recalcReq.name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
+    tFreeMRecalcStreamReq(&recalcReq);
     return code;
   }
 
@@ -999,6 +994,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
     code = TSDB_CODE_OPS_NOT_SUPPORT;
     mstsError("failed to recalc stream %s since %s", recalcReq.name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
+    tFreeMRecalcStreamReq(&recalcReq);
     return code;
   }
 
@@ -1033,6 +1029,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
   code = msmRecalcStream(pMnode, pStream->pCreate->streamId, &recalcReq.timeRange);
   if (code != TSDB_CODE_SUCCESS) {
     sdbRelease(pMnode->pSdb, pStream);
+    tFreeMRecalcStreamReq(&recalcReq);
     return code;
   }
   
@@ -1041,6 +1038,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
   auditRecord(pReq, pMnode->clusterId, "recalcStream", pStream->name, recalcReq.name, buf, strlen(buf));
 
   sdbRelease(pMnode->pSdb, pStream);
+  tFreeMRecalcStreamReq(&recalcReq);
 //  mndTransDrop(pTrans);
 
   return TSDB_CODE_SUCCESS;
