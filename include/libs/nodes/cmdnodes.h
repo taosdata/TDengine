@@ -640,6 +640,7 @@ typedef struct SStreamTriggerOptions {
   bool      calcNotifyOnly;
   bool      lowLatencyCalc;
   bool      forceOutput;
+  bool      ignoreNoDataTrigger;
 } SStreamTriggerOptions;
 
 typedef enum EStreamNotifyEventType {
