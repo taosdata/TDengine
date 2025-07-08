@@ -38,7 +38,7 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
 }
 
 int32_t sndInit(SSnode *pSnode) {
-  streamSetSnodeEnabled();
+  streamSetSnodeEnabled(&pSnode->msgCb);
   return 0;
 }
 

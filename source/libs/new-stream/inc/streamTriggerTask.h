@@ -241,6 +241,7 @@ typedef struct SStreamTriggerTask {
   bool    fillHistory;
   bool    fillHistoryFirst;
   bool    lowLatencyCalc;
+  bool    igNoDataTrigger;
   bool    hasPartitionBy;
   bool    isVirtualTable;
   int64_t placeHolderBitmap;
