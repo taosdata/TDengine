@@ -634,7 +634,6 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
   if (pBlock2->info.rows > 0) {
     STREAM_CHECK_RET_GOTO(processTag(pVnode, pExpr, numOfExpr, &api, pBlock2));
   }
-
   STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock2, pFilterInfo));
 
   if (isCalc) {
@@ -1953,6 +1952,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
 
   while (1) {
     uint64_t ts = 0;
+    qUpdateOperatorParam(sStreamReaderCalcInfo->pTaskInfo, req.pOpParam);
     STREAM_CHECK_RET_GOTO(qExecTask(sStreamReaderCalcInfo->pTaskInfo, &pBlock, &ts));
     printDataBlock(pBlock, __func__, "fetch");
 
