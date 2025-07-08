@@ -671,11 +671,11 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
     STREAM_CHECK_RET_GOTO(processTag(pVnode, pExpr, numOfExpr, &api, pBlock2));
   }
 
-  STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock2, pFilterInfo));
-
   if (isCalc) {
     blockDataTransform(*pBlock, pBlock2);
+    STREAM_CHECK_RET_GOTO(qStreamFilter(*pBlock, pFilterInfo));
   } else {
+    STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock2, pFilterInfo));
     *pBlock = pBlock2;
     pBlock2 = NULL;  
   }
@@ -1523,8 +1523,8 @@ static int32_t vnodeProcessStreamCalcDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
 
     SSDataBlock* pBlock = NULL;
     STREAM_CHECK_RET_GOTO(getTableData(pTaskInner, &pBlock));
-    STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, pTaskInner->pFilterInfo));
     blockDataTransform(sStreamReaderInfo->calcResBlockTmp, pBlock);
+    STREAM_CHECK_RET_GOTO(qStreamFilter(sStreamReaderInfo->calcResBlockTmp, pTaskInner->pFilterInfo));
     STREAM_CHECK_RET_GOTO(blockDataMerge(pTaskInner->pResBlockDst, sStreamReaderInfo->calcResBlockTmp));
     if (pTaskInner->pResBlockDst->info.rows >= STREAM_RETURN_ROWS_NUM) {
       break;
@@ -1971,6 +1971,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
 
   while (1) {
     uint64_t ts = 0;
+    qUpdateOperatorParam(sStreamReaderCalcInfo->pTaskInfo, req.pOpParam);
     STREAM_CHECK_RET_GOTO(qExecTask(sStreamReaderCalcInfo->pTaskInfo, &pBlock, &ts));
     printDataBlock(pBlock, __func__, "fetch");
 
