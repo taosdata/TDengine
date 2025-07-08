@@ -431,7 +431,7 @@ class TestStreamSubquerySliding:
             id=34,
             stream="create stream rdb.s34 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r34 as select _tprev_ts tc, TIMEDIFF(_tprev_ts, _tnext_ts) tx, %%tbname tb, %%1 tg1, sum(c1) c1, avg(c2) c2, first(c1) c3, last(c2) c4 from %%trows where c1 > 0;",
             res_query="select * from rdb.r34 where tag_tbname = 't1';",
-            exp_query="select _wstart, TIMEDIFF(_wstart, _wend) * 2, 't1', 't1', sum(c1) c1, avg(c2) c2, first(c1) c3, last(c2) c4 , 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(5m);",
+            exp_query="select _wstart, TIMEDIFF(_wstart, _wend) * 2, 't1', 't1', sum(c1) c1, avg(c2) c2, first(c1) c3, last(c2) c4 , 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' and c1 > 0 interval(5m);",
         )
         self.streams.append(stream)
 
