@@ -132,7 +132,7 @@ static void tsdbGetRocksPath(STsdb *pTsdb, char *path) {
   vnodeGetPrimaryPath(pVnode, false, path, TSDB_FILENAME_LEN);
 
   int32_t offset = strlen(path);
-  snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%scache.rdb", TD_DIRSEP, VNODE_TSDB_DIR, TD_DIRSEP);
+  snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%scache.rdb", TD_DIRSEP, pTsdb->name, TD_DIRSEP);
 }
 
 static const char *myCmpName(void *state) {
@@ -210,7 +210,7 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
 
   rocksdb_t *db = rocksdb_open(options, cachePath, &err);
   if (NULL == db) {
-    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, err);
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, err); 
     rocksdb_free(err);
 
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err4);

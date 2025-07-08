@@ -89,6 +89,7 @@ typedef struct SStreamNotifyHandleMap SStreamNotifyHandleMap;
 #define VNODE_META_TMP_DIR    "meta.tmp"
 #define VNODE_META_BACKUP_DIR "meta.backup"
 
+#define VNODE_TSDB_NAME_LEN  6
 #define VNODE_META_DIR       "meta"
 #define VNODE_TSDB_DIR       "tsdb"
 #define VNODE_TQ_DIR         "tq"

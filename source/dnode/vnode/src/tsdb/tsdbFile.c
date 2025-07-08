@@ -224,7 +224,7 @@ void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]) {
   vnodeGetPrimaryPath(pVnode, false, fname, TSDB_FILENAME_LEN);
   offset = strlen(fname);
   snprintf((char *)fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%sv%dver%" PRId64 ".del", TD_DIRSEP,
-           VNODE_TSDB_DIR, TD_DIRSEP, TD_VID(pTsdb->pVnode), pFile->commitID);
+           pTsdb->name, TD_DIRSEP, TD_VID(pTsdb->pVnode), pFile->commitID);
 }
 
 int32_t tPutDelFile(uint8_t *p, SDelFile *pDelFile) {

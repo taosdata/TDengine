@@ -75,7 +75,7 @@ void current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype) {
 
   vnodeGetPrimaryPath(pTsdb->pVnode, false, fname, TSDB_FILENAME_LEN);
   offset = strlen(fname);
-  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%s%s", TD_DIRSEP, VNODE_TSDB_DIR, TD_DIRSEP,
+  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%s%s", TD_DIRSEP, pTsdb->name, TD_DIRSEP,
            gCurrentFname[ftype]);
 }
 

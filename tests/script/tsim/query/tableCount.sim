@@ -72,7 +72,7 @@ endi
 if $data11 != 5 then
   return -1
 endi
-if $data21 != 38 then
+if $data21 != 39 then
   return -1
 endi
 if $data31 != 5 then
@@ -97,7 +97,7 @@ endi
 if $data42 != 3 then
   return -1
 endi
-if $data52 != 38 then
+if $data52 != 39 then
   return -1
 endi
 if $data62 != 5 then

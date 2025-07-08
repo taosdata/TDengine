@@ -274,15 +274,14 @@ void tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t) {
   if (current) {
     vnodeGetPrimaryPath(pVnode, false, current, TSDB_FILENAME_LEN);
     offset = strlen(current);
-    snprintf(current + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%sCURRENT", TD_DIRSEP, VNODE_TSDB_DIR, TD_DIRSEP);
+    snprintf(current + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%sCURRENT", TD_DIRSEP, pTsdb->name, TD_DIRSEP);
   }
 
   // CURRENT.t
   if (current_t) {
     vnodeGetPrimaryPath(pVnode, false, current_t, TSDB_FILENAME_LEN);
     offset = strlen(current_t);
-    snprintf(current_t + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%sCURRENT.t", TD_DIRSEP, VNODE_TSDB_DIR,
-             TD_DIRSEP);
+    snprintf(current_t + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%sCURRENT.t", TD_DIRSEP, pTsdb->name, TD_DIRSEP);
   }
 }
 
