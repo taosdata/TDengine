@@ -503,6 +503,8 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
   int32_t lino = 0;
   int32_t corrupt = false;
 
+  if (fs->tsdb->pVnode->mounted) goto _exit;
+
   {  // scan each file
     STFileSet *fset = NULL;
     TARRAY2_FOREACH(fs->fSetArr, fset) {

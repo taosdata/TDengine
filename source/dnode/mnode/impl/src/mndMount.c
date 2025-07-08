@@ -544,6 +544,7 @@ static int32_t mndMountSetVgInfo(SMnode *pMnode, SDnodeObj *pDnode, SMountInfo *
   pVgroup->mountVgId = pVg->vgId;
 
   pMountVg->pDb = pDb;
+  pMountVg->diskPrimary = pVg->diskPrimary;
   pMountVg->committed = pVg->committed;
   pMountVg->commitID = pVg->commitID;
   pMountVg->commitTerm = pVg->commitTerm;
@@ -1040,7 +1041,6 @@ static int32_t mndSetCreateMountRedoActions(SMnode *pMnode, STrans *pTrans, SMou
   for (int32_t i = 0; i < nVgs; ++i) {
     TAOS_CHECK_RETURN(mndAddMountVnodeAction(pMnode, pTrans, pObj, pVgs + i));
   }
-  // TODO: create soft link in mount dnode/vnode
   TAOS_RETURN(0);
 }
 #if 0

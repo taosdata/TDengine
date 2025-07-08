@@ -389,19 +389,19 @@ void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
                f->cid,                             //
                g_tfile_info[f->type].suffix);
     } else {
-      snprintf(fname,                                             //
-               TSDB_FILENAME_LEN,                                 //
-               "%s%svnode%svnode%d%%s%sv%df%dver%" PRId64 ".%s",  //
-               tfsGetDiskPath(pTfs, f->did),                      //
-               TD_DIRSEP,                                         //
-               TD_DIRSEP,                                         //
-               TSDB_VID(pVnode),                                  //
-               TD_DIRSEP,                                         //
-               pTsdb->name,                                       //
-               TD_DIRSEP,                                         //
-               TSDB_VID(pVnode),                                  //
-               f->fid,                                            //
-               f->cid,                                            //
+      snprintf(fname,                                              //
+               TSDB_FILENAME_LEN,                                  //
+               "%s%svnode%svnode%d%s%s%sv%df%dver%" PRId64 ".%s",  //
+               tfsGetDiskPath(pTfs, f->did),                       //
+               TD_DIRSEP,                                          //
+               TD_DIRSEP,                                          //
+               TSDB_VID(pVnode),                                   //
+               TD_DIRSEP,                                          //
+               pTsdb->name,                                        //
+               TD_DIRSEP,                                          //
+               TSDB_VID(pVnode),                                   //
+               f->fid,                                             //
+               f->cid,                                             //
                g_tfile_info[f->type].suffix);
     }
   } else {
@@ -436,20 +436,20 @@ void tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
                f->lcn,                                //
                g_tfile_info[f->type].suffix);
     } else {
-      snprintf(fname,                                                //
-               TSDB_FILENAME_LEN,                                    //
-               "%s%svnode%svnode%d%%s%sv%df%dver%" PRId64 ".%d.%s",  //
-               tfsGetDiskPath(pTfs, f->did),                         //
-               TD_DIRSEP,                                            //
-               TD_DIRSEP,                                            //
-               TSDB_VID(pVnode),                                     //
-               TD_DIRSEP,                                            //
-               pTsdb->name,                                          //
-               TD_DIRSEP,                                            //
-               TSDB_VID(pVnode),                                     //
-               f->fid,                                               //
-               f->cid,                                               //
-               f->lcn,                                               //
+      snprintf(fname,                                                 //
+               TSDB_FILENAME_LEN,                                     //
+               "%s%svnode%svnode%d%s%s%sv%df%dver%" PRId64 ".%d.%s",  //
+               tfsGetDiskPath(pTfs, f->did),                          //
+               TD_DIRSEP,                                             //
+               TD_DIRSEP,                                             //
+               TSDB_VID(pVnode),                                      //
+               TD_DIRSEP,                                             //
+               pTsdb->name,                                           //
+               TD_DIRSEP,                                             //
+               TSDB_VID(pVnode),                                      //
+               f->fid,                                                //
+               f->cid,                                                //
+               f->lcn,                                                //
                g_tfile_info[f->type].suffix);
     }
   } else {
