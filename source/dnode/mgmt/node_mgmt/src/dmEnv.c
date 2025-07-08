@@ -77,6 +77,14 @@ static int32_t dmInitMonitor() {
   return code;
 }
 
+static int32_t dmInitMetrics() {
+  int32_t code = 0;
+  if ((code = initMetricsManager()) != 0) {
+    dError("failed to init metrics since %s", tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t dmInitAudit() {
   SAuditCfg auditCfg = {0};
   int32_t   code = 0;
@@ -180,6 +188,7 @@ int32_t dmInit() {
   if ((code = dmCheckRepeatInit(pDnode)) != 0) return code;
   if ((code = dmInitSystem()) != 0) return code;
   if ((code = dmInitMonitor()) != 0) return code;
+  if ((code = dmInitMetrics()) != 0) return code;
   if ((code = dmInitAudit()) != 0) return code;
   if ((code = dmInitDnode(pDnode)) != 0) return code;
   if ((code = InitRegexCache() != 0)) return code;
@@ -211,6 +220,7 @@ void dmCleanup() {
   auditCleanup();
   syncCleanUp();
   walCleanUp();
+  cleanupMetrics();
   if (udfcClose() != 0) {
     dError("failed to close udfc");
   }
@@ -468,7 +478,9 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .processAlterNodeTypeFp = dmProcessAlterNodeTypeReq,
       .processDropNodeFp = dmProcessDropNodeReq,
       .sendMonitorReportFp = dmSendMonitorReport,
+      .sendMetricsReportFp = dmSendMetricsReport,
       .monitorCleanExpiredSamplesFp = dmMonitorCleanExpiredSamples,
+      .metricsCleanExpiredSamplesFp = dmMetricsCleanExpiredSamples,
       .sendAuditRecordFp = auditSendRecordsInBatch,
       .getVnodeLoadsFp = dmGetVnodeLoads,
       .getVnodeLoadsLiteFp = dmGetVnodeLoadsLite,

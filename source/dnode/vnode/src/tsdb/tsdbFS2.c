@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbFS2.h"
 #include "cos.h"
+#include "tsdbFS2.h"
 #include "tsdbUpgrade.h"
 #include "vnd.h"
 
@@ -906,12 +906,21 @@ void tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
   (void)taosThreadMutexLock(&tsdb->mutex);
   STFileSet *fset;
   tsdbFSGetFSet(tsdb->pFS, fid, &fset);
+  bool blockCommit = false;
   if (fset) {
-    while (fset->blockCommit) {
-      fset->numWaitCommit++;
-      (void)taosThreadCondWait(&fset->canCommit, &tsdb->mutex);
-      fset->numWaitCommit--;
-    }
+    blockCommit = fset->blockCommit;
+  }
+  if (fset) {
+    METRICS_TIMING_BLOCK(tsdb->pVnode->writeMetrics.block_commit_time, METRIC_LEVEL_HIGH, {
+      while (fset->blockCommit) {
+        fset->numWaitCommit++;
+        (void)taosThreadCondWait(&fset->canCommit, &tsdb->mutex);
+        fset->numWaitCommit--;
+      }
+    });
+  }
+  if (blockCommit) {
+    METRICS_UPDATE(tsdb->pVnode->writeMetrics.blocked_commit_count, METRIC_LEVEL_HIGH, 1);
   }
   (void)taosThreadMutexUnlock(&tsdb->mutex);
   return;
@@ -1236,7 +1245,7 @@ void tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, EVATaskT task, STFileSet *
     }
   }
 
-  tsdbInfo("vgId:%d begin %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
+  tsdbTrace("vgId:%d begin %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
   return;
 }
 
@@ -1262,7 +1271,7 @@ void tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid, EVATaskT task) {
     (void)taosThreadCondSignal(&cond->cond);
   }
 
-  tsdbInfo("vgId:%d finish %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
+  tsdbTrace("vgId:%d finish %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
   return;
 }
 

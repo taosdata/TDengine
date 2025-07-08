@@ -115,7 +115,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
             ```
         - 指定某个特定版本安装
             ```
-            pip3 install taospy==2.8.1
+            pip3 install taospy==2.8.2
             ```
         - 从 GitHub 安装
             ```
@@ -278,10 +278,12 @@ dotnet add package TDengine.Connector
     </TabItem>
     <TabItem label="Python" value="python">
     Python 连接器使用 `connect()` 方法来建立连接，下面是连接参数的具体说明：    
-        - url： `taosAdapter` REST 服务的 URL。默认是 `localhost` 的 `6041` 端口。 
+        - url： `taosAdapter` Websocket 服务的 URL。默认是 `localhost` 的 `6041` 端口。 
         - user： TDengine 用户名。默认是 `root`。  
         - password： TDengine 用户密码。默认是 `taosdata`。  
         - timeout： HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。一般无需配置。
+
+    URL 的详细参数说明和如何使用详见 [url 规范](../../reference/connector/python/#url-规范)
 
     </TabItem>
     <TabItem label="Go" value="go">

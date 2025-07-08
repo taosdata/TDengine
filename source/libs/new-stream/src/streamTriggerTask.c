@@ -1066,6 +1066,9 @@ static int32_t stRealtimeGroupCloseWindow(SSTriggerRealtimeGroup *pGroup, char *
   if (ppExtraNotifyContent) {
     *ppExtraNotifyContent = NULL;
   }
+  if (!saveWindow) {
+    pGroup->prevWindowEnd = param.wend;
+  }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1201,7 +1204,7 @@ static int32_t stRealtimeGroupMergeSavedWindows(SSTriggerRealtimeGroup *pGroup, 
       }
       code = TRINGBUF_APPEND(&pGroup->winBuf, *pWin);
       QUERY_CHECK_CODE(code, lino, _end);
-    } else if ((calcClose || notifyClose)) {
+    } else {
       SSTriggerCalcParam param = {.triggerTime = taosGetTimestampNs(),
                                   .notifyType = (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE),
                                   .wstart = pWin->range.skey,
@@ -1215,6 +1218,7 @@ static int32_t stRealtimeGroupMergeSavedWindows(SSTriggerRealtimeGroup *pGroup, 
         void *px = taosArrayPush(pContext->pNotifyParams, &param);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       }
+      pGroup->prevWindowEnd = param.wend;
     }
   }
 
@@ -1437,7 +1441,7 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
       if (allTableProcessed || needFetchData) {
         break;
       }
-      SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, 0);
+      SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->trigTsIndex);
       QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
       int64_t *pTsData = (int64_t *)pTsCol->pData;
       for (int32_t r = startIdx; r < endIdx;) {
@@ -1815,7 +1819,7 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
     if (allTableProcessed || needFetchData) {
       break;
     }
-    SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, 0);
+    SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->trigTsIndex);
     QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
     int64_t *pTsData = (int64_t *)pTsCol->pData;
     bool    *ps = NULL, *pe = NULL;
@@ -2610,6 +2614,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       if ((pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) && IS_REALTIME_GROUP_OPEN_WINDOW(pGroup) &&
           (taosArrayGetSize(pTableMeta->pMetas) > 0)) {
         int64_t endTime = TRINGBUF_FIRST(&pGroup->winBuf).range.skey - 1;
+        endTime = TMAX(endTime, pGroup->prevWindowEnd);
         int32_t idx = taosArraySearchIdx(pTableMeta->pMetas, &endTime, stRealtimeGroupMetaDataSearch, TD_GT);
         taosArrayPopFrontBatch(pTableMeta->pMetas, idx);
         idx = taosArraySearchIdx(pTableMeta->pMetas, &pGroup->newThreshold, stRealtimeGroupMetaDataSearch, TD_GT);

@@ -1034,6 +1034,7 @@ static int32_t processTsNonVTable(SVnode* pVnode, SStreamTsResponse* tsRsp, SStr
     if (!hasNext) {
       break;
     }
+    pTask->api.tsdReader.tsdReaderReleaseDataBlock(pTask->pReader);
     STsInfo* tsInfo = taosArrayReserve(tsRsp->tsInfo, 1);
     STREAM_CHECK_NULL_GOTO(tsInfo, terrno)
     tsInfo->ts = pTask->pResBlock->info.window.ekey;
@@ -1078,6 +1079,7 @@ static int32_t processTsVTable(SVnode* pVnode, SStreamTsResponse* tsRsp, SStream
       if (!hasNext) {
         break;
       }
+      pTask->api.tsdReader.tsdReaderReleaseDataBlock(pTask->pReader);
       STsInfo* tsInfo = taosArrayReserve(tsRsp->tsInfo, 1);
       STREAM_CHECK_NULL_GOTO(tsInfo, terrno)
       tsInfo->ts = pTask->pResBlock->info.window.ekey;
@@ -1280,11 +1282,11 @@ static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
   pTaskInner->pResBlockDst->info.rows = 0;
   bool hasNext = true;
   while (true) {
-    STREAM_CHECK_RET_GOTO(getTableDataInfo(pTask, &hasNext));
+    STREAM_CHECK_RET_GOTO(getTableDataInfo(pTaskInner, &hasNext));
     if (!hasNext) {
       break;
     }
-
+    pTaskInner->api.tsdReader.tsdReaderReleaseDataBlock(pTaskInner->pReader);
     pTaskInner->pResBlock->info.id.groupId = qStreamGetGroupId(pTaskInner->pTableList, pTaskInner->pResBlock->info.id.uid);
 
     int32_t index = 0;

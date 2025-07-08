@@ -295,7 +295,6 @@ int32_t tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t pageSize,
   pSortHandle->pageSize = pageSize;
   pSortHandle->numOfPages = numOfPages;
   pSortHandle->pSortInfo = taosArrayDup(pSortInfo, NULL);
-  ASSERT(pSortHandle->pSortInfo != NULL);
   QUERY_CHECK_NULL(pSortHandle->pSortInfo, code, lino, _err, terrno);
 
   pSortHandle->loops = 0;

@@ -91,7 +91,8 @@ _exit:
   return code;
 }
 
-int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockList) {
+int32_t sclExtendResRowsRange(SScalarParam *pDst, int32_t rowStartIdx, int32_t rowEndIdx, SScalarParam *pSrc,
+                              SArray *pBlockList) {
   SSDataBlock *pb = taosArrayGetP(pBlockList, 0);
   if (NULL == pb) {
     SCL_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
@@ -109,13 +110,21 @@ int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockL
     SCL_ERR_JRET(colInfoDataEnsureCapacity(pDst->columnData, pb->info.rows, true));
   }
 
-  _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(OP_TYPE_ASSIGN);
-  SCL_ERR_JRET(OperatorFn(pLeft, pSrc, pDst, TSDB_ORDER_ASC));
+  if (rowStartIdx < 0 || rowEndIdx < 0) {
+    _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(OP_TYPE_ASSIGN);
+    SCL_ERR_JRET(OperatorFn(pLeft, pSrc, pDst, TSDB_ORDER_ASC));
+  } else {
+    SCL_ERR_JRET(vectorAssignRange(pLeft, pSrc, pDst, rowStartIdx, rowEndIdx, TSDB_ORDER_ASC));
+  }
 
 _return:
   taosMemoryFree(pLeft);
 
   SCL_RET(code);
+}
+
+int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockList) {
+  return sclExtendResRowsRange(pDst, -1, -1, pSrc, pBlockList);
 }
 
 // processType = 0 means all type. 1 means number, 2 means var, 3 means float, 4 means var&integer
@@ -2051,7 +2060,13 @@ int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) { return sclCalcCon
 
 int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes) { return sclCalcConstants(pNode, true, pRes); }
 
-int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, const void* pExtraParam, void* pTsRange) {
+int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, const void *pExtraParam,
+                        void *streamTsRange) {
+  return scalarCalculateInRange(pNode, pBlockList, pDst, -1, -1, pExtraParam, streamTsRange);
+}
+
+int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, int32_t rowStartIdx,
+                               int32_t rowEndIdx, const void *pExtraParam, void *pTsRange) {
   if (NULL == pNode || (NULL == pBlockList && pTsRange == NULL)) {
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -2082,7 +2097,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, co
       SCL_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
     }
     if (1 == res->numOfRows && pb->info.rows > 0) {
-      SCL_ERR_JRET(sclExtendResRows(pDst, res, pBlockList));
+      SCL_ERR_JRET(sclExtendResRowsRange(pDst, rowStartIdx, rowEndIdx, res, pBlockList));
     } else {
       SCL_ERR_JRET(colInfoDataEnsureCapacity(pDst->columnData, res->numOfRows, true));
       SCL_ERR_JRET(colDataAssign(pDst->columnData, res->columnData, res->numOfRows, NULL));
