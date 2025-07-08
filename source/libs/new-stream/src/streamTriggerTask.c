@@ -3338,6 +3338,9 @@ static void stRealtimeContextDestroy(void *ptr) {
     pContext->pCalcDataCacheIters = NULL;
   }
 
+  taosArrayDestroy(pContext->reqCids);
+  taosArrayDestroy(pContext->reqCols);
+
   taosMemFreeClear(*ppContext);
 }
 

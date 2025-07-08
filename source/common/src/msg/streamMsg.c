@@ -792,6 +792,7 @@ void tCleanupStreamHbMsg(SStreamHbMsg* pMsg, bool deepClean) {
       }
 
       tFreeSStreamMgmtReq(pTask->pMgmtReq);
+      taosMemoryFree(pTask->pMgmtReq);
     }
   }
   taosArrayDestroy(pMsg->pStreamReq);
