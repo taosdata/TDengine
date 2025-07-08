@@ -1480,6 +1480,7 @@ static int32_t getStreamTableId(SStreamDataInserterInfo* pInserterInfo, SInsertT
   pTbInfo->uid = pTbRes->uid;
   pTbInfo->version = pTbRes->version;
   pTbInfo->vgid = pTbRes->vgid;
+  pTbInfo->tbname = pTbRes->tbname;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1911,10 +1912,12 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
       stError("buildStreamSubmitReqFromBlock, unknown table type %d", pInsertParam->tbType);
     }
     QUERY_CHECK_CODE(code, lino, _end);
-    initTableInfo(pInserterInfo);
+    code = initTableInfo(pInserterInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
   } else {
     SInsertTableRes tbInfo = {0};
     code = getStreamTableId(pInserterInfo, &tbInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
     pInserterInfo->tbName = tbInfo.tbname; // pInserterInfo->tbName wouldn't be delete
 
     tbData.uid = tbInfo.uid;
