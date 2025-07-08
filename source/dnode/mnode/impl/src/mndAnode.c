@@ -602,7 +602,7 @@ static int32_t mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   code = grantCheckExpire(TSDB_GRANT_TD_GPT);
   if (code != 0) {
     mError("TDgpt/anode grant expired");
-    return code;
+    return numOfRows;
   }
 
   while (numOfRows < rows) {
