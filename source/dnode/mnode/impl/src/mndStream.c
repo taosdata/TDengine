@@ -850,17 +850,17 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     lino = 0;
   STrans     *pTrans = NULL;
-  
-  SCMCreateStreamReq* pCreate = taosMemoryCalloc(1, sizeof(SCMCreateStreamReq));
-  TSDB_CHECK_NULL(pCreate, code, lino, _OVER, terrno);
-  
-  code = tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, pCreate);
-  TSDB_CHECK_CODE(code, lino, _OVER);
 
 #ifdef WINDOWS
   code = TSDB_CODE_MND_INVALID_PLATFORM;
   goto _OVER;
 #endif
+
+  SCMCreateStreamReq* pCreate = taosMemoryCalloc(1, sizeof(SCMCreateStreamReq));
+  TSDB_CHECK_NULL(pCreate, code, lino, _OVER, terrno);
+  
+  code = tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, pCreate);
+  TSDB_CHECK_CODE(code, lino, _OVER);
 
   uint64_t    streamId = pCreate->streamId;
 

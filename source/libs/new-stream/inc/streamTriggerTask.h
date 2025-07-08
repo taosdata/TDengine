@@ -37,7 +37,7 @@ typedef struct SSTriggerVirTableInfo {
 typedef struct SSTriggerWindow {
   STimeWindow range;
   int64_t     wrownum;
-  int64_t     prevProcTime;
+  int64_t     prevProcTime;  // only used in realtime group for max_delay check
 } SSTriggerWindow;
 
 typedef TRINGBUF(SSTriggerWindow) TriggerWindowBuf;
@@ -63,6 +63,25 @@ typedef struct SSTriggerRealtimeGroup {
   SValue           stateVal;    // for state window trigger
 } SSTriggerRealtimeGroup;
 
+typedef struct SSTriggerHistoryGroup {
+  struct SSTriggerHistoryContext *pContext;
+  int64_t                         gid;
+  TD_DLIST_NODE(SSTriggerHistoryGroup);
+
+  SArray    *pVirTableInfos;  // SArray<SSTriggerVirTableInfo *>
+  SSHashObj *pTableMetas;     // SSHashObj<tbUid, SSTriggerTableMeta>
+
+  int64_t endTime;  // todo(kjq): stop history calc when meet the endTime
+
+  int32_t                tbIter;
+  SSTriggerVirTableInfo *pCurVirTable;
+  SSTriggerTableMeta    *pCurTableMeta;
+
+  TriggerWindowBuf winBuf;
+  STimeWindow      nextWindow;
+  SValue           stateVal;
+} SSTriggerHistoryGroup;
+
 typedef enum ESTriggerContextStatus {
   STRIGGER_CONTEXT_IDLE = 0,
   STRIGGER_CONTEXT_GATHER_VTABLE_INFO,
@@ -71,6 +90,7 @@ typedef enum ESTriggerContextStatus {
   STRIGGER_CONTEXT_ACQUIRE_REQUEST,
   STRIGGER_CONTEXT_CHECK_CONDITION,
   STRIGGER_CONTEXT_SEND_CALC_REQ,
+  STRIGGER_CONTEXT_CLEAR_META,
 } ESTriggerContextStatus;
 
 typedef struct SSTriggerWalProgress {
@@ -100,8 +120,8 @@ typedef struct SSTriggerRealtimeContext {
   SSTriggerMetaData        *pMetaToFetch;
   SSTriggerTableColRef     *pColRefToFetch;
 
-  SArray      *pSavedWindows;  // for interval window trigger and session window trigger
-  SArray      *pInitWindows;   // for interval window trigger and session window trigger
+  SArray      *pSavedWindows;  // for sliding trigger and session window trigger
+  SArray      *pInitWindows;   // for sliding trigger and session window trigger
   SFilterInfo *pStartCond;     // for event window trigger
   SFilterInfo *pEndCond;       // for event window trigger
 
@@ -111,16 +131,56 @@ typedef struct SSTriggerRealtimeContext {
   SArray                   *reqCols;  // SArray<OTableInfo>
   SSDataBlock              *pullRes[STRIGGER_PULL_TYPE_MAX];
   SSTriggerCalcRequest     *pCalcReq;
+  SSTriggerCalcParam       *pParamToFetch;
 
   void     *pCalcDataCache;
   SHashObj *pCalcDataCacheIters;
 
-  bool        retryPull;
   bool        haveReadCheckpoint;
   bool        haveToRecalc;
+  bool        retryPull;
   int64_t     lastCheckpointTime;
   STimeWindow periodWindow;  // for period trigger
 } SSTriggerRealtimeContext;
+
+typedef struct SSTriggerHistoryContext {
+  struct SStreamTriggerTask *pTask;
+  int64_t                    sessionId;
+  ESTriggerContextStatus     status;
+
+  bool       needTsdbMeta;
+  int64_t    startTime;
+  SSHashObj *pReaderMap;  // SSHashObj<vgId, SStreamTaskAddr *>
+
+  int32_t      curReaderIdx;
+  int32_t      curCalcReaderIdx;
+  STimeWindow  curRange;
+  SSHashObj   *pFirstTsMap;  // SSHashObj<gid, int64_t>, for sliding trigger
+  SSDataBlock *pFetchedDataBlock;
+
+  SSHashObj *pGroups;
+  TD_DLIST(SSTriggerHistoryGroup) groupsToCheck;
+
+  SSTriggerTimestampSorter *pSorter;
+  SSTriggerVtableMerger    *pMerger;
+  SSTriggerMetaData        *pMetaToFetch;
+  SSTriggerTableColRef     *pColRefToFetch;
+
+  SArray      *pSavedWindows;  // for sliding trigger and session window trigger
+  SArray      *pInitWindows;   // for sliding trigger and session window trigger
+  SFilterInfo *pStartCond;     // for event window trigger
+  SFilterInfo *pEndCond;       // for event window trigger
+
+  SArray                   *pNotifyParams;  // SArray<SSTriggerCalcParam>
+  SSTriggerPullRequestUnion pullReq;
+  SArray                   *reqCids;  // SArray<col_id_t>
+  SSDataBlock              *pullRes[STRIGGER_PULL_TYPE_MAX];
+  SSTriggerCalcRequest     *pCalcReq;
+  SSTriggerCalcParam       *pParamToFetch;
+
+  void     *pCalcDataCache;
+  SHashObj *pCalcDataCacheIters;
+} SSTriggerHistoryContext;
 
 typedef enum EStreamTriggerType {
   STREAM_TRIGGER_PERIOD = 0,
@@ -191,17 +251,14 @@ typedef struct SStreamTriggerTask {
   SArray            *pNotifyAddrUrls;
   int32_t            notifyErrorHandle;
   bool               notifyHistory;
-  // reader and runner info
+
+  // task info
+  int32_t leaderSnodeId;
   SArray *readerList;      // SArray<SStreamTaskAddr>
   SArray *virtReaderList;  // SArray<SStreamTaskAddr>
   SArray *runnerList;      // SArray<SStreamRunnerTarget>
 
-  // runtime info
-  int32_t                   leaderSnodeId;
-  SSTriggerRealtimeContext *pRealtimeContext;
-  SSHashObj                *pRealtimeStartVer;
-  SSHashObj                *pHistoryCutoffTime;
-
+  // virtual table info
   SSDataBlock *pVirDataBlock;
   SArray      *pVirTrigSlots;     // SArray<int32_t>
   SArray      *pVirCalcSlots;     // SArray<int32_t>
@@ -216,11 +273,15 @@ typedef struct SStreamTriggerTask {
   SArray    *pCalcNodes;     // SArray<SSTriggerCalcNode>
   SSHashObj *pGroupRunning;  // SSHashObj<gid, bool[]>
 
-  // checkpoint
-  bool             isCheckpointReady;
-  volatile int64_t mgmtReqId;
-  char            *streamName;
-  SSHashObj       *pRecalcLastVer;  // SSHashObj<vgId, int64_t>
+  // runtime status
+  bool                      isCheckpointReady;
+  volatile int64_t          mgmtReqId;
+  char                     *streamName;
+  SSTriggerRealtimeContext *pRealtimeContext;
+  SSTriggerHistoryContext  *pHistoryContext;
+  SSHashObj                *pRealtimeStartVer;
+  SSHashObj                *pHistoryCutoffTime;
+  SSHashObj                *pRecalcLastVer;  // SSHashObj<vgId, int64_t>
 } SStreamTriggerTask;
 
 // interfaces called by stream trigger thread

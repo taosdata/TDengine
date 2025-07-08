@@ -818,11 +818,11 @@ _exit:
 
 _err:
   if (code == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
-    vInfo("vgId:%d, process %s request failed since %s, lino:%d ver:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
-          tstrerror(terrno), lino, ver);
-  } else {
-    vError("vgId:%d, process %s request failed since %s, lino:%d ver:%" PRId64, TD_VID(pVnode),
-           TMSG_INFO(pMsg->msgType), tstrerror(terrno), lino, ver);
+    vInfo("vgId:%d, process %s request failed since %s, lino 1:%d ver:%" PRId64, TD_VID(pVnode),
+          TMSG_INFO(pMsg->msgType), tstrerror(code), lino, ver);
+  } else if (code) {
+    vError("vgId:%d, process %s request failed since %s, lino 2:%d ver:%" PRId64, TD_VID(pVnode),
+           TMSG_INFO(pMsg->msgType), tstrerror(code), lino, ver);
   }
 
   return code;
