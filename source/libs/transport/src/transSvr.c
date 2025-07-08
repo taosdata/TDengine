@@ -558,7 +558,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   STransMsgHead* pHead = NULL;
 
   int8_t resetBuf = 0;
-  int    msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 1);
+  int    msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0);
   if (msgLen <= 0) {
     tError("%s conn:%p, read invalid packet", transLabel(pInst), pConn);
     return false;
