@@ -13422,9 +13422,9 @@ void tDestroySubmitReq(SSubmitReq2 *pReq, int32_t flag) {
   if (pReq->aSubmitBlobData != NULL) {
     int32_t nSubmitBlobData = TARRAY_SIZE(pReq->aSubmitBlobData);
     for (int32_t i = 0; i < nSubmitBlobData; i++) {
-      SSubmitBlobData *pBlobData = taosArrayGet(pReq->aSubmitBlobData, i);
-      if (pBlobData->pBlobRow) {
-        tBlobRowDestroy(pBlobData->pBlobRow);
+      SBlobRow2 *pBlobData = taosArrayGetP(pReq->aSubmitBlobData, i);
+      if (pBlobData) {
+        tBlobRowDestroy(pBlobData);
       }
     }
     taosArrayDestroy(pReq->aSubmitBlobData);
