@@ -35,7 +35,6 @@ typedef struct SVirtualTableScanInfo {
   SSDataBlock*   pIntermediateBlock;   // to hold the intermediate result
   SSDataBlock*   pInputBlock;
   SHashObj*      dataSlotMap;
-  SHashObj*      tagSlotMap;
   int32_t        tsSlotId;
   int32_t        tagBlockId;
   int32_t        tagDownStreamId;
@@ -738,7 +737,7 @@ void destroyVirtualTableScanOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-int32_t extractColMap(SNodeList* pNodeList, SHashObj** pSlotMap, SHashObj** pTagSlotMap, int32_t *tsSlotId, int32_t *tagBlockId) {
+int32_t extractColMap(SNodeList* pNodeList, SHashObj** pSlotMap, int32_t *tsSlotId, int32_t *tagBlockId) {
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -751,8 +750,6 @@ int32_t extractColMap(SNodeList* pNodeList, SHashObj** pSlotMap, SHashObj** pTag
   *tagBlockId = -1;
   *pSlotMap = taosHashInit(numOfCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   TSDB_CHECK_NULL(*pSlotMap, code, lino, _return, terrno);
-  *pTagSlotMap = taosHashInit(numOfCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
-  TSDB_CHECK_NULL(*pTagSlotMap, code, lino, _return, terrno);
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnNode* pColNode = (SColumnNode*)nodesListGetNode(pNodeList, i);
@@ -764,7 +761,6 @@ int32_t extractColMap(SNodeList* pNodeList, SHashObj** pSlotMap, SHashObj** pTag
       int32_t slotKey = pColNode->dataBlockId << 16 | pColNode->slotId;
       VTS_ERR_JRET(taosHashPut(*pSlotMap, &slotKey, sizeof(slotKey), &i, sizeof(i)));
     } else if (pColNode->colType == COLUMN_TYPE_TAG) {
-      VTS_ERR_JRET(taosHashPut(*pTagSlotMap, &i, sizeof(i), &pColNode->slotId, sizeof(pColNode->slotId)));
       *tagBlockId = pColNode->dataBlockId;
     }
   }
@@ -879,7 +875,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
   pVirtualScanInfo->sortBufSize =
       pVirtualScanInfo->bufPageSize * (numOfDownstream + 1);  // one additional is reserved for merged result.
   VTS_ERR_JRET(
-      extractColMap(pVirtualScanPhyNode->pTargets, &pVirtualScanInfo->dataSlotMap, &pVirtualScanInfo->tagSlotMap, &pVirtualScanInfo->tsSlotId, &pVirtualScanInfo->tagBlockId));
+      extractColMap(pVirtualScanPhyNode->pTargets, &pVirtualScanInfo->dataSlotMap, &pVirtualScanInfo->tsSlotId, &pVirtualScanInfo->tagBlockId));
 
   pVirtualScanInfo->scanAllCols = pVirtualScanPhyNode->scanAllCols;
 

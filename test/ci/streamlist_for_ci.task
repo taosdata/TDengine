@@ -15,6 +15,9 @@
 
 ,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_sliding.py
 ,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_state_new.py
+,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_state_disorderNupdate_new.py
+,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_count_new.py
+,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_event_new.py
 
 ## 04-Option
 

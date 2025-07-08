@@ -310,7 +310,7 @@ typedef struct SCtgTbTSMACtx {
 } SCtgTbTSMACtx;
 
 typedef struct SCtgVStbRefDbsCtx {
-  SArray*         pNames;
+  SName*          pNames;
 
   STableMeta*     pMeta;
 

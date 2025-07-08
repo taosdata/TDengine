@@ -21,7 +21,7 @@ node-red-node-tdengine 是 TDengine 为 Node-RED 开发的官方插件，由两�
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../../reference/components/taosadapter)。
 - Node-RED 3.0.0 及以上版本，[Node-RED 安装](https://nodered.org/docs/getting-started/)。
 - Node.js 语言连接器 3.1.8 及以上版本，可从 [npmjs.com](https://www.npmjs.com/package/@tdengine/websocket) 下载。
-- node-red-node-tdengine 插件 1.0.0 及以上版本，可从 [npmjs.com](https://www.npmjs.com/package/node-red-node-tdengine) 下载。
+- node-red-node-tdengine 插件最新版本，可从 [npmjs.com](https://www.npmjs.com/package/node-red-node-tdengine) 下载。
 
 以上各安装组件调用关系如下图：
 
@@ -43,27 +43,6 @@ node-red-node-tdengine 是 TDengine 为 Node-RED 开发的官方插件，由两�
  
 4. 配置完成后，点击右上角“部署”按钮，节点状态为绿色，表示数据源配置正确且连接正常。
 
-
-## 验证方法
-
-###  tdengine-operator
-
-参考下一节“使用示例->采集数据”章节：
-1. 配置好 tdengine-operator 数据库连接属性。
-2. 节点前增加 inject 节点，配置 msg.topic 为预期写入 SQL。
-3. 点击 inject 节点“注入”按钮触发 SQL 执行。
-4. 使用 taos-CLI 查询预期写入数据是否存在，验证写入成功。
-
-### tdengine-consumer
-
-参考下一节“使用示例->数据订阅”章节：
-1. 配置好 tdengine-consumer 节点订阅各属性。
-2. 其后增加 debug 节点。
-3. 在节点属性中勾选“节点状态”，下拉列表中选择“消息数量”。
-4. 使用 taos-CLI 向 TOPIC 所在表写入一条数据。
-5. 观察 debug 节点计数预期会加 1。
-6. 验证输出 payload 数据预期与写入数据一致。
-7. 全部符合预期即为验证成功。
 
 ## 使用示例
 
@@ -267,7 +246,7 @@ debug 节点展示向下游节点推送数据次数，生产中可把 debug 节�
   2. 双击节点打开属性设置，名称填写 'catch all except'，捕获范围选择“所有节点”。
   3. 将 debug 节点拖动至画布 catch all except 节点后。
   4. 双击节点设置属性，勾选“节点状态”，下拉列表中选择“消息数量”，保存并返回画布。
-  5. 依次把以上节点按顺序连接起来，点击”部署“按钮发布修改内容。
+  5. 依次把以上节点按顺序连接起来，点击”部署“按钮发布修改内容。    
 流程启动后监控所有节点异常产生：
 - debug 节点展示发生异常数量。
 - 可通过 NODE-RED 日志系统查看异常详细。

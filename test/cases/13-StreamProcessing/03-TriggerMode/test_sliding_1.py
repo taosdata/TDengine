@@ -4,11 +4,11 @@ import time
 import taos
 
 from new_test_framework.utils import tdLog, clusterComCheck, tdStream, tdSql
-from test_period_1 import wait_for_insert_complete, check_all_results, wait_for_stream_done_r1, check_ts_step, \
+from test_period_1 import wait_for_insert_complete, check_all_results, wait_for_stream_done, check_ts_step, \
     clear_output, get_conf_dir, WriteDataInfo, do_write_data_fn
 
 
-class TestStreamCheckpoint:
+class TestStreamTriggerSliding:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -55,12 +55,12 @@ class TestStreamCheckpoint:
         # except Exception as e:
         #     tdLog.error(f"case 2 error: {e}")
         #
-        clear_output("sm2", "tb2")
-        self.prepare_tables(1000, 1, info)
-        try:
-            self.create_and_check_stream_basic_3("sm3", "tb3", info)
-        except Exception as e:
-            tdLog.error(f"case 3 error: {e}")
+        # clear_output("sm2", "tb2")
+        # self.prepare_tables(1000, 1, info)
+        # try:
+        #     self.create_and_check_stream_basic_3("sm3", "tb3", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 3 error: {e}")
 
         # clear_output("sm3", "tb3")
         # self.prepare_tables(1000, 1, info)
@@ -68,9 +68,9 @@ class TestStreamCheckpoint:
         #     self.create_and_check_stream_basic_4("sm4", "tb4", info)
         # except Exception as e:
         #     tdLog.error(f"case 4 error: {e}")
-        #
+
         # clear_output("sm4", "tb4")
-        # self.prepare_tables(100000, 1, info)
+        # self.prepare_tables(10000, 10, info)
         # try:
         #     self.create_and_check_stream_basic_5("sm5", "tb5", info)
         # except Exception as e:
@@ -132,6 +132,27 @@ class TestStreamCheckpoint:
         # except Exception as e:
         #     tdLog.error(f"case 13 error: {e}")
 
+        # clear_output("sm13", "tb13")
+        # self.prepare_tables(1000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_14("sm14", "tb14", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 14 error: {e}")
+
+        # clear_output("sm14", "tb14")
+        # self.prepare_tables(10000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_15("sm15", "tb15", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 15 error: {e}")
+
+        clear_output("sm15", "tb15")
+        self.prepare_tables(10000, 10, info)
+        try:
+            self.create_and_check_stream_basic_16("sm16", "tb16", info)
+        except Exception as e:
+            tdLog.error(f"case 16 error: {e}")
+
     def create_env(self):
         tdLog.info(f"create {self.num_snode} snode(s)")
         for i in range(self.num_snode):
@@ -164,9 +185,6 @@ class TestStreamCheckpoint:
         self.do_prepare_source_table(num_of_tables)
 
     def do_write_data(self, stream_name:str, info: WriteDataInfo):
-        tdLog.info(f"insert data after 10sec")
-
-        # time.sleep(10)
         while True:
             tdSql.query(f"select status from information_schema.ins_streams where stream_name='{stream_name}'")
             if tdSql.getData(0, 0) != "Running":
@@ -177,6 +195,7 @@ class TestStreamCheckpoint:
 
         conf = get_conf_dir("taosd")
 
+        tdLog.info(f"stream {stream_name} is ready, start to insert data")
         # start another thread to write data
         try:
             t = threading.Thread(target=do_write_data_fn, args=(conf, info))
@@ -211,7 +230,7 @@ class TestStreamCheckpoint:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 3)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 3)
 
         check_all_results(f"select c, `sum`, `avg_val` from {dst_table}",
                           [[10000, 49995000, 4999.5, ], [40000, 799980000, 19999.5, ], [70000, 2449965000, 34999.5, ]])
@@ -230,7 +249,7 @@ class TestStreamCheckpoint:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 10)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 10)
         check_ts_step(tb_name=dst_table, freq=0.1)
 
     def create_and_check_stream_basic_3(self, stream_name, dst_table, info: WriteDataInfo) -> None:
@@ -252,7 +271,7 @@ class TestStreamCheckpoint:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         
         self.do_write_data(stream_name, info)
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 3)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 3)
 
         # check_results_by_compare(tb_name=dst_table, freq=30)
 
@@ -272,26 +291,25 @@ class TestStreamCheckpoint:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 100)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 100)
         # self.check_results_by_compare(tb_name=dst_table, freq=30)
 
     def create_and_check_stream_basic_5(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 5: pass
-           Expect: report error message
-           NOTE: interval should be disabled at the end of sql statement
-        """
+        """simple 5: invalid results        """
         tdLog.info(f"start exec stream {stream_name}")
 
         tdSql.execute("use db")
         tdSql.execute(
-            f"create stream {stream_name} interval(3s) sliding(3s) from source_table into {dst_table} as "
-            f"select _tcurrent_ts ts, _wstart wstart, count(*) k, first(c2), sum(c2), last(k) c "
-            f"from source_table interval(1s)")
+            f"create stream {stream_name} interval(2s) sliding(2s) from source_table into {dst_table} as "
+            f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend "
+            )
 
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 3)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 5)
 
 
     def create_and_check_stream_basic_6(self, stream_name, dst_table, info: WriteDataInfo) -> None:
@@ -312,13 +330,12 @@ class TestStreamCheckpoint:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 4)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 4)
         check_all_results(f"select k, c, tag_tbname from {dst_table}",
                           [[10000, 10000, "c0"], [30000, 30000, 'c0'], [30000, 30000, 'c0'], [30000, 30000, 'c0']])
 
     def create_and_check_stream_basic_7(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 7:
-           Error: invalid sql: Duplicated column names
+        """simple 7: Pass
         """
         tdLog.info(f"start exec stream {stream_name}")
 
@@ -332,7 +349,7 @@ class TestStreamCheckpoint:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 10)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 10)
         check_all_results(f"select c, last_val, tx from {dst_table}",
                           [[10000, 9999, "c0"], [10000, 9999, "c1"], [10000, 9999, "c2"],
                            [10000, 9999, "c3"], [10000, 9999, "c4"], [10000, 9999, "c5"],
@@ -357,7 +374,7 @@ class TestStreamCheckpoint:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", info.num_of_tables * self.num_of_rows)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_tables * self.num_of_rows)
 
     def create_and_check_stream_basic_9(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 9:
@@ -378,7 +395,7 @@ class TestStreamCheckpoint:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", 10)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 10)
 
     def create_and_check_stream_basic_10(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 10:
@@ -398,7 +415,7 @@ class TestStreamCheckpoint:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
 
     def create_and_check_stream_basic_11(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 11:
@@ -418,7 +435,7 @@ class TestStreamCheckpoint:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(stream_name, info)
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
 
     def create_and_check_stream_basic_12(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 12:
@@ -442,7 +459,7 @@ class TestStreamCheckpoint:
         tdSql.execute(f"insert into c_new values(1710000000000, 999, '10', 999)(1710000010000, 1000, '10', 1000)"
                       f"(1710000020000, 2000, '20', 2000)")
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
         # self.check_all_results(f"select count(*) from {dst_table} ", [(10000,)])
 
     def create_and_check_stream_basic_13(self, stream_name, dst_table, info: WriteDataInfo) -> None:
@@ -466,6 +483,100 @@ class TestStreamCheckpoint:
         # tdSql.execute(f"alter table c2 set tag a=1")
         # tdSql.execute(f"insert into c2 values(1710000000000, 999, '10', 999)")
 
-        wait_for_stream_done_r1(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_tables)
 
         # self.check_all_results(f"select count(*) from {dst_table} ", [(10000,)])
+
+    def create_and_check_stream_basic_14(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 14: Pass """
+        tdLog.info(f"start exec stream {stream_name}")
+        time.sleep(10)
+
+        tdSql.execute("use db")
+        tdSql.execute(
+            f"create stream {stream_name} interval(3s) sliding(3s) from source_table partition by tbname options(DELETE_OUTPUT_TABLE) into {dst_table} as "
+            f"select _twstart st, _twend et, count(*),  max(k) c, sum(k), first(ts), last(ts) "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 <= _twend group by tbname")
+
+        tdLog.info(f"create stream completed, start to write data after 10sec")
+        tdStream.checkStreamStatus(stream_name)
+
+        info.insert_complete = True
+        tdSql.execute("insert into c0 values('2025-01-01 10:10:10.5', '1', '1', '1') ('2025-01-01 10:10:15.5', '2', '2', '2')"
+                      "('2025-01-01 10:10:20.5', '3', '3', '3')('2025-01-01 10:10:25.5', '4', '4', '4')"
+                      "('2025-01-01 10:10:30.5', '5', '5', '5')")
+
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 7)
+
+        tdSql.execute("drop table c0")
+        tdSql.execute("create table c0 using source_table tags(1234567)")
+
+        tdSql.execute("insert into c0 values('2025-01-01 10:10:13', '1', '1', '1')('2025-01-01 10:10:18', '1', '1', '1')"
+                      "('2025-01-01 10:10:23', '1', '1', '1')('2025-01-01 10:10:28', '1', '1', '1')")
+
+        time.sleep(5)
+        check_all_results(f"select count(*) from information_schema.ins_tables where stable_name='{dst_table}'",
+                          [[1]])
+
+    def create_and_check_stream_basic_15(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 5: invalid results"""
+        tdLog.info(f"start exec stream {stream_name}")
+
+        tdSql.execute("use db")
+        tdSql.execute(
+            f"create stream {stream_name} interval(2s) sliding(2s) from source_table into {dst_table} as "
+            f"select _twstart, _tcurrent_ts ts, _wstart wst, count(*) k, first(c2), sum(c2), last(k) c "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend "
+            f"interval(1s) order by wst desc limit 1 offset 0")
+
+        tdLog.info(f"create stream completed, and start to write data after 10sec")
+        self.do_write_data(stream_name, info)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 5)
+
+
+    def create_and_check_stream_basic_16(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 16: results not equal"""
+        tdLog.info(f"start exec stream {stream_name}")
+
+        tdSql.execute("use db")
+        tdSql.execute(
+            f"create stream {stream_name}_0 interval(10a) sliding(10a) from source_table options(LOW_LATENCY_CALC) into {dst_table}_0 as "
+            f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend ")
+
+        tdSql.execute(
+            f"create stream {stream_name}_1 interval(10a) sliding(10a) from source_table options(LOW_LATENCY_CALC) into {dst_table}_1 as "
+            f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend ")
+
+        tdSql.execute(
+            f"create stream {stream_name}_2 interval(10a) sliding(10a) from source_table options(LOW_LATENCY_CALC) into {dst_table}_2 as "
+            f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend ")
+
+        tdSql.execute(
+            f"create stream {stream_name}_3 interval(10a) sliding(10a) from source_table options(LOW_LATENCY_CALC) into {dst_table}_3 as "
+            f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend ")
+
+        tdSql.execute(
+            f"create stream {stream_name}_4 interval(10a) sliding(10a) from source_table options(LOW_LATENCY_CALC) into {dst_table}_4 as "
+            f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
+            f"from source_table "
+            f"where _c0 >= _twstart and _c0 < _twend ")
+
+        tdStream.checkStreamStatus(f"{stream_name}_0")
+        tdStream.checkStreamStatus(f"{stream_name}_1")
+        tdStream.checkStreamStatus(f"{stream_name}_2")
+        tdStream.checkStreamStatus(f"{stream_name}_3")
+        tdStream.checkStreamStatus(f"{stream_name}_4")
+
+        tdLog.info(f"create stream completed, and start to write data after 10sec")
+        self.do_write_data(f"{stream_name}_4", info)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}_0", 1000)

@@ -41,9 +41,9 @@ void streamMgmtCleanup() {
 }
 
 void streamCleanup(void) {
+  streamTriggerEnvCleanup();
   streamTimerCleanUp();
   smUndeployAllTasks();
-  streamTriggerEnvCleanup();
   destroyDataSinkMgr();
   streamMgmtCleanup();
   destroyInserterGrpInfo();

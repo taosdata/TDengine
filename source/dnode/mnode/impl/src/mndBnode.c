@@ -304,15 +304,22 @@ _OVER:
 }
 
 static int32_t mndSetDropBnodeRedoLogs(STrans *pTrans, SBnodeObj *pObj) {
-  int32_t  code = 0;
+  int32_t code = 0, lino = 0;
+
   SSdbRaw *pRedoRaw = mndBnodeActionEncode(pObj);
   if (pRedoRaw == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
     TAOS_RETURN(code);
   }
-  TAOS_CHECK_RETURN(mndTransAppendRedolog(pTrans, pRedoRaw));
-  TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING));
+  TAOS_CHECK_GOTO(mndTransAppendGroupRedolog(pTrans, pRedoRaw, -1), &lino, _OVER);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING), &lino, _OVER);
+
+_OVER:
+  if (code != 0) {
+    mError("bnode:%d, failed to drop bnode at line:%d since %s", pObj->id, lino, tstrerror(code));
+  }
+
   TAOS_RETURN(code);
 }
 
@@ -361,13 +368,21 @@ static int32_t mndSetDropBnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SBn
 }
 
 int32_t mndSetDropBnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SBnodeObj *pObj, bool force) {
+  int32_t code = -1, lino = 0;
+
   if (pObj == NULL) return 0;
-  TAOS_CHECK_RETURN(mndSetDropBnodeRedoLogs(pTrans, pObj));
-  TAOS_CHECK_RETURN(mndSetDropBnodeCommitLogs(pTrans, pObj));
+  TAOS_CHECK_GOTO(mndSetDropBnodeRedoLogs(pTrans, pObj), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndSetDropBnodeCommitLogs(pTrans, pObj), &lino, _OVER);
   if (!force) {
-    TAOS_CHECK_RETURN(mndSetDropBnodeRedoActions(pTrans, pObj->pDnode, pObj));
+    TAOS_CHECK_GOTO(mndSetDropBnodeRedoActions(pTrans, pObj->pDnode, pObj), &lino, _OVER);
   }
-  return 0;
+
+_OVER:
+  if (code != 0) {
+    mError("bnode:%d, failed to drop bnode at line:%d since %s", pObj->id, lino, tstrerror(code));
+  }
+
+  return code;
 }
 
 static int32_t mndDropBnode(SMnode *pMnode, SRpcMsg *pReq, SBnodeObj *pObj) {
@@ -437,6 +452,7 @@ _OVER:
   }
 
   mndReleaseBnode(pMnode, pObj);
+  mndReleaseDnode(pMnode, pDnode);
   tFreeSMDropBnodeReq(&dropReq);
   TAOS_RETURN(code);
 }
