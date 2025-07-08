@@ -1401,19 +1401,17 @@ typedef struct {
 } SColRefKV;
 
 int32_t extractColRefName(const char *colref, char **refDb, char** refTb, char** refCol) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     line = 0;
   const char *dbname = NULL;
   const char *tablename = NULL;
   const char *colname = NULL;
 
   const char *first_dot = strchr(colref, '.');
-  if (!first_dot) {
-    return TSDB_CODE_FAILED;
-  }
+  QUERY_CHECK_NULL(first_dot, code, line, _return, terrno)
 
   const char *second_dot = strchr(first_dot + 1, '.');
-  if (!second_dot) {
-    return TSDB_CODE_FAILED;
-  }
+  QUERY_CHECK_NULL(second_dot, code, line, _return, terrno)
 
   size_t db_len = first_dot - colref;
   size_t table_len = second_dot - first_dot - 1;
@@ -1422,12 +1420,30 @@ int32_t extractColRefName(const char *colref, char **refDb, char** refTb, char**
   *refDb = taosMemoryMalloc(db_len + 1);
   *refTb = taosMemoryMalloc(table_len + 1);
   *refCol = taosMemoryMalloc(col_len + 1);
+  QUERY_CHECK_NULL(*refDb, code, line, _return, terrno)
+  QUERY_CHECK_NULL(*refTb, code, line, _return, terrno)
+  QUERY_CHECK_NULL(*refCol, code, line, _return, terrno)
 
   tstrncpy(*refDb, colref, db_len + 1);
   tstrncpy(*refTb, first_dot + 1, table_len + 1);
   tstrncpy(*refCol, second_dot + 1, col_len + 1);
 
   return TSDB_CODE_SUCCESS;
+_return:
+  qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
+  if (*refDb) {
+    taosMemoryFree(*refDb);
+    *refDb = NULL;
+  }
+  if (*refTb) {
+    taosMemoryFree(*refTb);
+    *refTb = NULL;
+  }
+  if (*refCol) {
+    taosMemoryFree(*refCol);
+    *refCol = NULL;
+  }
+  return code;
 }
 
 int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
@@ -1544,15 +1560,21 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
         uid = pKV->uid;
         vgId = pKV->vgId;
         if (pKV->colrefName != NULL && colNeedScan(pOperator, pKV->colId)) {
-          char *refDbName = NULL;
-          char *refTbName = NULL;
-          char *refColName = NULL;
-
-          extractColRefName(pKV->colrefName, &refDbName, &refTbName, &refColName);
+          char*   refDbName = NULL;
+          char*   refTbName = NULL;
+          char*   refColName = NULL;
           SName   name = {0};
           char    dbFname[TSDB_DB_FNAME_LEN] = {0};
           char    orgTbFName[TSDB_TABLE_FNAME_LEN] = {0};
+
+          code = extractColRefName(pKV->colrefName, &refDbName, &refTbName, &refColName);
+          QUERY_CHECK_CODE(code, line, _return);
+
           toName(pInfo->vtbScan.acctId, refDbName, refTbName, &name);
+          taosMemoryFree(refDbName);
+          taosMemoryFree(refTbName);
+          taosMemoryFree(refColName);
+
           code = getDbVgInfo(pOperator, &name, &dbVgInfo);
           QUERY_CHECK_CODE(code, line, _return);
           tNameGetFullDbName(&name, dbFname);

@@ -1187,7 +1187,10 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
     PLAN_ERR_JRET(terrno);
   }
 
-  PLAN_ERR_JRET(addVtbPrimaryTsCol(pVirtualTable, &pVtableScan->pScanCols));
+  if (pCxt->pPlanCxt->withExtWindow && pCxt->pPlanCxt->streamCalcQuery) {
+    // ts column might be extract from where to time range. So, ts column won't be collected into pVtableScan->pScanCols.
+    PLAN_ERR_JRET(addVtbPrimaryTsCol(pVirtualTable, &pVtableScan->pScanCols));
+  }
 
   PLAN_ERR_JRET(eliminateDupScanCols(pVtableScan->pScanCols));
 
