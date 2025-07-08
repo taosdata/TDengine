@@ -537,12 +537,12 @@ class TestStreamTriggerSliding:
 
 
     def create_and_check_stream_basic_16(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 16: no equals"""
+        """simple 16: results not equal"""
         tdLog.info(f"start exec stream {stream_name}")
 
         tdSql.execute("use db")
         tdSql.execute(
-            f"create stream {stream_name}_0 interval(10a) sliding(10a) from source_table partition by tbname options(LOW_LATENCY_CALC) into {dst_table}_0 as "
+            f"create stream {stream_name}_0 interval(10a) sliding(10a) from source_table options(LOW_LATENCY_CALC) into {dst_table}_0 as "
             f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
             f"from source_table "
             f"where _c0 >= _twstart and _c0 < _twend ")
@@ -571,6 +571,12 @@ class TestStreamTriggerSliding:
             f"from source_table "
             f"where _c0 >= _twstart and _c0 < _twend ")
 
+        tdStream.checkStreamStatus(f"{stream_name}_0")
+        tdStream.checkStreamStatus(f"{stream_name}_1")
+        tdStream.checkStreamStatus(f"{stream_name}_2")
+        tdStream.checkStreamStatus(f"{stream_name}_3")
+        tdStream.checkStreamStatus(f"{stream_name}_4")
+
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(f"{stream_name}_4", info)
-        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 5)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}_0", 1000)
