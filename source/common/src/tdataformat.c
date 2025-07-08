@@ -139,7 +139,6 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
   }
   if (!(colValArray[0].value.type == TSDB_DATA_TYPE_TIMESTAMP)) {
     return TSDB_CODE_PAR_INVALID_FIRST_COLUMN;
-    ;
   }
 
   *sinfo = (SRowBuildScanInfo){.tupleFixedSize = schema->flen, .hasBlob = sinfo->hasBlob, .scanType = sinfo->scanType};
@@ -266,7 +265,7 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
   }
 
   if ((*ppRow)->flag == 0) {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_PARA;
   }
 
   uint8_t *primaryKeys = (*ppRow)->data;
@@ -334,7 +333,7 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
     //(*ppRow)->flag |= HAS_BLOB;
   }
   if ((*ppRow)->flag == 0) {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_PARA;
   }
 
   return 0;
@@ -356,7 +355,7 @@ static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *
   (*ppRow)->ts = colValArray[0].value.val;
 
   if (((*ppRow)->flag) == 0) {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_PARA;
   }
   if (sinfo->tupleFlag == HAS_NONE || sinfo->tupleFlag == HAS_NULL) {
     return 0;
@@ -453,7 +452,7 @@ static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *
   }
 
   if (((*ppRow)->flag) == 0) {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_PARA;
   }
   if (hasBlob == 1) {
     //(*ppRow)->flag |= HAS_BLOB;
@@ -656,8 +655,9 @@ static int32_t tRowBuildKVRowWithBlob(SArray *aColVal, const SRowBuildScanInfo *
   }
 
   if (((*ppRow)->flag) == 0) {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_PARA;
   }
+
   uint8_t *primaryKeys = (*ppRow)->data;
   SKVIdx  *indices = (SKVIdx *)(primaryKeys + sinfo->kvPKSize);
   uint8_t *payload = primaryKeys + sinfo->kvPKSize + sinfo->kvIndexSize;
@@ -754,11 +754,8 @@ static int32_t tRowBuildKVRowWithBlob(SArray *aColVal, const SRowBuildScanInfo *
   }
 
   if (((*ppRow)->flag) == 0) {
-    ASSERT(0);
+    return TSDB_CODE_INVALID_PARA;
   }
-  // if (isBlob) {
-  //   (*ppRow)->flag |= HAS_BLOB;
-  // }
   return 0;
 }
 int32_t tRowBuildWithMerge(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
