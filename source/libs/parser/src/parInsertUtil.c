@@ -433,6 +433,7 @@ void insDestroyVgroupDataCxt(SVgroupDataCxt* pVgCxt) {
 
   tDestroySubmitReq(pVgCxt->pData, TSDB_MSG_FLG_ENCODE);
   taosMemoryFree(pVgCxt->pData);
+
   taosMemoryFree(pVgCxt);
 }
 
