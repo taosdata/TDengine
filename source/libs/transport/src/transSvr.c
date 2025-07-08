@@ -645,7 +645,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   int64_t readCost = ts2 - ts1;
   int64_t handleCost = ts3 - ts2;
-  if (readCost > 1000 || handleCost > 1000) {
+  if (readCost > 10000 || handleCost > 10000) {
     tWarn("%s conn:%p, read %s cost too much time:%" PRId64 "us, handle cost %" PRId64 ", seqNum:%" PRId64
           ", sid:%" PRId64,
           transLabel(pInst), pConn, TMSG_INFO(transMsg.msgType), readCost, handleCost, transMsg.info.seqNum,
@@ -668,7 +668,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     destroyConn(conn, true);
     return;
   }
-  tInfo("active reqs %d", cli->loop->active_reqs.count);
+  // tInfo("active reqs %d", cli->loop->active_reqs.count);
 
   code = transSetReadOption((uv_handle_t*)cli);
   if (code != 0) {
