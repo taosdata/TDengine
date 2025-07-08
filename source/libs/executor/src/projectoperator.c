@@ -887,8 +887,9 @@ static void setPseudoOutputColInfo(SSDataBlock* pResult, SqlFunctionCtx* pCtx, S
   }
 }
 
-int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
-                              int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams) {
+int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock,
+                                        SqlFunctionCtx* pCtx, int32_t numOfOutput, SArray* pPseudoList,
+                                        const void* pExtraParams, bool doSelectFunc) {
   int32_t lino = 0;
   int32_t code = TSDB_CODE_SUCCESS;
   setPseudoOutputColInfo(pResult, pCtx, pPseudoList);
@@ -926,7 +927,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
   if (pResult != pSrcBlock) {
     pResult->info.id.groupId = pSrcBlock->info.id.groupId;
     memcpy(pResult->info.parTbName, pSrcBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
-    qTrace("%s, parName:%s,groupId:%"PRIu64, __FUNCTION__, pSrcBlock->info.parTbName, pResult->info.id.groupId);
+    qTrace("%s, parName:%s,groupId:%" PRIu64, __FUNCTION__, pSrcBlock->info.parTbName, pResult->info.id.groupId);
   }
 
   // if the source equals to the destination, it is to create a new column as the result of scalar
@@ -1038,7 +1039,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         TSDB_CHECK_CODE(code, lino, _exit);
       }
 
-      SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
+      SColumnInfoData idata = {.info = pResColData->info, .hasNull = true};
 
       SScalarParam dest = {.columnData = &idata};
       code = scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest, pExtraParams, NULL);
@@ -1054,7 +1055,8 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         TSDB_CHECK_CODE(code, lino, _exit);
       }
 
-      int32_t ret = colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
+      int32_t ret =
+          colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
       if (ret < 0) {
         code = ret;
       }
@@ -1066,7 +1068,8 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       taosArrayDestroy(pBlockList);
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_FUNCTION) {
       // _rowts/_c0, not tbname column
-      if (fmIsPseudoColumnFunc(pfCtx->functionId) && (!fmIsScanPseudoColumnFunc(pfCtx->functionId)) && !fmIsPlaceHolderFunc(pfCtx->functionId)) {
+      if (fmIsPseudoColumnFunc(pfCtx->functionId) && (!fmIsScanPseudoColumnFunc(pfCtx->functionId)) &&
+          !fmIsPlaceHolderFunc(pfCtx->functionId)) {
         if (fmIsGroupIdFunc(pfCtx->functionId)) {
           SColumnInfoData* pColInfoData = taosArrayGet(pResult->pDataBlock, outputSlotId);
           TSDB_CHECK_NULL(pColInfoData, code, lino, _exit, terrno);
@@ -1127,7 +1130,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         }
       } else if (fmIsAggFunc(pfCtx->functionId)) {
         // selective value output should be set during corresponding function execution
-        if (fmIsSelectValueFunc(pfCtx->functionId)) {
+        if (!doSelectFunc && fmIsSelectValueFunc(pfCtx->functionId)) {
           continue;
         }
         // _group_key function for "partition by tbname" + csum(col_name) query
@@ -1137,7 +1140,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
           TSDB_CHECK_CODE(code, lino, _exit);
         }
 
-        int32_t          slotId = pfCtx->param[0].pCol->slotId;
+        int32_t slotId = pfCtx->param[0].pCol->slotId;
 
         // todo handle the json tag
         SColumnInfoData* pInput = taosArrayGet(pSrcBlock->pDataBlock, slotId);
@@ -1177,7 +1180,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
           TSDB_CHECK_CODE(code, lino, _exit);
         }
 
-        SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
+        SColumnInfoData idata = {.info = pResColData->info, .hasNull = true};
 
         SScalarParam dest = {.columnData = &idata};
         code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest, pExtraParams, NULL);
@@ -1192,7 +1195,8 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
           code = TSDB_CODE_INVALID_PARA;
           TSDB_CHECK_CODE(code, lino, _exit);
         }
-        int32_t ret = colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
+        int32_t ret =
+            colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
         if (ret < 0) {
           code = ret;
         }
@@ -1208,7 +1212,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     }
   }
 
-  if (processByRowFunctionCtx && taosArrayGetSize(processByRowFunctionCtx) > 0){
+  if (processByRowFunctionCtx && taosArrayGetSize(processByRowFunctionCtx) > 0) {
     SqlFunctionCtx** pfCtx = taosArrayGet(processByRowFunctionCtx, 0);
     if (pfCtx == NULL) {
       code = terrno;
@@ -1225,11 +1229,16 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
   }
 
 _exit:
-  if(processByRowFunctionCtx) {
+  if (processByRowFunctionCtx) {
     taosArrayDestroy(processByRowFunctionCtx);
   }
-  if(code) {
+  if (code) {
     qError("project apply functions failed at: %s:%d", __func__, lino);
   }
   return code;
+}
+
+int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
+                              int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams) {
+  return projectApplyFunctionsWithSelect(pExpr, pResult, pSrcBlock, pCtx, numOfOutput, pPseudoList, pExtraParams, false);
 }
