@@ -7497,17 +7497,17 @@ static int32_t translateEventWindow(STranslateContext* pCxt, SSelectStmt* pSelec
 }
 
 static int32_t checkCountWindow(STranslateContext* pCxt, SCountWindowNode* pCountWin) {
-  if (pCountWin->windowCount <= 1) {
+  if (pCountWin->windowCount < (pCxt->createStreamTrigger ? 1 : 2)) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "Size of Count window must exceed 1."));
   }
 
-  if (pCountWin->windowSliding <= 0) {
+  if (pCountWin->windowSliding < (pCxt->createStreamTrigger ? 0 : 1)) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "Size of Count window must exceed 0."));
   }
 
-  if (pCountWin->windowSliding > pCountWin->windowCount) {
+  if (pCountWin->windowSliding > pCountWin->windowCount && !pCxt->createStreamTrigger) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "sliding value no larger than the count value."));
   }
