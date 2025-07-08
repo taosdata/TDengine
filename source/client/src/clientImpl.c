@@ -24,6 +24,8 @@
 #include "tdataformat.h"
 #include "tdef.h"
 #include "tglobal.h"
+#include "tmisce.h"
+#include "tmsg.h"
 #include "tmsgtype.h"
 #include "tpagedbuf.h"
 #include "tref.h"
@@ -1658,7 +1660,8 @@ int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __ta
   }
 
   // int64_t transporterId = 0;
-  code = asyncSendMsgToServer((*pTscObj)->pAppInfo->pTransporter, &(*pTscObj)->pAppInfo->mgmtEp.epSet, NULL, body);
+  SEpSet epset = getEpSet_s(&(*pTscObj)->pAppInfo->mgmtEp);
+  code = asyncSendMsgToServer((*pTscObj)->pAppInfo->pTransporter, &epset, NULL, body);
   if (TSDB_CODE_SUCCESS != code) {
     destroyTscObj(*pTscObj);
     tscError("failed to send connect msg to server, code:%s", tstrerror(code));
@@ -1757,7 +1760,8 @@ void updateTargetEpSet(SMsgSendInfo* pSendInfo, STscObj* pTscObj, SRpcMsg* pMsg,
         return;
       }
 
-      SEpSet* pOrig = &pTscObj->pAppInfo->mgmtEp.epSet;
+      SEpSet  originEpset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+      SEpSet* pOrig = &originEpset;
       SEp*    pOrigEp = &pOrig->eps[pOrig->inUse];
       SEp*    pNewEp = &pEpSet->eps[pEpSet->inUse];
       tscDebug("mnode epset updated from %d/%d=>%s:%d to %d/%d=>%s:%d in client", pOrig->inUse, pOrig->numOfEps,
