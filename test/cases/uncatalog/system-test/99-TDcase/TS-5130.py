@@ -1,23 +1,17 @@
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
-import taos
+from new_test_framework.utils.log import tdLog
+from new_test_framework.utils.sql import tdSql
+from new_test_framework.utils.common import tdCom
 
 
-
-class TDTestCase:
-    def init(self, conn, logSQl, replicaVal=1):
-        self.replicaVar = int(replicaVal)
+class TestTS_5130:
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        self.conn = conn
-        tdSql.init(conn.cursor(), False)
-        self.passwd = {'root':'taosdata',
+        cls.passwd = {'root':'taosdata',
                        'test':'test123@#$'}
     def prepare_user(self):
         tdSql.execute(f"create user test pass 'test123@#$' sysinfo 1")
 
-    def test_connect_user(self, uname):
+    def check_connect_user(self, uname):
         try:
             for db in ['information_schema', 'performance_schema']:
                 new_tdsql = tdCom.newTdSql(user=uname, password=self.passwd[uname], database=db)
@@ -28,18 +22,35 @@ class TDTestCase:
         except:
             tdLog.exit(f'{__file__} failed')
     
-    def run(self):
+    def test_ts_5130(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.prepare_user()
-        self.test_connect_user('root')
-        self.test_connect_user('test')
+        self.check_connect_user('root')
+        self.check_connect_user('test')
     
-    def stop(self):
-        tdSql.close()
+        # Cleanup from original stop method
         tdLog.success(f"{__file__} successfully executed")
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
 
 
             
+    
+
     

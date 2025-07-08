@@ -1,21 +1,36 @@
 import random
 import string
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
+from new_test_framework.utils.log import tdLog
+from new_test_framework.utils.sql import tdSql
 
-class TDTestCase:
+class TestTD_34687:
 
-    def init(self, conn, logSql, replicaVar=1):
+    def setup_class(cls):
         random.seed(1) # for reproducibility
-        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
     
 
-    def run(self):
+    def test_td_34687(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
+
         table_count = 100000 # 1000 is enough to reproduce the issue
         tag_length = 1026
 
@@ -38,10 +53,8 @@ class TDTestCase:
             tdSql.execute(f"drop table db.t{i}")
 
 
-    def stop(self):
-        tdSql.close()
+        # Cleanup from original stop method
         tdLog.success(f"{__file__} successfully executed")
 
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())
+    

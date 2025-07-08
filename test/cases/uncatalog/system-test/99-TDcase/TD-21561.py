@@ -17,24 +17,20 @@ import time
 import taos
 import subprocess
 from faker import Faker
-from util.log import tdLog
-from util.cases import tdCases
-from util.sql import tdSql
-from util.dnodes import tdDnodes
-from util.dnodes import *
 
-class TDTestCase:
+from new_test_framework.utils import tdDnodes, tdLog, tdSql
+
+class TestTD_21561:
     updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 143 ,"querySmaOptimize":1}
 
-    def init(self, conn, logSql, replicaVar):
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
 
-        self.testcasePath = os.path.split(__file__)[0]
-        self.testcaseFilename = os.path.split(__file__)[-1]
-        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf %s/%s.sql" % (cls.testcasePath,cls.testcaseFilename))
 
-        self.db = "hyp"
+        cls.db = "hyp"
 
     def dropandcreateDB_random(self,database,n):
         ts = 1630000000000
@@ -124,7 +120,25 @@ class TDTestCase:
         else :
             tdLog.exit(f"checkEqual error, base_value=={base_value},check_value={check_value}")
 
-    def run(self):
+    def test_td_21561(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
 
         startTime = time.time()
 
@@ -139,10 +153,9 @@ class TDTestCase:
 
 
 
-    def stop(self):
-        tdSql.close()
+        # Cleanup from original stop method
         tdLog.success("%s successfully executed" % __file__)
 
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+
+    

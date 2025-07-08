@@ -1,22 +1,13 @@
-import taos
-import sys
-import datetime
-import inspect
-import math
-from util.log import *
-from util.sql import *
-from util.cases import *
+from new_test_framework.utils.log import tdLog
+from new_test_framework.utils.sql import tdSql
 
 
-class TDTestCase:
+class TestTD_20582:
     # updatecfgDict = {'debugFlag': 143 ,"cDebugFlag":143,"uDebugFlag":143 ,"rpcDebugFlag":143 , "tmrDebugFlag":143 ,
     # "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
     # "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"udfDebugFlag":143}
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-
     def prepare_datas(self, dbname="db"):
 
         tdSql.execute(
@@ -71,7 +62,26 @@ class TDTestCase:
         # basic query
         
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+    def test_td_20582(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
+        # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
 
         tdLog.printNoPrefix("========== step1: create table ==============")
@@ -85,9 +95,8 @@ class TDTestCase:
         
 
 
-    def stop(self):
-        tdSql.close()
+        # Cleanup from original stop method
         tdLog.success(f"{__file__} successfully executed")
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())
+
+    

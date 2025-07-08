@@ -12,26 +12,21 @@
 # -*- coding: utf-8 -*-
 
 import time
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
-from util.sqlset import *
+from new_test_framework.utils.log import tdLog
+from new_test_framework.utils.sql import tdSql
+from new_test_framework.utils.sqlset import TDSetSql
 
-class TDTestCase:
+class TestTS_5580:
     updatecfgDict = {'qDebugFlag':135 , 'mDebugFlag':135}
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
-        self.setsql = TDSetSql()
-        self.dbname = 'db'
-        self.stbname = 'stb'
-        self.binary_length = 20 # the length of binary for column_dict
-        self.nchar_length = 20  # the length of nchar for column_dict
-        self.ts = 1537146000000
-        self.column_dict = {
+    def setup_class(cls):
+        cls.setsql = TDSetSql()
+        cls.dbname = 'db'
+        cls.stbname = 'stb'
+        cls.binary_length = 20 # the length of binary for column_dict
+        cls.nchar_length = 20  # the length of nchar for column_dict
+        cls.ts = 1537146000000
+        cls.column_dict = {
             'ts'  : 'timestamp',
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -53,9 +48,9 @@ class TDTestCase:
             'col18': 'double',
             'col19': 'double'
         }
-        self.tbnum = 500
-        self.rowNum = 10
-        self.tag_dict = {
+        cls.tbnum = 500
+        cls.rowNum = 10
+        cls.tag_dict = {
             't0':'int',
             't1':'bigint',
             't2':'float',
@@ -77,7 +72,7 @@ class TDTestCase:
             't18':'bool',
             't19':'bool',
         }
-        self.tag_values = [
+        cls.tag_values = [
             f'1','1','1','1','true','true','true','true','true','true','true','true','true','true','true','true','true',
             'true','true','true'
         ]
@@ -93,26 +88,43 @@ class TDTestCase:
                           f"{self.tag_values[14]}, {self.tag_values[15]}, {self.tag_values[16]}, {self.tag_values[17]}, "
                           f"{self.tag_values[18]}, {self.tag_values[19]})")
 
-    def test_query_ins_tags(self):
+    def check_query_ins_tags(self):
         for i in range(self.tbnum):
             sql = f'select tag_name, tag_value from information_schema.ins_tags where table_name = "{self.stbname}_{i}"'
             tdSql.query(sql)
             tdSql.checkRows(20)
 
-    def test_query_ins_columns(self):
+    def check_query_ins_columns(self):
         for i in range(self.tbnum):
             sql = f'select col_name from information_schema.ins_columns where table_name = "{self.stbname}_{i}"'
             tdSql.query(sql)
             tdSql.checkRows(20)
-    def run(self):
+    def test_ts_5580(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.prepare_data()
-        self.test_query_ins_tags()
-        self.test_query_ins_columns()
+        self.check_query_ins_tags()
+        self.check_query_ins_columns()
 
 
-    def stop(self):
-        tdSql.close()
+        # Cleanup from original stop method
         tdLog.success("%s successfully executed" % __file__)
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+
+    

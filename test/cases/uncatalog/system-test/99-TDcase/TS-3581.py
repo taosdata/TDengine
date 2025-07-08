@@ -5,20 +5,14 @@ import socket
 import os
 import threading
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
+from new_test_framework.utils.log import tdLog
+from new_test_framework.utils.sql import tdSql
 
-class TDTestCase:
+class TestTS_3581:
     hostname = socket.gethostname()
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor())
-        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
-
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
@@ -57,7 +51,26 @@ class TDTestCase:
 
         tdLog.debug("insert data ............ [OK]")
 
-    def run(self):
+    def test_ts_3581(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
+
         tdSql.prepare()
         self.create_tables()
         self.insert_data()
@@ -68,12 +81,9 @@ class TDTestCase:
           tdSql.checkRows(1)
           print(tdSql.queryResult)
           tdSql.checkData(0, 0, '2023-06-26 14:38:30.000')
-        return
 
-
-    def stop(self):
-        tdSql.close()
+        # Cleanup from original stop method
         tdLog.success(f"{__file__} successfully executed")
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())
+
+    
