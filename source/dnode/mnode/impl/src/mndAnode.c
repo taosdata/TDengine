@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tgrant.h"
 #define _DEFAULT_SOURCE
 #include "mndAnode.h"
 #include "audit.h"
@@ -593,6 +594,12 @@ static int32_t mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   char       buf[TSDB_ANALYTIC_ANODE_URL_LEN + VARSTR_HEADER_SIZE];
   char       status[64];
   int32_t    code = 0;
+
+  code = grantCheckExpire(TSDB_GRANT_TD_GPT);
+  if (code != 0) {
+    mError("TDgpt/Anode expired， failed to retrieve anode info");
+    return code;
+  }
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_ANODE, pShow->pIter, (void **)&pObj);
