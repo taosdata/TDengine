@@ -870,6 +870,12 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   goto _OVER;
 #endif
 
+  SCMCreateStreamReq* pCreate = taosMemoryCalloc(1, sizeof(SCMCreateStreamReq));
+  TSDB_CHECK_NULL(pCreate, code, lino, _OVER, terrno);
+  
+  code = tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, pCreate);
+  TSDB_CHECK_CODE(code, lino, _OVER);
+
   uint64_t    streamId = pCreate->streamId;
 
   mstsInfo("start to create stream %s, sql:%s", pCreate->name, pCreate->sql);

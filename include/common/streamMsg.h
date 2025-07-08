@@ -244,6 +244,7 @@ typedef struct {
   int8_t fillHistoryFirst;
   int8_t calcNotifyOnly;
   int8_t lowLatencyCalc;
+  int8_t igNoDataTrigger;
 
   // notify options
   SArray* pNotifyAddrUrls;

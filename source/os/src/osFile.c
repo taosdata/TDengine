@@ -1779,6 +1779,34 @@ int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt) {
   (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
   return (int64_t)written;
+#elif defined(WINDOWS)
+  if (pFile == NULL || pFile->hFile == NULL) {
+#if FILE_WITH_LOCK
+    (void)taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
+  }
+  int64_t totalWritten = 0;
+  for (int i = 0; i < iovcnt; ++i) {
+    TaosIOVec *vec = &iov[i];
+    if (vec->iov_len <= 0) continue;
+    DWORD written;
+    if (!WriteFile(pFile->hFile, vec->iov_base, vec->iov_len, &written, NULL)) {
+      SET_ERRNO(GetLastError());
+      terrno = TAOS_SYSTEM_WINAPI_ERROR(ERRNO);
+      written = -1;
+      break;
+    }
+    totalWritten += written;
+  }
+#if FILE_WITH_LOCK
+  (void)taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+  if (totalWritten < 0) {
+    return -1;
+  }
+  return (int64_t)totalWritten;
 #else
   if (pFile->fd < 0) {
 #if FILE_WITH_LOCK

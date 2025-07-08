@@ -160,9 +160,7 @@ static int32_t mergeAlignedExternalWindowNext(SOperatorInfo* pOperator, SSDataBl
       if (pTaskInfo->pStreamRuntimeInfo->funcInfo.triggerType != 1){  // 1 meams STREAM_TRIGGER_SLIDING
         win.ekey++;
       }
-      (void)taosArrayPush(pExtW->pWins, &win);
-      // (void)taosArrayPush(pExtW->pOffsetList, &pExtW->limitInfo);
-
+      TSDB_CHECK_NULL(taosArrayPush(pExtW->pWins, &win), code, lino, _end, terrno);
     }
     pExtW->outputWinId = pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx;
   }
@@ -688,13 +686,12 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
       if (pTaskInfo->pStreamRuntimeInfo->funcInfo.triggerType != 1){  // 1 meams STREAM_TRIGGER_SLIDING
         win.ekey++;
       }
-      (void)taosArrayPush(pExtW->pWins, &win);
+      TSDB_CHECK_NULL(taosArrayPush(pExtW->pWins, &win), code, lino, _end, terrno);
 
       SBlockList bl = {.pSrcBlock = pExtW->binfo.pRes, .pBlocks = 0, .blockRowNumThreshold = 4096};
       code = blockListInit(&bl, 4096);
       if (code != 0) QUERY_CHECK_CODE(code, lino, _end);
-      (void)taosArrayPush(pExtW->pOutputBlocks, &bl);
-      // (void)taosArrayPush(pExtW->pOffsetList, &pExtW->limitInfo);
+      TSDB_CHECK_NULL(taosArrayPush(pExtW->pOutputBlocks, &bl), code, lino, _end, terrno);
     }
     pExtW->outputWinId = pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx;
   }
@@ -730,42 +727,6 @@ _end:
   }
   return code;
 }
-
-// enum {
-//   EXTERNAL_RETRIEVE_CONTINUE = 0x1,
-//   EXTERNAL_RETRIEVE_NEXT_WINDOW = 0x2,
-//   EXTERNAL_RETRIEVE_DONE = 0x3,
-// };
-
-// static int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock){
-//   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-
-//   if (pLimitInfo->remainGroupOffset > 0) {
-//       pLimitInfo->remainGroupOffset -= 1;
-//       blockDataCleanup(pBlock);
-//       return EXTERNAL_RETRIEVE_CONTINUE;
-//   }
-
-//   if (pLimitInfo->slimit.limit > 0) {
-//     if (pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups) {
-//       blockDataCleanup(pBlock);
-//       return EXTERNAL_RETRIEVE_NEXT_WINDOW;
-//     }
-//     if (pLimitInfo->currentGroupId != pBlock->info.id.groupId) {
-//       pLimitInfo->numOfOutputGroups += 1;
-//       // reset the value for a new group data
-//       resetLimitInfoForNextGroup(pLimitInfo);
-//       pLimitInfo->currentGroupId = pBlock->info.id.groupId;
-//     }
-//   }  
-
-//   // here we reach the start position, according to the limit/offset requirements.
-//   (void)applyLimitOffset(pLimitInfo, pBlock, pTaskInfo);
-//   if (pBlock->info.rows == 0) {
-//     return PROJECT_RETRIEVE_CONTINUE;
-//   }
-//   return EXTERNAL_RETRIEVE_DONE;
-// }
 
 static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                  code = 0;
