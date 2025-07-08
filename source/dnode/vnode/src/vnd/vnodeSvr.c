@@ -817,8 +817,14 @@ _exit:
   return 0;
 
 _err:
-  vError("vgId:%d, process %s request failed since %s, lino:%d ver:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
-         tstrerror(terrno), lino, ver);
+  if (code == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
+    vInfo("vgId:%d, process %s request failed since %s, lino:%d ver:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
+          tstrerror(terrno), lino, ver);
+  } else {
+    vError("vgId:%d, process %s request failed since %s, lino:%d ver:%" PRId64, TD_VID(pVnode),
+           TMSG_INFO(pMsg->msgType), tstrerror(terrno), lino, ver);
+  }
+
   return code;
 }
 
@@ -2217,7 +2223,14 @@ _exit:
 
   if (code) {
     terrno = code;
-    vError("vgId:%d, failed to process submit request since %s, lino:%d, version:%" PRId64, TD_VID(pVnode), tstrerror(code), lino, ver);
+    if (code == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
+      vInfo("vgId:%d, failed to process submit request since %s, lino:%d, version:%" PRId64, TD_VID(pVnode),
+            tstrerror(code), lino, ver);
+
+    } else {
+      vError("vgId:%d, failed to process submit request since %s, lino:%d, version:%" PRId64, TD_VID(pVnode),
+             tstrerror(code), lino, ver);
+    }
   }
 
   taosMemoryFree(pAllocMsg);
