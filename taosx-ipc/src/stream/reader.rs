@@ -1068,7 +1068,7 @@ impl LushMessageInsert {
             .map(|field| {
                 self.metadata
                     .init()
-                    .and_then(|init| dbg!(init.column_data_type(dbg!(field.name()))))
+                    .and_then(|init| init.column_data_type(field.name()))
                     .cloned()
                     .unwrap_or_else(|| field.data_type().into())
             })
