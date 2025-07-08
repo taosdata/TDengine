@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "types.h"
 #define _DEFAULT_SOURCE
 #include "tdataformat.h"
 #include "decimal.h"
