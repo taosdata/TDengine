@@ -265,7 +265,7 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
   }
 
   if ((*ppRow)->flag == 0) {
-    return TSDB_CODE_INVALID_PARA;
+    ASSERT(0);
   }
 
   uint8_t *primaryKeys = (*ppRow)->data;
