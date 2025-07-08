@@ -1428,6 +1428,7 @@ pub async fn flat_write_with_raw_block(
                                 break;
                             }
                             Err(err) => {
+                                tracing::error!("raw block describe table error: {err:#}");
                                 let code: i32 = err.code().into();
                                 if !matches!(code, 0x0218 | 0x2603 | 0x2602 | 0x0618 | 0x0362) {
                                     // 0x0218: the table does not exist
@@ -1647,6 +1648,7 @@ pub async fn flat_write_with_raw_block(
                 .write_raw_block_with_req_id(&raw, qid.get())
                 .await
             {
+                tracing::error!("write raw block error: {err:#}");
                 let code = err.code();
                 let errno: i32 = code.into();
                 write_retries += 1;
