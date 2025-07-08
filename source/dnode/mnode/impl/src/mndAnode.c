@@ -594,6 +594,12 @@ static int32_t mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   char       status[64];
   int32_t    code = 0;
 
+  code = grantCheckExpire(TSDB_GRANT_TD_GPT);
+  if (code != 0) {
+    mError("TDgpt/anode grant expired");
+    return code;
+  }
+
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_ANODE, pShow->pIter, (void **)&pObj);
     if (pShow->pIter == NULL) break;
