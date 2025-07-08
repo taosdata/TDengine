@@ -459,7 +459,7 @@ static int32_t tBindInfoCompare(const void *p1, const void *p2, const void *para
 int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
                           SArray *rowArray, bool *pOrdered, bool *pDupTs) {
   if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+    ASSERT(0);
   }
 
   if (!infoSorted) {
