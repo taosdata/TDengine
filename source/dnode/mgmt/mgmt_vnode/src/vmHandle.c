@@ -768,6 +768,9 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
           .committed = pVgCfg->state.committed,
           .commitID = pVgCfg->state.commitID,
           .commitTerm = pVgCfg->state.commitTerm,
+          .numOfSTables = pVgCfg->config.vndStats.numOfSTables,
+          .numOfCTables = pVgCfg->config.vndStats.numOfCTables,
+          .numOfNTables = pVgCfg->config.vndStats.numOfNTables,
       };
       TSDB_CHECK_NULL(taosArrayPush(pDbInfo->pVgs, &vgInfo), code, lino, _exit, terrno);
     }
@@ -1121,12 +1124,14 @@ static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg
   }
 
   info.config = *pCfg;  // copy the config
-  // TODO: use the real value from vnode.json ???
   info.state.committed = req->committed;
   info.state.commitID = req->commitID;
   info.state.commitTerm = req->commitTerm;
   info.state.applied = req->committed;
   info.state.applyTerm = req->commitTerm;
+  info.config.vndStats.numOfSTables = req->numOfSTables;
+  info.config.vndStats.numOfCTables = req->numOfCTables;
+  info.config.vndStats.numOfNTables = req->numOfNTables;
 
   SVnodeInfo oldInfo = {0};
   oldInfo.config = vnodeCfgDefault;

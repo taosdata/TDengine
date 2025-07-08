@@ -14973,6 +14973,9 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
       TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pVgInfo->committed));
       TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pVgInfo->commitID));
       TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pVgInfo->commitTerm));
+      TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pVgInfo->numOfSTables));
+      TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pVgInfo->numOfCTables));
+      TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pVgInfo->numOfNTables));
       TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pVgInfo->dbId));
     }
     nStb = taosArrayGetSize(pDbInfo->pStbs);
@@ -15058,6 +15061,9 @@ int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo, bool extrac
           TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pVgInfo->committed));
           TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pVgInfo->commitID));
           TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pVgInfo->commitTerm));
+          TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pVgInfo->numOfSTables));
+          TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pVgInfo->numOfCTables));
+          TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pVgInfo->numOfNTables));
           TAOS_CHECK_EXIT(tDecodeU64v(decoder, &pVgInfo->dbId));
         }
       }
@@ -15145,6 +15151,9 @@ int32_t tSerializeSMountVnodeReq(void *buf, int32_t *cBufLen, int32_t *tBufLen, 
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->committed));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->commitID));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->commitTerm));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->numOfSTables));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->numOfCTables));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pReq->numOfNTables));
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, 10));  // nReserved
   for (int32_t i = 0; i < 10; ++i) {           // reserved fields
     TAOS_CHECK_EXIT(tEncodeI64v(&encoder, 0));
@@ -15187,6 +15196,10 @@ int32_t tDeserializeSMountVnodeReq(void *buf, int32_t bufLen, SMountVnodeReq *pR
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->committed));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->commitID));
   TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->commitTerm));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->numOfSTables));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->numOfCTables));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pReq->numOfNTables));
+  // reserved fields
   TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nReserved));
   for(int32_t i = 0; i < nReserved; ++i) {
     TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &padding));

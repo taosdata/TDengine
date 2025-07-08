@@ -5137,7 +5137,6 @@ int32_t tDeserializeSRetrieveMountPathReq(void* buf, int32_t bufLen, SRetrieveMo
 typedef struct {
   // path
   int32_t diskPrimary;
-
   // vgInfo
   int32_t  vgId;
   int32_t  cacheLastSize;
@@ -5182,6 +5181,10 @@ typedef struct {
   int64_t committed;
   int64_t commitID;
   int64_t commitTerm;
+  // stats
+  int64_t numOfSTables;
+  int64_t numOfCTables;
+  int64_t numOfNTables;
   // dbInfo
   uint64_t dbId;
 } SMountVgInfo;
@@ -5234,6 +5237,9 @@ typedef struct {
   int64_t         committed;
   int64_t         commitID;
   int64_t         commitTerm;
+  int32_t         numOfSTables;
+  int32_t         numOfCTables;
+  int32_t         numOfNTables;
 } SMountVnodeReq;
 
 int32_t tSerializeSMountVnodeReq(void *buf, int32_t *cBufLen, int32_t *tBufLen, SMountVnodeReq *pReq);

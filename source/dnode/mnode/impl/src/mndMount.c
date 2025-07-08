@@ -65,6 +65,9 @@ typedef struct {
   int64_t committed;
   int64_t commitID;
   int64_t commitTerm;
+  int64_t numOfSTables;
+  int64_t numOfCTables;
+  int64_t numOfNTables;
 } SMountVgObj;
 
 int32_t mndInitMount(SMnode *pMnode) {
@@ -548,6 +551,9 @@ static int32_t mndMountSetVgInfo(SMnode *pMnode, SDnodeObj *pDnode, SMountInfo *
   pMountVg->committed = pVg->committed;
   pMountVg->commitID = pVg->commitID;
   pMountVg->commitTerm = pVg->commitTerm;
+  pMountVg->numOfSTables = pVg->numOfSTables;
+  pMountVg->numOfCTables = pVg->numOfCTables;
+  pMountVg->numOfNTables = pVg->numOfNTables;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
@@ -974,6 +980,9 @@ static int32_t mndBuildMountVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *
   mountReq.committed = pMountVg->committed;
   mountReq.commitID = pMountVg->commitID;
   mountReq.commitTerm = pMountVg->commitTerm;
+  mountReq.numOfSTables = pMountVg->numOfSTables;
+  mountReq.numOfCTables = pMountVg->numOfCTables;
+  mountReq.numOfNTables = pMountVg->numOfNTables;
 
   mInfo("vgId:%d, mountVgId:%d, mountId:%" PRIi64
         ", name:%s, path:%s, build mount vnode req, replica:%d selfIndex:%d learnerReplica:%d learnerSelfIndex:%d "
