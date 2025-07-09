@@ -543,7 +543,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   pExec->runtimeInfo.funcInfo.triggerType = pReq->triggerType;
 
   int32_t winNum = taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals);
-  STREAM_CHECK_CONDITION_GOTO(winNum > STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST, TSDB_CODE_STREAM_TASK_IVLD_STATUS);
+  STREAM_CHECK_CONDITION_GOTO(winNum > STREAM_CALC_REQ_MAX_WIN_NUM, TSDB_CODE_STREAM_TASK_IVLD_STATUS);
 
   if (!pExec->pExecutor) {
     STREAM_CHECK_RET_GOTO(streamBuildTask(pTask, pExec));
