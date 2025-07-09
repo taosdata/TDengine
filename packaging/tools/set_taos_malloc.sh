@@ -2,8 +2,8 @@
 # filepath: /usr/local/taos/bin/set_malloc.sh
 
 install_dir="/usr/local/"
-ENV_SH="${install_dir}/taos/bin/taos_env.sh"
-ENV_CONF="${install_dir}/taos/cfg/taos_env.conf"
+ENV_SH="${install_dir}/taos/bin/set_taos_malloc_env.sh"
+ENV_CONF="${install_dir}/taos/cfg/set_taos_malloc_env.conf"
 LOG_FILE="${install_dir}/taos/log/set_taos_malloc.log"
 
 usage() {
@@ -63,7 +63,7 @@ case "$mode" in
   2)
     SH_VARS[0]="export LD_PRELOAD=${install_dir}/taos/driver/libtcmalloc.so"
     SH_VARS[1]="export HEAPCHECK=strict"
-    SH_VARS[2]="export HEAPPROFILE=${install_dir}/taos/log"
+    SH_VARS[2]="export HEAPPROFILE=${install_dir}/taos/log/repot"
     CONF_VARS[0]="LD_PRELOAD=${install_dir}/taos/driver/libtcmalloc.so"
     CONF_VARS[1]="HEAPCHECK=strict"
     CONF_VARS[2]="HEAPPROFILE=${install_dir}/taos/log/report"
@@ -76,9 +76,9 @@ case "$mode" in
     ;;
   4)
     SH_VARS[0]="export LD_PRELOAD=${install_dir}/taos/driver/libjemalloc.so"
-    SH_VARS[1]="export MALLOC_CONF=\"percpu_arena:percpu,abort_conf:true,prof:true,prof_prefix:/tmp/jemalloc_profile/prof,prof_active:true,lg_prof_sample:20\""
+    SH_VARS[1]="export MALLOC_CONF=\"percpu_arena:percpu,abort_conf:true,prof:true,prof_prefix:${install_dir}/taos/log/prof,prof_active:true,lg_prof_sample:20\""
     CONF_VARS[0]="LD_PRELOAD=${install_dir}/taos/driver/libjemalloc.so"
-    CONF_VARS[1]="MALLOC_CONF=\"percpu_arena:percpu,abort_conf:true,prof:true,prof_prefix:/tmp/jemalloc_profile/prof,prof_active:true,lg_prof_sample:20\""
+    CONF_VARS[1]="MALLOC_CONF=\"percpu_arena:percpu,abort_conf:true,prof:true,prof_prefix:${install_dir}/taos/log/prof,prof_active:true,lg_prof_sample:20\""
     ;;
   *)
     usage
