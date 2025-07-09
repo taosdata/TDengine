@@ -47,7 +47,6 @@ typedef struct SVnodeMgmt {
   STfs                 *pTfs;
   TdThread              thread;
   bool                  stop;
-  TdThreadMutex         fileLock;
 } SVnodeMgmt;
 
 typedef struct {
