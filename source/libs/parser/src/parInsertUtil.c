@@ -978,7 +978,8 @@ int32_t insResetBlob(SSubmitReq2* p) {
   int32_t code = 0;
   for (int32_t i = 0; i < taosArrayGetSize(p->aSubmitTbData); i++) {
     SSubmitTbData* pSubmitTbData = taosArrayGet(p->aSubmitTbData, i);
-    SBlobRow2*     pBlob = taosArrayGetP(p->aSubmitBlobData, i);
+    SBlobRow2**    ppBlob = taosArrayGet(p->aSubmitBlobData, i);
+    SBlobRow2*     pBlob = *ppBlob;
     int32_t        nrow = taosArrayGetSize(pSubmitTbData->aRowP);
     int32_t        nblob = 0;
     if (nrow > 0) {
@@ -986,6 +987,8 @@ int32_t insResetBlob(SSubmitReq2* p) {
     }
     uTrace("blob blob %p row size %d, pData size %d", pBlob, nblob, nrow);
     pSubmitTbData->pBlobRow = pBlob;
+
+    *ppBlob = NULL;  // reset blob row to NULL, so that it will not be freed in destroy
   }
   return code;
 }
