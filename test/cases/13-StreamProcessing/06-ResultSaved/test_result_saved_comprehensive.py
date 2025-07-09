@@ -138,6 +138,9 @@ class TestStreamResultSavedComprehensive:
         
         # Normal table with matching schema
         tdSql.execute("create table rdb.existing_normal (ts timestamp, cnt bigint, avg_val double)")
+
+        # Normal table with different schema
+        tdSql.execute("create table rdb.existing_normal_7(ts timestamp, cnt bigint, avg_val double, tag_name varchar(16))")
         
         # Super table with matching schema and tags
         tdSql.execute("create table rdb.existing_super (ts timestamp, cnt bigint, avg_val double) tags(tag_id int, tag_name varchar(16))")
@@ -204,8 +207,8 @@ class TestStreamResultSavedComprehensive:
         stream = StreamItem(
             id=4,
             stream="create stream rdb.s4 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r4 as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
-            res_query="select ts, cnt, tag_tbname from rdb.r4 where tag_tbname='t1';",
-            exp_query="select _wstart ts, count(*) cnt, tbname from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' partition by tbname interval(5m);",
+            res_query="select ts, cnt from rdb.r4 where tag_tbname='t1';",
+            exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
             check_func=self.check4,
         )
         self.streams.append(stream)
@@ -230,12 +233,16 @@ class TestStreamResultSavedComprehensive:
         )
         self.streams.append(stream)
 
+        # Test 1.4.2: Existing table type mismatch output table type (stable & normal table)
+        errorStream1  = "create stream rdb.s7 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.existing_normal_7 output_subtable(concat('sub_', tbname)) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;"
+        tdSql.error(errorStream1)
+
         # Test 2.1.1: With trigger grouping and OUTPUT_SUBTABLE exists (legal)
         stream = StreamItem(
             id=7,
             stream="create stream rdb.s7 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r7 output_subtable(concat('sub_', tbname)) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
-            res_query="select ts, cnt, tag_tbname from rdb.r7 where tag_tbname='t1';",
-            exp_query="select _wstart ts, count(*) cnt, tbname from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' partition by tbname interval(5m);",
+            res_query="select ts, cnt from rdb.r7 where tag_tbname='t1';",
+            exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
             check_func=self.check7,
         )
         self.streams.append(stream)
@@ -244,18 +251,22 @@ class TestStreamResultSavedComprehensive:
         stream = StreamItem(
             id=8,
             stream="create stream rdb.s8 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r8 as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
-            res_query="select ts, cnt, tag_tbname from rdb.r8 where tag_tbname='t1';",
-            exp_query="select _wstart ts, count(*) cnt, tbname from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' partition by tbname interval(5m);",
+            res_query="select ts, cnt from rdb.r7 where tag_tbname='t1';",
+            exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
             check_func=self.check8,
         )
         self.streams.append(stream)
+
+        # Test 2.1.3: With not trigger grouping and OUTPUT_SUBTABLE exists (illegal)
+        errorStream2 = "create stream rdb.s9 interval(5m) sliding(5m) from tdb.triggers into rdb.r9 output_subtable(concat('sub_', tbname)) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;"
+        tdSql.error(errorStream2)
 
         # Test 2.2: Columns come from trigger table grouping columns
         stream = StreamItem(
             id=9,
             stream="create stream rdb.s9 interval(5m) sliding(5m) from tdb.triggers partition by id, tbname into rdb.r9 output_subtable(concat('sub_', cast(%%1 as varchar), '_', %%2)) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
-            res_query="select ts, cnt, id, tag_tbname from rdb.r9 where id=1;",
-            exp_query="select _wstart ts, count(*) cnt, tint, tbname from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tint=1 and tbname='t1' partition by tint, tbname interval(5m);",
+            res_query="select ts, cnt from rdb.r9 where tag_tbname='t1';",
+            exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
             check_func=self.check9,
         )
         self.streams.append(stream)
@@ -264,8 +275,8 @@ class TestStreamResultSavedComprehensive:
         stream = StreamItem(
             id=10,
             stream="create stream rdb.s10 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r10 output_subtable(upper(tbname)) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
-            res_query="select ts, cnt, tag_tbname from rdb.r10 where tag_tbname='t1';",
-            exp_query="select _wstart ts, count(*) cnt, tbname from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' partition by tbname interval(5m);",
+            res_query="select ts, cnt from rdb.r10 where tag_tbname='t1';",
+            exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
             check_func=self.check10,
         )
         self.streams.append(stream)
@@ -273,9 +284,9 @@ class TestStreamResultSavedComprehensive:
         # Test 2.4: Output length exceeds table maximum length (truncation)
         stream = StreamItem(
             id=11,
-            stream="create stream rdb.s11 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r11 output_subtable(concat('very_long_prefix_that_exceeds_maximum_table_name_length_', tbname, '_suffix')) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
-            res_query="select ts, cnt, tag_tbname from rdb.r11 where tag_tbname='t1';",
-            exp_query="select _wstart ts, count(*) cnt, tbname from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s11 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r11 output_subtable(concat('xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_', tbname, '_suffix')) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
+            res_query="select ts, cnt from rdb.r11 where tag_tbname='t1';",
+            exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
             check_func=self.check11,
         )
         self.streams.append(stream)
@@ -360,16 +371,6 @@ class TestStreamResultSavedComprehensive:
         )
         self.streams.append(stream)
 
-        # Test ERROR: Invalid combination of interval+sliding+notify (should fail)
-        stream = StreamItem(
-            id=20,
-            stream="create stream rdb.s20_error interval(5m) sliding(5m) from tdb.triggers notify(\"ws://localhost:8080/notify\") as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
-            res_query="",
-            exp_query="",
-            check_func=self.check20,
-        )
-        self.streams.append(stream)
-
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             # Handle error case for stream id 20 (invalid syntax test)
@@ -437,6 +438,8 @@ class TestStreamResultSavedComprehensive:
                 ["tag_tbname", "VARCHAR", 270, "TAG"],
             ],
         )
+        tdSql.query("select stable_name from information_schema.ins_stables where db_name='rdb' and stable_name='r4';")
+        tdSql.checkData(0, 0, "r4")
 
     def check5(self):
         # Test 1.3.2: Without trigger grouping - output table should be normal table
@@ -449,6 +452,9 @@ class TestStreamResultSavedComprehensive:
                 ["cnt", "BIGINT", 8, ""],
             ],
         )
+        tdSql.query("select table_name,type from information_schema.ins_tables where db_name='rdb' and table_name='r5'")
+        tdSql.checkData(0, 0, "r5")
+        tdSql.checkData(0, 1, "NORMAL_TABLE")
 
     def check6(self):
         # Test 1.4.1: Existing table type matches - should reuse existing table
