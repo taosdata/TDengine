@@ -100,7 +100,7 @@ void mndMountDestroyObj(SMountObj *pObj) {
   }
 }
 
-int32_t tSerializeSMountObj(void *buf, int32_t bufLen, const SMountObj *pObj) {
+static int32_t tSerializeSMountObj(void *buf, int32_t bufLen, const SMountObj *pObj) {
   int32_t  code = 0, lino = 0;
   int32_t  tlen = 0;
   SEncoder encoder = {0};
@@ -137,7 +137,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSMountObj(void *buf, int32_t bufLen, SMountObj *pObj) {
+static int32_t tDeserializeSMountObj(void *buf, int32_t bufLen, SMountObj *pObj) {
   int32_t  code = 0, lino = 0;
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
@@ -218,7 +218,7 @@ _exit:
   taosMemoryFreeClear(buf);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
-    mError("mount, failed to encode to raw:%p since %s", pRaw, tstrerror(code));
+    mError("mount, failed at line %d to encode to raw:%p since %s", lino, pRaw, tstrerror(code));
     sdbFreeRaw(pRaw);
     return NULL;
   }
@@ -275,7 +275,7 @@ _exit:
   taosMemoryFreeClear(buf);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
-    mError("mount, failed to decode from raw:%p since %s", pRaw, tstrerror(code));
+    mError("mount, failed at line %d to decode from raw:%p since %s", lino, pRaw, tstrerror(code));
     taosMemoryFreeClear(pRow);
     return NULL;
   }

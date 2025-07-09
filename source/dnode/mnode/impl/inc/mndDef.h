@@ -515,8 +515,16 @@ typedef struct {
   char**       paths;
   SMountDbObj* dbObj;
   SRWLatch     lock;
-  // int64_t stateTs; // TODO mayby remove it
 } SMountObj;
+
+typedef struct {
+  int32_t  id;
+  int64_t  createdTime;
+  int64_t  updateTime;
+  int64_t  mountTimes;
+  int64_t  umountTimes;
+  SRWLatch lock;
+} SMountLogObj;
 
 typedef struct {
   int32_t    dnodeId;

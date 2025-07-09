@@ -8,13 +8,13 @@ from util.common import *
 from util.sqlset import *
 
 class TDTestCase:
-    """ Test case for mount data path functionality.
+    """ Test case for mount data path function.
 
     1. Prepare mount path with data.
     2. Prepare host cluster.
     3. Check mount error cases.
     4. Create, drop, and show mount.
-    5. Check mount sdbobj conflicts.
+    5. Check mount SDB object conflicts.
 
     Catalog:
         - Mounts:Create/Drop/Show/Query/Conflicts Detect/ReOpen

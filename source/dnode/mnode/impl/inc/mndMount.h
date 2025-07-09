@@ -36,25 +36,27 @@ typedef struct {
   int64_t numOfNTables;
 } SMountVgObj;
 
-int32_t    mndInitMount(SMnode *pMnode);
-void       mndCleanupMount(SMnode *pMnode);
-SMountObj *mndAcquireMount(SMnode *pMnode, const char *mountName);
-void       mndReleaseMount(SMnode *pMnode, SMountObj *pObj);
-SSdbRaw   *mndMountActionEncode(SMountObj *pObj);
-SSdbRow   *mndMountActionDecode(SSdbRaw *pRaw);
-int32_t    mndValidateMountInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, void **ppRsp, int32_t *pRspLen);
-int32_t    mndExtractMountInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUseDbReq *pReq);
-bool       mndIsMountReady(SMnode *pMnode, SDbObj *pDb);
-bool       mndMountIsExist(SMnode *pMnode, const char *db);
-void       mndBuildMountDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList);
-void       mndMountFreeObj(SMountObj *pObj);
-void       mndMountDestroyObj(SMountObj *pObj);
-bool       mndHasMountOnDnode(SMnode *pMnode, int32_t dnodeId);
-int32_t    mndBuildDropMountRsp(SMountObj *pObj, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc);
-int32_t    mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, SUserObj *pUser);
-int32_t    mndDropMount(SMnode *pMnode, SRpcMsg *pReq, SMountObj *pObj);
-
-const char *mndGetMountStr(const char *src);
+int32_t       mndInitMountLog(SMnode *pMnode);
+void          mndCleanupMountLog(SMnode *pMnode);
+SMountLogObj *mndAcquireMountLog(SMnode *pMnode);
+void          mndReleaseMountLog(SMnode *pMnode, SMountLogObj *pObj);
+int32_t       mndInitMount(SMnode *pMnode);
+void          mndCleanupMount(SMnode *pMnode);
+SMountObj    *mndAcquireMount(SMnode *pMnode, const char *mountName);
+void          mndReleaseMount(SMnode *pMnode, SMountObj *pObj);
+SSdbRaw      *mndMountActionEncode(SMountObj *pObj);
+SSdbRow      *mndMountActionDecode(SSdbRaw *pRaw);
+int32_t mndValidateMountInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, void **ppRsp, int32_t *pRspLen);
+int32_t mndExtractMountInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUseDbReq *pReq);
+bool    mndIsMountReady(SMnode *pMnode, SDbObj *pDb);
+bool    mndMountIsExist(SMnode *pMnode, const char *db);
+void    mndBuildMountDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList);
+void    mndMountFreeObj(SMountObj *pObj);
+void    mndMountDestroyObj(SMountObj *pObj);
+bool    mndHasMountOnDnode(SMnode *pMnode, int32_t dnodeId);
+int32_t mndBuildDropMountRsp(SMountObj *pObj, int32_t *pRspLen, void **ppRsp, bool useRpcMalloc);
+int32_t mndCreateMount(SMnode *pMnode, SRpcMsg *pReq, SMountInfo *pInfo, SUserObj *pUser);
+int32_t mndDropMount(SMnode *pMnode, SRpcMsg *pReq, SMountObj *pObj);
 
 #ifdef __cplusplus
 }
