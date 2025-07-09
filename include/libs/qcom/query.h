@@ -282,6 +282,7 @@ typedef struct STableDataCxt {
   SRowKey        lastKey;
   bool           ordered;
   bool           duplicateTs;
+  int8_t         hasBlob;  // if the table has blob column
 } STableDataCxt;
 
 typedef struct SStbInterlaceInfo {

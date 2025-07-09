@@ -743,22 +743,23 @@ int32_t tsAscendingSortFn(const void* p1, const void* p2) {
 int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDataBlock* pDataBlock, int64_t earlyTs,
                       const char* id) {
   int32_t numOfRows = pDataBlock->info.rows;
+  int8_t  hasBlob = schemaHasBlob(pTSchema);
   int32_t code = TSDB_CODE_SUCCESS;
 
   SArray* pVals = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
-
   pTableData->aRowP = taosArrayInit(numOfRows, sizeof(SRow*));
-  // pTableData->aBlobData = taosArrayInit(numOfRows, sizeof(SBlobRow2*));
-  code = tBlobRowCreate(4096 * 4, 0, &pTableData->pBlobRow);
 
-  if (pVals == NULL || pTableData->aRowP == NULL /*|| pTableData->aBlobData == NULL */ || code != 0) {
+  if (pVals == NULL || pTableData->aRowP == NULL) {
     tBlobRowDestroy(pTableData->pBlobRow);
-    // taosArrayDestroy(pTableData->aBlobData);
     taosArrayDestroy(pVals);
     code = terrno;
     tqError("s-task:%s failed to prepare write stream res blocks, code:%s", id, tstrerror(code));
     return code;
   }
+  if (hasBlob) {
+    code = tBlobRowCreate(1024, 0, &pTableData->pBlobRow);
+  }
+
 
   for (int32_t j = 0; j < numOfRows; j++) {
     taosArrayClear(pVals);

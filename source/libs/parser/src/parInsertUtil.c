@@ -247,6 +247,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
     return terrno;
   }
 
+  int8_t  hasBlob = 0;
   int32_t code = TSDB_CODE_SUCCESS;
 
   pTableCxt->lastKey = (SRowKey){0};
@@ -264,6 +265,8 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
   }
+  pTableCxt->hasBlob = schemaHasBlob(pTableCxt->pSchema);
+
   if (TSDB_CODE_SUCCESS == code) {
     code = insInitBoundColsInfo(pTableMeta->tableInfo.numOfColumns, &pTableCxt->boundColsInfo);
   }
@@ -300,8 +303,8 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
         }
       }
 
-      if (code == TSDB_CODE_SUCCESS) {
-        code = tBlobRowCreate(4096 * 4, flag, &pTableCxt->pData->pBlobRow);
+      if (code == TSDB_CODE_SUCCESS && pTableCxt->hasBlob) {
+        code = tBlobRowCreate(1024, flag, &pTableCxt->pData->pBlobRow);
       }
     }
   }
@@ -316,7 +319,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
   return code;
 }
 
-static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
+static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst, int8_t hasBlob) {
   int32_t        code = TSDB_CODE_SUCCESS;
   SSubmitTbData* pTmp = taosMemoryCalloc(1, sizeof(SSubmitTbData));
   if (NULL == pTmp) {
@@ -341,7 +344,7 @@ static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
           code = terrno;
           taosMemoryFree(pTmp);
         }
-        code = tBlobRowCreate(4096 * 4, 1, &pTmp->pBlobRow);
+        code = tBlobRowCreate(1024, 1, &pTmp->pBlobRow);
         if (code != 0) {
           taosArrayDestroy(pTmp->aCol);
           taosMemoryFree(pTmp);
@@ -352,7 +355,9 @@ static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
           code = terrno;
           taosMemoryFree(pTmp);
         }
-        code = tBlobRowCreate(4096 * 4, 0, &pTmp->pBlobRow);
+        if (hasBlob) {
+          code = tBlobRowCreate(1024, 0, &pTmp->pBlobRow);
+        }
         if (code != 0) {
           taosArrayDestroy(pTmp->aRowP);
           taosMemoryFree(pTmp);
@@ -485,29 +490,38 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
   int32_t code = 0;
   if (NULL == pVgCxt->pData->aSubmitTbData) {
     pVgCxt->pData->aSubmitTbData = taosArrayInit(128, sizeof(SSubmitTbData));
-    pVgCxt->pData->aSubmitBlobData = taosArrayInit(128, sizeof(SBlobRow2*));
-    if (NULL == pVgCxt->pData->aSubmitTbData || NULL == pVgCxt->pData->aSubmitBlobData) {
+    if (pVgCxt->pData->aSubmitTbData == NULL) {
       return terrno;
+    }
+    if (pTableCxt->hasBlob) {
+      pVgCxt->pData->aSubmitBlobData = taosArrayInit(128, sizeof(SBlobRow2*));
+      if (NULL == pVgCxt->pData->aSubmitBlobData) {
+        return terrno;
+      }
     }
   }
 
   // push data to submit, rebuild empty data for next submit
-  parserDebug("blob row transfer %p, pData %p, %s", pTableCxt->pData->pBlobRow, pTableCxt->pData, __func__);
   if (NULL == taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData)) {
     return terrno;
   }
 
-  if (NULL == taosArrayPush(pVgCxt->pData->aSubmitBlobData, &pTableCxt->pData->pBlobRow)) {
-    return terrno;
+  if (pTableCxt->hasBlob) {
+    parserDebug("blob row transfer %p, pData %p, %s", pTableCxt->pData->pBlobRow, pTableCxt->pData, __func__);
+    if (NULL == taosArrayPush(pVgCxt->pData->aSubmitBlobData, &pTableCxt->pData->pBlobRow)) {
+      return terrno;
+    }
   }
 
   pTableCxt->pData->pBlobRow = NULL;  // reset blob row to NULL, so that it will not be freed in destroy
   if (isRebuild) {
-    code = rebuildTableData(pTableCxt->pData, &pTableCxt->pData);
+    code = rebuildTableData(pTableCxt->pData, &pTableCxt->pData, pTableCxt->hasBlob);
   } else if (clear) {
     taosMemoryFreeClear(pTableCxt->pData);
   } else {
-    code = tBlobRowCreate(4096, 1, &pTableCxt->pData->pBlobRow);
+    if (pTableCxt->hasBlob) {
+      code = tBlobRowCreate(1024, 1, &pTableCxt->pData->pBlobRow);
+    }
   }
 
   parserDebug("uid:%" PRId64 ", add table data context to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
@@ -974,19 +988,21 @@ static void destroyVgDataBlocks(void* p) {
 
 int32_t insResetBlob(SSubmitReq2* p) {
   int32_t code = 0;
-  for (int32_t i = 0; i < taosArrayGetSize(p->aSubmitTbData); i++) {
-    SSubmitTbData* pSubmitTbData = taosArrayGet(p->aSubmitTbData, i);
-    SBlobRow2**    ppBlob = taosArrayGet(p->aSubmitBlobData, i);
-    SBlobRow2*     pBlob = *ppBlob;
-    int32_t        nrow = taosArrayGetSize(pSubmitTbData->aRowP);
-    int32_t        nblob = 0;
-    if (nrow > 0) {
-      nblob = taosArrayGetSize(pBlob->pSeqTable);
-    }
-    uTrace("blob blob %p row size %d, pData size %d", pBlob, nblob, nrow);
-    pSubmitTbData->pBlobRow = pBlob;
+  if (p->aSubmitBlobData != NULL) {
+    for (int32_t i = 0; i < taosArrayGetSize(p->aSubmitTbData); i++) {
+      SSubmitTbData* pSubmitTbData = taosArrayGet(p->aSubmitTbData, i);
+      SBlobRow2**    ppBlob = taosArrayGet(p->aSubmitBlobData, i);
+      SBlobRow2*     pBlob = *ppBlob;
+      int32_t        nrow = taosArrayGetSize(pSubmitTbData->aRowP);
+      int32_t        nblob = 0;
+      if (nrow > 0) {
+        nblob = taosArrayGetSize(pBlob->pSeqTable);
+      }
+      uTrace("blob blob %p row size %d, pData size %d", pBlob, nblob, nrow);
+      pSubmitTbData->pBlobRow = pBlob;
 
-    *ppBlob = NULL;  // reset blob row to NULL, so that it will not be freed in destroy
+      *ppBlob = NULL;  // reset blob row to NULL, so that it will not be freed in destroy
+    }
   }
   return code;
 }
