@@ -3063,6 +3063,11 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
       strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
       strncasecmp(name, TSDB_INS_TABLE_FILESETS, TSDB_TABLE_FNAME_LEN) == 0) {
     pInfo->readHandle = *(SReadHandle*)readHandle;
+    // TODO: check if it is necessary to call tsem_init TD_ASTRA_TODO
+    if (tsem_init(&pInfo->ready, 0, 0) != TSDB_CODE_SUCCESS) {
+      code = TSDB_CODE_FAILED;
+      goto _error;
+    } 
   } else {
     if (tsem_init(&pInfo->ready, 0, 0) != TSDB_CODE_SUCCESS) {
       code = TSDB_CODE_FAILED;

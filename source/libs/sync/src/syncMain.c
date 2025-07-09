@@ -714,7 +714,7 @@ void syncResetMetrics(int64_t rid, const SSyncMetrics* pOldMetrics) {
 void syncGetCommitIndex(int64_t rid, int64_t* syncCommitIndex) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode != NULL) {
-    *syncCommitIndex = pSyncNode->commitIndex;
+    taosSetInt64Aligned(syncCommitIndex, pSyncNode->commitIndex);
     syncNodeRelease(pSyncNode);
   }
 }

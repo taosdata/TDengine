@@ -201,7 +201,7 @@ static int32_t tBufferGetI64(SBufferReader *reader, int64_t *value) {
     return TSDB_CODE_OUT_OF_RANGE;
   }
   if (value) {
-    *value = *(int64_t*)BR_PTR(reader);
+    taosSetPInt64Aligned(value, (int64_t *)BR_PTR(reader));
   }
   reader->offset += sizeof(int64_t);
   return 0;

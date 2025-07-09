@@ -86,7 +86,8 @@ static int32_t findFirstValPosition(const SColumnInfoData* pCol, int32_t start, 
 static void handleInt8Col(const void* data, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc,
                           bool signVal) {
   if (!pBuf->assign) {
-    pBuf->v = ((const int8_t*)data)[start];
+//    pBuf->v = ((const int8_t*)data)[start];
+    taosSetInt64Aligned(&pBuf->v, (int64_t)((const int8_t*)data)[start]);
   }
 
   if (tsAVX2Supported && tsSIMDEnable && numOfRows * sizeof(int8_t) >= M256_BYTES) {
@@ -123,7 +124,8 @@ static void handleInt8Col(const void* data, int32_t start, int32_t numOfRows, SM
 static void handleInt16Col(const void* data, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc,
                            bool signVal) {
   if (!pBuf->assign) {
-    pBuf->v = ((const int16_t*)data)[start];
+//    pBuf->v = ((const int16_t*)data)[start];
+    taosSetInt64Aligned(&pBuf->v, (int64_t)((const int16_t*)data)[start]);
   }
 
   if (tsAVX2Supported && tsSIMDEnable && numOfRows * sizeof(int16_t) >= M256_BYTES) {
@@ -160,7 +162,8 @@ static void handleInt16Col(const void* data, int32_t start, int32_t numOfRows, S
 static void handleInt32Col(const void* data, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc,
                            bool signVal) {
   if (!pBuf->assign) {
-    pBuf->v = ((const int32_t*)data)[start];
+//    pBuf->v = ((const int32_t*)data)[start];
+    taosSetInt64Aligned(&pBuf->v, (int64_t)((const int32_t*)data)[start]);    
   }
 
   if (tsAVX2Supported && tsSIMDEnable && numOfRows * sizeof(int32_t) >= M256_BYTES) {
@@ -197,7 +200,8 @@ static void handleInt32Col(const void* data, int32_t start, int32_t numOfRows, S
 static void handleInt64Col(const void* data, int32_t start, int32_t numOfRows, SMinmaxResInfo* pBuf, bool isMinFunc,
                            bool signVal) {
   if (!pBuf->assign) {
-    pBuf->v = ((const int64_t*)data)[start];
+//    pBuf->v = ((const int64_t*)data)[start];
+    taosSetInt64Aligned(&pBuf->v, (int64_t)((const int64_t*)data)[start]);
   }
 
   if (signVal) {

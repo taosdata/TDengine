@@ -878,7 +878,6 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, uint32_t cmpr
   }
 
   tsdbWriterUpdVerRange(range, brinBlk.minVer, brinBlk.maxVer);
-
   // write to file
   for (int32_t i = 0; i < 10; ++i) {
     SCompressInfo info = {

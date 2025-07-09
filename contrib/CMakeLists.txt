@@ -27,14 +27,36 @@ else()
 endif()
 
 # lemon
-add_subdirectory(lemon)
+if(${BUILD_WITH_LEMON})
+    if(${TD_ASTRA})
+        set(C_COMPILER_LEMON ${CMAKE_C_COMPILER})
+        if(C_COMPILER_LEMON)
+            message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
+        else()
+            set(C_COMPILER_LEMON ${CMAKE_C_COMPILER})
+            message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
+        endif()
+        cat("${TD_SUPPORT_DIR}/lemon_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    else()
+        add_subdirectory(lemon)
+    endif()
+endif()
 
 # Force specify CC=cc on MacOS. Because the default CC setting in the generated Makefile has issues finding standard library headers
 IF(${TD_DARWIN})
     SET(CONTRIB_CONFIG_ENV "CC=cc")
 ENDIF()
 
-# # download dependencies
+# download dependencies
+IF(${TD_ASTRA})
+    configure_file(${CONTRIB_TMP_FILE} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
+    execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
+        WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download"
+        RESULT_VARIABLE result)
+    IF(NOT result EQUAL "0")
+        message(FATAL_ERROR "CMake step for dowloading dependencies failed: ${result}")
+    ENDIF()
+ENDIF()
 
 # ================================================================================================
 # Build

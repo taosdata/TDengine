@@ -35,18 +35,20 @@ extern "C" {
 // #endif
 #endif
 
-#if !defined(WINDOWS) && !defined(_ALPINE) && !defined(TD_ASTRA)
+#if !defined(WINDOWS) && !defined(_ALPINE)
 #ifndef __USE_XOPEN2K
 #define TD_USE_SPINLOCK_AS_MUTEX
-typedef pthread_mutex_t pthread_spinlock_t;
+typedef pthread_mutex_t TdThreadSpinlock;
 #endif
 #endif
 
 #ifdef __USE_WIN_THREAD
-typedef pthread_t          TdThread;           // pthread api
-typedef pthread_spinlock_t TdThreadSpinlock;   // pthread api
-typedef CRITICAL_SECTION   TdThreadMutex;      // windows api
-typedef HANDLE             TdThreadMutexAttr;  // windows api
+typedef pthread_t TdThread;  // pthread api
+#ifndef TD_USE_SPINLOCK_AS_MUTEX
+typedef pthread_spinlock_t TdThreadSpinlock;  // pthread api
+#endif
+typedef CRITICAL_SECTION TdThreadMutex;      // windows api
+typedef HANDLE           TdThreadMutexAttr;  // windows api
 typedef struct {
   SRWLOCK lock;
   int8_t  excl;
@@ -58,8 +60,10 @@ typedef CONDITION_VARIABLE TdThreadCond;        // windows api
 typedef HANDLE             TdThreadCondAttr;    // windows api
 typedef pthread_key_t      TdThreadKey;         // pthread api
 #else
-typedef pthread_t            TdThread;
-typedef pthread_spinlock_t   TdThreadSpinlock;
+typedef pthread_t TdThread;
+#ifndef TD_USE_SPINLOCK_AS_MUTEX
+typedef pthread_spinlock_t TdThreadSpinlock;
+#endif
 typedef pthread_mutex_t      TdThreadMutex;
 typedef pthread_mutexattr_t  TdThreadMutexAttr;
 typedef pthread_rwlock_t     TdThreadRwlock;
@@ -72,7 +76,7 @@ typedef pthread_key_t        TdThreadKey;
 #endif
 #ifdef TD_ASTRA
 #define STACK_SIZE_DEFAULT    (1048576 << 1)
-#define STACK_SIZE_SMALL      (1048576)
+#define STACK_SIZE_SMALL      (1048576 >> 2)
 #else
 #define STACK_SIZE_DEFAULT    (10485760)
 #endif
