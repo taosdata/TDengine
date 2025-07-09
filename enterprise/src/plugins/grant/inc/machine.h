@@ -33,6 +33,14 @@ extern "C" {
 #define GRANT_DEFAULT         (GRANT_EXPIRE_DAY*86400)
 #endif
 
+#ifdef TA_GRANT_VALUE
+#define TA_GRANT_EXPIRE_DAY   atoi(TA_GRANT_VALUE)
+#define TA_GRANT_DEFAULT      (TA_GRANT_EXPIRE_DAY*86400)
+#else
+#define TA_GRANT_EXPIRE_DAY   GRANT_EXPIRE_DAY
+#define TA_GRANT_DEFAULT      GRANT_DEFAULT
+#endif
+
 #define GRANT_CONN_NUM_DEFAULT     1
 #define GRANT_CONN_SPEED_DEFAULT   (-1)
 #define GRANT_CONN_EXPIRE_DEFAULT  GRANT_EXPIRE_DAY
@@ -100,7 +108,9 @@ extern "C" {
 #define GRANT_DIST_MIN                 1689552000  // 2023-07-17 08:00:00
 
 // uniq grant
-#define GRANT_UNIQ_ACTIVE_VER            1
+#define GRANT_UNIQ_ACTIVE_VER_1          1
+#define GRANT_UNIQ_ACTIVE_VER_2          2  // in pObj->flags, GRANT_ACTIVE_FLG_TDENGINE_ASSIGNED and GRANT_ACTIVE_FLG_IDMP_ASSIGNED is set
+#define GRANT_UNIQ_ACTIVE_VER            GRANT_UNIQ_ACTIVE_VER_2
 #define GRANT_UNIQ_ACTIVE_MAX_LEN        TSDB_CLUSTER_VALUE_LEN
 #define GRANT_UNIQ_ACTIVE_KEY_LEN        248
 #define GRANT_UNIQ_ACTIVE_RAW_LEN        184
@@ -125,12 +135,16 @@ extern "C" {
 #define GRANT_ACTIVE_FLG_SKIP_FAIL_OLD    0x01
 #define GRANT_ACTIVE_FLG_CHECK_MACHINE    0x02
 #define GRANT_ACTIVE_FLG_CHECK_UPTIME     0x04
+#define GRANT_ACTIVE_FLG_TDENGINE_ASSIGNED  0x08
+#define GRANT_ACTIVE_FLG_IDMP_ASSIGNED    0x10
 
 #ifndef GRANTS_CFG
 #define GRANT_UNIQ_DFT_BASIC_EXPIRE        GRANT_EXPIRE_DAY
 #define GRANT_UNIQ_DFT_BASIC_TIMESERIES    1000000
 #define GRANT_UNIQ_DFT_BASIC_DNODES        8
 #define GRANT_UNIQ_DFT_BASIC_CPU           GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_BASIC_VNODES        192
+#define GRANT_UNIQ_DFT_BASIC_STORAGE_SIZE  1048576  // GB
 #define GRANT_UNIQ_DFT_VALID_DAYS          3
 #define GRANT_UNIQ_DFT_SERVICE_EXPIRE      0
 #define GRANT_UNIQ_DFT_STREAM_EXPIRE       GRANT_EXPIRE_DAY
@@ -143,14 +157,24 @@ extern "C" {
 #define GRANT_UNIQ_DFT_AUDIT_EXPIRE        GRANT_EXPIRE_DAY
 #define GRANT_UNIQ_DFT_BAKRST_EXPIRE       GRANT_EXPIRE_DAY
 #define GRANT_UNIQ_DFT_REPLICA_EXPIRE      GRANT_EXPIRE_DAY
+#define GRANT_UNIQ_DFT_TDGPT_EXPIRE        GRANT_EXPIRE_DAY
+#define GRANT_UNIQ_DFT_TDGPT_ANODE_NUM     1
 #define GRANT_UNIQ_DFT_DATAIN_EXPIRE       GRANT_EXPIRE_DAY
 #define GRANT_UNIQ_DFT_DATAIN_SPEED        GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_DATAIN_NUM          10
+#define GRANT_UNIQ_DFT_IDMP_TS_ATTRIBURES  1000
+#define GRANT_UNIQ_DFT_IDMP_NTS_ATTRIBURES 1000
+#define GRANT_UNIQ_DFT_IDMP_ELEMENTS       1000
+#define GRANT_UNIQ_DFT_IDMP_SERVERS        1
+#define GRANT_UNIQ_DFT_IDMP_CPU_CORES      256
+#define GRANT_UNIQ_DFT_IDMP_USERS          1
 #else
 #define GRANT_UNIQ_DFT_BASIC_EXPIRE        GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_BASIC_TIMESERIES    GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_BASIC_DNODES        GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_BASIC_CPU           GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_BASIC_VNODES        GRANT_UNIQ_UNLIMITED  
+#define GRANT_UNIQ_DFT_BASIC_STORAGE_SIZE  GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_VALID_DAYS          GRANT_UNIQ_DFT_VALID_DAYS
 #define GRANT_UNIQ_DFT_SERVICE_EXPIRE      GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_STREAM_EXPIRE       GRANT_UNIQ_UNLIMITED
@@ -163,9 +187,17 @@ extern "C" {
 #define GRANT_UNIQ_DFT_AUDIT_EXPIRE        GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_BAKRST_EXPIRE       GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_REPLICA_EXPIRE      GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_TDGPT_EXPIRE        GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_TDGPT_ANODE_NUM     GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_DATAIN_EXPIRE       GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_DATAIN_SPEED        GRANT_UNIQ_UNLIMITED
 #define GRANT_UNIQ_DFT_DATAIN_NUM          GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_IDMP_TS_ATTRIBURES  GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_IDMP_NTS_ATTRIBURES GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_IDMP_ELEMENTS       GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_IDMP_SERVERS        GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_IDMP_CPU_CORES      GRANT_UNIQ_UNLIMITED
+#define GRANT_UNIQ_DFT_IDMP_USERS          GRANT_UNIQ_UNLIMITED
 #endif
 
 // uniq grant
@@ -195,9 +227,10 @@ typedef enum {
   CONN_TYPE_MSSQL = 13,
   CONN_TYPE_MONGODB = 14,
   CONN_TYPE_CSV = 15,
+  CONN_TYPE_SPARKPLUGB = 16,
   // add future data ins here
   // CONN_TYPE_FUTURE_DATA_IN = XX,
-  CONN_TYPE_DYN_MAX = 16,
+  CONN_TYPE_DYN_MAX = 17,
 } EGrantConnType;
 
 #define CONN_TYPE_MAX_V1 6
@@ -275,6 +308,19 @@ typedef enum {
   GRANT_OPT_DYN_MAX = 15,
 } SGrantOpt;
 
+typedef enum {
+  GRANT_OPT_IDMP_BASIC = 0,
+  GRANT_OPT_IDMP_VERSION_CTRL = 1,
+  GRANT_OPT_IDMP_DATA_FORECAST = 2,
+  GRANT_OPT_IDMP_DATA_DETECT = 3,
+  GRANT_OPT_IDMP_DATA_QUALITY = 4,
+  GRANT_OPT_IDMP_AI_CHAT_GEN = 5,
+  GRANT_OPT_IDMP_MAX = 6,
+  // add future grant items here
+  // GRANT_OPT_IDMP_XXX = X,
+  GRANT_OPT_IDMP_DYN_MAX = 6,
+} SGrantIDMPOpt;
+
 typedef struct {
   int32_t number;
   int32_t speed;
@@ -346,13 +392,27 @@ typedef struct {
   int32_t dataIns[GRANT_UNIQ_KNOWN_DATAIN_VALS];  // known dataIns: 3 * sizeof(int32_t) * CONN_TYPE_MAX
 
   // variant fields
-  SArray *pDataIns;  // SGrantDataIns
-  SArray *pItem64;   // SGrantItem64
-  SArray *pItemI64;  // SGrantItemI64
-  SArray *pItemN64;  // SGrantItem64
+  SArray *pDataIns;  // SGrantDataIns // DataIn items, used by taosx
+  // various fields used by taosd
+  SArray *pItem64;   // SGrantItem64  // deprecated, just for compatibility
+  SArray *pItemI64;  // SGrantItemI64 // grant index is stored, used by taosd itself
+  SArray *pItemN64;  // SGrantItem64  // grant name is stored, used by other applications (such as taosx)
 
   // extension
   char *encrypt;
+
+  // append fields in the end for compatibility, since ver-3.3.6.10 on 2025-06-05
+  int64_t limitStorageSize;  // GB, TS-6478
+  int32_t limitVnodes;       // TS-6478
+  // TDengine IDMP grant items for TS-6414
+  int32_t idmpExpireDays[GRANT_OPT_IDMP_MAX];
+  int64_t idmpLimitTsAttributes;
+  int64_t idmpLimitNonTsAttributes;
+  int64_t idmpLimitElements;
+  int32_t idmpLimitServers;
+  int32_t idmpLimitCpuCores;
+  int32_t idmpLimitUsers;
+  SArray *pItemT64;  // SGrantItem64  // grant name is stored, used by other applications (such as TDengine IDMP)
 } SGrantUniqObj;
 
 // taosGrant -> obj(init 0/-2/-1/...) -> fetch inputs and fill into obj -> encodeLen -> malloc(encodeLen+HeadLen(8+6))
@@ -363,16 +423,16 @@ typedef struct {
   union {
     int64_t p1;
     struct {
-      int64_t basicExpireSec : 40;
-      int64_t limitDnodes : 16;
-      int64_t expired : 1;
-      int64_t multiTierExpired : 1;
-      int64_t streamExpired : 1;
-      int64_t subscriptionExpired : 1;
-      int64_t auditExpired : 1;
-      int64_t csvExpired : 1;
-      int64_t viewExpired : 1;
-      int64_t placeHolder : 1;
+      int64_t  basicExpireSec : 40;
+      int64_t  limitDnodes : 16;
+      uint64_t expired : 1;
+      uint64_t multiTierExpired : 1;
+      uint64_t streamExpired : 1;
+      uint64_t subscriptionExpired : 1;
+      uint64_t auditExpired : 1;
+      uint64_t csvExpired : 1;
+      uint64_t viewExpired : 1;
+      uint64_t placeHolder : 1;
     };
   };
   union {
@@ -395,13 +455,15 @@ typedef struct {
   union {
     int64_t p4;
     struct {
-      int64_t multiTierExpireSec : 40;
-      int64_t curDnodes : 16;
-      int64_t objectStorageExpired : 1;
-      int64_t dualReplicaHAExpired : 1;
-      int64_t dbEncryptionExpired : 1;
-      int64_t tdGptExpired : 1;  // since 3.3.6.0
-      int64_t reserve2 : 4;
+      int64_t  multiTierExpireSec : 40;
+      int64_t  curDnodes : 16;
+      uint64_t objectStorageExpired : 1;
+      uint64_t dualReplicaHAExpired : 1;
+      uint64_t dbEncryptionExpired : 1;
+      uint64_t tdGptExpired : 1;  // since 3.3.6.0
+      uint64_t dualReplicaHADefined : 1;
+      uint64_t storageSizeLimited : 1;
+      int64_t  reserve2 : 2;
     };
   };
   union {
@@ -415,13 +477,13 @@ typedef struct {
   union {
     int64_t p6;
     struct {
-      int64_t csvExpireSec : 40;
-      int64_t curSubscriptions : 16;
-      int64_t checkUpTime : 1;
-      int64_t checkMachineCode : 1;
-      int64_t checkHistoricalActive : 1;
-      int64_t skipOldActiveIfParseFail : 1;
-      int64_t reserve4 : 4;
+      int64_t  csvExpireSec : 40;
+      int64_t  curSubscriptions : 16;
+      uint64_t checkUpTime : 1;
+      uint64_t checkMachineCode : 1;
+      uint64_t checkHistoricalActive : 1;
+      uint64_t skipOldActiveIfParseFail : 1;
+      int64_t  reserve4 : 4;
     };
   };
   union {
@@ -477,14 +539,16 @@ typedef struct {
     int64_t p14;  // since 3.3.2.9
     struct {
       int64_t dataSyncExpireSec : 40;
-      int64_t reserve11 : 24;
+      int64_t curAnodes : 16;
+      int64_t reserve11 : 8;
     };
   };
   union {
-    int64_t p15; // since 3.3.6.0
+    int64_t p15;  // since 3.3.6.0
     struct {
       int64_t tdGptExpireSec : 40;
-      int64_t reserve12 : 24;
+      int64_t limitAnodes : 16;
+      int64_t reserve12 : 8;
     };
   };
   int64_t limitTimeSeries;
@@ -493,12 +557,66 @@ typedef struct {
   int32_t curCpuCores;
   int32_t limitViews;
   int32_t curViews;
+  int32_t limitVnodes;
+  int32_t curVnodes;
   int64_t revokedExpireSec;
+  int64_t limitStorageSize;  // storage limits in GB
+  int64_t curStorageSize;    // current storage size in MB
+  // TDengine IDMP grant items
+  union {
+    int64_t p32;
+    struct {
+      int64_t idmpBasicExpireSec : 40;
+      int64_t reserve32 : 24;
+    };
+  };
+  int64_t idmpLimitTsAttributes;
+  int64_t idmpLimitNonTsAttributes;
+  int64_t idmpLimitElements;
+  int32_t idmpLimitServers;
+  int32_t idmpLimitCpuCores;
+  int32_t idmpLimitUsers;
+  union {
+    int64_t p33;
+    struct {
+      int64_t idmpVersionCtrlExpireSec : 40;
+      int64_t reserve33 : 24;
+    };
+  };
+  union {
+    int64_t p34;
+    struct {
+      int64_t idmpDataForecastExpireSec : 40;
+      int64_t reserve34 : 24;
+    };
+  };
+  union {
+    int64_t p35;
+    struct {
+      int64_t idmpDataDetectExpireSec : 40;
+      int64_t reserve35 : 24;
+    };
+  };
+  union {
+    int64_t p36;
+    struct {
+      int64_t idmpDataQualityExpireSec : 40;
+      int64_t reserve36 : 24;
+    };
+  };
+  union {
+    int64_t p37;
+    struct {
+      int64_t idmpAiChatGenExpireSec : 40;
+      int64_t reserve37 : 24;
+    };
+  };
   // known dataIns
   SGrantDataIn dataIns[CONN_TYPE_DYN_MAX];
   // variants
   SArray *pDataIns;  // SGrantDataIns
-  SArray *pItemN64;  // SGrantItem64
+  SArray *pItemN64;  // SGrantItem64 // grant name is stored, used by other applications (such as taosx)
+  SArray *pItemT64;  // SGrantItem64 // grant name is stored, used by other applications (such as TDengine IDMP)
 } SGrantStatus;
 
 typedef struct {
@@ -525,6 +643,7 @@ int32_t grantUniqGenActiveCode(SGrantUniqObj *grant);
 int32_t grantUniqGenMachinesChksum(SArray *pMachines, uint32_t *pChecksum);
 int32_t grantUniqParseActiveCode(SGrantUniqObj *grant, SActiveCodeInfo *info);
 int32_t grantUniqMergeActiveCode(SGrantUniqObj *_new, SGrantUniqObj *old, SGrantUniqObj *merge);
+int32_t grantUniqGenSign(const char *input, int32_t ilen, char **ppOutput, int32_t *olen);
 void    tDestroyGrantUniqObj(SGrantUniqObj *pObj);
 void    tResetGrantUniqObj(SGrantUniqObj *pObj);
 

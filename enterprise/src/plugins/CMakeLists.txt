@@ -32,97 +32,68 @@ IF(TD_BUILD_TAOSA_INTERNAL)
   MESSAGE("")
   MESSAGE("${Green} use taosainternal as httpd ${ColourReset}")
 
-  EXECUTE_PROCESS(
-    COMMAND git rev-parse --abbrev-ref HEAD
-    RESULT_VARIABLE result_taos_version
-    OUTPUT_VARIABLE taos_version
+  SET(taos_version ${TD_VER_NUMBER})
+  set(_cgo_cflags_list
+          "-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client"
   )
-
-  STRING(FIND ${taos_version} release is_release_branch)
-
-  IF("${is_release_branch}" STREQUAL "0")
-    STRING(SUBSTRING "${taos_version}" 12 -1 taos_version)
-    STRING(STRIP "${taos_version}" taos_version)
-  ELSE()
-    STRING(CONCAT taos_version "branch_" "${taos_version}")
-    STRING(STRIP "${taos_version}" taos_version)
-  ENDIF()
-
-  EXECUTE_PROCESS(
-    COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR}/taosainternal
+  set(_cgo_ldflags_list
+          "-L${CMAKE_BINARY_DIR}/build/lib ${_rpath}"
   )
-  EXECUTE_PROCESS(
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/taosainternal
-    COMMAND go mod tidy
+  set(_ldflags_list
+          "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}'"
+          "-X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+          "-X 'github.com/taosdata/taosadapter/v3/version.CUS_NAME=${TAOSA_CUS_NAME}'"
+          "-X 'github.com/taosdata/taosadapter/v3/version.CUS_PROMPT=${TAOSA_CUS_PROMPT}'"
   )
+  string(JOIN " " _cgo_cflags ${_cgo_cflags_list})
+  string(JOIN " " _cgo_ldflags ${_cgo_ldflags_list})
+  string(JOIN " " _ldflags ${_ldflags_list})
 
-  EXECUTE_PROCESS(
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/taosainternal
-    COMMAND go list -m -f "{{.Version}}" github.com/taosdata/taosadapter/v3
-    OUTPUT_VARIABLE taosadapter_commit_sha1
-  )
 
-  if(${taosadapter_commit_sha1} MATCHES "-")
-    string(FIND ${taosadapter_commit_sha1} "-" last_dash REVERSE)
-    math(EXPR last_dash "${last_dash} + 1")
-    string(SUBSTRING ${taosadapter_commit_sha1} ${last_dash} -1 taosadapter_commit_sha1)
+  INCLUDE(ExternalProject)
+  if(${TD_LINUX})
+      set(ext_taosadapter_static taosadapter.a)
+      set(taosadapter_exe        taosadapter)
+      set(_rpath                 "-Wl,-rpath=\$ORIGIN/../lib")
+      set(_shell_cmd             sh -c "go build -a -o ${taosadapter_exe} -ldflags \"${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=$(cd ${TD_INTERNALS_BASE_DIR}/build/ext_taosadapter/src/ext_taosadapter && git rev-parse HEAD)'\"")
+  elseif(${TD_DARWIN})
+      set(ext_taosadapter_static taosadapter.a)
+      set(taosadapter_exe        taosadapter)
+      set(_rpath                 "-Wl,-rpath,\$ORIGIN/../lib")
+      set(_shell_cmd             sh -c "go build -a -o ${taosadapter_exe} -ldflags \"${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=$(cd ${TD_INTERNALS_BASE_DIR}/build/ext_taosadapter/src/ext_taosadapter && git rev-parse HEAD)'\"")
+  elseif(${TD_WINDOWS})
+      set(ext_taosadapter_static taosadapter.lib)
+      set(taosadapter_exe        taosadapter.exe)
+      set(_rpath                 "")
+      set(_shell_cmd             cmd /c for /f %i in ('git -C ${TD_INTERNALS_BASE_DIR}/build/ext_taosadapter/src/ext_taosadapter rev-parse HEAD') do go build -a -o ${taosadapter_exe} -ldflags "${_ldflags} -X 'github.com/taosdata/taosadapter/v3/version.CommitID=%i'")
   endif()
 
-  string(REGEX REPLACE "\n$" "" taosadapter_commit_sha1 "${taosadapter_commit_sha1}")
-  string(REGEX REPLACE "\r$" "" taosadapter_commit_sha1 "${taosadapter_commit_sha1}")
-  SET(taos_version ${TD_VER_NUMBER})
-  MESSAGE("${Green} taosAdapter will use ${taos_version} and commit ${taosadapter_commit_sha1} as version ${ColourReset}")
-  EXECUTE_PROCESS(
-    COMMAND cd ..
+
+  include(ExternalProject)
+
+  ExternalProject_Add(taosainternal
+    PREFIX "taosainternal"
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosainternal
+    BUILD_ALWAYS off
+    DEPENDS ${TAOS_NATIVE_LIB}
+    BUILD_IN_SOURCE 1
+    CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
+    PATCH_COMMAND
+    COMMAND git clean -f -d
+    BUILD_COMMAND
+    COMMAND go mod tidy
+    COMMAND "${CMAKE_COMMAND}" -E env "CGO_CFLAGS=${_cgo_cflags}"
+                                      "CGO_LDFLAGS=${_cgo_ldflags}"
+            ${_shell_cmd}
+
+    INSTALL_COMMAND
+    COMMAND "${CMAKE_COMMAND}" -E echo "Copy taosadapter"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${taosadapter_exe} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${taosadapter_exe}
+    COMMAND "${CMAKE_COMMAND}" -E echo "Copy taosadapter.toml"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_INTERNALS_BASE_DIR}/build/ext_taosadapter/src/ext_taosadapter/example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/taosadapter.toml
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_INTERNALS_BASE_DIR}/build/ext_taosadapter/src/ext_taosadapter/taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/taosadapter.service
   )
-
-  IF(TD_WINDOWS)
-    MESSAGE("Building taosAdapter internal on Windows")
-    include(ExternalProject)
-
-    ExternalProject_Add(taosainternal
-      PREFIX "taosainternal"
-      SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosainternal
-      BUILD_ALWAYS off
-      DEPENDS ${TAOS_NATIVE_LIB}
-      BUILD_IN_SOURCE 1
-      CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
-      PATCH_COMMAND
-      COMMAND git clean -f -d
-      BUILD_COMMAND
-      COMMAND set CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client
-      COMMAND set CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib
-      COMMAND go mod tidy
-      COMMAND go build -a -o taosadapter.exe -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.CUS_NAME=${TAOSA_CUS_NAME}' -X 'github.com/taosdata/taosadapter/v3/version.CUS_PROMPT=${TAOSA_CUS_PROMPT}' -X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
-      INSTALL_COMMAND
-      COMMAND cmake -E copy taosadapter.exe ${CMAKE_BINARY_DIR}/build/bin
-      COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
-      COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/taosadapter/example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
-      COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/taosadapter/taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
-    )
-  ELSE(TD_WINDOWS)
-    MESSAGE("Building taosAdapter internal on non-Windows")
-    include(ExternalProject)
-
-    ExternalProject_Add(taosainternal
-      PREFIX "taosainternal"
-      SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosainternal
-      BUILD_ALWAYS off
-      DEPENDS ${TAOS_NATIVE_LIB}
-      BUILD_IN_SOURCE 1
-      CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
-      PATCH_COMMAND
-      COMMAND git clean -f -d
-      BUILD_COMMAND
-      COMMAND go mod tidy
-      COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -o taosadapter -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.CUS_NAME=${TAOSA_CUS_NAME}' -X 'github.com/taosdata/taosadapter/v3/version.CUS_PROMPT=${TAOSA_CUS_PROMPT}' -X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
-      INSTALL_COMMAND
-      COMMAND cmake -E copy taosadapter ${CMAKE_BINARY_DIR}/build/bin/
-      COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
-      COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/taosadapter/example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
-      COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/taosadapter/taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
-    )
-  ENDIF(TD_WINDOWS)
+  ADD_DEPENDENCIES(taosainternal ext_taosadapter)
 ENDIF()
 
 IF("${BUILD_TAOSX}" MATCHES "true")

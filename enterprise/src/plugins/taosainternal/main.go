@@ -19,7 +19,7 @@ func main() {
 	ssl := config.SSl{}
 	ssl.SetValue()
 	system.Start(router, func(server *http.Server) {
-		ln, err := net.Listen("tcp4", server.Addr)
+		ln, err := net.Listen("tcp", server.Addr)
 		if err != nil {
 			logger.Fatalf("listen: %s\n", err)
 		}

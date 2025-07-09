@@ -31,6 +31,7 @@ extern int32_t tsdbWriteSttBlock(SDataFWriter *pWriter, SBlockData *pBlockData, 
 extern bool    tsdbCompMonHasTask(STsdb *tsdb);
 extern int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, int64_t compactSize);
 extern int32_t tsdbUpdateCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, int64_t compactSize);
+extern int32_t tsdbCompMonitorGetKilled(STsdb *tsdb);
 extern void    tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId);
 static void    tsdbCompactCancel(void *arg);
 
@@ -111,6 +112,13 @@ static int32_t tsdbCompactFSetOpenReader(SCompactor2 *compactor) {
   SSttLvl *lvl;
   TARRAY2_FOREACH(compactor->fset->lvlArr, lvl) {
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+      if (tsdbCompMonitorGetKilled(compactor->tsdb)) {
+        tsdbInfo("vgId:%d fid:%d (file:%s) compact killed during open reader", TD_VID(compactor->tsdb->pVnode),
+                 compactor->fset->fid, fobj->fname);
+        code = TSDB_CODE_TSC_QUERY_KILLED;
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+
       SSttFileReader      *sttReader;
       SSttFileReaderConfig sttFileReaderConfig = {
           .tsdb = compactor->tsdb,
@@ -182,6 +190,12 @@ static int32_t tsdbCompactFSetOpenIter(SCompactor2 *compactor) {
   // stt
   SSttFileReader *sttReader;
   TARRAY2_FOREACH(compactor->ctx->sttReaderArr, sttReader) {
+    if (tsdbCompMonitorGetKilled(compactor->tsdb)) {
+      tsdbInfo("vgId:%d fid:%d compact killed during open iter for stt", TD_VID(compactor->tsdb->pVnode),
+               compactor->fset->fid);
+      code = TSDB_CODE_TSC_QUERY_KILLED;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
     // data
     iterConfig.type = TSDB_ITER_TYPE_STT;
     iterConfig.sttReader = sttReader;
@@ -334,6 +348,13 @@ static int32_t tsdbCompactFSetTableDataBegin(SCompactor2 *compactor, const TABLE
   SArray *delDataArr = NULL;
 
   for (STombRecord *record; (record = tsdbIterMergerGetTombRecord(compactor->ctx->tombIterMerger)) != NULL;) {
+    if (tsdbCompMonitorGetKilled(compactor->tsdb)) {
+      tsdbInfo("vgId:%d fid:%d compact killed during tombstone processing", TD_VID(compactor->tsdb->pVnode),
+               compactor->fset->fid);
+      code = TSDB_CODE_TSC_QUERY_KILLED;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
     if (record->suid > tbid->suid || (record->suid == tbid->suid && record->uid > tbid->uid)) {
       break;
     } else {
@@ -467,6 +488,13 @@ static int32_t tsdbCompactFSet(SCompactor2 *compactor) {
   int64_t   expireTs = 0;
 
   for (SRowInfo *row; (row = tsdbIterMergerGetData(compactor->ctx->dataIterMerger)) != NULL;) {
+    if (tsdbCompMonitorGetKilled(compactor->tsdb)) {
+      tsdbInfo("vgId:%d fid:%d compact killed during data processing", TD_VID(compactor->tsdb->pVnode),
+               compactor->fset->fid);
+      code = TSDB_CODE_TSC_QUERY_KILLED;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
     if (row->suid != compactor->ctx->tbid->suid) {
       code = tsdbCompactFSetGetKeep(compactor, row->suid, &keep);
       expireTs = now - (tsTickPerMin[compactor->tsdb->keepCfg.precision] * keep);
@@ -509,8 +537,20 @@ _exit:
   return code;
 }
 
-bool tsdbShouldCompact(const STFileSet *fset) {
+void tsdbSetFsetlcn(STFileSet *fset) {
+  STFileObj *fobj = fset->farr[TSDB_FTYPE_DATA];
+  if (fobj && fobj->f->lcn < 0) {
+    fobj->f->lcn = 0;
+  }
+}
+
+bool tsdbShouldCompact(STFileSet *fset, int32_t vgId) {
+  if (fset->farr[TSDB_FTYPE_DATA]) {
+    tsdbInfo("vgId:%d fid:%d lastCompact:%" PRId64 " lastCommit:%" PRId64 "lcn:%d", vgId, fset->fid, fset->lastCompact,
+             fset->lastCommit, fset->farr[TSDB_FTYPE_DATA]->f->lcn);
+  }
   if (fset->lastCompact > fset->lastCommit) {
+    tsdbSetFsetlcn(fset);
     return false;
   }
 
@@ -599,7 +639,7 @@ static int32_t tsdbCompact(void *arg) {
   (void)taosThreadMutexUnlock(&tsdb->mutex);
 
   // do compact
-  if (compactor.fset && tsdbShouldCompact(compactor.fset)) {
+  if (compactor.fset && tsdbShouldCompact(compactor.fset, TD_VID(tsdb->pVnode))) {
     code = tsdbDoCompact(&compactor);
     TSDB_CHECK_CODE(code, lino, _exit);
   }

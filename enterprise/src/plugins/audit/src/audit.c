@@ -75,12 +75,10 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
   char strClusterId[TSDB_CLUSTER_ID_LEN] = {0};
   sprintf(strClusterId, "%" PRId64, clusterId);
 
-  char clientAddress[50] = {0};
-  if(pReq != NULL){
-    char ip[24] = {0};
-    taosInetNtoa(ip, pReq->info.conn.clientIp);
-
-    sprintf(clientAddress, "%s:%d", ip, pReq->info.conn.clientPort);
+  char clientAddress[256] = {0};
+  if (pReq != NULL) {
+    SIpAddr *ipAddr = &pReq->info.conn.cliAddr;
+    sprintf(clientAddress, "%s:%d", IP_ADDR_STR(ipAddr), ipAddr->port);
   }
 
   int32_t code = 0;
@@ -175,11 +173,9 @@ void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *
 
   sprintf(record->strClusterId, "%" PRId64, clusterId);
 
-  if(pReq != NULL){
-    char ip[24] = {0};
-    taosInetNtoa(ip, pReq->info.conn.clientIp);
-
-    sprintf(record->clientAddress, "%s:%d", ip, pReq->info.conn.clientPort);
+  if (pReq != NULL) {
+    SIpAddr *pAddr = &pReq->info.conn.cliAddr;
+    sprintf(record->clientAddress, "%s:%d", IP_ADDR_STR(pAddr), pAddr->port);
   }
 
   strcpy(record->operation, operation);
