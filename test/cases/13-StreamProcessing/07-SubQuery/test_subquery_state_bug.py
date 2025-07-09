@@ -187,5 +187,7 @@ class TestStreamSubqueryState:
             and tdSql.compareData(2, 0, "2025-01-01 00:10:00.000")
             and tdSql.compareData(2, 1, 245)
             and tdSql.compareData(2, 2, 10)
-            and tdSql.compareData(3, 0, "2025-01-01 00:30:00.000"),
+            and tdSql.compareData(3, 0, "2025-01-01 00:30:00.000")
+            and tdSql.compareData(3, 1, 2415)
+            and tdSql.compareData(3, 2, 10),
         )
