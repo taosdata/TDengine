@@ -573,7 +573,7 @@ int32_t tableReaderLoadRawFooter(STableReader *p, SBlockWrapper *blkWrapper) {
   code = blockWrapperResize(blkWrapper, len + sizeof(SBseSnapMeta));
   TSDB_CHECK_CODE(code, lino, _error);
 
-  memcpy(blkWrapper->data + sizeof(SBseSnapMeta), buf, sizeof(buf));
+  memcpy((uint8_t *)blkWrapper->data + sizeof(SBseSnapMeta), buf, sizeof(buf));
   blkWrapper->size = len + sizeof(SBseSnapMeta);
 
   addSnapshotMetaToBlock(blkWrapper, p->range, BSE_TABLE_META_SNAP, BSE_TABLE_FOOTER_TYPE, 365);
