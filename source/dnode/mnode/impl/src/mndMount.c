@@ -178,7 +178,6 @@ _exit:
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   if (code < 0) {
-    mndMountDestroyObj(pObj);
     mError("mount, %s failed at line %d since %s, row:%p", __func__, lino, tstrerror(code), pObj);
   }
   TAOS_RETURN(code);
@@ -276,6 +275,7 @@ _exit:
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     mError("mount, failed at line %d to decode from raw:%p since %s", lino, pRaw, tstrerror(code));
+    mndMountFreeObj(pObj);
     taosMemoryFreeClear(pRow);
     return NULL;
   }
