@@ -535,7 +535,7 @@ do
         initDnodeAndMnode
         # create tdasset db if not exist
         if [ $TDASSET_DB_CREATED  -eq 0 ]; then
-            taos -s "create database if not exists tdasset;GRANT ALL on tdasset.* to admin_user;"
+            taos -s "create database if not exists idmp;GRANT ALL on idmp.* to admin_user;"
             TDASSET_DB_CREATED=1
         fi
 
