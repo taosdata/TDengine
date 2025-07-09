@@ -39,6 +39,7 @@ int main(int argc, char **argv) {
   return RUN_ALL_TESTS();
 }
 
+#ifdef LINUX
 static void initLog() {
     dDebugFlag = 143;
     vDebugFlag = 0;
@@ -299,17 +300,14 @@ int32_t snapTest()  {
     
 
 }
-
-// TEST(bseCase, openTest) {
-//     initLog();
-//     benchTest();
-//     funcTest();
-// }
+#endif
 TEST(bseCase, snapTest) {
+#ifdef LINUX
     initLog();
     benchTest();
     funcTest();
     snapTest();
+#endif
 }
 
 #pragma GCC diagnostic pop
