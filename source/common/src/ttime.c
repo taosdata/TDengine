@@ -743,6 +743,9 @@ int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interva
 }
 
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
+  if (ts <= INT64_MIN || ts >= INT64_MAX) {
+    return ts;
+  }
   if (pInterval->sliding == 0) {
     return ts;
   }
