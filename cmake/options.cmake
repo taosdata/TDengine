@@ -49,6 +49,23 @@ else()
   set(TAOSADAPTER_GIT_TAG_SHALLOW FALSE CACHE BOOL "" FORCE)
 endif()
 
+# TAOSWS_GIT_TAG
+# eg.: main
+if(NOT DEFINED TAOSWS_GIT_TAG)
+    set(TAOSWS_GIT_TAG "main" CACHE STRING "which tag/branch/commit-sha1 to checkout for taosws(rust connector)" FORCE)
+endif()
+
+# preprocess TAOSWS_GIT_TAG
+string(REPLACE ":" ";" _kv "${TAOSWS_GIT_TAG}:TRUE") # NOTE: set GIT_SHALLOW to TRUE by default
+list(GET _kv 0 _k)
+list(GET _kv 1 _v)
+set(TAOSWS_GIT_TAG_NAME    "${_k}" CACHE STRING "" FORCE)
+if(${_v})
+    set(TAOSWS_GIT_TAG_SHALLOW TRUE CACHE BOOL "" FORCE)
+else()
+    set(TAOSWS_GIT_TAG_SHALLOW FALSE CACHE BOOL "" FORCE)
+endif()
+
 IF(${TD_WINDOWS})
     IF(NOT TD_ASTRA)
         MESSAGE("build pthread Win32")
