@@ -2077,7 +2077,11 @@ int32_t streamCalcOutputTbName(SNode* pExpr, char* tbname, const SStreamRuntimeF
       qError("tbname generated with no characters which is not allowed");
       code = TSDB_CODE_INVALID_PARA;
     }
-    memcpy(tbname, pVal, len);
+    if(len > TSDB_TABLE_NAME_LEN - 1) {
+      qError("tbname generated with too long characters, max allowed is %d, got %d", TSDB_TABLE_NAME_LEN - 1, len);
+      code = TSDB_CODE_MND_STREAM_TBNAME_TOO_LONG;
+    }
+    tstrncpy(tbname, pVal, TSDB_TABLE_NAME_LEN);
   }
   // TODO free dst
   sclFreeParam(&dst);
