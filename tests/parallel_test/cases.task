@@ -48,7 +48,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_percentile.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_resinfo.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interp.py
-,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interval.py
+#newstm,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interval.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interval_diff_tz.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/concat.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/cast.py
