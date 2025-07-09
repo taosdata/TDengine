@@ -21,6 +21,7 @@ import psutil
 import shutil
 import re
 import pandas as pd
+import csv
 from .log import *
 from .constant import *
 import ctypes
@@ -495,6 +496,96 @@ class TDSql:
             raise Exception(repr(e))
         return (self.queryRows, timeout)
 
+    def query_success_failed(self, sql, row_tag=None, queryTimes=10, count_expected_res=None, expectErrInfo = None, fullMatched = True):
+        """Executes a SQL query with retry mechanism and handles both successful and failed scenarios.
+
+        This method attempts to execute a SQL query multiple times, handling both successful
+        executions and expected error conditions. It's particularly useful for testing
+        scenarios where queries might initially fail but eventually succeed, or for
+        validating specific error conditions.
+
+        Args:
+            sql (str): The SQL query statement to be executed.
+            row_tag (optional): If provided, the method will return the fetched results 
+                            instead of just the row count. Defaults to None.
+            queryTimes (int, optional): Maximum number of retry attempts if the query fails.
+                                    Defaults to 10.
+            count_expected_res (optional): If provided, the method will repeatedly execute 
+                                        the query until the first result matches this value 
+                                        or retry limit is reached. Defaults to None.
+            expectErrInfo (str, optional): Expected error message to validate against when 
+                                        query fails. If None, any error is acceptable. 
+                                        Defaults to None.
+            fullMatched (bool, optional): If True, performs exact string matching for error 
+                                        messages. If False, performs partial string matching 
+                                        (contains). Defaults to True.
+
+        Returns:
+            str: Error information string if an expected error occurs and query fails
+                within retry attempts.
+            None: If query succeeds or if unexpected error occurs and reaches retry limit.
+
+        Raises:
+            Exception: If query fails after all retry attempts and the error is not expected
+                    or doesn't match the expected error pattern.
+        """
+        self.sql = sql
+        i=1
+        while i <= queryTimes:
+            try:
+                self.cursor.execute(sql)
+                self.queryResult = self.cursor.fetchall()
+                self.queryRows = len(self.queryResult)
+                self.queryCols = len(self.cursor.description)
+
+                if count_expected_res is not None:
+                    counter = 0
+                    while count_expected_res != self.queryResult[0][0]:
+                        self.cursor.execute(sql)
+                        self.queryResult = self.cursor.fetchall()
+                        if counter < queryTimes:
+                            counter += 0.5
+                            time.sleep(0.5)
+                        else:
+                            return False
+                        
+                tdLog.info("query is success")
+                time.sleep(1)
+                continue
+            except Exception as e:
+                tdLog.notice("Try to query again, query times: %d "%i)
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                if i < queryTimes:
+                    error_info = repr(e)
+                    print(error_info)
+                    self.error_info = ','.join(error_info[error_info.index('(')+1:-1].split(",")[:-1]).replace("'","")
+                    self.queryRows = 0
+                    self.queryCols = 0
+                    self.queryResult = None
+
+                    if fullMatched:
+                        if expectErrInfo != None:
+                            if expectErrInfo == self.error_info:
+                                tdLog.info("sql:%s, expected expectErrInfo '%s' occured" % (sql, expectErrInfo))
+                            else:
+                                tdLog.exit("%s(%d) failed: sql:%s, expectErrInfo '%s' occured, but not expected expectErrInfo '%s'" % (caller.filename, caller.lineno, sql, self.error_info, expectErrInfo))
+                    else:
+                        if expectErrInfo != None:
+                            if expectErrInfo in self.error_info:
+                                tdLog.info("sql:%s, expected expectErrInfo '%s' occured" % (sql, expectErrInfo))
+                            else:
+                                tdLog.exit("%s(%d) failed: sql:%s, expectErrInfo %s occured, but not expected expectErrInfo '%s'" % (caller.filename, caller.lineno, sql, self.error_info, expectErrInfo))
+
+                    return self.error_info                   
+                elif i == queryTimes:
+                    caller = inspect.getframeinfo(inspect.stack()[1][0])
+                    args = (caller.filename, caller.lineno, sql, repr(e))
+                    tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+                    raise Exception(repr(e))
+                i+=1
+                time.sleep(1)
+                pass
+            
     def isErrorSql(self, sql):
         """
         Executes a SQL statement and checks if it results in an error.(Not used)
@@ -554,6 +645,54 @@ class TDSql:
                 tdLog.exit("sql list is empty")
         except Exception as ex:
             tdLog.exit("Failed to execute sql list: %s, error: %s" % (sql_list, ex))
+
+    def is_err_sql(self, sql):
+        """Checks if a SQL statement will result in an error when executed.
+
+        This method executes the provided SQL statement and determines whether it 
+        causes an exception. It's useful for testing error conditions and validating
+        that certain SQL statements should fail.
+
+        Args:
+            sql (str): The SQL statement to be tested for errors.
+
+        Returns:
+            bool: False if the SQL statement executes successfully without errors,
+                True if the SQL statement results in an error/exception.
+
+        Raises:
+            None: This method catches all exceptions internally and returns a boolean
+                result instead of raising exceptions.
+        """
+        err_flag = True
+        try:
+            self.cursor.execute(sql)
+        except BaseException:
+            err_flag = False
+
+        return False if err_flag else True
+
+    def no_error(self, sql):
+        """_summary_
+
+        Args:
+            sql (_type_): _description_
+        """
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
+        expectErrOccurred = False
+
+        try:
+            self.cursor.execute(sql)
+        except BaseException as e:
+            expectErrOccurred = True
+            self.errno = e.errno
+            error_info = repr(e)
+            self.error_info = ','.join(error_info[error_info.index('(') + 1:-1].split(",")[:-1]).replace("'", "")
+
+        if expectErrOccurred:
+            tdLog.exit("%s(%d) failed: sql:%s, unexpect error '%s' occurred" % (caller.filename, caller.lineno, sql, self.error_info))
+        else:
+            tdLog.info("sql:%s, check passed, no ErrInfo occurred" % (sql))
 
     def error(
         self, sql, expectedErrno=None, expectErrInfo=None, fullMatched=True, show=False
@@ -1987,6 +2126,15 @@ class TDSql:
                 % args
             )
 
+    def checkResColNameList(self, expect_col_name_list):
+        col_name_list = []
+        col_type_list = []
+        for query_col in self.cursor.description:
+            col_name_list.append(query_col[0])
+            col_type_list.append(query_col[1])
+
+        self.checkColNameList(col_name_list, expect_col_name_list)
+        
     def __check_equal(self, elm, expect_elm):
         if elm == expect_elm:
             return True
@@ -2058,6 +2206,33 @@ class TDSql:
             args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
             tdLog.info("%s(%d) failed: sql:%s, elm:%s == expect_elm:%s" % args)
             raise Exception
+
+    def checkGreater(self, elm, expect_elm):
+        """Verifies that the first element is greater than the second element.
+
+        This method compares two values and ensures that the first value (elm) is 
+        strictly greater than the second value (expect_elm). It's commonly used for
+        validating query results, performance metrics, or any numeric comparisons
+        in test cases.
+
+        Args:
+            elm: The actual value to be compared. Can be any comparable type 
+                (int, float, string, etc.).
+            expect_elm: The expected threshold value that elm should exceed.
+                    Must be the same comparable type as elm.
+
+        Returns:
+            bool: True if elm > expect_elm, False otherwise.
+        """
+        if elm > expect_elm:
+            tdLog.info("sql:%s, elm:%s > expect_elm:%s" % (self.sql, elm, expect_elm))
+            return True
+        else:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
+            tdLog.info("%s(%d) failed: sql:%s, elm:%s <= expect_elm:%s" % args)
+            self.print_error_frame_info(elm, expect_elm)
+            return False
 
     # check like select count(*) ...  sql
     def checkAgg(self, sql, expectCnt):

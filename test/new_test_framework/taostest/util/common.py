@@ -215,16 +215,16 @@ class TDCom:
 
     def trans_time_to_s(self, runtime):
         if "d" in str(runtime).lower():
-            d_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            d_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
             s_num = float(d_num) * 24 * 60 * 60
         elif "h" in str(runtime).lower():
-            h_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            h_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
             s_num = float(h_num) * 60 * 60
         elif "m" in str(runtime).lower():
-            m_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            m_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
             s_num = float(m_num) * 60
         elif "s" in str(runtime).lower():
-            s_num = re.findall("\d+\.?\d*", runtime.replace(" ", ""))[0]
+            s_num = re.findall(r"\d+\.?\d*", runtime.replace(" ", ""))[0]
         else:
             s_num = 60
         return int(s_num)

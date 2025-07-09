@@ -283,110 +283,110 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/force_window_close_interp.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/force_window_close_interval.py
 
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_error.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_varchar.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func_group.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_expr.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/project_group.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname_vgroup.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_interval.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/compact-col.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tms_memleak.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/para_tms.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/para_tms2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/columnLenUpdated.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/columnLenUpdated.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/columnLenUpdated.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/columnLenUpdated.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_unit.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_unit.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_unit.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_unit.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col_agg.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col_agg.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col_agg.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col_agg.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt_2.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt_2.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt_2.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt_2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/func_to_char_timestamp.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/func_to_char_timestamp.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/func_to_char_timestamp.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/func_to_char_timestamp.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_cache_scan.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_cache_scan.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_cache_scan.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_cache_scan.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 1
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 1
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 1
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_error.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_varchar.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func_group.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_expr.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/project_group.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname_vgroup.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_interval.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/compact-col.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tms_memleak.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stbJoin.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hint.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/para_tms.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/para_tms2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/columnLenUpdated.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/columnLenUpdated.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/columnLenUpdated.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/columnLenUpdated.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_unit.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_unit.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_unit.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_unit.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col_agg.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col_agg.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col_agg.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col_agg.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt_2.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt_2.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt_2.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt_2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/func_to_char_timestamp.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/func_to_char_timestamp.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/func_to_char_timestamp.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/func_to_char_timestamp.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_cache_scan.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_cache_scan.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_cache_scan.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_cache_scan.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 1
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal2.py -Q 1
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal3.py -Q 1
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqShow.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb0.py
@@ -405,74 +405,74 @@
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmqDropConsumer.py
 
 
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_stb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_stable.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/stt_blocks_check.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_null.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/database_pre_suf.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 4
-,,n,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-5761.py
-,,n,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-5761-scalemode.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-5712.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/match.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/match.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/match.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/match.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_AlwaysReturnValue.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_AlwaysReturnValue.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_AlwaysReturnValue.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_AlwaysReturnValue.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_stb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_stable.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/stt_blocks_check.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_null.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_null_none.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/database_pre_suf.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_str.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_math.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/select_null.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/slimit.py -Q 4
+#has migrate to new,,n,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-5761.py
+#has migrate to new,,n,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-5761-scalemode.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-5712.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4233.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/like.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/match.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/match.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/match.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/match.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-28068.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_AlwaysReturnValue.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_AlwaysReturnValue.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_AlwaysReturnValue.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_AlwaysReturnValue.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/agg_group_NotReturnValue.py -Q 4
 
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-32548.py
-,,n,system-test,python3 ./test.py -f 2-query/large_data.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/td-32548.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 2-query/large_data.py
 
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/checkpoint_info.py -N 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/checkpoint_info2.py -N 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_multi_insert.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_multi_insert.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3 -i False
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3 -i False
@@ -644,346 +644,346 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact.py -N 3
 
 
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_create.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_insert.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_delete.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_double.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_replica.py -N 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_stable.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_table.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/boundary.py
-,,n,system-test,python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_comment.py
-#,,n,system-test,python3 ./test.py -f 1-insert/time_range_wise.py
-#,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/block_wise.py
-#,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/create_retentions.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/mutil_stage.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/update_data_muti_rows.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/db_tb_name_check.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/InsertFuturets.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_wide_column.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_column_value.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_from_csv.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_benchmark.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/precisionUS.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/precisionNS.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4219.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/ts-4272.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4295.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td27388.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4479.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td29793.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_timestamp.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td29157.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/ddl_in_sysdb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_create.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_insert.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_delete.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_double.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_replica.py -N 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_stable.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_table.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/boundary.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_comment.py
+#has migrate to new#,,n,system-test,python3 ./test.py -f 1-insert/time_range_wise.py
+#has migrate to new#,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/block_wise.py
+#has migrate to new#,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/create_retentions.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/mutil_stage.py
+#has migrate to new#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/table_param_ttl.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/update_data_muti_rows.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/db_tb_name_check.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/InsertFuturets.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_wide_column.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_column_value.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_from_csv.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_benchmark.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_1.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_2.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_3.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/rowlength64k_4.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/precisionUS.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/precisionNS.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4219.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/ts-4272.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4295.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td27388.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_ts4479.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td29793.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_timestamp.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td29157.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/ddl_in_sysdb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_tag_index.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/information_schema.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ins_filesets.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/grant.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/and_or_for_byte.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/and_or_for_byte.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/apercentile.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/apercentile.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arccos.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arccos.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arcsin.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arcsin.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/avg.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/avg.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/check_tsdb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/check_tsdb.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws2.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/group_partition.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/group_partition.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/group_partition.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/group_partition.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/group_partition.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py -N 3 -n 3 -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_apercentile.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_apercentile.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_avg.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_avg.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_count.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_count.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_max.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_max.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_min.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_min.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_spread.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_spread.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_stddev.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_stddev.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_sum.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_sum.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/explain.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/explain.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/first.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/first.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/floor.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/floor.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/histogram.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/histogram.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hyperloglog.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hyperloglog.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last+last_row.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last+last_row.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last+last_row.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last+last_row.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_1.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_1.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_1.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_1.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_2.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_2.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_2.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_2.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_3.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_3.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_3.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_3.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_3.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_4.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_4.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_4.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_4.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_4.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/limit.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/logical_operators.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/logical_operators.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ltrim.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ltrim.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row_interval.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/not.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/not.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/orderBy.py -N 5
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pow.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pow.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/round.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/round.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/rtrim.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/rtrim.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaBasic.py -N 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaTest.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaTest.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml_TS-3724.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml-TD19291.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varbinary.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sqrt.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sqrt.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/statecount.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/statecount.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/substr.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/substr.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sum.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sum.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tail.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tail.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tan.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tan.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timezone.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timezone.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_iso8601.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_iso8601.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_unixtimestamp.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_unixtimestamp.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ttl_comment.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ttl_comment.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/twa.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/twa.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/unique.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/unique.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/update_data.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/tb_100w_data_order.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_childtable.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_normaltable.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/keep_expired.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/stmt_error.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py -N 3 -M 3 -i False -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/systable_func.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4382.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4403.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_td28163.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/elapsed.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/csum.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tagFilter.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts_3405_3398_3423.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4348-td-27939.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/backslash_g.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4467.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/geometry.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/and_or_for_byte.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/and_or_for_byte.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/apercentile.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/apercentile.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arccos.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arccos.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arcsin.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arcsin.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/avg.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/avg.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/check_tsdb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/check_tsdb.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws2.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/group_partition.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/group_partition.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/group_partition.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/group_partition.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/group_partition.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py -N 3 -n 3 -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_apercentile.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_apercentile.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_avg.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_avg.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_count.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_count.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_max.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_max.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_min.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_min.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_spread.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_spread.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_stddev.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_stddev.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_sum.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_sum.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/explain.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/explain.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/first.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/first.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/floor.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/floor.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/histogram.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/histogram.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hyperloglog.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hyperloglog.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill2.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_and_last_row.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last+last_row.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last+last_row.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last+last_row.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last+last_row.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_1.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_1.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_1.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_1.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_1.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_2.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_2.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_2.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_2.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_3.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_3.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_3.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_3.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_3.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_4.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_4.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_4.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_4.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_4.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/primary_ts_base_5.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/limit.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/logical_operators.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/logical_operators.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ltrim.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ltrim.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row_interval.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/not.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/not.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/orderBy.py -N 5
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pow.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pow.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/round.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/round.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/rtrim.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/rtrim.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaBasic.py -N 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaTest.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaTest.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml_TS-3724.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml-TD19291.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varbinary.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sqrt.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sqrt.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/statecount.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/statecount.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/substr.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/substr.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sum.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sum.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tail.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tail.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tan.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tan.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timezone.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timezone.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_iso8601.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_iso8601.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_unixtimestamp.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_unixtimestamp.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ttl_comment.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ttl_comment.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/twa.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/twa.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/unique.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/unique.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/update_data.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/tb_100w_data_order.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_childtable.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_normaltable.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/keep_expired.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/stmt_error.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py -N 3 -M 3 -i False -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union1.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/systable_func.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4382.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4403.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_td28163.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/elapsed.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/csum.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tagFilter.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts_3405_3398_3423.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ts-4348-td-27939.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/backslash_g.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4467.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/geometry.py
 
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade_all.py -N 3
 
-,,n,system-test,python3 ./test.py -f 2-query/queryQnode.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 2-query/queryQnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode1mnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode2mnode.py -N 5
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
@@ -1026,327 +1026,327 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_vgroups.py -N 4 -M 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/compactDBConflict.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/mnodeEncrypt.py 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ltrim.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/rtrim.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/substr.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union1.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat2.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws2.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/check_tsdb.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hyperloglog.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/explain.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timezone.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/not.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/first.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_iso8601.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_unixtimestamp.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/apercentile.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/floor.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/round.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pow.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sqrt.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tan.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arcsin.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arccos.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/avg.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/elapsed.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/csum.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/unique.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/statecount.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tail.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ttl_comment.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_count.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_max.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_min.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_sum.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_spread.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_apercentile.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_avg.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_stddev.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/twa.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py  -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row_interval.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ltrim.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/rtrim.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/substr.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union1.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat2.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws2.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/check_tsdb.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hyperloglog.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/explain.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timezone.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/not.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/first.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_iso8601.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_unixtimestamp.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/apercentile.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/floor.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/round.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pow.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sqrt.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tan.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arcsin.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arccos.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/avg.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/elapsed.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/csum.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/unique.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/statecount.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tail.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ttl_comment.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_count.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_max.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_min.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_sum.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_spread.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_apercentile.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_avg.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_stddev.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/twa.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py  -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row_interval.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 2
 
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ltrim.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/rtrim.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/substr.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union1.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat2.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws2.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/check_tsdb.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hyperloglog.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/explain.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timezone.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/not.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/first.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_iso8601.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_unixtimestamp.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/apercentile.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/floor.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/round.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pow.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sqrt.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tan.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arcsin.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arccos.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/avg.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/elapsed.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/csum.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/unique.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/statecount.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tail.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ttl_comment.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_count.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_max.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_min.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_sum.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_spread.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_apercentile.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_avg.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_stddev.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/twa.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row_interval.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ltrim.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/rtrim.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/substr.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union1.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat2.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws2.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/check_tsdb.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hyperloglog.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/explain.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timezone.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/not.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/first.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_iso8601.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_unixtimestamp.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/apercentile.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/floor.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/round.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pow.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sqrt.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tan.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arcsin.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arccos.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/avg.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/elapsed.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/csum.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/unique.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/statecount.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tail.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ttl_comment.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_count.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_max.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_min.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_sum.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_spread.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_apercentile.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_avg.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_stddev.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/twa.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row_interval.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ltrim.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/rtrim.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/substr.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union1.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat2.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws2.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/check_tsdb.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hyperloglog.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/explain.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timezone.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/not.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/first.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_iso8601.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_unixtimestamp.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/apercentile.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/floor.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/round.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pow.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sqrt.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tan.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arcsin.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arccos.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/avg.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/elapsed.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/csum.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/unique.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ltrim.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/rtrim.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/length.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/char_length.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/lower.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/substr.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union1.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat2.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/concat_ws2.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/check_tsdb.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/spread.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hyperloglog.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/explain.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/leastsquares.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timezone.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Now.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Today.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/min.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/normal.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/not.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mode.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/first.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_iso8601.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/To_unixtimestamp.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/timetruncate.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/Timediff.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/json_tag.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/top.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/bottom.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/percentile.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/apercentile.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ceil.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/floor.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/round.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/log.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pow.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sqrt.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sin.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cos.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tan.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arcsin.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arccos.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/avg.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/elapsed.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/csum.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/mavg.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sample.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cast.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_diff.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/unique.py -Q 4
 #,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stateduration.py -Q 4
 #,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_stateduration.py -Q 4
 #,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/statecount.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tail.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ttl_comment.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_count.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_max.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_min.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_sum.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_spread.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_apercentile.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_avg.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_stddev.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/twa.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row_interval.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/odbc.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill_with_group.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/state_window.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tail.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/ttl_comment.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_count.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_max.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_min.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_sum.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_spread.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_apercentile.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_avg.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distribute_agg_stddev.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/twa.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/function_null.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count_partition.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_partition.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_limit_interval.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/max_min_last_interval.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row_interval.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/last_row.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/out_of_order.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/odbc.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill_with_group.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/state_window.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
 ,,n,system-test,python3 ./test.py -f eco-system/meta/database/keep_time_offset.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f eco-system/manager/schema_change.py -N 3 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_window_true_for.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_window_true_for.py
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 
 #tsim test
