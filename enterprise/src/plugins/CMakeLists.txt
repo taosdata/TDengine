@@ -122,10 +122,10 @@ IF(TD_BULID_TAOSX)
   set(ENV{LIBRARY_PATH} ${CMAKE_BINARY_DIR}/build/lib:$ENV{LIBRARY_PATH})
 
   IF(BUILD_SANITIZER)
-    SET(TAOSX_BULID_COMMAND cargo build --release --no-default-features --features optin --features native-tls)
+    SET(TAOSX_BULID_COMMAND cargo make taosx)
     SET(TAOSX_BINARY target/release/taosx)
   ELSE()
-    SET(TAOSX_BULID_COMMAND LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} cargo build --release)
+    SET(TAOSX_BULID_COMMAND LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} cargo make taosx)
     SET(TAOSX_BINARY target/release/taosx)
   ENDIF()
 
@@ -140,21 +140,21 @@ IF(TD_BULID_TAOSX)
         CONFIGURE_COMMAND
         COMMAND git status
         BUILD_COMMAND
-        COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} VER_NUMBER=${VER_NUMBER} cargo build --release
+        COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} VER_NUMBER=${VER_NUMBER} cargo make taosx
         INSTALL_COMMAND
         COMMAND cmake -E copy target/release/taosx ${CMAKE_BINARY_DIR}/build/bin
         COMMAND cmake -E copy target/${TAOSX_NAME}.service ${OUTPUT_SERVICE_DIR}
       )
       ExternalProject_Add(taosx-agent
         PREFIX taosx
-        SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosx/taosx-agent
+        SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosx
         BUILD_ALWAYS off
         DEPENDS taos
         BUILD_IN_SOURCE 1
         CONFIGURE_COMMAND
         COMMAND git status
         BUILD_COMMAND
-        COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} VER_NUMBER=${VER_NUMBER} cargo build --release
+        COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static LIBRARY_PATH=$ENV{LIBRARY_PATH} LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH} CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} VER_NUMBER=${VER_NUMBER} cargo build --release -p taosx-agent
         INSTALL_COMMAND
         COMMAND cmake -E copy target/release/taosx-agent ${CMAKE_BINARY_DIR}/build/bin
         COMMAND cmake -E copy target/${TAOSX_NAME}-agent.service ${OUTPUT_SERVICE_DIR}
@@ -176,14 +176,14 @@ IF(TD_BULID_TAOSX)
       )
       ExternalProject_Add(taosx-agent
         PREFIX taosx
-        SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosx/taosx-agent
+        SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosx
         BUILD_ALWAYS off
         DEPENDS taos
         BUILD_IN_SOURCE 1
         CONFIGURE_COMMAND
         COMMAND git status
         BUILD_COMMAND
-        COMMAND CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} ${TAOSX_BULID_COMMAND}
+        COMMAND CUS_PROMPT=${CUS_PROMPT} CUS_NAME=${CUS_NAME} CUS_EMAIL=${CUS_EMAIL} cargo build -p taosx-agent --release
         INSTALL_COMMAND
         COMMAND cmake -E copy ${TAOSX_BINARY}-agent ${CMAKE_BINARY_DIR}/build/bin
         COMMAND cmake -E copy target/${TAOSX_NAME}-agent.service ${OUTPUT_SERVICE_DIR}
@@ -205,14 +205,14 @@ IF(TD_BULID_TAOSX)
     )
     ExternalProject_Add(taosx-agent
       PREFIX taosx
-      SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosx/taosx-agent
+      SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosx
       BUILD_ALWAYS off
       DEPENDS taos
       BUILD_IN_SOURCE 1
       CONFIGURE_COMMAND
       COMMAND git status
       BUILD_COMMAND
-      COMMAND set LIBPATH=$ENV{LIBRARY_PATH} && set LIB=$ENV{LIBRARY_PATH} && set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} && set VER_NUMBER=${VER_NUMBER} && cargo build --release
+      COMMAND set LIBPATH=$ENV{LIBRARY_PATH} && set LIB=$ENV{LIBRARY_PATH} && set CUS_PROMPT=${CUS_PROMPT} && set CUS_NAME=${CUS_NAME} && set CUS_EMAIL=${CUS_EMAIL} && set VER_NUMBER=${VER_NUMBER} && cargo build --release -p taosx-agent
       INSTALL_COMMAND
       COMMAND cmake -E copy target/release/taosx-agent.exe ${CMAKE_BINARY_DIR}/build/bin
     )
