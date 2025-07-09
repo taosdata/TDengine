@@ -42,6 +42,8 @@ extern "C" {
 
 #define STREAM_CLR_FLAG(st, f) (st) &= (~f)
 
+#define STREAM_CALC_REQ_MAX_WIN_NUM 4096
+
 typedef struct SStreamReaderTask {
   SStreamTask task;
   int8_t      triggerReader;
@@ -270,8 +272,6 @@ void    streamDeleteAllCheckpoints();
 void    smUndeploySnodeTasks(bool cleanup);
 int32_t stTriggerTaskProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErrTaskId);
 int32_t stTriggerTaskGetStatus(SStreamTask *pTask, SSTriggerRuntimeStatus *pStatus);
-
-#define STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST 4096
 
 #ifdef __cplusplus
 }
