@@ -114,7 +114,7 @@ const currentValue = computed({
 });
 const emits = defineEmits(['update:modelValue', 'del']);
 const ruleMap = {
-  field: [{ required: true, message: t('common.requiredTemp', [t('explorer.field')]) }],
+  field: [{ required: true, message: t('common.requiredTemp', [t('explorer.field')]), trigger: 'change' }],
   operator: [{ required: true, message: t('common.requiredTemp', [t('explorer.operator')]) }],
   value: [
     {
@@ -143,9 +143,7 @@ const operatorList = computed(() => {
   if (currentValue.value.field === '') return [];
   if (!currentFieldConfig.value) return [];
   const parseType = getFieldType(currentFieldConfig.value.type);
-  if (parseType === 'NUMBER') {
-    valueType.value = 'number';
-  }
+  valueType.value = parseType === 'NUMBER' ? 'number' : 'text';
   return conditionMap[parseType as keyof typeof conditionMap];
 });
 
@@ -172,7 +170,7 @@ function operatorChange() {
   }
 
   &:deep(.el-form-item--small.el-form-item) {
-    margin-bottom: 0;
+    margin-bottom: 0 !important;
   }
 
   .el-width {

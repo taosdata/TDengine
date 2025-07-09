@@ -6,18 +6,19 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::ArgMatches;
-use clap::{parser::ValueSource, CommandFactory, FromArgMatches, Parser, Subcommand};
+use clap::{CommandFactory, FromArgMatches, Parser, Subcommand, parser::ValueSource};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
 use notify::EventKind;
 use notify::{
-    event::{DataChange, ModifyKind},
     Watcher,
+    event::{DataChange, ModifyKind},
 };
 use opentelemetry::trace::TracerProvider;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, FromInto};
+use serde_with::{FromInto, serde_as};
 use serve::monitor::MonitorCfg;
+use serve::utils::ip::check_address_format;
 use shadow_rs::shadow;
 use taoslog::layer::TaosLayer;
 use taoslog::writer::RollingFileAppender;
@@ -27,19 +28,20 @@ use taosx_core::{
         ENV_LOGS_HOME, ENV_PLUGINS_HOME, ENV_TAOSX_DATA_DIR, ENV_TAOSX_LOGS_HOME,
         ENV_TAOSX_PLUGINS_HOME,
     },
-    utils::trace::{Qid, DEFAULT_INSTANCE_ID, INSTANCE_ID},
+    utils::trace::{DEFAULT_INSTANCE_ID, INSTANCE_ID, Qid},
 };
 use thiserror::Error;
+use tracing::{Instrument, log::LevelFilter};
 use tracing::{debug, instrument};
-use tracing::{log::LevelFilter, Instrument};
 use tracing_subscriber::layer::Layered;
 use tracing_subscriber::{
-    filter::LevelFilter as TracingLevelFilter, fmt::format::FmtSpan, prelude::*, reload, EnvFilter,
-    Registry,
+    EnvFilter, Registry, filter::LevelFilter as TracingLevelFilter, fmt::format::FmtSpan,
+    prelude::*, reload,
 };
-use twelf::{config, Layer};
+use twelf::{Layer, config};
 
 use crate::serve::monitor;
+use crate::serve::utils::report;
 use taosx_core::utils::timeout::Timeout;
 use taosx_core::{
     get_data_dir,
@@ -186,9 +188,9 @@ struct Global {
     #[clap(long, global = true)]
     no_async_log: bool,
 
-    /// Number of jobs, default to 0, will use `jobs` number of works for TMQ.
+    /// Number of threads for taosx default tokio runtime, default to 0.
     #[clap(short, long, value_parser, default_value = "0", global = true)]
-    jobs: usize,
+    jobs: Option<usize>,
 
     /// Enable OpenTelemetry tracing and metrics exporter.
     #[clap(long, action = clap::ArgAction::SetTrue, env = "ENABLE_OTEL", global = true)]
@@ -205,6 +207,9 @@ struct Global {
 
     #[clap(long, env = "SQL_TAG_CACHE_CAPACITY", global = true, hide = true)]
     sql_tag_cache_capacity: Option<usize>,
+
+    #[clap(flatten)]
+    telemetry: Option<Telemetry>,
 }
 
 #[serde_as]
@@ -347,6 +352,25 @@ impl From<bool> for CompressType {
     }
 }
 
+#[derive(Parser, Debug, Clone, Default, Serialize, Deserialize)]
+struct Telemetry {
+    /// telemetry server address
+    #[clap(id = "telemetry.server", default_value = "telemetry.taosdata.com")]
+    #[serde(default = "default_telemetry_server")]
+    server: String,
+    #[clap(id = "telemetry.port", default_value_t = 80)]
+    #[serde(default = "default_telemetry_port")]
+    port: u16,
+}
+
+fn default_telemetry_server() -> String {
+    "telemetry.taosdata.com".to_string()
+}
+
+fn default_telemetry_port() -> u16 {
+    80
+}
+
 #[derive(Parser, Debug)]
 #[clap(name = build::CUS_CLI_NAME, author, version = CLAP_SHORT_VERSION, about = build::CUS_CLI_ABOUT, long_about = build::CUS_CLI_ABOUT)]
 struct Args {
@@ -370,6 +394,8 @@ pub enum ArgsError {
     ParseError(#[from] twelf::Error),
     #[error("Argument parsing error: {0}")]
     ClapError(#[from] clap::Error),
+    #[error("Argument parsing error: {0}")]
+    AddressParseError(String),
 }
 
 fn fmt_span_from_str(s: &str) -> Result<FmtSpan, String> {
@@ -387,7 +413,7 @@ fn fmt_span_from_str(s: &str) -> Result<FmtSpan, String> {
 #[cfg(windows)]
 fn get_default_config_path() -> PathBuf {
     std::path::Path::new("C:\\")
-        .join(build::CUS_NAME)
+        .join(build::CANONICAL_CUS_NAME)
         .join("cfg")
         .join(format!("{}x.toml", build::CUS_PROMPT))
 }
@@ -405,6 +431,17 @@ fn get_effective_config_path(args: &Args) -> PathBuf {
         .config
         .clone()
         .unwrap_or_else(get_default_config_path)
+}
+
+fn log_to_tracing_level(level_filter: &LevelFilter) -> TracingLevelFilter {
+    match level_filter {
+        log::LevelFilter::Off => TracingLevelFilter::OFF,
+        log::LevelFilter::Error => TracingLevelFilter::ERROR,
+        log::LevelFilter::Warn => TracingLevelFilter::WARN,
+        log::LevelFilter::Info => TracingLevelFilter::INFO,
+        log::LevelFilter::Debug => TracingLevelFilter::DEBUG,
+        log::LevelFilter::Trace => TracingLevelFilter::TRACE,
+    }
 }
 
 impl Args {
@@ -441,6 +478,10 @@ impl Args {
             }
             _ => {}
         }
+        args.global.telemetry = args
+            .global
+            .telemetry
+            .or(configurable_opts.global.telemetry.clone());
         args.global.merge_from(configurable_opts.global, matches);
         args.global.instance_id = Some(
             *INSTANCE_ID.get_or_init(|| args.global.instance_id.unwrap_or(DEFAULT_INSTANCE_ID)),
@@ -448,7 +489,7 @@ impl Args {
         if let Some(monitor_cfg) = configurable_opts.monitor.as_ref() {
             args.monitor.merge_from(monitor_cfg);
         }
-        args.global.jobs = executor_worker_threads(args.global.jobs);
+        args.global.jobs = Some(executor_worker_threads(args.global.jobs.unwrap_or(0)));
 
         if let Some(Commands::Serve(cli)) = &mut args.commands {
             let mut serve = configurable_opts.serve.unwrap_or_default();
@@ -468,7 +509,20 @@ impl Args {
                 take_or_not!(listen, ssl_cert, ssl_key, ssl_ca);
                 take_or_not!(grpc, grpc_ssl_cert, grpc_ssl_key, grpc_ssl_ca);
             }
+
             cli.merge_from(serve);
+            cli.rest_api_threads = Some(executor_worker_threads(cli.rest_api_threads.unwrap_or(0)));
+            cli.grpc_threads = Some(executor_worker_threads(cli.grpc_threads.unwrap_or(0)));
+            cli.scheduler_threads =
+                Some(executor_worker_threads(cli.scheduler_threads.unwrap_or(0)));
+            if let Some(ref addrs) = cli.listen {
+                check_address_format(addrs)
+                    .map_err(|e| ArgsError::AddressParseError(e.to_string()))?;
+            }
+            if let Some(ref addrs) = cli.grpc {
+                check_address_format(addrs)
+                    .map_err(|e| ArgsError::AddressParseError(e.to_string()))?;
+            }
         }
 
         // Set environment variables.
@@ -534,15 +588,16 @@ impl Global {
     }
 }
 
-pub fn executor_worker_threads(jobs: usize) -> usize {
-    let min = std::thread::available_parallelism()
+const MIN_NUM_THREAD: usize = 8;
+pub fn executor_worker_threads(num_thread: usize) -> usize {
+    let double_cpus = std::thread::available_parallelism()
         .map(|v| v.get() * 2)
-        .unwrap_or(16)
-        .max(16);
-    if &jobs + 2 > min {
-        jobs + 2
-    } else {
-        min
+        .unwrap_or(MIN_NUM_THREAD)
+        .max(MIN_NUM_THREAD);
+    match num_thread {
+        0 => double_cpus,
+        n if n < MIN_NUM_THREAD => MIN_NUM_THREAD,
+        _ => num_thread,
     }
 }
 
@@ -740,7 +795,7 @@ fn get_env_log_dir() -> String {
     }
 
     if cfg!(windows) {
-        format!("C:\\{}\\log", build::CUS_NAME)
+        format!("C:\\{}\\log", build::CANONICAL_CUS_NAME)
     } else {
         format!("/var/log/{}", build::CUS_PROMPT)
     }
@@ -752,7 +807,11 @@ fn get_env_data_dir() -> String {
     }
 
     if cfg!(windows) {
-        format!("C:\\{}\\data\\{}x", build::CUS_NAME, build::CUS_PROMPT)
+        format!(
+            "C:\\{}\\data\\{}x",
+            build::CANONICAL_CUS_NAME,
+            build::CUS_PROMPT
+        )
     } else {
         format!("/var/lib/{0}/{0}x", build::CUS_PROMPT)
     }
@@ -767,7 +826,7 @@ fn get_env_plugin_dir() -> String {
     }
 
     if cfg!(windows) {
-        format!("C:\\{}\\plugins", build::CUS_NAME)
+        format!("C:\\{}\\plugins", build::CANONICAL_CUS_NAME)
     } else {
         format!("/usr/local/{}/plugins", build::CUS_PROMPT)
     }
@@ -800,7 +859,7 @@ fn print_effective_config(level_filter: &LevelFilter, args: &Args) {
     if let Some(opts) = log_opts {
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "log", opts).as_str();
     }
-    s += format!("{:<w$}{:<w2$}{}\n", ' ', "jobs", args.global.jobs).as_str();
+    s += format!("{:<w$}{:<w2$}{}\n", ' ', "jobs", args.global.jobs.unwrap_or(0)).as_str();
     if let Commands::Serve(cli) = args.commands.as_ref().unwrap_or(&Commands::Serve(Default::default())) {
         let value = serde_json::to_value(cli).unwrap_or_default();
         if let Some(obj) = value.as_object() {
@@ -818,6 +877,11 @@ fn print_effective_config(level_filter: &LevelFilter, args: &Args) {
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.fqdn", args.monitor.fqdn.as_ref().unwrap_or(&"".to_string())).as_str();
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.port", args.monitor.port).as_str();
         s += format!("{:<w$}{:<w2$}{}\n", ' ', "monitor.interval", args.monitor.interval).as_str();
+        if let Some(telemetry) = &args.global.telemetry {
+            s += format!("{:<w$}{:<w2$}{}\n", ' ', "telemetry.server", telemetry.server).as_str();
+            s += format!("{:<w$}{:<w2$}{}\n", ' ', "telemetry.port", telemetry.port).as_str();
+        }
+        
     }
     s += "===================================================================================";
     tracing::info!("{}", s);
@@ -863,14 +927,7 @@ fn main() -> Result<()> {
     let level_num = matches.get_count("verbose") as i8 - matches.get_count("quiet") as i8;
     level_filter = level_upgrade(level_filter, level_num);
 
-    let tracing_level_filter = match level_filter {
-        log::LevelFilter::Off => TracingLevelFilter::OFF,
-        log::LevelFilter::Error => TracingLevelFilter::ERROR,
-        log::LevelFilter::Warn => TracingLevelFilter::WARN,
-        log::LevelFilter::Info => TracingLevelFilter::INFO,
-        log::LevelFilter::Debug => TracingLevelFilter::DEBUG,
-        log::LevelFilter::Trace => TracingLevelFilter::TRACE,
-    };
+    let tracing_level_filter = log_to_tracing_level(&level_filter);
 
     match args.global.log.as_mut() {
         Some(opts) => {
@@ -905,7 +962,7 @@ fn main() -> Result<()> {
                             return;
                         }
                     };
-                    log_level_reload(event, &config_file, &handle, tracing_level_filter);
+                    log_level_reload(event, &config_file, &handle);
                 }
             })?;
             watcher
@@ -919,11 +976,12 @@ fn main() -> Result<()> {
         config_file.display()
     );
 
-    // init qid batch id db
-    trace::qid_db_init()?;
-
-    let worker_threads = args.global.jobs;
-    let runtime = build_runtime(&format!("{}x", build::CUS_PROMPT), worker_threads)?;
+    let runtime = build_runtime(
+        &format!("{}x-default-rt", build::CUS_PROMPT),
+        args.global
+            .jobs
+            .unwrap_or_else(|| executor_worker_threads(0)),
+    )?;
     tracing::info!("{}x version: {version}", build::CUS_PROMPT);
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
@@ -958,15 +1016,23 @@ fn main() -> Result<()> {
         Commands::Privileges(privileges) => runtime.block_on(privileges.run(args.opt_args)),
         Commands::Replica(replica) => runtime.block_on(replica.run(args.opt_args)),
         Commands::Serve(serve) => {
+            trace::qid_db_init()?;
+
             Timeout::set_default_timeout(serve.request_timeout);
+
+            if let Some(telemetry) = args.global.telemetry {
+                let url = format!("http://{}:{}/report", telemetry.server, telemetry.port);
+                report::report(url);
+            }
 
             let serve = || {
                 let _span = tracing::info_span!("serve").entered();
-                let addr = serve.get_listen_address();
-                let port = addr.split(':').last().unwrap();
+                let port = serve.get_listen_port();
                 let scheduler_rt = build_runtime(
-                    &format!("{}x-server", build::CUS_PROMPT),
-                    worker_threads * 2,
+                    &format!("{}x-scheduler", build::CUS_PROMPT),
+                    serve
+                        .scheduler_threads
+                        .unwrap_or_else(|| executor_worker_threads(0)),
                 )?;
                 let (
                     agent_integration_channel,
@@ -979,9 +1045,13 @@ fn main() -> Result<()> {
                 let scheduler = scheduler_rt
                     .block_on(serve.scheduler(scheduler_notifier, agent_integration_channel))?;
 
-                let grpc_rt = build_runtime("grpc-server", worker_threads)?;
+                let grpc_rt = build_runtime(
+                    "grpc-server",
+                    serve
+                        .grpc_threads
+                        .unwrap_or_else(|| executor_worker_threads(0)),
+                )?;
 
-                // let api_rt = build_runtime(worker_threads)?;
                 let max_activities_per_entity =
                     args.global.max_activities_per_entity.unwrap_or(100);
 
@@ -992,9 +1062,9 @@ fn main() -> Result<()> {
                 debug!("Starting monitor");
                 let monitor = monitor::Monitor::new(args.monitor.clone(), port, ctl.clone());
                 let api_ctl = ctl.clone();
-                let serve_api = serve.clone();
+                let grpc_serve = serve.clone();
                 debug!("Starting gRPC server");
-                let grpc_handle = grpc_rt.spawn(serve_api.grpc(
+                let grpc_handle = grpc_rt.spawn(grpc_serve.grpc(
                     ctl.clone(),
                     agent_rpc_channel,
                     agent_spawn_sender,
@@ -1043,12 +1113,7 @@ fn default_env_filter(
 }
 
 #[instrument(skip_all)]
-fn log_level_reload(
-    event: notify::Event,
-    config_file: &PathBuf,
-    handle: &ReloadHandle,
-    tracing_level_filter: tracing::level_filters::LevelFilter,
-) {
+fn log_level_reload(event: notify::Event, config_file: &PathBuf, handle: &ReloadHandle) {
     if !matches!(
         event.kind,
         EventKind::Modify(ModifyKind::Data(DataChange::Any))
@@ -1069,20 +1134,34 @@ fn log_level_reload(
             }
             match toml::from_str::<Global>(&s) {
                 Ok(args) => {
-                    let Some(loggers) = args.log.and_then(|opts| opts.loggers) else {
-                        tracing::info!("log.loggers config not found, tracing filter won't reload");
+                    let Some(opts) = args.log else {
                         return;
                     };
-                    let mut filter = default_env_filter(tracing_level_filter)
-                        .expect("create default env filter error");
-                    for (k, v) in loggers {
-                        match format!("{k}={v}").parse() {
-                            Ok(directive) => {
-                                filter = filter.add_directive(directive);
+                    if opts.level.is_none() && opts.loggers.is_none() {
+                        return;
+                    }
+                    let level_filter = match opts.level {
+                        Some(level) => log_to_tracing_level(&level),
+                        None => TracingLevelFilter::INFO,
+                    };
+                    let mut filter = match default_env_filter(level_filter) {
+                        Ok(filter) => filter,
+                        Err(e) => {
+                            tracing::error!("create default env filter error: {e}");
+                            return;
+                        }
+                    };
+                    if let Some(loggers) = opts.loggers {
+                        for (k, v) in loggers {
+                            match format!("{k}={v}").parse() {
+                                Ok(directive) => {
+                                    filter = filter.add_directive(directive);
+                                }
+                                Err(e) => tracing::error!("parse logger level {k}={v} error: {e}"),
                             }
-                            Err(e) => tracing::error!("parse logger level {k}={v} error: {e}"),
                         }
                     }
+
                     if let Err(e) = handle.reload(filter) {
                         tracing::error!("reload tracing filter level error: {e}")
                     }
@@ -1106,8 +1185,10 @@ mod tests {
     #[test]
     #[ignore]
     fn test_config_from_toml() -> Result<(), anyhow::Error> {
-        env::set_var("TAOSX_DATA_DIR", "from-env");
-        env::set_var("TAOSX_LOGS_HOME", "from-env");
+        unsafe {
+            env::set_var("TAOSX_DATA_DIR", "from-env");
+            env::set_var("TAOSX_LOGS_HOME", "from-env");
+        }
 
         let args = Args::parse();
         println!("configs: {:?}", args);
@@ -1216,9 +1297,11 @@ mod tests {
 
     #[test]
     fn test_args() {
-        std::env::remove_var("TAOSX_DATA_DIR");
-        std::env::remove_var("TAOSX_LOGS_HOME");
-        std::env::remove_var("DATABASE_URL");
+        unsafe {
+            std::env::remove_var("TAOSX_DATA_DIR");
+            std::env::remove_var("TAOSX_LOGS_HOME");
+            std::env::remove_var("DATABASE_URL");
+        }
 
         let args = shlex::split("taosx serve --data-dir ./tests/cli/data/").unwrap();
         let matches = dbg!(Args::command()).get_matches_from(args);
@@ -1227,17 +1310,21 @@ mod tests {
             assert_eq!(cli.get_database_url(), "sqlite:./tests/cli/data/taosx.db");
         }
 
-        std::env::remove_var("TAOSX_DATA_DIR");
-        std::env::remove_var("TAOSX_LOGS_HOME");
-        std::env::set_var("DATABASE_URL", "sqlite:./tests/cli/data2/taosx.db");
+        unsafe {
+            std::env::remove_var("TAOSX_DATA_DIR");
+            std::env::remove_var("TAOSX_LOGS_HOME");
+            std::env::set_var("DATABASE_URL", "sqlite:./tests/cli/data2/taosx.db");
+        }
         let args = dbg!(Args::init_with_arg_matches(&matches).unwrap());
         if let Commands::Serve(cli) = args.commands.unwrap() {
             assert_eq!(cli.get_database_url(), "sqlite:./tests/cli/data2/taosx.db");
         }
 
-        std::env::remove_var("TAOSX_DATA_DIR");
-        std::env::remove_var("TAOSX_LOGS_HOME");
-        std::env::remove_var("DATABASE_URL");
+        unsafe {
+            std::env::remove_var("TAOSX_DATA_DIR");
+            std::env::remove_var("TAOSX_LOGS_HOME");
+            std::env::remove_var("DATABASE_URL");
+        }
         let args = shlex::split("taosx serve").unwrap();
         let matches = dbg!(Args::command()).get_matches_from(args);
         let args = dbg!(Args::init_with_arg_matches(&matches).unwrap());
@@ -1248,9 +1335,11 @@ mod tests {
                 "sqlite:/var/lib/taos/taosx/taosx.db"
             );
         }
-        std::env::remove_var("TAOSX_LOGS_HOME");
-        std::env::remove_var("DATABASE_URL");
-        std::env::set_var("TAOSX_DATA_DIR", "./tests/cli/data");
+        unsafe {
+            std::env::remove_var("TAOSX_LOGS_HOME");
+            std::env::remove_var("DATABASE_URL");
+            std::env::set_var("TAOSX_DATA_DIR", "./tests/cli/data");
+        }
         let args = dbg!(Args::init_with_arg_matches(&matches).unwrap());
         if let Commands::Serve(cli) = args.commands.unwrap() {
             assert_eq!(cli.get_database_url(), "sqlite:./tests/cli/data/taosx.db");

@@ -39,10 +39,12 @@ impl ColumnMeta {
             ColumnType::BigChar => Ok(IpcDataType::NChar(50)),
             ColumnType::NVarchar => Ok(IpcDataType::NChar(50)),
             ColumnType::BigVarChar => Ok(IpcDataType::NChar(50)),
-            ColumnType::BigBinary => Ok(IpcDataType::NChar(50)),
-            ColumnType::BigVarBin => Ok(IpcDataType::NChar(50)),
             ColumnType::Text => Ok(IpcDataType::NChar(50)),
             ColumnType::NText => Ok(IpcDataType::NChar(50)),
+            // 字节数组
+            ColumnType::BigBinary => Ok(IpcDataType::VarBinary(50)),
+            ColumnType::BigVarBin => Ok(IpcDataType::VarBinary(50)),
+            ColumnType::Image => Ok(IpcDataType::VarBinary(50)),
             // 日期时间
             ColumnType::Datetime
             | ColumnType::Datetime2
@@ -56,7 +58,6 @@ impl ColumnMeta {
             ColumnType::Guid => Ok(IpcDataType::NChar(50)),
             ColumnType::Xml => Ok(IpcDataType::NChar(50)),
             ColumnType::Udt => Ok(IpcDataType::NChar(50)),
-            ColumnType::Image => Ok(IpcDataType::NChar(50)),
             ColumnType::SSVariant => Ok(IpcDataType::NChar(50)),
             // 其他
             // _ => anyhow::bail!("unsupported data type: {:?}", self.column_type),
@@ -85,10 +86,12 @@ pub fn to_arrow_data_type(column_type: &ColumnType) -> anyhow::Result<DataType> 
         ColumnType::BigChar => Ok(DataType::Utf8),
         ColumnType::NVarchar => Ok(DataType::Utf8),
         ColumnType::BigVarChar => Ok(DataType::Utf8),
-        ColumnType::BigBinary => Ok(DataType::Utf8),
-        ColumnType::BigVarBin => Ok(DataType::Utf8),
         ColumnType::Text => Ok(DataType::Utf8),
         ColumnType::NText => Ok(DataType::Utf8),
+        // 字节数组
+        ColumnType::BigBinary => Ok(DataType::Binary),
+        ColumnType::BigVarBin => Ok(DataType::Binary),
+        ColumnType::Image => Ok(DataType::Binary),
         // 日期时间
         ColumnType::Datetime
         | ColumnType::Datetime2
@@ -102,7 +105,6 @@ pub fn to_arrow_data_type(column_type: &ColumnType) -> anyhow::Result<DataType> 
         ColumnType::Guid => Ok(DataType::Utf8),
         ColumnType::Xml => Ok(DataType::Utf8),
         ColumnType::Udt => Ok(DataType::Utf8),
-        ColumnType::Image => Ok(DataType::Utf8),
         ColumnType::SSVariant => Ok(DataType::Utf8),
         // 其他
         // _ => anyhow::bail!("unsupported data type: {:?}", column_type),
@@ -177,10 +179,16 @@ mod tests {
         assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
 
         let column_meta = ColumnMeta::try_new("id".to_string(), ColumnType::BigBinary).unwrap();
-        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+        assert_eq!(
+            column_meta.get_ipc_type().unwrap(),
+            IpcDataType::VarBinary(50)
+        );
 
         let column_meta = ColumnMeta::try_new("id".to_string(), ColumnType::BigVarBin).unwrap();
-        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+        assert_eq!(
+            column_meta.get_ipc_type().unwrap(),
+            IpcDataType::VarBinary(50)
+        );
 
         let column_meta = ColumnMeta::try_new("id".to_string(), ColumnType::Text).unwrap();
         assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
@@ -229,7 +237,10 @@ mod tests {
         assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
 
         let column_meta = ColumnMeta::try_new("id".to_string(), ColumnType::Image).unwrap();
-        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+        assert_eq!(
+            column_meta.get_ipc_type().unwrap(),
+            IpcDataType::VarBinary(50)
+        );
 
         let column_meta = ColumnMeta::try_new("id".to_string(), ColumnType::SSVariant).unwrap();
         assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
@@ -307,11 +318,11 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type(&ColumnType::BigBinary).unwrap(),
-            DataType::Utf8
+            DataType::Binary
         );
         assert_eq!(
             to_arrow_data_type(&ColumnType::BigVarBin).unwrap(),
-            DataType::Utf8
+            DataType::Binary
         );
         assert_eq!(
             to_arrow_data_type(&ColumnType::Text).unwrap(),
@@ -371,7 +382,7 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type(&ColumnType::Image).unwrap(),
-            DataType::Utf8
+            DataType::Binary
         );
         assert_eq!(
             to_arrow_data_type(&ColumnType::SSVariant).unwrap(),

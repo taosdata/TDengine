@@ -1,4 +1,4 @@
-import { TDengineStringType, TDengineNumberType, DBParameters, VariableTableColumnType } from 'constants1/tdengine';
+import { TDengineStringType, TDengineNumberType, DBParameters, VariableTableColumnType, TwoVariableTableColumnType } from 'constants1/tdengine';
 /**
  * @description 针对TDengine的restful接口中返回的head和data，返回一个适合table组件的对象
  * @author 阿宾
@@ -102,11 +102,15 @@ export function rmStrBackquote(name: string) {
 export interface ComposeTypeParameter {
   type: string;
   length: number;
+  length2: number;
 }
 export function composeType(data: ComposeTypeParameter) {
-  const { type, length } = data;
+  const { type, length, length2 } = data;
   if (VariableTableColumnType.includes(type)) {
     return `${type}(${length})`;
+  }
+  if (TwoVariableTableColumnType.includes(type)) {
+    return `${type}(${length},${length2})`
   }
   return type;
 }

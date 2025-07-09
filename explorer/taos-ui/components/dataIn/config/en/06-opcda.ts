@@ -50,7 +50,7 @@ export default {
           category: 'csv_config_file',
           radio: false,
           description:
-            'OPC DataIn task uses a csv file to define the mapping rules for each data point to the TDengine table:\n\n(1) tag_name: required, the id of the data point on the OPC DA server;\n\n(2) stable: required. TDengine super table corresponding to data points;\n\n(3) tbname: required. TDengine subtable corresponding to the data point;\n\n(4) enable: optional. The default value is \'1\', which specifies whether to collect data at this point. 0- Do not collect and delete the corresponding sub-table, 1- collect the point data, create a sub-table when there is no sub-table;\n\n(5) value_col: optional. The default value is val. The column name corresponding to the data point collection value in TDengine;\n\n(6) value_transform: optional, the transformation function executed in taosX for data point acquisition values. Currently, only numerical calculation expressions are supported. See expr expression description in transform document for details.\n\n(7) type: optional. The default value is the source data type. The data type of the data point collection value, which can be used to replace the placeholder {type} in the supertable name;\n\n(8) quality_col: optional, the column name corresponding to the quality of data point collection value in TDengine;\n\n(9) (9) ts_col/request_ts_col/received_ts_col: required. Definition of the TDengine timestamp primary key: You can keep only one of these columns, and the retained timestamp column will serve as the primary key. You can also fill in multiple columns, and the timestamp column at the front will be used as the primary key. Among them, ts_col uses the time when the data point is reported to the OPC server, request_ts_col uses the time when each polling request is initiated in the observe collection mode, and received_ts_col uses the time when the data is received from the OPC server;\n\n(10) xx_ts_transform: Optional. Timestamp transformation function. Refer to the description of the numerical calculation expression expr in the transform section;\n\n(11) tag::VARCHAR(200)::name: Multiple tag columns are optional or configurable. The Tag column corresponding to the data point in TDengine; tag is reserved keyword, indicating that the column is a tag column. VARCHAR(200) indicates the type of the tag, or any other valid type. name is the column name of the tag.\n\nFor more rules, please refer to the <a target="_blank" href="/docs-en/enterprise/datain/opcua">enterprise version document</a>.\n',
+            'OPC DataIn task uses a csv file to define the mapping rules for each data point to the TDengine table:\n\n(1) tag_name: required, the id of the data point on the OPC DA server;\n\n(2) stable: required. TDengine super table corresponding to data points;\n\n(3) tbname: required. TDengine subtable corresponding to the data point;\n\n(4) enable: optional. The default value is \'1\', which specifies whether to collect data at this point. 0- Do not collect and delete the corresponding sub-table, 1- collect the point data, create a sub-table when there is no sub-table;\n\n(5) value_col: optional. The default value is val. The column name corresponding to the data point collection value in TDengine;\n\n(6) value_transform: optional, the transformation function executed in taosX for data point acquisition values. Currently, only numerical calculation expressions are supported. See expr expression description in transform document for details.\n\n(7) type: optional. The default value is the source data type. The data type of the data point collection value, which can be used to replace the placeholder {type} in the supertable name;\n\n(8) quality_col: optional, the column name corresponding to the quality of data point collection value in TDengine;\n\n(9) (9) ts_col/request_ts_col/received_ts_col: required. Definition of the TDengine timestamp primary key: You can keep only one of these columns, and the retained timestamp column will serve as the primary key. You can also fill in multiple columns, and the timestamp column at the front will be used as the primary key. Among them, ts_col uses the time when the data point is reported to the OPC server, request_ts_col uses the time when each polling request is initiated in the observe collection mode, and received_ts_col uses the time when the data is received from the OPC server;\n\n(10) xx_ts_transform: Optional. Timestamp transformation function. Refer to the description of the numerical calculation expression expr in the transform section;\n\n(11) tag::VARCHAR(200)::name: Multiple tag columns are optional or configurable. The Tag column corresponding to the data point in TDengine; tag is reserved keyword, indicating that the column is a tag column. VARCHAR(200) indicates the type of the tag, or any other valid type. name is the column name of the tag.\n\nFor more rules, please refer to the <a target="_blank" href="/docs/advanced/data-in/opcda/">enterprise version document</a>.\n',
           field: 'csv_config_file',
           type: 'dataset',
           accept: '.csv',
@@ -239,8 +239,7 @@ export default {
               pattern: null,
               grid_two: false,
               type: 'number',
-              min: 1,
-              max: 60
+              min: 1
             },
             {
               label: 'Request Timeout',
@@ -251,8 +250,7 @@ export default {
               pattern: null,
               grid_two: false,
               type: 'number',
-              min: 1,
-              max: 60
+              min: 1
             }
           ],
           hide: false
@@ -263,7 +261,7 @@ export default {
           description: 'Configurations for collecting data from OPC',
           children: [
             {
-              label: 'Collect interval',
+              label: 'Collect Interval',
               description: 'Collect data interval in second',
               field: 'interval',
               placeholder: '',
@@ -271,8 +269,7 @@ export default {
               pattern: null,
               grid_two: false,
               type: 'number',
-              min: 1,
-              max: 60
+              min: 1
             },
             {
               label: 'Point Update Mode',
@@ -421,6 +418,31 @@ export default {
           max: 60
         },
         {
+          label: 'Cache Real-time Data',
+          field: 'persist_data_enable',
+          description:
+            'After it is enabled, when taosX experiences performance issues or the downstream TDengine has slow write speeds, it will temporarily store the real-time data. Once the situation recovers, it will write the cached data back to the downstream TDengine.\n',
+          defaultValue: false,
+          required: false,
+          hint: {
+            type: 'bool'
+          },
+          type: 'switch'
+        },
+        {
+          label: 'Cache Data Directory',
+          field: 'persist_data_dir',
+          description:
+            'The directory to store the cached data. The default value is `$DATA_DIR/tasks/:id/persist_queue/`.\n',
+          placeholder: '$DATA_DIR/tasks/:id/persist_queue/',
+          required: false,
+          type: 'input',
+          displayDependsOn: ['advanced_options/persist_data_enable'],
+          displayDependsOnValues: {
+            persist_data_enable: [true]
+          }
+        },
+        {
           label: 'Keep Raw Data',
           field: 'keep_raw_data',
           description: 'Whether to keep the raw data. If enabled, the raw data will be stored.\n',
@@ -444,7 +466,11 @@ export default {
           },
           type: 'number',
           min: 1,
-          max: 365
+          max: 365,
+          displayDependsOn: ['advanced_options/keep_raw_data'],
+          displayDependsOnValues: {
+            keep_raw_data: [true]
+          }
         },
         {
           label: 'Raw Data Directory',
@@ -455,7 +481,11 @@ export default {
           hint: {
             type: 'str'
           },
-          type: 'input'
+          type: 'input',
+          displayDependsOn: ['advanced_options/keep_raw_data'],
+          displayDependsOnValues: {
+            keep_raw_data: [true]
+          }
         },
         {
           label: 'Health Check Duration',

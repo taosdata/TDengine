@@ -85,7 +85,13 @@ const currentFavoriteComponent = computed(() =>
 );
 
 function exportAll() {
-  if (!sqlStr.value.toLowerCase().trim().startsWith('select')) {
+  const trimmedSql = sqlStr.value.toLowerCase().trim();
+  if (
+    !trimmedSql.startsWith('select') &&
+    !trimmedSql.startsWith('show') &&
+    !trimmedSql.startsWith('desc') &&
+    !trimmedSql.startsWith('explain')
+  ) {
     ElMessage.warning(
       t(
         'explorer.exportError',
@@ -96,7 +102,7 @@ function exportAll() {
     );
     return;
   }
-  
+
   ElMessageBox.confirm(t('explorer.exportConfirm'), t('common.tips')).then(() => {
     loading.value = true;
     if (project.isCloud) {
@@ -116,7 +122,6 @@ function exportAll() {
         loading.value = false;
       }
     }
-    
   });
 }
 function logSortChange() {

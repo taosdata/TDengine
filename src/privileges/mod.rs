@@ -1,6 +1,6 @@
 use std::{fmt::Debug, path::PathBuf};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use clap::Args;
 use taos::Dsn;
 

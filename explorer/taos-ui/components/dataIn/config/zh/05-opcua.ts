@@ -123,8 +123,7 @@ export default {
           pattern: null,
           defaultValue: '10',
           type: 'number',
-          min: 1,
-          max: 60
+          min: 1
         }
       ]
     },
@@ -219,7 +218,7 @@ export default {
           labelWidth: '0px',
           category: 'csv_config_file',
           description:
-            'OPC 数据写入使用 csv 文件定义每一个数据点位到 TDengine 数据子表的映射规则：\n\n(1) point_id：必填，数据点位在 OPC UA 服务器上的 id；\n\n(2) stable：必填，数据点位对应的 TDengine 超级表；\n\n(3) tbname：必填，数据点位对应的 TDengine 子表；\n\n(4) enable：可选，默认值 \'1\'，指定是否采集该点位数据。0-不采集并且删除对应子表，1-采集点位数据，没有子表时创建子表；\n\n(5) value_col：可选，默认值 \'val\'。数据点位采集值在 TDengine 中对应的列名；\n\n(6) value_transform：可选，数据点位采集值在 taosX 中执行的变换函数，目前仅支持数值计算表达式，详见 transform 文档的 expr 表达式说明；\n\n(7) type：可选，默认值取源数据类型。数据点位采集值的数据类型，可用于替换超级表名称中的占位符 {type}；\n\n(8) quality_col：可选，数据点位采集值质量在 TDengine 中对应的列名；\n\n(9) ts_col/request_ts_col/received_ts_col：必填，TDengine 时间戳主键定义：可只保留其中一列，保留的时间戳列将作为主键；也可填写多列，居前的时间戳列作为主键；其中 ts_col 使用数据点位上报 opc server 时间，request_ts_col 使用 observe 采集模式下每次轮询的发起请求时间，received_ts_col 使用从 opc server 接收到数据的时间；\n\n(10) xx_ts_transform：可选，时间戳变换函数，参考 transform 数值计算表达式 expr 的说明；\n\n(11) tag::VARCHAR(200)::name：可选/可配置多个tag列；数据点位在 TDengine 中对应的 Tag 列；其中 tag 为保留关键字，表示该列为一个 tag 列；VARCHAR(200) 表示该 tag 的类型，也可以是其它合法的类型；name 是该 tag 的列名。\n\n更多填写规则请参考<a target="_blank" href="/docs/advanced/data-in/opcua">企业版文档</a>。\n',
+            'OPC 数据写入使用 csv 文件定义每一个数据点位到 TDengine 数据子表的映射规则：\n\n(1) point_id：必填，数据点位在 OPC UA 服务器上的 id；\n\n(2) stable：必填，数据点位对应的 TDengine 超级表；\n\n(3) tbname：必填，数据点位对应的 TDengine 子表；\n\n(4) enable：可选，默认值 \'1\'，指定是否采集该点位数据。0-不采集并且删除对应子表，1-采集点位数据，没有子表时创建子表；\n\n(5) value_col：可选，默认值 \'val\'。数据点位采集值在 TDengine 中对应的列名；\n\n(6) value_transform：可选，数据点位采集值在 taosX 中执行的变换函数，目前仅支持数值计算表达式，详见 transform 文档的 expr 表达式说明；\n\n(7) type：可选，默认值取源数据类型。数据点位采集值的数据类型，可用于替换超级表名称中的占位符 {type}；\n\n(8) quality_col：可选，数据点位采集值质量在 TDengine 中对应的列名；\n\n(9) ts_col/request_ts_col/received_ts_col：必填，TDengine 时间戳主键定义：可只保留其中一列，保留的时间戳列将作为主键；也可填写多列，居前的时间戳列作为主键；其中 ts_col 使用数据点位上报 opc server 时间，request_ts_col 使用 observe 采集模式下每次轮询的发起请求时间，received_ts_col 使用从 opc server 接收到数据的时间；\n\n(10) xx_ts_transform：可选，时间戳变换函数，参考 transform 数值计算表达式 expr 的说明；\n\n(11) tag::VARCHAR(200)::name：可选/可配置多个tag列；数据点位在 TDengine 中对应的 Tag 列；其中 tag 为保留关键字，表示该列为一个 tag 列；VARCHAR(200) 表示该 tag 的类型，也可以是其它合法的类型；name 是该 tag 的列名。\n\n更多填写规则请参考<a target="_blank" href="/docs/advanced/data-in/opcua/">企业版文档</a>。\n',
           field: 'csv_config_file',
           type: 'dataset',
           accept: '.csv',
@@ -441,7 +440,6 @@ export default {
               grid_two: false,
               type: 'number',
               min: 1,
-              max: 60,
               displayDependsOn: [
                 // 'datasets/currentTab',
                 'groups_after/collect_options/collect_mode'
@@ -461,7 +459,6 @@ export default {
               grid_two: false,
               type: 'number',
               min: 1,
-              max: 60,
               displayDependsOn: [
                 // 'datasets/currentTab',
                 'groups_after/collect_options/collect_mode'
@@ -613,6 +610,27 @@ export default {
           max: 60
         },
         {
+          label: '缓存实时数据',
+          field: 'persist_data_enable',
+          description:
+            '开启后，当 taosX 由于性能不足或者下游 TDengine 写入慢时，会将实时数据暂存，等恢复时再将缓存数据重新写入下游 TDengine.\n',
+          defaultValue: false,
+          required: false,
+          type: 'switch'
+        },
+        {
+          label: '缓存数据存储目录',
+          field: 'persist_data_dir',
+          description: '自定义缓存数据存储目录，默认存储到系统数据目录下。\n',
+          placeholder: '$DATA_DIR/tasks/:id/persist_queue/',
+          required: false,
+          type: 'input',
+          displayDependsOn: ['advanced_options/persist_data_enable'],
+          displayDependsOnValues: {
+            persist_data_enable: [true]
+          }
+        },
+        {
           label: '保存原始数据',
           field: 'keep_raw_data',
           description: '是否保存原始数据？\n',
@@ -627,16 +645,15 @@ export default {
           label: '最大保留天数',
           field: 'keep_raw_data_days',
           description: '原始数据最大保存天数，默认 1 天。\n',
-          defaultValue: 1,
+          defaultValue: '1',
           required: false,
-          hint: {
-            type: 'integer',
-            min: 1,
-            max: 365
-          },
           type: 'number',
           min: 1,
-          max: 365
+          max: 365,
+          displayDependsOn: ['advanced_options/keep_raw_data'],
+          displayDependsOnValues: {
+            keep_raw_data: [true]
+          }
         },
         {
           label: '原始数据存储目录',
@@ -644,10 +661,11 @@ export default {
           description: '自定义原始数据存储目录，默认存储到系统数据目录下。\n',
           placeholder: '$DATA_DIR/tasks/:id/rawdata/',
           required: false,
-          hint: {
-            type: 'str'
-          },
-          type: 'input'
+          type: 'input',
+          displayDependsOn: ['advanced_options/keep_raw_data'],
+          displayDependsOnValues: {
+            keep_raw_data: [true]
+          }
         },
         {
           label: '健康监测时段',

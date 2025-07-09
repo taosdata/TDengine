@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use crate::runners::opc::config::PointsMode;
 use crate::runners::opc::OpcType;
+use crate::utils;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
 
@@ -68,8 +69,15 @@ impl PointsConfig {
         let points_mode = PointsMode::from_dsn(dsn)?;
         let (update_mode, update_interval) = match points_mode {
             PointsMode::ByCsv => {
-                // default update_mode is append, default update_interval is 60 seconds
-                (Some(UpdateMode::Append), Some(60usize))
+                match utils::parse_key_in_dsn::<String>(dsn, "update_mode")
+                    .ok()
+                    .flatten()
+                    .and_then(|s| s.parse::<UpdateMode>().ok())
+                {
+                    // default update_mode is append, default update_interval is 60 seconds
+                    None => (Some(UpdateMode::Append), Some(60usize)),
+                    Some(c) => (Some(c), None),
+                }
             }
             PointsMode::ByCommand => {
                 let update_mode = dsn

@@ -92,3 +92,4 @@ export class HttpRequest {
     });
   }
 }
+export const isCancel = axios.isCancel;

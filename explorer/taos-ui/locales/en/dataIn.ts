@@ -142,6 +142,10 @@ export default {
   task: ' Task',
   importEmpty: 'The import task list is empty',
   batchOperateTip: 'Select the task that you want to {0}',
+  skip2Latest:
+    'Do you want to skip the piled-up data for the task [{0}] and start consuming the latest real-time data?',
+  redoPiledupData: 'Re-entering the data will create a new task to consume the piled-up data.',
+  tipForSkip: 'After skipping the piled-up data, the task will start consuming data from the latest time point.',
   noTaskOperateTip: 'None of the currently selected tasks can be {0}ed',
   addOpcPoint: 'Add Data Points',
   addPointDesc: 'Fill in point information Dynamically add point bits to the CSV file',
@@ -161,7 +165,7 @@ export default {
   csvinusetip: 'Download the current configuration file in use',
   connectionConfiguration: 'Connection Configuration',
   createNewAgent: 'Create New Agent',
-  palceholders: {
+  placeholders: {
     taskName: 'Task Name',
     agentPlaceholder: 'Please select an agent',
     chooseTargetDbTip: 'Please select database',
@@ -328,21 +332,21 @@ export default {
       1. <strong>JSON</strong>: Use a visual editor to edit the extract expressions; If left blank, only non nested attributes will be parsed.<br/>
       2. <strong>Regex</strong>: Use <em>named capture groups</em> in regex pattern to extract fields from string. For example: <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. <br/>
       3. <strong>UDT</strong>: Use custom scripts parse data. Download the <a href="/example-code.rhai" download>sample code<a> for reference.<br/>
-      <span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#12-parse" target="_blank"> the enterprise version documentation</a>.</span>`,
+      <span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/advanced-features/data-connectors/#parsing" target="_blank"> the enterprise version documentation</a>.</span>`,
     subextractdesc: `<strong>taosX supports two kinds of extractor</strong>:<br/>
       1. <strong>Split</strong>: To split a string into multiple columns, you need to specify the parameter <em>delimiter</em> and the <em>number</em>. For example, after splitting the field <em>location</em> into two fields, the field names are <em>location_0</em> and <em>location_1</em>.<br/>
       2. <strong>Regex</strong>: Use <em>named capture groups</em> in regex pattern to extract fields from string. For example: a regex patten <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> will extract 3 fields y, m, d. <br/>
-      <span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#2-extractsplit" target="_blank">the enterprise version documentation</a>.</span>`,
+      <span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/advanced-features/data-connectors/#extraction-or-splitting" target="_blank">the enterprise version documentation</a>.</span>`,
     filterdesc: `<strong>Only rows with a filtering expression of true are written to TDengine:</strong><br/>
       1. <strong>Bool type</strong> can directly use variable names of BOOL type as expressions.<br/>
       2. <strong>String type</strong> supports functions such as is_empty, contains, start_with, ends_with, etc. For example, <em>c.start_with("taos")</em> can be used to determine whether field c is prefixed with <em>taos</em>.<br/>
       3. <strong>Numerical types</strong> support ==, !=, >, >=, <, <=, etc for comparison operator.<br/>
-      Multiple expressions</strong> can be combined with logical operators <em>&amp;&amp;</em> or <em>&vert;&vert;</em>. <span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#3-filter" target="_blank">the enterprise version documentation</a>.</span>`,
+      Multiple expressions</strong> can be combined with logical operators <em>&amp;&amp;</em> or <em>&vert;&vert;</em>. <span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/advanced-features/data-connectors/#filtering" target="_blank">the enterprise version documentation</a>.</span>`,
     expressiondesc: `<strong>taosX supports mapping expressions to map parsed, extracted, and split fields to the target super table</strong>:<br/>
       1. <strong>value</strong>: Constant value, such as <em>1</em>、<em>"taos"</em>.<br/>
       2. <strong>expr</strong>: Mathematical calculation expressions, for example, to convert Celsius to Fahrenheit values, the expression <em>centigrade * 1.8 + 32</em> can be used.<br/>
       3. <strong>format</strong>: String formatting using placeholders <em>&#36;&#123;&#125;</em> to reference fields, for example <em>\${year}-\${month}-\${day}</em> can be used to format as a date string.<br/>
-      <span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/enterprise/datain/transformer/#4-mapping" target="_blank">the enterprise version documentation</a>.</span>`,
+      <span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">For more detailed rules, please refer to <a href="/docs-en/advanced-features/data-connectors/#mapping" target="_blank">the enterprise version documentation</a>.</span>`,
     uploadexe: 'Please upload the csv file and execute the next step',
     extractrule: {
       nofield: "haven't select the field to extract",

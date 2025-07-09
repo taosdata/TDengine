@@ -93,6 +93,17 @@ export async function refreshTask(id: string | number) {
   return taskDetail;
 }
 
+export function skip2Latest(id: string | number, recovery: boolean) {
+  return request({
+    baseURL: import.meta.env.VITE_APP_X_API,
+    url: `/kafka/${id}/seek_to_end`,
+    method: 'post',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+}
+
 export function uploadFile() {
   return request({
     baseURL: import.meta.env.VITE_APP_X_API,

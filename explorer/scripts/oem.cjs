@@ -26,7 +26,7 @@ if (cus_config) {
 	}
 }
 
-if (cus_name === "TDengine" && cus_prompt === "taos") {
+if (cus_name.includes("TDengine") || cus_prompt === "taos") {
 	let oem_data = path.join("scripts", "tdengine-data.json");
 	fs.copyFileSync(oem_data, data_path);
 	cus_config_data ||= fs.readFileSync(data_path, "utf-8");

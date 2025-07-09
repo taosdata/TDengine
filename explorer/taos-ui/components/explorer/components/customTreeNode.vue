@@ -79,7 +79,9 @@
                     <el-tooltip effect="light" placement="right" :content="getTooltip(data, 'add')">
                       <div class="flex-start tree-menu-item" @click.stop="add()">
                         <Plus class="operate-icon"></Plus>
-                        <div class="tree-menu-label">{{ t(type == 'database' ? 'stb.stable' : 'stb.subTable') }}</div>
+                        <div class="tree-menu-label">
+                          {{ getSubCreateText() }}
+                        </div>
                       </div>
                     </el-tooltip>
                   </el-dropdown-item>
@@ -243,7 +245,7 @@ import {
 import { getExplorerProps, getSqlProvider } from '../model/useExplorer';
 // import { hasOwnProperty } from 'utils/validate';
 import { cloneDeep } from 'lodash-es';
-import { deleteStableReq, deleteTableReq, getStableStructReq } from '../../api';
+import { deleteStableReq, deleteTableReq, getStableStructReq, NORMAL_TABLE, VIRTUAL_NORMAL_TABLE } from '../../api';
 import { instance } from 'config';
 
 const props = defineProps<{
@@ -276,6 +278,7 @@ const namefilterText = ref('');
 const tagFilter = ref('');
 const requestIng = ref(false);
 const type = computed(() => props.data.typeName);
+const isVirtual = computed(() => props.data.isvirtual === true);
 const key = computed(() => props.data[treeNodeKey]);
 // let dataSourceUsedDbList: Recordable[] = [];
 const emits = defineEmits([
@@ -286,6 +289,23 @@ const emits = defineEmits([
   'advancedFilter'
 ]);
 
+function getSubCreateText() {
+  type == 'database' ? 'stb.stable' : isVirtual ? 'stb.virtualSubTable' : 'stb.subTable';
+  switch (props.data.typeName) {
+    case 'database':
+      return t('stb.stable');
+    case 'stable':
+      if (props.data.stable_name == NORMAL_TABLE) {
+        return t('stb.normalTable');
+      } else if (props.data.stable_name == VIRTUAL_NORMAL_TABLE) {
+        return t('stb.virtualNormalTable');
+      }
+      return isVirtual.value ? t('stb.virtualSubTable') : t('stb.subTable');
+    case 'table':
+    default:
+      return '';
+  }
+}
 // getDataSourceDbList();
 function dbFilter() {
   emits('nameFilter', namefilterText.value, props.node);
@@ -347,6 +367,12 @@ async function clickAdd(all = false) {
   partActiveTab.value = 'sql';
 }
 function getTooltip(data: Recordable, operate: string) {
+  if (operate === 'add' && data.typeName === 'stable' && data.stable_name === NORMAL_TABLE) {
+    return t('explorer.createNormalTable');
+  }
+  if (operate === 'add' && data.typeName === 'stable' && data.stable_name === VIRTUAL_NORMAL_TABLE) {
+    return t('explorer.createVirtualNormalTable');
+  }
   return (
     (
       {
@@ -442,11 +468,23 @@ async function add() {
       break;
     case 'stable':
       currentDetailComponentConfig.props = {
+        version: instance.version,
         isEdit: false,
+        isVirtual: props.data.isvirtual === true,
         stbName: props.data.name,
+        dbName: currentData.db.name,
         dbData: currentData.db
       };
-      currentDetailComponentConfig.component = 'TableCreate';
+      switch (props.data.name) {
+        case NORMAL_TABLE:
+          currentDetailComponentConfig.component = 'NormalTableCreate';
+          break;
+        case VIRTUAL_NORMAL_TABLE:
+          currentDetailComponentConfig.component = 'VirtualNormalTableCreate';
+          break;
+        default:
+          currentDetailComponentConfig.component = 'TableCreate';
+      }
       break;
     default:
       break;
@@ -585,7 +623,7 @@ async function del() {
       emits('updateTree');
     })
     .catch(err => {
-      console.log(err);
+      console.error(err);
       err.desc && ElMessage.error(err.desc);
     })
     .finally(() => {

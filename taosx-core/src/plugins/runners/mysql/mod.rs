@@ -64,10 +64,10 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 /// * `dsn` - mysql dsn
 /// # Returns
 /// * `DsSampleIn` - {
-///     "input": [{ "col_name": "xxx", ... }],
-///     "parser": {"parse": {
-///         "col_name": { "as": col_type }, ...
-///     }}
+///   "input": [{ "col_name": "xxx", ... }],
+///   "parser": {"parse": {
+///   "col_name": { "as": col_type }, ...
+///   }}
 ///   }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create mysql query
@@ -352,11 +352,19 @@ fn generate_json_value(
                 Some(val) => Ok(json!(val)),
             }
         }
-        "BINARY" | "VARBINARY" | "TINYBLOB" | "BLOB" | "MEDIUMBLOB" | "LONGBLOB" => {
+        "TINYBLOB" | "BLOB" | "MEDIUMBLOB" | "LONGBLOB" => {
             let val = row.try_get::<Option<&[u8]>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
                 Some(val) => Ok(json!(format!("{:?}", val))),
+            }
+        }
+        // 字节数组
+        "BINARY" | "VARBINARY" => {
+            let val = row.try_get::<Option<&[u8]>, _>(cidx)?;
+            match val {
+                None => Ok(json!(null)),
+                Some(val) => Ok(json!(val)),
             }
         }
         // 日期时间

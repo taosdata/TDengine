@@ -25,7 +25,6 @@ use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::mqtt::config::MqttConfig;
 use crate::sink::persist::PersistConfig;
 use crate::utils::codec::Processor;
-use crate::utils::defer::defer;
 use crate::{build_ipc, Parser, Transferred};
 
 use super::{get_data_dir, set_tcp_keepalive};
@@ -64,15 +63,26 @@ pub async fn mqtt_to_taos(
     let metrics = get_metrics_arc_from_i64(task_id).await;
     let metrics = Arc::new(MqttMetrics::new(metrics));
 
-    let _metrics_guard = defer(|| metrics.reset_metrics());
     metrics.reset_metrics();
 
     let config: MqttConfig = from.try_into()?;
     let schema = Arc::new(build_schema(config.topic_pattern.as_ref()));
 
+    let tid = task_id
+        .or(with_agent.as_ref().map(|a| a.0))
+        .context("task id not found")?;
     let persist_config = config.persist_data.as_ref().map(|c| PersistConfig {
-        dir: c.dir.clone(),
-        schema: schema.clone(),
+        task_id: tid,
+        record_metrics: true,
+        schemas: HashMap::from_iter([(
+            schema.clone(),
+            c.dir.clone().unwrap_or_else(|| {
+                get_data_dir()
+                    .join("tasks")
+                    .join(tid.to_string())
+                    .join("persist_queue")
+            }),
+        )]),
         batch_size: Some(config.task.batch_size),
         batch_timeout: Some(Duration::from_millis(config.task.batch_timeout as u64)),
         batch_chunk_size: None,
@@ -302,7 +312,8 @@ async fn execute(
                         if persist_enable {
                             match message_tx.send_async(message.clone()).await {
                                 Ok(_) => {
-                                    mqtt_metrics.clone().add_unprocessed_messages();
+                                    mqtt_metrics.add_unprocessed_messages();
+                                    mqtt_metrics.add_received_bytes(message.payload.len() as _);
                                 }
                                 Err(_) => {
                                     tracing::warn!("MQTT task exit, stop polling...");
@@ -312,10 +323,11 @@ async fn execute(
                         } else {
                             match message_tx.try_send(message.clone()) {
                                 Ok(_) => {
-                                    mqtt_metrics.clone().add_unprocessed_messages();
+                                    mqtt_metrics.add_unprocessed_messages();
+                                    mqtt_metrics.add_received_bytes(message.payload.len() as _);
                                 }
                                 Err(TrySendError::Full(_)) => {
-                                    mqtt_metrics.clone().add_discarded_messages();
+                                    mqtt_metrics.add_discarded_messages();
                                 }
                                 Err(TrySendError::Disconnected(_)) => {
                                     tracing::warn!("MQTT task exit, stop polling...");

@@ -6,22 +6,25 @@
           {{ infoData[item] }}
         </el-form-item>
         <el-form-item v-if="infoType !== 'db'" label="tags:"></el-form-item>
-        <el-table v-if="infoType !== 'db'" style="width:800px; margin-bottom: 40px;" tooltip-effect="light" size="small" border :data="tags">
+        <el-table
+          v-if="infoType !== 'db'"
+          style="width: 800px; margin-bottom: 40px"
+          tooltip-effect="light"
+          size="small"
+          border
+          :data="tags"
+        >
           <el-table-column :show-overflow-tooltip="true" width="300" label="name" prop="name"> </el-table-column>
-          <el-table-column
-            :show-overflow-tooltip="true"
-            :label="'type'"
-            prop="type"
-          >
+          <el-table-column :show-overflow-tooltip="true" :label="'type'" prop="type"> </el-table-column>
+          <el-table-column v-if="infoType === 'tb'" :show-overflow-tooltip="true" label="value" prop="value">
           </el-table-column>
-          <el-table-column v-if="infoType === 'tb'" :show-overflow-tooltip="true" label="value" prop="value"> </el-table-column>
         </el-table>
         <el-form-item v-if="infoType == 'stb' || infoType == 'tb'" label="columns:"></el-form-item>
         <el-table
           v-if="infoType !== 'db' && columns?.length > 0"
           tooltip-effect="light"
           size="small"
-          style="width:800px; margin-bottom: 40px;"
+          style="width: 800px; margin-bottom: 40px"
           border
           :data="columns"
         >
@@ -119,7 +122,7 @@ async function getTableStruct() {
   const data = await getSubtbCurrentStruct(currentInfoData.db.name, '', infoData.value.name);
   tags.value = processTagAndColumnData(data.tags);
   columns.value = processTagAndColumnData(data.columns);
-  }
+}
 
 function processTagAndColumnData(data: Recordable[]) {
   return data.map((item: Recordable) => ({
@@ -136,8 +139,6 @@ function copyDNS() {
 <style lang="scss" scoped>
 .info {
   height: 100%;
-
-  
 }
 
 .tmp-label {

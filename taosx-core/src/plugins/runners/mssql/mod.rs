@@ -54,10 +54,10 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 /// * `dsn` - mssql dsn
 /// # Returns
 /// * `DsSampleIn` - {
-///     "input": [{ "col_name": "xxx", ... }],
-///     "parser": {"parse": {
-///         "col_name": { "as": col_type }, ...
-///     }}
+///   "input": [{ "col_name": "xxx", ... }],
+///   "parser": {"parse": {
+///   "col_name": { "as": col_type }, ...
+///   }}
 ///   }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create mssql query
@@ -283,7 +283,7 @@ fn generate_json_value(
         },
         tiberius::ColumnData::Binary(val) => match val {
             None => Ok(json!(null)),
-            Some(val) => Ok(json!(format!("{:?}", val))),
+            Some(val) => Ok(json!(val)),
         },
         tiberius::ColumnData::Numeric(val) => match val {
             None => Ok(json!(null)),

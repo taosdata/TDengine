@@ -1,4 +1,8 @@
-use std::{borrow::Cow, str::FromStr, sync::Arc};
+use std::{
+    borrow::Cow,
+    str::FromStr,
+    sync::{Arc, LazyLock},
+};
 
 use anyhow::Context;
 use arrow::{
@@ -103,13 +107,14 @@ impl Parse for Json {
         field: &arrow::datatypes::Field,
         array: &ArrayRef,
     ) -> Result<(RecordBatch, Option<Vec<usize>>), super::ParseError> {
-        if array.len() == 0 {
+        if array.is_empty() {
             // Return empty record batch.
             return Ok((RecordBatch::new_empty(Arc::new(Schema::empty())), None));
         }
         let mut flatten = false;
 
         let array = arrow::compute::cast(array, &DataType::Utf8)?;
+        let field = field.clone().with_data_type(DataType::Utf8);
 
         let string = array.as_any().downcast_ref::<StringArray>().unwrap();
         let num_rows = string.len();
@@ -120,13 +125,25 @@ impl Parse for Json {
                 continue;
             }
             let s = string.value(i);
-            let s = s.replace('\n', r"\n");
-            let value = serde_json::from_str::<serde_json::Value>(&s);
+            let value = serde_json::from_str::<JsonValue>(s);
             let value = match value {
                 Ok(v) => v,
+                Err(e) if e.is_syntax() => {
+                    let s = fix_json_control_chars(s);
+                    match serde_json::from_str::<JsonValue>(&s) {
+                        Ok(value) => value,
+                        Err(e) => {
+                            tracing::warn!(
+                                "{:#}",
+                                super::ParseError::JsonDeserializeError(s.to_string(), e)
+                            );
+                            JsonValue::Null
+                        }
+                    }
+                }
                 Err(e) => {
                     tracing::warn!(
-                        "{:#}",
+                        "Parse json row {i} error: {:#}",
                         super::ParseError::JsonDeserializeError(s.to_string(), e)
                     );
                     JsonValue::Null
@@ -175,6 +192,28 @@ impl Parse for Json {
             }
         }
         // dbg!(&schema);
+        let json_value_to_vec = |value: JsonValue, n: usize| match value {
+            JsonValue::Array(array) => array
+                .into_iter()
+                .map(|v| {
+                    (n, {
+                        if v.is_null() {
+                            None
+                        } else {
+                            debug_assert!(v.is_object());
+                            Some(v)
+                        }
+                    })
+                })
+                .collect(),
+            JsonValue::Null => {
+                vec![(n, None)]
+            }
+            JsonValue::Object(object) => {
+                vec![(n, Some(JsonValue::Object(object)))]
+            }
+            _ => unreachable!(),
+        };
         let json_values: Vec<_> = (0..num_rows)
             .enumerate()
             .flat_map(|(n, i)| {
@@ -183,42 +222,33 @@ impl Parse for Json {
                 }
 
                 let str = string.value(i);
-                let str = str.replace('\n', r"\n");
-                let value = serde_json::from_str::<serde_json::Value>(&str);
 
+                let value = serde_json::from_str::<JsonValue>(str);
                 match value {
-                    Ok(JsonValue::Array(array)) => array
-                        .into_iter()
-                        .map(|v| {
-                            (n, {
-                                if v.is_null() {
-                                    None
-                                } else {
-                                    debug_assert!(v.is_object());
-                                    Some(v)
-                                }
-                            })
-                        })
-                        .collect(),
-                    Ok(JsonValue::Null) => {
-                        vec![(n, None)]
-                    }
-                    Ok(JsonValue::Object(object)) => {
-                        vec![(n, Some(JsonValue::Object(object)))]
+                    Ok(value) => json_value_to_vec(value, n),
+                    Err(e) if e.is_syntax() => {
+                        let s = fix_json_control_chars(str);
+                        match serde_json::from_str::<JsonValue>(&s) {
+                            Ok(value) => json_value_to_vec(value, n),
+                            Err(e) => {
+                                tracing::warn!(
+                                    "{:#}",
+                                    super::ParseError::JsonDeserializeError(str.to_string(), e)
+                                );
+                                vec![(n, None)]
+                            }
+                        }
                     }
                     Err(e) => {
                         tracing::warn!(
-                            "{:#}",
+                            "Get values error: {:#}",
                             super::ParseError::JsonDeserializeError(str.to_string(), e)
                         );
                         vec![(n, None)]
                     }
-                    _ => unreachable!(),
                 }
             })
             .collect();
-
-        let mut arrays = Vec::new();
 
         let fields = schema
             .fields()
@@ -226,13 +256,6 @@ impl Parse for Json {
             .map(|f| f.as_ref().clone())
             .collect_vec();
         // dbg!(&fields);
-        if self.keep {
-            arrays.push((field.name(), array.clone()));
-            let len = schema.fields().len();
-            schema = Schema::try_merge(vec![Schema::new(vec![field.clone()]), schema]).unwrap();
-            // New schema has original field and the json-parsed fields in order.
-            debug_assert!(len + 1 == schema.fields().len());
-        }
 
         let mut r_fields = Vec::with_capacity(fields.len());
         let mut r_arrays = Vec::with_capacity(fields.len());
@@ -887,6 +910,11 @@ impl Parse for Json {
             }
         }
 
+        if self.keep {
+            r_arrays.push(array.clone());
+            r_fields.push(field);
+        }
+
         schema.fields = Fields::from(r_fields);
         let records = RecordBatch::try_new(Arc::new(schema), r_arrays)?;
         // let records = records.with_schema(Arc::new(schema)).unwrap();
@@ -933,6 +961,25 @@ fn flat_fields(fields: &Fields, current: &String, depth: usize) -> Vec<String> {
         }
     });
     keys.clone()
+}
+
+fn fix_json_control_chars(json_str: &str) -> String {
+    static RE: LazyLock<regex::Regex> =
+        LazyLock::new(|| Regex::new(r#""((?:\\.|[^"\\])*)""#).unwrap());
+
+    let result = RE.replace_all(json_str, |caps: &regex::Captures| {
+        let content = &caps[1]; // 引号内的内容
+
+        // 只替换内容中的换行符，保持转义序列不变
+        let fixed_content = content
+            .replace('\n', "\\n")
+            .replace('\r', "\\r")
+            .replace('\t', "\\t");
+
+        format!("\"{fixed_content}\"")
+    });
+
+    result.into_owned()
 }
 
 #[cfg(test)]
@@ -1340,5 +1387,20 @@ mod tests {
             .unwrap()
             .is_null(1));
         Ok(())
+    }
+
+    #[test]
+    fn fix_json_control_chars_test() {
+        let s = fix_json_control_chars("{\"a\": \n \"b\\\"\nc\"}");
+        assert!(serde_json::from_str::<serde_json::Value>(&s).is_ok());
+
+        let s = fix_json_control_chars("{\"a\": \n \"bc\"}");
+        assert!(serde_json::from_str::<serde_json::Value>(&s).is_ok());
+
+        let s = fix_json_control_chars("{\"a\": \n \"b\nc\"}");
+        assert!(serde_json::from_str::<serde_json::Value>(&s).is_ok());
+
+        let s = fix_json_control_chars("{\"a\": \"b\tc\"}");
+        assert!(serde_json::from_str::<serde_json::Value>(&s).is_ok());
     }
 }

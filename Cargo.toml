@@ -13,6 +13,8 @@ members = [
   "tests/tools",
   "crates/spawners/x-replication",
   "crates/persist-queue",
+  "crates/archive",
+  "crates/rotate-file",
 ]
 exclude = ["crates/transform/parsers/hebeipower"]
 
@@ -34,7 +36,7 @@ arrow-compute-ext = { path = "crates/arrow-compute-ext" }
 arrow-cast-guess-precision = { path = "crates/arrow-cast-guess-precision" }
 futures-ext = { path = "crates/futures-ext" }
 dashmap = "6.1.0"
-faststr = { version = "0.2.27", features = ["serde"] }
+faststr = { version = "0.2.31", features = ["serde"] }
 rayon = { version = "1" }
 parquet = "54.2.0"
 scc = { version = "2" }
@@ -52,7 +54,7 @@ serde = "1"
 # NOTE: 当前 arrow-json 不兼容 serde_json 的 arbitrary_precision feature，添加需谨慎
 serde_json = { version = "1.0", features = ["raw_value", "preserve_order"] }
 fundu = "2.0.1"
-opendal = { version = "0", features = ["services-s3"] }
+opendal = { version = "=0.51", features = ["services-s3"] }
 rumqttc = "0.24.0"
 rustls = { version = "0.23.18", default-features = false }
 rustls-pemfile = { version = "2" }
@@ -72,16 +74,27 @@ rand = "0.8"
 bitfield = "0.16.1"
 bigdecimal = "0.4"
 
+actix-cors = "0.7.0"
+actix-files = "0.6.6"
+actix-multipart = "0.7.2"
+actix-web = { version = "4.9.0", features = ["rustls-0_23"] }
+actix-ws = "0.3.0"
+thiserror = "1"
+
+archive = { path = "./crates/archive" }
+
+hex = "0.4.3"
+
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "91baaa5"
+rev = "399d3ec9"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]
 
 [workspace.package]
 version = "1.10.0"
-rust-version = "1.78.0"
+rust-version = "1.87.0"
 
 [workspace.lints.clippy]
 too_many_arguments = "allow"
@@ -90,7 +103,7 @@ too_many_arguments = "allow"
 name = "taosx"
 version.workspace = true
 build = "build.rs"
-edition = "2021"
+edition = "2024"
 exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
 homepage = "https://taosdata.com"
 rust-version = { workspace = true }
@@ -103,8 +116,8 @@ arrow = { workspace = true }
 arrow-flight = { workspace = true }
 zerocopy = { workspace = true }
 opendal = { workspace = true }
-#multi_index_map = "0.11.0"
-multi_index_map = { git = "https://github.com/lun3x/multi_index_map.git", branch = "master" }
+multi_index_map = "0.15.0"
+#multi_index_map = { git = "https://github.com/lun3x/multi_index_map.git", branch = "master" }
 scc = { workspace = true, features = ["serde"] }
 semver = "1"
 shadow-rs = { workspace = true }
@@ -131,7 +144,7 @@ linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 log = { version = "0.4", features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 serde_yaml = "0.9.19"
-thiserror = "1"
+thiserror = { workspace = true }
 tokio = { workspace = true, features = [
   "rt",
   "rt-multi-thread",
@@ -148,11 +161,11 @@ tokio = { workspace = true, features = [
 tokio-util.workspace = true
 toml = "0.8.19"
 
-actix-cors = "0.7.0"
-actix-files = "0.6.6"
-actix-multipart = "0.7.2"
-actix-web = { version = "4", features = ["rustls-0_23"] }
-actix-ws = "0.3.0"
+actix-cors.workspace = true
+actix-files.workspace = true
+actix-multipart.workspace = true
+actix-web.workspace = true
+actix-ws.workspace = true
 base64 = "0.22.1"
 serde_json = { version = "1.0", features = ["raw_value"] }
 sqlx = { version = "0.8", features = ["sqlite", "chrono", "json"] }
@@ -229,7 +242,8 @@ tikv-jemalloc-sys = { version = "0.6.0", features = [
   "profiling",
 ], optional = true }
 tikv-jemalloc-ctl = { version = "0.6.0", optional = true }
-jemalloc_pprof = { version = "0.6.0", git = "https://github.com/polarsignals/rust-jemalloc-pprof.git", optional = true }
+jemalloc_pprof = { version = "0.7.0", git = "https://github.com/polarsignals/rust-jemalloc-pprof.git", optional = true }
+archive = { workspace =  true }
 
 [build-dependencies]
 sqlx = { version = "0.8", features = ["sqlite", "chrono", "mysql"] }
@@ -280,6 +294,8 @@ strip = "debuginfo"
 
 [patch.crates-io]
 sasl2-sys = { path = "./crates/rust-sasl/sasl2-sys" }
+actix-http = { git = "https://github.com/bitcapybara/actix-web", rev = "5ec0783" }
+# actix-http = { path = "/root/actix-web/actix-http" }
 
 [lints]
 workspace = true

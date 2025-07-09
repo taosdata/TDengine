@@ -37,7 +37,7 @@ export default {
               pattern: null,
               grid_two: false,
               type: 'number',
-              min: 0,
+              min: 0
               // max: null
             },
             {

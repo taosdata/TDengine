@@ -1,5 +1,5 @@
 use arrow::{
-    array::{ArrayRef, BinaryArray, StringArray},
+    array::{ArrayRef, StringArray},
     record_batch::RecordBatch,
 };
 use arrow_schema::DataType;
@@ -40,22 +40,6 @@ impl ValueBuilder for CastValueBuilder {
                             return Ok(Arc::new(StringArray::from(array)) as ArrayRef);
                         }
                     }
-                    DataType::Binary => {
-                        let value = record.column(index).as_any().downcast_ref::<BinaryArray>();
-                        let mut array = Vec::new();
-                        if let Some(value) = value {
-                            value.iter().for_each(|v| {
-                                if v.is_some_and(|v| !v.is_empty()) {
-                                    array.push(v.and_then(|v| std::str::from_utf8(v).ok()));
-                                } else if let Some(default) = &self.default {
-                                    array.push(Some(default.as_str()));
-                                } else {
-                                    array.push(None);
-                                }
-                            });
-                            return Ok(Arc::new(StringArray::from(array)) as ArrayRef);
-                        }
-                    }
                     DataType::Int8
                     | DataType::Int16
                     | DataType::Int32
@@ -67,6 +51,10 @@ impl ValueBuilder for CastValueBuilder {
                     | DataType::Boolean => {
                         return Ok(record.column(index).clone());
                     }
+                    DataType::List(field) if field.data_type().is_numeric() => {
+                        return Ok(record.column(index).clone())
+                    }
+                    DataType::Binary => return Ok(record.column(index).clone()),
                     _ => {
                         let mut values = Vec::new();
                         // get column values and judge if some of them are null

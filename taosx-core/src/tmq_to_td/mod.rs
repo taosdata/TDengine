@@ -1,11 +1,23 @@
 mod worker;
 
+use anyhow::{anyhow, bail, Context};
+use faststr::FastStr;
+use humantime::parse_duration;
+use linked_hash_map::LinkedHashMap;
+use serde::{Deserialize, Serialize};
+use std::sync::atomic::Ordering::SeqCst;
 use std::{
     collections::{BTreeMap, HashMap},
     ops::Deref,
     sync::{atomic::AtomicUsize, Arc},
     time::Duration,
 };
+use taos::taos_query::tmq::Assignment;
+use taos::*;
+use tokio_util::sync::CancellationToken;
+use tracing::{instrument, Instrument};
+use worker::*;
+use worker::{Worker, WriteOptions};
 
 use crate::{
     core_metrics::{get_metrics_arc_or, CoreMetrics, TaskMetrics},
@@ -18,21 +30,8 @@ use crate::{
     },
     Action,
 };
-use anyhow::{anyhow, bail, Context, Result};
-use faststr::FastStr;
-use humantime::parse_duration;
-use linked_hash_map::LinkedHashMap;
-use serde::{Deserialize, Serialize};
-use std::sync::atomic::Ordering::SeqCst;
-use taos::taos_query::tmq::Assignment;
-use taos::*;
-use tokio_util::sync::CancellationToken;
-use tracing::{instrument, Instrument};
-use worker::{Worker, WriteOptions};
 
-use worker::*;
-
-async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> Result<bool> {
+async fn migrate_data_schema(desc: &[Field], to: &Taos, table: &str) -> anyhow::Result<bool> {
     let target_desc = to.describe(table).await?;
     let fields: BTreeMap<_, _> = target_desc.iter().map(|f| (f.field(), f)).collect();
 
@@ -123,16 +122,16 @@ async fn write_data(
     data: &Data,
     target_is_v3: bool,
     metrics: &TmqMetrics,
-) -> Result<u64> {
-    tracing::trace!("Start writing data");
+) -> anyhow::Result<u64> {
+    tracing::debug!("Start writing data");
     metrics.add_messages_of_data(1);
-    let mut has_blocks = false;
     let mut last_error = None;
     if target_is_v3 && !topic.is_query() && actions.is_empty() {
         let raw = data
             .as_raw_data()
             .await
             .context("Data source raw data error")?;
+        metrics.add_message_bytes(raw.raw_len() as _);
         if let Err(err) = taos.write_raw_meta(&raw).await {
             let code = *err.code().deref();
             match code {
@@ -168,6 +167,8 @@ async fn write_data(
         }
     }
 
+    // fallback to block-by-block method
+    let mut has_blocks = false;
     while let Some(mut raw) = data
         .fetch_raw_block()
         .await
@@ -175,65 +176,50 @@ async fn write_data(
     {
         has_blocks = true;
 
-        let source_table_name = raw.table_name().and_then(|name| {
-            if name.is_empty() {
-                None
-            } else {
-                Some(name.to_owned())
-            }
-        });
-        tracing::trace!(
-            source.table = source_table_name,
-            "sync block with {} rows {} cols",
-            raw.nrows(),
-            raw.ncols()
+        let source_table_name = raw
+            .table_name()
+            .filter(|name| !name.is_empty())
+            .map(|s| s.to_owned());
+        tracing::debug!(
+            "try to write raw block: {}",
+            raw.pretty_format().to_string()
         );
         if let Some(name) = table {
-            if actions.is_empty() {
-                raw.with_table_name(name);
-                tracing::debug!(
-                    "Write into {name} {} rows(total {}) with {} columns",
-                    raw.nrows(),
-                    rows,
-                    raw.ncols()
-                );
-            } else {
-                let mut name = name.to_string();
-                for action in actions {
-                    match action {
-                        Action::RenameTable(rename) | Action::RenameChildTable(rename) => {
-                            rename.apply_in_place(&mut name)?
-                        }
-                        _ => (),
+            let mut name = name.to_string();
+            for action in actions {
+                match action {
+                    Action::RenameTable(rename) | Action::RenameChildTable(rename) => {
+                        rename.apply_in_place(&mut name)?
                     }
+                    _ => (),
                 }
-                raw.with_table_name(&name);
-                tracing::debug!(
-                    "Write into {name} {} rows(total {}) with {} columns",
-                    raw.nrows(),
-                    rows,
-                    raw.ncols()
-                );
             }
+            raw.with_table_name(&name);
+            tracing::debug!(
+                "Write into {name} {} rows(total {}) with {} columns",
+                raw.nrows(),
+                rows,
+                raw.ncols()
+            );
         } else if let Some(name) = raw.table_name() {
-            if !actions.is_empty() {
-                let mut name = name.to_string();
-                for action in actions {
-                    match action {
-                        Action::RenameTable(rename) | Action::RenameChildTable(rename) => {
-                            rename.apply_in_place(&mut name)?
-                        }
-                        _ => (),
+            let mut name = name.to_string();
+            for action in actions {
+                match action {
+                    Action::RenameTable(rename) | Action::RenameChildTable(rename) => {
+                        rename.apply_in_place(&mut name)?
                     }
+                    _ => (),
                 }
-                raw.with_table_name(&name);
-                tracing::debug!(
-                    "write into {name} {} rows(total {}) with {} columns",
-                    raw.nrows(),
-                    rows,
-                    raw.ncols()
-                );
             }
+            if !actions.is_empty() {
+                raw.with_table_name(&name);
+            }
+            tracing::debug!(
+                "write into {name} {} rows(total {}) with {} columns",
+                raw.nrows(),
+                rows,
+                raw.ncols()
+            );
         } else {
             // 会走到这里吗？
             tracing::debug!(
@@ -282,7 +268,7 @@ async fn write_data(
                     .await
                     .context("Write with stmt init error")?;
                 let fields = raw.fields();
-                let question_masks = std::iter::repeat('?').take(fields.len()).join(",");
+                let question_masks = std::iter::repeat_n('?', fields.len()).join(",");
                 let table = raw.table_name().unwrap();
                 stmt.prepare(&format!("INSERT INTO `{table}` VALUES({question_masks})"))
                     .await
@@ -313,7 +299,9 @@ async fn write_data(
     if !has_blocks {
         if actions.is_empty() {
             if target_is_v3 {
-                if let Err(err) = taos.write_raw_meta(&data.as_raw_data().await?).await {
+                let raw = data.as_raw_data().await?;
+                metrics.add_message_bytes(raw.raw_len() as _);
+                if let Err(err) = taos.write_raw_meta(&raw).await {
                     let errstr = err.to_string();
                     if errstr.contains("[0x032C]")
                         || errstr.contains("[0x0115]")
@@ -358,7 +346,7 @@ async fn write_meta(
     with_meta_delete: bool,
     with_meta_drop: bool,
     with_data: bool,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     let cur = metrics.add_messages_of_meta(1);
     let mut json_meta = match meta.as_json_meta().await.context("Fetch json meta error") {
         Ok(json_meta) => json_meta,
@@ -369,6 +357,7 @@ async fn write_meta(
             if actions.is_empty() {
                 if target_is_v3 {
                     let raw_meta = meta.as_raw_meta().await?;
+                    metrics.add_message_bytes(raw_meta.raw_len() as _);
                     taos.write_raw_meta(&raw_meta)
                         .await
                         .context("Write raw meta without fallback error")?;
@@ -439,6 +428,7 @@ async fn write_meta(
     if actions.is_empty() || meta_changed {
         if target_is_v3 {
             let raw_meta = meta.as_raw_meta().await?;
+            metrics.add_message_bytes(raw_meta.raw_len() as _);
             if let Err(err) = taos.write_raw_meta(&raw_meta).await {
                 metrics.add_write_raw_fails(1);
                 // Print error no matter how we will deal with it, so that we can know what happened.
@@ -583,7 +573,7 @@ async fn sync_msg(
     with_meta_delete: bool,
     with_meta_drop: bool,
     target_is_v3: bool,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     metrics.add_messages(1);
     let total = metrics.messages.load(SeqCst);
     *messages += 1;
@@ -738,8 +728,7 @@ async fn sync(
     metrics_arc: Arc<CoreMetrics>,
     with_meta_delete: bool,
     with_meta_drop: bool,
-    group_id: &String,
-) -> Result<Consumer> {
+) -> anyhow::Result<Consumer> {
     tracing::info!("Task start");
     let mut stream = consumer.stream();
     let mut rows = 0;
@@ -750,8 +739,6 @@ async fn sync(
         .await
         .is_ok();
     let metrics = metrics_arc.tmq();
-    let refresh_progress_interval =
-        crate::utils::interval::IntervalLimit::new(Duration::from_secs(1));
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
@@ -780,9 +767,6 @@ async fn sync(
                     )
                         .in_current_span()
                         .await?;
-                    if refresh_progress_interval.ticked() {
-                        let _ = update_progress(source_pool, metrics, &topic.name, group_id).await;
-                    }
 
                 } else {
                     break;
@@ -790,7 +774,6 @@ async fn sync(
             }
         }
     }
-    let _ = update_progress(source_pool, metrics, &topic.name, group_id).await;
     tracing::info!("Task done");
 
     // do not drop consumer when single task done.
@@ -815,8 +798,7 @@ async fn sync_interlace(
     cancel: CancellationToken,
     metrics_arc: Arc<CoreMetrics>,
     options: &WriteOptions,
-    group_id: &String,
-) -> Result<Consumer> {
+) -> anyhow::Result<Consumer> {
     tracing::info!("Task start");
     // let mut stream = consumer.stream_with_timeout(Timeout::from_secs(5).into());
     let taos = target_pool.get().await?;
@@ -1013,7 +995,6 @@ async fn sync_interlace(
         clean_cache!();
         consumer.commit(last_offset.unwrap()).await?;
     }
-    let _ = update_progress(source_pool, metrics, &topic.name, group_id).await;
     tracing::info!("Task done");
 
     // do not drop consumer when single task done.
@@ -1034,8 +1015,7 @@ async fn sync_concurrently(
     cancel: CancellationToken,
     metrics_arc: Arc<CoreMetrics>,
     options: &WriteOptions,
-    group_id: &String,
-) -> Result<Consumer> {
+) -> anyhow::Result<Consumer> {
     tracing::info!("Task start");
     let taos = target_pool.get().await?;
     let _target_is_v3 = taos
@@ -1126,19 +1106,6 @@ async fn sync_concurrently(
         DEFAULT_POLL_INTERVAL
     };
     let timeout = Timeout::from_millis(poll_interval.as_millis() as _);
-
-    static REFRESH_PROGRESS_INTERVAL: std::sync::OnceLock<Duration> = std::sync::OnceLock::new();
-    let refresh_progress_interval = REFRESH_PROGRESS_INTERVAL.get_or_init(|| {
-        Duration::from_secs(
-            std::env::var("REFRESH_PROGRESS_INTERVAL")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(300),
-        )
-    });
-    let refresh_progress_interval =
-        crate::utils::interval::IntervalLimit::new(*refresh_progress_interval);
-
     let async_loop = async {
         loop {
             if cancel.is_cancelled() {
@@ -1155,9 +1122,6 @@ async fn sync_concurrently(
                     res?
                 }
             } {
-                if refresh_progress_interval.ticked() {
-                    let _ = update_progress(source_pool, metrics, &topic.name, group_id).await;
-                }
                 metrics.add_consume_cost_ms(per_message_instant.elapsed().as_millis() as _);
 
                 let message_type = match &message {
@@ -1234,7 +1198,6 @@ async fn sync_concurrently(
                 metrics.add_commits(1);
             }
         }
-        let _ = update_progress(source_pool, metrics, &topic.name, group_id).await;
         Ok(())
     }
     .in_current_span();
@@ -1342,7 +1305,7 @@ pub async fn tmq_to_td(
     cancel: CancellationToken,
     task_id: Option<String>,
     notify: crate::TaskNotifySender,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     let cancel = cancel.child_token();
     let _drop_guard = cancel.clone().drop_guard();
     let (mut from, builder, topics, with_meta_delete, with_meta_drop) = check_tmq_dsn(from).await?;
@@ -1378,6 +1341,12 @@ pub async fn tmq_to_td(
         .or(std::env::var("TMQ_COMMIT_INTERVAL_MS").ok())
         .and_then(|s| s.parse().ok())
         .unwrap_or(5000);
+    let refresh_progress_interval = Duration::from_secs(
+        from.remove("refresh.progress.interval")
+            .or(std::env::var("REFRESH_PROGRESS_INTERVAL").ok())
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(7),
+    );
 
     const DEFAULT_ENABLE_CONCURRENT_POLLING: bool = true;
     let concurrent_polling = from
@@ -1395,7 +1364,14 @@ pub async fn tmq_to_td(
             }
         })
         .unwrap_or(DEFAULT_ENABLE_CONCURRENT_POLLING);
-
+    if let Some(v) = from.remove("timeout") {
+        let d = parse_timeout_duration(&v).context("parse timeout error")?;
+        if d == Duration::MAX {
+            from.set("timeout", "never");
+        } else {
+            from.set("timeout", v);
+        }
+    }
     let max_polling_timeout = from
         .remove("max.polling.timeout")
         .or(from.get("timeout").cloned()) // for compatibility
@@ -1450,11 +1426,18 @@ pub async fn tmq_to_td(
             bail!("Source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
         }
 
-        if source_version >= VERSION_3_3_6
-            && target_version >= VERSION_3_3_6
-            && strategy.prefer_raw()
-        {
-            from.set("msg.consume.rawdata", "1");
+        // @huolinhe: Keep the code here, it's dangerous if source schema changes.
+        // Jira: [TS-6672](https://jira.taosdata.com:18080/browse/TS-6672)
+
+        if strategy.prefer_raw() && from.get("msg.consume.rawdata").is_some() {
+            if source_version < VERSION_3_3_6 {
+                tracing::warn!("Source version is earlier than 3.3.6, which does not support msg.consume.rawdata, will remove it from dsn.");
+                from.remove("msg.consume.rawdata");
+            }
+            if target_version < VERSION_3_3_6 {
+                tracing::warn!("Target version is earlier than 3.3.6, which does not support msg.consume.rawdata, will remove it from dsn.");
+                from.remove("msg.consume.rawdata");
+            }
         }
     }
 
@@ -1680,7 +1663,6 @@ pub async fn tmq_to_td(
             let notify = notify.clone();
             let target = target.clone();
             let options = options.clone();
-            let group_id = group_id.clone();
             let worker = wg.worker();
             join_set.spawn(
                 async move {
@@ -1700,7 +1682,6 @@ pub async fn tmq_to_td(
                                 cancellation.clone(),
                                 metrics_arc.clone(),
                                 &options,
-                                &group_id,
                             )
                             .await
                         } else if concurrent_polling && actions.is_empty() {
@@ -1714,7 +1695,6 @@ pub async fn tmq_to_td(
                                 cancellation.clone(),
                                 metrics_arc.clone(),
                                 &options,
-                                &group_id,
                             )
                             .await
                         } else {
@@ -1730,7 +1710,6 @@ pub async fn tmq_to_td(
                                 metrics_arc.clone(),
                                 with_meta_delete,
                                 with_meta_drop,
-                                &group_id,
                             )
                             .await
                         } {
@@ -1792,7 +1771,7 @@ pub async fn tmq_to_td(
             let source_pool = source_pool.clone();
             let cancel = cancel.clone();
             async move {
-                let mut interval = tokio::time::interval(Duration::from_secs(4));
+                let mut interval = tokio::time::interval(refresh_progress_interval);
                 let metrics = metrics.tmq();
                 loop {
                     tokio::select! {
@@ -1804,10 +1783,20 @@ pub async fn tmq_to_td(
                                 })?;
                         }
                         _ = cancel.cancelled() => {
+                            let _ = update_progress(&source_pool, metrics, &topic.name, &group_id)
+                                .await
+                                .inspect_err(|err| {
+                                    tracing::error!("TMQ process error: {err:#}");
+                                });
                             break Ok(());
                         }
                         _ = wg.wait() => {
                             tracing::info!("All consumers done");
+                            let _ = update_progress(&source_pool, metrics, &topic.name, &group_id)
+                                .await
+                                .inspect_err(|err| {
+                                    tracing::error!("TMQ process error: {err:#}");
+                                });
                             break Ok(());
                         }
                     }
@@ -1904,7 +1893,7 @@ pub async fn get_table_progress(
     let (from_sql, to_sql) = if let Some(start) = start {
         if let Some(end) = end {
             (format!("SELECT last(_c0), count(*) FROM `{from_db}`.`{table}` where _c0 > '{start}' and _c0 < '{end}'"),
-            format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}' and _c0 < '{end}'"))
+             format!("SELECT last(_c0), count(*) FROM `{to_db}`.`{table}` where _c0 > '{start}' and _c0 < '{end}'"))
         } else {
             (
                 format!(
@@ -1969,7 +1958,8 @@ fn parse_timeout_duration(s: &str) -> anyhow::Result<Duration> {
             .map(|d| if d.is_zero() { Duration::MAX } else { d })
     }
 }
-async fn execute_many_sql(conn: &Taos, sqls: Vec<String>) -> Result<()> {
+
+async fn execute_many_sql(conn: &Taos, sqls: Vec<String>) -> anyhow::Result<()> {
     for sql in sqls.iter() {
         conn.exec(sql)
             .in_current_span()
@@ -1981,91 +1971,584 @@ async fn execute_many_sql(conn: &Taos, sqls: Vec<String>) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
+    use crate::utils::sql::connect_taos;
+    use chrono::Utc;
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_timestamp_out_of_range_with_taos() -> anyhow::Result<()> {
-        std::env::set_var("RUST_LOG", "debug");
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::level_filters::LevelFilter::TRACE)
-            .with_line_number(true)
-            .try_init();
-        let pool = TaosBuilder::from_dsn("taos:///")?.pool()?;
-        let conn = pool.get().await?;
-        let timestamp_ms = chrono::Utc::now().timestamp_millis();
-        let ms_5days_ago = timestamp_ms - 5 * 24 * 3600 * 1000;
+    /// # description
+    /// Test case for real-time synchronization of a database using TMQ and TD.
+    /// 1. Create DB_SRC and DB_DST databases, and create topic which subscribe the DB_SRC
+    /// 2. Create a thread to start the sync task, which syncs DB_SRC to DB_DST
+    /// 3. Create N threads, each thread writes T tables, each table writes BATCH_NUM times, and each time writes BATCH_SIZE rows of data
+    /// 4. Check if the data in DB_SRC and DB_DST is consistent, if consistent, the test case passes, otherwise it fails
+    /// # description_cn
+    /// 实时同步数据库，指定写入模式
+    /// 1. 创建数据库 DB_SRC 和 DB_DST；创建 topic，订阅 DB_SRC
+    /// 2. 创建一个线程，启动同步任务，将 DB_SRC 同步到 DB_DST
+    /// 3. 创建 N 个线程，每个线程写入 T 张表，每张表写入 BATCH_NUM 次，每次写入 BATCH_SIZE 条数据
+    /// 4. 检查 DB_SRC 和 DB_DST 中的数据是否一致，一致则用例通过，否则用例失败
+    /// # jira
+    /// Close https://jira.taosdata.com:18080/browse/TD-32960
+    /// # example
+    /// ```shell
+    /// cargo nextest run -p taosx_core test_realtime_sync_with_taos --no-capture --retries 0
+    /// ```
+    #[ignore]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 20)]
+    async fn test_realtime_sync_with_taos() -> anyhow::Result<()> {
+        let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
+        let ws_enable = std::env::var("WS_ENABLE")
+            .ok()
+            .map(|v| v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        const DB_SRC: &str = "td32960_005_src";
+        const DB_DST: &str = "td32960_005_dst";
+        const TOPIC: &str = "test_realtime_sync";
+        const TID: u64 = 32960005;
+        const THREADS: u64 = 10; // 写入的并发
+        const TABLES: u64 = 100; // 每个线程写入 T 张表, 不要修改
+        const BATCH_NUM: u64 = 250; // 每个表写入 BATCH_NUM 次
+        const BATCH_SIZE: u64 = 400; // 每个 BATCH 写入 BATCH_SIZE 条数据, 不要修改
 
-        let prefix = "test_timestamp_out_of_range";
-
-        #[allow(clippy::useless_format)]
-        conn.exec_many([
-            format!("DROP TOPIC IF EXISTS {prefix}_1"),
-            format!("DROP DATABASE IF EXISTS {prefix}_1"),
-            format!("DROP DATABASE IF EXISTS {prefix}_2"),
-            format!("CREATE DATABASE IF NOT EXISTS {prefix}_1 keep 10d duration 1h"),
-            format!("USE {prefix}_1"),
-            format!("CREATE TABLE IF NOT EXISTS t1 (ts TIMESTAMP, d DOUBLE)"),
-            format!("INSERT INTO t1 VALUES ({ms_5days_ago}, 1.0)"),
-            format!("INSERT INTO t1 VALUES ({ms_5days_ago} + 1s, 2.0)"),
-            format!("INSERT INTO t1 VALUES ({ms_5days_ago} + 1s, 3.0)"),
-            format!("CREATE DATABASE IF NOT EXISTS {prefix}_2 keep 3d duration 1h"),
+        // create database
+        let taos = crate::utils::sql::connect_taos(&host, ws_enable).await?;
+        taos.exec_many(vec![
+            format!("DROP TOPIC IF EXISTS force `{TOPIC}`"),
+            format!("DROP DATABASE IF EXISTS `{DB_SRC}`"),
+            format!("DROP DATABASE IF EXISTS `{DB_DST}`"),
+            format!("CREATE DATABASE IF NOT EXISTS `{DB_SRC}`"),
+            format!("CREATE DATABASE IF NOT EXISTS `{DB_DST}`"),
+            format!("CREATE TOPIC `{TOPIC}` WITH META AS DATABASE `{DB_SRC}`"),
+            format!("CREATE TABLE `{DB_SRC}`.stb (ts timestamp, val float) TAGS (id int)"),
         ])
         .await?;
 
-        // let tid = get_random_task_id();
-        let (sender, receiver) = flume::unbounded();
+        // create a realtime sync task
+        let (tx, _rx) = flume::unbounded();
+        let host_clone = host.clone();
+        let sync_task = tokio::spawn(async move {
+            let (from, to) = if ws_enable {
+                let from = format!("tmq+ws://{host_clone}:6041/{TOPIC}")
+                    .into_dsn()
+                    .unwrap();
+                let to = format!("taos+ws://{host_clone}:6041/{DB_DST}")
+                    .into_dsn()
+                    .unwrap();
+                (from, to)
+            } else {
+                let from = format!("tmq://{host_clone}/{TOPIC}").into_dsn().unwrap();
+                let to = format!("taos://{host_clone}/{DB_DST}").into_dsn().unwrap();
+                (from, to)
+            };
+            tmq_to_td(
+                from,
+                vec![],
+                to,
+                CancellationToken::new(),
+                Some(TID.to_string()),
+                tx,
+            )
+            .await
+        });
 
-        let from = format!(
-            "tmq:///{prefix}_1?snapshot=false&group.id={timestamp_ms}&enable.concurrent.polling=false"
-        )
-        .into_dsn()
-        .unwrap();
-        let to = format!("taos:///{prefix}_2").into_dsn().unwrap();
+        // write data to DB_SRC concurrently
+        let mut writers = vec![];
+        let ts0 = Utc::now() - chrono::Duration::seconds((BATCH_NUM * BATCH_SIZE) as i64);
+        for thres_idx in 0..THREADS {
+            let host_clone = host.clone();
+            let w = tokio::spawn(async move {
+                let taos = crate::utils::sql::connect_taos(&host_clone, ws_enable).await?;
 
+                for batch_idx in 0..BATCH_NUM {
+                    let mut sql = "insert into".to_string();
+                    for t in 0..TABLES {
+                        let table_idx = (thres_idx * TABLES) + t;
+                        sql.push_str(&format!(" `{DB_SRC}`.t{table_idx} using `{DB_SRC}`.stb tags({table_idx}) values "));
+
+                        for n in 0..BATCH_SIZE {
+                            let ts = (ts0
+                                + chrono::Duration::seconds((batch_idx * BATCH_SIZE + n) as i64))
+                            .timestamp_millis();
+                            sql.push_str(&format!("({ts}, {n}.{n})"));
+                        }
+                    }
+                    // println!("batch idx: {batch_idx}, sql.len: {}", sql.len());
+                    taos.exec(&sql).await?;
+                }
+
+                Ok::<(), anyhow::Error>(())
+            });
+            writers.push(w);
+        }
+        // wait for all writers to finish
+        for w in writers {
+            if let Err(err) = w.await? {
+                tracing::error!("Write data error: {err:#}");
+                return Err(err);
+            }
+        }
+
+        // wait for the task to end
+        sync_task.await??;
+
+        // check data
+        let count_src: u64 = taos
+            .query_one(format!("select count(*) from `{DB_SRC}`.stb"))
+            .await?
+            .unwrap_or_default();
+        let count_dst: u64 = taos
+            .query_one(format!("select count(*) from `{DB_DST}`.stb"))
+            .await?
+            .unwrap_or_default();
+        assert_eq!(count_src, THREADS * TABLES * BATCH_NUM * BATCH_SIZE);
+        assert_eq!(count_dst, THREADS * TABLES * BATCH_NUM * BATCH_SIZE);
+
+        // clean
+        taos.exec_many(vec![
+            format!("DROP TOPIC IF EXISTS force `{TOPIC}`"),
+            format!("DROP DATABASE IF EXISTS `{DB_SRC}`"),
+            format!("DROP DATABASE IF EXISTS `{DB_DST}`"),
+        ])
+        .await?;
+
+        Ok(())
+    }
+
+    /// # description
+    /// The 'timestamp out of range' rows should be lost when the DB_SRC's keep value is greater than the DB_DST's keep value.
+    /// # description_cn
+    /// 目标数据库的 keep 值小于源数据库的 keep，写入 timestamp out of range 的数据
+    /// 1. 创建数据库 DB_SRC 和 DB_DST，DB_SRC 的 keep 为 10d，DB_DST 的 keep 为 7d；
+    /// 2. 向 DB_SRC 中写入 10 行数据，每天一条；
+    /// 3. 运行 tmq_to_td 任务；
+    /// 4. 检查 DB_SRC 和 DB_DST 中的数据，DB_SRC 最早为 10d 前，DB_DST 最早为 7d 前，正确则用例通过，否则失败。
+    /// # example
+    /// ```shell
+    /// cargo nextest run -p taosx-core test_timestamp_out_of_range_with_taos --no-capture --retries 0
+    /// ```
+    #[tokio::test]
+    async fn test_timestamp_out_of_range_with_taos() -> anyhow::Result<()> {
+        std::env::set_var("RUST_LOG", "debug");
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::level_filters::LevelFilter::DEBUG)
+            .init();
+
+        let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
+        let ws_enable = std::env::var("WS_ENABLE").is_ok_and(|w| w.eq_ignore_ascii_case("true"));
+        const DB_SRC: &str = "test_timestamp_out_of_range_1";
+        const DB_DST: &str = "test_timestamp_out_of_range_2";
+        const TID: u64 = 32960000;
+        const DAYS: i64 = 10;
+
+        let now = Utc::now();
+        let taos = connect_taos(&host, ws_enable).await?;
+        taos.exec_many([
+            format!("DROP TOPIC IF EXISTS force `{DB_SRC}`"),
+            format!("DROP DATABASE IF EXISTS `{DB_SRC}`"),
+            format!("DROP DATABASE IF EXISTS `{DB_DST}`"),
+            format!("CREATE DATABASE IF NOT EXISTS `{DB_SRC}` keep {DAYS}d duration 1h",),
+            format!(
+                "CREATE DATABASE IF NOT EXISTS `{DB_DST}` keep {}d duration 1h",
+                (DAYS - 3)
+            ),
+            format!("CREATE TABLE IF NOT EXISTS `{DB_SRC}`.t1 (ts TIMESTAMP, d DOUBLE)"),
+        ])
+        .await?;
+        for i in 0..DAYS {
+            taos.exec(format!(
+                "INSERT INTO `{DB_SRC}`.t1 VALUES ({}, {i}.0)",
+                (now - chrono::Duration::days(i)).timestamp_millis()
+            ))
+            .await?;
+        }
+
+        let (from, to) = if ws_enable {
+            let from = format!(
+                "tmq+ws://{host}:6041/{DB_SRC}?snapshot=false&group.id={}&enable.concurrent.polling=true",
+                now.timestamp_millis()
+            ).into_dsn()?;
+            let to = format!("taos+ws://{host}:6041/{DB_DST}").into_dsn()?;
+            (from, to)
+        } else {
+            let from = format!(
+                "tmq://{host}/{DB_SRC}?snapshot=false&group.id={}&enable.concurrent.polling=true",
+                now.timestamp_millis()
+            )
+            .into_dsn()?;
+            let to = format!("taos://{host}/{DB_DST}").into_dsn()?;
+            (from, to)
+        };
+        let (tx, rx) = flume::unbounded();
         tmq_to_td(
             from,
             vec![],
             to,
             CancellationToken::new(),
-            None,
-            sender.clone(),
+            Some(TID.to_string()),
+            tx.clone(),
         )
         .await?;
 
-        // let from = format!("tmq:///{prefix}_1?snapshot=false&group.id={timestamp_ms}_2")
-        //     .into_dsn()
-        //     .unwrap();
-        // let to = format!("taos:///{prefix}_2").into_dsn().unwrap();
-
-        // tmq_to_td(from, vec![], to, CancellationToken::new(), None, sender).await?;
-
-        drop(sender);
-        assert_eq!(receiver.sender_count(), 0, "Sender should be dropped");
-        tracing::info!("Waiting for receiver");
-        while let Ok(msg) = receiver.recv() {
+        drop(tx);
+        assert_eq!(rx.sender_count(), 0, "Sender should be dropped");
+        while let Ok(msg) = rx.recv() {
             tracing::info!("Received: {msg:?}");
         }
+
+        // check the data in source and destination databases
+        let count_src: u64 = taos
+            .query_one(format!("select first(ts) from `{DB_SRC}`.t1"))
+            .await?
+            .unwrap_or_default();
+        assert_eq!(
+            count_src,
+            (now - chrono::Duration::days(DAYS - 1)).timestamp_millis() as u64
+        );
+        let count_dst: u64 = taos
+            .query_one(format!("select first(ts) from `{DB_DST}`.t1"))
+            .await?
+            .unwrap_or_default();
+        assert_eq!(
+            count_dst,
+            (now - chrono::Duration::days(DAYS - 4)).timestamp_millis() as u64
+        );
+
+        // clean
+        taos.exec_many([
+            format!("DROP TOPIC IF EXISTS force `{DB_SRC}`"),
+            format!("DROP DATABASE IF EXISTS `{DB_SRC}`"),
+            format!("DROP DATABASE IF EXISTS `{DB_DST}`"),
+        ])
+        .await?;
+
         Ok(())
     }
 
+    /// # description
+    /// test tmq_to_td task sync stream tables
+    /// 1. create databases, stable and stream
+    /// 2. create a replication task(tmq_to_td) from DB_SRC to DB_DST
+    /// 3. write data in DB_SRC, and stream will generate new tables and data
+    /// 4. run for 20 seconds, then stop the replication task
+    /// 5. check the result
+    /// # description_cn
+    /// tmq 同步数据库中写入的数据以及 stream 产生的数据
+    /// 1. 创建数据库 DB_SRC 和 DB_DST，在 DB_SRC 中创建超级表和 stream；
+    /// 2. 创建数据复制任务，timeout=never
+    /// 3. 向 DB_SRC 中写入数据，同时 stream 会产生新表和新数据；
+    /// 4. 运行 20 秒后，停止数据复制任务；
+    /// 5. 检查 DB_SRC 和 DB_DST 中的数据，表和 stream 的数据都完成了同步，则用例通过，否则失败。
+    /// # jira
+    /// Close https://jira.taosdata.com:18080/browse/TD-34829
+    /// # example
+    /// ```shell
+    /// cargo nextest run -p taosx-core test_td34829_with_taos --nocapture --retries 0
+    /// ```
+    #[ignore]
     #[tokio::test]
-    async fn test_execute_many_sql_with_taos() {
-        // given
-        let dsn = "taos:///".into_dsn().unwrap();
-        let taos = TaosBuilder::from_dsn(&dsn).unwrap().build().await.unwrap();
-        // when
-        let res = execute_many_sql(&taos, vec!["invalid sql".to_string()]).await;
-        // then
-        assert!(res.is_err());
-        assert_eq!(
-            "failed to execute sql: invalid sql",
-            res.unwrap_err().to_string()
-        );
+    async fn test_td34829_with_taos() -> anyhow::Result<()> {
+        let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
+        let ws_enable = std::env::var("WS_ENABLE")
+            .ok()
+            .map(|v| v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        const DB_SRC: &str = "td34829_src";
+        const DB_DST: &str = "td34829_dst";
+        const TID: i32 = 34829;
+        const STREAM: &str = "current_state_window";
+        let group_id = format!("test_td{TID}");
+        let topic_name = format!("test_replica_td{TID}");
+
+        tracing_subscriber::fmt::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .init();
+
+        // 1. create two database： td34829_src & td34829_dst
+        println!("====== create databases and stream =====");
+        let taos = if ws_enable {
+            TaosBuilder::from_dsn(format!("taos+ws://{host}:6041").into_dsn()?)?
+                .build()
+                .await?
+        } else {
+            TaosBuilder::from_dsn(format!("taos://{host}").into_dsn()?)?
+                .build()
+                .await?
+        };
+
+        loop {
+            let result = taos
+                .exec_many(vec![
+                    format!("drop topic if exists `{topic_name}`"),
+                    format!("drop stream if exists `{STREAM}`"),
+                ])
+                .await;
+            if result.is_ok() {
+                break;
+            }
+        }
+
+        taos.exec_many(vec![
+            format!("drop database if exists `{DB_SRC}`"),
+            format!("drop database if exists `{DB_DST}`"),
+            format!("create database if not exists `{DB_SRC}`"),
+            format!("create database if not exists `{DB_DST}`"),
+            format!("create table `{DB_SRC}`.`meters`(ts timestamp, val float) tags(id int)"),
+        ])
+        .await?;
+
+        loop {
+            let sql = format!("create stream `{STREAM}` into `{DB_SRC}`.`{STREAM}` as select tbname,_wstart,avg(val) from `{DB_SRC}`.meters partition by tbname state_window(cast(val as int))");
+
+            let result = taos.exec(&sql).await;
+            if result.is_ok() {
+                break;
+            }
+        }
+
+        // 2. create a replication task(tmq_to_td) from td34829_src to td34829_dst
+        println!("====== start replication task =====");
+        let (from, to) = if ws_enable {
+            let from = format!(
+                "tmq+ws://{host}:6041/{DB_SRC}?group.id={group_id}&timeout=never&use.topic.name={topic_name}"
+            ).into_dsn()?;
+            let to = format!("taos+ws://{host}:6041/{DB_DST}").into_dsn()?;
+            (from, to)
+        } else {
+            let from = format!(
+                "tmq://{host}/{DB_SRC}?group.id={group_id}&timeout=never&use.topic.name={topic_name}"
+            )
+                .into_dsn()?;
+            let to = format!("taos://{host}/{DB_DST}").into_dsn()?;
+            (from, to)
+        };
+
+        let cancel = CancellationToken::new();
+        let cancel_clone = cancel.clone();
+        let (tx, rx) = flume::unbounded();
+        let tx_clone = tx.clone();
+        let h = tokio::spawn(async move {
+            tmq_to_td(
+                from,
+                vec![],
+                to,
+                cancel_clone,
+                Some(TID.to_string()),
+                tx_clone,
+            )
+            .await
+        });
+
+        // 3. write data in DB_SRC
+        println!("======= write data =====");
+        for _ in 0..20 {
+            taos.exec_many(vec![
+                format!("insert into {DB_SRC}.t1 using {DB_SRC}.meters tags(1) values(now, 11.1),(now+1s,11.2),(now+2s,11.3),(now+3s,10.1),(now+4s,10.2),(now+5s,10.3)"),
+                format!("insert into {DB_SRC}.t2 using {DB_SRC}.meters tags(2) values(now, 22.1),(now+1s,22.2),(now+2s,22.3),(now+3s,21.1),(now+4s,21.2),(now+5s,21.3)"),
+                format!("insert into {DB_SRC}.t3 using {DB_SRC}.meters tags(3) values(now, 33.1),(now+1s,33.2),(now+2s,33.3),(now+3s,32.1),(now+4s,32.2),(now+5s,32.3)"),
+                format!("insert into {DB_SRC}.t4 using {DB_SRC}.meters tags(4) values(now, 44.1),(now+1s,44.2),(now+2s,44.3),(now+3s,43.1),(now+4s,43.2),(now+5s,43.3)"),
+                format!("insert into {DB_SRC}.t5 using {DB_SRC}.meters tags(5) values(now, 55.1),(now+1s,55.2),(now+2s,55.3),(now+3s,54.1),(now+4s,54.2),(now+5s,55.3)"),
+            ]).await?;
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+
+        drop(tx);
+        cancel.cancel();
+        h.await??;
+        while let Ok(msg) = rx.recv() {
+            println!("{msg:?}");
+        }
+
+        // 4. check the result
+        println!("====== check the result =====");
+        let count_src: u64 = taos
+            .query_one(format!("select count(*) from `{DB_SRC}`.meters"))
+            .await?
+            .unwrap();
+        let count_dst: u64 = taos
+            .query_one(format!("select count(*) from `{DB_DST}`.meters"))
+            .await?
+            .unwrap();
+        assert_eq!(count_src, count_dst);
+
+        let stream_src: u64 = taos
+            .query_one(format!("select count(*) from `{DB_SRC}`.`{STREAM}`"))
+            .await?
+            .unwrap();
+        let stream_dst: u64 = taos
+            .query_one(format!("select count(*) from `{DB_DST}`.`{STREAM}`"))
+            .await?
+            .unwrap();
+        assert_eq!(stream_src, stream_dst);
+
+        // 5. clean
+        println!("====== clean up =====");
+        loop {
+            let result = taos
+                .exec_many(vec![
+                    format!("drop topic if exists `{topic_name}`"),
+                    format!("drop stream if exists `{STREAM}`"),
+                ])
+                .await;
+            if result.is_ok() {
+                break;
+            }
+        }
+        taos.exec_many(vec![
+            format!("drop database if exists `{DB_SRC}`"),
+            format!("drop database if exists `{DB_DST}`"),
+        ])
+        .await?;
+
+        Ok(())
+    }
+
+    /// # description
+    /// test tmq_to_td task with auto create table
+    /// # description_cn
+    /// 目标端表不存在可自动建表
+    /// 1. 创建数据库 DB_SRC 和 DB_DST，在 DB_SRC 中创建超级表 meters；
+    /// 2. 创建数据复制任务，timeout=10s
+    /// 3. 向 DB_SRC 中写入数据，写 100 个表，每个表写 100 行数据；
+    /// 4. 写入到一半时，删除 DB_DST 中的 t1, t2, t3 三个表；
+    /// 5. 等待数据复制任务结束，检查 DB_SRC 和 DB_DST 中的表，数量一致，则用例通过，否则失败。
+    /// # jira
+    /// close https://jira.taosdata.com:18080/browse/TD-33080
+    /// # example
+    /// ```shell
+    /// cargo nextest run -p taosx-core test_td33080_with_taos --nocapture --retries 0
+    /// ```
+    #[ignore]
+    #[tokio::test]
+    async fn test_td33080_with_taos() -> anyhow::Result<()> {
+        tracing_subscriber::fmt::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .init();
+
+        let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
+        let ws_enable = std::env::var("WS_ENABLE")
+            .ok()
+            .map(|v| v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        const DB_SRC: &str = "td33080_src";
+        const DB_DST: &str = "td33080_dst";
+        const TID: u64 = 33080;
+        const TABLES: u64 = 100;
+        const ROWS: usize = 100;
+
+        let taos = connect_taos(&host, ws_enable).await?;
+        // create database and topic
+        taos.exec_many(vec![
+            format!("DROP TOPIC IF EXISTS force `{DB_SRC}`"),
+            format!("DROP DATABASE IF EXISTS `{DB_SRC}`"),
+            format!("DROP DATABASE IF EXISTS `{DB_DST}`"),
+            format!("CREATE DATABASE IF NOT EXISTS `{DB_SRC}`"),
+            format!("CREATE DATABASE IF NOT EXISTS `{DB_DST}`"),
+            format!("CREATE TABLE `{DB_SRC}`.meters(ts timestamp, val float) tags(id int)"),
+            format!("CREATE TOPIC `{DB_SRC}` as DATABASE `{DB_SRC}`"),
+        ])
+        .await?;
+
+        let now = Utc::now();
+        // start replication task
+        let (from, to) = if ws_enable {
+            let from = format!(
+                "tmq+ws://{host}:6041/{DB_SRC}?group.id={}&timeout=10s&enable.concurrent.polling=false",
+                now.timestamp_millis()
+            )
+                .into_dsn()?;
+            let to = format!("taos+ws://{host}:6041/{DB_DST}").into_dsn()?;
+            (from, to)
+        } else {
+            let from = format!(
+                "tmq://{host}/{DB_SRC}?group.id={}&timeout=10s&enable.concurrent.polling=false",
+                now.timestamp_millis()
+            )
+            .into_dsn()?;
+            let to = format!("taos://{host}/{DB_DST}").into_dsn()?;
+            (from, to)
+        };
+        let cancel = CancellationToken::new();
+        let cancel_clone = cancel.clone();
+        let (tx, rx) = flume::unbounded();
+        let tx_clone = tx.clone();
+        let h = tokio::spawn(async move {
+            tmq_to_td(
+                from,
+                vec![],
+                to,
+                cancel_clone,
+                Some(TID.to_string()),
+                tx_clone,
+            )
+            .await
+        });
+
+        // start writing data
+        let host_clone = host.clone();
+        let write_handler = tokio::spawn(async move {
+            let taos = connect_taos(host_clone.as_str(), ws_enable).await.unwrap();
+
+            for _ in 1..=ROWS {
+                let mut sql = "INSERT INTO".to_string();
+                for table_idx in 1..=TABLES {
+                    sql.push_str(&format!(
+                        "`{DB_SRC}`.t{table_idx} USING `{DB_SRC}`.meters TAGS({table_idx}) VALUES ({}, {table_idx}.0) ",
+                        (now + chrono::Duration::seconds(table_idx as i64)).timestamp_millis()
+                    ));
+                }
+                taos.exec(sql).await.unwrap();
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        });
+
+        // drop table meters in sink database
+        tokio::time::sleep(Duration::from_millis(TABLES / 2 * 100)).await;
+        taos.exec_many(vec![
+            format!("DROP TABLE IF EXISTS `{DB_DST}`.t1"),
+            format!("DROP TABLE IF EXISTS `{DB_DST}`.t2"),
+            format!("DROP TABLE IF EXISTS `{DB_DST}`.t3"),
+        ])
+        .await?;
+
+        // wait for the write task to finish
+        write_handler.await?;
+
+        // wait for the task to end
+        drop(tx);
+        h.await??;
+        while let Ok(msg) = rx.recv() {
+            println!("{msg:?}");
+        }
+
+        let res_src: u64 = taos
+            .query_one(format!(
+                "select count(*) from information_schema.ins_tables where db_name = '{DB_SRC}'"
+            ))
+            .await?
+            .unwrap_or(0);
+        assert_eq!(res_src, TABLES);
+        let res_dst: u64 = taos
+            .query_one(format!(
+                "select count(*) from information_schema.ins_tables where db_name = '{DB_DST}'"
+            ))
+            .await?
+            .unwrap_or(0);
+        assert_eq!(res_dst, TABLES);
+
+        // clean
+        taos.exec_many(vec![
+            format!("DROP TOPIC IF EXISTS force `{DB_SRC}`"),
+            format!("DROP DATABASE IF EXISTS `{DB_SRC}`"),
+            format!("DROP DATABASE IF EXISTS `{DB_DST}`"),
+        ])
+        .await?;
+
+        Ok(())
     }
 
     #[test]
-    fn dsn_parse_duration_test() {
+    fn test_dsn_parse_duration() {
         assert_eq!(parse_timeout_duration("0").unwrap(), Duration::MAX);
         assert_eq!(parse_timeout_duration("never").unwrap(), Duration::MAX);
         assert_eq!(parse_timeout_duration("-1").unwrap(), Duration::MAX);
@@ -2087,31 +2570,5 @@ mod tests {
             parse_timeout_duration("10m").unwrap(),
             Duration::from_secs(10 * 60)
         );
-    }
-
-    #[tokio::test]
-    async fn test_show_subscriptions_with_taos() -> anyhow::Result<()> {
-        let taos = TaosBuilder::from_dsn("taos:///")?.build().await?;
-        let res = taos.query("show subscriptions").await;
-        match res {
-            Ok(mut res) => {
-                let records = res.to_records().await;
-                match records {
-                    Ok(records) => {
-                        for record in records {
-                            dbg!(record);
-                        }
-                    }
-                    Err(err) => {
-                        tracing::error!("Query error: {err}");
-                    }
-                }
-            }
-            Err(err) => {
-                tracing::error!("Query error: {err}");
-            }
-        }
-
-        Ok(())
     }
 }

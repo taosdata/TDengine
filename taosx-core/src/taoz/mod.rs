@@ -1,32 +1,41 @@
-use anyhow::bail;
-use chrono::{DateTime, Local, Timelike, Utc};
+use anyhow::{bail, Context};
+use async_compression::tokio::write::ZstdEncoder;
+use async_compression::zstd::CParameter;
+use chrono::{DateTime, Utc};
 use std::io::Result as IoResult;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::time::Duration;
 use taos::taos_query::common::RawData;
 use taos::*;
+use tokio::fs::File;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWrite;
 use tokio::io::AsyncWriteExt;
+use tokio::io::BufWriter;
+use tokio::time::Instant;
 
 use crate::dsv::DataSourceValidation;
-use async_compression::tokio::write::ZstdEncoder;
+
 pub use header::*;
-use tokio::fs::File;
-use tokio::io::BufReader;
 
 mod header;
 
 #[derive(Debug, Clone)]
 pub struct ZFileName {
+    /// zfile 的原始路径
     pub raw_path: Option<PathBuf>,
+    /// zfile 对应的 topic 名称
     pub topic: String,
+    /// zfile 对应的备份时间戳
     pub timestamp: Option<DateTime<Utc>>,
+    /// vgroup id
     pub vg_id: i32,
+    /// zfile 的 index
     pub index: u64,
 }
 
@@ -83,9 +92,10 @@ impl ZFileName {
     }
 }
 
-type ZFileInner = ZCodec<ZstdEncoder<BufReader<File>>>;
+// type ZFileInner = ZCodec<ZstdEncoder<BufReader<File>>>;
+type ZFileInner = ZCodec<ZstdEncoder<BufWriter<File>>>;
 
-/// Construct a backup file with name pattern `{prefix}-{timestamp}.z`.
+/// Construct a ZFile with name pattern `{prefix}-{timestamp}.z`.
 ///
 /// Automatically create new file when file reach the max_file_size
 pub struct ZFile {
@@ -103,12 +113,17 @@ pub struct ZFile {
     max_file_size: u64,
     /// 文件写完后，移动到的目录
     move_to: Option<PathBuf>,
+    /// 写入超时，如果文件不为空，且超过 timeout 没有写入新数据，则关闭当前文件
+    timeout: Duration,
+
     /// 当前文件路径
     current_file: PathBuf,
     /// writer
     writer: ZFileInner,
     /// 当前文件大小
     current_size: usize,
+    /// 最后一次写入
+    last_modified: Option<Instant>,
 }
 
 impl ZFile {
@@ -120,6 +135,7 @@ impl ZFile {
         compression_level: async_compression::Level,
         max_file_size: u64,
         move_to: Option<PathBuf>,
+        timeout: Duration,
     ) -> anyhow::Result<Self> {
         let (current_file, writer) = ZFile::new_writer(
             api_version,
@@ -143,9 +159,11 @@ impl ZFile {
             compression_level,
             max_file_size,
             move_to,
+            timeout,
             current_file,
             writer,
             current_size: 0,
+            last_modified: None,
         })
     }
 
@@ -156,48 +174,39 @@ impl ZFile {
     /// 根据 topic, timestamp, vg_id, index 生成文件名。注意：timestamp 的秒和纳秒部分都会被忽略
     fn file_name(name: (&str, Option<DateTime<Utc>>, i32, u64)) -> String {
         let ts = match name.1 {
-            None => Utc::now()
-                .with_second(0)
-                .unwrap()
-                .with_nanosecond(0)
-                .unwrap()
-                .timestamp(),
-            Some(t) => t
-                .with_second(0)
-                .unwrap()
-                .with_nanosecond(0)
-                .unwrap()
-                .timestamp(),
+            None => Utc::now().timestamp_millis(),
+            Some(t) => t.timestamp_millis(),
         };
         format!("{}-{}-{}-{}.z", name.0, ts, name.2, name.3)
     }
 
     pub fn parse_file_name(file_name: &str) -> anyhow::Result<(String, DateTime<Utc>, i32, u64)> {
         if !file_name.ends_with(".z") {
-            bail!("invalid backup file name: {}", file_name);
+            bail!("invalid ZFile name: {}", file_name);
         }
         let splits = file_name
             .trim_end_matches(".z")
             .split('-')
             .collect::<Vec<_>>();
         if splits.len() != 4 {
-            bail!("invalid backup file name: {}", file_name);
+            bail!("invalid ZFile name: {}", file_name);
         }
 
         let topic = splits[0].to_string();
         let ts = splits[1]
             .parse::<i64>()
-            .map_err(|_| anyhow::anyhow!("invalid timestamp in backup file name: {}", file_name))?;
-        let ts = DateTime::from_timestamp(ts, 0).ok_or(anyhow::anyhow!(
-            "invalid timestamp in backup file name: {}",
+            .with_context(|| format!("invalid timestamp in ZFile name: {}", file_name))?;
+
+        let ts = DateTime::from_timestamp_millis(ts).ok_or(anyhow::anyhow!(
+            "invalid timestamp in ZFile name: {}",
             file_name
         ))?;
         let vg_id = splits[2]
             .parse::<i32>()
-            .map_err(|_| anyhow::anyhow!("invalid vgroup id in backup file name: {}", file_name))?;
+            .with_context(|| format!("invalid vgroup id in ZFile name: {}", file_name))?;
         let index = splits[3]
             .parse::<u64>()
-            .map_err(|_| anyhow::anyhow!("invalid index in backup file name: {}", file_name))?;
+            .with_context(|| format!("invalid index in ZFile name: {}", file_name))?;
 
         Ok((topic, ts, vg_id, index))
     }
@@ -237,57 +246,18 @@ impl ZFile {
                 format!("Can't create file {}: {err:#}", path.display()),
             )
         })?;
-        let wtr = BufReader::new(file);
-        let wtr = ZstdEncoder::with_quality(wtr, compression_level);
+        let wtr = BufWriter::new(file);
+        // let wtr = BufReader::new(file);
+        // let wtr = ZstdEncoder::with_quality(wtr, compression_level);
+        let wtr = ZstdEncoder::with_quality_and_params(
+            wtr,
+            compression_level,
+            &[CParameter::checksum_flag(true)],
+        );
         let mut file = ZCodec::new(wtr);
         file.write_head_async(&Header::new(api_version, server_version, None))
             .await?;
 
-        Ok((path, file))
-    }
-
-    // pub async fn new(
-    //     api_version: &str,
-    //     server_version: &str,
-    //     prefix: impl AsRef<Path>,
-    //     compression_level: async_compression::Level,
-    //     max_file_size: u64,
-    //     move_to: Option<PathBuf>,
-    // ) -> IoResult<Self> {
-    //     let prefix = prefix.as_ref().to_path_buf();
-    //     let (file_name, file) =
-    //         ZFile::new_z_file(api_version, server_version, &prefix, compression_level).await?;
-    //     Ok(Self {
-    //         api_version: api_version.to_string(),
-    //         server_version: server_version.to_string(),
-    //         path: file_name,
-    //         prefix,
-    //         compression_level,
-    //         max_file_size,
-    //         move_to,
-    //         file,
-    //         current_size: 0,
-    //     })
-    // }
-
-    #[deprecated]
-    #[allow(unused)]
-    async fn new_z_file(
-        api_version: &str,
-        server_version: &str,
-        prefix: impl AsRef<Path>,
-        compression_level: async_compression::Level,
-    ) -> IoResult<(PathBuf, ZFileInner)> {
-        let prefix = prefix.as_ref().to_path_buf();
-        let now = Local::now();
-        let timestamp = now.timestamp();
-        let path = PathBuf::from(format!("{}-{timestamp}.z", prefix.display()));
-        let file = File::create(&path).await?;
-        let wtr = BufReader::new(file);
-        let wtr = ZstdEncoder::with_quality(wtr, compression_level);
-        let mut file = ZCodec::new(wtr);
-        file.write_head_async(&Header::new(api_version, server_version, None))
-            .await?;
         Ok((path, file))
     }
 
@@ -299,16 +269,26 @@ impl ZFile {
         Ok(())
     }
 
+    /// 如果当前文件的大小超过 max_file_size，或者(now - last_modify) > timeout，关闭当前文件，并创建新的文件
     pub async fn check_or_next(&mut self) -> anyhow::Result<()> {
-        if self.current_size as u64 >= self.max_file_size {
-            self.writer.flush().await.map_err(|err| {
-                tracing::error!("failed to flush file: {:#?}", err);
-                err
-            })?;
-            self.writer.shutdown().await.map_err(|err| {
-                tracing::error!("failed to shutdown file: {:#?}", err);
-                err
-            })?;
+        let timeout = if let Some(last_modified) = self.last_modified {
+            self.current_size > 0 && (last_modified.elapsed() > self.timeout)
+        } else {
+            false
+        };
+
+        if self.current_size as u64 >= self.max_file_size || timeout {
+            // 为当前文件计算 CRC 并写入到文件结尾
+
+            // 关闭当前文件
+            self.writer
+                .flush()
+                .await
+                .context("failed to flush ZFile writer")?;
+            self.writer
+                .shutdown()
+                .await
+                .context("failed to shutdown ZFile writer")?;
 
             // 如果 name.1 为空，即：没有指定备份点的时间戳，则使用当前时间作为备份点的时间戳，并更新文件名
             if self.name.1.is_none() {
@@ -325,18 +305,16 @@ impl ZFile {
                 );
                 tokio::fs::rename(old_file.as_path(), new_file.as_path())
                     .await
-                    .map_err(|err| {
-                        tracing::error!(
-                            "failed to rename file, old: {:?}, new: {:?}, cause: {:#?}",
-                            old_file,
-                            new_file,
-                            err
-                        );
-                        err
+                    .with_context(|| {
+                        format!(
+                            "failed to rename file, old: {:?}, new: {:?}",
+                            old_file, new_file,
+                        )
                     })?;
                 self.name.1 = Some(now);
             }
 
+            // 如果 move_to 不为空，则将当前备份文件移动到 move_to 目录
             self.move_to().await?;
 
             // create a new ZFile
@@ -349,52 +327,51 @@ impl ZFile {
                 self.compression_level,
             )
             .await
-            .map_err(|err| {
-                tracing::error!("failed to create new file: {:#?}", err);
-                err
-            })?;
+            .context("failed to create new ZFile")?;
             self.current_file = current_file;
             self.writer = writer;
             self.current_size = 0;
+            self.last_modified = None;
         }
         Ok(())
     }
 
     pub async fn write_meta(&mut self, meta: &RawMeta) -> anyhow::Result<()> {
         self.current_size += self.writer.write_meta_async(meta).await?;
-        self.check_or_next().await?;
+        self.last_modified = Some(Instant::now());
+        self.check_or_next()
+            .await
+            .context("failed to check or next")?;
         Ok(())
     }
 
     pub async fn write_raw(&mut self, raw: &RawData, raw_type: RawType) -> anyhow::Result<()> {
-        self.current_size += self
-            .writer
-            .write_raw_async(raw, raw_type)
+        self.current_size += self.writer.write_raw_async(raw, raw_type).await?;
+        self.last_modified = Some(Instant::now());
+        self.check_or_next()
             .await
-            .map_err(|err| {
-                tracing::error!("failed to write raw data: {:#?}", err);
-                err
-            })?;
-        self.check_or_next().await.map_err(|err| {
-            tracing::error!("failed to check or next: {:#?}", err);
-            err
-        })?;
+            .context("failed to check or next")?;
         Ok(())
     }
 
     pub async fn start_raw_block(&mut self) -> anyhow::Result<()> {
         self.current_size += self.writer.start_data_async().await?;
+        self.last_modified = Some(Instant::now());
         Ok(())
     }
 
     pub async fn write_raw_block(&mut self, block: &RawBlock) -> IoResult<()> {
         self.current_size += self.writer.write_data_async(block).await?;
+        self.last_modified = Some(Instant::now());
         Ok(())
     }
 
     pub async fn finish_raw_block(&mut self) -> anyhow::Result<()> {
         self.current_size += self.writer.finish_data_async().await?;
-        self.check_or_next().await?;
+        self.last_modified = Some(Instant::now());
+        self.check_or_next()
+            .await
+            .context("failed to check or next")?;
         Ok(())
     }
 
@@ -408,10 +385,9 @@ impl ZFile {
                 path.display(),
                 new_path.display()
             );
-            tokio::fs::rename(path, new_path).await.map_err(|error| {
-                tracing::error!("failed to move file: {:#?}", error);
-                error
-            })?;
+            tokio::fs::rename(path, new_path)
+                .await
+                .context("failed to move ZFile")?;
         }
         Ok(())
     }
@@ -525,7 +501,7 @@ where
         let msg_type = self.0.read_u8().await?;
         let data_type = DataType::from_bits(msg_type).ok_or(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "invalid data type or broken backup file",
+            "invalid data type or broken ZFile",
         ))?;
 
         if data_type == DataType::IS_META {
@@ -549,7 +525,7 @@ where
         } else {
             Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                "invalid data type or broken backup file",
+                "invalid data type or broken ZFile",
             ))
         }
     }
@@ -612,11 +588,16 @@ mod tests {
     fn test_file_name() {
         let ts = Utc.with_ymd_and_hms(2021, 8, 27, 12, 0, 0).unwrap();
         let name = ZFile::file_name(("abc", Some(ts), 1, 1));
-        assert_eq!("abc-1630065600-1-1.z", name);
+        assert_eq!("abc-1630065600000-1-1.z", name);
 
         let ts = Utc.with_ymd_and_hms(2021, 8, 27, 12, 0, 33).unwrap();
         let name = ZFile::file_name(("abc", Some(ts), 1, 1));
-        assert_eq!("abc-1630065600-1-1.z", name);
+        assert_eq!("abc-1630065633000-1-1.z", name);
+
+        let ts = Utc::now();
+        let expect = format!("abc-{}-1-1.z", ts.timestamp_millis());
+        let name = ZFile::file_name(("abc", Some(ts), 1, 1));
+        assert_eq!(expect, name);
     }
 
     #[tokio::test]
@@ -643,10 +624,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_file_name() {
-        let file_name = "abc-1630000000-22-1.z";
+        let file_name = "abc-1630065633001-22-1.z";
         let (topic, ts, vg_id, index) = ZFile::parse_file_name(file_name).unwrap();
         assert_eq!("abc", topic);
-        assert_eq!(1630000000, ts.timestamp());
+        assert_eq!(1630065633001, ts.timestamp_millis());
         assert_eq!(22, vg_id);
         assert_eq!(1, index);
     }

@@ -1,15 +1,18 @@
 <template>
-  <el-tabs v-model="activeName" @tab-click="tabClick">
+  <el-tabs v-model="activeName" :before-leave="beforeLeave" @tab-click="tabClick">
     <el-tab-pane v-for="item in props.tabs" :key="item.path" :name="item.path" v-bind="item"></el-tab-pane>
   </el-tabs>
 </template>
 
 <script lang="ts" setup>
-import { TabsPaneContext } from 'element-plus';
+import { TabPaneName, TabsPaneContext } from 'element-plus';
 import { useRoute, useRouter } from 'hooks/useCurrentRouter';
+import { isRouteAborted } from 'utils/route';
+
 const props = withDefaults(
   defineProps<{
     tabs: Array<any>;
+    checkIgnored?: boolean;
   }>(),
   {
     tabs: () => []
@@ -23,24 +26,42 @@ watchEffect(() => {
   activeName.value = (route?.path as string) ?? '';
 });
 onMounted(() => {
-  if (props.tabs.every(item => item.path != route.path)) {
-    if (props.tabs.length) {
-      activeName.value = props.tabs[0].path as string;
-      router.push({
-        path: props.tabs[0].path,
-        query: props.tabs[0].query || {}
-      });
-    } else {
-      router.back();
-    }
+  if (!props.tabs.every(item => item.path != route.path) || props.checkIgnored) {
+    return;
+  }
+  if (props.tabs.length) {
+    activeName.value = props.tabs[0].path as string;
+    router.push({
+      path: props.tabs[0].path,
+      query: props.tabs[0].query || {}
+    });
+  } else {
+    router.back();
   }
 });
+const beforeLeave = async (currentName: TabPaneName) => {
+  try {
+    if (route.path === currentName) {
+      // if the current name equals route path, no need to push the router again
+      return true;
+    }
+    const res = await router.push({
+      path: (currentName as string) ?? '',
+      query: props.tabs.find(tab => tab.path === currentName)?.query || {}
+    });
+    if (isRouteAborted(res)) {
+      return false;
+    } else {
+      emit('tab-click', { paneName: currentName });
+      return true;
+    }
+  } catch (error) {
+    return false;
+  }
+};
 const tabClick = (tab: TabsPaneContext) => {
-  router.push({
-    path: (tab.paneName as string) ?? '',
-    query: props.tabs?.[Number(tab.index!)]?.query || {}
-  });
-  emit('tab-click', tab);
+  // need to hand
+  emit('tab-click', { tab });
 };
 </script>
 

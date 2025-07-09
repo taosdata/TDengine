@@ -1,11 +1,6 @@
 <template>
-  <div style="border: 1px solid #ccc">
-    <Toolbar
-      style="border-bottom: 1px solid #ccc"
-      :editor="editorRef"
-      :default-config="toolbarConfig"
-      :mode="props.mode"
-    />
+  <div class="rich-text-editor-wrapper">
+    <Toolbar class="rich-text-editor-toolbar" :editor="editorRef" :default-config="toolbarConfig" :mode="props.mode" />
     <Editor
       v-model="currentValue"
       class="rich-text-editor-content"
@@ -36,7 +31,7 @@ const props = withDefaults(
     height: '300px',
     language: 'en',
     editorConfig: () => ({
-      placeholder: 'Please enter content'
+      placeholder: 'Please enter content...'
     })
   }
 );
@@ -54,7 +49,7 @@ const currentValue = computed({
 const emits = defineEmits(['update:modelValue']);
 
 // 获取组件上定义的 listeners
-const attrs = useAttrs();
+const attrs: any = useAttrs();
 
 const toolbarConfig = {};
 
@@ -85,5 +80,13 @@ const handleCreated = (editor: IDomEditor) => {
   overflow-y: hidden;
   font-size: 16px;
   line-height: 1.5;
+}
+
+.rich-text-editor-wrapper {
+  border: 1px solid #ccc;
+}
+
+.rich-text-editor-toolbar {
+  border-bottom: 1px solid #ccc;
 }
 </style>

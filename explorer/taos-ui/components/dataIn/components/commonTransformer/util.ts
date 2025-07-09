@@ -85,11 +85,11 @@ export function getExampleList(demo_data: string, parsed?: boolean | undefined) 
         return demo_string_arr;
       }
       try {
-        const item_parsed = JSON.parse(obj_list[i].replace(/\n/g, '\\n'));
         if (parsed) {
+          const item_parsed = JSON.parse(obj_list[i].replace(/\n/g, '\\n'));
           demo_string_arr.push(item_parsed);
         } else {
-          demo_string_arr.push(obj_list[i]);
+          demo_string_arr.push(obj_list[i].replace(/\n/g, ''));
         }
       } catch (err: any) {
         err.lineNumber = i + 1;
@@ -215,8 +215,8 @@ export const resetTransformerState = () => {
 };
 
 export const defaultColsMap: Record<string, string[]> = {
-  mqtt: ['topic', 'qos', 'payload'],
-  kafka: ['topic', 'partition', 'offset', 'key', 'value'],
+  mqtt: ['topic', 'qos'],
+  kafka: ['topic', 'partition', 'offset', 'key'],
   mongodb: ['value']
 };
 

@@ -14,7 +14,7 @@
           <el-option v-for="item in dataType" :key="item" :value="item"></el-option>
         </el-select>
         <el-input
-          v-if="VariableTableColumnType.includes(currentValue.type)"
+          v-if="VariableTableColumnType.includes(currentValue.type) || TwoVariableTableColumnType.includes(currentValue.type)"
           v-model="currentValue.length"
           class="custom-length"
           size="default"
@@ -23,6 +23,18 @@
           clearable
           :max="VariableTableColumnTypeMaxLenthMap[currentValue.type as ColumnTypeMaxLenMapKey]"
           @change="processTypeLength"
+        ></el-input>
+        <el-input
+          v-if="TwoVariableTableColumnType.includes(currentValue.type)"
+          v-model="currentValue.length2"
+          class="custom-length"
+          size="default"
+          type="number"
+          :min="8"
+          default-value=0
+          clearable
+          :max="VariableTableColumnTypeMaxLenthMap[currentValue.type as ColumnTypeMaxLenMapKey]"
+          @change="processTypeLength2"
         ></el-input>
       </section>
       <template v-if="!isTag && isVerGte3300">
@@ -119,7 +131,7 @@
             ></el-button>
             <el-button v-else :disabled="btnDisabled" icon="check" @click="emits('typeChange')"></el-button>
           </template>
-          <el-button v-if="!isTag && !isEdit" size="small" :disabled="isTimestamp" @click="emits('moveTag')">
+          <el-button v-if="canMoveToTag && !isEdit" size="small" :disabled="isTimestamp" @click="emits('moveTag')">
             <Icon name="tag" style="width: 14px; height: 12px"></Icon>
           </el-button>
         </template>
@@ -130,7 +142,7 @@
 </template>
 
 <script lang="ts" setup>
-import { VariableTableColumnType, TDengineDataType, VariableTableColumnTypeMaxLenthMap } from 'constants1/index';
+import { VariableTableColumnType, TDengineDataType, VariableTableColumnTypeMaxLenthMap, TwoVariableTableColumnType } from 'constants1/index';
 import { parmaryKeyType, levelList, getStbEncodeAndCompressListByType } from './utils';
 import { hasOwnProperty } from 'utils/validate';
 import { validTDKeywords } from 'utils/validate';
@@ -147,13 +159,19 @@ const props = withDefaults(defineProps<ColumnItemProps>(), {
   loading: false,
   placeholder: t('stb.columnName'),
   isTimestamp: false,
-  isCanSetPrimaryKey: false
+  isCanSetPrimaryKey: false,
+  canMoveToTag: true
 });
 
 let minTypeLength = 8;
 const errorText = ref('');
 const dataType = computed(() => (props.isTag ? TDengineDataType.concat(['JSON']) : TDengineDataType));
 const isVerGte3300 = computed(() => isGte3300(props.version));
+const canMoveToTag = computed(() => {
+  console.log('canMoveToTag', props);
+  if (props.isTag) return false;
+  return props.canMoveToTag;
+});
 const inputDisabled = computed(() => (props.isAdd || props.isTag ? false : props.isEdit));
 const btnDisabled = computed(() =>
   props.isAdd || props.isTag
@@ -161,13 +179,14 @@ const btnDisabled = computed(() =>
     : !props.modelValue.field || !VariableTableColumnType.includes(props.modelValue.type)
 );
 const currentValue: any = reactive({
-  "field":"",
-  "primaryKey" : false,
-  "type": "TIMESTAMP",
-  "length": 8,
-  "compress": "lz4",
-  "encode": "simple8b",
-  "level": "medium",
+  field: '',
+  primaryKey: false,
+  type: 'TIMESTAMP',
+  length: 8,
+  length2: 0,
+  compress: 'lz4',
+  encode: 'simple8b',
+  level: 'medium'
 });
 
 const emits = defineEmits([
@@ -180,22 +199,21 @@ const emits = defineEmits([
   'typeChange'
 ]);
 
-
 const valueChange = () => {
   const updateValue: any = {};
-    for (const key in props.modelValue) {
-      updateValue[key] = currentValue[key];
-    }
-    emits('update:modelValue', updateValue);
+  for (const key in props.modelValue) {
+    updateValue[key] = currentValue[key];
+  }
+  emits('update:modelValue', updateValue);
 };
 const fieldChange = () => {
-  errorText.value = ''
+  errorText.value = '';
   valueChange();
 };
 
 watch(
   () => props.modelValue,
-  (newval) => {
+  newval => {
     for (const key in newval) {
       currentValue[key] = newval[key];
     }
@@ -216,6 +234,12 @@ function processTypeLength(val: number | string) {
   valueChange();
 }
 
+function processTypeLength2(val: number | string) {
+  if (!val) return (currentValue.length2 = 0);
+  val = Number(val);
+  valueChange();
+}
+
 function typeChange(val: string) {
   if (VariableTableColumnType.includes(val)) {
     currentValue.length = Math.max(currentValue.length, minTypeLength);
@@ -227,10 +251,7 @@ function typeChange(val: string) {
     currentValue.compress = defaultCompress;
     currentValue.level = 'medium';
     // 如果不支持 primary key
-    if (
-      currentValue.primaryKey &&
-      parmaryKeyType.findIndex(item => item.value.includes(currentValue.type)) == -1
-    ) {
+    if (currentValue.primaryKey && parmaryKeyType.findIndex(item => item.value.includes(currentValue.type)) == -1) {
       currentValue.primaryKey = false;
     }
   }
@@ -241,7 +262,6 @@ function validName() {
     errorText.value = t('explorer.tdKewordTip', [props.modelValue.field]);
   }
 }
-
 </script>
 
 <style scoped lang="scss">
@@ -264,7 +284,6 @@ $height: 32px;
 .column-prepend-btn {
   display: flex;
   flex-shrink: 0;
-
 
   .custom-length {
     flex-shrink: 0;

@@ -7,6 +7,7 @@ import DataIn from 'taos-ui/components/dataIn/index.vue';
 import {
   getTask,
   refreshTask,
+  skip2Latest,
   getMetrics,
   getMetricsDesc,
   batchStartTask,
@@ -76,6 +77,7 @@ const props: Props = {
     api: {
       getTask,
       refreshTask,
+      skip2Latest,
       batchStartTask,
       batchStopTask,
       batchDelTask,

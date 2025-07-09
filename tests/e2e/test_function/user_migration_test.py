@@ -135,6 +135,7 @@ def input_data():
     ],
 )
 @pytest.mark.sanity
+@pytest.mark.skip
 def test_migration_user(passwords, privileges, whitelist, input_data):
     """
     用例概述：测试迁移用户

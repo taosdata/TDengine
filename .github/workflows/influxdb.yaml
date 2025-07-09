@@ -3,14 +3,14 @@ name: InfluxDB
 on:
   pull_request:
     paths:
-    - '.github/workflows/influxdb.yaml'
-    - 'plugins/influxdb/**'
+      - '.github/workflows/influxdb.yaml'
+      - 'plugins/influxdb/**'
   workflow_dispatch:
 
 jobs:
   build:
     name: Build
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [ self-hosted, linux, x64, app2 ]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -25,7 +25,7 @@ jobs:
         run: mvn jacoco:report
 
       - name: Save Jacoco report as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage report of taosx-influxdb
           path: plugins/influxdb/target/site/jacoco/*

@@ -12,7 +12,7 @@ use crate::runners::opc::config::collect::CollectConfig;
 use crate::runners::opc::config::connect::ConnectConfig;
 use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::report::ReportConfig;
-use crate::runners::opc::{csv_string_record_from_iter, opc_datasets_impl, OpcType};
+use crate::runners::opc::{opc_datasets_impl, OpcType};
 use crate::utils::validate_table_column_name;
 
 pub mod collect;
@@ -100,9 +100,12 @@ impl OPCConfig {
         // 这里把 model_config 中的点位写到 dsn 中，是为了在 collect 中使用。
         // todo: 应该改造一下 collect 解析，直接使用 model_config 中的点位
         let mut dsn_clone = dsn.clone();
-        let points = csv_string_record_from_iter(model_config.point_config_map.iter().map(
-            |(point_id, point_config)| format!("{}::{}", point_id, point_config.code.clone()),
-        ));
+        let points = model_config
+            .point_config_map
+            .iter()
+            .map(|(point_id, point_config)| format!("{}::{}", point_id, point_config.code.clone()))
+            .join(",");
+
         if dsn.driver.as_str() == "opcua" {
             dsn_clone.set("ua.nodes", points);
         } else {

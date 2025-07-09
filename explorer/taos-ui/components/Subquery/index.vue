@@ -72,9 +72,9 @@ import WindowClause from './windowClause.vue';
 import { generateConditionString, Field } from '../SqlCondition/utils';
 import { t } from 'locales';
 import { ElMessage } from 'element-plus';
-import SqlCondition from '../SqlCondition/index.vue';
+import SqlCondition from '../SqlCondition/condition.vue';
 import { SubqueryValue } from './type';
-import { TDFnType } from 'constants';
+import { TDFnType } from 'constants1';
 
 const props = withDefaults(
   defineProps<{

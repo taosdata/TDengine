@@ -1,37 +1,38 @@
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
+use archive::{Archive, ArchiveConsumer, ArchiveType, Cache};
 use arrow::{datatypes::Schema, record_batch::RecordBatch};
-use arrow_flight::{decode::DecodedFlightData, FlightData, PutResult};
+use arrow_flight::{FlightData, PutResult, decode::DecodedFlightData};
 use bytes::Bytes;
 use flume::Sender;
 use futures::{Stream, TryFutureExt, TryStreamExt};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
-use taoslog::utils::{QidMetadataGetter, QidMetadataSetter};
 use taoslog::QidManager;
-use taosx_core::core_metrics::{init_task_metrics, TaskMetrics};
+use taoslog::utils::{QidMetadataGetter, QidMetadataSetter};
+use taosx_core::core_metrics::{TaskMetrics, get_metrics_arc_from_i64, init_task_metrics};
+use taosx_core::plugins;
 use taosx_core::sink::{handle_point_message_init, read_cache_and_rewrite};
 use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::trace::Qid;
 use taosx_core::{
+    ConnectorLicense, IpcStreamWorker, Parser,
     core_metrics::get_metrics,
     sink::{
-        handle_lush_message_init, lush::TableTagCache, IpcErrorStrategy, MessageMetadata,
-        RPC_ACK_PROCESSED, RPC_ACK_RECEIVED, RPC_ACK_STREAM_END,
+        IpcErrorStrategy, MessageMetadata, RPC_ACK_PROCESSED, RPC_ACK_RECEIVED, RPC_ACK_STREAM_END,
+        handle_lush_message_init, lush::TableTagCache,
     },
     utils::{breakpoints::BreakpointDb, get_main_version_from_server_version, get_server_version},
-    ConnectorLicense, IpcStreamWorker, Parser,
 };
-use taosx_core::{ArchiveConsumer, ArchiveType};
 use tonic::{Status, Streaming};
-use tracing::{instrument, Instrument, Span};
+use tracing::{Instrument, Span, instrument};
 use zerocopy::FromBytes;
 
 use crate::serve::{
-    controller::{transferred::ConnectorTransferred, Activity, TaskControllerRef, TaskDetail},
+    controller::{Activity, TaskControllerRef, TaskDetail, transferred::ConnectorTransferred},
     scheduler::agent::{AgentNotifySender, AgentSpawnSender},
 };
 
@@ -103,7 +104,7 @@ async fn ipc_stream_writer(
     abort_message_tx: flume::Sender<Result<PutResult, Status>>,
     ipc_error_strategy: IpcErrorStrategy,
     notify: Arc<tokio::sync::Notify>,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     let cancellation = tokio_util::sync::CancellationToken::new();
     let _drop_guard = cancellation.clone().drop_guard();
@@ -352,7 +353,7 @@ async fn spawn_stream_writer(
     notify_sender: AgentNotifySender,
     spawn_sender: AgentSpawnSender,
     schema: Arc<Schema>,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<PutStreamChannel> {
     let task = controller
         .get(task_id)
@@ -442,7 +443,9 @@ async fn spawn_stream_writer(
         let server_version = get_server_version(&taos).await?;
         let (a, b, c) = get_main_version_from_server_version(&server_version).unwrap();
         let grants_sql = if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
-            format!("select `limits` from information_schema.ins_grants_full where grant_name='{connector}'")
+            format!(
+                "select `limits` from information_schema.ins_grants_full where grant_name='{connector}'"
+            )
         } else {
             format!("select `{connector}` from information_schema.ins_grants")
         };
@@ -463,10 +466,14 @@ async fn spawn_stream_writer(
         if let Some(license) = license {
             if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
                 if license.is_expired_second() {
-                    anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
+                    anyhow::bail!(
+                        "The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code."
+                    )
                 }
             } else if license.is_expired_day() {
-                anyhow::bail!("The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code.")
+                anyhow::bail!(
+                    "The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code."
+                )
             }
         }
         None
@@ -575,8 +582,8 @@ impl PutStream {
         qid: Qid,
         spawn_sender: AgentSpawnSender,
     ) -> anyhow::Result<Self> {
-        use tokio_retry2::strategy::{jitter, ExponentialBackoff, MaxInterval};
         use tokio_retry2::RetryError;
+        use tokio_retry2::strategy::{ExponentialBackoff, MaxInterval, jitter};
         let mut retry = ExponentialBackoff::from_millis(100)
             .factor(2)
             .max_delay_millis(100)
@@ -778,10 +785,22 @@ impl PutStream {
             .await
             .map_err(|err| Status::internal(err.to_string()))?
             .ok_or_else(|| anyhow::format_err!("Cannot find task {}", task_id))?;
-        let parser = task
+        let mut parser: Option<Parser> = task
             .parser
             .as_ref()
             .map(|v| serde_json::from_value(v.clone()).unwrap());
+        if let Some(parser) = parser.as_mut() {
+            match parser {
+                plugins::Parser::Inner(parser) => {
+                    parser.organize_archive(task.id)?;
+                    parser.organize_cache(task.id)?;
+                }
+                plugins::Parser::WithSample { parser, input: _ } => {
+                    parser.organize_archive(task.id)?;
+                    parser.organize_cache(task.id)?;
+                }
+            };
+        }
 
         // the queue for transmitting cache and archived data
         let (archive_tx, archive_rx) = flume::bounded(0);
@@ -795,9 +814,32 @@ impl PutStream {
                 tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
             });
             if parser_clone.is_some() {
-                ArchiveConsumer::new(task_id, parser_clone)
-                    .consume(archive_rx)
-                    .await
+                let (cache, archive) = match parser_clone {
+                    Some(parser) => (
+                        parser.global().process_on_abnormal.cache.clone(),
+                        parser.global().process_on_abnormal.archive.clone(),
+                    ),
+                    None => (Cache::default(), Archive::default()),
+                };
+                let metrics = get_metrics_arc_from_i64(Some(task_id)).await;
+
+                match ArchiveConsumer::new(task_id, cache, archive, |num_rows: u64| {
+                    let metrics = metrics.ipc();
+                    metrics.add_archived_rows(num_rows);
+                    Ok::<_, anyhow::Error>(())
+                })
+                .consume(archive_rx)
+                .await
+                {
+                    Ok(_) => Ok(()),
+                    Err(err) => {
+                        tracing::error!(
+                            error.source = format!("{err:#}"),
+                            "Archive consumer error"
+                        );
+                        Err(err)
+                    }
+                }
             } else {
                 loop {
                     tokio::select! {
@@ -1054,9 +1096,21 @@ impl PutStream {
             };
             tokio::select! {
                 res = future_flight => {
+                    if let Err(ref err) = res {
+                        tracing::error!(
+                            error.source = format!("{err:#}"),
+                            "Future flight error"
+                        );
+                    }
                     res?
                 }
                 res = future_process_archive => {
+                    if let Err(ref err) = res {
+                        tracing::error!(
+                            error.source = format!("{err:#}"),
+                            "Future process archive error"
+                        );
+                    }
                     res?
                 }
             }

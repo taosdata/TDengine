@@ -221,8 +221,7 @@ export default {
               pattern: null,
               grid_two: false,
               type: 'number',
-              min: 1,
-              max: 60
+              min: 1
             },
             {
               label: '采集超时',
@@ -233,8 +232,7 @@ export default {
               pattern: null,
               grid_two: false,
               type: 'number',
-              min: 1,
-              max: 60
+              min: 1
             }
           ],
           hide: false
@@ -253,8 +251,7 @@ export default {
               pattern: null,
               grid_two: false,
               type: 'number',
-              min: 1,
-              max: 60
+              min: 1
             },
             {
               label: '点位更新模式',
@@ -398,6 +395,27 @@ export default {
           max: 60
         },
         {
+          label: '缓存实时数据',
+          field: 'persist_data_enable',
+          description:
+            '开启后，当 taosX 由于性能不足或者下游 TDengine 写入慢时，会将实时数据暂存，等恢复时再将缓存数据重新写入下游 TDengine.\n',
+          defaultValue: false,
+          required: false,
+          type: 'switch'
+        },
+        {
+          label: '缓存数据存储目录',
+          field: 'persist_data_dir',
+          description: '自定义缓存数据存储目录，默认存储到系统数据目录下。\n',
+          placeholder: '$DATA_DIR/tasks/:id/persist_queue/',
+          required: false,
+          type: 'input',
+          displayDependsOn: ['advanced_options/persist_data_enable'],
+          displayDependsOnValues: {
+            persist_data_enable: [true]
+          }
+        },
+        {
           label: '保存原始数据',
           field: 'keep_raw_data',
           description: '是否保存原始数据？\n',
@@ -414,14 +432,13 @@ export default {
           description: '原始数据最大保存天数，默认 1 天。\n',
           defaultValue: '1',
           required: false,
-          hint: {
-            type: 'integer',
-            min: 1,
-            max: 365
-          },
           type: 'number',
           min: 1,
-          max: 365
+          max: 365,
+          displayDependsOn: ['advanced_options/keep_raw_data'],
+          displayDependsOnValues: {
+            keep_raw_data: [true]
+          }
         },
         {
           label: '原始数据存储目录',
@@ -429,10 +446,11 @@ export default {
           description: '自定义原始数据存储目录，默认存储到系统数据目录下。\n',
           placeholder: '$DATA_DIR/tasks/:id/rawdata/',
           required: false,
-          hint: {
-            type: 'str'
-          },
-          type: 'input'
+          type: 'input',
+          displayDependsOn: ['advanced_options/keep_raw_data'],
+          displayDependsOnValues: {
+            keep_raw_data: [true]
+          }
         },
         {
           label: '健康监测时段',

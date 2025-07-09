@@ -1,5 +1,5 @@
 <template>
-  <div v-if="props.total" class="px-[10px] py-[16px] bg-white mt-[20px] flex justify-center">
+  <div v-if="props.total" class="px-[10px] py-[16px] mt-[20px] flex justify-center">
     <el-pagination
       v-model:current-page="currentPage"
       v-model:page-size="pageSize"

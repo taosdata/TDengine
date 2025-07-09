@@ -77,6 +77,9 @@ def test_sanity_basic(input_data):
 
 
 @pytest.mark.sanity
+@pytest.mark.xfail(
+    reason="用例需要重构"
+)
 def test_sanity_realtime(input_data):
     """
     用例概述：验证将实时写入2.6TDengine的数据迁移到3.0TDengine

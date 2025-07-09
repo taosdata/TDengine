@@ -1,4 +1,5 @@
 import { getCurrentInstance } from 'vue';
+import type { Router } from 'vue-router';
 export function useRoute() {
   const instance = getCurrentInstance();
   if (!instance) return {};
@@ -6,7 +7,7 @@ export function useRoute() {
   const reactiveRoute = reactive<Recordable>({});
   for (const key in currentRoute.value) {
     Object.defineProperty(reactiveRoute, key, {
-      get: () => currentRoute.value[key],
+      get: () => currentRoute.value[key as keyof typeof currentRoute.value],
       enumerable: true
     });
   }
@@ -14,6 +15,6 @@ export function useRoute() {
 }
 export function useRouter() {
   const instance = getCurrentInstance();
-  if (!instance) return {};
+  if (!instance) return {} as Router;
   return instance.appContext.config.globalProperties.$router;
 }

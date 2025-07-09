@@ -57,7 +57,7 @@ scc = { workspace = true, features = ["serde"] }
 semver = { version = "1.0.22" }
 serde = { workspace = true, features = ["derive"] }
 sha2 = "0.10"
-thiserror = "1"
+thiserror = { workspace = true }
 tokio = { workspace = true, features = [
   "rt",
   "rt-multi-thread",
@@ -86,7 +86,7 @@ futures-ext = { path = "../crates/futures-ext" }
 
 file-rotate = "0.7.5"
 ringbuf = { version = "0.3.3" }
-deadpool = "0.10"
+deadpool = "=0.10"
 
 actix-web = "4"
 serde_json = { version = "1.0", features = ["raw_value", "preserve_order"] }
@@ -163,7 +163,7 @@ rdkafka = { version = "0.37.0", features = ["cmake-build", "ssl", "tracing"] }
 opendal = { workspace = true }
 taoslog.workspace = true
 bitfield.workspace = true
-deadpool-tiberius = "0.1.8"
+deadpool-tiberius = "=0.1.8"
 file-guard = "0.2.0"
 config = "0.14.0"
 snafu.workspace = true
@@ -176,7 +176,10 @@ datafusion = { version = "45.0.0", default-features = false, features = [
 zstd = "0.13.2"
 awaitgroup = "0.7.0"
 
+hex.workspace = true
+
 persist-queue = { path = "../crates/persist-queue" }
+archive = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }

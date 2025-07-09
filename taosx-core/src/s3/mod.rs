@@ -306,7 +306,7 @@ mod tests {
         for i in 0..10 {
             let f = format!(
                 "./abc-{}-1-1.z",
-                (now - Duration::from_secs((10 - i) * 60)).timestamp()
+                (now - Duration::from_secs((10 - i) * 60)).timestamp_millis()
             );
             files.push(ZFileName::from_path(f).unwrap());
         }
@@ -427,7 +427,7 @@ mod tests {
             let local_dir = env::var("LOCAL_DIR")
                 .map(PathBuf::from)
                 .ok()
-                .unwrap_or(tempfile::tempdir().unwrap().into_path());
+                .unwrap_or(tempfile::tempdir().unwrap().keep());
             let access_key_id = env::var("S3_ACCESS_KEY_ID").unwrap();
             let secret_access_key = env::var("S3_SECRET_ACCESS_KEY").unwrap();
             let bucket = env::var("S3_BUCKET").unwrap();
@@ -475,7 +475,7 @@ mod tests {
             let local_dir = env::var("LOCAL_DIR")
                 .map(PathBuf::from)
                 .ok()
-                .unwrap_or(tempfile::tempdir().unwrap().into_path());
+                .unwrap_or(tempfile::tempdir().unwrap().keep());
 
             // when
             let loader = S3Loader::try_from(&s3_config).await.unwrap();

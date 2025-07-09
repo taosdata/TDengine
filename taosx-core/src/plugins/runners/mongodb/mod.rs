@@ -80,10 +80,10 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 /// * `dsn` - mongodb dsn
 /// # Returns
 /// * `DsSampleIn` - {
-///     "input": [{ "col_name": "xxx", ... }],
-///     "parser": {"parse": {
-///         "col_name": { "as": col_type }, ...
-///     }}
+///   "input": [{ "col_name": "xxx", ... }],
+///   "parser": {"parse": {
+///   "col_name": { "as": col_type }, ...
+///   }}
 ///   }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create mongodb query
@@ -314,12 +314,7 @@ fn generate_payload(document: Document) -> anyhow::Result<String> {
                     payload.insert(key.clone(), json!(v));
                 }
                 Bson::Binary(v) => {
-                    let value: String = v.bytes.iter().fold(String::new(), |mut output, b| {
-                        use std::fmt::Write;
-                        let _ = write!(output, "{b:02x}");
-                        output
-                    });
-                    payload.insert(key.clone(), json!(format!("\\x{}", value)));
+                    payload.insert(key.clone(), json!(v));
                 }
                 Bson::ObjectId(v) => {
                     payload.insert(key.clone(), json!(v.to_string()));

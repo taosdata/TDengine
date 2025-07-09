@@ -2,13 +2,14 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use arrow::{
     array::{
-        ArrayRef, Int64Array, StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
-        TimestampNanosecondArray, TimestampSecondArray,
+        ArrayRef, BinaryArray, Int64Array, ListArray, StringArray, TimestampMicrosecondArray,
+        TimestampMillisecondArray, TimestampNanosecondArray, TimestampSecondArray,
     },
     datatypes::{DataType, Field, Schema},
     record_batch::RecordBatch,
 };
 use arrow_cast_guess_precision::cast;
+use arrow_schema::ArrowError;
 use chrono::{format, DateTime, ParseResult};
 use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
@@ -87,7 +88,7 @@ impl Parse for Cast {
         m.insert("name".to_string(), field.name().to_string());
         m.insert("cast_from".to_string(), field.data_type().to_string());
         match self.r#as {
-            IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
+            IpcDataType::VarBinary(len) | IpcDataType::VarChar(len) | IpcDataType::NChar(len) => {
                 m.insert("length".to_string(), len.to_string());
                 m.insert("cast_to".to_string(), self.r#as.ty().name().to_string());
             }
@@ -101,105 +102,130 @@ impl Parse for Cast {
             .alias
             .as_deref()
             .unwrap_or_else(|| field.name().as_str());
+        let source_dt = field.data_type();
         let dt = self.r#as.arrow_data_type();
         let field = Field::new(name, dt, true).with_metadata(m);
 
-        let array = if let IpcDataType::Timestamp(unit) = &self.r#as {
-            if let Some(with) = self.with.as_deref() {
-                let strings = cast(array, &DataType::Utf8)?;
-                let strings = strings.as_any().downcast_ref::<StringArray>().unwrap();
+        let array = match (source_dt, &self.r#as) {
+            (_, IpcDataType::Timestamp(unit)) => {
+                if let Some(with) = self.with.as_deref() {
+                    let strings = cast(array, &DataType::Utf8)?;
+                    let strings = strings.as_any().downcast_ref::<StringArray>().unwrap();
 
-                let tz = self.tz.as_deref().unwrap_or("UTC");
-                let iter = strings.iter().map(|s| {
-                    s.and_then(|s| {
-                        if with.contains("%z") {
-                            chrono::DateTime::parse_from_str(s, with)
-                                .ok()
-                                .map(|ts| match unit {
-                                    arrow::datatypes::TimeUnit::Second => ts.timestamp(),
-                                    arrow::datatypes::TimeUnit::Millisecond => {
-                                        ts.timestamp_millis()
-                                    }
-                                    arrow::datatypes::TimeUnit::Microsecond => {
-                                        ts.timestamp_micros()
-                                    }
-                                    arrow::datatypes::TimeUnit::Nanosecond => {
-                                        ts.timestamp_nanos_opt().unwrap_or(0)
-                                    }
-                                })
-                        } else {
-                            let tz = chrono_tz::Tz::from_str(tz).expect("Invalid tz");
-                            parse_str_without_tz(s, with, &tz)
-                                .ok()
-                                .map(|ts| match unit {
-                                    arrow::datatypes::TimeUnit::Second => ts.timestamp(),
-                                    arrow::datatypes::TimeUnit::Millisecond => {
-                                        ts.timestamp_millis()
-                                    }
-                                    arrow::datatypes::TimeUnit::Microsecond => {
-                                        ts.timestamp_micros()
-                                    }
-                                    arrow::datatypes::TimeUnit::Nanosecond => {
-                                        ts.timestamp_nanos_opt().unwrap_or(0)
-                                    }
-                                })
+                    let tz = self.tz.as_deref().unwrap_or("UTC");
+                    let iter = strings.iter().map(|s| {
+                        s.and_then(|s| {
+                            if with.contains("%z") {
+                                chrono::DateTime::parse_from_str(s, with).ok().map(
+                                    |ts| match unit {
+                                        arrow::datatypes::TimeUnit::Second => ts.timestamp(),
+                                        arrow::datatypes::TimeUnit::Millisecond => {
+                                            ts.timestamp_millis()
+                                        }
+                                        arrow::datatypes::TimeUnit::Microsecond => {
+                                            ts.timestamp_micros()
+                                        }
+                                        arrow::datatypes::TimeUnit::Nanosecond => {
+                                            ts.timestamp_nanos_opt().unwrap_or(0)
+                                        }
+                                    },
+                                )
+                            } else {
+                                let tz = chrono_tz::Tz::from_str(tz).expect("Invalid tz");
+                                parse_str_without_tz(s, with, &tz)
+                                    .ok()
+                                    .map(|ts| match unit {
+                                        arrow::datatypes::TimeUnit::Second => ts.timestamp(),
+                                        arrow::datatypes::TimeUnit::Millisecond => {
+                                            ts.timestamp_millis()
+                                        }
+                                        arrow::datatypes::TimeUnit::Microsecond => {
+                                            ts.timestamp_micros()
+                                        }
+                                        arrow::datatypes::TimeUnit::Nanosecond => {
+                                            ts.timestamp_nanos_opt().unwrap_or(0)
+                                        }
+                                    })
+                            }
+                        })
+                    });
+
+                    match unit {
+                        arrow::datatypes::TimeUnit::Second => {
+                            Arc::new(TimestampSecondArray::from_iter(iter)) as ArrayRef
                         }
-                    })
-                });
-
-                match unit {
-                    arrow::datatypes::TimeUnit::Second => {
-                        Arc::new(TimestampSecondArray::from_iter(iter)) as ArrayRef
+                        arrow::datatypes::TimeUnit::Millisecond => {
+                            Arc::new(TimestampMillisecondArray::from_iter(iter)) as ArrayRef
+                        }
+                        arrow::datatypes::TimeUnit::Microsecond => {
+                            Arc::new(TimestampMicrosecondArray::from_iter(iter)) as ArrayRef
+                        }
+                        arrow::datatypes::TimeUnit::Nanosecond => {
+                            Arc::new(TimestampNanosecondArray::from_iter(iter)) as ArrayRef
+                        }
                     }
-                    arrow::datatypes::TimeUnit::Millisecond => {
-                        Arc::new(TimestampMillisecondArray::from_iter(iter)) as ArrayRef
-                    }
-                    arrow::datatypes::TimeUnit::Microsecond => {
-                        Arc::new(TimestampMicrosecondArray::from_iter(iter)) as ArrayRef
-                    }
-                    arrow::datatypes::TimeUnit::Nanosecond => {
-                        Arc::new(TimestampNanosecondArray::from_iter(iter)) as ArrayRef
-                    }
-                }
-            } else if matches!(array.data_type(), DataType::Utf8 | DataType::LargeUtf8) {
-                // check if it is timestamp.
-                let r = arrow::compute::cast(array, field.data_type())?;
-                if r.null_count() > 0 {
-                    // means some was not casted to timestamp.
-                    let l = arrow::compute::cast(array, &DataType::Int64)?;
-                    if l.null_count() == l.len() {
-                        // all nulls, skip
-                        r
-                    } else {
-                        // parse int to timestamp.
+                } else if matches!(array.data_type(), DataType::Utf8 | DataType::LargeUtf8) {
+                    // check if it is timestamp.
+                    let r = arrow::compute::cast(array, field.data_type())?;
+                    if r.null_count() > 0 {
+                        // means some was not casted to timestamp.
                         let l = arrow::compute::cast(array, &DataType::Int64)?;
-                        let l = l.as_any().downcast_ref::<Int64Array>().unwrap();
+                        if l.null_count() == l.len() {
+                            // all nulls, skip
+                            r
+                        } else {
+                            // parse int to timestamp.
+                            let l = arrow::compute::cast(array, &DataType::Int64)?;
+                            let l = l.as_any().downcast_ref::<Int64Array>().unwrap();
 
-                        use arrow::datatypes::TimeUnit::*;
-                        let l = match unit {
-                            Second => Arc::new(TimestampSecondArray::from_iter(l)) as ArrayRef,
-                            Millisecond => {
-                                Arc::new(TimestampMillisecondArray::from_iter(l)) as ArrayRef
-                            }
-                            Microsecond => {
-                                Arc::new(TimestampMicrosecondArray::from_iter(l)) as ArrayRef
-                            }
-                            Nanosecond => {
-                                Arc::new(TimestampNanosecondArray::from_iter(l)) as ArrayRef
-                            }
-                        };
-                        let cmp = arrow::compute::is_null(&r)?;
-                        arrow::compute::kernels::zip::zip(&cmp, &l, &r)?
+                            use arrow::datatypes::TimeUnit::*;
+                            let l = match unit {
+                                Second => Arc::new(TimestampSecondArray::from_iter(l)) as ArrayRef,
+                                Millisecond => {
+                                    Arc::new(TimestampMillisecondArray::from_iter(l)) as ArrayRef
+                                }
+                                Microsecond => {
+                                    Arc::new(TimestampMicrosecondArray::from_iter(l)) as ArrayRef
+                                }
+                                Nanosecond => {
+                                    Arc::new(TimestampNanosecondArray::from_iter(l)) as ArrayRef
+                                }
+                            };
+                            let cmp = arrow::compute::is_null(&r)?;
+                            arrow::compute::kernels::zip::zip(&cmp, &l, &r)?
+                        }
+                    } else {
+                        r
                     }
                 } else {
-                    r
+                    cast(array, field.data_type())?
                 }
-            } else {
-                cast(array, field.data_type())?
             }
-        } else {
-            cast(array, field.data_type())?
+            (DataType::List(field), IpcDataType::VarBinary(_))
+                if field.data_type().is_numeric() =>
+            {
+                let iter = (0..array.len())
+                    .map(|row| {
+                        if array.is_null(row) {
+                            return Ok(None);
+                        }
+                        let array = array.as_any().downcast_ref::<ListArray>().unwrap();
+                        // ListArray 每一行转换为一个 Bytes 数组
+                        let row_data = array.value(row);
+                        let u8_array =
+                            arrow::compute::cast(&row_data, &arrow_schema::DataType::UInt8)?;
+                        let u8_array = u8_array
+                            .as_any()
+                            .downcast_ref::<arrow::array::UInt8Array>()
+                            .unwrap();
+                        Ok(Some(u8_array.values().to_vec()))
+                    })
+                    .collect::<Result<Vec<_>, ArrowError>>()?;
+                Arc::new(BinaryArray::from_iter(iter))
+            }
+            _ => cast(array, field.data_type())?,
         };
+
         Ok((field, array))
     }
 }

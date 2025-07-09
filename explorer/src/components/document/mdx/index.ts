@@ -31,3 +31,5 @@ export { default as topicRustDoc } from './topics/rust.vue';
 export { default as topicJavaDoc } from './topics/java.vue';
 
 export { default as dashboardDoc } from './dashboard.vue';
+
+export { default as noderedDoc } from './tools/nodered.vue';

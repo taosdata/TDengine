@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::path::Path;
 use std::{sync::Arc, time::Duration};
 
@@ -6,9 +6,8 @@ use actix_cors::Cors;
 use actix_multipart::form::MultipartFormConfig;
 use actix_web::web;
 use actix_web::{
-    get,
-    web::{resource, Data, PayloadConfig, ServiceConfig},
-    App, HttpResponse, HttpServer, Responder,
+    App, HttpResponse, HttpServer, Responder, get,
+    web::{Data, PayloadConfig, ServiceConfig, resource},
 };
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -16,14 +15,15 @@ use clap_verbosity_flag::{InfoLevel, Verbosity};
 use controller::replica::ReplicaOpts;
 use routes::replica::{delete_replica_monitor, start_replica_monitor, stop_replica_monitor};
 use rustls::{
-    pki_types::{pem::PemObject as _, CertificateDer, PrivateKeyDer},
     ServerConfig,
+    pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject as _},
 };
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
-use tracing::{info, instrument, Instrument};
+use tracing::{Instrument, info, instrument};
 use tracing_actix_web::TracingLogger;
 use trigger::Strategy;
+use utils::ip::{is_support_ipv6, str_to_socket_addr};
 use utoipa::{OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -33,11 +33,10 @@ use self::{
     routes::{cluster::get_cluster_connector_transferred, utils::handle_get_heap},
     rpc::AgentRpcChannel,
     scheduler::{
-        agent::AgentWorker, runner::AgentIntegrationChannel, SchedulerNotifier, SchedulerNotify,
-        TaskScheduler,
+        SchedulerNotifier, SchedulerNotify, TaskScheduler, agent::AgentWorker,
+        runner::AgentIntegrationChannel,
     },
 };
-use crate::build;
 use crate::serve::controller::agent::{
     Activity, ActivityOrder, Agent, AgentActivityFilter, AgentConnectors, AgentProps, AgentStatus,
     AgentToken, AgentUpdates, AgentWithToken, LevelFilter,
@@ -45,6 +44,7 @@ use crate::serve::controller::agent::{
 use crate::serve::opc::AddPointReq;
 use crate::serve::opc::GetPointsHeaderReq;
 use crate::serve::opc::PointDetail;
+use crate::{build, executor_worker_threads};
 use controller::*;
 use data_sources::*;
 use taoslog::middleware::TaosRootSpanBuilder;
@@ -67,6 +67,10 @@ pub(crate) mod task;
 
 #[cfg(test)]
 pub mod tests;
+pub mod utils;
+
+const TAOSX_REST_API_DEFAULT_PORT: u16 = 6050;
+const TAOSX_GRPC_DEFAULT_PORT: u16 = 6055;
 
 #[derive(Deserialize, Clone, Debug, Hash, PartialEq, Eq, ToSchema)]
 pub struct DataSetsReq {
@@ -143,6 +147,15 @@ pub(super) struct Cli {
 
     #[clap(long, env = "TAOSX_REQUEST_TIMEOUT")]
     pub request_timeout: Option<u64>,
+
+    #[clap(long, hide = true)]
+    pub rest_api_threads: Option<usize>,
+
+    #[clap(long, hide = true)]
+    pub grpc_threads: Option<usize>,
+
+    #[clap(long, hide = true)]
+    pub scheduler_threads: Option<usize>,
 }
 
 impl Cli {
@@ -160,6 +173,7 @@ impl Cli {
         update_if_none!(listen, ssl_cert, ssl_key, ssl_ca);
         update_if_none!(database_url, secret_prefix, do_not_resume, request_timeout);
         update_if_none!(grpc, grpc_ssl_cert, grpc_ssl_key, grpc_ssl_ca);
+        update_if_none!(scheduler_threads, rest_api_threads, grpc_threads);
         self
     }
 }
@@ -228,7 +242,8 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(start_replica_monitor)
             .service(stop_replica_monitor)
             .service(delete_replica_monitor)
-            .service(backup::get_backup_points);
+            .service(backup::get_backup_points)
+            .service(kafka::seek_to_end);
     }
 }
 
@@ -268,10 +283,33 @@ impl Cli {
     }
 
     #[inline]
-    pub fn get_listen_address(&self) -> String {
+    pub fn get_listen_address(&self) -> Result<Vec<SocketAddr>> {
         match self.listen.as_ref() {
-            Some(addr) => addr.clone(),
-            None => "0.0.0.0:6050".to_string(),
+            Some(addr) => Ok(str_to_socket_addr(addr)?),
+            None => {
+                if is_support_ipv6() {
+                    Ok(vec![SocketAddr::from((
+                        Ipv6Addr::UNSPECIFIED,
+                        TAOSX_REST_API_DEFAULT_PORT,
+                    ))])
+                } else {
+                    Ok(vec![SocketAddr::from((
+                        Ipv4Addr::UNSPECIFIED,
+                        TAOSX_REST_API_DEFAULT_PORT,
+                    ))])
+                }
+            }
+        }
+    }
+
+    pub fn get_listen_port(&self) -> u16 {
+        if let Some(addr) = self.listen.as_ref() {
+            addr.split(':')
+                .next_back()
+                .map(|port| port.parse().unwrap_or(TAOSX_REST_API_DEFAULT_PORT))
+                .unwrap_or(TAOSX_REST_API_DEFAULT_PORT)
+        } else {
+            TAOSX_REST_API_DEFAULT_PORT
         }
     }
 
@@ -507,6 +545,7 @@ impl Cli {
                 routes::replica::stop_replica_monitor,
                 routes::replica::delete_replica_monitor,
                 crate::serve::backup::get_backup_points,
+                crate::serve::data_sources::kafka::seek_to_end,
             ),
             tags(
                 (name = "tasks", description = "Task management endpoints"),
@@ -525,8 +564,7 @@ impl Cli {
         let openapi = ApiDoc::openapi();
         let handle = monitor.init();
         let recorder = Data::new(handle);
-        let addr = self.get_listen_address();
-        let addr = addr.as_str();
+        let addrs = self.get_listen_address()?;
         let tls = self.load_certs()?;
 
         let server = HttpServer::new(move || {
@@ -563,24 +601,50 @@ impl Cli {
                         .route(web::get().to(agent::send_all_agents_activities)),
                 )
         });
-        let server = if let Some(tls) = tls {
-            server.bind_rustls_0_23(addr, tls)
-        } else {
-            server.bind(addr)
-        }
-        .map_err(|err| {
-            tracing::error!("Start HTTP server error: {:?} (addr: {})", err, addr);
-            anyhow::format_err!("Start HTTP server error: {err} (addr: {addr})")
-        })?
-        .run();
+
+        let server = {
+            fn handle_error(
+                err: impl std::fmt::Debug,
+                addr: impl std::fmt::Display,
+            ) -> anyhow::Error {
+                tracing::error!("Start HTTP server error: {:?} (addr: {})", err, addr);
+                anyhow::format_err!("Start HTTP server error: {err:?} (addr: {addr})")
+            }
+
+            if let Some(tls) = tls {
+                addrs.into_iter().try_fold(server, |server, addr| {
+                    server
+                        .bind_rustls_0_23(addr, tls.clone())
+                        .map(|s| {
+                            s.workers(
+                                self.rest_api_threads
+                                    .unwrap_or_else(|| executor_worker_threads(0)),
+                            )
+                        })
+                        .map_err(|err| handle_error(err, addr))
+                })?
+            } else {
+                addrs.into_iter().try_fold(server, |server, addr| {
+                    server
+                        .bind(addr)
+                        .map(|s| {
+                            s.workers(
+                                self.rest_api_threads
+                                    .unwrap_or_else(|| executor_worker_threads(0)),
+                            )
+                        })
+                        .map_err(|err| handle_error(err, addr))
+                })?
+            }
+        };
+        let server = server.run();
 
         tokio::select! {
-            _ = server => {
-                tracing::info!("server stopped");
-                // done;
+            rs = server => {
+                tracing::info!("server stopped, stopped by: {:?}", rs);
             },
-            _ = grpc_handle => {
-                tracing::info!("flight RPC service stopped");
+            rs = grpc_handle => {
+                tracing::info!("flight RPC service stopped, stopped by: {:?}", rs);
             }
             _ = tokio::signal::ctrl_c() => {
                 tracing::info!("Ctrl+C triggered");
@@ -601,9 +665,8 @@ impl Cli {
         monitor: monitor::Monitor,
     ) -> Result<()> {
         let mut flight = rpc::RpcConfig::default();
-        if let Some(grpc) = self.grpc.as_ref() {
-            let addr = grpc.parse()?;
-            flight.tcp.replace(addr);
+        if let Some(addr) = self.grpc.as_ref() {
+            flight.tcp = str_to_socket_addr(addr)?;
         }
         if let Some(ssl_cert) = self.grpc_ssl_cert.as_ref().or(self.ssl_cert.as_ref()) {
             flight.ssl_cert = Some(ssl_cert.into());
@@ -615,12 +678,17 @@ impl Cli {
             flight.ssl_ca = Some(ssl_ca.into());
         }
 
-        let addr = flight.tcp.expect("grpc address is required");
+        let addr = flight
+            .tcp
+            .iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
         flight
             .serve_with_controller(controller, channel, spawn_sender, monitor)
             .await
             .map_err(|err| {
-                tracing::error!("grpc(addr:{}) init error: {:?}", addr, err);
+                tracing::error!("grpc(addr:{:?}) init error: {:?}", addr, err);
                 err
             })?;
 

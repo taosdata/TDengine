@@ -58,9 +58,17 @@ fn shadow_build() {
             std::fs::create_dir_all(&target_dir).unwrap();
         }
         std::fs::write(target_dir.join(format!("{cus_prompt}x-agent-srv.xml")), srv).unwrap();
-
+        let canonical_cus_name = if cus_name.starts_with("TDengine") {
+            "TDengine"
+        } else {
+            cus_name
+        };
         writeln!(file, r#"pub const CUS_NAME: &str = "{}";"#, cus_name)?;
         writeln!(file, r#"pub const CUS_PROMPT: &str = "{}";"#, cus_prompt)?;
+        writeln!(
+            file,
+            r#"pub const CANONICAL_CUS_NAME: &str = "{canonical_cus_name}";"#
+        )?;
         writeln!(
             file,
             r#"pub const CUS_CLI_NAME: &str = "{}x-agent";"#,

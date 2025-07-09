@@ -1,5 +1,6 @@
 use std::{ops::ControlFlow, time::Duration};
 
+use futures::FutureExt;
 use tokio_util::sync::CancellationToken;
 
 use crate::Entry;
@@ -64,24 +65,27 @@ where
     }
 
     pub async fn run(mut self, token: CancellationToken) -> super::Result<()> {
-        // 初始化时先尝试清理数据
-        self.reader.vacuum().await?;
+        let mut ticker = tokio::time::interval(self.vacuum_interval);
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         loop {
-            tokio::select! {
-                res = self.reader.read_util(1, self.batch_size, Some(self.vacuum_interval)) => {
-                    let entries = res?;
-                    if entries.is_empty() {
-                        self.reader.vacuum().await?;
-                        continue;
-                    }
-                    for entry in entries {
-                        if self.send_entry(entry, token.child_token()).await.is_break() {
-                            break;
-                        }
-                    }
-                },
-                _ = token.cancelled() => break
+            if token.is_cancelled() {
+                break;
+            }
+            if ticker.tick().now_or_never().is_some() {
+                self.reader.vacuum().await?;
+            }
+            let entries = self
+                .reader
+                .read_util(1, self.batch_size, Some(DEFAULT_VACUUM_DURATION), &token)
+                .await?;
+            if entries.is_empty() {
+                continue;
+            }
+            for entry in entries {
+                if self.send_entry(entry, token.child_token()).await.is_break() {
+                    break;
+                }
             }
         }
 

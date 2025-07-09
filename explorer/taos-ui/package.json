@@ -21,13 +21,12 @@
   "license": "taosdata",
   "description": "",
   "dependencies": {
-    "@tdengine/websocket": "link:../taos-connector-node/WebSocket",
-    "@codemirror/autocomplete": "^6.18.1",
-    "@codemirror/commands": "^6.7.0",
-    "@codemirror/lang-sql": "^6.7.1",
-    "@codemirror/lint": "^6.8.2",
-    "@codemirror/search": "^6.5.6",
-    "@codemirror/view": "^6.34.0",
+    "@codemirror/autocomplete": "^6.18.6",
+    "@codemirror/commands": "^6.8.0",
+    "@codemirror/lang-sql": "^6.8.0",
+    "@codemirror/lint": "^6.8.4",
+    "@codemirror/search": "^6.5.9",
+    "@codemirror/view": "^6.36.2",
     "@element-plus/icons-vue": "^2.3.1",
     "@unocss/reset": "^0.62.3",
     "@vueuse/core": "^11.1.0",
@@ -36,13 +35,12 @@
     "assets": "workspace:taos-assets@*",
     "axios": "^1.7.7",
     "codemirror": "^6.0.1",
-    "sql-formatter": "^15.4.11",
     "components": "workspace:taos-components@*",
     "config": "workspace:taos-config@*",
     "constants1": "workspace:taos-constants@*",
     "dayjs": "^1.11.13",
-    "echarts": "^5.5.1",
-    "element-plus": "^2.9.3",
+    "echarts": "^5.6.0",
+    "element-plus": "^2.9.5",
     "github-markdown-css": "^5.6.1",
     "highlight.js": "^11.10.0",
     "hooks": "workspace:taos-hooks@*",
@@ -54,13 +52,15 @@
     "mavon-editor": "^3.0.1",
     "pinia": "^2.2.6",
     "qs": "^6.13.0",
+    "sql-formatter": "^15.4.11",
     "streamsaver": "^2.0.6",
     "unocss": "^0.62.3",
     "utils": "workspace:taos-utils@*",
-    "vue": "~3.5.11",
+    "vue": "~3.5.13",
     "vue-codemirror": "^6.1.1",
     "vue-dompurify-html": "^5.1.0",
-    "vue-i18n": "^10.0.4"
+    "vue-i18n": "^11.1.1",
+    "vue-router": "^4.5.0"
   },
   "devDependencies": {
     "@rushstack/eslint-patch": "^1.10.3",
@@ -103,8 +103,8 @@
     "stylelint-config-standard-scss": "^13.1.0",
     "stylelint-scss": "^6.5.1",
     "typescript": "^5.5.4",
-    "unplugin-auto-import": "^0.18.2",
-    "unplugin-vue-components": "^0.27.4",
+    "unplugin-auto-import": "^19.0.0",
+    "unplugin-vue-components": "^28.0.0",
     "vite": "^5.4.8",
     "vite-plugin-compression": "^0.5.1",
     "vite-plugin-dts": "^4.2.3",
@@ -117,6 +117,9 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "resolutions": {
+    "@codemirror/state": "6.5.2"
+  },
   "lint-staged": {
     "*.{md,json,html}": "prettier --write",
     "*.{vue,js,ts,jsx,tsx}": [
@@ -127,5 +130,20 @@
       "stylelint --fix",
       "prettier --write"
     ]
+  },
+  "pnpm": {
+    "overrides": {
+      "got@<11.8.5": ">=11.8.5",
+      "semver-regex@<3.1.3": ">=3.1.3",
+      "semver-regex@<3.1.4": ">=3.1.4",
+      "postcss@<7.0.36": ">=7.0.36",
+      "postcss@<8.4.31": ">=8.4.31",
+      "braces@<3.0.3": ">=3.0.3",
+      "micromatch@<4.0.8": ">=4.0.8",
+      "cross-spawn@<6.0.6": ">=6.0.6",
+      "esbuild@<=0.24.2": ">=0.25.0",
+      "http-cache-semantics@<4.1.1": ">=4.1.1",
+      "vite@>=5.0.0 <=5.4.18": ">=5.4.19"
+    }
   }
 }

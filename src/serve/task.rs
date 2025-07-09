@@ -3,22 +3,22 @@ use std::fmt::{Debug, Display, Formatter};
 use std::fs;
 
 use actix_files::NamedFile;
-use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
+use actix_multipart::form::{MultipartForm, tempfile::TempFile, text::Text};
 use actix_web::body::BoxBody;
 use actix_web::rt;
 use actix_web::web::{Json, Payload};
 use actix_web::{
-    delete, get, patch, post,
+    Error, HttpRequest, HttpResponse, Responder, ResponseError, delete, get, patch, post,
     web::{Data, Path, Query},
-    Error, HttpRequest, HttpResponse, Responder, ResponseError,
 };
 use actix_ws::{CloseCode, CloseReason, Session};
-use anyhow::anyhow;
 use anyhow::Context;
+use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Code;
+use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use utoipa::*;
 
@@ -29,8 +29,8 @@ use super::controller::agent::AgentActivityFilter;
 use super::metrics::ws::echo_heartbeat_ws;
 use crate::serve::metrics::{get_task_metrics_string, try_get_metrics_from_task_detail};
 use crate::serve::{
-    controller::{Status, TaskControllerRef},
     NewTask, TaskDecorator, TaskFilter, UpdateTask,
+    controller::{Status, TaskControllerRef},
 };
 
 /// Task endpoint error responses
@@ -797,12 +797,21 @@ pub(crate) async fn send_all_tasks_activities(
 ) -> Result<HttpResponse, Error> {
     let (res, session, msg_stream) = actix_ws::handle(&req, stream)?;
     // spawn websocket handler (and don't await it) so that the response is returned immediately
-    rt::spawn(send_all_tasks_activities_ws(req, session.clone()));
-    rt::spawn(echo_heartbeat_ws(session.clone(), msg_stream));
+    let cancel = CancellationToken::new();
+    rt::spawn(send_all_tasks_activities_ws(
+        req,
+        session.clone(),
+        cancel.clone(),
+    ));
+    rt::spawn(echo_heartbeat_ws(session, msg_stream, cancel));
     Ok(res)
 }
 
-async fn send_all_tasks_activities_ws(req: HttpRequest, mut session: Session) {
+async fn send_all_tasks_activities_ws(
+    req: HttpRequest,
+    mut session: Session,
+    cancel: CancellationToken,
+) {
     let task_store = match req.app_data::<Data<TaskControllerRef>>() {
         Some(store) => store,
         None => {
@@ -853,7 +862,10 @@ async fn send_all_tasks_activities_ws(req: HttpRequest, mut session: Session) {
     let notify_channel = scheduler.notify_channel();
     let mut rx = notify_channel;
     'loop_send: loop {
-        match rx.recv().await {
+        let Some(res) = cancel.run_until_cancelled(rx.recv()).await else {
+            break;
+        };
+        match res {
             Ok(notify) => match notify {
                 crate::serve::scheduler::SchedulerNotify::TaskActivity(activity) => {
                     if let Err(err) = session

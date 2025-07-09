@@ -137,10 +137,18 @@
                 :min="0"
               >
               </el-input-number>
+              <span>keep</span>
+              <el-switch
+                v-model="parseruleForm.keep"
+                style="width: 100px; margin-left: 5px"
+                size="default"
+              >
+              </el-switch>
               <CusSelect
                 v-model="parseruleForm.expression"
                 :all-properties="allProperties"
                 :depth="parseruleForm.depth"
+                :keep="parseruleForm.keep"
                 @select-json="selectJson"
                 @update-data="updateData"
               />
@@ -410,7 +418,7 @@
                       v-model="scope.row.exprname"
                       size="default"
                       class="mapping-rule-select"
-                      style="width: 110px;min-width:110px;"
+                      style="width: 110px; min-width: 110px"
                       @change="changeCurrentMapExpr(scope)"
                     >
                       <el-option v-for="item in mappingTypes" :key="item" :label="item" :value="item">{{
@@ -591,11 +599,13 @@ interface parseruleFormProp {
   type: ParserBuildinType;
   expression: string;
   depth: undefined;
+  keep: boolean;
 }
 const parseruleForm = reactive<parseruleFormProp>({
   type: 'json',
   expression: '',
-  depth: undefined
+  depth: undefined,
+  keep: false,
 });
 const configuredCount = ref(0);
 const parseRules = reactive({
@@ -770,7 +780,9 @@ onMounted(async () => {
 
   if (isEditable.value || (transformerState.csvParser && Object.hasOwn(transformerState.csvParser, 'parser'))) {
     // 编辑状态
-    await echoParser(transformerState.transformerParserData);
+    if (transformerState.transformerParserData) {
+      await echoParser(transformerState.transformerParserData);
+    }
   }
   if (transformerState.csvTransformerParser) {
     //CSV新增
@@ -952,6 +964,7 @@ function getTopParserData() {
   } else {
     let depthObj = {};
     let expressionObj = {};
+    let keepObj = {};
 
     switch (parseruleForm.type) {
       case 'split':
@@ -964,6 +977,11 @@ function getTopParserData() {
           depthObj = {
             depth: parseruleForm.depth
           };
+        }
+        if (parseruleForm.keep) {
+          keepObj = {
+            keep: parseruleForm.keep
+          }
         }
         expressionObj = {
           [parseruleForm.type]: parseruleForm.expression
@@ -994,7 +1012,8 @@ function getTopParserData() {
         parse: {
           [sourceForm.type == 'mqtt' ? 'payload' : 'value']: {
             ...expressionObj,
-            ...depthObj
+            ...depthObj,
+            ...keepObj
           }
         }
       },
@@ -1285,10 +1304,11 @@ async function echoParser(parse: TransformerfullparamsType | null) {
       parseruleForm.type = parse?.parser.parse[tagKey]['plugin_type'];
       parseruleForm.expression = parse?.parser.parse[tagKey]['plugin_params'];
     } else {
-      parseruleForm.type = keys.filter(item => item != 'depth').toString();
+      parseruleForm.type = keys.filter(item => item != 'depth' && item != 'keep').toString();
 
       if (parseruleForm.type == 'json') {
         parseruleForm.depth = parse?.parser.parse[tagKey]['depth'];
+        parseruleForm.keep = parse?.parser.parse[tagKey]['keep'];
       }
       parseruleForm.expression = parse?.parser.parse[tagKey][parseruleForm.type].toString();
     }
@@ -1518,6 +1538,11 @@ async function caculateMappingResult() {
   const mutates: Recordable[] = [];
   const mutateMap = {};
 
+  const precision_res = await executeSqlFn!(`
+        select \`precision\` from information_schema.ins_databases where name = '${sourceForm.targetDB}'
+        `);
+  const precision = precision_res.data[0][0];
+
   tableData.value.forEach((item: Recordable) => {
     // 主键列不能为空
     if (item['PrimaryKey'] && !item['Expression']) {
@@ -1525,10 +1550,10 @@ async function caculateMappingResult() {
       ElMessage.warning(t('dataIn.transformer.mappingvaildtip'));
       isbreak.value = true;
     }
-    // 不支持 VARBINARY & GEOMETRY
-    if ((item['Type'] == 'VARBINARY' || item['Type'] == 'GEOMETRY') && item['Expression']) {
+    // 不支持 GEOMETRY
+    if ((item['Type'] == 'GEOMETRY') && item['Expression']) {
       ElMessage.closeAll();
-      ElMessage.warning(t('dataIn.transformer.nonsupportTypetip', ['VARBINARY/GEOMETRY']));
+      ElMessage.warning(t('dataIn.transformer.nonsupportTypetip', ['GEOMETRY']));
       isbreak.value = true;
     }
     if (item['Expression']) {
@@ -1563,6 +1588,9 @@ async function caculateMappingResult() {
               expreitem['default'] = item.default;
             }
           }
+        }
+        if (expreitem["generator"] === 'now') {
+          expreitem["precision"] = precision
         }
         mutates.push({
           [`${item['Name']}`]: expreitem
@@ -2032,6 +2060,7 @@ function handleRename(value: string) {
 function handleTypeChange() {
   parseruleForm.expression = '';
   parseruleForm.depth = undefined;
+  parseruleForm.keep = false;
 }
 
 defineExpose({

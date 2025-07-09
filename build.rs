@@ -71,9 +71,17 @@ fn labeling(mut file: &File) -> SdResult<()> {
         std::fs::create_dir_all(&target_dir).unwrap();
     }
     std::fs::write(target_dir.join(format!("{cus_prompt}x-srv.xml")), srv).unwrap();
-
+    let canonical_cus_name = if cus_name.starts_with("TDengine") {
+        "TDengine"
+    } else {
+        cus_name
+    };
     writeln!(file, r#"pub const CUS_NAME: &str = "{}";"#, cus_name)?;
     writeln!(file, r#"pub const CUS_PROMPT: &str = "{}";"#, cus_prompt)?;
+    writeln!(
+        file,
+        r#"pub const CANONICAL_CUS_NAME: &str = "{canonical_cus_name}";"#
+    )?;
     writeln!(file, r#"pub const CUS_CLI_NAME: &str = "{}x";"#, cus_prompt)?;
     writeln!(file, r#"pub const CUS_APP_NAME: &str = "{}X";"#, cus_prompt)?;
     writeln!(file, r#"pub const CUS_CLI_ABOUT: &str = "{}";"#, content)?;
@@ -124,7 +132,9 @@ fn main() {
         println!("cargo:rerun-if-changed={file}");
 
         let dsn = format!("sqlite:{}", file.to_string().escape_default());
-        std::env::set_var("DATABASE_URL", &dsn);
+        unsafe {
+            std::env::set_var("DATABASE_URL", &dsn);
+        }
 
         let dotenv = root.join(".env");
         let mut file = if dotenv.exists() {

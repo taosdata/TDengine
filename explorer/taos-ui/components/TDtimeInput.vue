@@ -3,7 +3,7 @@
     <template #append>
       <el-select v-model="unit">
         <el-option
-          v-for="item in TDengineTimeUnit"
+          v-for="item in currentTimeUint"
           :key="item.value"
           :label="item.label"
           :value="item.value"
@@ -18,7 +18,7 @@ import { TDengineTimeUnit } from 'constants1';
 const props = defineProps<{
   modelValue: string;
 }>();
-
+const currentTimeUint = TDengineTimeUnit.slice(0, 6);
 const num = computed({
   get: () => props.modelValue.replace(/[^\d-]/g, ''),
   set: (val: string) => {

@@ -2,13 +2,15 @@
 set -e
 
 echo "install library ..."
-cd /app
 ls -l
+
+npm config set registry https://registry.npmmirror.com
 npm install -g pnpm
+pnpm config set registry https://registry.npmmirror.com
 pnpm self-update
 pnpm install
 
-echo "start build ..."
+echo "start build, community=${COMMUNITY}..."
 pnpm run build
 cp -r static dist/
 echo "build finished ..."

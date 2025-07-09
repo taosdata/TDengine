@@ -13,10 +13,11 @@ use std::{
     collections::BTreeMap,
     ops::Range,
     str::FromStr,
-    sync::Arc,
+    sync::{Arc, LazyLock},
 };
 
 use anyhow::Context;
+use archive::ArchiveType;
 use arrow::{
     array::{
         Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Decimal128Array, Float16Array,
@@ -59,9 +60,12 @@ pub use select::Select;
 use taosx_ipc::prelude::IpcDataType;
 use tracing::instrument;
 
-use crate::global::TABLE_TAG_CACHE;
+use crate::core_metrics::CoreMetrics;
 use crate::plugins::transform::parse::ArrayForTaos;
-use crate::{global::SQL_TAG_CACHE_CAPACITY, ArchiveType};
+use crate::{
+    get_data_dir,
+    global::{SQL_TAG_CACHE_CAPACITY, TABLE_TAG_CACHE},
+};
 
 use super::expr;
 
@@ -984,7 +988,7 @@ mod pipeline_tests {
 ///   }
 /// }]
 /// ```
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Parser {
     #[serde(default)]
     global: Arc<TableOptions>,
@@ -993,6 +997,17 @@ pub struct Parser {
     mutate: Vec<Mutate>,
     s_model: Option<STableModel>,
     model: Modeler,
+    metrics: Option<Arc<CoreMetrics>>,
+}
+
+impl PartialEq for Parser {
+    fn eq(&self, other: &Self) -> bool {
+        self.global == other.global
+            && self.parse == other.parse
+            && self.mutate == other.mutate
+            && self.s_model == other.s_model
+            && self.model == other.model
+    }
 }
 
 impl Parser {
@@ -1004,12 +1019,34 @@ impl Parser {
         &self.model
     }
 
+    pub fn set_metrics(&mut self, metrics: Arc<CoreMetrics>) {
+        self.metrics = Some(metrics);
+    }
+
     pub fn set_maximum_timestamp(&mut self, ts: DateTime<Utc>) {
         Arc::make_mut(&mut self.global).maximum_timestamp = Some(ts);
     }
 
     pub fn set_minimum_timestamp(&mut self, ts: DateTime<Utc>) {
         Arc::make_mut(&mut self.global).minimum_timestamp = Some(ts);
+    }
+
+    pub fn organize_cache(&mut self, task_id: i64) -> Result<(), ParserError> {
+        let cache = &mut Arc::make_mut(&mut self.global).process_on_abnormal.cache;
+        let data_dir = get_data_dir();
+        cache
+            .organize_params(task_id, data_dir, true)
+            .map_err(|error| ParserError::OrganizeCacheError { error })?;
+        Ok(())
+    }
+
+    pub fn organize_archive(&mut self, task_id: i64) -> Result<(), ParserError> {
+        let archive = &mut Arc::make_mut(&mut self.global).process_on_abnormal.archive;
+        let data_dir = get_data_dir();
+        archive
+            .organize_params(task_id, data_dir, false)
+            .map_err(|error| ParserError::OrganizeArchiveError { error })?;
+        Ok(())
     }
 }
 
@@ -1025,6 +1062,10 @@ pub enum ParserError {
         input: String,
         error: serde_json::Error,
     },
+    #[error("Organize archive error: {error}")]
+    OrganizeArchiveError { error: archive::CollateError },
+    #[error("Organize cache error: {error}")]
+    OrganizeCacheError { error: archive::CollateError },
 }
 impl FromStr for Parser {
     type Err = ParserError;
@@ -1060,6 +1101,7 @@ impl Parser {
             mutate,
             s_model,
             model,
+            metrics: None,
         }
     }
 
@@ -1116,9 +1158,25 @@ impl Parser {
             .map(|parse| parse.transform_record_batch(records))
             .transpose()?
             .unwrap_or_else(|| records.clone());
-        self.mutate
+        let parsed_rows = batch.num_rows() as u64;
+        // parse 后展开的 rows
+        if let Some(metrics) = self.metrics.as_ref() {
+            let metrics = metrics.ipc();
+            metrics.add_parsed_rows(parsed_rows);
+        }
+        let new_batch = self
+            .mutate
             .iter()
-            .try_fold(batch, |batch, mutate| mutate.transform_record_batch(&batch))
+            .try_fold(batch, |batch, mutate| mutate.transform_record_batch(&batch))?;
+        // 经过 extract/ filter/ map 后的 rows
+        if let Some(metrics) = self.metrics.as_ref() {
+            let skipped_rows = parsed_rows.saturating_sub(new_batch.num_rows() as u64);
+            let metrics = metrics.ipc();
+            // filter_skipped_rows 是通过用户配置的 filter 过滤掉的 rows
+            metrics.add_filter_skipped_rows(skipped_rows);
+        }
+
+        Ok(new_batch)
     }
 
     #[instrument(skip_all)]
@@ -1126,7 +1184,7 @@ impl Parser {
         &self,
         records: &RecordBatch,
         filter_ts: bool,
-        archive_tx: Sender<(ArchiveType, RecordBatch)>,
+        archive_tx: Sender<ArchiveType>,
     ) -> Result<Message, Error> {
         // (ts, value, point_name, ${point_name}, site_controller_id)
         let transformed_batch = self.transform_records(records)?;
@@ -1172,13 +1230,18 @@ impl Parser {
             let spec_columns = if let Some(cols) = &table.columns {
                 let mut indices = Vec::new();
                 for name in cols {
+                    // TS-6763: 首先找名字完全匹配的列，再找 metadata 里 name 匹配的列
+                    if let Ok(index) = schema.index_of(name) {
+                        indices.push(index);
+                        continue;
+                    }
                     if let Some((index, _)) =
                         Self::get_schema_column_with_name(&schema, name.as_str())
                     {
                         indices.push(index);
-                    } else {
-                        tracing::warn!("Selected column {name} not found in stream message");
+                        continue;
                     }
+                    tracing::warn!("Selected column {name} not found in stream message");
                 }
                 indices
             } else {
@@ -1187,6 +1250,11 @@ impl Parser {
             let (tags, columns) = if let Some(tags) = &table.tags {
                 let mut indices = vec![];
                 for name in tags {
+                    if let Ok(index) = schema.index_of(name) {
+                        indices.push(index);
+                        columns_indices[index] = usize::MAX;
+                        continue;
+                    }
                     let (i, _) = Self::get_schema_column_with_name(&schema, name.as_str())
                         .ok_or_else(|| anyhow::format_err!("Invalid field name `{name}`"))?;
                     indices.push(i);
@@ -1425,6 +1493,11 @@ impl Parser {
                 })
                 .unwrap_or_default();
 
+            if let Some(metrics) = self.metrics.as_ref() {
+                let metrics = metrics.ipc();
+                // check_skipped_rows: 写入前检查过滤掉的 rows
+                metrics.add_check_skipped_rows(skip_indices.len() as u64);
+            }
             // name: sub_table_name, indices: group row index
             for (name, indices) in tables {
                 // 2. skip records
@@ -1510,6 +1583,11 @@ impl Parser {
                         &columns.schema(),
                         sub_table_batches.iter(),
                     )?;
+                    if let Some(metrics) = self.metrics.as_ref() {
+                        let metrics = metrics.ipc();
+                        // 没有 pivot，设置 write_ready_rows
+                        metrics.add_write_ready_rows(sub_table_batch.num_rows() as u64);
+                    }
                     let meta = MessageTableMeta::new(name, using, tags);
                     let item = MessageArrowRecords {
                         table: meta,
@@ -1517,25 +1595,32 @@ impl Parser {
                         opts: self.global.clone(),
                     };
                     data.push(item);
-                    continue;
-                }
+                } else {
+                    let meta = MessageTableMeta::new(name.clone(), using.clone(), tags.clone());
 
-                let meta = MessageTableMeta::new(name.clone(), using.clone(), tags.clone());
+                    let batches = ranges
+                        .iter()
+                        .map(|range| transformed_batch.slice(range.start, range.len()))
+                        .collect_vec();
+                    let pivot_batch = arrow::compute::concat_batches(
+                        transformed_batch.schema_ref(),
+                        batches.iter(),
+                    )?;
 
-                let batches = ranges
-                    .iter()
-                    .map(|range| transformed_batch.slice(range.start, range.len()))
-                    .collect_vec();
-                let pivot_batch =
-                    arrow::compute::concat_batches(transformed_batch.schema_ref(), batches.iter())?;
+                    let pivot_batches = pivot(pivot_batch, ts_field, &pivot_fields, &normal_cols)?;
+                    for batch in pivot_batches {
+                        if let Some(metrics) = self.metrics.as_ref() {
+                            let metrics = metrics.ipc();
+                            // 有 pivot，设置 write_ready_rows
+                            metrics.add_write_ready_rows(batch.num_rows() as u64);
+                        }
 
-                let pivot_batches = pivot(pivot_batch, ts_field, &pivot_fields, &normal_cols)?;
-                for batch in pivot_batches {
-                    data.push(MessageArrowRecords {
-                        table: meta.clone(),
-                        records: batch,
-                        opts: self.global.clone(),
-                    })
+                        data.push(MessageArrowRecords {
+                            table: meta.clone(),
+                            records: batch,
+                            opts: self.global.clone(),
+                        })
+                    }
                 }
             }
         }
@@ -1745,7 +1830,7 @@ pub fn archive_records(
     batch: &RecordBatch,
     err_vec: Vec<String>,
     err_timestamp_vec: Vec<i64>,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     if batch.num_rows() > 0 {
         // get fields and columns
@@ -1771,7 +1856,7 @@ pub fn archive_records(
         let new_schema = Arc::new(Schema::new(fields_vec));
         let new_batch = RecordBatch::try_new(new_schema, columns_vec)?;
 
-        archive_tx.send((ArchiveType::Archive, new_batch))?;
+        archive_tx.send(ArchiveType::Archive(new_batch))?;
     }
     Ok(())
 }
@@ -1820,7 +1905,8 @@ pub fn pivot(
     common_fields: &[&str],
 ) -> anyhow::Result<Vec<RecordBatch>> {
     let ts_field_name = ts_field.name();
-    let df = SessionContext::new()
+    static SESSION_CONTEXT: LazyLock<SessionContext> = LazyLock::new(SessionContext::new);
+    let df = SESSION_CONTEXT
         .read_batch(batch)
         .context("build datafusion context error")?;
     let window = row_number()
@@ -2448,12 +2534,15 @@ impl MessageArrowRecords {
             .fields()
             .iter()
             .map(|field| {
-                match field.data_type() {
-                    DataType::Binary
-                    | DataType::Utf8
-                    | DataType::LargeBinary
-                    | DataType::LargeUtf8 => {
-                        let cast_to = field.metadata().get("cast_to");
+                let cast_to = field.metadata().get("cast_to");
+                match (field.data_type(), cast_to) {
+                    (
+                        DataType::Binary
+                        | DataType::Utf8
+                        | DataType::LargeBinary
+                        | DataType::LargeUtf8,
+                        _,
+                    ) => {
                         if cast_to.is_some() {
                             let cast_to = cast_to.unwrap();
                             let length = field.metadata().get("length");
@@ -2490,11 +2579,20 @@ impl MessageArrowRecords {
                             ColumnMeta::Column(Described::new(field.name(), field.ty(), None))
                         }
                     }
-                    DataType::Decimal128(precision, scale) => ColumnMeta::Column(
+                    (DataType::Decimal128(precision, scale), _) => ColumnMeta::Column(
                         Described::new(field.name(), field.ty(), None).with_origin_ty_name(
                             &format!("{}({},{})", field.ty(), precision, scale),
                         ),
                     ),
+                    (DataType::List(field), Some(cast_to))
+                        if field.data_type().is_numeric() && cast_to == "VARBINARY" =>
+                    {
+                        ColumnMeta::Column(Described::new(
+                            field.name(),
+                            Ty::from_str(cast_to).unwrap(),
+                            None,
+                        ))
+                    }
                     _ => ColumnMeta::Column(Described::new(field.name(), field.ty(), None)),
                 }
             })
@@ -2580,6 +2678,7 @@ impl MessageArrowRecords {
             STable::Model(model) => model.create_stable_sql(),
         })
     }
+
     pub fn table_sql(&self) -> String {
         let table_name = self
             .opts
@@ -2974,8 +3073,6 @@ fn indices_to_ranges(indices: &[usize]) -> Vec<Range<usize>> {
 
 #[cfg(test)]
 mod parser_tests {
-    use std::sync::Arc;
-
     use anyhow::Context;
     use arrow::{
         array::{ArrayRef, Int32Array, RecordBatch, StringArray, TimestampNanosecondArray},
@@ -2984,14 +3081,16 @@ mod parser_tests {
     use chrono::Utc;
     use regex::Regex;
     use serde_json as json;
+    use std::sync::atomic::Ordering::SeqCst;
+    use std::sync::Arc;
     use tinytemplate::TinyTemplate;
 
+    use super::*;
     use crate::plugins::transform::{
         modeler::Modeler, mutate::Mutate, parse::ParserImpl, Message, ProcessOnAbnormal, STable,
         TableOptions,
     };
-
-    use super::*;
+    use crate::sink::ipc_metric::IpcMetrics;
 
     #[test]
     fn test_indices_to_ranges() {
@@ -3102,7 +3201,79 @@ mod parser_tests {
     }
 
     #[tokio::test]
-    async fn parse_message_from_records_test() -> anyhow::Result<()> {
+    async fn test_parse_message_from_records_metrics() -> anyhow::Result<()> {
+        let parser = json::json!({
+            "parse": {
+                "payload": { "json": ""}
+            },
+            "mutate": [
+                { "filter": ["a == b"] },
+            ],
+            "model": {
+                "name": "tb",
+                "using": "stb",
+                "tags": ["id"],
+                "columns": ["ts", "a", "b"]
+            },
+            "global": {
+                "primary_timestamp_overflow": "skip",
+                "minimum_timestamp": "2020-01-01T00:00:00Z",
+            }
+        });
+        let mut parser: Parser = serde_json::from_value(parser)?;
+        let metrics = IpcMetrics::new("stb".to_string(), 1, None);
+        parser.metrics = Some(Arc::new(CoreMetrics::IPC(metrics)));
+        let (tx, _rx) = flume::bounded(10);
+
+        let ts: ArrayRef = Arc::new(TimestampMillisecondArray::from(vec![
+            1000000000000,
+            1100000000000,
+            1200000000000,
+            1300000000000,
+            1400000000000,
+            1500000000000,
+            1600000000000,
+            1700000000000,
+            1800000000000,
+            1900000000000,
+        ]));
+        let payload: ArrayRef = Arc::new(StringArray::from(vec![
+            r#"{"id":1, "a": 0, "b": 0}"#,
+            r#"{"id":1, "a": 1, "b": 1}"#,
+            r#"{"id":1, "a": 2, "b": 2}"#,
+            r#"{"id":1, "a": 3, "b": 3}"#,
+            r#"{"id":1, "a": 4, "b": 4}"#,
+            r#"{"id":2, "a": 5, "b": 4}"#,
+            r#"{"id":2, "a": 6, "b": 6}"#,
+            r#"{"id":2, "a": 7, "b": 7}"#,
+            r#"{"id":2, "a": 8, "b": 8}"#,
+            r#"{"id":2, "a": 9, "b": 9}"#,
+        ]));
+        let batch = RecordBatch::try_from_iter(vec![("ts", ts), ("payload", payload)])?;
+
+        let new_batch = parser.parse_message_from_records(&batch, true, tx)?;
+
+        // assert batch.size == 4
+        match new_batch {
+            Message::Records(records) => {
+                assert_eq!(records.len(), 1);
+                let records = records.first().unwrap();
+                assert_eq!(records.records.num_rows(), 4);
+            }
+            _ => anyhow::bail!("not records"),
+        }
+
+        let m = parser.metrics.as_ref().unwrap().ipc();
+        assert_eq!(m.parsed_rows.load(SeqCst), 10);
+        assert_eq!(m.filter_skipped_rows.load(SeqCst), 1);
+        assert_eq!(m.check_skipped_rows.load(SeqCst), 5);
+        assert_eq!(m.write_ready_rows.load(SeqCst), 4);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_parse_message_from_records() -> anyhow::Result<()> {
         let parser = json::json!({
             "parse": {
                 "payload": {
@@ -3250,7 +3421,7 @@ mod parser_tests {
     }
 
     #[tokio::test]
-    async fn parse_multi_columns_message_from_records_test() -> anyhow::Result<()> {
+    async fn test_parse_multi_columns_message_from_records() -> anyhow::Result<()> {
         let parser = json::json!({
             "parse": {
                 "payload": {
@@ -3465,7 +3636,7 @@ mod parser_tests {
     }
 
     #[tokio::test]
-    async fn parse_multi_pivot_columns_message_from_records_test() -> anyhow::Result<()> {
+    async fn test_parse_multi_pivot_columns_message_from_records() -> anyhow::Result<()> {
         let parser = json::json!({
             "parse": {
                 "payload": {
@@ -3792,7 +3963,7 @@ mod parser_tests {
     }
 
     #[tokio::test]
-    async fn test_parse_message_from_records() {
+    async fn test_parse_message_from_records_2() {
         let parser = r#"{
             "global": {
                 "table_name_length_overflow": "archive",

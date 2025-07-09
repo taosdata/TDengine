@@ -4,19 +4,20 @@ use std::{
     io::SeekFrom,
     path::{Path, PathBuf},
     sync::Arc,
+    time::{Duration, Instant},
 };
 
 use fs2::{lock_contended_error, FileExt};
 use futures::StreamExt;
-use notify::{event::ModifyKind, Watcher};
+use notify::Watcher;
 use parking_lot::Mutex;
 use snafu::ResultExt;
 use tokio::{io::AsyncSeekExt, time::timeout_at};
-use tokio_util::codec::FramedRead;
+use tokio_util::{codec::FramedRead, sync::CancellationToken};
 
 use crate::{
-    fs::format_segment_id, AddWatchSnafu, BuildWatcherSnafu, DelWatchSnafu, Entry, FileLockedSnafu,
-    LockFileSnafu, OpenFileSnafu, RawReader, RemoveFileSnafu, Result, SeekFileSnafu,
+    fs::format_segment_id, AddWatchSnafu, DelWatchSnafu, Entry, FileLockedSnafu, LockFileSnafu,
+    OpenFileSnafu, RawReader, RemoveFileSnafu, Result, SeekFileSnafu,
 };
 
 use super::{codec::ReadCodec, EntryPosition, ReadFrom, LOCK_FILE_EXTENSION};
@@ -26,9 +27,14 @@ enum ReadState {
     Reader(InnerReader),
 }
 
-impl Default for ReadState {
-    fn default() -> Self {
-        Self::Position(ReadFrom::Latest)
+impl std::fmt::Display for ReadState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ReadState::Position(read_from) => write!(f, "POSITION-{}", read_from),
+            ReadState::Reader(inner_reader) => {
+                write!(f, "READER-{}", inner_reader.framed.decoder().position)
+            }
+        }
     }
 }
 
@@ -166,6 +172,15 @@ impl ReadState {
             }
         }
     }
+
+    fn position(&self) -> ReadState {
+        match self {
+            ReadState::Position(read_from) => ReadState::Position(*read_from),
+            ReadState::Reader(inner) => {
+                ReadState::Position(ReadFrom::LastPosition(inner.framed.decoder().position))
+            }
+        }
+    }
 }
 
 async fn open_file_with_lock(
@@ -178,9 +193,11 @@ async fn open_file_with_lock(
     let lock_file = std::fs::File::create(&lock_file_path).context(OpenFileSnafu {
         path: &lock_file_path,
     })?;
+    // TODO: use std file lock instead after stable
+    #[allow(unstable_name_collisions)]
     match lock_file.try_lock_shared() {
         Ok(_) => {}
-        Err(e) if e.kind() == lock_contended_error().kind() => {
+        Err(e) if e.to_string() == lock_contended_error().to_string() => {
             return FileLockedSnafu {
                 path: &lock_file_path,
             }
@@ -213,6 +230,8 @@ struct InnerReader {
 impl Drop for InnerReader {
     fn drop(&mut self) {
         // file drop 时会自动 unlock，但这里加一层保险
+        // TODO: use std file lock instead after stable
+        #[allow(unstable_name_collisions)]
         let _ = self._lock_file.unlock();
     }
 }
@@ -245,16 +264,26 @@ impl Reader {
         let state = ReadState::new(&dir, segment_size, buffer_size, from, segments.clone()).await?;
 
         let file_modify_notifier = Arc::new(tokio::sync::Notify::new());
-        let mut watcher = notify::recommended_watcher({
-            let file_modify_notifier = file_modify_notifier.clone();
-            move |event: std::result::Result<notify::Event, notify::Error>| {
-                let Ok(event) = event else { return };
-                if matches!(event.kind, notify::EventKind::Modify(ModifyKind::Data(_))) {
-                    file_modify_notifier.notify_one();
+
+        let mut watcher = {
+            use crate::BuildWatcherSnafu;
+            use notify::event::ModifyKind;
+            let handler = {
+                let file_modify_notifier = file_modify_notifier.clone();
+                move |event: std::result::Result<notify::Event, notify::Error>| {
+                    let Ok(event) = event else { return };
+                    if matches!(
+                        event.kind,
+                        notify::EventKind::Modify(ModifyKind::Data(_))
+                            | notify::EventKind::Modify(ModifyKind::Any)
+                    ) {
+                        file_modify_notifier.notify_one();
+                    }
                 }
-            }
-        })
-        .context(BuildWatcherSnafu)?;
+            };
+            notify::RecommendedWatcher::new(handler, notify::Config::default())
+                .context(BuildWatcherSnafu)?
+        };
         if let ReadState::Reader(inner) = &state {
             watcher
                 .watch(&inner.segment, notify::RecursiveMode::NonRecursive)
@@ -307,6 +336,7 @@ impl Reader {
         &mut self,
         state: ReadState,
         deadline: Option<tokio::time::Instant>,
+        cancel: &CancellationToken,
     ) -> Result<ReadState> {
         if let ReadState::Reader(inner) = &state {
             self.file_watcher
@@ -323,7 +353,7 @@ impl Reader {
         loop {
             match self.new_state(from).await? {
                 state @ ReadState::Position(_) => {
-                    match wait(deadline, self.dir_modify_notifier.notified()).await {
+                    match wait(deadline, cancel, self.dir_modify_notifier.notified()).await {
                         Some(_) => continue,
                         None => return Ok(state),
                     }
@@ -360,28 +390,20 @@ impl RawReader for Reader {
     type EntryPosition = super::EntryPosition;
 
     async fn read(&mut self, max_batch_size: usize) -> Result<Vec<Entry<Self::EntryPosition>>> {
-        let mut inner = match std::mem::take(&mut self.state) {
-            ReadState::Reader(inner) => {
-                // 暂存当前状态
-                self.state =
-                    ReadState::Position(ReadFrom::LastPosition(inner.framed.decoder().position));
-                inner
-            }
+        let current_position = self.state.position();
+        let mut inner = match std::mem::replace(&mut self.state, current_position) {
+            ReadState::Reader(inner) => inner,
             ReadState::Position(from) => match self.rotate(ReadState::Position(from)).await? {
-                ReadState::Position(from) => {
-                    self.state = ReadState::Position(from);
+                ReadState::Position(_) => {
                     return Ok(vec![]);
                 }
-                ReadState::Reader(inner) => {
-                    self.state = ReadState::Position(ReadFrom::LastPosition(
-                        inner.framed.decoder().position,
-                    ));
-                    inner
-                }
+                ReadState::Reader(inner) => inner,
             },
         };
 
         let mut entries = Vec::with_capacity(max_batch_size);
+        let mut last_instant = Instant::now();
+        const LOG_DURATION: Duration = Duration::from_secs(5);
         loop {
             match inner.framed.next().await.transpose()? {
                 Some(entry) => {
@@ -391,18 +413,36 @@ impl RawReader for Reader {
                     }
                 }
                 None => {
-                    // 文件被删除，直接返回，下次读下一个文件
                     if !self.need_rotate(&inner) {
                         break;
                     }
+                    if last_instant.elapsed() >= LOG_DURATION {
+                        tracing::info!("perssit file reader will rotate to next file");
+                    }
                     match self.rotate(ReadState::Reader(inner)).await? {
                         ReadState::Position(from) => {
+                            if last_instant.elapsed() >= LOG_DURATION {
+                                tracing::info!(
+                                    "perssit file reader next rotate file from {from} not found"
+                                );
+                            }
                             self.state = ReadState::Position(from);
                             return Ok(entries);
                         }
-                        ReadState::Reader(new_inner) => inner = new_inner,
+                        ReadState::Reader(new_inner) => {
+                            if last_instant.elapsed() >= LOG_DURATION {
+                                tracing::info!(
+                                    seg = ?new_inner.segment,
+                                    "perssit file reader rotate to next file"
+                                );
+                            }
+                            inner = new_inner
+                        }
                     }
                 }
+            }
+            if last_instant.elapsed() >= LOG_DURATION {
+                last_instant = Instant::now();
             }
         }
 
@@ -416,36 +456,35 @@ impl RawReader for Reader {
         min_batch_size: usize,
         max_batch_size: usize,
         timeout: Option<std::time::Duration>,
+        cancel: &CancellationToken,
     ) -> Result<Vec<Entry<Self::EntryPosition>>> {
         let deadline = timeout.map(|timeout| tokio::time::Instant::now() + timeout);
 
-        let mut inner = match std::mem::take(&mut self.state) {
-            ReadState::Reader(inner) => {
-                self.state =
-                    ReadState::Position(ReadFrom::LastPosition(inner.framed.decoder().position));
-                inner
-            }
+        let current_position = self.state.position();
+        let mut inner = match std::mem::replace(&mut self.state, current_position) {
+            ReadState::Reader(inner) => inner,
             ReadState::Position(from) => {
-                match self
-                    .rotate_timeout_at(ReadState::Position(from), deadline)
-                    .await?
-                {
-                    ReadState::Position(from) => {
-                        self.state = ReadState::Position(from);
+                let Some(res) = cancel
+                    .run_until_cancelled(self.rotate_timeout_at(
+                        ReadState::Position(from),
+                        deadline,
+                        cancel,
+                    ))
+                    .await
+                else {
+                    return Ok(vec![]);
+                };
+                match res? {
+                    ReadState::Position(_) => {
                         return Ok(vec![]);
                     }
-                    ReadState::Reader(inner) => {
-                        self.state = ReadState::Position(ReadFrom::LastPosition(
-                            inner.framed.decoder().position,
-                        ));
-                        inner
-                    }
+                    ReadState::Reader(inner) => inner,
                 }
             }
         };
 
         let mut entries = Vec::with_capacity(max_batch_size);
-        while let Some(res) = wait(deadline, inner.framed.next()).await {
+        while let Some(res) = wait(deadline, cancel, inner.framed.next()).await {
             match res.transpose()? {
                 Some(entry) => {
                     entries.push(entry);
@@ -459,21 +498,31 @@ impl RawReader for Reader {
                     }
                     // 文件被删除，或者是读到了文件结尾，则切换下一个文件
                     if self.need_rotate(&inner) {
+                        tracing::info!(path = ?inner.segment, "perssit file reader will rotate to next file");
                         match self
-                            .rotate_timeout_at(ReadState::Reader(inner), deadline)
+                            .rotate_timeout_at(ReadState::Reader(inner), deadline, cancel)
                             .await?
                         {
                             ReadState::Position(from) => {
+                                tracing::info!(
+                                    "perssit file reader next rotate file from {from} not found"
+                                );
                                 self.state = ReadState::Position(from);
                                 return Ok(entries);
                             }
-                            ReadState::Reader(new_inner) => inner = new_inner,
+                            ReadState::Reader(new_inner) => {
+                                tracing::info!(
+                                    seg = ?new_inner.segment,
+                                    "perssit file reader rotate to next file"
+                                );
+                                inner = new_inner
+                            }
                         }
                         continue;
                     }
 
                     // 等待文件新内容，超时返回
-                    if wait(deadline, self.file_modify_notifier.notified())
+                    if wait(deadline, cancel, self.file_modify_notifier.notified())
                         .await
                         .is_none()
                     {
@@ -511,7 +560,7 @@ impl RawReader for Reader {
             })?;
             match lock_file.try_lock_exclusive() {
                 Ok(_) => {}
-                Err(e) if e.kind() == lock_contended_error().kind() => {
+                Err(e) if e.to_string() == lock_contended_error().to_string() => {
                     tracing::warn!("vacuum {} failed, file is locked, ignore", path.display());
                     continue;
                 }
@@ -534,15 +583,24 @@ impl RawReader for Reader {
     }
 }
 
-async fn wait<F, T>(deadline: Option<tokio::time::Instant>, future: F) -> Option<T>
+async fn wait<F, T>(
+    deadline: Option<tokio::time::Instant>,
+    cancel: &CancellationToken,
+    future: F,
+) -> Option<T>
 where
     F: Future<Output = T>,
 {
     match deadline {
-        Some(deadline) => match timeout_at(deadline, future).await {
-            Ok(res) => Some(res),
-            Err(_) => None,
-        },
-        None => Some(future.await),
+        Some(deadline) => {
+            let Some(Ok(res)) = cancel
+                .run_until_cancelled(timeout_at(deadline, future))
+                .await
+            else {
+                return None;
+            };
+            Some(res)
+        }
+        None => cancel.run_until_cancelled(future).await,
     }
 }

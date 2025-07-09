@@ -232,14 +232,18 @@ const localData: any = reactive({
   }
 });
 const emit = defineEmits(['update:modelValue']);
-watch(localData, newData => {
-  const fileUrl =
-    newData.currentTab == 'upload_csv_file'
-      ? newData.upload_csv_file.file_url
-      : newData.monitor_file_directory.file_url;
-  newData.path = fileUrl;
-  emit('update:modelValue', newData);
-}, { deep: true });
+watch(
+  localData,
+  newData => {
+    const fileUrl =
+      newData.currentTab == 'upload_csv_file'
+        ? newData.upload_csv_file.file_url
+        : newData.monitor_file_directory.file_url;
+    newData.path = fileUrl;
+    emit('update:modelValue', newData);
+  },
+  { deep: true }
+);
 interface stateProps {
   isModifying: boolean;
   showfiletip: boolean;
@@ -294,7 +298,6 @@ watch(isEn, () => {
     state.showfiletip = false;
   });
 });
-
 
 onMounted(async () => {
   if (props.modelValue && props.modelValue.currentTab) {

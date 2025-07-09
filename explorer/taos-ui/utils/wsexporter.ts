@@ -1,7 +1,7 @@
 import streamSaver from 'streamsaver';
 import { connect, TaosResult } from '@tdengine/websocket';
 import { json2csv } from 'json-2-csv';
-import FileSaver from "file-saver";
+import FileSaver from 'file-saver';
 
 declare global {
   interface Window {
@@ -94,12 +94,12 @@ export async function wsExport(gatewayURL: string, token: string, sql: string, w
  */
 export function localExport(queryResult: any) {
   const FileName = getFileName();
-  const data = convertToCsvData(queryResult.data, queryResult.head)
+  const data = convertToCsvData(queryResult.data, queryResult.head);
   const blob = new Blob([data], {
-    type: "text/csv;charset=utf-8;",
+    type: 'text/csv;charset=utf-8;'
   });
   FileSaver.saveAs(blob, FileName);
-};
+}
 
 /**
  * 将table数据转成csv数据
@@ -109,7 +109,7 @@ export function localExport(queryResult: any) {
  */
 function convertToCsvData(data: any, head: any) {
   const csvHeader = handlerData(head);
-  const csvRows = data.map((row:any) => {
+  const csvRows = data.map((row: any) => {
     return handlerData(row);
   });
   return csvHeader + '\n' + csvRows.join('\n');

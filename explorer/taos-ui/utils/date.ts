@@ -87,7 +87,12 @@ export function getDurationFromNow(time: string | number, pattern?: string): str
  * @param {string} pattern:
  * @returns {string}
  */
-export function getPreciseDurationFromNow(durationMs: number, fromTime?: number, toTime?: number): string {
+export function getPreciseDurationFromNow(
+  durationMs: number,
+  fromTime?: number,
+  toTime?: number,
+  noMs?: boolean
+): string {
   if (!durationMs || durationMs <= 0) return '';
   const duration = dayJs.duration(durationMs);
   const years = Math.floor(duration.asYears());
@@ -116,7 +121,7 @@ export function getPreciseDurationFromNow(durationMs: number, fromTime?: number,
   if (seconds > 0) {
     formattedDuration += `${seconds} ${t('date.duration.seconds')}  `;
   }
-  if (milliseconds > 0) {
+  if (!noMs && milliseconds > 0) {
     formattedDuration += `${milliseconds} ${t('date.duration.milliseconds')}`;
   }
   if (fromTime && toTime && fromTime.toString().length > 13 && fromTime.toString().length <= 16) {

@@ -59,9 +59,11 @@ function add() {
   background-color: #ecf8ff;
   border-left: 5px solid #50bfff;
   border-radius: 4px;
+
   .flex-end {
     :deep(.el-button) {
       font-size: 14px;
+
       // background: transparent;
     }
 
@@ -71,6 +73,4 @@ function add() {
     }
   }
 }
-
-
 </style>

@@ -31,3 +31,6 @@ public/version.txt
 .eslintrc-auto-import.json
 types/auto-imports.d.ts
 types/components.d.ts
+.vite
+.pnpm-store
+vite.config.ts.*

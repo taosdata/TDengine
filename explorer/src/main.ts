@@ -12,7 +12,7 @@ import './styles/reset.css';
 import '@/assets/fonts/iconfont/iconfont.css';
 import { registerDirective } from './directive.ts';
 import './permission.ts';
-import { setInit, $IS_COMMUNITY, $INDUSTRY, $IS_OEM, OEM_NAME } from '@/utils/init.ts';
+import { setInit, $IS_COMMUNITY, $IS_TSDBLITE, $INDUSTRY, $IS_OEM, OEM_NAME } from '@/utils/init.ts';
 import { TextCopy, SvgIcon, Pagination, PageHeader, RouterTabs, DatePicker } from 'taos-ui/components';
 import VueDOMPurifyHTML from 'vue-dompurify-html';
 import 'virtual:svg-icons-register';
@@ -48,6 +48,7 @@ app.provide(
   reactive(
     readonly({
       $IS_COMMUNITY,
+      $IS_TSDBLITE,
       $INDUSTRY,
       $IS_OEM,
       OEM_NAME,

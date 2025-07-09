@@ -1,45 +1,28 @@
-use anyhow::{bail, Context, Result};
-use faststr::FastStr;
+use anyhow::{bail, Context};
 use flume::Receiver;
 use itertools::Itertools;
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::time::Duration;
-use taos::{AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder};
+use taos::{AsyncQueryable, Dsn, Taos, TaosPool};
 use taosx_ipc::types::dsv::DataSourceValidation;
-use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
-use crate::core_metrics::{get_metrics_arc, CoreMetrics};
-use crate::local_to_taos::conf::{LocalRestoreConfig, LocalRestoreConfigBuilder};
+use crate::core_metrics::get_metrics;
+use crate::local_to_taos::conf::{LocalRestoreConfig, LocalRestoreConfigBuilder, PostAction};
 use crate::local_to_taos::file_watcher::FileWatcher;
+use crate::local_to_taos::metrics::LocalToTaosMetrics;
 use crate::s3::{S3Config, S3Loader};
 use crate::taoz::{ZCodec, ZFile, ZMessage};
 use crate::tmq::BackupObject;
-use crate::tmq_to_local::LocalConfig;
 use crate::utils::constants::{VERSION_3_0_0, VERSION_3_3_0};
 use crate::{s3, utils};
 
 mod conf;
 mod file_watcher;
-
-/// local_to_taos 的 metrics 统计信息
-/// 处理过的文件数量
-const PROCESSED_FILES: FastStr = FastStr::from_static_str("backup_processed_files");
-/// 处理过的文件的字节数
-const PROCESSED_BYTES: FastStr = FastStr::from_static_str("backup_processed_bytes");
-/// 处理过的数据行数
-const PROCESSED_ROWS: FastStr = FastStr::from_static_str("backup_processed_rows");
-/// 处理成功的最后一条记录的时间戳
-#[allow(unused)]
-const PROCESSED_CURRENT: FastStr = FastStr::from_static_str("backup_processed_current");
-/// 处理过但失败的数据行数
-#[allow(unused)]
-const FAILED_ROWS: FastStr = FastStr::from_static_str("backup_failed_rows");
+mod metrics;
 
 /// # 从本地备份恢复到 taos
 /// 1. 备份文件对应某个备份对象：database 或 database.stable，在 target 中：
@@ -57,7 +40,7 @@ pub async fn local_to_taos(
     from: Dsn,
     to: Dsn,
     cancel: CancellationToken,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     tracing::info!("local_to_taos start");
 
     // 解析参数
@@ -67,38 +50,33 @@ pub async fn local_to_taos(
         .context("parse local_to_taos config error")?;
     tracing::debug!("local_to_taos config: {:#?}", config);
 
+    // 如果配置了 S3 转储，则先从 S3 下载备份文件到本地
     if let Some(s3_config) = &config.s3_config {
         let s3_loader = S3Loader::try_from(s3_config).await?;
         s3_loader.load_to(config.backup_dir.as_path()).await?;
     }
-
-    // 处理 backup object
-    if config.is_obj_existed().await? {
-        if config.force {
-            tracing::warn!("restore target exists, force to delete and recreate");
-            config.delete_obj().await?;
-        } else {
-            bail!("restore target already exists, please delete and recreate");
-        }
-    }
-    tracing::warn!("recreate backup object");
-    config.restore_obj().await?;
 
     // 创建 watcher
     let watcher = FileWatcher::from(config.clone());
     let stop_flag = watcher.get_stop_flag();
 
     // load metrics
-    let metrics_arc = get_metrics_arc(task_id.clone()).await;
+    let tid = task_id
+        .clone()
+        .and_then(|id| id.parse::<i64>().ok())
+        .unwrap_or(-1);
+    let metrics = get_metrics(tid).await.map(LocalToTaosMetrics::new);
 
     let (tx, rx) = flume::unbounded();
+    let taos_pool = config.connect_taos_pool().await?;
     // 创建 RestoreWorker
     let rx = rx.clone();
     let worker = RestoreWorker {
         rx,
         backup_config: config.clone(),
         backup_obj: config.backup_obj.clone(),
-        metrics: metrics_arc.clone(),
+        metrics: metrics.clone(),
+        pool: taos_pool,
     };
     let restore_worker = tokio::spawn(async move { worker.run().await }.in_current_span());
 
@@ -179,16 +157,16 @@ struct RestoreWorker {
     backup_config: LocalRestoreConfig,
     backup_obj: BackupObject,
     rx: Receiver<Vec<PathBuf>>,
-    metrics: Arc<CoreMetrics>,
+    metrics: Option<LocalToTaosMetrics>,
+    pool: TaosPool,
 }
 
 impl RestoreWorker {
     /// 从 channel 中获取备份文件的路径，然后恢复到 taos
-    async fn run(&self) -> Result<()> {
+    async fn run(&self) -> anyhow::Result<()> {
         tracing::info!("RestoreWorker started");
-
         while let Ok(files) = self.rx.recv() {
-            let file_length = files.len();
+            let file_count = files.len();
 
             // 按照 ts 分组，按照 ts 的先后顺序执行
             let files = files
@@ -215,17 +193,62 @@ impl RestoreWorker {
                     .map(|(_vg_id, chunk)| chunk.collect_vec())
                     .collect_vec();
 
-                let mut join_set: JoinSet<Result<()>> = JoinSet::new();
+                let mut join_set: JoinSet<anyhow::Result<()>> = JoinSet::new();
                 // 每个 vgroup 一个 worker
                 for (idx, files) in files_of_vgroup.into_iter().enumerate() {
-                    let taos = self.backup_config.connect_taos().await?;
+                    // let taos = self.backup_config.connect_taos().await?;
+                    let taos = self.pool.get().await?;
                     let stable = self.backup_obj.stable_name.clone();
                     let metrics = self.metrics.clone();
+                    let retry_interval = self.backup_config.error_retry_interval;
+                    let retry_max = self.backup_config.error_retry_max;
 
+                    let post_action = self.backup_config.post_action.clone();
                     join_set.spawn(async move {
                         for f in files {
                             tracing::debug!("worker[{idx}] restore files: {:?}", f);
-                            restore(idx, f, &taos, stable.clone(), metrics.clone()).await?;
+                            let res = restore(
+                                idx,
+                                f.clone(),
+                                &taos,
+                                stable.clone(),
+                                metrics.clone(),
+                                retry_max,
+                                retry_interval,
+                            )
+                            .await;
+                            if let Err(err) = res {
+                                tracing::error!("worker[{idx}] restore file error: {:#}", err);
+                                return Err(err);
+                            }
+
+                            match post_action {
+                                None => {
+                                    // do nothing
+                                }
+                                Some(PostAction::Delete) => {
+                                    // delete file
+                                    tokio::fs::remove_file(f).await?;
+                                }
+                                Some(PostAction::Move(ref move_to)) => {
+                                    // move file, use the specified path
+                                    let file_name = f.file_name().unwrap().to_str().unwrap();
+                                    let (_, ts, _, _) = ZFile::parse_file_name(file_name).unwrap();
+                                    let new_path = PathBuf::from(ts.format(move_to).to_string())
+                                        .join(file_name);
+                                    tracing::debug!(
+                                        "worker[{idx}] move file: {:?} to: {:?}",
+                                        f,
+                                        new_path
+                                    );
+                                    tokio::fs::rename(f.clone(), new_path.clone())
+                                        .await
+                                        .context(format!(
+                                            "failed to move file: {:?} to: {:?}",
+                                            f, new_path
+                                        ))?;
+                                }
+                            }
                         }
                         Ok(())
                     });
@@ -240,206 +263,48 @@ impl RestoreWorker {
                 }
             }
 
-            let metrics = self.metrics.ipc();
-            metrics.add_extra_metric(&PROCESSED_FILES, file_length as u64);
+            if let Some(metrics) = &self.metrics {
+                metrics.add_processed_files(file_count as u64);
+                tracing::debug!("local_to_taos metrics detail\n{}", metrics);
+            }
         }
         tracing::info!("RestoreWorker stopped");
         Ok(())
     }
 }
 
-#[allow(unused)]
-#[deprecated(note = "use new local_to_taos")]
-pub async fn local_to_taos_previous(from: Dsn, mut to: Dsn) -> Result<()> {
-    // FIXME(@zitsen)
-    let jobs = 0;
-    let force = true;
-
-    // local dir
-    let local_dir = from
-        .path
-        .as_ref()
-        .map(PathBuf::from)
-        .ok_or(anyhow::anyhow!(
-            "invalid local dsn: {}, Please use a local path DSN like `local:./path/to/backup`",
-            from
-        ))?;
-
-    if !local_dir.exists() {
-        bail!("local path: {} not found", from);
-    }
-
-    // local.toml
-    let local_toml_path = local_dir.join("local.toml");
-    if !local_toml_path.exists() {
-        bail!("local config: {} not found", local_toml_path.display());
-    }
-    // LocalConfig
-    let config = LocalConfig::from_path(&local_toml_path)?;
-
-    // check database
-    if let Some(target) = to.subject.as_mut() {
-        let databases: Vec<_> = config
-            .topics
-            .iter()
-            .map(|t| t.database.as_str())
-            .dedup()
-            .collect();
-
-        if databases.len() > 1 {
-            bail!("taosx does not support restore data from more than one databases to a single database");
-        }
-
-        for topic in &config.topics {
-            if &topic.database != target {
-                if force {
-                    tracing::warn!("restore from {} to {} by force", topic.database, target);
-                } else {
-                    bail!("to restore from {} to a different database {}, please use --yes-i-really-mean-it", topic.database, target);
-                }
+async fn open_file_with_retry(
+    path: impl AsRef<Path>,
+    retry_max: u32,
+    retry_interval: Duration,
+) -> anyhow::Result<tokio::fs::File> {
+    let path = path.as_ref();
+    let mut retry = retry_max;
+    loop {
+        match tokio::fs::File::open(path).await {
+            Ok(file) => {
+                tracing::debug!("Opened file: {:?}", path.display());
+                return Ok(file);
             }
-        }
-    }
-
-    // parameters
-    let continuous = from
-        .get("continue")
-        .map(|s| s.is_empty() || s.to_lowercase() == "true")
-        .unwrap_or(false);
-
-    let target_database = to.subject.take();
-    let target = TaosBuilder::from_dsn(&to)?;
-    let global_taos = target.build().await?;
-
-    let mut handles = Vec::new();
-    let jobs = if jobs == 0 { 16 } else { jobs };
-    let task_sem = Arc::new(Semaphore::new(jobs));
-
-    let mut task_id = 0;
-    for topic in &config.topics {
-        if let Some(target) = target_database.as_ref() {
-            if !global_taos.database_exists(target).await? {
-                tracing::info!(
-                    "target database not exist, create database `{target}` with the same parameter in the backup"
+            Err(err) => {
+                if retry == 0 {
+                    tracing::error!(
+                        "Failed to open file: {:?}, error: {:#}",
+                        path.display(),
+                        err
+                    );
+                    return Err(err.into());
+                }
+                retry -= 1;
+                tracing::warn!(
+                    "Failed to open file: {:?}, retrying... {} times left",
+                    path.display(),
+                    retry
                 );
-                if let Some(sql) = topic.database_sql.as_deref() {
-                    let mut sql = sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS");
-                    if &topic.database != target {
-                        sql = sql.replace(&format!("`{}`", topic.database), &format!("`{target}`"));
-                    }
-                    global_taos.exec(sql).await?;
-                }
-            } else if !force {
-                bail!("the database has already exists, please be sure to override it by force");
+                tokio::time::sleep(retry_interval).await;
             }
-        } else if !global_taos.database_exists(&topic.database).await? {
-            if let Some(sql) = topic.database_sql.as_deref() {
-                global_taos
-                    .exec(sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS"))
-                    .await?;
-            }
-        } else if !force {
-            bail!("the database has already exists, please be sure to override it by force");
-        }
-
-        if let Some(table) = topic.table.as_ref() {
-            // schema rebuild
-            let taos = target.build().await?;
-            if let Some(target) = target_database.as_ref() {
-                taos.exec(format!("use `{}`", target)).await?;
-            } else {
-                taos.exec(format!("use `{}`", topic.database)).await?;
-            }
-
-            if let Some(sql) = table.stable_sql.as_deref() {
-                taos.exec(sql.replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS"))
-                    .await?;
-            }
-            taos.exec(
-                table
-                    .table_sql
-                    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
-            )
-            .await?;
-        }
-
-        let mut dir_entry = tokio::fs::read_dir(&local_dir).await?;
-
-        let mut files: BTreeMap<i64, BTreeMap<i64, tokio::fs::DirEntry>> = BTreeMap::new();
-
-        while let Some(path) = dir_entry.next_entry().await? {
-            let file_name = path.file_name().into_string().unwrap();
-            if !file_name.starts_with(&topic.name) || !file_name.ends_with("z") {
-                continue;
-            }
-
-            if continuous {
-                let mut zo = path.path();
-                zo.set_extension("zo");
-                if zo.exists() {
-                    continue;
-                }
-            }
-
-            let file_name_only = path.path().with_extension("");
-            let items = file_name_only
-                .file_name()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .split("-")
-                .collect_vec();
-
-            let (ts, vgroup) = items.iter().rev().take(2).collect_tuple().unwrap();
-            let vgroup: i64 = vgroup.parse().unwrap();
-            let ts: i64 = ts.parse().unwrap();
-
-            if let std::collections::btree_map::Entry::Vacant(e) = files.entry(vgroup) {
-                let mut map = BTreeMap::new();
-                map.insert(ts, path);
-                e.insert(map);
-            } else {
-                files.get_mut(&vgroup).unwrap().insert(ts, path);
-            }
-        }
-
-        for (_vgroup_id, files) in files {
-            let sem = task_sem.clone().acquire_owned().await?;
-            let taos = target.build().await?;
-
-            if let Some(target) = target_database.as_ref() {
-                taos.exec(format!("use `{}`", target)).await?;
-            } else {
-                taos.exec(format!("use `{}`", topic.database)).await?;
-            }
-
-            /// TODO: invalid metrics
-            let metrics = get_metrics_arc(None).await;
-
-            let table = topic.table.as_ref().map(|t| t.table.clone());
-            let handle = tokio::spawn(async move {
-                for (_ts, path) in files {
-                    let res =
-                        restore(task_id, path.path(), &taos, table.clone(), metrics.clone()).await;
-                    if res.is_err() {
-                        drop(sem);
-                        return res;
-                    }
-                }
-
-                drop(sem);
-                Ok(())
-            });
-            handles.push(handle);
-
-            task_id += 1;
         }
     }
-
-    for handle in handles {
-        handle.await??;
-    }
-    Ok(())
 }
 
 #[async_backtrace::framed]
@@ -448,11 +313,14 @@ async fn restore(
     path: impl AsRef<Path>,
     taos: &Taos,
     table: Option<String>,
-    metrics: Arc<CoreMetrics>,
-) -> Result<()> {
+    metrics: Option<LocalToTaosMetrics>,
+    retry_max: u32,
+    retry_interval: Duration,
+) -> anyhow::Result<()> {
     let path = path.as_ref();
-    tracing::info!("[{}] restore with file: {:?}", idx, path.display());
-    let reader = tokio::fs::File::open(path).await?;
+    tracing::info!("[{idx}] restore with file: {:?}", path.display());
+
+    let reader = open_file_with_retry(path, retry_max, retry_interval).await?;
     let reader = tokio::io::BufReader::new(reader);
     let reader = async_compression::tokio::bufread::ZstdDecoder::new(reader);
     let mut reader = ZCodec::new(reader);
@@ -475,16 +343,17 @@ async fn restore(
         }
     }
 
-    let metrics = metrics.ipc();
-
-    let mut rows = 0;
-    loop {
+    'READ_LOOP: loop {
         let res = reader.read_message_async().await;
         match res {
             Ok(message) => {
+                if let Some(metrics) = &metrics {
+                    metrics.add_received_batch();
+                }
                 match message {
                     ZMessage::Meta(meta) => {
-                        tracing::debug!("restore meta, len: {}", meta.raw_len());
+                        tracing::debug!("[{idx}] restore meta, len: {}", meta.raw_len());
+
                         if let Err(err) = taos.write_raw_meta(&meta).await {
                             let code: i32 = err.code().into();
                             match code {
@@ -493,78 +362,117 @@ async fn restore(
                                     tracing::debug!("Table already exists");
                                     // do nothing and continue
                                 }
-                                0x032C | 0x0115 | 0x03C7 | 0x03D3 => {
+                                0x032C | 0x0115 | 0x03C7 | 0x03D3 | 0x2603 => {
                                     // 0x032C: object is creating
                                     // 0x0115: invalid msg
                                     // 0x03C7: stable uid not match
                                     // 0x03D3: conflict transaction not completed
+                                    // 0x2603: the table does not exist: 写 meta 时报表不存在，重试
                                     tracing::debug!("Found recoverable error: {err:#}, retry once");
-                                    tokio::time::sleep(Duration::from_millis(100)).await;
-                                    let res = taos.write_raw_meta(&meta).await;
-                                    if res.is_ok() {
-                                        tracing::debug!("Retry success");
-                                    } else {
-                                        tracing::debug!(
-                                            "Retry failed: {:#}, continue",
-                                            res.unwrap_err()
-                                        );
-                                        Err(err).context("restore meta error")?;
+                                    let mut retry = retry_max;
+                                    loop {
+                                        if retry == 0 {
+                                            tracing::error!("Retry failed: {:#}, skip", err);
+                                            if let Some(metrics) = &metrics {
+                                                metrics.add_failed_batch();
+                                            }
+                                            continue 'READ_LOOP;
+                                        }
+                                        retry -= 1;
+
+                                        tokio::time::sleep(retry_interval).await;
+                                        tracing::debug!("Retrying... {retry} times left");
+                                        let res = taos.write_raw_meta(&meta).await;
+                                        if res.is_ok() {
+                                            tracing::debug!("Retry success");
+                                            break;
+                                        } else {
+                                            tracing::warn!("Retry failed: {:#}", res.unwrap_err());
+                                        }
                                     }
                                 }
-                                0x2603 => {
-                                    // 0x2603: the table does not exist
-                                    tracing::debug!("Found 0x2603 error: {err:#}, retry once");
-                                    taos.write_raw_meta(&meta)
-                                        .await
-                                        .context("restore meta error")?;
-                                }
                                 _ => {
-                                    Err(err).context("write raw error while restore")?;
+                                    tracing::error!("restore meta error: {:#}", err);
+                                    if let Some(metrics) = &metrics {
+                                        metrics.add_failed_batch();
+                                    }
+                                    continue 'READ_LOOP;
                                 }
                             }
                         };
-                        metrics.add_extra_metric(&PROCESSED_BYTES, meta.raw_len() as u64);
+                        if let Some(metrics) = &metrics {
+                            metrics.add_processed_batch();
+                            metrics.add_processed_bytes(meta.raw_len() as u64);
+                        }
                     }
                     ZMessage::Data(data) => {
-                        tracing::debug!("restore data, len: {}", data.len());
+                        tracing::debug!("[{idx}] restore data, len: {}", data.len());
                         for mut raw in data {
                             if let Some(name) = &table {
                                 raw.with_table_name(name.as_str());
                             }
                             let bytes = raw.as_raw_bytes().len() as u64;
-                            rows += raw.nrows();
                             if let Err(err) = taos.write_raw_block(&raw).await {
                                 let code: i32 = err.code().into();
                                 match code {
                                     0x2603 => {
-                                        // 0x2603: the table does not exist
+                                        // 0x2603: the table does not exist：写 data 时表不存在，尝试建表+重试
                                         if let Some(meta) = raw.to_create() {
                                             if let Err(err) = taos.exec(format!("{}", meta)).await {
-                                                if err.to_string().contains("0x032C") {
-                                                    tokio::time::sleep(Duration::from_millis(100))
-                                                        .await;
-                                                } else {
-                                                    Err(err).context("create table error")?;
+                                                tracing::error!("restore data error: {:#}", err);
+                                                if let Some(metrics) = &metrics {
+                                                    metrics.add_failed_batch();
                                                 }
+                                                continue 'READ_LOOP;
                                             };
-                                            taos.write_raw_block(&raw)
-                                                .await
-                                                .context("write raw block error")?;
                                         } else {
-                                            Err(err).context("write raw block error")?;
+                                            tracing::error!("restore data error: {:#}", err);
+                                            if let Some(metrics) = &metrics {
+                                                metrics.add_failed_batch();
+                                            }
+                                            continue 'READ_LOOP;
+                                        }
+
+                                        let mut retry = retry_max;
+                                        loop {
+                                            if retry == 0 {
+                                                tracing::error!("Retry failed: {:#}, skip", err);
+                                                if let Some(metrics) = &metrics {
+                                                    metrics.add_failed_batch();
+                                                }
+                                                continue 'READ_LOOP;
+                                            }
+                                            retry -= 1;
+
+                                            match taos.write_raw_block(&raw).await {
+                                                Ok(_) => {
+                                                    tracing::debug!("Retry success");
+                                                    break;
+                                                }
+                                                Err(err) => {
+                                                    tracing::warn!("Retry failed: {:#}", err);
+                                                }
+                                            }
+                                            tokio::time::sleep(retry_interval).await;
                                         }
                                     }
                                     _ => {
-                                        Err(err).context("write raw block error")?;
+                                        tracing::error!("restore data err: {:#}", err);
+                                        if let Some(metrics) = &metrics {
+                                            metrics.add_failed_batch();
+                                        }
+                                        continue 'READ_LOOP;
                                     }
                                 }
                             };
-                            metrics.add_extra_metric(&PROCESSED_BYTES, bytes);
+                            if let Some(metrics) = &metrics {
+                                metrics.add_processed_batch();
+                                metrics.add_processed_bytes(bytes);
+                            }
                         }
-                        tracing::debug!("[{idx}] current rows: {}", rows);
                     }
                     ZMessage::Raw(raw_type, raw) => {
-                        tracing::debug!("restore raw, len: {}", raw.raw_len());
+                        tracing::debug!("[{idx}] restore raw, len: {}", raw.raw_len());
                         if let Err(err) = taos.write_raw_meta(&raw).await {
                             let code: i32 = err.code().into();
                             match code {
@@ -575,48 +483,65 @@ async fn restore(
                                     // 0x03C7: stable uid not match
                                     // 0x03D3: conflict transaction not completed
                                     // 0x2603: the table does not exist
-                                    tracing::debug!(raw.r#type = ?raw_type, "Found recoverable error: {:#}, retry once", err);
-                                    tokio::time::sleep(Duration::from_millis(100)).await;
-                                    match taos.write_raw_meta(&raw).await {
-                                        Ok(_) => {
-                                            tracing::debug!("retry success");
+                                    tracing::debug!(raw.r#type = ?raw_type, "Found recoverable error: {:#}, retry", err);
+                                    let mut retry = retry_max;
+                                    'RETRY_LOOP: loop {
+                                        if retry == 0 {
+                                            tracing::error!("Retry failed: {:#}, skip", err);
+                                            if let Some(metrics) = &metrics {
+                                                metrics.add_failed_batch();
+                                            }
+                                            continue 'READ_LOOP;
                                         }
-                                        Err(err) => {
-                                            tracing::debug!("retry failed: {:#?}", err);
-                                            Err(err)
-                                                .context("write raw meta error while restore")?;
+                                        retry -= 1;
+
+                                        tokio::time::sleep(retry_interval).await;
+                                        tracing::debug!("Retrying... {retry} times left");
+                                        match taos.write_raw_meta(&raw).await {
+                                            Ok(_) => {
+                                                tracing::debug!("Retry success");
+                                                break 'RETRY_LOOP;
+                                            }
+                                            Err(err) => {
+                                                tracing::warn!("Retry failed: {:#}", err);
+                                            }
                                         }
                                     }
                                 }
                                 _ => {
-                                    Err(err).context("write raw meta error while restore")?;
+                                    tracing::error!("restore raw error: {:#}", err);
+                                    if let Some(metrics) = &metrics {
+                                        metrics.add_failed_batch();
+                                    }
+                                    continue 'READ_LOOP;
                                 }
                             }
                         };
-                        metrics.add_extra_metric(&PROCESSED_BYTES, raw.raw_len() as u64);
+                        if let Some(metrics) = &metrics {
+                            metrics.add_processed_batch();
+                            metrics.add_processed_bytes(raw.raw_len() as u64);
+                        }
                     }
                 }
             }
             Err(err) => {
+                // 如果是 EOF，表示文件读取完成
                 if err.kind() == std::io::ErrorKind::UnexpectedEof {
                     tracing::info!("[{idx}] reading file {} done", path.display());
                     break;
                 }
-                tracing::debug!("[{idx}] Reading data error: {}", &err);
+                // 其他错误，打印错误信息
+                tracing::debug!("[{idx}] reading data error: {}", &err);
                 break;
             }
+        }
+
+        if let Some(metrics) = &metrics {
+            tracing::debug!("local_to_taos metrics detail\n{}", metrics);
         }
     }
 
     drop(reader);
-
-    metrics.add_extra_metric(&PROCESSED_ROWS, rows as u64);
-    tracing::info!(
-        "[{}] totally write {} rows from file {}",
-        idx,
-        rows,
-        path.display()
-    );
     Ok(())
 }
 
@@ -635,7 +560,7 @@ pub async fn is_local_valid(dsn: &Dsn) -> DataSourceValidation {
     }
 }
 
-pub async fn is_local_valid_impl(dsn: &Dsn) -> Result<()> {
+pub async fn is_local_valid_impl(dsn: &Dsn) -> anyhow::Result<()> {
     if dsn.driver != "local" {
         bail!("invalid driver: {}", dsn.driver);
     }
@@ -652,103 +577,341 @@ pub async fn is_local_valid_impl(dsn: &Dsn) -> Result<()> {
     Ok(())
 }
 
-#[allow(unused /* previous version */)]
-pub async fn is_local_valid_previous(dsn: &Dsn) -> DataSourceValidation {
-    if dsn.driver != "local" {
-        return DataSourceValidation::invalid(
-            "local".to_string(),
-            "backup data source".to_string(),
-        );
-    }
-    if dsn.path.is_none() {
-        return DataSourceValidation::invalid(
-            "local".to_string(),
-            "No backup directory specified".to_string(),
-        );
-    }
-    let path: &Path = dsn.path.as_ref().unwrap().as_ref();
-    if !path.exists() {
-        return DataSourceValidation::invalid(
-            "local".to_string(),
-            "Backup directory does not exist".to_string(),
-        );
-    }
-
-    let config_path = path.join("local.toml");
-    if !config_path.exists() {
-        return DataSourceValidation::invalid(
-            "local".to_string(),
-            "Backup directory may not be correct".to_string(),
-        );
-    }
-
-    DataSourceValidation {
-        valid: true,
-        support: true,
-        data_source: "local".to_string(),
-        version: None,
-        message: None,
-        namespaces: None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use taos::{AsyncTBuilder, TaosBuilder};
+    use crate::utils::sql::connect_taos;
+    use taos::IntoDsn;
 
-    #[tokio::test]
-    #[ignore]
-    async fn test_local_to_taos_with_taos() -> Result<()> {
-        std::env::set_var("RUST_LOG", "debug");
-        pretty_env_logger::init();
-        let out = Path::new("local_to_taos_out");
-        if out.exists() {
-            std::fs::remove_dir_all(out)?;
+    /// # description_cn
+    /// 本地恢复, post_action=move
+    /// 1. 创建数据库：DB_SRC 和 DB_DST，向 DB_SRC 中创建超级表，并插入 5 行数据
+    /// 2. 启动 tmq_to_local 任务，将 DB_SRC 中的数据备份到本地
+    /// 3. 启动 local_to_taos 任务，将备份的数据恢复到 DB_DST 中
+    /// 4. 检查 DB_SRC 和 DB_DST 中的数据，一致则用例通过，否则失败
+    /// 5. 检查本地备份目录下的文件，应该为空
+    /// 6. 检查 move_to 目录下的文件，应该不为空
+    /// # jira
+    /// close https://jira.taosdata.com:18080/browse/TS-6456
+    /// # example
+    /// ```shell
+    /// cargo nextest run -p taosx-core test_move_post_action_with_taos --no-capture --retries 0
+    /// ```
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_move_post_action_with_taos() -> anyhow::Result<()> {
+        tracing_subscriber::fmt::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .init();
+        let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
+        let ws_enable = std::env::var("WS_ENABLE")
+            .map(|v| v.parse::<bool>().unwrap_or(false))
+            .unwrap_or(false);
+
+        const DB_SRC: &str = "ts6456_mov_src";
+        const DB_DST: &str = "ts6456_mov_dst";
+        const TOPIC: &str = "ts6456_mov";
+        const ROWS: i64 = 5;
+
+        let taos = connect_taos(&host, ws_enable).await?;
+        let temp_dir = tempfile::tempdir()?;
+        let move_to_dir = tempfile::tempdir()?;
+
+        // create database and stable, insert 5 rows
+        init_database(&taos, TOPIC, DB_SRC, DB_DST, ROWS).await?;
+
+        // start a tmq_to_local task to generate backup files
+        run_tmq_to_local(
+            ws_enable,
+            &host,
+            DB_SRC,
+            TOPIC,
+            temp_dir.path().display().to_string().as_str(),
+        )
+        .await?;
+
+        // start a local_to_taos task to restore data
+        let (from, to) = if ws_enable {
+            let from = format!(
+                "local:{}?to=now&post_action=move&move_to={}",
+                temp_dir.path().display(),
+                move_to_dir.path().display()
+            )
+            .into_dsn()?;
+            let to = format!("taos+ws://{host}:6041/{DB_DST}").into_dsn()?;
+            (from, to)
+        } else {
+            let from = format!(
+                "local:{}?to=now&post_action=move&move_to={}",
+                temp_dir.path().display(),
+                move_to_dir.path().display()
+            )
+            .into_dsn()?;
+            let to = format!("taos://{host}/{DB_DST}").into_dsn()?;
+            (from, to)
+        };
+        local_to_taos(None, from, to, CancellationToken::new()).await?;
+
+        // check data
+        let count_dst: i64 = taos
+            .query_one(format!("select count(*) from `{DB_DST}`.stb"))
+            .await?
+            .unwrap_or(0);
+        assert_eq!(count_dst, ROWS);
+
+        // check files
+        let mut files = vec![];
+        let mut entries = tokio::fs::read_dir(temp_dir.path()).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            if entry.file_type().await?.is_file() {
+                files.push(entry.file_name().to_string_lossy().to_string());
+            }
         }
-        let local: Dsn = format!("local:./{}", out.display()).parse()?;
-        let taos = TaosBuilder::from_dsn("taos://")?.build().await?;
-        taos.exec_many([
-            "DROP TOPIC IF EXISTS local_to_taos",
-            "DROP DATABASE IF EXISTS local_to_taos",
-            "CREATE DATABASE local_to_taos",
-            "USE local_to_taos",
-            "CREATE STABLE stb1 (ts TIMESTAMP, v1 BOOL) TAGS(j1 json)",
-            "CREATE TABLE tb1 USING stb1 TAGS('{\"id\":\"1\"}')",
-            "INSERT INTO tb1 VALUES (now, true) (now+1s, false) (now+2s, NULL)",
-            "CREATE TOPIC local_to_taos WITH META AS DATABASE local_to_taos",
+        assert!(
+            files.is_empty(),
+            "backup dir should be empty after move post action",
+        );
+
+        let mut files = vec![];
+        let mut entries = tokio::fs::read_dir(move_to_dir).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            if entry.file_type().await?.is_file() {
+                files.push(entry.file_name().to_string_lossy().to_string());
+            }
+        }
+        assert!(
+            !files.is_empty(),
+            "move_to dir should not be empty after move post action",
+        );
+
+        // clean
+        temp_dir.close()?;
+        taos.exec_many(vec![
+            format!("DROP TOPIC IF EXISTS force {TOPIC}"),
+            format!("DROP DATABASE IF EXISTS {DB_SRC}"),
+            format!("DROP DATABASE IF EXISTS {DB_DST}"),
         ])
         .await?;
-        crate::tmq_to_local(
-            None,
-            "tmq:///local_to_taos".parse()?,
-            local.clone(),
-            Default::default(),
-        )
-        .await?;
-
-        taos.exec_many([
-            "DROP TOPIC local_to_taos",
-            "DROP DATABASE local_to_taos",
-            "CREATE DATABASE local_to_taos",
-        ])
-        .await?;
-
-        local_to_taos(
-            None,
-            local.clone(),
-            "taos:///".parse()?,
-            CancellationToken::new(),
-        )
-        .await?;
-
-        let count: usize = taos.query_one("SELECT count(*) from tb1").await?.unwrap();
-        assert_eq!(count, 3, "restored");
-
-        std::fs::remove_dir_all(out)?;
-
-        taos.exec_many(["DROP DATABASE local_to_taos"]).await?;
 
         Ok(())
+    }
+
+    /// # description_cn
+    /// 本地恢复, post_action=delete
+    /// 1. 创建数据库：DB_SRC 和 DB_DST，向 DB_SRC 中创建超级表，并插入 5 行数据
+    /// 2. 启动 tmq_to_local 任务，将 DB_SRC 中的数据备份到本地
+    /// 3. 启动 local_to_taos 任务，将备份的数据恢复到 DB_DST 中
+    /// 4. 检查 DB_SRC 和 DB_DST 中的数据，一致则用例通过，否则失败
+    /// 5. 检查本地备份目录下的文件，应该为空
+    /// # jira
+    /// close https://jira.taosdata.com:18080/browse/TS-6456
+    /// # example
+    /// ```shell
+    /// cargo nextest run -p taosx-core test_delete_post_action_with_taos --no-capture --retries 0
+    /// ```
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_delete_post_action_with_taos() -> anyhow::Result<()> {
+        tracing_subscriber::fmt::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .init();
+        let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
+        let ws_enable = std::env::var("WS_ENABLE")
+            .map(|v| v.parse::<bool>().unwrap_or(false))
+            .unwrap_or(false);
+        const DB_SRC: &str = "ts6456_del_src";
+        const DB_DST: &str = "ts6456_del_dst";
+        const TOPIC: &str = "ts6456_del";
+        const ROWS: i64 = 5;
+
+        let taos = connect_taos(&host, ws_enable).await?;
+        let temp_dir = tempfile::tempdir()?;
+
+        // create database and stable, insert 3 rows
+        init_database(&taos, TOPIC, DB_SRC, DB_DST, ROWS).await?;
+
+        // start a tmq_to_local task to generate backup files
+        run_tmq_to_local(
+            ws_enable,
+            &host,
+            DB_SRC,
+            TOPIC,
+            temp_dir.path().display().to_string().as_str(),
+        )
+        .await?;
+
+        // start a local_to_taos task to restore data
+        let (from, to) = if ws_enable {
+            let from =
+                format!("local:{}?to=now&post_action=del", temp_dir.path().display()).into_dsn()?;
+            let to = format!("taos+ws://{host}:6041/{DB_DST}").into_dsn()?;
+            (from, to)
+        } else {
+            let from =
+                format!("local:{}?to=now&post_action=del", temp_dir.path().display()).into_dsn()?;
+            let to = format!("taos://{host}/{DB_DST}").into_dsn()?;
+            (from, to)
+        };
+        local_to_taos(None, from, to, CancellationToken::new()).await?;
+
+        // check data
+        let count_dst: i64 = taos
+            .query_one(format!("select count(*) from `{DB_DST}`.stb"))
+            .await?
+            .unwrap_or(0);
+        assert_eq!(count_dst, ROWS);
+
+        // check files
+        let mut files = vec![];
+        let mut entries = tokio::fs::read_dir(temp_dir.path()).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            if entry.file_type().await?.is_file() {
+                files.push(entry.file_name().to_string_lossy().to_string());
+            }
+        }
+        assert!(
+            files.is_empty(),
+            "backup files should be empty after delete post action"
+        );
+
+        // clean
+        temp_dir.close()?;
+        taos.exec_many(vec![
+            format!("DROP TOPIC IF EXISTS force {TOPIC}"),
+            format!("DROP DATABASE IF EXISTS {DB_SRC}"),
+            format!("DROP DATABASE IF EXISTS {DB_DST}"),
+        ])
+        .await?;
+
+        Ok(())
+    }
+
+    /// # description_cn
+    /// 本地恢复
+    /// 1. 创建数据库：DB_SRC 和 DB_DST，向 DB_SRC 中创建超级表，并插入 5 行数据
+    /// 2. 启动 tmq_to_local 任务，将 DB_SRC 中的数据备份到本地
+    /// 3. 启动 local_to_taos 任务，将备份的数据恢复到 DB_DST 中
+    /// 4. 检查 DB_SRC 和 DB_DST 中的数据，一致则用例通过，否则失败。
+    /// 5. 检查本地备份目录下的文件，应该不为空，否则失败。
+    /// # example
+    /// ```shell
+    /// cargo nextest run -p taosx-core test_local_to_taos_with_taos --no-capture --retries 0
+    /// ```
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_local_to_taos_with_taos() -> anyhow::Result<()> {
+        tracing_subscriber::fmt::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .init();
+        let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
+        let ws_enable = std::env::var("WS_ENABLE")
+            .map(|v| v.parse::<bool>().unwrap_or(false))
+            .unwrap_or(false);
+        const DB_SRC: &str = "test_local_to_taos_src";
+        const DB_DST: &str = "test_local_to_taos_dst";
+        const TOPIC: &str = "test_local_to_taos";
+        const ROWS: i64 = 5;
+
+        let taos = connect_taos(&host, ws_enable).await?;
+        let temp_dir = tempfile::tempdir()?;
+
+        // create database and stable, insert 5 rows
+        init_database(&taos, TOPIC, DB_SRC, DB_DST, ROWS).await?;
+
+        // start a tmq_to_local task to generate backup files
+        run_tmq_to_local(
+            ws_enable,
+            &host,
+            DB_SRC,
+            TOPIC,
+            temp_dir.path().display().to_string().as_str(),
+        )
+        .await?;
+
+        // start a local_to_taos task to restore data
+        let (from, to) = if ws_enable {
+            let from = format!("local:{}?to=now", temp_dir.path().display()).into_dsn()?;
+            let to = format!("taos+ws://{host}:6041/{DB_DST}").into_dsn()?;
+            (from, to)
+        } else {
+            let from = format!("local:{}?to=now", temp_dir.path().display()).into_dsn()?;
+            let to = format!("taos://{host}/{DB_DST}").into_dsn()?;
+            (from, to)
+        };
+        local_to_taos(None, from, to, CancellationToken::new()).await?;
+
+        // check data
+        let count_dst: i64 = taos
+            .query_one(format!("select count(*) from `{DB_DST}`.stb"))
+            .await?
+            .unwrap_or(0);
+        assert_eq!(
+            count_dst, ROWS,
+            "count of rows in destination database should match source"
+        );
+
+        // check files
+        let mut files = vec![];
+        let mut entries = tokio::fs::read_dir(temp_dir.path()).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            if entry.file_type().await?.is_file() {
+                files.push(entry.file_name().to_string_lossy().to_string());
+            }
+        }
+        assert!(!files.is_empty(), "backup files should not be empty");
+
+        // clean
+        temp_dir.close()?;
+        taos.exec_many(vec![
+            format!("DROP TOPIC IF EXISTS force {TOPIC}"),
+            format!("DROP DATABASE IF EXISTS {DB_SRC}"),
+            format!("DROP DATABASE IF EXISTS {DB_DST}"),
+        ])
+        .await?;
+
+        Ok(())
+    }
+
+    async fn init_database(
+        taos: &Taos,
+        topic: &str,
+        db_src: &str,
+        db_dst: &str,
+        rows: i64,
+    ) -> anyhow::Result<()> {
+        taos.exec_many([
+            format!("DROP TOPIC IF EXISTS force {topic}"),
+            format!("DROP DATABASE IF EXISTS {db_src}"),
+            format!("DROP DATABASE IF EXISTS {db_dst}"),
+            format!("CREATE DATABASE IF NOT EXISTS {db_src}"),
+            format!("CREATE DATABASE IF NOT EXISTS {db_dst}"),
+            format!("CREATE STABLE `{db_src}`.stb (ts timestamp, val float) TAGS(id int)"),
+        ])
+        .await?;
+        for i in 1..=rows {
+            taos.exec(format!(
+                "INSERT INTO `{db_src}`.t{i} USING `{db_src}`.stb TAGS({i}) VALUES (now, {i}.0)"
+            ))
+            .await?;
+        }
+        Ok(())
+    }
+
+    async fn run_tmq_to_local(
+        ws_enable: bool,
+        host: &str,
+        db_src: &str,
+        topic: &str,
+        backup_dir: &str,
+    ) -> anyhow::Result<()> {
+        // start a tmq_to_local task to generate backup files
+        let (from, to) = if ws_enable {
+            let from =
+                format!("tmq+ws://{host}:6041/{db_src}?use.topic.name={topic}").into_dsn()?;
+            let to = format!("local:{backup_dir}",).into_dsn()?;
+            (from, to)
+        } else {
+            let from = format!("tmq://{host}/{db_src}?use.topic.name={topic}").into_dsn()?;
+            let to = format!("local:{backup_dir}",).into_dsn()?;
+            (from, to)
+        };
+        crate::tmq_to_local(None, from, to, CancellationToken::new()).await
     }
 }

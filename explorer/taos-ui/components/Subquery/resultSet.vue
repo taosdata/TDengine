@@ -46,7 +46,7 @@ import {
   StringFn,
   AggregationFn,
   SelectorFn,
-  StreamNotSupportFn,
+  StreamSupportFnMap,
   TDFnType
 } from 'constants1';
 import { isArray } from 'utils/validate';
@@ -81,25 +81,20 @@ const currentValue = computed(() => {
     .slice((page.value - 1) * pageSize.value, page.value * pageSize.value);
 });
 const fnMap = computed(() => {
-  let NUMBER = NumbericFn;
-  let STRING = StringFn;
-  let AVGFN = AggregationFn.concat(SelectorFn, TimeSeriesFn).sort((a, b) => a.label.localeCompare(b.label));
+  const NUMBER = NumbericFn;
+  const STRING = StringFn;
+  const AVGFN = AggregationFn.concat(SelectorFn, TimeSeriesFn).sort((a, b) => a.label.localeCompare(b.label));
   if (props.avgFn) {
-    NUMBER = NUMBER.concat(filterFNInclude(SelectorFn, 'NUMBER'), filterFNInclude(AggregationFn, 'NUMBER')).sort(
-      (a, b) => a.label.localeCompare(b.label)
-    );
-    STRING = STRING.concat(filterFNInclude(SelectorFn, 'STRING'), filterFNInclude(AggregationFn, 'STRING')).sort(
-      (a, b) => a.label.localeCompare(b.label)
-    );
-    [NUMBER, STRING, AVGFN] = [NUMBER, STRING, AVGFN].map(item =>
-      item.filter(item => !StreamNotSupportFn.includes(item.label)).sort((a, b) => a.label.localeCompare(b.label))
-    );
+    return {
+      ...StreamSupportFnMap,
+      GENERALAVG: StreamSupportFnMap.AVGFN.filter((item: TDFnType) => !item.applicableDataTypes)
+    };
   }
   return {
     NUMBER,
     STRING,
     AVGFN,
-    GENERALAVG: AVGFN.filter(item => !item.applicableDataTypes)
+    GENERALAVG: []
   };
 });
 const emits = defineEmits(['update:modelValue', 'update:columns', 'update:tags']);
@@ -129,9 +124,6 @@ function handleCheckAllChange(val: CheckboxValueType) {
   });
   isIndeterminate.value = false;
   checkAll.value = val as boolean;
-}
-function filterFNInclude(fnList: TDFnType[], type: string) {
-  return fnList.filter(item => !item.applicableDataTypes || item.applicableDataTypes.includes(type));
 }
 function getData() {
   if (!props.params[0] || (!props.params[1] && !props.params[2])) return emits('update:modelValue', []);

@@ -136,6 +136,8 @@ pub struct Args {
 
     // manually specified port range, eg. 9000-9099
     ports: Option<RangeInclusive<u16>>,
+
+    keep_online: bool,
 }
 
 #[config]
@@ -186,6 +188,9 @@ pub struct ConfigArgs {
 
     #[clap(flatten)]
     client_port_range: Option<ClientPortRange>,
+
+    #[clap(long, action = clap::ArgAction::SetTrue)]
+    keep_online: Option<bool>,
 }
 
 #[config]
@@ -330,7 +335,7 @@ fn get_effective_config_path(args: &ArgsParser) -> PathBuf {
 #[cfg(windows)]
 fn get_default_config_path() -> PathBuf {
     std::path::Path::new("C:\\")
-        .join(build::CUS_NAME)
+        .join(build::CANONICAL_CUS_NAME)
         .join("cfg")
         .join("agent.toml")
 }
@@ -351,7 +356,7 @@ fn get_env_log_dir() -> String {
     }
 
     if cfg!(windows) {
-        format!("C:\\{}\\log", build::CUS_NAME)
+        format!("C:\\{}\\log", build::CANONICAL_CUS_NAME)
     } else {
         format!("/var/log/{}", build::CUS_PROMPT)
     }
@@ -363,7 +368,11 @@ fn get_env_data_dir() -> String {
     }
 
     if cfg!(windows) {
-        format!("C:\\{}\\data\\{}xagent", build::CUS_NAME, build::CUS_PROMPT)
+        format!(
+            "C:\\{}\\data\\{}xagent",
+            build::CANONICAL_CUS_NAME,
+            build::CUS_PROMPT
+        )
     } else {
         format!("/var/lib/{0}/{0}xagent", build::CUS_PROMPT)
     }
@@ -378,7 +387,7 @@ fn get_env_plugin_dir() -> String {
     }
 
     if cfg!(windows) {
-        format!("C:\\{}\\plugins", build::CUS_NAME)
+        format!("C:\\{}\\plugins", build::CANONICAL_CUS_NAME)
     } else {
         format!("/usr/local/{}/plugins", build::CUS_PROMPT)
     }
@@ -439,6 +448,7 @@ impl Args {
             mut log,
             client_port_range,
             ca,
+            keep_online,
             ..
         } = ConfigArgs::with_layers(&layers)?;
 
@@ -505,6 +515,7 @@ impl Args {
             log,
             in_memory_cache_capacity,
             ports,
+            keep_online: keep_online.unwrap_or_default(),
         })
     }
 
@@ -633,6 +644,10 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
                         break;
                     } else {
                         tracing::error!("Connection closed. Retry in 5 seconds");
+                        if args.keep_online {
+                            tokio::time::sleep(Duration::from_secs(5)).await;
+                            continue
+                        }
                         if let Err(err) = error_gate.tick(err) {
                             tracing::info!("Connection failed: {err:#}");
                             if tasks.is_empty() {
@@ -846,6 +861,7 @@ fn print_effective_config(log_keep_days: i64, args: &Args) -> Result<(), std::io
     }
     writeln!(cursor, "{:<w$}{:<w2$}{}", ' ', "log_keep_days",  log_keep_days)?;
     writeln!(cursor, "{:<w$}{:<w2$}{}", ' ', "compression",  compression)?;
+    writeln!(cursor, "{:<w$}{:<w2$}{}", ' ', "keep_online",  args.keep_online)?;
     write!(cursor, "================================================================")?;
     tracing::info!("{}", String::from_utf8_lossy(&cache));
     Ok(())

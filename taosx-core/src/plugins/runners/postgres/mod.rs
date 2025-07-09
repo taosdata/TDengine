@@ -63,10 +63,10 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 /// * `dsn` - postgres dsn
 /// # Returns
 /// * `DsSampleIn` - {
-///     "input": [{ "col_name": "xxx", ... }],
-///     "parser": {"parse": {
-///         "col_name": { "as": col_type }, ...
-///     }}
+///   "input": [{ "col_name": "xxx", ... }],
+///   "parser": {"parse": {
+///   "col_name": { "as": col_type }, ...
+///   }}
 ///   }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     // create postgres query
@@ -330,10 +330,10 @@ fn generate_json_value(
             }
         }
         "BYTEA" => {
-            let val = row.try_get::<Option<&[u8]>, _>(cidx)?;
+            let val = row.try_get::<Option<Vec<u8>>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
-                Some(val) => Ok(json!(format!("{:?}", val))),
+                Some(val) => Ok(json!(val)),
             }
         }
         // 日期时间

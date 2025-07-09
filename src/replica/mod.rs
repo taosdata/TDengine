@@ -1,12 +1,12 @@
 use std::{
-    collections::hash_map::DefaultHasher,
     collections::HashMap,
+    collections::hash_map::DefaultHasher,
     fmt::{Debug, Display},
     hash::{Hash, Hasher},
     time::Duration,
 };
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use clap::{Args, Subcommand};
 use futures_util::TryStreamExt;
 use itertools::Itertools;
@@ -1048,7 +1048,11 @@ impl Cli {
                             .await?
                         {
                             if id != replica.id {
-                                bail!("replica id {} already exists as id {}, please remove the old one or use correct id", id, replica.id);
+                                bail!(
+                                    "replica id {} already exists as id {}, please remove the old one or use correct id",
+                                    id,
+                                    replica.id
+                                );
                             }
                             if databases.is_empty() {
                                 println!(
@@ -1056,7 +1060,10 @@ impl Cli {
                                     id
                                 );
                             } else {
-                                println!("replica id {} already exists, try to cover specified databases", id);
+                                println!(
+                                    "replica id {} already exists, try to cover specified databases",
+                                    id
+                                );
                             }
                             (replica, tasks)
                         } else {
@@ -1209,7 +1216,11 @@ impl Cli {
                             if force {
                                 config.stop_once(&task).await?;
                             } else {
-                                bail!("replica task {}:{} is not in final state, use -y/--yes-i-really-mean-it to force remove", task.tid, task.database);
+                                bail!(
+                                    "replica task {}:{} is not in final state, use -y/--yes-i-really-mean-it to force remove",
+                                    task.tid,
+                                    task.database
+                                );
                             }
                         }
                         config.remove_once(&task).await?;
@@ -1231,7 +1242,11 @@ impl Cli {
                                 if force {
                                     config.stop_once(&task).await?;
                                 } else {
-                                    bail!("replica task {}:{} is not in final state, use -y/--yes-i-really-mean-it to force remove", task.tid, task.database);
+                                    bail!(
+                                        "replica task {}:{} is not in final state, use -y/--yes-i-really-mean-it to force remove",
+                                        task.tid,
+                                        task.database
+                                    );
                                 }
                             }
                             config.remove_once(&task).await?;
@@ -1346,7 +1361,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_replica_func_with_taos() {
-        std::env::set_var("RUST_LOG", "trace");
+        unsafe {
+            std::env::set_var("RUST_LOG", "trace");
+        }
         use tracing_subscriber::EnvFilter;
 
         let filter = EnvFilter::from_default_env();
@@ -1357,8 +1374,8 @@ mod tests {
         let taos = taos_builder.build().await.unwrap();
 
         taos.exec_many([
-            "drop topic if exists rep1",
-            "drop topic if exists rep2",
+            "drop topic if exists force rep1",
+            "drop topic if exists force rep2",
             "drop database if exists rep1",
             "drop database if exists rep2",
             "create database rep1",
@@ -1445,8 +1462,8 @@ mod tests {
 
         let _ = taos
             .exec_many([
-                "drop database if exists rep1",
-                "drop database if exists rep2",
+                "drop database if exists force rep1",
+                "drop database if exists force rep2",
             ])
             .await;
     }

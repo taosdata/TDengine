@@ -1,8 +1,8 @@
 ---
 id: taos
-name: TDengine 2.x
+name: TDengine Query
 description: |
-  The TDengine 2.x data source can be used to migrate data from previous version to current cluster.
+  The TDengine Query data source can be used to migrate data from previous version to current cluster.
 
   ## Protocols
 

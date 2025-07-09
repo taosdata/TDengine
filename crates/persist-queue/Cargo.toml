@@ -19,7 +19,6 @@ tracing.workspace = true
 parking_lot.workspace = true
 fs2 = "0.4.3"
 bitfield.workspace = true
-futures-ext = { path = "../futures-ext" }
 
 [dev-dependencies]
 anyhow.workspace = true

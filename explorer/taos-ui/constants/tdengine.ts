@@ -127,7 +127,7 @@ export const StringFn: TDFnType[] = [
     label: 'RTRIM'
   },
   {
-    label: 'SUBSTR',
+    label: 'SUBSTRING/SUBSTR',
     filters: [
       {
         type: 'number',
@@ -276,18 +276,11 @@ export const AggregationFn: TDFnType[] = [
     applicableDataTypes: ['NUMBER', 'TIMESTAMP']
   },
   {
-    label: 'STDDEV',
-    applicableDataTypes: ['NUMBER']
-  },
-  {
     label: 'SUM',
     applicableDataTypes: ['NUMBER']
   },
   {
     label: 'HYPERLOGLOG'
-  },
-  {
-    label: 'HIPERLOGLOG'
   },
   {
     label: 'HISTOGRAM',
@@ -714,6 +707,36 @@ export const StreamNotSupportFn = [
   'UNIQUE',
   'MODE'
 ];
+
+function filterFNInclude(fnList: TDFnType[], type: string) {
+  return fnList.filter(item => !item.applicableDataTypes || item.applicableDataTypes.includes(type));
+}
+
+// 流计算支持的函数
+export const StreamSupportFnMap: Recordable<TDFnType[]> = {
+  NUMBER: NumbericFn.concat(filterFNInclude(SelectorFn, 'NUMBER'), filterFNInclude(AggregationFn, 'NUMBER'))
+    .filter(item => !StreamNotSupportFn.includes(item.label))
+    .sort((a, b) => a.label.localeCompare(b.label)),
+  STRING: StringFn.concat(filterFNInclude(SelectorFn, 'STRING'), filterFNInclude(AggregationFn, 'STRING'))
+    .filter(item => !StreamNotSupportFn.includes(item.label))
+    .sort((a, b) => a.label.localeCompare(b.label)),
+  AVGFN: AggregationFn.concat(SelectorFn, TimeSeriesFn)
+    .filter(item => !StreamNotSupportFn.includes(item.label))
+    .sort((a, b) => a.label.localeCompare(b.label))
+};
+// 流计算支持的函数列表
+export const StreamSupportFnList = Object.keys(StreamSupportFnMap)
+  .reduce((acc, key: string) => {
+    const fnList = StreamSupportFnMap[key];
+    fnList.forEach(item => {
+      if (acc.every(ite => ite.label != item.label)) {
+        acc.push(item);
+      }
+    });
+    return acc;
+  }, [] as TDFnType[])
+  .sort((a, b) => a.label.localeCompare(b.label));
+
 // 时间戳可使用的运算符
 export const CompareOperator = ['>', '<', '>=', '<=', '!=', '='];
 export const BooleanOperator = ['=='];
@@ -771,13 +794,15 @@ export const resultFnMap = {
   AVGFN: AggregationFn
 };
 
+export const TwoVariableTableColumnType = ['DECIMAL']
 export const VariableTableColumnType = ['BINARY', 'NCHAR', 'VARCHAR', 'GEOMETRY', 'VARBINARY'];
 export const VariableTableColumnTypeMaxLenthMap = {
   BINARY: 16374,
   NCHAR: 4093,
   VARCHAR: 16374,
   GEOMETRY: 16382,
-  VARBINARY: 16382
+  VARBINARY: 16382,
+  DECIMAL: 38
 };
 
 export const TDengineStringType = ['VARCHAR', 'BINARY', 'NCHAR', 'GEOMETRY', 'VARBINARY'];
@@ -1016,7 +1041,8 @@ export const TDengineDataType = [
   'VARCHAR',
   'NCHAR',
   'GEOMETRY',
-  'VARBINARY'
+  'VARBINARY',
+  'DECIMAL'
 ];
 
 export const TDengineSqlKeywrods = [
@@ -1221,14 +1247,12 @@ export const TDengineSqlKeywrods = [
   'STATEDURATION',
   'STATEMENT',
   'STATE_WI',
-  'STDDEV',
   'STORAGE',
   'STREAM',
   'STREAMS',
   'STRING',
   'STable',
   'STableS',
-  'SUBSTR',
   'SUM',
   'SYNCDB',
   'TABLE',

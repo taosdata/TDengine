@@ -23,9 +23,10 @@ use std::{
     sync::OnceLock,
     time::Duration,
 };
-use taos::*;
+use taos::{taos_query::common::RowView, *};
 use taos_query::Manager;
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument, Instrument};
 use tracing_actix_web::TracingLogger;
 
@@ -59,9 +60,19 @@ use tracing_subscriber::{
     util::SubscriberInitExt,
 };
 
+use sql::need_limit;
+
+use crate::stream_with_cancel::StreamWithCancel;
+
 mod favorites;
 mod qid;
+mod sql;
+mod stream_with_cancel;
 pub mod verification;
+
+#[cfg(feature = "mimalloc")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 #[derive(Clone)]
 struct UserPool {
@@ -132,7 +143,7 @@ async fn main() -> anyhow::Result<()> {
     // info!(env!("CUS_NAME"));
 
     #[cfg(target_os = "windows")]
-    let path = format!("C:\\{}\\cfg", env!("CUS_NAME"));
+    let path = format!("C:\\{}\\cfg", env!("CANONICAL_CUS_NAME"));
 
     #[cfg(not(target_os = "windows"))]
     let path = format!("/etc/{}", env!("CUS_PROMPT"));
@@ -271,7 +282,7 @@ async fn main() -> anyhow::Result<()> {
         Some(path) => path,
         None => {
             if cfg!(windows) {
-                format!("C:\\{}\\data\\explorer", env!("CUS_NAME"))
+                format!("C:\\{}\\data\\explorer", env!("CANONICAL_CUS_NAME"))
             } else {
                 format!("/var/lib/{}/explorer", env!("CUS_PROMPT"))
             }
@@ -384,7 +395,7 @@ async fn main() -> anyhow::Result<()> {
                     .index_file("index.html")
                     .default_handler(fn_service(move |req: ServiceRequest| async {
                         let args = req.app_data::<web::Data<Args>>();
-                        if args.map_or(true, |args| args.assets.is_none()) {
+                        if args.is_none_or(|args| args.assets.is_none()) {
                             return Ok(req.error_response(error::ErrorNotFound("File not found")));
                         }
                         let assets = args.unwrap().assets.as_ref().unwrap().clone();
@@ -933,13 +944,16 @@ async fn proxy(
 
         // Forward the request.
         let mut builder = client.get(url);
-        if append_headers.is_some() {
-            builder = builder.headers(append_headers.unwrap());
+        if let Some(headers) = append_headers {
+            builder = builder.headers(headers);
         }
 
         let builder = real_ip_forward(&req, builder);
 
-        let target_response = builder.send().await.unwrap();
+        let target_response = builder
+            .send()
+            .await
+            .map_err(error::ErrorInternalServerError)?;
 
         // Make sure the server is willing to accept the websocket.
         let status = target_response.status().as_u16();
@@ -963,21 +977,28 @@ async fn proxy(
             .map_err(error::ErrorInternalServerError)?;
         let (target_rx, mut target_tx) = tokio::io::split(target_upgrade);
 
+        let cancel = CancellationToken::new();
+
         // Copy byte stream from the client to the target.
-        tokio::task::spawn_local(async move {
-            let mut client_stream = payload.map(|result| {
-                result.map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))
-            });
-            let mut client_read = tokio_util::io::StreamReader::new(&mut client_stream);
-            let result = tokio::io::copy(&mut client_read, &mut target_tx).await;
-            if let Err(err) = result {
-                tracing::error!("Error proxying websocket client bytes to target: {err}")
+        tokio::task::spawn_local({
+            let cancel = cancel.clone();
+            async move {
+                let mut client_stream = payload.map_err(std::io::Error::other);
+                let mut client_read = tokio_util::io::StreamReader::new(&mut client_stream);
+                if let Some(Err(e)) = cancel
+                    .run_until_cancelled(tokio::io::copy(&mut client_read, &mut target_tx))
+                    .await
+                {
+                    tracing::error!("Error proxying websocket client bytes to target: {e}");
+                };
+
+                tracing::info!("Websocket client closed");
             }
-            tracing::info!("Websocket client closed");
         });
 
         // Copy byte stream from the target back to the client.
-        let target_stream = tokio_util::io::ReaderStream::new(target_rx);
+        let target_stream =
+            StreamWithCancel::new(tokio_util::io::ReaderStream::new(target_rx), cancel);
         Ok(client_response.streaming(target_stream))
     } else {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -996,8 +1017,8 @@ async fn proxy(
             .request(req.method().clone(), url)
             .timeout(Duration::from_secs(u64::MAX))
             .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
-        if append_headers.is_some() {
-            builder = builder.headers(append_headers.unwrap());
+        if let Some(headers) = append_headers {
+            builder = builder.headers(headers);
         }
         builder = real_ip_forward(&req, builder);
         builder
@@ -1545,7 +1566,7 @@ impl Default for LogOpts {
 
 fn get_default_log_path() -> PathBuf {
     if cfg!(windows) {
-        PathBuf::from(format!("C:\\{}\\log", env!("CUS_NAME")))
+        PathBuf::from(format!("C:\\{}\\log", env!("CANONICAL_CUS_NAME")))
     } else {
         PathBuf::from(format!("/var/log/{}", env!("CUS_PROMPT")))
     }
@@ -1620,31 +1641,34 @@ impl Args {
             .map(|f| (f.name().to_string(), f.ty().to_string(), f.bytes()))
             .collect_vec();
         debug!("Got fields {column_meta:?}, fetching data.");
-        let data = set
-            .to_records()
-            .await?
+
+        let convert_value = |value: taos::Value| match value {
+            taos::Value::Timestamp(ts) => {
+                let ts_with_tz = tz.from_utc_datetime(&ts.to_naive_datetime());
+                serde_json::Value::String(ts_with_tz.to_rfc3339_opts(seconds_format, true))
+            }
+            taos::Value::VarBinary(vb) => {
+                serde_json::Value::String(format!("\\x{}", hex::encode(vb).to_uppercase()))
+            }
+            taos::Value::Geometry(geo) => {
+                serde_json::Value::String(parse_geometry_from_bytes(&geo))
+            }
+            taos::Value::Float(f) => serde_json::Value::from(f),
+            _ => value.to_json_value(),
+        };
+        let data = if need_limit(sql) {
+            // select 语句如果不包含 limit，默认返回 1000 条
+            set.rows()
+                .take(1000)
+                .map_ok(RowView::into_values)
+                .try_collect::<Vec<_>>()
+                .await?
+        } else {
+            set.to_records().await?
+        };
+        let data = data
             .into_iter()
-            .map(|row| {
-                row.into_iter()
-                    .map(|v| match v {
-                        taos::Value::Timestamp(ts) => {
-                            let ts_with_tz = tz.from_utc_datetime(&ts.to_naive_datetime());
-                            serde_json::Value::String(
-                                ts_with_tz.to_rfc3339_opts(seconds_format, true),
-                            )
-                        }
-                        taos::Value::VarBinary(vb) => serde_json::Value::String(format!(
-                            "\\x{}",
-                            hex::encode(vb).to_uppercase()
-                        )),
-                        taos::Value::Geometry(geo) => {
-                            serde_json::Value::String(parse_geometry_from_bytes(&geo))
-                        }
-                        taos::Value::Float(f) => serde_json::Value::from(f),
-                        _ => v.to_json_value(),
-                    })
-                    .collect_vec()
-            })
+            .map(|row| row.into_iter().map(convert_value).collect_vec())
             .collect_vec();
         debug!("SQL result: {data:?}");
         Ok(RestOkResponse {

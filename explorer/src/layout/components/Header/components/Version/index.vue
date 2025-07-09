@@ -13,13 +13,15 @@ import { sendSQLReq } from '@/api/explorer';
 import { getUser, getPassword, getClusterID, getBaseUrl } from '@/utils';
 import { setInstanceData } from 'taos-ui/config';
 
-const { OEM_NAME, $INDUSTRY } = inject('globalCustomProperties') as GlobalCustomProperties;
+const { OEM_NAME, $IS_TSDBLITE, $INDUSTRY } = inject('globalCustomProperties') as GlobalCustomProperties;
 const route = useRoute();
 const showHeaderLeft = ref<boolean>(true);
 const clickCount = ref(0);
 const clickNum = ref(0);
 const license = ref([]);
-const version = ref('');
+const local_version = localStorage.getItem('td_version') || '';
+const version = ref(local_version || '0.0.0');
+console.log('version', local_version, version.value);
 const grants = ref([]);
 const industry = ref('version');
 
@@ -101,6 +103,7 @@ async function getLicense() {
         tdClusterId: getClusterID()
       });
       let versionName = '';
+      console.log(grants.value[0].version);
       switch (grants.value[0].version) {
         case 'trial':
         case `${OEM_NAME} Enterprise Edition trial`:
@@ -119,14 +122,22 @@ async function getLicense() {
           industry.value = 'power';
           break;
         default:
-          versionName = 'Community';
+          versionName = $IS_TSDBLITE ? 'Lite' : 'Community';
           break;
       }
       version.value = getVersion(license.value[0]['server_version()']) + ' ' + versionName;
       localStorage.setItem('serverVersion', version.value);
     });
-  } catch (error) {
-    console.log(error);
+  } catch (error: any) {
+    console.error('Get license error: ', error);
+    if (error.includes('Permission denied')) {
+      license.value = [true];
+      version.value = localStorage.getItem('td_version') || '';
+      localStorage.setItem('serverVersion', version.value);
+      console.log('No permission to view license information, using local version:', version.value);
+      return;
+    }
+    ElMessage.error(error);
   }
 }
 </script>

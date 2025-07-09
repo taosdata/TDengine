@@ -4,14 +4,14 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::vec;
 use std::{collections::HashMap, time::Duration};
 
 use actix_files::NamedFile;
 use agent::ActivityOrder;
-use anyhow::{anyhow, bail, Context};
+use anyhow::{Context, anyhow, bail};
 use async_backtrace::framed;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -24,8 +24,8 @@ use replica::{Replica, ReplicaOpts, ReplicaTask};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::pool::PoolOptions;
-use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use sqlx::{ConnectOptions, Sqlite};
+use sqlx::{FromRow, SqlitePool, migrate::Migrator, sqlite::SqliteJournalMode};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
@@ -36,7 +36,7 @@ use taosx_core::utils::dsn::{dsn_to_json, json_to_dsn};
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tracing::{instrument, Instrument};
+use tracing::{Instrument, instrument};
 use utoipa::*;
 use uuid::Uuid;
 
@@ -47,13 +47,14 @@ use self::agent::{
 use self::transferred::Transferred;
 use self::trigger::Strategy;
 use super::data_sources::DataSourceDefinition;
-use super::scheduler::agent::{AgentId, TaskId};
 use super::scheduler::TaskScheduler;
+use super::scheduler::agent::{AgentId, TaskId};
 use super::task::ImportTasksParams;
 use crate::build;
 pub use crate::serve::controller::agent::Activity;
 use crate::serve::rpc::encode_csv_config_file;
 use crate::serve::task::{DeleteTaskParam, ExportTaskDetail, ExportTasksResult};
+use taosx_core::QueryDataSourceReq;
 use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::runners::opc::csv::CsvParser;
@@ -62,9 +63,8 @@ use taosx_core::runners::opc::config::OPCConfig;
 use taosx_core::tmq_to_local::conf::BackupConfigBuilder;
 use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_compressed_csv};
 use taosx_core::utils::get_string_content_from_param_value;
-use taosx_core::QueryDataSourceReq;
 use taosx_core::{
-    get_data_dir, validate_dsn, DataSet, DataSetsReq, PutFileReq, Response, TaskOpts,
+    DataSet, DataSetsReq, PutFileReq, Response, TaskOpts, get_data_dir, validate_dsn,
 };
 
 pub(crate) mod agent;
@@ -564,6 +564,7 @@ async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::
 
 /// Keep max activities per task or agent, but at least keep 10 activities.
 async fn keep_max_activities(pool: &SqlitePool, max: usize) -> anyhow::Result<()> {
+    tracing::info!("check and delete activities, max: {}", max);
     let max = if max > 9 { max - 1 } else { 9 } as i64;
     // tasks
     let tasks = sqlx::query_scalar::<_, i64>("select id from tasks")
@@ -609,6 +610,9 @@ async fn keep_max_activities(pool: &SqlitePool, max: usize) -> anyhow::Result<()
                 .await?;
         }
     }
+
+    // run vacuum to reclaim space
+    sqlx::query("vacuum").execute(pool).await?;
     Ok(())
 }
 
@@ -802,16 +806,16 @@ impl TaskController {
         database_initiate(&pool).in_current_span().await?;
 
         let max_activities_pool = pool.clone();
-        let max_activities_keep_interval = Duration::from_secs(60 * 60);
+        let max_activities_keep_interval = Duration::from_secs(10 * 60);
         tokio::task::spawn(
             async move {
                 loop {
-                    tokio::time::sleep(max_activities_keep_interval).await;
                     if let Err(err) =
                         keep_max_activities(&max_activities_pool, max_activities_per_entity).await
                     {
                         tracing::error!("keep max activities error: {err:?}");
                     }
+                    tokio::time::sleep(max_activities_keep_interval).await;
                 }
             }
             .instrument(tracing::info_span!("keep_max_activities")),
@@ -832,7 +836,7 @@ impl TaskController {
     }
 
     #[instrument(skip_all, fields(task.id = task.id,task.agent = task.via))]
-    async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
+    pub async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
         let from: Dsn = task
             .from
             .parse()
@@ -1681,7 +1685,9 @@ impl TaskController {
             order: Some(ActivityOrder::Asc),
         }
         .condition();
-        let sql = format!("select * from (select *, row_number() over (partition by id order by at desc) as rn from task_activities) r where r.rn<=5 {cond}");
+        let sql = format!(
+            "select * from (select *, row_number() over (partition by id order by at desc) as rn from task_activities) r where r.rn<=5 {cond}"
+        );
         let items = sqlx::query_as(&sql)
             .fetch_all(&self.pool)
             .in_current_span()
@@ -2326,7 +2332,7 @@ impl TaskController {
                     .read()
                     .await
                     .get(&id)
-                    .map_or(false, |h| !h.is_finished())
+                    .is_some_and(|h| !h.is_finished())
                 {
                     tracing::info!("No changes, an exist monitor task has been running");
                     return Ok(exist);
@@ -2470,11 +2476,7 @@ impl TaskController {
                 has_errors = true;
             }
         }
-        if has_errors {
-            Err(errors)
-        } else {
-            Ok(())
-        }
+        if has_errors { Err(errors) } else { Ok(()) }
     }
 }
 
@@ -3975,10 +3977,11 @@ mod tests {
         let task = controller.create(task_props).await;
         assert!(task.is_err());
         dbg!(&task);
-        assert!(task
-            .unwrap_err()
-            .to_string()
-            .contains("Agent 1 is not alive"));
+        assert!(
+            task.unwrap_err()
+                .to_string()
+                .contains("Agent 1 is not alive")
+        );
 
         Ok(())
     }
@@ -3986,7 +3989,9 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     #[ignore]
     async fn test_task_offset_with_taos() -> anyhow::Result<()> {
-        std::env::set_var("RUST_LOG", "taos=info");
+        unsafe {
+            std::env::set_var("RUST_LOG", "taos=info");
+        }
         tracing_subscriber_init()?;
 
         let dsn = "taos://localhost:6030".to_string();

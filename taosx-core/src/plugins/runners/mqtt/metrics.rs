@@ -16,6 +16,7 @@ const UNPROCESSED_MESSAGES: FastStr = FastStr::from_static_str("mqtt_unprocessed
 const SENT_BATCHES: FastStr = FastStr::from_static_str("mqtt_sent_batches");
 const DISCARDED_MESSAGES: FastStr = FastStr::from_static_str("mqtt_discarded_messages");
 const DISCARDED_DUMP_MESSAGES: FastStr = FastStr::from_static_str("mqtt_discarded_dump_messages");
+const RECEIVED_BYTES: FastStr = FastStr::from_static_str("mqtt_received_bytes");
 
 #[derive(Debug)]
 pub(crate) struct MqttMetrics {
@@ -29,6 +30,7 @@ pub(crate) struct MqttMetrics {
     sent_batches: AtomicU64,
     discard_messages: AtomicU64,
     discard_dump_messages: AtomicU64,
+    received_bytes: AtomicU64,
 }
 
 impl MqttMetrics {
@@ -43,6 +45,7 @@ impl MqttMetrics {
             sent_batches: AtomicU64::default(),
             discard_messages: AtomicU64::default(),
             discard_dump_messages: AtomicU64::default(),
+            received_bytes: AtomicU64::default(),
         }
     }
     pub(crate) fn add_fetched_messages(&self) {
@@ -116,6 +119,15 @@ impl MqttMetrics {
         self.discard_dump_messages.load(atomic::Ordering::SeqCst)
     }
 
+    pub(crate) fn add_received_bytes(&self, bytes: u64) {
+        self.received_bytes
+            .fetch_add(bytes, atomic::Ordering::SeqCst);
+    }
+
+    pub(crate) fn received_bytes(&self) -> u64 {
+        self.received_bytes.load(atomic::Ordering::SeqCst)
+    }
+
     pub(crate) fn reset_metrics(&self) {
         let metrics = self.metrics.ipc();
         metrics.set_extra_metric(&FETCHED_MESSAGES, 0);
@@ -126,6 +138,7 @@ impl MqttMetrics {
         metrics.set_extra_metric(&SENT_BATCHES, 0);
         metrics.set_extra_metric(&DISCARDED_MESSAGES, 0);
         metrics.set_extra_metric(&DISCARDED_DUMP_MESSAGES, 0);
+        metrics.set_extra_metric(&RECEIVED_BYTES, 0);
     }
 
     pub(crate) fn update_metrics(&self) {
@@ -138,6 +151,7 @@ impl MqttMetrics {
         metrics.set_extra_metric(&SENT_BATCHES, self.sent_batches());
         metrics.set_extra_metric(&DISCARDED_MESSAGES, self.discarded_messages());
         metrics.set_extra_metric(&DISCARDED_DUMP_MESSAGES, self.discard_dump_messages());
+        metrics.set_extra_metric(&RECEIVED_BYTES, self.received_bytes());
     }
 }
 

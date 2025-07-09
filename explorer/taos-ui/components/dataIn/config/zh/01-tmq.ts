@@ -1,5 +1,5 @@
 export default {
-  name: 'TDengine 3.x',
+  name: 'TDengine 数据订阅',
   id: 'tmq',
   type: 'uri',
   description:
@@ -47,7 +47,7 @@ export default {
               label: '订阅初始位置',
               description:
                 '订阅初始位置定义了拉取数据范围。\n有以下可选项：\n- *earliest*: 相当于拉取全量数据，包括新增的数据；\n- *latest*: 从最新的数据开始订阅。\n',
-              field: 'auto~offset~reset',
+              field: 'auto.offset.reset',
               placeholder: '',
               defaultValue: 'earliest',
               pattern: null,
@@ -72,7 +72,7 @@ export default {
               label: '订阅组 ID',
               description:
                 '订阅组 ID 是用于标识一个订阅组的字符串，最大长度为 192。同一个订阅组内的订阅者共享消费进度。不指定情况下将使用随机生成的 group ID。\n',
-              field: 'group~id',
+              field: 'group.id',
               placeholder: '',
               pattern: null,
               grid_two: false,
@@ -81,9 +81,8 @@ export default {
             {
               label: '客户端 ID',
               description: '客户端 ID 是一个用于标识客户端的字符串，最大长度为 192。\n',
-              field: 'client~id',
-              placeholder: '',
-              pattern: null,
+              field: 'client.id',
+              placeholder: '客户端 ID 是一个用于标识客户端的字符串，最大长度为 192',
               grid_two: false,
               required: true,
               type: 'input'
@@ -120,7 +119,7 @@ export default {
               label: '同步已落盘数据',
               description:
                 '如启用，可以同步已经落盘到 TSDB 时序数据存储文件中（即不在 WAL 中）的数据。如关闭，则只同步尚未落盘（即保存在 WAL 中）的数据。\n',
-              field: 'experimental~snapshot~enable',
+              field: 'experimental.snapshot.enable',
               placeholder: '',
               defaultValue: true,
               pattern: null,
@@ -130,7 +129,7 @@ export default {
             {
               label: '同步删表操作',
               description: '如启用则会同步删表操作到目标数据库。\n',
-              field: 'with~meta~drop',
+              field: 'with.meta.drop',
               placeholder: '',
               defaultValue: true,
               pattern: null,
@@ -140,7 +139,7 @@ export default {
             {
               label: '同步删数据操作',
               description: '如启用则会同步删数据操作到目标数据库。\n',
-              field: 'with~meta~delete',
+              field: 'with.meta.delete',
               placeholder: '',
               defaultValue: true,
               pattern: null,
@@ -252,6 +251,71 @@ export default {
           type: 'number',
           min: 0,
           max: 10000
+        },
+        {
+          field: 'num.of.consumers',
+          label: '消费者数量',
+          hint: {
+            type: 'integer',
+            min: 0,
+            max: 1000
+          },
+          type: 'number',
+          description: '消费者数量',
+          defaultValue: '0'
+        },
+        {
+          field: 'num.of.writers',
+          label: '写入线程数',
+          hint: {
+            type: 'integer',
+            min: 0,
+            max: 1000
+          },
+          type: 'number',
+          description: '写入线程数',
+          defaultValue: '0'
+        },
+        {
+          field: 'prefer',
+          label: '写入偏好',
+          options: [
+            {
+              label: 'auto',
+              value: 'auto'
+            },
+            {
+              label: 'raw',
+              value: 'raw'
+            }
+          ],
+          type: 'select',
+          description: '写入偏好，auto: 根据读取的数据程序自动选择',
+          defaultValue: 'auto'
+        },
+        {
+          field: 'commit.chunk.size',
+          label: '缓冲区大小',
+          hint: {
+            type: 'integer',
+            min: 0,
+            max: 1000000000
+          },
+          type: 'number',
+          description: '缓冲区大小',
+          defaultValue: '0'
+        },
+        {
+          field: 'commit.interval.ms',
+          label: 'Commit 间隔(毫秒)',
+          hint: {
+            type: 'integer',
+            min: 0,
+            max: 1000000
+          },
+          type: 'number',
+          description: 'Commit 间隔(毫秒)',
+          defaultValue: '0'
         }
       ]
     }

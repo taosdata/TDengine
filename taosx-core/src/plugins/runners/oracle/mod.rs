@@ -55,10 +55,10 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 /// * `dsn` - oracle dsn
 /// # Returns
 /// * `DsSampleIn` - {
-///     "input": [{ "col_name": "xxx", ... }],
-///     "parser": {"parse": {
-///         "col_name": { "as": col_type }, ...
-///     }}
+///   "input": [{ "col_name": "xxx", ... }],
+///   "parser": {"parse": {
+///   "col_name": { "as": col_type }, ...
+///   }}
 ///   }
 pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     let dsn = dsn.clone();
@@ -258,8 +258,7 @@ fn generate_json_value(
         | OracleType::NVarchar2(_)
         | OracleType::Char(_)
         | OracleType::NChar(_)
-        | OracleType::Rowid
-        | OracleType::Raw(_) => {
+        | OracleType::Rowid => {
             let val = col.get::<String>();
             match val {
                 Err(_) => Ok(json!(null)),
@@ -350,8 +349,16 @@ fn generate_json_value(
                 Ok(val) => Ok(json!(val)),
             }
         }
-        OracleType::Object(_) | OracleType::Long | OracleType::LongRaw | OracleType::Json => {
+        OracleType::Object(_) | OracleType::Long | OracleType::Json => {
             let val = col.get::<String>();
+            match val {
+                Err(_) => Ok(json!(null)),
+                Ok(val) => Ok(json!(val)),
+            }
+        }
+        // 字节数组
+        OracleType::Raw(_) | OracleType::LongRaw => {
+            let val = col.get::<Vec<u8>>();
             match val {
                 Err(_) => Ok(json!(null)),
                 Ok(val) => Ok(json!(val)),

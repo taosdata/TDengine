@@ -1,17 +1,17 @@
 use std::collections::HashSet;
 
 use actix_web::{
-    delete, get, patch, post, rt,
+    Error, HttpRequest, HttpResponse, Responder, delete, get, patch, post, rt,
     web::{Data, Json, Path, Payload, Query},
-    Error, HttpRequest, HttpResponse, Responder,
 };
 use actix_ws::{CloseCode, CloseReason, Session};
+use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
 use crate::serve::{
     controller::{
-        agent::{AgentActivityFilter, AgentProps, AgentUpdates},
         AgentFilter, TaskControllerRef,
+        agent::{AgentActivityFilter, AgentProps, AgentUpdates},
     },
     task::Failed,
 };
@@ -156,12 +156,21 @@ pub(crate) async fn send_all_agents_activities(
 ) -> Result<HttpResponse, Error> {
     let (res, session, msg_stream) = actix_ws::handle(&req, stream)?;
     // spawn websocket handler (and don't await it) so that the response is returned immediately
-    rt::spawn(send_all_agents_activities_ws(req, session.clone()));
-    rt::spawn(echo_heartbeat_ws(session.clone(), msg_stream));
+    let cancel = CancellationToken::new();
+    rt::spawn(send_all_agents_activities_ws(
+        req,
+        session.clone(),
+        cancel.clone(),
+    ));
+    rt::spawn(echo_heartbeat_ws(session, msg_stream, cancel));
     Ok(res)
 }
 
-async fn send_all_agents_activities_ws(req: HttpRequest, mut session: Session) {
+async fn send_all_agents_activities_ws(
+    req: HttpRequest,
+    mut session: Session,
+    cancel: CancellationToken,
+) {
     let task_store = match req.app_data::<Data<TaskControllerRef>>() {
         Some(store) => store,
         None => {
@@ -213,7 +222,10 @@ async fn send_all_agents_activities_ws(req: HttpRequest, mut session: Session) {
     let notify_channel = scheduler.notify_channel();
     let mut rx = notify_channel;
     'loop_send: loop {
-        match rx.recv().await {
+        let Some(res) = cancel.run_until_cancelled(rx.recv()).await else {
+            break;
+        };
+        match res {
             Ok(notify) => match notify {
                 crate::serve::scheduler::SchedulerNotify::TaskActivity(_) => {}
                 crate::serve::scheduler::SchedulerNotify::AgentActivity(activity) => {

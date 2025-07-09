@@ -1,4 +1,6 @@
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::str::FromStr;
 use taos::Dsn;
 
@@ -29,12 +31,30 @@ impl FromStr for CollectMode {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct PersistDataConfig {
+    pub dir: Option<PathBuf>,
+}
+
+impl PersistDataConfig {
+    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Option<Self>> {
+        let enable = parse_simple_params(dsn, "persist_data_enable")?.is_some_and(|v| v);
+        if !enable {
+            return Ok(None);
+        }
+
+        let dir = parse_simple_params(dsn, "persist_data_dir")?;
+        Ok(Some(Self { dir }))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectConfig {
     pub interval: Option<i64>,
     pub limit: Option<i64>,
     pub ua: Option<UaCollectConfig>,
     pub da: Option<DaCollectConfig>,
+    pub persist_data: Option<PersistDataConfig>,
     pub dump: Option<DumpConfig>,
 }
 
@@ -47,6 +67,7 @@ impl CollectConfig {
                 limit: Self::parse_limit(dsn)?,
                 ua: Some(UaCollectConfig::from_dsn(dsn).await?),
                 da: None,
+                persist_data: PersistDataConfig::from_dsn(dsn)?,
                 dump: DumpConfig::from_dsn(dsn, task_id)?,
             },
             OpcType::OPCDA => Self {
@@ -54,6 +75,7 @@ impl CollectConfig {
                 limit: Self::parse_limit(dsn)?,
                 ua: None,
                 da: Some(DaCollectConfig::from_dsn(dsn).await?),
+                persist_data: PersistDataConfig::from_dsn(dsn)?,
                 dump: DumpConfig::from_dsn(dsn, task_id)?,
             },
             OpcType::FAKE => Self {
@@ -61,6 +83,7 @@ impl CollectConfig {
                 limit: None,
                 ua: None,
                 da: None,
+                persist_data: None,
                 dump: None,
             },
         };
@@ -88,6 +111,21 @@ impl CollectConfig {
             })
             .transpose()
     }
+}
+
+fn parse_simple_params<T>(dsn: &Dsn, key: &str) -> anyhow::Result<Option<T>>
+where
+    T: std::str::FromStr,
+    T::Err: std::error::Error + Send + Sync + 'static,
+{
+    dsn.get(key)
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+        .map(|v| {
+            v.parse::<T>()
+                .with_context(|| format!("invalid {key}: `{v}`"))
+        })
+        .transpose()
 }
 
 /// 从 dsn 的参数 ua.nodes/da.tags 中解析出

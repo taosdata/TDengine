@@ -21,6 +21,7 @@ interface TaskProps {
   api: {
     getTask: RequestApiFn<Recordable[]>;
     refreshTask: RequestApiFn<Recordable[]>;
+    skip2Latest: RequestApiFn<Recordable[]>;
     stop: RequestApiFn<Recordable[]>;
     start: RequestApiFn<Recordable[]>;
     delete: RequestApiFn<Recordable[]>;

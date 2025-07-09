@@ -1,8 +1,8 @@
 use actix_files::NamedFile;
-use actix_web::{post, web::Json, Responder};
+use actix_web::{Responder, post, web::Json};
 
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, DisplayFromStr};
+use serde_with::{DisplayFromStr, serde_as};
 use taos::Dsn;
 use taosx_core::migrations::*;
 use tracing::instrument;

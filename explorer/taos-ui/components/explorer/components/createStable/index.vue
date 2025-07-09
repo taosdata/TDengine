@@ -173,10 +173,10 @@ const isEdit = toRef(props, 'isEdit');
 const formData = reactive<CreateStableForm>({
   name: '',
   columns: [
-    { type: 'TIMESTAMP', field: '', length: 8, ...columnNewField.value.TIMESTAMP },
-    { type: 'INT', field: '', length: 8, ...columnNewField.value.INT }
+    { type: 'TIMESTAMP', field: '', length: 8, length2: 0, ...columnNewField.value.TIMESTAMP },
+    { type: 'INT', field: '', length: 8, length2: 0, ...columnNewField.value.INT }
   ],
-  tags: [{ type: 'INT', field: '', length: 8 }]
+  tags: [{ type: 'INT', field: '', length: 8, length2: 0 }]
 });
 const formIns = ref<FormInstance | null>(null);
 const currentEditType = ref('');
@@ -200,6 +200,7 @@ const columnStruct = computed(() => {
     field: '',
     type: 'INT',
     length: 8,
+    length2: 0,
     ...(version_gte_3300.value ? type_default_version_gte_3300.INT : {})
   };
 });
@@ -212,13 +213,13 @@ function setFormData() {
     formData.name = props.stbName!;
     formData.columns = data.columns;
     formData.columns.forEach(c => {
-      c.origin_length = c.length
+      c.origin_length = c.length;
     });
     formData.tags = data.tags;
     formData.tags.forEach(t => {
       t.origin_field = t.field;
       t.origin_length = t.length;
-    })
+    });
   });
 }
 
@@ -232,10 +233,10 @@ async function typeChange(data: ColumnStruct, type: 'column' | 'tag') {
       const params: changeStbStructData = {
         operation: 'modify ' + type,
         first_field: data.origin_field || data.field,
-        second_field: composeType(data),
+        second_field: composeType(data)
       };
       loading.value = true;
-      await changeStableStruct(params, formData.name, currentSelectedDb.value)
+      await changeStableStruct(params, formData.name, currentSelectedDb.value);
     }
 
     if (type === 'tag' && data.origin_field !== data.field) {
@@ -245,9 +246,9 @@ async function typeChange(data: ColumnStruct, type: 'column' | 'tag') {
         second_field: `\`${data.field}\``
       };
       loading.value = true;
-      await changeStableStruct(params, formData.name, currentSelectedDb.value)
+      await changeStableStruct(params, formData.name, currentSelectedDb.value);
     }
-    
+
     if (loading.value === true) {
       ElMessage.success(t('msg.modifySuccess'));
       setFormData();

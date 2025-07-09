@@ -1,14 +1,14 @@
 use crate::serve::controller::TaskControllerRef;
 use crate::serve::task::Failed;
 use actix_web::web::{Data, Path};
-use actix_web::{get, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, get};
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use opendal::EntryMode;
 use serde::Serialize;
 use taos::IntoDsn;
-use taosx_core::s3::{S3Config, S3Loader, S3_ENABLE};
+use taosx_core::s3::{S3_ENABLE, S3Config, S3Loader};
 use taosx_core::taoz::ZFile;
 use taosx_core::tmq::BackupObject;
 use taosx_core::tmq_to_local::conf::BackupConfig;
@@ -63,6 +63,7 @@ pub async fn get_backup_points(
     }
 }
 
+/// 列出备份目录下的所有备份点
 async fn get_backup_points_impl(
     id: i64,
     task_store: Data<TaskControllerRef>,
@@ -93,6 +94,7 @@ async fn get_backup_points_impl(
     }
 
     let mut backup_files = vec![];
+    // 如果是 S3 备份，列出 S3 上的所有文件
     if let Ok(Some(true)) = utils::parse_key_in_dsn::<bool>(&to, S3_ENABLE) {
         let s3_config = S3Config::from_dsn(&to)?;
         let loader = S3Loader::try_from(&s3_config).await?;
@@ -197,8 +199,8 @@ mod tests {
         let backup_obj = BackupObject {
             task_id: Some("82".to_string()),
             topic: Some("abc".to_string()),
-            db_name: "abc".to_string(),
-            db_sql: "abc".to_string(),
+            db_name: Some("abc".to_string()),
+            db_sql: Some("abc".to_string()),
             stable_name: None,
             stable_sql: None,
         };
@@ -226,8 +228,8 @@ mod tests {
             backup_obj: BackupObject {
                 task_id: None,
                 topic: Some("abc".to_string()),
-                db_name: "abc".to_string(),
-                db_sql: "abc".to_string(),
+                db_name: Some("abc".to_string()),
+                db_sql: Some("abc".to_string()),
                 stable_name: None,
                 stable_sql: None,
             },

@@ -9,6 +9,7 @@ use std::{
 };
 
 use anyhow::Context;
+use archive::ArchiveType;
 use arrow::array::{Array, RecordBatch, StringArray, TimestampNanosecondArray};
 use arrow_schema::{ArrowError, Field};
 use async_backtrace::framed;
@@ -36,8 +37,8 @@ use crate::{
         get_primary_timestamp_ns, parse::ArrayForTaos, MessageArrowRecords, MessageTableMeta,
     },
     sink::{
-        consume_flat_record, persist::get_stream, transform::handling_strategy::HandlingResult,
-        DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+        consume_flat_record, persist::get_stream, process_archive, process_cache,
+        transform::handling_strategy::HandlingResult, DEFAULT_MAX_RETRIES_FOR_CONNECTION,
     },
     utils::{
         sql::{
@@ -46,17 +47,14 @@ use crate::{
         },
         trace::{BatchCounter, Qid},
     },
-    ArchiveType, Parser,
+    Parser,
 };
 
 use crate::global::SQL_TAG_CACHE_CAPACITY;
 use crate::global::TABLE_TAG_CACHE;
 
 use super::{
-    ipc_metric::IpcMetrics,
-    persist::PersistComponent,
-    transform::{archive_records, TableOptions},
-    IpcErrorStrategy,
+    ipc_metric::IpcMetrics, persist::PersistComponent, transform::TableOptions, IpcErrorStrategy,
 };
 
 /// All the messages should be in the same stable.
@@ -433,7 +431,7 @@ pub async fn flat_write_with_sql(
     _notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
     global: &TableOptions,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<usize> {
     // define a macro to handle the success
     macro_rules! metrics_success {
@@ -464,16 +462,18 @@ pub async fn flat_write_with_sql(
         .iter()
         .into_group_map_by(|m| m.stable_name().map(|s| s.to_string()));
 
-    let database_name =
-        match get_database(pool, taos, DEFAULT_MAX_RETRIES_FOR_CONNECTION, cancel).await {
-            Ok(db) => Some(db),
-            Err(err) => {
-                match handling_database_not_exist(global, messages, err, archive_tx.clone()).await {
-                    Ok(_) => return Ok(0),
-                    Err(e) => return Err(e),
-                }
+    let db_name = match get_database(pool, taos, DEFAULT_MAX_RETRIES_FOR_CONNECTION, cancel).await {
+        Ok(db) => Some(db),
+        Err(err) => {
+            return match handling_database_not_exist(global, messages, err, archive_tx.clone())
+                .await
+            {
+                Ok(_) => Ok(0),
+                Err(e) => Err(e),
             }
-        };
+        }
+    };
+
     // insert into stable
     for (stable, messages) in groups.into_iter() {
         let instant = std::time::Instant::now();
@@ -482,9 +482,9 @@ pub async fn flat_write_with_sql(
             target_precision,
             true,
             true,
-            database_name.as_deref(),
+            db_name.as_deref(),
         );
-        tracing::trace!(
+        trace!(
             stable = stable.as_deref(),
             sqls = sqls.len(),
             cost = ?instant.elapsed(),
@@ -493,15 +493,13 @@ pub async fn flat_write_with_sql(
         );
 
         let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
-        // debug_assert!(qid.task_id() > 0);
-        // debug_assert!(qid.batch_id() > 0);
         for records in sqls {
             let archive_tx = archive_tx.clone();
             loop {
                 qid.add_sub_batch_id();
                 match write_stable_with_sql(pool, taos, qid.get(), &records, cancel).await {
                     Ok(n) => {
-                        tracing::trace!(stable, rows = n, "write stable success");
+                        trace!(stable, rows = n, "write stable success");
 
                         count += n;
                         metrics_success!(n, cols);
@@ -567,7 +565,7 @@ pub async fn flat_write_with_sql(
                                     .filter(|c| !actual_columns.contains(c.name.as_str()))
                                     .map(|c| {
                                         format!(
-                                            "ALTER TABLE {stable_name} ADD COLUMN `{}` {};",
+                                            "ALTER TABLE `{stable_name}` ADD COLUMN `{}` {};",
                                             c.name, c.r#type
                                         )
                                     })
@@ -671,7 +669,7 @@ pub async fn flat_write_with_sql(
                                     &messages[0].opts,
                                     &qid,
                                     cancel,
-                                    database_name.as_deref(),
+                                    db_name.as_deref(),
                                     stable.as_deref().unwrap_or_default(),
                                     &records.batches,
                                     &err,
@@ -794,7 +792,7 @@ pub async fn flat_write_with_sql(
                                         &messages[0].opts,
                                         &qid,
                                         cancel,
-                                        database_name.as_deref(),
+                                        db_name.as_deref(),
                                         stable,
                                         field,
                                         &records.batches,
@@ -858,7 +856,7 @@ async fn handle_primary_timestamp_null_and_rewrite(
     stable: &str,
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<bool> {
     let mut success = true;
     // loop the batches
@@ -947,7 +945,7 @@ async fn handle_field_length_overflow_and_rewrite(
     field: &str,
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<bool> {
     let mut success = true;
     // get the length of the field
@@ -1264,7 +1262,7 @@ async fn handle_ingesting_error(
     global: &TableOptions,
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     match global
         .process_on_abnormal
@@ -1303,7 +1301,7 @@ pub async fn flat_write_with_raw_block(
     notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
     global: &TableOptions,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<usize> {
     // define a macro to handle the error
     macro_rules! metrics_failed {
@@ -1428,6 +1426,7 @@ pub async fn flat_write_with_raw_block(
                                 break;
                             }
                             Err(err) => {
+                                tracing::error!("raw block describe table error: {err:#}");
                                 let code: i32 = err.code().into();
                                 if !matches!(code, 0x0218 | 0x2603 | 0x2602 | 0x0618 | 0x0362) {
                                     // 0x0218: the table does not exist
@@ -1647,6 +1646,7 @@ pub async fn flat_write_with_raw_block(
                 .write_raw_block_with_req_id(&raw, qid.get())
                 .await
             {
+                tracing::error!("write raw block error: {err:#}");
                 let code = err.code();
                 let errno: i32 = code.into();
                 write_retries += 1;
@@ -1832,37 +1832,6 @@ pub async fn flat_write_with_raw_block(
                         .inspect(|_| metrics.add_created_tables(1))?;
                     }
                     continue;
-                // } else if errno == 0x2605 {
-                //     // 0x2605: wrong value type
-                //     // container length is too short.
-                //     let desc = describe_table_with_connection_retries(
-                //         pool,
-                //         taos,
-                //         &table_name,
-                //         DEFAULT_MAX_RETRIES_FOR_CONNECTION,
-                //         cancel,
-                //     )
-                //     .in_current_span()
-                //     .await?;
-                //     let table = records.stable_name().unwrap_or(&table_name);
-                //     for f in desc.iter().filter(|f| !f.is_tag() && f.ty().is_var_type()) {
-                //         let sql = format!(
-                //             "alter table `{table}` modify column `{}` {}({})",
-                //             f.field(),
-                //             f.ty(),
-                //             f.length() * 2
-                //         );
-                //         qid.add_sub_batch_id();
-                //         let _ = exec_sql_with_connection_retries(
-                //             pool,
-                //             taos,
-                //             &sql,
-                //             qid.get(),
-                //             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
-                //             cancel,
-                //         )
-                //         .await;
-                //     }
                 } else if errno == 0x0118 {
                     // 0x0118: invalid parameter
                     // Code([0x0118] Unknown or common error)
@@ -2052,7 +2021,7 @@ pub async fn handling_database_not_exist(
     global: &TableOptions,
     messages: &[MessageArrowRecords],
     err: taos::Error,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     match global
         .process_on_abnormal
@@ -2081,32 +2050,6 @@ pub async fn handling_database_not_exist(
     Ok(())
 }
 
-fn process_cache(
-    batch: &RecordBatch,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
-) -> anyhow::Result<()> {
-    if batch.num_rows() > 0 {
-        archive_tx.send((ArchiveType::Cache, batch.clone()))?;
-    }
-    Ok(())
-}
-
-fn process_archive(
-    err: &str,
-    batch: &RecordBatch,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
-) -> anyhow::Result<()> {
-    // possible difference in schema, so archive them separately
-    let err_vec = vec![err.to_string(); batch.num_rows()];
-    let err_timestamp_vec = vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
-    archive_records(
-        batch,
-        err_vec.clone(),
-        err_timestamp_vec.clone(),
-        archive_tx.clone(),
-    )
-}
-
 pub type FlatItem = (
     Vec<MessageArrowRecords>,
     Qid,
@@ -2130,7 +2073,7 @@ impl FlatSink {
         metrics_arc: Arc<CoreMetrics>,
         notifier: crate::TaskNotifySender,
         cancel: CancellationToken,
-        archive_tx: Sender<(ArchiveType, RecordBatch)>,
+        archive_tx: Sender<ArchiveType>,
     ) -> anyhow::Result<Self> {
         let workers = parser.global().workers_per_vgroup();
         let taos = pool.get().await?;
@@ -2454,7 +2397,7 @@ async fn consume_flat_record_with_sink(
     batch: &RecordBatch,
     count: &mut usize,
     parser: &Parser,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     let batch = parser.parse_message_from_records(batch, true, archive_tx.clone())?;
 
@@ -2482,7 +2425,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
@@ -2669,7 +2612,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
@@ -2812,10 +2755,9 @@ pub async fn ipc_flat_stream_worker_concurrent(
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
-    // tokio::pin!(stream);
     let count = Arc::new(AtomicUsize::new(0));
     let context = WriterContext {
         pool: pool.clone(),
@@ -2835,21 +2777,22 @@ pub async fn ipc_flat_stream_worker_concurrent(
 
     let (stream, ack_tx) = match persist_component {
         None => (Either::Left(stream.map(|v| (v, None))), Some(ack_tx)),
-        Some(persist) => (
-            Either::Right(
-                get_stream(
-                    persist,
-                    stream,
-                    ack_tx,
-                    &cancel,
-                    Some(metrics_arc.clone()),
-                    &mut writer_set,
-                    true,
-                )?
-                .into_stream(),
-            ),
-            None,
-        ),
+        Some(component) => {
+            let metrics = component
+                .config
+                .record_metrics
+                .then_some(metrics_arc.clone());
+            let persist_rx = get_stream(
+                component,
+                stream,
+                ack_tx,
+                &cancel,
+                metrics,
+                &mut writer_set,
+                true,
+            )?;
+            (Either::Right(persist_rx.into_stream()), None)
+        }
     };
 
     writer_set.spawn({
@@ -2869,7 +2812,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
 
     let qid = Span.get_qid().unwrap_or_else(Qid::init);
     // debug_assert!(qid.task_id() > 0);
-    tracing::info!(num = workers, "create flat stream concurrent workers");
+    info!(num = workers, "create flat stream concurrent workers");
     for i in 0..workers {
         let count = count.clone();
         let context = context.clone();
@@ -3495,7 +3438,7 @@ pub mod tests {
             if let Some(sql) = valid_sql_or_none(slice) {
                 return vec![sql];
             }
-            let p = (slice.len() + 1) / 2;
+            let p = slice.len().div_ceil(2);
             let (left, right) = slice.split_at(p);
             let mut sqls = values_to_sqls(left);
             sqls.extend(values_to_sqls(right));

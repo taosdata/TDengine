@@ -12,7 +12,7 @@ use taosx_ipc::{
     stream::{flat::FlatMessage, point::PointMessage},
 };
 use tokio::runtime::Runtime;
-use tracing::{info, instrument};
+use tracing::info;
 
 use taosx_ipc::prelude::*;
 
@@ -20,10 +20,10 @@ use taosx_ipc::prelude::*;
 use std::path::Path;
 // shadow_rs::shadow!(build);
 
-#[instrument]
-async fn hello() -> &'static str {
-    "Hello world!"
-}
+// #[instrument]
+// async fn hello() -> &'static str {
+//     "Hello world!"
+// }
 
 fn ipc_windows_read(stream: TcpStream) -> anyhow::Result<()> {
     let ipc_reader = IpcReader::new(&stream).unwrap();
@@ -166,7 +166,7 @@ fn handle_lush_message<R: Read, W: Write>(
         .map(|s| s.to_string())
         .collect_vec();
     let names = columns.iter().map(|n| format!("`{n}`")).join(",");
-    let marks = std::iter::repeat('?').take(columns.len()).join(",");
+    let marks = std::iter::repeat_n('?', columns.len()).join(",");
 
     let mut records = 0;
 
@@ -608,7 +608,7 @@ fn handle_point_message<R: Read, W: Write>(
                                             } else if column_meta.field() == "point_name" && point_name.len() > column_meta.length() {
                                                 column_type = "tag";
                                                 length = point_name.len();
-                                            } else if (column_meta.ty == Ty::VarChar || column_meta.ty == Ty::NChar)
+                                            } else if column_meta.ty().is_var_type()
                                                 && column_meta.field() == value_column_name && value_column_length > column_meta.length() {
                                                 column_type = "column";
                                                 length = value_column_length;

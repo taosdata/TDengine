@@ -42,7 +42,7 @@ mod udt;
 pub enum ParseError {
     #[error(transparent)]
     JsonPathError(#[from] serde_json_path::ParseError),
-    #[error("Deserialize json from {0} error: {1:#}")]
+    #[error("Deserialize json from {0:?} error: {1:#}")]
     JsonDeserializeError(String, serde_json::Error),
     #[error("Expect json object, got unsupported value: {0:#}")]
     UnsupportedJsonValue(serde_json::Value),

@@ -59,19 +59,18 @@
           >{{ startCase(t('dataIn.delete') + t('dataIn.task')) }}</el-button
         >
       </el-tooltip>
-      
+
       <el-button
-          link
-          type="primary"
-          size="default"
-          icon="Sell"
-          :disabled="isDisabled || dataInProps.isCommunity"
-          @click="handleExportTask"
-          >{{ startCase(t('dataIn.export') + t('dataIn.task')) }}</el-button
-        >
+        link
+        type="primary"
+        size="default"
+        icon="Sell"
+        :disabled="isDisabled || dataInProps.isCommunity"
+        @click="handleExportTask"
+        >{{ startCase(t('dataIn.export') + t('dataIn.task')) }}</el-button
+      >
 
-      <task-import @importOK="refresh" />
-
+      <task-import @import-o-k="refresh" />
     </PageTitle>
     <div>
       <el-table
@@ -245,7 +244,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column :label="t('dataIn.operation')" width="150" class="action" fixed="right">
+        <el-table-column :label="t('dataIn.operation')" width="200" class="action" fixed="right">
           <template #default="scope">
             <el-tooltip placement="bottom" effect="light" :content="t('dataIn.editconfig')">
               <el-button
@@ -277,6 +276,20 @@
                 @click="del(scope.row)"
               ></el-button>
             </el-tooltip>
+            <el-tooltip
+              v-if="scope.row.from.type === 'kafka'"
+              placement="bottom"
+              effect="light"
+              :content="t('dataIn.tipForSkip')"
+            >
+              <el-button
+                plain
+                size="small"
+                icon="DArrowRight"
+                :disabled="dataInProps.isCommunity"
+                @click="confirmSkipToLatest(scope.row)"
+              ></el-button>
+            </el-tooltip>
           </template>
         </el-table-column>
       </el-table>
@@ -301,6 +314,29 @@
       center
     />
   </div>
+
+  <el-dialog v-model="dlgConfirmSeek2End" :title="$t('tips')" width="700px">
+    <div>
+      <div style="margin-bottom: 10px; font-size: 16px">
+        {{ t('dataIn.skip2Latest', [taskToSeek.name]) }}
+      </div>
+      <div>
+        <el-checkbox v-model="isRecoverHistoryData" style="margin-left: 10px">
+          {{ t('dataIn.redoPiledupData') }}
+        </el-checkbox>
+      </div>
+    </div>
+
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button class="w100" @click="dlgConfirmSeek2End = false">{{ $t('cancel') }}</el-button>
+
+        <el-button v-loading="requestIng" class="w100" type="primary" @click="skipToLatest">{{
+          $t('confirm')
+        }}</el-button>
+      </div>
+    </template>
+  </el-dialog>
 </template>
 <script setup lang="ts">
 import { startCase } from 'lodash-es';
@@ -316,7 +352,7 @@ import { downloadByData } from '../../../../utils/files';
 import Metrics from './metrics.vue';
 import Activities from '../../components/activities.vue';
 import PageTitle from '../../components/pageTitle.vue';
-import TaskImport from '../../components/task-import.vue'
+import TaskImport from '../../components/task-import.vue';
 import { ElMessage } from 'element-plus';
 import { getDataInProps } from '../../model/useDataIn';
 import { useActivitySubscription, ActivitieProps } from '../../model/useWebSoket';
@@ -439,6 +475,8 @@ async function getList() {
       const { activity, close } = useActivitySubscription(dataInProps.task.webSoketUrl);
       connectData.activity = activity;
       connectData.close = close;
+    } else {
+      closeConnect();
     }
   });
 }
@@ -572,8 +610,8 @@ async function handleExportTask() {
     downloadByData(res as BlobPart, `datain-tasks-${ids.join()}.json`);
     setTimeout(() => {
       requestIng.value = false;
-    }, 1000)
-    
+    }, 1000);
+
     dataSourceTableRef.value.clearSelection();
   } catch (err) {
     return Promise.reject(err);
@@ -807,7 +845,7 @@ function getStatusClass(status: string) {
 function closeConnect() {
   hasConnect.value = false;
   if (connectData && connectData.close) {
-    connectData.close(dataInProps.agent.webSoketUrl);
+    connectData.close(dataInProps.task.webSoketUrl);
   }
 }
 
@@ -831,6 +869,31 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
   closeConnect();
 });
+
+const dlgConfirmSeek2End = ref(false);
+const isRecoverHistoryData = ref(false);
+const taskToSeek = ref<Recordable>({});
+
+const confirmSkipToLatest = (item: Recordable) => {
+  taskToSeek.value = {
+    id: item.id,
+    name: item.localname
+  };
+  dlgConfirmSeek2End.value = true;
+};
+
+const skipToLatest = async () => {
+  try {
+    await dataInProps.task.api.skip2Latest(taskToSeek.value.id, isRecoverHistoryData.value);
+  } catch (error) {
+    console.log(error);
+    ElMessage.error(error);
+  } finally {
+    dlgConfirmSeek2End.value = false;
+    isRecoverHistoryData.value = false;
+    await refresh();
+  }
+};
 </script>
 <style lang="scss">
 .el-tooltip__popper {
@@ -849,6 +912,10 @@ onBeforeUnmount(() => {
 
 .el-form-item {
   display: flex;
+}
+
+.w100 {
+  width: 100px;
 }
 
 :deep(.el-form-item--mini .el-form-item__content) {

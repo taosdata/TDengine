@@ -140,6 +140,9 @@ export default {
   task: '任务',
   importEmpty: '导入的任务列表为空',
   batchOperateTip: '请先勾选需要{0}的任务',
+  skip2Latest: '是否要将任务【{0}】跳过堆积数据开始消费最新的实时数据',
+  redoPiledupData: '补录数据，会创建一个新任务消费堆积的数据',
+  tipForSkip: '跳过堆积数据后，任务将会从最新的时间点开始消费数据',
   noTaskOperateTip: '当前所勾选的任务中没有可以{0}的任务',
   addOpcPoint: '增加数据点位',
   addPointDesc: '填写点位信息动态增加点位到 CSV 文件',
@@ -159,7 +162,7 @@ export default {
   csvinusetip: '下载使用中的配置文件',
   connectionConfiguration: '连接配置',
   createNewAgent: '创建新的代理',
-  palceholders: {
+  placeholders: {
     taskName: '任务名称',
     agentPlaceholder: '选择代理',
     chooseTargetDbTip: '请选择目标数据库',
@@ -324,22 +327,22 @@ export default {
       1. <strong>JSON</strong>: 使用可视化编辑器编辑提取表达式；可留空，则只解析非嵌套属性。<br/>
       2. <strong>Regex</strong>: 使用<strong>命名捕获组</strong>从字符串中提取字段。例如，正则表达式 <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> 将提取3个字段 y、m 和 d。<br/>
       3. <strong>UDT</strong>: 使用自定义脚本解析数据。可下载<a href="/example-code.rhai" download>示例代码<a>进行参考。<br/>
-      <span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">更详细解析规则请访问<a href="/docs/enterprise/datain/transformer/#12-解析" target="_blank">企业版文档</a>。</span>`,
+      <span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">更详细解析规则请访问<a href="/docs/advanced/data-in/#${encodeURIComponent('解析')}" target="_blank">企业版文档</a>。</span>`,
     filterdesc: `<strong>根据数据类型可编写不同的判断表达式，结果为 true 的行才被写入 TDengine：</strong><br/>
       1. <strong>布尔类型</strong>： 可直接使用 BOOL 类型的变量名作为表达式。<br/>
       2. <strong>字符串类型</strong>：支持函数 <em>is_empty</em>、<em>contains</em>、<em>starts_with</em>、<em>ends_with</em> 等，例如 c.starts_with("taos")，可判断字段<em>c</em>是否以<em>taos</em>为前缀。<br/>
       3. <strong>数值类型</strong>：支持<em>==、!=、>、>=、<、<=</em>等比较操作符。<br/>
-      可使用 <em>&amp;&amp;</em> 或 <em>&vert;&vert;</em> 组合多个判断表达式。<span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">更详细过滤规则请访问<a href="/docs/enterprise/datain/transformer/#3-过滤" target="_blank">企业版文档</a>。</span>
+      可使用 <em>&amp;&amp;</em> 或 <em>&vert;&vert;</em> 组合多个判断表达式。<span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">更详细过滤规则请访问<a href="/docs/advanced/data-in/#${encodeURIComponent('过滤')}" target="_blank">企业版文档</a>。</span>
     `,
     expressiondesc: `<strong>taosX 支持映射表达式，将解析、提取、拆分的字段映射到目标超级表中</strong>：<br/>
       1. <strong>value</strong>：常量，例如 <em>1</em>、<em>"taos"</em>；<br/>
       2. <strong>expr</strong>：数学计算表达式，例如将摄氏度转为华氏度数值，可使用表达式 <em>centigrade * 1.8 + 32</em>；<br/>
       3. <strong>format</strong>：字符串格式化，使用占位符 <em>&#36;&#123;&#125;</em> 来引用字段，例如 <em>\${year}-\${month}-\${day}</em> 可以格式为日期。<br/>
-      <span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">更详细映射规则请访问<a href="/docs/enterprise/datain/transformer/#4-映射" target="_blank">企业版文档</a>。</span>`,
+      <span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">更详细映射规则请访问<a href="/docs/advanced/data-in/#${encodeURIComponent('映射')}" target="_blank">企业版文档</a>。</span>`,
     subextractdesc: `<strong>taosX 目前支持以下 2 种规则</strong>：<br/>
       1. <strong>Split</strong>: 将一个字段分割为多个，需指定参数<strong>分隔符</strong>和<strong>拆分数量</strong>。例如字段<em>c</em>拆分为 2 个字段后，字段名为 <em>c_0</em>、<em>c_1</em>。<br/>
       2. <strong>Regex</strong>: 使用<strong>命名捕获组</strong>从字符串中提取字段。例如，正则表达式 <em>(?&lt;y&gt;[0-9]{4})-(?&lt;m&gt;[0-9]{2})-(?&lt;d&gt;[0-9]{2})</em> 将提取 3 个字段 y、m 和 d。<br/>
-      <span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">更详细拆分提取规则请访问<a href="/docs/enterprise/datain/transformer/#2-提取或拆分" target="_blank">企业版文档</a>。</span>`,
+      <span style="${$IS_COMMUNITY ? 'display:none' : 'display:inline-block'}">更详细拆分提取规则请访问<a href="/docs/advanced/data-in/#${encodeURIComponent('提取或拆分')}" target="_blank">企业版文档</a>。</span>`,
     uploadexe: '请上传csv文件并执行下一步操作',
     extractrule: {
       nofield: '未指定提取列名',
@@ -368,7 +371,7 @@ export default {
     expre_input: 'exp1;exp2;exp3',
     expre_regex: '请输入正则表达式',
     expre_join: '请输入 join 字符',
-    expre_convert: "json 字符串，key 为当前值，value 为转换后的值",
+    expre_convert: 'json 字符串，key 为当前值，value 为转换后的值',
     filter_input: '请输入筛选表达式',
     st_input: '请输入超级表名称',
     create_st: '创建超级表',

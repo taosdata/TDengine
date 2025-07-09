@@ -540,6 +540,7 @@ fn to_arrow_data_type(col_type: ColumnType) -> anyhow::Result<DataType> {
         ColumnType::Floatn => DataType::Float64,
         ColumnType::Datetime2 => DataType::Timestamp(Nanosecond, None),
         ColumnType::NVarchar => DataType::Utf8,
+        ColumnType::BigBinary | ColumnType::BigVarBin => DataType::Binary,
         _ => Err(anyhow::anyhow!("Unsupported column type: {:?}", col_type))?,
     };
 

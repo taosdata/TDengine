@@ -98,6 +98,7 @@ pub const METRIC_TMQ_POINTS: &str = "metrics.tmq.points";
 /// - `+1s` means stop at now + 1s.
 /// - `2021-09-01T00:00:00+08:00` means stop at the specific time.
 /// - `1000rows` means stop when received 1000 rows.
+#[allow(unused)]
 #[derive(Debug, Clone)]
 pub(crate) enum StopAt {
     DateTime(chrono::DateTime<Local>),
@@ -159,11 +160,11 @@ impl FromStr for StopAt {
 /// 2. check each name in topic list.
 /// 3. if the name is in topic list, return topic itself.
 /// 4. if the name is not a topic.
-///     4.1 if the name is a database, create a database topic with meta as is.
-///     4.2 else, if the name is in `database.table` format,
-///     4.3       then if the `table` is STable, create a topic named `database_table` with meta as stable.
-///     4.4            if the `table` is child table or normal, create a topic named `database_table` as select * from table.
-///     4.5            else, bail unexpected input topics error to upstream.
+///    4.1 if the name is a database, create a database topic with meta as is.
+///    4.2 else, if the name is in `database.table` format,
+///    4.3       then if the `table` is STable, create a topic named `database_table` with meta as stable.
+///    4.4            if the `table` is child table or normal, create a topic named `database_table` as select * from table.
+///    4.5            else, bail unexpected input topics error to upstream.
 pub(crate) async fn check_tmq_dsn(
     mut from: Dsn,
 ) -> Result<(Dsn, TaosBuilder, Vec<Topic>, bool, bool)> {
@@ -185,9 +186,17 @@ pub(crate) async fn check_tmq_dsn(
         .and_then(|val| val.parse().ok())
         .unwrap_or(true);
 
-    if from.get("timeout").is_none() {
-        from.set("timeout", "5s");
+    match from.get("timeout") {
+        Some(s) => {
+            if matches!(s.as_str(), "0" | "-1") {
+                from.set("timeout", "never");
+            }
+        }
+        None => {
+            from.set("timeout", "5s");
+        }
     }
+
     if let Some(val) = from.get("auto.offset.reset") {
         if val != "latest" && val != "earliest" {
             bail!("`auto.offset.reset` option only support `latest` or `earliest`");
@@ -199,7 +208,7 @@ pub(crate) async fn check_tmq_dsn(
         from.set("experimental.snapshot.enable", "true");
     }
 
-    if !from.get("enable.auto.commit").map_or(false, |s| {
+    if !from.get("enable.auto.commit").is_some_and(|s| {
         matches!(
             s.as_str(),
             "true"
@@ -239,7 +248,7 @@ pub(crate) async fn check_tmq_dsn(
     let builder = TaosBuilder::from_dsn(&from)?;
     let version = builder.server_version().await?;
     if version.starts_with("2.") {
-        bail!("tmq does not support TDengine 2.x");
+        bail!("tmq does not support TDengine Query");
     }
 
     let source = builder.build().await?;
@@ -870,8 +879,8 @@ pub struct BackupObject {
     pub task_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub topic: Option<String>,
-    pub db_name: String,
-    pub db_sql: String,
+    pub db_name: Option<String>,
+    pub db_sql: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stable_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -884,10 +893,8 @@ impl TryFrom<&Dsn> for BackupObject {
     fn try_from(dsn: &Dsn) -> std::result::Result<Self, Self::Error> {
         let task_id = utils::parse_key_in_dsn::<String>(dsn, "task_id")?;
         let topic = utils::parse_key_in_dsn::<String>(dsn, "topic")?;
-        let db_name = utils::parse_key_in_dsn::<String>(dsn, "db_name")?
-            .ok_or(anyhow::anyhow!("parameter: db_name not found"))?;
-        let db_sql = utils::parse_key_in_dsn::<String>(dsn, "db_sql")?
-            .ok_or(anyhow::anyhow!("parameter: db_sql not found"))?;
+        let db_name = utils::parse_key_in_dsn::<String>(dsn, "db_name")?;
+        let db_sql = utils::parse_key_in_dsn::<String>(dsn, "db_sql")?;
         let stable_name = utils::parse_key_in_dsn::<String>(dsn, "stable_name")?;
         let stable_sql = utils::parse_key_in_dsn::<String>(dsn, "stable_sql")?;
         Ok(Self {
@@ -903,70 +910,67 @@ impl TryFrom<&Dsn> for BackupObject {
 
 impl BackupObject {
     /// 从 taos 中查询出 BackupObject，只支持查询 $DATABASE 和 $STABLE_NAME
-    /// dsn 的格式为： tmq://$HOST:$PORT/$DATABASE?stable=$STABLE_NAME
+    /// dsn 的格式为： taos://$HOST:$PORT/$DATABASE?stable=$STABLE_NAME
     /// $DATABASE 不能为空，$STABLE_NAME 可以为空
     pub async fn try_from_taos(dsn: &Dsn) -> Result<Option<BackupObject>> {
         let taos = connect_taos_root(dsn).await?;
 
-        let db_name = dsn.subject.as_ref();
-        if db_name.is_none() {
-            return Ok(None);
-        }
-        let db_name = db_name.unwrap();
-
-        // 查询 database
-        let sql = format!(
-            "SELECT name FROM information_schema.ins_databases WHERE name = '{}'",
-            db_name
-        );
-        tracing::debug!("query taos with sql: {}", sql);
-        let database: Option<String> = taos.query_one(sql).await?;
-        if database.is_none() {
-            return Ok(None);
-        }
-        let database = database.unwrap();
-
-        // 查询 database 的创建语句
-        let sql = format!("SHOW CREATE DATABASE `{}`", db_name);
-        tracing::debug!("query taos with sql: {}", sql);
-        let (_db, db_sql) = taos
-            .query_one::<_, (String, String)>(sql)
-            .await?
-            .ok_or(anyhow::anyhow!("failed to get create database sql"))?;
-
         let mut backup_obj = BackupObject {
             task_id: None,
             topic: None,
-            db_name: database,
-            db_sql,
+            db_name: None,
+            db_sql: None,
             stable_name: None,
             stable_sql: None,
         };
 
-        let stable = utils::parse_key_in_dsn::<String>(dsn, "stable")?;
-        if let Some(stable) = stable {
-            // 查询 stable
+        // database
+        let db_name = dsn.subject.as_ref();
+        if let Some(db_name) = db_name {
+            // 查询 database
             let sql = format!(
-                "SELECT stable_name FROM information_schema.ins_stables WHERE db_name = '{}' AND stable_name = '{}'",
-                db_name, stable
+                "SELECT name FROM information_schema.ins_databases WHERE name = '{}'",
+                db_name
             );
             tracing::debug!("query taos with sql: {}", sql);
-            let stable_name: Option<String> = taos.query_one(sql).await?;
-            if stable_name.is_none() {
-                return Ok(None);
-            }
-            let stable_name = stable_name.unwrap();
+            let database: Option<String> = taos.query_one(sql).await?;
+            if let Some(database) = database {
+                backup_obj.db_name = Some(database);
 
-            // 查询 stable 的创建语句
-            let sql = format!("SHOW CREATE STABLE `{}`.`{}`", db_name, stable);
-            tracing::debug!("query taos with sql: {}", sql);
-            let (_stable, stable_sql) = taos
-                .query_one::<_, (String, String)>(sql)
-                .await?
-                .ok_or(anyhow::anyhow!("failed to get create stable sql"))?;
-            backup_obj.stable_name = Some(stable_name);
-            backup_obj.stable_sql = Some(stable_sql);
-        }
+                // 查询 database 的创建语句
+                let sql = format!("SHOW CREATE DATABASE `{}`", db_name);
+                tracing::debug!("query taos with sql: {}", sql);
+                let (_db, db_sql) = taos
+                    .query_one::<_, (String, String)>(sql)
+                    .await?
+                    .ok_or(anyhow::anyhow!("failed to get create database sql"))?;
+                backup_obj.db_sql = Some(db_sql);
+            }
+
+            // stable
+            let stable = utils::parse_key_in_dsn::<String>(dsn, "stable")?;
+            if let Some(stable) = stable {
+                let sql = format!(
+                    "SELECT stable_name FROM information_schema.ins_stables WHERE db_name = '{}' AND stable_name = '{}'",
+                    db_name, stable
+                );
+                tracing::debug!("query taos with sql: {}", sql);
+                let stable_name: Option<String> = taos.query_one(sql).await?;
+
+                if let Some(stable_name) = stable_name {
+                    backup_obj.stable_name = Some(stable_name.clone());
+
+                    // 查询 stable 的创建语句
+                    let sql = format!("SHOW CREATE STABLE `{}`.`{}`", db_name, stable);
+                    tracing::debug!("query taos with sql: {}", sql);
+                    let (_stable, stable_sql) =
+                        taos.query_one::<_, (String, String)>(sql)
+                            .await?
+                            .ok_or(anyhow::anyhow!("failed to get create stable sql"))?;
+                    backup_obj.stable_sql = Some(stable_sql);
+                }
+            }
+        };
 
         Ok(Some(backup_obj))
     }
@@ -975,6 +979,7 @@ impl BackupObject {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
 
     #[test]
     fn test_deserialize_backup_object() {
@@ -987,9 +992,13 @@ mod tests {
         }"#;
 
         let topic_meta: BackupObject = serde_json::from_str(topic_meta).unwrap();
+
         assert_eq!(topic_meta.topic, Some("x123".to_string()));
-        assert_eq!(topic_meta.db_name, "x123");
-        assert_eq!(topic_meta.db_sql, "CREATE DATABASE IF NOT EXISTS x123");
+        assert_eq!(topic_meta.db_name, Some("x123".to_string()));
+        assert_eq!(
+            topic_meta.db_sql,
+            Some("CREATE DATABASE IF NOT EXISTS x123".to_string())
+        );
         assert_eq!(topic_meta.stable_name, Some("x123_stable".to_string()));
         assert_eq!(
             topic_meta.stable_sql,
@@ -1069,6 +1078,33 @@ mod tests {
         assert_eq!("db1", topics[0].database);
     }
 
+    /// example:
+    /// ```shell
+    /// cargo nextest run -p taosx-core test_check_tmq_dsn_with_taos --nocapture --retries 0
+    /// ```
+    #[tokio::test]
+    async fn test_check_tmq_dsn_with_taos() -> anyhow::Result<()> {
+        let host = std::env::var("HOST").unwrap_or(String::from("127.0.0.1"));
+        let db = format!("test{}", Utc::now().timestamp());
+
+        // create test database
+        let dsn = format!("taos://{host}").into_dsn()?;
+        let taos = TaosBuilder::from_dsn(&dsn)?.build().await?;
+        taos.exec(format!("create database if not exists {db}"))
+            .await?;
+
+        // when
+        let dsn = format!("tmq://{host}/{db}?timeout=0&prefer=raw").into_dsn()?;
+        let (dsn, _, _, _, _) = check_tmq_dsn(dsn).await?;
+        assert_eq!("never", dsn.params.get("timeout").unwrap());
+
+        // clean
+        taos.exec(format!("drop topic if exists {db}")).await?;
+        taos.exec(format!("drop database if exists {db}")).await?;
+
+        Ok(())
+    }
+
     #[ignore]
     #[tokio::test]
     async fn test_valid() {
@@ -1088,7 +1124,7 @@ mod tests {
         assert!(!dsv.valid);
         assert!(!dsv.support);
         assert_eq!("tmq", dsv.data_source);
-        assert_eq!("failed to check dsn: tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid, cause: tmq does not support TDengine 2.x", dsv.message.unwrap());
+        assert_eq!("failed to check dsn: tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid, cause: tmq does not support TDengine Query", dsv.message.unwrap());
 
         // TDengine 3.X non-exist topic
         let dsn =
@@ -1121,13 +1157,15 @@ mod tests {
         let taos_builder = taos::TaosBuilder::from_dsn("taos://").unwrap();
         let taos = taos_builder.build().await.unwrap();
 
-        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
+        const DB_NAME: &str = "create_topic_no_wal";
+
+        drop_topic_and_database(&taos, DB_NAME, DB_NAME).await;
 
         // create database without wal, then create a topic
         let res = taos
             .exec_many(vec![
-                "create database if not exists test_no_wal WAL_RETENTION_PERIOD 0",
-                "create topic if not exists test_no_wal with meta as database test_no_wal",
+                format!("create database if not exists {DB_NAME} WAL_RETENTION_PERIOD 0"),
+                format!("create topic if not exists {DB_NAME} with meta as database {DB_NAME}"),
             ])
             .await;
 
@@ -1138,7 +1176,7 @@ mod tests {
             .contains("WAL retention period is zero"));
 
         // clean
-        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
+        drop_topic_and_database(&taos, DB_NAME, DB_NAME).await;
     }
 
     #[tokio::test]
@@ -1146,29 +1184,52 @@ mod tests {
         let taos_builder = taos::TaosBuilder::from_dsn("taos://").unwrap();
         let taos = taos_builder.build().await.unwrap();
 
+        const DB_NAME: &str = "alter_database_no_wal";
+
         // create a database, drop it first if exists
-        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
-        let _ = taos.exec("create database if not exists test_no_wal").await;
+        drop_topic_and_database(&taos, DB_NAME, DB_NAME).await;
+        let _ = taos
+            .exec(format!("create database if not exists {DB_NAME}"))
+            .await;
+
+        loop {
+            if taos.database_exists(DB_NAME).await.unwrap() {
+                break;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
 
         // create a topic
         let _ = taos
-            .exec("create topic if not exists test_no_wal with meta as database test_no_wal")
+            .exec(format!(
+                "create topic if not exists {DB_NAME} with meta as database {DB_NAME}"
+            ))
             .await;
+        loop {
+            let res: Option<String> =
+                taos.query_one(format!("select topic_name from information_schema.ins_topics where topic_name = '{DB_NAME}'"))
+                    .await
+                    .unwrap();
+            if res.is_some() {
+                break;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
 
         // alter database to disable wal, there should be an error
         let alter_database_res = taos
-            .exec("alter database test_no_wal wal_retention_period 0")
+            .exec(format!("alter database {DB_NAME} wal_retention_period 0"))
             .await;
-
-        // clear the test data
-        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
 
         // assert the result
         assert!(alter_database_res.is_err());
-        assert_eq!(
-            alter_database_res.unwrap_err().to_string(),
-            "[0x038C] Error while querying with sql \"alter database test_no_wal wal_retention_period 0\": Internal error: `WAL retention period is zero`"
-        );
+        assert!(alter_database_res
+            .unwrap_err()
+            .to_string()
+            .contains("WAL retention period is zero"));
+
+        // clear the test data
+        drop_topic_and_database(&taos, DB_NAME, DB_NAME).await;
     }
 
     /// Test `check_wal_enabled` function
@@ -1179,22 +1240,25 @@ mod tests {
     async fn test_check_wal_enabled_with_taos() {
         let taos_builder = taos::TaosBuilder::from_dsn("taos://").unwrap();
         let taos = taos_builder.build().await.unwrap();
+        const DB_NAME: &str = "check_wal_enabled";
 
         // create a database, drop it first if exists
-        drop_topic_and_database(&taos, "test_with_wal", "test_with_wal").await;
+        drop_topic_and_database(&taos, DB_NAME, DB_NAME).await;
         let _ = taos
-            .exec("create database if not exists test_with_wal")
+            .exec(format!("create database if not exists {DB_NAME}"))
             .await;
 
         // create a topic
         let _ = taos
-            .exec("create topic if not exists test_with_wal with meta as database test_with_wal")
+            .exec(format!(
+                "create topic if not exists {DB_NAME} with meta as database {DB_NAME}"
+            ))
             .await;
 
         // check if wal is enabled
         let topics = vec![Topic {
-            name: "test_with_wal".to_string(),
-            database: "test_with_wal".to_string(),
+            name: DB_NAME.to_string(),
+            database: DB_NAME.to_string(),
             database_sql: None,
             vgroups: 2,
             table: None,
@@ -1203,10 +1267,10 @@ mod tests {
         }];
         let res = check_wal_enabled(&taos_builder, &topics).await;
 
-        // clear the test data
-        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
-
         // assert the result
         assert!(res.is_ok());
+
+        // clear the test data
+        drop_topic_and_database(&taos, DB_NAME, DB_NAME).await;
     }
 }

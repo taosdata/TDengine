@@ -1,5 +1,5 @@
 export default {
-  name: 'TDengine 3.x',
+  name: 'TDengine Data Subscription',
   id: 'tmq',
   type: 'uri',
   description:
@@ -47,7 +47,7 @@ export default {
               label: 'Start From',
               description:
                 'Data offset to start subscribing.\n- *earliest*: All the data in TDengine, include the new data,\n- *latest*: Subscribe from latest data.\n',
-              field: 'auto~offset~reset',
+              field: 'auto.offset.reset',
               placeholder: '',
               defaultValue: 'earliest',
               pattern: null,
@@ -72,7 +72,7 @@ export default {
               label: 'Group ID',
               description:
                 'Group ID is a string used to identify a subscription group, with a maximum length of 192. Subscribers within the same subscription group share consumption progress. Randomly generated group ID will be used when not specified.      \n',
-              field: 'group~id',
+              field: 'group.id',
               placeholder: '',
               pattern: null,
               grid_two: false,
@@ -81,7 +81,7 @@ export default {
             {
               label: 'Client ID',
               description: 'Client ID is a string used to identify the client, with a maximum length of 192.\n',
-              field: 'client~id',
+              field: 'client.id',
               required: true,
               placeholder: '',
               pattern: null,
@@ -120,7 +120,7 @@ export default {
               label: 'TSDB Data',
               description:
                 '- If enabled, the data that has been persisted in time series data storage files will be replicated too; otherwise, only the data still in WAL (write ahead log) will be replicated.\n',
-              field: 'experimental~snapshot~enable',
+              field: 'experimental.snapshot.enable',
               placeholder: '',
               defaultValue: true,
               pattern: null,
@@ -131,7 +131,7 @@ export default {
               label: 'Table Deletions',
               description:
                 'If enabled, the table deletion operations on the source side will be replayed on the sink side.\n',
-              field: 'with~meta~drop',
+              field: 'with.meta.drop',
               placeholder: '',
               defaultValue: true,
               pattern: null,
@@ -142,7 +142,7 @@ export default {
               label: 'Data Deletions',
               description:
                 'If enabled, the data deletion operations on the source side will be replayed on the sink side.\n',
-              field: 'with~meta~delete',
+              field: 'with.meta.delete',
               placeholder: '',
               defaultValue: true,
               pattern: null,
@@ -264,7 +264,7 @@ export default {
         },
         {
           label: 'Number of Consumers',
-          field: 'num~of~consumers',
+          field: 'num.of.consumers',
           description: 'Number of Consumers',
           defaultValue: '0',
           required: false,
@@ -279,7 +279,7 @@ export default {
         },
         {
           label: 'Number of Writers',
-          field: 'num~of~writers',
+          field: 'num.of.writers',
           description: 'Number of Writers',
           defaultValue: '0',
           required: false,
@@ -316,7 +316,7 @@ export default {
         },
         {
           label: 'Commit Chunk Size',
-          field: 'commit~chunk~size',
+          field: 'commit.chunk.size',
           description: 'Commit Chunk Size',
           defaultValue: '0',
           required: false,
@@ -331,7 +331,7 @@ export default {
         },
         {
           label: 'Commit Inerval(ms)',
-          field: 'commit~interval~ms',
+          field: 'commit.interval.ms',
           description: 'Commit Inerval(ms)',
           defaultValue: '0',
           required: false,

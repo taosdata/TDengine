@@ -1,46 +1,129 @@
 #[cfg(test)]
 mod test_tmq_to_local {
-    use anyhow::bail;
+    use anyhow::{Context, bail};
     use assert_cmd::Command;
     use opendal::Entry;
     use std::env;
     use std::path::Path;
     use taos::{
-        AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, Taos, TaosBuilder, TryStreamExt,
+        AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, Taos, TaosBuilder,
+        TryStreamExt,
     };
     use taosx_core::s3::{S3Config, S3Loader};
     use taosx_core::tmq_to_local::conf::BackupConfigBuilder;
 
-    const VGROUPS: usize = 10;
-    const ROWS: usize = 10;
+    /// # description_cn
+    /// 测试备份数据到本地
+    /// # example
+    /// 1. 备份到临时目录，默认先创建一个 test_backup 数据库，用 taosBenchmark 写入 1 亿行（ 1 万子表，1 万行/表），备份到本地
+    /// ```shell
+    /// BACKUP_DSN=tmq+ws://192.168.2.139:6041/log cargo nextest run test_backup_with_taos --nocapture --retries 0
+    /// ```
+    #[tokio::test]
+    pub async fn test_backup_with_taos() -> anyhow::Result<()> {
+        let mut backup_dsn = env::var("BACKUP_DSN")
+            .unwrap_or("tmq://".to_string())
+            .into_dsn()?;
+        let taosx_cmd = env::var("TAOSX_CMD").unwrap_or("taosx".to_string());
+        let backup_dir = env::var("LOCAL_DIR")
+            .ok()
+            .map(|p| Path::new(&p).to_path_buf())
+            .unwrap_or_else(|| tempfile::TempDir::new().unwrap().keep());
+
+        let taos = TaosBuilder::from_dsn(&backup_dsn)?
+            .build()
+            .await
+            .context(format!("failed to create taos connect, dsn: {backup_dsn}"))?;
+
+        const DEFAULT_DATABASE: &str = "test_backup";
+        // 如果 tmq 中没有指定 database，则使用 test_backup
+        let mut remove_db = false;
+        let db_name = match backup_dsn.subject.as_deref() {
+            None => {
+                drop_database_and_related_topics(&taos, DEFAULT_DATABASE).await?;
+                backup_dsn.subject = Some(DEFAULT_DATABASE.to_string());
+                // 创建一个数据库：test_backup，并写入 1W 个表，每个表 100 条数据
+                write_by_benchmark(&backup_dsn, 10000, 10000, false)
+                    .await
+                    .context(format!(
+                        "failed to write by taosBenchmark, dsn: {backup_dsn}"
+                    ))?;
+                remove_db = true;
+
+                DEFAULT_DATABASE
+            }
+            Some(db_name) => db_name,
+        };
+
+        // 执行备份：$TAOSX_CMD -f "$BACKUP_DSN" -t "local:$LOCAL_DIR"
+        let mut taosx = Command::cargo_bin(&taosx_cmd)?;
+        taosx
+            .arg("run")
+            .arg("-f")
+            .arg(backup_dsn.to_string())
+            .arg("-t")
+            .arg(format!(
+                "local:{}",
+                backup_dir.to_string_lossy().into_owned()
+            ))
+            .env("TAOSX_DATA_DIR", backup_dir.as_path())
+            .assert()
+            .success();
+        dbg!(taosx.get_args().collect::<Vec<_>>());
+
+        // 检查备份目录
+        assert!(backup_dir.exists());
+
+        // 检查备份目录下的文件
+        let files = list_local_files(backup_dir.as_path())?;
+        let table_num: u32 = taos
+            .query_one(format!(
+                "select count(*) from information_schema.ins_tables where db_name = '{db_name}'"
+            ))
+            .await?
+            .unwrap_or(0);
+        if table_num == 0 {
+            assert!(files.is_empty());
+        } else {
+            assert!(!files.is_empty());
+        }
+
+        if remove_db {
+            drop_database_and_related_topics(&taos, db_name).await?;
+        }
+
+        Ok(())
+    }
 
     /// # Case
     /// 创建一个数据库，写入数据，用 taosx 备份到本地，然后恢复到新的数据库
     /// # Example
     /// ```shell
-    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' cargo nextest run test_backup_and_restore_few_rows_with_taos --nocapture --retries 0
+    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' cargo nextest run test_backup_and_restore_with_taos --nocapture --retries 0
     /// ```
     #[tokio::test]
-    async fn test_backup_and_restore_few_rows_with_taos() -> anyhow::Result<()> {
+    pub async fn test_backup_and_restore_with_taos() -> anyhow::Result<()> {
         // 初始化环境变量
         let taos_addr = env::var("TAOS_ADDR").unwrap_or("tmq://".to_string());
         let taosx_cmd = env::var("TAOSX_CMD").unwrap_or("taosx".to_string());
         const SRC_DB: &str = "backup_few_rows_src";
         const DST_DB: &str = "backup_few_rows_dst";
+        const VGROUPS: usize = 10;
+        const ROWS: usize = 10;
         dbg!(&taos_addr);
 
         // 在 TDengine 准备数据
         let taos = TaosBuilder::from_dsn(taos_addr.clone().into_dsn()?)?
             .build()
             .await?;
-        drop_topic_and_database(&taos, SRC_DB).await?;
-        drop_topic_and_database(&taos, DST_DB).await?;
-        write_few_rows(&taos, SRC_DB, ROWS).await?;
+        drop_database_and_related_topics(&taos, SRC_DB).await?;
+        drop_database_and_related_topics(&taos, DST_DB).await?;
+        write_few_rows(&taos, SRC_DB, VGROUPS, ROWS).await?;
 
         let backup_dir = env::var("BACKUP_DIR")
             .ok()
             .map(|p| Path::new(&p).to_path_buf())
-            .unwrap_or_else(|| tempfile::TempDir::new().unwrap().into_path());
+            .unwrap_or_else(|| tempfile::TempDir::new().unwrap().keep());
 
         // 备份数据
         let from = format!("{taos_addr}/{SRC_DB}");
@@ -57,14 +140,7 @@ mod test_tmq_to_local {
         dbg!(cmd.get_args().collect::<Vec<_>>());
 
         // 恢复数据
-        let from = from.into_dsn()?;
-        let to = to.into_dsn()?;
-        let backup_config = BackupConfigBuilder::new(None, &from, &to).build().await?;
-        let from = format!(
-            "local:{}?topic={}&db_name={SRC_DB}&db_sql=CREATE DATABASE `{SRC_DB}` VGROUPS {VGROUPS}&to=now",
-            backup_dir.to_string_lossy().into_owned(),
-            &backup_config.topic,
-        );
+        let from = format!("local:{}?to=now", backup_dir.to_string_lossy().into_owned(),);
         let to = format!("{taos_addr}/{DST_DB}");
         taos.exec(format!("CREATE DATABASE `{DST_DB}`")).await?;
         let mut cmd = Command::cargo_bin(&taosx_cmd)?;
@@ -90,8 +166,8 @@ mod test_tmq_to_local {
         }
 
         // 清理 TDengine
-        drop_topic_and_database(&taos, SRC_DB).await?;
-        drop_topic_and_database(&taos, DST_DB).await?;
+        drop_database_and_related_topics(&taos, SRC_DB).await?;
+        drop_database_and_related_topics(&taos, DST_DB).await?;
 
         Ok(())
     }
@@ -132,7 +208,7 @@ mod test_tmq_to_local {
     /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' BACKUP_RETENTION_SIZE=0 S3_ENDPOINT='https://192.168.2.139:9000' cargo nextest run test_backup_and_restore_with_s3 --nocapture --retries 0
     /// ```
     #[tokio::test]
-    async fn test_backup_and_restore_with_s3() -> anyhow::Result<()> {
+    pub async fn test_backup_and_restore_with_s3() -> anyhow::Result<()> {
         if let Ok(endpoint) = env::var("S3_ENDPOINT") {
             // 初始化环境变量
             let taosx_cmd = env::var("TAOSX_CMD").unwrap_or("taosx".to_string());
@@ -162,14 +238,16 @@ mod test_tmq_to_local {
             dbg!(&s3_config);
             const SRC_DB: &str = "backup_s3_src";
             const DST_DB: &str = "backup_s3_dst";
+            const VGROUPS: usize = 10;
+            const ROWS: usize = 10;
 
             // 在 TDengine 准备数据
             let taos = TaosBuilder::from_dsn(taos_addr.clone().into_dsn()?)?
                 .build()
                 .await?;
-            drop_topic_and_database(&taos, SRC_DB).await?;
-            drop_topic_and_database(&taos, DST_DB).await?;
-            write_few_rows(&taos, SRC_DB, ROWS).await?;
+            drop_database_and_related_topics(&taos, SRC_DB).await?;
+            drop_database_and_related_topics(&taos, DST_DB).await?;
+            write_few_rows(&taos, SRC_DB, VGROUPS, ROWS).await?;
 
             // 在 S3 上初始化 bucket 和 object_prefix
             let op = s3_config.connect().await?;
@@ -263,8 +341,8 @@ mod test_tmq_to_local {
             }
 
             // 清理 TDengine
-            drop_topic_and_database(&taos, SRC_DB).await?;
-            drop_topic_and_database(&taos, DST_DB).await?;
+            drop_database_and_related_topics(&taos, SRC_DB).await?;
+            drop_database_and_related_topics(&taos, DST_DB).await?;
 
             // 清理 S3
         }
@@ -272,7 +350,7 @@ mod test_tmq_to_local {
         Ok(())
     }
 
-    async fn drop_topic_and_database(taos: &Taos, db_name: &str) -> anyhow::Result<()> {
+    async fn drop_database_related_topics(taos: &Taos, db_name: &str) -> anyhow::Result<()> {
         let topics: Vec<String> = taos
             .query(format!(
                 "select topic_name from information_schema.ins_topics where db_name = '{db_name}'"
@@ -286,9 +364,9 @@ mod test_tmq_to_local {
             let mut count = 0;
             loop {
                 count += 1;
-                if let Err(err) = taos.exec(format!("DROP TOPIC IF EXISTS `{t}`")).await {
+                if let Err(err) = taos.exec(format!("DROP TOPIC IF EXISTS FORCE `{t}`")).await {
                     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                    if count < 3 {
+                    if count < 30 {
                         continue;
                     }
                     bail!("failed to drop topic: {:#}", err);
@@ -296,6 +374,13 @@ mod test_tmq_to_local {
                 break;
             }
         }
+        Ok(())
+    }
+
+    async fn drop_database_and_related_topics(taos: &Taos, db_name: &str) -> anyhow::Result<()> {
+        // drop database related topics
+        drop_database_related_topics(taos, db_name).await?;
+
         // drop database
         taos.exec(format!("DROP DATABASE IF EXISTS `{db_name}`"))
             .await?;
@@ -303,16 +388,78 @@ mod test_tmq_to_local {
         Ok(())
     }
 
-    async fn write_few_rows(taos: &Taos, db_name: &str, rows: usize) -> anyhow::Result<()> {
+    /// 使用 taosBenchmark 工具写数据
+    async fn write_by_benchmark(
+        dsn: &Dsn,
+        tables: usize,
+        records: usize,
+        no_drop: bool,
+    ) -> anyhow::Result<()> {
+        let mut taos_benchmark = Command::new("taosBenchmark");
+        let mut args = vec!["-y".to_string()];
+
+        match dsn.protocol.as_deref() {
+            Some("ws") | Some("wss") | Some("http") | Some("https") => {
+                args.push("-Z".to_string());
+                args.push("WebSocket".to_string());
+            }
+            _ => {}
+        }
+
+        if let Some(addr) = dsn.addresses.first() {
+            if let Some(host) = addr.host.as_deref() {
+                args.push("-h".to_string());
+                args.push(host.to_string());
+            }
+            if let Some(port) = addr.port {
+                args.push("-P".to_string());
+                args.push(port.to_string());
+            }
+        }
+        if let Some(user) = dsn.username.as_deref() {
+            args.push("-u".to_string());
+            args.push(user.to_string());
+        }
+        if let Some(password) = dsn.password.as_deref() {
+            args.push("-p".to_string());
+            args.push(password.to_string());
+        }
+        if let Some(db_name) = dsn.subject.as_deref() {
+            args.push("-d".to_string());
+            args.push(db_name.to_string());
+        }
+        args.push("-t".to_string());
+        args.push(tables.to_string());
+        args.push("-n".to_string());
+        args.push(records.to_string());
+
+        // args.push("-s".to_string());
+        // args.push(Utc::now().timestamp_millis().to_string());
+
+        if no_drop {
+            args.push("--nodrop".to_string());
+        }
+        taos_benchmark.args(args.as_slice()).assert().success();
+        dbg!(taos_benchmark.get_args().collect::<Vec<_>>());
+
+        Ok(())
+    }
+
+    async fn write_few_rows(
+        taos: &Taos,
+        db: &str,
+        vgroups: usize,
+        rows: usize,
+    ) -> anyhow::Result<()> {
         taos.exec_many(vec![
-            format!("CREATE DATABASE `{db_name}` VGROUPS {VGROUPS}"),
-            format!("CREATE TABLE `{db_name}`.stb (ts TIMESTAMP, f1 INT) TAGS(t1 INT)"),
+            format!("CREATE DATABASE `{db}` VGROUPS {vgroups}"),
+            format!("CREATE TABLE `{db}`.stb (ts TIMESTAMP, f1 INT) TAGS(t1 INT)"),
         ])
         .await?;
 
         for i in 1..=rows {
             taos.exec(format!(
-                "INSERT INTO `{db_name}`.t{i} USING `{db_name}`.stb TAGS({i}) VALUES (now, {i})"
+                "INSERT INTO `{db}`.t{i} USING `{db}`.stb TAGS({i}) VALUES (now, {i})"
             ))
             .await?;
         }

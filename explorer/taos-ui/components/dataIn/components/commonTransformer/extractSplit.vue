@@ -28,7 +28,7 @@
             v-model="ruleForm.filter_name"
             :placeholder="t('dataIn.transformer.filter_type')"
             :disabled="isViewable"
-            style="width: 120px; min-width:120px;"
+            style="width: 120px; min-width: 120px"
             @change="changeExtractType"
           >
             <el-option

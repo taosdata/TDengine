@@ -100,6 +100,7 @@ export interface TreeComponentProps {
   accordion: boolean;
   indent: number;
   icon: string | Component;
+  iconClickChangeCurrentNode: boolean;
 }
 
 export type NodeDropType = 'before' | 'after' | 'inner' | 'none';

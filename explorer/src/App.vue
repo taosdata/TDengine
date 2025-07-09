@@ -13,7 +13,7 @@
         @close="dialogVisible = false"
       ></component>
     </el-dialog>
-    <systemMes v-if="$IS_COMMUNITY && showSystemMes" />
+    <systemMes v-if="!$IS_TSDBLITE && $IS_COMMUNITY && showSystemMes" />
   </div>
 </template>
 
@@ -21,7 +21,7 @@
 import { useStore } from "vuex";
 import systemMes from "./components/communityMes.vue";
 const store = useStore();
-const { $IS_COMMUNITY, $IS_OEM } = inject("globalCustomProperties") as GlobalCustomProperties;
+const { $IS_COMMUNITY, $IS_TSDBLITE, $IS_OEM } = inject("globalCustomProperties") as GlobalCustomProperties;
 
 const key = computed(() => {
   return store.state.app.current_cluster?.id || "";
@@ -39,10 +39,6 @@ const dialogVisible = computed({
     store.commit("SET_DIALOG_VISIBLE", val);
   },
 });
-
-if ($IS_COMMUNITY) {
-  store.commit('app/SET_SHOW_SYSTEM_MES', true)
-}
 
 onMounted(() => {
   nextTick(() => {

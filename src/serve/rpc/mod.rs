@@ -1,65 +1,65 @@
 use std::{
     borrow::Cow,
     collections::HashMap,
-    net::SocketAddr,
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
     path::PathBuf,
     pin::Pin,
-    sync::{atomic::Ordering, Arc},
+    sync::{Arc, atomic::Ordering},
     time::Duration,
 };
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use arrow::{
     array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array},
     datatypes::{Field, Fields, Schema},
     record_batch::RecordBatch,
 };
 use arrow_flight::{
+    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
+    HandshakeRequest, HandshakeResponse, PollInfo, PutResult, SchemaResult, Ticket,
     decode::FlightDataDecoder,
     encode::FlightDataEncoderBuilder,
     error::FlightError,
     flight_service_server::{FlightService, FlightServiceServer},
-    Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
-    HandshakeRequest, HandshakeResponse, PollInfo, PutResult, SchemaResult, Ticket,
 };
 use async_backtrace::framed;
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use chrono::Utc;
 use futures::{Stream, TryStreamExt};
 use linked_hash_map::LinkedHashMap;
-use metrics::{atomics::AtomicU64, counter, gauge, histogram, IntoLabels};
+use metrics::{IntoLabels, atomics::AtomicU64, counter, gauge, histogram};
 use semver::VersionReq;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use taos::Dsn;
-use taoslog::{utils::QidMetadataSetter, QidManager};
+use taoslog::{QidManager, utils::QidMetadataSetter};
 #[cfg(unix)]
 use tokio::net::UnixListener;
 use tokio::sync::RwLock;
 #[cfg(unix)]
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::{
-    transport::{Identity, Server, ServerTlsConfig},
     Request, Response, Status, Streaming,
+    transport::{Identity, Server, ServerTlsConfig},
 };
-use tracing::{error, info, instrument, warn, Instrument};
+use tracing::{Instrument, error, info, instrument, warn};
 use uuid::Uuid;
 
 use taosx_core::{
+    CheckResponse, HeartbeatResponse, ListResponse, PutFileResp, QueryDataSourceResp,
+    TaskMetricItem,
     core_metrics::get_metrics,
     get_data_dir,
     utils::{dsn::json_to_dsn, get_string_content_from_param_value, trace::Qid},
-    CheckResponse, HeartbeatResponse, ListResponse, PutFileResp, QueryDataSourceResp,
-    TaskMetricItem,
 };
 use taosx_ipc::types::SampleResponse;
 use taosx_metrics::MetricsEvents;
 
-use crate::serve::controller::StringSender;
+use crate::serve::{TAOSX_GRPC_DEFAULT_PORT, controller::StringSender};
 use crate::serve::{
     controller::{
-        agent::{Activity, AgentToken, LevelFilter},
         TaskDetail,
+        agent::{Activity, AgentToken, LevelFilter},
     },
     rpc::put::PutStream,
     scheduler::agent::AgentNotify,
@@ -69,6 +69,7 @@ use super::{
     controller::{AgentAction, AgentDataSetsSender, DsvSender, Task, TaskControllerRef},
     monitor::Monitor,
     scheduler::agent::{AgentActionsReceiver, AgentId, AgentNotifySender, AgentSpawnSender},
+    utils::ip::is_support_ipv6,
 };
 
 mod put;
@@ -544,7 +545,9 @@ impl FlightService for FlightServiceImpl {
                             Status::internal(format!("Scheduler is not ready: {err:#}", err = err))
                         })?;
 
-                    let outdated = format!("Agent core version {version} is not compatible to server, please upgrade to a newer version");
+                    let outdated = format!(
+                        "Agent core version {version} is not compatible to server, please upgrade to a newer version"
+                    );
                     self.notify_sender
                         .send(AgentNotify::AgentActivity(
                             agent.id,
@@ -1239,7 +1242,7 @@ pub fn encode_csv_config_file(csv_path: String) -> anyhow::Result<String> {
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 pub struct RpcConfig {
-    pub tcp: Option<SocketAddr>,
+    pub tcp: Vec<SocketAddr>,
     pub unix: Option<PathBuf>,
     pub ssl_cert: Option<String>,
     pub ssl_key: Option<String>,
@@ -1275,8 +1278,12 @@ impl RpcConfig {
             .accept_compressed(tonic::codec::CompressionEncoding::Gzip)
             .max_decoding_message_size(usize::MAX)
             .max_encoding_message_size(usize::MAX);
-        if let Some(tcp) = self.tcp {
+        if !self.tcp.is_empty() {
             let mut builder = Server::builder();
+            builder = builder
+                .max_frame_size(max_frame_size)
+                .http2_keepalive_interval(Some(Duration::from_secs(60 * 2)))
+                .http2_keepalive_timeout(Some(Duration::from_secs(60)));
 
             if let Some(cert_path) = self.ssl_cert {
                 let key_path = self.ssl_key.ok_or_else(|| {
@@ -1300,16 +1307,19 @@ impl RpcConfig {
                     .context("SSL certificate error")?;
             }
 
-            builder
-                .max_frame_size(max_frame_size)
-                .http2_keepalive_interval(Some(Duration::from_secs(60 * 2)))
-                .http2_keepalive_timeout(Some(Duration::from_secs(60)))
-                .add_service(flight_service.clone())
-                .serve_with_shutdown(tcp, async {
-                    let _ = tokio::signal::ctrl_c().await;
-                    tracing::info!("Ctrl+C invoked, shutdown RPC service")
+            let servers = self
+                .tcp
+                .iter()
+                .map(|addr| {
+                    builder
+                        .add_service(flight_service.clone())
+                        .serve_with_shutdown(*addr, async {
+                            let _ = tokio::signal::ctrl_c().await;
+                            tracing::info!("Ctrl+C invoked, shutdown RPC service")
+                        })
                 })
-                .await?;
+                .collect::<Vec<_>>();
+            futures::future::try_join_all(servers).await?;
         }
         #[cfg(unix)]
         if let Some(path) = self.unix {
@@ -1333,8 +1343,19 @@ impl RpcConfig {
 
 impl Default for RpcConfig {
     fn default() -> Self {
+        let tcp = if is_support_ipv6() {
+            vec![SocketAddr::from((
+                Ipv6Addr::UNSPECIFIED,
+                TAOSX_GRPC_DEFAULT_PORT,
+            ))]
+        } else {
+            vec![SocketAddr::from((
+                Ipv4Addr::UNSPECIFIED,
+                TAOSX_GRPC_DEFAULT_PORT,
+            ))]
+        };
         Self {
-            tcp: Some("0.0.0.0:6055".parse().unwrap()),
+            tcp,
             unix: Default::default(),
             ssl_cert: Default::default(),
             ssl_key: Default::default(),
@@ -1360,17 +1381,17 @@ mod tests {
     };
     use arrow_flight::decode::FlightDataDecoder;
     use arrow_flight::{
+        FlightData, HandshakeRequest,
         encode::{FlightDataEncoder, FlightDataEncoderBuilder},
         error::FlightError,
         flight_service_client::FlightServiceClient,
-        FlightData, HandshakeRequest,
     };
     use futures::TryStreamExt;
     use tempfile::NamedTempFile;
     use tonic::{
+        IntoStreamingRequest,
         codegen::Bytes,
         transport::{Channel, Endpoint},
-        IntoStreamingRequest,
     };
 
     #[tokio::test]
@@ -1379,10 +1400,13 @@ mod tests {
         let dsn = "opcda://192.168.2.16/Matrikon.OPC.Simulation.1?csv_config_file=%40.%2Ftests%2Fopc%2Fopcda-utf8.csv";
         let new_dsn = modify_dsn_params(dsn).await.unwrap();
         let csv_config = new_dsn.params.get("csv_config_file").unwrap();
-        assert_eq!("MCx0YWdfbmFtZSxlbmFibGVkLHN0YWJsZSx0Ym5hbWUsdmFsdWVfY29sLHZhbHVlX3RyYW5zZm9ybSx0eXBlLHF1YWxpdHlfY29sLHRzX2NvbCxyZWNlaXZlZF90c19jb2wsdHNfdHJhbnNmb3JtLHJlY2VpdmVkX3RzX3RyYW5zZm9ybSx0YWc6OlZBUkNIQVIoMjAwKTo6bmFtZQ0KMSxyb290LnBhcmVudC50ZW1wZXJhdHVyZSwxLG9wY197dHlwZX0sdF97dGFnX25hbWV9LHZhbCx2YWwgKjEuOCArIDMyLGludCxxdWFsaXR5LHRzLHJ0cywscnRzICsgOGgs5YWl5bqT5rip5bqmDQoyLHJvb3QucGFyZW50LnByZXNzdXJlLDAsb3BjX3t0eXBlfSx0X3t0YWdfbmFtZX0sdmFsLHZhbCArIDEwLCxxdWFsaXR5LHRzLHJ0cyx0cyArIDhoLCzlh4/ljovpmIDljovlipsNCjMscm9vdC5wYXJlbnQuY3VycmVudCwxLG9wY19kYV9lbGVjLHRfY3VzdG9tX2N1cnJlbnQsdmFsLCwscXVhbGl0eSx0cyxydHMsdHMgLSA2cyxydHMgLSA2cyzmgLvnur/nlLXmtYENCg==", csv_config);
+        assert_eq!(
+            "MCx0YWdfbmFtZSxlbmFibGVkLHN0YWJsZSx0Ym5hbWUsdmFsdWVfY29sLHZhbHVlX3RyYW5zZm9ybSx0eXBlLHF1YWxpdHlfY29sLHRzX2NvbCxyZWNlaXZlZF90c19jb2wsdHNfdHJhbnNmb3JtLHJlY2VpdmVkX3RzX3RyYW5zZm9ybSx0YWc6OlZBUkNIQVIoMjAwKTo6bmFtZQ0KMSxyb290LnBhcmVudC50ZW1wZXJhdHVyZSwxLG9wY197dHlwZX0sdF97dGFnX25hbWV9LHZhbCx2YWwgKjEuOCArIDMyLGludCxxdWFsaXR5LHRzLHJ0cywscnRzICsgOGgs5YWl5bqT5rip5bqmDQoyLHJvb3QucGFyZW50LnByZXNzdXJlLDAsb3BjX3t0eXBlfSx0X3t0YWdfbmFtZX0sdmFsLHZhbCArIDEwLCxxdWFsaXR5LHRzLHJ0cyx0cyArIDhoLCzlh4/ljovpmIDljovlipsNCjMscm9vdC5wYXJlbnQuY3VycmVudCwxLG9wY19kYV9lbGVjLHRfY3VzdG9tX2N1cnJlbnQsdmFsLCwscXVhbGl0eSx0cyxydHMsdHMgLSA2cyxydHMgLSA2cyzmgLvnur/nlLXmtYENCg==",
+            csv_config
+        );
 
         // do not modify the transform_config_file
-        let  dsn = "pi://192.168.0.34/ci_test?transform_config_file=%40.%2Ftaosx-core%2Ftests%2Fpi%2Fpi_singlecol_point.csv";
+        let dsn = "pi://192.168.0.34/ci_test?transform_config_file=%40.%2Ftaosx-core%2Ftests%2Fpi%2Fpi_singlecol_point.csv";
         let new_dsn = modify_dsn_params(dsn).await.unwrap();
         let config_file = new_dsn.params.get("transform_config_file").unwrap();
         assert_eq!("@./taosx-core/tests/pi/pi_singlecol_point.csv", config_file);

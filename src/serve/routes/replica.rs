@@ -1,13 +1,12 @@
 use actix_web::{
-    delete, post,
+    HttpResponse, Responder, delete, post,
     web::{Data, Json, Path},
-    HttpResponse, Responder,
 };
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::serve::{
-    controller::{replica::ReplicaOpts, TaskControllerRef},
+    controller::{TaskControllerRef, replica::ReplicaOpts},
     task::Failed,
 };
 

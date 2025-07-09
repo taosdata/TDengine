@@ -6,6 +6,7 @@
     :style="{ height: props.height }"
     :autofocus="true"
     :indent-with-tab="true"
+    :disabled="props.disabled"
     :tab-size="2"
     :extensions="extensions"
     @ready="handleReady"
@@ -27,11 +28,13 @@ const props = withDefaults(
   defineProps<{
     modelValue: string;
     placeholder?: string;
+    disabled?: boolean;
     height?: string;
     dbList?: Recordable[];
   }>(),
   {
     placeholder: 'Code goes here...',
+    disabled: false,
     height: '400px',
     dbList: () => []
   }

@@ -4,6 +4,7 @@ use crate::runners::opc::config::{OPCConfig, PointsMode};
 use crate::runners::opc::model::{ModelType, OpcModelConfig};
 use crate::runners::opc::point_updater::PointsUpdater;
 use crate::runners::{get_logs_home_dir, log_rotation, new_rolling_file_appender};
+use crate::sink::persist::PersistConfig;
 use crate::utils::dsn::json_to_dsn;
 use crate::utils::monitor::send_sub_process_info;
 use crate::{build_ipc, utils::port_pool::PortPool, Action, DataSet, DataSetsReq, Transferred};
@@ -13,6 +14,7 @@ use csv::CsvParser;
 use csv_async::AsyncReader;
 use futures_util::StreamExt;
 use itertools::Itertools;
+use schema::get_schema_path;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::fs::File;
@@ -32,6 +34,7 @@ pub mod config;
 pub mod csv;
 pub mod model;
 mod point_updater;
+mod schema;
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Copy)]
@@ -145,6 +148,10 @@ pub async fn opc_to_taos(
             to.clone().to_string()
         );
     }
+    if with_agent.is_some() {
+        let task_id = task_id.context("Task id not found for agent runner")?;
+        let _ = crate::core_metrics::init_task_metrics(&from, &to, task_id, None).await;
+    }
     let ipc_port = port_pool
         .get()
         .await
@@ -164,6 +171,51 @@ pub async fn opc_to_taos(
     config.set_temp_filepath("auth_certificate", auth_certificate.as_ref())?;
     config.set_temp_filepath("auth_private_key", auth_private_key.as_ref())?;
 
+    let persist_config = task_id
+        .or(with_agent.as_ref().map(|a| a.0))
+        .and_then(|tid| {
+            config.collect.as_ref().and_then(|c| {
+                c.persist_data.as_ref().map(|c| PersistConfig {
+                    task_id: tid,
+                    record_metrics: true,
+                    schemas: get_schema_path(c.dir.clone().unwrap_or_else(|| {
+                        get_data_dir()
+                            .join("tasks")
+                            .join(tid.to_string())
+                            .join("persist_queue")
+                    })),
+                    batch_size: config.report.batch_size.map(|v| v as _),
+                    batch_timeout: config
+                        .report
+                        .batch_timeout
+                        .map(|v| std::time::Duration::from_secs(v as u64)),
+                    batch_chunk_size: None,
+                })
+            })
+        });
+
+    // let tid = task_id
+    //     .or(with_agent.as_ref().map(|a| a.0))
+    //     .context("task id not found")?;
+    // let persist_config = config.collect.as_ref().and_then(|c| {
+    //     c.persist_data.as_ref().map(|c| PersistConfig {
+    //         task_id: tid,
+    //         record_metrics: true,
+    //         schemas: get_schema_path(c.dir.clone().unwrap_or_else(|| {
+    //             get_data_dir()
+    //                 .join("tasks")
+    //                 .join(tid.to_string())
+    //                 .join("persist_queue")
+    //         })),
+    //         batch_size: config.report.batch_size.map(|v| v as _),
+    //         batch_timeout: config
+    //             .report
+    //             .batch_timeout
+    //             .map(|v| std::time::Duration::from_secs(v as u64)),
+    //         batch_chunk_size: None,
+    //     })
+    // });
+
     // create IPC handler
     let connector = match config.opc_type {
         OpcType::OPCUA => Some("opc_ua"),
@@ -182,7 +234,7 @@ pub async fn opc_to_taos(
         transferred,
         task_id,
         notify,
-        None,
+        persist_config,
     )
     .await?;
 
@@ -329,20 +381,6 @@ pub async fn opc_to_taos(
     }).await??;
 
     Ok(())
-}
-
-fn csv_string_record_from_iter<I>(iter: I) -> String
-where
-    I: IntoIterator<Item = String>,
-{
-    let record = csv_lib::StringRecord::from_iter(iter);
-
-    let mut writer = Vec::new();
-    let mut wtr = csv_lib::Writer::from_writer(&mut writer);
-    wtr.write_record(&record).unwrap();
-    wtr.flush().unwrap();
-    drop(wtr);
-    String::from_utf8_lossy(&writer).trim().to_string()
 }
 
 /// OPC UA: <table_prefix>_{ns}_{id}_<table_suffix>
@@ -991,5 +1029,22 @@ panic: (*logrus.Entry) 0xc00034aaf0
 panic: (*logrus.Entry) 0xc00034aaf0"#.to_string();
         let res = filter_opc_log(log).await;
         assert_eq!(res, expect);
+    }
+
+    /// # Example
+    /// ```shell
+    /// OPC_SERVER="192.168.2.16:53530/OPCUA/SimulationServer" PLUGINS_HOME=/Users/yangzy/RustProjects/taosx/plugins LOGS_HOME=/Users/yangzy/taosx/log cargo nextest run -p taosx-core test_opc_datasets_by_command --nocapture --retries 0
+    /// ```
+    #[tokio::test]
+    async fn test_opc_datasets_by_command() {
+        if let Ok(opc_server) = std::env::var("OPC_SERVER") {
+            let dsn = format!("opcua://{opc_server}?browse_name_pattern=\"数据块_1\".\"Tag\\d+\"",)
+                .into_dsn()
+                .unwrap();
+            let config = OPCConfig::from_dsn_point_mode(&dsn).unwrap();
+
+            let datasets = opc_datasets_by_command(&config).await.unwrap();
+            dbg!(&datasets);
+        }
     }
 }

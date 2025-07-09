@@ -410,9 +410,10 @@ def build_and_install_taosx(mode):
     print("buildAndInstallTaosX start...")
     os.chdir(taosx_dir)
     if mode == "Release":
-        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&set BUILD_PROFILE=release&cargo make deploy-taosx')
+        os.system(f'cargo make -e VER_NUMBER={release_info.TdengineVersion} -e CUS_PROMPT={release_info.CustomPrompt} -e CUS_NAME="{release_info.CustomName}" -e CUS_EMAIL={release_info.CustomEmail} -e BUILD_PROFILE=release deploy-taosx')
     else:
-        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&set BUILD_PROFILE=dev&cargo make deploy-taosx')
+        os.system(f'cargo make -e VER_NUMBER={release_info.TdengineVersion} -e CUS_PROMPT={release_info.CustomPrompt} -e CUS_NAME="{release_info.CustomName}" -e CUS_EMAIL={release_info.CustomEmail} -e BUILD_PROFILE=dev deploy-taosx')
+
     taosx_install_path = os.path.join(release_info.InstallPath, "bin")
     check_directory(taosx_install_path)
     taosx_path = os.path.join(taosx_dir, "target", "deploy", get_taosx_output_name())
@@ -511,10 +512,10 @@ def build_taos_explorer(explorer_path, mode):
     check_directory(explorer_exe_path)
     if release_info.OS.lower() == 'windows':
         os.chdir(taosx_dir)
-        os.system(f'set VER_NUMBER={release_info.TdengineVersion}&set CUS_PROMPT={release_info.CustomPrompt}&set CUS_NAME={release_info.CustomName}&set CUS_EMAIL={release_info.CustomEmail}&cargo make deploy-explorer')
+        os.system(f'cargo make -e VER_NUMBER={release_info.TdengineVersion} -e CUS_PROMPT={release_info.CustomPrompt} -e CUS_NAME="{release_info.CustomName}" -e CUS_EMAIL={release_info.CustomEmail} deploy-explorer')
     else:
         os.chdir(taosx_dir)
-        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} cargo make deploy-explorer')
+        os.system(f'cargo make -e VER_NUMBER={release_info.TdengineVersion} -e CUS_PROMPT={release_info.CustomPrompt} -e CUS_NAME="{release_info.CustomName}" -e CUS_EMAIL={release_info.CustomEmail} deploy-explorer')
 
 def copy_taos_explorer_on_windows(explorer_path):
     explorer_exe_path = os.path.join(taosx_dir, "target", "deploy", f"{release_info.CustomPrompt}-explorer.exe")
@@ -566,7 +567,7 @@ def package_on_windows():
 
 def copy_docs_to_explorer(explorer_path):
     print("copy docs to explorer")
-    if release_info.CustomPrompt != 'taos' or release_info.CustomName != 'TDengine':
+    if release_info.CustomPrompt != 'taos' and release_info.CustomName != 'TDengine':
         zh_doc_zip_path = os.path.join(explorer_path, "..", f"docs-{release_info.CustomPrompt}.zip")
         zh_doc_public_path = os.path.join(explorer_path, "public", "docs")
         if os.path.exists(zh_doc_zip_path):

@@ -72,8 +72,8 @@ function executeSql(sql = sqlStr.value) {
     })
     .catch(data => {
       ElMessage.closeAll();
-      if (data.desc) {
-        ElMessage.error(data.desc);
+      if (data) {
+        ElMessage.error(data);
       }
       handleSqlExecuteFail(data, sqlStr.value, startTime);
     })

@@ -11,7 +11,7 @@
       >
         <section class="block-wrapper">
           <el-form-item :label="t('dataIn.name2')" prop="name">
-            <el-input id="name" v-model="sourceForm.name" :placeholder="t('dataIn.palceholders.taskName')"></el-input>
+            <el-input id="name" v-model="sourceForm.name" :placeholder="t('dataIn.placeholders.taskName')"></el-input>
           </el-form-item>
           <el-form-item :label="t('dataIn.type')" prop="type" class="hidden-required">
             <el-select id="type" v-model="sourceForm.type" :disabled="!!taskId" @change="typeChang">
@@ -41,7 +41,7 @@
               id="agent"
               v-model="sourceForm.agent"
               style="width: 190px"
-              :placeholder="t('dataIn.palceholders.agentPlaceholder')"
+              :placeholder="t('dataIn.placeholders.agentPlaceholder')"
               clearable
             >
               <el-option v-for="item in agentList" :key="item.name" :label="item.name" :value="item.id"></el-option>
@@ -65,7 +65,7 @@
             <el-select
               id="targetDB"
               v-model="sourceForm.targetDB"
-              :placeholder="t('dataIn.palceholders.chooseTargetDbTip')"
+              :placeholder="t('dataIn.placeholders.chooseTargetDbTip')"
               style="width: 190px"
               @change="targetDBChange"
             >
@@ -236,7 +236,7 @@ const toUrl = computed(() => {
 
   const base_url = instance.gatewayUrl;
   const splitArr = base_url?.split('//') || [];
-  const url = splitArr[0] + '//' + instance?.user + ':' + encodeURIComponent(instance?.password) + '@' + splitArr[1];
+  const url = splitArr[0] + '//' + instance?.user + ':' + instance?.password + '@' + splitArr[1];
   return (splitArr[0].startsWith('taos') ? '' : 'taos+') + url + (sourceForm.targetDB ? '/' + sourceForm.targetDB : '');
 });
 
@@ -319,7 +319,6 @@ async function handleDetailData(id: string | number) {
   if (data.parser?.parser?.global) {
     recoverWriteConfig(sourceForm.data.write_config, data.parser.parser.global);
   }
-  
 
   if (data.parser) {
     transformerState.transformerParserData = data.parser;
@@ -441,7 +440,7 @@ async function submit() {
         from_json: formatFromData(sourceForm),
         name: sourceForm.name,
         to: toUrl.value,
-        labels: labels.value,
+        labels: labels.value
       } as paramsProps;
 
       const health = getAdvancedHealth(sourceForm.data['advanced_options']);

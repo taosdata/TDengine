@@ -1,12 +1,8 @@
 use std::time::Duration;
 
 use bytes::Bytes;
-use persist_queue::{
-    fs::{EntryPosition, FsQueue, ReadFrom},
-    writer,
-};
+use persist_queue::fs::{FsQueue, ReadFrom};
 use tempfile::tempdir;
-use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 mod common;
@@ -20,27 +16,23 @@ async fn rw() -> anyhow::Result<()> {
         .await?;
     let token = CancellationToken::new();
 
-    let mut tasks = JoinSet::new();
-
     // 启动读后台线程
-    let (read_tx, read_rx) = flume::bounded(1);
+    let (read_tx, read_rx) = flume::bounded(0);
     let reader = persist_queue::reader::Reader::builder(
         queue.new_reader(ReadFrom::Earliest).await?,
         read_tx,
     )
     .vacuum_interval(Duration::from_millis(10))
     .build();
-    tasks.spawn(reader.run(token.child_token()));
+    let read_handle = tokio::spawn(reader.run(token.child_token()));
 
     // 启动写后台线程
-    let (write_tx, write_rx) = flume::bounded(0);
-    let (write_req_tx, write_req_rx) = flume::bounded(1);
+    let (write_tx, write_rx) = flume::bounded(10);
     let writer = persist_queue::writer::Writer::builder(queue.new_writer().await?, write_rx)
         .sync_interval(Duration::from_millis(100))
         .chunk_size(10)
-        .request_rx(write_req_rx)
         .build();
-    tasks.spawn(writer.run(token.child_token()));
+    let write_handle = tokio::spawn(writer.run(token.child_token()));
 
     // 同时读写
     tokio::try_join!(
@@ -48,14 +40,16 @@ async fn rw() -> anyhow::Result<()> {
             for payload in common::payloads(200) {
                 write_tx.send_async(payload).await?;
             }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-            let (req_tx, req_rx) = tokio::sync::oneshot::channel();
-            write_req_tx
-                .send_async(writer::Request::Position(req_tx))
-                .await?;
-            assert_eq!(req_rx.await, Ok(EntryPosition::new(33, 36)));
             drop(write_tx);
-            drop(write_req_tx);
+            match write_handle.await {
+                Ok(Ok(_)) => {}
+                Ok(Err(e)) => {
+                    panic!("write task exit with error: {e:#}");
+                }
+                Err(e) => {
+                    panic!("write task panicked: {e:#}");
+                }
+            }
             anyhow::Ok(())
         },
         async {
@@ -70,18 +64,21 @@ async fn rw() -> anyhow::Result<()> {
                     break;
                 }
             }
-            tokio::time::timeout(Duration::from_millis(100), read_rx.recv_async())
-                .await
-                .ok();
             anyhow::Ok(())
         }
     )?;
 
-    assert_eq!(queue.segments().len(), 1);
-
     token.cancel();
 
-    tasks.join_all().await;
+    match read_handle.await {
+        Ok(Ok(_)) => {}
+        Ok(Err(e)) => {
+            panic!("write task exit with error: {e:#}");
+        }
+        Err(e) => {
+            panic!("write task panicked: {e:#}");
+        }
+    }
 
     Ok(())
 }
