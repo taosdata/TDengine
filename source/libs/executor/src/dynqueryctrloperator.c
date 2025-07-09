@@ -1551,6 +1551,7 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
       code = pOperator->pDownstream[0]->fpSet.getNextFn(pOperator->pDownstream[0], pRes);
       QUERY_CHECK_CODE(code, line, _return);
     } else {
+      taosHashClear(pVtbScan->orgTbVgColMap);
       SArray* pColMap = (SArray*)taosArrayGetP(pVtbScan->childTableList, pVtbScan->curTableIdx);
       QUERY_CHECK_NULL(pColMap, code, line, _return, terrno);
       tb_uid_t uid = 0;
@@ -1571,9 +1572,6 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
           QUERY_CHECK_CODE(code, line, _return);
 
           toName(pInfo->vtbScan.acctId, refDbName, refTbName, &name);
-          taosMemoryFree(refDbName);
-          taosMemoryFree(refTbName);
-          taosMemoryFree(refColName);
 
           code = getDbVgInfo(pOperator, &name, &dbVgInfo);
           QUERY_CHECK_CODE(code, line, _return);
@@ -1603,6 +1601,9 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
             tstrncpy(colIdNameKV.colName, refColName, sizeof(colIdNameKV.colName));
             QUERY_CHECK_NULL(taosArrayPush(tbInfo->colMap, &colIdNameKV), code, line, _return, terrno);
           }
+          taosMemoryFree(refDbName);
+          taosMemoryFree(refTbName);
+          taosMemoryFree(refColName);
         }
       }
 

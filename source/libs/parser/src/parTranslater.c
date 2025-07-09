@@ -5972,12 +5972,12 @@ static int32_t translatePlaceHolderTable(STranslateContext* pCxt, SNode** pTable
   int32_t               code = TSDB_CODE_SUCCESS;
 
   if (!pCxt->createStreamCalc) {
-    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
                                       "stream place holder should only appear in create stream's query part"));
   }
 
   if (!pTriggerTable) {
-    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "create stream trigger table is NULL"));
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "create stream trigger table is NULL"));
   }
 
   PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&newPlaceHolderTable));
@@ -6006,7 +6006,7 @@ static int32_t translatePlaceHolderTable(STranslateContext* pCxt, SNode** pTable
       break;
     }
     default: {
-      PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "invalid placeholder table type"));
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "invalid placeholder table type"));
       break;
     }
   }
