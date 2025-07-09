@@ -613,6 +613,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
       streamResetTaskExec(pExec, true);
       if (pExec->runtimeInfo.funcInfo.withExternalWindow) break;
     }
+    createTable = false;
   }
 
 end:
