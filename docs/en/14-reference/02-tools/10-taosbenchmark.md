@@ -174,6 +174,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **-z/--trying-interval \<NUMBER>**: Retry interval in milliseconds, effective only when retries are specified with -k. Requires version v3.0.9 or above.
 
+- **-Z/--connect-mode \<NUMBER>**: The connection method, with 0 indicating the use of native connection method, 1 indicating the use of WebSocket connection method, and default to native connection method.
 - **-v/--vgroups \<NUMBER>**:
   Specifies the number of vgroups when creating the database, only valid for TDengine v3.0+.
 
@@ -359,6 +360,8 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 - **create_table_thread_count** : The number of threads for creating tables, default is 8.
 
 - **result_file** : The path to the result output file, default is ./output.txt.
+
+- **result_json_file**：The path to the result output JSON file. If not configured, the file will not be output.
 
 - **confirm_parameter_prompt** : A toggle parameter that requires user confirmation after a prompt to continue. The value can be "yes" or "no", by default "no".
 

@@ -74,7 +74,6 @@ ulimit -n 600000
 ulimit -c unlimited
 
 #sudo sysctl -w kernel.core_pattern=$TOP_DIR/core.%p.%e
-
 echo "ExcuteCmd:" $*
 
 if [[ "$TD_OS" == "Alpine" ]]; then

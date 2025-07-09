@@ -84,9 +84,9 @@ The C/C++ WebSocket connector uses a DSN (Data Source Name) connection descripti
 The basic structure of a DSN description string is as follows:
 
 ```text
-<driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
-|------|------------|---|-----------|-----------|------|------|------------|-----------------------|
-|driver|   protocol |   | username  | password  | host | port |  database  |  params               |
+<driver>[+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<key1>=<value1>[&...<keyN>=<valueN>]]
+|------|------------|---|----------|-----------|-------------------------------------|------------|--------------------------------------|
+|driver|   protocol |   | username | password  |  addresses                          |   database |   params                             |
 ```
 
 The meanings of each part are as follows:
@@ -97,9 +97,9 @@ The meanings of each part are as follows:
 - **protocol**: Explicitly specify how to establish a connection, for example: `taos+ws://localhost:6041` specifies establishing a connection via WebSocket.
   - **http/ws**: Use WebSocket protocol.
   - **https/wss**: Explicitly enable SSL/TLS protocol under WebSocket connection.
-
 - **username/password**: Username and password used to create the connection.
-- **host/port**: Specifies the server and port for creating the connection. If the server address and port are not specified, the default WebSocket connection is `localhost:6041`.
+- **addresses**: Specifies the server addresses to create a connection. Multiple addresses are separated by commas. When the address is not specified, the default is `localhost:6041`.
+  - Example: `ws://host1:6041,host2:6041` or `ws://` (equivalent to `ws://localhost:6041`).
 - **database**: Specifies the default database name to connect to, optional parameter.
 - **params**: Other optional parameters.
 

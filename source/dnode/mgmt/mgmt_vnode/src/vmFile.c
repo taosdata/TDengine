@@ -20,15 +20,12 @@
 #define MAX_CONTENT_LEN 2 * 1024 * 1024
 
 int32_t vmGetAllVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes) {
-  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
-
   int32_t num = 0;
   int32_t size = taosHashGetSize(pMgmt->runngingHash);
   int32_t closedSize = taosHashGetSize(pMgmt->closedHash);
   size += closedSize;
   SVnodeObj **pVnodes = taosMemoryCalloc(size, sizeof(SVnodeObj *));
   if (pVnodes == NULL) {
-    (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
     return terrno;
   }
 
@@ -60,7 +57,6 @@ int32_t vmGetAllVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnod
     }
   }
 
-  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
   *numOfVnodes = num;
   *ppVnodes = pVnodes;
 
@@ -313,6 +309,7 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   }
 
   int32_t numOfVnodes = 0;
+  (void)taosThreadRwlockWrlock(&pMgmt->hashLock);
   TAOS_CHECK_GOTO(vmGetAllVnodeListFromHash(pMgmt, &numOfVnodes, &ppVnodes), &lino, _OVER);
 
   // terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -330,48 +327,39 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
     goto _OVER;
   }
 
-  code = taosThreadMutexLock(&pMgmt->fileLock);
-  if (code != 0) {
-    lino = __LINE__;
-    goto _OVER;
-  }
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pFile == NULL) {
     code = terrno;
     lino = __LINE__;
-    goto _OVER1;
+    goto _OVER;
   }
 
   int32_t len = strlen(buffer);
   if (taosWriteFile(pFile, buffer, len) <= 0) {
     code = terrno;
     lino = __LINE__;
-    goto _OVER1;
+    goto _OVER;
   }
   if (taosFsyncFile(pFile) < 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
     lino = __LINE__;
-    goto _OVER1;
+    goto _OVER;
   }
 
   code = taosCloseFile(&pFile);
   if (code != 0) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
     lino = __LINE__;
-    goto _OVER1;
+    goto _OVER;
   }
-  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), &lino, _OVER1);
+  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), &lino, _OVER);
 
   dInfo("succeed to write vnodes file:%s, vnodes:%d", realfile, numOfVnodes);
 
-_OVER1:
-  ret = taosThreadMutexUnlock(&pMgmt->fileLock);
-  if (ret != 0) {
-    dError("failed to unlock since %s", tstrerror(ret));
-  }
-
 _OVER:
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+
   if (pJson != NULL) tjsonDelete(pJson);
   if (buffer != NULL) taosMemoryFree(buffer);
   if (pFile != NULL) taosCloseFile(&pFile);

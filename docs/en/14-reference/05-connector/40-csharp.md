@@ -106,7 +106,7 @@ Supported parameters include:
 - `password`: Password for the connection.
 - `protocol`: Connection protocol, options are Native or WebSocket, default is Native.
 - `db`: Database to connect to.
-- `timezone`: Time zone, default is the local time zone.
+- `timezone`: The timezone used for parsing time types in the query result set. Defaults to the local timezone. For format details, see [Timezone Settings for Result Sets](#timezone-settings-for-result-sets).
 
 ##### WebSocket Connection
 
@@ -120,7 +120,7 @@ Supported parameters include:
 - `password`: Password for the connection.
 - `protocol`: Connection protocol, options are Native or WebSocket, default is Native.
 - `db`: Database to connect to.
-- `timezone`: Time zone, default is the local time zone.
+- `timezone`: The timezone used for parsing time types in the query result set. Defaults to the local timezone. For format details, see [Timezone Settings for Result Sets](#timezone-settings-for-result-sets).
 - `connTimeout`: Connection timeout, default is 1 minute.
 - `readTimeout`: Read timeout, default is 5 minutes.
 - `writeTimeout`: Send timeout, default is 10 seconds.
@@ -130,6 +130,18 @@ Supported parameters include:
 - `autoReconnect`: Whether to automatically reconnect, default is false.
 - `reconnectRetryCount`: Number of retries for reconnection, default is 3.
 - `reconnectIntervalMs`: Interval for reconnection in milliseconds, default is 2000.
+
+#### Timezone Settings for Result Sets
+
+The C# driver, when parsing result sets, uses the local timezone by default to interpret time types. If you need to use a different timezone to parse time types, you can specify the timezone by setting the `timezone` parameter.  
+Internally, the `TimeZoneInfo.FindSystemTimeZoneById` method is used to retrieve timezone information:
+
+- On Windows systems, `FindSystemTimeZoneById` attempts to match the subkey names under the registry branch `HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Time Zones`.
+- On Linux and macOS, the timezone information provided by the [ICU library](https://unicode-org.github.io/icu/userguide/datetime/timezone/) is used.
+
+Take the New York timezone as an example: Windows uses Eastern Standard Time, while Linux and macOS use America/New_York.
+
+Starting with .NET 6, you can uniformly use the [IANA](https://www.iana.org/time-zones) time zone format, such as `America/New_York`.
 
 #### Interface Description
 

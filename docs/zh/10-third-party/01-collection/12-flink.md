@@ -24,6 +24,8 @@ Flink Connector 支持所有能运行 Flink 1.19 及以上版本的平台。
 ## 版本历史
 | Flink Connector 版本 |                   主要变化         |   TDengine 版本   |
 | ------------------| ------------------------------------ | ---------------- |
+|        2.1.3      | 增加数据转换异常信息输出 | - |
+|        2.1.2      | 写入字段增加反引号过滤 | - |
 |        2.1.1      | 修复 Stmt 相同表的数据绑定失败问题 | - |
 |        2.1.0      | 修复不同数据源 varchar 类型写入问题 | - |
 |        2.0.2      | Table Sink 支持 RowKind.UPDATE_BEFORE、RowKind.UPDATE_AFTER 和 RowKind.DELETE 类型 | - |
@@ -106,7 +108,7 @@ env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.AT_LEAST_ONCE);
 <dependency>
     <groupId>com.taosdata.flink</groupId>
     <artifactId>flink-connector-tdengine</artifactId>
-    <version>2.1.1</version>
+    <version>2.1.3</version>
 </dependency>
 ```
 
