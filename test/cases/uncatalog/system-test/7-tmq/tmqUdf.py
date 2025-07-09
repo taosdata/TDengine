@@ -1,33 +1,22 @@
 from distutils.log import error
-import taos
-import sys
 import time
-import socket
-import os
 import threading
 import subprocess
 import platform
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
-sys.path.append("./7-tmq")
-from tmqCommon import *
+from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tmqCommon import tmqCom
 
-class TDTestCase:
-    def __init__(self):
-        self.snapshot   = 0
-        self.vgroups    = 4
-        self.ctbNum     = 1
-        self.rowsPerTbl = 1000
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestCase:
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        cls.snapshot   = 0
+        cls.vgroups    = 4
+        cls.ctbNum     = 1
+        cls.rowsPerTbl = 1000
 
     def prepare_udf_so(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -318,7 +307,25 @@ class TDTestCase:
 
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
-    def run(self):
+    def test_tmq_udf(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         # tdSql.prepare()
         self.prepare_udf_so()
         self.create_udf_function()
@@ -336,11 +343,7 @@ class TDTestCase:
         self.tmqCase1()
         self.tmqCase2()
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

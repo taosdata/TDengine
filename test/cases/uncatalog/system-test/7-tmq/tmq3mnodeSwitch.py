@@ -7,36 +7,27 @@ import socket
 import os
 import threading
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
-from util.cluster import *
+from new_test_framework.utils import tdLog, tdSql, tdCom, cluster
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tmqCommon import tmqCom
 
-sys.path.append("./7-tmq")
-from tmqCommon import *
-
-class TDTestCase:
-    def __init__(self):
-        self.dnodes = 5
-        self.mnodes = 3
-        self.idIndex = 0
-        self.roleIndex = 2
-        self.mnodeStatusIndex = 3
-        self.mnodeEpIndex = 1
-        self.dnodeStatusIndex = 4
-        self.mnodeCheckCnt    = 10
-        self.host = socket.gethostname()
-        self.startPort = 6030
-        self.portStep = 100
-        self.dnodeOfLeader = 0
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestCase:
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        cls.dnodes = 5
+        cls.mnodes = 3
+        cls.idIndex = 0
+        cls.roleIndex = 2
+        cls.mnodeStatusIndex = 3
+        cls.mnodeEpIndex = 1
+        cls.dnodeStatusIndex = 4
+        cls.mnodeCheckCnt    = 10
+        cls.host = socket.gethostname()
+        cls.startPort = 6030
+        cls.portStep = 100
+        cls.dnodeOfLeader = 0
 
     def checkDnodesStatusAndCreateMnode(self,dnodeNumbers):
         count=0
@@ -239,16 +230,12 @@ class TDTestCase:
 
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
-    def run(self):
+    def test_tmq3mnodesSwitch(self):
         tdLog.printNoPrefix("======== Notes: must add '-N 5' for run the script ========")
         self.checkDnodesStatusAndCreateMnode(self.dnodes)
         self.tmqCase1()
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

@@ -6,24 +6,15 @@ import socket
 import os
 import threading
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+from new_test_framework.utils import tdLog, tdSql, tdCom
 from taos.tmq import *
-sys.path.append("./7-tmq")
-from tmqCommon import *
 
-class TDTestCase:
+class TestCase:
     updatecfgDict = {'debugFlag': 135, 'asynclog': 0}
     clientCfgDict = {'debugFlag': 135, 'asynclog': 0}
     updatecfgDict["clientCfg"] = clientCfgDict
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def checkJson(self, cfgPath, name):
         srcFile = '%s/../log/%s.source'%(cfgPath, name)
@@ -730,7 +721,25 @@ class TDTestCase:
         tdSql.execute(f'drop topic topic_all')
         tdSql.execute(f'drop database d1')
 
-    def run(self):
+    def test_tmq_taosx(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.consumeTest_6376()
         self.consume_TS_5067_Test()
         self.consumeTest()
@@ -761,9 +770,4 @@ class TDTestCase:
         self.checkSnapshotMultiVgroupsBtmeta()
         self.checkSnapshotMultiVgroupsWithDropTableBtmeta()
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

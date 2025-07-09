@@ -6,22 +6,13 @@ import socket
 import os
 import threading
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+from new_test_framework.utils import tdLog, tdSql, tdCom
 from taos.tmq import *
-sys.path.append("./7-tmq")
-from tmqCommon import *
 
-class TDTestCase:
+class TestCase:
     updatecfgDict = {'debugFlag': 135, 'asynclog': 0}
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def checkData(self):
         tdSql.execute('use db_taosx')
@@ -30,7 +21,25 @@ class TDTestCase:
         tdSql.checkData(0, 4, 23.23)
 
         return
-    def run(self):
+    def test_tmq_c(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_write_raw_test'%(buildPath)
         tdLog.info(cmdStr)
@@ -49,11 +58,6 @@ class TDTestCase:
         os.system(cmdStr)
 
         self.checkData()
-        return
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

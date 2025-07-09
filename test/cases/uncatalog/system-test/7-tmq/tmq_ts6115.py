@@ -1,17 +1,8 @@
-import taos
 import sys
-import time
-import socket
 import os
-import threading
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
 
-sys.path.append("./7-tmq")
+from new_test_framework.utils import tdLog, tdCom
 
 insertJson = '''{
     "filetype": "insert",
@@ -78,17 +69,32 @@ insertJson = '''{
     ]
 }'''
 
-class TDTestCase:
+class TestCase:
     updatecfgDict = {'debugFlag': 135, 'asynclog': 0}
     clientCfgDict = {'debugFlag': 135, 'asynclog': 0}
     updatecfgDict["clientCfg"] = clientCfgDict
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def run(self):
+    def test_tmq_ts6115(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
 
         with open('ts-6115.json', 'w') as file:
             file.write(insertJson)
@@ -106,11 +112,5 @@ class TDTestCase:
         if os.system(cmdStr) != 0:
             tdLog.exit(cmdStr)
 
-        return
-
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

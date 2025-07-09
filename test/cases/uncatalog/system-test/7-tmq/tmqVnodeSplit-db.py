@@ -1,34 +1,18 @@
-
-import taos
-import sys
-import time
-import socket
-import os
 import threading
-import math
+import time
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
-from util.cluster import *
-sys.path.append("./7-tmq")
-from tmqCommon import *
-sys.path.append("./6-cluster")
-from clusterCommonCreate import *
-from clusterCommonCheck import clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, tdCom, clusterComCheck, cluster
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tmqCommon import tmqCom
 
-class TDTestCase:
-    def __init__(self):
-        self.vgroups    = 1
-        self.ctbNum     = 10
-        self.rowsPerTbl = 1000
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestCase:
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        cls.vgroups    = 1
+        cls.ctbNum     = 10
+        cls.rowsPerTbl = 1000
 
     def getDataPath(self):
         selfPath = tdCom.getBuildPath()
@@ -204,15 +188,29 @@ class TDTestCase:
 
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
-    def run(self):
+    def test_tmq_vnode_split_db(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.prepareTestEnv()
         self.tmqCase1(True)
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

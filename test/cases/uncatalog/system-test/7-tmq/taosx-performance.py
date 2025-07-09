@@ -7,11 +7,7 @@ import threading
 
 sys.path.append("../../pytest")
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+from new_test_framework.utils import tdLog, TDDnodes
 from taos.tmq import *
 
 sys.path.append("./7-tmq")

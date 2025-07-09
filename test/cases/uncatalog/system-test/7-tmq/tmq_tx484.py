@@ -1,30 +1,16 @@
-import taos
-import sys
-import time
-import socket
 import os
-import threading
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
 from taos.tmq import *
 from taos import *
 
-sys.path.append("./7-tmq")
-from tmqCommon import *
-
-class TDTestCase:
+class TestCase:
     updatecfgDict = {'debugFlag': 135, 'asynclog': 0}
     clientCfgDict = {'debugFlag': 135, 'asynclog': 0}
     updatecfgDict["clientCfg"] = clientCfgDict
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def printData(self, res, check):
         if not res:
@@ -39,7 +25,7 @@ class TDTestCase:
                 if (element[2] != check):
                     tdLog.exit(f"error: {element[2]} != {check}")
 
-    def test(self):
+    def check(self):
         tdSql.execute(f'create database if not exists db vgroups 1 wal_retention_period 10')
         tdSql.execute(f'use db')
         tdSql.execute(f'CREATE STABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)')
@@ -102,13 +88,26 @@ class TDTestCase:
         res = consumer.poll(1)
         self.printData(res, 2193) 
 
-    def run(self):
-        self.test()
+    def test_tmq_tx484(self):
+        """summary: xxx
 
+        description: xxx
 
-    def stop(self):
-        tdSql.close()
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
+        self.check()
+
         tdLog.success(f"{__file__} successfully executed")
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

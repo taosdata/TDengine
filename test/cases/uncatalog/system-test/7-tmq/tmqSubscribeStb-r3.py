@@ -1,42 +1,22 @@
-import os
-import platform
-import socket
-import subprocess
-import sys
 import threading
 import time
 from distutils.log import error
 
-import taos
-from util.cases import *
-from util.cluster import *
-from util.common import *
-from util.dnodes import *
-from util.dnodes import TDDnode, TDDnodes
-from util.log import *
-from util.sql import *
+from new_test_framework.utils import tdLog, tdSql, tdCom, cluster, clusterComCheck
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tmqCommon import tmqCom
 
-sys.path.append("./6-cluster")
-sys.path.append("./7-tmq")
-from clusterCommonCheck import clusterComCheck
-from clusterCommonCreate import *
-from tmqCommon import *
-
-
-class TDTestCase:
-    def __init__(self):
-        self.snapshot   = 0
-        self.replica    = 3
-        self.vgroups    = 4
-        self.ctbNum     = 1000
-        self.rowsPerTbl = 100
-        self.dnodeNumbers = 5
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestCase:
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        cls.snapshot   = 0
+        cls.replica    = 3
+        cls.vgroups    = 4
+        cls.ctbNum     = 1000
+        cls.rowsPerTbl = 100
+        cls.dnodeNumbers = 5
 
     def checkFileContent(self, consumerId, queryString):
         buildPath = tdCom.getBuildPath()
@@ -303,17 +283,31 @@ class TDTestCase:
 
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
-    def run(self):
+    def test_tmq_subscribe_stb(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         #self.prepareTestEnv()
         #self.tmqCase1()
         self.prepareTestEnv()
         self.tmqCase2()
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

@@ -1,29 +1,25 @@
-import sys
 import time
 import threading
 from taos.tmq import Consumer
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
-sys.path.append("./7-tmq")
-from tmqCommon import *
 
-class TDTestCase:
+from new_test_framework.utils import tdLog, tdSql, tdCom
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tmqCommon import tmqCom
+
+class TestCase:
     clientCfgDict = {'debugFlag': 135}
     updatecfgDict = {'debugFlag': 135, 'clientCfg':clientCfgDict}
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        self.wal_retention_period1 = 3600
-        self.wal_retention_period2 = 1
-        self.commit_value_list = ["true", "false"]
-        self.offset_value_list = ["earliest", "latest", "none"]
-        self.tbname_value_list = ["true", "false"]
-        self.snapshot_value_list = ["false"]
+        cls.wal_retention_period1 = 3600
+        cls.wal_retention_period2 = 1
+        cls.commit_value_list = ["true", "false"]
+        cls.offset_value_list = ["earliest", "latest", "none"]
+        cls.tbname_value_list = ["true", "false"]
+        cls.snapshot_value_list = ["false"]
 
         # self.commit_value_list = ["true"]
         # self.offset_value_list = [""]
@@ -187,14 +183,28 @@ class TDTestCase:
                         tdSql.execute(f"drop topic if exists {topic_name}")
                         tdSql.execute(f'drop database if exists {paraDict["dbName"]}')
 
-    def run(self):
+    def test_tmq_params_test(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.tmqParamsTest()
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

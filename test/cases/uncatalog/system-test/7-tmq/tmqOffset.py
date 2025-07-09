@@ -1,37 +1,27 @@
-
-import sys
-import re
-import time
 import threading
+import platform
 from taos.tmq import Consumer
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
-sys.path.append("./7-tmq")
-from tmqCommon import *
+from new_test_framework.utils import tdLog, tdSql, tdCom
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tmqCommon import tmqCom
 
-class TDTestCase:
+class TestCase:
     updatecfgDict = {'debugFlag': 135}    
     
-    def __init__(self):
-        self.vgroups    = 2
-        self.ctbNum     = 1
-        self.rowsPerTbl = 10000
-        self.tmqMaxTopicNum = 10
-        self.tmqMaxGroups = 10
-        
-        self.TSDB_CODE_TMQ_VERSION_OUT_OF_RANGE = '0x4007'
-        self.TSDB_CODE_TMQ_INVALID_VGID         = '0x4008'
-        self.TSDB_CODE_TMQ_INVALID_TOPIC        = '0x4009'
-        
-        
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        cls.vgroups    = 2
+        cls.ctbNum     = 1
+        cls.rowsPerTbl = 10000
+        cls.tmqMaxTopicNum = 10
+        cls.tmqMaxGroups = 10
+        
+        cls.TSDB_CODE_TMQ_VERSION_OUT_OF_RANGE = '0x4007'
+        cls.TSDB_CODE_TMQ_INVALID_VGID         = '0x4008'
+        cls.TSDB_CODE_TMQ_INVALID_TOPIC        = '0x4009'
+        
 
     def getPath(self, tool="taosBenchmark"):
         if (platform.system().lower() == 'windows'):
@@ -385,15 +375,29 @@ class TDTestCase:
                     
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
-    def run(self):
+    def test_tmq_offset(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.prepareTestEnv()
         self.tmqCase1()
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

@@ -3,28 +3,22 @@ import sys
 import time
 import threading
 from taos.tmq import Consumer
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
-sys.path.append("./7-tmq")
-from tmqCommon import *
+import platform
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tmqCommon import tmqCom
+from new_test_framework.utils import tdLog, tdSql, tdCom
 
-class TDTestCase:
+class TestCase:
     updatecfgDict = {'debugFlag': 135}    
     
-    def __init__(self):
-        self.vgroups    = 1
-        self.ctbNum     = 10
-        self.rowsPerTbl = 10
-        self.tmqMaxTopicNum = 20
-        self.tmqMaxGroups = 100
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        cls.vgroups    = 1
+        cls.ctbNum     = 10
+        cls.rowsPerTbl = 10
+        cls.tmqMaxTopicNum = 20
+        cls.tmqMaxGroups = 100
 
     def getPath(self, tool="taosBenchmark"):
         if (platform.system().lower() == 'windows'):
@@ -230,15 +224,29 @@ class TDTestCase:
 
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
-    def run(self):
+    def test_tmq_max_groupids(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.prepareTestEnv()
         self.tmqCase1()
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

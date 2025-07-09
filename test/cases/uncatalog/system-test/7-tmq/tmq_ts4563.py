@@ -5,25 +5,17 @@ import time
 import socket
 import os
 import threading
+import datetime
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+from new_test_framework.utils import tdLog, tdSql, tdCom
 from taos.tmq import *
 from taos import *
 
-sys.path.append("./7-tmq")
-from tmqCommon import *
 
-class TDTestCase:
+class TestCase:
     updatecfgDict = {'debugFlag': 143, 'asynclog': 0}
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def consumeTest_TS_4563(self):
         tdSql.execute(f'use db_stmt')
@@ -89,7 +81,7 @@ class TDTestCase:
         print(con)
         return con
 
-    def test_stmt_insert_multi(self,conn):
+    def check_stmt_insert_multi(self,conn):
         # type: (TaosConnection) -> None
 
         dbname = "db_stmt"
@@ -143,18 +135,30 @@ class TDTestCase:
             conn.close()
             raise err
 
-    def run(self):
+    def test_tmq_ts4563(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         buildPath = self.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
         host="localhost"
         connectstmt=self.newcon(host,config)
-        self.test_stmt_insert_multi(connectstmt)
+        self.check_stmt_insert_multi(connectstmt)
         self.consumeTest_TS_4563()
 
-
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

@@ -4,16 +4,13 @@ import socket
 import os
 import threading
 
-import taos
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
-sys.path.append("./7-tmq")
-from tmqCommon import *
+from new_test_framework.utils import tdLog, tdSql, tdCom
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tmqCommon import tmqCom
 
-class TDTestCase:
+class TestCase:
     paraDict = {'dbName':     'db12',
                 'dropFlag':   1,
                 'event':      '',
@@ -52,11 +49,8 @@ class TDTestCase:
 
     hostname = socket.gethostname()
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        logSql = False
-        tdSql.init(conn.cursor(), logSql)
 
     def tmqCase12(self):
         tdLog.printNoPrefix("======== test case 12: ")
@@ -111,15 +105,29 @@ class TDTestCase:
 
         tdLog.printNoPrefix("======== test case 12 end ...... ")
 
-    def run(self):
+    def test_subscribeDb4(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdSql.prepare()
         self.tmqCase12()
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

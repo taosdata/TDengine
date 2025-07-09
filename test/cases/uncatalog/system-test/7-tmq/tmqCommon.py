@@ -14,21 +14,13 @@ import math
 from asyncore import loop
 from collections import defaultdict
 import subprocess
-import random
-import string
 import threading
-import requests
 import time
+import platform
+import os
 # import socketfrom
-import json
-import toml
 
-import taos
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
+from new_test_framework.utils import tdLog, tdSql, tdCom
 
 # class actionType(Enum):
 #     CREATE_DATABASE = 0

@@ -4,25 +4,18 @@ import time
 import socket
 import os
 import threading
-from util.common import *
+from new_test_framework.utils import tdLog, tdSql, tdCom
+from new_test_framework.utils.sqlset import TDSetSql
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.sqlset import *
-
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestCase:
+    def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(),logSql)
-        self.setsql = TDSetSql()
-        self.rowNum = 10
-        self.ts = 1537146000000
-        self.binary_str = 'taosdata'
-        self.nchar_str = '涛思数据'
-        self.column_dict = {
+        cls.setsql = TDSetSql()
+        cls.rowNum = 10
+        cls.ts = 1537146000000
+        cls.binary_str = 'taosdata'
+        cls.nchar_str = '涛思数据'
+        cls.column_dict = {
             'ts'  : 'timestamp',
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -35,7 +28,7 @@ class TDTestCase:
             'col9': 'float',
             'col10': 'double',
             }
-        self.error_topic = ['avg','count','spread','stddev','sum','hyperloglog']
+        cls.error_topic = ['avg','count','spread','stddev','sum','hyperloglog']
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname)
         for i in range(row_num):
@@ -67,12 +60,24 @@ class TDTestCase:
                 tdSql.error(f'create topic tpn as select HISTOGRAM({column},user_input,[1,3,5,7],0) from {stbname}')
                 tdSql.error(f'create topic tpn as select percentile({column},1) from {stbname}_tb1')
         pass
-    def run(self):
+    def test_create_wrong_topic(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.wrong_topic()
-
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

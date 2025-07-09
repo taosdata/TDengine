@@ -6,12 +6,9 @@ import socket
 import os
 import threading
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase:
+class TestCase:
     hostname = socket.gethostname()
     # rpcDebugFlagVal = '143'
     #clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
@@ -20,13 +17,10 @@ class TDTestCase:
     # updatecfgDict["rpcDebugFlag"] = rpcDebugFlagVal
     #print ("===================: ", updatecfgDict)
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def test(self):
+    def check(self):
         tdLog.info("create database, stb, ctb")
         tdSql.execute("create database if not exists db1 vgroups 4 wal_retention_period 3600")
         tdSql.execute("create table if not exists db1.st(ts timestamp, c1 int, c2 bool, c3 tinyint, c4 double, c5 nchar(8)) tags(t1 int, t2 float, t3 binary(4))")
@@ -64,12 +58,25 @@ class TDTestCase:
 
         tdLog.printNoPrefix("======== test case end ...... ")
 
-    def run(self):
-        self.test()
+    def test_ins_topics(self):
+        """summary: xxx
 
-    def stop(self):
-        tdSql.close()
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
+        self.check()
+        
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

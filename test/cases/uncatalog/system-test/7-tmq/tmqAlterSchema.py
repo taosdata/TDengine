@@ -1,42 +1,31 @@
 
 from ntpath import join
-import taos
-import sys
 import time
 import socket
-import os
 import threading
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
-from util.cluster import *
+from new_test_framework.utils import tdLog, tdSql, tdCom
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tmqCommon import tmqCom
 
-sys.path.append("./7-tmq")
-from tmqCommon import *
-
-class TDTestCase:
-    def __init__(self):
-        self.dnodes = 5
-        self.mnodes = 3
-        self.idIndex = 0
-        self.roleIndex = 2
-        self.mnodeStatusIndex = 3
-        self.mnodeEpIndex = 1
-        self.dnodeStatusIndex = 4
-        self.mnodeCheckCnt    = 10
-        self.host = socket.gethostname()
-        self.startPort = 6030
-        self.portStep = 100
-        self.dnodeOfLeader = 0
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestCase:
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        cls.dnodes = 5
+        cls.mnodes = 3
+        cls.idIndex = 0
+        cls.roleIndex = 2
+        cls.mnodeStatusIndex = 3
+        cls.mnodeEpIndex = 1
+        cls.dnodeStatusIndex = 4
+        cls.mnodeCheckCnt    = 10
+        cls.host = socket.gethostname()
+        cls.startPort = 6030
+        cls.portStep = 100
+        cls.dnodeOfLeader = 0
+
 
     def tmqCase1(self):
         tdLog.printNoPrefix("======== test case 1: topic: select * from stb, while consume, add column int-A/bianry-B/float-C, and then modify B, drop C")
@@ -245,16 +234,28 @@ class TDTestCase:
 
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
-    def run(self):
+    def test_tmq_alterschema(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.tmqCase1()
         self.tmqCase2()
 
-
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

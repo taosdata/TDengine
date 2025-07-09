@@ -1,16 +1,15 @@
 
-import taos
+
 import sys
 import time
-import socket
-import os
 import threading
+import socket
 from enum import Enum
-
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
+import os
+import taos
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tmqCommon import tmqCom
+from new_test_framework.utils import tdLog, tdSql, tdCom
 
 class actionType(Enum):
     CREATE_DATABASE = 0
@@ -18,7 +17,7 @@ class actionType(Enum):
     CREATE_CTABLE   = 2
     INSERT_DATA     = 3
 
-class TDTestCase:
+class TestCase:
     hostname = socket.gethostname()
     #rpcDebugFlagVal = '143'
     #clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
@@ -27,11 +26,8 @@ class TDTestCase:
     #updatecfgDict["rpcDebugFlag"] = rpcDebugFlagVal
     #print ("===================: ", updatecfgDict)
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -1420,7 +1416,25 @@ class TDTestCase:
 
         tdLog.printNoPrefix("======== test case 13 end ...... ")
 
-    def run(self):
+    def test_tmq_module(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdSql.prepare()
 
         buildPath = self.getBuildPath()
@@ -1443,5 +1457,3 @@ class TDTestCase:
 
 event = threading.Event()
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

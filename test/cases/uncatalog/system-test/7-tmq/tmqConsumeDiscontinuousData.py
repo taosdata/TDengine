@@ -1,35 +1,30 @@
 
-import sys
 import time
 import datetime
 import threading
 from taos.tmq import Consumer
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
-sys.path.append("./7-tmq")
-from tmqCommon import *
+import platform
 
-class TDTestCase:
+from new_test_framework.utils import tdLog, tdSql, tdCom
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tmqCommon import tmqCom
+
+class TestCase:
     updatecfgDict = {'debugFlag': 135}    
     
-    def __init__(self):
-        self.vgroups    = 1
-        self.ctbNum     = 10
-        self.rowsPerTbl = 100
-        self.tmqMaxTopicNum = 1
-        self.tmqMaxGroups = 1
-        self.walRetentionPeriod = 3
-        self.actConsumeTotalRows = 0
-        self.retryPoll = 0
-        self.lock = threading.Lock()
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        cls.vgroups    = 1
+        cls.ctbNum     = 10
+        cls.rowsPerTbl = 100
+        cls.tmqMaxTopicNum = 1
+        cls.tmqMaxGroups = 1
+        cls.walRetentionPeriod = 3
+        cls.actConsumeTotalRows = 0
+        cls.retryPoll = 0
+        cls.lock = threading.Lock()
 
     def getPath(self, tool="taosBenchmark"):
         if (platform.system().lower() == 'windows'):
@@ -242,15 +237,29 @@ class TDTestCase:
         
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
-    def run(self):
+    def test_tmq_cons_discontinuous_data(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.prepareTestEnv()
         self.tmqCase1()
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

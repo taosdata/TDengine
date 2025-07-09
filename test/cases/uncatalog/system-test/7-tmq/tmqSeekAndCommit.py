@@ -1,27 +1,19 @@
-import sys
-import re
-import time
-import threading
 from taos.tmq import *
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
-sys.path.append("./7-tmq")
-from tmqCommon import *
+from new_test_framework.utils import tdLog, tdSql, tdCom
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tmqCommon import tmqCom
 
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestCase:
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
         
-        self.db_name = "tmq_db"
-        self.topic_name = "tmq_topic"
-        self.stable_name = "tmqst"
-        self.prepareData()
+        cls.db_name = "tmq_db"
+        cls.topic_name = "tmq_topic"
+        cls.stable_name = "tmqst"
+        cls.prepareData()
         
 
     def prepareData(self):
@@ -73,7 +65,7 @@ class TDTestCase:
         tdLog.info("create consumer success!")
         return consumer
 
-    def test_seek_and_committed_position_with_autocommit(self):
+    def check_seek_and_committed_position_with_autocommit(self):
         """Check the position and committed offset of the topic for autocommit scenario
         """
         try:
@@ -123,7 +115,7 @@ class TDTestCase:
             consumer.unsubscribe()
             consumer.close()
 
-    def test_commit_by_offset(self):
+    def check_commit_by_offset(self):
         """Check the position and committed offset of the topic for commit by offset scenario
         """
         try:
@@ -192,15 +184,28 @@ class TDTestCase:
             consumer.unsubscribe()
             consumer.close()
 
-    def run(self):
-        self.test_seek_and_committed_position_with_autocommit()
-        self.test_commit_by_offset()
+    def test_tmq_seek_and_commit(self):
+        """summary: xxx
 
-    def stop(self):
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
+        self.check_seek_and_committed_position_with_autocommit()
+        self.check_commit_by_offset()
+
         tdSql.execute("drop topic %s" % self.topic_name)
         tdSql.execute("drop database %s"%(self.db_name))
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

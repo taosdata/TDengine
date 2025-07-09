@@ -1,28 +1,15 @@
-
-import taos
-import sys
 import time
-import socket
-import os
-import threading
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
 from taos.tmq import *
-sys.path.append("./7-tmq")
-from tmqCommon import *
+from new_test_framework.utils import tdLog, tdSql
 
-class TDTestCase:
+class TestCase:
     clientCfgDict = {'debugFlag': 135}
     updatecfgDict = {'debugFlag': 135, 'clientCfg':clientCfgDict}
     # updatecfgDict = {'debugFlag': 135, 'clientCfg':clientCfgDict, 'tmqRowSize':1}
 
-    def init(self, conn, logSql, replicaVar=1):
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
 
     def get_leader(self):
         tdLog.debug("get leader")
@@ -110,12 +97,24 @@ class TDTestCase:
 
         finally:
             consumer.close()
-    def run(self):
+    def test_tmq_ts_4674(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.consume_TS_4674_Test()
-
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

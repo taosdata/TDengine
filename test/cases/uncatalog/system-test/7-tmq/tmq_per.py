@@ -7,30 +7,18 @@ import os
 import threading
 import math
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
-from util.cluster import *
-sys.path.append("./7-tmq")
-from tmqCommon import *
+from new_test_framework.utils import tdLog, tdSql, tdCom, clusterComCheck, cluster
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tmqCommon import tmqCom
 
-from util.cluster import *
-sys.path.append("./6-cluster")
-from clusterCommonCreate import *
-from clusterCommonCheck import clusterComCheck
-
-class TDTestCase:
-    def __init__(self):
-        self.vgroups    = 1
-        self.ctbNum     = 10000
-        self.rowsPerTbl = 10000
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestCase:
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        cls.vgroups    = 1
+        cls.ctbNum     = 1000
+        cls.rowsPerTbl = 10000
 
     def getDataPath(self):
         selfPath = tdCom.getBuildPath()
@@ -182,15 +170,29 @@ class TDTestCase:
             clusterComCheck.check_vgroups_status(vgroup_numbers=1,db_replica=self.replicaVar,db_name="dbt",count_number=240)   
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
-    def run(self):
+    def test_per(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.prepareTestEnv()
         self.tmqCase1(True)
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

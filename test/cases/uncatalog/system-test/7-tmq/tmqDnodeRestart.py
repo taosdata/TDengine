@@ -1,31 +1,22 @@
 
-import taos
-import sys
 import time
-import socket
-import os
 import platform
 import threading
 from enum import Enum
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-sys.path.append("./7-tmq")
-from tmqCommon import *
+from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tmqCommon import tmqCom
 
-class TDTestCase:
-    def __init__(self):
-        self.snapshot   = 0
-        self.vgroups    = 2
-        self.ctbNum     = 100
-        self.rowsPerTbl = 1000
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestCase:
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        cls.snapshot   = 0
+        cls.vgroups    = 2
+        cls.ctbNum     = 100
+        cls.rowsPerTbl = 1000
 
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
@@ -251,17 +242,31 @@ class TDTestCase:
 
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
-    def run(self):
+    def test_tmq_dnode_restart(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         # tdSql.prepare()
         self.prepareTestEnv()
         self.tmqCase1()
         self.tmqCase2()
-
-    def stop(self):
-        tdSql.close()
+        
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

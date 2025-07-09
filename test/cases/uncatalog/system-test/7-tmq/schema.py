@@ -7,10 +7,7 @@ import os
 import threading
 from enum import Enum
 
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
+from new_test_framework.utils import tdLog, tdSql, tdCom
 
 class actionType(Enum):
     CREATE_DATABASE = 0
@@ -18,7 +15,7 @@ class actionType(Enum):
     CREATE_CTABLE   = 2
     INSERT_DATA     = 3
 
-class TDTestCase:
+class TestCase:
     hostname = socket.gethostname()
     #rpcDebugFlagVal = '143'
     #clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
@@ -27,11 +24,8 @@ class TDTestCase:
     #updatecfgDict["rpcDebugFlag"] = rpcDebugFlagVal
     #print ("===================: ", updatecfgDict)
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -892,7 +886,25 @@ class TDTestCase:
 
         tdLog.printNoPrefix("======== test case 6 end ...... ")
 
-    def run(self):
+    def test_schema(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdSql.prepare()
 
         buildPath = self.getBuildPath()
@@ -909,11 +921,7 @@ class TDTestCase:
         self.tmqCase4(cfgPath, buildPath)
         self.tmqCase5(cfgPath, buildPath)
 
-    def stop(self):
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
 
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())

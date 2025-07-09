@@ -1,28 +1,20 @@
-import sys
-import re
-import time
-import threading
 from taos.tmq import *
-from util.log import *
-from util.sql import *
-from util.cases import *
-from util.dnodes import *
-from util.common import *
-sys.path.append("./7-tmq")
-from tmqCommon import *
+from new_test_framework.utils import tdLog, tdSql, tdCom
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tmqCommon import tmqCom
 
 
-class TDTestCase:
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+class TestCase:
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
         
-        self.db_name = "tmq_db"
-        self.topic_name = "tmq_topic"
-        self.stable_name = "stb"
-        self.rows_per_table = 1000
-        self.ctb_num = 100
+        cls.db_name = "tmq_db"
+        cls.topic_name = "tmq_topic"
+        cls.stable_name = "stb"
+        cls.rows_per_table = 1000
+        cls.ctb_num = 100
 
     def prepareData(self, precisionUnit="ms"):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
@@ -71,8 +63,24 @@ class TDTestCase:
         pThread = tmqCom.asyncInsertDataByInterlace(paraDict)
         pThread.join()
 
-    def run(self):
-        """Check tmq feature for different data precision unit like "ms、us、ns"
+    def test_tmq_data_precision_unit(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
         """
         precision_unit = ["ms", "us", "ns"]
         for unit in precision_unit:
@@ -129,11 +137,6 @@ class TDTestCase:
             tdSql.query("drop topic %s" % self.topic_name)
             tdSql.execute("drop database %s" % self.db_name)
         
-    def stop(self):
         tdSql.execute(f"drop database if exists {self.db_name}")
-        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
-
-tdCases.addLinux(__file__, TDTestCase())
-tdCases.addWindows(__file__, TDTestCase())
