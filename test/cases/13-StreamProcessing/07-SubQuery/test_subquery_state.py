@@ -373,9 +373,10 @@ class TestStreamSubqueryState:
 
         stream = StreamItem(
             id=27,
-            stream="create stream rdb.s27 state_window(c1) from tdb.triggers partition by tbname into rdb.r27 as select _twstart tw, sum(cint) c1, count(cint) c2 from qdb.meters where cts >= _twstart and cts < _twstart + 5m and tbname=%%1",
-            res_query="select * from rdb.r27 where tag_tbname='t1'",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:40:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s27 state_window(c1) from tdb.v1 partition by tbname into rdb.r27 as select _twstart tw, sum(cint) c1, count(cint) c2 from qdb.vmeters where cts >= _twstart and cts < _twstart + 5m and tbname=%%1",
+            res_query="select * from rdb.r27 where tag_tbname='v1' limit 3",
+            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.vmeters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:15:00.000' and tbname='v1' partition by tbname interval(5m);",
+            check_func=self.check27,
         )
         # self.streams.append(stream)
 
@@ -1440,6 +1441,22 @@ class TestStreamSubqueryState:
         tdSql.checkResultsByFunc(
             sql="select * from rdb.r16",
             func=lambda: tdSql.getRows() == 2,
+        )
+
+    def check27(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from rdb.r27 where tag_tbname='v1'",
+            func=lambda: tdSql.getRows() == 4
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 45)
+            and tdSql.compareData(0, 2, 10)
+            and tdSql.compareData(1, 0, "2025-01-01 00:05:00.000")
+            and tdSql.compareData(1, 1, 145)
+            and tdSql.compareData(1, 2, 10)
+            and tdSql.compareData(2, 0, "2025-01-01 00:10:00.000")
+            and tdSql.compareData(2, 1, 245)
+            and tdSql.compareData(2, 2, 10)
+            and tdSql.compareData(3, 0, "2025-01-01 00:30:00.000"),
         )
 
     def check40(self):
