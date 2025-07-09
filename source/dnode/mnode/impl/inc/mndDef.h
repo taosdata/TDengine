@@ -84,6 +84,7 @@ typedef enum {
   MND_OPER_CREATE_BNODE,
   MND_OPER_DROP_BNODE,
   MND_OPER_CREATE_MOUNT,
+  MND_OPER_DROP_MOUNT,
 } EOperType;
 
 typedef enum {

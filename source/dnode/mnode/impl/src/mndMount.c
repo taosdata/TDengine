@@ -683,7 +683,7 @@ static int32_t mndProcessDropMountReq(SRpcMsg *pReq) {
   }
 
   // mount operation share the privileges of db
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, (SDbObj *)pObj), NULL, _exit);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MOUNT, (SDbObj *)pObj), NULL, _exit);
 
   code = mndDropMount(pMnode, pReq, pObj);
   if (code == TSDB_CODE_SUCCESS) {
