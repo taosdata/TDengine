@@ -10,7 +10,7 @@ on:
 jobs:
   build:
     name: Build
-    runs-on: [ self-hosted, linux, x64 ]
+    runs-on: [ self-hosted, linux, x64, app2 ]
     steps:
       - uses: actions/checkout@v3
         with:
