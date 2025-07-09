@@ -1106,7 +1106,8 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
     if (pMsg->fsmState == SYNC_FSM_STATE_INCOMPLETE || (!pMsg->success && pMsg->matchIndex >= pMsg->lastSendIndex)) {
       char* msg1 = " rollback match index failure";
       char* msg2 = " incomplete fsm state";
-      sInfo("vgId:%d, snapshot replication to dnode:%d, reason:%s, match index:%" PRId64 ", last sent:%" PRId64,
+      sInfo("vgId:%d, snapshot replication progress:1/8:leader:1/4 to dnode:%d, reason:%s, match index:%" PRId64
+            ", last sent:%" PRId64,
             pNode->vgId, DID(&destId), (pMsg->fsmState == SYNC_FSM_STATE_INCOMPLETE ? msg2 : msg1), pMsg->matchIndex,
             pMsg->lastSendIndex);
       if ((code = syncNodeStartSnapshot(pNode, &destId)) < 0) {

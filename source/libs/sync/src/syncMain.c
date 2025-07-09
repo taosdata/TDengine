@@ -3679,12 +3679,14 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       if (ths->syncEqMsg != NULL && ths->msgcb != NULL) {
         int32_t code = ths->syncEqMsg(ths->msgcb, &rpcMsgLocalCmd);
         if (code != 0) {
-          sError("vgId:%d, failed to enqueue commit msg from heartbeat since %s, code:%d", ths->vgId, terrstr(), code);
+          sError("vgId:%d, failed to enqueue sync-local-cmd msg(cmd=commit) from heartbeat since %s",
+                 ths->vgId, tstrerror(code));
           rpcFreeCont(rpcMsgLocalCmd.pCont);
         } else {
           sGTrace(&pRpcMsg->info.traceId,
-                  "vgId:%d, enqueue commit msg from heartbeat, commit-index:%" PRId64 ", term:%" PRId64, ths->vgId,
-                  pMsg->commitIndex, pMsg->term);
+                  "vgId:%d, enqueue sync-local-cmd msg(cmd=commit) from heartbeat, commit-index:%" PRId64
+                  ", term:%" PRId64,
+                  ths->vgId, pMsg->commitIndex, pMsg->term);
         }
       }
     }
@@ -3704,10 +3706,10 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     if (ths->syncEqMsg != NULL && ths->msgcb != NULL) {
       int32_t code = ths->syncEqMsg(ths->msgcb, &rpcMsgLocalCmd);
       if (code != 0) {
-        sError("vgId:%d, sync enqueue step-down msg error, code:%d", ths->vgId, code);
+        sError("vgId:%d, sync enqueue sync-local-cmd msg(cmd=step-down) error, code:%d", ths->vgId, code);
         rpcFreeCont(rpcMsgLocalCmd.pCont);
       } else {
-        sTrace("vgId:%d, sync enqueue step-down msg, new-term:%" PRId64, ths->vgId, pMsg->term);
+        sTrace("vgId:%d, sync enqueue sync-local-cmd msg(cmd=step-down), new-term:%" PRId64, ths->vgId, pMsg->term);
       }
     }
   }
