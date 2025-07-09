@@ -22,7 +22,6 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-20.04
           - ubuntu-22.04
           - ubuntu-24.04
           # - macos-13
@@ -36,7 +35,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.18
+          go-version: 1.23.0
 
       - name: Install dependencies on Linux
         if: runner.os == 'Linux'
@@ -51,21 +50,30 @@ jobs:
         run: |
           brew update
           brew install argp-standalone gflags pkg-config  snappy zlib geos jansson gawk openssl
+      
       - name: Generate GitHub App Token
         id: app-token
         uses: tibdex/github-app-token@v1
         with:
           app_id: ${{ vars.TAOSDATA_BOT_ID }}
           private_key: ${{ secrets.TAOSDATA_BOT_KEY }}
+          
       - name: Configure Git authentication
         run: |
+          # 配置全局git配置      
           git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+          
+      - name: Get CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+          
       - name: Build and install TDinternal
         run: |
           mkdir debug && cd debug
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
-            -DBUILD_HTTP=false \
+            -DBUILD_HTTP=internal \
             -DBUILD_TEST=true \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_TAOSX=false \
@@ -75,7 +83,7 @@ jobs:
           which taosd
           which taosadapter
           which taoskeeper
-
+          
       - name: Start taosd
         run: |
           cp /etc/taos/taos.cfg ./

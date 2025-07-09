@@ -1,3 +1,0 @@
-project(deps-download NONE)
-
-include(ExternalProject)

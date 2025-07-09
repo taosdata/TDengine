@@ -166,3 +166,4 @@ sln/
 enterprise/contrib/*
 !enterprise/contrib/CMakeLists.txt
 compile_commands.json
+.externals

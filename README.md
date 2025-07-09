@@ -57,10 +57,10 @@ For user manual, system design and architecture, please refer to [TDengine Docum
 
 List the software and tools required to work on the project.
 
-- go 1.20+ (for taosadapter and taosx)
+- go 1.23+ (for taosadapter and taosx)
 - cargo 1.82.0+ (for taosx)
 - jdk 11~17, maven 3.8.0+ (for taosx plugin influxDB & openTSDB)
-- node 16.20.2 (for taos-explorer)
+- node 22.14.0 (for taos-explorer)
 - python 3.10.12+ (for test)
 
 Run the script to set up the prerequisite software:
@@ -271,8 +271,147 @@ Work in Progress.
 
 <summary>Install required tools on Windows</summary>
 
-Work in Progress.
+List the software and tools required to work on the project.
 
+- go 1.20+ (for taosadapter and taosx)
+- cargo 1.82.0+ (for taosx)
+- jdk 11~17, maven 3.8.0+ (for taosx plugin influxDB & openTSDB)
+- node 22.3.0 (for taos-explorer)
+- python 3.8~3.10 (for test)
+
+Please follow the step-by-step instructions below to install the prerequisites.
+
+### 3.3.1 Install the required package
+
+Download Visual Studio from the following link:
+
+```cmd
+https://visualstudio.microsoft.com/zh-hans/downloads
+
+```
+
+Download Microsoft Visual C++ 2015-2022 Redistributable (x64) from the following link:
+
+```cmd
+https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170
+```
+
+Download and install msys2 from the following link, then set path for msys2(like C:\msys64\usr\bin):
+
+```cmd
+https://mirrors.tuna.tsinghua.edu.cn/msys2/distrib/x86_64/
+```
+
+Configure msys2 path:
+
+```cmd
+setx PATH "%PATH%;C:\msys64\usr\bin" /M
+```
+
+Download and unzip jom from the following link, then set path for jom:
+
+```cmd
+https://mirror.aarnet.edu.au/pub/qtproject/official_releases/jom/jom.zip
+```
+
+Unzip the downloaded file to the target directory,(such as C:\jom-1.1.3),then configuring Jom environment variables:
+
+```cmd
+setx PATH "%PATH%;C:\jom-1.1.3" /M
+```
+
+### 3.1.2 Install Go
+
+Update the installation package to version 1.23.3 from the following link:
+
+```cmd
+https://golang.google.cn/dl/
+
+```
+
+Enter in PowerShell to check if the installation is correct:
+
+```cmd
+go version
+```
+
+Configure Go environment variables:
+
+```cmd
+go env -w GO111MODULE=on
+go env -w GOPROXY=https://goproxy.cn,direct
+```
+
+### 3.1.3 Install Cargo
+
+Download rustup-init.exe from the following link:
+
+```cmd
+https://win.rustup.rs/
+
+```
+
+Download and install open-ssl:
+
+```cmd
+git clone https://github.com/Microsoft/vcpkg.git
+.\vcpkg\bootstrap-vcpkg.bat
+cd vcpkg
+.\vcpkg.exe install openssl:x64-windows-static-md
+```
+### 3.1.4 Install Jdk & maven
+
+Visit the following link to download openjdk17 and maven, then follow the installation wizard to operate the installation.
+
+
+```cmd
+https://adoptium.net/temurin/releases/
+https://maven.apache.org/download.cgi
+```
+
+Set environment variables of maven.
+
+```cmd
+setx MAVEN_HOME "C:\apache-maven-3.9.5" /M
+setx PATH "%PATH%;%MAVEN_HOME%\bin" /M
+```
+
+
+
+### 3.1.5 Install node
+
+Visit the following link to download node 22, then follow the installation wizard to operate the installation
+
+```cmd
+https://nodejs.org/en/download
+```
+
+
+### 3.1.6 Install Python-connector
+
+Taking python 3.8.10 as an example, install Python3 from the following link:
+
+```cmd
+https://www.python.org/ftp/python/3.8.10/python-3.8.10-amd64.exe
+```
+
+Install Pip3 
+
+```cmd
+python3 -m pip install
+```
+
+Install the dependent Python components.
+
+```cmd
+pip3 install pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog toml
+```
+
+Install the Python connector for TDengine.
+
+```cmd
+pip3 install taospy taos-ws-py
+```
 </details>
 
 # 4. Building
@@ -338,7 +477,7 @@ make install
 <summary>Detailed steps to build on macOS</summary>
 
 
-Please install XCode command line tools and cmake. Verified with XCode 11.4+ on Catalina and Big Sur.
+Please install XCode command line tools and cmake. Verified with XCode 11.4+ on macOS Catalina and Big Sur.
 Clone TDinternal repository to a local directory (for example, /root).
 
 ```shell
@@ -377,15 +516,36 @@ cmake .. && cmake --build .
 
 <summary>Detailed steps to build on Windows</summary>
 
-Work in Progress.
+If you use the Visual Studio 2013, please open a command window by executing "cmd.exe".
+Please specify "amd64" for 64 bits Windows or specify "x86" for 32 bits Windows when you execute vcvarsall.bat.
+
+```cmd
+mkdir debug && cd debug
+"C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" < amd64 | x86 >
+cmake .. -G "NMake Makefiles"
+jom -j 4
+```
+
+If you use the Visual Studio 2019 or 2017 or 2022:
+
+please open a command window by executing "cmd.exe".
+Please specify "x64" for 64 bits Windows or specify "x86" for 32 bits Windows when you execute vcvarsall.bat.
+
+```cmd
+mkdir debug && cd debug
+call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat"  < x64 | x86 >
+cmake .. -G "NMake Makefiles JOM" -DBUILD_TEST=true -DBUILD_TOOLS=true
+jom -j 4
+```
 
 </details>
 
 # 5. Packaging
 
+## 5.1 Package on Linux
 <details>
 
-<summary>How to package the  enterprise edition locally?</summary>
+<summary>Detailed steps to package on Linux</summary>
 
 Using the following script to package the enterprise edition.
 
@@ -402,6 +562,34 @@ Once the packaging process is complete, you can find the installation package fi
 ```bash
 ll /root/TDinternal/community/release
 ```
+</details>
+
+## 5.2 Package on macOS
+<details>
+
+<summary>Detailed steps to package on macOS</summary>
+Using the following script to package the enterprise edition.
+
+```bash
+cd /root/TDinternal/enterprise/packaging
+# version_number should be in the format x.x.x.x[.x], e.g., 3.3.5.0 or 3.3.5.0.1234
+# if you use option "-b <branch_name>" and branch_name is not main or 3.0,
+# please ensure that both TDinternal and TDengine repo have this branch.
+./new_ver_release.sh -n <version_number>  
+```
+
+Once the packaging process is complete, you can find the installation package files listed below by executing the command:
+
+```bash
+ll /root/TDinternal/community/release
+```
+</details>
+
+## 5.3 Package on Windows
+<details>
+
+<summary>Detailed steps to package on Windows</summary>
+Work in Progress.
 </details>
 
 # 6. Installing
@@ -451,7 +639,7 @@ sudo make install
 After building successfully, TDengine can be installed by:
 
 ```cmd
-nmake install
+jom install
 ```
 
 </details>
@@ -537,13 +725,13 @@ If TDengine CLI connects the server successfully, welcome messages and version i
 You can start TDengine server on Windows platform with below commands:
 
 ```cmd
-.\build\bin\taosd.exe -c test\cfg
+.\TDinternal\debug\build\bin\taosd.exe -c .\TDinternal\debug\test\cfg
 ```
 
 In another terminal, use the TDengine CLI to connect the server:
 
 ```cmd
-.\build\bin\taos.exe -c test\cfg
+.\TDinternal\debug\build\bin\taos.exe -c .\TDinternal\debug\test\cfg
 ```
 
 option "-c test/cfg" specifies the system configuration file directory.
@@ -626,7 +814,7 @@ bash test.sh
 
 #### 8.3.1.3 How to add new cases? 
 
-The Google test framwork is used for unit testing to specific function module, please refer to steps below to add a new test case:
+The Google test framework is used for unit testing to specific function module, please refer to steps below to add a new test case:
 
 ##### a. Create test case file and develop the test scripts
 
@@ -653,7 +841,7 @@ Use the add_test command to add new compiled test cases into CI test collection,
 
 ### 8.3.2 System Test
 
-System tests are end-to-end test cases written in Python from a system point of view. Some of them are designed to test features only in enterprise ediiton, so when running on community edition, they may fail. We'll fix this issue by separating the cases into different gruops in the future.
+System tests are end-to-end test cases written in Python from a system point of view. Some of them are designed to test features only in enterprise ediiton, so when running on community edition, they may fail. We'll fix this issue by separating the cases into different groups in the future.
 
 #### 8.3.2.1 How to run a single test case?
 
@@ -724,7 +912,7 @@ cd tests
 #### 8.3.3.3 How to add new cases?
 
 > **NOTE:**
-> TSIM test framwork is deprecated by system test now, it is encouraged to add new test cases in system test, please refer to [System Test](#832-system-test) for details.
+> TSIM test framework is deprecated by system test now, it is encouraged to add new test cases in system test, please refer to [System Test](#832-system-test) for details.
 
 
 ### 8.3.4 Smoke Test
@@ -750,7 +938,17 @@ A simple tool to execute various functions of the system in a randomized way, ho
 
 ```bash
 cd tests/pytest
-python3 auto_crash_gen.py
+python3 crash_gen_bootstrap.py \
+    --max-dbs=2 \
+    --connector-type=native \
+    --larger-data \
+    --dynamic-db-table-names \
+    --per-thread-db-connection \
+    --max-steps=50 \
+    --num-threads=2 \
+    --continue-on-exception \
+    --run-with-pkg \
+    -g 0x32c,0x32d,0x3d3,0x18,0x2501,0x369,0x388,0x061a,0x2550,0x0203,0x4012
 ```
 
 #### 8.3.5.2 How to add new cases?
@@ -775,7 +973,7 @@ cd tests
 
 #### 8.3.6.2 How to add new cases?
 
-Please refer to the [Unit Test](#831-unit-test)、[System Test](#832-system-test) and [Legacy Test](#833-legacy-test) sections for detailed steps to add new test cases, when new cases are added in aboved tests, they will be run automatically by CI test.
+Please refer to the [Unit Test](#831-unit-test)、[System Test](#832-system-test) and [Legacy Test](#833-legacy-test) sections for detailed steps to add new test cases, when new cases are added in above tests, they will be run automatically by CI test.
 
 ### 8.3.7 TSBS Test
 
@@ -783,7 +981,7 @@ Please refer to [TSBS Test](https://github.com/taosdata/TDengine/blob/main/tests
 
 ### 8.3.8 TestNG Test
 
-TestNG Test is another test framwork which developed by python, functionally speaking, it's a supplement for system test, and also run longer time than system test for stability testing purposes.
+TestNG Test is another test framework which developed by python, functionally speaking, it's a supplement for system test, and also run longer time than system test for stability testing purposes.
 
 #### 8.3.8.1 How to run tests?
 

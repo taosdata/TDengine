@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 # for TZ awareness
 if [ "$TZ" != "" ]; then
@@ -6,22 +6,64 @@ if [ "$TZ" != "" ]; then
     echo $TZ >/etc/timezone
 fi
 
+TAOS_ROOT_PASSWORD=${TAOS_ROOT_PASSWORD:-taosdata}
+export TAOS_KEEPER_TDENGINE_PASSWORD=${TAOS_ROOT_PASSWORD}
+
+INITDB_DIR=/docker-entrypoint-initdb.d/
+
 # option to disable taosadapter, default is no
 DISABLE_ADAPTER=${TAOS_DISABLE_ADAPTER:-0}
 unset TAOS_DISABLE_ADAPTER
 
-# to get mnodeEpSet from data dir
-DATA_DIR=$(taosd -C|grep -E 'dataDir.*(\S+)' -o |head -n1|sed 's/dataDir *//')
+DISABLE_KEEPER=${TAOS_DISABLE_KEEPER:-0}
+unset TAOS_DISABLE_KEEPER
+if [ "$ENABLE_MONITOR" = "0" ]; then
+    DISABLE_KEEPER=1
+fi
+if [ "$DISABLE_KEEPER" = "0" ]; then
+    export TAOS_MONITOR_FQDN=${TAOS_MONITOR_FQDN:-localhost}
+fi
+which taoskeeper >/dev/null || export DISABLE_KEEPER=1
+
+DISABLE_EXPLORER=${TAOS_DISABLE_EXPLORER:-0}
+unset TAOS_DISABLE_EXPLORER
+if [ "$ENABLE_TAOSX" = "0" ]; then
+    DISABLE_EXPLORER="0"
+fi
+DISABLE_TAOSX=${TAOS_DISABLE_TAOSX:-0}
+unset TAOS_DISABLE_TAOSX
+if [ "$ENABLE_TAOSX" = "0" ]; then
+    DISABLE_TAOSX="1"
+fi
+
+which taosx >/dev/null || export DISABLE_TAOSX=1
+
+DISABLE_SERVER=${TAOS_DISABLE_SERVER:-0}
+unset TAOS_DISABLE_SERVER
+if [ "$ENABLE_SERVER" = "0" ]; then
+    DISABLE_SERVER="1"
+fi
+
+TAOS_DISABLE_MNODE=${TAOS_DISABLE_MNODE:-0}
+
+# Get DATA_DIR from taosd -C
+DATA_DIR=$(taosd -C |grep -E 'dataDir\s+(\S+)' -o |head -n1|sed 's/dataDir *//')
 DATA_DIR=${DATA_DIR:-/var/lib/taos}
 
-
-FQDN=$(taosd -C|grep -E 'fqdn.*(\S+)' -o |head -n1|sed 's/fqdn *//')
+# Get FQDN from taosd -C
+FQDN=$(taosd -C |grep -E 'fqdn\s+(\S+)' -o |head -n1|sed 's/fqdn *//')
 # ensure the fqdn is resolved as localhost
 grep "$FQDN" /etc/hosts >/dev/null || echo "127.0.0.1 $FQDN" >>/etc/hosts
-FIRSET_EP=$(taosd -C|grep -E 'firstEp.*(\S+)' -o |head -n1|sed 's/firstEp *//')
+
+# Get first ep from taosd -C
+FIRST_EP=$(taosd -C |grep -E 'firstEp\s+(\S+)' -o |head -n1|sed 's/firstEp *//')
 # parse first ep host and port
-FIRST_EP_HOST=${FIRSET_EP%:*}
-FIRST_EP_PORT=${FIRSET_EP#*:}
+export FIRST_EP_HOST=${FIRST_EP%:*}
+export FIRST_EP_PORT=${FIRST_EP#*:}
+
+if [ "$DISABLE_SERVER" = "1" ]; then
+    export TAOS_KEEPER_TDENGINE_HOST=${TAOS_KEEPER_TDENGINE_HOST:-$FIRST_EP_HOST}
+fi
 
 # in case of custom server port
 SERVER_PORT=$(taosd -C|grep -E 'serverPort.*(\S+)' -o |head -n1|sed 's/serverPort *//')
@@ -33,42 +75,163 @@ ulimit -c unlimited
 sysctl -w kernel.core_pattern=/corefile/core-$FQDN-%e-%p >/dev/null >&1
 set -e
 
-if [ "$DISABLE_ADAPTER" = "0" ]; then
-    which taosadapter >/dev/null && taosadapter &
-    # wait for 6041 port ready
+if [ $# -gt 0 ]; then
+    exec $@
+    exit 0
+fi
+
+NEEDS_INITDB=0
+# startup taosd
+if [ "$DISABLE_SERVER" = "0" ]; then
+    echo "enable server"
+
+    # startup taosd
+    if [ -f "$DATA_DIR/dnode/dnode.json" ] ||
+        [ -f "$DATA_DIR/dnode/mnodeEpSet.json" ] ||
+        [ "$FQDN" = "$FIRST_EP_HOST" ]; then
+        echo "start taosd with mnode ep set"
+        taosd &
+        # wait for serverPort ready
+        for _ in $(seq 1 20); do
+            nc -z localhost $SERVER_PORT && break
+            sleep 0.5
+        done
+
+        while true; do
+            es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)
+            echo "Try to connect to first ep with return: ${es} (taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)"
+            if [ "${es%%:*}" -eq 2 ]; then
+                if [ "$FQDN" = "$FIRST_EP_HOST" ]; then
+                    if [ ! -f "${data_dir}/.docker-entrypoint-root-password-changed" ]; then
+                        if [ "$TAOS_ROOT_PASSWORD" != "taosdata" ]; then
+                            # change default root password
+                            taos -s "ALTER USER root PASS '$TAOS_ROOT_PASSWORD'"
+                            touch "${data_dir}/.docker-entrypoint-root-password-changed"
+                        fi
+                    fi
+                    # Initialization scripts should only work in first node.
+                    if [ ! -f "${data_dir}/.inited" ]; then
+                        NEEDS_INITDB=1
+                    fi
+                fi
+                break
+            fi
+        done
+    else
+        while true; do
+            es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)
+            echo "Try to connect to first ep with return: ${es} (taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)"
+            if [ "${es%%:*}" -eq 2 ]; then
+                echo "execute to create dnode after connected to first ep"
+                taosd &
+                # wait for serverPort ready
+                for _ in $(seq 1 20); do
+                    nc -z localhost $SERVER_PORT && break
+                    sleep 0.5
+                done
+                ENDPOINT=$FQDN:$SERVER_PORT
+                sh -c "taos -p'$TAOS_ROOT_PASSWORD' -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s 'create dnode \"$ENDPOINT\";'"
+                DNODETmp=$(sh -c "taos -p'$TAOS_ROOT_PASSWORD' -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s 'set max_binary_display_width 2000;show dnodes;'" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
+                DNODEID=$(echo "$DNODETmp" | sed -e 's/^[[:space:]]*//')
+                if [ "$DNODEID" != "" ] && [ "$TAOS_DISABLE_MNODE" = "0" ]; then
+                    set +e
+                    echo "Create the mnode for dnode $DNODEID"
+                    for _ in $(seq 1 5); do
+                        sleep 1s
+                        MNODETmp=$(sh -c "taos -p'$TAOS_ROOT_PASSWORD' -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s 'create mnode on dnode $DNODEID;'")
+                        echo "Create the mnode for dnode $DNODEID with return: ${MNODETmp}"
+
+                        MNODEOK=$(echo "$MNODETmp" | grep "Create OK")
+                        if [ "$MNODEOK" != "" ]; then
+                            echo "Create the mnode for dnode $DNODEID success"
+                            break
+                        fi
+                    done
+                    set -e
+                    break
+                fi
+            fi
+            sleep 1s
+        done
+    fi
+
+    if [ "$DISABLE_ADAPTER" = "0" ]; then
+        echo "enable taosadapter"
+        # startup taosadapter
+        taosadapter &
+        # wait for 6041 port ready
+        for _ in $(seq 1 20); do
+            nc -z localhost 6041 && break
+            sleep 0.5
+        done
+    fi
+fi
+
+
+if [ "$DISABLE_KEEPER" = "0" ]; then
+    sleep 3
+    which taoskeeper >/dev/null && taoskeeper &
+    # wait for 6043 port ready
     for _ in $(seq 1 20); do
-        nc -z localhost 6041 && break
+        nc -z localhost 6043 && break
         sleep 0.5
     done
 fi
 
-# if has mnode ep set or the host is first ep or not for cluster, just start.
-if [ -f "$DATA_DIR/dnode/mnodeEpSet.json" ] ||
-    [ "$TAOS_FQDN" = "$FIRST_EP_HOST" ]; then
-    $@
-# others will first wait the first ep ready.
-else
-    if [ "$TAOS_FIRST_EP" = "" ]; then
-        echo "run TDengine with single node."
-        $@
-        exit $?
-    fi
-    while true; do
-        es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)
-        echo "Try to connect to first ep with return: ${es}"
-        if [ "${es%%:*}" -eq 2 ]; then
-            echo "execute to create dnode after connected to first ep"
-            ENDPOINT=$FQDN:$SERVER_PORT
-            taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$ENDPOINT\";"
-            DNODETmp=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "set max_binary_display_width 2000;show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
-            DNODEID=$(echo "$DNODETmp" | sed -e 's/^[[:space:]]*//')
-            if [[ "$DNODEID" != "" ]]; then
-                taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create mnode on dnode $DNODEID;"
-                echo "Created the mnode for dnode $DNODEID"
-                break
-            fi
-        fi
-        sleep 1s
+if [ "$DISABLE_TAOSX" = "0" ]; then
+    echo "enable taosx"
+    # startup taosx
+    taosx serve &
+    # wait for 6050 port ready
+    for _ in $(seq 1 20); do
+        nc -z localhost 6050 && break
+        sleep 0.5
     done
-    $@
+else
+    echo "disable taosx"
 fi
+
+if [ "$DISABLE_EXPLORER" = "0" ]; then
+    echo "enable taos-explorer"
+    # startup explorer
+    taos-explorer &
+    # wait for 6060 port ready
+    for _ in $(seq 1 20); do
+        nc -z localhost 6060 && break
+        sleep 0.5
+    done
+else
+    echo "disable taos-explorer"
+fi
+
+if [ "$NEEDS_INITDB" = "1" ]; then
+    # check if initdb.d exists
+    if [ -d "${INITDB_DIR}" ]; then
+        # execute initdb scripts in sql
+        for FILE in "$INITDB_DIR"*.sql; do
+            echo "Initialize db with file $FILE"
+            MAX_RETRIES=5
+            RETRY_COUNT=0
+            SUCCESS=0
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" = "0" ]; do
+                set -x
+                OUTPUT=$(sh -c "taos -f $FILE -p'$TAOS_ROOT_PASSWORD'")
+                set +x
+                echo $OUTPUT
+                if [[ "$OUTPUT" =~ "DB error" ]]; then
+                    echo "Retrying in 2 seconds..."
+                    sleep 2
+                else
+                    SUCCESS=1
+                fi
+            done
+        done
+    fi
+
+    touch "${DATA_DIR}/.inited"
+fi
+
+# never exit
+while true; do
+  sleep 1000s
+done
