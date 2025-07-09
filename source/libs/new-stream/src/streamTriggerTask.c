@@ -1493,6 +1493,27 @@ static int32_t stRealtimeGroupDoSlidingCheck(SSTriggerRealtimeGroup *pGroup) {
     }
   }
 
+  if (pTask->fillHistory) {
+    void *px = tSimpleHashGet(pTask->pHistoryCutoffTime, &pGroup->gid, sizeof(int64_t));
+    if (px != NULL && pGroup->newThreshold == *(int64_t *)px && IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) &&
+        (pTask->calcEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
+      SSTriggerWindow *pHead = TRINGBUF_HEAD(&pGroup->winBuf);
+      SSTriggerWindow *p = pHead;
+      do {
+        SSTriggerCalcParam param = {
+          .triggerTime = taosGetTimestampNs(),
+                .wstart = p->range.skey,
+                .wend = p->range.ekey,
+                .wduration = p->range.ekey - p->range.skey,
+                .wrownum = (p == pHead) ? p->wrownum : (pHead->wrownum - p->wrownum),
+        };
+        TRINGBUF_MOVE_NEXT(&pGroup->winBuf, p);
+        void *px = taosArrayPush(pContext->pCalcReq->params, &param);
+        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      } while (p != TRINGBUF_TAIL(&pGroup->winBuf));
+    }
+  }
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
