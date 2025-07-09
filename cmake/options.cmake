@@ -35,7 +35,7 @@ endif()
 #       otherwise you might encounter the error like:
 #       error: pathspec 'xxx' did not match any file(s) known to git
 if(NOT DEFINED TAOSADAPTER_GIT_TAG)
-  set(TAOSADAPTER_GIT_TAG "main" CACHE STRING "which tag/branch/commit-sha1 to checkout for taosadapter.git" FORCE)
+  set(TAOSADAPTER_GIT_TAG "3.3.6" CACHE STRING "which tag/branch/commit-sha1 to checkout for taosadapter.git" FORCE)
 endif()
 
 # preprocess TAOSADAPTER_GIT_TAG
@@ -52,7 +52,7 @@ endif()
 # TAOSWS_GIT_TAG
 # eg.: main
 if(NOT DEFINED TAOSWS_GIT_TAG)
-    set(TAOSWS_GIT_TAG "main" CACHE STRING "which tag/branch/commit-sha1 to checkout for taosws(rust connector)" FORCE)
+    set(TAOSWS_GIT_TAG "3.3.6" CACHE STRING "which tag/branch/commit-sha1 to checkout for taosws(rust connector)" FORCE)
 endif()
 
 # preprocess TAOSWS_GIT_TAG
