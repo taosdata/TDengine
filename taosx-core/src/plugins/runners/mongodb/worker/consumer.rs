@@ -1,3 +1,4 @@
+use anyhow::Context;
 use arrow::ipc::writer::StreamWriter;
 use arrow_schema::Schema;
 use chrono::Utc;
@@ -93,8 +94,9 @@ impl Consumer {
 
         // receive ACK from IPC
         let ack_handler = tokio::task::spawn_blocking(move || {
-            let ack_reader =
-                AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
+            let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush)
+                .open(&ack_stream)
+                .context("failed to open ack stream")?;
             for ack in ack_reader {
                 let _ = ack_rx.recv();
                 if !ack.success() {

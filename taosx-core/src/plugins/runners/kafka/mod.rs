@@ -540,7 +540,8 @@ async fn execute(
             // receive ACK from IPC
             consumers.spawn_blocking(move || {
                 let _entered = ack_span.entered();
-                let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
+                let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream)
+                    .context("failed to open ack stream")?;
                 for ack in ack_reader {
                     ack_num_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
