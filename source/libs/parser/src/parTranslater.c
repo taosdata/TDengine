@@ -7496,18 +7496,18 @@ static int32_t translateEventWindow(STranslateContext* pCxt, SSelectStmt* pSelec
   return checkEventWindow(pCxt, (SEventWindowNode*)pSelect->pWindow);
 }
 
-static int32_t checkCountWindow(STranslateContext* pCxt, SCountWindowNode* pCountWin) {
-  if (pCountWin->windowCount <= 1) {
+static int32_t checkCountWindow(STranslateContext* pCxt, SCountWindowNode* pCountWin, bool streamTrigger) {
+  if (pCountWin->windowCount < (streamTrigger ? 1 : 2)) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "Size of Count window must exceed 1."));
   }
 
-  if (pCountWin->windowSliding <= 0) {
+  if (pCountWin->windowSliding < (streamTrigger ? 0 : 1)) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "Size of Count window must exceed 0."));
   }
 
-  if (pCountWin->windowSliding > pCountWin->windowCount) {
+  if (pCountWin->windowSliding > pCountWin->windowCount && !streamTrigger) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "sliding value no larger than the count value."));
   }
@@ -7536,7 +7536,7 @@ static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelec
     PAR_ERR_JRET(insertCondIntoSelectStmt(pSelect, &pLogicCond));
   }
 
-  return checkCountWindow(pCxt, (SCountWindowNode*)pSelect->pWindow);
+  return checkCountWindow(pCxt, (SCountWindowNode*)pSelect->pWindow, false);
 
 _return:
   if (pLogicCond) {
@@ -13545,7 +13545,7 @@ static int32_t createStreamReqBuildTriggerPeriodWindow(STranslateContext* pCxt, 
 
 static int32_t createStreamReqBuildTriggerCountWindow(STranslateContext* pCxt, SCountWindowNode* pTriggerWindow, SCMCreateStreamReq* pReq) {
   pReq->triggerType = WINDOW_TYPE_COUNT;
-  PAR_ERR_RET(checkCountWindow(pCxt, pTriggerWindow));
+  PAR_ERR_RET(checkCountWindow(pCxt, pTriggerWindow, true));
   pReq->trigger.count.sliding = pTriggerWindow->windowSliding;
   pReq->trigger.count.countVal = pTriggerWindow->windowCount;
   pReq->trigger.count.condCols = NULL;

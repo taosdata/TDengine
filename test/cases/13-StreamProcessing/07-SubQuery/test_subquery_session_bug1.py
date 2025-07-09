@@ -69,8 +69,8 @@ class TestStreamDevBasic:
     def prepareTriggerTable(self):
         tdLog.info("prepare tables for trigger")
 
-        stb = "create table tdb.triggers (ts timestamp, c1 int, c2 int) tags(id int);"
-        ctb = "create table tdb.t1 using tdb.triggers tags(1) tdb.t2 using tdb.triggers tags(2) tdb.t3 using tdb.triggers tags(3)"
+        stb = "create table tdb.triggers (ts timestamp, c1 int, c2 int) tags(id int, name varchar(16));"
+        ctb = "create table tdb.t1 using tdb.triggers tags(1, '1') tdb.t2 using tdb.triggers tags(2, '2') tdb.t3 using tdb.triggers tags(3, '3')"
         tdSql.execute(stb)
         tdSql.execute(ctb)
 
@@ -106,12 +106,12 @@ class TestStreamDevBasic:
     def createStreams(self):
         self.streams = []
 
-
         stream = StreamItem(
-            id=56,
-            stream="create stream rdb.s56 interval(5m) sliding(5m) from tdb.v1 into rdb.r56 as select _wstart ws, _wend we, _twstart tws, _twend twe, first(c1) cf, last(c1) cl, count(c1) cc from %%trows where ts >= _twstart and ts < _twend interval(1m) fill(prev)",
-            res_query="select * from rdb.r56 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:05:00.000' ",
-            exp_query="select _wstart ws, _wend we, cast('2025-01-01 00:00:00.000' as timestamp) tws, cast('2025-01-01 00:05:00.000' as timestamp) twe, first(c1) cf, last(c1) cl, count(c1) cc from tdb.v1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:05:00.000' interval(1m) fill(prev);",
+            id=1,
+            stream="create stream rdb.s1 session(ts, 4m) from tdb.triggers into rdb.r1 as select _twstart ts, _twstart + 5m te, _twduration td, _twrownum tw, _tgrpid tg, cast(_tlocaltime as bigint) tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twstart + 5m and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null;",
+            res_query="select ts, te, td, tg, c1, c2 from rdb.r1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:15:00';",
+            exp_query="select _wstart ts, _wend te, _wduration td, 0 tg, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:15:00' interval(5m);",
+            check_func=self.check1,
         )
         self.streams.append(stream)
 
@@ -119,7 +119,26 @@ class TestStreamDevBasic:
         for stream in self.streams:
             stream.createStream()
 
-    def check40(self):
-        tdSql.checkResultsByFunc(
-            "select * from rdb.r40;", func=lambda: tdSql.getRows() == 8
+    def check1(self):
+        tdSql.checkTableType(
+            dbname="rdb", tbname="r1", typename="NORMAL_TABLE", columns=8
+        )
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r1",
+            schema=[
+                ["ts", "TIMESTAMP", 8, ""],
+                ["te", "TIMESTAMP", 8, ""],
+                ["td", "BIGINT", 8, ""],
+                ["tw", "BIGINT", 8, ""],
+                ["tg", "BIGINT", 8, ""],
+                ["tl", "BIGINT", 8, ""],
+                ["c1", "BIGINT", 8, ""],
+                ["c2", "DOUBLE", 8, ""],
+            ],
+        )
+
+        tdSql.checkResultsBySql(
+            sql="select ts, tw from rdb.r1;",
+            exp_sql="select _wstart, count(*) from tdb.triggers where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m) fill(value, 0);",
         )
