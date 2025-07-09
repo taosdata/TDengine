@@ -365,7 +365,7 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
     if (pSlidingWin->dataLen == 0) {
       // todo
     }
-    if (needSize + pSlidingWin->dataLen + sizeof(SSlidingWindowInMem) > gDSFileBlockDefaultSize) {
+    if (needSize + pSlidingWin->dataLen + sizeof(SSlidingWindowInMem) > DS_FILE_BLOCK_SIZE) {
       break;
     }
     ++moveWinCount;

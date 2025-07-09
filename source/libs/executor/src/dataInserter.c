@@ -107,12 +107,6 @@ static void freeCacheTbInfo(void* p) {
 }
 
 int32_t initInserterGrpInfo() {
-  static int8_t initGrpInfo = 0;
-  int8_t        flag = atomic_val_compare_exchange_8(&initGrpInfo, 0, 1);
-  if (flag != 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-
   gStreamGrpTableHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (NULL == gStreamGrpTableHash) {
     qError("failed to create stream group table hash");

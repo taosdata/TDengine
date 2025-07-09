@@ -186,14 +186,6 @@ typedef struct SSTriggerHistoryContext {
   SHashObj *pCalcDataCacheIters;
 } SSTriggerHistoryContext;
 
-typedef enum EStreamTriggerType {
-  STREAM_TRIGGER_PERIOD = 0,
-  STREAM_TRIGGER_SLIDING,  // sliding is 1 , can not change, because used in doOpenExternalWindow
-  STREAM_TRIGGER_SESSION,
-  STREAM_TRIGGER_COUNT,
-  STREAM_TRIGGER_STATE,
-  STREAM_TRIGGER_EVENT,
-} EStreamTriggerType;
 
 typedef enum ESTriggerEventType {
   STRIGGER_EVENT_WINDOW_NONE = 0,

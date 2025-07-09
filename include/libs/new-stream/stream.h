@@ -44,6 +44,17 @@ extern "C" {
 
 #define STREAM_CALC_REQ_MAX_WIN_NUM 4096
 
+
+typedef enum EStreamTriggerType {
+  STREAM_TRIGGER_PERIOD = 0,
+  STREAM_TRIGGER_SLIDING,  // sliding is 1 , can not change, because used in doOpenExternalWindow
+  STREAM_TRIGGER_SESSION,
+  STREAM_TRIGGER_COUNT,
+  STREAM_TRIGGER_STATE,
+  STREAM_TRIGGER_EVENT,
+} EStreamTriggerType;
+
+
 typedef struct SStreamReaderTask {
   SStreamTask task;
   int8_t      triggerReader;

@@ -6961,8 +6961,8 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
     SLogicConditionNode *pLogicCond = (SLogicConditionNode *)pCond;
     SNode *pLeft = nodesListGetNode(pLogicCond->pParameterList, 0);
     SNode *pRight = nodesListGetNode(pLogicCond->pParameterList, 1);
-    bool hasStart = filterHasPlaceHolderRangeStart((SOperatorNode *)pLeft, pCxt->extLeftEq) | filterHasPlaceHolderRangeStart((SOperatorNode *)pRight, pCxt->extLeftEq);
-    bool hasEnd = filterHasPlaceHolderRangeEnd((SOperatorNode *)pLeft, pCxt->extRightEq) | filterHasPlaceHolderRangeEnd((SOperatorNode *)pRight, pCxt->extRightEq);
+    bool hasStart = filterHasPlaceHolderRangeStart((SOperatorNode *)pLeft, pCxt->extLeftEq) || filterHasPlaceHolderRangeStart((SOperatorNode *)pRight, pCxt->extLeftEq);
+    bool hasEnd = filterHasPlaceHolderRangeEnd((SOperatorNode *)pLeft, pCxt->extRightEq) || filterHasPlaceHolderRangeEnd((SOperatorNode *)pRight, pCxt->extRightEq);
     if (hasStart && hasEnd) {
       pCxt->createStreamCalcWithExtWindow = true;
     }
