@@ -3796,7 +3796,7 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   syncLogRecvHeartbeatReply(ths, pMsg, tsMs - pMsg->timeStamp, &pRpcMsg->info.traceId, tsMs - lastRecvTime);
 
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
-  syncIndexMgrIncRecvCount(ths->pNextIndex, &(pMsg->srcId));
+  syncIndexMgrIncRecvCount(ths->pMatchIndex, &(pMsg->srcId));
 
   return syncLogReplProcessHeartbeatReply(pMgr, ths, pMsg);
 }
