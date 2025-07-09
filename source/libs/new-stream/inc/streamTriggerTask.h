@@ -61,6 +61,8 @@ typedef struct SSTriggerRealtimeGroup {
   TriggerWindowBuf winBuf;
   STimeWindow      nextWindow;  // for period trigger and sliding window trigger
   SValue           stateVal;    // for state window trigger
+
+  SArray *pPendingCalcReqs;  // SArray<SSTriggerCalcParam>
 } SSTriggerRealtimeGroup;
 
 typedef struct SSTriggerHistoryGroup {
@@ -80,6 +82,8 @@ typedef struct SSTriggerHistoryGroup {
   TriggerWindowBuf winBuf;
   STimeWindow      nextWindow;
   SValue           stateVal;
+
+  SArray *pPendingCalcReqs;
 } SSTriggerHistoryGroup;
 
 typedef enum ESTriggerContextStatus {
