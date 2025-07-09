@@ -302,7 +302,8 @@ extern bool    tsS3MigrateEnabled;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 extern bool    tsUpdateCacheBatch;
-extern int64_t tsStreamBufferSize;
+extern int32_t tsStreamBufferSize;
+extern int64_t tsStreamBufferSizeBytes;
 extern bool    tsFilterScalarMode;
 extern int32_t tsPQSortMemThreshold;
 extern bool    tsStreamCoverage;
@@ -310,9 +311,6 @@ extern int8_t  tsS3EpNum;
 extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;
 extern bool    tsCompareAsStrInGreatest;
-extern int32_t tsStreamVirtualMergeMaxDelayMs;
-extern int32_t tsStreamVirtualMergeMaxMemKb;
-extern int32_t tsStreamVirtualMergeWaitMode;
 
 // insert performance
 extern bool tsInsertPerfEnabled;

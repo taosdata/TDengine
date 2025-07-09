@@ -79,6 +79,8 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
 
   TAOS_CHECK_EXIT(initInserterGrpInfo());
 
+  TAOS_CHECK_EXIT(initStreamDataSink());
+
 _exit:
 
   if (code) {

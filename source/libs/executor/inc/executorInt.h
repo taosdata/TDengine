@@ -31,7 +31,6 @@ extern "C" {
 #include "executor.h"
 #include "planner.h"
 #include "scalar.h"
-#include "streamVtableMerge.h"
 #include "taosdef.h"
 #include "tarray.h"
 #include "tfill.h"

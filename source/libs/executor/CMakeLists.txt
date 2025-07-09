@@ -11,7 +11,7 @@ if(${BUILD_WITH_ANALYSIS})
 endif()
 
 target_link_libraries(executor
-  PRIVATE os util common function parser planner qcom scalar nodes index wal tdb geometry
+  PRIVATE os util common function parser planner qcom scalar nodes index wal tdb geometry new-stream
 )
 
 target_include_directories(
