@@ -1078,9 +1078,9 @@ static int32_t calcStreamTimeRangeForPseudoCols(SScalarCtx *ctx, SStreamTSRangeP
   int64_t timeValue = 0;
 
   if (isTimeStampCol(node->pRight)) {
-    code = getExprTSValue(ctx, node->pRight, &timeValue);
-  } else if (isTimeStampCol(node->pLeft)) {
     code = getExprTSValue(ctx, node->pLeft, &timeValue);
+  } else if (isTimeStampCol(node->pLeft)) {
+    code = getExprTSValue(ctx, node->pRight, &timeValue);
 
   } else {
     sclError("invalid stream timerange start expr, opType:%d, nodeType left:%d, nodeType right:%d", node->opType,
