@@ -841,12 +841,6 @@ docker run --rm -e COMMUNITY=${COMMUNITY} -e "CUS_PROMPT=${CUS_PROMPT}" -e "CUS_
 """
 
 [tasks.explorer]
-condition.files_modified = { input = [
-  "explorer/server/**",
-  "explorer/dist/**",
-], output = [
-  "target/release/taos-explorer",
-] }
 dependencies = ["explorer-ui-prod"]
 command = "cargo"
 args = ["build", "-p", "taos-explorer", "--profile", "${BUILD_PROFILE}"]
