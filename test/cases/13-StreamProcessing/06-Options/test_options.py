@@ -15,8 +15,8 @@ class TestStreamOptionsTrigger:
 
         streams = []
         # streams.append(self.Basic0())
-        # streams.append(self.Basic1()) # expired_time 
-        streams.append(self.Basic2())
+        streams.append(self.Basic1()) # expired_time 
+        # streams.append(self.Basic2())
         # streams.append(self.Basic3())
         # streams.append(self.Basic4())
         # streams.append(self.Basic5())
