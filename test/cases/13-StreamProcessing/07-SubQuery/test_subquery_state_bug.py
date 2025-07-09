@@ -145,12 +145,28 @@ class TestStreamSubqueryState:
     def createStreams(self):
         self.streams = []
 
+        # stream = StreamItem(
+        #     id=2,
+        #     stream="create stream rdb.s2 state_window(c1) from tdb.triggers partition by tbname into rdb.r2 as select _twstart ts, _twstart + 5m te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, tbname tb, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twstart + 5m and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null partition by tbname",
+        #     res_query="select ts, te, td, c1, tag_tbname from rdb.r2 where tag_tbname='t1' limit 3;",
+        #     exp_query="select _wstart ts, _wend te, 60000, count(cint) c1, 't1' from qdb.t1 where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:15:00' interval(5m);",
+        #     check_func=self.check2,
+        # )
+        
+        # stream = StreamItem(
+        #     id=4,
+        #     stream="create stream rdb.s4 state_window(c1) from tdb.triggers partition by tbname into rdb.r4 as select _twstart ts, _twstart + 5m te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twstart + 5m and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null and tbname=%%tbname",
+        #     res_query="select ts, te, td, c1, tag_tbname from rdb.r4 where tag_tbname='t1' limit 3;",
+        #     exp_query="select _wstart ts, _wend te, _wduration / 5 td, count(cint) c1, 't1' from qdb.t1 where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:15:00' interval(5m);",
+        #     check_func=self.check4,
+        # )
+        
+
         stream = StreamItem(
-            id=2,
-            stream="create stream rdb.s2 state_window(c1) from tdb.triggers partition by tbname into rdb.r2 as select _twstart ts, _twstart + 5m te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, tbname tb, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twstart + 5m and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null partition by tbname",
-            res_query="select ts, te, td, c1, tag_tbname from rdb.r2 where tag_tbname='t1' limit 3;",
-            exp_query="select _wstart ts, _wend te, 60000, count(cint) c1, 't1' from qdb.t1 where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:15:00' interval(5m);",
-            check_func=self.check2,
+            id=27,
+            stream="create stream rdb.s27 state_window(c1) from tdb.v1 partition by tbname into rdb.r27 as select _twstart tw, sum(cint) c1, count(cint) c2 from qdb.meters where cts >= _twstart and cts < _twstart + 5m and tbname=%%1",
+            res_query="select * from rdb.r27 where tag_tbname='t1' limit 3",
+            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.vmeters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:15:00.000' and tbname='v1' partition by tbname interval(5m);",
         )
         self.streams.append(stream)
 
@@ -159,39 +175,170 @@ class TestStreamSubqueryState:
         for stream in self.streams:
             stream.createStream()
 
-    def check2(self):
-        tdSql.checkTableType(
-            dbname="rdb",
-            stbname="r2",
-            columns=9,
-            tags=1,
+
+
+    def check40(self):
+        tdSql.checkResultsByFunc(
+            "select * from rdb.r40;", func=lambda: tdSql.getRows() == 8
         )
+
+    def check41(self):
         tdSql.checkTableSchema(
             dbname="rdb",
-            tbname="r2",
+            tbname="r41",
             schema=[
-                ["ts", "TIMESTAMP", 8, ""],
+                ["cts", "TIMESTAMP", 8, ""],
+                ["cint", "INT", 4, ""],
+                ["cbool", "BOOL", 1, ""],
+                ["cjson", "VARCHAR", 8, ""],
+                ["_twstart", "TIMESTAMP", 8, ""],
+                ["id", "INT", 4, "TAG"],
+            ],
+        )
+
+    def check46(self):
+        tdSql.checkResultsByFunc(
+            sql="select ts, ccnt, csum from rdb.r46;",
+            func=lambda: tdSql.getRows() == 7
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 1)
+            and tdSql.compareData(0, 2, 0)
+            and tdSql.compareData(1, 0, "2025-01-01 00:05:00.000")
+            and tdSql.compareData(1, 1, 1)
+            and tdSql.compareData(1, 2, 50)
+            and tdSql.compareData(6, 0, "2025-01-01 00:30:00.000")
+            and tdSql.compareData(6, 1, 2)
+            and tdSql.compareData(6, 2, 620),
+        )
+
+    def check78(self):
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r78",
+            schema=[
+                ["_twstart", "TIMESTAMP", 8, ""],
+                ["_twrownum", "BIGINT", 8, ""],
+                ["count(*)", "BIGINT", 8, ""],
+                ["sum(cdecimal8)", "DECIMAL(38, 0)", 16, ""],
+                ["id", "INT", 4, "TAG"],
+                ["name", "VARCHAR", 16, "TAG"],
+            ],
+        )
+
+        tdSql.checkResultsByFunc(
+            sql="select count(*) from rdb.r78 where id != 2;",
+            func=lambda: tdSql.compareData(0, 0, 7),
+        )
+
+    def check79(self):
+        tdSql.checkResultsByFunc(
+            sql="select `_twstart`, `sum(cdecimal8)`, `count(*)` from rdb.r79 where tag_tbname='t1';",
+            func=lambda: tdSql.getRows() == 7
+            and tdSql.compareData(3, 0, "2025-01-01 00:15:00.000")
+            and tdSql.compareData(3, 1, None)
+            and tdSql.compareData(3, 2, 0)
+            and tdSql.compareData(4, 0, "2025-01-01 00:20:00.000")
+            and tdSql.compareData(4, 1, None)
+            and tdSql.compareData(4, 2, 0)
+            and tdSql.compareData(5, 0, "2025-01-01 00:25:00.000")
+            and tdSql.compareData(5, 1, None)
+            and tdSql.compareData(5, 2, 0)
+            and tdSql.compareData(6, 0, "2025-01-01 00:30:00.000")
+            and tdSql.compareData(6, 1, 56)
+            and tdSql.compareData(6, 2, 10),
+        )
+
+    def check80(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from rdb.r80;",
+            func=lambda: tdSql.getRows() == 7
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 1)
+            and tdSql.compareData(0, 2, 0)
+            and tdSql.compareData(1, 0, "2025-01-01 00:05:00.000")
+            and tdSql.compareData(1, 1, 1)
+            and tdSql.compareData(1, 2, 50)
+            and tdSql.compareData(6, 0, "2025-01-01 00:30:00.000")
+            and tdSql.compareData(6, 1, 2)
+            and tdSql.compareData(6, 2, 620),
+        )
+
+    def check81(self):
+        tdSql.checkResultsByFunc(
+            sql="select count(*) from rdb.r81 where tag_tbname='t1';",
+            func=lambda: tdSql.compareData(0, 0, 34),
+        )
+
+    def check84(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from rdb.r84 where tag_tbname='t1';",
+            func=lambda: tdSql.getRows() == 14,
+        )
+
+    def check123(self):
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r123",
+            schema=[
+                ["tw", "TIMESTAMP", 8, ""],
                 ["te", "TIMESTAMP", 8, ""],
-                ["td", "BIGINT", 8, ""],
-                ["tw", "BIGINT", 8, ""],
-                ["tg", "BIGINT", 8, ""],
-                ["tl", "TIMESTAMP", 8, ""],
-                ["tb", "VARCHAR", 270, ""],
+                ["_twstart", "TIMESTAMP", 8, ""],
+                ["_twend", "TIMESTAMP", 8, ""],
                 ["c1", "BIGINT", 8, ""],
-                ["c2", "DOUBLE", 8, ""],
-                ["tag_tbname", "VARCHAR", 270, "TAG"],
+                ["c2", "BIGINT", 8, ""],
+                ["id", "INT", 4, "TAG"],
+                ["name", "VARCHAR", 16, "TAG"],
             ],
         )
         tdSql.checkResultsByFunc(
-            sql="select * from information_schema.ins_tags where db_name='rdb' and stable_name='r2' and tag_name='tag_tbname' and (tag_value='t1' or tag_value='t2');",
+            sql="select * from information_schema.ins_tables where db_name='rdb' and stable_name='r123';",
             func=lambda: tdSql.getRows() == 2,
         )
+
+    def check105(self):
         tdSql.checkResultsByFunc(
-            sql="select ts, te, td, c1, tag_tbname from rdb.r2 where tag_tbname='t2'",
-            func=lambda: tdSql.getRows() == 1
-            and tdSql.compareData(0, 0, "2025-01-01 00:15:00.000")
-            and tdSql.compareData(0, 1, "2025-01-01 00:20:00.000")
-            and tdSql.compareData(0, 2, 60000)
-            and tdSql.compareData(0, 3, 10)
-            and tdSql.compareData(0, 4, "t2"),
+            sql="select t1, c11, c12, t2, c21, c22 from rdb.r105 where tag_tbname='t1';",
+            func=lambda: tdSql.getRows() == 7
+            and tdSql.compareData(0, 0, "2025-01-01 00:04:30.000")
+            and tdSql.compareData(0, 1, 1)
+            and tdSql.compareData(0, 2, 9)
+            and tdSql.compareData(0, 3, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 4, 0)
+            and tdSql.compareData(0, 5, 0)
+            and tdSql.compareData(1, 0, "2025-01-01 00:09:30.000")
+            and tdSql.compareData(1, 1, 3)
+            and tdSql.compareData(1, 2, 19)
+            and tdSql.compareData(1, 3, "2025-01-01 00:05:00.000")
+            and tdSql.compareData(1, 4, 2)
+            and tdSql.compareData(1, 5, 10)
+            and tdSql.compareData(2, 0, "2025-01-01 00:14:30.000")
+            and tdSql.compareData(2, 1, 1)
+            and tdSql.compareData(2, 2, 29)
+            and tdSql.compareData(2, 3, "2025-01-01 00:10:00.000")
+            and tdSql.compareData(2, 4, 0)
+            and tdSql.compareData(2, 5, 20)
+            and tdSql.compareData(3, 0, "2025-01-01 00:19:30.000")
+            and tdSql.compareData(3, 1, 3)
+            and tdSql.compareData(3, 2, 39)
+            and tdSql.compareData(3, 3, "2025-01-01 00:15:00.000")
+            and tdSql.compareData(3, 4, 2)
+            and tdSql.compareData(3, 5, 30)
+            and tdSql.compareData(4, 0, "2025-01-01 00:24:30.000")
+            and tdSql.compareData(4, 1, 1)
+            and tdSql.compareData(4, 2, 49)
+            and tdSql.compareData(4, 3, "2025-01-01 00:20:00.000")
+            and tdSql.compareData(4, 4, 0)
+            and tdSql.compareData(4, 5, 40)
+            and tdSql.compareData(5, 0, "2025-01-01 00:29:30.000")
+            and tdSql.compareData(5, 1, 3)
+            and tdSql.compareData(5, 2, 59)
+            and tdSql.compareData(5, 3, "2025-01-01 00:25:00.000")
+            and tdSql.compareData(5, 4, 2)
+            and tdSql.compareData(5, 5, 50)
+            and tdSql.compareData(6, 0, "2025-01-01 00:34:30.000")
+            and tdSql.compareData(6, 1, 1)
+            and tdSql.compareData(6, 2, 69)
+            and tdSql.compareData(6, 3, "2025-01-01 00:30:00.000")
+            and tdSql.compareData(6, 4, 0)
+            and tdSql.compareData(6, 5, 60),
         )
