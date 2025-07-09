@@ -61,10 +61,6 @@ typedef struct {
 } STableFooter;
 
 typedef struct {
-  int64_t seq;
-
-} SSeqToBlk;
-typedef struct {
   int32_t type;
   int32_t len;
   char    data[0];

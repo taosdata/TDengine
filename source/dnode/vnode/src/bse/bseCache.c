@@ -110,10 +110,13 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
   SCacheItem **ppItem = taosHashGet(pCache->pCache, key, keyLen);
   if (ppItem != NULL && *ppItem != NULL) {
     SCacheItem *pItem = (SCacheItem *)*ppItem;
-    (void)(tdListPopNode(pCache->lruList, pItem->pNode));
+    if ((tdListPopNode(pCache->lruList, pItem->pNode)) == NULL) {
+      bseWarn("node not exist in lru list");
+    }
 
     bseCacheRefItem(pItem);
-    (void)taosHashRemove(pCache->pCache, key, keyLen);
+    code = taosHashRemove(pCache->pCache, key, keyLen);
+    TSDB_CHECK_CODE(code, lino, _error);
     pCache->size--;
   }
 
