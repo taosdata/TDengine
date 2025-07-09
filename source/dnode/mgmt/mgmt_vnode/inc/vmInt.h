@@ -50,7 +50,6 @@ typedef struct SVnodeMgmt {
   bool                  stop;
 } SVnodeMgmt;
 
-#ifdef USE_MOUNT
 typedef struct {
   int64_t mountId;
   char    name[TSDB_MOUNT_NAME_LEN];
@@ -62,7 +61,7 @@ typedef struct {
   STfs   *pTfs;
   int32_t nRef;
 } SMountTfs;
-#endif
+
 typedef struct {
   int32_t vgId;
   int32_t vgVersion;

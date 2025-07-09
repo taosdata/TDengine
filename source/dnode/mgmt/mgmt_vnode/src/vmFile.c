@@ -485,9 +485,11 @@ _exit:
   }
   TAOS_RETURN(code);
 }
+#endif
 
 int32_t vmWriteMountListToFile(SVnodeMgmt *pMgmt) {
   int32_t     code = 0, lino = 0, ret = 0;
+#ifdef USE_MOUNT
   char       *buffer = NULL;
   SJson      *pJson = NULL;
   TdFilePtr   pFile = NULL;
@@ -530,9 +532,10 @@ _exit:
   if (code != 0) {
     dError("failed to write mounts file:%s at line:%d since %s", realfile, lino, tstrerror(code));
   }
+#endif
   TAOS_RETURN(code);
 }
-
+#ifdef USE_MOUNT
 int32_t vmGetMountDisks(SVnodeMgmt *pMgmt, const char *mountPath, SArray **ppDisks) {
   int32_t   code = 0, lino = 0;
   SArray   *pDisks = NULL;

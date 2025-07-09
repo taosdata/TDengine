@@ -25,7 +25,7 @@
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols))) { \
       src = (display);                                         \
       STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);                \
-      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);          \
+      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, NULL, _exit);    \
     }                                                          \
   } while (0)
 

@@ -363,8 +363,10 @@ _exit:
 
   TAOS_RETURN(code);
 }
+#endif
 
 bool vmReleaseMountTfs(SVnodeMgmt *pMgmt, int64_t mountId, int32_t minRef) {
+#ifdef USE_MOUNT
   SMountTfs *pMountTfs = NULL;
   int32_t    nRef = INT32_MAX;
 
@@ -383,9 +385,10 @@ bool vmReleaseMountTfs(SVnodeMgmt *pMgmt, int64_t mountId, int32_t minRef) {
       return true;
     }
   }
+#endif
   return false;
 }
-#endif
+
 
 int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   SVnodeObj *pVnode = taosMemoryCalloc(1, sizeof(SVnodeObj));
