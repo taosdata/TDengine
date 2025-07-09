@@ -56,7 +56,7 @@ TDengine Enterprise 的备份和恢复功能包括以下几个概念：
 
 ## 2.2. 数据备份
 
-通过浏览器访问 taosExplorer 服务，访问地址通常为 TDengine 集群所在 IP 地址的端口 6060，如 `http://localhost:6060`。 在
+通过浏览器访问 taosExplorer 服务，访问地址通常为 TDengine 集群所在 IP 地址的端口 6060，如 `http://localhost:6060`。在
 taosExplorer 服务页面中，进入“系统管理 - 备份”页面，在“备份计划”标签页下，点击“创建备份计划”，填写备份计划的相关信息。
 
 需要填写的信息包括：
@@ -131,7 +131,7 @@ Caused by:
     2: failed to lookup address information: Temporary failure in name resolution
 ```
 
-使用 WebSocket 连接时可能遇到多种错误类型，错误信息可以在 ”Caused by“ 后查看，以下是几种可能的错误：
+使用 WebSocket 连接时可能遇到多种错误类型，错误信息可以在”Caused by“后查看，以下是几种可能的错误：
 
 - "Temporary failure in name resolution": DNS 解析错误，检查 IP 或 FQDN 是否能够正常访问。
 - "IO error: Connection refused (os error 111)": 端口访问失败，检查端口是否配置正确或是否已开启和可访问。

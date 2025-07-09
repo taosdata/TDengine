@@ -46,11 +46,11 @@ TDengine ODBC supports two ways to connect to the TDengine database: WebSocket c
 
 ### WebSocket Connection
 
-1. Search and open the 【ODBC Data Sources (32-bit)】or【ODBC Data Sources (64-bit)】management tool from the 【Start】menu
+1. Search and open the **ODBC Data Sources (32-bit)** or **ODBC Data Sources (64-bit)** management tool from the **Start** menu
 
-2. Select the 【User DSN】tab, and proceed to the "Create Data Source" interface via the 【Add(D)】button
+2. Select the **User DSN** tab, and proceed to the "Create Data Source" interface via the **Add(D)** button
 
-3. Choose the data source you want to add, here we select 【TDengine】
+3. Choose the data source you want to add, here we select **TDengine**
 
 4. Click finish, enter the TDengine ODBC data source configuration page, fill in the following necessary information
 
@@ -58,19 +58,19 @@ TDengine ODBC supports two ways to connect to the TDengine database: WebSocket c
     <Image img={imgStep01} alt=""/>
     </figure>
 
-    4.1 【DSN】: Data Source Name, required, name the newly added ODBC data source
+    4.1 **DSN**: Data Source Name, required, name the newly added ODBC data source
 
-    4.2【Connection Type】: Required, select the connection type, here choose 【WebSocket】
+    4.2 **Connection Type**: Required, select the connection type, here choose **WebSocket**
 
-    4.3【URL】: Required, ODBC data source URL, example: `http://localhost:6041`, cloud service URL example: `https://gw.cloud.tdengine.com?token=your_token`
+    4.3 **URL**: Required, ODBC data source URL, example: `http://localhost:6041`, cloud service URL example: `https://gw.cloud.tdengine.com?token=your_token`
 
-    4.4【Database】: Optional, the default database to connect to
+    4.4 **Database**: Optional, the default database to connect to
 
-    4.5【Username】: Optional, for use in step 5 connection testing only, database username, if not specified, TDengine defaults to root
+    4.5 **Username**: Optional, for use in step 5 connection testing only, database username, if not specified, TDengine defaults to root
 
-    4.6【Password】: Optional, for use in step 5 connection testing only, database user password, if not specified, TDengine defaults to taosdata
+    4.6 **Password**: Optional, for use in step 5 connection testing only, database user password, if not specified, TDengine defaults to taosdata
 
-    4.7【Compatible Software】: Supports compatibility adaptation for industrial software such as KingSCADA, Kepware, etc., usually, the default value General is sufficient
+    4.7 **Compatible Software**: Supports compatibility adaptation for industrial software such as KingSCADA, Kepware, etc., usually, the default value General is sufficient
 
 5. Click **Test Connection** to test the connection status. If successful, a "Successfully connected to URL" message will appear.
 
@@ -225,8 +225,8 @@ The table below explains how the ODBC connector maps server data types to defaul
 
 | Attribute | Note |
 | :----- | :---- |
-| SQL_ATTR_CONCURRENCY | TDengine has no updatable-CURSOR machanism |
-| SQL_ATTR_FETCH_BOOKMARK_PTR | TDengine has no BOOKMARK machanism |
+| SQL_ATTR_CONCURRENCY | TDengine has no updatable-CURSOR mechanism |
+| SQL_ATTR_FETCH_BOOKMARK_PTR | TDengine has no BOOKMARK mechanism |
 | SQL_ATTR_IMP_PARAM_DESC | |
 | SQL_ATTR_IMP_ROW_DESC | |
 | SQL_ATTR_KEYSET_SIZE | |
@@ -643,4 +643,3 @@ This section summarizes the ODBC API by functionality. For a complete ODBC API r
   - **Support**: Supported
   - **Standard**: ODBC
   - **Function**: Closes the cursor associated with the current statement handle and releases all resources used by the cursor
-

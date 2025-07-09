@@ -4,10 +4,11 @@
 
 set -e
 
-while getopts "e:v:" opt; do
+while getopts "e:v:m:" opt; do
     case "$opt" in
         e) edition="$OPTARG" ;;  # -e enterprise/community
         v) version="$OPTARG" ;;  # -v version
+        m) model_dir="$OPTARG" ;;  # -m model_dir
         *) echo "Usage: $0 -e edition -v version"; exit 1 ;;
     esac
 done
@@ -17,11 +18,11 @@ if [ -z "$edition" ] || [ -z "$version" ]; then
     exit 1
 fi
 if [ "$edition" == "enterprise" ]; then
-    productName="TDengine-enterprise-anode"
+    productName="TDengine-enterprise-TDgpt"
 fi
 
 if [ "$edition" == "community" ]; then
-    productName="TDengine-anode"
+    productName="TDengine-TDgpt"
 fi
 
 echo start to build release package, edition: ${edition}, version: ${version}
@@ -58,7 +59,8 @@ if [ -f "${cfg_dir}/${serverName}.service" ]; then
 fi
 
 # python files
-mkdir -p ${install_dir}/bin && mkdir -p ${install_dir}/lib
+lib_install_dir="${install_dir}/lib"
+mkdir -p ${install_dir}/bin && mkdir -p ${lib_install_dir}
 
 # copy enterprise tools from outside
 if [ "$edition" == "enterprise" ]; then
@@ -70,18 +72,33 @@ TARGET_PATTERN="__pycache__"
 find "${top_dir}/taosanalytics/" -type d -name "$TARGET_PATTERN" -exec rm -rf {} +
 
 # script to control start/stop/uninstall process
-cp -r ${top_dir}/taosanalytics/ ${install_dir}/lib/ && chmod a+x ${install_dir}/lib/ || :
+
+
+cp -r ${top_dir}/taosanalytics/ ${lib_install_dir}/ && chmod a+x ${lib_install_dir}/ || :
 cp -r ${top_dir}/script/st*.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
 cp -r ${top_dir}/script/uninstall.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
 
-cd ${install_dir}
+# copy model files
+model_dir=${model_dir:-""}
+model_install_dir="${install_dir}/model"
 
-tar -zcv -f ${tarName} ./lib/* || :
-
-if [ ! -z "${install_dir}" ]; then
-  # shellcheck disable=SC2115
-  rm -rf "${install_dir}"/lib || :
+if [ -d "${model_dir}" ]; then
+  mkdir -p ${model_install_dir}
+  td_model_name="tdtsfm"
+  echo "copy ${td_model_name} model files"
+  cp -r ${model_dir}/${td_model_name}.tar.gz ${model_install_dir} || :
+  echo "copy ${td_model_name} model files done"
+  xhs_model_name="timer-moe"
+  echo "copy ${xhs_model_name} model files "
+  cp -r ${model_dir}/${xhs_model_name}.tar.gz ${model_install_dir}|| :
+  echo "copy ${xhs_model_name} model files done"
 fi
+
+# tar lib and model files
+cd ${install_dir} && tar -zcv -f ${tarName} ./lib/* || :
+
+# shellcheck disable=SC2115
+[ -d "${lib_install_dir}" ] && rm -rf ${lib_install_dir} || :
 
 exitcode=$?
 if [ "$exitcode" != "0" ]; then

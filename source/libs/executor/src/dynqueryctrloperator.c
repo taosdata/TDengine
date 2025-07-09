@@ -1344,6 +1344,7 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
   SReadHandle*               pHandle = &pVtbScan->readHandle;
   SMetaReader                mr = {0};
   SDBVgInfo*                 dbVgInfo = NULL;
+  bool                       readerInit = false;
 
   QRY_PARAM_CHECK(pRes);
   if (pOperator->status == OP_EXEC_DONE) {
@@ -1375,6 +1376,7 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
       uint64_t* id = taosArrayGet(pVtbScan->childTableList, pVtbScan->curTableIdx);
       QUERY_CHECK_NULL(id, code, line, _return, terrno);
       pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
+      readerInit = true;
       code = pHandle->api.metaReaderFn.getTableEntryByUid(&mr, *id);
       QUERY_CHECK_CODE(code, line, _return);
 
@@ -1383,10 +1385,6 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
           SName   name = {0};
           char    dbFname[TSDB_DB_FNAME_LEN] = {0};
           char    orgTbFName[TSDB_TABLE_FNAME_LEN] = {0};
-
-          if (strncmp(mr.me.colRef.pColRef[j].refDbName, pVtbScan->dbName, strlen(pVtbScan->dbName)) != 0) {
-            QUERY_CHECK_CODE(code = TSDB_CODE_VTABLE_NOT_SUPPORT_CROSS_DB, line, _return);
-          }
           toName(pInfo->vtbScan.acctId, mr.me.colRef.pColRef[j].refDbName, mr.me.colRef.pColRef[j].refTableName, &name);
           code = getDbVgInfo(pOperator, &name, &dbVgInfo);
           QUERY_CHECK_CODE(code, line, _return);
@@ -1433,6 +1431,7 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
         pIter = taosHashIterate(pVtbScan->orgTbVgColMap, pIter);
       }
       pHandle->api.metaReaderFn.clearReader(&mr);
+      readerInit = false;
 
       // reset downstream operator's status
       pOperator->pDownstream[0]->status = OP_NOT_OPENED;
@@ -1455,6 +1454,9 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
   }
 
 _return:
+  if (readerInit) {
+    pHandle->api.metaReaderFn.clearReader(&mr);
+  }
   taosHashCleanup(pVtbScan->orgTbVgColMap);
   pVtbScan->orgTbVgColMap = NULL;
   if (pOperator->cost.openCost == 0) {

@@ -180,6 +180,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         SPackedData  tmp = {.pDataBlock = pDataBlock};
         void*        tmpItem = taosArrayPush(pInfo->pBlockLists, &tmp);
         QUERY_CHECK_NULL(tmpItem, code, lino, _end, terrno);
+        uTrace("%s,parName:%s, groupId:%"PRIu64, __FUNCTION__, pDataBlock->info.parTbName, pDataBlock->info.id.groupId)
       }
 
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
@@ -587,8 +588,8 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
 }
 
 int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, int32_t dbNameBuffLen, char* tableName,
-                                    int32_t tbaleNameBuffLen, int32_t* sversion, int32_t* tversion, int32_t idx,
-                                    bool* tbGet) {
+                                    int32_t tbaleNameBuffLen, int32_t* sversion, int32_t* tversion, int32_t* rversion,
+                                    int32_t idx, bool* tbGet) {
   *tbGet = false;
 
   if (tinfo == NULL || dbName == NULL || tableName == NULL) {
@@ -608,6 +609,7 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, int32_t dbN
 
   *sversion = pSchemaInfo->sw->version;
   *tversion = pSchemaInfo->tversion;
+  *rversion = pSchemaInfo->rversion;
   if (pSchemaInfo->dbname) {
     tstrncpy(dbName, pSchemaInfo->dbname, dbNameBuffLen);
   } else {
@@ -626,14 +628,6 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, int32_t dbN
 
 bool qIsDynamicExecTask(qTaskInfo_t tinfo) { return ((SExecTaskInfo*)tinfo)->dynamicTask; }
 
-void destroyOperatorParam(SOperatorParam* pParam) {
-  if (NULL == pParam) {
-    return;
-  }
-
-  // TODO
-}
-
 void qDestroyOperatorParam(SOperatorParam* pParam) {
   if (NULL == pParam) {
     return;
@@ -642,8 +636,7 @@ void qDestroyOperatorParam(SOperatorParam* pParam) {
 }
 
 void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
-  destroyOperatorParam(((SExecTaskInfo*)tinfo)->pOpParam);
-  ((SExecTaskInfo*)tinfo)->pOpParam = pParam;
+  TSWAP(pParam, ((SExecTaskInfo*)tinfo)->pOpParam);
   ((SExecTaskInfo*)tinfo)->paramSet = false;
 }
 
@@ -1147,6 +1140,9 @@ _end:
 int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange* pVerRange, STimeWindow* pWindow) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
+  if (tinfo == NULL){
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   QUERY_CHECK_CONDITION((pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM), code, lino, _end,
                         TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);

@@ -221,9 +221,9 @@ void checkFstPrefixSearch() {
 
   FAutoCtx* ctx = automCtxCreate((void*)"ab", AUTOMATION_PREFIX);
   m->Search(ctx, result);
-  assert(result.size() == count);
+  TD_ALWAYS_ASSERT(result.size() == count);
   for (int i = 0; i < result.size(); i++) {
-    assert(result[i] == i);  // check result
+    TD_ALWAYS_ASSERT(result[i] == i);  // check result
   }
 
   taosMemoryFree(ctx);
@@ -262,7 +262,7 @@ void validateFst() {
     for (int i = 0; i < count; i++) {
       key.push_back('a' + i);
       if (m->Get(key, &out)) {
-        assert(val - i == out);
+        TD_ALWAYS_ASSERT(val - i == out);
         printf("success to get (%s, %" PRId64 ")\n", key.c_str(), out);
       } else {
         printf("failed to get(%s)\n", key.c_str());
@@ -295,7 +295,7 @@ class IndexEnv : public ::testing::Test {
     SIndexOpts opts;
     opts.cacheSize = 1024 * 1024 * 4;
     int32_t ret = indexOpen(&opts, path, &index);
-    assert(ret == 0);
+    TD_ALWAYS_ASSERT(ret == 0);
   }
   virtual void TearDown() { indexClose(index); }
 
@@ -316,7 +316,7 @@ class IndexEnv : public ::testing::Test {
 //    / / for (size_t i = 0; i < 100; i++) {
 //      / int tableId = i;
 //      / int ret = indexPut(index, terms, tableId);
-//      / assert(ret == 0);
+//      / TD_ALWAYS_ASSERT(ret == 0);
 //      /
 //    }
 //    / indexMultiTermDestroy(terms);
@@ -344,7 +344,7 @@ class IndexEnv : public ::testing::Test {
 //    / / for (int i = 0; i < 100; i++) {
 //      / int tableId = i;
 //      / int ret = indexPut(index, terms, tableId);
-//      / assert(ret == 0);
+//      / TD_ALWAYS_ASSERT(ret == 0);
 //      /
 //    }
 //    / indexMultiTermDestroy(terms);
@@ -510,7 +510,7 @@ TEST_F(IndexTFileEnv, test_tfile_write) {
 
   SArray* result = (SArray*)taosArrayInit(1, sizeof(uint64_t));
   fObj->Get(&query, result);
-  assert(taosArrayGetSize(result) == 200);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(result) == 200);
   indexTermDestroy(term);
   taosArrayDestroy(result);
 
@@ -664,7 +664,7 @@ TEST_F(IndexCacheEnv, cache_test) {
 
     coj->Get(&query, colId, 10000, ret, &valType);
     std::cout << "size : " << taosArrayGetSize(ret) << std::endl;
-    assert(taosArrayGetSize(ret) == 4);
+    TD_ALWAYS_ASSERT(taosArrayGetSize(ret) == 4);
     taosArrayDestroy(ret);
 
     indexTermDestroy(term);
@@ -678,7 +678,7 @@ TEST_F(IndexCacheEnv, cache_test) {
     STermValueType  valType;
 
     coj->Get(&query, colId, 10000, ret, &valType);
-    assert(taosArrayGetSize(ret) == 1);
+    TD_ALWAYS_ASSERT(taosArrayGetSize(ret) == 1);
     taosArrayDestroy(ret);
 
     indexTermDestroy(term);
@@ -724,7 +724,7 @@ class IndexObj {
     indexMultiTermAdd(terms, term);
     for (size_t i = 0; i < numOfTable; i++) {
       int ret = Put(terms, i);
-      assert(ret == 0);
+      TD_ALWAYS_ASSERT(ret == 0);
     }
     indexMultiTermDestroy(terms);
     return numOfTable;
@@ -746,7 +746,7 @@ class IndexObj {
       indexMultiTermAdd(terms, term);
       for (size_t j = 0; j < skip; j++) {
         int ret = Put(terms, j);
-        assert(ret == 0);
+        TD_ALWAYS_ASSERT(ret == 0);
       }
       indexMultiTermDestroy(terms);
     }
@@ -794,7 +794,7 @@ class IndexObj {
     indexMultiTermQueryDestroy(mq);
     taosArrayDestroy(result);
     return sz;
-    // assert(taosArrayGetSize(result) == targetSize);
+    // TD_ALWAYS_ASSERT(taosArrayGetSize(result) == targetSize);
   }
   int SearchOneTarget(const std::string& colName, const std::string& colVal, uint64_t val) {
     SIndexMultiTermQuery* mq = indexMultiTermQueryCreate(MUST);
@@ -813,9 +813,9 @@ class IndexObj {
     }
     int sz = taosArrayGetSize(result);
     indexMultiTermQueryDestroy(mq);
-    assert(sz == 1);
+    TD_ALWAYS_ASSERT(sz == 1);
     uint64_t* ret = (uint64_t*)taosArrayGet(result, 0);
-    assert(val = *ret);
+    TD_ALWAYS_ASSERT(val = *ret);
     taosArrayDestroy(result);
 
     return sz;
@@ -884,7 +884,7 @@ TEST_F(IndexEnv2, testIndexOpen) {
     for (size_t i = 0; i < targetSize; i++) {
       int tableId = i;
       int ret = index->Put(terms, tableId);
-      assert(ret == 0);
+      TD_ALWAYS_ASSERT(ret == 0);
     }
     indexMultiTermDestroy(terms);
   }
@@ -899,7 +899,7 @@ TEST_F(IndexEnv2, testIndexOpen) {
     for (size_t i = 0; i < size; i++) {
       int tableId = i;
       int ret = index->Put(terms, tableId);
-      assert(ret == 0);
+      TD_ALWAYS_ASSERT(ret == 0);
     }
     indexMultiTermDestroy(terms);
   }
@@ -914,7 +914,7 @@ TEST_F(IndexEnv2, testIndexOpen) {
     for (size_t i = size * 3; i < size * 4; i++) {
       int tableId = i;
       int ret = index->Put(terms, tableId);
-      assert(ret == 0);
+      TD_ALWAYS_ASSERT(ret == 0);
     }
     indexMultiTermDestroy(terms);
   }
@@ -952,7 +952,7 @@ TEST_F(IndexEnv2, testEmptyIndexOpen) {
     for (size_t i = 0; i < targetSize; i++) {
       int tableId = i;
       int ret = index->Put(terms, tableId);
-      assert(ret == 0);
+      TD_ALWAYS_ASSERT(ret == 0);
     }
     indexMultiTermDestroy(terms);
   }
@@ -968,7 +968,7 @@ TEST_F(IndexEnv2, testIndex_TrigeFlush) {
   index->WriteMillonData("tag1", "Hello Wolrd", numOfTable);
   int target = index->SearchOne("tag1", "Hello Wolrd");
   std::cout << "Get Index: " << target << std::endl;
-  assert(numOfTable == target);
+  TD_ALWAYS_ASSERT(numOfTable == target);
 }
 
 static void single_write_and_search(IndexObj* idx) {
@@ -1043,7 +1043,7 @@ TEST_F(IndexEnv2, testIndex_restart) {
 //  index->PutOneTarge("tag1", "Hello", 15);
 //  index->ReadMultiMillonData("tag1", "Hello");
 //  std::cout << "reader sz: " << index->SearchOne("tag1", "Hello") << std::endl;
-//  assert(3 == index->SearchOne("tag1", "Hello"));
+//  TD_ALWAYS_ASSERT(3 == index->SearchOne("tag1", "Hello"));
 //}
 TEST_F(IndexEnv2, testIndexMultiTag) {
   std::string path = TD_TMP_DIR_PATH "multi_tag";

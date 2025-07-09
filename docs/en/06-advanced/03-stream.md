@@ -4,7 +4,7 @@ slug: /advanced-features/stream-processing
 ---
 
 import Image from '@theme/IdealImage';
-import watermarkImg from '../assets/stream-processing-01.png';
+import watermarkImg from '../assets/stream-processing-01-watermark.webp';
 
 In the processing of time-series data, it is often necessary to clean and preprocess the raw data before using a time-series database for long-term storage. Moreover, it is common to use the original time-series data to generate new time-series data through calculations. In traditional time-series data solutions, it is often necessary to deploy systems like Kafka, Flink, etc., for stream processing. However, the complexity of stream processing systems brings high development and operational costs.
 
@@ -13,6 +13,8 @@ TDengine's stream computing engine provides the capability to process data strea
 Stream computing can include data filtering, scalar function computations (including UDFs), and window aggregation (supporting sliding windows, session windows, and state windows). It can use supertables, subtables, and basic tables as source tables, writing into destination supertables. When creating a stream, the destination supertable is automatically created, and newly inserted data is processed and written into it as defined by the stream. Using the `partition by` clause, partitions can be divided by table name or tags, and different partitions will be written into different subtables of the destination supertable.
 
 TDengine's stream computing can support aggregation of supertables distributed across multiple nodes and can handle out-of-order data writing. It provides a watermark mechanism to measure the degree of tolerance for data disorder and offers an `ignore expired` configuration option to decide the handling strategy for out-of-order data — either discard or recalculate.
+
+Tips: Stream computing does not supported in windows platform.
 
 Below is a detailed introduction to the specific methods used in stream computing.
 
@@ -60,13 +62,13 @@ The subquery supports session windows, state windows, time windows, event window
 
 1. SESSION is a session window, where tol_val is the maximum range of the time interval. All data within the tol_val time interval belong to the same window. If the time interval between two consecutive data points exceeds tol_val, the next window automatically starts.
 
-2. STATE_WINDOW is a state window. The col is used to identify the state value. Values with the same state value belong to the same state window. When the value of col changes, the current window ends and the next window is automatically opened.
+1. STATE_WINDOW is a state window. The col is used to identify the state value. Values with the same state value belong to the same state window. When the value of col changes, the current window ends and the next window is automatically opened.
 
-3. INTERVAL is a time window, which can be further divided into sliding time windows and tumbling time windows.The INTERVAL clause is used to specify the equal time period of the window, and the SLIDING clause is used to specify the time by which the window slides forward. When the value of interval_val is equal to the value of sliding_val, the time window is a tumbling time window; otherwise, it is a sliding time window. Note: The value of sliding_val must be less than or equal to the value of interval_val.
+1. INTERVAL is a time window, which can be further divided into sliding time windows and tumbling time windows.The INTERVAL clause is used to specify the equal time period of the window, and the SLIDING clause is used to specify the time by which the window slides forward. When the value of interval_val is equal to the value of sliding_val, the time window is a tumbling time window; otherwise, it is a sliding time window. Note: The value of sliding_val must be less than or equal to the value of interval_val.
 
-4. EVENT_WINDOW is an event window, defined by start and end conditions. The window starts when the start_trigger_condition is met and closes when the end_trigger_condition is met. start_trigger_condition and end_trigger_condition can be any condition expressions supported by TDengine and can include different columns.
+1. EVENT_WINDOW is an event window, defined by start and end conditions. The window starts when the start_trigger_condition is met and closes when the end_trigger_condition is met. start_trigger_condition and end_trigger_condition can be any condition expressions supported by TDengine and can include different columns.
 
-5. COUNT_WINDOW is a counting window, divided by a fixed number of data rows. count_val is a constant, a positive integer, and must be at least 2 and less than 2147483648. count_val represents the maximum number of data rows in each COUNT_WINDOW. If the total number of data rows cannot be evenly divided by count_val, the last window will have fewer rows than count_val. sliding_val is a constant, representing the number of rows the window slides, similar to the SLIDING in INTERVAL.
+1. COUNT_WINDOW is a counting window, divided by a fixed number of data rows. count_val is a constant, a positive integer, and must be at least 2 and less than 2147483648. count_val represents the maximum number of data rows in each COUNT_WINDOW. If the total number of data rows cannot be evenly divided by count_val, the last window will have fewer rows than count_val. sliding_val is a constant, representing the number of rows the window slides, similar to the SLIDING in INTERVAL.
 
 The definition of a window is exactly the same as in the time-series data window query, for details refer to the TDengine window functions section.
 
@@ -108,7 +110,8 @@ Under normal circumstances, stream computation tasks will not process data that 
 
 By enabling the fill_history option, the created stream computation task will be capable of processing data written before, during, and after the creation of the stream. This means that data written either before or after the creation of the stream will be included in the scope of stream computation, thus ensuring data integrity and consistency. This setting provides users with greater flexibility, allowing them to flexibly handle historical and new data according to actual needs.
 
-Tips: 
+Tips:
+
 - When enabling fill_history, creating a stream requires finding the boundary point of historical data. If there is a lot of historical data, it may cause the task of creating a stream to take a long time. In this case, you can use fill_history 1 async (supported since version 3.3.6.0) , then the task of creating a stream can be processed in the background. The statement of creating a stream can be returned immediately without blocking subsequent operations. async only takes effect when fill_history 1 is used, and creating a stream with fill_history 0 is very fast and does not require asynchronous processing.
 
 - Show streams can be used to view the progress of background stream creation (ready status indicates success, init status indicates stream creation in progress, failed status indicates that the stream creation has failed, and the message column can be used to view the reason for the failure. In the case of failed stream creation, the stream can be deleted and rebuilt).
@@ -140,14 +143,16 @@ If the stream task has completely expired and you no longer want it to monitor o
 When creating a stream, you can specify the trigger mode of stream computing through the TRIGGER command. For non-window computations, the trigger is real-time; for window computations, there are currently 4 trigger modes, with WINDOW_CLOSE as the default.
 
 1. AT_ONCE: Triggered immediately upon writing.
-2. WINDOW_CLOSE: Triggered when the window closes (the closing of the window is determined by the event time, can be used in conjunction with watermark).
-3. MAX_DELAY time: If the window closes, computation is triggered. If the window has not closed, and the duration since it has not closed exceeds the time specified by max delay, computation is triggered.
-4. FORCE_WINDOW_CLOSE: Based on the current time of the operating system, only the results of the currently closed window are calculated and pushed out. The window is only calculated once at the moment of closure, and will not be recalculated subsequently. This mode currently only supports INTERVAL windows (does support sliding); In this mode, FILL_HISTORY is automatically set to 0, IGNORE EXPIRED is automatically set to 1 and IGNORE UPDATE is automatically set to 1; FILL only supports PREV, NULL, NONE, VALUE.
-   - This mode can be used to implement continuous queries, such as creating a stream that queries the number of data entries in the past 10 seconds window every 1 second。SQL as follows:
+1. WINDOW_CLOSE: Triggered when the window closes (the closing of the window is determined by the event time, can be used in conjunction with watermark).
+1. MAX_DELAY time: If the window closes, computation is triggered. If the window has not closed, and the duration since it has not closed exceeds the time specified by max delay, computation is triggered.
+1. FORCE_WINDOW_CLOSE: Based on the current time of the operating system, only the results of the currently closed window are calculated and pushed out. The window is only calculated once at the moment of closure, and will not be recalculated subsequently. This mode currently only supports INTERVAL windows (does support sliding); In this mode, FILL_HISTORY is automatically set to 0, IGNORE EXPIRED is automatically set to 1 and IGNORE UPDATE is automatically set to 1; FILL only supports PREV, NULL, NONE, VALUE.
+   - This mode can be used to implement continuous queries, such as creating a stream that queries the number of data entries in the past 10 seconds window every 1 second. SQL as follows:
+
    ```sql
    create stream if not exists continuous_query_s trigger force_window_close into continuous_query as select count(*) from power.meters interval(10s) sliding(1s)
    ```
-5. CONTINUOUS_WINDOW_CLOSE: Results are output when the window is closed. Modifying or deleting data does not immediately trigger a recalculation. Instead, periodic recalculations are performed every rec_time_val duration. If rec_time_val is not specified, the recalculation period is 60 minutes. If the recalculation time exceeds rec_time_val, the next recalculation will be automatically initiated after the current one is completed. Currently, this mode only supports INTERVAL windows. If the FILL clause is used, relevant information of the adapter needs to be configured, including adapterFqdn, adapterPort, and adapterToken. The adapterToken is a string obtained by Base64-encoding `{username}:{password}`. For example, after encoding `root:taosdata`, the result is `cm9vdDp0YW9zZGF0YQ==`.
+
+1. CONTINUOUS_WINDOW_CLOSE: Results are output when the window is closed. Modifying or deleting data does not immediately trigger a recalculation. Instead, periodic recalculations are performed every rec_time_val duration. If rec_time_val is not specified, the recalculation period is 60 minutes. If the recalculation time exceeds rec_time_val, the next recalculation will be automatically initiated after the current one is completed. Currently, this mode only supports INTERVAL windows. If the FILL clause is used, relevant information of the adapter needs to be configured, including adapterFqdn, adapterPort, and adapterToken. The adapterToken is a string obtained by Base64-encoding `{username}:{password}`. For example, after encoding `root:taosdata`, the result is `cm9vdDp0YW9zZGF0YQ==`.
 The closing of the window is determined by the event time, such as when the event stream is interrupted or continuously delayed, at which point the event time cannot be updated, possibly leading to outdated computation results.
 
 Therefore, stream computing provides the MAX_DELAY trigger mode that combines event time with processing time: MAX_DELAY mode triggers computation immediately when the window closes, and its unit can be specified, specific units: a (milliseconds), s (seconds), m (minutes), h (hours), d (days), w (weeks). Additionally, when data is written, if the time that triggers computation exceeds the time specified by MAX_DELAY, computation is triggered immediately.
@@ -168,8 +173,8 @@ Assuming T = Latest event time - watermark, each time new data is written, the s
 In the diagram above, the vertical axis represents moments, and the dots on the horizontal axis represent the data received. The related process is described as follows.
 
 1. At moment T1, the 7th data point arrives, and based on T = Latest event - watermark, the calculated time falls within the second window, so the second window does not close.
-2. At moment T2, the 6th and 8th data points arrive late to TDengine, and since the Latest event has not changed, T also remains unchanged, and the out-of-order data entering the second window has not yet been closed, thus it can be correctly processed.
-3. At moment T3, the 10th data point arrives, T moves forward beyond the closure time of the second window, which is then closed, and the out-of-order data is correctly processed.
+1. At moment T2, the 6th and 8th data points arrive late to TDengine, and since the Latest event has not changed, T also remains unchanged, and the out-of-order data entering the second window has not yet been closed, thus it can be correctly processed.
+1. At moment T3, the 10th data point arrives, T moves forward beyond the closure time of the second window, which is then closed, and the out-of-order data is correctly processed.
 
 In window_close or max_delay modes, window closure directly affects the push results. In at_once mode, window closure only relates to memory usage.
 
@@ -178,7 +183,7 @@ In window_close or max_delay modes, window closure directly affects the push res
 For windows that have closed, data that falls into such windows again is marked as expired data. TDengine offers two ways to handle expired data, specified by the IGNORE EXPIRED option.
 
 1. Recalculate, i.e., IGNORE EXPIRED 0: Re-find all data corresponding to the window from the TSDB and recalculate to get the latest result.
-2. Directly discard, i.e., IGNORE EXPIRED 1: Default configuration, ignore expired data.
+1. Directly discard, i.e., IGNORE EXPIRED 1: Default configuration, ignore expired data.
 
 Regardless of the mode, the watermark should be properly set to obtain correct results (direct discard mode) or avoid frequent re-triggering of recalculations that lead to performance overhead (recalculation mode).
 
@@ -187,7 +192,7 @@ Regardless of the mode, the watermark should be properly set to obtain correct r
 TDengine offers two ways to handle modified data, specified by the IGNORE UPDATE option.
 
 1. Check whether the data has been modified, i.e., IGNORE UPDATE 0: Default configuration, if modified, recalculate the corresponding window.
-2. Do not check whether the data has been modified, calculate all as incremental data, i.e., IGNORE UPDATE 1.
+1. Do not check whether the data has been modified, calculate all as incremental data, i.e., IGNORE UPDATE 1.
 
 ## Other Strategies for Stream Computing
 
@@ -198,7 +203,7 @@ When the result of stream computing needs to be written into an existing superta
 For already existing supertables, the system will check the schema information of the columns to ensure they match the subquery output results. Here are some key points:
 
 1. Check if the schema information of the columns matches; if not, automatically perform type conversion. Currently, an error is reported only if the data length exceeds 4096 bytes; otherwise, type conversion can be performed.
-2. Check if the number of columns is the same; if different, explicitly specify the correspondence between the supertable and the subquery columns, otherwise, an error is reported. If the same, you can specify the correspondence or not; if not specified, they correspond by position order.
+1. Check if the number of columns is the same; if different, explicitly specify the correspondence between the supertable and the subquery columns, otherwise, an error is reported. If the same, you can specify the correspondence or not; if not specified, they correspond by position order.
 
 **Note** Although stream computing can write results to an existing supertable, it cannot allow two existing stream computations to write result data to the same (super) table. This is to avoid data conflicts and inconsistencies, ensuring data integrity and accuracy. In practice, set the column correspondence according to actual needs and data structure to achieve efficient and accurate data processing.
 
@@ -213,7 +218,7 @@ CREATE STREAM output_tag trigger at_once INTO output_tag_s TAGS(alias_tag varcha
 In the PARTITION clause, an alias `alias_tag` is defined for `concat("tag-", tbname)`, corresponding to the custom tag name of the supertable `output_tag_s`. In the example above, the tag of the newly created subtable by the stream will use the prefix 'tag-' connected to the original table name as the tag value. The following checks will be performed on the tag information:
 
 1. Check if the schema information of the tag matches; if not, automatically perform data type conversion. Currently, an error is reported only if the data length exceeds 4096 bytes; otherwise, type conversion can be performed.
-2. Check if the number of tags is the same; if different, explicitly specify the correspondence between the supertable and the subquery tags, otherwise, an error is reported. If the same, you can specify the correspondence or not; if not specified, they correspond by position order.
+1. Check if the number of tags is the same; if different, explicitly specify the correspondence between the supertable and the subquery tags, otherwise, an error is reported. If the same, you can specify the correspondence or not; if not specified, they correspond by position order.
 
 ### Cleaning Up Intermediate States of Stream Computing
 
@@ -273,9 +278,9 @@ After upgrading TDengine, if the stream computing is not compatible, you need to
 
 1. Modify taos.cfg, add `disableStream 1`
 
-2. Restart taosd. If the startup fails, change the name of the stream directory to avoid taosd trying to load the stream computing data information during startup. Avoid using the delete operation to prevent risks caused by misoperations. The folders that need to be modified: `$dataDir/vnode/vnode*/tq/stream`, where `$dataDir` refers to the directory where TDengine stores data. In the `$dataDir/vnode/` directory, there will be multiple directories like vnode1, vnode2...vnode*, all need to change the name of the tq/stream directory to tq/stream.bk
+1. Restart taosd. If the startup fails, change the name of the stream directory to avoid taosd trying to load the stream computing data information during startup. Avoid using the delete operation to prevent risks caused by misoperations. The folders that need to be modified: `$dataDir/vnode/vnode*/tq/stream`, where `$dataDir` refers to the directory where TDengine stores data. In the `$dataDir/vnode/` directory, there will be multiple directories like vnode1, vnode2...vnode*, all need to change the name of the tq/stream directory to tq/stream.bk
 
-3. Start taos
+1. Start taos
 
 ```sql
 drop stream xxxx;                ---- xxx refers to the stream name
@@ -292,8 +297,8 @@ flush database test;
 flush database test1;
 ```
 
-4. Close taosd
+1. Close taosd
 
-5. Modify taos.cfg, remove `disableStream 1`, or change `disableStream` to 0
+1. Modify taos.cfg, remove `disableStream 1`, or change `disableStream` to 0
 
-6. Start taosd
+1. Start taosd

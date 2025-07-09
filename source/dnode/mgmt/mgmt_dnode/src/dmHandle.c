@@ -76,7 +76,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
 
   SRpcMsg rpcMsg = {.pCont = pHead,
                     .contLen = contLen,
-                    .msgType = TDMT_MND_RETRIEVE_IP_WHITE,
+                    .msgType = TDMT_MND_RETRIEVE_IP_WHITE_DUAL,
                     .info.ahandle = 0,
                     .info.notFreeAhandle = 1,
                     .info.refId = 0,
@@ -92,7 +92,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   }
 }
 
-static void dmMayShouldUpdateAnalFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
+static void dmMayShouldUpdateAnalyticsFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
   int32_t code = 0;
   int64_t oldVer = taosAnalyGetVersion();
   if (oldVer == newVer) return;
@@ -159,7 +159,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
       }
       dmMayShouldUpdateIpWhiteList(pMgmt, statusRsp.ipWhiteVer);
-      dmMayShouldUpdateAnalFunc(pMgmt, statusRsp.analVer);
+      dmMayShouldUpdateAnalyticsFunc(pMgmt, statusRsp.analVer);
     }
     tFreeSStatusRsp(&statusRsp);
   }
@@ -270,7 +270,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   code =
       rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
   if (code != 0) {
-    dError("failed to SendRecv with timeout %d status req since %s", tsStatusInterval * 5 * 1000, tstrerror(code));
+    dError("failed to SendRecv status req with timeout %d since %s", tsStatusInterval * 5 * 1000, tstrerror(code));
     return;
   }
 
@@ -308,23 +308,6 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
     bool needUpdate = false;
     if (pRsp->pCont != NULL && pRsp->contLen > 0 &&
         tDeserializeSConfigRsp(pRsp->pCont, pRsp->contLen, &configRsp) == 0) {
-      // Try to use cfg file in current dnode.
-      if (configRsp.forceReadConfig) {
-        if (configRsp.isConifgVerified) {
-          uInfo("force read config and check config verified");
-          code = taosPersistGlobalConfig(taosGetGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
-          if (code != TSDB_CODE_SUCCESS) {
-            dError("failed to persist global config since %s", tstrerror(code));
-            goto _exit;
-          }
-          needUpdate = true;
-        } else {
-          // log the difference configurations
-          printConfigNotMatch(configRsp.array);
-          needStop = true;
-          goto _exit;
-        }
-      }
       // Try to use cfg from mnode sdb.
       if (!configRsp.isVersionVerified) {
         uInfo("config version not verified, update config");

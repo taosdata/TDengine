@@ -3,6 +3,10 @@ title: Advanced Security Options
 slug: /operations-and-maintenance/advanced-security-options
 ---
 
+import Enterprise from '../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 In addition to traditional user and permission management, TDengine also offers other security strategies such as IP whitelisting, audit logs, data encryption, etc., which are unique features of TDengine Enterprise. The whitelisting feature was first released in version 3.2.0.0, audit logs in version 3.1.1.0, and database encryption in version 3.3.0.0. It is recommended to use the latest version.
 
 ## IP Whitelisting
@@ -142,7 +146,7 @@ The current list of operations recorded in the audit logs and the meanings of ea
 
 ### View Audit Logs
 
-After both taosd and taosKeeper are correctly configured and started, as the system continues to operate, various operations (as shown in the table above) will be recorded and reported in real-time. Users can log in to taosExplorer, click on "System Management" → "Audit" page to view the audit logs; they can also directly query the relevant databases and tables in the TDengine CLI.
+After both taosd and taosKeeper are correctly configured and started, as the system continues to operate, various operations (as shown in the table above) will be recorded and reported in real-time. Users can log in to taosExplorer, click on "System Management" > "Audit" page to view the audit logs; they can also directly query the relevant databases and tables in the TDengine CLI.
 
 ## Data Encryption
 

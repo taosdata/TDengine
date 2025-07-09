@@ -205,6 +205,9 @@ void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroyEx(pData->pVSubTables, tDestroySVSubTablesRsp);
   pData->pVSubTables = NULL;
 
+  taosArrayDestroyEx(pData->pVStbRefDbs, tDestroySVStbRefDbsRsp);
+  pData->pVStbRefDbs = NULL;
+
   taosMemoryFreeClear(pData->pSvrVer);
 }
 
@@ -664,6 +667,10 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       taosMemoryFreeClear(pCtx->target);
       break;
     }
+    case TDMT_VND_VSTB_REF_DBS: {
+      taosMemoryFreeClear(pCtx->target);
+      break;
+    }
     default:
       qError("invalid reqType %d", pCtx->reqType);
       break;
@@ -866,7 +873,8 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       *pRes = NULL;  // no need to free it
       break;
     }
-    case CTG_TASK_GET_V_SUBTABLES: {
+    case CTG_TASK_GET_V_SUBTABLES:
+    case CTG_TASK_GET_V_STBREFDBS: {
       break;
     }
     default:
@@ -936,7 +944,8 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
       *pRes = NULL;
       break;
     }
-    case CTG_TASK_GET_V_SUBTABLES: {
+    case CTG_TASK_GET_V_SUBTABLES:
+    case CTG_TASK_GET_V_STBREFDBS: {
 
     }
     default:
@@ -1073,6 +1082,23 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       if (taskCtx->pResList) {
         for (int32_t i = 0; i < taskCtx->vgNum; ++i) {
           SVSubTablesRsp* pVg = taskCtx->pResList + i;
+          tDestroySVSubTablesRsp(pVg);
+        }
+        taosMemoryFreeClear(taskCtx->pResList);
+      }
+      taosMemoryFreeClear(taskCtx->pMeta);
+      taosMemoryFreeClear(pTask->taskCtx);
+      break;
+    }
+    case CTG_TASK_GET_V_STBREFDBS: {
+      SCtgVStbRefDbsCtx* taskCtx = (SCtgVStbRefDbsCtx*)pTask->taskCtx;
+      if (taskCtx->clonedVgroups) {
+        taosArrayDestroy(taskCtx->pVgroups);
+        taskCtx->pVgroups = NULL;
+      }
+      if (taskCtx->pResList) {
+        for (int32_t i = 0; i < taskCtx->vgNum; ++i) {
+          SVStbRefDbsRsp* pVg = taskCtx->pResList + i;
           tDestroySVSubTablesRsp(pVg);
         }
         taosMemoryFreeClear(taskCtx->pResList);
@@ -1806,7 +1832,8 @@ int32_t ctgCloneTableIndex(SArray* pIndex, SArray** pRes) {
 
 int32_t ctgUpdateSendTargetInfo(SMsgSendInfo* pMsgSendInfo, int32_t msgType, char* dbFName, int32_t vgId) {
   if (msgType == TDMT_VND_TABLE_META || msgType == TDMT_VND_TABLE_CFG || msgType == TDMT_VND_BATCH_META ||
-      msgType == TDMT_VND_TABLE_NAME || msgType == TDMT_VND_VSUBTABLES_META || msgType == TDMT_VND_GET_STREAM_PROGRESS) {
+      msgType == TDMT_VND_TABLE_NAME || msgType == TDMT_VND_VSUBTABLES_META ||
+      msgType == TDMT_VND_GET_STREAM_PROGRESS || msgType == TDMT_VND_VSTB_REF_DBS) {
     pMsgSendInfo->target.type = TARGET_TYPE_VNODE;
     pMsgSendInfo->target.vgId = vgId;
     pMsgSendInfo->target.dbFName = taosStrdup(dbFName);

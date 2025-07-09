@@ -106,6 +106,10 @@ const char *logicConditionTypeStr(ELogicConditionType type) {
 }
 
 int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
+  return nodesNodeToSQLFormat(pNode, buf, bufSize, len, false);
+}
+
+int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *len, bool longFormat) {
   switch (pNode->type) {
     case QUERY_NODE_COLUMN: {
       SColumnNode *colNode = (SColumnNode *)pNode;
@@ -136,11 +140,16 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
       }
 
       int32_t tlen = strlen(t);
-      if (tlen > 32) {
-        *len += tsnprintf(buf + *len, bufSize - *len, "%.*s...%s", 32, t, t + tlen - 1);
-      } else {
+      if (longFormat) {
         *len += tsnprintf(buf + *len, bufSize - *len, "%s", t);
+      } else {
+        if (tlen > 32) {
+          *len += tsnprintf(buf + *len, bufSize - *len, "%.*s...%s", 32, t, t + tlen - 1);
+        } else {
+          *len += tsnprintf(buf + *len, bufSize - *len, "%s", t);
+        }
       }
+
       taosMemoryFree(t);
 
       return TSDB_CODE_SUCCESS;
@@ -211,9 +220,11 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
       FOREACH(node, pListNode->pNodeList) {
         if (!first) {
           *len += tsnprintf(buf + *len, bufSize - *len, ", ");
-          if (++num >= 10) {
-            *len += tsnprintf(buf + *len, bufSize - *len, "...");
-            break;
+          if (!longFormat) {
+            if (++num >= 10) {
+              *len += tsnprintf(buf + *len, bufSize - *len, "...");
+              break;
+            }
           }
         }
         NODES_ERR_RET(nodesNodeToSQL(node, buf, bufSize, len));

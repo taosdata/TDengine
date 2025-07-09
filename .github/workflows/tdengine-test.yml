@@ -19,6 +19,8 @@ on:
       - 'tests/parallel/tdgpt_cases.task'
       - 'tests/script/tsim/analytics'
       - '**/*.md'
+      - '.github/workflows/**'
+      
   workflow_dispatch:
     inputs:
       specified_source_branch:
@@ -45,6 +47,7 @@ env:
 
 jobs:
   run-tests-on-linux:
+    # NOTE: using tomchon-patch-3 branch for the moment
     uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@main
     with:
       tdinternal: false
@@ -62,6 +65,7 @@ jobs:
 
   run-tests-on-windows:
     uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@main
+          # NOTE: temporarily use tomchon-patch-3 branch
     with:
       tdinternal: false
       specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_source_branch }}

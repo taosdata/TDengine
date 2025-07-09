@@ -108,9 +108,30 @@ void streamSetupScheduleTrigger(SStreamTask* pTask) {
   }
 }
 
+#if 0
+int32_t x = 0;
+#endif
+
 int32_t streamTrySchedExec(SStreamTask* pTask, bool chkptQueue) {
+  int32_t code = 0;
+
   if (streamTaskSetSchedStatusWait(pTask)) {
-    return streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pTask->id.streamId, pTask->id.taskId, 0, chkptQueue);
+#if 0
+ // injection error for sched task failed
+    if (x++ > 20) {
+      x = -1000000;
+// not reset the status may cause error
+      streamTaskSetSchedStatusInactive(pTask);
+      stInfo("s-task:%s set schedStatus inactive, since failed to sched task", pTask->id.idStr);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+#endif
+
+    code = streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pTask->id.streamId, pTask->id.taskId, 0, chkptQueue);
+    if (code) {
+      int8_t unusedStatus = streamTaskSetSchedStatusInactive(pTask);
+      stInfo("s-task:%s set schedStatus inactive, since failed to sched task", pTask->id.idStr);
+    }
   } else {
     if (chkptQueue) {
       stWarn("s-task:%s not launch task in chkpt queue, may delay checkpoint procedure", pTask->id.idStr);
@@ -119,7 +140,7 @@ int32_t streamTrySchedExec(SStreamTask* pTask, bool chkptQueue) {
     }
   }
 
-  return 0;
+  return code;
 }
 
 int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId, int32_t execType, bool chkptExec) {
@@ -165,13 +186,13 @@ int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int3
     SRpcMsg msg = {.msgType = TDMT_STREAM_CHKPT_EXEC, .pCont = buf, .contLen = tlen + sizeof(SMsgHead)};
     code = tmsgPutToQueue(pMsgCb, STREAM_CHKPT_QUEUE, &msg);
     if (code) {
-      stError("vgId:%d failed to put msg into stream chkpt queue, code:%s, %x", vgId, tstrerror(code), taskId);
+      stError("vgId:%d failed to put msg into stream chkpt queue, code:%s, 0x%x", vgId, tstrerror(code), taskId);
     }
   } else {
     SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = buf, .contLen = tlen + sizeof(SMsgHead)};
     code = tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
     if (code) {
-      stError("vgId:%d failed to put msg into stream queue, code:%s, %x", vgId, tstrerror(code), taskId);
+      stError("vgId:%d failed to put msg into stream queue, code:%s, 0x%x", vgId, tstrerror(code), taskId);
     }
   }
   return code;
@@ -212,7 +233,7 @@ void streamTaskResumeHelper(void* param, void* tmrId) {
     int8_t status = streamTaskSetSchedStatusInactive(pTask);
     TAOS_UNUSED(status);
 
-    stDebug("s-task:%s status:%s not resume task", pId->idStr, p.name);
+    stInfo("s-task:%s status:%s not resume task", pId->idStr, p.name);
     streamMetaReleaseTask(pTask->pMeta, pTask);
     streamTaskFreeRefId(param);
     return;
@@ -221,7 +242,8 @@ void streamTaskResumeHelper(void* param, void* tmrId) {
   code = streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pId->streamId, pId->taskId, STREAM_EXEC_T_RESUME_TASK,
                              (p.state == TASK_STATUS__CK));
   if (code) {
-    stError("s-task:%s sched task failed, code:%s", pId->idStr, tstrerror(code));
+    int8_t unusedStatus = streamTaskSetSchedStatusInactive(pTask);
+    stError("s-task:%s sched task failed, code:%s, reset sched status", pId->idStr, tstrerror(code));
   } else {
     if (p.state == TASK_STATUS__CK) {
       stDebug("trigger to resume s-task:%s in stream chkpt queue after idled for %dms", pId->idStr,
@@ -331,7 +353,7 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
     return;
   }
 
-  stDebug("s-task:%s acquire task, refId:%" PRId64, pTask->id.idStr, pTask->id.refId);
+  stTrace("s-task:%s acquire task, refId:%" PRId64, pTask->id.idStr, pTask->id.refId);
 
   id = pTask->id.idStr;
   nextTrigger = (int32_t)pTask->info.delaySchedParam;

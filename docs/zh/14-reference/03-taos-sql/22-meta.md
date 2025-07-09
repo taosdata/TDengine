@@ -94,7 +94,7 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 6   |       replica        | INT              | 副本数。需要注意，`replica` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。                                          |
 | 7   |        strict        | VARCHAR(4)       | 废弃参数 |
 | 8   |       duration       | VARCHAR(10)      | 单文件存储数据的时间跨度。需要注意，`duration` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。内部存储单位为分钟，查询时有可能转换为天或小时展示                         |
-| 9   |         keep         | VARCHAR(32)      | 数据保留时长。需要注意，`keep` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。 内部存储单位为分钟，查询时有可能转换为天或小时展示                                   |
+| 9   |         keep         | VARCHAR(32)      | 数据保留时长。需要注意，`keep` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。内部存储单位为分钟，查询时有可能转换为天或小时展示                                   |
 | 10  |        buffer        | INT              | 每个 vnode 写缓存的内存块大小，单位 MB。需要注意，`buffer` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。          |
 | 11  |       pagesize       | INT              | 每个 VNODE 中元数据存储引擎的页大小，单位为 KB。需要注意，`pagesize` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。  |
 | 12  |        pages         | INT              | 每个 vnode 元数据存储引擎的缓存页个数。需要注意，`pages` 为 TDengine 关键字，作为列名使用时需要使用 ` 进行转义。           |
@@ -131,7 +131,7 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 7   |    bufsize    | INT           | buffer 大小                                                                                   |
 | 8   | func_language | VARCHAR(31)    | 自定义函数编程语言                                                                            |
 | 9   |   func_body   | VARCHAR(16384) | 函数体定义                                                                                    |
-| 10  | func_version  | INT           | 函数版本号。初始版本为0，每次替换更新，版本号加1。                                           |
+| 10  | func_version  | INT           | 函数版本号。初始版本为 0，每次替换更新，版本号加 1。                                           |
 
 
 ## INS_INDEXES
@@ -210,7 +210,7 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 
 ## INS_USERS
 
-提供系统中创建的用户的相关信息. SYSINFO 属性为0 的用户不能查看此表。
+提供系统中创建的用户的相关信息。SYSINFO 属性为 0 的用户不能查看此表。
 
 | #   |  **列名**   | **数据类型** | **说明** |
 | --- | :---------: | ------------ | -------- |
@@ -358,4 +358,22 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 5   |   end_time    | TIMESTAMP    | 文件组的覆盖数据的结束时间              |
 | 6   |  total_size   | BIGINT       | 文件组的总大小                          |
 | 7   | last_compact  | TIMESTAMP    | 最后一次压缩的时间                      |
-| 8   | shold_compact | bool         | 是否需要压缩，true：需要，false：不需要 |
+| 8   | should_compact | bool         | 是否需要压缩，true：需要，false：不需要 |
+
+## INS_VNODES
+
+提供系统中 vnode 的相关信息。属性为 0 的用户不能查看此表。
+
+| #   |   **Column Name**   | **Data Type** | **Description**       |
+| --- | :-----------------: | ------------- | --------------------- |
+| 1   |      dnode_id       | INT           | Dnode id              |
+| 2   |      vgroup_id      | INT           | Vgroup id             |
+| 3   |       db_name       | VARCHAR(66)   | 数据库名              |
+| 4   |       status        | VARCHAR(11)   | Vnode 状态            |
+| 5   |      role_time      | TIMESTAMP     | 最近的选举时间        |
+| 6   |     start_time      | TIMESTAMP     | Vnode 启动时间        |
+| 7   |      restored       | BOOL          | 是否恢复              |
+| 8   |  apply_finish_time  | VARCHAR(20)   | 恢复时间              |
+| 9   |      unapplied      | INT           | 未应用的请求个数      |
+| 10  | buffer_segment_used | BIGINT        | Buffer 段使用的字节数 |
+| 11  | buffer_segment_size | BIGINT        | Buffer 段总字节数     |

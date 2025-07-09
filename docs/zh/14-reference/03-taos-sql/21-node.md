@@ -32,7 +32,7 @@ DROP DNODE dnode_id [force] [unsafe]
 
 注意删除 dnode 不等于停止相应的进程。实际中推荐先将一个 dnode 删除之后再停止其所对应的进程。
 
-只有在线节点可以被删除。如果要强制删除离线节点，需要执行强制删除操作, 即指定 force 选项。
+只有在线节点可以被删除。如果要强制删除离线节点，需要执行强制删除操作，即指定 force 选项。
 
 当节点上存在单副本，并且节点处于离线，如果要强制删除该节点，需要执行非安全删除，即制定 unsafe，并且数据不可再恢复。
 
@@ -46,7 +46,7 @@ ALTER ALL DNODES dnode_option
 
 对于支持动态修改的配置参数，您可以使用 ALTER DNODE 或 ALTER ALL DNODES 语法修改 dnode 中配置参数的值，自 v3.3.4.0 后，修改的配置参数将自动持久化，即便数据库服务重启后仍然生效。
 
-对于一个配置参数是否支持动态修改，请您参考 [taosd 参考手册](../01-components/01-taosd.md)
+对于一个配置参数是否支持动态修改，请您参考 [taosd 参考手册](https://docs.taosdata.com/reference/components/taosd)
 
 value 是参数的值，需要是字符格式。如修改 dnode 1 的日志输出级别为 debug。
 
@@ -55,7 +55,7 @@ ALTER DNODE 1 'debugFlag' '143';
 ```
 
 ### 补充说明：
-配置参数在 dnode 中被分为全局配置参数与局部配置参数，您可以查看 SHOW VARIABLES 或 SHOW DNODE dnode_id VARIABLE 中的 category 字段来确认配置参数属于全局配置参数还是局部配置参数。
+配置参数在 dnode 中被分为全局配置参数与局部配置参数，您可以查看 SHOW VARIABLES 或 SHOW DNODE dnode_id VARIABLES 中的 category 字段来确认配置参数属于全局配置参数还是局部配置参数。
 1. 局部配置参数：您可以使用 ALTER DNODE 或 ALTER ALL DNODES 来更新某一个 dnode 或全部 dnodes 的局部配置参数。
 2. 全局配置参数：全局配置参数要求各个 dnode 保持一致，所以您只可以使用 ALTER ALL DNODES 来更新全部 dnodes 的全局配置参数。
 
@@ -64,7 +64,7 @@ ALTER DNODE 1 'debugFlag' '143';
 2. 支持动态修改，重启生效
 3. 不支持动态修改
 
-对于重启后生效的配置参数，您可以通过 `SHOW VARIABLES` 或 `SHOW DNODE dnode_id VARIABLE` 看到修改后的值，但是需要重启数据库服务才使其生效。
+对于重启后生效的配置参数，您可以通过 `SHOW VARIABLES` 或 `SHOW DNODE dnode_id VARIABLES` 看到修改后的值，但是需要重启数据库服务才使其生效。
 
 ## 添加管理节点
 
@@ -135,7 +135,7 @@ ALTER LOCAL local_option
 
 您可以使用以上语法更该客户端的配置参数，并且不需要重启客户端，修改后立即生效。
 
-对于一个配置参数是否支持动态修改，请您参考以下页面：[taosc 参考手册](../01-components/02-taosc.md)
+对于一个配置参数是否支持动态修改，请您参考以下页面：[taosc 参考手册](https://docs.taosdata.com/reference/components/taosc/)
 
 
 ## 查看客户端配置

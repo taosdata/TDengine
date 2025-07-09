@@ -783,10 +783,11 @@ static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols) {
     if (sTmp == NULL) {
       SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
     }
-    if (IS_VAR_DATA_TYPE(kv->type) && kv->length + VARSTR_HEADER_SIZE > sTmp->bytes){
+    if ((kv->type == TSDB_DATA_TYPE_VARCHAR && kv->length + VARSTR_HEADER_SIZE > sTmp->bytes) ||
+        (kv->type == TSDB_DATA_TYPE_NCHAR && kv->length * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE > sTmp->bytes)) {
       uError("column %s (type %s) bytes invalid. db bytes:%d, kv bytes:%zu", sTmp->name,
              tDataTypes[sTmp->type].name, sTmp->bytes, kv->length);
-      SML_CHECK_CODE(TSDB_CODE_INTERNAL_ERROR);
+      SML_CHECK_CODE(TSDB_CODE_MND_INVALID_SCHEMA_VER);
     }
   }
 
@@ -884,10 +885,10 @@ static int32_t smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray *pColumns, 
     smlBuildCreateStbReq(&pReq, 1, 1, 0, TD_REQ_FROM_APP);
   } else if (action == SCHEMA_ACTION_ADD_TAG || action == SCHEMA_ACTION_CHANGE_TAG_SIZE) {
     pSql = (action == SCHEMA_ACTION_ADD_TAG) ? "sml_add_tag" : "sml_modify_tag_size";
-    smlBuildCreateStbReq(&pReq, pTableMeta->sversion, pTableMeta->tversion + 1, pTableMeta->uid, TD_REQ_FROM_TAOX);
+    smlBuildCreateStbReq(&pReq, pTableMeta->sversion, pTableMeta->tversion + 1, pTableMeta->uid, TD_REQ_FROM_SML);
   } else if (action == SCHEMA_ACTION_ADD_COLUMN || action == SCHEMA_ACTION_CHANGE_COLUMN_SIZE) {
     pSql = (action == SCHEMA_ACTION_ADD_COLUMN) ? "sml_add_column" : "sml_modify_column_size";
-    smlBuildCreateStbReq(&pReq, pTableMeta->sversion + 1, pTableMeta->tversion, pTableMeta->uid, TD_REQ_FROM_TAOX);
+    smlBuildCreateStbReq(&pReq, pTableMeta->sversion + 1, pTableMeta->tversion, pTableMeta->uid, TD_REQ_FROM_SML);
   } else {
     SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
   }

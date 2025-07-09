@@ -5,11 +5,8 @@ add_library(az STATIC ${AZ_SRC})
 
 if(${BUILD_S3})
   add_definitions(-DUSE_S3)
-  target_link_libraries(
-    az
-    PUBLIC _azure_sdk
-    PUBLIC crypt
-  )
+  DEP_ext_azure(az)
+  DEP_ext_libxml2(az)
 endif()
 
 target_include_directories(
@@ -20,7 +17,6 @@ target_include_directories(
 
 target_link_libraries(
   az
-  PUBLIC cjson
   PUBLIC os
   PUBLIC util
   PUBLIC common

@@ -37,9 +37,9 @@ extern "C" {
 
 #define UDF_LISTEN_PIPE_NAME_LEN 32
 #ifdef _WIN32
-#define UDF_LISTEN_PIPE_NAME_PREFIX "\\\\?\\pipe\\taosudf.sock"
+#define UDF_LISTEN_PIPE_NAME_PREFIX "\\\\?\\pipe\\" CUS_PROMPT "udf.sock"
 #else
-#define UDF_LISTEN_PIPE_NAME_PREFIX ".taosudf.sock."
+#define UDF_LISTEN_PIPE_NAME_PREFIX "." CUS_PROMPT "udf.sock."
 #endif
 #define UDF_DNODE_ID_ENV_NAME "DNODE_ID"
 
@@ -66,7 +66,7 @@ extern "C" {
     const void *ptrs[] = {__VA_ARGS__};                                        \
     for (int i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); ++i) {                 \
       if (ptrs[i] == NULL) {                                                   \
-        fnError("taosudf %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
+        fnError("udf %dth parameter invalid, NULL PTR.line:%d", i, __LINE__);  \
         return TSDB_CODE_INVALID_PARA;                                         \
       }                                                                        \
     }                                                                          \
@@ -77,7 +77,7 @@ extern "C" {
     const void *ptrs[] = {__VA_ARGS__};                                        \
     for (int i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); ++i) {                 \
       if (ptrs[i] == NULL) {                                                   \
-        fnError("taosudf %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
+        fnError("udf %dth parameter invalid, NULL PTR.line:%d", i, __LINE__);  \
         return;                                                                \
       }                                                                        \
     }                                                                          \

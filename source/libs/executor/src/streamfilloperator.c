@@ -1242,6 +1242,18 @@ void doBuildForceFillResultImpl(SOperatorInfo* pOperator, SStreamFillSupporter* 
     }
   }
 
+  if (pBlock->info.parTbName[0] == 0 && pBlock->info.id.groupId != 0) {
+    void*   tbname = NULL;
+    int32_t winCode = TSDB_CODE_SUCCESS;
+
+    code = pInfo->stateStore.streamStateGetParName(pInfo->pState, pBlock->info.id.groupId, &tbname, false, &winCode);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (winCode == TSDB_CODE_SUCCESS) {
+      memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
+      pInfo->stateStore.streamStateFreeVal(tbname);
+    }
+  }
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -1257,6 +1269,8 @@ void doBuildForceFillResult(SOperatorInfo* pOperator, SStreamFillSupporter* pFil
 
   // clear the existed group id
   pBlock->info.id.groupId = 0;
+  memset(pBlock->info.parTbName, 0, tListLen(pBlock->info.parTbName));
+
   doBuildForceFillResultImpl(pOperator, pFillSup, pFillInfo, pBlock, pGroupResInfo);
 }
 
@@ -1404,6 +1418,7 @@ static int32_t doStreamForceFillNext(SOperatorInfo* pOperator, SSDataBlock** ppR
   int32_t                  lino = 0;
   SStreamFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
+  qDebug("%s ===stream===return data:%s.", __FUNCTION__, getStreamOpName(pOperator->operatorType));
 
   if (pOperator->status == OP_EXEC_DONE) {
     (*ppRes) = NULL;

@@ -29,10 +29,12 @@ class AbstractAnalyticsService(AnalyticsService, ABC):
         self.list = None
         self.ts_list = None
 
+
     def set_input_list(self, input_list: list, input_ts_list: list = None):
         """ set the input list """
         self.list = input_list
         self.ts_list = input_ts_list
+
 
     def set_params(self, params: dict) -> None:
         """set the parameters for current algo """
@@ -80,7 +82,22 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
         self.rows = 0
 
         self.return_conf = 1
-        self.conf = 0.05
+        self.conf = 0.95
+
+        self.past_dynamic_real = []
+        self.dynamic_real = []
+
+    def set_input_data(self, input_list: list, input_ts_list: list = None, past_dynamic_real_list: list = None,
+                       dynamic_real_list: list = None):
+        """ set the input data """
+        if past_dynamic_real_list is not None:
+            self.past_dynamic_real = past_dynamic_real_list
+
+        if dynamic_real_list is not None:
+            self.dynamic_real = dynamic_real_list
+
+        self.set_input_list(input_list, input_ts_list)
+
 
     def set_params(self, params: dict) -> None:
         if not {'start_ts', 'time_step', 'rows'}.issubset(params.keys()):
@@ -102,11 +119,11 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
         if self.period < 0:
             raise ValueError("periods should be greater than 0")
 
-        self.conf = float(params['conf']) if 'conf' in params else 95
+        self.conf = float(params['conf']) if 'conf' in params else 0.95
 
-        self.conf = 1.0 - self.conf / 100.0
+        # self.conf = 1.0 - self.conf / 100.0
         if self.conf < 0 or self.conf >= 1.0:
-            raise ValueError("invalid value of conf, should between 0 and 100")
+            raise ValueError("invalid value of conf, should between 0 and 1.0")
 
         self.return_conf = int(params['return_conf']) if 'return_conf' in params else 1
 

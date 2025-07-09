@@ -5,7 +5,6 @@
 
 set -e
 
-iplist=""
 serverFqdn=""
 
 # -----------------------Variables definition---------------------
@@ -26,6 +25,8 @@ resourceDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/resource"
 venvDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/venv"
 global_conf_dir="/etc/${PREFIX}"
 installDir="/usr/local/${PREFIX}/${PRODUCTPREFIX}"
+tar_td_model_name="tdtsfm.tar.gz"
+tar_xhs_model_name="timer-moe.tar.gz"
 
 python_minor_ver=0  #check the python version
 bin_link_dir="/usr/bin"
@@ -156,6 +157,13 @@ function kill_process() {
   fi
 }
 
+function kill_model_service() {
+  for script in stop-tdtsfm.sh stop-timer-moe.sh; do
+    script_path="${installDir}/bin/${script}"
+    [ -f "${script_path}" ] && ${csudo}bash "${script_path}" || :
+  done
+}
+
 function install_main_path() {
   #create install main dir and all sub dir
   if [ ! -z "${install_main_dir}" ]; then
@@ -173,132 +181,24 @@ function install_bin_and_lib() {
   ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
   ${csudo}cp -r ${script_dir}/lib/* ${install_main_dir}/lib/
 
-  if [[ ! -e "${bin_link_dir}/rmtaosanode" ]]; then
-    ${csudo}ln -s ${install_main_dir}/bin/uninstall.sh ${bin_link_dir}/rmtaosanode
-  fi
-}
+  # Handle rmtaosanode separately
+  [ -L "${bin_link_dir}/rmtaosanode" ] && ${csudo}rm -rf "${bin_link_dir}/rmtaosanode" || :
+  ${csudo}ln -s "${install_main_dir}/bin/uninstall.sh" "${bin_link_dir}/rmtaosanode"
 
-function add_newHostname_to_hosts() {
-  localIp="127.0.0.1"
-  OLD_IFS="$IFS"
-  IFS=" "
-  iphost=$(cat /etc/hosts | grep $1 | awk '{print $1}')
-  arr=($iphost)
-  IFS="$OLD_IFS"
-  for s in "${arr[@]}"; do
-    if [[ "$s" == "$localIp" ]]; then
-      return
-    fi
+  # Create an array of link names and target scripts
+  declare -A links=(
+    ["start-tdtsfm"]="${install_main_dir}/bin/start-tdtsfm.sh"
+    ["stop-tdtsfm"]="${install_main_dir}/bin/stop-tdtsfm.sh"
+    ["start-timer-moe"]="${install_main_dir}/bin/start-timer-moe.sh"
+    ["stop-timer-moe"]="${install_main_dir}/bin/stop-timer-moe.sh"
+  )
+
+  # Iterate over the array and create/remove links as needed
+  for link in "${!links[@]}"; do
+    target="${links[$link]}"
+    [ -L "${bin_link_dir}/${link}" ] && ${csudo}rm -rf "${bin_link_dir}/${link}" || :
+    ${csudo}ln -s "${target}" "${bin_link_dir}/${link}"
   done
-
-  if grep -q "127.0.0.1  $1" /etc/hosts; then
-    return
-  else
-    ${csudo}chmod 666 /etc/hosts
-    ${csudo}echo "127.0.0.1  $1" >>/etc/hosts
-  fi
-}
-
-function set_hostname() {
-  echo -e -n "${GREEN}Host name or IP (assigned to this machine) which can be accessed by your tools or apps (must not be 'localhost')${NC}"
-  read -e -p " : " -i "$(hostname)" newHostname
-  while true; do
-    if [ -z "$newHostname" ]; then
-      newHostname=$(hostname)
-      break
-    elif [ "$newHostname" != "localhost" ]; then
-      break
-    else
-      echo -e -n "${GREEN}Host name or IP (assigned to this machine) which can be accessed by your tools or apps (must not be 'localhost')${NC}"
-      read -e -p " : " -i "$(hostname)" newHostname
-    fi
-  done
-
-  if [ -f ${global_conf_dir}/${configFile} ]; then
-    ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${global_conf_dir}/${configFile}
-  else
-    ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${script_dir}/cfg/${configFile}
-  fi
-  serverFqdn=$newHostname
-
-  if [[ -e /etc/hosts ]] && [[ ! $newHostname =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-    add_newHostname_to_hosts $newHostname
-  fi
-}
-
-function is_correct_ipaddr() {
-  newIp=$1
-  OLD_IFS="$IFS"
-  IFS=" "
-  arr=($iplist)
-  IFS="$OLD_IFS"
-  for s in "${arr[@]}"; do
-    if [[ "$s" == "$newIp" ]]; then
-      return 0
-    fi
-  done
-
-  return 1
-}
-
-function set_ipAsFqdn() {
-  iplist=$(ip address | grep inet | grep -v inet6 | grep -v 127.0.0.1 | awk '{print $2}' | awk -F "/" '{print $1}') || :
-  if [ -z "$iplist" ]; then
-    iplist=$(ifconfig | grep inet | grep -v inet6 | grep -v 127.0.0.1 | awk '{print $2}' | awk -F ":" '{print $2}') || :
-  fi
-
-  if [ -z "$iplist" ]; then
-    echo
-    echo -e -n "${GREEN}Unable to get local ip, use 127.0.0.1${NC}"
-    localFqdn="127.0.0.1"
-    # Write the local FQDN to configuration file
-
-    if [ -f ${global_conf_dir}/${configFile} ]; then
-      ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${global_conf_dir}/${configFile}
-    else
-      ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${script_dir}/cfg/${configFile}
-    fi
-    serverFqdn=$localFqdn
-    echo
-    return
-  fi
-
-  echo -e -n "${GREEN}Please choose an IP from local IP list${NC}:"
-  echo
-  echo -e -n "${GREEN}$iplist${NC}"
-  echo
-  echo
-  echo -e -n "${GREEN}Notes: if IP is used as the node name, data can NOT be migrated to other machine directly${NC}:"
-  read localFqdn
-  while true; do
-    if [ ! -z "$localFqdn" ]; then
-      # Check if correct ip address
-      is_correct_ipaddr $localFqdn
-      retval=$(echo $?)
-      if [[ $retval != 0 ]]; then
-        read -p "Please choose an IP from local IP list:" localFqdn
-      else
-        # Write the local FQDN to configuration file
-        if [ -f ${global_conf_dir}/${configFile} ]; then
-          ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${global_conf_dir}/${configFile}
-        else
-          ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${script_dir}/cfg/${configFile}
-        fi
-        serverFqdn=$localFqdn
-        break
-      fi
-    else
-      read -p "Please choose an IP from local IP list:" localFqdn
-    fi
-  done
-}
-
-function local_fqdn_check() {
-  #serverFqdn=$(hostname)
-  echo
-  echo -e -n "System hostname is: ${GREEN}$serverFqdn${NC}"
-  echo
-  set_hostname
 }
 
 function install_anode_config() {
@@ -322,17 +222,6 @@ function install_config() {
 
   [ ! -z $1 ] && return 0 || : # only install client
 
-  if ((${update_flag} == 1)); then
-    install_taosd_config
-    return 0
-  fi
-
-  if [ "$interactiveFqdn" == "no" ]; then
-    install_taosd_config
-    return 0
-  fi
-
-  local_fqdn_check
   install_anode_config
 
   echo
@@ -375,6 +264,7 @@ function install_log() {
 function install_module() {
   ${csudo}mkdir -p ${moduleDir} && ${csudo}chmod 777 ${moduleDir}
   ${csudo}ln -sf ${moduleDir} ${install_main_dir}/model
+  [ -f "${script_dir}/model/${tar_td_model_name}" ] && cp -r ${script_dir}/model/* ${moduleDir}/ || : 
 }
 
 function install_resource() {
@@ -410,6 +300,9 @@ function install_anode_venv() {
   ${csudo}${venvDir}/bin/pip3 install --upgrade keras
   ${csudo}${venvDir}/bin/pip3 install requests
   ${csudo}${venvDir}/bin/pip3 install taospy
+  ${csudo}${venvDir}/bin/pip3 install transformers==4.40.0
+  ${csudo}${venvDir}/bin/pip3 install accelerate
+  ${csudo}${venvDir}/bin/pip3 install tensorflow
 
   echo -e "Install python library for venv completed!"
 }
@@ -671,6 +564,9 @@ function installProduct() {
   fi
 
   tar -zxf ${tarName}
+ 
+  [ -f "${script_dir}/model/${tar_td_model_name}" ]  && tar -zxf ${script_dir}/model/${tar_td_model_name} -C ${script_dir}/model || :
+  [ -f "${script_dir}/model/${tar_xhs_model_name}" ] && tar -zxf ${script_dir}/model/${tar_xhs_model_name} -C ${script_dir}/model || :
 
   echo "Start to install ${productName}..."
 
@@ -679,8 +575,11 @@ function installProduct() {
   install_anode_config
   install_module
   install_resource
-
+  
+  
   install_bin_and_lib
+  kill_model_service
+
   if ! is_container; then
     install_services
   fi

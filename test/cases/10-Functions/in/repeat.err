@@ -1,0 +1,11 @@
+select repeat();
+select repeat('taos', );
+select repeat(, 3);
+select repeat('taos');
+select repeat(1);
+select repeat(taos, 1);
+select repeat(123, 2);
+select repeat('taos', 1.5);
+select repeat('taos', 1.4);
+select repeat('taos', 12, 3);
+select repeat(id, 3) from ts_4893.meters;

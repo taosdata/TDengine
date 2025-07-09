@@ -16,15 +16,15 @@ Tableau 是一款知名的商业智能工具，它支持多种数据源，可方
 
 ## 配置数据源
 
-**第 1 步**，在 Windows 操作系统的开始菜单中搜索并打开“ODBC数据源（64位）”管理工具并进行配置。详细参考 [配置ODBC数据源](../../../reference/connector/odbc/#配置数据源)。
+**第 1 步**，在 Windows 操作系统的开始菜单中搜索并打开“ODBC 数据源（64 位）”管理工具并进行配置。详细参考 [配置 ODBC 数据源](../../../reference/connector/odbc/#配置数据源)。
 
 :::tip
 需要注意的是，在为 Tableau 配置 ODBC 数据源时，TDengine ODBC 数据源配置页面中的【数据库】配置项为必填项，需选择一个可成功连接的数据库。
 :::
 
-**第 2 步**，在 Windows 系统环境下启动 Tableau，之后在其连接页面中搜索 “ODBC”，并选择 “其他数据库 (ODBC)”。 对于 Tableau 的使用的ODBC数据源，在其 TDengine ODBC 数据源配置页面的【数据库】的配置项为必填，需要选择可以连接的数据库。
+**第 2 步**，在 Windows 系统环境下启动 Tableau，之后在其连接页面中搜索“ODBC”，并选择“其他数据库 (ODBC)”。对于 Tableau 的使用的 ODBC 数据源，在其 TDengine ODBC 数据源配置页面的【数据库】的配置项为必填，需要选择可以连接的数据库。
  
-**第 3 步**，点击 `DSN` 单选框，接着选择已配置好的数据源(MyTDengine)，然后点击`连接`按钮。待连接成功后，删除字符串附加部分的内容，最后点击`登录`按钮即可。
+**第 3 步**，点击 `DSN` 单选框，接着选择已配置好的数据源 (MyTDengine)，然后点击`连接`按钮。待连接成功后，删除字符串附加部分的内容，最后点击`登录`按钮即可。
 
 ![tableau-odbc](./tableau/tableau-odbc.webp) 
 
@@ -38,6 +38,6 @@ Tableau 是一款知名的商业智能工具，它支持多种数据源，可方
 
 ![tableau-workbook](./tableau/tableau-data.webp) 
 
-**第 3 步**，点击窗口下方的"工作表"，弹出数据分析窗口， 并展示分析表的所有字段,将字段拖动到行列即可展示出图表。
+**第 3 步**，点击窗口下方的"工作表"，弹出数据分析窗口，并展示分析表的所有字段，将字段拖动到行列即可展示出图表。
 
 ![tableau-workbook](./tableau/tableau-analysis.webp) 

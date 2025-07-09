@@ -964,6 +964,8 @@ void buildDataBlockFromGroupRes(SOperatorInfo* pOperator, void* pState, SSDataBl
       } else {
         memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
       }
+      qDebug("%s partName:%s, groupId:%"PRIu64, __FUNCTION__, (char*)tbname, groupId);
+
       pAPI->stateStore.streamStateFreeVal(tbname);
     } else {
       // current value belongs to different group, it can't be packed into one datablock
@@ -1269,12 +1271,14 @@ int32_t encodeSWinKey(void** buf, SWinKey* key) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI64(buf, key->ts);
   tlen += taosEncodeFixedU64(buf, key->groupId);
+  tlen += taosEncodeFixedI32(buf, key->numInGroup);
   return tlen;
 }
 
 void* decodeSWinKey(void* buf, SWinKey* key) {
   buf = taosDecodeFixedI64(buf, &key->ts);
   buf = taosDecodeFixedU64(buf, &key->groupId);
+  buf = taosDecodeFixedI32(buf, &key->numInGroup);
   return buf;
 }
 
@@ -2178,6 +2182,7 @@ void destroyStreamAggSupporter(SStreamAggSupporter* pSup) {
   blockDataDestroy(pSup->pScanBlock);
   if (pSup->stateStore.streamFileStateDestroy != NULL) {
     pSup->stateStore.streamFileStateDestroy(pSup->pState->pFileState);
+    pSup->pState->pFileState = NULL;
   }
   taosMemoryFreeClear(pSup->pState);
   taosMemoryFreeClear(pSup->pDummyCtx);
@@ -3257,6 +3262,8 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
       } else {
         memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
       }
+
+      qDebug("%s partName:%s, groupId:%"PRIu64, __FUNCTION__, (char*)tbname, pKey->groupId);
       pAPI->stateStore.streamStateFreeVal(tbname);
     } else {
       // current value belongs to different group, it can't be packed into one datablock

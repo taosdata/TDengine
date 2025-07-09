@@ -1,0 +1,5 @@
+select round();
+select round(10, );
+select round(, 2);
+select round('abc', 2);
+select round(123.23, 'a');

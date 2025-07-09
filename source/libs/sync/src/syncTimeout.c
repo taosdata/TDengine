@@ -58,20 +58,24 @@ static void syncNodeCleanConfigIndex(SSyncNode* ths) {
 static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   ths->tmrRoutineNum++;
 
-  if (ths->tmrRoutineNum % 60 == 0 && ths->totalReplicaNum > 1) {
+  sDebug("vgId:%d, timer routine, status report", ths->vgId);
+  if (ths->tmrRoutineNum % (tsRoutineReportInterval / (ths->pingTimerMS / 1000)) == 0) {
     sNInfo(ths, "timer routines");
   } else {
     sNTrace(ths, "timer routines");
   }
 
   // timer replicate
+  sDebug("vgId:%d, timer routine, node replicate", ths->vgId);
   TAOS_CHECK_RETURN(syncNodeReplicate(ths));
 
   // clean mnode index
+  sDebug("vgId:%d, timer routine, clean config index", ths->vgId);
   if (syncNodeIsMnode(ths)) {
     syncNodeCleanConfigIndex(ths);
   }
 
+  sDebug("vgId:%d, timer routine, snapshot resend", ths->vgId);
   int64_t timeNow = taosGetTimestampMs();
 
   for (int i = 0; i < ths->peersNum; ++i) {
@@ -95,6 +99,7 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
     }
   }
 
+  sDebug("vgId:%d, timer routine, resp clean", ths->vgId);
   if (!syncNodeIsMnode(ths)) {
     syncRespClean(ths->pSyncRespMgr);
   }

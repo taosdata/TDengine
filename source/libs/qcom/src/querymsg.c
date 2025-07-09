@@ -455,6 +455,28 @@ int32_t queryBuildVSubTablesMsg(void* input, char** msg, int32_t msgSize, int32_
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryBuildVStbRefDBsMsg(void* input, char** msg, int32_t msgSize, int32_t *msgLen, void*(*mallcFp)(int64_t)) {
+  QUERY_PARAM_CHECK(input);
+  QUERY_PARAM_CHECK(msg);
+  QUERY_PARAM_CHECK(msgLen);
+
+  SVStbRefDbsReq req = {0};
+  req.suid = *(int64_t*)input;
+
+  int32_t bufLen = tSerializeSVStbRefDbsReq(NULL, 0, &req);
+  void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
+  if(tSerializeSVStbRefDbsReq(pBuf, bufLen, &req) < 0)   {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
   SUseDbOutput *pOut = output;
@@ -533,6 +555,11 @@ static int32_t queryConvertTableMetaMsg(STableMetaRsp *pMetaMsg) {
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
+  if (pMetaMsg->rversion < 0) {
+    qError("invalid rversion[%d] in table meta rsp msg", pMetaMsg->rversion);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
   if (pMetaMsg->pSchemas[0].colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
     qError("invalid colId[%" PRIi16 "] for the first column in table meta rsp msg", pMetaMsg->pSchemas[0].colId);
     return TSDB_CODE_TSC_INVALID_VALUE;
@@ -573,6 +600,7 @@ int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) 
   pTableMeta->uid = msg->tuid;
   pTableMeta->suid = msg->suid;
   pTableMeta->numOfColRefs = msg->numOfColRefs;
+  pTableMeta->rversion = msg->rversion;
 
   pTableMeta->colRef = (SColRef *)((char *)pTableMeta + sizeof(SVCTableMeta));
   memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
@@ -606,8 +634,19 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   pTableMeta->suid = msg->suid;
   pTableMeta->sversion = msg->sversion;
   pTableMeta->tversion = msg->tversion;
-  pTableMeta->virtualStb = msg->virtualStb;
-  pTableMeta->numOfColRefs = msg->numOfColRefs;
+  pTableMeta->rversion = msg->rversion;
+  if (msg->virtualStb) {
+    pTableMeta->virtualStb = 1;
+    pTableMeta->numOfColRefs = 0;
+  } else {
+    if (msg->tableType == TSDB_VIRTUAL_CHILD_TABLE && isStb) {
+      pTableMeta->virtualStb = 1;
+      pTableMeta->numOfColRefs = 0;
+    } else {
+      pTableMeta->virtualStb = 0;
+      pTableMeta->numOfColRefs = msg->numOfColRefs;
+    }
+  }
 
   pTableMeta->tableInfo.numOfTags = msg->numOfTags;
   pTableMeta->tableInfo.precision = msg->precision;
@@ -674,6 +713,7 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   pTableMeta->suid = msg->suid;
   pTableMeta->sversion = msg->sversion;
   pTableMeta->tversion = msg->tversion;
+  pTableMeta->rversion = msg->rversion;
   pTableMeta->virtualStb = msg->virtualStb;
   pTableMeta->numOfColRefs = msg->numOfColRefs;
 
@@ -1105,6 +1145,22 @@ int32_t queryProcessVSubTablesRsp(void* output, char* msg, int32_t msgSize) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryProcessVStbRefDbsRsp(void* output, char* msg, int32_t msgSize) {
+  if (!output || !msg || msgSize <= 0) {
+    qError("queryProcessVStbRefDbsRsp input error, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SVStbRefDbsRsp * pRsp = (SVStbRefDbsRsp*)output;
+  int32_t code = tDeserializeSVStbRefDbsRsp(msg, msgSize, pRsp);
+  if (code != 0) {
+    qError("tDeserializeSVStbRefDbsRsp failed, msgSize: %d, error:%d", msgSize, code);
+    return code;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryBuildTableMetaReqMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_NAME)] = queryBuildTableMetaReqMsg;
@@ -1125,6 +1181,7 @@ void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_TSMA)] = queryBuildGetTSMAMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_VND_GET_STREAM_PROGRESS)] = queryBuildGetStreamProgressMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_VND_VSUBTABLES_META)] = queryBuildVSubTablesMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_VND_VSTB_REF_DBS)] = queryBuildVStbRefDBsMsg;
 
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_NAME)] = queryProcessTableNameRsp;
@@ -1145,6 +1202,7 @@ void initQueryModuleMsgHandle() {
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_TSMA)] = queryProcessGetTbTSMARsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_GET_STREAM_PROGRESS)] = queryProcessStreamProgressRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_VSUBTABLES_META)] = queryProcessVSubTablesRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_VSTB_REF_DBS)] = queryProcessVStbRefDbsRsp;
 }
 
 #pragma GCC diagnostic pop

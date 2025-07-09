@@ -57,7 +57,7 @@ LIKE 条件使用通配符字符串进行匹配检查，规则如下：
 MATCH/REGEXP 条件和 NMATCH/NOT REGEXP 条件使用正则表达式进行匹配，规则如下：
 
 - 支持符合 POSIX 规范的正则表达式，具体规范内容可参见 Regular Expressions。
-- MATCH 和正则表达式匹配时，返回 TURE。NMATCH 和正则表达式不匹配时，返回 TRUE. 
+- MATCH 和正则表达式匹配时，返回 TRUE。NMATCH 和正则表达式不匹配时，返回 TRUE. 
 - 只能针对子表名（即 tbname）、字符串类型的标签值进行正则表达式过滤，不支持普通列的过滤。
 - 正则匹配字符串长度不能超过 128 字节。可以通过参数 maxRegexStringLen 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启客户端才能生效
 

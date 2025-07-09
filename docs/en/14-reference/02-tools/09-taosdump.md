@@ -15,14 +15,17 @@ taosdump is the default installation component in the TDengine server and client
 ## Startup
 
 taosdump needs to be run in the command line terminal. It must be run with parameters to indicate backup or restore operations, such as:
+
 ``` bash
 taosdump -h my-server -D test -o /root/test/
 ```
+
 The above command means to backup the `test` database on the `my server` machine to the `/root/test/` directory.
 
 ``` bash
 taosdump -h my-server -i /root/test/
 ```
+
 The above command means to restore the previously backed up data files in the `/root/test/` directory to the host named `my server`.
 
 ## Command Line Parameters
@@ -94,6 +97,10 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -?, --help                 Give this help list.
       --usage                Give a short usage message.
   -V, --version              Print program version.
+  -Z, --connect-mode         The connection method, with 0 indicating the use of 
+                             native connection method, 1 indicating the use of 
+                             WebSocket connection method, and default to native 
+                             connection method. 
 
 Mandatory or optional arguments to long options are also mandatory or optional
 for any corresponding short options.
@@ -125,6 +132,7 @@ for any corresponding short options.
 
 - Restore data files from a specified path: use the `-i` parameter along with the data file path. As mentioned earlier, the same directory should not be used to back up different data sets, nor should the same path be used to back up the same data set multiple times, otherwise, the backup data will cause overwriting or multiple backups.
 - taosdump supports data recovery to a new database name with the parameter `-W`, please refer to the command line parameter description for details.
+- Supports importing data of unchanged columns when there are changes in the TAG/COLUMN columns of both super tables and ordinary tables (supported in version 3.3.6.0 and above).
 
 :::tip
 taosdump internally uses the TDengine stmt binding API to write restored data, currently using 16384 as a batch for writing. If there are many columns in the backup data, it may cause a "WAL size exceeds limit" error, in which case you can try adjusting the `-B` parameter to a smaller value.

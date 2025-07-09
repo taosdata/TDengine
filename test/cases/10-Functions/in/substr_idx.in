@@ -1,0 +1,119 @@
+select substring_index("1abcd;2abcd;3abcd;4abcd", ';', 2)
+select substring_index("1abcd;2abcd;3abcd;4abcd", ';', -2)
+select substring_index('www.taosdata.com','taos',1)
+select substring_index('www.taosdata.com','taos',-1)
+SELECT SUBSTRING_INDEX('www.taosdata.com', '.', 1)
+SELECT SUBSTRING_INDEX('www.taosdata.com', '.', -1)
+select substring_index('www.taosdata.com','.',-2)
+SELECT SUBSTRING_INDEX('www.taosdata.com', '.', 100)
+SELECT SUBSTRING_INDEX('www.taosdata.com', '.', -100)
+SELECT SUBSTRING_INDEX('www.taosdata.com', '.', 2147483647)
+SELECT SUBSTRING_INDEX('www.taosdata.com', '.', -2147483647)
+SELECT SUBSTRING_INDEX('www.taosdata.com', '.', 2147483648)
+SELECT SUBSTRING_INDEX('www.taosdata.com', '.', -2147483648)
+SELECT SUBSTRING_INDEX('www.taosdata.com', '.', 2147483649)
+SELECT SUBSTRING_INDEX('www.taosdata.com', '.', -2147483649)
+select substring_index('.taosdata.com','.',-2)
+select substring_index('.taosdata.com','.tcx',-1)
+select substring_index('aaaaaaaaa1','aa',2)
+select substring_index('aaaaaaaaa1','aa',3)
+select substring_index('aaaaaaaaa1','aa',4)
+select substring_index('aaaaaaaaa1','aa',5)
+select substring_index('aaaaaaaaa1','aaa',2)
+select substring_index('aaaaaaaaa1','aaa',3)
+select substring_index('aaaaaaaaa1','aaa',4)
+select substring_index('aaaaaaaaa1','aaaa',2)
+select substring_index('aaaaaaaaa1','1',1)
+select substring_index('aaaaaaaaa1','a',-1)
+select substring_index('aaaaaaaaa1','aa',-1)
+select substring_index('aaaaaaaaa1','aa',-2)
+select substring_index('aaaaaaaaa1','aa',-3)
+select substring_index('aaaaaaaaa1','aa',-4)
+select substring_index('aaaaaaaaa1','aa',-5)
+select substring_index('aaaaaaaaa1','aaa',-1)
+select substring_index('aaaaaaaaa1','aaa',-2)
+select substring_index('aaaaaaaaa1','aaa',-3)
+select substring_index('aaaaaaaaa1','aaa',-4)
+select substring_index('the king of thethe hill','the',-2)
+select substring_index('the king of the the hill','the',-2)
+select substring_index('the king of the  the hill','the',-2)
+select substring_index('the king of the  the hill',' the ',-1)
+select substring_index('the king of the  the hill',' the ',-2)
+select substring_index('the king of the  the hill',' ',-1)
+select substring_index('the king of the  the hill',' ',-2)
+select substring_index('the king of the  the hill',' ',-3)
+select substring_index('the king of the  the hill',' ',-4)
+select substring_index('the king of the  the hill',' ',-5)
+select substring_index('the king of the.the hill','the',-2)
+select substring_index('the king of thethethe.the hill','the',-3)
+select substring_index('the king of thethethe.the hill','the',-1)
+select substring_index('the king of the the hill','the',2)
+select substring_index('the king of the the hill','the',3)
+select substring_index(nch1, nch2, 1) from ts_4893.meters where position(nch2 in nch1) > 1 order by ts limit 5
+select substring_index(nch1, nch2, 1) from ts_4893.meters where position(nch2 in nch1) = 0 order by ts limit 5
+select substring_index(nch1, nch2, -2) from ts_4893.meters where position(nch2 in nch1) != 0 order by ts limit 5
+select substring_index(nch1, nch2, -2) from ts_4893.meters where position(nch2 in nch1) = 0 order by ts limit 5
+select substring_index(var1, var2, 1) from ts_4893.meters where position(var2 in var1) > 1 order by ts limit 5
+select substring_index(var1, var2, 1) from ts_4893.meters where position(var2 in var1) = 0 order by ts limit 5
+select substring_index(var1, var2, -2) from ts_4893.meters where position(var2 in var1) != 0 order by ts limit 5
+select substring_index(var1, var2, -2) from ts_4893.meters where position(var2 in var1) = 0 order by ts limit 5
+select substring_index(nch1, var2, 1) from ts_4893.meters where position(var2 in nch1) > 1 order by ts limit 5
+select substring_index(nch1, var2, 1) from ts_4893.meters where position(var2 in nch1) = 0 order by ts limit 5
+select substring_index(nch1, var2, -2) from ts_4893.meters where position(var2 in nch1) != 0 order by ts limit 5
+select substring_index(nch1, var2, -2) from ts_4893.meters where position(var2 in nch1) = 0 order by ts limit 5
+select substring_index(var1, nch2, 1) from ts_4893.meters where position(nch2 in var1) > 1 order by ts limit 5
+select substring_index(var1, nch2, 1) from ts_4893.meters where position(nch2 in var1) = 0 order by ts limit 5
+select substring_index(var1, nch2, -2) from ts_4893.meters where position(nch2 in var1) != 0 order by ts limit 5
+select substring_index(var1, nch2, -2) from ts_4893.meters where position(nch2 in var1) = 0 order by ts limit 5
+select substring_index('a一二三a一二三bbcfp', nch2, 1) from ts_4893.meters where position(nch2 in 'a一二三a一二三bbcfp') > 1 order by ts limit 5
+select substring_index('a一二三a一二三bbcfp', nch2, -1) from ts_4893.meters where position(nch2 in 'a一二三a一二三bbcfp') > 1 order by ts limit 5
+select substring_index('a一二三a一二三bbcfp', nch2, cast(id + 1 as int)) from ts_4893.meters where position(nch2 in 'a一二三a一二三bbcfp') = 0 order by ts limit 5
+select substring_index('a一二三a一二三bbcfp', var2, 1) from ts_4893.meters where position(var2 in 'a一二三a一二三bbcfp') > 1 order by ts limit 5
+select substring_index('a一二三a一二三bbcfp', var2, -1) from ts_4893.meters where position(var2 in 'a一二三a一二三bbcfp') > 1 order by ts limit 5
+select substring_index('a一二三a一二三bbcfp', var2, cast(id + 1 as int)) from ts_4893.meters where position(var2 in 'a一二三a一二三bbcfp') = 0 order by ts limit 5
+select substring_index(nch1, '123', 1) from ts_4893.meters where position('123' in nch1) > 1 order by ts limit 5
+select substring_index(nch1, '123', -1) from ts_4893.meters where position('123' in nch1) > 1 order by ts limit 5
+select substring_index(nch1, '123', id) from ts_4893.meters where position('123' in nch1) > 1 order by ts limit 5
+select substring_index(var1, '123', 1) from ts_4893.meters where position('123' in var1) > 1 order by ts limit 5
+select substring_index(var1, '123', -1) from ts_4893.meters where position('123' in var1) > 1 order by ts limit 5
+select substring_index(var1, '123', id) from ts_4893.meters where position('123' in var1) > 1 order by ts limit 5
+select substring_index('www.taosdata.com', '.', 2)
+select substring_index('www.taosdata.com', '.', -2)
+select substring_index('中国.科学.www.taosdata.com', '.', 2)
+select substring_index('北京。涛思。数据。科技', '。', 2)
+select substring_index(nch1, 'a', 2) from ts_4893.d0 order by ts limit 10
+select substring_index(nch1, 'a', 2) from ts_4893.meters order by ts limit 10
+select substring_index(nch1, nch2, 2) from ts_4893.d0 order by ts limit 10
+select substring_index(nch1, nch2, 2) from ts_4893.meters order by ts limit 10
+select substring_index(nch1, var2, 2) from ts_4893.d0 order by ts limit 10
+select substring_index(nch1, var2, 2) from ts_4893.meters order by ts limit 10
+select substring_index(var1, nch2, 2) from ts_4893.d0 order by ts limit 10
+select substring_index(var1, nch2, 2) from ts_4893.meters order by ts limit 10
+select substring_index(var1, var2, 2) from ts_4893.d0 order by ts limit 10
+select substring_index(var1, var2, 2) from ts_4893.meters order by ts limit 10
+select substring_index(null, '.', 2)
+select substring_index('www.taosdata.com', null, 2)
+select substring_index('www.taosdata.com', '.', 0)
+select substring_index('www.taosdata.com', '.', null)
+select substring_index('a.b.c', '.', 1)
+select substring_index('a.b.c', '.', 2)
+select substring_index('a.b.c', '.', -1)
+select substring_index('', '.', 1)
+select substring_index('apple.orange.banana', '.', 2)
+select substring_index('192.168.1.1', '.', 3)
+select substring_index('abc@xyz.com', '.', 5)
+select substring_index('123456789', '.', 1)
+select substring_index('abcdef', ' ', 2)
+select substring_index('ABCDEFG', '-', -1)
+select substring_index('apple', '.', -3)
+select substring_index(concat('apple', '.', 'orange', '.', 'banana'), '.', 2)
+select substring_index('apple.orange.banana', '.', length('apple'))
+select substring_index(upper('apple.orange.banana'), '.', 2)
+select substring_index(trim('  apple.orange.banana  '), '.', 2)
+select substring_index(concat('apple', '.', 'orange', '.', 'banana'), '.', 2)
+select substring_index('apple.orange.banana', '.', length('apple'))
+select substring_index(upper('apple.orange.banana'), '.', 2)
+select substring_index(trim('  apple.orange.banana  '), '.', 2)
+select name, substring_index(name, ' ', 1) from ts_4893.meters limit 1
+select var1, substring_index(var1, '-', -1) from ts_4893.meters limit 1
+select nch1, substring_index(nch1, ',', 3) from ts_4893.meters limit 1

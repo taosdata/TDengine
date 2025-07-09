@@ -86,6 +86,7 @@ int64_t syncOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
 
 int32_t syncStart(int64_t rid) {
   int32_t    code = 0;
+  int32_t    vgId = 0;
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
     code = TSDB_CODE_SYN_RETURN_VALUE_NULL;
@@ -93,21 +94,24 @@ int32_t syncStart(int64_t rid) {
     sError("failed to acquire rid:%" PRId64 " of tsNodeReftId for pSyncNode", rid);
     TAOS_RETURN(code);
   }
+  vgId = pSyncNode->vgId;
   sInfo("vgId:%d, begin to start sync", pSyncNode->vgId);
 
   if ((code = syncNodeRestore(pSyncNode)) < 0) {
     sError("vgId:%d, failed to restore sync log buffer since %s", pSyncNode->vgId, tstrerror(code));
     goto _err;
   }
+  sInfo("vgId:%d, sync node restore is executed", pSyncNode->vgId);
 
   if ((code = syncNodeStart(pSyncNode)) < 0) {
     sError("vgId:%d, failed to start sync node since %s", pSyncNode->vgId, tstrerror(code));
     goto _err;
   }
+  sInfo("vgId:%d, sync node start is executed", pSyncNode->vgId);
 
   syncNodeRelease(pSyncNode);
 
-  sInfo("vgId:%d, sync started", pSyncNode->vgId);
+  sInfo("vgId:%d, sync started", vgId);
 
   TAOS_RETURN(code);
 
@@ -774,6 +778,26 @@ static SRaftId syncGetRaftIdByEp(SSyncNode* pSyncNode, const SEp* pEp) {
   return EMPTY_RAFT_ID;
 }
 
+static void epsetToString(const SEpSet* pEpSet, char* buffer, size_t bufferSize) {
+  if (pEpSet == NULL || buffer == NULL) {
+    snprintf(buffer, bufferSize, "EpSet is NULL");
+    return;
+  }
+
+  size_t offset = 0;
+  offset += snprintf(buffer + offset, bufferSize - offset, "EpSet: [");
+
+  for (int i = 0; i < pEpSet->numOfEps; ++i) {
+    if (offset >= bufferSize) break;
+    offset += snprintf(buffer + offset, bufferSize - offset, "%s:%d%s", pEpSet->eps[i].fqdn, pEpSet->eps[i].port,
+                       (i + 1 < pEpSet->numOfEps) ? ", " : "");
+  }
+
+  if (offset < bufferSize) {
+    snprintf(buffer + offset, bufferSize - offset, "]");
+  }
+}
+
 void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
   pEpSet->numOfEps = 0;
 
@@ -782,6 +806,8 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
 
   int index = -1;
 
+  sDebug("vgId:%d, sync get retry epset, leaderCache:%" PRIx64 ", leaderCacheEp.fqdn:%s, leaderCacheEp.port:%d",
+         pSyncNode->vgId, pSyncNode->leaderCache.addr, pSyncNode->leaderCacheEp.fqdn, pSyncNode->leaderCacheEp.port);
   int j = 0;
   for (int32_t i = 0; i < pSyncNode->raftCfg.cfg.totalReplicaNum; ++i) {
     if (pSyncNode->raftCfg.cfg.nodeInfo[i].nodeRole == TAOS_SYNC_ROLE_LEARNER) continue;
@@ -789,11 +815,14 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
     tstrncpy(pEp->fqdn, pSyncNode->raftCfg.cfg.nodeInfo[i].nodeFqdn, TSDB_FQDN_LEN);
     pEp->port = (pSyncNode->raftCfg.cfg.nodeInfo)[i].nodePort;
     pEpSet->numOfEps++;
-    sDebug("vgId:%d, sync get retry epset, index:%d %s:%d", pSyncNode->vgId, i, pEp->fqdn, pEp->port);
     SRaftId id = syncGetRaftIdByEp(pSyncNode, pEp);
-    if (id.addr == pSyncNode->leaderCache.addr && id.vgId == pSyncNode->leaderCache.vgId && id.addr != 0 &&
-        id.vgId != 0)
+    sDebug("vgId:%d, sync get retry epset, index:%d id:%" PRIx64 " %s:%d", pSyncNode->vgId, i, id.addr, pEp->fqdn,
+           pEp->port);
+    if (pEp->port == pSyncNode->leaderCacheEp.port &&
+        strncmp(pEp->fqdn, pSyncNode->leaderCacheEp.fqdn, TSDB_FQDN_LEN) == 0 /*&&
+        id.vgId == pSyncNode->leaderCache.vgId && id.addr != 0 && id.vgId != 0*/) {
       index = j;
+    }
     j++;
   }
   if (pEpSet->numOfEps > 0) {
@@ -811,7 +840,10 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
   }
   epsetSort(pEpSet);
 
-  sInfo("vgId:%d, sync get retry epset numOfEps:%d inUse:%d", pSyncNode->vgId, pEpSet->numOfEps, pEpSet->inUse);
+  char buffer[1024];
+  epsetToString(pEpSet, buffer, sizeof(buffer));
+  sDebug("vgId:%d, sync get retry epset numOfEps:%d %s inUse:%d", pSyncNode->vgId, pEpSet->numOfEps, buffer,
+         pEpSet->inUse);
   syncNodeRelease(pSyncNode);
 }
 
@@ -1210,6 +1242,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   pSyncInfo->pFsm = NULL;
   pSyncNode->quorum = syncUtilQuorum(pSyncNode->raftCfg.cfg.replicaNum);
   pSyncNode->leaderCache = EMPTY_RAFT_ID;
+  pSyncNode->leaderCacheEp.port = 0;
+  pSyncNode->leaderCacheEp.fqdn[0] = '\0';
 
   // init life cycle outside
 
@@ -1697,7 +1731,7 @@ int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
 
     bool stopped = taosTmrReset(pSyncNode->FpElectTimerCB, pSyncNode->electTimerMS, (void*)(pSyncNode->rid),
                                 syncEnv()->pTimerManager, &pSyncNode->pElectTimer);
-    if (stopped) sError("vgId:%d, failed to reset elect timer, ms:%d", pSyncNode->vgId, ms);
+    if (stopped) sWarn("vgId:%d, failed to reset elect timer, ms:%d", pSyncNode->vgId, ms);
   } else {
     sError("vgId:%d, start elect timer error, sync env is stop", pSyncNode->vgId);
   }
@@ -2091,11 +2125,21 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, SRaftId leaderId, const char* 
   int32_t code = 0;  // maybe clear leader cache
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     pSyncNode->leaderCache = EMPTY_RAFT_ID;
+    pSyncNode->leaderCacheEp.port = 0;
+    pSyncNode->leaderCacheEp.fqdn[0] = '\0';
   }
 
   pSyncNode->hbSlowNum = 0;
 
   pSyncNode->leaderCache = leaderId;  // state change
+
+  for (int32_t i = 0; i < pSyncNode->totalReplicaNum; ++i) {
+    if (syncUtilSameId(&pSyncNode->replicasId[i], &leaderId)) {
+      pSyncNode->leaderCacheEp.port = pSyncNode->raftCfg.cfg.nodeInfo[i].nodePort;
+      strncpy(pSyncNode->leaderCacheEp.fqdn, pSyncNode->raftCfg.cfg.nodeInfo[i].nodeFqdn, TSDB_FQDN_LEN);
+      break;
+    }
+  }
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
   pSyncNode->roleTimeMs = taosGetTimestampMs();
   if ((code = syncNodeStopHeartbeatTimer(pSyncNode)) != 0) {
@@ -2187,6 +2231,9 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 
   // set leader cache
   pSyncNode->leaderCache = pSyncNode->myRaftId;
+  strncpy(pSyncNode->leaderCacheEp.fqdn, pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodeFqdn,
+          TSDB_FQDN_LEN);
+  pSyncNode->leaderCacheEp.port = pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodePort;
 
   for (int32_t i = 0; i < pSyncNode->pNextIndex->replicaNum; ++i) {
     SyncIndex lastIndex;
@@ -3569,8 +3616,14 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   bool           resetElect = false;
 
   int64_t tsMs = taosGetTimestampMs();
-  int64_t timeDiff = tsMs - pMsg->timeStamp;
-  syncLogRecvHeartbeat(ths, pMsg, timeDiff, &pRpcMsg->info.traceId);
+
+  int64_t lastRecvTime = syncIndexMgrGetRecvTime(ths->pNextIndex, &(pMsg->srcId));
+  syncIndexMgrSetRecvTime(ths->pNextIndex, &(pMsg->srcId), tsMs);
+  syncIndexMgrIncRecvCount(ths->pNextIndex, &(pMsg->srcId));
+
+  int64_t netElapsed = tsMs - pMsg->timeStamp;
+  int64_t timeDiff = tsMs - lastRecvTime;
+  syncLogRecvHeartbeat(ths, pMsg, netElapsed, &pRpcMsg->info.traceId, timeDiff);
 
   if (!syncNodeInRaftGroup(ths, &pMsg->srcId)) {
     sWarn(
@@ -3580,40 +3633,32 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     return 0;
   }
 
-  SRpcMsg rpcMsg = {0};
-  TAOS_CHECK_RETURN(syncBuildHeartbeatReply(&rpcMsg, ths->vgId));
-  SyncTerm currentTerm = raftStoreTryGetTerm(ths);
-
-  SyncHeartbeatReply* pMsgReply = rpcMsg.pCont;
-  pMsgReply->destId = pMsg->srcId;
-  pMsgReply->srcId = ths->myRaftId;
-  pMsgReply->term = currentTerm;
-  pMsgReply->privateTerm = 8864;  // magic number
-  pMsgReply->startTime = ths->startTime;
-  pMsgReply->timeStamp = tsMs;
-  rpcMsg.info.traceId = pRpcMsg->info.traceId;
-
-  // reply
-  TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
-  sGDebug(&rpcMsg.info.traceId, "vgId:%d, send sync-heartbeat-reply to dnode:%d term:%" PRId64 " timestamp:%" PRId64,
-          ths->vgId, DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp);
-
-  TAOS_CHECK_RETURN(syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg));
-
-  if (currentTerm == 0) currentTerm = raftStoreGetTerm(ths);
-  sGDebug(&rpcMsg.info.traceId,
-          "vgId:%d, process sync-heartbeat msg from dnode:%d, commit-index:%" PRId64 ", cluster:%d msgTerm:%" PRId64
-          " currentTerm:%" PRId64,
-          ths->vgId, DID(&(pMsg->srcId)), pMsg->commitIndex, CID(&(pMsg->srcId)), pMsg->term, currentTerm);
+  SyncTerm currentTerm = raftStoreGetTerm(ths);
 
   if (pMsg->term > currentTerm && ths->state == TAOS_SYNC_STATE_LEARNER) {
     raftStoreSetTerm(ths, pMsg->term);
     currentTerm = pMsg->term;
   }
 
+  int64_t tsMs2 = taosGetTimestampMs();
+
+  int64_t processTime = tsMs2 - tsMs;
+  if (processTime > SYNC_HEARTBEAT_SLOW_MS) {
+    sGError(&pRpcMsg->info.traceId,
+            "vgId:%d, process sync-heartbeat msg from dnode:%d, commit-index:%" PRId64 ", cluster:%d msgTerm:%" PRId64
+            " currentTerm:%" PRId64 ", processTime:%" PRId64,
+            ths->vgId, DID(&(pMsg->srcId)), pMsg->commitIndex, CID(&(pMsg->srcId)), pMsg->term, currentTerm,
+            processTime);
+  } else {
+    sGDebug(&pRpcMsg->info.traceId,
+            "vgId:%d, process sync-heartbeat msg from dnode:%d, commit-index:%" PRId64 ", cluster:%d msgTerm:%" PRId64
+            " currentTerm:%" PRId64 ", processTime:%" PRId64,
+            ths->vgId, DID(&(pMsg->srcId)), pMsg->commitIndex, CID(&(pMsg->srcId)), pMsg->term, currentTerm,
+            processTime);
+  }
+
   if (pMsg->term == currentTerm &&
       (ths->state != TAOS_SYNC_STATE_LEADER && ths->state != TAOS_SYNC_STATE_ASSIGNED_LEADER)) {
-    syncIndexMgrSetRecvTime(ths->pNextIndex, &(pMsg->srcId), tsMs);
     resetElect = true;
 
     ths->minMatchIndex = pMsg->minMatchIndex;
@@ -3621,7 +3666,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     if (ths->state == TAOS_SYNC_STATE_FOLLOWER || ths->state == TAOS_SYNC_STATE_LEARNER) {
       SRpcMsg rpcMsgLocalCmd = {0};
       TAOS_CHECK_RETURN(syncBuildLocalCmd(&rpcMsgLocalCmd, ths->vgId));
-      rpcMsgLocalCmd.info.traceId = rpcMsg.info.traceId;
+      rpcMsgLocalCmd.info.traceId = pRpcMsg->info.traceId;
 
       SyncLocalCmd* pSyncMsg = rpcMsgLocalCmd.pCont;
       pSyncMsg->cmd =
@@ -3635,7 +3680,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
           sError("vgId:%d, failed to enqueue commit msg from heartbeat since %s, code:%d", ths->vgId, terrstr(), code);
           rpcFreeCont(rpcMsgLocalCmd.pCont);
         } else {
-          sGTrace(&rpcMsg.info.traceId,
+          sGTrace(&pRpcMsg->info.traceId,
                   "vgId:%d, enqueue commit msg from heartbeat, commit-index:%" PRId64 ", term:%" PRId64, ths->vgId,
                   pMsg->commitIndex, pMsg->term);
         }
@@ -3647,7 +3692,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       (ths->state == TAOS_SYNC_STATE_LEADER || ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER)) {
     SRpcMsg rpcMsgLocalCmd = {0};
     TAOS_CHECK_RETURN(syncBuildLocalCmd(&rpcMsgLocalCmd, ths->vgId));
-    rpcMsgLocalCmd.info.traceId = rpcMsg.info.traceId;
+    rpcMsgLocalCmd.info.traceId = pRpcMsg->info.traceId;
 
     SyncLocalCmd* pSyncMsg = rpcMsgLocalCmd.pCont;
     pSyncMsg->cmd = SYNC_LOCAL_CMD_STEP_DOWN;
@@ -3664,6 +3709,44 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       }
     }
   }
+
+  SRpcMsg rpcMsg = {0};
+  TAOS_CHECK_RETURN(syncBuildHeartbeatReply(&rpcMsg, ths->vgId));
+  SyncHeartbeatReply* pMsgReply = rpcMsg.pCont;
+  pMsgReply->destId = pMsg->srcId;
+  pMsgReply->srcId = ths->myRaftId;
+  pMsgReply->term = currentTerm;
+  pMsgReply->privateTerm = 8864;  // magic number
+  pMsgReply->startTime = ths->startTime;
+  pMsgReply->timeStamp = tsMs;
+  rpcMsg.info.traceId = pRpcMsg->info.traceId;
+
+  // reply
+  int64_t tsMs3 = taosGetTimestampMs();
+
+  int64_t processTime2 = tsMs3 - tsMs2;
+  TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
+  if (processTime2 > SYNC_HEARTBEAT_SLOW_MS) {
+    sGError(&rpcMsg.info.traceId,
+            "vgId:%d, send sync-heartbeat-reply to dnode:%d term:%" PRId64 " timestamp:%" PRId64
+            ", processTime:%" PRId64,
+            ths->vgId, DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp, processTime2);
+  } else {
+    if(tsSyncLogHeartbeat){
+      sGInfo(&rpcMsg.info.traceId,
+            "vgId:%d, send sync-heartbeat-reply to dnode:%d term:%" PRId64 " timestamp:%" PRId64
+            ", processTime:%" PRId64,
+            ths->vgId, DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp, processTime2);
+    }
+    else{
+      sGDebug(&rpcMsg.info.traceId,
+            "vgId:%d, send sync-heartbeat-reply to dnode:%d term:%" PRId64 " timestamp:%" PRId64
+            ", processTime:%" PRId64,
+            ths->vgId, DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp, processTime2);
+    }
+  }
+
+  TAOS_CHECK_RETURN(syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg));
 
   if (resetElect) syncNodeResetElectTimer(ths);
   return 0;
@@ -3682,9 +3765,11 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   int64_t tsMs = taosGetTimestampMs();
-  syncLogRecvHeartbeatReply(ths, pMsg, tsMs - pMsg->timeStamp, &pRpcMsg->info.traceId);
+  int64_t lastRecvTime = syncIndexMgrGetRecvTime(ths->pMatchIndex, &pMsg->srcId);
+  syncLogRecvHeartbeatReply(ths, pMsg, tsMs - pMsg->timeStamp, &pRpcMsg->info.traceId, tsMs - lastRecvTime);
 
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
+  syncIndexMgrIncRecvCount(ths->pMatchIndex, &(pMsg->srcId));
 
   return syncLogReplProcessHeartbeatReply(pMgr, ths, pMsg);
 }
@@ -3695,7 +3780,7 @@ int32_t syncNodeOnHeartbeatReplyOld(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   int64_t tsMs = taosGetTimestampMs();
   int64_t timeDiff = tsMs - pMsg->timeStamp;
-  syncLogRecvHeartbeatReply(ths, pMsg, timeDiff, &pRpcMsg->info.traceId);
+  syncLogRecvHeartbeatReply(ths, pMsg, timeDiff, &pRpcMsg->info.traceId, timeDiff);
 
   // update last reply time, make decision whether the other node is alive or not
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);

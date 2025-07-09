@@ -1066,6 +1066,7 @@ _return:
 
   if (qwMsg->msg) {
     qDestroyOperatorParam(qwMsg->msg);
+    qwMsg->msg = NULL;
   }
 
   input.code = code;

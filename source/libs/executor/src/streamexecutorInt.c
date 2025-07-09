@@ -130,7 +130,7 @@ int32_t initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo, const struct SOperato
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pBasicInfo->pSeDeleted = tSimpleHashInit(32, hashFn);
-  
+
   const char* windowType = NULL;
   if (IS_NORMAL_INTERVAL_OP(pOperator)) {
     windowType = "Time";
@@ -398,6 +398,7 @@ static cJSON* createBasicAggNotifyEvent(const char* windowType, EStreamNotifyEve
   const char* eventTypeStr = NULL;
   cJSON*      event = NULL;
   char        windowId[32];
+  char        groupId[32];
 
   QUERY_CHECK_NULL(windowType, code, lino, _end, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_NULL(pSessionKey, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -424,6 +425,8 @@ static cJSON* createBasicAggNotifyEvent(const char* windowType, EStreamNotifyEve
   JSON_CHECK_ADD_ITEM(event, "eventTime", cJSON_CreateNumber(taosGetTimestampMs()));
   JSON_CHECK_ADD_ITEM(event, "windowId", cJSON_CreateString(windowId));
   JSON_CHECK_ADD_ITEM(event, "windowType", cJSON_CreateStringReference(windowType));
+  char* p = u64toaFastLut(pSessionKey->groupId, groupId);
+  JSON_CHECK_ADD_ITEM(event, "groupId", cJSON_CreateString(groupId));
   JSON_CHECK_ADD_ITEM(event, "windowStart", cJSON_CreateNumber(pSessionKey->win.skey));
   if (eventType != SNOTIFY_EVENT_WINDOW_OPEN) {
     if (strcmp(windowType, "Time") == 0) {
@@ -703,11 +706,13 @@ int32_t addAggResultNotifyEvent(const SSDataBlock* pResultBlock, const SArray* p
     result = cJSON_CreateObject();
     QUERY_CHECK_NULL(result, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
     for (int32_t j = 0; j < pSchemaWrapper->nCols; ++j) {
-      const SSchema*         pCol = pSchemaWrapper->pSchema + j;
-      const SColumnInfoData* pColData = taosArrayGet(pResultBlock->pDataBlock, pCol->colId - 1);
-      code = jsonAddColumnField(pCol->name, pColData->info.type, colDataIsNull_s(pColData, i),
-                                colDataGetData(pColData, i), result);
-      QUERY_CHECK_CODE(code, lino, _end);
+      const SSchema* pCol = pSchemaWrapper->pSchema + j;
+      if (pCol->colId - 1 < taosArrayGetSize(pResultBlock->pDataBlock)) {
+        const SColumnInfoData* pColData = taosArrayGet(pResultBlock->pDataBlock, pCol->colId - 1);
+        code = jsonAddColumnField(pCol->name, pColData->info.type, colDataIsNull_s(pColData, i),
+                                  colDataGetData(pColData, i), result);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
     }
     JSON_CHECK_ADD_ITEM(pItem->pJson, "result", result);
     result = NULL;
@@ -941,4 +946,3 @@ void setSingleOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
 bool isSingleOperator(SSteamOpBasicInfo* pBasicInfo) {
   return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, SINGLE_OPERATOR);
 }
-

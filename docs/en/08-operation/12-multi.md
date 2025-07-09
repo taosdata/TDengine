@@ -3,6 +3,10 @@ title: Advanced Storage Options
 slug: /operations-and-maintenance/advanced-storage-options
 ---
 
+import Enterprise from '../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 This section introduces the multi-tier storage feature unique to TDengine Enterprise, which stores recent, frequently accessed data on high-speed media and old, infrequently accessed data on low-cost media, achieving the following objectives:
 
 - Reduce storage costs -- By tiering data, storing massive amounts of extremely cold data on cheap storage media brings significant economic benefits

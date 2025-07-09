@@ -69,18 +69,18 @@ func Init() *http.Server {
 		}
 	}
 
-	adapter := api.NewAdapter(conf)
-	if err := adapter.Init(router); err != nil {
-		panic(err)
-	}
-
 	gen_metric := api.NewGeneralMetric(conf)
 	if err := gen_metric.Init(router); err != nil {
 		panic(err)
 	}
 
+	adapter := api.NewAdapter(conf, gen_metric)
+	if err := adapter.Init(router); err != nil {
+		panic(err)
+	}
+
 	server := &http.Server{
-		Addr:    ":" + strconv.Itoa(conf.Port),
+		Addr:    conf.Host + ":" + strconv.Itoa(conf.Port),
 		Handler: router,
 	}
 

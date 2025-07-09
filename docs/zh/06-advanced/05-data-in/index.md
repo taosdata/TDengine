@@ -20,20 +20,20 @@ TDengine Enterprise 配备了一个强大的可视化数据管理工具—taosEx
 | --- | --- | --- |
 | Aveva PI System | PI AF Server Version 2.10.9.593 或以上 | 工业数据管理和分析平台，前身为 OSIsoft PI System，它能够实时采集、整合、分析和可视化工业数据，助力企业实现智能化决策和精细化管理 |
 | Aveva Historian | AVEVA Historian 2020 RS SP1 | 工业大数据分析软件，前身为 Wonderware Historian，专为工业环境设计，用于存储、管理和分析来自各种工业设备、传感器的实时和历史数据 |
-| OPC DA |  Matrikon OPC version: 1.7.2.7433  | OPC 是 Open Platform Communications 的缩写，是一种开放式、标准化的通信协议，用于不同厂商的自动化设备之间进行数据交换。它最初由微软公司开发，旨在解决工业控制领域中不同设备之间互操作性差的问题；OPC 协议最初于 1996 年发布，当时称为 OPC DA （Data Access），主要用于实时数据采集和控制。 |
-| OPC UA |  KeepWare KEPServerEx 6.5 | 2006 年，OPC 基金会发布了 OPC UA （Unified Architecture） 标准，它是一种基于服务的面向对象的协议，具有更高的灵活性和可扩展性，已成为 OPC 协议的主流版本 |
+| OPC DA |  Matrikon OPC version: 1.7.2.7433  | OPC 是 Open Platform Communications 的缩写，是一种开放式、标准化的通信协议，用于不同厂商的自动化设备之间进行数据交换。它最初由微软公司开发，旨在解决工业控制领域中不同设备之间互操作性差的问题；OPC 协议最初于 1996 年发布，当时称为 OPC DA（Data Access），主要用于实时数据采集和控制。 |
+| OPC UA |  KeepWare KEPServerEx 6.5 | 2006 年，OPC 基金会发布了 OPC UA（Unified Architecture）标准，它是一种基于服务的面向对象的协议，具有更高的灵活性和可扩展性，已成为 OPC 协议的主流版本 |
 | MQTT | emqx: 3.0.0 到 5.7.1<br/> hivemq: 4.0.0 到 4.31.0<br/> mosquitto: 1.4.4 到 2.0.18 | Message Queuing Telemetry Transport 的缩写，一种基于发布/订阅模式的轻量级通讯协议，专为低开销、低带宽占用的即时通讯设计，广泛适用于物联网、小型设备、移动应用等领域。 |
 | Kafka | 2.11 ~ 3.8.0  | 由 Apache 软件基金会开发的一个开源流处理平台，主要用于处理实时数据，并提供一个统一、高通量、低延迟的消息系统。它具备高速度、可伸缩性、持久性和分布式设计等特点，使得它能够在每秒处理数十万次的读写操作，支持上千个客户端，同时保持数据的可靠性和可用性。 |
 | InfluxDB | 1.7、1.8、2.0-2.7 | InfluxDB 是一种流行的开源时间序列数据库，它针对处理大量时间序列数据进行了优化。|
 | OpenTSDB | 2.4.1 | 基于 HBase 的分布式、可伸缩的时序数据库。它主要用于存储、索引和提供从大规模集群（包括网络设备、操作系统、应用程序等）中收集的指标数据，使这些数据更易于访问和图形化展示。 |
-| MySQL | 5.6,5.7,8.0+ | MySQL是最流行的关系型数据库管理系统之一，由于其体积小、速度快、总体拥有成本低，尤其是开放源码这一特点，一般中小型和大型网站的开发都选择 MySQL 作为网站数据库。 |
+| MySQL | 5.6,5.7,8.0+ | MySQL 是最流行的关系型数据库管理系统之一，由于其体积小、速度快、总体拥有成本低，尤其是开放源码这一特点，一般中小型和大型网站的开发都选择 MySQL 作为网站数据库。 |
 | Oracle | 11G/12c/19c | Oracle 数据库系统是世界上流行的关系数据库管理系统，系统可移植性好、使用方便、功能强，适用于各类大、中、小微机环境。它是一种高效率的、可靠性好的、适应高吞吐量的数据库方案。 |
-| PostgreSQL | v15.0+  | PostgreSQL 是一个功能非常强大的、源代码开放的客户/服务器关系型数据库管理系统， 有很多在大型商业RDBMS中所具有的特性，包括事务、子选择、触发器、视图、外键引用完整性和复杂锁定功能。|
+| PostgreSQL | v15.0+  | PostgreSQL 是一个功能非常强大的、源代码开放的客户/服务器关系型数据库管理系统，有很多在大型商业 RDBMS 中所具有的特性，包括事务、子选择、触发器、视图、外键引用完整性和复杂锁定功能。|
 | SQL Server | 2012/2022 | Microsoft SQL Server 是一种关系型数据库管理系统，由 Microsoft 公司开发，具有使用方便可伸缩性好与相关软件集成程度高等优点。 |
 | MongoDB | 3.6+ | MongoDB 是一个介于关系型数据库与非关系型数据库之间的产品，被广泛应用于内容管理系统、移动应用与物联网等众多领域。 |
 | CSV | -  | Comma Separated Values 的缩写，是一种以逗号分隔的纯文本文件格式，通常用于电子表格或数据库软件。 |
-| TDengine 2.x | 2.4 或 2.6+ | TDengine 旧版本，已不再维护，推荐升级到 3.0 最新版本。 |
-| TDengine 3.x | 源端版本+ | 使用 TMQ 进行 TDengine 指定从数据库或超级表的订阅。 |
+| TDengine 查询 | 2.4+, 3.0+ | TDengine 旧版本数据查询方式写入新集群。 |
+| TDengine 数据订阅 | 3.0+ | 使用 TMQ 进行 TDengine 指定从数据库或超级表的订阅。 |
 
 ## 数据提取、过滤和转换
 
@@ -57,7 +57,7 @@ TDengine Enterprise 配备了一个强大的可视化数据管理工具—taosEx
 如图，textarea 输入框中就是示例数据，可以通过三种方式来获取示例数据：
 
 1. 直接在 textarea 中输入示例数据；
-2. 点击右侧按钮 “从服务器检索” 则从配置的服务器获取示例数据，并追加到示例数据 textarea 中；
+2. 点击右侧按钮“从服务器检索”则从配置的服务器获取示例数据，并追加到示例数据 textarea 中；
 3. 上传文件，将文件内容追加到示例数据 textarea 中。
 
 每一条示例数据以回车符结尾。
@@ -68,7 +68,7 @@ TDengine Enterprise 配备了一个强大的可视化数据管理工具—taosEx
 
 ##### JSON 解析
 
-JSON 解析支持 JSONObject 或者 JSONArray。 如下 JSON 示例数据，可自动解析出字段：`groupid`、`voltage`、`current`、`ts`、`inuse`、`location`。
+JSON 解析支持 JSONObject 或者 JSONArray。如下 JSON 示例数据，可自动解析出字段：`groupid`、`voltage`、`current`、`ts`、`inuse`、`location`。
 
 ``` json
 {"groupid": 170001, "voltage": "221V", "current": 12.3, "ts": "2023-12-18T22:12:00", "inuse": true, "location": "beijing.chaoyang.datun"}
@@ -84,12 +84,18 @@ JSON 解析支持 JSONObject 或者 JSONArray。 如下 JSON 示例数据，可�
 {"groupid": 170001, "voltage": "216V", "current": 12.5, "ts": "2023-12-18T22:12:04", "inuse": false, "location": "beijing.chaoyang.datun"}]
 ```
 
-后续示例仅以JSONObject 为例说明。
+后续示例仅以 JSONObject 为例说明。
 
-如下嵌套结构的 JSON 数据，可自动解析出字段`groupid`、`data_voltage`、`data_current`、`ts`、`inuse`、`location_0_province`、`location_0_city`、`location_0_datun`，也可以选择要解析的字段，并设置解析的别名。
+如下嵌套结构的 JSON 数据，需要手动填写 `JSON Path` 表达式来解析出字段 `groupid`、`data_voltage`、`data_current`、`ts`、`inuse`、`location_0_province`、`location_0_city`、`location_0_datun`，也可以选择要解析的字段，并设置解析的别名。
 
 ``` json
 {"groupid": 170001, "data": { "voltage": "221V", "current": 12.3 }, "ts": "2023-12-18T22:12:00", "inuse": true, "location": [{"province": "beijing", "city":"chaoyang", "street": "datun"}]}
+```
+
+`JSON Path` 表达式
+
+```text
+$["groupid"]=groupid,$["data"]["voltage"]=voltage,$["data"]["current"]=current,$["ts"]=ts,$["inuse"]=inuse,$["location"][0]["province"]=location_0_province,$["location"][0]["city"]=location_0_city,$["location"][0]["street"]=location_0_street
 ```
 
 ![JSON 解析](./pic/transform-02.png)
@@ -98,7 +104,7 @@ JSON 解析支持 JSONObject 或者 JSONArray。 如下 JSON 示例数据，可�
 
 ##### Regex 正则表达式<a name="regex"></a>
 
-可以使用正则表达式的**命名捕获组**从任何字符串（文本）字段中提取多个字段。如图所示，从 nginx 日志中提取访问ip、时间戳、访问的url等字段。
+可以使用正则表达式的**命名捕获组**从任何字符串（文本）字段中提取多个字段。如图所示，从 nginx 日志中提取访问 ip、时间戳、访问的 url 等字段。
 
 ``` re
 (?<ip>\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b)\s-\s-\s\[(?<ts>\d{2}/\w{3}/\d{4}:\d{2}:\d{2}:\d{2}\s\+\d{4})\]\s"(?<method>[A-Z]+)\s(?<url>[^\s"]+).*(?<status>\d{3})\s(?<length>\d+)
@@ -126,7 +132,7 @@ JSON 解析支持 JSONObject 或者 JSONArray。 如下 JSON 示例数据，可�
 
 那么可以使用如下脚本来提取三个电压数据。
 
-```
+```text
 let v3 = data["voltage"].split(",");
 
 [
@@ -142,7 +148,7 @@ let v3 = data["voltage"].split(",");
 
 ### 提取或拆分
 
-解析后的数据，可能还无法满足目标表的数据要求。比如智能表原始采集数据如下（ json 格式）：
+解析后的数据，可能还无法满足目标表的数据要求。比如智能表原始采集数据如下（json 格式）：
 
 ``` json
 {"groupid": 170001, "voltage": "221V", "current": 12.3, "ts": "2023-12-18T22:12:00", "inuse": true, "location": "beijing.chaoyang.datun"}
@@ -165,7 +171,8 @@ let v3 = data["voltage"].split(",");
 过滤功能可以设置过滤条件，满足条件的数据行 才会被写入目标表。过滤条件表达式的结果必须是 boolean 类型。在编写过滤条件前，必须确定 解析字段的类型，根据解析字段的类型，可以使用判断函数、比较操作符（`>`、`>=`、`<=`、`<`、`==`、`!=`）来判断。
 
 对时间戳过滤，可以采用以下函数。其中 ts 为符合 rfc3339 日期时间格式化字符串的字段，t1 和 t2 为相对当前时间的秒数，时间范围为 now + t1 ~ now + t2.
-```
+
+```text
 between_time_range(ts, t1, t2)
 
 // 例如：如果时间范围为最近 7 天内的才能入库，则过滤条件为：
@@ -220,11 +227,11 @@ between_time_range(ts, -604800, 0)
 | contains  | checks if a certain character or sub-string occurs in the string | s.contains("substring") |
 | starts_with  | returns true if the string starts with a certain string | s.starts_with("prefix") |
 | ends_with  | returns true if the string ends with a certain string | s.ends_with("suffix") |
-| len  | returns the number of characters (not number of bytes) in the string，must be used with comparison operator | s.len == 5 判断字符串长度是否为5；len作为属性返回 int ，和前四个函数有区别，前四个直接返回 bool。 |
+| len  | returns the number of characters (not number of bytes) in the string，must be used with comparison operator | s.len == 5 判断字符串长度是否为 5；len 作为属性返回 int，和前四个函数有区别，前四个直接返回 bool。 |
 
 ##### 复合表达式
 
-多个判断表达式，可以使用逻辑操作符(&&、||、!)来组合。
+多个判断表达式，可以使用逻辑操作符 (&&、||、!) 来组合。
 比如下面的表达式表示获取北京市安装的并且电压值大于 200 的智能表数据。
 
 > location.starts_with("beijing") && voltage > 200
@@ -249,7 +256,7 @@ between_time_range(ts, -604800, 0)
 | value | 常量，可以输入字符串常量，也可以是数值常量，输入的常量值直接入库。|
 | generator | 生成器，目前仅支持时间戳生成器 now，入库时会将当前时间入库。|
 | join | 字符串连接器，可指定连接字符拼接选择的多个源字段。|
-| format | **字符串格式化工具**，填写格式化字符串，比如有三个源字段 year, month, day 分别表示年月日，入库希望以yyyy-MM-dd的日期格式入库，则可以提供格式化字符串为 `${year}-${month}-${day}`。其中`${}`作为占位符，占位符中可以是一个源字段，也可以是 string 类型字段的函数处理|
+| format | **字符串格式化工具**，填写格式化字符串，比如有三个源字段 year, month, day 分别表示年月日，入库希望以 yyyy-MM-dd 的日期格式入库，则可以提供格式化字符串为 `${year}-${month}-${day}`。其中`${}`作为占位符，占位符中可以是一个源字段，也可以是 string 类型字段的函数处理|
 | sum | 选择多个数值型字段做加法计算。|
 | expr | **数值运算表达式**，可以对数值型字段做更加复杂的函数处理和数学运算。|
 
@@ -291,16 +298,16 @@ between_time_range(ts, -604800, 0)
 
 1. 登录至 taosExplorer 以后，点击左侧导航栏上的“数据写入”，即可进入任务列表页面
 2. 在任务列表页面，点击“+ 新增数据源”，即可进入任务创建页面
-3. 输入任务名称后，选择类型为 MQTT， 然后可以创建一个新的代理，或者选择已创建的代理
-4. 输入 MQTT broker 的 IP 地址和端口号，例如：192.168.1.100：1883
+3. 输入任务名称后，选择类型为 MQTT，然后可以创建一个新的代理，或者选择已创建的代理
+4. 输入 MQTT broker 的 IP 地址和端口号，例如：192.168.1.100:1883
 5. 配置认证和 SSL 加密：
-  - 如果 MQTT broker 开启了用户认证，则在认证部分，输入 MQTT broker 的用户名和密码；
-  - 如果 MQTT broker 开启了 SSL 加密，则可以打开页面上的 SSL 证书开关，并上传 CA 的证书，以及客户端的证书和私钥文件；
-6. 在“采集配置“部分，可选择 MQTT 协议的版本，目前支持 3.1， 3.1.1， 5.0 三个版本；配置 Client ID 时要注意，如果对同一个 MQTT broker 创建了多个任务，Client ID 应不同，否则会造成 Client ID 冲突，导致任务无法正常运行；在对主题和 QoS 进行配置时，需要使用 `<topic name>::<QoS>` 的形式，即订阅的主题与 QoS 之间要使用两个冒号分隔，其中 QoS 的取值范围为 0， 1， 2， 分别代表 at most once， at lease once， exactly once；配置完成以上信息后，可以点击“检查连通性”按钮，对以上配置进行检查，如果连通性检查失败，请按照页面上返回的具体错误提示进行修改；
-7. 在从 MQTT broker 同步数据的过程中，taosX 还支持对消息体中的字段进行提取，过滤、映射等操作。在位于 “Payload 转换”下方的文本框中，可以直接输入输入消息体样例，或是以上传文件的方式导入，以后还会支持直接从所配置的服务器中检索样例消息；
+   * 如果 MQTT broker 开启了用户认证，则在认证部分，输入 MQTT broker 的用户名和密码；
+   * 如果 MQTT broker 开启了 SSL 加密，则可以打开页面上的 SSL 证书开关，并上传 CA 的证书，以及客户端的证书和私钥文件；
+6. 在“采集配置“部分，可选择 MQTT 协议的版本，目前支持 3.1，3.1.1，5.0 三个版本；配置 Client ID 时要注意，如果对同一个 MQTT broker 创建了多个任务，Client ID 应不同，否则会造成 Client ID 冲突，导致任务无法正常运行；在对主题和 QoS 进行配置时，需要使用 `<topic name>::<QoS>` 的形式，即订阅的主题与 QoS 之间要使用两个冒号分隔，其中 QoS 的取值范围为 0，1，2，分别代表 at most once，at lease once，exactly once；配置完成以上信息后，可以点击“检查连通性”按钮，对以上配置进行检查，如果连通性检查失败，请按照页面上返回的具体错误提示进行修改；
+7. 在从 MQTT broker 同步数据的过程中，taosX 还支持对消息体中的字段进行提取，过滤、映射等操作。在位于“Payload 转换”下方的文本框中，可以直接输入输入消息体样例，或是以上传文件的方式导入，以后还会支持直接从所配置的服务器中检索样例消息；
 8. 对消息体字段的提取，目前支持 2 种方式：JSON 和正则表达式。对于简单的 key/value 格式的 JSON 数据，可以直接点击提取按钮，即可展示解析出的字段名；对于复杂的 JSON 数据，可以使用 JSON Path 提取感兴趣的字段；当使用正则表达式提取字段时，要保证正则表达式的正确性；
 9. 消息体中的字段被解析后，可以基于解析出的字段名设置过滤规则，只有满足过滤规则的数据，才会写入 TDengine，否则会忽略该消息；例如：可以配置过滤规则为 voltage > 200，即只有当电压大于 200V 的数据才会被同步至 TDengine；
-10. 最后，在配置完消息体中的字段和超级表中的字段的映射规则后，就可以提交任务了；除了基本的映射以外，在这里还可以对消息中字段的值进行转换，例如：可以通过表达式 （expr） 将原消息体中的电压和电流，计算为功率后再写入 TDengine；
+10. 最后，在配置完消息体中的字段和超级表中的字段的映射规则后，就可以提交任务了；除了基本的映射以外，在这里还可以对消息中字段的值进行转换，例如：可以通过表达式（expr）将原消息体中的电压和电流，计算为功率后再写入 TDengine；
 11. 任务提交后，会自动返回任务列表页面，如果提交成功，任务的状态会切换至“运行中”，如果提交失败，可通过查看该任务的活动日志，查找错误原因；
 12. 对于运行中的任务，点击指标的查看按钮，可以查看该任务的详细运行指标，弹出窗口划分为 2 个标签页，分别展示该任务多次运行的累计指标和本次运行的指标，这些指标每 2 秒钟会自动刷新一次。
 
@@ -310,7 +317,7 @@ between_time_range(ts, -604800, 0)
 
 ### 健康状态
 
-从 3.3.5.0 开始，在任务管理列表中，增加了一项 ”健康状态“，用于指示当前任务运行过程中的健康状态。
+从 3.3.5.0 开始，在任务管理列表中，增加了一项”健康状态“，用于指示当前任务运行过程中的健康状态。
 
 在数据源的”高级选项“列表中，增加了多项健康状态监测的配置项，包括：
 
@@ -323,13 +330,17 @@ between_time_range(ts, -604800, 0)
 
 在任务管理列表展示中，有如下状态：
 
-- Ready：数据源和目标端健康检查通过，可以进行数据读取和写入。
-- Idle：表示监测时段内无数据处理（没有数据进入处理流程）。
-- Busy：表示写入队列已满（超出一定阈值，表示写入繁忙，在一定程度上意味着当前可能存在性能瓶颈，需要调整参数或配置等来进行改善，但并不说明存在错误）。
-- Bounce：数据源和目标端均正常，但在写入过程中存在错误，一定周期内超出阈值，可能意味着存在大量非正常数据或正在发生数据丢失。
-- SourceError: 数据源错误导致无法进行读取。此时工作负载将尝试重连数据源。
-- SinkError：写入端错误导致无法进行写入。此时工作负载将尝试重连数据库，恢复后进入 Ready 状态。
-- Fatal：严重或无法恢复的错误。
+* Ready：数据源和目标端健康检查通过，可以进行数据读取和写入。
+* Idle：表示监测时段内无数据处理（没有数据进入处理流程）。
+* Active: 表示任务正常运行且处于活跃状态。
+* Pending: 表示数据源正常，但写入端处于等待状态，当写入消息数为 0 时切换为此状态。
+* Busy：表示写入队列已满（超出一定阈值，表示写入繁忙，在一定程度上意味着当前可能存在性能瓶颈，需要调整参数或配置等来进行改善，但并不说明存在错误）。
+* Bounce：数据源和目标端均正常，但在写入过程中存在错误，一定周期内超出阈值，可能意味着存在大量非正常数据或正在发生数据丢失。
+* SourceError: 数据源错误导致无法进行读取。此时工作负载将尝试重连数据源。
+* SinkError：写入端错误导致无法进行写入。此时工作负载将尝试重连数据库，恢复后进入 Ready 状态。
+* Fatal：严重或无法恢复的错误。
+
+当健康状态为空时，表示尚未有数据开始入库。
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

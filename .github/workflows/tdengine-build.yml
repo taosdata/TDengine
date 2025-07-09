@@ -8,11 +8,14 @@ on:
       - '3.1'
       - '3.3.6'
       - 'enh/cmake-TD-33848'
+
     paths-ignore:
       - 'docs/**'
       - 'packaging/**'
       - 'tests/**'
       - '**/*.md'
+      - 'test/**'
+      - '.github/workflows/tdengine-docs-ci.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -26,21 +29,75 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-20.04
           - ubuntu-22.04
           - ubuntu-24.04
           - macos-13
           - macos-14
           - macos-15
+          - windows-2022
 
     steps:
+      - name: Get CPU Cores
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            CPU_CORES=$(nproc)
+          elif [ "${{ runner.os }}" == "macOS" ]; then
+            CPU_CORES=$(sysctl -n hw.ncpu)
+          elif [ "${{ runner.os }}" == "Windows" ]; then
+            CPU_CORES=$(powershell -Command "(Get-CimInstance -ClassName Win32_Processor).NumberOfCores")
+          fi
+          echo "CPU Cores: $CPU_CORES"
+          echo "CPU_CORES=$CPU_CORES" >> $GITHUB_ENV
+
+      - name: Dump CPU Cores
+        run: |
+          echo "The number of CPU cores is: ${{ env.CPU_CORES }}"
+
+      - name: prepare install path
+        if: runner.os == 'macOS'
+        run: |
+          sudo mkdir -p /usr/local/lib
+          sudo mkdir -p /usr/local/include
+
       - name: Checkout the repository
         uses: actions/checkout@v4
+
+      - name: Cache Go modules on Linux and macOS
+        if: runner.os != 'Windows'
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Cache Homebrew on macOS
+        if: runner.os == 'macOS'
+        uses: actions/cache@v3
+        with:
+          path: /usr/local/Homebrew
+          key: ${{ runner.os }}-brew-${{ hashFiles('**/Brewfile') }}
+          restore-keys: |
+            ${{ runner.os }}-brew-
+
+      - name: Cache Go modules on Windows
+        if: runner.os == 'Windows'
+        uses: actions/cache@v3
+        with:
+          path: |
+            C:\Users\runneradmin\go\pkg\mod
+            C:\Users\runneradmin\AppData\Local\go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.18
+          go-version: 1.23
 
       - name: Install dependencies on Linux
         if: runner.os == 'Linux'
@@ -74,53 +131,113 @@ jobs:
             snappy \
             zlib
 
-      - name: prepare install path
+      - name: Show software version
         run: |
-          sudo mkdir -p /usr/local/lib
-          sudo mkdir -p /usr/local/include
+          cmake --version
 
-      - name: Build and install TDengine
+      - name: Get CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+
+      - name: Install dependencies on Windows
+        if: runner.os == 'Windows'
         run: |
-          mkdir debug && cd debug
-          cmake .. -DBUILD_TOOLS=true \
-            -DBUILD_KEEPER=true \
-            -DBUILD_HTTP=false \
-            -DBUILD_TEST=true \
-            -DWEBSOCKET=true \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_DEPENDENCY_TESTS=false
-          make -j 4
-          sudo make install
+          choco install jom --yes
+
+      - name: Cache externals built
+        uses: actions/cache@v4
+        id: cache-ext
+        with:
+          path: ${{ github.workspace }}/.externals
+          key: ${{ runner.os }}-${{ matrix.os }}-${{ hashFiles('cmake/external.cmake', 'cmake/in/**') }}-build-ext-v3 # this is tailing cache-version-tick
+
+      - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os != 'Windows' }}
+        name: Build externals on Linux and macOS
+        continue-on-error: false
+        run: |
+          ./build.sh gen
+          ./build.sh bld --target build_externals -v
+
+      - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os == 'Windows' }}
+        name: Build externals on Windows
+        continue-on-error: false
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          set CL=/MP8
+          call .\build.bat gen -G "NMake Makefiles JOM"
+          call .\build.bat bld --target build_externals -v
+
+      - name: Build TDengine on Linux and macOS
+        if: runner.os != 'Windows'
+        run: |
+          ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON
+          ./build.sh bld -v
+          ./build.sh install
           which taosd
           which taosadapter
           which taoskeeper
+          which taos
+          taosd --help
+          taosadapter --help
+
+      - name: Build and install TDengine on Windows
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          set CL=/MP8
+          call .\build.bat gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON -G "NMake Makefiles JOM"
+          call .\build.bat bld -v
+          call .\build.bat install
+          echo %PATH%
+          dir C:\TDengine
+          set PATH=%PATH%;C:\TDengine
+          echo %PATH%
+          where taos.exe
+          where taosd.exe
+          where taosadapter.exe
+          where taoskeeper.exe
+          taosd.exe --help
+          taosadapter.exe --help
 
       - name: Statistics ldd
+        if: runner.os == 'Linux'
         run: |
           find ${{ github.workspace }}/debug/build/lib -type f -name "*.so" -print0 | xargs -0 ldd || true
           find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ldd || true
 
-      - name: Statistics size
+      - name: Statistics otool
+        if: runner.os == 'macOS'
         run: |
-          find ${{ github.workspace }}/debug/build/lib -type f -print0 | xargs -0 ls -lhrS
-          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ls -lhrS
+          find ${{ github.workspace }}/debug/build/lib -type f -name "*.dylib" -print0 | xargs -0 otool -L || true
+          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 otool -L || true
 
-      - name: Start taosd
+      - name: Start taosd on Linux and macOS
+        if: runner.os != 'Windows'
         run: |
-          cp /etc/taos/taos.cfg ./
-          sudo echo "supportVnodes 256" >> taos.cfg
-          nohup sudo taosd -c taos.cfg &
-
-      - name: Start taosadapter
-        run: nohup sudo taosadapter &
+          taosd -V
+          taosadapter -V
+          taosBenchmark -V
+          taos -V
+          sudo bash -c 'echo "fqdn localhost" >> /etc/taos/taos.cfg'
+          nohup taosd  &
+          nohup taosadapter &
+          pgrep -l taos
+          sleep 6     # NOTE: wait for taosd initialization to complete
+          pgrep -l taos
+          taos -s "show databases"
+          taos -s "show dnodes"
 
       - name: Run tests with taosBenchmark
+        if: runner.os != 'Windows'
         run: |
-          taosBenchmark -t 10 -n 10 -y 
+          taos -s "show databases"
+          taosBenchmark -t 10 -n 10 -s 1744951233012 -y
           taos -s "select count(*) from test.meters"
 
-      - name: Clean up
-        if: always()
+      - name: Clean up  on Linux and macOS
+        if: runner.os != 'Windows'
         run: |
-          if pgrep taosd; then sudo pkill taosd; fi
-          if pgrep taosadapter; then sudo pkill taosadapter; fi
+          ./build.sh stop

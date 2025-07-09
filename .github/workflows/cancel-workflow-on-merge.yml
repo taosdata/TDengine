@@ -7,6 +7,8 @@ on:
 jobs:
   cancel-workflow:
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
     steps:
       - name: Cancel Workflow if Merged or Closed
         if: ${{ github.event.pull_request.merged || github.event.pull_request.state == 'closed' }}
@@ -19,7 +21,6 @@ jobs:
             --repo ${{ github.repository }} \
             --branch ${{ github.event.pull_request.head.ref }} \
             --workflow "TDengine Test" \
-            --status in_progress \
-            --status queued \
-            --json databaseId --jq '.[].databaseId' | \
+            --json databaseId,name,status \
+            --jq '.[] | select(.status == "in_progress" or .status == "queued") | .databaseId ' | \
             xargs -I {} gh run cancel --repo ${{ github.repository }} {}

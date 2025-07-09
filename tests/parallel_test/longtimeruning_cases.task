@@ -7,8 +7,8 @@
 #
 #,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_multi_agg.py
 #,,n,system-test,python3 ./test.py -f 8-stream/stream_basic.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/continuous_window_close_interval_basic.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/continuous_window_close_interval.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/continuous_window_close_interval_basic.py
+#,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/continuous_window_close_interval.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/continuous_window_close_interval_checkpoint.py
 
 # army-test

@@ -44,7 +44,7 @@ database_option: {
 - VGROUPS: The number of initial vgroups in the database.
 - PRECISION: The timestamp precision of the database. ms for milliseconds, us for microseconds, ns for nanoseconds, default is ms.
 - REPLICA: Indicates the number of database replicas, which can be 1, 2, or 3, default is 1; 2 is only available in the enterprise version 3.3.0.0 and later. In a cluster, the number of replicas must be less than or equal to the number of DNODEs. The following restrictions apply:
-  - Operations such as SPLITE VGROUP or REDISTRIBUTE VGROUP are not supported for databases with double replicas.
+  - Operations such as SPLIT VGROUP or REDISTRIBUTE VGROUP are not supported for databases with double replicas.
   - A single-replica database can be changed to a double-replica database, but changing from double replicas to other numbers of replicas, or from three replicas to double replicas is not supported.
 - BUFFER: The size of the memory pool for writing into a VNODE, in MB, default is 256, minimum is 3, maximum is 16384.
 - PAGES: The number of cache pages in a VNODE's metadata storage engine, default is 256, minimum 64. A VNODE's metadata storage occupies PAGESIZE * PAGES, which by default is 1MB of memory.
@@ -60,7 +60,7 @@ database_option: {
   - 0: Indicates no compression.
   - 1: Indicates first-stage compression.
   - 2: Indicates two-stage compression.
-- DURATION: The time span for storing data in data files. Can use unit-specified formats, such as DURATION 100h, DURATION 10d, etc., supports m (minutes), h (hours), and d (days) three units. If no time unit is added, the default unit is days, e.g., DURATION 50 means 50 days.
+- DURATION: The time span for storing data in data files.default value is 10d, range [60m, 3650d] Can use unit-specified formats, such as DURATION 100h, DURATION 10d, etc., supports m (minutes), h (hours), and d (days) three units. If no time unit is added, the default unit is days, e.g., DURATION 50 means 50 days.
 - MAXROWS: The maximum number of records in a file block, default is 4096.
 - MINROWS: The minimum number of records in a file block, default is 100.
 - KEEP: Indicates the number of days data files are kept, default value is 3650, range [1, 365000], and must be greater than or equal to 3 times the DURATION parameter value. The database will automatically delete data that has been saved for longer than the KEEP value to free up storage space. KEEP can use unit-specified formats, such as KEEP 100h, KEEP 10d, etc., supports m (minutes), h (hours), and d (days) three units. It can also be written without a unit, like KEEP 50, where the default unit is days. The enterprise version supports multi-tier storage feature, thus, multiple retention times can be set (multiple separated by commas, up to 3, satisfying keep 0 \<= keep 1 \<= keep 2, such as KEEP 100h,100d,3650d); the community version does not support multi-tier storage feature (even if multiple retention times are configured, it will not take effect, KEEP will take the longest retention time).
@@ -136,11 +136,11 @@ The command to modify database parameters is simple, but the difficulty lies in 
 
 You can view the specific values of these cachesize through select * from information_schema.ins_databases;.
 
-2. How to view cacheload?
+1. How to view cacheload?
 
 You can view cacheload through show \<db_name>.vgroups;
 
-3. Determine if cachesize is sufficient
+1. Determine if cachesize is sufficient
 
 If cacheload is very close to cachesize, then cachesize may be too small. If cacheload is significantly less than cachesize, then cachesize is sufficient. You can decide whether to modify cachesize based on this principle. The specific modification value can be determined based on the available system memory, whether to double it or increase it several times.
 
@@ -213,17 +213,18 @@ SHOW db_name.ALIVE;
 
 Query the availability status of the database db_name, with return values of 0 (unavailable), 1 (fully available), or 2 (partially available, indicating that some VNODEs in the database are available while others are not).
 
-## View DB Disk Usage 
+## View DB Disk Usage
 
-```sql 
+```sql
 select * from  INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name'   
-```  
+```
 
 View the disk usage of each module in the DB.
 
 ```sql
 SHOW db_name.disk_info;
 ```
+
 View the compression ratio and disk usage of the database db_name
 
 This command is essentially equivalent to `select sum(data1 + data2 + data3)/sum(raw_data), sum(data1 + data2 + data3) from information_schema.ins_disk_usage where db_name="dbname"`

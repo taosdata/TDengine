@@ -4,10 +4,6 @@ title: Virtual Tables
 description: Various management operations for virtual tables
 ---
 
-import origintable from './assets/virtual-table-origin-table.png';
-import queryres from './assets/virtual-table-query-res.png';
-import partres from './assets/virtual-table-query-res-part.png';
-
 ## Create Virtual Table
 
 The `CREATE VTABLE` statement is used to create virtual basic tables and virtual subtables using virtual supertables as templates.
@@ -45,7 +41,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
      const_value
 ```
 
-**Usage Notes**
+Usage Notes:
 
 1. Naming rules for virtual tables/columns follow [Name Rules](./19-limit.md#naming-rules).
 2. Maximum table name length: 192 characters.
@@ -70,11 +66,72 @@ Virtual tables use the same query syntax as regular tables, but their dataset ma
 3. Virtual table timestamps are the union of all involved columns' origin tables' timestamps. Therefore, the number of rows in the result set may vary when different queries select different columns.
 4. Users can combine any columns from multiple tables; unselected columns are excluded.
 
-**Example**
+Example:
 
 Given tables t1, t2, t3 with data:
 
-<img src={origintable} width="500" alt="Original Table Structure and Data" />
+<table>
+    <tr>
+        <th colspan="2" align="center">t1</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">t2</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="3" align="center">t3</th>
+    </tr>
+    <tr>
+        <td align="center">ts</td>
+        <td align="center">value</td>
+        <td align="center">ts</td>
+        <td align="center">value</td>
+        <td align="center">ts</td>
+        <td align="center">value1</td>
+        <td align="center">value2</td>
+    </tr>
+    <tr>
+        <td align="center">0:00:01</td>
+        <td align="center">1</td>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center"></td>
+    </tr>
+    <tr>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center">0:00:02</td>
+        <td align="center">20</td>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center"></td>
+    </tr>
+    <tr>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center">0:00:03</td>
+        <td align="center">300</td>
+        <td align="center">3000</td>
+    </tr>
+    <tr>
+        <td align="center">0:00:04</td>
+        <td align="center">4</td>
+        <td align="center">0:00:04</td>
+        <td align="center">40</td>
+        <td align="center">0:00:03</td>
+        <td align="center"></td>
+        <td align="center"></td>
+    </tr>
+    <tr>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center">0:00:05</td>
+        <td align="center">50</td>
+        <td align="center">0:00:05</td>
+        <td align="center">500</td>
+        <td align="center">5000</td>
+    </tr>
+</table>
 
 Create a virtual table v1:
 
@@ -94,7 +151,54 @@ SELECT * FROM v1;
 ```
 
 Result:
-<img src={queryres} width="200" alt="Full Query Result" />
+
+<table>
+    <tr>
+        <th colspan="5" align="center">v1</th>
+    </tr>
+    <tr>
+        <td align="center">ts</td>
+        <td align="center">c1</td>
+        <td align="center">c2</td>
+        <td align="center">c3</td>
+        <td align="center">c4</td>
+    </tr>
+    <tr>
+        <td align="center">0:00:01</td>
+        <td align="center">1</td>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center"></td>
+    </tr>
+    <tr>
+        <td align="center">0:00:02</td>
+        <td align="center"></td>
+        <td align="center">20</td>
+        <td align="center"></td>
+        <td align="center"></td>
+    </tr>
+    <tr>
+        <td align="center">0:00:03</td>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center">300</td>
+        <td align="center">3000</td>
+    </tr>
+    <tr>
+        <td align="center">0:00:04</td>
+        <td align="center">4</td>
+        <td align="center">40</td>
+        <td align="center"></td>
+        <td align="center"></td>
+    </tr>
+    <tr>
+        <td align="center">0:00:05</td>
+        <td align="center"></td>
+        <td align="center">50</td>
+        <td align="center">500</td>
+        <td align="center">5000</td>
+    </tr>
+</table>
 
 Partial column query:
 
@@ -103,12 +207,39 @@ SELECT c1, c2 FROM v1;
 ```
 
 Result:
-<img src={partres} width="200" alt="Partial Query Result" />
+
+<table>
+    <tr>
+        <th colspan="5" align="center">v1</th>
+    </tr>
+    <tr>
+        <td align="center">ts</td>
+        <td align="center">c1</td>
+        <td align="center">c2</td>
+    </tr>
+    <tr>
+        <td align="center">0:00:01</td>
+        <td align="center">1</td>
+        <td align="center"></td>
+    </tr>
+    <tr>
+        <td align="center">0:00:02</td>
+        <td align="center"></td>
+        <td align="center">20</td>
+    </tr>
+    <tr>
+        <td align="center">0:00:04</td>
+        <td align="center">4</td>
+        <td align="center">40</td>
+    </tr>
+    <tr>
+        <td align="center">0:00:05</td>
+        <td align="center"></td>
+        <td align="center">50</td>
+    </tr>
+</table>
 
 Since the original tables t1 and t2 (corresponding to columns c1 and c2) lack the timestamp 0:00:03, this timestamp will not appear in the final result.
-
-**Limitations**
-1. Querying virtual supertables does not support subtables from different databases.
 
 ## Modify Virtual Basic Tables
 
@@ -235,15 +366,17 @@ Virtual table permissions are categorized into READ and WRITE. Query operations 
 ### Syntax
 
 #### Grant
+
 ```sql
 GRANT privileges ON [db_name.]vtable_name TO user_name
 privileges: { ALL | READ | WRITE }
 ```
 
 #### Revoke
+
 ```sql
 REVOKE privileges ON [db_name.]vtable_name FROM user_name
-privileges: { ALL | READ | WRITE }
+    privileges: { ALL | READ | WRITE }
 ```
 
 ### Permission Rules

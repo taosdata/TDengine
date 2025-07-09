@@ -38,6 +38,10 @@ vim .env
 - Example for .env
 
 ```bash
+# Statistics of detailed crash information for the version
+VERSION="3.3.2.*"
+# Statistics of crash counts for different versions
+VERSION_LIST=3.3.5.*,3.3.6.*
 # Filter to exclude IP (Company network export IP)
 EXCLUDE_IP="192.168.1.10"
 # Official website server IP

@@ -121,6 +121,7 @@ static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak
   bool    wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));
   if (wait) {
     if (pVnode->blocked) {
+      (void)taosThreadMutexUnlock(&pVnode->lock);
       return TSDB_CODE_INTERNAL_ERROR;
     }
     pVnode->blocked = true;
@@ -346,10 +347,25 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
 
     SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
     if (rsp.code == 0) {
-      if (vnodeProcessWriteMsg(pVnode, pMsg, pMsg->info.conn.applyIndex, &rsp) < 0) {
-        rsp.code = terrno;
-        vGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to apply since %s, index:%" PRId64, vgId, pMsg, terrstr(),
-                pMsg->info.conn.applyIndex);
+      int32_t ret = 0;
+      int32_t count = 0;
+      while (1) {
+        ret = vnodeProcessWriteMsg(pVnode, pMsg, pMsg->info.conn.applyIndex, &rsp);
+        if (ret < 0) {
+          rsp.code = ret;
+          vGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to apply since %s, index:%" PRId64, vgId, pMsg,
+                  tstrerror(ret), pMsg->info.conn.applyIndex);
+        }
+        if (ret == TSDB_CODE_VND_WRITE_DISABLED) {
+          if (count % 100 == 0)
+            vGError(&pMsg->info.traceId,
+                    "vgId:%d, msg:%p, failed to apply since %s, retry after 200ms, retry count:%d index:%" PRId64, vgId,
+                    pMsg, tstrerror(ret), count, pMsg->info.conn.applyIndex);
+          count++;
+          taosMsleep(200);  // wait for a while before retrying
+        } else{
+          break;
+        } 
       }
     }
 
@@ -444,7 +460,17 @@ static int32_t vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsm
           pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType), pMsg->code);
 
   int32_t code = tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, pMsg);
-  if (code < 0) vError("vgId:%d, failed to put into apply_queue since %s", pVnode->config.vgId, tstrerror(code));
+  if (code < 0) {
+    if (code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE) {
+      pVnode->applyQueueErrorCount++;
+      if (pVnode->applyQueueErrorCount == APPLY_QUEUE_ERROR_THRESHOLD) {
+        pVnode->applyQueueErrorCount = 0;
+        vWarn("vgId:%d, failed to put into apply_queue since %s", pVnode->config.vgId, tstrerror(code));
+      }
+    } else {
+      vError("vgId:%d, failed to put into apply_queue since %s", pVnode->config.vgId, tstrerror(code));
+    }
+  }
   return code;
 }
 
@@ -561,9 +587,15 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
       vInfo("vgId:%d, no items to be applied, restore finish", pVnode->config.vgId);
       break;
     } else {
-      vInfo("vgId:%d, restore not finish since %" PRId64 " items to be applied. commit-index:%" PRId64
-            ", applied-index:%" PRId64,
-            vgId, commitIdx - appliedIdx, commitIdx, appliedIdx);
+      if (appliedIdx % 10 == 0) {
+        vInfo("vgId:%d, restore not finish since %" PRId64 " items to be applied. commit-index:%" PRId64
+              ", applied-index:%" PRId64,
+              vgId, commitIdx - appliedIdx, commitIdx, appliedIdx);
+      } else {
+        vDebug("vgId:%d, restore not finish since %" PRId64 " items to be applied. commit-index:%" PRId64
+               ", applied-index:%" PRId64,
+               vgId, commitIdx - appliedIdx, commitIdx, appliedIdx);
+      }
       taosMsleep(10);
     }
   } while (true);

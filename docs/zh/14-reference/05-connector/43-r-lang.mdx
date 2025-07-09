@@ -15,9 +15,9 @@ import Rdemo from "../../07-develop/01-connect/_connect_r.mdx"
 
 在开始之前，请确保已经安装了 R 语言环境。然后按照以下步骤安装和配置 RJDBC 库：
 
-1. 安装 Java Development Kit (JDK)：RJDBC库需要依赖 Java 环境。请从 Oracle 官方网站下载适合您操作系统的 JDK，并按照安装指南进行安装。
+1. 安装 Java Development Kit (JDK)：RJDBC 库需要依赖 Java 环境。请从 Oracle 官方网站下载适合您操作系统的 JDK，并按照安装指南进行安装。
 
-2. 安装 RJDBC 库：在R控制台中执行以下命令来安装 RJDBC 库。
+2. 安装 RJDBC 库：在 R 控制台中执行以下命令来安装 RJDBC 库。
 
 ```r
 install.packages("RJDBC", repos='http://cran.us.r-project.org')
@@ -35,7 +35,7 @@ install.packages("RJDBC", repos='http://cran.us.r-project.org')
 
 ## 配置过程
 
-完成了安装步骤后，您需要进行一些配置，以便RJDBC库能够正确连接和访问 TDengine 时序数据库。
+完成了安装步骤后，您需要进行一些配置，以便 RJDBC 库能够正确连接和访问 TDengine 时序数据库。
 
 1. 在 R 脚本中加载 RJDBC 和其他必要的库：
 
@@ -84,6 +84,6 @@ dbDisconnect(conn)
 
 <Rdemo/>
 
-请根据您的实际情况修改JDBC驱动程序、JDBC URL、用户名、密码以及SQL查询语句，以适配您的 TDengine 时序数据库环境和要求。
+请根据您的实际情况修改 JDBC 驱动程序、JDBC URL、用户名、密码以及 SQL 查询语句，以适配您的 TDengine 时序数据库环境和要求。
 
 通过以上步骤和示例代码，您可以在 R 语言环境中使用 RJDBC 库访问 TDengine 时序数据库，进行数据查询和分析等操作。

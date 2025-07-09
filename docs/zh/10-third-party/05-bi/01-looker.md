@@ -9,15 +9,15 @@ Looker Studio，作为 Google 旗下的一个功能强大的报表和商业智�
 
 ## 获取
 
-目前，TDengine 连接器作为 Looker Studio 的合作伙伴连接器（partner connector），已在 Looker Studio 官网上线。用户访问 Looker Studio 的 Data Source 列表时，只须输入 “TDengine” 进行搜索，便可轻松找到并立即使用 TDengine 连接器。
+目前，TDengine 连接器作为 Looker Studio 的合作伙伴连接器（partner connector），已在 Looker Studio 官网上线。用户访问 Looker Studio 的 Data Source 列表时，只须输入“TDengine”进行搜索，便可轻松找到并立即使用 TDengine 连接器。
 
 TDengine 连接器兼容 TDengine Cloud 和 TDengine Server 两种类型的数据源。TDengine Cloud 是涛思数据推出的全托管物联网和工业互联网大数据云服务平台，为用户提供一站式数据存储、处理和分析解决方案；而 TDengine Server 则是用户自行部署的本地版本，支持通过公网访问。以下内容将以 TDengine Cloud 为例进行介绍。
 
 ## 使用
 
-在Looker Studio中使用 TDengine 连接器的步骤如下。
+在 Looker Studio 中使用 TDengine 连接器的步骤如下。
 
-第 1 步，进入TDengine连接器的详情页面后，在 Data Source 下拉列表中选择 TDengine Cloud，然后点击 Next 按钮，即可进入数据源配置页面。在该页面中填写以下信息，然后点击 Connect 按钮。
+第 1 步，进入 TDengine 连接器的详情页面后，在 Data Source 下拉列表中选择 TDengine Cloud，然后点击 Next 按钮，即可进入数据源配置页面。在该页面中填写以下信息，然后点击 Connect 按钮。
    - URL 和 TDengine Cloud Token，可以从 TDengine Cloud 的实例列表中获取。
    - 数据库名称和超级表名称。
    - 查询数据的开始时间和结束时间。

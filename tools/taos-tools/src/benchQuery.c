@@ -23,31 +23,43 @@ int selectAndGetResult(qThreadInfo *pThreadInfo, char *command, bool record) {
     }
 
     // execute sql
+    uint32_t threadID = pThreadInfo->threadID;
     char dbName[TSDB_DB_NAME_LEN] = {0};
-    tstrncpy(dbName, g_queryInfo.dbName, TSDB_DB_NAME_LEN);
+    TOOLS_STRNCPY(dbName, g_queryInfo.dbName, TSDB_DB_NAME_LEN);
 
-    // query
-    TAOS *taos = pThreadInfo->conn->taos;
-    int64_t rows  = 0;
-    TAOS_RES *res = taos_query(taos, command);
-    int code = taos_errno(res);
-    if (res == NULL || code) {
-        // failed query
-        errorPrint("failed to execute sql:%s, "
-                    "code: 0x%08x, reason:%s\n",
-                    command, code, taos_errstr(res));
-        ret = -1;
+    if (g_queryInfo.iface == REST_IFACE) {
+        int retCode = postProcessSql(command, g_queryInfo.dbName, 0, REST_IFACE,
+                                   0, g_arguments->port, false,
+                                   pThreadInfo->sockfd, pThreadInfo->filePath);
+        if (0 != retCode) {
+            errorPrint("====restful return fail, threadID[%u]\n",
+                       threadID);
+            ret = -1;
+        }
     } else {
-        // succ query
-        if (record)
-            rows = fetchResult(res, pThreadInfo->filePath);
-    }
+        // query
+        TAOS *taos = pThreadInfo->conn->taos;
+        int64_t rows  = 0;
+        TAOS_RES *res = taos_query(taos, command);
+        int code = taos_errno(res);
+        if (res == NULL || code) {
+            // failed query
+            errorPrint("failed to execute sql:%s, "
+                        "code: 0x%08x, reason:%s\n",
+                        command, code, taos_errstr(res));
+            ret = -1;
+        } else {
+            // succ query
+            if (record)
+                rows = fetchResult(res, pThreadInfo->filePath);
+        }
 
-    // free result
-    if (res) {
-        taos_free_result(res);
+        // free result
+        if (res) {
+            taos_free_result(res);
+        }
+        debugPrint("query sql:%s rows:%"PRId64"\n", command, rows);
     }
-    debugPrint("query sql:%s rows:%"PRId64"\n", command, rows);
 
     // record count
     if (ret ==0) {
@@ -586,6 +598,16 @@ static int specQuery(uint16_t iface, char* dbName) {
     pids  = benchCalloc(1, nConcurrent * sizeof(pthread_t),  false);
     infos = benchCalloc(1, nConcurrent * sizeof(qThreadInfo), false);
 
+    tools_cJSON *root = NULL;
+    tools_cJSON *result_array = NULL;
+    if (g_arguments->output_json_file) {
+       root = tools_cJSON_CreateObject();
+       if (root != NULL) {
+            result_array = tools_cJSON_CreateArray();
+            tools_cJSON_AddItemToObject(root, "results", result_array);
+       }
+    }
+
     for (uint64_t i = 0; i < nSqlCount; i++) {
         if( g_arguments->terminate ) {
             break;
@@ -693,6 +715,15 @@ static int specQuery(uint16_t iface, char* dbName) {
             goto OVER;
         }
 
+        double time_cost = spend / 1E6;
+        double qps = totalQueried / time_cost;
+        double avgDelay = total_delays / n / 1E6;
+        double minDelay = sql->delay_list[0] / 1E6;
+        double maxDelay = sql->delay_list[n - 1] / 1E6;
+        double p90 = sql->delay_list[(uint64_t)(n * 0.90)] / 1E6;
+        double p95 = sql->delay_list[(uint64_t)(n * 0.95)] / 1E6;
+        double p99 = sql->delay_list[(uint64_t)(n * 0.99)] / 1E6;
+
         qsort(sql->delay_list, n, sizeof(uint64_t), compare);
         int32_t bufLen = strlen(sql->command) + 512;
         char * buf = benchCalloc(bufLen, sizeof(char), false);
@@ -707,22 +738,47 @@ static int specQuery(uint16_t iface, char* dbName) {
                              "p99: %.6fs "
                              "SQL command: %s \n",
                              threadCnt, totalQueried,
-                             i + 1, spend/1E6, totalQueried / (spend/1E6),
-                             total_delays/n/1E6,           /* avg */
-                             sql->delay_list[0] / 1E6,     /* min */
-                             sql->delay_list[n - 1] / 1E6, /* max */
-                             /*  p90 */
-                             sql->delay_list[(uint64_t)(n * 0.90)] / 1E6,
-                             /*  p95 */
-                             sql->delay_list[(uint64_t)(n * 0.95)] / 1E6,
-                             /*  p99 */
-                             sql->delay_list[(uint64_t)(n * 0.99)] / 1E6, 
+                             i + 1, time_cost, qps,
+                             avgDelay, minDelay, maxDelay, p90, p95, p99, 
                              sql->command);
+
+        if (result_array) {
+            tools_cJSON *sqlResult = tools_cJSON_CreateObject();
+            tools_cJSON_AddNumberToObject(sqlResult, "threads", threadCnt);
+            tools_cJSON_AddNumberToObject(sqlResult, "total_queries", totalQueried); 
+            tools_cJSON_AddNumberToObject(sqlResult, "time_cost", time_cost);
+            tools_cJSON_AddNumberToObject(sqlResult, "qps", qps);
+            tools_cJSON_AddNumberToObject(sqlResult, "avg", avgDelay);
+            tools_cJSON_AddNumberToObject(sqlResult, "min", minDelay);
+            tools_cJSON_AddNumberToObject(sqlResult, "max", maxDelay);
+            tools_cJSON_AddNumberToObject(sqlResult, "p90", p90);
+            tools_cJSON_AddNumberToObject(sqlResult, "p95", p95);
+            tools_cJSON_AddNumberToObject(sqlResult, "p99", p99);
+            tools_cJSON_AddItemToArray(result_array, sqlResult);
+        }
 
         infoPrintNoTimestamp("%s", buf);
         infoPrintNoTimestampToFile("%s", buf);
         tmfree(buf);
     }
+
+    if (root) {
+        char *jsonStr = tools_cJSON_PrintUnformatted(root);
+        if (jsonStr) {
+            FILE *fp = fopen(g_arguments->output_json_file, "w");
+            if (fp) {
+                fprintf(fp, "%s\n", jsonStr);
+                fclose(fp);
+            } else {
+                errorPrint("Failed to open output JSON file, file name %s\n",
+                    g_arguments->output_json_file);
+            }
+
+            free(jsonStr);
+        }
+        tools_cJSON_Delete(root);  
+    }
+    
     ret = 0;
 
 OVER:
@@ -1066,6 +1122,19 @@ void totalQuery(int64_t spends) {
 int queryTestProcess() {
     prompt(0);
 
+    // covert addr
+    if (g_queryInfo.iface == REST_IFACE) {
+        encodeAuthBase64();
+        char *host = g_arguments->host          ? g_arguments->host : DEFAULT_HOST;
+        int   port = g_arguments->port_inputted ? g_arguments->port : DEFAULT_REST_PORT;
+        if (convertHostToServAddr(host,
+                    port,
+                    &(g_arguments->serv_addr)) != 0) {
+            errorPrint("%s", "convert host to server address\n");
+            return -1;
+        }
+    }    
+
     // kill sql for executing seconds over "kill_slow_query_threshold"
     if (g_queryInfo.iface == TAOSC_IFACE && g_queryInfo.killQueryThreshold) {
         int32_t ret = killSlowQuery();
@@ -1121,5 +1190,5 @@ int queryTestProcess() {
 
     // total 
     totalQuery(toolsGetTimestampMs() - startTs); 
-    return 0;
+    return g_fail ? -1 : 0;
 }

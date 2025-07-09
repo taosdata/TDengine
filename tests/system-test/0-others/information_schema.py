@@ -221,10 +221,9 @@ class TDTestCase:
             tdSql.checkEqual(20470,len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
-        tdLog.info(len(tdSql.queryResult))
-        tdSql.checkEqual(True, len(tdSql.queryResult) in range(320, 324))
+        tdSql.checkRows(329)
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
-        tdSql.checkEqual(61, len(tdSql.queryResult))
+        tdSql.checkRows(62)
 
     def ins_dnodes_check(self):
         tdSql.execute('drop database if exists db2')
@@ -272,11 +271,12 @@ class TDTestCase:
             'timeseries':'Timeseries',
             'dnodes':'Dnodes',
             'cpu_cores':'CPU Cores',
+            'vnodes':'Vnodes',
+            'storage_size':'Storage Size',
             'stream':'Stream',
             'subscription':'Subscription',
             'view':'View',
             'audit':'Audit',
-            'csv':'CSV',
             'storage':'Multi-Tier Storage',
             'backup_restore':'Data Backup & Restore',
             'object_storage':'Object Storage',
@@ -300,6 +300,18 @@ class TDTestCase:
             'mssql':'SqlServer',
             'mongodb':'MongoDB',
             'csv':'CSV',
+            'sparkplugb':"SparkplugB",
+            'idmp_ts_attr':'TDengine IDMP Time-Series Attributes',
+            'idmp_nts_attr':'TDengine IDMP Non-Time-Series Attributes',
+            'idmp_element':'TDengine IDMP Elements',
+            'idmp_server':'TDengine IDMP Servers',
+            'idmp_cpu_core':'TDengine IDMP CPU Cores',
+            'idmp_user':'TDengine IDMP Users',
+            'idmp_version_ctrl':'TDengine IDMP Version Control',
+            'idmp_data_forecast':'TDengine IDMP Data Forecast',
+            'idmp_data_detect':'TDengine IDMP Data Detect',
+            'idmp_data_quality':'TDengine IDMP Data Quality',
+            'idmp_ai_chat_gen':'TDengine IDMP AI Chat/Generate',
         }
 
         tdSql.execute('drop database if exists db2')

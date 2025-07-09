@@ -1,0 +1,11 @@
+select RAND(1245)
+select RAND(id) from ts_4893.d0 limit 10
+select RAND(id) from ts_4893.d0 order by id desc limit 10
+select rand(0)
+select rand(1)
+select rand(-1)
+select rand(12345678901234567890)
+select rand(-12345678901234567890)
+select rand(12345), rand(12345)
+select rand(9999999999) where rand(9999999999) >= 0 and rand(9999999999) < 1
+select rand(id) from ts_4893.meters limit 100

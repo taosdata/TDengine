@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include "qwInt.h"
 #include "qworker.h"
 
@@ -77,11 +78,15 @@ int32_t qwInitJobHash(void) {
 }
 
 
-void qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session) {
+void qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session, bool needRemoveHashKey) {
   char id[sizeof(tId) + sizeof(eId) + 1] = {0};
   QW_SET_TEID(id, tId, eId);
 
-  TAOS_UNUSED(taosHashRemove(pJobInfo->pSessions, id, sizeof(id)));
+  int32_t code = taosHashRemove(pJobInfo->pSessions, id, sizeof(id));
+  if (TSDB_CODE_SUCCESS != code && needRemoveHashKey) {
+    QW_TASK_ELOG("fail to remove session from query session hash, error(0x%x):%s", code, tstrerror(code));
+    return;
+  }
 
   taosMemPoolDestroySession(gMemPoolHandle, session);
 
@@ -183,6 +188,7 @@ int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession) {
                             .eId = eId
   };
 
+  bool sessionKeyInHash = false;
   do {
     QW_ERR_JRET(qwRetrieveJobInfo(QW_FPARAMS(), &pJob));
 
@@ -194,8 +200,10 @@ int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession) {
     QW_ERR_JRET(taosMemPoolInitSession(gMemPoolHandle, ppSession, pJob->memInfo, id));
     session.sessionMp = *ppSession;
 
+    sessionKeyInHash = true;
     code = taosHashPut(pJob->pSessions, id, sizeof(id), &session, sizeof(session));
     if (TSDB_CODE_SUCCESS != code) {
+      sessionKeyInHash = false;
       QW_TASK_ELOG("fail to put session into query session hash, code: 0x%x", code);
       QW_ERR_JRET(code);
     }
@@ -209,7 +217,8 @@ _return:
 
   if (NULL != pJob) {
     if (TSDB_CODE_SUCCESS != code) {
-      qwDestroySession(QW_FPARAMS(), pJob, *ppSession);
+      qwDestroySession(QW_FPARAMS(), pJob, *ppSession, sessionKeyInHash);
+      *ppSession = NULL;
     }
     
     taosHashRelease(gQueryMgmt.pJobInfo, pJob);

@@ -81,10 +81,10 @@ IF(NOT TD_DARWIN)
         AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
         ADD_EXECUTABLE(backendTest ${SOURCE_LIST})
+        DEP_ext_gtest(backendTest)
         TARGET_LINK_LIBRARIES(
                 backendTest
-                PUBLIC rocksdb
-                PUBLIC os common gtest stream executor qcom index transport util vnode
+                PUBLIC os common stream executor qcom index transport util vnode
         )
 
         TARGET_INCLUDE_DIRECTORIES(

@@ -15,7 +15,6 @@ import sys
 import os
 import threading as thd
 import multiprocessing as mp
-from numpy.lib.function_base import insert
 import taos
 from util.log import *
 from util.cases import *

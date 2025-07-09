@@ -15,6 +15,10 @@ if(${TD_DARWIN})
 endif()
 
 
+message(STATUS "Debugging ............................")
+message(STATUS "TAOS_NATIVE_LIB:${TAOS_NATIVE_LIB}")
+message(STATUS "TD_SOURCE_DIR:${TD_SOURCE_DIR}")
+
 
 target_include_directories(
     ${TAOS_NATIVE_LIB}
@@ -28,21 +32,8 @@ endif()
 target_link_libraries(
     ${TAOS_NATIVE_LIB}
     INTERFACE api
-    PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry ${TAOSD_MODULE} decimal
-)
-
-set_target_properties(
-    ${TAOS_NATIVE_LIB}
-    PROPERTIES
-    CLEAN_DIRECT_OUTPUT
-    1
-)
-
-set_target_properties(
-    ${TAOS_NATIVE_LIB}
-    PROPERTIES
-    VERSION ${TD_VER_NUMBER}
-    SOVERSION 1
+    PRIVATE util common transport monitor nodes parser command planner catalog scheduler function qcom geometry ${TAOSD_MODULE} decimal
+    PUBLIC os
 )
 
 add_library(${TAOS_NATIVE_LIB_STATIC} STATIC ${CLIENT_SRC})

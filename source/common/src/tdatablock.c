@@ -1789,6 +1789,7 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
   dst->info.pks[0].pData = NULL;
   dst->info.pks[1].pData = NULL;
   dst->info.capacity = cap;
+  uTrace("%s,parName:%s, groupId:%"PRIu64, __FUNCTION__, dst->info.parTbName, dst->info.id.groupId)
   return code;
 }
 
@@ -1817,9 +1818,15 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc) {
 
   uint32_t cap = pDst->info.capacity;
 
+  if (IS_VAR_DATA_TYPE(pDst->info.pks[0].type)) {
+    taosMemoryFreeClear(pDst->info.pks[0].pData);
+  }
+
+  if (IS_VAR_DATA_TYPE(pDst->info.pks[1].type)) {
+    taosMemoryFreeClear(pDst->info.pks[1].pData);
+  }
+
   pDst->info = pSrc->info;
-  pDst->info.pks[0].pData = NULL;
-  pDst->info.pks[1].pData = NULL;
   code = copyPkVal(&pDst->info, &pSrc->info);
   if (code != TSDB_CODE_SUCCESS) {
     uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -2686,7 +2693,6 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
                   taskIdStr, flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId,
                   pDataBlock->info.id.groupId, pDataBlock->info.id.uid, pDataBlock->info.rows, pDataBlock->info.version,
                   pDataBlock->info.calWin.skey, pDataBlock->info.calWin.ekey, pDataBlock->info.parTbName);
-  goto _exit;
   if (len >= size - 1) {
     goto _exit;
   }
@@ -3072,7 +3078,7 @@ int32_t buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t grou
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    uError("%s failed at line %d since %s, ctbName:%s", __func__, lino, tstrerror(code), ctbName);
   }
   return code;
 }

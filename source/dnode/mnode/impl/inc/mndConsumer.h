@@ -25,14 +25,14 @@ extern "C" {
 enum {
   MQ_CONSUMER_STATUS_REBALANCE = 1,
   MQ_CONSUMER_STATUS_READY,
-//  MQ_CONSUMER_STATUS_LOST,
+  //  MQ_CONSUMER_STATUS_LOST,
 };
 
 int32_t mndInitConsumer(SMnode *pMnode);
 void    mndCleanupConsumer(SMnode *pMnode);
-int32_t mndSendConsumerMsg(SMnode *pMnode, int64_t consumerId, uint16_t msgType, SRpcHandleInfo* info);
+int32_t mndSendConsumerMsg(SMnode *pMnode, int64_t consumerId, uint16_t msgType, SRpcHandleInfo *info);
 
-int32_t mndAcquireConsumer(SMnode *pMnode, int64_t consumerId, SMqConsumerObj** pConsumer);
+int32_t mndAcquireConsumer(SMnode *pMnode, int64_t consumerId, SMqConsumerObj **pConsumer);
 void    mndReleaseConsumer(SMnode *pMnode, SMqConsumerObj *pConsumer);
 
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer);
@@ -43,21 +43,30 @@ int32_t mndSetConsumerDropLogs(STrans *pTrans, SMqConsumerObj *pConsumer);
 
 const char *mndConsumerStatusName(int status);
 
-#define MND_TMQ_NULL_CHECK(c)                \
-  do {                                   \
-    if (c == NULL) {                     \
-      code = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY);     \
-      goto END;                          \
-    }                                    \
+#define MND_TMQ_NULL_CHECK(c)                          \
+  do {                                                 \
+    if (c == NULL) {                                   \
+      code = TAOS_GET_TERRNO(TSDB_CODE_OUT_OF_MEMORY); \
+      goto END;                                        \
+    }                                                  \
   } while (0)
 
-#define MND_TMQ_RETURN_CHECK(c)                \
-  do {                                     \
-    code = c;                            \
-    if (code != 0) {                     \
-      goto END;                          \
-    }                                    \
+#define MND_TMQ_RETURN_CHECK(c) \
+  do {                          \
+    code = c;                   \
+    if (code != 0) {            \
+      goto END;                 \
+    }                           \
   } while (0)
+
+#define PRINT_LOG_END(code)                                               \
+  if (code != 0) {                                                        \
+    mError("%s return code:%d, msg:%s", __func__, code, tstrerror(code)); \
+  } else {                                                                \
+    mDebug("%s return success", __func__);                                \
+  }
+
+#define PRINT_LOG_START mDebug("%s start", __func__);
 
 #ifdef __cplusplus
 }

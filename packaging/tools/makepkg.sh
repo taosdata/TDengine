@@ -107,13 +107,21 @@ else
 fi
 
 if [ "$osType" == "Darwin" ]; then
-    lib_files="${build_dir}/lib/libtaos.${version}.dylib"
-    nativelib_files="${build_dir}/lib/libtaosnative.${version}.dylib"
+    lib_files="${build_dir}/lib/libtaos.dylib"
+    nativelib_files="${build_dir}/lib/libtaosnative.dylib"
     wslib_files="${build_dir}/lib/libtaosws.dylib"
+
+    pkg_lib_files="libtaos.${version}.dylib"
+    pkg_nativelib_files="libtaosnative.${version}.dylib"
+    pkg_wslib_files="libtaosws.${version}.dylib"
 else
-    lib_files="${build_dir}/lib/libtaos.so.${version}"
-    nativelib_files="${build_dir}/lib/libtaosnative.so.${version}"
+    lib_files="${build_dir}/lib/libtaos.so"
+    nativelib_files="${build_dir}/lib/libtaosnative.so"
     wslib_files="${build_dir}/lib/libtaosws.so"
+
+    pkg_lib_files="libtaos.so.${version}"
+    pkg_nativelib_files="libtaosnative.so.${version}"
+    pkg_wslib_files="libtaosws.so.${version}"
 fi
 header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/util/tdef.h ${code_dir}/include/libs/function/taosudf.h"
 
@@ -334,8 +342,11 @@ if [[ $dbName == "taos" ]]; then
 fi
 
 # Copy driver
-mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && cp ${nativelib_files} ${install_dir}/driver && echo "${versionComp}" >${install_dir}/driver/vercomp.txt
-[ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver || :
+mkdir -p ${install_dir}/driver
+cp ${lib_files}       ${install_dir}/driver/${pkg_lib_files} 
+cp ${nativelib_files} ${install_dir}/driver/${pkg_nativelib_files} 
+echo "${versionComp}" >${install_dir}/driver/vercomp.txt 
+cp ${wslib_files}     ${install_dir}/driver/${pkg_wslib_files} || :
 
 # Copy connector && taosx
 if [ "$verMode" == "cluster" ]; then    
@@ -372,10 +383,11 @@ if [ "$verMode" == "cluster" ]; then
         rm -rf ${install_dir}/connector/rust/.git ||:
 
         # copy taosx
-        if [ -d ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ]; then
-          cp -r ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ${install_dir}          
-          cp ${top_dir}/../enterprise/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/taosx/uninstall_taosx.sh
-          sed -i "s/uninstall.sh/uninstall_taosx.sh/g" ${install_dir}/taosx/uninstall_taosx.sh
+        if [ -d ${top_dir}/../enterprise/src/plugins/taosx/release/${clientName2}x ]; then
+          cp -r ${top_dir}/../enterprise/src/plugins/taosx/release/${clientName2}x ${install_dir}          
+          cp ${top_dir}/../enterprise/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/${clientName2}x/uninstall_${clientName2}x.sh
+          sed -i "s/uninstall.sh/uninstall_${clientName2}x.sh/g" ${install_dir}/${clientName2}x/uninstall_${clientName2}x.sh
+          sed -i "s/PREFIX=\"taos\"/PREFIX=\"${clientName2}\"/g" ${install_dir}/${clientName2}x/uninstall_${clientName2}x.sh
         fi
     fi
 fi

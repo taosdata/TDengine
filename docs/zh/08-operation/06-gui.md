@@ -10,11 +10,11 @@ toc_max_heading_level: 4
 
 ## 登录
 
-在完成 TDengine 的安装与启动流程之后，用户便可立即开始使用 taosExplorer。该组件默认监听 TCP 端口 6060，用户只须在浏览器中输入 `http://<IP>:6060/login`（其中的IP 是用户自己的地址），便可顺利登录。成功登录集群后，用户会发现在左侧的导航栏中各项功能被清晰地划分为不同的模块。接下来将简单介绍主要模块。
+在完成 TDengine 的安装与启动流程之后，用户便可立即开始使用 taosExplorer。该组件默认监听 TCP 端口 6060，用户只须在浏览器中输入 `http://<IP>:6060/login`（其中的 IP 是用户自己的地址），便可顺利登录。成功登录集群后，用户会发现在左侧的导航栏中各项功能被清晰地划分为不同的模块。接下来将简单介绍主要模块。
 
 ## 运行监控面板
 
-在 Grafana 上安装 TDengine 数据源插件后，即可添加 TDengine 数据源，并导入TDengine 的 Grafana Dashboard: TDengine for 3.x。通过这一操作，用户将能够在不编写任何代码的情况下实现对 TDengine 运行状态的实时监控和告警功能。详情请参考[运行监控](../monitor)
+在 Grafana 上安装 TDengine 数据源插件后，即可添加 TDengine 数据源，并导入 TDengine 的 Grafana Dashboard: TDengine for 3.x。通过这一操作，用户将能够在不编写任何代码的情况下实现对 TDengine 运行状态的实时监控和告警功能。详情请参考[运行监控](../monitor)
 
 ## 编程
 
@@ -38,7 +38,7 @@ toc_max_heading_level: 4
 
 下面通过创建数据库，来熟悉数据浏览器页面的功能和操作，接下来看创建数据库的两种方式：
 
-1. 通过点击图中的 + 号，跳转到创建数据数库页面，点击“创建”按钮，如下图：
+1. 通过点击图中的 + 号，跳转到创建数据数库页面，点击**创建**按钮，如下图：
 
 第一步 点击 + 号；
 ![explorer-02-createDbentry.jpeg](./pic/explorer-02-createDbentry.jpeg "点开 + 号创建数据库")
@@ -47,7 +47,7 @@ toc_max_heading_level: 4
 ![explorer-03-createDbPage.jpeg](./pic/explorer-03-createDbPage.jpeg "创建数据库页面")
 ![explorer-04-createDbPage2.jpeg](./pic/explorer-04-createDbPage2.jpeg "创建数据库页面展开参数")
 
-弟三步 点击“创建”按钮之后，如下图左边出现数据库名称则创建数据库成功。
+弟三步 点击**创建**按钮之后，如下图左边出现数据库名称则创建数据库成功。
 ![explorer-05-createDbtest01.jpeg](./pic/explorer-05-createDbtest01.jpeg "创建数据库 test01")
 
 2. 通过在 SQL 编辑器中数据 sql 语句，点击 执行 按钮，如下图：
@@ -55,7 +55,7 @@ toc_max_heading_level: 4
 第一步 输入 sql 语句；
 ![explorer-06-sqlCreateDb.jpeg](./pic/explorer-06-sqlCreateDb.jpeg "通过 sql 创建数据库")
 
-第二步 点击“执行”按钮，左边出现 test02， 则数据库创建成功。
+第二步 点击“执行”按钮，左边出现 test02，则数据库创建成功。
 ![explorer-07-createDbtest02.jpeg](./pic/explorer-07-createDbtest02.jpeg "创建数据库 test02")
 
 由于创建、修改和删除超级表、创建表、创建子表在行为上是一致的，就以创建超级表为示例做演示：
@@ -65,7 +65,7 @@ toc_max_heading_level: 4
 第一步 鼠标移动到 STables 上，点击出现的 + 号，出现创建超级表 tab；
 ![explorer-08-createStbEntry.jpeg](./pic/explorer-08-createStbEntry.jpeg "创建超级表入口")
 
-第二步 填写超级表信息， 点击“创建”按钮；
+第二步 填写超级表信息，点击**创建**按钮；
 ![explorer-09-createStbPage.jpeg](./pic/explorer-09-createStbPage.jpeg "创建超级表页面")
 
 第三步 点击 Stables 出现刚才填写的超级表名，则证明创建成功。
@@ -113,7 +113,7 @@ toc_max_heading_level: 4
 
 ![explorer-22-favoritesDelete.png](./pic/explorer-22-favoritesDelete.png "删除 SQL 收藏")
 
-> 注意:
+> 注意：
 >
 > 1. 如果欲收藏的 SQL 已经在个人收藏中，则无法重复收藏，该操作会报错但不产生任何后果
 > 2. 如果欲共享的 SQL 已经被自己或他人共享过，则无法重复共享，该操作会报错但不产生任何后果
@@ -122,7 +122,7 @@ toc_max_heading_level: 4
 
 ## 流计算
 
-通过 Explorer， 您可以轻松地完成对流的管理，从而更好地利用 TDengine 提供的流计算能力。
+通过 Explorer，您可以轻松地完成对流的管理，从而更好地利用 TDengine 提供的流计算能力。
 点击左侧导航栏中的“流计算”，即可跳转至流计算配置管理页面。
 您可以通过以下两种方式创建流：流计算向导和自定义 SQL 语句。当前，通过流计算向导创建流时，暂不支持分组功能。通过自定义 SQL 创建流时，您需要了解 TDengine 提供的流计算 SQL 语句的语法，并保证其正确性。
 
@@ -132,7 +132,7 @@ toc_max_heading_level: 4
 
 ![stream-02-createStreamEntry.jpeg](./pic/stream-02-createStreamEntry.jpeg "创建流计算入口")
 
-第一步 填写创建流计算需要的信息，点击 创建 按钮；
+第一步 填写创建流计算需要的信息，点击**创建**按钮；
 
 ![stream-03-createStreamWizard.jpeg](./pic/stream-03-createStreamWizard.jpeg "创建流计算 Wizard 页面")
 ![stream-04-createStreamWizard.jpeg](./pic/stream-04-createStreamWizard.jpeg "创建流计算 Wizard 页面")
@@ -142,7 +142,7 @@ toc_max_heading_level: 4
 
 ### 使用 SQL
 
-第一步 切换到 SQL 页，直接输入创建流计算 sql， 点击 创建 按钮；
+第一步 切换到 SQL 页，直接输入创建流计算 sql，点击**创建**按钮；
 ![stream-06-createStreamSql.jpeg](./pic/stream-06-createStreamSql.jpeg "创建流计算 SQL 页面")
 
 第二步 页面出现以下记录，则证明创建成功。
@@ -150,7 +150,7 @@ toc_max_heading_level: 4
 
 ## 数据订阅
 
-通过 Explorer， 您可以轻松地完成对数据订阅的管理，从而更好地利用 TDengine 提供的数据订阅能力。
+通过 Explorer，您可以轻松地完成对数据订阅的管理，从而更好地利用 TDengine 提供的数据订阅能力。
 点击左侧导航栏中的“数据订阅”，即可跳转至数据订阅配置管理页面。
 您可以通过以下两种方式创建主题：使用向导和自定义 SQL 语句。通过自定义 SQL 创建主题时，您需要了解 TDengine 提供的数据订阅 SQL 语句的语法，并保证其正确性。
 
@@ -162,10 +162,10 @@ toc_max_heading_level: 4
 
 1. Wizard 方式
    
-第一步 填写添加新主题需要的信息，点击“创建”按钮；
+第一步 填写添加新主题需要的信息，点击**创建**按钮；
 ![topic-03-addTopicWizard.jpeg](./pic/topic-03-addTopicWizard.jpeg "添加新主题 Wizard 页面")
 
-如上图，您可以选择是否 “同步 meta”。如果同步 meta 信息，则可以订阅到 meta 信息，比如增加或者删除超级表。
+如上图，您可以选择是否“同步 meta”。如果同步 meta 信息，则可以订阅到 meta 信息，比如增加或者删除超级表。
 
 您需要根据使用场景来选择是否开启，如果您引用 taos 连接器编写业务代码订阅 topic，则不能开启“同步 meta”，只能订阅数据；如果您创建 topic 在 explorer 配置同步任务使用，则可以开启“同步 meta”。
 
@@ -174,7 +174,7 @@ toc_max_heading_level: 4
 
 2. Sql 方式
 
-第一步 切换到 SQL 页，直接输入添加新主题 sql， 点击“创建”按钮；
+第一步 切换到 SQL 页，直接输入添加新主题 sql，点击**创建**按钮；
 ![topic-06-addTopicSql.jpeg](./pic/topic-06-addTopicSql.jpeg "添加新主题 SQL 页面")
 
 第二步 页面出现以下记录，则证明创建成功。
@@ -195,16 +195,16 @@ toc_max_heading_level: 4
 
 ### 示例代码
 在“示例代码”标签页，在“主题“下拉列表中，选择相应的主题；
-选择您熟悉的语言，然后您可以阅读以及使用这部分示例代码用来”创建消费“，”订阅主题“，通过执行 “完整实例”中的程序即可消费共享主题
+选择您熟悉的语言，然后您可以阅读以及使用这部分示例代码用来”创建消费“，”订阅主题“，通过执行“完整实例”中的程序即可消费共享主题
 ![topic-09-sample.jpeg](./pic/topic-09-sample.jpeg "示例代码")
 
 ## 工具
 
-通过 “工具” 页面，用户可以了解如下 TDengine 周边工具的使用方法。
+通过“工具”页面，用户可以了解如下 TDengine 周边工具的使用方法。
 - TDengine CLI
 - taosBenchmark
 - taosdump
-- TDengine 与 BI 工具的集成，例如 Google Data Studio、Power BI、永洪 BI 等
+- TDengine 与 BI 工具的集成，例如 Google Looker Studio、Power BI、永洪 BI 等
 - TDengine 与 Grafana、Seeq 的集成
 
 ## 系统管理

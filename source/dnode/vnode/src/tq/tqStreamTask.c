@@ -85,6 +85,8 @@ static void doStartScanWal(void* param, void* tmrId) {
   int32_t                code = 0;
   int32_t                numOfTasks = 0;
   tmr_h                  pTimer = NULL;
+  int32_t                numOfItems = 0;
+  STQ*                   pTq = NULL;
   SBuildScanWalMsgParam* pParam = (SBuildScanWalMsgParam*)param;
 
   tqTrace("start to do scan wal in tmr, metaRid:%" PRId64, pParam->metaId);
@@ -96,6 +98,7 @@ static void doStartScanWal(void* param, void* tmrId) {
     return;
   }
 
+  pTq = pMeta->ahandle;
   vgId = pMeta->vgId;
   code = streamTimerGetInstance(&pTimer);
   if (code) {
@@ -137,7 +140,15 @@ static void doStartScanWal(void* param, void* tmrId) {
     goto _end;
   }
 
-  if (!waitEnoughDuration(pMeta)) {
+  numOfItems = tmsgGetQueueSize(&pTq->pVnode->msgCb, pMeta->vgId, STREAM_QUEUE);
+  bool tooMany = (numOfItems > tsThresholdItemsInStreamQueue);
+
+  if (!waitEnoughDuration(pMeta) || tooMany) {
+    if (tooMany) {
+      tqDebug("vgId:%d %d items (threshold: %d) in stream_queue, not scan wal now", vgId, numOfItems,
+              tsThresholdItemsInStreamQueue);
+    }
+
     streamTmrStart(doStartScanWal, SCAN_WAL_IDLE_DURATION, pParam, pTimer, &pMeta->scanInfo.scanTimer, vgId,
                    "scan-wal");
     code = taosReleaseRef(streamMetaRefPool, pParam->metaId);
@@ -463,6 +474,8 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, int32_t* pNumOfTasks) {
     bool hasNewData = false;
     code = doPutDataIntoInputQ(pTask, maxVer, &numOfItems, &hasNewData);
     streamMutexUnlock(&pTask->lock);
+
+    TAOS_UNUSED(code);
 
     if ((numOfItems > 0) || hasNewData) {
       code = streamTrySchedExec(pTask, false);

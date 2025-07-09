@@ -18,11 +18,11 @@ TDengine 完整的软件包包括服务端（taosd）、应用驱动（taosc）�
 
 ## 运行环境要求
 
-在linux系统中，运行环境最低要求如下:
+在 linux 系统中，运行环境最低要求如下：
 1. linux 内核版本：3.10.0-1160.83.1.el7.x86_64 或以上
 2. glibc 版本：2.17 或以上
 
-如果通过 Clone 源码进行编译安装，还需要满足:
+如果通过 Clone 源码进行编译安装，还需要满足：
 1. cmake 版本：3.26.4 或以上
 2. gcc 版本：9.3.1 或以上
 
@@ -200,7 +200,6 @@ systemctl status taosd
 
 安装后，在应用程序目录下，双击 TDengine 图标来启动程序，也可以运行 `sudo launchctl start ` 来启动 TDengine 服务进程。
 
-
 ```bash
 sudo launchctl start com.tdengine.taosd
 sudo launchctl start com.tdengine.taosadapter
@@ -213,7 +212,7 @@ sudo launchctl start com.tdengine.taos-explorer
 start-all.sh
 ```
 
-可以使用 `launchctl` 命令管理上面提到的每个 TDengine 服务，以下示例使用 `taosd` ：
+可以使用 `launchctl` 命令管理上面提到的每个 TDengine 服务，以下示例使用 `taosd`：
 
 ```bash
 sudo launchctl start com.tdengine.taosd
@@ -224,7 +223,7 @@ sudo launchctl print system/com.tdengine.taosd
 
 :::info
 
-- `launchctl` 命令管理`com.tdengine.taosd`需要管理员权限，务必在前面加 `sudo` 来增强安全性。
+- `launchctl` 命令管理 `com.tdengine.taosd` 需要管理员权限，务必在前面加 `sudo` 来增强安全性。
 - `sudo launchctl list | grep taosd` 指令返回的第一列是 `taosd` 程序的 PID，若为 `-` 则说明 TDengine 服务未运行。
 - 故障排查：
 - 如果服务异常请查看系统日志 `launchd.log` 或者 `/var/log/taos` 目录下 `taosdlog` 日志获取更多信息。
@@ -237,7 +236,7 @@ sudo launchctl print system/com.tdengine.taosd
 
 ## TDengine 命令行（CLI）
 
-为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在终端执行 `taos` (Linux/Mac) 或 `taos.exe` (Windows) 即可。 TDengine CLI 的提示符号如下：
+为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在终端执行 `taos` (Linux/Mac) 或 `taos.exe` (Windows) 即可。TDengine CLI 的提示符号如下：
 
 ```cmd
 taos>
@@ -267,7 +266,7 @@ Query OK, 2 row(s) in set (0.003128s)
 
 ### 体验写入
 
-taosBenchmark 是一个专为测试 TDengine 性能而设计的工具，它能够全面评估TDengine 在写入、查询和订阅等方面的功能表现。该工具能够模拟大量设备产生的数据，并允许用户灵活控制数据库、超级表、标签列的数量和类型、数据列的数量和类型、子表数量、每张子表的数据量、写入数据的时间间隔、工作线程数量以及是否写入乱序数据等策略。
+taosBenchmark 是一个专为测试 TDengine 性能而设计的工具，它能够全面评估 TDengine 在写入、查询和订阅等方面的功能表现。该工具能够模拟大量设备产生的数据，并允许用户灵活控制数据库、超级表、标签列的数量和类型、数据列的数量和类型、子表数量、每张子表的数据量、写入数据的时间间隔、工作线程数量以及是否写入乱序数据等策略。
 
 启动 TDengine 的服务，在终端中执行如下命令
 
@@ -275,7 +274,7 @@ taosBenchmark 是一个专为测试 TDengine 性能而设计的工具，它能�
 taosBenchmark -y
 ```
 
-系统将自动在数据库 test 下创建一张名为 meters的超级表。这张超级表将包含 10,000 张子表，表名从 d0 到 d9999，每张表包含 10,000条记录。每条记录包含 ts（时间戳）、current（电流）、voltage（电压）和 phase（相位）4个字段。时间戳范围从 “2017-07-14 10:40:00 000” 到 “2017-07-14 10:40:09 999”。每张表还带有 location 和 groupId 两个标签，其中，groupId 设置为 1 到 10，而 location 则设置为 California.Campbell、California.Cupertino 等城市信息。
+系统将自动在数据库 test 下创建一张名为 meters 的超级表。这张超级表将包含 10,000 张子表，表名从 d0 到 d9999，每张表包含 10,000 条记录。每条记录包含 ts（时间戳）、current（电流）、voltage（电压）和 phase（相位）4 个字段。时间戳范围从“2017-07-14 10:40:00 000”到“2017-07-14 10:40:09 999”。每张表还带有 location 和 groupId 两个标签，其中，groupId 设置为 1 到 10，而 location 则设置为 California.Campbell、California.Cupertino 等城市信息。
 
 执行该命令后，系统将迅速完成 1 亿条记录的写入过程。实际所需时间取决于硬件性能，但即便在普通 PC 服务器上，这个过程通常也只需要十几秒。
 
@@ -284,7 +283,7 @@ taosBenchmark 提供了丰富的选项，允许用户自定义测试参数，如
 taosBenchmark --help
 ```
 
-有关taosBenchmark 的详细使用方法，请参考[taosBenchmark 参考手册](../../reference/tools/taosbenchmark)
+有关 taosBenchmark 的详细使用方法，请参考[taosBenchmark 参考手册](../../reference/tools/taosbenchmark)
 
 ### 体验查询
 

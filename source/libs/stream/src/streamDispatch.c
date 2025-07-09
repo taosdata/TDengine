@@ -807,7 +807,7 @@ void streamStartMonitorDispatchData(SStreamTask* pTask, int64_t waitDuration) {
 }
 
 static int32_t doAddDispatchBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, SSDataBlock* pDataBlock,
-                                  SArray* vgInfo, uint32_t hashValue, int64_t now, bool* pFound) {
+                                  SArray* vgInfo, uint32_t hashValue, int64_t now, bool* pFound, int64_t groupId) {
   size_t  numOfVgroups = taosArrayGetSize(vgInfo);
   int32_t code = 0;
 
@@ -820,8 +820,9 @@ static int32_t doAddDispatchBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs,
     }
 
     if (hashValue >= pVgInfo->hashBegin && hashValue <= pVgInfo->hashEnd) {
-      stDebug("s-task:%s dst table hashVal:0x%x assign to vgId:%d range[0x%x, 0x%x]", pTask->id.idStr, hashValue,
-              pVgInfo->vgId, pVgInfo->hashBegin, pVgInfo->hashEnd);
+      stDebug("s-task:%s dst table:%s groupId:%" PRId64 " hashVal:0x%x assign to vgId:%d range[0x%x, 0x%x]",
+              pTask->id.idStr, pDataBlock->info.parTbName, groupId, hashValue, pVgInfo->vgId, pVgInfo->hashBegin,
+              pVgInfo->hashEnd);
 
       if ((code = streamAddBlockIntoDispatchMsg(pDataBlock, &pReqs[j], false)) < 0) {
         stError("s-task:%s failed to add dispatch block, code:%s", pTask->id.idStr, tstrerror(terrno));
@@ -851,6 +852,8 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
   int32_t  code = 0;
   SArray*  vgInfo = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
 
+  int8_t type = pTask->msgInfo.dispatchMsgType;
+
   if (pTask->pNameMap == NULL) {
     pTask->pNameMap = tSimpleHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
     if (pTask->pNameMap == NULL) {
@@ -863,12 +866,10 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
   if (pVal) {
     SBlockName* pBln = (SBlockName*)pVal;
     hashValue = pBln->hashValue;
-    if (!pDataBlock->info.parTbName[0]) {
-      memset(pDataBlock->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
-      memcpy(pDataBlock->info.parTbName, pBln->parTbName, strlen(pBln->parTbName));
-      stDebug("s-task:%s cached table name:%s, groupId:%" PRId64 " hashVal:0x%x", pTask->id.idStr, pBln->parTbName,
-              groupId, hashValue);
-    }
+    memset(pDataBlock->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
+    memcpy(pDataBlock->info.parTbName, pBln->parTbName, strlen(pBln->parTbName));
+    stDebug("s-task:%s cached table name:%s, blockdata type:%d, groupId:%" PRId64 " hashVal:0x%x", pTask->id.idStr, pBln->parTbName,
+            type, groupId, hashValue);
   } else {
     char ctbName[TSDB_TABLE_FNAME_LEN] = {0};
     if (pDataBlock->info.parTbName[0]) {
@@ -890,6 +891,9 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
       if (code) {
         stError("s-task:%s failed to build child table name for group:%" PRId64 ", code:%s", pTask->id.idStr, groupId,
                 tstrerror(code));
+      } else {
+        stDebug("s-task:%s create default table name:%s, blockdata type:%d, groupId:%" PRId64, pTask->id.idStr,
+                pDataBlock->info.parTbName, type, groupId);
       }
     }
 
@@ -903,16 +907,13 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     bln.hashValue = hashValue;
     memcpy(bln.parTbName, pDataBlock->info.parTbName, strlen(pDataBlock->info.parTbName));
 
-    stDebug("s-task:%s dst table:%s hashVal:0x%x groupId:%"PRId64, pTask->id.idStr, ctbName, hashValue, groupId);
-
-    // failed to put into name buffer, no need to do anything
-    if (tSimpleHashGetSize(pTask->pNameMap) < MAX_BLOCK_NAME_NUM) {  // allow error, and do nothing
-      code = tSimpleHashPut(pTask->pNameMap, &groupId, sizeof(int64_t), &bln, sizeof(SBlockName));
-    }
+    stDebug("s-task:%s dst table:%s hashVal:0x%x , blockdata type:%d, groupId:%"PRId64, pTask->id.idStr, ctbName, hashValue, type, groupId);
+    code = tSimpleHashPut(pTask->pNameMap, &groupId, sizeof(int64_t), &bln, sizeof(SBlockName));
+    if (code) return code;
   }
 
   streamMutexLock(&pTask->msgInfo.lock);
-  code = doAddDispatchBlock(pTask, pReqs, pDataBlock, vgInfo, hashValue, now, &found);
+  code = doAddDispatchBlock(pTask, pReqs, pDataBlock, vgInfo, hashValue, now, &found, groupId);
   streamMutexUnlock(&pTask->msgInfo.lock);
 
   if (code) {
@@ -920,7 +921,8 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
   }
 
   if (!found) {
-    stError("s-task:%s not found req hash value:%u, failed to add dispatch block", pTask->id.idStr, hashValue);
+    stError("s-task:%s not found req hash value:%u, tbname:%s, groupId:%" PRId64 " failed to add dispatch block",
+            pTask->id.idStr, hashValue, pDataBlock->info.parTbName, groupId);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   } else {
     return 0;
@@ -1267,7 +1269,7 @@ static void chkptReadyMsgSendMonitorFn(void* param, void* tmrId) {
   pActiveInfo = pTask->chkInfo.pActiveInfo;
   pTmrInfo = &pActiveInfo->chkptReadyMsgTmr;
 
-  stDebug("s-task:%s acquire task, refId:%" PRId64, id, taskRefId);
+  stTrace("s-task:%s acquire task, refId:%" PRId64, id, taskRefId);
 
   // check the status every 100ms
   if (streamTaskShouldStop(pTask)) {
@@ -1376,7 +1378,7 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask) {
   stDebug("s-task:%s level:%d checkpoint-ready msg sent to all %d upstreams", id, pTask->info.taskLevel, num);
 
   // start to check if checkpoint ready msg has successfully received by upstream tasks.
-  if (pTask->info.taskLevel == TASK_LEVEL__SINK || pTask->info.taskLevel == TASK_LEVEL__AGG) {
+  if (pTask->info.taskLevel == TASK_LEVEL__SINK || pTask->info.taskLevel == TASK_LEVEL__AGG || pTask->info.taskLevel == TASK_LEVEL__MERGE) {
     SStreamTmrInfo* pTmrInfo = &pActiveInfo->chkptReadyMsgTmr;
 
     int8_t old = atomic_val_compare_exchange_8(&pTmrInfo->isActive, 0, 1);
@@ -1998,7 +2000,7 @@ static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDisp
   return status;
 }
 
-int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
+int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp, const SMsgCb* msgcb) {
   int32_t      status = 0;
   SStreamMeta* pMeta = pTask->pMeta;
   const char*  id = pTask->id.idStr;
@@ -2044,12 +2046,36 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
         }
 
         if (pReq->msgId > pInfo->lastMsgId) {
-          status = streamTaskAppendInputBlocks(pTask, pReq);
-          if (status == TASK_INPUT_STATUS__NORMAL) {
-            stDebug("s-task:%s update the lastMsgId from %" PRId64 " to %d", id, pInfo->lastMsgId, pReq->msgId);
-            pInfo->lastMsgId = pReq->msgId;
+
+          int32_t itemsInWriteQ = 0;
+          int32_t itemsInStreamQ = 0;
+          bool    tooManyItems = false;
+          if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
+            itemsInWriteQ = tmsgGetQueueSize(msgcb, pMeta->vgId, WRITE_QUEUE);
+            itemsInStreamQ = tmsgGetQueueSize(msgcb, pMeta->vgId, STREAM_QUEUE);
+            tooManyItems =
+                (itemsInWriteQ > tsThresholdItemsInWriteQueue) || (itemsInStreamQ > tsThresholdItemsInStreamQueue);
+          }
+
+          if ((pTask->info.taskLevel == TASK_LEVEL__SINK) && tooManyItems &&
+              (pReq->type == STREAM_INPUT__DATA_SUBMIT || pReq->type == STREAM_INPUT__DATA_BLOCK ||
+               pReq->type == STREAM_INPUT__REF_DATA_BLOCK)) {
+            stDebug(
+                "s-task:%s vgId:%d %d items in writeQ (threshold: %d), items in streamQ:%d (threshold: %d), refuse "
+                "dispatch msg from vgId:%d, recv msgId:%d, not update lastMsgId:%" PRId64,
+                id, pMeta->vgId, itemsInWriteQ, tsThresholdItemsInWriteQueue, itemsInStreamQ,
+                tsThresholdItemsInStreamQueue, pReq->upstreamNodeId, pReq->msgId, pInfo->lastMsgId);
+            status = TASK_INPUT_STATUS__BLOCKED;
           } else {
-            stDebug("s-task:%s not update the lastMsgId, remain:%" PRId64, id, pInfo->lastMsgId);
+            status = streamTaskAppendInputBlocks(pTask, pReq);
+            if (status == TASK_INPUT_STATUS__NORMAL) {
+              stDebug("s-task:%s update the lastMsgId from %" PRId64 " to %d, itemsInWriteQ:%d", id, pInfo->lastMsgId,
+                      pReq->msgId, itemsInWriteQ);
+              pInfo->lastMsgId = pReq->msgId;
+            } else {
+              stDebug("s-task:%s not update the lastMsgId, remain:%" PRId64 " itemsInWriteQ:%d", id, pInfo->lastMsgId,
+                      itemsInWriteQ);
+            }
           }
         } else {
           stWarn(

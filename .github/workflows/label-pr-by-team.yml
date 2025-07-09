@@ -1,0 +1,28 @@
+name: Label PR by Team
+description: Label PR based on team membership
+
+on:
+  pull_request_target:
+    types: [opened]
+jobs:
+  label-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+
+        - name: Generate GitHub App Token
+          id: app-token
+          uses: tibdex/github-app-token@v1
+          with:
+            app_id: ${{ vars.TAOSDATA_BOT_ID }}
+            private_key: ${{ secrets.TAOSDATA_BOT_KEY }}
+
+        - name: Add PR Labels
+          uses: taosdata/.github/.github/actions/add-pr-labels@main
+          with:
+            github-token: ${{ steps.app-token.outputs.token }}
+
+
+                

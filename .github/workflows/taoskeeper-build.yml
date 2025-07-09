@@ -3,10 +3,10 @@ name: taosKeeper Build
 on:
   pull_request:
     branches:
-      - 'main'
-      - '3.0'
+      - "main"
+      - "3.0"
     paths:
-      - 'tools/keeper/**'
+      - "tools/keeper/**"
 
 jobs:
   build:
@@ -20,18 +20,25 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.18
+          go-version: 1.23
 
       - name: Install system dependencies
         run: |
           sudo apt update -y
           sudo apt install -y build-essential cmake libgeos-dev
 
+      - name: Get CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+
       - name: Install TDengine
+        env:
+          TAOSADAPTER_FLAG: ${{ github.base_ref == '3.0' && '-DTAOSADAPTER_GIT_TAG:STRING=3.0' || '' }}
         run: |
           mkdir debug
           cd debug
-          cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false -DBUILD_TOOLS=false -DBUILD_TEST=off -DBUILD_KEEPER=true -DBUILD_DEPENDENCY_TESTS=false
+          cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false -DBUILD_TOOLS=false -DBUILD_TEST=off -DBUILD_KEEPER=true -DBUILD_DEPENDENCY_TESTS=false $TAOSADAPTER_FLAG
           make -j 4
           sudo make install
           which taosd
@@ -52,7 +59,15 @@ jobs:
         run: |
           go mod tidy
           sudo go test -v -ldflags="-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true'" -coverpkg=./... -coverprofile=coverage.out ./...
-          go tool cover -func=coverage.out
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.KEEPER_CODECOV_TOKEN }}
+          files: coverage.out
+          fail_ci_if_error: true
+          verbose: true
+          slug: taosdata/taoskeeper
 
       - name: Clean up
         if: always()

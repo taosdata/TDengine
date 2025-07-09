@@ -205,33 +205,33 @@ class TDTestCase(TBase):
         self.verify_data_count("stb_keep2", 2, "After compact - only data within 2 days should remain")
         self.verify_oldest_data("stb_keep2", 90, "After compact - oldest data should be from 1 day ago")
 
-    def test_case2_stb_keep_6_db_keep_4(self):
-        """Test case 2: STB keep=6, DB keep=4 - DB keep should override STB keep"""
-        tdLog.info("=== Test Case 2: STB keep=6, DB keep=4 ===")
+    def test_case2_stb_keep_4_db_keep_5(self):
+        """Test case 2: STB keep=4, DB keep=5 - DB keep should override STB keep"""
+        tdLog.info("=== Test Case 2: STB keep=4, DB keep=5 ===")
         
         # Setup
         # Modify database keep value to 5, ensuring it satisfies keep > 3*duration rule
         # Even with duration minimum of 1, keep=5 can satisfy the condition
         db_keep = 5
         self.prepare_database_with_keep("test_stb_compact2", db_keep)
-        self.create_super_table_with_keep("stb_keep6", 6)
+        self.create_super_table_with_keep("stb_keep4", 4)
         # Only insert data within db_keep-1 days to avoid going beyond database keep range
         safe_days = db_keep - 1  # Safe margin to avoid boundary condition issues
-        self.create_tables_and_insert_data_within_days("stb_keep6", "tb_case2", safe_days)
+        self.create_tables_and_insert_data_within_days("stb_keep4", "tb_case2", safe_days)
         
         # Verify data before compact
         # If safe_days=4, we only have at most 4 data points (current, 1 day ago, 3 days ago, not including 5 days ago)
         expected_count = 3  # current, 1 day ago, 3 days ago
-        self.verify_data_count("stb_keep6", expected_count, "Before compact - all data should be visible")
-        self.verify_oldest_data("stb_keep6", 70, "Before compact - 3-day old data should be visible")
+        self.verify_data_count("stb_keep4", expected_count, "Before compact - all data should be visible")
+        self.verify_oldest_data("stb_keep4", 70, "Before compact - 3-day old data should be visible")
         
         # Trigger compact
         self.trigger_compact("test_stb_compact2")
         
         # Verify data after compact
-        # Database keep=5, STB keep=6, all data is within retention range, so no data should be deleted
-        self.verify_data_count("stb_keep6", expected_count, "After compact - all data should remain")
-        self.verify_oldest_data("stb_keep6", 70, "After compact - oldest data should still be from 3 days ago")
+        # Database keep=5, STB keep=4, all data is within retention range, so no data should be deleted
+        self.verify_data_count("stb_keep4", expected_count, "After compact - all data should remain")
+        self.verify_oldest_data("stb_keep4", 70, "After compact - oldest data should still be from 3 days ago")
 
     def test_case3_multiple_stbs_with_different_keep(self):
         """Test case 3: Multiple STBs with different keep values in same database"""
@@ -322,7 +322,7 @@ class TDTestCase(TBase):
         # Create two super tables: one with keep value less than database, one with greater
         tdLog.info("Creating super tables with different keep values")
         self.create_super_table_with_keep("stb_keep3", 3)  # keep value less than database
-        self.create_super_table_with_keep("stb_keep10", 10)  # keep value greater than database
+        self.create_super_table_with_keep("stb_keep10", 8)  # keep value greater than database
         
         # Create child tables
         tdLog.info("Creating child tables")
@@ -687,8 +687,8 @@ class TDTestCase(TBase):
         # 1. Test case 1: STB keep=2, DB keep=10
         self.test_case1_stb_keep_2_db_keep_10()
         
-        # 2. Test case 2: STB keep=6, DB keep=4
-        self.test_case2_stb_keep_6_db_keep_4()
+        # 2. Test case 2: STB keep=4, DB keep=5
+        self.test_case2_stb_keep_4_db_keep_5()
 
         # 3. Test case 3: Multiple STBs with different keep values
         self.test_case3_multiple_stbs_with_different_keep()

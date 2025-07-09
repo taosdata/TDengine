@@ -64,7 +64,7 @@ if sys.version_info[0] < 3:
 
 # Command-line/Environment Configurations, will set a bit later
 # ConfigNameSpace = argparse.Namespace
-# gConfig:    argparse.Namespace 
+# gConfig:    argparse.Namespace
 gSvcMgr: Optional[ServiceManager]  # TODO: refactor this hack, use dep injection
 # logger:     logging.Logger
 gContainer: Container
@@ -407,9 +407,9 @@ class ThreadCoordinator:
             # if (self._curStep % 2) == 0: # print memory usage once every 10 steps
             #     memUsage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
             #     print("[m:{}]".format(memUsage), end="", flush=True) # print memory usage
-            # if (self._curStep % 10) == 3: 
+            # if (self._curStep % 10) == 3:
             #     h = hpy()
-            #     print("\n")        
+            #     print("\n")
             #     print(h.heap())
 
             try:
@@ -681,7 +681,7 @@ class AnyState:
 
     STATE_VAL_IDX = 0
     CAN_CREATE_DB = 1
-    # For below, if we can "drop the DB", but strictly speaking 
+    # For below, if we can "drop the DB", but strictly speaking
     # only "under normal circumstances", as we may override it with the -b option
     CAN_DROP_DB = 2
     CAN_CREATE_FIXED_SUPER_TABLE = 3
@@ -873,9 +873,9 @@ class StateDbOnly(AnyState):
             self.assertAtMostOneSuccess(tasks, TaskDropDb)
 
         # TODO: restore the below, the problem exists, although unlikely in real-world
-        # if (gSvcMgr!=None) and gSvcMgr.isRestarting():     
-        # if (gSvcMgr == None) or (not gSvcMgr.isRestarting()) : 
-        #     self.assertIfExistThenSuccess(tasks, TaskDropDb)       
+        # if (gSvcMgr!=None) and gSvcMgr.isRestarting():
+        # if (gSvcMgr == None) or (not gSvcMgr.isRestarting()) :
+        #     self.assertIfExistThenSuccess(tasks, TaskDropDb)
 
 
 class StateSuperTableOnly(AnyState):
@@ -1020,7 +1020,7 @@ class StateMechine:
 
         sTable = self._db.getFixedSuperTable()
 
-        if sTable.hasRegTables(dbc):  # no regular tables 
+        if sTable.hasRegTables(dbc):  # no regular tables
             # print("debug=====*\n"*100)
             Logging.debug("[STT] SUPER_TABLE_ONLY found, between {} and {}".format(ts, time.time()))
 
@@ -1098,7 +1098,7 @@ class StateMechine:
         BasicTypes = self.getTaskTypes()
         weightsTypes = BasicTypes.copy()
 
-        # this matrixs can balance  the Frequency of TaskTypes 
+        # this matrixs can balance  the Frequency of TaskTypes
         balance_TaskType_matrixs = {'TaskDropDb': 5, 'TaskDropTopics': 20, 'TaskDropStreams': 10,
                                     'TaskDropStreamTables': 10,
                                     'TaskReadData': 50, 'TaskDropSuperTable': 5, 'TaskAlterTags': 3, 'TaskAddData': 10,
@@ -1187,7 +1187,7 @@ class Database:
     # TODO: fix the error as result of above: "tsdb timestamp is out of range"
     @classmethod
     def setupLastTick(cls):
-        # start time will be auto generated , start at 10 years ago  local time 
+        # start time will be auto generated , start at 10 years ago  local time
         local_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-16]
         local_epoch_time = [int(i) for i in local_time.split("-")]
         # local_epoch_time will be such as : [2022, 7, 18]
@@ -2059,7 +2059,7 @@ class TdSuperTable:
                 pass
             return
 
-        # mulit Consumer 
+        # mulit Consumer
         current_topic_list = self.getTopicLists(dbc)
         for i in range(Consumer_nums):
             consumer_inst = threading.Thread(target=generateConsumer, args=(current_topic_list,))
@@ -2179,12 +2179,12 @@ class TdSuperTable:
             task.lockTable(fullTableName)  # in which case we'll lock this table to ensure serialized access
             # Logging.info("Table locked for creation".format(fullTableName))
         Progress.emit(Progress.CREATE_TABLE_ATTEMPT)  # ATTEMPT to create a new table
-        # print("(" + fullTableName[-3:] + ")", end="", flush=True)  
+        # print("(" + fullTableName[-3:] + ")", end="", flush=True)
         try:
             sql = "CREATE TABLE {} USING {}.{} tags ({})".format(
                 fullTableName, dbName, self._stName, self._getTagStrForSql(dbc)
             )
-            # Logging.info("Creating regular with SQL: {}".format(sql))            
+            # Logging.info("Creating regular with SQL: {}".format(sql))
             dbc.execute(sql)
             # Logging.info("Regular table created: {}".format(sql))
         finally:
@@ -2388,7 +2388,7 @@ class TaskReadData(StateTransitionTask):
         dbc = wt.getDbConn()
         sTable = self._db.getFixedSuperTable()
 
-        for q in sTable.generateQueries(dbc):  # regular tables            
+        for q in sTable.generateQueries(dbc):  # regular tables
             try:
                 sql = q.getSql()
                 # if 'GROUP BY' in sql:
@@ -2438,7 +2438,7 @@ class TaskDropSuperTable(StateTransitionTask):
                     self.execWtSql(wt, "drop table {}.{}".
                                    format(self._db.getName(), regTableName))  # nRows always 0, like MySQL
                 except taos.error.ProgrammingError as err:
-                    # correcting for strange error number scheme                    
+                    # correcting for strange error number scheme
                     errno2 = Helper.convertErrno(err.errno)
                     if (errno2 in [0x362]):  # mnode invalid table name
                         isSuccess = False
@@ -2695,10 +2695,10 @@ class TaskAddData(StateTransitionTask):
 
             dbName = db.getName()
             sTable = db.getFixedSuperTable()
-            regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)            
+            regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)
             fullTableName = dbName + '.' + regTableName
             # self._lockTable(fullTableName) # "create table" below. Stop it if the table is "locked"
-            sTable.ensureRegTable(self, wt.getDbConn(), regTableName)  # Ensure the table exists           
+            sTable.ensureRegTable(self, wt.getDbConn(), regTableName)  # Ensure the table exists
             # self._unlockTable(fullTableName)
 
             if Dice.throw(1) == 0:  # 1 in 2 chance
@@ -2917,10 +2917,10 @@ class TaskDeleteData(StateTransitionTask):
 
             dbName = db.getName()
             sTable = db.getFixedSuperTable()
-            regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)            
+            regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)
             fullTableName = dbName + '.' + regTableName
             # self._lockTable(fullTableName) # "create table" below. Stop it if the table is "locked"
-            sTable.ensureRegTable(self, wt.getDbConn(), regTableName)  # Ensure the table exists           
+            sTable.ensureRegTable(self, wt.getDbConn(), regTableName)  # Ensure the table exists
             # self._unlockTable(fullTableName)
 
             self._deleteData(db, dbc, regTableName, te)
@@ -3107,7 +3107,7 @@ class ClientManager:
 
         gc.collect()  # force garbage collection
         # h = hpy()
-        # print("\n----- Final Python Heap -----\n")        
+        # print("\n----- Final Python Heap -----\n")
         # print(h.heap())
 
         return ret
@@ -3220,6 +3220,11 @@ class MainExec:
             '--track-memory-leaks',
             action='store_true',
             help='Use Valgrind tool to track memory leaks (default: false)')
+        parser.add_argument(
+            '-pkg',
+            '--run-with-pkg',
+            action='store_true',
+            help='Run crash_gen with pkg (default: false)')
         parser.add_argument(
             '-l',
             '--larger-data',

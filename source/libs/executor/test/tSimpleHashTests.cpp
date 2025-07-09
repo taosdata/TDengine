@@ -33,7 +33,7 @@
 TEST(testCase, tSimpleHashTest_intKey) {
   SSHashObj *pHashObj = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
 
-  assert(pHashObj != nullptr);
+  TD_ALWAYS_ASSERT(pHashObj != nullptr);
 
   ASSERT_EQ(0, tSimpleHashGetSize(pHashObj));
 
@@ -82,7 +82,7 @@ ASSERT(code == 0);
 TEST(testCase, tSimpleHashTest_binaryKey) {
   SSHashObj *pHashObj = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
 
-  assert(pHashObj != nullptr);
+  TD_ALWAYS_ASSERT(pHashObj != nullptr);
 
   ASSERT_EQ(0, tSimpleHashGetSize(pHashObj));
 

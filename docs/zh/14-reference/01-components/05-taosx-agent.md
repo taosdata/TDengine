@@ -3,7 +3,11 @@ title: taosX-Agent 参考手册
 sidebar_label: taosX-Agent
 ---
 
-本节讲述如何部署 `Agent` (for `taosX`)。使用之前需要安装 TDengine Enterprise 安装包之后，taosX-Agent 用于在部分数据接入场景，如 Pi、OPC UA、OPC DA 等对访问数据源有一定限制或者网络环境特殊的场景下，可以将 taosX-Agent 部署在靠近数据源的环境中甚至与数据源在相同的服务器上，由 taosX-Agent 负责从数据源读取数据并发送给 taosX。
+taosX-Agent 是 TDengine Enterprise 的核心组件之一。本节将着重介绍如何对 `Agent` (for `taosX`) 进行配置。要使用 taosX-Agent，你只需安装 TDengine Enterprise 版本，安装完成后即可获取该组件。
+
+在一些特定场景中，如数据源访问受限或者网络环境特殊的情况，数据接入会面临诸多挑战。taosX - Agent 正是为解决此类问题而设计，它能在诸如使用 Pi 设备、遵循 OPC UA 或 OPC DA 协议等场景中发挥重要作用。
+
+为了更高效地实现数据采集与转发，建议将 taosX - Agent 部署在靠近数据源的环境中，甚至可以直接部署在数据源所在的服务器上。如此一来，taosX - Agent 就能顺利地从数据源采集数据，并将采集到的数据转发至 taosX 系统。
 
 ## 配置
 

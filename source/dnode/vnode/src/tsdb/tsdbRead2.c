@@ -2333,6 +2333,23 @@ _end:
   return ps;
 }
 
+// deep copy the primary key, to avoid ref invalid buffer is the primary key is varchar or something.
+static int32_t primaryKeyDup(SRowKey* pKey) {
+  if (pKey->numOfPKs > 0) {
+    if (!IS_NUMERIC_TYPE(pKey->pks[0].type)) {
+      void* p = taosMemoryMalloc(pKey->pks[0].nData);
+      if (p == NULL)  {
+        return terrno;
+      }
+
+      TAOS_MEMCPY(p, pKey->pks[0].pData, pKey->pks[0].nData);
+      pKey->pks[0].pData = p;
+    }
+  }
+
+  return 0;
+}
+
 static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* pBlockScanInfo, TSDBROW* pRow,
                                      SIterInfo* pIter, SSttBlockReader* pSttBlockReader) {
   int32_t             code = TSDB_CODE_SUCCESS;
@@ -2369,6 +2386,8 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
   SRowKey* pfKey = &(SRowKey){0};
   if (hasDataInFileBlock(pBlockData, pDumpInfo)) {
     tColRowGetKey(pBlockData, pDumpInfo->rowIndex, pfKey);
+    code = primaryKeyDup(pfKey);
+    TSDB_CHECK_CODE(code, lino, _end);
   } else {
     pfKey = NULL;
   }
@@ -2403,7 +2422,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
   tRowKeyAssign(&pBlockScanInfo->lastProcKey, &minKey);
 
   // file block ---> stt block -----> mem
-  if (pkCompEx(&minKey, pfKey) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, pfKey) == 0) {
     code = tsdbRowMergerAdd(pMerger, &fRow, NULL);
     TSDB_CHECK_CODE(code, lino, _end);
 
@@ -2411,7 +2430,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, pSttKey) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, pSttKey) == 0) {
     TSDBROW* fRow1 = tMergeTreeGetRow(&pSttBlockReader->mergeTree);
     code = tsdbRowMergerAdd(pMerger, fRow1, NULL);
     TSDB_CHECK_CODE(code, lino, _end);
@@ -2420,7 +2439,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, &k) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, &k) == 0) {
     code = tsdbRowMergerAdd(pMerger, pRow, pSchema);
     TSDB_CHECK_CODE(code, lino, _end);
 
@@ -2438,6 +2457,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
   TSDB_CHECK_CODE(code, lino, _end);
 
 _end:
+  clearRowKey(pfKey);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -2635,7 +2655,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
   tRowKeyAssign(&pBlockScanInfo->lastProcKey, &minKey);
 
   // file block -----> stt block -----> imem -----> mem
-  if (pkCompEx(&minKey, pfKey) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, pfKey) == 0) {
     TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
     code = tsdbRowMergerAdd(pMerger, &fRow, NULL);
     TSDB_CHECK_CODE(code, lino, _end);
@@ -2644,7 +2664,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, pSttKey) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, pSttKey) == 0) {
     TSDBROW* pRow1 = tMergeTreeGetRow(&pSttBlockReader->mergeTree);
     code = tsdbRowMergerAdd(pMerger, pRow1, NULL);
     TSDB_CHECK_CODE(code, lino, _end);
@@ -2654,7 +2674,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, &ik) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, &ik) == 0) {
     code = tsdbRowMergerAdd(pMerger, piRow, piSchema);
     TSDB_CHECK_CODE(code, lino, _end);
 
@@ -2662,7 +2682,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, &k) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, &k) == 0) {
     code = tsdbRowMergerAdd(pMerger, pRow, pSchema);
     TSDB_CHECK_CODE(code, lino, _end);
 
@@ -3176,6 +3196,8 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
 
   if (hasDataInFileBlock(pBlockData, pDumpInfo)) {
     tColRowGetKey(pBlockData, pDumpInfo->rowIndex, pKey);
+    code = primaryKeyDup(pKey);
+    TSDB_CHECK_CODE(code, lino, _end);
   } else {
     pKey = NULL;
   }
@@ -3209,8 +3231,9 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
   }
 
 _end:
+  clearRowKey(pKey);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    tsdbError("%s %s failed at line %d since %s", pReader->idStr, __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -6783,7 +6806,7 @@ _end:
   return code;
 }
 
-int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_t* suid) {
+int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_t* suid, SSchemaWrapper** pTagSchema) {
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
   int32_t code = metaReaderGetTableEntryByUidCache(&mr, uid);
@@ -6806,6 +6829,15 @@ int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_
       return code;
     }
   } else if (mr.me.type == TSDB_NORMAL_TABLE) {  // do nothing
+  } else if (mr.me.type == TSDB_SUPER_TABLE) {
+    *suid = uid;
+    code = metaReaderGetTableEntryByUidCache(&mr, *suid);
+    if (code != TSDB_CODE_SUCCESS) {
+      code = TSDB_CODE_TDB_INVALID_TABLE_ID;
+      metaReaderClear(&mr);
+      return code;
+    }
+    *pTagSchema = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaTag);
   } else {
     code = TSDB_CODE_INVALID_PARA;
     tsdbError("invalid mr.me.type:%d, code:%s", mr.me.type, tstrerror(code));

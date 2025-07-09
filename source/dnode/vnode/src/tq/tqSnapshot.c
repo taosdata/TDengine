@@ -58,7 +58,7 @@ int32_t tqSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, int8_t type, STqS
   TSDB_CHECK_CODE(code, lino, end);
   code = tdbTbcMoveToFirst(pReader->pCur);
   TSDB_CHECK_CODE(code, lino, end);
-  tqInfo("vgId:%d, vnode tq snapshot reader opene success", TD_VID(pTq->pVnode));
+  tqInfo("vgId:%d, vnode tq snapshot reader open success", TD_VID(pTq->pVnode));
   *ppReader = pReader;
 
 end:

@@ -1297,7 +1297,7 @@ static int32_t buildStreamRecalculateBlock(SOperatorInfo* pOperator, SSDataBlock
     void*       pVal = NULL;
     int32_t     len = 0;
     int32_t     winRes = pInfo->stateStore.streamStateSessionGetKVByCur(pInfo->basic.pTsDataState->pRecCur, &rangKey, &pVal, &len);
-    if (winRes != TSDB_CODE_SUCCESS) {
+    if (winRes != TSDB_CODE_SUCCESS || pVal == NULL) {
       break;
     }
     SRecDataInfo* pRecData = (SRecDataInfo*)pVal;

@@ -545,6 +545,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   SDbObj           *pDb = NULL;
   SCMCreateTopicReq createTopicReq = {0};
 
+  PRINT_LOG_START
   if (tDeserializeSCMCreateTopicReq(pReq->pCont, pReq->contLen, &createTopicReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto END;
@@ -744,6 +745,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   SMqTopicObj *pTopic = NULL;
   STrans      *pTrans = NULL;
 
+  PRINT_LOG_START
   if (tDeserializeSMDropTopicReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     return TSDB_CODE_INVALID_MSG;
   }

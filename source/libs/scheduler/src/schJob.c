@@ -861,6 +861,8 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   pJob->attr.explainMode = pReq->pDag->explainInfo.mode;
   pJob->attr.localExec = pReq->localReq;
   pJob->conn = *pReq->pConn;
+  qInfo("QID:0x%" PRIx64 " init with pTrans:%p", pReq->pDag->queryId, pJob->conn.pTrans);
+  
   if (pReq->sql) {
     pJob->sql = taosStrdup(pReq->sql);
     if (NULL == pJob->sql) {

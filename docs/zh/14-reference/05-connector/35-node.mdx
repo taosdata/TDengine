@@ -24,10 +24,13 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 | Node.js 连接器 版本 |          主要变化         |   TDengine 版本    |
 | ------------------| ----------------------| ----------------|
+|        3.1.8       | 修复当网络异常时，连接池返回的连接不可用 | - | 
+|        3.1.7       | 修复云服务 TMQ 连接参数问题 | - | 
+|        3.1.6       | 1. 检测连接器是否支持数据库的版本 <br/> 2. 连接器支持新增订阅参数 | - |  
 |        3.1.5       | 密码支持特殊字符 |  - |
 |        3.1.4       | 修改 readme |  - |
 |        3.1.3       | 升级了 es5-ext 版本，解决低版本的漏洞 |  - |
-|        3.1.2       | 对数据协议和解析进行了优化，性能得到大幅提升|  - |
+|        3.1.2       | 对数据协议和解析进行了优化，性能得到大幅提升 |  - |
 |        3.1.1       | 优化了数据传输性能          |  3.3.2.0 及更高版本 |
 |        3.1.0       | 新版本发布，支持 WebSocket 连接 |  3.2.0.0 及更高版本 |
 
@@ -50,8 +53,10 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 | 106     | authentication fail                                             | 认证失败，请检查用户名，密码是否正确。                                 |
 | 107     | unknown sql type in tdengine                                    | 请检查 TDengine 支持的 Data Type 类型。                                 |
 | 108     | connection has been closed                                      | 连接已经关闭，请检查 Connection 是否关闭后再次使用，或是连接是否正常。  |
-| 109     | fetch block data parse fail                                     | 获取到的查询数据，解析失败                    |
-| 110     | websocket connection has reached its maximum limit              | WebSocket 连接达到上限                                                   |
+| 109     | fetch block data parse fail                                     | 获取到的查询数据，解析失败。                    |
+| 110     | websocket connection has reached its maximum limit              | WebSocket 连接达到上限。                                                   |
+| 111     | topic partitions and positions are not equal in length          | 获取给定分区当前的偏移量的数据与主题分区不匹配。    |
+| 112     | version mismatch. The minimum required TDengine version is 3.3.2.0 | TDengine 的版本低于 3.3.2.0 连接器不支持，用户需要升级到 3.3.2.0 以上版本。    |
 - [TDengine Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
 - TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/error-code)    
 
@@ -95,15 +100,16 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 ## 使用限制
 
 - Node.js 连接器（`@tdengine/websocket`）支持 Node.js 14 以上版本，低于 14 的版本可能存在包兼容性的问题。
-- 目前只支持 WebSocket 连接，需要提前启动 taosAdapter
+- 目前只支持 WebSocket 连接，需要提前启动 taosAdapter。
 - 使用连接器结束后，需要调用 taos.connectorDestroy(); 释放连接器资源。
-
+- 如果要设置 SQL 字符串中时间字符串的时区，需要设置 taosadapter 所在机器的 taosc 时区配置。
+- 在解析结果集时，JavaScript 不支持 int64 类型，因此无法直接进行时区转换。若用户有需求，可引入第三方库以提供支持。
 
 ## 常见问题
 
 1. "Unable to establish connection" 或 "Unable to resolve FQDN"
 
-   **原因**：一般都是因为配置 FQDN 不正确。 可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html) 。
+   **原因**：一般都是因为配置 FQDN 不正确。可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html) 。
 
 ## API 参考
 
@@ -119,15 +125,20 @@ Node.js 连接器（`@tdengine/websocket`）, 其通过 taosAdapter 提供的 We
 
 - **protocol**：使用 websocket 协议建立连接。例如`ws://localhost:6041`
 - **username/password**：数据库的用户名和密码。
-- **host/port**：主机地址和端口号。例如`localhost:6041`
+- **host/port**：参数支持合法的域名或 IP 地址。`@tdengine/websocket` 同时支持 IPV4 和 IPV6 两种地址格式，对于 IPv6 地址，必须使用中括号括起来（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。
 - **database**：数据库名称。
-- **params**：其他参数。 例如token。
+- **params**：其他参数。例如 token。
 
-- 完整 URL 示例：
+- 完整 DSN 示例：
 
 ```js
-    ws://root:taosdata@localhost:6041
-```
+// IPV4:
+ws://root:taosdata@localhost:6041
+
+// IPV6:
+ws://root:taosdata@[::1]:6041
+``` 
+
 ### WSConfig
 
 除了通过指定的 URL 获取连接，还可以使用 WSConfig 指定建立连接时的参数。
@@ -156,7 +167,7 @@ WSConfig 中的配置如下：
 - setPwd(pws:string) 设置数据库密码。
 - setDb(db: string) 设置数据库名称。
 - setTimeOut(ms : number) 设置连接超时，单位毫秒。
-- setToken(token: string) 设置 taosAdapter 认证token。
+- setToken(token: string) 设置 taosAdapter 认证 token。
 
 ### 连接功能
 
@@ -256,7 +267,7 @@ WSConfig 中的配置如下：
 - `async setTableName(tableName: string): Promise<void>`
     - **接口说明** 设置将要写入数据的表名。
     - **参数说明**：
-        - `tableName`：表名，如果需要指定数据库, 例如：`db_name.table_name` 即可。
+        - `tableName`：表名，如果需要指定数据库，例如：`db_name.table_name` 即可。
     - **异常**：连接失败抛出 `TDWebSocketClientError` 异常。
 通过 StmtBindParams 对象设置绑定数据。
 - `setBoolean(params :any[])`
@@ -311,8 +322,8 @@ WSConfig 中的配置如下：
     - taos.TMQConstants.CONNECT_USER：用户名。
     - taos.TMQConstants.CONNECT_PASS：密码。
     - taos.TMQConstants.GROUP_ID：所在的 group。
-    - taos.TMQConstants.CLIENT_ID：客户端id。
-    - taos.TMQConstants.WS_URL：taosAdapter 的url地址。
+    - taos.TMQConstants.CLIENT_ID：客户端 id。
+    - taos.TMQConstants.WS_URL：taosAdapter 的 url 地址。
     - taos.TMQConstants.AUTO_OFFSET_RESET：来确定消费位置为最新数据（latest）还是包含旧数据（earliest）。
     - taos.TMQConstants.ENABLE_AUTO_COMMIT：是否允许自动提交。
     - taos.TMQConstants.AUTO_COMMIT_INTERVAL_MS：自动提交间隔。

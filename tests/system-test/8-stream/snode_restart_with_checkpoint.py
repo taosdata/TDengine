@@ -40,7 +40,7 @@ class TDTestCase:
         tdDnodes[3].starttaosd()
         tdLog.debug("========snode restart ok========")
 
-        time.sleep(30)
+        time.sleep(180)
         os.system("kill -9 `pgrep taosBenchmark`")
         tdLog.debug("========stop insert ok========")
         time.sleep(2)

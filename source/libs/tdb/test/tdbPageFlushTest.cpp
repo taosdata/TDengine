@@ -55,7 +55,7 @@ static void clearPool(SPoolMem *pPool) {
     taosMemoryFree(pMem);
   } while (1);
 
-  assert(pPool->size == 0);
+  TD_ALWAYS_ASSERT(pPool->size == 0);
 }
 
 static void closePool(SPoolMem *pPool) {
@@ -70,7 +70,7 @@ static void *poolMalloc(void *arg, size_t size) {
 
   pMem = (SPoolMem *)taosMemoryMalloc(sizeof(*pMem) + size);
   if (pMem == NULL) {
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
 
   pMem->size = sizeof(*pMem) + size;
@@ -96,7 +96,7 @@ static void *poolMallocRestricted(void *arg, size_t size) {
 
   pMem = (SPoolMem *)taosMemoryMalloc(sizeof(*pMem) + size);
   if (pMem == NULL) {
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
 
   pMem->size = sizeof(*pMem) + size;

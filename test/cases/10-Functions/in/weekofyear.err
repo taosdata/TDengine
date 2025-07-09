@@ -1,0 +1,2 @@
+select weekofyear();
+select weekofyear('2020-01-01',1);

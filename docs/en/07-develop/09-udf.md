@@ -301,6 +301,7 @@ select max_vol(vol1, vol2, vol3, deviceid) from battery;
 #### Aggregate Function Example 3 Split string and calculate average value [extract_avg](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/extract_avg.c)
 
 The `extract_avg` function converts a comma-separated string sequence into a set of numerical values, counts the results of all rows, and calculates the final average. Note when implementing:
+
 - `interBuf->numOfResult` needs to return 1 or 0 and cannot be used for count.
 - Count can use additional caches, such as the `SumCount` structure.
 - Use `varDataVal` to obtain the string.
@@ -324,6 +325,7 @@ select extract_avg(valStr) from scores;
 ```
 
 Generate `.so` file
+
 ```bash
 gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
 ```
@@ -336,7 +338,6 @@ gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
 ```
 
 </details>
-
 
 ## Developing UDFs in Python Language
 
@@ -492,7 +493,7 @@ def process(block):
 This file contains 3 functions, `init` and `destroy` are empty functions, they are the lifecycle functions of UDF, even if they do nothing, they must be defined. The most crucial is the `process` function, which accepts a data block. This data block object has two methods.
 
 1. `shape()` returns the number of rows and columns of the data block
-2. `data(i, j)` returns the data at row i, column j
+1. `data(i, j)` returns the data at row i, column j
 
 The scalar function's `process` method must return as many rows of data as there are in the data block. The above code ignores the number of columns, as it only needs to compute each row's first column.
 
@@ -561,7 +562,7 @@ taos> select myfun(v1) from t;
                2.302585093 |
 ```
 
-With this, we have completed our first UDF 😊, and learned some basic debugging methods.
+With this, we have completed our first UDF and learned some basic debugging methods.
 
 #### Example 2
 
@@ -578,7 +579,7 @@ taos> select myfun(v1, v2) from t;
                2.302585093 |
 ```
 
-2. It does not handle null values. We expect that if the input contains null, it will throw an exception and terminate execution. Therefore, the process function is improved as follows.
+1. It does not handle null values. We expect that if the input contains null, it will throw an exception and terminate execution. Therefore, the process function is improved as follows.
 
 ```python
 def process(block):
@@ -803,11 +804,11 @@ def finish(buf):
 In this example, we not only defined an aggregate function but also added the functionality to record execution logs.
 
 1. The `init` function opens a file for logging.
-2. The `log` function records logs, automatically converting the incoming object into a string and appending a newline.
-3. The `destroy` function closes the log file after execution.
-4. The `start` function returns the initial buffer to store intermediate results of the aggregate function, initializing the maximum value as negative infinity and the minimum value as positive infinity.
-5. The `reduce` function processes each data block and aggregates the results.
-6. The `finish` function converts the buffer into the final output.
+1. The `log` function records logs, automatically converting the incoming object into a string and appending a newline.
+1. The `destroy` function closes the log file after execution.
+1. The `start` function returns the initial buffer to store intermediate results of the aggregate function, initializing the maximum value as negative infinity and the minimum value as positive infinity.
+1. The `reduce` function processes each data block and aggregates the results.
+1. The `finish` function converts the buffer into the final output.
 
 Execute the following SQL statement to create the corresponding UDF.
 
@@ -818,7 +819,7 @@ create or replace aggregate function myspread as '/root/udf/myspread.py' outputt
 This SQL statement has two important differences from the SQL statement used to create scalar functions.
 
 1. Added the `aggregate` keyword.
-2. Added the `bufsize` keyword, which is used to specify the memory size for storing intermediate results. This value can be larger than the actual usage. In this example, the intermediate result is a tuple consisting of two floating-point arrays, which actually occupies only 32 bytes when serialized, but the specified `bufsize` is 128. You can use the Python command line to print the actual number of bytes used.
+1. Added the `bufsize` keyword, which is used to specify the memory size for storing intermediate results. This value can be larger than the actual usage. In this example, the intermediate result is a tuple consisting of two floating-point arrays, which actually occupies only 32 bytes when serialized, but the specified `bufsize` is 128. You can use the Python command line to print the actual number of bytes used.
 
 ```python
 >>> len(pickle.dumps((12345.6789, 23456789.9877)))

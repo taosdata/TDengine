@@ -8,8 +8,18 @@ if(TD_ENTERPRISE)
 endif()
 
 add_library(common STATIC ${COMMON_SRC})
-
+DEP_ext_cjson(common)
 add_dependencies(common lemon_sql)
+
+message(STATUS "Debugging ............................")
+message(STATUS "PROJECT_BINARY_DIR:${PROJECT_BINARY_DIR}")
+
+target_include_directories(common
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/utils/TSZ/sz/inc      # TODO: tweak for defines.h, potential cyclic-dependencies, and need to be refactored!!!
+    PUBLIC
+        ${PROJECT_BINARY_DIR}/source/libs/parser    # TODO: tweak for taos_lemon_token.h, potential cyclic-dependencies!!!
+)
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
@@ -46,14 +56,27 @@ target_include_directories(
 )
 
 if(${TD_WINDOWS})
-  target_include_directories(
-    common
-    PRIVATE "${TD_SOURCE_DIR}/contrib/pthread"
-    PRIVATE "${TD_SOURCE_DIR}/contrib/msvcregex"
-  )
+  # This is the Windows Shell32 library, needed by RocksDB
+  find_library(SHLWAPI_LIBRARY NAMES shlwapi)
+  if(SHLWAPI_LIBRARY)
+      message(STATUS "Found Shlwapi library: ${SHLWAPI_LIBRARY}")
+  else()
+      message(WARNING "Shlwapi library not found.")
+  endif()
+
+  # This is the Windows RPC library, also needed by RocksDB
+  find_library(RPC_LIB rpcrt4 HINTS ${SYSTEM_SYSTEM_PATH})
+  if(RPC_LIB)
+      message(STATUS "Found rpcrt4 library: ${RPC_LIB}")
+  else()
+      message(FATAL_ERROR "rpcrt4 library not found.")
+  endif()
 
   target_link_libraries(
     common
+
+    PUBLIC ${SHLWAPI_LIBRARY}
+    PUBLIC ${RPC_LIB}
 
     PUBLIC os
     PUBLIC util
@@ -61,39 +84,23 @@ if(${TD_WINDOWS})
   )
 
 else()
-  find_library(CURL_LIBRARY curl $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-  find_library(SSL_LIBRARY ssl $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-  find_library(CRYPTO_LIBRARY crypto $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-
   target_link_libraries(
     common
-
-    PUBLIC ${CURL_LIBRARY}
-    PUBLIC ${SSL_LIBRARY}
-    PUBLIC ${CRYPTO_LIBRARY}
 
     PUBLIC os
     PUBLIC util
     INTERFACE api
   )
+  DEP_ext_curl(common)
+  DEP_ext_ssl(common)
 endif()
 
 if(${BUILD_S3})
   if(${BUILD_WITH_S3})
-    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-    set(CMAKE_PREFIX_PATH $ENV{HOME}/.cos-local.2)
-    find_library(S3_LIBRARY s3)
-    target_link_libraries(
-      common
-
-      # s3
-      PUBLIC ${S3_LIBRARY}
-      PUBLIC ${CURL_LIBRARY}
-      PUBLIC ${SSL_LIBRARY}
-      PUBLIC ${CRYPTO_LIBRARY}
-      PUBLIC _libxml2
-    )
-
+    DEP_ext_libs3(common)
+    DEP_ext_curl(common)
+    DEP_ext_ssl(common)
+    DEP_ext_libxml2(common)
     add_definitions(-DUSE_S3)
   endif()
 
@@ -125,11 +132,6 @@ if(${BUILD_S3})
     endif()
 
     include_directories(${APR_INCLUDE_DIR})
-    target_include_directories(
-      common
-      PUBLIC "${TD_SOURCE_DIR}/contrib/cos-c-sdk-v5/cos_c_sdk"
-      PUBLIC "$ENV{HOME}/.cos-local.1/include"
-    )
 
     add_definitions(-DUSE_COS)
   endif(${BUILD_WITH_COS})

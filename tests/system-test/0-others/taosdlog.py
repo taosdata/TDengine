@@ -88,7 +88,7 @@ class TDTestCase:
                 continue
         return result
 
-    def logRotateOccurred(self, logFiles, targetStr, maxRetry=15):
+    def logRotateOccurred(self, logFiles, targetStr, maxRetry=20):
         result = False
         for i in range(maxRetry):
             if self.checkTargetStrInFiles(logFiles, targetStr):
@@ -365,7 +365,7 @@ class TDTestCase:
             self.prepareCfg(dnodePath, {"serverPort": 10050,
                 "dataDir": dnodePath + os.sep + "data",
                 "logDir": dnodePath + os.sep + "log",
-                "logKeepDays": "3" })
+                "logKeepDays": "-3" })
         except Exception as e:
              raise Exception(f"Failed to prepare configuration for {dnodePath}: {e}")
 

@@ -75,7 +75,7 @@ FROM
 
 ### 编辑“资源（Resource）”
 
-选择 “WebHook” 并填写“请求 URL”为 taosAdapter 提供 REST 服务的地址，如果是本地启动的 taosadapter， 那么默认地址为：
+选择“WebHook”并填写“请求 URL”为 taosAdapter 提供 REST 服务的地址，如果是本地启动的 taosadapter，那么默认地址为：
 
 ```
 http://127.0.0.1:6041/rest/sql
@@ -93,7 +93,7 @@ Basic cm9vdDp0YW9zZGF0YQ==
 ```
 相关文档请参考[ TDengine REST API 文档](../../../reference/connector/rest-api/)。
 
-在消息体中输入规则引擎替换模板:
+在消息体中输入规则引擎替换模板：
 
 ```sql
 INSERT INTO test.sensor_data VALUES(
@@ -114,7 +114,7 @@ INSERT INTO test.sensor_data VALUES(
 
 ![TDengine Database EMQX edit action](./emqx/edit-action.webp)
 
-最后点击左下方的 “Create” 按钮，保存规则。
+最后点击左下方的“Create”按钮，保存规则。
 ## 编写模拟测试程序
 
 ```javascript

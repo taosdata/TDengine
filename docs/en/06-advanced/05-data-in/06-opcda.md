@@ -13,6 +13,10 @@ import imgStep6 from '../../assets/opc-da-06.png';
 import imgStep7 from '../../assets/opc-da-07.png';
 import imgStep8 from '../../assets/opc-da-08.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 This section describes how to create data migration tasks through the Explorer interface, synchronizing data from an OPC-DA server to the current TDengine cluster.
 
 ## Overview
@@ -75,7 +79,7 @@ The encoding format of the CSV file uploaded by the user must be one of the foll
 
 (2) UTF-8 (i.e., UTF-8 without BOM)
 
-2. Header Configuration Rules
+1. Header Configuration Rules
 
 The header is the first line of the CSV file, with the following rules:
 
@@ -107,7 +111,7 @@ The header is the first line of the CSV file, with the following rules:
 
 (5) In the CSV Header, columns that are not listed in the table above, such as: serial number, will be automatically ignored.
 
-3. Row Configuration Rules
+1. Row Configuration Rules
 
 Each Row in the CSV file configures an OPC data point. The rules for Rows are as follows:
 
@@ -135,7 +139,7 @@ Each Row in the CSV file configures an OPC data point. The rules for Rows are as
 
 (3) When `tag_name` is different but `tbname` is the same, `value_col` must be different. This configuration allows data from multiple data points of different types to be written to different columns in the same subtable. This corresponds to the "OPC data into TDengine wide table" scenario.
 
-4. Other Rules
+1. Other Rules
 
 (1) If the number of columns in Header and Row are not consistent, validation fails, and the user is prompted with the line number that does not meet the requirements;
 

@@ -26,13 +26,12 @@ from frame import *
 class TDTestCase(TBase):
     def caseDescription(self):
         """
-        [TD-11510] taosBenchmark test cases
+        taosBenchmark query test cases
         """
-
     def run(self):
         binPath = etool.benchMarkFile()
         os.system(
-            "rm -f taosc_query_specified-0 taosc_query_super-0"
+            "rm -f rest_query_specified-0 rest_query_super-0 taosc_query_specified-0 taosc_query_super-0"
         )
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database if not exists db")
@@ -57,6 +56,46 @@ class TDTestCase(TBase):
             for line in f1.readlines():
                 queryTaosc = line.strip().split()[0]
                 assert queryTaosc == "1", "result is %s != expect: 1" % queryTaosc
+
+        # split two
+        cmd = "%s -f ./tools/benchmark/basic/json/rest_query.json" % binPath
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        cmd = "%s -f ./tools/benchmark/basic/json/rest_query1.json" % binPath
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+
+        times = 0
+        with open("rest_query_super-0", "r+") as f1:
+            for line in f1.readlines():
+                contents = line.strip()
+                if contents.find("data") != -1:
+                    pattern = re.compile("{.*}")
+                    contents = pattern.search(contents).group()
+                    contentsDict = ast.literal_eval(contents)
+                    queryResultRest = contentsDict["data"][0][0]
+                    assert queryResultRest == 1, (
+                        "result is %s != expect: 1" % queryResultRest
+                    )
+                    times += 1
+
+        assert times == 3, "result is %s != expect: 3" % times
+
+        times = 0
+        with open("rest_query_specified-0", "r+") as f1:
+            for line in f1.readlines():
+                contents = line.strip()
+                if contents.find("data") != -1:
+                    pattern = re.compile("{.*}")
+                    contents = pattern.search(contents).group()
+                    contentsDict = ast.literal_eval(contents)
+                    queryResultRest = contentsDict["data"][0][0]
+                    assert queryResultRest == 3, (
+                        "result is %s != expect: 3" % queryResultRest
+                    )
+                    times += 1
+
+        assert times == 1, "result is %s != expect: 1" % times
 
     def stop(self):
         tdSql.close()

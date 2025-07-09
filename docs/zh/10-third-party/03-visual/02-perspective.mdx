@@ -19,12 +19,12 @@ Perspective 是一款开源且强大的数据可视化库，由 [Prospective.co]
 
 - TDengine 服务已部署并正常运行（企业及社区版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)。
-- Python 3.10 及以上版本已安装（如未安装，可参考 [Python 安装](https://docs.python.org/)。
-- 下载或克隆 [perspective-connect-demo](https://github.com/taosdata/perspective-connect-demo) 项目，进入项目根目录后运行 “install.sh” 脚本，以便在本地下载并安装 TDengine 客户端库以及相关的依赖项。
+- Python 3.10 及以上版本已安装 (如未安装，可参考 [Python 安装](https://docs.python.org/))。
+- 下载或克隆 [perspective-connect-demo](https://github.com/taosdata/perspective-connect-demo) 项目，进入项目根目录后运行“install.sh”脚本，以便在本地下载并安装 TDengine 客户端库以及相关的依赖项。
 
 ## 可视化数据
 
-**第 1 步**，运行 [perspective-connect-demo](https://github.com/taosdata/perspective-connect-demo) 项目根目录中的 “run.sh” 脚本，以此启动 Perspective 服务。该服务会每隔 300 毫秒从 TDengine 数据库中获取一次数据，并将数据以流的形式传输至基于 Web 的 `Perspective Viewer` 。
+**第 1 步**，运行 [perspective-connect-demo](https://github.com/taosdata/perspective-connect-demo) 项目根目录中的“run.sh”脚本，以此启动 Perspective 服务。该服务会每隔 300 毫秒从 TDengine 数据库中获取一次数据，并将数据以流的形式传输至基于 Web 的 `Perspective Viewer` 。
 
 ```shell
 sh run.sh
@@ -58,7 +58,7 @@ Python 连接器详细写入说明可参见 [Python 参数绑定](../../../refer
 
 1. 启动一个 Perspective 服务器
 1. 建立与 TDengine 的连接。
-1. 创建一个 Perspective 表(表结构需要与 TDengine 数据库中表的类型保持匹配)。
+1. 创建一个 Perspective 表 (表结构需要与 TDengine 数据库中表的类型保持匹配)。
 1. 调用 `Tornado.PeriodicCallback` 函数来启动定时任务，进而实现对 Perspective 表数据的更新，示例代码如下：
 
 ```python

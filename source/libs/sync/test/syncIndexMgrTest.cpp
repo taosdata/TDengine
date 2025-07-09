@@ -41,14 +41,14 @@ int main(int argc, char** argv) {
   }
 
   SSyncNode* pSyncNode = syncNodeInit();
-  assert(pSyncNode != NULL);
+  TD_ALWAYS_ASSERT(pSyncNode != NULL);
 
   printf("---------------------------------------\n");
   SSyncIndexMgr* pSyncIndexMgr = syncIndexMgrCreate(pSyncNode);
-  assert(pSyncIndexMgr != NULL);
+  TD_ALWAYS_ASSERT(pSyncIndexMgr != NULL);
   {
     char* serialized = syncIndexMgr2Str(pSyncIndexMgr);
-    assert(serialized != NULL);
+    TD_ALWAYS_ASSERT(serialized != NULL);
     printf("%s\n", serialized);
     taosMemoryFree(serialized);
   }
@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
   // syncIndexMgrSetTerm(pSyncIndexMgr, &ids[2], 900);
   {
     char* serialized = syncIndexMgr2Str(pSyncIndexMgr);
-    assert(serialized != NULL);
+    TD_ALWAYS_ASSERT(serialized != NULL);
     printf("%s\n", serialized);
     taosMemoryFree(serialized);
   }
@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
   syncIndexMgrClear(pSyncIndexMgr);
   {
     char* serialized = syncIndexMgr2Str(pSyncIndexMgr);
-    assert(serialized != NULL);
+    TD_ALWAYS_ASSERT(serialized != NULL);
     printf("%s\n", serialized);
     taosMemoryFree(serialized);
   }

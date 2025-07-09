@@ -138,8 +138,16 @@ class TDTestCase:
         tdSql.checkData(0, 0, first_ts)
         tdSql.checkData(0, 1, last_ts)
         tdSql.execute('drop database test')
+    
+    def test_ns_db_fill(self):
+        tdSql.execute("create database nsdb precision 'ns'")
+        tdSql.execute("create table nsdb.nsdb_test(ts timestamp, c0 int, c1 bool, c2 varchar(100), c3 nchar(100), c4 varbinary(100))")
+        tdSql.query("select _wstart, count(*) from nsdb.nsdb_test where ts >='2025-01-01' and ts <= '2025-12-01 23:59:59' interval(1n) fill(NULL)")
+        tdSql.checkRows(0)
+        tdSql.execute("drop database nsdb")
 
     def run(self):
+        self.test_ns_db_fill()
         self.test_fill_range()
         dbname = "db"
         tbname = "tb"

@@ -13,6 +13,10 @@ import imgStep06 from '../../assets/opentsdb-06.png';
 import imgStep07 from '../../assets/opentsdb-07.png';
 import imgStep08 from '../../assets/opentsdb-08.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 This section describes how to create a data migration task through the Explorer interface to migrate data from OpenTSDB to the current TDengine cluster.
 
 ## Overview
@@ -54,16 +58,15 @@ Fill in the *`connection information for the source OpenTSDB database`* in the *
 </figure>
 
 Below the **Connection Configuration** area, there is a **Connectivity Check** button. Users can click this button to check whether the information filled in above can normally access the data from the source OpenTSDB database. The check results are shown below:  
-  **Failed**  
-  
+
   <figure>
   <Image img={imgStep04} alt=""/>
+  <figcaption>Failed</figcaption>
   </figure>
-  
-  **Successful**
 
   <figure>
   <Image img={imgStep05} alt=""/>
+  <figcaption>Successful</figcaption>
   </figure>
 
 ### 4. Configure Task Information

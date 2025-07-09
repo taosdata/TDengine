@@ -17,9 +17,6 @@ def validate_pay_load(json_obj):
     if len(data) <= 1:
         raise ValueError('only one column, primary timestamp column should be provided')
 
-    if len(data) > 2:
-        raise ValueError('too many columns')
-
     rows = len(data[0])
 
     if rows != len(data[1]):
@@ -108,6 +105,24 @@ def get_data_index(schema):
             return index
 
     return -1
+
+def get_past_dynamic_data(data, schema):
+    past_dynamic = []
+
+    for index, val in enumerate(schema):
+        if val[0].startswith("past_dynamic_real"):
+            past_dynamic.append(data[index])
+
+    return None if len(past_dynamic) == 0 else past_dynamic
+
+def get_dynamic_data(data, schema):
+    dynamic = []
+
+    for index, val in enumerate(schema):
+        if val[0].startswith("dynamic_real"):
+            dynamic.append(data[index])
+
+    return None if len(dynamic) == 0 else dynamic
 
 
 def get_ts_index(schema):

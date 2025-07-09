@@ -15,7 +15,6 @@ import sys
 import os
 import threading as thd
 import multiprocessing as mp
-from numpy.lib.function_base import insert
 import taos
 from util.dnodes import TDDnode
 from util.dnodes import *

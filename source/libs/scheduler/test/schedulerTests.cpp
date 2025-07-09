@@ -641,7 +641,7 @@ void *schtCreateFetchRspThread(void *param) {
 
   (void)schReleaseJob(job);
 
-  assert(code == 0);
+  TD_ALWAYS_ASSERT(code == 0);
   return NULL;
 }
 
@@ -677,7 +677,7 @@ void *schtFetchRspThread(void *aa) {
 
     code = schHandleCallback(param, &dataBuf, 0);
 
-    assert(code == 0 || code);
+    TD_ALWAYS_ASSERT(code == 0 || code);
   }
   return NULL;
 }
@@ -704,11 +704,11 @@ void *schtRunJobThread(void *aa) {
   SVgroupInfo vgInfo = {0};
   SQueryPlan *dag = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, (SNode**)&dag);
-  assert(code == 0);
+  TD_ALWAYS_ASSERT(code == 0);
   schtInitLogFile();
 
   code = schedulerInit();
-  assert(code == 0);
+  TD_ALWAYS_ASSERT(code == 0);
 
   schtSetPlanToString();
   schtSetExecNode();
@@ -725,7 +725,7 @@ void *schtRunJobThread(void *aa) {
 
     SArray *qnodeList = taosArrayInit(1, sizeof(SQueryNodeLoad));
     if (NULL == qnodeList) {
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
     }
     
     SQueryNodeLoad load = {0};
@@ -733,7 +733,7 @@ void *schtRunJobThread(void *aa) {
     TAOS_STRCPY(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
     load.addr.epSet.eps[0].port = 6031;
     if (NULL == taosArrayPush(qnodeList, &load)) {
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
     }
 
     queryDone = 0;
@@ -750,7 +750,7 @@ void *schtRunJobThread(void *aa) {
     req.cbParam = &queryDone;
 
     code = schedulerExecJob(&req, &queryJobRefId);
-    assert(code == 0);
+    TD_ALWAYS_ASSERT(code == 0);
 
     pJob = NULL;
     code = schAcquireJob(queryJobRefId, &pJob);
@@ -763,7 +763,7 @@ void *schtRunJobThread(void *aa) {
 
     execTasks = taosHashInit(5, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
     if (NULL == execTasks) {
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
     }
     void *pIter = taosHashIterate(pJob->execTasks, NULL);
     while (pIter) {
@@ -771,14 +771,14 @@ void *schtRunJobThread(void *aa) {
       schtFetchTaskId = task->taskId - 1;
 
       if (taosHashPut(execTasks, &task->taskId, sizeof(task->taskId), task, sizeof(*task))) {
-        assert(0);
+        TD_ALWAYS_ASSERT(0);
       }
       pIter = taosHashIterate(pJob->execTasks, pIter);
     }
 
     param = (SSchTaskCallbackParam *)taosMemoryCalloc(1, sizeof(*param));
     if (NULL == param) {
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
     }
     param->refId = queryJobRefId;
     param->queryId = pJob->queryId;
@@ -792,20 +792,20 @@ void *schtRunJobThread(void *aa) {
       SDataBuf msg = {0};
       void    *rmsg = NULL;
       if (schtBuildQueryRspMsg(&msg.len, &rmsg)) {
-        assert(0);
+        TD_ALWAYS_ASSERT(0);
       }
       msg.msgType = TDMT_SCH_QUERY_RSP;
       msg.pData = rmsg;
 
       code = schHandleCallback(param, &msg, 0);
-      assert(code == 0 || code);
+      TD_ALWAYS_ASSERT(code == 0 || code);
 
       pIter = taosHashIterate(execTasks, pIter);
     }
 
     param = (SSchTaskCallbackParam *)taosMemoryCalloc(1, sizeof(*param));
     if (NULL == param) {
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
     }
     param->refId = queryJobRefId;
     param->queryId = pJob->queryId;
@@ -818,13 +818,13 @@ void *schtRunJobThread(void *aa) {
       SDataBuf msg = {0};
       void    *rmsg = NULL;
       if (schtBuildQueryRspMsg(&msg.len, &rmsg)) {
-         assert(0);
+         TD_ALWAYS_ASSERT(0);
       }
       msg.msgType = TDMT_SCH_QUERY_RSP;
       msg.pData = rmsg;
 
       code = schHandleCallback(param, &msg, 0);
-      assert(code == 0 || code);
+      TD_ALWAYS_ASSERT(code == 0 || code);
 
       pIter = taosHashIterate(execTasks, pIter);
     }
@@ -844,16 +844,16 @@ void *schtRunJobThread(void *aa) {
     req.pFetchRes = &data;
 
     code = schedulerFetchRows(queryJobRefId, &req);
-    assert(code == 0 || code);
+    TD_ALWAYS_ASSERT(code == 0 || code);
 
     if (0 == code) {
       SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)data;
-      assert(pRsp->completed == 1);
+      TD_ALWAYS_ASSERT(pRsp->completed == 1);
     }
 
     data = NULL;
     code = schedulerFetchRows(queryJobRefId, &req);
-    assert(code == 0 || code);
+    TD_ALWAYS_ASSERT(code == 0 || code);
 
     schtFreeQueryJob(0);
 
@@ -901,7 +901,7 @@ TEST(queryTest, normalCase) {
   load.addr.epSet.numOfEps = 1;
   TAOS_STRCPY(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
   load.addr.epSet.eps[0].port = 6031;
-  assert(taosArrayPush(qnodeList, &load) != NULL);
+  ASSERT_NE(taosArrayPush(qnodeList, &load), nullptr);
 
   code = schedulerInit();
   ASSERT_EQ(code, 0);
@@ -937,7 +937,7 @@ TEST(queryTest, normalCase) {
 
     SDataBuf msg = {0};
     void    *rmsg = NULL;
-    assert(0 == schtBuildQueryRspMsg(&msg.len, &rmsg));
+    ASSERT_EQ(0, schtBuildQueryRspMsg(&msg.len, &rmsg));
     msg.msgType = TDMT_SCH_QUERY_RSP;
     msg.pData = rmsg;
 
@@ -953,7 +953,7 @@ TEST(queryTest, normalCase) {
     if (JOB_TASK_STATUS_EXEC == task->status) {
       SDataBuf msg = {0};
       void    *rmsg = NULL;
-      assert(0 == schtBuildQueryRspMsg(&msg.len, &rmsg));
+      ASSERT_EQ(0, schtBuildQueryRspMsg(&msg.len, &rmsg));
       msg.msgType = TDMT_SCH_QUERY_RSP;
       msg.pData = rmsg;
 
@@ -974,10 +974,10 @@ TEST(queryTest, normalCase) {
   }
 
   TdThreadAttr thattr;
-  assert(0 == taosThreadAttrInit(&thattr));
+  ASSERT_EQ(0, taosThreadAttrInit(&thattr));
 
   TdThread thread1;
-  assert(0 == taosThreadCreate(&(thread1), &thattr, schtCreateFetchRspThread, &job));
+  ASSERT_EQ(0, taosThreadCreate(&(thread1), &thattr, schtCreateFetchRspThread, &job));
 
   void *data = NULL;
   req.syncReq = true;
@@ -1019,10 +1019,10 @@ TEST(queryTest, rescheduleCase) {
   load.addr.epSet.numOfEps = 1;
   TAOS_STRCPY(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
   load.addr.epSet.eps[0].port = 6031;
-  assert(taosArrayPush(qnodeList, &load) != NULL);
+  ASSERT_NE(taosArrayPush(qnodeList, &load), nullptr);
 
   TAOS_STRCPY(load.addr.epSet.eps[0].fqdn, "qnode1.ep");
-  assert(taosArrayPush(qnodeList, &load) != NULL);
+  ASSERT_NE(taosArrayPush(qnodeList, &load), nullptr);
 
   code = schedulerInit();
   ASSERT_EQ(code, 0);
@@ -1072,7 +1072,7 @@ TEST(queryTest, rescheduleCase) {
 
     SDataBuf msg = {0};
     void    *rmsg = NULL;
-    assert(0 == schtBuildQueryRspMsg(&msg.len, &rmsg));
+    ASSERT_EQ(0, schtBuildQueryRspMsg(&msg.len, &rmsg));
     msg.msgType = TDMT_SCH_QUERY_RSP;
     msg.pData = rmsg;
 
@@ -1101,7 +1101,7 @@ TEST(queryTest, rescheduleCase) {
     if (JOB_TASK_STATUS_EXEC == task->status) {
       SDataBuf msg = {0};
       void    *rmsg = NULL;
-      assert(0 == schtBuildQueryRspMsg(&msg.len, &rmsg));
+      ASSERT_EQ(0, schtBuildQueryRspMsg(&msg.len, &rmsg));
       msg.msgType = TDMT_SCH_QUERY_RSP;
       msg.pData = rmsg;
 
@@ -1122,10 +1122,10 @@ TEST(queryTest, rescheduleCase) {
   }
 
   TdThreadAttr thattr;
-  assert(0 == taosThreadAttrInit(&thattr));
+  ASSERT_EQ(0, taosThreadAttrInit(&thattr));
 
   TdThread thread1;
-  assert(0 == taosThreadCreate(&(thread1), &thattr, schtCreateFetchRspThread, &job));
+  ASSERT_EQ(0,  taosThreadCreate(&(thread1), &thattr, schtCreateFetchRspThread, &job));
 
   void *data = NULL;
   req.syncReq = true;
@@ -1168,7 +1168,7 @@ TEST(queryTest, readyFirstCase) {
   load.addr.epSet.numOfEps = 1;
   TAOS_STRCPY(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
   load.addr.epSet.eps[0].port = 6031;
-  assert(NULL != taosArrayPush(qnodeList, &load));
+  ASSERT_NE(nullptr, taosArrayPush(qnodeList, &load));
 
   code = schedulerInit();
   ASSERT_EQ(code, 0);
@@ -1203,7 +1203,7 @@ TEST(queryTest, readyFirstCase) {
 
     SDataBuf msg = {0};
     void    *rmsg = NULL;
-    assert(0 == schtBuildQueryRspMsg(&msg.len, &rmsg));
+    ASSERT_EQ(0, schtBuildQueryRspMsg(&msg.len, &rmsg));
     msg.msgType = TDMT_SCH_QUERY_RSP;
     msg.pData = rmsg;
 
@@ -1220,7 +1220,7 @@ TEST(queryTest, readyFirstCase) {
     if (JOB_TASK_STATUS_EXEC == task->status) {
       SDataBuf msg = {0};
       void    *rmsg = NULL;
-      assert(0 == schtBuildQueryRspMsg(&msg.len, &rmsg));
+      ASSERT_EQ(0, schtBuildQueryRspMsg(&msg.len, &rmsg));
       msg.msgType = TDMT_SCH_QUERY_RSP;
       msg.pData = rmsg;
 
@@ -1241,10 +1241,10 @@ TEST(queryTest, readyFirstCase) {
   }
 
   TdThreadAttr thattr;
-  assert(0 == taosThreadAttrInit(&thattr));
+  ASSERT_EQ(0, taosThreadAttrInit(&thattr));
 
   TdThread thread1;
-  assert(0 == taosThreadCreate(&(thread1), &thattr, schtCreateFetchRspThread, &job));
+  ASSERT_EQ(0, taosThreadCreate(&(thread1), &thattr, schtCreateFetchRspThread, &job));
 
   void *data = NULL;
   req.syncReq = true;
@@ -1288,7 +1288,7 @@ TEST(queryTest, flowCtrlCase) {
   load.addr.epSet.numOfEps = 1;
   TAOS_STRCPY(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
   load.addr.epSet.eps[0].port = 6031;
-  assert(NULL != taosArrayPush(qnodeList, &load));
+  ASSERT_NE(nullptr, taosArrayPush(qnodeList, &load));
 
   code = schedulerInit();
   ASSERT_EQ(code, 0);
@@ -1299,7 +1299,7 @@ TEST(queryTest, flowCtrlCase) {
   schtSetExecNode();
   schtSetAsyncSendMsgToServer();
 
-  assert(0 == initTaskQueue());
+  ASSERT_EQ(0, initTaskQueue());
 
   int32_t          queryDone = 0;
   SRequestConnInfo conn = {0};
@@ -1327,7 +1327,7 @@ TEST(queryTest, flowCtrlCase) {
       if (JOB_TASK_STATUS_EXEC == task->status && 0 != task->lastMsgType) {
         SDataBuf msg = {0};
         void    *rmsg = NULL;
-        assert(0 == schtBuildQueryRspMsg(&msg.len, &rmsg));
+        ASSERT_EQ(0, schtBuildQueryRspMsg(&msg.len, &rmsg));
         msg.msgType = TDMT_SCH_QUERY_RSP;
         msg.pData = rmsg;
 
@@ -1341,10 +1341,10 @@ TEST(queryTest, flowCtrlCase) {
   }
 
   TdThreadAttr thattr;
-  assert(0 == taosThreadAttrInit(&thattr));
+  ASSERT_EQ(0, taosThreadAttrInit(&thattr));
 
   TdThread thread1;
-  assert(0 == taosThreadCreate(&(thread1), &thattr, schtCreateFetchRspThread, &job));
+  ASSERT_EQ(0, taosThreadCreate(&(thread1), &thattr, schtCreateFetchRspThread, &job));
 
   void *data = NULL;
   req.syncReq = true;
@@ -1386,7 +1386,7 @@ TEST(insertTest, normalCase) {
   load.addr.epSet.numOfEps = 1;
   TAOS_STRCPY(load.addr.epSet.eps[0].fqdn, "qnode0.ep");
   load.addr.epSet.eps[0].port = 6031;
-  assert(NULL != taosArrayPush(qnodeList, &load));
+  ASSERT_NE(nullptr, taosArrayPush(qnodeList, &load));
 
   code = schedulerInit();
   ASSERT_EQ(code, 0);
@@ -1397,12 +1397,12 @@ TEST(insertTest, normalCase) {
   schtSetAsyncSendMsgToServer();
 
   TdThreadAttr thattr;
-  assert(0 == taosThreadAttrInit(&thattr));
+  ASSERT_EQ(0, taosThreadAttrInit(&thattr));
 
   schtJobDone = false;
 
   TdThread thread1;
-  assert(0 == taosThreadCreate(&(thread1), &thattr, schtSendRsp, &insertJobRefId));
+  ASSERT_EQ(0, taosThreadCreate(&(thread1), &thattr, schtSendRsp, &insertJobRefId));
 
   int32_t          queryDone = 0;
   SRequestConnInfo conn = {0};
@@ -1436,12 +1436,12 @@ TEST(insertTest, normalCase) {
 
 TEST(multiThread, forceFree) {
   TdThreadAttr thattr;
-  assert(0 == taosThreadAttrInit(&thattr));
+  ASSERT_EQ(0, taosThreadAttrInit(&thattr));
 
   TdThread thread1, thread2, thread3;
-  assert(0 == taosThreadCreate(&(thread1), &thattr, schtRunJobThread, NULL));
+  ASSERT_EQ(0, taosThreadCreate(&(thread1), &thattr, schtRunJobThread, NULL));
   //  taosThreadCreate(&(thread2), &thattr, schtFreeJobThread, NULL);
-  assert(0 == taosThreadCreate(&(thread3), &thattr, schtFetchRspThread, NULL));
+  ASSERT_EQ(0, taosThreadCreate(&(thread3), &thattr, schtFetchRspThread, NULL));
 
   while (true) {
     if (schtTestDeadLoop) {
@@ -1762,7 +1762,7 @@ void schtReset() {
 int main(int argc, char **argv) {
   schtInitLogFile();
   if (rpcInit()) {
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
   taosSeedRand(taosGetTimestampSec());
   testing::InitGoogleTest(&argc, argv);

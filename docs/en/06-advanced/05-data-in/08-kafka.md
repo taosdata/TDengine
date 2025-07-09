@@ -24,6 +24,10 @@ import imgStep16 from '../../assets/kafka-16.png';
 import imgStep17 from '../../assets/kafka-17.png';
 import imgStep18 from '../../assets/kafka-18.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 This section describes how to create data migration tasks through the Explorer interface, migrating data from Kafka to the current TDengine cluster.
 
 ## Feature Overview

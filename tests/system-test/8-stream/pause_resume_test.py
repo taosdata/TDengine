@@ -79,7 +79,7 @@ class TDTestCase:
             else:
                 partition_elm = ""
 
-            time.sleep(1)
+            # time.sleep(1)
 
             # if i == int(range_count/2):
             if i > 2 and i % 3 == 0:
@@ -88,6 +88,8 @@ class TDTestCase:
                         tdSql.execute(f'pause stream if exists {stream_name}_no_exist')
                     tdSql.error(f'pause stream if not exists {stream_name}')
                     tdSql.error(f'pause stream {stream_name}_no_exist')
+                    # self.tdCom.check_transactions()
+                    self.tdCom.wait_checkpoint_ready(stream_name)
                     self.tdCom.pause_stream(stream_name, if_exist)
                 if pause and not resume and range_count-i <= 3:
                     time.sleep(self.tdCom.default_interval)

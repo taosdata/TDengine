@@ -1,7 +1,8 @@
 <!-- omit in toc -->
 # taosKeeper
 
-[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/taosdata/TDengine/taoskeeper-ci-build.yml)](https://github.com/taosdata/TDengine/actions/workflows/taoskeeper-ci-build.yml)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/taosdata/TDengine/taoskeeper-build.yml)](https://github.com/taosdata/TDengine/actions/workflows/taoskeeper-build.yml)
+[![codecov](https://codecov.io/gh/taosdata/taoskeeper/graph/badge.svg)](https://codecov.io/gh/taosdata/taoskeeper)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/taosdata/TDengine)
 ![GitHub License](https://img.shields.io/github/license/taosdata/TDengine)
 ![GitHub Release](https://img.shields.io/github/v/release/taosdata/tdengine)
@@ -44,7 +45,7 @@ An important value of taosKeeper is that it can store the monitoring data of mul
 
 ## 3. Prerequisites
 
-1. Go 1.18 or above has been installed.
+1. Go 1.23 or above has been installed.
 2. TDengine has been deployed locally. For specific steps, please refer to [Deploy TDengine](https://docs.tdengine.com/get-started/deploy-from-package/), and taosd and taosAdapter have been started.
 
 ## 4. Build

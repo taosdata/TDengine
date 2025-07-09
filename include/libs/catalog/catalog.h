@@ -99,6 +99,7 @@ typedef struct SCatalogReq {
   SArray* pTSMAs;         // element is STablesReq
   SArray* pTableName;     // element is STablesReq
   SArray* pVSubTable;     // element is SName
+  SArray* pVStbRefDbs;    // element is SName
   bool    qNodeRequired;  // valid qnode
   bool    dNodeRequired;  // valid dnode
   bool    svrVerRequired;
@@ -126,11 +127,12 @@ typedef struct SMetaData {
   SArray*   pQnodeList;   // pRes = SArray<SQueryNodeLoad>*
   SArray*   pTableCfg;    // pRes = STableCfg*
   SArray*   pTableTag;    // pRes = SArray<STagVal>*
-  SArray*   pDnodeList;   // pRes = SArray<SEpSet>*
+  SArray*   pDnodeList;   // pRes = SArray<SDNodeAddr>*
   SArray*   pView;        // pRes = SViewMeta*
   SArray*   pTableTsmas;  // pRes = SArray<STableTSMAInfo*>
   SArray*   pTsmas;       // pRes = SArray<STableTSMAInfo*>
   SArray*   pVSubTables;  // pRes = SVSubTablesRsp
+  SArray*   pVStbRefDbs;  // pRes = SVStbRefDbsRsp
   SMetaRes* pSvrVer;      // pRes = char*
 } SMetaData;
 
@@ -192,6 +194,7 @@ typedef struct STbSVersion {
   char*   tbFName;
   int32_t sver;
   int32_t tver;
+  int32_t rver; // virtual table's column ref's version
 } STbSVersion;
 
 typedef struct SUserAuthVersion {

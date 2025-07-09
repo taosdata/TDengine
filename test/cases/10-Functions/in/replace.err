@@ -1,0 +1,7 @@
+select replace();
+select replace('aabbccdd', , 'ee');
+select replace('aabbccdd', 'aa', );
+select replace(, 'aa', 'ee');
+select replace(123345, 1, 'ee');
+select replace('aabbccdd', 1, 'ee');
+select replace('aabbccdd', 'a', 1);

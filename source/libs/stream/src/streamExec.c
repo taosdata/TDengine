@@ -515,7 +515,7 @@ int32_t streamTransferStatePrepare(SStreamTask* pTask) {
   }
 
   int32_t level = pTask->info.taskLevel;
-  if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SOURCE) {  // do transfer task operator states.
+  if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SOURCE || level == TASK_LEVEL__MERGE) {  // do transfer task operator states.
     code = streamTransferStateDoPrepare(pTask);
   } else {
     // no state transfer for sink tasks, and drop fill-history task, followed by opening inputQ of sink task.
@@ -622,7 +622,7 @@ void streamProcessTransstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) 
   // dispatch the tran-state block to downstream task immediately
   int32_t type = pTask->outputInfo.type;
 
-  if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SINK) {
+  if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SINK || level == TASK_LEVEL__MERGE) {
     int32_t remain = streamAlignTransferState(pTask);
     if (remain > 0) {
       streamFreeQitem((SStreamQueueItem*)pBlock);
@@ -640,7 +640,7 @@ void streamProcessTransstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) 
     }
 
     // agg task should dispatch trans-state msg to sink task, to flush all data to sink task.
-    if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SOURCE) {
+    if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SOURCE || level == TASK_LEVEL__MERGE) {
       pBlock->srcVgId = pTask->pMeta->vgId;
       code = taosWriteQitem(pTask->outputq.queue->pQueue, pBlock);
       if (code == 0) {

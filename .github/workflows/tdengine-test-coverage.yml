@@ -1,0 +1,37 @@
+name: TDengine Coverage
+description: Coverage test for taosd & taosc
+
+on:
+  workflow_dispatch:
+    inputs:
+      specified_tdinternal_test_branch:
+        description: 'Enter the test branch of TDinternal'
+        required: false
+        type: string
+        default: 'cover/3.0' # default value for TDinternal test branch
+      specified_tdengine_test_branch:
+        description: 'Enter the test branch of TDengine'
+        required: false
+        type: string
+        default: 'cover/3.0' # default value for TDengine test branch
+  schedule:
+    - cron: '0 02 * * *'
+    # - cron: '0 18 * * *'
+    # - cron: '0 */12 * * *'
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.inputs.specified_tdinternal_test_branch || 'cover/3.0' }}-${{ github.event.inputs.specified_tdengine_test_branch || 'cover/3.0' }}-TDengine
+  cancel-in-progress: true
+
+env:
+  WK: '/var/lib/jenkins/workspace/TDinternal/'
+  WKC: '/var/lib/jenkins/workspace/TDinternal/community'
+
+jobs:
+  run-tests-on-linux:
+    uses: taosdata/.github/.github/workflows/run-coverage-tests-on-linux.yml@test_coverage
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'}}
+    with:
+      specified_tdinternal_test_branch: ${{ github.event_name == 'schedule' && 'cover/3.0' || github.event.inputs.specified_tdinternal_test_branch || 'cover/3.0' }}
+      specified_tdengine_test_branch: ${{ github.event_name == 'schedule' && 'cover/3.0' || github.event.inputs.specified_tdengine_test_branch || 'cover/3.0' }}

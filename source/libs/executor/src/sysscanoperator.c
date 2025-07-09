@@ -2603,15 +2603,15 @@ static SSDataBlock* sysTableBuildUserFileSets(SOperatorInfo* pOperator) {
       QUERY_CHECK_CODE(code, lino, _end);
 
       // last_compact
-      int64_t lastCompacat = 0;
-      code = pAPI->tsdReader.fileSetGetEntryField(pInfo->pFileSetReader, "last_compact_time", &lastCompacat);
+      int64_t lastCompact = 0;
+      code = pAPI->tsdReader.fileSetGetEntryField(pInfo->pFileSetReader, "last_compact_time", &lastCompact);
       QUERY_CHECK_CODE(code, lino, _end);
       pColInfoData = taosArrayGet(p->pDataBlock, index++);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      code = colDataSetVal(pColInfoData, numOfRows, (char*)&lastCompacat, false);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&lastCompact, false);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      // shold_compact
+      // should_compact
       bool shouldCompact = false;
       code = pAPI->tsdReader.fileSetGetEntryField(pInfo->pFileSetReader, "should_compact", &shouldCompact);
       QUERY_CHECK_CODE(code, lino, _end);

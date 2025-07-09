@@ -47,6 +47,7 @@ static int32_t mndInsInitMeta(SHashObj *hash) {
   meta.tableType = TSDB_SYSTEM_TABLE;
   meta.sversion = 1;
   meta.tversion = 1;
+  meta.rversion = 1;
   meta.virtualStb = false;
 
   size_t               size = 0;
@@ -90,7 +91,9 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
     TAOS_RETURN(code);
   }
 
-  if (!sysinfo && pMeta->sysInfo) {
+  bool isShowAnodes = (strcmp(tbName, TSDB_INS_TABLE_ANODES) == 0 || strcmp(tbName, TSDB_INS_TABLE_ANODES_FULL) == 0);
+
+  if (!isShowAnodes && !sysinfo && pMeta->sysInfo) {
     mError("no permission to get schema of table name:%s", tbName);
     code = TSDB_CODE_PAR_PERMISSION_DENIED;
     TAOS_RETURN(code);

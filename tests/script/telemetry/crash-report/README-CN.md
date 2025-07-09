@@ -36,8 +36,11 @@ vim .env
 ```
 
 - .env 样例
-
 ```bash
+# 统计详细 crash 信息的版本
+VERSION="3.3.2.*"
+# 统计不同版本 crash 数量
+VERSION_LIST=3.3.5.*,3.3.6.*
 # 过滤器排除 IP（公司网络出口 IP）
 EXCLUDE_IP="192.168.1.10"
 # 英文官网服务器 IP

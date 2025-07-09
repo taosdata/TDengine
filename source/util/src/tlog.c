@@ -367,7 +367,7 @@ static void taosUnLockLogFile(TdFilePtr pFile) {
 }
 
 static void taosReserveOldLog(char *oldName, char *keepName) {
-  if (tsLogKeepDays <= 0) {
+  if (tsLogKeepDays == 0) {
     keepName[0] = 0;
     return;
   }
@@ -461,8 +461,8 @@ static void *taosThreadToCloseOldFile(void *param) {
   taosCloseLogByFd(oldFileKeeper->pOldFile);
   taosKeepOldLog(oldFileKeeper->keepName);
   taosMemoryFree(oldFileKeeper);
-  if (tsLogKeepDays > 0) {
-    taosRemoveOldFiles(tsLogDir, tsLogKeepDays);
+  if (tsLogKeepDays != 0) {
+    taosRemoveOldFiles(tsLogDir, abs(tsLogKeepDays));
   }
   taosWUnLockLatch(&tsLogRotateLatch);
   return NULL;
@@ -1072,10 +1072,30 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
 #define LOG_INACTIVE_TIME 5
 #define LOG_ROTATE_BOOT   (LOG_INACTIVE_TIME + 1)
 #endif
-
-static void *taosLogRotateFunc(void *param) {
+static int8_t tsLogRotateRunning = 0;
+static void  *taosLogRotateFunc(void *param) {
   setThreadName("logRotate");
   int32_t code = 0;
+  if (0 != atomic_val_compare_exchange_8(&tsLogRotateRunning, 0, 1)) {
+    uInfo("log rotation is already in progress");
+    return NULL;
+  }
+  // get prefix of logfile name
+  char *filePrefix = NULL;
+  char *filePos = strrchr(tsLogObj.logName, TD_DIRSEP_CHAR);
+  if (!filePos || !(++filePos)) {
+    atomic_store_8(&tsLogRotateRunning, 0);
+    return NULL;
+  }
+  int32_t filePrefixLen = strlen(filePos);
+  if (!(filePrefix = taosMemoryMalloc(filePrefixLen + 1))) {
+    atomic_store_8(&tsLogRotateRunning, 0);
+    return NULL;
+  }
+  tstrncpy(filePrefix, filePos, filePrefixLen + 1);
+  int32_t i = filePrefixLen - 1;
+  while (i > 0 && isdigit(filePrefix[i])) filePrefix[i--] = '\0';
+
   taosWLockLatch(&tsLogRotateLatch);
   // compress or remove the old log files
   TdDirPtr pDir = taosOpenDir(tsLogDir);
@@ -1089,6 +1109,8 @@ static void *taosLogRotateFunc(void *param) {
     if (!fname) {
       continue;
     }
+
+    if (!strstr(fname, filePrefix)) continue;
 
     char *pSec = strrchr(fname, '.');
     if (!pSec) {
@@ -1131,7 +1153,7 @@ static void *taosLogRotateFunc(void *param) {
     }
 
     int32_t days = inactiveSec / 86400 + 1;
-    if (tsLogKeepDays > 0 && days > tsLogKeepDays) {
+    if (tsLogKeepDays != 0 && days > abs(tsLogKeepDays)) {
       TAOS_UNUSED(taosRemoveFile(fullName));
       uInfo("file:%s is removed, days:%d, keepDays:%d, sed:%" PRId64, fullName, days, tsLogKeepDays, fileSec);
     } else {
@@ -1142,11 +1164,13 @@ static void *taosLogRotateFunc(void *param) {
     uWarn("%s:%d failed to close dir %s since %s\n", __func__, __LINE__, tsLogDir, tstrerror(code));
   }
 
-  if (tsLogKeepDays > 0) {
-    taosRemoveOldFiles(tsLogDir, tsLogKeepDays);
+  if (tsLogKeepDays != 0) {
+    taosRemoveOldFiles(tsLogDir, abs(tsLogKeepDays));
   }
 _exit:
   taosWUnLockLatch(&tsLogRotateLatch);
+  atomic_store_8(&tsLogRotateRunning, 0);
+  taosMemFreeClear(filePrefix);
   return NULL;
 }
 
@@ -1188,7 +1212,7 @@ static void *taosAsyncOutputLog(void *param) {
     // process the log rotation every LOG_ROTATE_INTERVAL
     int64_t curSec = taosGetTimestampMs() / 1000;
     if (curSec >= lastCheckSec) {
-      if ((curSec - lastCheckSec) >= LOG_ROTATE_INTERVAL) {
+      if ((curSec - lastCheckSec) >= (LOG_ROTATE_INTERVAL + (taosRand() % LOG_ROTATE_BOOT))) {
         TdThread     thread;
         TdThreadAttr attr;
         (void)taosThreadAttrInit(&attr);

@@ -334,7 +334,8 @@ void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   taosArrayDestroy(ctx->tbInfo);
 
   if (gMemPoolHandle && ctx->memPoolSession) {
-    qwDestroySession(QW_FPARAMS(), ctx->pJobInfo, ctx->memPoolSession);
+    qwDestroySession(QW_FPARAMS(), ctx->pJobInfo, ctx->memPoolSession, true);
+    ctx->memPoolSession = NULL;
   }
 }
 
@@ -562,7 +563,7 @@ int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
   while (true) {
     tbGet = false;
     code = qGetQueryTableSchemaVersion(pTaskInfo, dbFName, TSDB_DB_FNAME_LEN, tbName, TSDB_TABLE_NAME_LEN,
-                                       &tbInfo.sversion, &tbInfo.tversion, i, &tbGet);
+                                       &tbInfo.sversion, &tbInfo.tversion, &tbInfo.rversion, i, &tbGet);
     if (TSDB_CODE_SUCCESS != code || !tbGet) {
       break;
     }

@@ -147,6 +147,12 @@ class TDTestCase(TBase):
 
     def test_trim(self):
         self.test_normal_query_new("trim")
+        
+    def test_base64(self):
+        self.test_normal_query_new("base64")
+    
+    def test_crc32(self):
+        self.test_normal_query_new("crc32")
 
     def test_timediff(self):
         self.test_normal_query_new("timediff")
@@ -282,6 +288,8 @@ class TDTestCase(TBase):
     def test_error(self):
         tdSql.error("select * from (select to_iso8601(ts, timezone()), timezone() from ts_4893.meters \
             order by ts desc) limit 1000;", expectErrInfo="Invalid parameter data type : to_iso8601") # TS-5340
+        tdSql.error("select * from ts_4893.meters where ts between(timetruncate(now, 1h) - 10y) and timetruncate(now(), 10y) partition by voltage;",
+                    expectErrInfo="Invalid timzone format : timetruncate") #
 
     def test_greatest(self):
         self.test_normal_query_new("greatest")
@@ -530,6 +538,8 @@ class TDTestCase(TBase):
         self.test_substr()
         self.test_substr_idx()
         self.test_trim()
+        self.test_base64()
+        self.test_crc32()
 
         # time function
         self.test_timediff()

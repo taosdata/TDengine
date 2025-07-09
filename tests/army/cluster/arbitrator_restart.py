@@ -31,18 +31,29 @@ class TDTestCase(TBase):
         tdSql.init(conn.cursor(), logSql)  
 
     def run(self):
+        tdLog.info("create database")
         tdSql.execute('CREATE DATABASE db vgroups 1 replica 2;')
+
+        if self.waitTransactionZero() is False:
+            tdLog.exit(f"create db transaction not finished")
+            return False
 
         time.sleep(1)
 
         tdSql.execute("use db;")
 
+        tdLog.info("create stable")
         tdSql.execute("CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);")
 
+        if self.waitTransactionZero() is False:
+            tdLog.exit(f"create stable transaction not finished")
+            return False
+
+        tdLog.info("create table")
         tdSql.execute("CREATE TABLE d0 USING meters TAGS (\"California.SanFrancisco\", 2);");
 
+        tdLog.info("waiting vgroup is sync")
         count = 0
-
         while count < 100:        
             tdSql.query("show arbgroups;")
 
@@ -57,11 +68,14 @@ class TDTestCase(TBase):
             tdLog.exit("arbgroup sync failed")
             return 
 
+        tdLog.info("stop dnode2 and dnode3")
         sc.dnodeStop(2) 
         sc.dnodeStop(3)
 
+        tdLog.info("start dnode2")
         sc.dnodeStart(2)
 
+        tdLog.info("waiting candidate")
         count = 0
         while count < 100:
             tdSql.query("show db.vgroups;")
@@ -77,8 +91,10 @@ class TDTestCase(TBase):
             tdLog.exit("wait candidate failed")
             return
         
+        tdLog.info("force assign")
         tdSql.execute("ASSIGN LEADER FORCE;")
 
+        tdLog.info("waiting assigned")
         count = 0
         while count < 100:
             tdSql.query("show db.vgroups;")
@@ -96,10 +112,11 @@ class TDTestCase(TBase):
 
         tdSql.execute("INSERT INTO d0 VALUES (NOW, 10.3, 219, 0.31);")
 
+        tdLog.info("start dnode3")
         sc.dnodeStart(3)
 
+        tdLog.info("waiting vgroup is sync")
         count = 0
-
         while count < 100:        
             tdSql.query("show arbgroups;")
 

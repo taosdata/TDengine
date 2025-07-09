@@ -4,13 +4,9 @@ title: 虚拟表
 description: 对虚拟表的各种管理操作
 ---
 
-import origintable from './pic/virtual-table-origin-table.png';
-import queryres from './pic/virtual-table-query-res.png';
-import partres from './pic/virtual-table-query-res-part.png';
-
 ## 创建虚拟表
 
-`CREATE VTABLE` 语句用于创建普通虚拟表和以虚拟超级表为模板创建虚拟子表。
+`CREATE VTABLE` 语句用于创建虚拟普通表和以虚拟超级表为模板创建虚拟子表。
 
 ### 创建虚拟超级表
 
@@ -20,7 +16,7 @@ import partres from './pic/virtual-table-query-res-part.png';
 ```sql
 CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name 
     ts_col_name timestamp, 
-    (create_defination[ ,create_defination] ...) 
+    (create_definition[ ,create_definition] ...) 
      
   create_definition:
     vtb_col_name column_definition
@@ -33,7 +29,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
 ### 创建虚拟子表
 ```sql
 CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name 
-    (create_defination[ ,create_defination] ...) 
+    (create_definition[ ,create_definition] ...) 
     USING [db_name.]stb_name 
     [(tag_name [, tag_name] ...)] 
     TAGS (tag_value [, tag_value] ...)
@@ -73,9 +69,70 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
 
 假设有表 t1、t2、t3 结构和数据如下：
 
-<img src={origintable} width="500" alt="origintable" />
+<table>
+    <tr>
+        <th colspan="2" align="center">t1</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">t2</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="3" align="center">t3</th>
+    </tr>
+    <tr>
+        <td align="center">ts</td>
+        <td align="center">value</td>
+        <td align="center">ts</td>
+        <td align="center">value</td>
+        <td align="center">ts</td>
+        <td align="center">value1</td>
+        <td align="center">value2</td>
+    </tr>
+    <tr>
+        <td align="center">0:00:01</td>
+        <td align="center">1</td>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center"></td>
+    </tr>
+    <tr>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center">0:00:02</td>
+        <td align="center">20</td>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center"></td>
+    </tr>
+    <tr>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center">0:00:03</td>
+        <td align="center">300</td>
+        <td align="center">3000</td>
+    </tr>
+    <tr>
+        <td align="center">0:00:04</td>
+        <td align="center">4</td>
+        <td align="center">0:00:04</td>
+        <td align="center">40</td>
+        <td align="center">0:00:03</td>
+        <td align="center"></td>
+        <td align="center"></td>
+    </tr>
+    <tr>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center">0:00:05</td>
+        <td align="center">50</td>
+        <td align="center">0:00:05</td>
+        <td align="center">500</td>
+        <td align="center">5000</td>
+    </tr>
+</table>
 
-并且有虚拟普通表 v1 ，创建方式如下：
+并且有虚拟普通表 v1，创建方式如下：
 
 ```sql
 create vtable v1 (
@@ -94,7 +151,53 @@ select * from v1;
 
 结果如下：
 
-<img src={queryres} width="200" alt="queryres" />
+<table>
+    <tr>
+        <th colspan="5" align="center">v1</th>
+    </tr>
+    <tr>
+        <td align="center">ts</td>
+        <td align="center">c1</td>
+        <td align="center">c2</td>
+        <td align="center">c3</td>
+        <td align="center">c4</td>
+    </tr>
+    <tr>
+        <td align="center">0:00:01</td>
+        <td align="center">1</td>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center"></td>
+    </tr>
+    <tr>
+        <td align="center">0:00:02</td>
+        <td align="center"></td>
+        <td align="center">20</td>
+        <td align="center"></td>
+        <td align="center"></td>
+    </tr>
+    <tr>
+        <td align="center">0:00:03</td>
+        <td align="center"></td>
+        <td align="center"></td>
+        <td align="center">300</td>
+        <td align="center">3000</td>
+    </tr>
+    <tr>
+        <td align="center">0:00:04</td>
+        <td align="center">4</td>
+        <td align="center">40</td>
+        <td align="center"></td>
+        <td align="center"></td>
+    </tr>
+    <tr>
+        <td align="center">0:00:05</td>
+        <td align="center"></td>
+        <td align="center">50</td>
+        <td align="center">500</td>
+        <td align="center">5000</td>
+    </tr>
+</table>
 
 如果没有选择全部列，只是选择了部分列，查询的结果只会包含选择的列的原始表的时间戳，例如执行如下查询：
 
@@ -104,13 +207,38 @@ select c1, c2 from v1;
 
 得到的结果如下图所示：
 
-<img src={partres} width="200" alt="partres" />
+<table>
+    <tr>
+        <th colspan="5" align="center">v1</th>
+    </tr>
+    <tr>
+        <td align="center">ts</td>
+        <td align="center">c1</td>
+        <td align="center">c2</td>
+    </tr>
+    <tr>
+        <td align="center">0:00:01</td>
+        <td align="center">1</td>
+        <td align="center"></td>
+    </tr>
+    <tr>
+        <td align="center">0:00:02</td>
+        <td align="center"></td>
+        <td align="center">20</td>
+    </tr>
+    <tr>
+        <td align="center">0:00:04</td>
+        <td align="center">4</td>
+        <td align="center">40</td>
+    </tr>
+    <tr>
+        <td align="center">0:00:05</td>
+        <td align="center"></td>
+        <td align="center">50</td>
+    </tr>
+</table>
 
 因为 c1、c2 列对应的原始表 t1、t2 中没有 0:00:03 这个时间戳，所以最后的结果也不会包含这个时间戳。
-
-**使用限制**
-
-1. 查询虚拟超级表时，暂不支持虚拟子表的数据源来自不同的数据库。
 
 ## 修改虚拟普通表
 
@@ -133,7 +261,7 @@ alter_table_clause: {
 2. DROP COLUMN：删除列。
 3. MODIFY COLUMN：修改列定义，如果数据列的类型是可变长类型，那么可以使用此指令修改其宽度，只能改大，不能改小。如果虚拟表该列已指定数据源，那么修改列宽会因为修改后的列宽和数据源的列宽不匹配而报错，可以先将数据源置为空后再修改列宽。
 4. RENAME COLUMN：修改列名称。
-5. ALTER COLUMN .. SET：修改列的数据源。 SET NULL 表示将虚拟表某列的数据源置为空。
+5. ALTER COLUMN .. SET：修改列的数据源。SET NULL 表示将虚拟表某列的数据源置为空。
 
 ### 增加列
 
@@ -210,7 +338,7 @@ SHOW [NORMAL | CHILD] [db_name.]VTABLES [LIKE 'pattern'];
 
 **使用说明**
 
-1. 如果没有指定 db_name，显示当前数据库下的所有虚拟普通表和虚拟子表的信息。若没有使用数据库并且没有指定 db_name, 则会报错 database not specified。可以使用 LIKE 对表名进行模糊匹配。NORMAL 指定只显示虚拟普通表信息， CHILD 指定只显示虚拟子表信息。
+1. 如果没有指定 db_name，显示当前数据库下的所有虚拟普通表和虚拟子表的信息。若没有使用数据库并且没有指定 db_name, 则会报错 database not specified。可以使用 LIKE 对表名进行模糊匹配。NORMAL 指定只显示虚拟普通表信息，CHILD 指定只显示虚拟子表信息。
 
 ### 显示虚拟表创建语句
 
@@ -241,14 +369,14 @@ SELECT ... FROM information_schema.ins_tables where type = 'VIRTUAL_NORMAL_TABLE
 
 虚拟表与视图看起来相似，但是有很多不同点：
 
-| 属性	         |虚拟表 (Virtual Table)	|视图 (View)|
+| 属性	         |虚拟表 (Virtual Table)	| 视图 (View)|
 |----------------|------------------------|-----------|
-| 定义            |虚拟表是一种动态数据结构，根据多表的列和时间戳组合规则生成逻辑表。	|视图是一种基于 SQL 查询的虚拟化表结构，用于保存查询逻辑的定义。|
-| 数据来源	       |来自多个原始表，可以动态选择列，并通过时间戳对齐数据。	|来自单个或多个表的查询结果，通常是一个复杂的 SQL 查询。|
-| 数据存储	       |不实际存储数据，所有数据在查询时动态生成。	|不实际存储数据，仅保存 SQL 查询逻辑。|
+| 定义            |虚拟表是一种动态数据结构，根据多表的列和时间戳组合规则生成逻辑表。	| 视图是一种基于 SQL 查询的虚拟化表结构，用于保存查询逻辑的定义。|
+| 数据来源	       |来自多个原始表，可以动态选择列，并通过时间戳对齐数据。	| 来自单个或多个表的查询结果，通常是一个复杂的 SQL 查询。|
+| 数据存储	       |不实际存储数据，所有数据在查询时动态生成。	| 不实际存储数据，仅保存 SQL 查询逻辑。|
 | 时间戳处理       |通过时间戳对齐将不同表的列整合到统一的时间轴上。|	不支持时间戳对齐，数据由查询逻辑直接决定。|
 | 更新机制	       |动态更新，原始表数据变更时，虚拟表数据实时反映变化。|	动态更新，但依赖于视图定义的查询逻辑，不涉及对齐或数据整合。|
-| 功能特性	       |支持空值填充和插值（如 prev、next、linear）。	|不支持内置填充和插值功能，需通过查询逻辑自行实现。|
+| 功能特性	       |支持空值填充和插值（如 prev、next、linear）。	| 不支持内置填充和插值功能，需通过查询逻辑自行实现。|
 | 应用场景	       |时间序列对齐、跨表数据整合、多源数据对比分析等场景。|	简化复杂查询逻辑、限制用户访问、封装业务逻辑等场景。|
 | 性能            |由于多表对齐和空值处理，查询复杂度可能较高，尤其在数据量大时。|	性能通常取决于视图的查询语句复杂度，与单表查询性能相似。|
 
@@ -293,7 +421,7 @@ priv_type: {
 ### 权限规则
 
 1. 虚拟表的创建者和 root 用户默认具备所有权限。
-2. 用户可以通过 dbname.vtbname 来为指定的虚拟表表（包括虚拟超级表和虚拟普通表）授予或回收其读写权限，不支持直接对虚拟子表授予或回收权限。
+2. 用户可以通过 dbname.vtbname 来为指定的虚拟表（包括虚拟超级表和虚拟普通表）授予或回收其读写权限，不支持直接对虚拟子表授予或回收权限。
 3. 虚拟子表和虚拟超级表不支持基于标签的授权（表级授权），虚拟子表继承虚拟超级表的权限。
 4. 对其他用户进行授权与回收权限可以通过 GRANT 和 REVOKE 语句进行，该操作只能由 root 用户进行。
 5. 具体相关权限控制细则总结如下：

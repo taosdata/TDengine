@@ -16,7 +16,7 @@ Power BI 是由 Microsoft 提供的一种商业分析工具。通过配置使用
 
 ## 配置数据源
 
-**第 1 步**，在 Windows 操作系统的开始菜单中搜索并打开【ODBC数据源（64位）】管理工具并进行配置。详细参考 [配置ODBC数据源](../../../reference/connector/odbc/#配置数据源)。
+**第 1 步**，在 Windows 操作系统的开始菜单中搜索并打开【ODBC 数据源（64 位）】管理工具并进行配置。详细参考 [配置 ODBC 数据源](../../../reference/connector/odbc/#配置数据源)。
 
 **第 2 步**，打开 Power BI 并登录后，点击【主页】->【获取数据】->【其他】->【ODBC】->【连接】，添加数据源。  
 
@@ -28,7 +28,7 @@ Power BI 是由 Microsoft 提供的一种商业分析工具。通过配置使用
 
 ### 使用说明
 
-为了充分发挥 Power BI 在分析 TDengine中 数据方面的优势，用户需要先理解维度、度量、窗口切分查询、数据切分查询、时序和相关性等核心概念，之后通过自定义的 SQL 导入数据。
+为了充分发挥 Power BI 在分析 TDengine 中 数据方面的优势，用户需要先理解维度、度量、窗口切分查询、数据切分查询、时序和相关性等核心概念，之后通过自定义的 SQL 导入数据。
 - 维度：通常是分类（文本）数据，描述设备、测点、型号等类别信息。在 TDengine 的超级表中，使用标签列存储数据的维度信息，可以通过形如 `select distinct tbname, tag1, tag2 from supertable` 的 SQL 语法快速获得维度信息。
 - 度量：可以用于进行计算的定量（数值）字段，常见计算有求和、取平均值和最小值等。如果测点的采集周期为 1s，那么一年就有 3000 多万条记录，把这些数据全部导入 Power BI 会严重影响其执行效率。在 TDengine 中，用户可以使用数据切分查询、窗口切分查询等语法，结合与窗口相关的伪列，把降采样后的数据导入 Power BI 中，具体语法请参阅 TDengine 官方文档的特色查询功能部分。
 - 窗口切分查询：比如温度传感器每秒采集一次数据，但须查询每隔 10min 的温度平均值，在这种场景下可以使用窗口子句来获得需要的降采样查询结果，对应的 SQL 形如 `select tbname, _wstart date，avg(temperature) temp from table interval(10m)`，其中，`_wstart` 是伪列，表示时间窗口起始时间，10m 表示时间窗口的持续时间，`avg(temperature)` 表示时间窗口内的聚合值。
@@ -58,7 +58,7 @@ taosBenchmark -t 1000 -n 259200 -S 1000 -y
 select distinct tbname device, groupId, location from test.meters
 ```
 
-**第 3 步**，导入度量数据。在 Power BI 中，按照 1 小时的时间窗口，导入每块智能电表的电流均值、电压均值、相位均值，取名为 data，SQL如下。
+**第 3 步**，导入度量数据。在 Power BI 中，按照 1 小时的时间窗口，导入每块智能电表的电流均值、电压均值、相位均值，取名为 data，SQL 如下。
 
 ```sql
 select tbname, _wstart ws, avg(current), avg(voltage), avg(phase) from test.meters PARTITION by tbname interval(1h)
@@ -72,7 +72,7 @@ select _wstart date, count(*) from test.meters interval(1d) having count(*)>0
 
 **第 5 步**，建立维度和度量的关联关系。打开模型视图，建立表 tags 和 data 的关联关系，将 tbname 设置为关联数据列。
 
-**第 6 步**，建立日期和度量的关联关系。打开模型视图，建立数据集 date 和 data 的关联关系，关联的数据列为 date 和 datatime。
+**第 6 步**，建立日期和度量的关联关系。打开模型视图，建立数据集 date 和 data 的关联关系，关联的数据列为 date 和 datetime。
 
 **第 7 步**，制作报告。在柱状图、饼图等控件中使用这些数据。  
 

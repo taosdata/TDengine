@@ -15,7 +15,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80000015 | Unable to resolve FQDN                       | Invalid fqdn set                                             | Check fqdn settings                                          |
 | 0x80000017 | Port already in use                          | The port is already occupied by some service, and the newly started service still tries to bind to that port | 1. Change the server port of the new service 2. Kill the service that previously occupied the port |
 | 0x80000018 | Conn is broken                               | Due to network jitter or request time being too long (over 900 seconds), the system actively disconnects | 1. Set the system's maximum timeout duration 2. Check request duration |
-| 0x80000019 | Conn read timeout                            | 1. The request processing time is too long 2. The server is overwhelmed 3. The server is deadlocked | 1. Explicitly configure the readTimeout parameter 2. Analyze the stack on taos | 
+| 0x80000019 | Conn read timeout                            | 1. The request processing time is too long 2. The server is overwhelmed 3. The server is deadlocked | 1. Explicitly configure the readTimeout parameter 2. Analyze the stack on taos |
 | 0x80000020 | some vnode/qnode/mnode(s) out of service     | After multiple retries, still unable to connect to the cluster, possibly all nodes have crashed, or the surviving nodes are not Leader nodes | 1. Check the status of taosd, analyze the reasons for taosd crash 2. Analyze why the surviving taosd cannot elect a Leader |
 | 0x80000021 | some vnode/qnode/mnode(s) conn is broken     | After multiple retries, still unable to connect to the cluster, possibly due to network issues, request time too long, server deadlock, etc. | 1. Check network 2. Request execution time                   |
 | 0x80000022 | rpc open too many session                    | 1. High concurrency causing the number of occupied connections to reach the limit 2. Server BUG, causing connections not to be released | 1. Adjust configuration parameter numOfRpcSessions 2. Adjust configuration parameter timeToGetAvailableConn 3. Analyze reasons for server not releasing connections |
@@ -28,7 +28,6 @@ This document details the server error codes that may be encountered when using 
 | 0x80000029  | RPC no state                                | 1. Engine error, can be ignored, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
 | 0x8000002A  | RPC state already dropped                   | 1. Engine error, can be ignored, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
 | 0x8000002B  | RPC msg exceed limit                        | 1. Single RPC message exceeds the limit, this error code will not be returned to the user side | If returned to the user side, the engine side needs to investigate the issue |
-
 
 ## common  
 
@@ -77,7 +76,6 @@ This document details the server error codes that may be encountered when using 
 | 0x8000013C | Invalid disk id                   | Invalid disk id                                              | Check users whether the mounted disk is invalid or use the parameter diskIDCheckEnabled to skip the disk check. |
 | 0x8000013D | Decimal value overflow            | Decimal value overflow                                       | Check query expression and decimal values |
 | 0x8000013E | Division by zero error            | Division by zero                                             | Check division expression |
-
 
 ## tsc
 
@@ -179,6 +177,7 @@ This document details the server error codes that may be encountered when using 
 | 0x800003A5 | Snode not there                                              | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800003A8 | The replica of mnode cannot less than 1                      | Less than 1 mnode                                            | Operation not allowed                                        |
 | 0x800003A9 | The replica of mnode cannot exceed 3                         | More than 1 mnode                                            | Operation not allowed                                        |
+| 0x800003AE | VGroup is offline                      | VGroup is offline                                       | check if dnode is offline                                       |
 | 0x800003B1 | No enough memory in dnode                                    | Insufficient memory                                          | Adjust configuration                                         |
 | 0x800003B3 | Invalid dnode end point                                      | Incorrect ep configuration                                   | Confirm if the operation is correct                          |
 | 0x800003B6 | Offline dnode exists                                         | Dnode offline                                                | Check node status                                            |
@@ -207,7 +206,7 @@ This document details the server error codes that may be encountered when using 
 | 0x800003E5 | Topic with invalid option                                    | Internal error                                               | Report issue                                                 |
 | 0x800003E6 | Consumer not exist                                           | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800003E7 | Topic unchanged                                              | No change                                                    | Confirm if the operation is correct                          |
-| 0x800003E8 | Subcribe not exist                                           | Does not exist                                               | Confirm if the operation is correct                          |
+| 0x800003E8 | Subscribe not exist                                           | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800003E9 | Offset not exist                                             | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800003EA | Consumer not ready                                           | Internal error                                               | Report issue                                                 |
 | 0x800003EB | Topic subscribed cannot be dropped                           | Being used                                                   | Confirm if the operation is correct                          |
@@ -295,6 +294,8 @@ This document details the server error codes that may be encountered when using 
 | 0x80000739 | Query memory upper limit is reached  | Single query memory upper limit is reached                   | Modify memory upper limit size or optimize SQL               |
 | 0x8000073A | Query memory exhausted               | Query memory in dnode is exhausted                           | Limit concurrent queries or add more physical memory         |
 | 0x8000073B | Timeout for long time no fetch       | Query without fetch for a long time                          | Correct application to fetch data asap                       |
+| 0x8000073C | Memory pool not initialized          | Memory pool not initialized in dnode                         | Confirm if the switch queryUseMemoryPool is enabled; if queryUseMemoryPool is already enabled, check if the server meets the basic conditions for enabling the memory pool: 1. The total available system memory is not less than 5GB; 2. The available system memory after deducting the reserved portion is not less than 4GB. |
+| 0x8000073D | Alter minReservedMemorySize failed since no enough system available memory | Failed to update minReservedMemorySize | Check current system memory: 1. Total available system memory should not be less than 5G; 2. Available system memory after deducting reserved portion should not be less than 4G |
 
 ## grant
 
@@ -452,7 +453,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80002658 | Invalid windows pc                                           | Illegal use of window pseudocolumn                                         | Check and correct the SQL statement                          |
 | 0x80002659 | Window not allowed                                           | Function cannot be used in window                                          | Check and correct the SQL statement                          |
 | 0x8000265A | Stream not allowed                                           | Function cannot be used in stream computation                              | Check and correct the SQL statement                          |
-| 0x8000265B | Group by not allowd                                          | Function cannot be used in grouping                                        | Check and correct the SQL statement                          |
+| 0x8000265B | Group by not allowed                                          | Function cannot be used in grouping                                        | Check and correct the SQL statement                          |
 | 0x8000265D | Invalid interp clause                                        | Illegal INTERP or related statement                                        | Check and correct the SQL statement                          |
 | 0x8000265E | Not valid function ion window                                | Illegal window statement                                                   | Check and correct the SQL statement                          |
 | 0x8000265F | Only support single table                                    | Function only supported in single table queries                            | Check and correct the SQL statement                          |
@@ -469,7 +470,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80002689 | Invalid using cols function                                  | Illegal using cols function                                        | Check and correct the SQL statement                          |
 | 0x8000268A | Cols function's first param must be a select function that output a single row | The first parameter of the cols function should be a selection function | Check and correct the SQL statement                          |
 | 0x8000268B | Invalid using alias for cols function                        | Illegal cols function alias                                  | Check and correct the SQL statement                          |
-| 0x8000268C | Join primary key col must be timestmap type                  | Join primary key data type error                             | Check and correct the SQL statement                          |
+| 0x8000268C | Join primary key col must be timestamp type                  | Join primary key data type error                             | Check and correct the SQL statement                          |
 | 0x8000268D | Invalid virtual table's ref column                                                                     | Create/Update Virtual table using incorrect data source column             | Check and correct the SQL statement           |
 | 0x8000268E | Invalid table type                                                                                     | Incorrect Table type                                                       | Check and correct the SQL statement           |
 | 0x8000268F | Invalid ref column type                                                                                | Virtual table's column type and data source column's type are different    | Check and correct the SQL statement           |
@@ -560,18 +561,19 @@ This document details the server error codes that may be encountered when using 
 
 ## TDgpt
 
-| Error Code     | Description              | Possible Error Scenarios or Reasons                    | Recommanded Actions for Users             |
-| ---------- | --------------------- | -------------------------------------------------------------------------------- | ------------------------------ |
-| 0x80000440 | Analysis service response is NULL | The response content is empty                     | Check the taosanode.app.log for detailed response information |
-| 0x80000441 | Analysis service can't access     | Service is not work currectly, or network is broken  | Check the status of taosanode and network status       |
-| 0x80000442 | Analysis algorithm is missing     | Algorithm used in analysis is not specified     |   Add the "algo" parameter in forecast function or anomaly_window clause       |
-| 0x80000443 | Analysis algorithm not loaded | The specified algorithm is not available   |   Check for the specified algorithm   |
-| 0x80000444 | Analysis invalid buffer type  | The bufferred data type is invalid  | Check the taosanode.app.log for more details     |
-| 0x80000445 | Analysis failed since anode return error       | The responses from anode with error message | Check the taosanode.app.log for more details     |
-| 0x80000446 | Analysis failed since too many input rows for anode | Input data is too many   | Reduce the rows of input data to below than the threshold   |
-| 0x80000447 | white-noise data not processed                      |  white noise data is not processed   |  Ignore the white noise check or use another input data  |
-| 0x80000448 | Analysis internal error, not processed                 | Internal error occurs   | Check the taosanode.app.log for more details     |
-
+| Error Code | Description                                         | Possible Error Scenarios or Reasons                           | Recommended Actions for Users                                          |
+|------------|-----------------------------------------------------|---------------------------------------------------------------|------------------------------------------------------------------------|
+| 0x80000440 | Analysis service response is NULL                   | The response content is empty                                 | Check the taosanode.app.log for detailed response information          |
+| 0x80000441 | Analysis service can't access                       | Service is not work correctly, or network is broken           | Check the status of taosanode and network status                       |
+| 0x80000442 | Analysis algorithm is missing                       | Algorithm used in analysis is not specified                   | Add the "algo" parameter in forecast function or anomaly_window clause |
+| 0x80000443 | Analysis algorithm not loaded                       | The specified algorithm is not available                      | Check for the specified algorithm                                      |
+| 0x80000444 | Analysis invalid buffer type                        | The buffered data type is invalid                             | Check the taosanode.app.log for more details                           |
+| 0x80000445 | Analysis failed since anode return error            | The responses from anode with error message                   | Check the taosanode.app.log for more details                           |
+| 0x80000446 | Analysis failed since too many input rows for anode | Input data is too many                                        | Reduce the rows of input data to below than the threshold              |
+| 0x80000447 | white-noise data not processed                      | white noise data is not processed                             | Ignore the white noise check or use another input data                 |
+| 0x80000448 | Analysis internal error, not processed              | Internal error occurs                                         | Check the taosanode.app.log for more details                           |
+| 0x80000449 | Analysis failed since not enough rows               | Input data for forecasting are not enough                     | Increase the number of input rows (10 rows for forecasting at least)   |
+| 0x8000044A | Not support co-variate/multi-variate forecast       | The algorithm not support co-variate/multi-variate forecasting | Change the specified algorithm                                         |
 
 ## virtual table
 
@@ -584,4 +586,4 @@ This document details the server error codes that may be encountered when using 
 | 0x80006204 | Virtual table not support decimal type                  | Create virtual table using decimal type                                                                                                                              | create virtual table without using decimal type                               |
 | 0x80006205 | Virtual table not support in STMT query and STMT insert | Use virtual table in stmt query and stmt insert                                                                                                                      | do not use virtual table in stmt query and insert                             |
 | 0x80006206 | Virtual table not support in Topic                      | Use virtual table in topic                                                                                                                                           | do not use virtual table in topic                                             |
-| 0x80006207 | Virtual super table query not support origin table from different databases                      | Virtual super table ‘s child table's origin table from different databases                                                                               | make sure virtual super table's child table's origin table from same database |
+| 0x80006207 | Virtual super table query not support origin table from different databases                      | Virtual super table's child table's origin table from different databases                                                                               | make sure virtual super table's child table's origin table from same database |

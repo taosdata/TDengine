@@ -95,7 +95,7 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 - `password`：连接的密码。
 - `protocol`：连接的协议，可选值为 Native 或 WebSocket，默认为 Native。
 - `db`：连接的数据库。
-- `timezone`：时区，默认为本地时区。
+- `timezone`：查询结果集解析时间类型使用的时区，默认为本地时区，格式见[结果集时区设置](#结果集时区设置)。
 
 ##### WebSocket 连接
 
@@ -109,7 +109,7 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 - `password`：连接的密码。
 - `protocol`：连接的协议，可选值为 Native 或 WebSocket，默认为 Native。
 - `db`：连接的数据库。
-- `timezone`：时区，默认为本地时区。
+- `timezone`：查询结果集解析时间类型使用的时区，默认为本地时区，格式见[结果集时区设置](#结果集时区设置)。
 - `connTimeout`：连接超时时间，默认为 1 分钟。
 - `readTimeout`：读取超时时间，默认为 5 分钟。
 - `writeTimeout`：发送超时时间，默认为 10 秒。
@@ -119,6 +119,18 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 - `autoReconnect`：是否自动重连，默认为 false。
 - `reconnectRetryCount`：重连次数，默认为 3。
 - `reconnectIntervalMs`：重连间隔毫秒时间，默认为 2000。
+
+#### 结果集时区设置
+
+C# 驱动在解析结果集时，默认使用本地时区解析时间类型。如果需要使用其他时区解析时间类型，可以通过设置 `timezone` 参数来指定时区。
+内部使用 `TimeZoneInfo.FindSystemTimeZoneById` 方法获取时区信息：
+
+- 在 Windows 系统上，`FindSystemTimeZoneById` 尝试匹配注册表 `HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Time Zones` 分支的子项名称。
+- 在 Linux 和 macOS 上，使用 [ICU 库](https://unicode-org.github.io/icu/userguide/datetime/timezone/)中提供的时区信息。
+
+以纽约时区为例：Windows 上使用 `Eastern Standard Time`，Linux 和 macOS 上使用 `America/New_York`。
+
+.Net 6.0 及以上版本，可以统一使用 [IANA](https://www.iana.org/time-zones) 时区格式，例如：`America/New_York`。
 
 #### 接口说明  
 
@@ -203,7 +215,7 @@ ADO.NET 连接支持的标准接口如下：
         - `lines`：数据行数组。
         - `protocol`：数据协议，支持协议：`TSDB_SML_LINE_PROTOCOL = 1` `TSDB_SML_TELNET_PROTOCOL = 2` `TSDB_SML_JSON_PROTOCOL = 3`。
         - `precision`：时间精度，支持配置：`TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0` `TSDB_SML_TIMESTAMP_HOURS = 1` `TSDB_SML_TIMESTAMP_MINUTES = 2` `TSDB_SML_TIMESTAMP_SECONDS = 3` `TSDB_SML_TIMESTAMP_MILLI_SECONDS = 4` `TSDB_SML_TIMESTAMP_MICRO_SECONDS = 5` `TSDB_SML_TIMESTAMP_NANO_SECONDS = 6`。
-        - `ttl`：数据过期时间，0表示不配置。
+        - `ttl`：数据过期时间，0 表示不配置。
         - `reqId`：请求 ID。
     - **异常**：执行失败抛出 `TDengineError` 异常。
 
@@ -647,7 +659,7 @@ C# 驱动提供了符合 ADO.NET 标准的 `DbDataReader` 接口，提供了用�
 - `ws.reconnect.retry.count`：重连次数，默认为 3。
 - `ws.reconnect.interval.ms`：重连间隔毫秒时间，默认为 2000。
 
-其他参数请参考：[Consumer 参数列表](../../../develop/tmq/#创建参数)， 注意TDengine服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
+其他参数请参考：[Consumer 参数列表](../../../develop/tmq/#创建参数)，注意 TDengine 服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
 
 - `public IConsumer<TValue> Build()`
     - **接口说明**：构建消费者。
@@ -714,7 +726,7 @@ C# 驱动提供了符合 ADO.NET 标准的 `DbDataReader` 接口，提供了用�
 - `List<TopicPartitionOffset> Committed(TimeSpan timeout)`
     - **接口说明**：获取分区偏移量。
     - **参数说明**：
-        - `timeout`：超时时间(未使用)。
+        - `timeout`：超时时间 (未使用)。
     - **返回值**：分区偏移量。
     - **异常**：执行失败抛出 `TDengineError` 异常。
 
@@ -722,7 +734,7 @@ C# 驱动提供了符合 ADO.NET 标准的 `DbDataReader` 接口，提供了用�
     - **接口说明**：获取指定分区偏移量。
     - **参数说明**：
         - `partitions`：分区列表。
-        - `timeout`：超时时间(未使用)。
+        - `timeout`：超时时间 (未使用)。
     - **返回值**：分区偏移量。
     - **异常**：执行失败抛出 `TDengineError` 异常。
 

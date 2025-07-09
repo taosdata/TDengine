@@ -125,8 +125,70 @@ class TDTestCase(TBase):
     def checkInsertManyStb(self):
         # many stb
         self.benchInsert("./tools/benchmark/basic/json/insertManyStb.json")
-    
+
+
+    def checkCompress(self):
+        sql = "describe test.meters"
+        results = [
+            ["ts"    ,"TIMESTAMP"        ,  8 ,"",    "delta-i"   ,"lz4"       ,"medium"],
+            ["bc"    ,"BOOL"             ,  1 ,"",    "disabled"  ,"disabled"  ,"medium"],
+            ["fc"    ,"FLOAT"            ,  4 ,"",    "delta-d"   ,"zlib"      ,"medium"],
+            ["dc"    ,"DOUBLE"           ,  8 ,"",    "delta-d"   ,"xz"        ,"low" ],
+            ["ti"    ,"TINYINT"          ,  1 ,"",    "simple8b"  ,"zstd"      ,"high" ],
+            ["si"    ,"SMALLINT"         ,  2 ,"",    "simple8b"  ,"zlib"      ,"medium"],
+            ["ic"    ,"INT"              ,  4 ,"",    "simple8b"  ,"zstd"      ,"medium"],
+            ["bi"    ,"BIGINT"           ,  8 ,"",    "delta-i"   ,"lz4"       ,"medium"],
+            ["uti"   ,"TINYINT UNSIGNED" ,  1 ,"",    "simple8b"  ,"zlib"      ,"high" ],
+            ["usi"   ,"SMALLINT UNSIGNED",  2 ,"",    "simple8b"  ,"zlib"      ,"medium"],
+            ["ui"    ,"INT UNSIGNED"     ,  4 ,"",    "simple8b"  ,"lz4"       ,"low" ],
+            ["ubi"   ,"BIGINT UNSIGNED"  ,  8 ,"",    "simple8b"  ,"xz"        ,"medium"],
+            ["bin"   ,"VARCHAR"          ,  4 ,"",    "disabled"  ,"zstd"      ,"medium"],
+            ["nch"   ,"NCHAR"            ,  8 ,"",    "disabled"  ,"xz"        ,"medium"],
+            ["dec64" ,"DECIMAL(10, 6)"   ,  8 ,"",    "disabled"  ,"zstd"      ,"medium"],
+            ["dec128","DECIMAL(20, 8)"   , 16 ,"",    "disabled"  ,"zstd"      ,"medium"],
+            ["tbc"   ,"BOOL"             ,  1 ,"TAG", "disabled"  ,"disabled"  ,"disabled"],
+            ["tfc"   ,"FLOAT"            ,  4 ,"TAG", "disabled"  ,"disabled"  ,"disabled"],
+            ["tdc"   ,"DOUBLE"           ,  8 ,"TAG", "disabled"  ,"disabled"  ,"disabled"],
+            ["tti"   ,"TINYINT"          ,  1 ,"TAG", "disabled"  ,"disabled"  ,"disabled"],
+            ["tsi"   ,"SMALLINT"         ,  2 ,"TAG", "disabled"  ,"disabled"  ,"disabled"],
+            ["tic"   ,"INT"              ,  4 ,"TAG", "disabled"  ,"disabled"  ,"disabled"],
+            ["tbi"   ,"BIGINT"           ,  8 ,"TAG", "disabled"  ,"disabled"  ,"disabled"],
+            ["tuti"  ,"TINYINT UNSIGNED" ,  1 ,"TAG", "disabled"  ,"disabled"  ,"disabled"],
+            ["tusi"  ,"SMALLINT UNSIGNED",  2 ,"TAG", "disabled"  ,"disabled"  ,"disabled"],
+            ["tui"   ,"INT UNSIGNED"     ,  4 ,"TAG", "disabled"  ,"disabled"  ,"disabled"],
+            ["tubi"  ,"BIGINT UNSIGNED"  ,  8 ,"TAG", "disabled"  ,"disabled"  ,"disabled"],
+            ["tbin"  ,"VARCHAR"          ,  4 ,"TAG", "disabled"  ,"disabled"  ,"disabled"],
+            ["tnch"  ,"NCHAR"            ,  8 ,"TAG", "disabled"  ,"disabled"  ,"disabled"]
+        ]        
+        tdSql.checkDataMem(sql, results)
+
+    def cbRetry(self, data):
+        db  = data['databases'][0]
+        stb = db["super_tables"][0]
+
+    def doRetry(self, json):
+        rlist = self.benchmark(f"-f {json}")
+        results = [
+            "retry"
+        ]
+        self.checkManyString(results)
+
+    def checkOther(self):
+        
+        # tempalte
+        template = "./tools/benchmark/basic/json/insertBasicTemplate.json"
+
+        # retry
+        jsonRetry = self.genNewJson(template, self.cbRetry)
+
+
+
     def run(self):
+        # check env
+        cmd = f"pip3 list"
+        output, error, code = eos.run(cmd)
+        tdLog.info("output: >>>%s<<<" % output)
+
         benchmark = frame.etool.benchMarkFile()
 
         # vgroups
@@ -134,6 +196,12 @@ class TDTestCase(TBase):
 
         # check many stable
         self.checkInsertManyStb()
+
+        # check compress
+        self.checkCompress()
+
+        # other
+        #self.checkOther()
 
     def stop(self):
         tdSql.close()

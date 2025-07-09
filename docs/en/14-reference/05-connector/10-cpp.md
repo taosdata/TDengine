@@ -84,9 +84,9 @@ The C/C++ WebSocket connector uses a DSN (Data Source Name) connection descripti
 The basic structure of a DSN description string is as follows:
 
 ```text
-<driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
-|------|------------|---|-----------|-----------|------|------|------------|-----------------------|
-|driver|   protocol |   | username  | password  | host | port |  database  |  params               |
+<driver>[+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<key1>=<value1>[&...<keyN>=<valueN>]]
+|------|------------|---|----------|-----------|-------------------------------------|------------|--------------------------------------|
+|driver|   protocol |   | username | password  |  addresses                          |   database |   params                             |
 ```
 
 The meanings of each part are as follows:
@@ -97,9 +97,9 @@ The meanings of each part are as follows:
 - **protocol**: Explicitly specify how to establish a connection, for example: `taos+ws://localhost:6041` specifies establishing a connection via WebSocket.
   - **http/ws**: Use WebSocket protocol.
   - **https/wss**: Explicitly enable SSL/TLS protocol under WebSocket connection.
-
 - **username/password**: Username and password used to create the connection.
-- **host/port**: Specifies the server and port for creating the connection. If the server address and port are not specified, the default WebSocket connection is `localhost:6041`.
+- **addresses**: Specifies the server addresses to create a connection. Multiple addresses are separated by commas. When the address is not specified, the default is `localhost:6041`.
+  - Example: `ws://host1:6041,host2:6041` or `ws://` (equivalent to `ws://localhost:6041`).
 - **database**: Specifies the default database name to connect to, optional parameter.
 - **params**: Other optional parameters.
 
@@ -371,7 +371,7 @@ The definition of timestamp resolution is defined in the `taosws.h` file, with d
 Note that the timestamp resolution parameter is only effective when the protocol type is `WS_SML_LINE_PROTOCOL`.
 For the OpenTSDB text protocol, the parsing of timestamps follows its official parsing rules — determined by the number of characters contained in the timestamp.
 
-**Other related schemaless interfaces**
+Other related schemaless interfaces:
 
 - `WS_RES *ws_schemaless_insert_raw_with_reqid(WS_TAOS *taos,
                                             const char *lines,
@@ -413,7 +413,7 @@ For the OpenTSDB text protocol, the parsing of timestamps follows its official p
                                                 const char *lines,
                                                 int len,
                                                 int32_t *totalRows,
-                                                int protocal,
+                                                int protocol,
                                                 int precision,
                                                 int ttl,
                                                 uint64_t reqid)`
@@ -1104,7 +1104,7 @@ In addition to using SQL or parameter binding APIs to insert data, you can also 
   - **Return Value**: Returns a pointer to a TAOS_RES structure, which contains the results of the insert operation. Applications can obtain error information using `taos_errstr()`, or get the error code using `taos_errno()`. In some cases, the returned TAOS_RES may be `NULL`, in which case `taos_errno()` can still be safely called to obtain error code information.
   The returned TAOS_RES must be freed by the caller to avoid memory leaks.
 
-**Description**
+Description:
 
 - The above 7 interfaces are extension interfaces, mainly used for passing ttl and reqid parameters during schemaless writing, and can be used as needed.
 - Interfaces with _raw use the passed parameters lines pointer and length len to represent data, to solve the problem of data containing '\0' being truncated in the original interface. The totalRows pointer returns the number of data rows parsed.
@@ -1128,7 +1128,8 @@ In addition to using SQL or parameter binding APIs to insert data, you can also 
     - key: [Input] Configuration item key name.
     - value: [Input] Configuration item value.
   - **Return Value**: Returns a tmq_conf_res_t enum value, indicating the result of the configuration setting. tmq_conf_res_t defined as follows:
-    ```
+
+    ```cpp
     typedef enum tmq_conf_res_t {
          TMQ_CONF_UNKNOWN = -2,  // invalid key
          TMQ_CONF_INVALID = -1,  // invalid value

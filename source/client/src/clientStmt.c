@@ -445,6 +445,7 @@ int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool deepClean) {
     } else {
       pStmt->sql.siInfo.pTableColsIdx = 0;
       stmtResetQueueTableBuf(&pStmt->sql.siInfo.tbBuf, &pStmt->queue);
+      tSimpleHashClear(pStmt->sql.siInfo.pTableRowDataHash);
     }
   } else {
     if (STMT_TYPE_QUERY != pStmt->sql.type || deepClean) {
@@ -530,6 +531,7 @@ int32_t stmtCleanSQLInfo(STscStmt* pStmt) {
   taos_free_result(pStmt->sql.siInfo.pRequest);
   taosHashCleanup(pStmt->sql.siInfo.pVgroupHash);
   tSimpleHashCleanup(pStmt->sql.siInfo.pTableHash);
+  tSimpleHashCleanup(pStmt->sql.siInfo.pTableRowDataHash);
   taosArrayDestroyEx(pStmt->sql.siInfo.tbBuf.pBufList, stmtFreeTbBuf);
   taosMemoryFree(pStmt->sql.siInfo.pTSchema);
   qDestroyStmtDataBlock(pStmt->sql.siInfo.pDataCtx);
@@ -743,6 +745,10 @@ int32_t stmtResetStmt(STscStmt* pStmt) {
     STMT_ERR_RET(terrno);
   }
 
+  if (pStmt->sql.siInfo.pTableRowDataHash) {
+    tSimpleHashClear(pStmt->sql.siInfo.pTableRowDataHash);
+  }
+
   pStmt->sql.status = STMT_INIT;
 
   return TSDB_CODE_SUCCESS;
@@ -888,6 +894,12 @@ TAOS_STMT* stmtInit(STscObj* taos, int64_t reqid, TAOS_STMT_OPTIONS* pOptions) {
     pStmt->sql.siInfo.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
     pStmt->sql.siInfo.pTableHash = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
     if (NULL == pStmt->sql.siInfo.pTableHash) {
+      (void)stmtClose(pStmt);
+      return NULL;
+    }
+    pStmt->sql.siInfo.pTableRowDataHash = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    if (NULL == pStmt->sql.siInfo.pTableRowDataHash) {
+      STMT_ELOG("fail to allocate memory for pTableRowDataHash:%s", tstrerror(terrno));
       (void)stmtClose(pStmt);
       return NULL;
     }
@@ -1734,6 +1746,11 @@ _return:
   if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST && (pStmt->bInfo.tbNameFlag & NO_DATA_USING_CLAUSE) == 0x0) {
     code = TSDB_CODE_TSC_STMT_TBNAME_ERROR;
   }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_free_result(pStmt->exec.pRequest);
+    pStmt->exec.pRequest = NULL;
+  }
   pStmt->errCode = preCode;
 
   return code;
@@ -1777,6 +1794,11 @@ int stmtGetColFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
 
 _return:
 
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_free_result(pStmt->exec.pRequest);
+    pStmt->exec.pRequest = NULL;
+  }
+
   pStmt->errCode = preCode;
 
   return code;
@@ -1818,6 +1840,11 @@ int stmtGetParamNum(TAOS_STMT* stmt, int* nums) {
   }
 
 _return:
+
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_free_result(pStmt->exec.pRequest);
+    pStmt->exec.pRequest = NULL;
+  }
 
   pStmt->errCode = preCode;
 
@@ -1869,6 +1896,11 @@ int stmtGetParam(TAOS_STMT* stmt, int idx, int* type, int* bytes) {
   *bytes = calcSchemaBytesFromTypeBytes(pField[idx].type, pField[idx].bytes, true);
 
 _return:
+
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_free_result(pStmt->exec.pRequest);
+    pStmt->exec.pRequest = NULL;
+  }
 
   taosMemoryFree(pField);
   pStmt->errCode = preCode;

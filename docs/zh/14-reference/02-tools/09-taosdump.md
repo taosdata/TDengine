@@ -75,7 +75,7 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -L, --loose-mode           Using loose mode if the table name and column name
                              use letter and number only. Default is NOT.
   -n, --no-escape            No escape char '`'. Default is using it.
-  -Q, --dot-replace          Repalce dot character with underline character in
+  -Q, --dot-replace          Replace dot character with underline character in
                              the table name.(Version 2.5.3).
   -T, --thread-num=THREAD_NUM   Number of thread for dump in file. Default is 8
   -W, --rename=RENAME-LIST   Rename database name with new name during
@@ -92,6 +92,10 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -?, --help                 Give this help list.
       --usage                Give a short usage message.
   -V, --version              Print program version.
+  -Z, --connect-mode         The connection method, with 0 indicating the use of 
+                             native connection method, 1 indicating the use of 
+                             WebSocket connection method, and default to native 
+                             connection method.
 
 Mandatory or optional arguments to long options are also mandatory or optional
 for any corresponding short options.
@@ -123,6 +127,7 @@ Report bugs to <support@taosdata.com>.
 
 - 恢复指定路径下的数据文件：使用 `-i` 参数加上数据文件所在路径。如前面提及，不应该使用同一个目录备份不同数据集合，也不应该在同一路径多次备份同一数据集，否则备份数据会造成覆盖或多次备份。  
 - taosdump 支持数据恢复至新数据库名下，参数是 -W, 详细见命令行参数说明。
+- 支持超级表及普通表 TAG/COLUMN 列有变动时仍可导入未变动列的数据（3.3.6.0 及以上版本及使用新版本导出数据才能支持）。
 
 
 :::tip

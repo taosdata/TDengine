@@ -70,6 +70,12 @@ class TDTestCase(TBase):
         os.system("%s --databases db -o %s -T 1" % (binPath, self.tmpdir))
 
         #        sys.exit(1)
+        taosdumpInspectCmd = "%s -I %s/taosdump.*/*.avro* -s" % (
+            binPath,
+            self.tmpdir,
+        )
+        print(taosdumpInspectCmd)
+        os.system(taosdumpInspectCmd)
 
         taosdumpInspectCmd = "%s -I %s/taosdump.*/*.avro* -s | grep 'Schema:'|wc -l" % (
             binPath,

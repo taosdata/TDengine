@@ -20,15 +20,15 @@ import VerifyLinux from "../../14-reference/05-connector/_verify_linux.mdx";
 import VerifyMacOS from "../../14-reference/05-connector/_verify_macos.mdx";
 import VerifyWindows from "../../14-reference/05-connector/_verify_windows.mdx";
 
-TDengine 提供了丰富的应用程序开发接口，为了便于用户快速开发自己的应用，TDengine 支持了多种编程语言的连接器，其中官方连接器包括支持 C/C++、Java、Python、Go、Node.js、C#、Rust、Lua（社区贡献）和 PHP （社区贡献）的连接器。这些连接器支持使用原生接口（taosc）和 REST 接口（部分语言暂不支持）连接 TDengine 集群。社区开发者也贡献了多个非官方连接器，例如 ADO.NET 连接器、Lua 连接器和 PHP 连接器。另外 TDengine 还可以直接调用 taosAdapter 提供的 REST API 接口，进行数据写入和查询操作。
+TDengine 提供了丰富的应用程序开发接口，为了便于用户快速开发自己的应用，TDengine 支持了多种编程语言的连接器，其中官方连接器包括支持 C/C++、Java、Python、Go、Node.js、C#、Rust、Lua（社区贡献）和 PHP（社区贡献）的连接器。这些连接器支持使用原生接口（taosc）和 REST 接口（部分语言暂不支持）连接 TDengine 集群。社区开发者也贡献了多个非官方连接器，例如 ADO.NET 连接器、Lua 连接器和 PHP 连接器。另外 TDengine 还可以直接调用 taosAdapter 提供的 REST API 接口，进行数据写入和查询操作。
 
 ## 连接方式
 
-连接器建立连接的方式，TDengine 提供三种:
+连接器建立连接的方式，TDengine 提供三种：
 
-1. 通过客户端驱动程序 taosc 直接与服务端程序 taosd 建立连接，这种连接方式下文中简称 “原生连接”。
-2. 通过 taosAdapter 组件提供的 REST API 建立与 taosd 的连接，这种连接方式下文中简称 “REST 连接”
-3. 通过 taosAdapter 组件提供的 WebSocket API 建立与 taosd 的连接，这种连接方式下文中简称 “WebSocket 连接”
+1. 通过客户端驱动程序 taosc 直接与服务端程序 taosd 建立连接，这种连接方式下文中简称“原生连接”。
+2. 通过 taosAdapter 组件提供的 REST API 建立与 taosd 的连接，这种连接方式下文中简称“REST 连接”
+3. 通过 taosAdapter 组件提供的 WebSocket API 建立与 taosd 的连接，这种连接方式下文中简称“WebSocket 连接”
 
 ![TDengine connection type](connection-type-zh.webp)
 
@@ -38,7 +38,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 关键不同点在于：
 
 1. 使用 原生连接，需要保证客户端的驱动程序 taosc 和服务端的 TDengine 版本保持一致。
-2. 使用 REST 连接，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但是无法体验数据订阅和二进制数据类型等功能。另外与 原生连接 和 WebSocket 连接相比，REST连接的性能最低。REST 接口是无状态的。在使用 REST 连接时，需要在 SQL 中指定表、超级表的数据库名称。  
+2. 使用 REST 连接，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但是无法体验数据订阅和二进制数据类型等功能。另外与 原生连接 和 WebSocket 连接相比，REST 连接的性能最低。REST 接口是无状态的。在使用 REST 连接时，需要在 SQL 中指定表、超级表的数据库名称。  
 3. 使用 WebSocket 连接，用户也无需安装客户端驱动程序 taosc。
 4. 连接云服务实例，必须使用 REST 连接 或 WebSocket 连接。
 
@@ -89,7 +89,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.5.3</version>
+  <version>3.6.3</version>
 </dependency>
 ```
 
@@ -98,12 +98,12 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 
 - **安装前准备**
     - 安装 Python。新近版本 taospy 包要求 Python 3.6.2+。早期版本 taospy 包要求 Python 3.7+。taos-ws-py 包要求 Python 3.7+。如果系统上还没有 Python 可参考 [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) 安装。
-    - 安装 [pip](https://pypi.org/project/pip/)。大部分情况下 Python 的安装包都自带了 pip 工具， 如果没有请参考 [pip documentation](https://pip.pypa.io/en/stable/installation/) 安装。
-    - 如果使用原生连接，还需[安装客户端驱动](../connect/#安装客户端驱动-taosc)。客户端软件包含了 TDengine 客户端动态链接库(libtaos.so 或 taos.dll) 和 TDengine CLI。
+    - 安装 [pip](https://pypi.org/project/pip/)。大部分情况下 Python 的安装包都自带了 pip 工具，如果没有请参考 [pip documentation](https://pip.pypa.io/en/stable/installation/) 安装。
+    - 如果使用原生连接，还需 [安装客户端驱动](../connect/#安装客户端驱动-taosc)。客户端软件包含了 TDengine 客户端动态链接库 (libtaos.so 或 taos.dll) 和 TDengine CLI。
 
 - **使用 pip 安装**
     - 卸载旧版本
-        如果以前安装过旧版本的 Python 连接器, 请提前卸载。
+        如果以前安装过旧版本的 Python 连接器，请提前卸载。
         ```
         pip3 uninstall taos taospy
         pip3 uninstall taos  taos-ws-py
@@ -115,7 +115,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
             ```
         - 指定某个特定版本安装
             ```
-            pip3 install taospy==2.3.0
+            pip3 install taospy==2.8.2
             ```
         - 从 GitHub 安装
             ```
@@ -194,7 +194,7 @@ taos = { version = "*", default-features = false, features = ["ws"] }
 <TabItem label="Node.js" value="node">
 
 - **安装前准备**
-    - 安装 Node.js 开发环境, 使用14以上版本。下载链接： https://nodejs.org/en/download/
+    - 安装 Node.js 开发环境，使用 14 以上版本。下载链接：[Download Node.js](https://nodejs.org/en/download)
 
 - **安装**
     - 使用 npm 安装 Node.js 连接器
@@ -203,7 +203,7 @@ taos = { version = "*", default-features = false, features = ["ws"] }
         ```
     :::note Node.js 目前只支持 WebSocket 连接
 - **安装验证**
-    - 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [nodejsChecker.js 源代码](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/nodejsChecker.js)到本地。
+    - 新建安装验证目录，例如：`~/tdengine-test`，下载 GitHub 上 [nodejsChecker.js 源代码](https://github.com/taosdata/TDengine/tree/main/docs/examples/node/websocketexample/nodejsChecker.js) 到本地。
     - 在命令行中执行以下命令。
         ```bash
         npm init -y
@@ -251,7 +251,7 @@ dotnet add package TDengine.Connector
 </TabItem>
 <TabItem label="C" value="c">
 
-如果已经安装了 TDengine 服务端软件或 TDengine 客户端驱动 taosc， 那么已经安装了 C 连接器，无需额外操作。
+如果已经安装了 TDengine 服务端软件或 TDengine 客户端驱动 taosc，那么已经安装了 C 连接器，无需额外操作。
 
 </TabItem>
 <TabItem label="REST API" value="rest">
@@ -262,7 +262,7 @@ dotnet add package TDengine.Connector
 
 ## 建立连接
 
-在执行这一步之前，请确保有一个正在运行的，且可以访问到的 TDengine，而且服务端的 FQDN 配置正确。以下示例代码，都假设 TDengine 安装在本机，且 FQDN（默认 localhost） 和 serverPort（默认 6030） 都使用默认配置。
+在执行这一步之前，请确保有一个正在运行的，且可以访问到的 TDengine，而且服务端的 FQDN 配置正确。以下示例代码，都假设 TDengine 安装在本机，且 FQDN（默认 localhost）和 serverPort（默认 6030）都使用默认配置。
 
 ### 连接参数
 连接的配置项较多，因此在建立连接之前，我们能先介绍一下各语言连接器建立连接使用的参数。
@@ -278,10 +278,12 @@ dotnet add package TDengine.Connector
     </TabItem>
     <TabItem label="Python" value="python">
     Python 连接器使用 `connect()` 方法来建立连接，下面是连接参数的具体说明：    
-        - url： `taosAdapter` REST 服务的 URL。默认是 `localhost` 的 `6041` 端口。 
+        - url： `taosAdapter` Websocket 服务的 URL。默认是 `localhost` 的 `6041` 端口。 
         - user： TDengine 用户名。默认是 `root`。  
         - password： TDengine 用户密码。默认是 `taosdata`。  
         - timeout： HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。一般无需配置。
+
+    URL 的详细参数说明和如何使用详见 [url 规范](../../reference/connector/python/#url-规范)
 
     </TabItem>
     <TabItem label="Go" value="go">
@@ -321,7 +323,7 @@ dotnet add package TDengine.Connector
 
     </TabItem>
     <TabItem label="Rust" value="rust">
-Rust 连接器使用 DSN 来创建连接， DSN 描述字符串基本结构如下：
+Rust 连接器使用 DSN 来创建连接，DSN 描述字符串基本结构如下：
 
 ```text
 <driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
@@ -343,15 +345,20 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
 
     - **protocol**: 使用 websocket 协议建立连接。例如`ws://localhost:6041`
     - **username/password**: 数据库的用户名和密码。
-    - **host/port**: 主机地址和端口号。例如`localhost:6041`
+    - **host/port**: 参数支持合法的域名或 IP 地址。`@tdengine/websocket` 同时支持 IPV4 和 IPV6 两种地址格式，对于 IPv6 地址，必须使用中括号括起来（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。
     - **database**: 数据库名称。
-    - **params**: 其他参数。 例如token。
+    - **params**: 其他参数。例如 token。
 
     - 完整 DSN 示例：
-
+    
     ```js
+        // IPV4:
         ws://root:taosdata@localhost:6041
+    
+        // IPV6:
+        ws://root:taosdata@[::1]:6041
     ``` 
+
     </TabItem>
 
     <TabItem label="C#" value="csharp">
@@ -399,7 +406,7 @@ DSN 的详细说明和如何使用详见 [连接功能](../../reference/connecto
 **原生连接**  
 C/C++ 语言连接器原生连接方式使用 `taos_connect()` 函数用于建立与 TDengine 数据库的连接。其参数详细说明如下：
 
-- `host`：要连接的数据库服务器的主机名或IP地址。如果是本地数据库，可以使用 `"localhost"`。
+- `host`：要连接的数据库服务器的主机名或 IP 地址。如果是本地数据库，可以使用 `"localhost"`。
 - `user`：用于登录数据库的用户名。
 - `passwd`：与用户名对应的密码。
 - `db`：连接时默认选择的数据库名。如果不指定数据库，可以传递 `NULL` 或空字符串。
@@ -547,7 +554,7 @@ C/C++ 语言连接器原生连接方式使用 `taos_connect()` 函数用于建�
 
 
 ## 连接池
-有些连接器提供了连接池，或者可以与已有的连接池组件配合使用。 使用连接池，应用程序可以快速地从连接池中获取可用连接，避免了每次操作时创建和销毁连接的开销。这不仅减少了资源消耗，还提高了响应速度。此外，连接池还支持对连接的管理，如最大连接数限制、连接的有效性检查，确保了连接的高效和可靠使用。我们**推荐使用连接池管理连接**。  
+有些连接器提供了连接池，或者可以与已有的连接池组件配合使用。使用连接池，应用程序可以快速地从连接池中获取可用连接，避免了每次操作时创建和销毁连接的开销。这不仅减少了资源消耗，还提高了响应速度。此外，连接池还支持对连接的管理，如最大连接数限制、连接的有效性检查，确保了连接的高效和可靠使用。我们**推荐使用连接池管理连接**。  
 下面是各语言连接器的连接池支持代码样例。  
 
 <Tabs defaultValue="java" groupId="lang">

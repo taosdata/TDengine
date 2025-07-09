@@ -76,7 +76,7 @@ int32_t mpAddCacheGroup(SMemPool* pPool, SMPCacheGroupInfo* pInfo, SMPCacheGroup
     pGrp = pInfo->pGrpHead;
   } else {
     pGrp = (SMPCacheGroup*)taosMemoryCalloc(1, sizeof(SMPCacheGroup));
-    if (NULL == pInfo->pGrpHead) {
+    if (NULL == pGrp) {
       uError("malloc SMPCacheGroup failed, error:%s", tstrerror(terrno));
       MP_ERR_RET(terrno);
     }
@@ -1777,4 +1777,42 @@ void taosAutoMemoryFree(void *ptr) {
   }
 }
 
+static int32_t mpUpdateReservedSize(SMemPool* pPool, int32_t newReservedSizeMB) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t sysAvailSize = 0;
+  code = taosGetSysAvailMemory(&sysAvailSize);
+  if (code || sysAvailSize < MP_MIN_MEM_POOL_SIZE) {
+    uInfo("failed to update reserved size since no enough system available memory, size: %" PRId64, sysAvailSize);
+    MP_ERR_RET(TSDB_CODE_QRY_MEMORY_POOL_MEMORY_NOT_ENOUGH);
+  }
 
+  int64_t freeSizeAfterRes = sysAvailSize - newReservedSizeMB * 1048576UL;
+  if (freeSizeAfterRes < MP_MIN_FREE_SIZE_AFTER_RESERVE) {
+    uInfo("failed to update reserved size since no enough system available memory after reservied, size: %" PRId64,
+          freeSizeAfterRes);
+    MP_ERR_RET(TSDB_CODE_QRY_MEMORY_POOL_MEMORY_NOT_ENOUGH);
+  }
+
+  MP_LOCK(MP_WRITE, &pPool->cfgLock);
+  pPool->cfg.reserveSize = newReservedSizeMB * 1048576UL;
+  MP_UNLOCK(MP_WRITE, &pPool->cfgLock);
+
+  return code;
+}
+
+int32_t taosMemoryPoolCfgUpdateReservedSize(int32_t newReservedSizeMB) {
+  if (!threadPoolEnabled) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (NULL == gMemPoolHandle) {
+    uError("failed to update reserved size since memory pool not initialized");
+    MP_ERR_RET(TSDB_CODE_QRY_MEMORY_POOL_NOT_INITIALIZED);
+  }
+  if (newReservedSizeMB < 0) {
+    uError("failed to update reserved size since newReservedSizeMB:%d is invalid", newReservedSizeMB);
+    MP_ERR_RET(TSDB_CODE_INVALID_PARA);
+  }
+
+  return mpUpdateReservedSize(gMemPoolHandle, newReservedSizeMB);
+}

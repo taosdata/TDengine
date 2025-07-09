@@ -1154,7 +1154,7 @@ void *ctgTestGetDbVgroupThread(void *param) {
     code = catalogGetDBVgList(pCtg, mockPointer, ctgTestDbname, &vgList);
     if (code) {
       (void)printf("code:%x\n", code);
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
     }
 
     if (vgList) {
@@ -1182,7 +1182,7 @@ void *ctgTestSetSameDbVgroupThread(void *param) {
     ctgTestBuildDBVgroup(&dbVgroup);
     code = catalogUpdateDBVgInfo(pCtg, ctgTestDbname, ctgTestDbId, dbVgroup);
     if (code) {
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
     }
 
     if (ctgTestEnableSleep) {
@@ -1206,7 +1206,7 @@ void *ctgTestSetDiffDbVgroupThread(void *param) {
     ctgTestBuildDBVgroup(&dbVgroup);
     code = catalogUpdateDBVgInfo(pCtg, ctgTestDbname, ctgTestDbId++, dbVgroup);
     if (code) {
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
     }
 
     if (ctgTestEnableSleep) {
@@ -1238,7 +1238,7 @@ void *ctgTestGetCtableMetaThread(void *param) {
   while (!ctgTestStop) {
     code = ctgReadTbMetaFromCache(pCtg, &ctx, &tbMeta);
     if (code || NULL == tbMeta) {
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
     }
 
     taosMemoryFreeClear(tbMeta);
@@ -1279,7 +1279,7 @@ void *ctgTestSetCtableMetaThread(void *param) {
 
     code = ctgOpUpdateTbMeta(&operation);
     if (code) {
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
     }
 
     if (ctgTestEnableSleep) {

@@ -741,13 +741,17 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
     if (retry) {
       taosMsleep(10);
       if (code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE) {
-        sGError(&rpcMsg.info.traceId,
-                "vgId:%d, index:%" PRId64 ", will retry to execute fsm after 10ms, last error is %s", pNode->vgId,
-                pEntry->index, tstrerror(code));
-      } else {
-        sGTrace(&rpcMsg.info.traceId,
-                "vgId:%d, index:%" PRId64 ", will retry to execute fsm after 10ms, last error is %s", pNode->vgId,
-                pEntry->index, tstrerror(code));
+        pNode->applyQueueErrorCount++;
+        if (pNode->applyQueueErrorCount == APPLY_QUEUE_ERROR_THRESHOLD) {
+          pNode->applyQueueErrorCount = 0;
+          sGWarn(&rpcMsg.info.traceId,
+                 "vgId:%d, index:%" PRId64 ", will retry to execute fsm after 10ms, last error is %s", pNode->vgId,
+                 pEntry->index, tstrerror(code));
+        } else {
+          sGTrace(&rpcMsg.info.traceId,
+                  "vgId:%d, index:%" PRId64 ", will retry to execute fsm after 10ms, last error is %s", pNode->vgId,
+                  pEntry->index, tstrerror(code));
+        }
       }
     }
   } while (retry);
@@ -808,6 +812,12 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
 
   if (commitIndex <= pBuf->commitIndex) {
     sGDebug(trace, "vgId:%d, stale commit index:%" PRId64 ", notified:%" PRId64, vgId, commitIndex, pBuf->commitIndex);
+    if (!pNode->restoreFinish && commitIndex > 0 && commitIndex == pBuf->commitIndex) {
+      int32_t ret = syncLogBufferGetOneEntry(pBuf, pNode, commitIndex, &inBuf, &pEntry);
+      if (ret != 0) {
+        sError("vgId:%d, failed to get entry at index:%" PRId64, vgId, commitIndex);
+      }
+    }
     goto _out;
   }
 

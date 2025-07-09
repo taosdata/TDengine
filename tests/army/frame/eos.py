@@ -69,7 +69,7 @@ def exeNoWait(file):
 # run return output and error
 def run(command, show = True):
     # out to file
-    id = time.clock_gettime_ns(time.CLOCK_REALTIME) % 100000
+    id = time.time_ns() % 100000
     out = f"out_{id}.txt"
     err = f"err_{id}.txt"
     

@@ -30,7 +30,7 @@ import RequestId from "./_request_id.mdx";
 ## 版本历史
 
 | Rust 连接器版本 | 主要变化                                                                      | TDengine 版本      |
-| -------------- | ---------------------------------------------------------------------------- | ----------------- |
+| --------------- | ----------------------------------------------------------------------------- | ------------------ |
 | v0.12.3         | 1. 优化了 WebSocket 查询和插入性能 <br/> 2. 支持了 VARBINARY 和 GEOMETRY 类型 | 3.3.0.0 及更高版本 |
 | v0.12.0         | WebSocket 支持压缩                                                            | 3.2.3.0 及更高版本 |
 | v0.11.0         | TMQ 功能优化                                                                  | 3.2.0.0 及更高版本 |
@@ -102,9 +102,9 @@ TaosBuilder 通过 DSN 连接描述字符串创建一个连接构造器。
 DSN 描述字符串基本结构如下：
 
 ```text
-<driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
-|------|------------|---|-----------|-----------|------|------|------------|-----------------------|
-|driver|   protocol |   | username  | password  | host | port |  database  |  params               |
+<driver>[+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<key1>=<value1>[&...<keyN>=<valueN>]]
+|------|------------|---|----------|-----------|-------------------------------------|------------|--------------------------------------|
+|driver|   protocol |   | username | password  |  addresses                          |   database |   params                             |
 ```
 
 各部分意义见下表：
@@ -116,11 +116,15 @@ DSN 描述字符串基本结构如下：
   - **http/ws**：使用 WebSocket 创建连接。
   - **https/wss**：在 WebSocket 连接方式下显示启用 SSL/TLS 连接。
 - **username/password**：用于创建连接的用户名及密码。
-- **host/port**：指定创建连接的服务器及端口，当不指定服务器地址及端口时（`taos://`），原生连接默认为 `localhost:6030`，WebSocket 连接默认为 `localhost:6041` 。
+- **addresses**：指定创建连接的服务器地址，支持以下配置方式：
+  - 原生连接：仅支持单个地址。当不指定地址时，默认为 `localhost:6030`。
+    - 示例：`taos://localhost:6030` 或 `taos://`（等同于前者）。
+  - WebSocket 连接：支持多个地址，多个地址间用英文逗号分隔。当不指定地址时，默认为 `localhost:6041`。
+    - 示例：`ws://host1:6041,host2:6041` 或 `ws://`（等同于 `ws://localhost:6041`）。
 - **database**：指定默认连接的数据库名，可选参数。
 - **params**：其他可选参数。
 
-一个完整的 DSN 描述字符串示例如下：`taos+ws://localhost:6041/test`， 表示使用 WebSocket（`ws`）方式通过 `6041` 端口连接服务器 `localhost`，并指定默认数据库为 `test`。
+一个完整的 DSN 描述字符串示例如下：`taos+ws://localhost:6041/test`，表示使用 WebSocket（`ws`）方式通过 `6041` 端口连接服务器 `localhost`，并指定默认数据库为 `test`。
 
 #### TaosBuilder
 
@@ -312,7 +316,7 @@ ResultSet 结构体提供了结果集的一些方法，可以用来获取结果�
 
 - `fn fields(&self) -> &[Field]`
 
-  - **接口说明**：获取字段信息。见下文 Feild 结构体描述。
+  - **接口说明**：获取字段信息。见下文 Field 结构体描述。
   - **返回值**：字段信息数组的引用。
 
 - `fn summary(&self) -> (usize, usize)`
@@ -346,9 +350,9 @@ ResultSet 结构体提供了结果集的一些方法，可以用来获取结果�
   - **接口说明**：将结果集转换为值的二维向量。
   - **返回值**：成功时返回值的二维向量，失败时返回错误，类型为 `Result<Vec<Vec<Value>>, Error>`。
 
-#### Feild
+#### Field
 
-Feild 结构体提供了字段信息的一些方法。
+Field 结构体提供了字段信息的一些方法。
 
 - `pub const fn empty() -> Field`
 
@@ -468,7 +472,7 @@ Stmt 结构体提供了参数绑定相关功能，用于实现高效写入。
 
 ### 数据订阅
 
-数据订阅主要涉及三个结构体，提供连接建立的 TmqBuilder， 消费数据和提交偏移量的 Consumer，以及偏移量 Offset。
+数据订阅主要涉及三个结构体，提供连接建立的 TmqBuilder，消费数据和提交偏移量的 Consumer，以及偏移量 Offset。
 
 #### TmqBuilder
 

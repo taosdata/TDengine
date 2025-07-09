@@ -1,0 +1,29 @@
+name: New Framework Test
+
+on:
+  pull_request:
+    branches:
+      - '3.0'
+      - 'main'
+    paths-ignore:
+      - 'packaging/**'
+      - 'docs/**'
+      - 'tools/tdgpt/**'
+      - 'source/libs/executor/src/forecastoperator.c'
+      - 'source/libs/executor/src/anomalywindowoperator.c'
+      - 'source/dnode/mnode/impl/src/mndAnode.c'
+      - 'include/common/tanalytics.h'
+      - 'source/common/src/tanalytics.c'
+      - 'tests/parallel/tdgpt_cases.task'
+      - 'tests/script/tsim/analytics/**'
+      - '**/*.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-TDengineNewFramework
+  cancel-in-progress: true
+
+jobs:
+  test-new-cases:
+    uses: taosdata/.github/.github/workflows/new-framework-test.yml@main
+    with:
+      tdinternal: false

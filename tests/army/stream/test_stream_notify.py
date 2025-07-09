@@ -52,7 +52,8 @@ class TestStreamNotifySinglePass():
         self.streams = []
         self.id = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
 
-    def is_port_in_use(self, port):
+    @staticmethod
+    def is_port_in_use(port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             return s.connect_ex(("127.0.0.1", port)) == 0
 
@@ -114,7 +115,7 @@ class TestStreamNotifySinglePass():
                     continue
             for i in range(self.num_addr_per_stream):
                 # Find an available port
-                while self.is_port_in_use(port):
+                while TestStreamNotifySinglePass.is_port_in_use(port):
                     port += 1
                 # Start the stream notify server and add the address to the stream
                 log_file = f"{self.current_dir}/{self.id}_{stream['stream_name']}_{i}.log"
@@ -442,7 +443,51 @@ class TDTestCase(TBase):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), True)
 
+    def ts_6375(self):
+        port = random.randint(10000, 20000)
+        while TestStreamNotifySinglePass.is_port_in_use(port):
+            port += 1
+        log_file = os.path.dirname(os.path.abspath(__file__)) + f"/ts_6375.log"
+        if os.path.exists(log_file):
+            os.remove(log_file)
+        server = StreamNotifyServer()
+        server.run(port, log_file)
+
+
+        tdSql.execute("drop database if exists ts_6375;")
+        tdSql.execute("create database ts_6375 keep 3650;")
+        tdSql.execute("use ts_6375;")
+        tdSql.execute("create stable st(ts timestamp, current int, voltage int) tags (gid int);")
+        tdSql.execute("create table ct0 using st(gid) tags (0);")
+        tdSql.execute(
+            f"""create stream s_6375 into dst as
+                select _wstart+1s, min(current) as min_current from ct0 interval(1m)
+                notify('ws://127.0.0.1:{port}') on ('WINDOW_OPEN', 'WINDOW_CLOSE');""")
+        # Wait for the stream tasks to be ready
+        for i in range(50):
+            tdLog.info(f"i={i} wait for stream tasks ready ...")
+            time.sleep(1)
+            rows = tdSql.query("select * from information_schema.ins_stream_tasks where status <> 'ready';")
+            if rows == 0:
+                break
+        tdSql.execute(
+            f"""insert into ct0 values
+                ('2025-01-01 00:00:00', 0, 0),
+                ('2025-01-01 00:01:00', 1, 1),
+                ('2025-01-01 00:02:00', 2, 2),
+                ('2025-01-01 00:03:00', 3, 3),
+                ('2025-01-01 00:04:00', 4, 4);"""
+        )
+        tdLog.info(f"wait for stream tasks done ...")
+        time.sleep(5)
+        server.stop()
+
+        tdSql.query("select * from dst;")
+        tdSql.checkRows(4)
+
     def run(self):
+        self.ts_6375()
+
         # Disable many tests due to long execution time
 
         # TestStreamNotifySinglePass(num_addr_per_stream=1, trigger_mode="AT_ONCE", notify_event="'window_open', 'window_close'", disorder=False).run()

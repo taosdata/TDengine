@@ -11,6 +11,10 @@ import imgRegexParsing from '../../assets/data-connectors-04.png';
 import imgResults from '../../assets/data-connectors-05.png';
 import imgSplit from '../../assets/data-connectors-06.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 ## Overview
 
 TDengine Enterprise is equipped with a powerful visual data management tool—taosExplorer. With taosExplorer, users can easily submit tasks to TDengine through simple configurations in the browser, achieving seamless data import from various data sources into TDengine with zero coding. During the import process, TDengine automatically extracts, filters, and transforms the data to ensure the quality of the imported data. Through this zero-code data source integration method, TDengine has successfully transformed into an outstanding platform for aggregating time-series big data. Users do not need to deploy additional ETL tools, thereby greatly simplifying the overall architecture design and improving data processing efficiency.
@@ -42,17 +46,17 @@ The data sources currently supported by TDengine are as follows:
 | SQL Server | 2012/2022 | Microsoft SQL Server is a relational database management system developed by Microsoft, known for its ease of use, good scalability, and high integration with related software. |
 | MongoDB | 3.6+ | MongoDB is a product between relational and non-relational databases, widely used in content management systems, mobile applications, and the Internet of Things, among many other fields. |
 | CSV | -  | Abbreviation for Comma Separated Values, a plain text file format separated by commas, commonly used in spreadsheet or database software. |
-| TDengine 2.x | 2.4 or 2.6+ | Older version of TDengine, no longer maintained, upgrade to the latest version 3.0 is recommended. |
-| TDengine 3.x | Source version+ | Use TMQ for subscribing to specified databases or supertables from TDengine. |
+| TDengine Query | 2.4+, 3.0+ | Query from older version of TDengine and write into new cluster. |
+| TDengine Data Subscription | 3.0+ | Use TMQ for subscribing to specified databases or supertables from TDengine. |
 
 ## Data Extraction, Filtering, and Transformation
 
 Since there can be multiple data sources, each data source may have different physical units, naming conventions, and time zones. To address this issue, TDengine has built-in ETL capabilities that can parse and extract the required data from the data packets of data sources, and perform filtering and transformation to ensure the quality of the data written and provide a unified namespace. The specific functions are as follows:
 
 1. Parsing: Use JSON Path or regular expressions to parse fields from the original message.
-2. Extracting or splitting from columns: Use split or regular expressions to extract multiple fields from an original field.
-3. Filtering: Messages are only written to TDengine if the expression's value is true.
-4. Transformation: Establish conversion and mapping relationships between parsed fields and TDengine supertable fields.
+1. Extracting or splitting from columns: Use split or regular expressions to extract multiple fields from an original field.
+1. Filtering: Messages are only written to TDengine if the expression's value is true.
+1. Transformation: Establish conversion and mapping relationships between parsed fields and TDengine supertable fields.
 
 Below is a detailed explanation of the data transformation rules.
 
@@ -70,8 +74,8 @@ Only unstructured data sources need this step. Currently, MQTT and Kafka data so
 As shown in the image, the textarea input box contains the sample data, which can be obtained in three ways:
 
 1. Directly enter the sample data in the textarea;
-2. Click the button on the right "Retrieve from Server" to get the sample data from the configured server and append it to the sample data textarea;
-3. Upload a file, appending the file content to the sample data textarea.
+1. Click the button on the right "Retrieve from Server" to get the sample data from the configured server and append it to the sample data textarea;
+1. Upload a file, appending the file content to the sample data textarea.
 
 Each piece of sample data ends with a carriage return.
 
@@ -185,9 +189,9 @@ Only by clearly parsing the type of each field can you use the correct syntax fo
 Fields parsed using the json rule are automatically set to types based on their attribute values:
 
 1. bool type: `"inuse": true`
-2. int type: `"voltage": 220`
-3. float type: `"current" : 12.2`
-4. String type: `"location": "MX001"`
+1. int type: `"voltage": 220`
+1. float type: `"current" : 12.2`
+1. String type: `"location": "MX001"`
 
 Data parsed using regex rules are all string types.
 Data extracted or split using split and regex are string types.
@@ -296,21 +300,21 @@ Subtable names are strings and can be defined using the string formatting `forma
 Below, using MQTT data source as an example, we explain how to create a task of MQTT type, consume data from MQTT Broker, and write into TDengine.
 
 1. After logging into taosExplorer, click on "Data Writing" on the left navigation bar to enter the task list page.
-2. On the task list page, click "+ Add Data Source" to enter the task creation page.
-3. After entering the task name, select the type as MQTT, then you can create a new proxy or select an already created proxy.
-4. Enter the IP address and port number of the MQTT broker, for example: 192.168.1.100:1883
-5. Configure authentication and SSL encryption:
+1. On the task list page, click "+ Add Data Source" to enter the task creation page.
+1. After entering the task name, select the type as MQTT, then you can create a new proxy or select an already created proxy.
+1. Enter the IP address and port number of the MQTT broker, for example: 192.168.1.100:1883
+1. Configure authentication and SSL encryption:
 
 - If the MQTT broker has enabled user authentication, enter the username and password of the MQTT broker in the authentication section;
 - If the MQTT broker has enabled SSL encryption, you can turn on the SSL certificate switch on the page and upload the CA's certificate, as well as the client's certificate and private key files;
 
-6. In the "Collection Configuration" section, you can select the version of the MQTT protocol, currently supporting 3.1, 3.1.1, 5.0; when configuring the Client ID, be aware that if multiple tasks are created for the same MQTT broker, the Client IDs should be different to avoid conflicts, which could cause the tasks to not run properly; when configuring the topic and QoS, use the format `<topic name>::<QoS>`, where the QoS values range from 0, 1, 2, representing at most once, at least once, exactly once; after configuring the above information, you can click the "Check Connectivity" button to check the configurations, if the connectivity check fails, please modify according to the specific error tips returned on the page;
-7. During the process of syncing data from the MQTT broker, taosX also supports extracting, filtering, and mapping operations on the fields in the message body. In the text box under "Payload Transformation", you can directly input a sample of the message body, or import it by uploading a file, and in the future, it will also support retrieving sample messages directly from the configured server;
-8. For extracting fields from the message body, currently, two methods are supported: JSON and regular expressions. For simple key/value formatted JSON data, you can directly click the extract button to display the parsed field names; for complex JSON data, you can use JSON Path to extract the fields of interest; when using regular expressions to extract fields, ensure the correctness of the regular expressions;
-9. After the fields in the message body are parsed, you can set filtering rules based on the parsed field names, and only data that meets the filtering rules will be written into TDengine, otherwise, the message will be ignored; for example, you can configure a filtering rule as voltage > 200, meaning only data with a voltage greater than 200V will be synced to TDengine;
-10. Finally, after configuring the mapping rules between the fields in the message body and the fields in the supertable, you can submit the task; in addition to basic mapping, here you can also convert the values of the fields in the message, for example, you can use the expression (expr) to calculate the power from the original message body's voltage and current before writing it into TDengine;
-11. After submitting the task, it will automatically return to the task list page, if the submission is successful, the status of the task will switch to "Running", if the submission fails, you can check the activity log of the task to find the error reason;
-12. For tasks that are running, clicking the view button of the metrics allows you to view the detailed running metrics of the task, the popup window is divided into 2 tabs, displaying the cumulative metrics of the task's multiple runs and the metrics of this run, these metrics are automatically refreshed every 2 seconds.
+1. In the "Collection Configuration" section, you can select the version of the MQTT protocol, currently supporting 3.1, 3.1.1, 5.0; when configuring the Client ID, be aware that if multiple tasks are created for the same MQTT broker, the Client IDs should be different to avoid conflicts, which could cause the tasks to not run properly; when configuring the topic and QoS, use the format `<topic name>::<QoS>`, where the QoS values range from 0, 1, 2, representing at most once, at least once, exactly once; after configuring the above information, you can click the "Check Connectivity" button to check the configurations, if the connectivity check fails, please modify according to the specific error tips returned on the page;
+1. During the process of syncing data from the MQTT broker, taosX also supports extracting, filtering, and mapping operations on the fields in the message body. In the text box under "Payload Transformation", you can directly input a sample of the message body, or import it by uploading a file, and in the future, it will also support retrieving sample messages directly from the configured server;
+1. For extracting fields from the message body, currently, two methods are supported: JSON and regular expressions. For simple key/value formatted JSON data, you can directly click the extract button to display the parsed field names; for complex JSON data, you can use JSON Path to extract the fields of interest; when using regular expressions to extract fields, ensure the correctness of the regular expressions;
+1. After the fields in the message body are parsed, you can set filtering rules based on the parsed field names, and only data that meets the filtering rules will be written into TDengine, otherwise, the message will be ignored; for example, you can configure a filtering rule as voltage > 200, meaning only data with a voltage greater than 200V will be synced to TDengine;
+1. Finally, after configuring the mapping rules between the fields in the message body and the fields in the supertable, you can submit the task; in addition to basic mapping, here you can also convert the values of the fields in the message, for example, you can use the expression (expr) to calculate the power from the original message body's voltage and current before writing it into TDengine;
+1. After submitting the task, it will automatically return to the task list page, if the submission is successful, the status of the task will switch to "Running", if the submission fails, you can check the activity log of the task to find the error reason;
+1. For tasks that are running, clicking the view button of the metrics allows you to view the detailed running metrics of the task, the popup window is divided into 2 tabs, displaying the cumulative metrics of the task's multiple runs and the metrics of this run, these metrics are automatically refreshed every 2 seconds.
 
 ## Task Management
 

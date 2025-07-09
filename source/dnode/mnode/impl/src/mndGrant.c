@@ -19,13 +19,14 @@
 
 #ifndef _GRANT
 
-#define GRANT_ITEM_SHOW(display)                       \
-  do {                                                 \
-    cols++;                                            \
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols); \
-    src = (display);                                   \
-    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);          \
-    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);    \
+#define GRANT_ITEM_SHOW(display)                               \
+  do {                                                         \
+    if ((++cols) >= nCols) goto _end;                          \
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols))) { \
+      src = (display);                                         \
+      STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);                \
+      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);          \
+    }                                                          \
   } while (0)
 
 static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
@@ -36,6 +37,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   int32_t code = 0;
   int32_t lino = 0;
   char    tmp[32];
+  int32_t nCols = taosArrayGetSize(pBlock->pDataBlock);
 
   if (pShow->numOfRows < 1) {
     cols = 0;
@@ -48,10 +50,11 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     GRANT_ITEM_SHOW("limited");
     GRANT_ITEM_SHOW("false");
     GRANT_ITEM_SHOW("ungranted");
-    GRANT_ITEM_SHOW("unlimited");
-    GRANT_ITEM_SHOW("unlimited");
-    GRANT_ITEM_SHOW("unlimited");
 
+    for (int32_t i = 0; i < nCols - 5; ++i) {
+      GRANT_ITEM_SHOW("unlimited");
+    }
+  _end:
     ++numOfRows;
   }
 
@@ -91,6 +94,7 @@ int32_t tGetMachineId(char **result) {
   *result = NULL;
   return 0;
 }
+bool    grantCheckDualReplicaDnodes(void *pMnode) { return false; }
 int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
 int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
 int32_t mndProcessConfigGrantReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *pCfg) { return 0; }

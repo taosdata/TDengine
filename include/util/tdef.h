@@ -335,7 +335,7 @@ typedef enum ELogicConditionType {
 #define TSDB_ANALYTIC_ALGO_TYPE_LEN   24
 #define TSDB_ANALYTIC_ALGO_KEY_LEN    (TSDB_ANALYTIC_ALGO_NAME_LEN + 9)
 #define TSDB_ANALYTIC_ALGO_URL_LEN    (TSDB_ANALYTIC_ANODE_URL_LEN + TSDB_ANALYTIC_ALGO_TYPE_LEN + 1)
-#define TSDB_ANALYTIC_ALGO_OPTION_LEN 256
+#define TSDB_ANALYTIC_ALGO_OPTION_LEN 512
 
 #define TSDB_MAX_EP_NUM 10
 
@@ -561,7 +561,7 @@ typedef enum ELogicConditionType {
 #ifdef WINDOWS
 #define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
 #else
-#define TSDB_MAX_RPC_THREADS 50
+#define TSDB_MAX_RPC_THREADS 100 
 #endif
 
 #define TSDB_QUERY_TYPE_NON_TYPE 0x00u  // none type

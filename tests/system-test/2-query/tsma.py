@@ -862,7 +862,7 @@ class TDTestCase:
     def test_union(self):
         ctxs = []
         sql = 'select avg(c1) from test.meters union select avg(c1) from test.norm_tb'
-        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').should_query_with_tsma_ctb('test', 'tsma5', 'norm_tb').get_qc()
+        ctx = TSMAQCBuilder().with_sql(sql).should_query_with_tsma('tsma2').should_query_with_tsma_ctb('test', 'tsma5', 'norm_tb').ignore_res_order(True).get_qc()
         ctxs.append(ctx)
         sql = 'select avg(c1), avg(c2) from test.meters where ts between "2018-09-17 09:00:00.000" and "2018-09-17 10:00:00.000" union select avg(c1), avg(c2) from  test.meters where ts between "2018-09-17 09:00:00.200" and "2018-09-17 10:23:19.800"'
         ctxs.append(TSMAQCBuilder().with_sql(sql)

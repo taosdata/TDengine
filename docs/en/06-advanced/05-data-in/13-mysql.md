@@ -13,6 +13,10 @@ import imgStep06 from '../../assets/mysql-06.png';
 import imgStep07 from '../../assets/mysql-07.png';
 import imgStep08 from '../../assets/mysql-08.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 This section describes how to create data migration tasks through the Explorer interface, migrating data from MySQL to the current TDengine cluster.
 
 ## Overview

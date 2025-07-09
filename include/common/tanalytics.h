@@ -25,14 +25,19 @@
 extern "C" {
 #endif
 
+#define ALGO_OPT_ALGO_NAME        "algo"
+#define ALGO_OPT_TIMEOUT_NAME     "timeout"
+#define ALGO_OPT_WNCHECK_NAME     "wncheck"
+
 #define ANALY_FORECAST_DEFAULT_ROWS    10
-#define ANALY_FORECAST_DEFAULT_CONF    95
+#define ANALY_FORECAST_DEFAULT_CONF    0.95
 #define ANALY_FORECAST_DEFAULT_WNCHECK 1
 #define ANALY_FORECAST_MAX_ROWS        40000
+#define ANALY_FORECAST_MIN_ROWS        10
 #define ANALY_FORECAST_RES_MAX_ROWS    1024
 #define ANALY_ANOMALY_WINDOW_MAX_ROWS  40000
-#define ANALY_DEFAULT_TIMEOUT          60
-#define ANALY_MAX_TIMEOUT              600
+#define ANALY_DEFAULT_TIMEOUT          60      // 60sec
+#define ANALY_MAX_TIMEOUT              1200
 
 typedef struct {
   EAnalAlgoType type;
@@ -71,8 +76,8 @@ void    taosAnalyticsCleanup();
 SJson  *taosAnalySendReqRetJson(const char *url, EAnalyHttpType type, SAnalyticBuf *pBuf, int64_t timeout);
 
 int32_t taosAnalyGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen);
+int32_t taosAnalyGetOpts(const char *pOption, SHashObj **pOptHash);
 bool    taosAnalyGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen);
-bool    taosAnalyGetOptInt(const char *option, const char *optName, int64_t *optValue);
 int64_t taosAnalyGetVersion();
 void    taosAnalyUpdate(int64_t newVer, SHashObj *pHash);
 
@@ -88,6 +93,11 @@ int32_t taosAnalyBufWriteColEnd(SAnalyticBuf *pBuf, int32_t colIndex);
 int32_t taosAnalyBufWriteDataEnd(SAnalyticBuf *pBuf);
 int32_t taosAnalyBufClose(SAnalyticBuf *pBuf);
 void    taosAnalyBufDestroy(SAnalyticBuf *pBuf);
+
+int32_t taosAnalysisParseAlgo(const char *pOpt, char *pAlgoName, char *pUrl, int32_t type, int32_t len,
+                              SHashObj *pHashMap, const char *id);
+int64_t taosAnalysisParseTimout(SHashObj* pHashMap, const char* id);
+int8_t  taosAnalysisParseWncheck(SHashObj* pHashMap, const char* id);
 
 const char   *taosAnalysisAlgoType(EAnalAlgoType algoType);
 EAnalAlgoType taosAnalyAlgoInt(const char *algoName);

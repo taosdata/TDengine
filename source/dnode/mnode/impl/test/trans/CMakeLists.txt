@@ -18,13 +18,14 @@
 # )
 
 add_executable(transTest2 "")
+DEP_ext_gtest(transTest2)
 target_sources(transTest2
     PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/trans2.cpp"
 )
 target_link_libraries(
     transTest2
-    PUBLIC dnode mnode gtest_main
+    PUBLIC dnode mnode
 )
 target_include_directories(
     transTest2

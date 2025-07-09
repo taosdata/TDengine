@@ -106,7 +106,6 @@ int32_t dropTableExtSchema(SMetaEntry *pEntry, int32_t dropColId, int32_t newCol
 
 int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t add, SColRef *pColRef) {
   int32_t nCols = pWp->nCols;
-  int32_t ver = pWp->version;
   if (add) {
     SColRef *p = taosMemoryRealloc(pWp->pColRef, sizeof(SColRef) * (nCols + 1));
     if (p == NULL) {
@@ -128,7 +127,7 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
       }
     }
     pWp->nCols = nCols + 1;
-    pWp->version = ver;
+    pWp->version++;
   } else {
     for (int32_t i = 0; i < nCols; i++) {
       SColRef *pOColRef = &pWp->pColRef[i];
@@ -142,7 +141,7 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
       }
     }
     pWp->nCols = nCols;
-    pWp->version = ver;
+    pWp->version++;
   }
   return 0;
 }
@@ -163,6 +162,7 @@ int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STabl
   pMetaRsp->numOfColumns = pSchema->nCols;
   pMetaRsp->tableType = TSDB_NORMAL_TABLE;
   pMetaRsp->sversion = pSchema->version;
+  pMetaRsp->rversion = 1;
   pMetaRsp->tuid = uid;
   pMetaRsp->virtualStb = false; // super table will never be processed here
 
@@ -205,6 +205,7 @@ int32_t metaUpdateVtbMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema
   pMetaRsp->tableType = tableType;
   pMetaRsp->virtualStb = false; // super table will never be processed here
   pMetaRsp->numOfColRefs = pRef->nCols;
+  pMetaRsp->rversion = pRef->version;
 
   return code;
 _return:
@@ -427,9 +428,12 @@ static int32_t metaDropTables(SMeta *pMeta, SArray *tbUids) {
   while ((pCtbDropped = tSimpleHashIterate(suidHash, pCtbDropped, &iter))) {
     tb_uid_t    *pSuid = tSimpleHashGetKey(pCtbDropped, NULL);
     int32_t      nCols = 0;
+    int8_t       flags = 0;
     SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
-    if (metaGetStbStats(pMeta->pVnode, *pSuid, NULL, &nCols) == 0) {
-      pStats->numOfTimeSeries -= *(int64_t *)pCtbDropped * (nCols - 1);
+    if (metaGetStbStats(pMeta->pVnode, *pSuid, NULL, &nCols, &flags) == 0) {
+      if (!TABLE_IS_VIRTUAL(flags)) {
+        pStats->numOfTimeSeries -= *(int64_t *)pCtbDropped * (nCols - 1);
+      }
     }
   }
   tSimpleHashCleanup(suidHash);

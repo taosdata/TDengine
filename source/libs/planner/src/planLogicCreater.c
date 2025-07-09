@@ -818,6 +818,14 @@ static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, STableNode* p
     tstrncpy(pRefTableScanCol->colName, pSchema->name, sizeof(pRefTableScanCol->colName));
   }
 
+  if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+    SNode *pTsCol = nodesListGetNode(pLogicScan->pScanCols, 0);
+    tstrncpy(((SColumnNode*)pTsCol)->dbName, pRefTableScanCol->dbName, sizeof(((SColumnNode*)pTsCol)->dbName));
+    ((SColumnNode*)pTsCol)->hasRef = false;
+    ((SColumnNode*)pTsCol)->hasDep = true;
+    goto _return;
+  }
+
   // eliminate duplicate scan cols.
   SNode *pCol = NULL;
   FOREACH(pCol, pLogicScan->pScanCols) {

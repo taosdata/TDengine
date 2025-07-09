@@ -27,18 +27,6 @@ import TabItem from "@theme/TabItem";
 ## 安装 Grafana Plugin 并配置数据源
 
 <Tabs defaultValue="script">
-<TabItem value="gui" label="图形化界面安装">
-
-使用 Grafana 最新版本（8.5+），您可以在 Grafana 中[浏览和管理插件](https://grafana.com/docs/grafana/next/administration/plugin-management/#plugin-catalog)（对于 7.x 版本，请采用 **安装脚本** 或 **手动安装** 方式）。在 Grafana 管理界面中的 **Configurations > Plugins** 页面直接搜索 `TDengine` 并按照提示安装。
-
-安装完毕后，按照指示 **Create a TDengine data source** 添加数据源，输入 TDengine 相关配置：
-- Host：TDengine 集群中提供 REST 服务的 IP 地址与端口号，默认 `http://localhost:6041`
-- User：TDengine 用户名。
-- Password：TDengine 用户密码。
-
-点击 `Save & Test` 进行测试，成功会提示：`TDengine Data source is working`。  
-
-</TabItem>
 <TabItem value="script" label="安装脚本">
 
 对于使用 Grafana 7.x 版本或使用 [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) 配置的用户，可以在 Grafana 服务器上使用安装脚本自动安装插件即添加数据源 Provisioning 配置文件。
@@ -56,41 +44,52 @@ bash -c "$(curl -fsSL \
 保存该脚本并执行 `./install.sh --help` 可查看详细帮助文档。
 
 </TabItem>
-<TabItem value="manual" label="手动安装">
+<TabItem value="command" label="命令行工具">
+使用 [`grafana-cli` 命令行工具](https://grafana.com/docs/grafana/latest/administration/cli/)  进行插件安装，安装后需要重启 Grafana。
 
-使用 [`grafana-cli` 命令行工具](https://grafana.com/docs/grafana/latest/administration/cli/)  进行插件 [安装](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation)。
-
+对于 Linux/MacOs，请在终端执行下面命令：
 ```bash
-grafana-cli plugins install tdengine-datasource
+grafana-cli --pluginUrl \
+      https://www.taosdata.com/assets-download/grafana-plugin/tdengine-datasource.zip \
+      plugins install tdengine-datasource
 # with sudo
-sudo -u grafana grafana-cli plugins install tdengine-datasource
+sudo -u grafana grafana-cli --pluginUrl \
+      https://www.taosdata.com/assets-download/grafana-plugin/tdengine-datasource.zip \
+      plugins install tdengine-datasource
 ```
 
-或者从 [GitHub](https://github.com/taosdata/grafanaplugin/releases/tag/latest) 或 [Grafana](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation) 下载 .zip 文件到本地并解压到 Grafana 插件目录。命令行下载示例如下：
-
+对于 Windows，首先请确保插件安装目录存在（默认是 Grafana 安装目录下 data/plugins）, 然后在 Grafana 安装目录的 bin 目录下以管理员账号执行下面的命令：
 ```bash
-GF_VERSION=3.5.1
-# from GitHub
-wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
-# from Grafana
-wget -O tdengine-datasource-$GF_VERSION.zip https://grafana.com/api/plugins/tdengine-datasource/versions/$GF_VERSION/download
-```
-
-以 CentOS 7.2 操作系统为例，将插件包解压到 /var/lib/grafana/plugins 目录下，重新启动 grafana 即可。
-
-```bash
-sudo unzip tdengine-datasource-$GF_VERSION.zip -d /var/lib/grafana/plugins/
-```
-
-如果 Grafana 在 Docker 环境下运行，可以使用如下的环境变量设置自动安装 TDengine 数据源插件：
-
-```bash
-GF_INSTALL_PLUGINS=tdengine-datasource
+./grafana-cli.exe --pluginUrl https://www.taosdata.com/assets-download/grafana-plugin/tdengine-datasource.zip plugins install tdengine-datasource
 ```
 
 之后，用户可以直接通过 http://localhost:3000 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，
 
-点击 `Add data source` 可进入新增数据源页面，在查询框中输入 TDengine， 然后点击 `select` 选择添加后会进入数据源配置页面，按照默认提示修改相应配置：
+点击 `Add data source` 可进入新增数据源页面，在查询框中输入 TDengine，然后点击 `select` 选择添加后会进入数据源配置页面，按照默认提示修改相应配置：
+
+- Host：TDengine 集群中提供 REST 服务的 IP 地址与端口号，默认 `http://localhost:6041`
+- User：TDengine 用户名。
+- Password：TDengine 用户密码。
+
+点击 `Save & Test` 进行测试，成功会提示：`TDengine Data source is working`
+
+</TabItem>
+<TabItem value="manual" label="手动安装">
+下载 [tdengine-datasource.zip](https://www.taosdata.com/assets-download/grafana-plugin/tdengine-datasource.zip) 文件到本地并解压到 Grafana 插件目录。命令行下载示例如下：
+
+```bash
+wget https://www.taosdata.com/assets-download/grafana-plugin/tdengine-datasource.zip
+```
+
+以 CentOS 7.2 操作系统为例，将插件包解压到 /var/lib/grafana/plugins 目录下，重新启动 Grafana 即可。
+
+```bash
+sudo unzip tdengine-datasource.zip -d /var/lib/grafana/plugins/
+```
+
+之后，用户可以直接通过 http://localhost:3000 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，
+
+点击 `Add data source` 可进入新增数据源页面，在查询框中输入 TDengine，然后点击 `select` 选择添加后会进入数据源配置页面，按照默认提示修改相应配置：
 
 - Host：TDengine 集群中提供 REST 服务的 IP 地址与端口号，默认 `http://localhost:6041`
 - User：TDengine 用户名。
@@ -107,7 +106,7 @@ GF_INSTALL_PLUGINS=tdengine-datasource
 docker run -d \
   -p 3000:3000 \
   --name=grafana \
-  -e "GF_INSTALL_PLUGINS=tdengine-datasource" \
+  -e "GF_INSTALL_PLUGINS=https://www.taosdata.com/assets-download/grafana-plugin/tdengine-datasource.zip;tdengine-datasource" \
   grafana/grafana
 ```
 
@@ -124,9 +123,8 @@ docker run -d \
       url: "$TDENGINE_API"
       isDefault: true
       secureJsonData:
-        url: "$TDENGINE_URL"
+        url: "$TDENGINE_API"
         basicAuth: "$TDENGINE_BASIC_AUTH"
-        token: "$TDENGINE_CLOUD_TOKEN"
       version: 1
       editable: true
     ```
@@ -153,14 +151,14 @@ docker run -d \
       grafana:
         image: grafana/grafana:latest
         volumes:
-          - ./tdengine.yml:/etc/grafana/provisioning/tdengine.yml
+          - ./tdengine.yml:/etc/grafana/provisioning/datasources/tdengine.yml
           - grafana-data:/var/lib/grafana
         environment:
           # install tdengine plugin at start
-          GF_INSTALL_PLUGINS: "tdengine-datasource"
-          TDENGINE_URL: "http://tdengine:6041"
+          GF_INSTALL_PLUGINS: "https://www.taosdata.com/assets-download/grafana-plugin/tdengine-datasource.zip;tdengine-datasource"
+          TDENGINE_API: "http://tdengine:6041"
           #printf "$TDENGINE_USER:$TDENGINE_PASSWORD" | base64
-          TDENGINE_BASIC_AUTH: "cm9vdDp0YmFzZTEyNQ=="
+          TDENGINE_BASIC_AUTH: "cm9vdDp0YW9zZGF0YQ=="
         ports:
           - 3000:3000
 
@@ -169,7 +167,7 @@ docker run -d \
       tdengine-data:
     ```
 
-3. 使用 docker-compose 命令启动 TDengine + Grafana ：`docker-compose up -d`。
+3. 使用 docker-compose 命令启动 TDengine + Grafana：`docker-compose up -d`。
 
 打开 Grafana [http://localhost:3000](http://localhost:3000)，现在可以添加 Dashboard 了。
 
@@ -187,12 +185,12 @@ docker run -d \
 本节内容按如下方式组织：  
 1. 介绍基础知识，包括 Grafana 的内置变量和自定义变量，TDengine 对与时序查询的特色语法支持。
 2. 介绍如何使用 TDengine 数据源在 Grafana 中创建 Dashboard，然后给出使用时序查询的特色语法和如何分组展示数据。
-3. 由于配置的 Dashbord 在页面显示时会定时查询 TDengine 来刷新显示，如果 SQL 编写不当会导致严重的性能问题，我们给出了性能优化建议。
+3. 由于配置的 Dashboard 在页面显示时会定时查询 TDengine 来刷新显示，如果 SQL 编写不当会导致严重的性能问题，我们给出了性能优化建议。
 4. 最后我们以 TDengine 监控面板 TDinsight 为例介绍了如何导入我们提供的 DashBoard。
 
 ### Grafana 内置变量和自定义变量
 
-Grafana 中的 Variable（变量）功能非常强大，可以在 Dashboard 的查询、面板标题、标签等地方使用，用来创建更加动态和交互式的 Dashbord，提高用户体验和效率。
+Grafana 中的 Variable（变量）功能非常强大，可以在 Dashboard 的查询、面板标题、标签等地方使用，用来创建更加动态和交互式的 Dashboard，提高用户体验和效率。
 
 变量的主要作用和特点包括：
 
@@ -217,17 +215,17 @@ Grafana 内置了 `from`、`to` 和 `interval` 等变量，都取自于 Grafana 
 
 #### 自定义变量
 
-我们可以在 Dashbord 中增加自定义变量。自定义变量和内置变量的使用方式没有区别，都是在 SQL 中用 `$variableName` 进行引用。
+我们可以在 Dashboard 中增加自定义变量。自定义变量和内置变量的使用方式没有区别，都是在 SQL 中用 `$variableName` 进行引用。
 自定义变量支持多种类型，常见的类型包括 `Query`（查询）、`Constant`（常量）、`Interval`（间隔）、`Data source`（数据源）等。
 自定义变量可以引用其他自定义变量，比如一个变量表示区域，另一个变量可以引用区域的值，来查询这个区域的设备。
 
 ##### 添加查询类型变量
 
-在 Dashbord 的配置中，选择 【Variables】，然后点击 【New variable】：
-1. 在 “Name” 字段中，输入你的变量名，此处我们设置变量名为 `selected_groups`。
-2. 在 【Select variable type】下拉菜单中，选择 “Query”（查询）。
-根据选择的变量类型，配置相应的选项。例如，如果选择了 “Query” 类型，你需要指定数据源和用于获取变量值的查询语句。此处我们还以智能电表为例，设置查询类型，选择数据源后，配置 SQL 为 `select distinct(groupid) from power.meters where groupid < 3 and ts > $from and ts < $to;`
-3. 点击底部的【Run Query】后，可以在 “Preview of values”（值预览）部分，查看到根据你的配置生成的变量值。
+在 Dashboard 的配置中，选择【Variables】，然后点击【New variable】：
+1. 在“Name”字段中，输入你的变量名，此处我们设置变量名为 `selected_groups`。
+2. 在【Select variable type】下拉菜单中，选择“Query”（查询）。
+根据选择的变量类型，配置相应的选项。例如，如果选择了“Query”类型，你需要指定数据源和用于获取变量值的查询语句。此处我们还以智能电表为例，设置查询类型，选择数据源后，配置 SQL 为 `select distinct(groupid) from power.meters where groupid < 3 and ts > $from and ts < $to;`
+3. 点击底部的【Run Query】后，可以在“Preview of values”（值预览）部分，查看到根据你的配置生成的变量值。
 4. 还有其他配置不再赘述，完成配置后，点击页面底部的【Apply】（应用）按钮，然后点击右上角的【Save dashboard】保存。  
 
 完成以上步骤后，我们就成功在 Dashboard 中添加了一个新的自定义变量 `$selected_groups`。我们可以后面在 Dashboard 的查询中通过 `$selected_groups` 的方式引用这个变量。  
@@ -237,9 +235,9 @@ Grafana 内置了 `from`、`to` 和 `interval` 等变量，都取自于 Grafana 
 ##### 添加间隔类型变量
 
 我们可以自定义时间窗口间隔，可以更加贴合业务需求。
-1. 在 “Name” 字段中，输入变量名为 `interval`。
-2. 在 【Select variable type】下拉菜单中，选择 “Interval”（间隔）。
-3. 在 【Interval options】选项中输入 `1s,2s,5s,10s,15s,30s,1m`。
+1. 在“Name”字段中，输入变量名为 `interval`。
+2. 在【Select variable type】下拉菜单中，选择“Interval”（间隔）。
+3. 在【Interval options】选项中输入 `1s,2s,5s,10s,15s,30s,1m`。
 4. 还有其他配置不再赘述，完成配置后，点击页面底部的【Apply】（应用）按钮，然后点击右上角的【Save dashboard】保存。
 
 完成以上步骤后，我们就成功在 Dashboard 中添加了一个新的自定义变量 `$interval`。我们可以后面在 Dashboard 的查询中通过 `$interval` 的方式引用这个变量。
@@ -262,12 +260,12 @@ TDengine 在支持标准 SQL 的基础之上，还提供了一系列满足时序
 
 ### 创建 Dashboard
 
-有了前面的基础知识，我们可以配置基于 TDengine 数据源的时间序列数据展示 Dashbord。  
+有了前面的基础知识，我们可以配置基于 TDengine 数据源的时间序列数据展示 Dashboard。  
 在 Grafana 主界面创建 Dashboard，点击【Add Query】进入面板查询页面：
 
 ![TDengine Database Grafana plugin create dashboard](./create_dashboard1.webp)
 
-如上图所示，在 “Query” 中选中 `TDengine` 数据源，在下方查询框可输入相应 SQL 进行查询。 我们继续用智能电表来举例，为了展示曲线美观，此处**用了虚拟数据**。
+如上图所示，在“Query”中选中 `TDengine` 数据源，在下方查询框可输入相应 SQL 进行查询。我们继续用智能电表来举例，为了展示曲线美观，此处**用了虚拟数据**。
 
 #### 时间序列数据展示
 
@@ -282,7 +280,7 @@ TDengine 在支持标准 SQL 的基础之上，还提供了一系列满足时序
 
 :::note
 
-由于 REST 接口无状态， 不能使用 `use db` 语句来切换数据库。Grafana 插件中 SQL 语句中可以使用 \<db_name>.\<table_name> 来指定数据库。
+由于 REST 接口无状态，不能使用 `use db` 语句来切换数据库。Grafana 插件中 SQL 语句中可以使用 \<db_name>.\<table_name> 来指定数据库。
 
 :::
 
@@ -290,8 +288,8 @@ TDengine 在支持标准 SQL 的基础之上，还提供了一系列满足时序
 
 假设我们想查询一段时间内的平均电流大小，按 `groupid` 分组展示，我们可以修改之前的 SQL 为 `select _wstart as ts, groupid, avg(current) as current from power.meters where ts > $from and ts < $to partition by groupid interval($interval) fill(null)`
 
-- “Group by column(s)”：**半角**逗号分隔的 `group by` 或 `partition by` 列名。如果是 `group by` 或 `partition by` 查询语句，设置 “Group by” 列，可以展示多维数据。此处设置 “Group by” 列名为 `groupid`，可以按 `groupid` 分组展示数据。
-- “Group By Format”：`Group by` 或 `Partition by` 场景下多维数据 legend 格式化格式。例如上述 INPUT SQL，将 “Group By Format” 设置为 `groupid-{{groupid}}`，展示的 legend 名字为格式化的分组名。
+- “Group by column(s)”：**半角**逗号分隔的 `group by` 或 `partition by` 列名。如果是 `group by` 或 `partition by` 查询语句，设置“Group by”列，可以展示多维数据。此处设置“Group by”列名为 `groupid`，可以按 `groupid` 分组展示数据。
+- “Group By Format”：`Group by` 或 `Partition by` 场景下多维数据 legend 格式化格式。例如上述 INPUT SQL，将“Group By Format”设置为 `groupid-{{groupid}}`，展示的 legend 名字为格式化的分组名。
 
 完成设置后，按照 `groupid` 分组展示如下图：
 
@@ -333,13 +331,13 @@ TDengine Grafana 插件支持告警，如果要配置告警，需要以下几个
 
 ### 告警配置界面介绍
 
-在Grafana 11 告警界面一共有 6 个 Tab，分别是 “Alert rules”、“Contact points”、“Notification policies”、“Silences”、 “Groups” 和 “Settings”。
-- “Alert rules” 告警规则列表，用于展示和配置告警规则
-- “Contact points” 通知渠道，包括 DingDing、Email、Slack、WebHook、Prometheus Alertmanager 等
-- “Notification policies” 配置告警发送到哪个通道的路由，以及发送通知的时间和重复频率
-- “Silences” 配置告警静默时间段
-- “Groups” 告警组，配置的告警触发后会在这里分组显示
-- “Settings” 提供通过 JSON 方式修改告警配置
+在 Grafana 11 告警界面一共有 6 个 Tab，分别是“Alert rules”、“Contact points”、“Notification policies”、“Silences”、 “Groups”和“Settings”。
+- “Alert rules”告警规则列表，用于展示和配置告警规则
+- “Contact points”通知渠道，包括 DingDing、Email、Slack、WebHook、Prometheus Alertmanager 等
+- “Notification policies”配置告警发送到哪个通道的路由，以及发送通知的时间和重复频率
+- “Silences”配置告警静默时间段
+- “Groups”告警组，配置的告警触发后会在这里分组显示
+- “Settings”提供通过 JSON 方式修改告警配置
 
 ### 配置联络点
 
@@ -357,14 +355,14 @@ TDengine Grafana 插件支持告警，如果要配置告警，需要以下几个
 enabled = true
 host = smtp.qq.com:465      #使用的邮箱
 user = receiver@foxmail.com
-password = ***********      #使用mail授权码
+password = ***********      #使用 mail 授权码
 skip_verify = true
 from_address = sender@foxmail.com
 ```
 
 然后重启 Grafana 服务（以 Linux 系统为例，执行 `systemctl restart grafana-server.service`）即可添加完成
 
-在 Grafana 页面找到 “Home” -> “Alerting” -> “Contact points”，创建新联络点  
+在 Grafana 页面找到“Home” -> “Alerting” -> “Contact points”，创建新联络点  
 “Name”：Email Contact Point  
 “Integration”：选择联络类型，这里选择 Email，填写邮件接收地址，完成后保存联络点  
 
@@ -380,7 +378,7 @@ from_address = sender@foxmail.com
 
 ![TDengine Database Grafana plugin feishu robot](./alert-feishu1.webp)
 
-在 Grafana 页面找到 “Home” -> “Alerting” -> “Contact points” 创建新联络点  
+在 Grafana 页面找到“Home” -> “Alerting” -> “Contact points”创建新联络点  
 “Name”：Feishu Contact Point  
 “Integration”：选择联络类型，这里选择 Webhook，并填写 URL (在飞书机器人助手的 Grafana 触发器 Webhook 地址)，完成后保存联络点  
 
@@ -388,11 +386,11 @@ from_address = sender@foxmail.com
 
 ### 配置告警通知策略
 
-配置好联络点后，可以看到已有一个Default Policy
+配置好联络点后，可以看到已有一个 Default Policy
 
 ![TDengine Database Grafana plugin Notification default policy](./alert-notification1.webp)
 
-点击右侧 “...” -> ”Edit”，然后编辑默认通知策略，弹出配置窗口：
+点击右侧“...” -> ”Edit”，然后编辑默认通知策略，弹出配置窗口：
 
 ![TDengine Database Grafana plugin Notification](./alert-notification2.webp)
 
@@ -407,13 +405,13 @@ from_address = sender@foxmail.com
 
 #### 配置告警名称
 
-在需要配置告警的面板中选择 “Edit” -> “Alert” -> “New alert rule”。
+在需要配置告警的面板中选择“Edit” -> “Alert” -> “New alert rule”。
 
 “Enter alert rule name“ (输入告警规则名称)：此处以智能电表为例输入 `power meters alert`
 
 #### 配置查询和告警触发条件
 
-在 “Define query and alert condition” (定义查询和告警触发条件) 中配置告警规则。
+在“Define query and alert condition” (定义查询和告警触发条件) 中配置告警规则。
 1. 选择数据源：`TDengine Datasource`  
 2. 查询语句：
 
@@ -421,7 +419,7 @@ from_address = sender@foxmail.com
     select _wstart as ts, groupid, avg(current) as current from power.meters where ts > $from and ts < $to partition by groupid interval($interval) fill(null)
     ```
 
-3. 设置 “Expression”（表达式）：`Threshold is above 100`  
+3. 设置“Expression”（表达式）：`Threshold is above 100`  
 4. 点击【Set as alert condition】
 5. “Preview”：查看设置的规则的结果  
 
@@ -429,21 +427,21 @@ from_address = sender@foxmail.com
 
 ![TDengine Database Grafana plugin Alert Rules](./alert-rules1.webp)
 
-Grafana 的 “Expression”（表达式）支持对数据做各种操作和计算，其类型分为：
+Grafana 的“Expression”（表达式）支持对数据做各种操作和计算，其类型分为：
 1. “Reduce”：将所选时间范围内的时间序列值聚合为单个值  
-    1.1 “Function” 用来设置聚合方法，支持 Min、Max、Last、Mean、Sum 和 Count。  
-    1.2 “Mode” 支持下面三种：  
+    1.1“Function”用来设置聚合方法，支持 Min、Max、Last、Mean、Sum 和 Count。  
+    1.2“Mode”支持下面三种：  
         - “Strict”：如果查询不到数据，数据会赋值为 NaN。  
         - “Drop Non-numeric Value”：去掉非法数据结果。  
         - “Replace Non-numeric Value”：如果是非法数据，使用固定值进行替换。  
-2. “Threshold”：检查时间序列数据是否符合阈值判断条件。当条件为假时返回 0，为真则返回1。支持下列方式：
+2. “Threshold”：检查时间序列数据是否符合阈值判断条件。当条件为假时返回 0，为真则返回 1。支持下列方式：
     - Is above (x > y)
     - Is below (x < y)
     - Is within range (x > y1 AND x < y2)
     - Is outside range (x < y1 AND x > y2)
 3. “Math”：对时间序列的数据进行数学运算。
 4. “Resample”：更改每个时间序列中的时间戳使其具有一致的时间间隔，以便在它们之间执行数学运算。
-5. “Classic condition (legacy)”： 可配置多个逻辑条件，判断是否触发告警。
+5. “Classic condition (legacy)”：可配置多个逻辑条件，判断是否触发告警。
 
 如上节截图显示，此处我们设置最大值超过 100 触发告警。
 
@@ -453,7 +451,7 @@ Grafana 的 “Expression”（表达式）支持对数据做各种操作和计�
 
 完成下面配置：  
 - “Folder”：设置告警规则所属目录。
-- “Evaluation group”：设置告警规则评估组。“Evaluation group” 可以选择已有组或者新建组，新建组可以设置组名和评估时间间隔。
+- “Evaluation group”：设置告警规则评估组。“Evaluation group”可以选择已有组或者新建组，新建组可以设置组名和评估时间间隔。
 - “Pending period”：在告警规则的阈值被触发后，异常值持续多长时间可以触发告警，合理设置可以避免误报。
 
 #### 配置标签和告警通道
@@ -461,11 +459,11 @@ Grafana 的 “Expression”（表达式）支持对数据做各种操作和计�
 ![TDengine Database Grafana plugin Alert Labels and Notifications](./alert-labels.webp)
 
 完成下面配置：  
-- “Labels” 将标签添加到规则中，以便进行搜索、静默或路由到通知策略。
-- “Contact point” 选择联络点，当告警发生时通过设置的联络点进行通知。
+- “Labels”将标签添加到规则中，以便进行搜索、静默或路由到通知策略。
+- “Contact point”选择联络点，当告警发生时通过设置的联络点进行通知。
 
 #### 配置通知文案
 
 ![TDengine Database Grafana plugin Alert Labels and Notifications](./alert-annotations.webp)
 
-设置 “Summary” 和 “Description” 后，若告警触发，将会收到告警通知。
+设置“Summary”和“Description”后，若告警触发，将会收到告警通知。

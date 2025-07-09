@@ -1,5 +1,3 @@
-# Scheduled updates for the TDgpt service.
-
 name: TDgpt Update Service
 
 on:
@@ -19,12 +17,13 @@ jobs:
         run: |
           set -euo pipefail
           cd ${{ env.WKC }}
-          git checkout 3.0
+          git checkout main
+          git pull
 
       - name: Package the TDGpt Anode Service
         run: |
           set -euo pipefail
-          cd ${{ env.WKC }}/tools/tdgpt/script && ./release.sh
+          cd ${{ env.WKC }}/tools/tdgpt/script && ./release.sh -e community  -v ${{ vars.TDGPT_VERSION }}
 
       - name: Reinstall and restart the TDGpt Anode Service
         run: |
@@ -40,4 +39,6 @@ jobs:
       - name: Clean up
         if: always()
         run: |
-          if [[ -f ${{ env.WKC }}/tools/tdgpt/release/TDengine-enterprise-anode-1.0.1 ]] then rm -rf ${{ env.WKC }}/tools/tdgpt/release/TDengine-enterprise-anode-1.0.1; fi
+          if [[ -f "${{ env.WKC }}/tools/tdgpt/release/TDengine-enterprise-anode-1.0.1" ]]; then 
+            rm -rf "${{ env.WKC }}/tools/tdgpt/release/TDengine-enterprise-anode-1.0.1" 
+          fi

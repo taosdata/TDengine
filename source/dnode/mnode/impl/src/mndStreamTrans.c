@@ -210,6 +210,7 @@ int32_t doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnCo
   }
 
   mInfo("stream:0x%" PRIx64 " start to build trans %s, transId:%d", pStream->uid, pMsg, p->id);
+  p->ableToBeKilled = true;
 
   mndTransSetDbName(p, pStream->sourceDb, pStream->targetSTbName);
   if ((code = mndTransCheckConflict(pMnode, p)) != 0) {
@@ -404,7 +405,7 @@ void killChkptAndResetStreamTask(SMnode *pMnode, SArray* pLongChkpts) {
              pTrans->streamId, pTrans->transId, p->checkpointId);
 
       code = mndCreateStreamResetStatusTrans(pMnode, p, p->checkpointId);
-      if (code) {
+      if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
         mError("stream:%s 0x%"PRIx64" failed to create reset stream task, code:%s", p->name, p->uid, tstrerror(code));
       }
       sdbRelease(pMnode->pSdb, p);

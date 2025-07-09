@@ -175,6 +175,7 @@ help() {
     echo "  deploy_docker               - Deploy Docker"
     echo "  deploy_docker_compose       - Deploy Docker Compose"
     echo "  install_trivy               - Install Trivy"
+    echo "  install_uv                  - Install uv"
     echo "  clone_enterprise            - Clone the enterprise repository"
     echo "  clone_community             - Clone the community repository"
     echo "  clone_taosx                 - Clone TaosX repository"
@@ -408,11 +409,17 @@ install_package() {
 # Install package via apt
 install_via_apt() {
     echo -e "${YELLOW}Installing packages: $*...${NO_COLOR}"
-    if DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "$@"; then
-        echo -e "${GREEN}Installed packages successfully.${NO_COLOR}"
-    else
-        echo -e "${RED}Failed to install packages.${NO_COLOR}"
-        return 1
+    if ! DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "$@"; then
+        if ! DEBIAN_FRONTEND=noninteractive apt-get install -y --fix-missing -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "$@"; then
+            echo "Attempting to update and install $package..."
+            apt update -y
+            if DEBIAN_FRONTEND=noninteractive apt-get install -y --fix-missing -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "$@"; then
+                    echo -e "${GREEN}Installed packages successfully.${NO_COLOR}"
+            else
+                    echo -e "${RED}Failed to install packages.${NO_COLOR}"
+                    return 1
+            fi
+        fi
     fi
 }
 
@@ -941,7 +948,7 @@ install_java() {
     add_config_if_not_exist "export PATH=\$PATH:\$JAVA_HOME/bin" "$BASH_RC"
     # shellcheck source=/dev/null
     export JAVA_HOME=/usr/local/jdk-${JDK_VERSION_NUM}
-    export PATH=$PATH:$JAVA_HOME/bin
+    export PATH=$JAVA_HOME/bin:$PATH
     INSTALLED_VERSION=$("$JAVA_HOME"/bin/java --version 2>&1)
     if echo "$INSTALLED_VERSION" | grep -q "openjdk $DEFAULT_JDK_VERSION"; then
         echo -e "${GREEN}Java installed successfully.${NO_COLOR}"
@@ -1534,12 +1541,13 @@ EOF
 
 # Install Grafana using a downloaded .deb package
 deploy_grafana() {
+    LATEST_VERSION=$(curl --retry 10 --retry-delay 5 --retry-max-time 120 -s https://api.github.com/repos/grafana/grafana/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
     if [ -f /etc/debian_version ]; then
         # Debian or Ubuntu
-        deploy_debian_grafana
+        deploy_debian_grafana "$LATEST_VERSION"
     elif [ -f /etc/redhat-release ]; then
         # Red Hat or CentOS
-        deploy_redhat_grafana
+        deploy_redhat_grafana "$LATEST_VERSION"
     else
         echo "Unsupported Linux distribution."
         exit 1
@@ -1549,12 +1557,13 @@ deploy_grafana() {
 # Install Grafana for ubuntu/debian
 deploy_debian_grafana() {
     # Check if Grafana is already installed
-    if ! dpkg -s "grafana" &> /dev/null; then
+    if ! dpkg -s "grafana" && ! dpkg -s "grafana-enterprise" &> /dev/null; then
         echo "Downloading the latest Grafana .deb package..."
         # Download the latest Grafana .deb package
-        wget https://dl.grafana.com/oss/release/grafana_latest_amd64.deb -O grafana.deb
+        grafana_latest_version=$1
+        wget https://dl.grafana.com/oss/release/grafana_${grafana_latest_version}_amd64.deb -O grafana.deb
         # install the required fontconfig package
-        install_package libfontconfig1
+        install_package adduser libfontconfig1 musl
         echo "Installing Grafana..."
         # Install the .deb package
         dpkg -i grafana.deb
@@ -1583,7 +1592,8 @@ deploy_redhat_grafana() {
     if ! rpm -q grafana &> /dev/null; then
         echo "Downloading the latest Grafana .rpm package..."
         # Download the latest Grafana .rpm package
-        wget https://dl.grafana.com/oss/release/grafana-8.5.2-1.x86_64.rpm -O grafana.rpm
+        grafana_latest_version=$1
+        wget https://dl.grafana.com/oss/release/grafana-${grafana_latest_version}-1.x86_64.rpm -O grafana.rpm
 
         # Install the required fontconfig package
         yum install -y fontconfig
@@ -1782,6 +1792,32 @@ install_trivy() {
     trivy --version
     check_status "Failed to install Trivy" "Trivy installed successfully." $?
     rm -rf trivy_"${LATEST_VERSION#v}"_Linux-64bit.deb trivy_"${LATEST_VERSION#v}"_Linux-64bit.rpm
+}
+
+# Install uv
+install_uv() {
+    local uv_url="https://astral.sh/uv/install.sh"
+    local uv_path="$HOME/.local/bin/uv"
+
+    echo -e "${YELLOW}Checking for uv installation...${NO_COLOR}"
+
+    if [ -f "$uv_path" ]; then
+        echo -e "${GREEN}uv is already installed.${NO_COLOR}"
+    else
+        echo -e "${YELLOW}Installing uv...${NO_COLOR}"
+        if ! command -v curl &> /dev/null; then
+            echo -e "${RED}Error: curl is not installed. Please install curl first.${NO_COLOR}"
+            install_package curl
+        fi
+
+        if curl --retry 10 --retry-delay 5 --retry-max-time 120 -LsSf "$uv_url" | sh; then
+            echo -e "${GREEN}uv has been installed successfully.${NO_COLOR}"
+            SOURCE_RESULTS+="# For uv\nsource $HOME/.local/bin/env (sh, bash, zsh)\nsource $HOME/.local/bin/env.fish (fish)\n"
+        else
+            echo -e "${RED}Error: Failed to install uv.${NO_COLOR}"
+            return 1
+        fi
+    fi
 }
 
 # Reconfigure cloud-init
@@ -2058,6 +2094,7 @@ deploy_dev() {
     deploy_docker
     deploy_docker_compose
     install_trivy
+    install_uv
     check_status "Failed to deploy some tools" "Deploy all tools successfully" $?
 }
 
@@ -2215,6 +2252,9 @@ main() {
                 ;;
             install_trivy)
                 install_trivy
+                ;;
+            install_uv)
+                install_uv
                 ;;
             clone_enterprise)
                 clone_enterprise

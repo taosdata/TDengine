@@ -90,13 +90,13 @@ For example: `"host=127.0.0.1;port=6030;username=root;password=taosdata;protocol
 
 Supported parameters include:
 
-* `host`: Address of the TDengine instance.
-* `port`: Port of the TDengine instance.
-* `username`: Username for the connection.
-* `password`: Password for the connection.
-* `protocol`: Connection protocol, options are Native or WebSocket, default is Native.
-* `db`: Database to connect to.
-* `timezone`: Time zone, default is the local time zone.
+- `host`: Address of the TDengine instance.
+- `port`: Port of the TDengine instance.
+- `username`: Username for the connection.
+- `password`: Password for the connection.
+- `protocol`: Connection protocol, options are Native or WebSocket, default is Native.
+- `db`: Database to connect to.
+- `timezone`: The timezone used for parsing time types in the query result set. Defaults to the local timezone. For format details, see [Timezone Settings for Result Sets](#timezone-settings-for-result-sets).
 
 ##### WebSocket Connection
 
@@ -104,31 +104,43 @@ For example: `"protocol=WebSocket;host=127.0.0.1;port=6041;useSSL=false;enableCo
 
 Supported parameters include:
 
-* `host`: Address of the TDengine instance.
-* `port`: Port of the TDengine instance.
-* `username`: Username for the connection.
-* `password`: Password for the connection.
-* `protocol`: Connection protocol, options are Native or WebSocket, default is Native.
-* `db`: Database to connect to.
-* `timezone`: Time zone, default is the local time zone.
-* `connTimeout`: Connection timeout, default is 1 minute.
-* `readTimeout`: Read timeout, default is 5 minutes.
-* `writeTimeout`: Send timeout, default is 10 seconds.
-* `token`: Token for connecting to TDengine cloud.
-* `useSSL`: Whether to use SSL connection, default is false.
-* `enableCompression`: Whether to enable WebSocket compression, default is false.
-* `autoReconnect`: Whether to automatically reconnect, default is false.
-* `reconnectRetryCount`: Number of retries for reconnection, default is 3.
-* `reconnectIntervalMs`: Interval for reconnection in milliseconds, default is 2000.
+- `host`: Address of the TDengine instance.
+- `port`: Port of the TDengine instance.
+- `username`: Username for the connection.
+- `password`: Password for the connection.
+- `protocol`: Connection protocol, options are Native or WebSocket, default is Native.
+- `db`: Database to connect to.
+- `timezone`: The timezone used for parsing time types in the query result set. Defaults to the local timezone. For format details, see [Timezone Settings for Result Sets](#timezone-settings-for-result-sets).
+- `connTimeout`: Connection timeout, default is 1 minute.
+- `readTimeout`: Read timeout, default is 5 minutes.
+- `writeTimeout`: Send timeout, default is 10 seconds.
+- `token`: Token for connecting to TDengine cloud.
+- `useSSL`: Whether to use SSL connection, default is false.
+- `enableCompression`: Whether to enable WebSocket compression, default is false.
+- `autoReconnect`: Whether to automatically reconnect, default is false.
+- `reconnectRetryCount`: Number of retries for reconnection, default is 3.
+- `reconnectIntervalMs`: Interval for reconnection in milliseconds, default is 2000.
+
+#### Timezone Settings for Result Sets
+
+The C# driver, when parsing result sets, uses the local timezone by default to interpret time types. If you need to use a different timezone to parse time types, you can specify the timezone by setting the `timezone` parameter.  
+Internally, the `TimeZoneInfo.FindSystemTimeZoneById` method is used to retrieve timezone information:
+
+- On Windows systems, `FindSystemTimeZoneById` attempts to match the subkey names under the registry branch `HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Time Zones`.
+- On Linux and macOS, the timezone information provided by the [ICU library](https://unicode-org.github.io/icu/userguide/datetime/timezone/) is used.
+
+Take the New York timezone as an example: Windows uses Eastern Standard Time, while Linux and macOS use America/New_York.
+
+Starting with .NET 6, you can uniformly use the [IANA](https://www.iana.org/time-zones) time zone format, such as `America/New_York`.
 
 #### Interface Description
 
 The `ConnectionStringBuilder` class provides functionality for parsing connection configuration strings.
 
-* `public ConnectionStringBuilder(string connectionString)`
-  * **Interface Description**: Constructor for ConnectionStringBuilder.
-  * **Parameter Description**:
-    * `connectionString`: Connection configuration string.
+- `public ConnectionStringBuilder(string connectionString)`
+  - **Interface Description**: Constructor for ConnectionStringBuilder.
+  - **Parameter Description**:
+    - `connectionString`: Connection configuration string.
 
 ### Connection Features
 
@@ -138,74 +150,74 @@ The C# driver supports creating ADO.NET connections, returning objects that supp
 
 The standard interfaces supported by ADO.NET connections are as follows:
 
-* `public TDengineConnection(string connectionString)`
-  * **Interface Description**: Constructor for TDengineConnection.
-  * **Parameter Description**:
-    * `connectionString`: Connection configuration string.
-  * **Exception**: Throws `ArgumentException` if the format is incorrect.
+- `public TDengineConnection(string connectionString)`
+  - **Interface Description**: Constructor for TDengineConnection.
+  - **Parameter Description**:
+    - `connectionString`: Connection configuration string.
+  - **Exception**: Throws `ArgumentException` if the format is incorrect.
 
-* `public void ChangeDatabase(string databaseName)`
-  * **Interface Description**: Switch databases.
-  * **Parameter Description**:
-    * `databaseName`: Database name.
-  * **Exception**: Throws `TDengineError` exception if execution fails.
+- `public void ChangeDatabase(string databaseName)`
+  - **Interface Description**: Switch databases.
+  - **Parameter Description**:
+    - `databaseName`: Database name.
+  - **Exception**: Throws `TDengineError` exception if execution fails.
 
-* `public void Close()`
-  * **Interface Description**: Close connection.
+- `public void Close()`
+  - **Interface Description**: Close connection.
 
-* `public void Open()`
-  * **Interface Description**: Open connection.
-  * **Exception**: Throws `TDengineError` exception if opening fails, be aware of potential network issues with WebSocket connections.
+- `public void Open()`
+  - **Interface Description**: Open connection.
+  - **Exception**: Throws `TDengineError` exception if opening fails, be aware of potential network issues with WebSocket connections.
 
-* `public string ServerVersion`
-  * **Interface Description**: Returns the server version.
-  * **Return Value**: Server version string.
-  * **Exception**: Throws `TDengineError` exception if execution fails.
+- `public string ServerVersion`
+  - **Interface Description**: Returns the server version.
+  - **Return Value**: Server version string.
+  - **Exception**: Throws `TDengineError` exception if execution fails.
 
-* `public string DataSource`
-  * **Interface Description**: Returns the data source.
-  * **Return Value**: Configuration of the host used to create the connection.
+- `public string DataSource`
+  - **Interface Description**: Returns the data source.
+  - **Return Value**: Configuration of the host used to create the connection.
 
-* `public string Database`
-  * **Interface Description**: Returns the connected database.
-  * **Return Value**: Configuration of the database used to create the connection.
+- `public string Database`
+  - **Interface Description**: Returns the connected database.
+  - **Return Value**: Configuration of the database used to create the connection.
 
-* `public TDengineCommand(TDengineConnection connection)`
-  * **Interface Description**: Constructor for TDengineCommand.
-  * **Parameter Description**:
-    * `connection`: TDengineConnection object.
-  * **Exception**: Throws `TDengineError` exception if execution fails.
+- `public TDengineCommand(TDengineConnection connection)`
+  - **Interface Description**: Constructor for TDengineCommand.
+  - **Parameter Description**:
+    - `connection`: TDengineConnection object.
+  - **Exception**: Throws `TDengineError` exception if execution fails.
 
-* `public void Prepare()`
-  * **Interface Description**: Checks the connection and command text, and prepares for command execution.
-  * **Exception**: Throws `InvalidOperationException` if `open` has not been executed or `CommandText` is not set.
+- `public void Prepare()`
+  - **Interface Description**: Checks the connection and command text, and prepares for command execution.
+  - **Exception**: Throws `InvalidOperationException` if `open` has not been executed or `CommandText` is not set.
 
-* `public string CommandText`
-  * **Interface Description**: Gets or sets the command text.
-  * **Return Value**: Command text.
+- `public string CommandText`
+  - **Interface Description**: Gets or sets the command text.
+  - **Return Value**: Command text.
 
-* `public new virtual TDengineParameterCollection Parameters`
-  * **Interface Description**: Gets the parameter collection.
-  * **Return Value**: TDengineParameterCollection object.
+- `public new virtual TDengineParameterCollection Parameters`
+  - **Interface Description**: Gets the parameter collection.
+  - **Return Value**: TDengineParameterCollection object.
 
 #### Schemaless Writing
 
-* `public static ITDengineClient Open(ConnectionStringBuilder builder)`
-  * **Interface Description**: Open connection.
-  * **Parameter Description**:
-    * `builder`: Connection configuration.
-  * **Return Value**: ITDengineClient interface.
-  * **Exception**: Throws `TDengineError` exception if opening fails, be aware of potential network issues with WebSocket connections.
+- `public static ITDengineClient Open(ConnectionStringBuilder builder)`
+  - **Interface Description**: Open connection.
+  - **Parameter Description**:
+    - `builder`: Connection configuration.
+  - **Return Value**: ITDengineClient interface.
+  - **Exception**: Throws `TDengineError` exception if opening fails, be aware of potential network issues with WebSocket connections.
 
-* `void SchemalessInsert(string[] lines, TDengineSchemalessProtocol protocol,TDengineSchemalessPrecision precision, int ttl, long reqId)`
-  * **Interface Description**: Schemaless writing.
-  * **Parameter Description**:
-    * `lines`: Array of data lines.
-    * `protocol`: Data protocol, supported protocols: `TSDB_SML_LINE_PROTOCOL = 1` `TSDB_SML_TELNET_PROTOCOL = 2` `TSDB_SML_JSON_PROTOCOL = 3`.
-    * `precision`: Time precision, supported configurations: `TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0` `TSDB_SML_TIMESTAMP_HOURS = 1` `TSDB_SML_TIMESTAMP_MINUTES = 2` `TSDB_SML_TIMESTAMP_SECONDS = 3` `TSDB_SML_TIMESTAMP_MILLI_SECONDS = 4` `TSDB_SML_TIMESTAMP_MICRO_SECONDS = 5` `TSDB_SML_TIMESTAMP_NANO_SECONDS = 6`.
-    * `ttl`: Data expiration time, 0 means not configured.
-    * `reqId`: Request ID.
-  * **Exception**: Throws `TDengineError` exception if execution fails.
+- `void SchemalessInsert(string[] lines, TDengineSchemalessProtocol protocol,TDengineSchemalessPrecision precision, int ttl, long reqId)`
+  - **Interface Description**: Schemaless writing.
+  - **Parameter Description**:
+    - `lines`: Array of data lines.
+    - `protocol`: Data protocol, supported protocols: `TSDB_SML_LINE_PROTOCOL = 1` `TSDB_SML_TELNET_PROTOCOL = 2` `TSDB_SML_JSON_PROTOCOL = 3`.
+    - `precision`: Time precision, supported configurations: `TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0` `TSDB_SML_TIMESTAMP_HOURS = 1` `TSDB_SML_TIMESTAMP_MINUTES = 2` `TSDB_SML_TIMESTAMP_SECONDS = 3` `TSDB_SML_TIMESTAMP_MILLI_SECONDS = 4` `TSDB_SML_TIMESTAMP_MICRO_SECONDS = 5` `TSDB_SML_TIMESTAMP_NANO_SECONDS = 6`.
+    - `ttl`: Data expiration time, 0 means not configured.
+    - `reqId`: Request ID.
+  - **Exception**: Throws `TDengineError` exception if execution fails.
 
 ### Execute SQL
 
@@ -222,43 +234,43 @@ Additionally, the C# driver also provides an extended interface for request link
 
 #### Standard Interface
 
-* `public int ExecuteNonQuery()`
-  * **Interface Description**: Executes an SQL statement and returns the number of rows affected.
-  * **Return Value**: Number of rows affected.
-  * **Exception**: Throws `TDengineError` exception on execution failure.
+- `public int ExecuteNonQuery()`
+  - **Interface Description**: Executes an SQL statement and returns the number of rows affected.
+  - **Return Value**: Number of rows affected.
+  - **Exception**: Throws `TDengineError` exception on execution failure.
 
-* `public object ExecuteScalar()`
-  * **Interface Description**: Executes a query and returns the first column of the first row in the query result.
-  * **Return Value**: The first column of the first row in the query result.
-  * **Exception**: Throws `TDengineError` exception on execution failure.
+- `public object ExecuteScalar()`
+  - **Interface Description**: Executes a query and returns the first column of the first row in the query result.
+  - **Return Value**: The first column of the first row in the query result.
+  - **Exception**: Throws `TDengineError` exception on execution failure.
 
-* `public DbDataReader ExecuteReader()`
-  * **Interface Description**: Executes a query and returns a data reader for the query results.
-  * **Return Value**: Data reader for the query results.
-  * **Exception**: Throws `TDengineError` exception on execution failure.
+- `public DbDataReader ExecuteReader()`
+  - **Interface Description**: Executes a query and returns a data reader for the query results.
+  - **Return Value**: Data reader for the query results.
+  - **Exception**: Throws `TDengineError` exception on execution failure.
 
-* `public void Dispose();`
-  * **Interface Description**: Releases resources.
+- `public void Dispose();`
+  - **Interface Description**: Releases resources.
 
 #### Extended Interface
 
 The extended interface is mainly used for request link tracking.
 
-* `IRows Query(string query, long reqId)`
-  * **Interface Description**: Executes a query and returns the query results.
-  * **Parameter Description**:
-    * `query`: Query statement.
-    * `reqId`: Request ID.
-  * **Return Value**: Query results.
-  * **Exception**: Throws `TDengineError` exception on execution failure.
+- `IRows Query(string query, long reqId)`
+  - **Interface Description**: Executes a query and returns the query results.
+  - **Parameter Description**:
+    - `query`: Query statement.
+    - `reqId`: Request ID.
+  - **Return Value**: Query results.
+  - **Exception**: Throws `TDengineError` exception on execution failure.
 
-* `long Exec(string query, long reqId)`
-  * **Interface Description**: Executes an SQL statement.
-  * **Parameter Description**:
-    * `query`: SQL statement.
-    * `reqId`: Request ID.
-  * **Return Value**: Number of rows affected.
-  * **Exception**: Throws `TDengineError` exception on execution failure.
+- `long Exec(string query, long reqId)`
+  - **Interface Description**: Executes an SQL statement.
+  - **Parameter Description**:
+    - `query`: SQL statement.
+    - `reqId`: Request ID.
+  - **Return Value**: Number of rows affected.
+  - **Exception**: Throws `TDengineError` exception on execution failure.
 
 ### Result Retrieval
 
@@ -268,176 +280,176 @@ The C# driver provides a `DbDataReader` interface that complies with the ADO.NET
 
 The `DbDataReader` interface provides the following methods to retrieve the result set:
 
-* `public bool GetBoolean(int ordinal)`
-  * **Interface Description**: Gets the boolean value of a specified column.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-  * **Return Value**: Boolean value.
-  * **Exception**: Throws `InvalidCastException` exception if types do not match.
+- `public bool GetBoolean(int ordinal)`
+  - **Interface Description**: Gets the boolean value of a specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+  - **Return Value**: Boolean value.
+  - **Exception**: Throws `InvalidCastException` exception if types do not match.
 
-* `public byte GetByte(int ordinal)`
-  * **Interface Description**: Gets the byte value of a specified column.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-  * **Return Value**: Byte value.
-  * **Exception**: Throws `InvalidCastException` exception if types do not match.
+- `public byte GetByte(int ordinal)`
+  - **Interface Description**: Gets the byte value of a specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+  - **Return Value**: Byte value.
+  - **Exception**: Throws `InvalidCastException` exception if types do not match.
 
-* `public long GetBytes(int ordinal, long dataOffset, byte[] buffer, int bufferOffset, int length)`
-  * **Interface Description**: Gets the byte value of a specified column.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-    * `dataOffset`: Data offset.
-    * `buffer`: Buffer.
-    * `bufferOffset`: Buffer offset.
-    * `length`: Length.
-  * **Return Value**: Byte value.
-  * **Exception**: Throws `InvalidCastException` exception if types do not match.
+- `public long GetBytes(int ordinal, long dataOffset, byte[] buffer, int bufferOffset, int length)`
+  - **Interface Description**: Gets the byte value of a specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+    - `dataOffset`: Data offset.
+    - `buffer`: Buffer.
+    - `bufferOffset`: Buffer offset.
+    - `length`: Length.
+  - **Return Value**: Byte value.
+  - **Exception**: Throws `InvalidCastException` exception if types do not match.
 
-* `public char GetChar(int ordinal)`
-  * **Interface Description**: Gets the character value of the specified column.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-  * **Return Value**: Character value.
-  * **Exception**: Throws `InvalidCastException` if the type does not correspond.
+- `public char GetChar(int ordinal)`
+  - **Interface Description**: Gets the character value of the specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+  - **Return Value**: Character value.
+  - **Exception**: Throws `InvalidCastException` if the type does not correspond.
 
-* `public long GetChars(int ordinal, long dataOffset, char[] buffer, int bufferOffset, int length)`
-  * **Interface Description**: Gets the character value of the specified column.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-    * `dataOffset`: Data offset.
-    * `buffer`: Buffer.
-    * `bufferOffset`: Buffer offset.
-    * `length`: Length.
-  * **Return Value**: Character value.
-  * **Exception**: Throws `InvalidCastException` if the type does not correspond.
+- `public long GetChars(int ordinal, long dataOffset, char[] buffer, int bufferOffset, int length)`
+  - **Interface Description**: Gets the character value of the specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+    - `dataOffset`: Data offset.
+    - `buffer`: Buffer.
+    - `bufferOffset`: Buffer offset.
+    - `length`: Length.
+  - **Return Value**: Character value.
+  - **Exception**: Throws `InvalidCastException` if the type does not correspond.
 
-* `public DateTime GetDateTime(int ordinal)`
-  * **Interface Description**: Gets the date and time value of the specified column.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-  * **Return Value**: Date and time value.
-  * **Exception**: Throws `InvalidCastException` if the type does not correspond.
+- `public DateTime GetDateTime(int ordinal)`
+  - **Interface Description**: Gets the date and time value of the specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+  - **Return Value**: Date and time value.
+  - **Exception**: Throws `InvalidCastException` if the type does not correspond.
 
-* `public double GetDouble(int ordinal)`
-  * **Interface Description**: Gets the double precision floating-point value of the specified column.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-  * **Return Value**: Double precision floating-point value.
-  * **Exception**: Throws `InvalidCastException` if the type does not correspond.
+- `public double GetDouble(int ordinal)`
+  - **Interface Description**: Gets the double precision floating-point value of the specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+  - **Return Value**: Double precision floating-point value.
+  - **Exception**: Throws `InvalidCastException` if the type does not correspond.
 
-* `public float GetFloat(int ordinal)`
-  * **Interface Description**: Gets the single precision floating-point value of the specified column.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-  * **Return Value**: Single precision floating-point value.
-  * **Exception**: Throws `InvalidCastException` if the type does not correspond.
+- `public float GetFloat(int ordinal)`
+  - **Interface Description**: Gets the single precision floating-point value of the specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+  - **Return Value**: Single precision floating-point value.
+  - **Exception**: Throws `InvalidCastException` if the type does not correspond.
 
-* `public short GetInt16(int ordinal)`
-  * **Interface Description**: Gets the 16-bit integer value of the specified column.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-  * **Return Value**: 16-bit integer value.
-  * **Exception**: Throws `InvalidCastException` if the type does not correspond.
+- `public short GetInt16(int ordinal)`
+  - **Interface Description**: Gets the 16-bit integer value of the specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+  - **Return Value**: 16-bit integer value.
+  - **Exception**: Throws `InvalidCastException` if the type does not correspond.
 
-* `public int GetInt32(int ordinal)`
-  * **Interface Description**: Gets the 32-bit integer value of the specified column.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-  * **Return Value**: 32-bit integer value.
-  * **Exception**: Throws `InvalidCastException` if the type does not correspond.
+- `public int GetInt32(int ordinal)`
+  - **Interface Description**: Gets the 32-bit integer value of the specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+  - **Return Value**: 32-bit integer value.
+  - **Exception**: Throws `InvalidCastException` if the type does not correspond.
 
-* `public long GetInt64(int ordinal)`
-  * **Interface Description**: Gets the 64-bit integer value of the specified column.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-  * **Return Value**: 64-bit integer value.
-  * **Exception**: Throws `InvalidCastException` if the type does not correspond.
+- `public long GetInt64(int ordinal)`
+  - **Interface Description**: Gets the 64-bit integer value of the specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+  - **Return Value**: 64-bit integer value.
+  - **Exception**: Throws `InvalidCastException` if the type does not correspond.
 
-* `public string GetString(int ordinal)`
-  * **Interface Description**: Gets the string value of the specified column.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-  * **Return Value**: String value.
-  * **Exception**: Throws `InvalidCastException` if the type does not correspond.
+- `public string GetString(int ordinal)`
+  - **Interface Description**: Gets the string value of the specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+  - **Return Value**: String value.
+  - **Exception**: Throws `InvalidCastException` if the type does not correspond.
 
-* `public object GetValue(int ordinal)`
-  * **Interface Description**: Gets the value of the specified column.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-  * **Return Value**: Result object.
+- `public object GetValue(int ordinal)`
+  - **Interface Description**: Gets the value of the specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+  - **Return Value**: Result object.
 
-* `public int GetValues(object[] values)`
-  * **Interface Description**: Gets the values of all columns.
-  * **Parameter Description**:
-    * `values`: Array of values.
-  * **Return Value**: Number of values.
+- `public int GetValues(object[] values)`
+  - **Interface Description**: Gets the values of all columns.
+  - **Parameter Description**:
+    - `values`: Array of values.
+  - **Return Value**: Number of values.
 
-* `public bool IsDBNull(int ordinal)`
-  * **Interface Description**: Determines if the specified column is NULL.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-  * **Return Value**: Whether it is NULL.
+- `public bool IsDBNull(int ordinal)`
+  - **Interface Description**: Determines if the specified column is NULL.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+  - **Return Value**: Whether it is NULL.
 
-* `public int RecordsAffected`
-  * **Interface Description**: Gets the number of affected rows.
-  * **Return Value**: Number of affected rows.
+- `public int RecordsAffected`
+  - **Interface Description**: Gets the number of affected rows.
+  - **Return Value**: Number of affected rows.
 
-* `public bool HasRows`
-  * **Interface Description**: Whether the result has row data.
-  * **Return Value**: Whether the result has row data.
+- `public bool HasRows`
+  - **Interface Description**: Whether the result has row data.
+  - **Return Value**: Whether the result has row data.
 
-* `public bool Read()`
-  * **Interface Description**: Reads the next row.
-  * **Return Value**: Whether the read was successful.
+- `public bool Read()`
+  - **Interface Description**: Reads the next row.
+  - **Return Value**: Whether the read was successful.
 
-* `public IEnumerator GetEnumerator()`
-  * **Interface Description**: Gets the enumerator.
-  * **Return Value**: Enumerator.
+- `public IEnumerator GetEnumerator()`
+  - **Interface Description**: Gets the enumerator.
+  - **Return Value**: Enumerator.
 
-* `public void Close()`
-  * **Interface Description**: Closes the result set.
+- `public void Close()`
+  - **Interface Description**: Closes the result set.
 
 #### Result Set Metadata
 
 The `DbDataReader` interface provides the following methods to obtain result set metadata:
 
-* `public DataTable GetSchemaTable()`
-  * **Interface Description**: Gets the result set metadata.
-  * **Return Value**: Result set metadata.
+- `public DataTable GetSchemaTable()`
+  - **Interface Description**: Gets the result set metadata.
+  - **Return Value**: Result set metadata.
 
-* `public string GetDataTypeName(int ordinal)`
-  * **Interface Description**: Gets the data type name of the specified column.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-  * **Return Value**: Data type name.
+- `public string GetDataTypeName(int ordinal)`
+  - **Interface Description**: Gets the data type name of the specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+  - **Return Value**: Data type name.
 
-* `public Type GetFieldType(int ordinal)`
-  * **Interface Description**: Gets the data type of the specified column.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-  * **Return Value**: Data type.
+- `public Type GetFieldType(int ordinal)`
+  - **Interface Description**: Gets the data type of the specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+  - **Return Value**: Data type.
 
-* `public string GetName(int ordinal)`
-  * **Interface Description**: Gets the name of the specified column.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-  * **Return Value**: Column name.
+- `public string GetName(int ordinal)`
+  - **Interface Description**: Gets the name of the specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+  - **Return Value**: Column name.
 
-* `public int GetFieldSize(int ordinal)`
-  * **Interface Description**: Gets the size of the specified column.
-  * **Parameter Description**:
-    * `ordinal`: Column index.
-  * **Return Value**: Column size.
+- `public int GetFieldSize(int ordinal)`
+  - **Interface Description**: Gets the size of the specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+  - **Return Value**: Column size.
 
-* `public int GetOrdinal(string name)`
-  * **Interface Description**: Gets the index of the specified column.
-  * **Parameter Description**:
-    * `name`: Column name.
-  * **Return Value**: Column index.
+- `public int GetOrdinal(string name)`
+  - **Interface Description**: Gets the index of the specified column.
+  - **Parameter Description**:
+    - `name`: Column name.
+  - **Return Value**: Column index.
 
-* `public int FieldCount`
-  * **Interface Description**: Gets the number of columns.
-  * **Return Value**: Number of columns.
+- `public int FieldCount`
+  - **Interface Description**: Gets the number of columns.
+  - **Return Value**: Number of columns.
 
 ### Parameter Binding
 
@@ -447,183 +459,183 @@ The `TDengineCommand` class supports parameter binding.
 
 The `TDengineCommand` class inherits the `DbCommand` interface, supporting the following features:
 
-* `public string CommandText`
-  * **Interface Description**: Gets or sets the command text, supports parameter binding.
-  * **Return Value**: Command text.
+- `public string CommandText`
+  - **Interface Description**: Gets or sets the command text, supports parameter binding.
+  - **Return Value**: Command text.
 
-* `public new virtual TDengineParameterCollection Parameters`
-  * **Interface Description**: Gets the parameter collection.
-  * **Return Value**: `TDengineParameterCollection` object.
+- `public new virtual TDengineParameterCollection Parameters`
+  - **Interface Description**: Gets the parameter collection.
+  - **Return Value**: `TDengineParameterCollection` object.
 
 #### Parameter Metadata
 
 The `TDengineParameterCollection` inherits the `DbParameterCollection` interface, supporting the following features:
 
-* `public int Add(object value)`
-  * **Interface Description**: Adds a parameter.
-  * **Parameter Description**:
-    * `value`: Parameter value.
-  * **Return Value**: Parameter index.
+- `public int Add(object value)`
+  - **Interface Description**: Adds a parameter.
+  - **Parameter Description**:
+    - `value`: Parameter value.
+  - **Return Value**: Parameter index.
 
-* `public void Clear()`
-  * **Interface Description**: Clears parameters.
+- `public void Clear()`
+  - **Interface Description**: Clears parameters.
 
-* `public bool Contains(object value)`
-  * **Interface Description**: Whether it contains a parameter.
-  * **Parameter Description**:
-    * `value`: Parameter value.
-  * **Return Value**: Whether it contains the parameter.
+- `public bool Contains(object value)`
+  - **Interface Description**: Whether it contains a parameter.
+  - **Parameter Description**:
+    - `value`: Parameter value.
+  - **Return Value**: Whether it contains the parameter.
 
-* `public int IndexOf(object value)`
-  * **Interface Description**: Get the parameter index.
-  * **Parameter Description**:
-    * `value`: Parameter value.
-  * **Return Value**: Parameter index.
+- `public int IndexOf(object value)`
+  - **Interface Description**: Get the parameter index.
+  - **Parameter Description**:
+    - `value`: Parameter value.
+  - **Return Value**: Parameter index.
 
-* `public void Insert(int index, object value)`
-  * **Interface Description**: Insert a parameter.
-  * **Parameter Description**:
-    * `index`: Index.
-    * `value`: Parameter value.
+- `public void Insert(int index, object value)`
+  - **Interface Description**: Insert a parameter.
+  - **Parameter Description**:
+    - `index`: Index.
+    - `value`: Parameter value.
 
-* `public void Remove(object value)`
-  * **Interface Description**: Remove a parameter.
-  * **Parameter Description**:
-    * `value`: Parameter value.
+- `public void Remove(object value)`
+  - **Interface Description**: Remove a parameter.
+  - **Parameter Description**:
+    - `value`: Parameter value.
 
-* `public void RemoveAt(int index)`
-  * **Interface Description**: Remove a parameter.
-  * **Parameter Description**:
-    * `index`: Index.
+- `public void RemoveAt(int index)`
+  - **Interface Description**: Remove a parameter.
+  - **Parameter Description**:
+    - `index`: Index.
 
-* `public void RemoveAt(string parameterName)`
-  * **Interface Description**: Remove a parameter.
-  * **Parameter Description**:
-    * `parameterName`: Parameter name.
+- `public void RemoveAt(string parameterName)`
+  - **Interface Description**: Remove a parameter.
+  - **Parameter Description**:
+    - `parameterName`: Parameter name.
 
-* `public int Count`
-  * **Interface Description**: Get the count of parameters.
-  * **Return Value**: Number of parameters.
+- `public int Count`
+  - **Interface Description**: Get the count of parameters.
+  - **Return Value**: Number of parameters.
 
-* `public int IndexOf(string parameterName)`
-  * **Interface Description**: Get the parameter index.
-  * **Parameter Description**:
-    * `parameterName`: Parameter name.
-  * **Return Value**: Parameter index.
+- `public int IndexOf(string parameterName)`
+  - **Interface Description**: Get the parameter index.
+  - **Parameter Description**:
+    - `parameterName`: Parameter name.
+  - **Return Value**: Parameter index.
 
-* `public bool Contains(string value)`
-  * **Interface Description**: Check if a parameter is included.
-  * **Parameter Description**:
-    * `value`: Parameter name.
-  * **Return Value**: Whether the parameter is included.
+- `public bool Contains(string value)`
+  - **Interface Description**: Check if a parameter is included.
+  - **Parameter Description**:
+    - `value`: Parameter name.
+  - **Return Value**: Whether the parameter is included.
 
-* `public void CopyTo(Array array, int index)`
-  * **Interface Description**: Copy parameters.
-  * **Parameter Description**:
-    * `array`: Target array.
-    * `index`: Index.
+- `public void CopyTo(Array array, int index)`
+  - **Interface Description**: Copy parameters.
+  - **Parameter Description**:
+    - `array`: Target array.
+    - `index`: Index.
 
-* `public IEnumerator GetEnumerator()`
-  * **Interface Description**: Get an enumerator.
-  * **Return Value**: Enumerator.
+- `public IEnumerator GetEnumerator()`
+  - **Interface Description**: Get an enumerator.
+  - **Return Value**: Enumerator.
 
-* `public void AddRange(Array values)`
-  * **Interface Description**: Add parameters.
-  * **Parameter Description**:
-    * `values`: Array of parameters.
+- `public void AddRange(Array values)`
+  - **Interface Description**: Add parameters.
+  - **Parameter Description**:
+    - `values`: Array of parameters.
 
 `TDengineParameter` inherits from the `DbParameter` interface, supporting the following functionalities:
 
-* `public TDengineParameter(string name, object value)`
-  * **Interface Description**: TDengineParameter constructor.
-  * **Parameter Description**:
-    * `name`: Parameter name, must start with @, such as @0, @1, @2, etc.
-    * `value`: Parameter value, must correspond one-to-one with C# column types and TDengine column types.
+- `public TDengineParameter(string name, object value)`
+  - **Interface Description**: TDengineParameter constructor.
+  - **Parameter Description**:
+    - `name`: Parameter name, must start with @, such as @0, @1, @2, etc.
+    - `value`: Parameter value, must correspond one-to-one with C# column types and TDengine column types.
 
-* `public string ParameterName`
-  * **Interface Description**: Get or set the parameter name.
-  * **Return Value**: Parameter name.
+- `public string ParameterName`
+  - **Interface Description**: Get or set the parameter name.
+  - **Return Value**: Parameter name.
 
-* `public object Value`
-  * **Interface Description**: Get or set the parameter value.
-  * **Return Value**: Parameter value.
+- `public object Value`
+  - **Interface Description**: Get or set the parameter value.
+  - **Return Value**: Parameter value.
 
 #### Extended Interface
 
 `ITDengineClient` interface provides an extended parameter binding interface.
 
-* `IStmt StmtInit(long reqId)`
-  * **Interface Description**: Initialize a statement object.
-  * **Parameter Description**:
-    * `reqId`: Request ID.
-  * **Return Value**: Object implementing the IStmt interface.
-  * **Exception**: Throws `TDengineError` exception on failure.
+- `IStmt StmtInit(long reqId)`
+  - **Interface Description**: Initialize a statement object.
+  - **Parameter Description**:
+    - `reqId`: Request ID.
+  - **Return Value**: Object implementing the IStmt interface.
+  - **Exception**: Throws `TDengineError` exception on failure.
 
 `IStmt` interface provides an extended parameter binding interface.
 
-* `void Prepare(string query)`
-  * **Interface Description**: Prepare a statement.
-  * **Parameter Description**:
-    * `query`: Query statement.
-  * **Exception**: Throws `TDengineError` exception on failure.
+- `void Prepare(string query)`
+  - **Interface Description**: Prepare a statement.
+  - **Parameter Description**:
+    - `query`: Query statement.
+  - **Exception**: Throws `TDengineError` exception on failure.
 
-* `bool IsInsert()`
-  * **Interface Description**: Determines whether it is an insert statement.
-  * **Return Value**: Whether it is an insert statement.
-  * **Exception**: Throws `TDengineError` exception on execution failure.
+- `bool IsInsert()`
+  - **Interface Description**: Determines whether it is an insert statement.
+  - **Return Value**: Whether it is an insert statement.
+  - **Exception**: Throws `TDengineError` exception on execution failure.
 
-* `void SetTableName(string tableName)`
-  * **Interface Description**: Sets the table name.
-  * **Parameter Description**:
-    * `tableName`: Table name.
-  * **Exception**: Throws `TDengineError` exception on execution failure.
+- `void SetTableName(string tableName)`
+  - **Interface Description**: Sets the table name.
+  - **Parameter Description**:
+    - `tableName`: Table name.
+  - **Exception**: Throws `TDengineError` exception on execution failure.
 
-* `void SetTags(object[] tags)`
-  * **Interface Description**: Sets tags.
-  * **Parameter Description**:
-    * `tags`: Array of tags.
-  * **Exception**: Throws `TDengineError` exception on execution failure.
+- `void SetTags(object[] tags)`
+  - **Interface Description**: Sets tags.
+  - **Parameter Description**:
+    - `tags`: Array of tags.
+  - **Exception**: Throws `TDengineError` exception on execution failure.
 
-* `TaosFieldE[] GetTagFields()`
-  * **Interface Description**: Gets tag attributes.
-  * **Return Value**: Array of tag attributes.
-  * **Exception**: Throws `TDengineError` exception on execution failure.
+- `TaosFieldE[] GetTagFields()`
+  - **Interface Description**: Gets tag attributes.
+  - **Return Value**: Array of tag attributes.
+  - **Exception**: Throws `TDengineError` exception on execution failure.
 
-* `TaosFieldE[] GetColFields()`
-  * **Interface Description**: Gets column attributes.
-  * **Return Value**: Array of column attributes.
-  * **Exception**: Throws `TDengineError` exception on execution failure.
+- `TaosFieldE[] GetColFields()`
+  - **Interface Description**: Gets column attributes.
+  - **Return Value**: Array of column attributes.
+  - **Exception**: Throws `TDengineError` exception on execution failure.
 
-* `void BindRow(object[] row)`
-  * **Interface Description**: Binds a row.
-  * **Parameter Description**:
-    * `row`: Array of row data.
-  * **Exception**: Throws `TDengineError` exception on execution failure.
+- `void BindRow(object[] row)`
+  - **Interface Description**: Binds a row.
+  - **Parameter Description**:
+    - `row`: Array of row data.
+  - **Exception**: Throws `TDengineError` exception on execution failure.
 
-* `void BindColumn(TaosFieldE[] fields, params Array[] arrays)`
-  * **Interface Description**: Binds all columns.
-  * **Parameter Description**:
-    * `fields`: Array of field attributes.
-    * `arrays`: Arrays of multiple column data.
-  * **Exception**: Throws `TDengineError` exception on execution failure.
+- `void BindColumn(TaosFieldE[] fields, params Array[] arrays)`
+  - **Interface Description**: Binds all columns.
+  - **Parameter Description**:
+    - `fields`: Array of field attributes.
+    - `arrays`: Arrays of multiple column data.
+  - **Exception**: Throws `TDengineError` exception on execution failure.
 
-* `void AddBatch()`
-  * **Interface Description**: Adds a batch.
-  * **Exception**: Throws `TDengineError` exception on execution failure.
+- `void AddBatch()`
+  - **Interface Description**: Adds a batch.
+  - **Exception**: Throws `TDengineError` exception on execution failure.
 
-* `void Exec()`
-  * **Interface Description**: Executes parameter binding.
-  * **Exception**: Throws `TDengineError` exception on execution failure.
+- `void Exec()`
+  - **Interface Description**: Executes parameter binding.
+  - **Exception**: Throws `TDengineError` exception on execution failure.
 
-* `long Affected()`
-  * **Interface Description**: Gets the number of affected rows.
-  * **Return Value**: Number of affected rows.
-  * **Exception**: Throws `TDengineError` exception on execution failure.
+- `long Affected()`
+  - **Interface Description**: Gets the number of affected rows.
+  - **Return Value**: Number of affected rows.
+  - **Exception**: Throws `TDengineError` exception on execution failure.
 
-* `IRows Result()`
-  * **Interface Description**: Gets the result.
-  * **Return Value**: Result object.
-  * **Exception**: Throws `TDengineError` exception on execution failure.
+- `IRows Result()`
+  - **Interface Description**: Gets the result.
+  - **Return Value**: Result object.
+  - **Exception**: Throws `TDengineError` exception on execution failure.
 
 ### Data Subscription
 
@@ -631,116 +643,116 @@ The `ConsumerBuilder` class provides interfaces related to consumer building, th
 
 #### Consumer
 
-* `public ConsumerBuilder(IEnumerable<KeyValuePair<string, string>> config)`
-  * **Interface Description**: ConsumerBuilder constructor.
-  * **Parameter Description**:
-    * `config`: Consumption configuration.
+- `public ConsumerBuilder(IEnumerable<KeyValuePair<string, string>> config)`
+  - **Interface Description**: ConsumerBuilder constructor.
+  - **Parameter Description**:
+    - `config`: Consumption configuration.
 
 Supported properties for creating consumers:
 
-* `useSSL`: Whether to use SSL connection, default is false.
-* `token`: Token for connecting to TDengine cloud.
-* `ws.message.enableCompression`: Whether to enable WebSocket compression, default is false.
-* `ws.autoReconnect`: Whether to automatically reconnect, default is false.
-* `ws.reconnect.retry.count`: Number of reconnection attempts, default is 3.
-* `ws.reconnect.interval.ms`: Reconnection interval in milliseconds, default is 2000.
+- `useSSL`: Whether to use SSL connection, default is false.
+- `token`: Token for connecting to TDengine cloud.
+- `ws.message.enableCompression`: Whether to enable WebSocket compression, default is false.
+- `ws.autoReconnect`: Whether to automatically reconnect, default is false.
+- `ws.reconnect.retry.count`: Number of reconnection attempts, default is 3.
+- `ws.reconnect.interval.ms`: Reconnection interval in milliseconds, default is 2000.
 
 For other parameters, please refer to: [Consumer Parameter List](../../../developer-guide/manage-consumers/), note that the default value of auto.offset.reset in message subscription has changed starting from TDengine server version 3.2.0.0.
 
-* `public IConsumer<TValue> Build()`
-  * **Interface Description**: Build the consumer.
-  * **Return Value**: Consumer object.
+- `public IConsumer<TValue> Build()`
+  - **Interface Description**: Build the consumer.
+  - **Return Value**: Consumer object.
 
 `IConsumer` interface provides the following consumer-related APIs:
 
-* `ConsumeResult<TValue> Consume(int millisecondsTimeout)`
-  * **Interface Description**: Consume messages.
-  * **Parameter Description**:
-    * `millisecondsTimeout`: Timeout in milliseconds.
-  * **Return Value**: Consumption result.
-  * **Exception**: Throws `TDengineError` exception on failure.
+- `ConsumeResult<TValue> Consume(int millisecondsTimeout)`
+  - **Interface Description**: Consume messages.
+  - **Parameter Description**:
+    - `millisecondsTimeout`: Timeout in milliseconds.
+  - **Return Value**: Consumption result.
+  - **Exception**: Throws `TDengineError` exception on failure.
 
-* `List<TopicPartition> Assignment { get; }`
-  * **Interface Description**: Get assignment information.
-  * **Return Value**: Assignment information.
-  * **Exception**: Throws `TDengineError` exception on failure.
+- `List<TopicPartition> Assignment { get; }`
+  - **Interface Description**: Get assignment information.
+  - **Return Value**: Assignment information.
+  - **Exception**: Throws `TDengineError` exception on failure.
 
-* `List<string> Subscription()`
-  * **Interface Description**: Get subscribed topics.
-  * **Return Value**: List of topics.
-  * **Exception**: Throws `TDengineError` exception on failure.
+- `List<string> Subscription()`
+  - **Interface Description**: Get subscribed topics.
+  - **Return Value**: List of topics.
+  - **Exception**: Throws `TDengineError` exception on failure.
 
-* `void Subscribe(IEnumerable<string> topic)`
-  * **Interface Description**: Subscribe to a list of topics.
-  * **Parameter Description**:
-    * `topic`: List of topics.
-  * **Exception**: Throws `TDengineError` exception on failure.
+- `void Subscribe(IEnumerable<string> topic)`
+  - **Interface Description**: Subscribe to a list of topics.
+  - **Parameter Description**:
+    - `topic`: List of topics.
+  - **Exception**: Throws `TDengineError` exception on failure.
 
-* `void Subscribe(string topic)`
-  * **Interface Description**: Subscribe to a single topic.
-  * **Parameter Description**:
-    * `topic`: Topic.
-  * **Exception**: Throws `TDengineError` exception on failure.
+- `void Subscribe(string topic)`
+  - **Interface Description**: Subscribe to a single topic.
+  - **Parameter Description**:
+    - `topic`: Topic.
+  - **Exception**: Throws `TDengineError` exception on failure.
 
-* `void Unsubscribe()`
-  * **Interface Description**: Unsubscribe.
-  * **Exception**: Throws `TDengineError` exception on failure.
+- `void Unsubscribe()`
+  - **Interface Description**: Unsubscribe.
+  - **Exception**: Throws `TDengineError` exception on failure.
 
-* `void Commit(ConsumeResult<TValue> consumerResult)`
-  * **Interface Description**: Commit consumption result.
-  * **Parameter Description**:
-    * `consumerResult`: Consumption result.
-  * **Exception**: Throws `TDengineError` exception on failure.
+- `void Commit(ConsumeResult<TValue> consumerResult)`
+  - **Interface Description**: Commit consumption result.
+  - **Parameter Description**:
+    - `consumerResult`: Consumption result.
+  - **Exception**: Throws `TDengineError` exception on failure.
 
-* `List<TopicPartitionOffset> Commit()`
-  * **Interface Description**: Commit all consumption results.
-  * **Return Value**: Partition offsets.
-  * **Exception**: Throws `TDengineError` exception on failure.
+- `List<TopicPartitionOffset> Commit()`
+  - **Interface Description**: Commit all consumption results.
+  - **Return Value**: Partition offsets.
+  - **Exception**: Throws `TDengineError` exception on failure.
 
-* `void Commit(IEnumerable<TopicPartitionOffset> offsets)`
-  * **Interface Description**: Commit consumption results.
-  * **Parameter Description**:
-    * `offsets`: Partition offsets.
-  * **Exception**: Throws `TDengineError` exception on failure.
+- `void Commit(IEnumerable<TopicPartitionOffset> offsets)`
+  - **Interface Description**: Commit consumption results.
+  - **Parameter Description**:
+    - `offsets`: Partition offsets.
+  - **Exception**: Throws `TDengineError` exception on failure.
 
-* `void Seek(TopicPartitionOffset tpo)`
-  * **Interface Description**: Jump to partition offset.
-  * **Parameter Description**:
-    * `tpo`: Partition offset.
-  * **Exception**: Throws `TDengineError` exception on failure.
+- `void Seek(TopicPartitionOffset tpo)`
+  - **Interface Description**: Jump to partition offset.
+  - **Parameter Description**:
+    - `tpo`: Partition offset.
+  - **Exception**: Throws `TDengineError` exception on failure.
 
-* `List<TopicPartitionOffset> Committed(TimeSpan timeout)`
-  * **Interface Description**: Get partition offsets.
-  * **Parameter Description**:
-    * `timeout`: Timeout (unused).
-  * **Return Value**: Partition offsets.
-  * **Exception**: Throws `TDengineError` exception on failure.
+- `List<TopicPartitionOffset> Committed(TimeSpan timeout)`
+  - **Interface Description**: Get partition offsets.
+  - **Parameter Description**:
+    - `timeout`: Timeout (unused).
+  - **Return Value**: Partition offsets.
+  - **Exception**: Throws `TDengineError` exception on failure.
 
-* `List<TopicPartitionOffset> Committed(IEnumerable<TopicPartition> partitions, TimeSpan timeout)`
-  * **Interface Description**: Get specified partition offsets.
-  * **Parameter Description**:
-    * `partitions`: List of partitions.
-    * `timeout`: Timeout (unused).
-  * **Return Value**: Partition offsets.
-  * **Exception**: Throws `TDengineError` exception on failure.
+- `List<TopicPartitionOffset> Committed(IEnumerable<TopicPartition> partitions, TimeSpan timeout)`
+  - **Interface Description**: Get specified partition offsets.
+  - **Parameter Description**:
+    - `partitions`: List of partitions.
+    - `timeout`: Timeout (unused).
+  - **Return Value**: Partition offsets.
+  - **Exception**: Throws `TDengineError` exception on failure.
 
-* `Offset Position(TopicPartition partition)`
-  * **Interface Description**: Get the consumption position.
-  * **Parameter Description**:
-    * `partition`: Partition.
-  * **Return Value**: Offset.
-  * **Exception**: Throws `TDengineError` exception if execution fails.
+- `Offset Position(TopicPartition partition)`
+  - **Interface Description**: Get the consumption position.
+  - **Parameter Description**:
+    - `partition`: Partition.
+  - **Return Value**: Offset.
+  - **Exception**: Throws `TDengineError` exception if execution fails.
 
-* `void Close()`
-  * **Interface Description**: Close the consumer.
+- `void Close()`
+  - **Interface Description**: Close the consumer.
 
 #### Consumption Record
 
 `ConsumeResult` class provides interfaces related to consumption results:
 
-* `public List<TmqMessage<TValue>> Message`
-  * **Interface Description**: Get the list of messages.
-  * **Return Value**: List of messages.
+- `public List<TmqMessage<TValue>> Message`
+  - **Interface Description**: Get the list of messages.
+  - **Return Value**: List of messages.
 
 `TmqMessage` class provides the specific content of messages:
 
@@ -752,8 +764,8 @@ For other parameters, please refer to: [Consumer Parameter List](../../../develo
     }
 ```
 
-* `TableName`: Table name
-* `Value`: Message content
+- `TableName`: Table name
+- `Value`: Message content
 
 #### Partition Information
 
@@ -765,33 +777,33 @@ public TopicPartitionOffset TopicPartitionOffset
 
 `TopicPartitionOffset` class provides interfaces for getting partition information:
 
-* `public string Topic { get; }`
-  * **Interface Description**: Get the topic.
-  * **Return Value**: Topic.
+- `public string Topic { get; }`
+  - **Interface Description**: Get the topic.
+  - **Return Value**: Topic.
 
-* `public Partition Partition { get; }`
-  * **Interface Description**: Get the partition.
-  * **Return Value**: Partition.
+- `public Partition Partition { get; }`
+  - **Interface Description**: Get the partition.
+  - **Return Value**: Partition.
 
-* `public Offset Offset { get; }`
-  * **Interface Description**: Get the offset.
-  * **Return Value**: Offset.
+- `public Offset Offset { get; }`
+  - **Interface Description**: Get the offset.
+  - **Return Value**: Offset.
 
-* `public TopicPartition TopicPartition`
-  * **Interface Description**: Get the topic partition.
-  * **Return Value**: Topic partition.
+- `public TopicPartition TopicPartition`
+  - **Interface Description**: Get the topic partition.
+  - **Return Value**: Topic partition.
 
-* `public string ToString()`
-  * **Interface Description**: Convert to string.
-  * **Return Value**: String information.
+- `public string ToString()`
+  - **Interface Description**: Convert to string.
+  - **Return Value**: String information.
 
 #### Offset Metadata
 
 `Offset` class provides interfaces related to offset:
 
-* `public long Value`
-  * **Interface Description**: Get the offset value.
-  * **Return Value**: Offset value.
+- `public long Value`
+  - **Interface Description**: Get the offset value.
+  - **Return Value**: Offset value.
 
 #### Deserialization
 

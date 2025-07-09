@@ -15,7 +15,7 @@ DBeaver 是一款流行的跨平台数据库管理工具，方便开发者、数
 
 ## 使用 DBeaver 访问内部部署的 TDengine
 
-1. 启动 DBeaver 应用，点击按钮或菜单项选择“连接到数据库”，然后在时间序列分类栏中选择 TDengine。
+1. 启动 DBeaver 应用，点击按钮或菜单项选择“新建数据库连接”，然后在时间序列分类栏中选择 TDengine。
 
  ![DBeaver 连接 TDengine](./dbeaver/dbeaver-connect-tdengine-zh.webp)
 

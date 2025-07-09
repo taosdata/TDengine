@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 Seeq 是制造业和工业互联网（IIOT）高级分析软件。Seeq 支持在工艺制造组织中使用机器学习创新的新功能。这些功能使组织能够将自己或第三方机器学习算法部署到前线流程工程师和主题专家使用的高级分析应用程序，从而使单个数据科学家的努力扩展到许多前线员工。
 
-通过 `TDengine Java connector`， Seeq 可以轻松支持查询 TDengine 提供的时序数据，并提供数据展现、分析、预测等功能。
+通过 `TDengine Java connector`，Seeq 可以轻松支持查询 TDengine 提供的时序数据，并提供数据展现、分析、预测等功能。
 
 ## 前置条件
 

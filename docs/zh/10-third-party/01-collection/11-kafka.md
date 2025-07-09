@@ -30,7 +30,7 @@ TDengine Source Connector 用于把数据实时地从 TDengine 读出来发送�
 - 在任意目录下执行：
 
     ```shell
-    curl -O https://downloads.apache.org/kafka/3.4.0/kafka_2.13-3.4.0.tgz
+    curl -O https://dlcdn.apache.org/kafka/4.0.0/kafka_2.13-4.0.0.tgz
     tar xzf kafka_2.13-3.4.0.tgz -C /opt/
     ln -s /opt/kafka_2.13-3.4.0 /opt/kafka
     ```
@@ -90,7 +90,7 @@ curl http://localhost:8083/connectors
 
 ## TDengine Sink Connector 的使用
 
-TDengine Sink Connector 的作用是同步指定 topic 的数据到 TDengine。用户无需提前创建数据库和超级表。可手动指定目标数据库的名字（见配置参数 connection.database），也可按一定规则生成(见配置参数 connection.database.prefix)。
+TDengine Sink Connector 的作用是同步指定 topic 的数据到 TDengine。用户无需提前创建数据库和超级表。可手动指定目标数据库的名字（见配置参数 connection.database），也可按一定规则生成 (见配置参数 connection.database.prefix)。
 
 TDengine Sink Connector 内部使用 TDengine [无模式写入接口](../../../develop/schemaless) 写数据到 TDengine，目前支持三种格式的数据：InfluxDB 行协议格式，OpenTSDB Telnet 协议格式，和 OpenTSDB JSON 协议格式。
 
@@ -332,13 +332,13 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 
 1. 打开 KAFKA_HOME/config/producer.properties 配置文件。
 2. 参数说明及配置建议如下：
-    | **参数**              | **参数说明**                                                                                                                                                                                                                                                                                                  | **设置建议** |
-    | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-    | producer.type         | 此参数用于设置消息的发送方式，默认值为 `sync` 表示同步发送，`async` 表示异步发送。采用异步发送能够提升消息发送的吞吐量。                                                                                                                                                                                      | async        |
+    | **参数**              | **参数说明**                                                                                                                                                                                                                                                                                                    | **设置建议** |
+    | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+    | producer.type         | 此参数用于设置消息的发送方式，默认值为 `sync` 表示同步发送，`async` 表示异步发送。采用异步发送能够提升消息发送的吞吐量。                                                                                                                                                                                        | async        |
     | request.required.acks | 参数用于配置生产者发送消息后需要等待的确认数量。当设置为 1 时，表示只要领导者副本成功写入消息就会给生产者发送确认，而无需等待集群中的其他副本写入成功。这种设置可以在一定程度上保证消息的可靠性，同时也能保证一定的吞吐量。因为不需要等待所有副本都写入成功，所以可以减少生产者的等待时间，提高发送消息的效率。 | 1            |
-    | max.request.size      | 该参数决定了生产者在一次请求中可以发送的最大数据量。其默认值为 1048576，也就是 1M。如果设置得太小，可能会导致频繁的网络请求，降低吞吐量。如果设置得太大，可能会导致内存占用过高，或者在网络状况不佳时增加请求失败的概率。建议设置为 100M。                                                                    | 104857600    |
-    | batch.size            | 此参数用于设定 batch 的大小，默认值为 16384，即 16KB。在消息发送过程中，发送到 Kafka 缓冲区中的消息会被划分成一个个的 batch。故而减小 batch 大小有助于降低消息延迟，而增大 batch 大小则有利于提升吞吐量，可根据实际的数据量大小进行合理配置。可根据实际情况进行调整，建议设置为 512K。                        | 524288       |
-    | buffer.memory         | 此参数用于设置生产者缓冲待发送消息的内存总量。较大的缓冲区可以允许生产者积累更多的消息后批量发送，提高吞吐量，但也会增加延迟和内存使用。可根据机器资源来配置，建议配置为 1G。                                                                                                                                 | 1073741824   |
+    | max.request.size      | 该参数决定了生产者在一次请求中可以发送的最大数据量。其默认值为 1048576，也就是 1M。如果设置得太小，可能会导致频繁的网络请求，降低吞吐量。如果设置得太大，可能会导致内存占用过高，或者在网络状况不佳时增加请求失败的概率。建议设置为 100M。                                                                      | 104857600    |
+    | batch.size            | 此参数用于设定 batch 的大小，默认值为 16384，即 16KB。在消息发送过程中，发送到 Kafka 缓冲区中的消息会被划分成一个个的 batch。故而减小 batch 大小有助于降低消息延迟，而增大 batch 大小则有利于提升吞吐量，可根据实际的数据量大小进行合理配置。可根据实际情况进行调整，建议设置为 512K。                          | 524288       |
+    | buffer.memory         | 此参数用于设置生产者缓冲待发送消息的内存总量。较大的缓冲区可以允许生产者积累更多的消息后批量发送，提高吞吐量，但也会增加延迟和内存使用。可根据机器资源来配置，建议配置为 1G。                                                                                                                                   | 1073741824   |
 
 ## 配置参考
 
@@ -348,8 +348,8 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 
 1. `name`：connector 名称。
 1. `connector.class`：connector 的完整类名，例如如 com.taosdata.kafka.connect.sink.TDengineSinkConnector。
-1. `tasks.max`：最大任务数, 默认 1。
-1. `topics`：需要同步的 topic 列表，多个用逗号分隔, 如 `topic1,topic2`。
+1. `tasks.max`：最大任务数，默认 1。
+1. `topics`：需要同步的 topic 列表，多个用逗号分隔，如 `topic1,topic2`。
 1. `connection.url`：TDengine JDBC 连接字符串，如 `jdbc:TAOS://127.0.0.1:6030`。
 1. `connection.user`：TDengine 用户名，默认 root。
 1. `connection.password`：TDengine 用户密码，默认 taosdata。
@@ -363,7 +363,7 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 ### TDengine Sink Connector 特有的配置
 
 1. `connection.database`：目标数据库名。如果指定的数据库不存在会则自动创建。自动建库使用的时间精度为纳秒。默认值为 null。为 null 时目标数据库命名规则参考 `connection.database.prefix` 参数的说明
-2. `connection.database.prefix`：当 connection.database 为 null 时, 目标数据库的前缀。可以包含占位符 '$\{topic}'。比如 kafka_$\{topic}, 对于主题 'orders' 将写入数据库 'kafka_orders'。默认 null。当为 null 时，目标数据库的名字和主题的名字是一致的。
+2. `connection.database.prefix`：当 connection.database 为 null 时，目标数据库的前缀。可以包含占位符 '$\{topic}'。比如 kafka_$\{topic}, 对于主题 'orders' 将写入数据库 'kafka_orders'。默认 null。当为 null 时，目标数据库的名字和主题的名字是一致的。
 3. `batch.size`：分批写入每批记录数。当 Sink Connector 一次接收到的数据大于这个值时将分批写入。
 4. `max.retries`：发生错误时的最大重试次数。默认为 1。
 5. `retry.backoff.ms`：发送错误时重试的时间间隔。单位毫秒，默认为 3000。
@@ -381,7 +381,7 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 1. `fetch.max.rows`：检索数据库时最大检索条数。默认为 100。
 1. `query.interval.ms`：从 TDengine 一次读取数据的时间跨度，需要根据表中的数据特征合理配置，避免一次查询的数据量过大或过小；在具体的环境中建议通过测试设置一个较优值，默认值为 0，即获取到当前最新时间的所有数据。
 1. `out.format`：结果集输出格式。`line` 表示输出格式为 InfluxDB Line 协议格式，`json` 表示输出格式是 json。默认为 line。
-1. `topic.per.stable`：如果设置为 true，表示一个超级表对应一个 Kafka topic，topic的命名规则 `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`；如果设置为 false，则指定的 DB 中的所有数据进入一个 Kafka topic，topic 的命名规则为 `<topic.prefix><topic.delimiter><connection.database>`
+1. `topic.per.stable`：如果设置为 true，表示一个超级表对应一个 Kafka topic，topic 的命名规则 `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`；如果设置为 false，则指定的 DB 中的所有数据进入一个 Kafka topic，topic 的命名规则为 `<topic.prefix><topic.delimiter><connection.database>`
 1. `topic.ignore.db`：topic 命名规则是否包含 database 名称，true 表示规则为 `<topic.prefix><topic.delimiter><stable.name>`，false 表示规则为 `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`，默认 false。此配置项在 `topic.per.stable` 设置为 false 时不生效。
 1. `topic.delimiter`：topic 名称分割符，默认为 `-`。
 1. `read.method`：从 TDengine 读取数据方式，query 或是 subscription。默认为 subscription。

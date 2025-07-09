@@ -64,6 +64,12 @@ Query OK, 1 rows in database (0.010654s)
 
 ## Start TDengine with a specified hostname and port
 
+:::note
+
+- After version `v3.3.6.0`, the default `fqdn` has changed from `buildkitsandbox` to `localhost`. If it is a fresh start, there will be no issues. However, if it is an upgrade start, when running the container, you need to specify the previous `fqdn` with `-e TAOS_FQDN=<old_value>` and `-h <old_value>`, otherwise it may fail to start.
+
+:::
+
 Use the following command to establish a connection on a specified hostname using the TAOS_FQDN environment variable or the fqdn configuration item in taos.cfg. This method provides greater flexibility for deploying TDengine.
 
 ```shell

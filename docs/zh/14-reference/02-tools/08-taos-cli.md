@@ -27,7 +27,7 @@ taos>
 ```
 
 进入 TDengine CLI 后，可执行各种 SQL 语句，包括插入、查询以及各种管理命令。
-退出 TDengine CLI， 执行 `q` 或 `quit` 或 `exit` 回车即可。
+退出 TDengine CLI，执行 `q` 或 `quit` 或 `exit` 回车即可。
 ```shell
 taos> quit
 ```
@@ -40,7 +40,7 @@ taos> quit
 - -h HOST：要连接的 TDengine 服务端所在服务器的 FQDN, 默认值：127.0.0.1。
 - -P PORT：指定服务端所用端口号，默认值：6030。
 - -u USER：连接时使用的用户名，默认值：root。
-- -p PASSWORD：连接服务端时使用的密码，特殊字符如 `! & ( ) < > ; |` 需使用字符 `\` 进行转义处理, 默认值：taosdata。
+- -p PASSWORD：连接服务端时使用的密码，特殊字符如 `! & ( ) < > ; |` 需使用字符 `\` 进行转义处理，默认值：taosdata。
 - -?, --help：打印出所有命令行参数。
 - -s COMMAND：以非交互模式执行的 SQL 命令。
 
@@ -59,6 +59,8 @@ taos> quit
     taos -c /root/cfg/
     ```
 
+- -Z：指定连接方式，0 表示采用原生连接方式，1 表示采用 WebSocket 连接方式，默认采用原生连接方式。
+
 ### 高级参数
 
 - -a AUTHSTR：连接服务端的授权信息。
@@ -72,7 +74,7 @@ taos> quit
 - -l PKTLEN：网络测试时使用的测试包大小。
 - -n NETROLE：网络连接测试时的测试范围，默认为 `client`，可选值为 `client`、`server`。
 - -N PKTNUM：网络测试时使用的测试包数量。
-- -r：将时间列转化为无符号 64 位整数类型输出(即 C 语言中 uint64_t)。
+- -r：将时间列转化为无符号 64 位整数类型输出 (即 C 语言中 uint64_t)。
 - -R：使用 RESTful 模式连接服务端。
 - -t：测试服务端启动状态，状态同 -k。
 - -w DISPLAYWIDTH：客户端列显示宽度。
@@ -84,11 +86,11 @@ taos> quit
 
 ### 数据导出
 
-- 可以使用符号 “>>” 导出查询结果到某个文件中，语法为：sql 查询语句 >> ‘输出文件名’; 输出文件如果不写路径的话，将输出至当前目录下。如 `select * from d0 >> ‘/root/d0.csv’;`  将把查询结果输出到 /root/d0.csv 中。
+- 可以使用符号“>>”导出查询结果到某个文件中，语法为：sql 查询语句 >> ‘输出文件名’; 输出文件如果不写路径的话，将输出至当前目录下。如 `select * from d0 >> '/root/d0.csv';`  将把查询结果输出到 /root/d0.csv 中。
 
 ### 数据导入
 
-- 可以使用 insert into table_name file '输入文件名'，把上一步中导出的数据文件再导入到指定表中。如 `insert into d0 file '/root/d0.csv';` 表示把上面导出的数据全部再导致至 d0 表中。
+- 可以使用 insert into table_name file '输入文件名'，把上一步中导出的数据文件再导入到指定表中。如 `insert into d0 file '/root/d0.csv';` 表示把上面导出的数据全部再导入至 d0 表中。
 
 ## 执行 SQL 脚本
 
@@ -105,7 +107,7 @@ taos> source <filename>;
 - TAB 键前为空命令状态下按 TAB 键，会列出 TDengine CLI 支持的所有命令。
 - TAB 键前为空格状态下按 TAB 键，会显示此位置可以出现的所有命令词的第一个，再次按 TAB 键切为下一个。
 - TAB 键前为字符串，会搜索与此字符串前缀匹配的所有可出现命令词，并显示第一个，再次按 TAB 键切为下一个。
-- 输入反斜杠 `\` + TAB 键, 会自动补全为列显示模式命令词 `\G;`。
+- 输入反斜杠 `\` + TAB 键，会自动补全为列显示模式命令词 `\G;`。
 
 ### 设置字符列显示宽度
 

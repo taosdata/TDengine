@@ -7,16 +7,18 @@ IF(NOT TD_DARWIN)
         AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
         ADD_EXECUTABLE(schedulerTest ${SOURCE_LIST})
+        DEP_ext_gtest(schedulerTest)
+        DEP_ext_cppstub(schedulerTest)
 
         IF(TD_GRANT)
                 TARGET_LINK_LIBRARIES(
                         schedulerTest
-                        PUBLIC os util common catalog transport gtest qcom ${TAOS_NATIVE_LIB_STATIC} planner scheduler grant
+                        PUBLIC os util common catalog transport qcom ${TAOS_NATIVE_LIB_STATIC} planner scheduler grant
                 )
         ELSE()
                 TARGET_LINK_LIBRARIES(
                         schedulerTest
-                        PUBLIC os util common catalog transport gtest qcom ${TAOS_NATIVE_LIB_STATIC} planner scheduler
+                        PUBLIC os util common catalog transport qcom ${TAOS_NATIVE_LIB_STATIC} planner scheduler
                 )
         ENDIF()
 

@@ -389,7 +389,7 @@ static int64_t getIntervalValWithPrecision(int64_t interval, int8_t unit, int8_t
     return interval;
   }
   if(0 != getDuration(interval, unit, &interval, precision)) {
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
   return interval;
 }

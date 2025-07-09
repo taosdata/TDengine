@@ -567,7 +567,7 @@ int32_t schHandleCommitCallback(void *param, SDataBuf *pMsg, int32_t code) {
 
 int32_t schHandleHbCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchedulerHbRsp        rsp = {0};
-  SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
+  SSchHbCallbackParam *pParam = (SSchHbCallbackParam *)param;
 
   if (code) {
     qError("hb rsp error:%s", tstrerror(code));
@@ -643,12 +643,13 @@ int32_t schMakeCallbackParam(SSchJob *pJob, SSchTask *pTask, int32_t msgType, bo
   }
 
   // hb msg
-  SSchTaskCallbackParam *param = taosMemoryCalloc(1, sizeof(SSchTaskCallbackParam));
+  SSchHbCallbackParam *param = taosMemoryCalloc(1, sizeof(SSchHbCallbackParam));
   if (NULL == param) {
     qError("calloc SSchTaskCallbackParam failed");
     SCH_ERR_RET(terrno);
   }
 
+  param->head.isHbParam = true;
   param->pTrans = trans->pTrans;
   *pParam = param;
 
@@ -835,6 +836,7 @@ int32_t schMakeHbRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   __async_send_cb_fn_t fp = NULL;
   SCH_ERR_JRET(schGetCallbackFp(TDMT_SCH_QUERY_HEARTBEAT, &fp));
 
+  param->head.isHbParam = true;
   param->nodeEpId = epId;
   param->pTrans = pJob->conn.pTrans;
 
@@ -1074,6 +1076,9 @@ int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId, SArray *taskAction) {
   SCH_LOCK(SCH_WRITE, &hb->lock);
   code = schCloneHbRpcCtx(&hb->rpcCtx, &rpcCtx);
   TAOS_MEMCPY(&trans, &hb->trans, sizeof(trans));
+  if (NULL == hb->trans.pTrans) {
+    qError("NULL pTrans got from hbConnections for epId:%d", nodeEpId->nodeId);
+  }
   SCH_UNLOCK(SCH_WRITE, &hb->lock);
   SCH_UNLOCK(SCH_READ, &schMgmt.hbLock);
 

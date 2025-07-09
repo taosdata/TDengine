@@ -1236,7 +1236,7 @@ void tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, EVATaskT task, STFileSet *
     }
   }
 
-  tsdbInfo("vgId:%d begin %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
+  tsdbTrace("vgId:%d begin %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
   return;
 }
 
@@ -1262,7 +1262,7 @@ void tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid, EVATaskT task) {
     (void)taosThreadCondSignal(&cond->cond);
   }
 
-  tsdbInfo("vgId:%d finish %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
+  tsdbTrace("vgId:%d finish %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
   return;
 }
 
@@ -1297,10 +1297,10 @@ int32_t tsdbFileSetReaderOpen(void *pVnode, struct SFileSetReader **ppReader) {
   return TSDB_CODE_SUCCESS;
 }
 
-extern bool tsdbShouldCompact(const STFileSet *pFileSet);
+extern bool tsdbShouldCompact(const STFileSet *pFileSet, int32_t vgId);
 
 #ifndef TD_ENTERPRISE
-bool tsdbShouldCompact(const STFileSet *pFileSet) { return false; }
+bool tsdbShouldCompact(const STFileSet *pFileSet, int32_t vgId) { return false; }
 #endif
 
 static int32_t tsdbFileSetReaderNextNoLock(struct SFileSetReader *pReader) {
@@ -1390,7 +1390,7 @@ int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *fie
 
   fieldName = "should_compact";
   if (strncmp(field, fieldName, strlen(fieldName) + 1) == 0) {
-    *(char *)value = tsdbShouldCompact(pReader->pFileSet);
+    *(char *)value = tsdbShouldCompact(pReader->pFileSet, pReader->pTsdb->pVnode->config.vgId);
     return TSDB_CODE_SUCCESS;
   }
 

@@ -516,13 +516,14 @@ typedef struct STaskStartInfo {
   int64_t            elapsedTime;
   int32_t            restartCount;  // restart task counter
   EStartStage        curStage;      // task start stage
+  SArray*            pRecvChkptIdTasks;// tasks that recv consensus checkpoint id
+  bool               partialTasksStarted; // false
   SArray*            pStagesList;   // history stage list with timestamp, SArrya<SStartTaskStageInfo>
   startComplete_fn_t completeFn;    // complete callback function
 } STaskStartInfo;
 
 typedef struct STaskUpdateInfo {
   SHashObj* pTasks;
-  SArray*   pTaskList;
   int32_t   activeTransId;
   int32_t   completeTransId;
   int64_t   completeTs;
@@ -695,7 +696,7 @@ typedef struct SCheckpointConsensusEntry {
 void streamSetupScheduleTrigger(SStreamTask* pTask);
 
 // dispatch related
-int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
+int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg, const SMsgCb* msgcb);
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
 
 void streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId, SStreamUpstreamEpInfo** pEpInfo);
@@ -816,6 +817,8 @@ int32_t streamMetaAcquireTaskUnsafe(SStreamMeta* pMeta, STaskId* pId, SStreamTas
 int32_t streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, SStreamTask** pTask);
 void    streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
 
+bool    allCheckDownstreamRspPartial(STaskStartInfo* pStartInfo, int32_t num, int32_t vgId);
+
 void    streamMetaClear(SStreamMeta* pMeta);
 void    streamMetaInitBackend(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);
@@ -828,14 +831,14 @@ int32_t streamMetaAddTaskLaunchResultNoLock(SStreamMeta* pMeta, int64_t streamId
                                             int64_t startTs, int64_t endTs, bool ready);
 int32_t streamMetaInitStartInfo(STaskStartInfo* pStartInfo);
 void    streamMetaClearStartInfo(STaskStartInfo* pStartInfo);
+void    streamMetaClearStartInfoPartial(STaskStartInfo* pStartInfo);
 
 int32_t streamMetaResetTaskStatus(SStreamMeta* pMeta);
 int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, bool lock);
 void    streamMetaAddFailedTaskSelf(SStreamTask* pTask, int64_t failedTs, bool lock);
-void    streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTask* pHTask, int32_t transId,
-                                        int64_t startTs);
+void    streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, int32_t transId, int64_t startTs);
 void    streamMetaClearSetUpdateTaskListComplete(SStreamMeta* pMeta);
-bool    streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId);
+bool    streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId, SArray* pUpdateTaskList);
 
 void    streamMetaRLock(SStreamMeta* pMeta);
 int32_t streamMetaTryRlock(SStreamMeta* pMeta);
@@ -847,7 +850,7 @@ int32_t streamGetFatalError(const SStreamMeta* pMeta);
 
 void    streamMetaResetStartInfo(STaskStartInfo* pMeta, int32_t vgId);
 int32_t streamMetaSendMsgBeforeCloseTasks(SStreamMeta* pMeta, SArray** pTaskList);
-void    streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader);
+void    streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t term, bool isLeader);
 void    streamMetaLoadAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStartAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStopAllTasks(SStreamMeta* pMeta);

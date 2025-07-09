@@ -1,7 +1,8 @@
 <!-- omit in toc -->
 # taosKeeper
 
-[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/taosdata/TDengine/taoskeeper-ci-build.yml)](https://github.com/taosdata/TDengine/actions/workflows/taoskeeper-ci-build.yml)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/taosdata/TDengine/taoskeeper-build.yml)](https://github.com/taosdata/TDengine/actions/workflows/taoskeeper-build.yml)
+[![codecov](https://codecov.io/gh/taosdata/taoskeeper/graph/badge.svg)](https://codecov.io/gh/taosdata/taoskeeper)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/taosdata/TDengine)
 ![GitHub License](https://img.shields.io/github/license/taosdata/TDengine)
 ![GitHub Release](https://img.shields.io/github/v/release/taosdata/tdengine)
@@ -44,7 +45,7 @@ taosKeeper 的一个重要价值在于，它能够将多个甚至一批 TDengine
 
 ## 3. 前置条件
 
-1. 已安装 Go 1.18 及以上版本。
+1. 已安装 Go 1.23 及以上版本。
 2. 本地已部署 TDengine，具体步骤请参考 [部署服务端](https://docs.taosdata.com/get-started/package/)，且已启动 taosd 与 taosAdapter。
 
 ## 4. 构建

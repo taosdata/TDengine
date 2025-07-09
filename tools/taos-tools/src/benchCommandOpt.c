@@ -10,8 +10,8 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
- #include "cus_name.h"  // include/util/
- #include <bench.h>
+#include "cus_name.h"  // include/util/
+#include <bench.h>
 #include "benchLog.h"
 #include <toolsdef.h>
 
@@ -35,57 +35,120 @@ void printVersion() {
     printf("build: %s\n", BUILD_INFO);
 }
 
-void parseFieldDatatype(char *dataType, BArray *fields, bool isTag) {
+
+void processSingleToken(char* token, BArray* fields, int index, bool isTag) {
+    Field* field = benchCalloc(1, sizeof(Field), true);
+    benchArrayPush(fields, field);
+    field = benchArrayGet(fields, index);
+
+    regex_t regex;
+    regmatch_t pmatch[3];
+    int reti;
+
+    // BINARY/NCHAR/VARCHAR/JSON/GEOMETRY/VARBINARY
+    reti = regcomp(&regex, "^(BINARY|NCHAR|VARCHAR|JSON|GEOMETRY|VARBINARY)\\(([1-9][0-9]*)\\)$", REG_ICASE | REG_EXTENDED);
+    if (!reti) {
+        reti = regexec(&regex, token, 3, pmatch, 0);
+        if (!reti) {
+            char type[DATATYPE_BUFF_LEN] = {0};
+            char length[BIGINT_BUFF_LEN] = {0};
+            strncpy(type, token + pmatch[1].rm_so, pmatch[1].rm_eo - pmatch[1].rm_so);
+            type[pmatch[1].rm_eo - pmatch[1].rm_so] = '\0';
+            strncpy(length, token + pmatch[2].rm_so, pmatch[2].rm_eo - pmatch[2].rm_so);
+            field->type = convertStringToDatatype(type, 0, NULL);
+            field->length = atoi(length);
+            regfree(&regex);
+            goto SET_PROPS;
+        }
+        regfree(&regex);
+    }
+
+    // DECIMAL
+    reti = regcomp(&regex, "^DECIMAL\\s*\\(\\s*(-?[0-9]+)\\s*,\\s*(-?[0-9]+)\\s*\\)$", REG_ICASE | REG_EXTENDED);
+    if (!reti) {
+        reti = regexec(&regex, token, 3, pmatch, 0);
+        if (!reti) {
+            char precision[DECIMAL_BUFF_LEN] = {0};
+            char scale[DECIMAL_BUFF_LEN] = {0};
+            strncpy(precision, token + pmatch[1].rm_so, pmatch[1].rm_eo - pmatch[1].rm_so);
+            precision[pmatch[1].rm_eo - pmatch[1].rm_so] = '\0';
+            strncpy(scale, token + pmatch[2].rm_so, pmatch[2].rm_eo - pmatch[2].rm_so);
+            scale[pmatch[2].rm_eo - pmatch[2].rm_so] = '\0';
+
+            int p = atoi(precision), s = atoi(scale);
+            if (p > TSDB_DECIMAL128_MAX_PRECISION || p <= 0) {
+                errorPrint("Invalid precision value of decimal type in args, precision: %d, scale: %d\n", p, s);
+                exit(EXIT_FAILURE);
+            }
+            if (s < 0 || s > p) {
+                errorPrint("Invalid scale value of decimal type in args, precision: %d, scale: %d\n", p, s);
+                exit(EXIT_FAILURE);
+            }
+            field->precision = p;
+            field->scale = s;
+            field->type = convertStringToDatatype("DECIMAL", 0, &field->precision);
+            field->length = convertTypeToLength(field->type);
+            regfree(&regex);
+
+            if (field->type == TSDB_DATA_TYPE_DECIMAL) {
+                getDecimal128DefaultMax(p, s, &field->decMax.dec128);
+                getDecimal128DefaultMin(p, s, &field->decMin.dec128);
+            } else {
+                getDecimal64DefaultMax(p, s, &field->decMax.dec64);
+                getDecimal64DefaultMin(p, s, &field->decMin.dec64);
+            }
+
+            goto SET_PROPS;
+        }
+        regfree(&regex);
+    }
+
+    // other
+    field->type = convertStringToDatatype(token, 0, NULL);
+    field->length = convertTypeToLength(field->type);
+
+SET_PROPS:
+    field->min = convertDatatypeToDefaultMin(field->type);
+    field->max = convertDatatypeToDefaultMax(field->type);
+    snprintf(field->name, TSDB_COL_NAME_LEN, isTag ? "t%d" : "c%d", index);
+}
+
+
+void parseFieldDatatype(char* dataType, BArray* fields, bool isTag) {
     benchArrayClear(fields);
     if (strstr(dataType, ",") == NULL) {
-        Field * field = benchCalloc(1, sizeof(Field), true);
-        benchArrayPush(fields, field);
-        field = benchArrayGet(fields, 0);
-        if (1 == regexMatch(dataType,
-                    "^(BINARY|NCHAR|GEOMETRY|VARBINARY|VARCHAR)(\\([1-9][0-9]*\\))$",
-                    REG_ICASE | REG_EXTENDED)) {
-            char type[DATATYPE_BUFF_LEN];
-            char length[BIGINT_BUFF_LEN];
-            sscanf(dataType, "%[^(](%[^)]", type, length);
-            field->type = convertStringToDatatype(type, 0);
-            field->length = atoi(length);
-        } else {
-            field->type = convertStringToDatatype(dataType, 0);
-            field->length = convertTypeToLength(field->type);
-        }
-        field->min = convertDatatypeToDefaultMin(field->type);
-        field->max = convertDatatypeToDefaultMax(field->type);
-        tstrncpy(field->name, isTag?"t0":"c0", TSDB_COL_NAME_LEN);
+        processSingleToken(dataType, fields, 0, isTag);
     } else {
-        char *dup_str = strdup(dataType);
-        char *running = dup_str;
-        char *token = strsep(&running, ",");
-        int   index = 0;
-        while (token) {
-            Field * field = benchCalloc(1, sizeof(Field), true);
-            benchArrayPush(fields, field);
-            field = benchArrayGet(fields, index);
-            if (1 == regexMatch(token,
-                        "^(BINARY|NCHAR|JSON)(\\([1-9][0-9]*\\))$",
-                        REG_ICASE | REG_EXTENDED)) {
-                char type[DATATYPE_BUFF_LEN];
-                char length[BIGINT_BUFF_LEN];
-                sscanf(token, "%[^(](%[^)]", type, length);
-                field->type = convertStringToDatatype(type, 0);
-                field->length = atoi(length);
-            } else {
-                field->type = convertStringToDatatype(token, 0);
-                field->length = convertTypeToLength(field->type);
+        char* dupStr        = strdup(dataType);
+        char* start         = dupStr;
+        char* current       = start;
+        int   bracketDepth  = 0;
+        int   index         = 0;
+
+        while (*current != '\0') {
+            if (*current == '(') {
+                bracketDepth++;
+            } else if (*current == ')') {
+                if (bracketDepth > 0) bracketDepth--;
+                else {
+                    errorPrint("Unbalanced parentheses in data type: %s\n", dataType);
+                    exit(EXIT_FAILURE);
+                }
+            } else if (*current == ',' && bracketDepth == 0) {
+                *current = '\0';
+                processSingleToken(start, fields, index++, isTag);
+                start = current + 1;
             }
-            field->max = convertDatatypeToDefaultMax(field->type);
-            field->min = convertDatatypeToDefaultMin(field->type);
-            snprintf(field->name, TSDB_COL_NAME_LEN, isTag?"t%d":"c%d", index);
-            index++;
-            token = strsep(&running, ",");
+            current++;
         }
-        tmfree(dup_str);
+
+        if (start < current) {
+            processSingleToken(start, fields, index, isTag); 
+        }
+        tmfree(dupStr);
     }
 }
+
 
 static void initStable() {
     SDataBase *database = benchArrayGet(g_arguments->databases, 0);
@@ -115,9 +178,9 @@ static void initStable() {
     c2->length = sizeof(int32_t);
     c3->length = sizeof(float);
 
-    tstrncpy(c1->name, "current", TSDB_COL_NAME_LEN + 1);
-    tstrncpy(c2->name, "voltage", TSDB_COL_NAME_LEN + 1);
-    tstrncpy(c3->name, "phase", TSDB_COL_NAME_LEN + 1);
+    TOOLS_STRNCPY(c1->name, "current", TSDB_COL_NAME_LEN + 1);
+    TOOLS_STRNCPY(c2->name, "voltage", TSDB_COL_NAME_LEN + 1);
+    TOOLS_STRNCPY(c3->name, "phase", TSDB_COL_NAME_LEN + 1);
 
     c1->min = 9;
     c1->max = 10;    
@@ -160,8 +223,8 @@ static void initStable() {
     t1->length = sizeof(int32_t);
     t2->length = 24;
 
-    tstrncpy(t1->name, "groupid", TSDB_COL_NAME_LEN + 1);
-    tstrncpy(t2->name, "location", TSDB_COL_NAME_LEN + 1);
+    TOOLS_STRNCPY(t1->name, "groupid", TSDB_COL_NAME_LEN + 1);
+    TOOLS_STRNCPY(t2->name, "location", TSDB_COL_NAME_LEN + 1);
 
     t1->min = 1;
     t1->max = 100000;
@@ -239,6 +302,7 @@ void initArgument() {
     g_arguments->keep_trying = 0;
     g_arguments->trying_interval = 0;
     g_arguments->iface = TAOSC_IFACE;
+    g_arguments->rest_server_ver_major = -1;
     g_arguments->inputted_vgroups = -1;
 
     g_arguments->mistMode = false;
@@ -304,7 +368,10 @@ void modifyArgument() {
 static void *queryStableAggrFunc(void *sarg) {
     threadInfo *pThreadInfo = (threadInfo *)sarg;
 
-    TAOS *taos = taos = pThreadInfo->conn->taos;
+    TAOS *taos = NULL;
+    if (REST_IFACE != g_arguments->iface) {
+        taos = pThreadInfo->conn->taos;
+    }
 #ifdef LINUX
     prctl(PR_SET_NAME, "queryStableAggrFunc");
 #endif
@@ -360,18 +427,24 @@ static void *queryStableAggrFunc(void *sarg) {
             }
             double t = (double)toolsGetTimestampUs();
             int32_t code = -1;
-            TAOS_RES *res = taos_query(taos, command);
-            code = taos_errno(res);
-            if (code != 0) {
-                printErrCmdCodeStr(command, code, res);
-                free(command);
-                return NULL;
+            if (REST_IFACE == g_arguments->iface) {
+                code = postProcessSql(command, NULL, 0, REST_IFACE,
+                                    0, g_arguments->port, 0,
+                                    pThreadInfo->sockfd, NULL);
+            } else {
+                TAOS_RES *res = taos_query(taos, command);
+                code = taos_errno(res);
+                if (code != 0) {
+                    printErrCmdCodeStr(command, code, res);
+                    free(command);
+                    return NULL;
+                }
+                int count = 0;
+                while (taos_fetch_row(res) != NULL) {
+                    count++;
+                }
+                taos_free_result(res);
             }
-            int count = 0;
-            while (taos_fetch_row(res) != NULL) {
-                count++;
-            }
-            taos_free_result(res);
             t = toolsGetTimestampUs() - t;
             if (fp) {
                 fprintf(fp, "| Speed: %12.2f(per s) | Latency: %.4f(ms) |\n",
@@ -432,17 +505,23 @@ static void *queryNtableAggrFunc(void *sarg) {
                     (uint64_t) DEFAULT_START_TIME);
             double    t = (double)toolsGetTimestampUs();
             int32_t code = -1;
-            TAOS_RES *res = taos_query(taos, command);
-            code = taos_errno(res);
-            if (code != 0) {
-                printErrCmdCodeStr(command, code, res);
-                free(command);
-                return NULL;
+            if (REST_IFACE == g_arguments->iface) {
+                code = postProcessSql(command, NULL, 0, REST_IFACE,
+                                    0, g_arguments->port, 0,
+                                    pThreadInfo->sockfd, NULL);
+            } else {
+                TAOS_RES *res = taos_query(taos, command);
+                code = taos_errno(res);
+                if (code != 0) {
+                    printErrCmdCodeStr(command, code, res);
+                    free(command);
+                    return NULL;
+                }
+                while (taos_fetch_row(res) != NULL) {
+                    count++;
+                }
+                taos_free_result(res);
             }
-            while (taos_fetch_row(res) != NULL) {
-                count++;
-            }
-            taos_free_result(res);
 
             t = toolsGetTimestampUs() - t;
             totalT += t;
@@ -481,19 +560,34 @@ void queryAggrFunc() {
         return;
     }
 
-    pThreadInfo->conn = initBenchConn();
-    if (pThreadInfo->conn == NULL) {
-        errorPrint("%s() failed to init connection\n", __func__);
-        free(pThreadInfo);
-        return;
-    }
+    // REST
+    if (REST_IFACE != g_arguments->iface) {
+        pThreadInfo->conn = initBenchConn();
+        if (pThreadInfo->conn == NULL) {
+            errorPrint("%s() failed to init connection\n", __func__);
+            free(pThreadInfo);
+            return;
+        }
+    } else {
+        pThreadInfo->sockfd = createSockFd();
+        if (pThreadInfo->sockfd < 0) {
+            free(pThreadInfo);
+            return;
+        }
+    }    
     if (stbInfo->use_metric) {
         pthread_create(&read_id, NULL, queryStableAggrFunc, pThreadInfo);
     } else {
         pthread_create(&read_id, NULL, queryNtableAggrFunc, pThreadInfo);
     }
     pthread_join(read_id, NULL);
-
-    closeBenchConn(pThreadInfo->conn);
+    // REST
+    if (REST_IFACE != g_arguments->iface) {
+        closeBenchConn(pThreadInfo->conn);
+    } else {
+        if (pThreadInfo->sockfd) {
+            destroySockFd(pThreadInfo->sockfd);
+        }
+    }
     free(pThreadInfo);
 }

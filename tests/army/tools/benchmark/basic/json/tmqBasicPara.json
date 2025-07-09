@@ -8,6 +8,7 @@
     "databases": "test",
     "confirm_parameter_prompt": "no",
     "result_file": "./tmq_result_para.txt",
+    "result_json_file":"./tmq_result.json",
     "tmq_info": {
         "concurrent": 2,
         "poll_delay": 3000,
@@ -17,7 +18,6 @@
         "auto.offset.reset": "earliest",
         "enable.auto.commit": "true",
         "auto.commit.interval.ms": 1000,
-        "enable.heartbeat.background": "true",
         "experimental.snapshot.enable": "true",
         "msg.with.table.name": "false",
         "rows_file": "./rows_file_para",

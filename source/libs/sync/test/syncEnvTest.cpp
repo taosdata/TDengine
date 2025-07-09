@@ -18,16 +18,16 @@ int main() {
   logTest();
 
   ret = syncInit();
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
 
   for (int i = 0; i < 5; ++i) {
     // ret = syncEnvStartTimer();
-    assert(ret == 0);
+    TD_ALWAYS_ASSERT(ret == 0);
 
     taosMsleep(5000);
 
     // ret = syncEnvStopTimer();
-    assert(ret == 0);
+    TD_ALWAYS_ASSERT(ret == 0);
 
     taosMsleep(5000);
   }

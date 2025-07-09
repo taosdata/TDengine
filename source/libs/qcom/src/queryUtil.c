@@ -238,9 +238,10 @@ void destroyAhandle(void *ahandle) {
 
 int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo,
                                 bool persistHandle, void* rpcCtx) {                         
-  QUERY_PARAM_CHECK(pTransporter);
-  QUERY_PARAM_CHECK(epSet);
-  QUERY_PARAM_CHECK(pInfo);
+  if (NULL == pTransporter || NULL == epSet || NULL == pInfo) {
+    destroySendMsgInfo(pInfo);
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
 
   char* pMsg = rpcMallocCont(pInfo->msgInfo.len);
   if (NULL == pMsg) {

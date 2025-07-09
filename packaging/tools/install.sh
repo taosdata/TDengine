@@ -7,7 +7,8 @@ set -e
 # set -x
 
 verMode=edge
-pagMode=full
+pkgMode=full
+entMode=full
 
 iplist=""
 serverFqdn=""
@@ -19,7 +20,7 @@ script_dir=$(dirname $(readlink -f "$0"))
 PREFIX="taos"
 clientName="${PREFIX}"
 serverName="${PREFIX}d"
-udfdName="taosudf"
+udfdName="${PREFIX}udf"
 configFile="${PREFIX}.cfg"
 productName="TDengine"
 emailName="taosdata.com"
@@ -157,13 +158,17 @@ done
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
-tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} remove.sh taosudf set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
 if [ "${verMode}" == "cluster" ]; then
-  services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
+  if [ "${entMode}" == "lite" ]; then
+    services=(${serverName} ${adapterName} ${explorerName} ${keeperName})
+  else
+    services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
+  fi
 elif [ "${verMode}" == "edge" ]; then
-  if [ "${pagMode}" == "full" ]; then
+  if [ "${pkgMode}" == "full" ]; then
     services=(${serverName} ${adapterName} ${keeperName} ${explorerName})
-    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh taosudf set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
   else
     services=(${serverName})
     tools=(${clientName} ${benchmarkName} remove.sh start_pre.sh)
@@ -243,7 +248,7 @@ function install_bin() {
       ${csudo}cp -r ${script_dir}/${xname}/uninstall_${xname}.sh ${install_main_dir}/uninstall_${xname}.sh
     fi
   fi
-  
+
   if [ -f ${script_dir}/bin/quick_deploy.sh ]; then
     ${csudo}cp -r ${script_dir}/bin/quick_deploy.sh ${install_main_dir}/bin
   fi
@@ -284,7 +289,7 @@ function install_lib() {
   ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.* ${lib_link_dir}/libtaosnative.so.1
   ${csudo}ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
 
-  [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so || :
+  ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so.* ${lib_link_dir}/libtaosws.so || :
 
   #link lib64/link_dir
   if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
@@ -293,7 +298,7 @@ function install_lib() {
     ${csudo}ln -sf ${install_main_dir}/driver/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.1 || :
     ${csudo}ln -sf ${lib64_link_dir}/libtaosnative.so.1 ${lib64_link_dir}/libtaosnative.so || :
 
-    [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib64_link_dir}/libtaosws.so || :
+    ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so.* ${lib64_link_dir}/libtaosws.so || :
   fi
 
   ${csudo}ldconfig
@@ -537,7 +542,7 @@ function install_taosx_config() {
   file_name="${script_dir}/${xname}/etc/${PREFIX}/${xname}.toml"
   if [ -f ${file_name} ]; then
     ${csudo}sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" ${file_name}
-    
+
     if [ -f "${configDir}/${xname}.toml" ]; then
       ${csudo}cp ${file_name} ${configDir}/${xname}.toml.new
     else
@@ -546,11 +551,10 @@ function install_taosx_config() {
   fi
 }
 
-
 function install_explorer_config() {
   [ ! -z $1 ] && return 0 || : # only install client
 
-  if [ "$verMode" == "cluster" ]; then
+  if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
     file_name="${script_dir}/${xname}/etc/${PREFIX}/explorer.toml"
   else
     file_name="${script_dir}/cfg/explorer.toml"
@@ -558,7 +562,7 @@ function install_explorer_config() {
 
   if [ -f ${file_name} ]; then
     ${csudo}sed -i "s/localhost/${serverFqdn}/g" ${file_name}
-    
+
     if [ -f "${configDir}/explorer.toml" ]; then
       ${csudo}cp ${file_name} ${configDir}/explorer.toml.new
     else
@@ -573,11 +577,11 @@ function install_adapter_config() {
   file_name="${script_dir}/cfg/${adapterName}.toml"
   if [ -f ${file_name} ]; then
     ${csudo}sed -i -r "s/localhost/${serverFqdn}/g" ${file_name}
-    
-    if [ -f "${configDir}/${adapterName}.toml" ]; then      
+
+    if [ -f "${configDir}/${adapterName}.toml" ]; then
       ${csudo}cp ${file_name} ${configDir}/${adapterName}.toml.new
     else
-      ${csudo}cp ${file_name} ${configDir}/${adapterName}.toml      
+      ${csudo}cp ${file_name} ${configDir}/${adapterName}.toml
     fi
   fi
 }
@@ -604,9 +608,9 @@ function install_taosd_config() {
     ${csudo}echo "monitor 1" >>${script_dir}/cfg/${configFile}
     ${csudo}echo "monitorFQDN ${serverFqdn}" >>${script_dir}/cfg/${configFile}
     if [ "$verMode" == "cluster" ]; then
-      ${csudo}echo "audit 1" >>${script_dir}/cfg/${configFile}  
+      ${csudo}echo "audit 1" >>${script_dir}/cfg/${configFile}
     fi
-    
+
     if [ -f "${configDir}/${configFile}" ]; then
       ${csudo}cp ${file_name} ${configDir}/${configFile}.new
     else
@@ -616,7 +620,7 @@ function install_taosd_config() {
 
   ${csudo}ln -sf ${configDir}/${configFile} ${install_main_dir}/cfg
 }
-  
+
 function install_taosinspect_config() {
   file_name="${script_dir}/cfg/inspect.cfg"
   if [ -f ${file_name} ]; then
@@ -631,7 +635,7 @@ function install_taosinspect_config() {
 }
 
 function install_config() {
-  
+
   [ ! -z $1 ] && return 0 || : # only install client
 
   if ((${update_flag} == 1)); then
@@ -693,7 +697,7 @@ function install_data() {
 
 function install_connector() {
   if [ -d "${script_dir}/connector/" ]; then
-    ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/ || echo "failed to copy connector"    
+    ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/ || echo "failed to copy connector"
     ${csudo}cp ${script_dir}/README.md ${install_main_dir}/ || echo "failed to copy README.md"
   fi
 }
@@ -777,7 +781,7 @@ function install_service_on_systemd() {
 
   cfg_source_dir=${script_dir}/cfg
   if [[ "$1" == "${xname}" || "$1" == "${explorerName}" ]]; then
-    if [ "$verMode" == "cluster" ]; then
+    if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
       cfg_source_dir=${script_dir}/${xname}/etc/systemd/system
     else
       cfg_source_dir=${script_dir}/cfg
@@ -936,14 +940,14 @@ function updateProduct() {
     install_bin
     install_services
 
-    if [ "${pagMode}" != "lite" ]; then
+    if [ "${pkgMode}" != "lite" ]; then
       install_adapter_config
       install_taosx_config
       install_explorer_config
       if [ "${verMode}" == "cluster" ]; then
         install_taosinspect_config
       fi
-      
+
       if [ "${verMode}" != "cloud" ]; then
         install_keeper_config
       fi
@@ -954,7 +958,7 @@ function updateProduct() {
     echo
     echo -e "${GREEN_DARK}To configure ${productName} ${NC}\t\t: edit ${configDir}/${configFile}"
     [ -f ${configDir}/${adapterName}.toml ] && [ -f ${installDir}/bin/${adapterName} ] &&
-      echo -e "${GREEN_DARK}To configure ${adapterName} ${NC}\t: edit ${configDir}/${adapterName}.toml"    
+      echo -e "${GREEN_DARK}To configure ${adapterName} ${NC}\t: edit ${configDir}/${adapterName}.toml"
     echo -e "${GREEN_DARK}To configure ${explorerName} ${NC}\t: edit ${configDir}/explorer.toml"
     if ((${service_mod} == 0)); then
       echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo}systemctl start ${serverName}${NC}"
@@ -971,15 +975,15 @@ function updateProduct() {
     fi
 
     echo -e "${GREEN_DARK}To start ${clientName}keeper ${NC}\t\t: sudo systemctl start ${clientName}keeper ${NC}"
-    if [ "$verMode" == "cluster" ]; then
-      echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"      
+    if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
+      echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"
     fi
     echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: sudo systemctl start ${clientName}-explorer ${NC}"
 
     echo
     echo "${productName} is updated successfully!"
     echo
-    
+
     echo -e "\033[44;32;1mTo start all the components                 : sudo start-all.sh${NC}"
     echo -e "\033[44;32;1mTo access ${productName} Commnd Line Interface    : ${clientName} -h $serverFqdn${NC}"
     echo -e "\033[44;32;1mTo access ${productName} Graphic User Interface   : http://$serverFqdn:6060${NC}"
@@ -1032,7 +1036,7 @@ function installProduct() {
     install_bin
     install_services
 
-    if [ "${pagMode}" != "lite" ]; then      
+    if [ "${pkgMode}" != "lite" ]; then
       install_adapter_config
       install_taosx_config
       install_explorer_config
@@ -1040,7 +1044,7 @@ function installProduct() {
       if [ "${verMode}" == "cluster" ]; then
         install_taosinspect_config
       fi
-      
+
       if [ "${verMode}" != "cloud" ]; then
         install_keeper_config
       fi
@@ -1070,7 +1074,7 @@ function installProduct() {
 
     echo -e "${GREEN_DARK}To start ${clientName}keeper ${NC}\t\t: sudo systemctl start ${clientName}keeper ${NC}"
 
-    if [ "$verMode" == "cluster" ]; then
+    if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
       echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"
     fi
     echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: sudo systemctl start ${clientName}-explorer ${NC}"
@@ -1078,7 +1082,7 @@ function installProduct() {
     echo
     echo "${productName} is installed successfully!"
     echo
-    
+
     echo -e "\033[44;32;1mTo start all the components                 : sudo start-all.sh${NC}"
     echo -e "\033[44;32;1mTo access ${productName} Commnd Line Interface    : ${clientName} -h $serverFqdn${NC}"
     echo -e "\033[44;32;1mTo access ${productName} Graphic User Interface   : http://$serverFqdn:6060${NC}"
@@ -1099,11 +1103,10 @@ function installProduct() {
 }
 
 check_java_env() {
-    if ! command -v java &> /dev/null
-    then
-        echo -e "\033[31mWarning: Java command not found. Version 1.8+ is required.\033[0m"
-        return
-    fi
+  if ! command -v java &>/dev/null; then
+    echo -e "\033[31mWarning: Java command not found. Version 1.8+ is required.\033[0m"
+    return
+  fi
 
   java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
   java_version_ok=false

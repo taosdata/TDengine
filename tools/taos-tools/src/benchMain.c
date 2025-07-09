@@ -19,6 +19,7 @@ SArguments*    g_arguments;
 SQueryMetaInfo g_queryInfo;
 STmqMetaInfo   g_tmqInfo;
 bool           g_fail = false;
+bool           g_stopping = false;
 uint64_t       g_memoryUsage = 0;
 tools_cJSON*   root;
 extern char    g_configDir[MAX_PATH_LEN];
@@ -33,7 +34,13 @@ uint64_t        g_argFlag = 0;
 #ifdef LINUX
 void benchQueryInterruptHandler(int32_t signum, void* sigingo, void* context) {
     infoPrint("%s", "Receive SIGINT or other signal, quit benchmark\n");
+    if (g_stopping) {
+        infoPrint("%s", "Benchmark process forced exit!\n");
+        exit(1);
+    }
+    
     sem_post(&g_arguments->cancelSem);
+    g_stopping = true;
 }
 
 void* benchCancelHandler(void* arg) {
@@ -42,9 +49,9 @@ void* benchCancelHandler(void* arg) {
     }
 
     g_arguments->terminate = true;
-    toolsMsleep(10);
+    toolsMsleep(5 * 1000);
 
-    return NULL;
+    exit(1);
 }
 #endif
 
@@ -56,9 +63,17 @@ int checkArgumentValid() {
         g_arguments->reqPerReq = g_arguments->prepared_rand;
     }
 
-    if(g_arguments->host == NULL) {
-        g_arguments->host = DEFAULT_HOST;
-    }
+    if (isRest(g_arguments->iface)) {
+        if (0 != convertServAddr(g_arguments->iface,
+                                 false,
+                                 1)) {
+            errorPrint("%s", "Failed to convert server address\n");
+            return -1;
+        }
+        encodeAuthBase64();
+        g_arguments->rest_server_ver_major =
+            getServerVersionRest(g_arguments->port);
+    }    
 
     // check batch query
     if (g_arguments->test_mode == QUERY_TEST) {
@@ -71,7 +86,11 @@ int checkArgumentValid() {
             }
         }
     }
-
+    
+    if (isRest(g_arguments->iface) && g_arguments->bind_vgroup) {
+        errorPrint("rest interface does not support bind vgroup, please use native or websocket mode\n");
+        return -1; 
+    }
     return 0;
 }
 
@@ -162,7 +181,6 @@ int main(int argc, char* argv[]) {
     // check argument
     infoPrint("client version: %s\n", taos_get_client_info());
     if (checkArgumentValid()) {
-        errorPrint("failed to readJsonConfig %s\n", g_arguments->metaFile);
         exitLog();
         return -1;
     }
@@ -174,9 +192,7 @@ int main(int argc, char* argv[]) {
     }
 
     // check condition for set config dir
-    if (strlen(g_configDir)
-            && g_arguments->host_auto
-            && g_arguments->port_auto) {
+    if (strlen(g_configDir)) {
         // apply
         if(applyConfigDir(g_configDir) != TSDB_CODE_SUCCESS) {
             exitLog();

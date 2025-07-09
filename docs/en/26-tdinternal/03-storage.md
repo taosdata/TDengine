@@ -41,7 +41,7 @@ The Tuple encoding format is mainly used in non-sparse data scenarios, such as s
    <figcaption>Figure 1. Tuple row format</figcaption>
    </figure>
 
-2. Key-Value Encoding Format
+1. Key-Value Encoding Format
 
 The Key-Value encoding format is particularly suitable for sparse data scenarios, that is, scenarios where a large number of columns (such as thousands of columns) are defined in the table's schema, but very few columns actually have values. In this case, using the traditional Tuple encoding format would cause a great waste of space. In contrast, using the Key-Value encoding format can significantly reduce the storage space occupied by row data. As shown in the following diagram.
 

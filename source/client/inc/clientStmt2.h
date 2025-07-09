@@ -147,7 +147,7 @@ typedef struct {
 typedef struct AsyncBindParam {
   TdThreadMutex mutex;
   TdThreadCond  waitCond;
-  uint8_t       asyncBindNum;
+  int8_t        asyncBindNum;
 } AsyncBindParam;
 
 typedef struct {
@@ -172,6 +172,7 @@ typedef struct {
   tsem_t         asyncExecSem;
   bool           execSemWaited;
   AsyncBindParam asyncBindParam;
+  bool           asyncExecCb;
   SStmtStatInfo  stat;
 } STscStmt2;
 /*
@@ -223,14 +224,23 @@ do {                               \
   }                                \
 } while (0)
 
-
-#define STMT_FLOG(param, ...) qFatal("stmt:%p, " param, pStmt, __VA_ARGS__)
-#define STMT_ELOG(param, ...) qError("stmt:%p, " param, pStmt, __VA_ARGS__)
-#define STMT_DLOG(param, ...) qDebug("stmt:%p, " param, pStmt, __VA_ARGS__)
-
-#define STMT_ELOG_E(param) qError("stmt:%p, " param, pStmt)
-#define STMT_DLOG_E(param) qDebug("stmt:%p, " param, pStmt)
 */
+#define LEGAL_INSERT(type) ((type) == QUERY_NODE_VNODE_MODIFY_STMT || (type) == QUERY_NODE_INSERT_STMT)
+#define LEGAL_SELECT(type) ((type) == QUERY_NODE_SELECT_STMT || (type) == QUERY_NODE_SET_OPERATOR)
+
+#define STMT2_FLOG(param, ...) qFatal("stmt2:%p, " param, pStmt, __VA_ARGS__)
+#define STMT2_ELOG(param, ...) qError("stmt2:%p, " param, pStmt, __VA_ARGS__)
+#define STMT2_DLOG(param, ...) qDebug("stmt2:%p, " param, pStmt, __VA_ARGS__)
+#define STMT2_WLOG(param, ...)  qWarn("stmt2:%p, " param, pStmt, __VA_ARGS__)
+#define STMT2_ILOG(param, ...)  qInfo("stmt2:%p, " param, pStmt, __VA_ARGS__)
+#define STMT2_TLOG(param, ...)  qTrace("stmt2:%p, " param, pStmt, __VA_ARGS__)
+
+#define STMT2_ELOG_E(param) qError("stmt2:%p, " param, pStmt)
+#define STMT2_DLOG_E(param) qDebug("stmt2:%p, " param, pStmt)
+#define STMT2_WLOG_E(param)  qWarn("stmt2:%p, " param, pStmt)
+#define STMT2_ILOG_E(param)  qInfo("stmt2:%p, " param, pStmt)
+#define STMT2_TLOG_E(param)  qTrace("stmt2:%p, " param, pStmt)
+
 TAOS_STMT2 *stmtInit2(STscObj *taos, TAOS_STMT2_OPTION *pOptions);
 int         stmtClose2(TAOS_STMT2 *stmt);
 int         stmtExec2(TAOS_STMT2 *stmt, int *affected_rows);

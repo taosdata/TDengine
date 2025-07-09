@@ -21,6 +21,9 @@ from frame.common import *
 import time
 
 class TDTestCase(TBase):
+    updatecfgDict = {
+        "checkpointInterval": 60,
+    }
 
     def create_tables(self):
         tdLog.info("create tables")

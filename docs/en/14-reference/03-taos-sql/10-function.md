@@ -127,21 +127,24 @@ FLOOR(expr)
  Other usage notes see [CEIL](#ceil) function description.
 
 #### GREATEST
+
 ```sql
 GREATEST(expr1, expr2[, expr]...)
 ```
 
 **Function Description**: Get the maximum value of all input parameters. The minimum number of parameters for this function is 2.
 
-**Version**：ver-3.3.6.0
+**Version**: ver-3.3.6.0
 
-**Return Type**：Refer to the comparison rules. The comparison type is the final return type.
+**Return Type**: Refer to the comparison rules. The comparison type is the final return type.
 
 **Applicable Data Types**:
+
 - Numeric types: timestamp, bool, integer and floating point types
 - Strings types: nchar and varchar types.
 
 **Comparison rules**: The following rules describe the conversion method of the comparison operation:
+
 - If any parameter is NULL, the comparison result is NULL.
 - If all parameters in the comparison operation are string types, compare them as string types
 - If all parameters are numeric types, compare them as numeric types.
@@ -150,13 +153,13 @@ GREATEST(expr1, expr2[, expr]...)
 
 **Related configuration items**: Client configuration, compareAsStrInGreatest is 1, which means that both string types and numeric types are converted to string comparisons, and 0 means that they are converted to numeric types. The default is 1.
 
-
 #### LEAST
+
 ```sql
 LEAST(expr1, expr2[, expr]...)
 ```
 
-**Function Description**：Get the minimum value of all input parameters. The rest of the description is the same as the [GREATEST](#greatest) function.
+**Function Description**: Get the minimum value of all input parameters. The rest of the description is the same as the [GREATEST](#greatest) function.
 
 #### LOG
 
@@ -630,6 +633,82 @@ taos> select radians(180);
        radians(180)        |
 ============================
          3.141592653589793 |
+```
+
+#### CRC32
+
+```sql
+CRC32(expr)
+```
+
+**Function Description**: Returns the unsigned 32-bit integer that represents the Cyclic Redundancy Check (CRC).
+
+**Return Type**: INT UNSIGNED.
+
+**Applicable Data Types**: Suitable for any type.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- If `expr` is NULL, it returns NULL.
+- if `expr` is the empty string, it returns 0.
+- if `expr` is a non string, it is interpreted as a string.
+- This function is multibyte safe.
+
+**Example**:
+
+```sql
+taos> select crc32(NULL);
+ crc32(null) |
+==============
+ NULL        |
+
+taos> select crc32("");
+  crc32("")  |
+==============
+           0 |
+
+taos> select crc32(123);
+ crc32(123)  |
+==============
+  2286445522 |
+
+taos> select crc32(123.456);
+ crc32(123.456) |
+=================
+      844093190 |
+
+taos> select crc32(TO_TIMESTAMP("2000-01-01", "yyyy-mm-dd hh24:mi:ss"));
+ crc32(to_timestamp("2000-01-01", "yyyy-mm-dd hh24:mi:ss")) |
+=============================================================
+                                                 2274736693 |
+
+taos> select crc32("This is a string");
+ crc32("This is a string") |
+============================
+                 141976383 |
+
+taos> select crc32("这是一个字符串");
+ crc32("这是一个字符串") |
+========================
+            1902862441 |
+
+taos> select crc32(col_name) from ins_columns limit 10;
+ crc32(col_name) |
+==================
+      3208210256 |
+      3292663675 |
+      3081158046 |
+      1063017838 |
+      2063623452 |
+      3996452140 |
+      2559042119 |
+      3485334036 |
+      3208210256 |
+      3292663675 |
 ```
 
 ### String Functions
@@ -1159,6 +1238,47 @@ taos> select repeat('abc',-1);
                   |
 ```
 
+#### TO_BASE64
+
+```sql
+TO_BASE64(expr)
+```
+
+**Function Description**: Returns the base64 encoding of the string `expr`s.
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**:
+
+- `expr`: VARCHAR, NCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- If `expr` is NULL, returns NULL.
+
+**Example**:
+
+```sql
+taos> select to_base64("");
+ to_base64("") |
+================
+               |
+
+taos> select to_base64("Hello, world!");
+ to_base64("Hello, world!") |
+=============================
+ SGVsbG8sIHdvcmxkIQ==       |
+
+taos> select to_base64("你好 世界");
+ to_base64("你好 世界")      |
+==============================
+ 5L2g5aW9IOS4lueVjA==        |
+```
+
 ### Conversion Functions
 
 Conversion functions convert values from one data type to another.
@@ -1270,7 +1390,7 @@ TO_CHAR(ts, format_str_literal)
 
 **Applicable to**: Tables and supertables
 
-**Supported Formats**
+Supported Formats:
 
 | **Format**            | **Description**                           | **Example**               |
 | ------------------- | ----------------------------------------- | ------------------------- |
@@ -1309,7 +1429,7 @@ TO_CHAR(ts, format_str_literal)
 
 - The output format for `Month`, `Day`, etc., is left-aligned with spaces added to the right, such as `2023-OCTOBER  -01`, `2023-SEPTEMBER-01`. September has the longest number of letters among the months, so there is no space for September. Weeks are similar.
 - When using `ms`, `us`, `ns`, the output of the above three formats only differs in precision, for example, if ts is `1697182085123`, the output for `ms` is `123`, for `us` is `123000`, and for `ns` is `123000000`.
-- Content in the time format that does not match the rules will be output directly. If you want to specify parts of the format string that can match rules not to be converted, you can use double quotes, like `to_char(ts, 'yyyy-mm-dd "is formated by yyyy-mm-dd"')`. If you want to output double quotes, then add a backslash before the double quotes, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
+- Content in the time format that does not match the rules will be output directly. If you want to specify parts of the format string that can match rules not to be converted, you can use double quotes, like `to_char(ts, 'yyyy-mm-dd "is formatted by yyyy-mm-dd"')`. If you want to output double quotes, then add a backslash before the double quotes, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
 - Formats that output numbers, such as `YYYY`, `DD`, uppercase and lowercase have the same meaning, i.e., `yyyy` and `YYYY` are interchangeable.
 - It is recommended to include timezone information in the time format; if not included, the default output timezone is the timezone configured by the server or client.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, then the precision is milliseconds.
@@ -1342,7 +1462,7 @@ TO_TIMESTAMP(ts_str_literal, format_str_literal)
 - To avoid using an unintended timezone during conversion, it is recommended to carry timezone information in the time, for example, '2023-10-10 10:10:10+08'; if no timezone is specified, the default timezone is the one specified by the server or client.
 - If a complete time is not specified, then the default time value is `1970-01-01 00:00:00` in the specified or default timezone, and the unspecified parts use the corresponding parts of this default value. Formats that only specify the year and day without specifying the month and day, like 'yyyy-mm-DDD', are not supported, but 'yyyy-mm-DD' is supported.
 - If the format string contains `AM`, `PM`, etc., then the hour must be in 12-hour format, ranging from 01-12.
-- `to_timestamp` conversion has a certain tolerance mechanism; even when the format string and timestamp string do not completely correspond, conversion is sometimes possible, like: `to_timestamp('200101/2', 'yyyyMM1/dd')`, the extra 1 in the format string will be discarded. Extra whitespace characters (spaces, tabs, etc.) in the format string and timestamp string will also be automatically ignored. For example, `to_timestamp('  23 年 - 1 月 - 01 日  ', 'yy 年-MM月-dd日')` can be successfully converted. Although fields like `MM` require two digits (with a leading zero if only one digit), in `to_timestamp`, a single digit can also be successfully converted.
+- `to_timestamp` conversion has a certain tolerance mechanism; even when the format string and timestamp string do not completely correspond, conversion is sometimes possible, like: `to_timestamp('200101/2', 'yyyyMM1/dd')`, the extra 1 in the format string will be discarded. Extra whitespace characters (spaces, tabs, etc.) in the format string and timestamp string will also be automatically ignored. Although fields like `MM` require two digits (with a leading zero if only one digit), in `to_timestamp`, a single digit can also be successfully converted.
 - The precision of the output timestamp is the same as the precision of the queried table; if no table is specified, then the output precision is milliseconds. For example, `select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns')` will truncate microseconds and nanoseconds. If a nanosecond table is specified, truncation will not occur, like `select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns') from db_ns.table_ns limit 1`.
 
 ### Time and Date Functions
@@ -1788,6 +1908,7 @@ STDDEV/STDDEV_POP(expr)
 **Applicable to**: Tables and supertables.
 
 **Description**:
+
 - Function `STDDEV_POP` equals `STDDEV` and is supported from ver-3.3.3.0.
 
 **Example**:
@@ -2026,7 +2147,8 @@ MAX(expr)
 
 **Applicable to**: Tables and supertables.
 
-**Usage Instructions**: 
+**Usage Instructions**:
+
 - The max function can accept strings as input parameters, and when the input parameter is a string type, it returns the largest string value(supported from ver-3.3.3.0, function `max` only accept numeric parameter before ver-3.3.3.0).
 
 ### MIN
@@ -2043,7 +2165,8 @@ MIN(expr)
 
 **Applicable to**: Tables and supertables.
 
-**Usage Instructions**: 
+**Usage Instructions**:
+
 - The min function can accept strings as input parameters, and when the input parameter is a string type, it returns the largest string value(supported from ver-3.3.3.0, function `min` only accept numeric parameter before ver-3.3.3.0).
 
 ### MODE
@@ -2126,27 +2249,27 @@ UNIQUE(expr)
 
 **Applicable to**: Tables and supertables.
 
-### COLS​
+### COLS
 
-```sql​
-COLS​(func(expr), output_expr1, [, output_expr2] ... )​
+```sql
+COLS (func(expr), output_expr1, [, output_expr2] ... )
 ```
 
-**Function Description**: On the data row where the execution result of function func(expr) is located, execute the expression output_expr1, [, output_expr2], return its result, and the result of func (expr) is not output.​
+**Function Description**: On the data row where the execution result of function func(expr) is located, execute the expression output_expr1, [, output_expr2], return its result, and the result of func (expr) is not output.
 
-**Return Data Type**: Returns multiple columns of data, and the data type of each column is the type of the result returned by the corresponding expression.​
+**Return Data Type**: Returns multiple columns of data, and the data type of each column is the type of the result returned by the corresponding expression.
 
-**Applicable Data Types**: All type fields.​
+**Applicable Data Types**: All type fields.
 
-**Applicable to**: Tables and Super Tables.​
+**Applicable to**: Tables and Super Tables.
 
 **Usage Instructions**:
-- Func function type: must be a single-line selection function (output result is a single-line selection function, for example, last is a single-line selection function, but top is a multi-line selection function).​
+
+- Func function type: must be a single-line selection function (output result is a single-line selection function, for example, last is a single-line selection function, but top is a multi-line selection function).
 - Mainly used to obtain the associated columns of multiple selection function results in a single SQL query. For example: select cols(max(c0), ts), cols(max(c1), ts) from ... can be used to get the different ts values of the maximum values of columns c0 and c1.
 - The result of the parameter func is not returned. If you need to output the result of func, you can add additional output columns, such as: select first(ts), cols(first(ts), c1) from ..
 - When there is only one column in the output, you can set an alias for the function. For example, you can do it like this: "select cols(first (ts), c1) as c11 from ...".
 - Output one or more columns, and you can set an alias for each output column of the function. For example, you can do it like this: "select (first (ts), c1 as c11, c2 as c22) from ...".
-
 
 ## Time-Series Specific Functions
 
@@ -2233,7 +2356,7 @@ ignore_option: {
 - A single statement can use one or multiple diffs, and each diff can specify the same or different ignore_option; when there is more than one diff in a single statement, only when all diff results of a row are null and all ignore_options are set to ignore null values, the row is excluded from the result set
 - Can be used with associated columns. For example: select _rowts, DIFF() from.
 - When there is no composite primary key, if different subtables have data with the same timestamp, a "Duplicate timestamps not allowed" message will be displayed
-- When using composite primary keys, the timestamp and primary key combinations of different subtables may be the same, which row is used depends on which one is found first, meaning that the results of running diff() multiple times in this situation may vary.
+- When using composite primary keys, the timestamp and composite primary key combinations of different subtables may be the same, which row is used depends on which one is found first, meaning that the results of running diff() multiple times in this situation may vary.
 
 ### INTERP
 
@@ -2254,7 +2377,7 @@ ignore_null_values: {
 
 **Applicable to**: Tables and supertables.
 
-**Usage Instructions**
+Usage Instructions:
 
 - INTERP is used to obtain the record value of a specified column at the specified time slice. It has a dedicated syntax (interp_clause) when used. For syntax introduction, see [reference link](../query-data/#interp).
 - When there is no row data that meets the conditions at the specified time slice, the INTERP function will interpolate according to the settings of the [FILL](../time-series-extensions/#fill-clause) parameter.

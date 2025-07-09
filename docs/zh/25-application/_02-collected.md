@@ -21,7 +21,7 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 
 ## 安装步骤
 
-安装 collectd， StatsD， Grafana 和 TDengine 请参考相关官方文档。
+安装 collectd，StatsD，Grafana 和 TDengine 请参考相关官方文档。
 
 ### 安装 collectd
 

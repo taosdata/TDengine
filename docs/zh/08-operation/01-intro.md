@@ -4,7 +4,7 @@ title: 组件介绍
 toc_max_heading_level: 4
 ---
 
-在 TDengine 的安装包中，除了 TDengine 数据库引擎 taosd 以外，还提供了一些附加组件，以方便用户的使用。taosAdapter 是应用和 TDengine 之间的桥梁；taosKeeper 是TDengine 监控指标的导出工具；taosX 是数据管道（data pipeline）工具；taosExplorer 是可视化图形管理工具；taosc 是 TDengine 客户端驱动。下图展示了整个 TDengine 产品生态的拓扑架构（组件 taosX、taosX Agent 仅 TDengine Enterprise 提供）。
+在 TDengine 的安装包中，除了 TDengine 数据库引擎 taosd 以外，还提供了一些附加组件，以方便用户的使用。taosAdapter 是应用和 TDengine 之间的桥梁；taosKeeper 是 TDengine 监控指标的导出工具；taosX 是数据管道（data pipeline）工具；taosExplorer 是可视化图形管理工具；taosc 是 TDengine 客户端驱动。下图展示了整个 TDengine 产品生态的拓扑架构（组件 taosX、taosX Agent 仅 TDengine Enterprise 提供）。
 
 ![TDengine 产品生态拓扑架构](./tdengine-topology.png)
 
@@ -26,7 +26,7 @@ taosc 是 TDengine 的客户端程序，为开发人员提供了一组函数和�
 
 ## taosAdapter
 
-taosAdapter 是 TDengine 安装包中的一个标准组件，充当着 TDengine 集群与应用程序之间的桥梁和适配器角色。它支持用户通过 RESTful 接口和 WebSocket 连接访问TDengine 服务，实现数据的便捷接入和处理。
+taosAdapter 是 TDengine 安装包中的一个标准组件，充当着 TDengine 集群与应用程序之间的桥梁和适配器角色。它支持用户通过 RESTful 接口和 WebSocket 连接访问 TDengine 服务，实现数据的便捷接入和处理。
 
 taosAdapter 能够与各种数据收集代理工具（如 Telegraf、StatsD、collectd 等）无缝对接，从而将数据导入 TDengine。此外，它还提供了与 InfluxDB/OpenTSDB 兼容的数据写入接口，使得原本使用 InfluxDB/OpenTSDB 的应用程序能够轻松移植到 TDengine 上，无须进行大量修改。
 
@@ -58,9 +58,9 @@ taosKeeper 的一个重要价值在于，它能够将多个甚至一批 TDengine
 
 ## taosX
 
-taosX 作为 TDengine Enterprise 的数据管道功能组件，旨在为用户提供一种无须编写代码即可轻松对接第三方数据源的方法，实现数据的便捷导入。目前，taosX 已支持众多主流数据源，包括 AVEVA PI System、AVEVA Historian、OPC-UA/DA、InfluxDB、OpenTSDB、MQTT、Kafka、CSV、TDengine 2.x、TDengine 3.x、MySQL、PostgreSQL和 Oracle 等。
+taosX 作为 TDengine Enterprise 的数据管道功能组件，旨在为用户提供一种无须编写代码即可轻松对接第三方数据源的方法，实现数据的便捷导入。目前，taosX 已支持众多主流数据源，包括 AVEVA PI System、AVEVA Historian、OPC-UA/DA、InfluxDB、OpenTSDB、MQTT、Kafka、CSV、TDengine Query、TDengine Data Subscription、MySQL、PostgreSQL 和 Oracle 等。
 
-在实际使用中，用户通常无须直接与 taosX 进行交互。 相反， 他们可以通过 taosExplorer 提供的浏览器用户界面轻松访问和使用 taosX 的强大功能。这种设计简化了操作流程，降低了使用门槛，使得用户能够更加专注于数据处理和分析，从而提高工作效率。
+在实际使用中，用户通常无须直接与 taosX 进行交互。相反，他们可以通过 taosExplorer 提供的浏览器用户界面轻松访问和使用 taosX 的强大功能。这种设计简化了操作流程，降低了使用门槛，使得用户能够更加专注于数据处理和分析，从而提高工作效率。
 
 ## taosX Agent
 

@@ -16,6 +16,10 @@
 #ifndef PUB_H_
 #define PUB_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <ctype.h>
@@ -79,5 +83,9 @@ uint16_t defaultPort(int8_t connMode, char *dsn);
 
 // working connect mode
 int8_t workingMode(int8_t connMode, char *dsn);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PUB_H_

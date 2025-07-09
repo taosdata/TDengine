@@ -12,7 +12,7 @@ create_definition:
     col_name column_definition
  
 column_definition:
-    type_name [PRIMARY KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
+    type_name [COMPOSITE KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
 
 table_options:
     table_option ...
@@ -24,10 +24,10 @@ table_option: {
 }
 ```
 
-**Instructions**
+Instructions:
 
 1. The maximum number of columns in a supertable is 4096, including tag columns, with a minimum of 3 columns: a timestamp primary key, one tag column, and one data column.
-2. Besides the timestamp primary key column, a second column can be designated as an additional primary key using the PRIMARY KEY keyword. This second primary key column must be of integer or string type (varchar).
+2. Besides the timestamp primary key column, a second column can be designated as an additional composite primary key using the COMPOSITE KEY keyword. This second composite primary key column must be of integer or string type (varchar).
 3. TAGS syntax specifies the label columns of the supertable, which must adhere to the following conventions:
     - The TIMESTAMP column in TAGS requires a given value when writing data and does not support arithmetic operations, such as expressions like NOW + 10s.
     - TAGS column names cannot be the same as other column names.
@@ -35,7 +35,11 @@ table_option: {
     - TAGS can have up to 128 columns, at least 1, with a total length not exceeding 16 KB.
 4. For the use of `ENCODE` and `COMPRESS`, please refer to [Column Compression](../manage-data-compression/)
 5. For explanations of parameters in table_option, please refer to [Table SQL Description](../manage-tables/)
-6. Regarding the keep parameter in table_option, it only takes effect for super tables. For detailed explanation of the keep parameter, please refer to [Database Description](02-database.md). The only difference is that the super table's keep parameter does not immediately affect query results, but only takes effect after compaction.
+6. Regarding the keep parameter in table_option, it only takes effect for supertables. For detailed information on the keep parameter, refer to Database Description. However, the keep parameter for supertables differs from the keep parameter for databases in the following ways:
+    - The supertable's keep parameter does not immediately affect query results. Data is only cleaned up and becomes invisible to queries after compaction is complete.
+    - The supertable's keep parameter must be less than the database's keep parameter.
+    - A flush operation must be performed before compaction; otherwise, the keep setting may not take effect.
+    - After compaction, if you use ALTER STABLE to change the keep value and then compact again, some data may not be cleaned up correctly. This depends on whether new data has been written to the corresponding files since the last compaction.
 
 ## View Supertables
 
@@ -151,7 +155,7 @@ alter_table_option: {
 
 ```
 
-**Usage Instructions**
+Usage Instructions:
 
 Modifying the structure of a supertable affects all its subtables. It is not possible to modify the table structure for a specific subtable. Modifications to the tag structure need to be issued to the supertable, and TDengine will automatically apply them to all subtables of this supertable.
 
@@ -162,7 +166,7 @@ Modifying the structure of a supertable affects all its subtables. It is not pos
 - DROP tag: Remove a tag from the supertable. After a tag is removed from a supertable, it is automatically deleted from all its subtables.
 - MODIFY tag: Modify the width of a tag in the supertable. The tag types can only be nchar and binary, and this command can be used to increase their width, but not decrease.
 - RENAME tag: Change the name of a tag in the supertable. After a tag name is changed in a supertable, all its subtables automatically update to the new tag name.
-- Like basic tables, the primary key columns of a supertable cannot be modified, nor can primary key columns be added or removed through ADD/DROP COLUMN.
+- Like basic tables, the primary key columns of a supertable cannot be modified, nor can they be added or removed through ADD/DROP COLUMN.
 
 ### Add Column
 

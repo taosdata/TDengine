@@ -16,6 +16,8 @@
 #include "ttime.h"
 #include "ttokendef.h"
 #include "tvariant.h"
+#include "tanalytics.h"
+#include "tglobal.h"
 
 namespace {
 //
@@ -461,6 +463,8 @@ TEST(testCase, var_dataBlock_split_test) {
 
     startIndex = stopIndex + 1;
   }
+
+  blockDataDestroy(b);
 }
 
 void check_tm(const STm* tm, int32_t y, int32_t mon, int32_t d, int32_t h, int32_t m, int32_t s, int64_t fsec) {
@@ -790,7 +794,7 @@ TEST(AlreadyAddGroupIdTest, GroupIdAddedWithDifferentLength) {
 #define SLOW_LOG_TYPE_OTHERS 0x4
 #define SLOW_LOG_TYPE_ALL    0x7
 
-static int32_t taosSetSlowLogScope(char* pScopeStr, int32_t* pScope) {
+static int32_t taosSetSlowLogScope2(char* pScopeStr, int32_t* pScope) {
   if (NULL == pScopeStr || 0 == strlen(pScopeStr)) {
     *pScope = SLOW_LOG_TYPE_QUERY;
     TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -842,7 +846,7 @@ static int32_t taosSetSlowLogScope(char* pScopeStr, int32_t* pScope) {
 TEST(TaosSetSlowLogScopeTest, NullPointerInput) {
   char*   pScopeStr = NULL;
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   EXPECT_EQ(scope, SLOW_LOG_TYPE_QUERY);
 }
@@ -850,7 +854,7 @@ TEST(TaosSetSlowLogScopeTest, NullPointerInput) {
 TEST(TaosSetSlowLogScopeTest, EmptyStringInput) {
   char    pScopeStr[1] = "";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   EXPECT_EQ(scope, SLOW_LOG_TYPE_QUERY);
 }
@@ -858,7 +862,7 @@ TEST(TaosSetSlowLogScopeTest, EmptyStringInput) {
 TEST(TaosSetSlowLogScopeTest, AllScopeInput) {
   char    pScopeStr[] = "all";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
 
   EXPECT_EQ(scope, SLOW_LOG_TYPE_ALL);
@@ -867,7 +871,7 @@ TEST(TaosSetSlowLogScopeTest, AllScopeInput) {
 TEST(TaosSetSlowLogScopeTest, QueryScopeInput) {
   char    pScopeStr[] = " query";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   EXPECT_EQ(scope, SLOW_LOG_TYPE_QUERY);
 }
@@ -875,7 +879,7 @@ TEST(TaosSetSlowLogScopeTest, QueryScopeInput) {
 TEST(TaosSetSlowLogScopeTest, InsertScopeInput) {
   char    pScopeStr[] = "insert";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   EXPECT_EQ(scope, SLOW_LOG_TYPE_INSERT);
 }
@@ -883,7 +887,7 @@ TEST(TaosSetSlowLogScopeTest, InsertScopeInput) {
 TEST(TaosSetSlowLogScopeTest, OthersScopeInput) {
   char    pScopeStr[] = "others";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   EXPECT_EQ(scope, SLOW_LOG_TYPE_OTHERS);
 }
@@ -891,7 +895,7 @@ TEST(TaosSetSlowLogScopeTest, OthersScopeInput) {
 TEST(TaosSetSlowLogScopeTest, NoneScopeInput) {
   char    pScopeStr[] = "none";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   EXPECT_EQ(scope, SLOW_LOG_TYPE_NULL);
 }
@@ -899,7 +903,7 @@ TEST(TaosSetSlowLogScopeTest, NoneScopeInput) {
 TEST(TaosSetSlowLogScopeTest, InvalidScopeInput) {
   char    pScopeStr[] = "invalid";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   // EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   // EXPECT_EQ(scope, -1);
 }
@@ -907,7 +911,7 @@ TEST(TaosSetSlowLogScopeTest, InvalidScopeInput) {
 TEST(TaosSetSlowLogScopeTest, MixedScopesInput) {
   char    pScopeStr[] = "query|insert|others|none";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   EXPECT_EQ(scope, (SLOW_LOG_TYPE_QUERY | SLOW_LOG_TYPE_INSERT | SLOW_LOG_TYPE_OTHERS));
 }
@@ -915,9 +919,174 @@ TEST(TaosSetSlowLogScopeTest, MixedScopesInput) {
 TEST(TaosSetSlowLogScopeTest, MixedScopesInputWithSpaces) {
   char    pScopeStr[] = "query | insert | others ";
   int32_t scope = 0;
-  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  int32_t result = taosSetSlowLogScope2(pScopeStr, &scope);
   EXPECT_EQ(result, TSDB_CODE_SUCCESS);
   EXPECT_EQ(scope, (SLOW_LOG_TYPE_QUERY | SLOW_LOG_TYPE_INSERT | SLOW_LOG_TYPE_OTHERS));
+}
+
+TEST(testCase, function_param_check) {
+  char* param = (char*) taosMemoryMalloc(1024);
+  strcpy(param, "'algorithm=arima, frows=12'");
+
+  SHashObj* p = NULL;
+  int32_t code = taosAnalyGetOpts(param, &p);
+
+  if (code == TSDB_CODE_SUCCESS) {
+    EXPECT_EQ(taosHashGetSize(p), 2);
+
+    void* pVal = taosHashGet(p, "algo", strlen("algo"));
+    EXPECT_TRUE(pVal == NULL);
+
+    pVal = taosHashGet(p, "rows", strlen("rows"));
+    EXPECT_TRUE(pVal == NULL);
+
+    pVal = taosHashGet(p, "frows", strlen("frows"));
+
+    char* pStr = taosStrndup((const char*) pVal, taosHashGetValueSize(pVal));
+    EXPECT_STREQ(pStr, "12");
+
+    taosMemoryFree(pStr);
+
+    pVal = taosHashGet(p, "algorithm", strlen("algorithm"));
+    pStr = taosStrndup((const char*) pVal, taosHashGetValueSize(pVal));
+    EXPECT_STREQ(pStr, "arima");
+
+    taosMemoryFree(pStr);
+  }
+
+  taosHashCleanup(p);
+  p = NULL;
+
+  strcpy(param, " ");
+  code = taosAnalyGetOpts(param, &p);
+  if (code == TSDB_CODE_SUCCESS) {
+    EXPECT_EQ(taosHashGetSize(p), 0);
+
+    void* pVal = taosHashGet(p, "algorithm", strlen("algorithm"));
+    EXPECT_TRUE(pVal == NULL);
+  }
+
+  taosHashCleanup(p);
+  p = NULL;
+
+  strcpy(param, " , , ,");
+  code = taosAnalyGetOpts(param, &p);
+  if (code == TSDB_CODE_SUCCESS) {
+    EXPECT_EQ(taosHashGetSize(p), 0);
+
+    void* pVal = taosHashGet(p, "algorithm", strlen("algorithm"));
+    EXPECT_TRUE(pVal == NULL);
+  }
+
+  taosHashCleanup(p);
+  p = NULL;
+
+  strcpy(param, "a, b, c,");
+  code = taosAnalyGetOpts(param, &p);
+  if (code == TSDB_CODE_SUCCESS) {
+    EXPECT_EQ(taosHashGetSize(p), 0);
+  }
+
+  taosHashCleanup(p);
+  p = NULL;
+
+  strcpy(param, "\" a, b, c, d = 12 \"");
+  code = taosAnalyGetOpts(param, &p);
+  if (code == TSDB_CODE_SUCCESS) {
+    EXPECT_EQ(taosHashGetSize(p), 1);
+
+    void* pVal = taosHashGet(p, "d", strlen("d"));
+    char* pStr = taosStrndup((const char*) pVal, taosHashGetValueSize(pVal));
+
+    EXPECT_STREQ(pStr, "12");
+    taosMemoryFree(pStr);
+  }
+
+  taosHashCleanup(p);
+  p = NULL;
+
+  strcpy(param, "\" a, b, c, d = , c = 911 \"");
+  code = taosAnalyGetOpts(param, &p);
+  if (code == TSDB_CODE_SUCCESS) {
+    EXPECT_EQ(taosHashGetSize(p), 2);
+
+    void* pVal = taosHashGet(p, "c", strlen("c"));
+    char* pStr = taosStrndup((const char*) pVal, taosHashGetValueSize(pVal));
+
+    EXPECT_STREQ((char*) pStr, "911");
+    taosMemoryFree(pStr);
+  }
+
+  taosHashCleanup(p);
+  p = NULL;
+
+  taosMemoryFree(param);
+}
+
+TEST(testCase, function_fqdn) {
+  tsEnableIpv6 = 1;
+  {
+    SEp ep = {0};
+    char *para = "127.0.0.1";
+   taosGetFqdnPortFromEp(para, &ep);
+    ASSERT_EQ(strcmp(ep.fqdn, "127.0.0.1"), 0);
+    ASSERT_EQ(ep.port, 6030);
+  }
+
+  {
+    SEp ep = {0};
+    char *para = "::1";
+   taosGetFqdnPortFromEp (para, &ep);
+    ASSERT_EQ(strcmp(ep.fqdn, "::1"), 0);
+    ASSERT_EQ(ep.port, tsServerPort);
+  }
+   
+  {
+    SEp ep = {0};
+    char *para = "::1:6030";
+   taosGetFqdnPortFromEp(para, &ep);
+    ASSERT_EQ(strcmp(ep.fqdn, "::1"), 0);
+    ASSERT_EQ(ep.port, 6030);
+  }
+  {
+    SEp ep = {0};
+    char *para = "::1:7030";
+   taosGetFqdnPortFromEp(para, &ep);
+    ASSERT_EQ(strcmp(ep.fqdn, "::1"), 0);
+    ASSERT_EQ(ep.port, 7030);
+  }
+
+  {
+    SEp ep = {0};
+    char *para = "test:7030";
+   taosGetFqdnPortFromEp(para, &ep);
+    ASSERT_EQ(strcmp(ep.fqdn, "test"), 0);
+    ASSERT_EQ(ep.port, 7030);
+  }
+
+  {
+    SEp ep = {0};
+    char *para = "test";
+   taosGetFqdnPortFromEp(para, &ep);
+    ASSERT_EQ(strcmp(ep.fqdn, "test"), 0);
+    ASSERT_EQ(ep.port, 6030);
+  }
+
+  {
+    SEp ep = {0};
+    char *para = "[test]";
+   taosGetFqdnPortFromEp(para, &ep);
+    ASSERT_EQ(strcmp(ep.fqdn, "test"), 0);
+    ASSERT_EQ(ep.port, 6030);
+  }
+  {
+    SEp ep = {0};
+    char *para = "[test]:6030";
+   taosGetFqdnPortFromEp(para, &ep);
+    ASSERT_EQ(strcmp(ep.fqdn, "test"), 0);
+    ASSERT_EQ(ep.port, 6030);
+  }
+
 }
 
 #pragma GCC diagnostic pop

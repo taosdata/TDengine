@@ -75,27 +75,23 @@ int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream, int
   int32_t code = doCreateTrans(pMnode, pStream, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_TASK_RESET_NAME,
                                " reset from failed checkpoint", &pTrans);
   if (pTrans == NULL || code) {
-    sdbRelease(pMnode->pSdb, pStream);
     return terrno;
   }
 
   code = mndStreamRegisterTrans(pTrans, MND_STREAM_TASK_RESET_NAME, pStream->uid);
   if (code) {
-    sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
   }
 
   code = mndStreamSetResetTaskAction(pMnode, pTrans, pStream, chkptId);
   if (code) {
-    sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
   }
 
   code = mndPersistTransLog(pStream, pTrans, SDB_STATUS_READY);
   if (code != TSDB_CODE_SUCCESS) {
-    sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
   }
@@ -103,12 +99,10 @@ int32_t mndCreateStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream, int
   code = mndTransPrepare(pMnode, pTrans);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("trans:%d, failed to prepare update stream trans since %s", pTrans->id, tstrerror(code));
-    sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
   }
 
-  sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
 
   if (code == 0) {
@@ -264,7 +258,7 @@ int32_t setNodeEpsetExpiredFlag(const SArray *pNodeList) {
     for (int i = 0; i < numOfNodes; ++i) {
       SNodeEntry *pNodeEntry = taosArrayGet(execInfo.pNodeList, i);
       if ((pNodeEntry) && (pNodeEntry->nodeId == *pVgId)) {
-        mInfo("vgId:%d expired for some stream tasks, needs update nodeEp", *pVgId);
+        mInfo("vgId:%d expired for some stream tasks, total in update list:%d", *pVgId, numOfNodes + 1);
         pNodeEntry->stageUpdated = true;
         setFlag = true;
         break;
@@ -366,7 +360,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   mndInitStreamExecInfo(pMnode, &execInfo);
   if (!validateHbMsg(execInfo.pNodeList, req.vgId)) {
-    mError("vgId:%d not exists in nodeList buf, discarded", req.vgId);
+    mError("vgId:%d not exists in nodeList buf, discarded HbMsg", req.vgId);
 
     doSendHbMsgRsp(terrno, &pReq->info, &mnodeEpset, req.vgId, req.msgId);
 
@@ -527,7 +521,9 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     }
   }
 
-  if (pMnode != NULL) {  // make sure that the unit test case can work
+  int64_t now = taosGetTimestampMs();
+  if (pMnode != NULL && (now > execInfo.chkptReportScanTs) && (now - execInfo.chkptReportScanTs) > 10000) {
+    // make sure that the unit test case can work
     code = mndStreamSendUpdateChkptInfoMsg(pMnode);
     if (code) {
       mError("failed to send update checkpointInfo msg, code:%s, try next time", tstrerror(code));

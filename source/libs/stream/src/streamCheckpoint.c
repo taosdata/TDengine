@@ -20,9 +20,8 @@
 
 static int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName);
 static int32_t streamTaskUploadCheckpoint(const char* id, const char* path, int64_t checkpointId);
-#ifdef BUILD_NO_CALL
-static int32_t deleteCheckpoint(const char* id);
-#endif
+static int32_t deleteRemoteCheckpointBackup(const char* pTaskId, int64_t checkpointId);
+
 static int32_t continueDispatchCheckpointTriggerBlock(SStreamDataBlock* pBlock, SStreamTask* pTask);
 static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpointType, int64_t checkpointId,
                                           int32_t transId, int32_t srcTaskId);
@@ -130,7 +129,7 @@ int32_t streamTaskProcessCheckpointTriggerRsp(SStreamTask* pTask, SCheckpointTri
   }
 
   if (pRsp->rspCode != TSDB_CODE_SUCCESS) {
-    stDebug("s-task:%s retrieve checkpoint-trgger rsp from upstream:0x%x invalid, code:%s", id, pRsp->upstreamTaskId,
+    stDebug("s-task:%s retrieve checkpoint-trigger rsp from upstream:0x%x invalid, code:%s", id, pRsp->upstreamTaskId,
             tstrerror(pRsp->rspCode));
     return TSDB_CODE_SUCCESS;
   }
@@ -292,7 +291,7 @@ int32_t doCheckBeforeHandleChkptTrigger(SStreamTask* pTask, int64_t checkpointId
         return TSDB_CODE_STREAM_INVLD_CHKPT;
       }
 
-      if (taskLevel == TASK_LEVEL__SINK || taskLevel == TASK_LEVEL__AGG) {
+      if (taskLevel == TASK_LEVEL__SINK || taskLevel == TASK_LEVEL__AGG || taskLevel == TASK_LEVEL__MERGE) {
         //  check if already recv or not, and duplicated checkpoint-trigger msg recv, discard it
         for (int32_t i = 0; i < taosArrayGetSize(pActiveInfo->pReadyMsgList); ++i) {
           STaskCheckpointReadyInfo* p = taosArrayGet(pActiveInfo->pReadyMsgList, i);
@@ -416,7 +415,7 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
           appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT, pActiveInfo->activeId, pActiveInfo->transId, -1);
       streamFreeQitem((SStreamQueueItem*)pBlock);
     }
-  } else if (taskLevel == TASK_LEVEL__SINK || taskLevel == TASK_LEVEL__AGG) {
+  } else if (taskLevel == TASK_LEVEL__SINK || taskLevel == TASK_LEVEL__AGG || taskLevel == TASK_LEVEL__MERGE) {
     // todo: handle this
     // update the child Id for downstream tasks
     code = streamAddCheckpointReadyMsg(pTask, pBlock->srcTaskId, pTask->info.selfChildId, checkpointId);
@@ -860,9 +859,9 @@ static int32_t getCheckpointDataMeta(const char* id, const char* path, SArray* l
   return 0;
 }
 
-int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t dbRefId, ECHECKPOINT_BACKUP_TYPE type) {
+int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t dbRefId, ECHECKPOINT_BACKUP_TYPE type,
+                             char** chkptDir) {
   int32_t      code = 0;
-  char*        path = NULL;
   int64_t      chkptSize = 0;
   SStreamMeta* pMeta = pTask->pMeta;
   const char*  idStr = pTask->id.idStr;
@@ -875,24 +874,24 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
     return terrno;
   }
 
-  if ((code = taskDbGenChkpUploadData(pTask->pBackend, pMeta->bkdChkptMgt, checkpointId, type, &path, toDelFiles,
+  if ((code = taskDbGenChkpUploadData(pTask->pBackend, pMeta->bkdChkptMgt, checkpointId, type, chkptDir, toDelFiles,
                                       pTask->id.idStr)) != 0) {
     stError("s-task:%s failed to gen upload checkpoint:%" PRId64 ", reason:%s", idStr, checkpointId, tstrerror(code));
   }
 
   if (type == DATA_UPLOAD_S3) {
-    if (code == TSDB_CODE_SUCCESS && (code = getCheckpointDataMeta(idStr, path, toDelFiles)) != 0) {
+    if (code == TSDB_CODE_SUCCESS && (code = getCheckpointDataMeta(idStr, *chkptDir, toDelFiles)) != 0) {
       stError("s-task:%s failed to get checkpointData for checkpointId:%" PRId64 ", reason:%s", idStr, checkpointId,
               tstrerror(code));
     }
   }
 
   if (code == TSDB_CODE_SUCCESS) {
-    code = streamTaskUploadCheckpoint(idStr, path, checkpointId);
+    code = streamTaskUploadCheckpoint(idStr, *chkptDir, checkpointId);
     if (code == TSDB_CODE_SUCCESS) {
       stDebug("s-task:%s upload checkpointId:%" PRId64 " to remote succ", idStr, checkpointId);
     } else {
-      stError("s-task:%s failed to upload checkpointId:%" PRId64 " path:%s,reason:%s", idStr, checkpointId, path,
+      stError("s-task:%s failed to upload checkpointId:%" PRId64 " path:%s,reason:%s", idStr, checkpointId, *chkptDir,
               tstrerror(code));
     }
   }
@@ -903,7 +902,7 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
 
     for (int i = 0; i < num; i++) {
       char* pName = taosArrayGetP(toDelFiles, i);
-      code = deleteCheckpointFile(idStr, pName);
+      code = deleteCheckpointRemoteBackup(idStr, pName);
       if (code != 0) {
         stDebug("s-task:%s failed to remove file: %s", idStr, pName);
         break;
@@ -917,21 +916,22 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
   double el = (taosGetTimestampMs() - now) / 1000.0;
 
   if (code == TSDB_CODE_SUCCESS) {
-    code = taosGetDirSize(path, &chkptSize);
+    code = taosGetDirSize(*chkptDir, &chkptSize);
     stDebug("s-task:%s complete upload checkpointId:%" PRId64
             ", elapsed time:%.2fs, checkpointSize:%.2fKiB local dir:%s",
-            idStr, checkpointId, el, SIZE_IN_KiB(chkptSize), path);
+            idStr, checkpointId, el, SIZE_IN_KiB(chkptSize), *chkptDir);
   } else {
     stDebug("s-task:%s failed to upload checkpointId:%" PRId64 " elapsed time:%.2fs, checkpointSize:%.2fKiB", idStr,
             checkpointId, el, SIZE_IN_KiB(chkptSize));
   }
 
-  taosMemoryFree(path);
   return code;
 }
 
-int32_t streamTaskRemoteBackupCheckpoint(SStreamTask* pTask, int64_t checkpointId) {
+int32_t streamTaskRemoteBackupCheckpoint(SStreamTask* pTask, int64_t checkpointId, SArray* pList) {
+  char*                   pChkptDir = NULL;
   ECHECKPOINT_BACKUP_TYPE type = streamGetCheckpointBackupType();
+
   if (type == DATA_UPLOAD_DISABLE) {
     stDebug("s-task:%s not config to backup checkpoint data at snode, checkpointId:%"PRId64, pTask->id.idStr, checkpointId);
     return 0;
@@ -949,9 +949,29 @@ int32_t streamTaskRemoteBackupCheckpoint(SStreamTask* pTask, int64_t checkpointI
     return -1;
   }
 
-  int32_t code = uploadCheckpointData(pTask, checkpointId, taskGetDBRef(pTask->pBackend), type);
+  int32_t code = uploadCheckpointData(pTask, checkpointId, taskGetDBRef(pTask->pBackend), type, &pChkptDir);
   taskReleaseDb(dbRefId);
 
+  if (code != 0) {
+    if ((pChkptDir != NULL) && strlen(pChkptDir) != 0) {  // failed, drop the latest checkpoint data in local directory
+      stError("s-task:%s upload checkpoint data failed, generated checkpointId:%" PRId64
+              " failed, remove local checkpoint data:%s",
+              pTask->id.idStr, checkpointId, pChkptDir);
+      taosRemoveDir(pChkptDir);
+    }
+  } else {
+    // we only keep the latest five checkpoint data in the local directory,
+    // the expired checkpoint data will be removed. Remove the remote backup checkpoint Data here.
+    // check the existed number of checkpoint data, according to the directory name
+    if (type == DATA_UPLOAD_RSYNC && taosArrayGetSize(pList) > 0) {
+      for(int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
+        int64_t* pCheckpointId = (int64_t*) taosArrayGet(pList, i);
+        deleteRemoteCheckpointBackup(pTask->id.idStr, *pCheckpointId);
+      }
+    }
+  }
+
+  taosMemoryFree(pChkptDir);
   return code;
 }
 
@@ -961,6 +981,12 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   int64_t      ckId = pTask->chkInfo.pActiveInfo->activeId;
   const char*  id = pTask->id.idStr;
   SStreamMeta* pMeta = pTask->pMeta;
+  SArray*      pList = taosArrayInit(4, sizeof(int64_t));
+
+  if (pList == NULL) {
+    stError("s-task:%s failed to prepare list during build checkpoint, code:%s", id, tstrerror(code));
+    return terrno;
+  }
 
   streamMutexLock(&pTask->lock);
   bool dropRelHTask = (streamTaskGetPrevStatus(pTask) == TASK_STATUS__HALT);
@@ -971,7 +997,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
     stDebug("s-task:%s level:%d start gen checkpoint, checkpointId:%" PRId64, id, pTask->info.taskLevel, ckId);
 
     int64_t ver = pTask->chkInfo.processedVer;
-    code = streamBackendDoCheckpoint(pTask->pBackend, ckId, ver);
+    code = streamBackendDoCheckpoint(pTask->pBackend, ckId, ver, pList);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s gen checkpoint:%" PRId64 " failed, code:%s", id, ckId, tstrerror(terrno));
     }
@@ -997,7 +1023,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   }
 
   if (code == TSDB_CODE_SUCCESS) {
-    code = streamTaskRemoteBackupCheckpoint(pTask, ckId);
+    code = streamTaskRemoteBackupCheckpoint(pTask, ckId, pList);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s upload checkpointId:%" PRId64 " data failed, code:%s", id, ckId, tstrerror(code));
     }
@@ -1026,6 +1052,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
          pMeta->vgId, pTask->info.taskLevel, ckId, pTask->chkInfo.checkpointVer, el,
          (code == TSDB_CODE_SUCCESS) ? "succ" : "failed");
 
+  taosArrayDestroy(pList);
   return code;
 }
 
@@ -1610,22 +1637,21 @@ int32_t streamTaskDownloadCheckpointData(const char* id, char* path, int64_t che
   return 0;
 }
 
-#ifdef BUILD_NO_CALL
-int32_t deleteCheckpoint(const char* id) {
-  if (id == NULL || strlen(id) == 0) {
-    stError("deleteCheckpoint parameters invalid");
+int32_t deleteRemoteCheckpointBackup(const char* pTaskId, int64_t checkpointId) {
+  if (pTaskId == NULL || strlen(pTaskId) == 0) {
+    stError("s-task:%s deleteRemoteCheckpointBackup parameters invalid, checkpointId:%"PRId64, pTaskId, checkpointId);
     return TSDB_CODE_INVALID_PARA;
   }
+
   if (strlen(tsSnodeAddress) != 0) {
-    return deleteRsync(id);
+    return deleteRsync(pTaskId, checkpointId);
   } else if (tsS3StreamEnabled) {
-    tcsDeleteObjectsByPrefix(id);
+    tcsDeleteObjectsByPrefix(pTaskId);
   }
   return 0;
 }
-#endif
 
-int32_t deleteCheckpointFile(const char* id, const char* name) {
+int32_t deleteCheckpointRemoteBackup(const char* id, const char* name) {
   char object[128] = {0};
 
   int32_t nBytes = snprintf(object, sizeof(object), "%s/%s", id, name);

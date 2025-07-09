@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 TDengine 是一个高性能、分布式的时序数据库。通过集成的缓存、数据订阅、流计算和数据清洗与转换等功能，TDengine 已经发展成为一个专为物联网、工业互联网、金融和 IT 运维等关键行业量身定制的时序大数据平台。该平台能够高效地汇聚、存储、分析、计算和分发来自海量数据采集点的大规模数据流，每日处理能力可达 TB 乃至 PB 级别。借助 TDengine，企业可以实现实时的业务监控和预警，进而发掘出有价值的商业洞察。
 
-自 2019 年 7 月 以来， 涛思数据陆续将 TDengine 的不同版本开源，包括单机版（2019 年 7 月）、集群版（2020 年 8 月）以及云原生版（2022 年 8 月）。开源之后，TDengine 迅速获得了全球开发者的关注，多次在 GitHub 网站全球趋势排行榜上位居榜首，最新的关注热度见 [涛思数据首页](https://www.taosdata.com/)。
+自 2019 年 7 月 以来，涛思数据陆续将 TDengine 的不同版本开源，包括单机版（2019 年 7 月）、集群版（2020 年 8 月）以及云原生版（2022 年 8 月）。开源之后，TDengine 迅速获得了全球开发者的关注，多次在 GitHub 网站全球趋势排行榜上位居榜首，最新的关注热度见 [涛思数据首页](https://www.taosdata.com/)。
 
 ## TDengine 产品
 
@@ -20,9 +20,9 @@ TDengine OSS 是一个开源的高性能时序数据库，与其他时序数据�
 
 ## TDengine 主要功能与特性
 
-TDengine 经过特别优化，以适应时间序列数据的独特需求，引入了 “一个数据采集点一张表” 和 “超级表” 的创新数据组织策略。这些策略背后的支撑是一个革命性的存储引擎，它极大地提升了数据处理的速度和效率，无论是在数据的写入、查询还是存储方面。接下来，逐一探索 TDengine 的众多功能，帮助您全面了解这个为高效处理时间序列数据而生的大数据平台。
+TDengine 经过特别优化，以适应时间序列数据的独特需求，引入了“一个数据采集点一张表”和“超级表”的创新数据组织策略。这些策略背后的支撑是一个革命性的存储引擎，它极大地提升了数据处理的速度和效率，无论是在数据的写入、查询还是存储方面。接下来，逐一探索 TDengine 的众多功能，帮助您全面了解这个为高效处理时间序列数据而生的大数据平台。
 
-1. 写入数据：TDengine 支持多种数据写入方式。首先，它完全兼容 SQL，允许用户使用标准的 SQL 语法进行数据写入。而且 TDengine 还支持无模式（Schemaless）写入，包括流行的 InfluxDB Line 协议、OpenTSDB 的 Telnet 和 JSON 协议，这些协议的加入使得数据的导入变得更加灵活和高效。更进一步，TDengine 与众多第三方工具实现了无缝集成，例如 Telegraf、Prometheus、EMQX、StatsD、collectd 和 HiveMQ 等。在 TDengine Enterprise 中， 还提供了 MQTT、OPC-UA、OPC-DA、PI、Wonderware、Kafka、InfluxDB、OpenTSDB、MySQL、Oracle 和 SQL Server 等连接器。这些工具通过简单的配置，无需一行代码，就可以将来自各种数据源的数据源源不断的写入数据库，极大地简化了数据收集和存储的过程。
+1. 写入数据：TDengine 支持多种数据写入方式。首先，它完全兼容 SQL，允许用户使用标准的 SQL 语法进行数据写入。而且 TDengine 还支持无模式（Schemaless）写入，包括流行的 InfluxDB Line 协议、OpenTSDB 的 Telnet 和 JSON 协议，这些协议的加入使得数据的导入变得更加灵活和高效。更进一步，TDengine 与众多第三方工具实现了无缝集成，例如 Telegraf、Prometheus、EMQX、StatsD、collectd 和 HiveMQ 等。在 TDengine Enterprise 中，还提供了 MQTT、OPC-UA、OPC-DA、PI、Wonderware、Kafka、InfluxDB、OpenTSDB、MySQL、Oracle 和 SQL Server 等连接器。这些工具通过简单的配置，无需一行代码，就可以将来自各种数据源的数据源源不断的写入数据库，极大地简化了数据收集和存储的过程。
 
 2. 查询数据：TDengine 提供标准的 SQL 查询语法，并针对时序数据和业务的特点优化和新增了许多语法和功能，例如降采样、插值、累计求和、时间加权平均、状态窗口、时间窗口、会话窗口、滑动窗口等。TDengine 还支持用户自定义函数（UDF）。
 
@@ -30,9 +30,9 @@ TDengine 经过特别优化，以适应时间序列数据的独特需求，引�
 
 4. 流式计算：TDengine 流式计算引擎提供了实时处理写入的数据流的能力，不仅支持连续查询，还支持事件驱动的流式计算。它提供了替代复杂流处理系统的轻量级解决方案，并能够在高吞吐的数据写入的情况下，提供毫秒级的计算结果延迟。
 
-5. 数据订阅：TDengine 提供了类似 Kafka 的数据订阅功能。但用户可以通过 SQL 来灵活控制订阅的数据内容，并使用和 Kafka 相同的 API 来订阅一张表、一组表、全部列或部分列、甚至整个数据库的数据。TDengine 可以替代需要集成消息队列产品的场景， 从而简化系统设计的复杂度，降低运营维护成本。
+5. 数据订阅：TDengine 提供了类似 Kafka 的数据订阅功能。但用户可以通过 SQL 来灵活控制订阅的数据内容，并使用和 Kafka 相同的 API 来订阅一张表、一组表、全部列或部分列、甚至整个数据库的数据。TDengine 可以替代需要集成消息队列产品的场景，从而简化系统设计的复杂度，降低运营维护成本。
 
-6. 可视化/BI：TDengine 本身不提供可视化或 BI 的功能。但通过其 RESTful API， 标准的 JDBC、ODBC 接口，TDengine 能够和 Grafana、Google Data Studio、Power BI、Tableau 以及国产 BI 工具无缝集成。
+6. 可视化/BI：TDengine 本身不提供可视化或 BI 的功能。但通过其 RESTful API，标准的 JDBC、ODBC 接口，TDengine 能够和 Grafana、Google Looker Studio、Power BI、Tableau 以及国产 BI 工具无缝集成。
 
 7. 集群功能：TDengine 支持集群部署，能够随着业务数据量的增长，通过增加节点线性提升系统处理能力，实现水平扩展。同时，通过多副本技术提供高可用性，支持 Kubernetes 部署，提供了多种运维工具，方便系统管理员更好地管理和维护集群的健壮运行。
 
@@ -133,8 +133,6 @@ TDengine 经过特别优化，以适应时间序列数据的独特需求，引�
 - [用 InfluxDB 开源的性能测试工具对比 InfluxDB 和 TDengine](https://www.taosdata.com/blog/2020/01/13/1105.html)
 - [TDengine 与 OpenTSDB 对比测试](https://www.taosdata.com/blog/2019/08/21/621.html)
 - [TDengine 与 Cassandra 对比测试](https://www.taosdata.com/blog/2019/08/14/573.html)
-- [TDengine VS InfluxDB ，写入性能大 PK ！](https://www.taosdata.com/2021/11/05/3248.html)
+- [TDengine VS InfluxDB，写入性能大 PK！](https://www.taosdata.com/2021/11/05/3248.html)
 - [TDengine 和 InfluxDB 查询性能对比测试报告](https://www.taosdata.com/2022/02/22/5969.html)
 - [TDengine 与 InfluxDB、OpenTSDB、Cassandra、MySQL、ClickHouse 等数据库的对比测试报告](https://www.taosdata.com/downloads/TDengine_Testing_Report_cn.pdf)
-
-

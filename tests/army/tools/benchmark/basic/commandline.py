@@ -83,7 +83,7 @@ class TDTestCase(TBase):
         tdSql.execute("drop database if exists newtest")
 
         cmd = (
-            "%s -t 2 -n 10 -b bool,tinyint,smallint,int,bigint,float,double,utinyint,usmallint,uint,ubigint,binary,nchar,timestamp -A bool,tinyint,smallint,int,bigint,float,double,utinyint,usmallint,uint,ubigint,binary,nchar,timestamp -y"
+            "%s -t 2 -n 10 -b bool,tinyint,smallint,int,bigint,float,double,utinyint,usmallint,uint,ubigint,binary,nchar,timestamp,varbinary,geometry -A bool,tinyint,smallint,int,bigint,float,double,utinyint,usmallint,uint,ubigint,binary,nchar,timestamp,varbinary,geometry -y"
             % binPath
         )
         tdLog.info("%s" % cmd)
@@ -94,7 +94,7 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 0, 20)
 
         cmd = (
-            "%s -I stmt -t 2 -n 10 -b bool,tinyint,smallint,int,bigint,float,double,utinyint,usmallint,uint,ubigint,binary,nchar,timestamp -A bool,tinyint,smallint,int,bigint,float,double,utinyint,usmallint,uint,ubigint,binary,nchar,timestamp -y"
+            "%s -I stmt -t 2 -n 10 -b bool,tinyint,smallint,int,bigint,float,double,utinyint,usmallint,uint,ubigint,binary,nchar,timestamp,varbinary,geometry -A bool,tinyint,smallint,int,bigint,float,double,utinyint,usmallint,uint,ubigint,binary,nchar,timestamp,varbinary,geometry -y"
             % binPath
         )
         tdLog.info("%s" % cmd)

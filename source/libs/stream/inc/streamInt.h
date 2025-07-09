@@ -32,7 +32,6 @@ extern "C" {
 #define WAIT_FOR_MINIMAL_INTERVAL          100.00
 #define MAX_RETRY_LAUNCH_HISTORY_TASK      40
 #define RETRY_LAUNCH_INTERVAL_INC_RATE     1.2
-#define MAX_BLOCK_NAME_NUM                 1024
 #define DISPATCH_RETRY_INTERVAL_MS         300
 #define META_HB_CHECK_INTERVAL             200
 #define META_HB_SEND_IDLE_COUNTER          25  // send hb every 5 sec
@@ -251,11 +250,11 @@ int32_t streamCreateRecalculateBlock(SStreamTask* pTask, SStreamDataBlock** pBlo
 // inject stream errors
 void chkptFailedByRetrieveReqToSource(SStreamTask* pTask, int64_t checkpointId);
 
-int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t dbRefId, ECHECKPOINT_BACKUP_TYPE type);
+int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t dbRefId, ECHECKPOINT_BACKUP_TYPE type, char** pDir);
 int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SArray** ppNotSendList);
 int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName);
 int32_t uploadCheckpointToS3(const char* id, const char* path);
-int32_t deleteCheckpointFile(const char* id, const char* name);
+int32_t deleteCheckpointRemoteBackup(const char* id, const char* name);
 int32_t doCheckBeforeHandleChkptTrigger(SStreamTask* pTask, int64_t checkpointId, SStreamDataBlock* pBlock,
                                         int32_t transId);
 

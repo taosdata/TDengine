@@ -1,0 +1,141 @@
+name: Deploy Case Docs
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+    types: [closed]  # trigger on PR close
+    paths:
+      - 'test/cases/**/test_*.py'
+      - 'test/new_test_framework/utils/*.py'
+
+jobs:
+  generate_and_deploy:
+    if: github.event.pull_request.merged == true || ${{ github.event_name }} == "push"  # Only run on PR close or push to branch(for testing)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write  # Required to write to the repo
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+
+      - name: Install MkDocs, Mike, and Dependencies
+        run: |
+          pip install mkdocs mkdocs-material mike mkdocstrings[python]
+
+      - name: Set Target Branch Name
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BRANCH_NAME="${{ github.event.pull_request.base.ref }}"
+          else
+            BRANCH_NAME="${{ github.ref_name }}"
+          fi
+          #BRANCH_NAME="3.0"
+          echo "Target branch is $BRANCH_NAME"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+
+      - name: Pull test/docs from gh-pages branch
+        run: |
+          git fetch origin gh-pages
+          git checkout gh-pages || git checkout -b gh-pages
+          echo test/docs/$BRANCH_NAME
+          mkdir -p test/docs/$BRANCH_NAME
+          cp -r test/docs/$BRANCH_NAME ../test_docs_backup || true
+          git checkout -
+          mkdir -p test/docs/$BRANCH_NAME
+          cp -r ../test_docs_backup/util_funcs_docs test/docs/ || true
+          rm -rf ../test_docs_backup
+
+      - name: Get all changed utils files
+        id: changed-utils-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            test/new_test_framework/utils/*.py
+
+      - name: Generate Markdown files
+        run: |
+          mkdir -p test/docs/case_list_docs
+          python .github/scripts/generate_case_md.py "test/mkdocs.yml" "test/docs/case_list_docs" ""
+        shell: bash
+
+      - name: Generate Markdown files for utils
+        if: steps.changed-utils-files.outputs.any_changed == 'true'
+        env:
+          ALL_CHANGED_UTIL_FILES: ${{ steps.changed-utils-files.outputs.all_changed_files }}
+        run: |
+          modified_util=false
+          mkdir -p test/docs/util_funcs_docs
+          for file in ${ALL_CHANGED_UTIL_FILES}; do
+            echo "Processing $file"
+            file_name=$(basename "$file" .py)
+            markdown_file="test/docs/util_funcs_docs/new_test_framework/utils.md"
+            mkdir -p "$(dirname "$markdown_file")"
+
+            if [[ -f "$file" ]]; then
+              echo "File $file exists."
+            else
+              echo "File $file does not exist."
+              echo "Removing $file_name from $markdown_file"
+              sed -i "/::: ${file_name}/d" "$markdown_file"
+              if [ ! -s "$markdown_file" ]; then
+                echo "File $markdown_file is empty after removal. Deleting it."
+                rm -f "$markdown_file"
+                modified_util=true
+              else
+                echo "File $markdown_file is not empty after removal."
+              fi
+              continue
+            fi
+            if [ ! -f "$markdown_file" ]; then
+              echo "Generating $markdown_file"
+              echo "::: ${file_name}" > "$markdown_file"
+              modified_util=true
+            else
+              echo "Appending to $markdown_file"
+              if ! grep -q "::: ${file_name}" "$markdown_file"; then
+                echo "::: ${file_name}" >> "$markdown_file"
+                modified_util=true
+              else
+                echo "Content already exists in $markdown_file"
+              fi
+            fi
+            cat $markdown_file
+          done
+          echo "modified_util=$modified_util" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Deploy Documentation with Mike
+        run: |
+          # Configure Git user information
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+          # Deploy the documentation for the current version
+          cd test
+          mike deploy --push $BRANCH_NAME --config-file mkdocs.yml --branch gh-pages --allow-empty
+
+      - name: Commit and Push Updated Docs to gh-pages
+        if: env.modified_flag == 'true' || env.modified_util == 'true'
+        run: |
+          git fetch origin gh-pages
+          git checkout gh-pages || git checkout -b gh-pages
+          echo test/docs/$BRANCH_NAME
+          mkdir -p test/docs/$BRANCH_NAME
+          if [ "$modified_util" == "true" ]; then
+            rm -rf test/docs/$BRANCH_NAME/util_funcs_docs
+            cp -r test/docs/util_funcs_docs test/docs/$BRANCH_NAME/
+            git add test/docs/$BRANCH_NAME/util_funcs_docs
+          fi
+          git commit -m "Update test/docs for branch $BRANCH_NAME"
+          git push origin gh-pages

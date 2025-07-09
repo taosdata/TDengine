@@ -7,7 +7,7 @@ toc_max_heading_level: 4
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用 TDengine 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。本章介绍各语言连接器数据订阅的相关 API 以及使用方法。 数据订阅的基础知识请参考 [数据订阅](../../advanced/subscription/)  
+TDengine 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用 TDengine 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。本章介绍各语言连接器数据订阅的相关 API 以及使用方法。数据订阅的基础知识请参考 [数据订阅](../../advanced/subscription/)  
 
 ## 创建主题
 请用 TDengine CLI 或者参考 [执行 SQL](../sql/) 章节用程序执行创建主题的 SQL：`CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`  
@@ -16,7 +16,9 @@ TDengine 提供了类似于消息队列产品的数据订阅和消费接口。�
 
 **注意**
 在 TDengine 连接器实现中，对于订阅查询，有以下限制。
-- 查询语句限制：订阅查询只能使用 select 语句，并不支持其他类型的 SQL，如订阅库、订阅超级表（非 select 方式）、insert、update 或 delete 等。
+- 只支持订阅数据，不支持 `with meta` 的订阅。
+  - Java（WebSocket 连接）、Go 和 Rust 连接器支持订阅数据库，超级表，以及 select 查询语句。
+  - Java（原生连接）、C# 、Python 和 Nodejs 连接器只支持订阅 select 语句，并不支持其他类型的 SQL，如订阅库、订阅超级表。
 - 原始始数据查询：订阅查询只能查询原始数据，而不能查询聚合或计算结果。
 - 时间顺序限制：订阅查询只能按照时间正序查询数据。
 
@@ -26,7 +28,7 @@ TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接�
 
 
 ### 创建参数
-创建消费者的参数较多，非常灵活的支持了各种连接类型、 Offset 提交方式、压缩、重连、反序列化等特性。各语言连接器都适用的通用基础配置项如下表所示：
+创建消费者的参数较多，非常灵活的支持了各种连接类型、Offset 提交方式、压缩、重连、反序列化等特性。各语言连接器都适用的通用基础配置项如下表所示：
 
 #### td.connect.ip
 - 说明：服务端的 FQDN
@@ -48,7 +50,7 @@ TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接�
 #### group.id
 - 说明：消费组 ID，同一消费组共享消费进度
 - 类型：string
-- 备注：**必填项**。最大长度：192，超长将截断。<br />每个topic最多可建立 100 个 consumer group
+- 备注：**必填项**。最大长度：192，超长将截断，不可包含英文冒号':'。<br />每个 topic 最多可建立 100 个 consumer group
 
 #### client.id
 - 说明：客户端 ID
@@ -108,7 +110,7 @@ TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接�
 下面是各语言连接器创建参数：
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
-Java 连接器创建消费者的参数为 Properties， 可以设置的参数列表请参考 [消费者参数](../../reference/connector/java/#消费者)  
+Java 连接器创建消费者的参数为 Properties，可以设置的参数列表请参考 [消费者参数](../../reference/connector/java/#消费者)  
 其他参数请参考上文通用基础配置项。
 
 
@@ -133,7 +135,7 @@ Java 连接器创建消费者的参数为 Properties， 可以设置的参数列
 
 </TabItem>
 <TabItem label="Rust" value="rust">
-Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请参考 [DSN](../../reference/connector/rust/#dsn)  
+Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请参考 [DSN](../../reference/connector/rust/#dsn)  
 其他参数请参考上文通用基础配置项。
 
 </TabItem>
@@ -154,8 +156,8 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 
 </TabItem>
 <TabItem label="C" value="c">
-- WebSocket 连接: 因为使用 dsn，不需要 `td.connect.ip`，`td.connect.port`，`td.connect.user` 和 `td.connect.pass` 四个配置项，其余同通用配置项。  
-- 原生连接: 同通用基础配置项。
+- WebSocket 连接：因为使用 dsn，不需要 `td.connect.ip`，`td.connect.port`，`td.connect.user` 和 `td.connect.pass` 四个配置项，其余同通用配置项。  
+- 原生连接：同通用基础配置项。
 
 </TabItem>
 <TabItem label="REST API" value="rest">
@@ -305,6 +307,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 - `subscribe` 方法的参数含义为：订阅的主题列表（即名称），支持同时订阅多个主题。 
 - `poll` 每次调用获取一个消息，一个消息中可能包含多个记录。
 - `ResultBean` 是我们自定义的一个内部类，其字段名和数据类型与列的名称和数据类型一一对应，这样根据 `value.deserializer` 属性对应的反序列化类可以反序列化出 `ResultBean` 类型的对象。
+- 如果订阅数据库，需要在创建消费者时设置 `value.deserializer` 为 `com.taosdata.jdbc.tmq.MapEnhanceDeserializer`，然后创建 `TaosConsumer<TMQEnhMap>` 类型的消费者。这样每行数据就可以反序列化为表名和一个 `Map`。
 
 </TabItem>
 
@@ -315,7 +318,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 - `subscribe` 方法的参数含义为：订阅的主题列表（即名称），支持同时订阅多个主题。 
 - `poll` 每次调用获取一个消息，一个消息中可能包含多个记录。
-- `records` 包含了多个 block 块， 每个块中可能包含多个记录。
+- `records` 包含了多个 block 块，每个块中可能包含多个记录。
 </TabItem>
 
 <TabItem label="Go" value="go">
@@ -401,7 +404,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 - `subscribe` 方法的参数含义为：订阅的主题列表（即名称），支持同时订阅多个主题。 
 - `poll` 每次调用获取一个消息，一个消息中可能包含多个记录。
-- `records` 包含了多个 block 块， 每个块中可能包含多个记录。
+- `records` 包含了多个 block 块，每个块中可能包含多个记录。
 </TabItem>
 
 <TabItem label="Go" value="go">
@@ -497,7 +500,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 
 1. 通过调用 consumer.assignments() 方法获取消费者当前的分区分配信息，并记录初始分配状态。  
-2. 遍历每个分区分配信息，对于每个分区：提取主题（topic）、消费组ID（vgroup_id）、当前偏移量（current）、起始偏移量（begin）和结束偏移量（end）。
+2. 遍历每个分区分配信息，对于每个分区：提取主题（topic）、消费组 ID（vgroup_id）、当前偏移量（current）、起始偏移量（begin）和结束偏移量（end）。
 记录这些信息。  
 1. 调用 consumer.offset_seek 方法将偏移量设置到起始位置。如果操作失败，记录错误信息和当前分配状态。  
 2. 在所有分区的偏移量调整完成后，再次获取并记录消费者的分区分配信息，以确认偏移量调整后的状态。    
@@ -569,7 +572,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 ```
 
 1. 通过调用 consumer.assignments() 方法获取消费者当前的分区分配信息，并记录初始分配状态。  
-2. 遍历每个分区分配信息，对于每个分区：提取主题（topic）、消费组ID（vgroup_id）、当前偏移量（current）、起始偏移量（begin）和结束偏移量（end）。
+2. 遍历每个分区分配信息，对于每个分区：提取主题（topic）、消费组 ID（vgroup_id）、当前偏移量（current）、起始偏移量（begin）和结束偏移量（end）。
 记录这些信息。  
 1. 调用 consumer.offset_seek 方法将偏移量设置到起始位置。如果操作失败，记录错误信息和当前分配状态。  
 2. 在所有分区的偏移量调整完成后，再次获取并记录消费者的分区分配信息，以确认偏移量调整后的状态。    
@@ -751,7 +754,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 {{#include docs/examples/rust/restexample/examples/tmq.rs:unsubscribe}}
 ```
 
-**注意**：消费者取消订阅后已经关闭，无法重用，如果想订阅新的 `topic`， 请重新创建消费者。
+**注意**：消费者取消订阅后已经关闭，无法重用，如果想订阅新的 `topic`，请重新创建消费者。
 </TabItem>
 
 <TabItem label="Node.js" value="node">
@@ -803,7 +806,7 @@ Rust 连接器创建消费者的参数为 DSN， 可以设置的参数列表请�
 {{#include docs/examples/rust/restexample/examples/tmq.rs:unsubscribe}}
 ```
 
-**注意**：消费者取消订阅后已经关闭，无法重用，如果想订阅新的 `topic`， 请重新创建消费者。
+**注意**：消费者取消订阅后已经关闭，无法重用，如果想订阅新的 `topic`，请重新创建消费者。
 </TabItem>
 <TabItem label="Node.js" value="node">
 不支持

@@ -16,8 +16,9 @@ The above SQL will create a subscription named topic_meters. Each record in the 
 
 **Note**
 In the implementation of TDengine connectors, there are the following limitations for subscription queries.
-
-- Query statement limitation: Subscription queries can only use select statements and do not support other types of SQL, such as subscribing to databases, subscribing to supertables (non-select methods), insert, update, or delete, etc.
+- Only data subscription is supported, and subscription with `with meta` is not supported.
+  - Java(WebSocket connection), Go, and Rust connectors support subscribing to databases, super tables, and `SELECT` queries.
+  - Java(Native connection), C#, Python, and Node.js connectors only support subscribing to `SELECT` statements and do not support other types of SQL, such as subscribing to databases or super tables.
 - Raw data query: Subscription queries can only query raw data, not aggregated or calculated results.
 - Time order limitation: Subscription queries can only query data in chronological order.
 
@@ -29,24 +30,24 @@ The concept of TDengine consumers is similar to Kafka, where consumers receive d
 
 There are many parameters for creating consumers, which flexibly support various connection types, Offset submission methods, compression, reconnection, deserialization, and other features. The common basic configuration items applicable to all language connectors are shown in the following table:
 
-|         Parameter Name          |  Type   | Description                                                                                                                                          | Remarks                                                                                                                                                                |
-| :-----------------------: | :-----: | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|      `td.connect.ip`      | string  | FQDN of Server                                                                                                                                  | ip or host name                                                                                                                                                                     |
-|     `td.connect.user`     | string  | Username                                                                                                                                            |                                                                                                                                                                     |
-|     `td.connect.pass`     | string  | Password                                                                                                                                            |                                                                                                                                                                     |
-|     `td.connect.port`     | integer | Server port number                                                                                                                                  |                                                                                                                                                                     |
-|        `group.id`         | string  | Consumer group ID, the same consumer group shares consumption progress                                                                               | <br />**Required**. Maximum length: 192,excess length will be cut off.<br />Each topic can have up to 100 consumer groups                                                                         |
-|        `client.id`        | string  | Client ID                                                                                                                                           | Maximum length: 255, excess length will be cut off.                                                                                                                                             |
-|    `auto.offset.reset`    |  enum   | Initial position of the consumer group subscription                                                                                                 | <br />`earliest`: default(version < 3.2.0.0); subscribe from the beginning; <br/>`latest`: default(version >= 3.2.0.0); only subscribe from the latest data; <br/>`none`: cannot subscribe without a committed offset |
-|   `enable.auto.commit`    | boolean | Whether to enable automatic consumption point submission, true: automatic submission, client application does not need to commit; false: client application needs to commit manually | Default is true                                                                                                                                                     |
-| `auto.commit.interval.ms` | integer | Time interval for automatically submitting consumption records, in milliseconds                                                                      | Default is 5000                                                                                                                                                     |
-|   `msg.with.table.name`   | boolean | Whether to allow parsing the table name from the message, not applicable to column subscription (column subscription can write tbname as a column in the subquery statement) (from version 3.2.0.0 this parameter is deprecated, always true) | Default is off                                                                                                                                                      |
-|      `enable.replay`      | boolean | Whether to enable data replay function                                                                                                               | Default is off                                                                                                                                                      |
-|   `session.timeout.ms`    | integer | Timeout after consumer heartbeat is lost, after which rebalance logic is triggered, and upon success, that consumer will be removed (supported from version 3.3.3.0) | Default is 12000, range [6000, 1800000]                                                                                                                             |
-|  `max.poll.interval.ms`   | integer | The longest time interval for consumer poll data fetching, exceeding this time will be considered as the consumer being offline, triggering rebalance logic, and upon success, that consumer will be removed (supported from version 3.3.3.0) | Default is 300000, range [1000, INT32_MAX]                                                                                                                          |
-|  `fetch.max.wait.ms`      | integer | The maximum time it takes for the server to return data once (supported from version 3.3.6.0) | Default is 1000, range [1, INT32_MAX]                                                                                                                                |
-|  `min.poll.rows`          | integer | The minimum number of data returned by the server once (supported from version 3.3.6.0) | Default is 4096, range [1, INT32_MAX]
-|  `msg.consume.rawdata`    | integer | When consuming data, the data type pulled is binary and cannot be parsed. It is an internal parameter and is only used for taosx data migration（supported from version 3.3.6.0） | The default value of 0 indicates that it is not effective, and non-zero indicates that it is effective                                                                                                                                 |
+|      Parameter Name       |  Type   | Description                                                  | Remarks                                                      |
+| :-----------------------: | :-----: | ------------------------------------------------------------ | ------------------------------------------------------------ |
+|      `td.connect.ip`      | string  | FQDN of Server                                               | ip or host name                                              |
+|     `td.connect.user`     | string  | Username                                                     |                                                              |
+|     `td.connect.pass`     | string  | Password                                                     |                                                              |
+|     `td.connect.port`     | integer | Server port number                                           |                                                              |
+|        `group.id`         | string  | Consumer group ID, the same consumer group shares consumption progress | <br />**Required**. Maximum length: 192,excess length will be cut off. can not contain colon ':'.<br />Each topic can have up to 100 consumer groups |
+|        `client.id`        | string  | Client ID                                                    | Maximum length: 255, excess length will be cut off.          |
+|    `auto.offset.reset`    |  enum   | Initial position of the consumer group subscription          | <br />`earliest`: default(version < 3.2.0.0); subscribe from the beginning; <br/>`latest`: default(version >= 3.2.0.0); only subscribe from the latest data; <br/>`none`: cannot subscribe without a committed offset |
+|   `enable.auto.commit`    | boolean | Whether to enable automatic consumption point submission, true: automatic submission, client application does not need to commit; false: client application needs to commit manually | Default is true                                              |
+| `auto.commit.interval.ms` | integer | Time interval for automatically submitting consumption records, in milliseconds | Default is 5000                                              |
+|   `msg.with.table.name`   | boolean | Whether to allow parsing the table name from the message, not applicable to column subscription (column subscription can write tbname as a column in the subquery statement) (from version 3.2.0.0 this parameter is deprecated, always true) | Default is off                                               |
+|      `enable.replay`      | boolean | Whether to enable data replay function                       | Default is off                                               |
+|   `session.timeout.ms`    | integer | Timeout after consumer heartbeat is lost, after which rebalance logic is triggered, and upon success, that consumer will be removed (supported from version 3.3.3.0) | Default is 12000, range [6000, 1800000]                      |
+|  `max.poll.interval.ms`   | integer | The longest time interval for consumer poll data fetching, exceeding this time will be considered as the consumer being offline, triggering rebalance logic, and upon success, that consumer will be removed (supported from version 3.3.3.0) | Default is 300000, range [1000, INT32_MAX]                   |
+|    `fetch.max.wait.ms`    | integer | The maximum time it takes for the server to return data once (supported from version 3.3.6.0) | Default is 1000, range [1, INT32_MAX]                        |
+|      `min.poll.rows`      | integer | The minimum number of data returned by the server once (supported from version 3.3.6.0) | Default is 4096, range [1, INT32_MAX]                        |
+|   `msg.consume.rawdata`   | integer | When consuming data, the data type pulled is binary and cannot be parsed. It is an internal parameter and is only used for taosx data migration (supported from version 3.3.6.0) | The default value of 0 indicates that it is not effective, and non-zero indicates that it is effective |
 
 Below are the connection parameters for connectors in various languages:
 <Tabs defaultValue="java" groupId="lang">
@@ -252,6 +253,7 @@ After subscribing to a topic, consumers can start receiving and processing messa
 - The parameters of the `subscribe` method mean: the list of topics subscribed to (i.e., names), supporting subscription to multiple topics simultaneously.
 - `poll` is called each time to fetch a message, which may contain multiple records.
 - `ResultBean` is a custom internal class, whose field names and data types correspond one-to-one with the column names and data types, allowing objects of type `ResultBean` to be deserialized using the `value.deserializer` property's corresponding deserialization class.
+- When subscribing to a database, you need to set `value.deserializer` to `com.taosdata.jdbc.tmq.MapEnhanceDeserializer` when creating a consumer, and then create a consumer of type `TaosConsumer<TMQEnhMap>`. This way, each row of data can be deserialized into a table name and a `Map`.
 
 </TabItem>
 
@@ -317,10 +319,10 @@ After subscribing to a topic, consumers can start receiving and processing messa
 Steps for subscribing and consuming data:
 
   1. Call the `ws_build_topic_list` function to create a topic list `topic_list`.
-  2. If `topic_list` is `NULL`, it means creation failed, and the function returns `-1`.
-  3. Use the `ws_tmq_subscribe` function to subscribe to the topic list specified by `tmq`. If the subscription fails, print an error message.
-  4. Destroy the topic list `topic_list` to free resources.
-  5. Call the `basic_consume_loop` function to start the basic consumption loop, processing the subscribed messages.
+  1. If `topic_list` is `NULL`, it means creation failed, and the function returns `-1`.
+  1. Use the `ws_tmq_subscribe` function to subscribe to the topic list specified by `tmq`. If the subscription fails, print an error message.
+  1. Destroy the topic list `topic_list` to free resources.
+  1. Call the `basic_consume_loop` function to start the basic consumption loop, processing the subscribed messages.
 
 </TabItem>
 <TabItem label="REST API" value="rest">
@@ -400,10 +402,10 @@ Not supported
 Subscription and consumption data steps:
 
   1. Call the `build_topic_list` function to create a topic list `topic_list`.
-  2. If `topic_list` is `NULL`, it means creation failed, and the function returns `-1`.
-  3. Use the `tmq_subscribe` function to subscribe to the topic list specified by `tmq`. If the subscription fails, print an error message.
-  4. Destroy the topic list `topic_list` to free resources.
-  5. Call the `basic_consume_loop` function to start the basic consumption loop, processing the subscribed messages.
+  1. If `topic_list` is `NULL`, it means creation failed, and the function returns `-1`.
+  1. Use the `tmq_subscribe` function to subscribe to the topic list specified by `tmq`. If the subscription fails, print an error message.
+  1. Destroy the topic list `topic_list` to free resources.
+  1. Call the `basic_consume_loop` function to start the basic consumption loop, processing the subscribed messages.
 
 </TabItem>
 <TabItem label="REST API" value="rest">
@@ -425,9 +427,9 @@ Consumers can specify to start reading messages from a specific Offset in the pa
 ```
 
 1. Use the consumer.poll method to poll data until data is obtained.
-2. For the first batch of polled data, print the content of the first message and obtain the current consumer's partition assignment information.
-3. Use the consumer.seekToBeginning method to reset the offset of all partitions to the starting position and print the successful reset message.
-4. Poll data again using the consumer.poll method and print the content of the first message.
+1. For the first batch of polled data, print the content of the first message and obtain the current consumer's partition assignment information.
+1. Use the consumer.seekToBeginning method to reset the offset of all partitions to the starting position and print the successful reset message.
+1. Poll data again using the consumer.poll method and print the content of the first message.
 
 </TabItem>
 
@@ -452,10 +454,10 @@ Consumers can specify to start reading messages from a specific Offset in the pa
 ```
 
 1. By calling the consumer.assignments() method, obtain the consumer's current partition assignment information and record the initial assignment status.  
-2. Traverse each partition assignment information, for each partition: extract the topic, consumer group ID (vgroup_id), current offset (current), starting offset (begin), and ending offset (end).
+1. Traverse each partition assignment information, for each partition: extract the topic, consumer group ID (vgroup_id), current offset (current), starting offset (begin), and ending offset (end).
 Record this information.  
 1. Call the consumer.offset_seek method to set the offset to the starting position. If the operation fails, record the error information and current assignment status.  
-2. After adjusting the offset for all partitions, obtain and record the consumer's partition assignment information again to confirm the status after the offset adjustment.
+1. After adjusting the offset for all partitions, obtain and record the consumer's partition assignment information again to confirm the status after the offset adjustment.
 
 </TabItem>
 
@@ -478,11 +480,11 @@ Record this information.
 ```
 
 1. Use the `ws_tmq_get_topic_assignment` function to obtain the assignment information for a specific topic, including the number of assignments and the details of each assignment.
-2. If fetching the assignment information fails, print an error message and return.
-3. For each assignment, use the `ws_tmq_offset_seek` function to set the consumer's offset to the earliest offset.
-4. If setting the offset fails, print an error message.
-5. Release the assignment information array to free resources.
-6. Call the `basic_consume_loop` function to start a new consumption loop and process messages.
+1. If fetching the assignment information fails, print an error message and return.
+1. For each assignment, use the `ws_tmq_offset_seek` function to set the consumer's offset to the earliest offset.
+1. If setting the offset fails, print an error message.
+1. Release the assignment information array to free resources.
+1. Call the `basic_consume_loop` function to start a new consumption loop and process messages.
 
 </TabItem>
 <TabItem label="REST API" value="rest">
@@ -501,9 +503,9 @@ Not supported
 ```
 
 1. Use the consumer.poll method to poll data until data is obtained.
-2. For the first batch of polled data, print the content of the first data item and obtain the current consumer's partition assignment information.
-3. Use the consumer.seekToBeginning method to reset the offset of all partitions to the beginning position and print a message of successful reset.
-4. Poll data again using the consumer.poll method and print the content of the first data item.
+1. For the first batch of polled data, print the content of the first data item and obtain the current consumer's partition assignment information.
+1. Use the consumer.seekToBeginning method to reset the offset of all partitions to the beginning position and print a message of successful reset.
+1. Poll data again using the consumer.poll method and print the content of the first data item.
 
 </TabItem>
 
@@ -528,9 +530,9 @@ Not supported
 ```
 
 1. Obtain the consumer's current partition assignment information by calling the consumer.assignments() method and record the initial assignment status.
-2. For each partition assignment, extract the topic, consumer group ID (vgroup_id), current offset, beginning offset, and ending offset. Record this information.
-3. Use the consumer.offset_seek method to set the offset to the beginning position. If the operation fails, record the error information and the current assignment status.
-4. After adjusting the offset for all partitions, obtain and record the consumer's partition assignment information again to confirm the status after the offset adjustment.
+1. For each partition assignment, extract the topic, consumer group ID (vgroup_id), current offset, beginning offset, and ending offset. Record this information.
+1. Use the consumer.offset_seek method to set the offset to the beginning position. If the operation fails, record the error information and the current assignment status.
+1. After adjusting the offset for all partitions, obtain and record the consumer's partition assignment information again to confirm the status after the offset adjustment.
 
 </TabItem>
 <TabItem label="Node.js" value="node">
@@ -548,11 +550,11 @@ Not supported
 ```
 
 1. Use the `tmq_get_topic_assignment` function to obtain the assignment information for a specific topic, including the number of assignments and the details of each assignment.
-2. If fetching the assignment information fails, print an error message and return.
-3. For each assignment, use the `tmq_offset_seek` function to set the consumer's offset to the earliest offset.
-4. If setting the offset fails, print an error message.
-5. Release the assignment information array to free resources.
-6. Call the `basic_consume_loop` function to start a new consumption loop and process messages.
+1. If fetching the assignment information fails, print an error message and return.
+1. For each assignment, use the `tmq_offset_seek` function to set the consumer's offset to the earliest offset.
+1. If setting the offset fails, print an error message.
+1. Release the assignment information array to free resources.
+1. Call the `basic_consume_loop` function to start a new consumption loop and process messages.
 
 </TabItem>
 <TabItem label="REST API" value="rest">

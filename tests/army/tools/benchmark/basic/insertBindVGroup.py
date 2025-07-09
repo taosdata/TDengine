@@ -30,7 +30,7 @@ class TDTestCase(TBase):
     # bugs ts
     def checkBasic(self):
         # thread equal vgroups
-        self.insertBenchJson("./tools/benchmark/basic/json/insertBindVGroup.json", "", True)
+        self.insertBenchJson("./tools/benchmark/basic/json/insertBindVGroup.json", "-g", True)
         # thread is limited
         self.insertBenchJson("./tools/benchmark/basic/json/insertBindVGroup.json", "-T 2", True)
 

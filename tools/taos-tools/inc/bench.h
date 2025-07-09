@@ -16,7 +16,14 @@
 #ifndef INC_BENCH_H_
 #define INC_BENCH_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+
 #define CURL_STATICLIB
 #define ALLOW_FORBID_FUNC
 
@@ -74,6 +81,7 @@
 #include <stdarg.h>
 
 #include <taos.h>
+#include "decimal.h"
 #include <toolsdef.h>
 #include <taoserror.h>
 #include "../../inc/pub.h"
@@ -140,6 +148,8 @@ typedef unsigned __int32 uint32_t;
 #define BOOL_BUFF_LEN       6
 #define FLOAT_BUFF_LEN      22
 #define DOUBLE_BUFF_LEN     42
+#define DECIMAL_BUFF_LEN    41
+#define DECIMAL64_BUFF_LEN  21
 #define TIMESTAMP_BUFF_LEN  21
 #define PRINT_STAT_INTERVAL 30 * 1000
 #define DEFAULT_HOST        "localhost"
@@ -272,9 +282,11 @@ enum enumSYNC_MODE { SYNC_MODE, ASYNC_MODE, MODE_BUT };
 
 enum enum_TAOS_INTERFACE {
     TAOSC_IFACE,
+    REST_IFACE,
     STMT_IFACE,
     STMT2_IFACE,
     SML_IFACE,
+    SML_REST_IFACE,    
     INTERFACE_BUT
 };
 
@@ -389,6 +401,11 @@ typedef struct SChildField {
 #define ARG_OPT_THREAD 0x0000000000000002
 extern uint64_t g_argFlag;
 
+typedef union {
+    Decimal64 dec64;
+    Decimal128 dec128;
+} BDecimal;
+
 typedef struct SField {
     uint8_t  type;
     char     name[TSDB_COL_NAME_LEN + 1];
@@ -400,8 +417,13 @@ typedef struct SField {
     int64_t  min;
     double   maxInDbl;
     double   minInDbl;
+    uint8_t precision;
+    uint8_t scale;
     uint32_t scalingFactor;
     tools_cJSON *  values;
+
+    BDecimal decMax;
+    BDecimal decMin;
 
     // fun
     uint8_t  funType;
@@ -709,7 +731,6 @@ typedef struct SConsumerInfo_S {
     char*       enableManualCommit;
     char*       enableAutoCommit;
     uint32_t    autoCommitIntervalMs;  // ms
-    char*       enableHeartbeatBackground;
     char*       snapshotEnable;
     char*       msgWithTableName;
     char*       rowsFile;
@@ -732,8 +753,6 @@ typedef struct SArguments_S {
     char *              host;
     uint16_t            port;
     uint16_t            telnet_tcp_port;
-    bool                host_auto;
-    bool                port_auto;
     bool                port_inputted;
     bool                cfg_inputted;
     char *              user;
@@ -743,6 +762,7 @@ typedef struct SArguments_S {
     bool                performance_print;
     bool                chinese;
     char *              output_file;
+    char *              output_json_file;
     uint32_t            binwidth;
     uint32_t            intColumnCount;
     uint32_t            nthreads;
@@ -752,6 +772,7 @@ typedef struct SArguments_S {
     uint64_t            insert_interval;
     bool                demo_mode;
     bool                aggr_func;
+    struct sockaddr_in  serv_addr;
     uint64_t            totalChildTables;
     uint64_t            actualChildTables;
     uint64_t            autoCreatedChildTables;
@@ -775,6 +796,7 @@ typedef struct SArguments_S {
     int32_t             keep_trying;
     uint32_t            trying_interval;
     int                 iface;
+    int                 rest_server_ver_major;
     bool                check_sql;
     int                 suit;  // see define SUIT_
     int16_t             inputted_vgroups;
@@ -915,17 +937,24 @@ int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex);
 void    setupForAnsiEscape(void);
 void    resetAfterAnsiEscape(void);
 char *  convertDatatypeToString(int type);
-int     convertStringToDatatype(char *type, int length);
+int32_t strCompareN(char *str1, char *str2, int length);
+int     convertStringToDatatype(char *type, int length, void* ctx);
 unsigned int     taosRandom();
 void    tmfree(void *buf);
 void    tmfclose(FILE *fp);
 int64_t fetchResult(TAOS_RES *res, char *filePath);
 void    prompt(bool NonStopMode);
-void    ERROR_EXIT(const char *msg);
+int     getServerVersionRest(int16_t rest_port);
+int     postProcessSql(char *sqlstr, char* dbName, int precision, int iface,
+                    int protocol, uint16_t rest_port, bool tcp,
+                    int sockfd, char* filePath);
 int     queryDbExecCall(SBenchConn *conn, char *command);
+int     queryDbExecRest(char *command, char* dbName, int precision,
+                    int iface, int protocol, bool tcp, int sockfd);
 SBenchConn* initBenchConn();
 void    closeBenchConn(SBenchConn* conn);
-int     regexMatch(const char *s, const char *reg, int cflags);
+int     convertHostToServAddr(char *host, uint16_t port,
+                              struct sockaddr_in *serv_addr);
 int     getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
                                     char ** childTblNameOfSuperTbl,
                                     int64_t childTblCountOfSuperTbl);
@@ -971,13 +1000,14 @@ int  insertTestProcess();
 void postFreeResource();
 int queryTestProcess();
 int subscribeTestProcess();
+int convertServAddr(int iface, bool tcp, int protocol);
+int createSockFd();
+void destroySockFd(int sockfd);
 
 void printVersion();
 int32_t benchParseSingleOpt(int32_t key, char* arg);
 
 void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res);
-
-int32_t benchGetTotalMemory(int64_t *totalKB);
 
 #ifndef LINUX
 int32_t benchParseArgsNoArgp(int argc, char* argv[]);
@@ -999,6 +1029,8 @@ int64_t tmpInt64Impl(Field *field, int32_t angle, int32_t k);
 uint64_t tmpUint64Impl(Field *field, int32_t angle, int64_t k);
 float tmpFloatImpl(Field *field, int i, int32_t angle, int32_t k);
 double tmpDoubleImpl(Field *field, int32_t angle, int32_t k);
+Decimal64 tmpDecimal64Impl(Field* field, int32_t angle, int32_t k);
+Decimal128 tmpDecimal128Impl(Field* field, int32_t angle, int32_t k);
 int tmpStr(char *tmp, int iface, Field *field, int64_t k);
 int tmpGeometry(char *tmp, int iface, Field *field, int64_t k);
 int tmpInt32ImplTag(Field *field, int i, int k);
@@ -1011,9 +1043,11 @@ char *genColNames(BArray *cols, bool tbName);
 TAOS_STMT2_BINDV* createBindV(int32_t count, int32_t tagCnt, int32_t colCnt);
 // clear bindv table count tables tag and column
 void resetBindV(TAOS_STMT2_BINDV *bindv, int32_t capacity, int32_t tagCnt, int32_t colCnt);
-void clearBindV(TAOS_STMT2_BINDV *bindv);
 void freeBindV(TAOS_STMT2_BINDV *bindv);
 void showBindV(TAOS_STMT2_BINDV *bindv, BArray *tags, BArray *cols);
+
+// IFace is rest return True
+bool isRest(int32_t iface);
 
 // get group index about dbname.tbname
 int32_t calcGroupIndex(char* dbName, char* tbName, int32_t groupCnt);
@@ -1035,5 +1069,23 @@ void engineError(char * module, char * fun, int32_t code);
 
 // trim prefix suffix blank cmp
 int trimCaseCmp(char *str1,char *str2);
+
+void doubleToDecimal64(double val, uint8_t precision, uint8_t scale, Decimal64* dec);
+void doubleToDecimal128(double val, uint8_t precision, uint8_t scale, Decimal128* dec);
+void stringToDecimal64(const char* str, uint8_t precision, uint8_t scale, Decimal64* dec);
+void stringToDecimal128(const char* str, uint8_t precision, uint8_t scale, Decimal128* dec);
+int decimal64ToString(const Decimal64* dec, uint8_t precision, uint8_t scale, char* buf, size_t size);
+int decimal128ToString(const Decimal128* dec, uint8_t precision, uint8_t scale, char* buf, size_t size);
+void getDecimal64DefaultMax(uint8_t precision, uint8_t scale, Decimal64* dec);
+void getDecimal64DefaultMin(uint8_t precision, uint8_t scale, Decimal64* dec);
+void getDecimal128DefaultMax(uint8_t precision, uint8_t scale, Decimal128* dec);
+void getDecimal128DefaultMin(uint8_t precision, uint8_t scale, Decimal128* dec);
+int decimal64BCompare(const Decimal64* a, const Decimal64* b);
+int decimal128BCompare(const Decimal128* a, const Decimal128* b);
+int check_write_permission(const char *path);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif   // INC_BENCH_H_

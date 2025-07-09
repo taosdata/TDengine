@@ -784,7 +784,7 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
   bool  acreate = (stb->genRowRule == RULE_OLD || stb->genRowRule == RULE_MIX_RANDOM) && stb->autoTblCreating;
   int   w       = 0;
   if (acreate) {
-      csvFile = openTagCsv(stb);
+      csvFile = openTagCsv(stb, info->start_table_from);
       tagData = benchCalloc(TAG_BATCH_COUNT, stb->lenOfTags, false);
   }
 
@@ -798,7 +798,8 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
   stb->durMinute = db->durMinute;
 
   // loop insert child tables
-  for (uint64_t tbIdx = info->start_table_from; tbIdx <= info->end_table_to; ++tbIdx) {
+  int16_t index = info->start_table_from;
+  for (uint64_t tbIdx = info->start_table_from; tbIdx <= info->end_table_to && !g_fail; ++tbIdx) {
     // get child table
     SChildTable *childTbl;
     if (g_arguments->bind_vgroup) {
@@ -826,7 +827,7 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
       if(acreate) {
           // generator
           if (w == 0) {
-              if(!generateTagData(stb, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
+              if(!generateTagData(stb, tagData, TAG_BATCH_COUNT, csvFile, NULL, index)) {
                  FAILED_BREAK()                
               }
           }
@@ -840,6 +841,7 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
           if (++w >= TAG_BATCH_COUNT) {
               // reset for gen again
               w = 0;
+              index += TAG_BATCH_COUNT;
           } 
       }
 

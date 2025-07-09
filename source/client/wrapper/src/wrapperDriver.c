@@ -50,11 +50,6 @@ static int32_t taosGetDevelopPath(char *driverPath, const char *driverName) {
   return ret;
 }
 
-static int32_t taosGetInstallPath(char *driverPath, const char *driverName) {
-  tstrncpy(driverPath, driverName, PATH_MAX);
-  return 0;
-}
-
 int32_t taosDriverInit(EDriverType driverType) {
   int32_t     code = -1;
   char        driverPath[PATH_MAX + 32] = {0};
@@ -67,13 +62,23 @@ int32_t taosDriverInit(EDriverType driverType) {
     driverName = DRIVER_WSBSOCKET_NAME;
   }
 
+  // load from develop build path
   if (tsDriver == NULL && taosGetDevelopPath(driverPath, driverName) == 0) {
     tsDriver = taosLoadDll(driverPath);
+  }  
+
+  // load from system path
+  if (tsDriver == NULL) {
+    tsDriver = taosLoadDll(driverName);
   }
 
-  if (tsDriver == NULL && taosGetInstallPath(driverPath, driverName) == 0) {
+  // load from install path on mac
+#if defined(DARWIN)
+  if (tsDriver == NULL) {
+    snprintf(driverPath, PATH_MAX, "/usr/local/lib/%s", driverName);
     tsDriver = taosLoadDll(driverPath);
   }
+#endif
 
   if (tsDriver == NULL) {
     printf("failed to load %s since %s [0x%X]\r\n", driverName, terrstr(), terrno);
@@ -186,6 +191,8 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_set_notify_cb, "taos_set_notify_cb");
 
   LOAD_FUNC(fp_taos_fetch_whitelist_a, "taos_fetch_whitelist_a");
+
+  LOAD_FUNC(fp_taos_fetch_whitelist_dual_stack_a, "taos_fetch_whitelist_dual_stack_a");
 
   LOAD_FUNC(fp_taos_set_conn_mode, "taos_set_conn_mode");
 

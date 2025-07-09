@@ -5,6 +5,7 @@ WORKDIR /root
 ARG pkgFile
 ARG dirName
 ARG cpuType
+
 RUN echo ${pkgFile} && echo ${dirName}
 
 COPY ${pkgFile} /root/
@@ -21,8 +22,8 @@ RUN tar -zxf /root/${pkgFile} && \
     cd /root/ && \
     rm /root/${pkgFile} && \
     rm -rf /root/${dirName} && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
+    apt update && \
+    apt install -y --no-install-recommends \
         locales \
         tzdata \
         netcat \
@@ -34,18 +35,17 @@ RUN tar -zxf /root/${pkgFile} && \
         net-tools \
         valgrind \
         rsync && \
-    apt-get clean && \
+    apt clean && \
     rm -rf /var/lib/apt/lists/* && \
     locale-gen en_US.UTF-8
 
-ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib" \
+ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}/usr/lib" \
     LC_CTYPE=en_US.UTF-8 \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
 
 COPY ./bin/* /usr/bin/
 
-ENTRYPOINT ["/tini", "--", "/usr/bin/entrypoint.sh"]
-CMD ["taosd"]
-
 VOLUME [ "/var/lib/taos", "/var/log/taos", "/corefile" ]
+
+ENTRYPOINT ["/tini", "--", "/usr/bin/entrypoint.sh"]

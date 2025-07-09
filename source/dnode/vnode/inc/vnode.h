@@ -94,11 +94,11 @@ void   *vnodeGetIvtIdx(void *pVnode);
 
 int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num);
 int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num);
-int32_t vnodeGetStbKeep(SVnode *pVnode, tb_uid_t suid, int64_t *keep);
+int32_t vnodeGetStbInfo(SVnode *pVnode, tb_uid_t suid, int64_t *keep, int8_t *flags);
 int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num);
 int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num);
 
-int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid);
+int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid, SSchemaWrapper **pTagSchema);
 
 void    vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
@@ -150,7 +150,10 @@ int32_t  metaPutTbToFilterCache(SMeta *pMeta, const void *key, int8_t type);
 int32_t  metaSizeOfTbFilterCache(SMeta *pMeta, int8_t type);
 int32_t  metaInitTbFilterCache(SMeta *pMeta);
 
-int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t *numOfCols);
+int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t *numOfCols, int8_t *flags);
+
+int32_t metaGetCachedRefDbs(void* pVnode, tb_uid_t suid, SArray* pList);
+int32_t metaPutRefDbsToCache(void* pVnode, tb_uid_t suid, SArray* pList);
 
 // tsdb
 typedef struct STsdbReader STsdbReader;
@@ -276,7 +279,7 @@ int32_t tqReaderSetVtableInfo(STqReader *pReader, void *vnode, void *pAPI, SSHas
 int32_t tqRetrieveVTableDataBlock(STqReader *pReader, SSDataBlock **pRes, const char *idstr);
 bool    tqNextVTableSourceBlockImpl(STqReader *pReader, const char *idstr);
 bool    tqReaderIsQueriedSourceTable(STqReader *pReader, uint64_t uid);
-
+int32_t tqCommitOffset(void* p);
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
 
@@ -329,6 +332,7 @@ typedef struct {
   int64_t pointsWritten;
   int64_t totalStorage;
   int64_t compStorage;
+  int64_t storageLastUpd;
 } SVnodeStats;
 
 struct SVnodeCfg {

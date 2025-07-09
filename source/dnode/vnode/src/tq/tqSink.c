@@ -203,17 +203,18 @@ end:
 static int32_t tqPutReqToQueue(SVnode* pVnode, void* pReqs, int32_t(*encoder)(void* pReqs, int32_t vgId, void** ppBuf, int32_t *contLen), tmsg_t msgType) {
   void*   buf = NULL;
   int32_t tlen = 0;
+  int32_t vgId = TD_VID(pVnode);
 
   int32_t code = encoder(pReqs, TD_VID(pVnode), &buf, &tlen);
   if (code) {
-    tqError("vgId:%d failed to encode create table msg, create table failed, code:%s", TD_VID(pVnode), tstrerror(code));
+    tqError("vgId:%d failed to encode create table msg, create table failed, code:%s", vgId, tstrerror(code));
     return code;
   }
 
   SRpcMsg msg = {.msgType = msgType, .pCont = buf, .contLen = tlen};
   code = tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg);
   if (code) {
-    tqError("failed to put into write-queue since %s", terrstr());
+    tqError("vgId:%d failed to put into write-queue since %s", vgId, tstrerror(code));
   }
 
   return code;
@@ -1005,9 +1006,9 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
 
     code = doCreateSinkTableInfo(dstTableName, &pTableSinkInfo);
     if (code == 0) {
-      tqDebug("s-task:%s build new sinkTableInfo to add cache, dstTable:%s", id, dstTableName);
+      tqDebug("s-task:%s build new sinkTableInfo to add cache, dstTable:%s, groupId:%" PRId64, id, dstTableName, groupId);
     } else {
-      tqDebug("s-task:%s failed to build new sinkTableInfo, dstTable:%s", id, dstTableName);
+      tqDebug("s-task:%s failed to build new sinkTableInfo, dstTable:%s, groupId:%" PRId64, id, dstTableName, groupId);
       return code;
     }
   }

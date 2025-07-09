@@ -16,7 +16,6 @@
         "enable.manual.commit": "true",
         "enable.auto.commit": "true",
         "auto.commit.interval.ms": 1000,
-        "enable.heartbeat.background": "true",
         "experimental.snapshot.enable": "true",
         "msg.with.table.name": "true",
         "rows_file": "./consumed_rows",

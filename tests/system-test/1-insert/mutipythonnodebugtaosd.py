@@ -18,7 +18,6 @@ selfPath = os.path.dirname(os.path.realpath(__file__))
 utilPath="%s/../../pytest/"%selfPath
 import threading
 import multiprocessing as mp
-from numpy.lib.function_base import insert
 import taos
 sys.path.append(utilPath)
 from util.log import *

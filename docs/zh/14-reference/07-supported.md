@@ -4,7 +4,12 @@ title: 支持平台列表
 description: "TDengine 服务端、客户端和连接器支持的平台列表"
 ---
 
+3.0.7.1 之后的社区版所支持的操作系统范围，可参考本文档，如果使用国产操作系统，请使用企业版本，或者使用 Docker 方式安装。
+
 ## TDengine 服务端支持的平台列表
+
+注：1) ● 表示经过官方测试验证， ○ 表示非官方测试验证，E 表示仅企业版支持。
+   2) 社区版仅支持主流操作系统的较新版本，包括 Ubuntu 18+/CentOS 7+/CentOS Stream/RedHat/Debian/CoreOS/FreeBSD/OpenSUSE/SUSE Linux/Fedora/macOS 等。如果有其他操作系统及版本的需求，请联系企业版支持。
 
 |                       | **版本**        | **X64 64bit** | **ARM64** |
 | ----------------------|----------------| ------------- | --------- |
@@ -26,14 +31,15 @@ description: "TDengine 服务端、客户端和连接器支持的平台列表"
 | **龙蜥 Anolis OS**     | **V8.6 以上**   | ●/E           |           | 
 | **macOS**             | **11.0 以上**   |                | ●         |
 
-注：1) ● 表示经过官方测试验证， ○ 表示非官方测试验证，E 表示仅企业版支持。
-   2) 社区版仅支持主流操作系统的较新版本，包括 Ubuntu 18+/CentOS 7+/CentOS Stream/RedHat/Debian/CoreOS/FreeBSD/OpenSUSE/SUSE Linux/Fedora/macOS 等。如果有其他操作系统及版本的需求，请联系企业版支持。
+
 
 ## TDengine 客户端和连接器支持的平台列表
 
-目前 TDengine 的连接器可支持的平台广泛，目前包括：X64/X86/ARM64/ARM32/MIPS/LoongArch64(或Loong64) 等硬件平台，以及 Linux/Win64/Win32/macOS 等开发环境。
+目前 TDengine 的连接器可支持的平台广泛，目前包括：X64/X86/ARM64/ARM32/MIPS/LoongArch64(或 Loong64) 等硬件平台，以及 Linux/Win64/Win32/macOS 等开发环境。
 
 对照矩阵如下：
+
+注：● 表示官方测试验证通过，○ 表示非官方测试验证通过，-- 表示未经验证。
 
 | **CPU**     | **X64 64bit** | **X64 64bit** | **X64 64bit** | **ARM64** | **ARM64** |
 | ----------- | ------------- | ------------- | ------------- | --------- | --------- |
@@ -47,4 +53,4 @@ description: "TDengine 服务端、客户端和连接器支持的平台列表"
 | **Rust**    | ●             | ●             | ●             | ○         | ●         |
 | **RESTful** | ●             | ●             | ●             | ●         | ●         |
 
-注：● 表示官方测试验证通过，○ 表示非官方测试验证通过，-- 表示未经验证。
+

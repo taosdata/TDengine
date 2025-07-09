@@ -80,7 +80,7 @@ The TDengine client driver provides all the APIs needed for application programm
 | minimalLogDirGB  |                   |Supported, effective immediately  | Stops writing logs when the disk space available in the log directory is less than this value, in GB, default value: 1 |
 | numOfLogLines    |                   |Supported, effective immediately  | Maximum number of lines allowed in a single log file, default value: 10,000,000 |
 | asyncLog         |                   |Supported, effective immediately  | Log writing mode, 0: synchronous, 1: asynchronous, default value: 1 |
-| logKeepDays      |                   |Supported, effective immediately  | Maximum retention time for log files, in days, default value: 0, meaning unlimited retention. Log files will not be renamed, nor will new log files be rolled out, but the content of the log files may continue to roll depending on the log file size setting; when set to a value greater than 0, the log file will be renamed to taoslogx.yyy, where yyy is the timestamp of the last modification of the log file, and a new log file will be rolled out |
+| logKeepDays      |                   |Supported, effective immediately  | Maximum retention time for log files, in days, default value: 0, meaning unlimited retention. Log files will not be renamed, nor will new log files be rolled out, but the content of the log files may continue to roll depending on the log file size setting; when set to a value greater than 0, the log file will be renamed to taoslogx.yyy, where yyy is the timestamp of the last modification of the log file, and a new log file will be rolled out,and log files whose creation time exceeds logKeepDays will be removed; Considering the usage habits of users of TDengine 2.0, starting from TDengine 3.3.6.6, when the value is set to less than 0, except that log files whose creation time exceeds -logKeepDays will be removed, other behaviors are the same as those when the value is greater than 0(For TDengine versions between 3.0.0.0 and 3.3.6.5, it is not recommended to set the value to less than 0) |
 | debugFlag        |                   |Supported, effective immediately  | Log switch for running logs, 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs); default value 131 or 135 (depending on the module) |
 | tmrDebugFlag     |                   |Supported, effective immediately  | Log switch for the timer module, value range as above |
 | uDebugFlag       |                   |Supported, effective immediately  | Log switch for the utility module, value range as above |
@@ -107,7 +107,6 @@ The TDengine client driver provides all the APIs needed for application programm
 | simdEnable       | After 3.3.4.3     |Not supported                     | Internal parameter, used for testing SIMD acceleration |
 | AVX512Enable     | After 3.3.4.3     |Not supported                     | Internal parameter, used for testing AVX512 acceleration |
 | bypassFlag       |After 3.3.4.5      |Supported, effective immediately  | Internal parameter, used for  short-circuit testing|
-
 
 ### SHELL Related
 

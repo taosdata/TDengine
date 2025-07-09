@@ -30,7 +30,7 @@ KILL COMPACT compact_id;
 - COMPACT will merge multiple STT files
 - You can specify the start time of the COMPACT data with the start with keyword
 - You can specify the end time of the COMPACT data with the end with keyword
-- You can specify the META_ONLY keyword to only compact the meta data which are not compacted by default
+- You can specify the META_ONLY keyword to only compact the meta data which are not compacted by default. Meta data compaction can block write and the database compacting meta should stop write and query
 - The COMPACT command will return the ID of the COMPACT task
 - COMPACT tasks are executed asynchronously in the background, and you can view the progress of COMPACT tasks using the SHOW COMPACTS command
 - The SHOW command will return the ID of the COMPACT task, and you can terminate the COMPACT task using the KILL COMPACT command
@@ -144,6 +144,6 @@ The main value of dual replicas lies in saving storage costs while maintaining a
 - The Nth dnode does not participate in the storage and retrieval of time-series data, i.e., it does not store replicas; this can be achieved by setting the `supportVnodes` parameter to 0
 - The dnode that does not store data replicas also has lower CPU/Memory resource usage, allowing the use of lower-specification servers
 
-2. Upgrading from Single Replica
+1. Upgrading from Single Replica
 
 Assuming there is an existing single replica cluster with N nodes (N>=1), and you want to upgrade it to a dual replica cluster, ensure that N>=3 after the upgrade, and configure the `supportVnodes` parameter of a newly added node to 0. After completing the cluster upgrade, use the command `alter database replica 2` to change the replica count for a specific database.

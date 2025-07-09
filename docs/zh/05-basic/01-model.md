@@ -3,8 +3,6 @@ sidebar_label: 数据模型
 title: TDengine 数据模型
 toc_max_heading_level: 4
 ---
-import origintable from './data-model-origin-table.png';
-import origintable2 from './data-model-origin-table-2.png';
 
 为了清晰地阐述时序数据的基本概念，并为示例程序的编写提供便利，整个文档都将以智能电表为例，探讨时序数据的典型应用场景。设想有一种型号的智能电表，它能够采集
 电流、电压和相位这 3 个模拟量。此外，每块智能电表还具有位置和分组等静态属性。这些智能电表采集的数据示例如下表所示。
@@ -35,7 +33,7 @@ import origintable2 from './data-model-origin-table-2.png';
 
 ### 数据采集点
 
-数据采集点是指在一定的预设时间周期内或受到特定事件触发时，负责采集物理量的硬件或软件设备。一个数据采集点可以同时采集一个或多个采集量，但这些采集量都是在同一时刻获取的，并拥有相同的时间戳。对于结构复杂的设备，通常会有多个数据采集点，每个数据采集点的采集周期可能各不相同，它们之间完全独立，互不干扰。以一辆汽车为例，可能有专门的数据采集点用于采集 GPS，有的数据采集点负责监控发动机状态，还有的数据采集点则专注于车内环境的监测。这样，一辆汽车就包含了 3个不同类型的数据采集点。在智能电表的示例中，d1001、d1002、d1003、d1004 等标识符即代表了不同的数据采集点。
+数据采集点是指在一定的预设时间周期内或受到特定事件触发时，负责采集物理量的硬件或软件设备。一个数据采集点可以同时采集一个或多个采集量，但这些采集量都是在同一时刻获取的，并拥有相同的时间戳。对于结构复杂的设备，通常会有多个数据采集点，每个数据采集点的采集周期可能各不相同，它们之间完全独立，互不干扰。以一辆汽车为例，可能有专门的数据采集点用于采集 GPS，有的数据采集点负责监控发动机状态，还有的数据采集点则专注于车内环境的监测。这样，一辆汽车就包含了 3 个不同类型的数据采集点。在智能电表的示例中，d1001、d1002、d1003、d1004 等标识符即代表了不同的数据采集点。
 
 ### 表
 
@@ -77,15 +75,15 @@ TDengine 采用“一个数据采集点一张表”的设计虽然有利于高�
 
 为了更好地理解采集量、标签、超级与子表的关系，以智能电表为例，可以参考下图
 
-![数据模型示意图](./data-model.png)
+![数据模型示意图](./pic/data-model.png)
 
 ### 虚拟表
 
-“一个数据采集点一张表”以及“超级表”的设计解决了工业和物联网等场景下的大多数时序数据管理和分析难题。但是在真实的场景中，一个设备往往有多种传感器，而且他们的数据采集频次还相差很大。比如对于一台风机，有电的参数、环境参数、机械参数，各自的传感器和采集频次完全不一样。因此我们很难用一张表来描述一台设备，往往需要多张表。当需要综合多个传感器的数据进行分析计算时，只能通过多级关联查询的方式来进行，而这往往会导致易用性和性能方面的问题。而从用户的角度来看，“一个设备一张表”更为直观，容易操作。但如果我们建模之初，直接采用"一个设备一张表的“的设计，由于采集频次的不同，会导致每一个具体时间戳，大量的列是空值，从而降低存储和查询的效率。
+“一个数据采集点一张表”以及“超级表”的设计解决了工业和物联网等场景下的大多数时序数据管理和分析难题。但在真实的场景中，一个设备往往有多种传感器，数据采集频次还相差很大。比如对于一台风机，电气参数、环境参数、机械参数，各自的传感器和采集频次完全不一样。因此很难用一张表来描述一台设备，往往需要多张表。当需要综合多个传感器的数据进行分析计算时，只能通过多级关联查询的方式来进行，而这往往会导致易用性和性能方面的问题。从用户的角度来看，“一个设备一张表”更为直观、容易操作。但如果建模之初，直接采用“一个设备一张表的”的设计，由于采集频次的不同，会导致每一个具体时间戳，大量的列是空值，降低存储和查询的效率。
 
-为了解决这个问题，TDengine 引入虚拟表（Virtual Table，简称为 VTable）的概念。虚拟表是一种不存储实际数据而可以用于分析计算的表，它的数据来源为其它真实存储数据的子表、普通表，通过将各个原始表的不同列的数据按照时间戳排序、对齐、合并的方式来生成虚拟表。同真实表类似，虚拟表也可以分为虚拟超级表、虚拟子表、虚拟普通表。虚拟超级表可以是一个设备或一组分析计算所需数据的完整集合，每个虚拟子表可以根据需要引用相同或不同的列，因此可以灵活地根据业务需要进行定义，最终达到“千人千面”的效果。虚拟表不能写入、删除数据，在查询使用上同真实表相同。TDengine 支持虚拟超级表、虚拟子表、虚拟普通表上的任何查询。唯一的区别在于虚拟表的数据是每次查询计算时动态生成的，只有一个查询中引用的列才会被合并进虚拟表中，因此同一个虚拟表在不同的查询中所呈现以及扫描的数据可能是完全不同的。
+为了解决这个问题，TDengine 引入虚拟表（Virtual Table，简称为 VTable）的概念。虚拟表是一种不存储实际数据而可以用于分析计算的表，数据来源为其它真实存储数据的子表、普通表，通过将各个原始表的不同列的数据按照时间戳排序、对齐、合并的方式来生成虚拟表。同真实表类似，虚拟表也可以分为虚拟超级表、虚拟子表、虚拟普通表。虚拟超级表可以是一个设备或一组分析计算所需数据的完整集合，每个虚拟子表可以根据需要引用相同或不同的列，因此可以灵活地根据业务需要进行定义，最终达到“千人千面”的效果。虚拟表不能写入、删除数据，在查询使用上和真实表相同。TDengine 支持虚拟超级表、虚拟子表、虚拟普通表上的任何查询。唯一的区别在于虚拟表的数据是每次查询计算时动态生成的，只有一个查询中引用的列才会被合并进虚拟表中，因此同一个虚拟表在不同的查询中所呈现以及扫描的数据可能是完全不同的。
 
-虚拟超级表的主要功能特点包括：
+虚拟超级表的主要功能特点包括。
 1. 列选择与拼接：用户可以从多个原始表中选择指定的列，按需组合到一张虚拟表中，形成统一的数据视图。
 2. 基于时间戳对齐：以时间戳为依据对数据进行对齐，如果多个表在相同时间戳下存在数据，则对应列的值组合成同一行；若部分表在该时间戳下无数据，则对应列填充为 NULL。
 3. 动态更新：虚拟表根据原始表的数据变化自动更新，确保数据的实时性。虚拟表不需实际存储，计算在生成时动态完成。
@@ -101,9 +99,9 @@ TDengine 采用“一个数据采集点一张表”的设计虽然有利于高�
 ### 时间戳
 
 时间戳在时序数据处理中扮演着至关重要的角色，特别是在应用程序需要从多个不同时区访问数据库时，这一问题变得更加复杂。在深入了解 TDengine 如何处理时间戳与时区之前，先介绍以下几个基本概念。
-- 本地日期时间：指特定地区的当地时间，通常表示为 yyyy-MM-dd hh:mm:ss.SSS 格式的字符串。这种时间表示不包含任何时区信息，如 “2021-07-21 12:00:00.000”。
-- 时区：地球上不同地理位置的标准时间。协调世界时（Universal Time Coordinated，UTC）或格林尼治时间是国际时间标准，其他时区通常表示为相对于 UTC 的偏移量，如 “UTC+8” 代表东八区时间。 UTC 时间戳：表示自 UNIX 纪元（即 UTC 时间 1970 年 1 月 1 日 0 点）起经过的毫秒数。例如，“1700000000000” 对应的日期时间是 “2023-11-14 22:13:20（UTC+0）”。 在 TDengine 中保存时序数据时，实际上保存的是 UTC 时间戳。TDengine 在写入数据时，时间戳的处理分为如下两种情况。
-- RFC-3339 格式：当使用这种格式时，TDengine 能够正确解析带有时区信息的时间字符串为 UTC 时间戳。例如，“2018-10-03T14:38:05.000+08:00” 会被转换为 UTC 时间戳。
+- 本地日期时间：指特定地区的当地时间，通常表示为 yyyy-MM-dd hh:mm:ss.SSS 格式的字符串。这种时间表示不包含任何时区信息，如“2021-07-21 12:00:00.000”。
+- 时区：地球上不同地理位置的标准时间。协调世界时（Universal Time Coordinated，UTC）或格林尼治时间是国际时间标准，其他时区通常表示为相对于 UTC 的偏移量，如 "UTC+8" 代表东八区时间。UTC 时间戳：表示自 UNIX 纪元（即 UTC 时间 1970 年 1 月 1 日 0 点）起经过的毫秒数。例如，“1700000000000”对应的日期时间是“2023-11-14 22:13:20（UTC+0）”。在 TDengine 中保存时序数据时，实际上保存的是 UTC 时间戳。TDengine 在写入数据时，时间戳的处理分为如下两种情况。
+- RFC-3339 格式：当使用这种格式时，TDengine 能够正确解析带有时区信息的时间字符串为 UTC 时间戳。例如，“2018-10-03T14:38:05.000+08:00”会被转换为 UTC 时间戳。
 - 非 RFC-3339 格式：如果时间字符串不包含时区信息，TDengine 将使用应用程序所在的时区设置自动将时间转换为 UTC 时间戳。
 
 在查询数据时，TDengine 客户端会根据应用程序当前的时区设置，自动将保存的 UTC 时间戳转换成本地时间进行显示，确保用户在不同时区下都能看到正确的时间信息。
@@ -357,9 +355,65 @@ TAGS (
 
 以设备 d1001 为例，假设 d1001 设备的电流、电压、相位数据如下：
 
-<img src={origintable} width="500" alt="data-model-origin-table" />
+<table>
+    <tr>
+        <th colspan="2" align="center">current_d1001</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">voltage_d1001</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">phase_d1001</th>
+    </tr>
+    <tr>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Voltage</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Phase</td>
+    </tr>
+    <tr>
+        <td align="center">1538548685000</td>
+        <td align="center">10.3</td>
+        <td align="center">1538548685000</td>
+        <td align="center">219</td>
+        <td align="center">1538548685000</td>
+        <td align="center">0.31</td>
+    </tr>
+    <tr>
+        <td align="center">1538548695000</td>
+        <td align="center">12.6</td>
+        <td align="center">1538548695000</td>
+        <td align="center">218</td>
+        <td align="center">1538548695000</td>
+        <td align="center">0.33</td>
+    </tr>
+    <tr>
+        <td align="center">1538548696800</td>
+        <td align="center">12.3</td>
+        <td align="center">1538548696800</td>
+        <td align="center">221</td>
+        <td align="center">1538548696800</td>
+        <td align="center">0.31</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697100</td>
+        <td align="center">12.1</td>
+        <td align="center">1538548697100</td>
+        <td align="center">220</td>
+        <td align="center">1538548697200</td>
+        <td align="center">0.32</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697700</td>
+        <td align="center">11.8</td>
+        <td align="center">1538548697800</td>
+        <td align="center">222</td>
+        <td align="center">1538548697800</td>
+        <td align="center">0.33</td>
+    </tr>
+</table>
 
-虚拟表 d1001_v 中的数据如下:
+虚拟表 d1001_v 中的数据如下：
 
 |   Timestamp    | Current |  Voltage  |  Phase  |
 |:--------------:|:-------:|:---------:|:-------:|
@@ -390,7 +444,77 @@ CREATE VTABLE current_v (
 
 假设 d1001, d1002, d1003, d1004 四个设备的电流数据如下：
 
-<img src={origintable2} width="500" alt="data-model-origin-table-2" />
+<table>
+    <tr>
+        <th colspan="2" align="center">d1001</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">d1002</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">d1003</th>
+        <th rowspan="7" align="center"></th>  
+        <th colspan="2" align="center">d1004</th>
+    </tr>
+    <tr>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+        <td align="center">Timestamp</td>
+        <td align="center">Current</td>
+    </tr>
+    <tr>
+        <td align="center">1538548685000</td>
+        <td align="center">10.3</td>
+        <td align="center">1538548685000</td>
+        <td align="center">11.7</td>
+        <td align="center">1538548685000</td>
+        <td align="center">11.2</td>
+        <td align="center">1538548685000</td>
+        <td align="center">12.4</td>
+    </tr>
+    <tr>
+        <td align="center">1538548695000</td>
+        <td align="center">12.6</td>
+        <td align="center">1538548695000</td>
+        <td align="center">11.9</td>
+        <td align="center">1538548695000</td>
+        <td align="center">10.8</td>
+        <td align="center">1538548695000</td>
+        <td align="center">11.3</td>
+    </tr>
+    <tr>
+        <td align="center">1538548696800</td>
+        <td align="center">12.3</td>
+        <td align="center">1538548696800</td>
+        <td align="center">12.4</td>
+        <td align="center">1538548696800</td>
+        <td align="center">12.3</td>
+        <td align="center">1538548696800</td>
+        <td align="center">10.1</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697100</td>
+        <td align="center">12.1</td>
+        <td align="center">1538548697200</td>
+        <td align="center">12.2</td>
+        <td align="center">1538548697100</td>
+        <td align="center">11.1</td>
+        <td align="center">1538548697200</td>
+        <td align="center">11.7</td>
+    </tr>
+    <tr>
+        <td align="center">1538548697700</td>
+        <td align="center">11.8</td>
+        <td align="center">1538548697700</td>
+        <td align="center">11.4</td>
+        <td align="center">1538548697800</td>
+        <td align="center">12.1</td>
+        <td align="center">1538548697800</td>
+        <td align="center">12.6</td>
+    </tr>
+</table>
 
 虚拟表 current_v 中的数据如下：
 

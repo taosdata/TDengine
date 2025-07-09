@@ -14,6 +14,10 @@ import imgStep07 from '../../assets/csv-file-07.png';
 import imgStep10 from '../../assets/csv-file-10.png';
 import imgStep11 from '../../assets/csv-file-11.png';
 
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
+
 This section describes how to create data migration tasks through the Explorer interface, migrating data from CSV to the current TDengine cluster.
 
 ## Feature Overview
@@ -70,10 +74,9 @@ Click **Select File**, choose test-json.csv, then click **Parse** to preview the
 <Image img={imgStep04} alt=""/>
 </figure>
 
-**Preview Parsing Results**
-
 <figure>
 <Image img={imgStep05} alt=""/>
+<figcaption>Preview Parsing Results</figcaption>
 </figure>
 
 #### 4.2 Field Splitting

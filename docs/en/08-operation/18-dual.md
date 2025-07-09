@@ -6,11 +6,9 @@ slug: /operations-and-maintenance/active-active-deployment
 import Image from '@theme/IdealImage';
 import imgDual from '../assets/active-standby-deployment-01.png';
 
-:::info[Version Note]
+import Enterprise from '../assets/resources/_enterprise.mdx';
 
-This feature is available only in TDengine Enterprise 3.3.0.0 and later.
-
-:::
+<Enterprise/>
 
 You can deploy TDengine in active-active mode to achieve high availability and reliability with limited resources. Active-active mode is also used in disaster recovery strategies to maintain offsite replicas of the database.
 
@@ -30,10 +28,10 @@ Replicated data is specially marked to avoid infinite loops. The architecture of
 The following limitations apply to active-active deployments:
 
 1. You cannot use the data subscription APIs when active-active mode is enabled.
-2. You cannot use the parameter binding interface while active-active mode is enabled.
-3. The primary and secondary nodes must be identical. Database names, all configuration parameters, usernames, passwords, and permission settings must be exactly the same.
-4. You can connect to an active-active deployment only through the Java client library in WebSocket mode.
-5. Do not use the `USE <database>` statement to set a context. Instead, specify the database in the connection parameters.
+1. You cannot use the parameter binding interface while active-active mode is enabled.
+1. The primary and secondary nodes must be identical. Database names, all configuration parameters, usernames, passwords, and permission settings must be exactly the same.
+1. You can connect to an active-active deployment only through the Java client library in WebSocket mode.
+1. Do not use the `USE <database>` statement to set a context. Instead, specify the database in the connection parameters.
 
 ## Cluster Configuration
 
@@ -42,8 +40,8 @@ It is not necessary to configure your cluster specifically for active-active mod
 ## Enable Active-Active Mode
 
 1. Create two identical TDengine deployments. For more information, see [Get Started](../../get-started/).
-2. Ensure that the taosd and taosx service are running on both deployments.
-3. On the deployment that you have designated as the primary node, run the following command to start the replication service:
+1. Ensure that the taosd and taosx service are running on both deployments.
+1. On the deployment that you have designated as the primary node, run the following command to start the replication service:
 
    ```shell
    taosx replica start -f <source-endpoint> -t <sink-endpoint> [database]
@@ -58,7 +56,7 @@ It is not necessary to configure your cluster specifically for active-active mod
 
    When the command is successful, the replica ID is displayed. You can use this ID to add other databases to the replication task if necessary.
 
-4. Run the same command on the secondary node, specifying the FQDN of TDengine on the secondary node as the source endpoint and the FQDN of TDengine on the primary node as the sink endpoint.
+1. Run the same command on the secondary node, specifying the FQDN of TDengine on the secondary node as the source endpoint and the FQDN of TDengine on the primary node as the sink endpoint.
 
 ## Client Configuration
 
@@ -101,7 +99,7 @@ You can manage your active-active deployment with the following commands:
    - The replica ID is globally unique within a taosX instance and is independent of the source/sink combination.
    :::
 
-2. Check the status of a task:
+1. Check the status of a task:
 
    ```shell
    taosx replica status [id...]
@@ -117,7 +115,7 @@ You can manage your active-active deployment with the following commands:
    | a       | 3        | td2:6030 | td2:6030 | test     | interrupted | Error reason   |
    ```
 
-3. Stop a replication task:
+1. Stop a replication task:
 
    ```shell
    taosx replica stop [id [db...]]
@@ -127,7 +125,7 @@ You can manage your active-active deployment with the following commands:
 
    Use `--no-new-databases` to not stop new-databases checking.
 
-4. Restart a replication task:
+1. Restart a replication task:
 
    ```shell
    taosx replica restart [id [db...]]
@@ -135,7 +133,7 @@ You can manage your active-active deployment with the following commands:
 
    If you specify a database, replication for that database is restarted. If you do not specify a database, all replication tasks in the instance are restarted. If you do not specify an ID, all replication tasks on the instance are restarted.
 
-5. Update new databases checking interval:
+1. Update new databases checking interval:
 
    ```shell
    taosx replica update id --new-database-checking-interval <SECONDS>
@@ -143,7 +141,7 @@ You can manage your active-active deployment with the following commands:
 
    This command will only update the checking interval for new databases.
 
-5. Check the progress of a replication task:
+1. Check the progress of a replication task:
 
    ```shell
    taosx replica diff [id [db....]]
@@ -159,7 +157,7 @@ You can manage your active-active deployment with the following commands:
    | ad      | opc      | td2:6030 | td2:6030 | 3         | 17600   | 17600   | 0    |
    ```
 
-6. Delete a replication task.
+1. Delete a replication task.
 
    ```shell
    taosx replica remove [id] [--force]

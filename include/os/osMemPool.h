@@ -138,6 +138,7 @@ void    taosMemPoolGetUsedSizeEnd(void* poolHandle);
 int32_t taosMemPoolGetSessionStat(void* session, SMPStatDetail** ppStat, int64_t* allocSize, int64_t* maxAllocSize);
 void    taosMemPoolSchedTrim(void);
 int32_t taosMemoryPoolInit(mpReserveFailFp, mpReserveReachFp);
+int32_t taosMemoryPoolCfgUpdateReservedSize(int32_t newReservedSizeMB);
 
 
 #define taosMemPoolFreeClear(ptr)   \

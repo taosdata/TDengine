@@ -1,0 +1,6 @@
+select week();
+select week(, 0);
+select week('2000-01-01', );
+select week('2000-01-01', -1);
+select week('2000-01-01', 8);
+select week('2000-01-01', 1.0);

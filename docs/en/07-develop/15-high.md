@@ -8,25 +8,344 @@ import TabItem from "@theme/TabItem";
 import Image from '@theme/IdealImage';
 import imgThread from '../assets/ingesting-data-efficiently-01.png';
 
-This section describes how to write data to TDengine efficiently.
+To help users easily build data ingestion pipelines with million-level throughput, the TDengine connector provides a high-performance write feature. When this feature is enabled, the TDengine connector automatically creates write threads and dedicated queues, caches data sharded by sub-tables, and sends data in batches when the data volume threshold is reached or a timeout condition occurs. This approach reduces network requests and increases throughput, allowing users to achieve high-performance writes without needing to master multithreaded programming knowledge or data sharding techniques.
 
-## Principles of Efficient Writing {#principle}
+## Usage of Efficient Writing {#usage}
 
-### From the Client Application's Perspective {#application-view}
+The following introduces the usage methods of the efficient writing feature for each connector:
 
-From the perspective of the client application, efficient data writing should consider the following factors:
+<Tabs defaultValue="java" groupId="lang">
+<TabItem label="Java" value="java">
 
-1. The amount of data written at once. Generally, the larger the batch of data written at once, the more efficient it is (but the advantage disappears beyond a certain threshold). When writing to TDengine using SQL, try to concatenate more data in one SQL statement. Currently, the maximum length of a single SQL statement supported by TDengine is 1,048,576 (1MB) characters.
-2. Number of concurrent connections. Generally, the more concurrent connections writing data at the same time, the more efficient it is (but efficiency may decrease beyond a certain threshold, depending on the server's processing capacity).
-3. Distribution of data across different tables (or subtables), i.e., the adjacency of the data being written. Generally, writing data to the same table (or subtable) in each batch is more efficient than writing to multiple tables (or subtables).
-4. Method of writing. Generally:
-   - Binding parameters is more efficient than writing SQL. Parameter binding avoids SQL parsing (but increases the number of calls to the C interface, which also has a performance cost).
-   - Writing SQL without automatic table creation is more efficient than with automatic table creation because it frequently checks whether the table exists.
-   - Writing SQL is more efficient than schema-less writing because schema-less writing automatically creates tables and supports dynamic changes to the table structure.
+### Introduction to the JDBC Efficient Writing Feature
 
-Client applications should fully and appropriately utilize these factors. In a single write operation, try to write data only to the same table (or subtable), set the batch size after testing and tuning to a value that best suits the current system's processing capacity, and similarly set the number of concurrent writing connections after testing and tuning to achieve the best writing speed in the current system.
+Starting from version `3.6.0`, the JDBC driver provides an efficient writing feature over WebSocket connections. The JDBC driver's efficient writing feature has the following characteristics:
 
-### From the Data Source's Perspective {#datasource-view}
+- It supports the JDBC standard parameter binding interface.
+- Under the condition of sufficient resources, the writing capacity is linearly related to the configuration of the number of writing threads.
+- It supports the configuration of the writing timeout, the number of retries, and the retry interval after a connection is disconnected and re - established.
+- It supports calling the `executeUpdate` interface to obtain the number of written data records. If there is an exception during writing, it can be caught at this time.
+
+The following details its usage method. This section assumes that the user is already familiar with the JDBC standard parameter binding interface (refer to [Parameter Binding](https://docs.oracle.com/javase/8/docs/api/java/sql/PreparedStatement.html) for reference).
+
+### How to Enable the Efficient Writing Feature
+
+For the JDBC connector, there are two ways to enable the efficient writing feature:
+
+- Setting `PROPERTY_KEY_ASYNC_WRITE` to `stmt` in the connection properties or adding `asyncWrite = stmt` to the JDBC URL can enable efficient writing on this connection. After enabling the efficient writing feature on the connection, all subsequent `PreparedStatement` objects created will use the efficient writing mode.
+- When using parameter binding to create a `PreparedStatement`, using `ASYNC_INSERT INTO` instead of `INSERT INTO` in the SQL statement can enable efficient writing for this parameter - bound object.
+
+### How to Check if the Writing is Successful
+
+The client application uses the `addBatch` method of the JDBC standard interface to add a record and `executeBatch` to submit all added records. In the efficient writing mode, the **executeUpdate** method can be used to synchronously obtain the number of successfully written records. If there is a data writing failure, calling `executeUpdate` will catch an exception at this time.
+
+### Important Configuration Parameters for Efficient Writing
+
+- `TSDBDriver.PROPERTY_KEY_BACKEND_WRITE_THREAD_NUM`: The number of background writing threads in the efficient writing mode. It only takes effect when using a WebSocket connection. The default value is 10.
+- `TSDBDriver.PROPERTY_KEY_BATCH_SIZE_BY_ROW`: The batch size of the written data in the efficient writing mode, with the unit of rows. It only takes effect when using a WebSocket connection. The default value is 1000.
+- `TSDBDriver.PROPERTY_KEY_CACHE_SIZE_BY_ROW`: The size of the cache in the efficient writing mode, with the unit of rows. It only takes effect when using a WebSocket connection. The default value is 10000.
+
+- `TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT`: Whether to enable automatic reconnection. It only takes effect when using a WebSocket connection. `true` means enable, `false` means disable. The default is `false`. It is recommended to enable it in the efficient writing mode.
+- `TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS`: The retry interval for automatic reconnection, with the unit of milliseconds. The default value is 2000. It only takes effect when `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` is `true`.
+- `TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT`: The number of retry attempts for automatic reconnection. The default value is 3. It only takes effect when `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` is `true`.
+
+For other configuration parameters, please refer to [Efficient Writing Configuration](../../tdengine-reference/client-libraries/java/#properties).
+
+### Instructions for Using JDBC Efficient Writing
+
+The following is a simple example of using JDBC efficient writing, which illustrates the relevant configurations and interfaces for efficient writing.
+
+<details>
+<summary>Sample of Using JDBC Efficient Writing</summary>
+```java
+{{#include docs/examples/java/src/main/java/com/taos/example/WSHighVolumeDemo.java:efficient_writing}}
+```
+</details>
+
+</TabItem>
+</Tabs>
+
+## Efficient Writing Example {#sample-code}
+
+### Scenario Design {#scenario}
+
+The following sample program demonstrates how to efficiently write data, with the scenario designed as follows:  
+
+- The TDengine client program continuously reads data from other data sources. In the sample program, simulated data generation is used to mimic data source reading, while also providing an example of pulling data from Kafka and writing it to TDengine.
+- To improve the data reading speed of the TDengine client program, multi-threading is used for reading. To avoid out-of-order issues, the sets of tables read by multiple reading threads should be non-overlapping.
+- To match the data reading speed of each data reading thread, a set of write threads is launched in the background. Each write thread has an exclusive fixed-size message queue.
+
+### Sample Code {#code}
+
+This section provides sample code for the above scenario. The principle of efficient writing is the same for other scenarios, but the code needs to be modified accordingly.
+
+This sample code assumes that the source data belongs to different subtables of the same supertable (meters). The program has already created this supertable in the test database before starting to write data. For subtables, they will be automatically created by the application according to the received data. If the actual scenario involves multiple supertables, only the code for automatic table creation in the write task needs to be modified.
+
+<Tabs defaultValue="java" groupId="lang">
+<TabItem label="Java" value="java">
+
+Program Listing:
+
+| Class Name         | Functional Description                                                                                                                                       |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| FastWriteExample   | The main program responsible for command-line argument parsing, thread pool creation, and waiting for task completion.                                       |
+| WorkTask           | Reads data from a simulated source and writes it using the JDBC standard interface.                                                                          |
+| MockDataSource     | Simulates and generates data for a certain number of `meters` child tables.                                                                                  |
+| DataBaseMonitor    | Tracks write speed and prints the current write speed to the console every 10 seconds.                                                                       |
+| CreateSubTableTask | Creates child tables within a specified range for invocation by the main program.                                                                            |
+| Meters             | Provides serialization and deserialization of single records in the `meters` table, used for sending messages to Kafka and receiving messages from Kafka.    |
+| ProducerTask       | A producer that sends messages to Kafka.                                                                                                                     |
+| ConsumerTask       | A consumer that receives messages from Kafka, writes data to TDengine using the JDBC efficient writing interface, and commits offsets according to progress. |
+| Util               | Provides basic functionalities, including creating connections, creating Kafka topics, and counting write operations.                                        |
+
+Below are the complete codes and more detailed function descriptions for each class.
+
+<details>
+<summary>FastWriteExample</summary>
+
+Introduction to Main Program Command-Line Arguments:
+
+```shell
+   -b,--batchSizeByRow <arg>             Specifies the `batchSizeByRow` parameter for Efficient Writing, default is 1000  
+   -c,--cacheSizeByRow <arg>             Specifies the `cacheSizeByRow` parameter for Efficient Writing, default is 10000  
+   -d,--dbName <arg>                     Specifies the database name, default is `test`  
+      --help                             Prints help information  
+   -K,--useKafka                         Enables Kafka mode, creating a producer to send messages and a consumer to receive messages for writing to TDengine. Otherwise, uses worker threads to subscribe to simulated data for writing.  
+   -r,--readThreadCount <arg>            Specifies the number of worker threads, default is 5. In Kafka mode, this parameter also determines the number of producer and consumer threads.  
+   -R,--rowsPerSubTable <arg>            Specifies the number of rows to write per child table, default is 100  
+   -s,--subTableNum <arg>                Specifies the total number of child tables, default is 1000000  
+   -w,--writeThreadPerReadThread <arg>   Specifies the number of write threads per worker thread, default is 5  
+```
+
+JDBC URL and Kafka Cluster Address Configuration:
+
+1. The JDBC URL is configured via an environment variable, for example:  
+
+   ```shell
+   export TDENGINE_JDBC_URL="jdbc:TAOS-WS://localhost:6041?user=root&password=taosdata"
+   ```
+
+2. The Kafka cluster address is configured via an environment variable, for example:  
+
+   ```shell
+   export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+   ```
+
+Usage:
+
+```shell
+1. Simulated data writing mode:  
+   java -jar highVolume.jar -r 5 -w 5 -b 10000 -c 100000 -s 1000000 -R 1000  
+2. Kafka subscription writing mode:  
+   java -jar highVolume.jar -r 5 -w 5 -b 10000 -c 100000 -s 1000000 -R 100 -K  
+```
+
+Responsibilities of the Main Program:
+
+1. Parses command-line arguments.  
+2. Creates child tables.  
+3. Creates worker threads or Kafka producers and consumers.  
+4. Tracks write speed.  
+5. Waits for writing to complete and releases resources.
+
+```java
+{{#include docs/examples/JDBC/highvolume/src/main/java/com/taos/example/highvolume/FastWriteExample.java}}
+```
+
+</details>
+
+<details>
+<summary>WorkTask</summary>
+
+The worker thread is responsible for reading data from the simulated data source. Each read task is associated with a simulated data source, which can generate data for a specific range of sub-tables. Different simulated data sources generate data for different tables.  
+The worker thread uses a blocking approach to invoke the JDBC standard interface `addBatch`. This means that if the corresponding efficient writing backend queue is full, the write operation will block.
+
+```java
+{{#include docs/examples/JDBC/highvolume/src/main/java/com/taos/example/highvolume/WorkTask.java}}
+```
+
+</details>
+
+<details>
+<summary>MockDataSource</summary>
+
+A simulated data generator that produces data for a certain range of sub-tables. To mimic real-world scenarios, it generates data in a round-robin fashion, one row per subtable.
+
+```java
+{{#include docs/examples/JDBC/highvolume/src/main/java/com/taos/example/highvolume/MockDataSource.java}}
+```
+
+</details>
+
+<details>
+<summary>CreateSubTableTask</summary>
+
+Creates sub-tables within a specified range using a batch SQL creation approach.
+
+```java
+{{#include docs/examples/JDBC/highvolume/src/main/java/com/taos/example/highvolume/CreateSubTableTask.java}}
+```
+
+</details>
+
+<details>
+<summary>Meters</summary>
+
+A data model class that provides serialization and deserialization methods for sending data to Kafka and receiving data from Kafka.
+
+```java
+{{#include docs/examples/JDBC/highvolume/src/main/java/com/taos/example/highvolume/Meters.java}}
+```
+
+</details>
+
+<details>
+<summary>ProducerTask</summary>
+
+A message producer that writes data generated by the simulated data generator to all partitions using a hash method different from JDBC efficient writing.
+
+```java
+{{#include docs/examples/JDBC/highvolume/src/main/java/com/taos/example/highvolume/ProducerTask.java}}
+```
+
+</details>
+
+<details>
+<summary>ConsumerTask</summary>
+
+A message consumer that receives messages from Kafka and writes them to TDengine.
+
+```java
+{{#include docs/examples/JDBC/highvolume/src/main/java/com/taos/example/highvolume/ConsumerTask.java}}
+```
+
+</details>
+
+<details>
+<summary>StatTask</summary>
+
+Provides a periodic function to count the number of written records.
+
+```java
+{{#include docs/examples/JDBC/highvolume/src/main/java/com/taos/example/highvolume/StatTask.java}}
+```
+
+</details>
+
+<details>
+<summary>Util</summary>
+
+A utility class that provides functions such as creating connections, creating databases, and creating topics.
+
+```java
+{{#include docs/examples/JDBC/highvolume/src/main/java/com/taos/example/highvolume/Util.java}}
+```
+
+</details>
+
+Execution Steps:
+
+<details>
+<summary>Execute the Java Example Program</summary>
+
+Execute the example program in a local integrated development environment:
+
+1. Clone the TDengine repository
+
+   ```shell
+   git clone git@github.com:taosdata/TDengine.git --depth 1
+   ```
+
+2. Open the `TDengine/docs/examples/JDBC/highvolume` directory with the integrated development environment.
+3. Configure the environment variable `TDENGINE_JDBC_URL` in the development environment. If the global environment variable `TDENGINE_JDBC_URL` has already been configured, you can skip this step.
+4. If you want to run the Kafka example, you need to set the environment variable `KAFKA_BOOTSTRAP_SERVERS` for the Kafka cluster address.
+5. Specify command-line arguments, such as `-r 3 -w 3 -b 100 -c 1000 -s 1000 -R 100`.
+6. Run the class `com.taos.example.highvolume.FastWriteExample`.
+
+Execute the example program on a remote server:
+
+To execute the example program on a server, follow these steps:
+
+1. Package the sample code. Navigate to the directory `TDengine/docs/examples/JDBC/highvolume` and run the following command to generate `highVolume.jar`:
+
+   ```shell
+   mvn package
+   ```
+
+2. Copy the program to the specified directory on the server:
+  
+   ```shell
+   scp -r .\target\highVolume.jar <user>@<host>:~/dest-path
+   ```
+
+3. Configure the environment variable.
+   Edit `~/.bash_profile` or `~/.bashrc` and add the following content for example:
+
+   ```shell
+   export TDENGINE_JDBC_URL="jdbc:TAOS-WS://localhost:6041?user=root&password=taosdata"
+   ```
+
+   The above uses the default JDBC URL for a locally deployed TDengine Server. Modify it according to your actual environment.
+   If you want to use Kafka subscription mode, additionally configure the Kafka cluster environment variable:
+
+   ```shell
+   export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+   ```
+
+4. Start the sample program with the Java command. Use the following template (append `-K` for Kafka subscription mode):
+
+   ```shell
+   java -jar highVolume.jar -r 5 -w 5 -b 10000 -c 100000 -s 1000000 -R 1000
+   ```
+
+5. Terminate the test program. The program does not exit automatically. Once a stable write speed is achieved under the current configuration, press <kbd>CTRL</kbd> + <kbd>C</kbd> to terminate it.
+Below is a sample log output from an actual run on a machine with a 40-core CPU, 256GB RAM, and SSD storage.
+
+```text
+   ---------------$ java -jar highVolume.jar -r 2 -w 10 -b 10000 -c 100000 -s 1000000 -R 100
+   [INFO ] 2025-03-24 18:03:17.980 com.taos.example.highvolume.FastWriteExample main 309 main readThreadCount=2, writeThreadPerReadThread=10 batchSizeByRow=10000 cacheSizeByRow=100000, subTableNum=1000000, rowsPerSubTable=100
+   [INFO ] 2025-03-24 18:03:17.983 com.taos.example.highvolume.FastWriteExample main 312 main create database begin.
+   [INFO ] 2025-03-24 18:03:34.499 com.taos.example.highvolume.FastWriteExample main 315 main create database end.
+   [INFO ] 2025-03-24 18:03:34.500 com.taos.example.highvolume.FastWriteExample main 317 main create sub tables start.
+   [INFO ] 2025-03-24 18:03:34.502 com.taos.example.highvolume.FastWriteExample createSubTables 73 main create sub table task started.
+   [INFO ] 2025-03-24 18:03:55.777 com.taos.example.highvolume.FastWriteExample createSubTables 82 main create sub table task finished.
+   [INFO ] 2025-03-24 18:03:55.778 com.taos.example.highvolume.FastWriteExample main 319 main create sub tables end.
+   [INFO ] 2025-03-24 18:03:55.781 com.taos.example.highvolume.WorkTask run 41 FW-work-thread-2 started
+   [INFO ] 2025-03-24 18:03:55.781 com.taos.example.highvolume.WorkTask run 41 FW-work-thread-1 started
+   [INFO ] 2025-03-24 18:04:06.580 com.taos.example.highvolume.StatTask run 36 pool-1-thread-1 numberOfTable=1000000 count=12235906 speed=1223590
+   [INFO ] 2025-03-24 18:04:17.531 com.taos.example.highvolume.StatTask run 36 pool-1-thread-1 numberOfTable=1000000 count=31185614 speed=1894970
+   [INFO ] 2025-03-24 18:04:28.490 com.taos.example.highvolume.StatTask run 36 pool-1-thread-1 numberOfTable=1000000 count=51464904 speed=2027929
+   [INFO ] 2025-03-24 18:04:40.851 com.taos.example.highvolume.StatTask run 36 pool-1-thread-1 numberOfTable=1000000 count=71498113 speed=2003320
+   [INFO ] 2025-03-24 18:04:51.948 com.taos.example.highvolume.StatTask run 36 pool-1-thread-1 numberOfTable=1000000 count=91242103 speed=1974399
+
+```
+
+</details>
+
+</TabItem>
+
+</Tabs>
+
+## Key Factors for Write Performance {#key-factors}  
+
+### From the Client Application Perspective {#application-view}  
+
+From the client application's perspective, the following factors should be considered for efficient data writing:  
+
+1. **Batch Writing**: Generally, larger batch sizes improve efficiency (but the advantage diminishes beyond a certain threshold). When using SQL to write to TDengine, include as much data as possible in a single SQL statement. The maximum allowed SQL length in TDengine is **1MB** (1,048,576 characters).  
+2. **Multithreaded Writing**: Before system resource bottlenecks are reached, increasing the number of write threads can improve throughput (performance may decline due to server-side processing limitations beyond the threshold). It is recommended to assign independent connections to each write thread to reduce connection resource contention.  
+3. **Write Locality**: The distribution of data across different tables (or sub-tables), i.e., the locality of data to be written. Writing to a single table (or sub-table) in each batch is more efficient than writing to multiple tables (or sub-tables).  
+4. **Pre-Creating Tables**: Pre-creating tables improves write performance as it eliminates the need to check table existence and allows omitting tag column data during writing.  
+5. **Write Methods**:  
+   - Parameter binding writes are more efficient than raw SQL writes, as they avoid SQL parsing.  
+   - SQL writes without automatic table creation are more efficient than those with automatic table creation, as the latter requires frequent table existence checks.  
+   - SQL writes are more efficient than schema-less writes, as schema-less writes enable automatic table creation and dynamic schema changes.  
+6. **Order Preservation**: Data for the same sub-table must be submitted in ascending order of timestamps. Out-of-order data causes additional sorting operations on the server, impacting write performance.  
+7. **Enabling Compression**: When network bandwidth is a bottleneck or there is significant data duplication, enabling compression can effectively improve overall performance.  
+
+Client applications should fully and appropriately utilize these factors. For example, choosing parameter binding, pre-creating sub-tables, writing to a single table (or sub-table) in each batch, and configuring batch size and concurrent thread count through testing to achieve the optimal write speed for the current system.  
+
+### From the Data Source Perspective {#datasource-view}  
 
 Client applications usually need to read data from a data source before writing it to TDengine. From the data source's perspective, the following situations require adding a queue between the reading and writing threads:
 
@@ -41,410 +360,55 @@ If the data source for the writing application is Kafka, and the writing applica
 3. Increase the concurrency of writing by increasing the number of Consumer threads.
 4. Increase the maximum amount of data fetched each time to increase the maximum amount of data written at once.
 
-### From the Server Configuration's Perspective {#setting-view}
+### From the Server Configuration Perspective {#setting-view}  
 
-From the server configuration's perspective, the number of vgroups should be set appropriately when creating the database based on the number of disks in the system, the I/O capability of the disks, and the processor's capacity to fully utilize system performance. If there are too few vgroups, the system's performance cannot be maximized; if there are too many vgroups, it will cause unnecessary resource competition. The recommended number of vgroups is typically twice the number of CPU cores, but this should still be adjusted based on the specific system resource configuration.
+First, consider several important performance-related parameters in the database creation options:  
 
-For more tuning parameters, please refer to [Database Management](../../tdengine-reference/sql-manual/manage-databases/) and [Server Configuration](../../tdengine-reference/components/taosd/).
+1. **vgroups**: When creating a database on the server, reasonably set the number of vgroups based on the number of disks, disk I/O capability, and processor capacity to fully unleash system performance. Too few vgroups will underutilize performance, while too many will cause unnecessary resource contention. It is recommended to keep the number of tables per vgroup within 1 million, and within 10,000 under sufficient hardware resources for better results.  
+2. **buffer**: Refers to the write memory size allocated for a vnode, with a default of 256 MB. When the actual written data in a vnode reaches about 1/3 of the buffer size, a data flush to disk is triggered. Increasing this parameter appropriately can cache more data for batch flushing, improving write efficiency. However, an excessively large value will prolong recovery time in case of a system crash.  
+3. **cachemodel**: Controls whether to cache the latest data of sub-tables in memory. Enabling this feature affects write performance as it updates each table's `last_row` and each column's `last` value during writing. Reducing the impact by changing the option from `both` to `last_row` or `last_value`.  
+4. **stt_trigger**: Controls the TSDB data flush policy and the number of files triggering background file merging. The default for the enterprise edition is 2, while the open-source edition can only be configured to 1. `stt_trigger = 1` is suitable for scenarios with few tables and high write frequency; `stt_trigger > 1` is better for scenarios with many tables and low write frequency.  
 
-## Efficient Writing Example {#sample-code}
+For other parameters, refer to [Database Management](../../tdengine-reference/sql-manual/manage-databases/).  
 
-### Scenario Design {#scenario}
+Next, consider performance-related parameters in the `taosd` configuration:  
 
-The following example program demonstrates how to write data efficiently, with the scenario designed as follows:
+1. **compressMsgSize**: Enabling RPC message compression improves performance when bandwidth is a bottleneck.  
+2. **numOfCommitThreads**: Number of background flush threads on the server, default 4. More threads do not always mean better performance, as they can cause disk write contention. Servers with multiple disks can consider increasing this parameter to utilize concurrent I/O capabilities.  
+3. **Log Level**: Parameters like `debugFlag` control log output levels. Higher log levels increase output pressure and impact write performance, so the default configuration is recommended.  
 
-- The TDengine client application continuously reads data from other data sources. In the example program, simulated data generation is used to mimic reading from data sources.
-- The speed of a single connection writing to TDengine cannot match the speed of reading data, so the client application starts multiple threads, each establishing a connection with TDengine, and each thread has a dedicated fixed-size message queue.
-- The client application hashes the received data according to the table name (or subtable name) to different threads, i.e., writing to the message queue corresponding to that thread, ensuring that data belonging to a certain table (or subtable) will always be processed by a fixed thread.
-- Each sub-thread empties the data in its associated message queue or reaches a predetermined threshold of data volume, writes that batch of data to TDengine, and continues to process the data received afterwards.
+For other parameters, refer to [Server Configuration](../../tdengine-reference/components/taosd/).  
 
+## Implementation Principle of Efficient Writing {#implement-principle}  
+
+From the factors affecting write performance discussed above, developing high-performance data writing programs requires knowledge of multithreaded programming and data sharding, posing a technical threshold. To reduce user development costs, the TDengine connector provides the **efficient writing feature**, allowing users to leverage TDengine's powerful writing capabilities without dealing with underlying thread management and data sharding logic.  
+
+Below is a schematic diagram of the connector's efficient writing feature implementation:  
 <figure>
 <Image img={imgThread} alt="Thread model for efficient writing example"/>
 <figcaption>Figure 1. Thread model for efficient writing example</figcaption>
 </figure>
 
-### Sample Code {#code}
-
-This section provides sample code for the above scenario. The principle of efficient writing is the same for other scenarios, but the code needs to be modified accordingly.
-
-This sample code assumes that the source data belongs to different subtables of the same supertable (meters). The program has already created this supertable in the test database before starting to write data. For subtables, they will be automatically created by the application according to the received data. If the actual scenario involves multiple supertables, only the code for automatic table creation in the write task needs to be modified.
-
-<Tabs defaultValue="java" groupId="lang">
-<TabItem label="Java" value="java">
-
-**Program Listing**
-
-| Class Name        | Function Description                                                             |
-| ----------------- | -------------------------------------------------------------------------------- |
-| FastWriteExample  | Main program                                                                     |
-| ReadTask          | Reads data from a simulated source, hashes the table name to get the Queue Index, writes to the corresponding Queue |
-| WriteTask         | Retrieves data from the Queue, forms a Batch, writes to TDengine                 |
-| MockDataSource    | Simulates generating data for a certain number of meters subtables              |
-| SQLWriter         | WriteTask relies on this class to complete SQL stitching, automatic table creation, SQL writing, and SQL length checking |
-| StmtWriter        | Implements parameter binding for batch writing (not yet completed)               |
-| DataBaseMonitor   | Counts the writing speed and prints the current writing speed to the console every 10 seconds |
-
-Below are the complete codes and more detailed function descriptions for each class.
-
-<details>
-<summary>FastWriteExample</summary>
-The main program is responsible for:
-
-1. Creating message queues
-2. Starting write threads
-3. Starting read threads
-4. Counting the writing speed every 10 seconds
-
-The main program exposes 4 parameters by default, which can be adjusted each time the program is started, for testing and tuning:
-
-1. Number of read threads. Default is 1.
-2. Number of write threads. Default is 3.
-3. Total number of simulated tables. Default is 1,000. This will be evenly divided among the read threads. If the total number of tables is large, table creation will take longer, and the initial writing speed statistics may be slow.
-4. Maximum number of records written per batch. Default is 3,000.
-
-Queue capacity (taskQueueCapacity) is also a performance-related parameter, which can be adjusted by modifying the program. Generally speaking, the larger the queue capacity, the less likely it is to be blocked when enqueuing, the greater the throughput of the queue, but the larger the memory usage. The default value of the sample program is already set large enough.
-
-```java
-{{#include docs/examples/java/src/main/java/com/taos/example/highvolume/FastWriteExample.java}}
-```
-
-</details>
-
-<details>
-<summary>ReadTask</summary>
-
-The read task is responsible for reading data from the data source. Each read task is associated with a simulated data source. Each simulated data source can generate data for a certain number of tables. Different simulated data sources generate data for different tables.
-
-The read task writes to the message queue in a blocking manner. That is, once the queue is full, the write operation will be blocked.
-
-```java
-{{#include docs/examples/java/src/main/java/com/taos/example/highvolume/ReadTask.java}}
-```
-
-</details>
-
-<details>
-<summary>WriteTask</summary>
-
-```java
-{{#include docs/examples/java/src/main/java/com/taos/example/highvolume/WriteTask.java}}
-```
-
-</details>
-
-<details>
-
-<summary>MockDataSource</summary>
-
-```java
-{{#include docs/examples/java/src/main/java/com/taos/example/highvolume/MockDataSource.java}}
-```
-
-</details>
-
-<details>
-
-<summary>SQLWriter</summary>
-
-The SQLWriter class encapsulates the logic of SQL stitching and data writing. Note that none of the tables are created in advance; instead, they are created in batches using the supertable as a template when a table not found exception is caught, and then the INSERT statement is re-executed. For other exceptions, this simply logs the SQL statement being executed at the time; you can also log more clues to facilitate error troubleshooting and fault recovery.
-
-```java
-{{#include docs/examples/java/src/main/java/com/taos/example/highvolume/SQLWriter.java}}
-```
-
-</details>
-
-<details>
-
-<summary>DataBaseMonitor</summary>
-
-```java
-{{#include docs/examples/java/src/main/java/com/taos/example/highvolume/DataBaseMonitor.java}}
-```
-
-</details>
-
-**Execution Steps**
-
-<details>
-<summary>Execute the Java Example Program</summary>
-
-Before running the program, configure the environment variable `TDENGINE_JDBC_URL`. If the TDengine Server is deployed on the local machine, and the username, password, and port are all default values, then you can configure:
-
-```shell
-TDENGINE_JDBC_URL="jdbc:TAOS://localhost:6030?user=root&password=taosdata"
-```
-
-**Execute the example program in a local integrated development environment**
-
-1. Clone the TDengine repository
-
-   ```shell
-   git clone git@github.com:taosdata/TDengine.git --depth 1
-   ```
-
-2. Open the `docs/examples/java` directory with the integrated development environment.
-3. Configure the environment variable `TDENGINE_JDBC_URL` in the development environment. If the global environment variable `TDENGINE_JDBC_URL` has already been configured, you can skip this step.
-4. Run the class `com.taos.example.highvolume.FastWriteExample`.
-
-**Execute the example program on a remote server**
-
-To execute the example program on a server, follow these steps:
-
-1. Package the example code. Execute in the directory TDengine/docs/examples/java:
-
-   ```shell
-   mvn package
-   ```
-
-2. Create an examples directory on the remote server:
-
-   ```shell
-   mkdir -p examples/java
-   ```
-
-3. Copy dependencies to the specified directory on the server:
-   - Copy dependency packages, only once
-
-     ```shell
-     scp -r .\target\lib <user>@<host>:~/examples/java
-     ```
-
-   - Copy the jar package of this program, copy every time the code is updated
-
-     ```shell
-     scp -r .\target\javaexample-1.0.jar <user>@<host>:~/examples/java
-     ```
-
-4. Configure the environment variable.
-   Edit `~/.bash_profile` or `~/.bashrc` and add the following content for example:
-
-   ```shell
-   export TDENGINE_JDBC_URL="jdbc:TAOS://localhost:6030?user=root&password=taosdata"
-   ```
-
-   The above uses the default JDBC URL when TDengine Server is deployed locally. You need to modify it according to your actual situation.
-
-5. Start the example program with the Java command, command template:
-
-   ```shell
-   java -classpath lib/*:javaexample-1.0.jar  com.taos.example.highvolume.FastWriteExample <read_thread_count>  <white_thread_count> <total_table_count> <max_batch_size>
-   ```
-
-6. End the test program. The test program will not end automatically; after obtaining a stable writing speed under the current configuration, press <kbd>CTRL</kbd> + <kbd>C</kbd> to end the program.
-   Below is a log output from an actual run, with machine configuration 16 cores + 64G + SSD.
-
-```text
-   root@vm85$ java -classpath lib/*:javaexample-1.0.jar  com.taos.example.highvolume.FastWriteExample 2 12
-   18:56:35.896 [main] INFO  c.t.e.highvolume.FastWriteExample - readTaskCount=2, writeTaskCount=12 tableCount=1000 maxBatchSize=3000
-   18:56:36.011 [WriteThread-0] INFO  c.taos.example.highvolume.WriteTask - started
-   18:56:36.015 [WriteThread-0] INFO  c.taos.example.highvolume.SQLWriter - maxSQLLength=1048576
-   18:56:36.021 [WriteThread-1] INFO  c.taos.example.highvolume.WriteTask - started
-   18:56:36.022 [WriteThread-1] INFO  c.taos.example.highvolume.SQLWriter - maxSQLLength=1048576
-   18:56:36.031 [WriteThread-2] INFO  c.taos.example.highvolume.WriteTask - started
-   18:56:36.032 [WriteThread-2] INFO  c.taos.example.highvolume.SQLWriter - maxSQLLength=1048576
-   18:56:36.041 [WriteThread-3] INFO  c.taos.example.highvolume.WriteTask - started
-   18:56:36.042 [WriteThread-3] INFO  c.taos.example.highvolume.SQLWriter - maxSQLLength=1048576
-   18:56:36.093 [WriteThread-4] INFO  c.taos.example.highvolume.WriteTask - started
-   18:56:36.094 [WriteThread-4] INFO  c.taos.example.highvolume.SQLWriter - maxSQLLength=1048576
-   18:56:36.099 [WriteThread-5] INFO  c.taos.example.highvolume.WriteTask - started
-   18:56:36.100 [WriteThread-5] INFO  c.taos.example.highvolume.SQLWriter - maxSQLLength=1048576
-   18:56:36.100 [WriteThread-6] INFO  c.taos.example.highvolume.WriteTask - started
-   18:56:36.101 [WriteThread-6] INFO  c.taos.example.highvolume.SQLWriter - maxSQLLength=1048576
-   18:56:36.103 [WriteThread-7] INFO  c.taos.example.highvolume.WriteTask - started
-   18:56:36.104 [WriteThread-7] INFO  c.taos.example.highvolume.SQLWriter - maxSQLLength=1048576
-   18:56:36.105 [WriteThread-8] INFO  c.taos.example.highvolume.WriteTask - started
-   18:56:36.107 [WriteThread-8] INFO  c.taos.example.highvolume.SQLWriter - maxSQLLength=1048576
-   18:56:36.108 [WriteThread-9] INFO  c.taos.example.highvolume.WriteTask - started
-   18:56:36.109 [WriteThread-9] INFO  c.taos.example.highvolume.SQLWriter - maxSQLLength=1048576
-   18:56:36.156 [WriteThread-10] INFO  c.taos.example.highvolume.WriteTask - started
-   18:56:36.157 [WriteThread-11] INFO  c.taos.example.highvolume.WriteTask - started
-   18:56:36.158 [WriteThread-10] INFO  c.taos.example.highvolume.SQLWriter - maxSQLLength=1048576
-   18:56:36.158 [ReadThread-0] INFO  com.taos.example.highvolume.ReadTask - started
-   18:56:36.158 [ReadThread-1] INFO  com.taos.example.highvolume.ReadTask - started
-   18:56:36.158 [WriteThread-11] INFO  c.taos.example.highvolume.SQLWriter - maxSQLLength=1048576
-   18:56:46.369 [main] INFO  c.t.e.highvolume.FastWriteExample - count=18554448 speed=1855444
-   18:56:56.946 [main] INFO  c.t.e.highvolume.FastWriteExample - count=39059660 speed=2050521
-   18:57:07.322 [main] INFO  c.t.e.highvolume.FastWriteExample - count=59403604 speed=2034394
-   18:57:18.032 [main] INFO  c.t.e.highvolume.FastWriteExample - count=80262938 speed=2085933
-   18:57:28.432 [main] INFO  c.t.e.highvolume.FastWriteExample - count=101139906 speed=2087696
-   18:57:38.921 [main] INFO  c.t.e.highvolume.FastWriteExample - count=121807202 speed=2066729
-   18:57:49.375 [main] INFO  c.t.e.highvolume.FastWriteExample - count=142952417 speed=2114521
-   18:58:00.689 [main] INFO  c.t.e.highvolume.FastWriteExample - count=163650306 speed=2069788
-   18:58:11.646 [main] INFO  c.t.e.highvolume.FastWriteExample - count=185019808 speed=2136950
-```
-
-</details>
-
-</TabItem>
-<TabItem label="Python" value="python">
-
-**Program Listing**
-
-The Python example program uses a multi-process architecture and employs a cross-process message queue.
-
-| Function or Class        | Description                                                         |
-| ------------------------ | ------------------------------------------------------------------- |
-| main function            | Entry point of the program, creates various subprocesses and message queues |
-| run_monitor_process function | Creates database, supertables, tracks write speed and periodically prints to console |
-| run_read_task function   | Main logic for read processes, responsible for reading data from other data systems and distributing it to assigned queues |
-| MockDataSource class     | Simulates a data source, implements iterator interface, returns the next 1,000 records for each table in batches |
-| run_write_task function  | Main logic for write processes. Retrieves as much data as possible from the queue and writes in batches |
-| SQLWriter class          | Handles SQL writing and automatic table creation                   |
-| StmtWriter class         | Implements batch writing with parameter binding (not yet completed) |
-
-<details>
-<summary>main function</summary>
-
-The main function is responsible for creating message queues and launching subprocesses, which are of 3 types:
-
-1. 1 monitoring process, responsible for database initialization and tracking write speed
-2. n read processes, responsible for reading data from other data systems
-3. m write processes, responsible for writing to the database
-
-The main function can accept 5 startup parameters, in order:
-
-1. Number of read tasks (processes), default is 1
-2. Number of write tasks (processes), default is 1
-3. Total number of simulated tables, default is 1,000
-4. Queue size (in bytes), default is 1,000,000
-5. Maximum number of records written per batch, default is 3,000
-
-```python
-{{#include docs/examples/python/fast_write_example.py:main}}
-```
-
-</details>
-
-<details>
-<summary>run_monitor_process</summary>
-
-The monitoring process is responsible for initializing the database and monitoring the current write speed.
-
-```python
-{{#include docs/examples/python/fast_write_example.py:monitor}}
-```
-
-</details>
-
-<details>
-
-<summary>run_read_task function</summary>
-
-The read process, responsible for reading data from other data systems and distributing it to assigned queues.
-
-```python
-{{#include docs/examples/python/fast_write_example.py:read}}
-```
-
-</details>
-
-<details>
-
-<summary>MockDataSource</summary>
-
-Below is the implementation of the mock data source. We assume that each piece of data generated by the data source includes the target table name information. In practice, you might need certain rules to determine the target table name.
-
-```python
-{{#include docs/examples/python/mockdatasource.py}}
-```
-
-</details>
-
-<details>
-<summary>run_write_task function</summary>
-
-The write process retrieves as much data as possible from the queue and writes in batches.
-
-```python
-{{#include docs/examples/python/fast_write_example.py:write}}
-```
-
-</details>
-
-<details>
-
-The SQLWriter class encapsulates the logic of SQL stitching and data writing. None of the tables are pre-created; instead, they are batch-created using the supertable as a template when a table does not exist error occurs, and then the INSERT statement is re-executed. For other errors, the SQL executed at the time is recorded for error troubleshooting and fault recovery. This class also checks whether the SQL exceeds the maximum length limit, based on the TDengine 3.0 limit, the supported maximum SQL length of 1,048,576 is passed in by the input parameter maxSQLLength.
-
-<summary>SQLWriter</summary>
-
-```python
-{{#include docs/examples/python/sql_writer.py}}
-```
-
-</details>
-
-**Execution Steps**
-
-<details>
-
-<summary>Execute the Python Example Program</summary>
-
-1. Prerequisites
-
-   - TDengine client driver installed
-   - Python3 installed, recommended version >= 3.8
-   - taospy installed
-
-2. Install faster-fifo to replace the built-in multiprocessing.Queue in python
-
-   ```shell
-   pip3 install faster-fifo
-   ```
-
-3. Click the "View Source" link above to copy the `fast_write_example.py`, `sql_writer.py`, and `mockdatasource.py` files.
-
-4. Execute the example program
-
-   ```shell
-   python3 fast_write_example.py <READ_TASK_COUNT> <WRITE_TASK_COUNT> <TABLE_COUNT> <QUEUE_SIZE> <MAX_BATCH_SIZE>
-   ```
-
-   Below is an actual output from a run, on a machine configured with 16 cores + 64G + SSD.
-
-   ```text
-   root@vm85$ python3 fast_write_example.py  8 8
-   2022-07-14 19:13:45,869 [root] - READ_TASK_COUNT=8, WRITE_TASK_COUNT=8, TABLE_COUNT=1000, QUEUE_SIZE=1000000, MAX_BATCH_SIZE=3000
-   2022-07-14 19:13:48,882 [root] - WriteTask-0 started with pid 718347
-   2022-07-14 19:13:48,883 [root] - WriteTask-1 started with pid 718348
-   2022-07-14 19:13:48,884 [root] - WriteTask-2 started with pid 718349
-   2022-07-14 19:13:48,884 [root] - WriteTask-3 started with pid 718350
-   2022-07-14 19:13:48,885 [root] - WriteTask-4 started with pid 718351
-   2022-07-14 19:13:48,885 [root] - WriteTask-5 started with pid 718352
-   2022-07-14 19:13:48,886 [root] - WriteTask-6 started with pid 718353
-   2022-07-14 19:13:48,886 [root] - WriteTask-7 started with pid 718354
-   2022-07-14 19:13:48,887 [root] - ReadTask-0 started with pid 718355
-   2022-07-14 19:13:48,888 [root] - ReadTask-1 started with pid 718356
-   2022-07-14 19:13:48,889 [root] - ReadTask-2 started with pid 718357
-   2022-07-14 19:13:48,889 [root] - ReadTask-3 started with pid 718358
-   2022-07-14 19:13:48,890 [root] - ReadTask-4 started with pid 718359
-   2022-07-14 19:13:48,891 [root] - ReadTask-5 started with pid 718361
-   2022-07-14 19:13:48,892 [root] - ReadTask-6 started with pid 718364
-   2022-07-14 19:13:48,893 [root] - ReadTask-7 started with pid 718365
-   2022-07-14 19:13:56,042 [DataBaseMonitor] - count=6676310 speed=667631.0
-   2022-07-14 19:14:06,196 [DataBaseMonitor] - count=20004310 speed=1332800.0
-   2022-07-14 19:14:16,366 [DataBaseMonitor] - count=32290310 speed=1228600.0
-   2022-07-14 19:14:26,527 [DataBaseMonitor] - count=44438310 speed=1214800.0
-   2022-07-14 19:14:36,673 [DataBaseMonitor] - count=56608310 speed=1217000.0
-   2022-07-14 19:14:46,834 [DataBaseMonitor] - count=68757310 speed=1214900.0
-   2022-07-14 19:14:57,280 [DataBaseMonitor] - count=80992310 speed=1223500.0
-   2022-07-14 19:15:07,689 [DataBaseMonitor] - count=93805310 speed=1281300.0
-   2022-07-14 19:15:18,020 [DataBaseMonitor] - count=106111310 speed=1230600.0
-   2022-07-14 19:15:28,356 [DataBaseMonitor] - count=118394310 speed=1228300.0
-   2022-07-14 19:15:38,690 [DataBaseMonitor] - count=130742310 speed=1234800.0
-   2022-07-14 19:15:49,000 [DataBaseMonitor] - count=143051310 speed=1230900.0
-   2022-07-14 19:15:59,323 [DataBaseMonitor] - count=155276310 speed=1222500.0
-   2022-07-14 19:16:09,649 [DataBaseMonitor] - count=167603310 speed=1232700.0
-   2022-07-14 19:16:19,995 [DataBaseMonitor] - count=179976310 speed=1237300.0
-   ```
-
-</details>
-
-:::note
-When using the Python connector to connect to TDengine with multiple processes, there is a limitation: connections cannot be established in the parent process; all connections must be created in the child processes.
-If a connection is created in the parent process, any connection attempts in the child processes will be perpetually blocked. This is a known issue.
-
+### Design Principles  
+
+- **Automatic Thread and Queue Creation**:  
+  The connector dynamically creates independent write threads and corresponding write queues based on configuration parameters. Each queue is bound to a sub-table, forming a processing chain of "sub-table data - dedicated queue - independent thread".  
+- **Data Sharding and Batch Triggering**:  
+  When the application writes data, the connector automatically shards the data by sub-table and caches it in the corresponding queue. Batch sending is triggered when either of the following conditions is met:  
+  1. The queue data volume reaches the preset threshold.  
+  2. The preset waiting timeout is reached (to avoid excessive latency).
+
+  This mechanism significantly improves write throughput by reducing the number of network requests.  
+
+### Functional Advantages  
+
+- **Single-Thread High-Performance Writing**:  
+  The application layer only needs to call the write interface via a single thread. The connector's underlying layer automatically handles multithreaded concurrency, achieving performance close to traditional client multithreaded writing while hiding all underlying thread management complexity.  
+- **Reliability Enhancement Mechanisms**:  
+  1. **Synchronous Validation Interface**: Provides synchronous methods to ensure traceability of write success status for submitted data.  
+  2. **Connection Self-Healing**: Supports automatic reconnection after disconnection, combined with configurable timeout retry policies (retry count and interval) to ensure no data loss.  
+  3. **Error Isolation**: Exceptions in a single queue or thread do not affect data writing for other sub-tables, improving system fault tolerance.  
+
+:::note  
+The connector's efficient writing feature only supports writing to supertables, not ordinary tables.  
 :::
-
-</TabItem>
-</Tabs>

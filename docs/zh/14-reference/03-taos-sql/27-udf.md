@@ -18,7 +18,7 @@ CREATE [OR REPLACE] FUNCTION function_name AS library_path OUTPUTTYPE output_typ
   - OR REPLACE：如果函数已经存在，会修改已有的函数属性。
   - function_name：标量函数未来在 SQL 中被调用时的函数名。
   - LANGUAGE 'C|Python'：函数编程语言，目前支持 C 语言和 Python 语言。如果这个从句忽略，编程语言是 C 语言。
-  - library_path：如果编程语言是C，路径是包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件）。如果编程语言是 Python，路径是包含 UDF 函数实现的 Python 文件路径。这个路径需要用英文单引号或英文双引号括起来；
+  - library_path：如果编程语言是 C，路径是包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件）。如果编程语言是 Python，路径是包含 UDF 函数实现的 Python 文件路径。这个路径需要用英文单引号或英文双引号括起来；
   - output_type：此函数计算结果的数据类型名称。
 
 例如，如下语句可以把 libbitand.so 创建为系统中可用的 UDF：
@@ -27,7 +27,7 @@ CREATE [OR REPLACE] FUNCTION function_name AS library_path OUTPUTTYPE output_typ
   CREATE FUNCTION bit_and AS "/home/taos/udf_example/libbitand.so" OUTPUTTYPE INT;
   ```
 
-例如，使用以下语句可以修改已经定义的 bit_and 函数，输出类型是 BIGINT，使用Python语言实现。
+例如，使用以下语句可以修改已经定义的 bit_and 函数，输出类型是 BIGINT，使用 Python 语言实现。
 
   ```sql
   CREATE OR REPLACE FUNCTION bit_and AS "/home/taos/udf_example/bit_and.py" OUTPUTTYPE BIGINT LANGUAGE 'Python';
@@ -39,7 +39,7 @@ CREATE [OR REPLACE] AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE 
   - OR REPLACE：如果函数已经存在，会修改已有的函数属性。
   - function_name：聚合函数未来在 SQL 中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
   - LANGUAGE 'C|Python'：函数编程语言，目前支持 C 语言和 Python 语言（v3.7+）。
-  - library_path：如果编程语言是C，路径是包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 `.so` 文件）。如果编程语言是 Python，路径是包含 UDF 函数实现的 Python 文件路径。这个路径需要用英文单引号或英文双引号括起来；
+  - library_path：如果编程语言是 C，路径是包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 `.so` 文件）。如果编程语言是 Python，路径是包含 UDF 函数实现的 Python 文件路径。这个路径需要用英文单引号或英文双引号括起来；
   - output_type：此函数计算结果的数据类型名称；
   - buffer_size：中间计算结果的缓冲区大小，单位是字节。如果不使用可以不设置。
 
@@ -53,7 +53,7 @@ CREATE [OR REPLACE] AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE 
   CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE bufsize 64;
   ```  
 
-关于如何开发自定义函数，请参考 [UDF使用说明](/develop/udf)。
+关于如何开发自定义函数，请参考 [UDF 使用说明](/develop/udf)。
 
 ## 管理 UDF
 

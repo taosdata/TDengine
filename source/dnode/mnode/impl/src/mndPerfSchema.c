@@ -46,6 +46,7 @@ int32_t mndPerfsInitMeta(SHashObj *hash) {
   meta.tableType = TSDB_SYSTEM_TABLE;
   meta.sversion = 1;
   meta.tversion = 1;
+  meta.rversion = 1;
   meta.virtualStb = false;
 
   size_t               size = 0;

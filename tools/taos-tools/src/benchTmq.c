@@ -41,7 +41,6 @@ void printfTmqConfigIntoFile() {
   infoPrintToFile( "autoOffsetReset: %s\n", pConsumerInfo->autoOffsetReset);
   infoPrintToFile( "enableAutoCommit: %s\n", pConsumerInfo->enableAutoCommit);
   infoPrintToFile( "autoCommitIntervalMs: %d\n", pConsumerInfo->autoCommitIntervalMs);
-  infoPrintToFile( "enableHeartbeatBackground: %s\n", pConsumerInfo->enableHeartbeatBackground);
   infoPrintToFile( "snapshotEnable: %s\n", pConsumerInfo->snapshotEnable);
   infoPrintToFile( "msgWithTableName: %s\n", pConsumerInfo->msgWithTableName);
   infoPrintToFile( "rowsFile: %s\n", pConsumerInfo->rowsFile);
@@ -81,6 +80,13 @@ static int create_topic() {
 
         infoPrint("successfully create topic: %s\n", pConsumerInfo->topicName[i]);
         taos_free_result(res);
+        if (g_arguments->terminate) {
+            infoPrint("%s\n", "user cancel , so exit testing.");
+            taos_free_result(res);
+            closeBenchConn(conn);
+            return -1;
+        }
+        
     }
     closeBenchConn(conn);
     return 0;
@@ -168,7 +174,6 @@ int buildConsumerAndSubscribe(tmqThreadInfo * pThreadInfo, char* groupId) {
     snprintf(tmpBuff, 16, "%d", pConsumerInfo->autoCommitIntervalMs);
     tmq_conf_set(conf, "auto.commit.interval.ms", tmpBuff);
 
-    tmq_conf_set(conf, "enable.heartbeat.background", pConsumerInfo->enableHeartbeatBackground);
     tmq_conf_set(conf, "experimental.snapshot.enable", pConsumerInfo->snapshotEnable);
     tmq_conf_set(conf, "msg.with.table.name", pConsumerInfo->msgWithTableName);
 
@@ -274,6 +279,10 @@ static void* tmqConsume(void* arg) {
         }
       } else {
         infoPrint("consumer id %d no poll more msg when time over, break consume\n", pThreadInfo->id);
+        break;
+      }
+      if (g_arguments->terminate) {
+        infoPrint("%s\n", "user cancel , so exit testing.");
         break;
       }
     }
@@ -383,7 +392,28 @@ int subscribeTestProcess() {
     infoPrintToFile(
                     "Consumed total msgs: %" PRId64 ","
                     "total rows: %" PRId64 "\n", totalMsgs, totalRows);
-
+    
+    if (g_arguments->output_json_file) {
+        tools_cJSON *root = tools_cJSON_CreateObject();
+        if (root) {
+            tools_cJSON_AddNumberToObject(root, "total_msgs", totalMsgs); 
+            tools_cJSON_AddNumberToObject(root, "total_rows", totalRows); 
+            char *jsonStr = tools_cJSON_PrintUnformatted(root);
+            if (jsonStr) {
+                FILE *fp = fopen(g_arguments->output_json_file, "w");
+                if (fp) {
+                    fprintf(fp, "%s\n", jsonStr);
+                    fclose(fp);
+                } else {
+                    errorPrint("Failed to open output JSON file, file name %s\n",
+                            g_arguments->output_json_file);
+                }
+                free(jsonStr);
+            }
+            tools_cJSON_Delete(root);
+        }
+    }
+    
 tmq_over:
     free(pids);
     free(infos);

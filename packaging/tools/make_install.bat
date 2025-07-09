@@ -65,10 +65,11 @@ copy %source_dir%\\include\\util\\taoserror.h %target_dir%\\include > nul
 copy %source_dir%\\include\\libs\\function\\taosudf.h %target_dir%\\include > nul
 copy %binary_dir%\\build\\lib\\taos.lib %target_dir%\\driver > nul
 copy %binary_dir%\\build\\lib\\taos_static.lib %target_dir%\\driver > nul
-copy %binary_dir%\\build\\lib\\taos.dll %target_dir%\\driver > nul
+copy %binary_dir%\\build\\bin\\taos.dll %target_dir%\\ > nul
+copy %binary_dir%\\build\\bin\\taosnative.dll %target_dir%\\ > nul
+copy %binary_dir%\\build\\bin\\pthreadVC3.dll %target_dir%\\ > nul
 copy %binary_dir%\\build\\lib\\taosnative.lib %target_dir%\\driver > nul
 copy %binary_dir%\\build\\lib\\taosnative_static.lib %target_dir%\\driver > nul
-copy %binary_dir%\\build\\lib\\taosnative.dll %target_dir%\\driver > nul
 copy %binary_dir%\\build\\bin\\taos.exe %target_dir% > nul
 if exist %binary_dir%\\build\\bin\\taosBenchmark.exe (
     copy %binary_dir%\\build\\bin\\taosBenchmark.exe %target_dir% > nul
@@ -76,9 +77,9 @@ if exist %binary_dir%\\build\\bin\\taosBenchmark.exe (
 if exist %binary_dir%\\build\\lib\\taosws.lib (
     copy %binary_dir%\\build\\lib\\taosws.lib %target_dir%\\driver  > nul
 )
-if exist %binary_dir%\\build\\lib\\taosws.dll (
-    copy %binary_dir%\\build\\lib\\taosws.dll %target_dir%\\driver  > nul
-    copy %source_dir%\\tools\\taosws-rs\\target\\release\\taosws.h %target_dir%\\include > nul
+if exist %binary_dir%\\build\\bin\\taosws.dll (
+    copy %binary_dir%\\build\\bin\\taosws.dll %target_dir%\\ > nul
+    copy %binary_dir%\\build\\include\\taosws.h %target_dir%\\include > nul
 )
 if exist %binary_dir%\\build\\bin\\taosdump.exe (
     copy %binary_dir%\\build\\bin\\taosdump.exe %target_dir% > nul
@@ -151,17 +152,19 @@ call :check_svc taoskeeper
 
 if exist c:\\windows\\sysnative (
     echo x86
-    copy /y C:\\TDengine\\driver\\taos.dll %windir%\\sysnative > nul
-    copy /y C:\\TDengine\\driver\\taosnative.dll %windir%\\sysnative > nul
-    if exist C:\\TDengine\\driver\\taosws.dll (
-        copy /y C:\\TDengine\\driver\\taosws.dll %windir%\\sysnative > nul
+    copy /y C:\\TDengine\\bin\\taos.dll %windir%\\sysnative > nul
+    copy /y C:\\TDengine\\bin\\taosnative.dll %windir%\\sysnative > nul
+    copy /y C:\\TDengine\\bin\\pthreadVC3.dll %windir%\\sysnative > nul
+    if exist C:\\TDengine\\bin\\taosws.dll (
+        copy /y C:\\TDengine\\bin\\taosws.dll %windir%\\sysnative > nul
     )
 ) else (
     echo x64
-    copy /y C:\\TDengine\\driver\\taos.dll C:\\Windows\\System32 > nul
-    copy /y C:\\TDengine\\driver\\taosnative.dll C:\\Windows\\System32 > nul
-    if exist C:\\TDengine\\driver\\taosws.dll (
-        copy /y C:\\TDengine\\driver\\taosws.dll C:\\Windows\\System32 > nul
+    copy /y C:\\TDengine\\bin\\taos.dll C:\\Windows\\System32 > nul
+    copy /y C:\\TDengine\\bin\\taosnative.dll C:\\Windows\\System32 > nul
+    copy /y C:\\TDengine\\bin\\pthreadVC3.dll C:\\Windows\\System32 > nul
+    if exist C:\\TDengine\\bin\\taosws.dll (
+        copy /y C:\\TDengine\\bin\\taosws.dll C:\\Windows\\System32 > nul
     )
 )
 

@@ -3,7 +3,7 @@ title: "Kafka"
 sidebar_label: "Kafka"
 ---
 
-本节讲述如何通过 Explorer 界面创建数据迁移任务, 从 Kafka 迁移数据到当前 TDengine 集群。
+本节讲述如何通过 Explorer 界面创建数据迁移任务，从 Kafka 迁移数据到当前 TDengine 集群。
 
 ## 功能概述
 Apache Kafka 是一个用于流处理、实时数据管道和大规模数据集成的开源分布式流系统。
@@ -90,7 +90,7 @@ kcat <topic> \
 
 ### 5. 配置 SSL 证书
 
-如果服务端开启了 SSL 加密认证,此处需要启用 SSL 并配置相关内容。
+如果服务端开启了 SSL 加密认证，此处需要启用 SSL 并配置相关内容。
 
 ![kafka-05.png](./kafka-05.png)
 
@@ -98,15 +98,15 @@ kcat <topic> \
 
 在 **采集配置** 区域填写采集任务相关的配置参数。
 
-在 **超时时间** 中填写超时时间。当从 Kafka 消费不到任何数据，超过 timeout 后，数据采集任务会退出。默认值是 0 ms。 当 timeout 设置为 0 时，会一直等待，直到有数据可用，或者发生错误。
+在 **超时时间** 中填写超时时间。当从 Kafka 消费不到任何数据，超过 timeout 后，数据采集任务会退出。默认值是 0 ms。当 timeout 设置为 0 时，会一直等待，直到有数据可用，或者发生错误。
 
-在 **主题** 中填写要消费的 Topic 名称。可以配置多个 Topic ， Topic 之间用逗号分隔。例如：`tp1,tp2`。
+在 **主题** 中填写要消费的 Topic 名称。可以配置多个 Topic，Topic 之间用逗号分隔。例如：`tp1,tp2`。
 
-在 **Client ID** 中填写客户端标识，填写后会生成带有 `taosx` 前缀的客户端 ID （例如，如果填写的标识为 `foo`，则生成的客户端 ID 为 `taosxfoo`）。如果打开末尾处的开关，则会把当前任务的任务 ID 拼接到 `taosx` 之后，输入的标识之前（生成的客户端 ID 形如 `taosx100foo`）。需要注意的是，当使用多个 taosX 订阅同一 Topic 需要进行负载均衡时，必须填写一致的客户端 ID 才能达到均衡效果。
+在 **Client ID** 中填写客户端标识，填写后会生成带有 `taosx` 前缀的客户端 ID（例如，如果填写的标识为 `foo`，则生成的客户端 ID 为 `taosxfoo`）。如果打开末尾处的开关，则会把当前任务的任务 ID 拼接到 `taosx` 之后，输入的标识之前（生成的客户端 ID 形如 `taosx100foo`）。需要注意的是，当使用多个 taosX 订阅同一 Topic 需要进行负载均衡时，必须填写一致的客户端 ID 才能达到均衡效果。
 
-在 **消费者组 ID** 中填写消费者组标识，填写后会生成带有 `taosx` 前缀的消费者组 ID （例如，如果填写的标识为 `foo`，则生成的消费者组 ID 为 `taosxfoo`）。如果打开末尾处的开关，则会把当前任务的任务 ID 拼接到 `taosx` 之后，输入的标识之前（生成的消费者组 ID 形如 `taosx100foo`）。
+在 **消费者组 ID** 中填写消费者组标识，填写后会生成带有 `taosx` 前缀的消费者组 ID（例如，如果填写的标识为 `foo`，则生成的消费者组 ID 为 `taosxfoo`）。如果打开末尾处的开关，则会把当前任务的任务 ID 拼接到 `taosx` 之后，输入的标识之前（生成的消费者组 ID 形如 `taosx100foo`）。
 
-在 **Offset** 的下拉列表中选择从哪个 Offset 开始消费数据。有三个选项：`Earliest`、`Latest`、`ByTime(ms)`。 默认值为Earliest。
+在 **Offset** 的下拉列表中选择从哪个 Offset 开始消费数据。有三个选项：`Earliest`、`Latest`、`ByTime(ms)`。默认值为 Earliest。
 
 * Earliest：用于请求最早的 offset。
 * Latest：用于请求最晚的 offset。
@@ -156,7 +156,7 @@ json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解�
 
 #### 7.2 字段拆分
 
-在 **从列中提取或拆分** 中填写从消息体中提取或拆分的字段，例如：将 message 字段拆分成 `message_0` 和 `message_1` 这2个字段，选择 split 提取器，seperator 填写 -, number 填写2。
+在 **从列中提取或拆分** 中填写从消息体中提取或拆分的字段，例如：将 message 字段拆分成 `message_0` 和 `message_1` 这 2 个字段，选择 split 提取器，separator 填写 -, number 填写 2。
 
 点击 **新增**，可以添加更多提取规则。
 
