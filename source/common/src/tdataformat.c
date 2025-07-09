@@ -31,6 +31,7 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson);
 #define KV_FLG_MID ((uint8_t)0x20)
 #define KV_FLG_BIG ((uint8_t)0x40)
 
+
 #define BIT_FLG_NONE  ((uint8_t)0x0)
 #define BIT_FLG_NULL  ((uint8_t)0x1)
 #define BIT_FLG_VALUE ((uint8_t)0x2)
