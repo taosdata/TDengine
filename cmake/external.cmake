@@ -1605,7 +1605,7 @@ IF(TD_WEBSOCKET)
     get_from_local_repo_if_exists("https://github.com/taosdata/taos-connector-rust.git")
     ExternalProject_Add(ext_taosws
         GIT_REPOSITORY ${_git_url}
-        GIT_TAG ${TAOSWS_GIT_TAG_NAME}
+        GIT_TAG feat/TD-36271
         GIT_SHALLOW ${TAOSWS_GIT_TAG_SHALLOW}
         BUILD_IN_SOURCE TRUE
         PREFIX "${_base}"
