@@ -3913,7 +3913,7 @@ int32_t msmProcessDeployOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   }
 
   if (tbNum <= 0) {
-    mstsWarn("empty table list in origReader req, array:%p", pTask->pMgmtReq->cont.fullTableNames);
+    mstsWarn("empty table list in origReader req, array:%p", pTbs);
     return TSDB_CODE_SUCCESS;
   }
 

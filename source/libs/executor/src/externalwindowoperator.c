@@ -17,6 +17,7 @@
 #include "operator.h"
 #include "querytask.h"
 #include "tdatablock.h"
+#include "stream.h"
 
 typedef struct SBlockList {
   const SSDataBlock* pSrcBlock;
@@ -602,12 +603,17 @@ static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
     qError("failed to get time window for ts:%" PRId64 ", error:%s", ts, tstrerror(terrno));
     return;
   }
+  
   qDebug("ext window1 start:%" PRId64 ", end:%" PRId64 ", ts:%" PRId64 ", ascScan:%d",
          pWin->skey, pWin->ekey, ts, ascScan);
+         
   STimeWindow win = *pWin;
   ret = setExtWindowOutputBuf(pResultRowInfo, &win, &pResult, pInputBlock->info.id.groupId, pSup->pCtx,
                               numOfOutput, pSup->rowEntryInfoOffset, &pExtW->aggSup, pTaskInfo);
-  if (ret != 0 || !pResult) T_LONG_JMP(pTaskInfo->env, ret);
+  if (ret != 0 || !pResult) {
+    T_LONG_JMP(pTaskInfo->env, ret);
+  }
+  
   TSKEY   ekey = ascScan ? win.ekey : win.skey;
   int32_t forwardRows = getNumOfRowsInTimeWindow(&pInputBlock->info, tsCols, startPos, ekey - 1, binarySearchForKey, NULL,
                                                  pExtW->binfo.inputTsOrder);
@@ -683,7 +689,7 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
     for (int32_t i = 0; i < size; ++i) {
       SSTriggerCalcParam* pParam = taosArrayGet(pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPesudoFuncVals, i);
       STimeWindow win = {.skey = pParam->wstart, .ekey = pParam->wend};
-      if (pTaskInfo->pStreamRuntimeInfo->funcInfo.triggerType != 1){  // 1 meams STREAM_TRIGGER_SLIDING
+      if (pTaskInfo->pStreamRuntimeInfo->funcInfo.triggerType != STREAM_TRIGGER_SLIDING) {
         win.ekey++;
       }
       TSDB_CHECK_NULL(taosArrayPush(pExtW->pWins, &win), code, lino, _end, terrno);
@@ -798,13 +804,16 @@ static int32_t externalWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   }
 
   pOperator->resultInfo.totalRows += pExtW->binfo.pRes->info.rows;
+  
 _end:
+
   if (code != 0) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = (pExtW->binfo.pRes->info.rows == 0) ? NULL : pExtW->binfo.pRes;
+  
   return code;
 }
 
