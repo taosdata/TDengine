@@ -499,7 +499,6 @@ typedef struct {
 typedef struct {
   int64_t uid;
   char    name[TSDB_DB_FNAME_LEN];
-  SDbCfg  cfg;
 } SMountDbObj;
 
 typedef struct {

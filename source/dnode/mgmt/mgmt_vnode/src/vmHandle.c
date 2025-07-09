@@ -1267,7 +1267,6 @@ _exit:
   (void)tFreeSMountVnodeReq(&req);
   TAOS_RETURN(code);
 }
-
 #endif  // USE_MOUNT
 
 // alter replica doesn't use this, but restore dnode still use this
