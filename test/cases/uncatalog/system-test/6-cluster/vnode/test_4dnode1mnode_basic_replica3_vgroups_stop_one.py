@@ -296,7 +296,7 @@ class Test4dnode1mnodeBasicReplica3VgroupsStopOne:
 
         self.revote_leader_time_costs(dbname)
         self.Restart_stop_dnode()
-    def test_init_vgroups_time_costs(self):
+    def run_init_vgroups_time_costs(self):
 
         tdLog.notice(" ====start check time cost about vgroups vote leaders ==== ")
         tdLog.notice(" ==== current max time cost is set value : {} =======".format(self.max_vote_time_cost))
@@ -347,10 +347,7 @@ class Test4dnode1mnodeBasicReplica3VgroupsStopOne:
             - xxx
         """
         self.check_setup_cluster_status()
-        self.test_init_vgroups_time_costs()
-
-
-
+        self.run_init_vgroups_time_costs()
 
         tdLog.success(f"{__file__} successfully executed")
 

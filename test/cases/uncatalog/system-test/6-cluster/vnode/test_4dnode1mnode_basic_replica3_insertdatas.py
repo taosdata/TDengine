@@ -147,8 +147,8 @@ class Test4dnode1mnodeBasicReplica3Insertdatas:
         Jira: xxx
 
         Catalog:
-        
             - xxx:xxx
+
         History:
             - xxx
             - xxx
