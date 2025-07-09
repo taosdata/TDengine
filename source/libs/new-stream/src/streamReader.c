@@ -319,10 +319,41 @@ end:
   return code;
 }
 
+static EDealRes condWalker(SNode *pNode, void *pContext) {
+  SHashObj* pCol2Slot = (SHashObj*)pContext;
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode *ref = (SColumnNode *)pNode;
+    int16_t* slotId = (int16_t*)taosHashGet(pCol2Slot, &ref->colId, sizeof(ref->colId));
+    if (slotId != NULL) {
+      ref->slotId = *slotId;
+    } else {
+      stError("Failed to find slot for column id %d", ref->colId);
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t putCol2Slot(SNodeList* colList, SHashObj* pCol2Slot) {
+  SNode*  nodeItem = NULL;
+  FOREACH(nodeItem, colList) {
+    SNode*           pNode = ((STargetNode*)nodeItem)->pExpr;
+    int16_t          slotId = ((STargetNode*)nodeItem)->slotId;
+    if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+      SColumnNode*     valueNode = (SColumnNode*)(pNode);
+      int32_t code = taosHashPut(pCol2Slot, &valueNode->colId, sizeof(valueNode->colId), &slotId, sizeof(slotId));
+      if (code != 0) {
+        return code;
+      }
+    }
+  }
+  return 0;
+}
+
 static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStreamReaderDeployMsg* pMsg) {
   int32_t    code = 0;
   int32_t    lino = 0;
   SNodeList* triggerCols = NULL;
+  SHashObj*  pCol2Slot = NULL;
 
   SStreamTriggerReaderInfo* sStreamReaderInfo = taosMemoryCalloc(1, sizeof(SStreamTriggerReaderInfo));
   STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
@@ -341,7 +372,6 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   STREAM_CHECK_RET_GOTO(
       nodesStringToNode(pMsg->msg.trigger.triggerScanPlan, (SNode**)(&sStreamReaderInfo->triggerAst)));
   if (sStreamReaderInfo->triggerAst != NULL) {
-    STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerAst, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
     STREAM_CHECK_CONDITION_GOTO(
         QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN != nodeType(sStreamReaderInfo->triggerAst->pNode) &&
             QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN != nodeType(sStreamReaderInfo->triggerAst->pNode),
@@ -359,12 +389,12 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
     sStreamReaderInfo->triggerResBlock = createDataBlockFromDescNode(pDescNode);
     STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerResBlock, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
     STREAM_CHECK_RET_GOTO(buildSTSchemaForScanData(&sStreamReaderInfo->triggerSchema, sStreamReaderInfo->triggerCols));
-    SNodeList* pseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanPseudoCols;
-    if (pseudoCols != NULL) {
+    sStreamReaderInfo->triggerPseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanPseudoCols;
+    if (sStreamReaderInfo->triggerPseudoCols != NULL) {
       STREAM_CHECK_RET_GOTO(
-          createExprInfo(pseudoCols, NULL, &sStreamReaderInfo->pExprInfo, &sStreamReaderInfo->numOfExpr));
+          createExprInfo(sStreamReaderInfo->triggerPseudoCols, NULL, &sStreamReaderInfo->pExprInfo, &sStreamReaderInfo->numOfExpr));
     }
-    setColIdForCalcResBlock(pseudoCols, sStreamReaderInfo->triggerResBlock->pDataBlock);
+    setColIdForCalcResBlock(sStreamReaderInfo->triggerPseudoCols, sStreamReaderInfo->triggerResBlock->pDataBlock);
     setColIdForCalcResBlock(sStreamReaderInfo->triggerCols, sStreamReaderInfo->triggerResBlock->pDataBlock);
   }
 
@@ -381,6 +411,15 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
     sStreamReaderInfo->calcResBlock = createDataBlockFromDescNode(pDescNode);
     STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->calcResBlock, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
     STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->calcResBlock, false, &sStreamReaderInfo->calcResBlockTmp));
+    
+    if (sStreamReaderInfo->calcAst->pNode->pConditions != NULL || sStreamReaderInfo->calcAst->pTagCond != NULL){
+      pCol2Slot = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), true, HASH_ENTRY_LOCK);
+      STREAM_CHECK_NULL_GOTO(pCol2Slot, terrno);
+      STREAM_CHECK_RET_GOTO(putCol2Slot(sStreamReaderInfo->triggerCols, pCol2Slot));
+      STREAM_CHECK_RET_GOTO(putCol2Slot(sStreamReaderInfo->triggerPseudoCols, pCol2Slot));
+      nodesWalkExprPostOrder(sStreamReaderInfo->calcAst->pNode->pConditions, condWalker, (void *)pCol2Slot);
+      nodesWalkExprPostOrder(sStreamReaderInfo->calcAst->pTagCond, condWalker, (void *)pCol2Slot);
+    }
     
     sStreamReaderInfo->pCalcConditions = generateCondition(&sStreamReaderInfo->calcAst->pNode->pConditions, &sStreamReaderInfo->triggerAst->pNode->pConditions);
     sStreamReaderInfo->pCalcTagCond = generateCondition(&sStreamReaderInfo->calcAst->pTagCond, &sStreamReaderInfo->triggerAst->pTagCond);
@@ -409,6 +448,7 @@ end:
     sStreamReaderInfo = NULL;
   }
   nodesDestroyList(triggerCols);
+  taosHashCleanup(pCol2Slot);
   return sStreamReaderInfo;
 }
 

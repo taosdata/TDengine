@@ -3298,6 +3298,7 @@ static void stRealtimeContextDestroy(void *ptr) {
   }
   if (pContext->pMerger != NULL) {
     stVtableMergerDestroy(&pContext->pMerger);
+    taosMemoryFreeClear(pContext->pMerger);
   }
 
   if (pContext->pSavedWindows != NULL) {
@@ -3336,6 +3337,9 @@ static void stRealtimeContextDestroy(void *ptr) {
     taosHashCleanup(pContext->pCalcDataCacheIters);
     pContext->pCalcDataCacheIters = NULL;
   }
+
+  taosArrayDestroy(pContext->reqCids);
+  taosArrayDestroy(pContext->reqCols);
 
   taosMemFreeClear(*ppContext);
 }
@@ -6081,6 +6085,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->fillHistory = pMsg->fillHistory;
   pTask->fillHistoryFirst = pMsg->fillHistoryFirst;
   pTask->lowLatencyCalc = pMsg->lowLatencyCalc;
+  pTask->igNoDataTrigger = pMsg->igNoDataTrigger;
   pTask->hasPartitionBy = pMsg->hasPartitionBy;
   pTask->isVirtualTable = pMsg->isTriggerTblVirt;
   pTask->placeHolderBitmap = pMsg->placeHolderBitmap;
@@ -6317,6 +6322,12 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
   if (pTask->pRecalcLastVer != NULL) {
     tSimpleHashCleanup(pTask->pRecalcLastVer);
     pTask->pRecalcLastVer = NULL;
+  }
+
+  SStreamMgmtReq* pMgmtReq = atomic_load_ptr(&pTask->task.pMgmtReq);
+  if (pMgmtReq && pMgmtReq == atomic_val_compare_exchange_ptr(&pTask->task.pMgmtReq, pMgmtReq, NULL)) {
+    stmDestroySStreamMgmtReq(pMgmtReq);
+    taosMemoryFree(pMgmtReq);
   }
 
 _end:
