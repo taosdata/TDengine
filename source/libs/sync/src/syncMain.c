@@ -2838,9 +2838,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
         // send msg
         TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
         TRACE_SET_ROOTID(&(rpcMsg.info.traceId), tGenIdPI64());
-        sGTrace(&rpcMsg.info.traceId, "vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId,
-                DID(&(pSyncMsg->destId)));
-        syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed, pData->execTime);
+        syncLogSendHeartbeat(pSyncNode, pSyncMsg, false, timerElapsed, pData->execTime, &(rpcMsg.info.traceId));
         int ret = syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
         if (ret != 0) {
           sError("vgId:%d, failed to send heartbeat since %s", pSyncNode->vgId, tstrerror(ret));
@@ -3623,7 +3621,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   int64_t netElapsed = tsMs - pMsg->timeStamp;
   int64_t timeDiff = tsMs - lastRecvTime;
-  syncLogRecvHeartbeat(ths, pMsg, netElapsed, &pRpcMsg->info.traceId, timeDiff);
+  syncLogRecvHeartbeat(ths, pMsg, netElapsed, &pRpcMsg->info.traceId, timeDiff, pRpcMsg);
 
   if (!syncNodeInRaftGroup(ths, &pMsg->srcId)) {
     sWarn(
