@@ -2347,9 +2347,6 @@ TEST(stmt2Case, mixed_bind) {
            "binary(128), t6 smallint, t7 tinyint, t8 bool, t9 nchar(128), t10 geometry(256))");
   do_query(taos, "use stmt2_testdb_19");
 
-  TAOS_STMT2_OPTION option = {0, false, true, NULL, NULL};
-  TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
-  ASSERT_NE(stmt, nullptr);
   int code = 0;
   struct {
     int64_t       c1;
@@ -2384,7 +2381,7 @@ TEST(stmt2Case, mixed_bind) {
   size_t         size1;
   initCtxMakePoint();
   code = doMakePoint(1.000, 2.000, &outputGeom1, &size1);
-  checkError(stmt, code);
+  char* tbname[8] = {"tb1", "tb2", "tb3", "tb4", "tb5", "tb6", "tb7", "tb8"};
 
   TAOS_STMT2_BIND params_tags[9] = {{TSDB_DATA_TYPE_INT, &v.c2, (int32_t*)&v_len.c2, NULL, 1},
                                     {TSDB_DATA_TYPE_BIGINT, &v.c3, (int32_t*)&v_len.c3, NULL, 1},
@@ -2406,50 +2403,54 @@ TEST(stmt2Case, mixed_bind) {
                                     {TSDB_DATA_TYPE_NCHAR, &v.c10, (int32_t*)&v_len.c10, NULL, 1},
                                     {TSDB_DATA_TYPE_GEOMETRY, outputGeom1, (int32_t*)&size1, NULL, 1}};
 
-  char* stmt_sql =
-      "insert into stmt2_testdb_19.? using stb tags(1591060628000,?,?,?,4.0,?,?,?,?,?,?)values (?,2,?,?,?,?,?,?,1,?,?)";
-  code = taos_stmt2_prepare(stmt, stmt_sql, 0);
-  checkError(stmt, code);
+  TAOS_STMT2_OPTION option[2] = {{0, false, false, NULL, NULL}, {0, true, true, NULL, NULL}};
+  for (int k = 0; k < 2; k++) {
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option[k]);
+    ASSERT_NE(stmt, nullptr);
+    char* stmt_sql =
+        "insert into stmt2_testdb_19.? using stb tags(1591060628000,?,?,?,4.0,?,?,?,?,?,?)values "
+        "(?,2,?,?,?,?,?,?,1,?,?)";
+    code = taos_stmt2_prepare(stmt, stmt_sql, 0);
+    checkError(stmt, code);
 
-  int             fieldNum = 0;
-  TAOS_FIELD_ALL* pFields = NULL;
-  // code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
-  // checkError(stmt, code);
-  // ASSERT_EQ(fieldNum, 19);
+    int             fieldNum = 0;
+    TAOS_FIELD_ALL* pFields = NULL;
+    // code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+    // checkError(stmt, code);
+    // ASSERT_EQ(fieldNum, 19);
 
-  char*            tbname[2] = {"tb1", "tb2"};
-  TAOS_STMT2_BIND* tags = &params_tags[0];
-  TAOS_STMT2_BIND* cols = &params_cols[0];
-  TAOS_STMT2_BINDV bindv = {1, &tbname[0], &tags, &cols};
-  for (int i = 0; i < 3; i++) {
-    v.c1 += i * 10000;
-    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    TAOS_STMT2_BIND* tags[2] = {&params_tags[0], &params_tags[0]};
+    TAOS_STMT2_BIND* cols[2] = {&params_cols[0], &params_cols[0]};
+    TAOS_STMT2_BINDV bindv = {2, &tbname[0 + k * 4], &tags[0], &cols[0]};
+    for (int i = 0; i < 3; i++) {
+      v.c1 += i * 10000;
+      code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    }
+    checkError(stmt, code);
+
+    int affected_rows;
+    code = taos_stmt2_exec(stmt, &affected_rows);
+    checkError(stmt, code);
+    ASSERT_EQ(affected_rows, 6);
+
+    stmt_sql =
+        "insert into stb (tbname, tts, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, ts, c1, c2, c3, c4, c5, c6, c7, c8, "
+        "c9, c10) values(?,1591060628000,?,?,?,4.0,?,?,?,?,?,?,?,2,?,?,?,?,?,?,1,?,?)";
+    code = taos_stmt2_prepare(stmt, stmt_sql, 0);
+    checkError(stmt, code);
+
+    bindv = {2, &tbname[2 + k * 4], &tags[0], &cols[0]};
+    for (int i = 0; i < 3; i++) {
+      v.c1 += i * 10000;
+      code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    }
+    checkError(stmt, code);
+
+    code = taos_stmt2_exec(stmt, &affected_rows);
+    checkError(stmt, code);
+    ASSERT_EQ(affected_rows, 6);
+    taos_stmt2_close(stmt);
   }
-  checkError(stmt, code);
-
-  int affected_rows;
-  code = taos_stmt2_exec(stmt, &affected_rows);
-  checkError(stmt, code);
-  ASSERT_EQ(affected_rows, 3);
-
-  stmt_sql =
-      "insert into stb (tbname, tts, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, ts, c1, c2, c3, c4, c5, c6, c7, c8, c9, "
-      "c10) values("
-      "?,1591060628000,?,?,?,4.0,?,?,?,?,?,?,?,2,?,?,?,?,?,?,1,?,?)";
-  code = taos_stmt2_prepare(stmt, stmt_sql, 0);
-  checkError(stmt, code);
-
-  bindv = {1, &tbname[1], &tags, &cols};
-  for (int i = 0; i < 3; i++) {
-    v.c1 += i * 10000;
-    code = taos_stmt2_bind_param(stmt, &bindv, -1);
-  }
-  checkError(stmt, code);
-
-  code = taos_stmt2_exec(stmt, &affected_rows);
-  checkError(stmt, code);
-  ASSERT_EQ(affected_rows, 3);
-  taos_stmt2_close(stmt);
 
   geosFreeBuffer(outputGeom1);
   // do_query(taos, "drop database if exists stmt2_testdb_19");

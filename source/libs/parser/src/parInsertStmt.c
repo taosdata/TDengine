@@ -738,8 +738,8 @@ static int32_t convertStmtStbNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                               STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt) {
+int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, TAOS_STMT2_BIND* bind, char* msgBuf,
+                               int32_t msgBufLen, STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt) {
   STableDataCxt*  pDataBlock = (STableDataCxt*)pBlock;
   SSchema*        pSchema = getTableColumnSchema(pDataBlock->pMeta);
   SBoundColInfo*  boundInfo = &pDataBlock->boundColsInfo;
@@ -751,6 +751,7 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
   int16_t         lastColId = -1;
   bool            colInOrder = true;
   int             ncharColNums = 0;
+  int32_t         bindIdx = 0;
 
   if (NULL == pTSchema || NULL == *pTSchema) {
     *pTSchema = tBuildTSchema(pSchema, pDataBlock->pMeta->tableInfo.numOfColumns, pDataBlock->pMeta->sversion);
@@ -777,19 +778,31 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
       lastColId = pColSchema->colId;
     }
 
-    if (bind[c].num != rowNum) {
+    if (parsedCols) {
+      SColVal* pParsedVal = tSimpleHashGet(parsedCols, &pColSchema->colId, sizeof(int16_t));
+      if (pParsedVal) {
+        pBindInfos[c].columnId = pColSchema->colId;
+        pBindInfos[c].type = pColSchema->type;
+        pBindInfos[c].bytes = pColSchema->bytes;
+        continue;
+      }
+    }
+
+    TAOS_STMT2_BIND bindData = bind[bindIdx];
+
+    if (bindData.num != rowNum) {
       code = buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
       goto _return;
     }
 
-    if ((!(rowNum == 1 && bind[c].is_null && *bind[c].is_null)) &&
-        bind[c].buffer_type != pColSchema->type) {  // for rowNum ==1 , connector may not set buffer_type
+    if ((!(rowNum == 1 && bindData.is_null && *bindData.is_null)) &&
+        bindData.buffer_type != pColSchema->type) {  // for rowNum ==1 , connector may not set buffer_type
       code = buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
       goto _return;
     }
 
     if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
-      code = convertStmtStbNcharCol2(&pBuf, pColSchema, bind + c, &ncharBind, charsetCxt);
+      code = convertStmtStbNcharCol2(&pBuf, pColSchema, bind + bindIdx, &ncharBind, charsetCxt);
       if (code) {
         goto _return;
       }
@@ -804,31 +817,33 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
         qError("geometry init failed:%s", tstrerror(code));
         goto _return;
       }
-      uint8_t* buf = bind[c].buffer;
-      for (int j = 0; j < bind[c].num; j++) {
-        if (bind[c].is_null && bind[c].is_null[j]) {
+      uint8_t* buf = bindData.buffer;
+      for (int j = 0; j < bindData.num; j++) {
+        if (bindData.is_null && bindData.is_null[j]) {
           continue;
         }
-        code = checkWKB(buf, bind[c].length[j]);
+        code = checkWKB(buf, bindData.length[j]);
         if (code) {
           qError("stmt2 interlace mode geometry data[%d]:{%s},length:%d must be in WKB format", c, buf,
-                 bind[c].length[j]);
+                 bindData.length[j]);
           goto _return;
         }
-        buf += bind[c].length[j];
+        buf += bindData.length[j];
       }
-      pBindInfos[c].bind = bind + c;
+      pBindInfos[c].bind = bind + bindIdx;
     } else {
-      pBindInfos[c].bind = bind + c;
+      pBindInfos[c].bind = bind + bindIdx;
     }
 
     pBindInfos[c].columnId = pColSchema->colId;
     pBindInfos[c].type = pColSchema->type;
     pBindInfos[c].bytes = pColSchema->bytes;
+
+    bindIdx++;
   }
 
-  code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered,
-                            &pDataBlock->duplicateTs);
+  code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, parsedCols, colInOrder, *pTSchema, pCols,
+                            &pDataBlock->ordered, &pDataBlock->duplicateTs);
 
   parserDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
 
@@ -1023,8 +1038,8 @@ _return:
   return code;
 }
 
-int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                           STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt) {
+int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, SSHashObj* parsedCols, TAOS_STMT2_BIND* bind, char* msgBuf,
+                           int32_t msgBufLen, STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
   SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
@@ -1102,8 +1117,8 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, c
     pDataBlock->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
   }
 
-  code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered,
-                            &pDataBlock->duplicateTs);
+  code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, parsedCols, colInOrder, *pTSchema, pCols,
+                            &pDataBlock->ordered, &pDataBlock->duplicateTs);
   qDebug("stmt2 all %d columns bind %d rows data as row format", boundInfo->numOfBound, rowNum);
 
 _return:

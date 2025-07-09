@@ -252,7 +252,6 @@ static int32_t stmtUpdateBindInfo(TAOS_STMT2* stmt, STableMeta* pTableMeta, void
     taosMemoryFreeClear(pStmt->bInfo.boundTags);
   }
 
-  // 将 SArray 转换为 SSHashObj，key为列ID，value为SColVal*
   if (cols) {
     pStmt->bInfo.boundCols = tSimpleHashInit(taosArrayGetSize(cols), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
     if (pStmt->bInfo.boundCols) {
@@ -1226,8 +1225,19 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
   if (qParseDbName(sql, length, &dbName)) {
     STMT_ERR_RET(stmtSetDbName2(stmt, dbName));
     taosMemoryFreeClear(dbName);
-  }
+  } else if (pStmt->db != NULL && pStmt->db[0] != '\0') {
+    STMT_ERR_RET(stmtCreateRequest(pStmt));
 
+    taosMemoryFreeClear(pStmt->exec.pRequest->pDb);
+    pStmt->exec.pRequest->pDb = taosStrdup(pStmt->db);
+    (void)strdequote(pStmt->exec.pRequest->pDb);
+    if (pStmt->exec.pRequest->pDb == NULL) {
+      return terrno;
+    }
+    if (pStmt->sql.stbInterlaceMode) {
+      pStmt->sql.siInfo.dbname = pStmt->exec.pRequest->pDb;
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1912,7 +1922,7 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
     if (pStmt->sql.stbInterlaceMode) {
       // (*pDataBlock)->pData->flags = 0;
       (*pDataBlock)->pData->flags &= ~SUBMIT_REQ_COLUMN_DATA_FORMAT;
-      code = qBindStmtStbColsValue2(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf,
+      code = qBindStmtStbColsValue2(*pDataBlock, pCols, pStmt->bInfo.boundCols, bind, pStmt->exec.pRequest->msgBuf,
                                     pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo,
                                     pStmt->taos->optionInfo.charsetCxt);
       param->tblData.isOrdered = (*pDataBlock)->ordered;
@@ -1926,9 +1936,10 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
         code = qBindStmtColsValue2(*pDataBlock, pCols, pStmt->bInfo.boundCols, bind, pStmt->exec.pRequest->msgBuf,
                                    pStmt->exec.pRequest->msgBufLen, pStmt->taos->optionInfo.charsetCxt);
       } else {
-        code = qBindStmt2RowValue(*pDataBlock, (*pDataBlock)->pData->aRowP, bind, pStmt->exec.pRequest->msgBuf,
-                                  pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo,
-                                  pStmt->taos->optionInfo.charsetCxt);
+        code =
+            qBindStmt2RowValue(*pDataBlock, (*pDataBlock)->pData->aRowP, pStmt->bInfo.boundCols, bind,
+                               pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen,
+                               &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo, pStmt->taos->optionInfo.charsetCxt);
       }
     }
 
