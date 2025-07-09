@@ -268,7 +268,14 @@ class TDDnode:
             for key, value in updatecfgDict[0][0].items():
                 if key == "clientCfg" and self.remoteIP == "" and not platform.system().lower() == 'windows':
                     continue
-                if key == 'dataDir':
+                if value == 'dataDir':
+                    if isFirstDir:
+                        self.cfgDict.pop('dataDir')
+                        self.cfg(value, key)
+                        isFirstDir = 0
+                    else:
+                        self.cfg(value, key)
+                elif key == 'dataDir':
                     # print(f"value is dataDir:{value}")
                     if isinstance(value, list):
                         self.cfgDict.pop('dataDir', None)
