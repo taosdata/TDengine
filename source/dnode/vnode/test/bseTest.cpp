@@ -14,6 +14,8 @@
  */
 
 #include <gtest/gtest.h>
+
+#ifdef LINUX
 #include <vnodeInt.h>
 
 #include <taoserror.h>
@@ -23,8 +25,6 @@
 #include <tmsg.h>
 #include <random> 
 #include <string>
-#include "osDir.h"
-#include "osMemory.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -34,6 +34,8 @@
 
 
 #include "bse.h"
+#endif
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
