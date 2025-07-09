@@ -246,7 +246,7 @@ typedef struct SStreamCacheReadInfo {
 int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId);
 void    streamRemoveVnodeLeader(int32_t vgId);
 void    streamAddVnodeLeader(int32_t vgId);
-void    streamSetSnodeEnabled(void);
+void    streamSetSnodeEnabled(  SMsgCb* msgCb);
 void    streamSetSnodeDisabled(bool cleanup);
 int32_t streamHbProcessRspMsg(SMStreamHbRspMsg *pRsp);
 int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs);

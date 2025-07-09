@@ -165,8 +165,6 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json-subtable.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt2_insert.py
-#newstm,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream-test.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream_function_test.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stt.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_auto_create_table_json.py

@@ -276,7 +276,7 @@ tag_definition:
 使用限制：
 
 - %%trows：只能用于 FROM 子句，推荐在小数据量场景下使用。
-- %%tbname：只能用于 FROM、SELECT 和 WHERE 子句。
+- %%tbname：可以用于 FROM、SELECT 和 WHERE 子句。
 - 其他占位符：只能用于 SELECT 和 WHERE 子句。
 
 ### 流式计算的控制选项
