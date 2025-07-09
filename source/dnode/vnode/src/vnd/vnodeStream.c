@@ -654,7 +654,7 @@ end:
   return code;
 }
 
-static int32_t buildScheamFromCids(SVnode* pVnode, SArray* cols, int64_t uid, SArray** schemas) {
+static int32_t buildScheamFromMeta(SVnode* pVnode, int64_t uid, SArray** schemas) {
   int32_t code = 0;
   int32_t lino = 0;
   *schemas = taosArrayInit(8, sizeof(SSchema));
@@ -678,21 +678,40 @@ static int32_t buildScheamFromCids(SVnode* pVnode, SArray* cols, int64_t uid, SA
     qError("invalid table type:%d", metaReader.me.type);
   }
 
-  for (size_t i = 0; i < taosArrayGetSize(cols); i++) {
-    col_id_t* id = taosArrayGet(cols, i);
-    STREAM_CHECK_NULL_GOTO(id, terrno);
-    for (size_t j = 0; j < sSchemaWrapper->nCols; j++) {
-      SSchema* s = sSchemaWrapper->pSchema + j;
-      if (*id == s->colId) {
-        STREAM_CHECK_NULL_GOTO(taosArrayPush(*schemas, s), terrno);
-        break;
-      }
-    }
+  for (size_t j = 0; j < sSchemaWrapper->nCols; j++) {
+    SSchema* s = sSchemaWrapper->pSchema + j;
+    STREAM_CHECK_NULL_GOTO(taosArrayPush(*schemas, s), terrno);
   }
 
 end:
   api.metaReaderFn.clearReader(&metaReader);
   if (code != 0)  taosArrayDestroy(*schemas);
+  return code;
+}
+
+static int32_t shrinkScheams(SArray* cols, SArray* schemas) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  for (size_t i = 0; i < taosArrayGetSize(schemas); i++) {
+    SSchema* s = taosArrayGet(schemas, i);
+    STREAM_CHECK_NULL_GOTO(s, terrno);
+
+    size_t j = 0;
+    for (; j < taosArrayGetSize(cols); j++) {
+      col_id_t* id = taosArrayGet(cols, j);
+      STREAM_CHECK_NULL_GOTO(id, terrno);
+      if (*id == s->colId) {
+        break;
+      }
+    }
+    if (j == taosArrayGetSize(cols)) {
+      // not found, remove it
+      taosArrayRemove(schemas, i);
+      i--;
+    }
+  }
+
+end:
   return code;
 }
 
@@ -704,12 +723,14 @@ static int32_t processWalVerDataVTable(SVnode* pVnode, SArray *cids, int64_t ver
 
   void*        pTableList = NULL;
   SSDataBlock* pBlock1 = NULL;
+
+
   SSDataBlock* pBlock2 = NULL;
 
-  STREAM_CHECK_RET_GOTO(buildScheamFromCids(pVnode, cids, uid, &schemas));
+  STREAM_CHECK_RET_GOTO(buildScheamFromMeta(pVnode, uid, &schemas));
   STSchema* sSchema = tBuildTSchema(taosArrayGet(schemas, 0), taosArrayGetSize(schemas), 0);
   STREAM_CHECK_NULL_GOTO(sSchema, terrno);
-
+  STREAM_CHECK_RET_GOTO(shrinkScheams(cids, schemas));
   STREAM_CHECK_RET_GOTO(createDataBlockForStream(schemas, &pBlock1));
   STREAM_CHECK_RET_GOTO(createDataBlockForStream(schemas, &pBlock2));
 
@@ -1120,7 +1141,8 @@ static int32_t createOptionsForTsdbData(SVnode* pVnode, SStreamTriggerReaderTask
   int32_t lino = 0;
   SArray* schemas = NULL;
 
-  STREAM_CHECK_RET_GOTO(buildScheamFromCids(pVnode, cols, uid, &schemas));
+  STREAM_CHECK_RET_GOTO(buildScheamFromMeta(pVnode, uid, &schemas));
+  STREAM_CHECK_RET_GOTO(shrinkScheams(cols, schemas));
   BUILD_OPTION(op, sStreamReaderInfo, true, order, skey, ekey, schemas, true, STREAM_SCAN_ALL, 0, false, NULL);
   *options = op;
 
