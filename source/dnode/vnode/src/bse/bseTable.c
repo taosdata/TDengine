@@ -267,9 +267,12 @@ int32_t tableBuilderFlush(STableBuilder *p, int8_t type) {
   bseDebug("bse flush at offset %" PRId64 " len: %d, block range sseq:%" PRId64 ", eseq:%" PRId64 "", p->offset, len,
            handle.range.sseq, handle.range.eseq);
 
-  (void)taosLSeekFile(p->pDataFile, handle.offset, SEEK_SET);
+  int64_t n = taosLSeekFile(p->pDataFile, handle.offset, SEEK_SET);
+  if (n < 0) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
 
-  int32_t nwrite = taosWriteFile(p->pDataFile, (uint8_t *)pWrite, len);
+  int64_t nwrite = taosWriteFile(p->pDataFile, (uint8_t *)pWrite, len);
   if (nwrite != len) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _error);
@@ -557,8 +560,10 @@ int32_t tableReaderLoadRawFooter(STableReader *p, SBlockWrapper *blkWrapper) {
   code = footerEncode(&pReader->footer, buf);
   int32_t len = sizeof(buf);
 
-  taosLSeekFile(pReader->pFile, -kEncodeLen, SEEK_END);
-  TSDB_CHECK_CODE(code, lino, _error);
+  int64_t n = taosLSeekFile(pReader->pFile, -kEncodeLen, SEEK_END);
+  if (n < 0) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
 
   if (taosReadFile(pReader->pFile, buf, sizeof(buf)) != len) {
     code = terrno;
@@ -959,7 +964,10 @@ int32_t tableFlushBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBl
   code = taosCalcChecksumAppend(0, (uint8_t *)pWrite, len);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  (void)taosLSeekFile(pFile, pHandle->offset, SEEK_SET);
+  int64_t n = taosLSeekFile(pFile, pHandle->offset, SEEK_SET);
+  if (n < 0) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
 
   int32_t nwrite = taosWriteFile(pFile, (uint8_t *)pWrite, len);
   if (nwrite != len) {
@@ -986,7 +994,10 @@ int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlk
 
   SBlockWrapper pHelp = {0};
 
-  (void)taosLSeekFile(pFile, pHandle->offset, SEEK_SET);
+  int64_t n = taosLSeekFile(pFile, pHandle->offset, SEEK_SET);
+  if (n < 0) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
 
   int32_t nr = taosReadFile(pFile, pRead, pHandle->size);
   if (nr != pHandle->size) {
@@ -1042,7 +1053,11 @@ int32_t tableLoadRawBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *p
   SBlock  *pBlk = pBlkW->data;
   uint8_t *pRead = (uint8_t *)pBlk + sizeof(SBseSnapMeta);
 
-  (void)taosLSeekFile(pFile, pHandle->offset, SEEK_SET);
+  int64_t n = taosLSeekFile(pFile, pHandle->offset, SEEK_SET);
+  if (n < 0) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
+
   int32_t nr = taosReadFile(pFile, pRead, pHandle->size);
   if (nr != pHandle->size) {
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
@@ -1697,8 +1712,10 @@ int32_t tableMetaReaderLoadFooter(SBtableMetaReader *pMeta) {
   if (pMeta->pFile == NULL) {
     return 0;
   }
-  taosLSeekFile(pMeta->pFile, -kEncodeLen, SEEK_END);
-  TSDB_CHECK_CODE(code, lino, _error);
+  int64_t n = taosLSeekFile(pMeta->pFile, -kEncodeLen, SEEK_END);
+  if (n < 0) {
+    TSDB_CHECK_CODE(code = terrno, lino, _error);
+  }
 
   if (taosReadFile(pMeta->pFile, footer, kEncodeLen) != kEncodeLen) {
     code = terrno;

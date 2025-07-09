@@ -169,9 +169,11 @@ int32_t lruCacheRemoveNolock(SLruCache *pCache, SSeqRange *key, int32_t keyLen) 
   code = taosHashRemove(pCache->pCache, key, keyLen);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  (void)tdListPopNode(pCache->lruList, pItem->pNode);
-  bseCacheUnrefItem(pItem);
+  if (tdListPopNode(pCache->lruList, pItem->pNode) == NULL) {
+    bseWarn("node not exist in lru list");
+  }
 
+  bseCacheUnrefItem(pItem);
 _error:
   if (code != 0) {
     bseError("failed to remove cache lru at line %d since %s", lino, tstrerror(code));

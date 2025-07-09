@@ -5912,7 +5912,10 @@ void tsdbReaderClose2(STsdbReader* pReader) {
     pReader->pReadSnap = NULL;
   }
 
-  (void)tsem_destroy(&pReader->resumeAfterSuspend);
+  code = tsem_destroy(&pReader->resumeAfterSuspend);
+  if (code != 0) {
+    tsdbWarn("faild to destroy tsem"); 
+  }
   (void)tsdbReleaseReader(pReader);
   (void)tsdbUninitReaderLock(pReader);
 
