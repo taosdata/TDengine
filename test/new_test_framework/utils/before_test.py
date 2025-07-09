@@ -216,7 +216,7 @@ class BeforeTest:
                         if primary == 1:
                             primary = 0
             else:
-                data_path = os.path.join(work_dir, f"dnode{i+1}", "data")
+                data_path = [os.path.join(work_dir, f"dnode{i+1}", "data")]
             dnode_config = copy.deepcopy(dnode_config_template)
             dnode_config.pop("port", None)
             dnode_config["mqttPort"] = mqttport_base + i * 100
@@ -436,7 +436,7 @@ class BeforeTest:
             master_ip = request.session.host
         #logger.info(f"tdDnodes_pytest in init_dnode_cluster: {tdDnodes_pytest}")
         if dnode_nums > 1:
-            dnodes_list = cluster.configure_cluster(dnodeNums=dnode_nums, mnodeNums=mnode_nums, independentMnode=independentMnode)
+            dnodes_list = cluster.configure_cluster(dnodeNums=dnode_nums, mnodeNums=mnode_nums, independentMnode=independentMnode, hostname=request.session.host, level=level, disk=disk)
             clusterDnodes.init(dnodes_list, request.session.work_dir, os.path.join(request.session.taos_bin_path, "taosd"), master_ip)
             clusterDnodes.setTestCluster(False)
             clusterDnodes.setValgrind(0)

@@ -151,7 +151,8 @@ class TDDnode:
         primary = 1
         if self.level == 1 and self.disk == 1:
             eDir = os.path.join(simPath, "data")
-            self.dataDir.append(eDir)
+            if eDir not in self.dataDir:
+                self.dataDir.append(eDir)
         else:
             for i in range(self.level):
                 for j in range(self.disk):
@@ -166,6 +167,7 @@ class TDDnode:
 
         for eDir in self.dataDir:
             cmd = "rm -rf " + eDir
+            tdLog.info(cmd)
             if os.system(cmd) != 0:
                 tdLog.exit(cmd)
 
