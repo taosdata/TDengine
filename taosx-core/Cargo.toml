@@ -58,7 +58,7 @@ scc = { workspace = true, features = ["serde"] }
 semver = { version = "1.0.22" }
 serde = { workspace = true, features = ["derive"] }
 sha2 = "0.10"
-thiserror = "1"
+thiserror = { workspace = true }
 tokio = { workspace = true, features = [
   "rt",
   "rt-multi-thread",
@@ -177,7 +177,10 @@ datafusion = { version = "45.0.0", default-features = false, features = [
 zstd = "0.13.2"
 awaitgroup = "0.7.0"
 
+hex.workspace = true
+
 persist-queue = { path = "../crates/persist-queue" }
+archive = { workspace = true }
 
 prost.workspace = true
 

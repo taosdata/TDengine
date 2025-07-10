@@ -1,3 +1,4 @@
+use arrow::array::ListArray;
 use arrow::{array::Array, record_batch::RecordBatch};
 use arrow_schema::ArrowError;
 use chrono::{DateTime, Utc};
@@ -733,6 +734,7 @@ pub fn sql_values_from_record_batch(
         .map(|f| format!("`{}`", f.name()))
         .join(",");
     let columns = batch.columns();
+    let schema = batch.schema_ref();
     let vec = Vec::with_capacity(1);
     let mut rows = 0;
     let mut start = 0;
@@ -766,6 +768,8 @@ pub fn sql_values_from_record_batch(
                     cursor.write_all(b"NULL")?;
                     continue;
                 }
+                let field = schema.field(*col);
+                let cast_to = field.metadata().get("cast_to").map(|s| s.as_str());
                 match columns[*col].data_type() {
                     arrow_schema::DataType::Null => {
                         cursor.write_all(b"NULL")?;
@@ -953,6 +957,14 @@ pub fn sql_values_from_record_batch(
                             }
                         }
                     },
+                    arrow_schema::DataType::Binary if cast_to.is_some_and(|s| s == "VARBINARY") => {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::BinaryArray>()
+                            .unwrap();
+                        let bytes = array.value(row);
+                        write!(cursor, "'\\x{}'", hex::encode(bytes))?;
+                    }
                     arrow_schema::DataType::Binary => {
                         let array = array
                             .as_any()
@@ -964,6 +976,16 @@ pub fn sql_values_from_record_batch(
                             sql_value_escaped_fmt(&String::from_utf8_lossy(array.value(row),))
                         )?;
                     }
+                    arrow_schema::DataType::FixedSizeBinary(_)
+                        if cast_to.is_some_and(|s| s == "VARBINARY") =>
+                    {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::FixedSizeBinaryArray>()
+                            .unwrap();
+                        let bytes = array.value(row);
+                        write!(cursor, "\\x{}", hex::encode(bytes))?;
+                    }
                     arrow_schema::DataType::FixedSizeBinary(_) => {
                         let array = array
                             .as_any()
@@ -974,6 +996,16 @@ pub fn sql_values_from_record_batch(
                             "{}",
                             sql_value_escaped_fmt(&String::from_utf8_lossy(array.value(row),))
                         )?;
+                    }
+                    arrow_schema::DataType::LargeBinary
+                        if cast_to.is_some_and(|s| s == "VARBINARY") =>
+                    {
+                        let array = array
+                            .as_any()
+                            .downcast_ref::<arrow::array::LargeBinaryArray>()
+                            .unwrap();
+                        let bytes = array.value(row);
+                        write!(cursor, "\\x{}", hex::encode(bytes))?;
                     }
                     arrow_schema::DataType::LargeBinary => {
                         let array = array
@@ -999,6 +1031,24 @@ pub fn sql_values_from_record_batch(
                             .downcast_ref::<arrow::array::LargeStringArray>()
                             .unwrap();
                         write!(cursor, "{}", sql_value_escaped_fmt(array.value(row)))?;
+                    }
+                    arrow_schema::DataType::List(field)
+                        if cast_to.is_some_and(|s| s == "VARBINARY")
+                            && field.data_type().is_numeric() =>
+                    {
+                        let array = array.as_any().downcast_ref::<ListArray>().unwrap();
+                        // ListArray 每一行转换为一个 Bytes 数组
+                        let row_data = array.value(row);
+                        let u8_array =
+                            arrow::compute::cast(&row_data, &arrow_schema::DataType::UInt8)?;
+                        let u8_array = u8_array
+                            .as_any()
+                            .downcast_ref::<arrow::array::UInt8Array>()
+                            .unwrap();
+                        let bytes = u8_array.values();
+                        let s = hex::encode(bytes);
+
+                        write!(cursor, "'\\x{s}'")?;
                     }
                     dt => {
                         return Err(ArrowError::NotYetImplemented(format!(

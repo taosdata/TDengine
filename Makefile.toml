@@ -91,6 +91,16 @@ echo PLUGINS_HOME=$PLUGINS_HOME
 """
 
 [tasks.taosx]
+condition.files_modified = { input = [
+  "${CARGO_MAKE_WORKING_DIRECTORY}/**/Cargo.*",
+  "src/**/*.rs",
+  "crates/**/*.rs",
+  "taosx-core/src/**/*.rs",
+  "taosx-ipc/src/**/*.rs",
+  "taosx-metrics/src/**/*.rs",
+], output = [
+  "./target/${BUILD_PROFILE}/taosx*",
+] }
 command = "cargo"
 args = ["build", "-p", "taosx", "--profile", "${BUILD_PROFILE}"]
 
@@ -715,9 +725,20 @@ end
 """
 
 [tasks.zigbuild-aarch64-image]
-script = "docker build -t taosx/zigbuilder -f docker/ci/build.arm64.Dockerfile ."
+cwd = "docker/ci"
+script = """
+ZIG_VERSION=0.14.1
+[ -f zig-x86_64-linux-${ZIG_VERSION}.tar.xz ] || \
+  wget -c https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz
+docker build -t taosx/zigbuilder -f build.arm64.Dockerfile --build-arg ZIG_VERSION=${ZIG_VERSION} .
+"""
 
 [tasks.zigbuild-aarch64-taosx]
+install_script = """
+#!/bin/bash
+echo "Prepare zigbuilder image for aarch64"
+docker images --format json | jq 'select(.Repository == "taosx/zigbuilder")' || cargo make zigbuild-aarch64-image
+"""
 script = """
 docker run --rm -v .:/app -w /app \
   -v $HOME/.cargo/registry:/root/.cargo/registry \
@@ -784,6 +805,16 @@ dependencies = [
 ]
 
 [tasks.explorer-ui-prod]
+condition.files_modified = { input = [
+  "explorer/package.json",
+  "explorer/vite.config.ts",
+  "explorer/pnpm-*.yaml",
+  "explorer/src/**",
+  "explorer/static/**",
+  "explorer/taos-ui/**",
+], output = [
+  "explorer/dist/",
+] }
 cwd = "explorer"
 script_runner = "@duckscript"
 script = """

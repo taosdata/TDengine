@@ -329,22 +329,22 @@ pub async fn to_record_batches(
                     }
                 }
                 "BYTEA" => {
-                    let val = row.try_get::<Option<&[u8]>, _>(col_cidx);
+                    let val = row.try_get::<Option<Vec<u8>>, _>(col_cidx);
                     match val {
                         Ok(val) => match val {
                             None => {
                                 builders[col_cidx]
                                     .as_any_mut()
-                                    .downcast_mut::<array::StringBuilder>()
+                                    .downcast_mut::<array::BinaryBuilder>()
                                     .unwrap()
                                     .append_null();
                             }
                             Some(val) => {
                                 builders[col_cidx]
                                     .as_any_mut()
-                                    .downcast_mut::<array::StringBuilder>()
+                                    .downcast_mut::<array::BinaryBuilder>()
                                     .unwrap()
-                                    .append_value(format!("{:?}", val));
+                                    .append_value(val);
                             }
                         },
                         Err(e) => {

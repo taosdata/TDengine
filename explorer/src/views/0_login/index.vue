@@ -547,7 +547,7 @@ async function getUserAuthority() {
       });
       store.state.app.sysinfo = true;
       if (result.length > 0 && ['official', 'trial', 'community'].includes(result[0].version)) {
-        router.push({
+        await router.push({
           path: '/explorer'
         });
       } else {
@@ -560,7 +560,7 @@ async function getUserAuthority() {
     if (err && err.includes('Permission denied')) {
       console.log('User login without sysinfo');
       store.state.app.sysinfo = false;
-      router.push({
+      await router.push({
         path: '/explorer'
       });
       return;

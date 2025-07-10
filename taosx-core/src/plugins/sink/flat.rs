@@ -9,6 +9,7 @@ use std::{
 };
 
 use anyhow::Context;
+use archive::ArchiveType;
 use arrow::array::{Array, RecordBatch, StringArray, TimestampNanosecondArray};
 use arrow_schema::{ArrowError, Field};
 use async_backtrace::framed;
@@ -36,8 +37,8 @@ use crate::{
         get_primary_timestamp_ns, parse::ArrayForTaos, MessageArrowRecords, MessageTableMeta,
     },
     sink::{
-        consume_flat_record, persist::get_stream, transform::handling_strategy::HandlingResult,
-        DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+        consume_flat_record, persist::get_stream, process_archive, process_cache,
+        transform::handling_strategy::HandlingResult, DEFAULT_MAX_RETRIES_FOR_CONNECTION,
     },
     utils::{
         sql::{
@@ -46,17 +47,14 @@ use crate::{
         },
         trace::{BatchCounter, Qid},
     },
-    ArchiveType, Parser,
+    Parser,
 };
 
 use crate::global::SQL_TAG_CACHE_CAPACITY;
 use crate::global::TABLE_TAG_CACHE;
 
 use super::{
-    ipc_metric::IpcMetrics,
-    persist::PersistComponent,
-    transform::{archive_records, TableOptions},
-    IpcErrorStrategy,
+    ipc_metric::IpcMetrics, persist::PersistComponent, transform::TableOptions, IpcErrorStrategy,
 };
 
 /// All the messages should be in the same stable.
@@ -263,6 +261,8 @@ type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>;
 pub enum FlatWriteError {
     #[error("Connection error")]
     ConnectionPoolError(#[from] deadpool::managed::PoolError<taos::Error>),
+    #[error("Database not exists")]
+    DatabaseNotExits,
     #[error("Table not exists")]
     TableNotExits(String),
     #[error("Invalid column")]
@@ -378,6 +378,10 @@ pub async fn write_stable_with_sql(
                     // 0x2602: invalid column
                     Err(FlatWriteError::InvalidColumn)
                 }
+                0x0388 => {
+                    // 0x0388: Database not exist
+                    Err(FlatWriteError::DatabaseNotExits)
+                }
                 0x2603 | 0x0618 => {
                     // 0x2603: the table does not exist
                     // 0x0618: the table does not exist
@@ -433,7 +437,7 @@ pub async fn flat_write_with_sql(
     _notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
     global: &TableOptions,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<usize> {
     // define a macro to handle the success
     macro_rules! metrics_success {
@@ -822,6 +826,32 @@ pub async fn flat_write_with_sql(
                                     break;
                                 }
                             }
+                            FlatWriteError::DatabaseNotExits => {
+                                metrics_failed!(records.records, cols);
+                                match global
+                                    .process_on_abnormal
+                                    .database_not_exist
+                                    .handle(format!("{err:#}"))
+                                {
+                                    Ok((HandlingResult::Skip, _)) => {
+                                        break;
+                                    }
+                                    Ok((HandlingResult::Archive, err)) => {
+                                        for batch in records.batches {
+                                            if let Err(e) =
+                                                process_archive(&err, &batch, archive_tx.clone())
+                                            {
+                                                tracing::error!("archive error: {e:#}");
+                                            }
+                                        }
+                                        break;
+                                    }
+                                    Ok((_, _)) => unreachable!(),
+                                    Err(e) => {
+                                        return Err(e)?;
+                                    }
+                                }
+                            }
                             _ => {
                                 metrics_failed!(records.records, cols);
                                 // handle the error
@@ -858,7 +888,7 @@ async fn handle_primary_timestamp_null_and_rewrite(
     stable: &str,
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<bool> {
     let mut success = true;
     // loop the batches
@@ -947,7 +977,7 @@ async fn handle_field_length_overflow_and_rewrite(
     field: &str,
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<bool> {
     let mut success = true;
     // get the length of the field
@@ -1264,7 +1294,7 @@ async fn handle_ingesting_error(
     global: &TableOptions,
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     match global
         .process_on_abnormal
@@ -1303,7 +1333,7 @@ pub async fn flat_write_with_raw_block(
     notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
     global: &TableOptions,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<usize> {
     // define a macro to handle the error
     macro_rules! metrics_failed {
@@ -1313,7 +1343,6 @@ pub async fn flat_write_with_raw_block(
             metrics.add_failed_points(($raw.nrows() * $raw.column_views().len()) as u64);
         };
     }
-
     let mut count = 0;
     let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
     // debug_assert!(qid.task_id() > 0);
@@ -1428,6 +1457,7 @@ pub async fn flat_write_with_raw_block(
                                 break;
                             }
                             Err(err) => {
+                                tracing::error!("raw block describe table error: {err:#}");
                                 let code: i32 = err.code().into();
                                 if !matches!(code, 0x0218 | 0x2603 | 0x2602 | 0x0618 | 0x0362) {
                                     // 0x0218: the table does not exist
@@ -1647,6 +1677,7 @@ pub async fn flat_write_with_raw_block(
                 .write_raw_block_with_req_id(&raw, qid.get())
                 .await
             {
+                tracing::error!("write raw block error: {err:#}");
                 let code = err.code();
                 let errno: i32 = code.into();
                 write_retries += 1;
@@ -1909,6 +1940,30 @@ pub async fn flat_write_with_raw_block(
                         }
                         index += 1;
                     }
+                } else if errno == 0x0388 {
+                    // 0x0388: Database not exist
+                    metrics_failed!(raw);
+                    match global
+                        .process_on_abnormal
+                        .database_not_exist
+                        .handle(format!("{err:#}"))
+                    {
+                        Ok((HandlingResult::Skip, _)) => {
+                            break;
+                        }
+                        Ok((HandlingResult::Archive, err)) => {
+                            if let Err(e) =
+                                process_archive(&err, &records.records, archive_tx.clone())
+                            {
+                                tracing::error!("archive error: {e:#}");
+                            }
+                            break;
+                        }
+                        Ok((_, _)) => unreachable!(),
+                        Err(e) => {
+                            return Err(e)?;
+                        }
+                    }
                 } else if errno == 0xE001
                     || errno == 0xE002
                     || errno == 0xE003
@@ -2021,7 +2076,7 @@ pub async fn handling_database_not_exist(
     global: &TableOptions,
     messages: &[MessageArrowRecords],
     err: taos::Error,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     match global
         .process_on_abnormal
@@ -2050,32 +2105,6 @@ pub async fn handling_database_not_exist(
     Ok(())
 }
 
-fn process_cache(
-    batch: &RecordBatch,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
-) -> anyhow::Result<()> {
-    if batch.num_rows() > 0 {
-        archive_tx.send((ArchiveType::Cache, batch.clone()))?;
-    }
-    Ok(())
-}
-
-fn process_archive(
-    err: &str,
-    batch: &RecordBatch,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
-) -> anyhow::Result<()> {
-    // possible difference in schema, so archive them separately
-    let err_vec = vec![err.to_string(); batch.num_rows()];
-    let err_timestamp_vec = vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
-    archive_records(
-        batch,
-        err_vec.clone(),
-        err_timestamp_vec.clone(),
-        archive_tx.clone(),
-    )
-}
-
 pub type FlatItem = (
     Vec<MessageArrowRecords>,
     Qid,
@@ -2099,7 +2128,7 @@ impl FlatSink {
         metrics_arc: Arc<CoreMetrics>,
         notifier: crate::TaskNotifySender,
         cancel: CancellationToken,
-        archive_tx: Sender<(ArchiveType, RecordBatch)>,
+        archive_tx: Sender<ArchiveType>,
     ) -> anyhow::Result<Self> {
         let workers = parser.global().workers_per_vgroup();
         let taos = pool.get().await?;
@@ -2423,7 +2452,7 @@ async fn consume_flat_record_with_sink(
     batch: &RecordBatch,
     count: &mut usize,
     parser: &Parser,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     let batch = parser.parse_message_from_records(batch, true, archive_tx.clone())?;
 
@@ -2451,7 +2480,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
@@ -2638,7 +2667,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
@@ -2781,7 +2810,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
     let count = Arc::new(AtomicUsize::new(0));

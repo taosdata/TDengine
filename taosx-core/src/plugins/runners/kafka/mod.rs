@@ -129,7 +129,7 @@ async fn get_sample_impl(
     let fallback_offset = KafkaTaskConfig::parse_fallback_offset(dsn)?;
 
     // create consumer
-    let mut client_config = build_client_config(connect_config).unwrap();
+    let mut client_config = build_client_config(connect_config)?;
     let consumer: BaseConsumer = client_config
         .set("group.id", "test")
         .set("auto.offset.reset", &fallback_offset)
@@ -144,10 +144,12 @@ async fn get_sample_impl(
         .subscribe(&topics)
         .expect("Can't subscribe to specified topics");
 
-    let _ = tracing_all_topics(topics, &consumer);
+    let _ = tracing_all_topics(&topics, &consumer);
 
     // assign offset to the beginning or end
-    let mut tp_list = consumer.assignment().unwrap();
+    let mut tp_list = consumer
+        .assignment()
+        .with_context(|| format!("Get topics `{}` partition list error", topics.join(",")))?;
     match fallback_offset.as_str() {
         "smallest" | "earliest" | "beginning" => {
             tp_list
@@ -163,7 +165,9 @@ async fn get_sample_impl(
             // nothing to do
         }
     };
-    consumer.assign(&tp_list).unwrap();
+    consumer
+        .assign(&tp_list)
+        .with_context(|| format!("Assign consumer on topics `{}`", topics.join(",")))?;
 
     let processor = KafkaTaskConfig::parse_codec_processor(dsn)?;
 
@@ -198,7 +202,7 @@ async fn get_sample_impl(
     Ok(payload_list)
 }
 
-fn tracing_all_topics(topics: Vec<&str>, consumer: &BaseConsumer) -> anyhow::Result<()> {
+fn tracing_all_topics(topics: &[&str], consumer: &BaseConsumer) -> anyhow::Result<()> {
     for topic in topics {
         let metadata = consumer
             .fetch_metadata(Some(topic), Duration::from_secs(1))
@@ -536,7 +540,8 @@ async fn execute(
             // receive ACK from IPC
             consumers.spawn_blocking(move || {
                 let _entered = ack_span.entered();
-                let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
+                let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream)
+                    .context("failed to open ack stream")?;
                 for ack in ack_reader {
                     ack_num_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
@@ -743,7 +748,7 @@ impl SubTask {
         _notify: &crate::TaskNotifySender,
         metrics: &Arc<CoreMetrics>,
     ) -> anyhow::Result<Vec<Self>> {
-        let client_config = build_client_config(config.connect.clone()).unwrap();
+        let client_config = build_client_config(config.connect.clone())?;
 
         // create a base consumer
         let consumer: BaseConsumer = client_config
@@ -946,8 +951,11 @@ impl<'a> MessagesSender<'a> {
                             return Err(e);
                         }
                     };
-                    self.timestamp
-                        .append_value(Utc::now().timestamp_nanos_opt().unwrap());
+                    self.timestamp.append_value(
+                        Utc::now()
+                            .timestamp_nanos_opt()
+                            .expect("Get now timestamp in nanosecond should always success"),
+                    );
                     self.topic.append_value(msg.topic());
                     self.partition.append_value(msg.partition());
                     self.offset.append_value(msg.offset());
@@ -1115,24 +1123,23 @@ impl<'a> MessagesSender<'a> {
                             tracing::error!(cause  = %err, "Get consumer assignment error")
                         }).ok();
                     }
-                    if assignment.is_none() {
-                        warn!("Store offset error in partition {partition} of topic `{topic}`, seems assignment lost");
-                        continue;
-                    }
-                    if assignment
-                        .as_ref()
-                        .unwrap()
-                        .elements_for_topic(topic)
-                        .iter()
-                        .all(|item| item.partition() != *partition)
-                    {
-                        tracing::warn!("Rebalanced, partition {partition} is no longer assigned to this consumer");
-                    } else {
-                        Err(err).with_context(|| {
-                            format!(
+                    if let Some(assignment) = assignment.as_ref() {
+                        if assignment
+                            .elements_for_topic(topic)
+                            .iter()
+                            .all(|item| item.partition() != *partition)
+                        {
+                            tracing::warn!("Rebalanced, partition {partition} is no longer assigned to this consumer");
+                        } else {
+                            Err(err).with_context(|| {
+                                format!(
                                 "Store offset error in partition {partition} of topic `{topic}`"
                             )
-                        })?;
+                            })?;
+                        }
+                    } else {
+                        warn!("Store offset error in partition {partition} of topic `{topic}`, seems assignment lost");
+                        continue;
                     }
                 } else {
                     no_offsets = false;
@@ -1558,7 +1565,7 @@ impl KafkaTaskConfig {
         topics: &[&str],
         mut context: CustomContext,
     ) -> anyhow::Result<LoggingConsumer> {
-        let mut client = build_client_config(self.connect.clone()).unwrap();
+        let mut client = build_client_config(self.connect.clone())?;
         // Client identifier, default "rdkafka".
         if let Some(client_id) = &self.client_id {
             client.set("client.id", client_id);
@@ -1617,25 +1624,16 @@ impl KafkaTaskConfig {
         );
 
         // Initial maximum number of bytes per topic+partition to request when fetching messages from the broker.
-        if self.fetch_max_bytes_per_partition.is_some() {
-            client.set(
-                "fetch.message.max.bytes",
-                self.fetch_max_bytes_per_partition.unwrap().to_string(),
-            );
+        if let Some(v) = self.fetch_max_bytes_per_partition {
+            client.set("fetch.message.max.bytes", v.to_string());
         }
         // Verify CRC32 of consumed messages, ensuring no on-the-wire or on-disk corruption to the messages occurred
-        if self.fetch_crc_validation.is_some() {
-            client.set("check.crcs", self.fetch_crc_validation.unwrap().to_string());
+        if let Some(v) = self.fetch_crc_validation {
+            client.set("check.crcs", v.to_string());
         }
         // Close broker connections after the specified time of inactivity.
-        if self.connection_idle_timeout.is_some() {
-            client.set(
-                "connections.max.idle.ms",
-                self.connection_idle_timeout
-                    .unwrap()
-                    .as_millis()
-                    .to_string(),
-            );
+        if let Some(v) = self.connection_idle_timeout {
+            client.set("connections.max.idle.ms", v.as_millis().to_string());
         }
 
         client.set("partition.assignment.strategy", "cooperative-sticky");
@@ -1770,15 +1768,10 @@ fn build_client_config(config: KafkaConnectConfig) -> anyhow::Result<ClientConfi
                     .output();
                 if let Ok(output) = output {
                     if !output.status.success() {
-                        tracing::error!("{}", std::str::from_utf8(&output.stderr).unwrap());
-                        anyhow::bail!(
-                            "{}",
-                            std::str::from_utf8(&output.stderr)
-                                .unwrap()
-                                .lines()
-                                .next()
-                                .unwrap()
-                        );
+                        let stderr = std::str::from_utf8(&output.stderr)
+                            .expect("Output should always be UTF-8");
+                        tracing::error!("{stderr}");
+                        anyhow::bail!("{}", stderr.lines().next().unwrap_or("EMPTY STDERR"));
                     }
                 }
                 // set to client
@@ -1821,22 +1814,24 @@ mod tests {
     #[tokio::test]
     async fn test_get_topics_offset() {
         if let Ok(kafka_dsn) = env::var("KAFKA_DSN") {
-            let dsn = kafka_dsn.into_dsn().unwrap();
-            let offsets = get_topics_offset(None, &dsn).await.unwrap();
+            let dsn = kafka_dsn.into_dsn().expect("Always valid");
+            let offsets = get_topics_offset(None, &dsn)
+                .await
+                .expect("Get topics offset should success");
             dbg!(offsets);
         }
     }
 
     #[tokio::test]
     async fn test_is_valid() {
-        let dsn = Dsn::from_str("kafka://127.0.0.1:9092").unwrap();
+        let dsn = Dsn::from_str("kafka://127.0.0.1:9092").expect("DSN parse should be success");
         let result = is_valid(&dsn).await;
         assert!(!result.valid);
         assert!(!result.support);
         assert_eq!(KAFKA_ID, result.data_source);
         assert_eq!(
             "invalid dsn: kafka://127.0.0.1:9092, cause: topics is required",
-            result.message.unwrap()
+            result.message.expect("message should exists")
         );
     }
 
@@ -1851,20 +1846,21 @@ mod tests {
             "@../tests/kafka/client_test_client.key",
         )
         .into_dsn()
-        .unwrap();
+        .expect("SSL DSN should be valid");
 
-        let config = KafkaConnectConfig::from_dsn(&dsn).unwrap();
-        let client_config: ClientConfig = build_client_config(config.clone()).unwrap();
+        let config = KafkaConnectConfig::from_dsn(&dsn).expect("Config should success in test");
+        let client_config: ClientConfig =
+            build_client_config(config.clone()).expect("Client config should success in test");
         // create a base consumer
         let consumer: BaseConsumer = client_config
             .create()
             .map_err(|err| anyhow::anyhow!("failed to create consumer, cause: {:#}", err))
-            .unwrap();
+            .expect("Consumer should created successfully in test");
         // fetch metadata
         let metadata = consumer
             .fetch_metadata(None, Duration::from_secs(5))
             .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {:#}", err))
-            .unwrap();
+            .expect("Metadata should be fetched successfully in test");
 
         dbg!(metadata.topics().len());
     }
@@ -1877,20 +1873,22 @@ mod tests {
             "192.168.2.19:9094", "PLAIN", "nick", "nick-sec",
         )
         .into_dsn()
-        .unwrap();
+        .expect("DSN should be valid");
 
-        let config = KafkaConnectConfig::from_dsn(&dsn).unwrap();
-        let client_config: ClientConfig = build_client_config(config.clone()).unwrap();
+        let config = KafkaConnectConfig::from_dsn(&dsn).expect("Config should success in test");
+        let client_config: ClientConfig =
+            build_client_config(config.clone()).expect("Client config should success in test");
         // create a base consumer
         let consumer: BaseConsumer = client_config
             .create()
             .map_err(|err| anyhow::anyhow!("failed to create consumer, cause: {:#}", err))
-            .unwrap();
+            .expect("Consumer should created successfully in test");
         // fetch metadata
         let metadata = consumer
             .fetch_metadata(None, Duration::from_secs(5))
             .map_err(|err| anyhow::anyhow!("failed to load meta data, cause: {:#}", err))
-            .unwrap();
+            .expect("Metadata should be fetched successfully in test");
+
         dbg!(metadata.topics().len());
         // filter topics
         let topics = [String::from("test_taosx_sasl")];

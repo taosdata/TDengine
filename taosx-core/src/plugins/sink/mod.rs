@@ -1,4 +1,6 @@
 use anyhow::{anyhow, bail, Context};
+use archive::utils::files::read_parquet_file;
+use archive::{get_rewrite_files, Archive, ArchiveConsumer, ArchiveType, Cache};
 use arrow::array::{Array, StringArray, UInt8Array};
 use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions, record_batch::RecordBatch};
 use arrow_compute_ext::RecordBatchExt;
@@ -31,7 +33,7 @@ use std::{
 };
 use taos::{
     taos_query::{common::Describe, Manager},
-    Itertools, Taos, TaosPool, Ty, Value,
+    Itertools, Taos, TaosPool, Value,
 };
 use taoslog::utils::QidMetadataGetter;
 use taoslog::QidManager;
@@ -47,16 +49,14 @@ use crate::core_metrics::{CoreMetrics, TaskMetrics};
 use crate::plugins::runners::opc::config::OPCConfig;
 use crate::plugins::runners::opc::model::OpcModelConfig;
 use crate::plugins::transform::archive_records;
-use crate::plugins::transform::handling_strategy::HandlingResult;
+use crate::plugins::transform::handling_strategy::{HandlingResult, ProcessOnAbnormalEnum};
 use crate::plugins::transform::WrittenMethod;
 use crate::plugins::*;
 use crate::utils::breakpoints::BreakpointDb;
-use crate::utils::files::{read_parquet_dir_files, read_parquet_file};
 use crate::utils::sql::get_minimum_timestamp;
 use crate::utils::trace::{BatchCounter, Qid};
 use crate::AGENT_COMPRESSION;
 use crate::{utils::breakpoints::breakpoints_set, ConnectorLicense, Parser, Transferred};
-use crate::{ArchiveConsumer, ArchiveType};
 
 use self::point::handle_transform;
 use self::point::point_records_to_sql;
@@ -1095,7 +1095,7 @@ async fn consume_lush_record_with_transform(
     lush_model_config: Arc<LushModelConfig>,
     table_cache: Arc<TableTagCache>,
     breakpoint_db: BreakpointDb,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     if unsafe { crate::global::DRY_RUN } {
         tracing::trace!("consume lush record in dry-run mode with transform");
@@ -1849,8 +1849,7 @@ async fn consume_point_record(
                                     }
                                 }
                                 for column_meta in desc {
-                                    if (column_meta.ty() == Ty::VarChar
-                                        || column_meta.ty() == Ty::NChar)
+                                    if column_meta.ty().is_var_type()
                                         && column_meta.field()
                                             == sql_insertion.modify.value_column_name
                                         && sql_insertion.modify.value_column_length
@@ -1930,8 +1929,16 @@ async fn consume_flat_record(
     target_precision: taos::Precision,
     metrics: &IpcMetrics,
     notifier: Option<&crate::TaskNotifySender>,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
+    macro_rules! metrics_failed {
+        ($rows:expr, $cols:expr) => {
+            metrics.add_failed_sqls(1_u64);
+            metrics.add_failed_rows($rows as u64);
+            metrics.add_failed_points(($rows * $cols) as u64);
+        };
+    }
+
     if unsafe { crate::global::DRY_RUN } {
         metrics.add_processed_rows(batch.num_rows() as u64);
         return Ok(());
@@ -1954,6 +1961,8 @@ async fn consume_flat_record(
                     taos.replace(new_taos);
                 }
                 Err(e) => {
+                    tracing::debug!("get taos connection from pool error: {e:?}");
+                    let sleep = ((timeout * 1000) / DEFAULT_MAX_RETRIES_FOR_CONNECTION) as u64;
                     let pool_status = pool.status();
                     if pool_status.available == 0
                         && matches!(e, PoolError::Timeout(TimeoutType::Wait))
@@ -1961,41 +1970,51 @@ async fn consume_flat_record(
                         let new_size = pool_status.max_size + parser.global().concurrent_limit();
                         pool.resize(new_size);
                         tracing::warn!(new_size, "connection pool resized");
-                        taos.replace(pool.get().await?);
-                    }
-                    if Utc::now() - retry_start > TimeDelta::seconds(timeout as i64) {
-                        match parser
-                            .global()
-                            .process_on_abnormal
-                            .database_connection_error
-                            .handle("get taos connection from pool error".to_string())
-                        {
-                            Ok((HandlingResult::Skip, _)) => {
-                                return Ok(());
-                            }
-                            Ok((HandlingResult::Archive, err)) => {
-                                if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
-                                    tracing::error!("archive error: {e:#}");
-                                }
-                                return Ok(());
-                            }
-                            Ok((HandlingResult::Modify(_), _)) => unreachable!(),
-                            Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
-                            Ok((HandlingResult::Retry, _)) => {
-                                if let Err(e) = process_cache(batch, archive_tx.clone()) {
-                                    tracing::error!("cache error: {e:#}");
-                                }
-                                return Ok(());
-                            }
-                            Err(e) => {
-                                return Err(e).context("get taos connection from pool error")?;
-                            }
-                        }
-                    } else {
-                        let sleep = ((timeout * 1000) / DEFAULT_MAX_RETRIES_FOR_CONNECTION) as u64;
                         tokio::time::sleep(Duration::from_millis(sleep)).await;
-                        taos.replace(pool.get().await?);
+                        continue;
                     }
+
+                    if let PoolError::Backend(e) = e {
+                        let errno: i32 = e.code().into();
+                        // 0x0388: Database not exist
+                        if errno == 0x0388 {
+                            tracing::debug!(
+                                "database not exist, handle abnormal strategy:{:?}",
+                                parser.global().process_on_abnormal.database_not_exist,
+                            );
+                            metrics_failed!(batch.num_rows(), batch.num_columns());
+                            handle_flat_abnormal(
+                                ProcessOnAbnormalEnum::DatabaseNotExist(
+                                    &parser.global().process_on_abnormal.database_not_exist,
+                                ),
+                                batch,
+                                archive_tx.clone(),
+                            )?;
+                            tokio::time::sleep(Duration::from_millis(sleep)).await;
+                            continue;
+                        }
+                    }
+
+                    if Utc::now() - retry_start > TimeDelta::seconds(timeout as i64) {
+                        tracing::debug!(
+                            "handle database connection abnormal, strategy:{:?}",
+                            parser
+                                .global()
+                                .process_on_abnormal
+                                .database_connection_error,
+                        );
+                        handle_flat_abnormal(
+                            ProcessOnAbnormalEnum::DatabaseConnectionError(
+                                &parser
+                                    .global()
+                                    .process_on_abnormal
+                                    .database_connection_error,
+                            ),
+                            batch,
+                            archive_tx.clone(),
+                        )?;
+                    }
+                    tokio::time::sleep(Duration::from_millis(sleep)).await;
                 }
             }
         } else {
@@ -2151,13 +2170,57 @@ async fn consume_flat_record(
     Ok(())
 }
 
-fn process_cache(
+fn handle_flat_abnormal<'a>(
+    abnormal_stragy: ProcessOnAbnormalEnum<'a>,
     batch: &RecordBatch,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
+    match abnormal_stragy {
+        ProcessOnAbnormalEnum::DatabaseConnectionError(database_connection_error) => {
+            match database_connection_error
+                .handle("get taos connection from pool error".to_string())
+            {
+                Ok((HandlingResult::Skip, _)) => Ok(()),
+                Ok((HandlingResult::Archive, err)) => {
+                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                        tracing::error!("archive error: {e:#}");
+                    }
+                    Ok(())
+                }
+                Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                Ok((HandlingResult::Retry, _)) => {
+                    if let Err(e) = process_cache(batch, archive_tx.clone()) {
+                        tracing::error!("cache error: {e:#}");
+                    }
+                    Ok(())
+                }
+                Err(e) => Err(e).context("get taos connection from pool error")?,
+            }
+        }
+        ProcessOnAbnormalEnum::DatabaseNotExist(handling_strategy) => {
+            match handling_strategy.handle("Database not exist".to_string()) {
+                Ok((HandlingResult::Archive, err)) => {
+                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                        tracing::error!("archive error: {e:#}");
+                    }
+                    Ok(())
+                }
+                Ok((HandlingResult::Skip, err)) => {
+                    tracing::warn!("skip info: {err:#}");
+                    Ok(())
+                }
+                Ok((_, _)) => unreachable!(),
+                Err(e) => Err(e).context("get taos connection from pool error")?,
+            }
+        }
+    }
+}
+
+fn process_cache(batch: &RecordBatch, archive_tx: Sender<ArchiveType>) -> anyhow::Result<()> {
     if batch.num_rows() > 0 {
         archive_tx
-            .send((ArchiveType::Cache, batch.clone()))
+            .send(ArchiveType::Cache(batch.clone()))
             .context("archive process task exit")?;
     }
     Ok(())
@@ -2166,22 +2229,17 @@ fn process_cache(
 fn process_archive(
     err: &str,
     batch: &RecordBatch,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     // possible difference in schema, so archive them separately
-    if batch.num_rows() > 0 {
-        let err_vec = vec![err.to_string(); batch.num_rows()];
-        let err_timestamp_vec = vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
-        if let Err(e) = archive_records(
-            batch,
-            err_vec.clone(),
-            err_timestamp_vec.clone(),
-            archive_tx.clone(),
-        ) {
-            tracing::error!("archive error: {e:#}");
-        }
-    }
-    Ok(())
+    let err_vec = vec![err.to_string(); batch.num_rows()];
+    let err_timestamp_vec = vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
+    archive_records(
+        batch,
+        err_vec.clone(),
+        err_timestamp_vec.clone(),
+        archive_tx.clone(),
+    )
 }
 
 #[instrument(skip_all)]
@@ -2195,7 +2253,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     ipc_error_strategy: IpcErrorStrategy,
     metrics: &IpcMetrics,
     metrics_arc: &Arc<CoreMetrics>,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     // let taos = pool.get().await?;
     let columns = ipc_reader
@@ -2468,7 +2526,7 @@ async fn ipc_flat_stream_worker(
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
     let parser = parser.ok_or_else(|| anyhow::anyhow!("Parser should be set with flat stream"))?;
@@ -2556,7 +2614,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
     persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
     let stream = ipc_reader.into_raw_stream_with_capycity(
@@ -2737,10 +2795,31 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
             tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
         });
         if parser_clone.is_some() && task_id.is_some() {
-            ArchiveConsumer::new(task_id.unwrap(), parser_clone)
-                .consume(archive_rx)
-                .await
+            let (cache, archive) = match parser_clone {
+                Some(parser) => (
+                    parser.global().process_on_abnormal.cache.clone(),
+                    parser.global().process_on_abnormal.archive.clone(),
+                ),
+                None => (Cache::default(), Archive::default()),
+            };
+            let metrics = get_metrics_arc_from_i64(Some(task_id.unwrap())).await;
+
+            match ArchiveConsumer::new(task_id.unwrap(), cache, archive, |num_rows: u64| {
+                let metrics = metrics.ipc();
+                metrics.add_archived_rows(num_rows);
+                Ok::<_, anyhow::Error>(())
+            })
+            .consume(archive_rx)
+            .await
+            {
+                Ok(_) => Ok(()),
+                Err(err) => {
+                    tracing::error!("archive consumer error: {err:#}");
+                    Err(err)
+                }
+            }
         } else {
+            drop(archive_rx);
             loop {
                 tokio::select! {
                     _ = cancel_clone.cancelled() => {
@@ -2763,6 +2842,9 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
         let _a = crate::utils::defer::defer(|| {
             tracing::info!("the 'rewrite file' thread has completed, task id: {task_id:?}",);
         });
+        if task_id.is_none() {
+            return Ok(());
+        }
         if let Some(parser) = parser_clone {
             read_cache_and_rewrite(
                 task_id.unwrap(),
@@ -3102,7 +3184,7 @@ impl IpcStreamWorker {
         metrics_arc: &Arc<CoreMetrics>,
         tables_messages_in_progress: &Arc<AtomicUsize>,
         notifier: Option<&crate::TaskNotifySender>,
-        archive_tx: Sender<(ArchiveType, RecordBatch)>,
+        archive_tx: Sender<ArchiveType>,
     ) -> anyhow::Result<usize> {
         let taos = unsafe { &mut *self.taos.as_ptr() };
         if taos.is_none() {
@@ -3114,7 +3196,7 @@ impl IpcStreamWorker {
             }
             StreamType::Flat => {
                 let mut count = 0;
-                let mut taos = Some(self.pool.get().await?);
+                let mut taos = None;
                 consume_flat_record(
                     &self.pool,
                     &mut taos,
@@ -3697,22 +3779,33 @@ pub async fn channel_based_transformer(
             tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
         });
 
-        match (parser_clone, task_id) {
-            (Some(parser), Some(task_id)) => {
-                ArchiveConsumer::new(task_id, Some(parser))
-                    .consume(archive_rx)
-                    .await
-            }
-            _ => {
-                loop {
-                    tokio::select! {
-                        _ = cancel_clone.cancelled() => {
-                            tracing::info!("stop the 'cache & archive' thread, task cancelled");
-                            break;
-                        }
-                        _ = tokio::time::sleep(Duration::from_secs(5)) => {
-                        }
+        if parser_clone.is_some() && task_id.is_some() {
+            let (cache, archive) = match parser_clone {
+                Some(parser) => (
+                    parser.global().process_on_abnormal.cache.clone(),
+                    parser.global().process_on_abnormal.archive.clone(),
+                ),
+                None => (Cache::default(), Archive::default()),
+            };
+            let metrics = get_metrics_arc_from_i64(Some(task_id.unwrap())).await;
+
+            ArchiveConsumer::new(task_id.unwrap(), cache, archive, |num_rows: u64| {
+                let metrics = metrics.ipc();
+                metrics.add_archived_rows(num_rows);
+                Ok::<_, anyhow::Error>(())
+            })
+            .consume(archive_rx)
+            .await
+        } else {
+            drop(archive_rx);
+
+            loop {
+                tokio::select! {
+                    _ = cancel_clone.cancelled() => {
+                        tracing::info!("stop the 'cache & archive' thread, task cancelled");
+                        break;
                     }
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
                 }
                 Ok(())
             }
@@ -3814,7 +3907,7 @@ pub async fn read_cache_and_rewrite(
     task_id: i64,
     pool: &TaosPool,
     parser: &Parser,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
     cancel: &CancellationToken,
 ) -> anyhow::Result<()> {
     let cache_path = parser.global().process_on_abnormal.cache.location.clone();
@@ -3828,10 +3921,20 @@ pub async fn read_cache_and_rewrite(
             }
             _ = tokio::time::sleep(Duration::from_secs(5)) => {
                 if let Ok(taos) = pool.get().await {
-                    let target_precision = get_current_precision(&taos).in_current_span().await?;
-                    let files = match read_parquet_dir_files(task_id, &cache_path) {
+                    let target_precision = match get_current_precision(&taos).in_current_span().await {
+                        Ok(precision) => precision,
+                        Err(e) => {
+                            tracing::error!("get current precision error, e: {e:#}");
+                            continue;
+                        }
+                    };
+                    //get all cached files at current time point
+                    let files = match get_rewrite_files(archive_tx.clone()).await {
                         Ok(files) => files,
-                        Err(e) => anyhow::bail!(format!("{e:#}")),
+                        Err(e) => {
+                            tracing::error!("get rewrite files error, e: {e:#}");
+                            continue;
+                        }
                     };
                     let mut taos_mut = Some(taos);
                     for file in files {
@@ -3868,7 +3971,7 @@ async fn read_file_and_rewrite(
     target_precision: taos::Precision,
     metrics: &IpcMetrics,
     parser: &Parser,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
     cancel: &CancellationToken,
 ) -> anyhow::Result<()> {
     let batches = read_parquet_file(file.clone())?;
@@ -4023,6 +4126,103 @@ mod tests {
         assert_eq!(listen_addr, addr.parse::<SocketAddr>()?);
 
         tokio::try_join!(listen(listener), connect(listen_addr))?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn db_not_exist_abnormal() -> anyhow::Result<()> {
+        let config = r#"{
+            "global": {
+                "database_not_exist": "archive"
+            },
+            "mutate": [],
+            "model": []
+        }"#;
+        let parser = serde_json::from_str::<Parser>(config)?;
+        let batch = arrow::array::record_batch!(
+            ("a", Int32, [1, 2, 3]),
+            ("b", Float64, [Some(4.0), None, Some(5.0)])
+        )?;
+        let (archive_tx, rx) = flume::unbounded();
+        handle_flat_abnormal(
+            ProcessOnAbnormalEnum::DatabaseNotExist(
+                &parser.global().process_on_abnormal.database_not_exist,
+            ),
+            &batch,
+            archive_tx.clone(),
+        )?;
+        let rs = rx.recv();
+        dbg!(&rs);
+        assert!(rs.is_ok());
+
+        let config = r#"{
+            "global": {
+                "database_not_exist": "break"
+            },
+            "mutate": [],
+            "model": []
+        }"#;
+        let parser = serde_json::from_str::<Parser>(config)?;
+        let rs = handle_flat_abnormal(
+            ProcessOnAbnormalEnum::DatabaseNotExist(
+                &parser.global().process_on_abnormal.database_not_exist,
+            ),
+            &batch,
+            archive_tx.clone(),
+        );
+        assert!(rs.is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn db_conn_abnormal() -> anyhow::Result<()> {
+        let config = r#"{
+            "global": {
+                "database_connection_error": "cache"
+            },
+            "mutate": [],
+            "model": []
+        }"#;
+        let parser = serde_json::from_str::<Parser>(config)?;
+        let batch = arrow::array::record_batch!(
+            ("a", Int32, [1, 2, 3]),
+            ("b", Float64, [Some(4.0), None, Some(5.0)])
+        )?;
+        let (cache_tx, rx) = flume::unbounded();
+        handle_flat_abnormal(
+            ProcessOnAbnormalEnum::DatabaseConnectionError(
+                &parser
+                    .global()
+                    .process_on_abnormal
+                    .database_connection_error,
+            ),
+            &batch,
+            cache_tx.clone(),
+        )?;
+        let rs = rx.recv();
+        dbg!(&rs);
+        assert!(rs.is_ok());
+
+        let config = r#"{
+            "global": {
+                "database_connection_error": "break"
+            },
+            "mutate": [],
+            "model": []
+        }"#;
+        let parser = serde_json::from_str::<Parser>(config)?;
+        let rs = handle_flat_abnormal(
+            ProcessOnAbnormalEnum::DatabaseConnectionError(
+                &parser
+                    .global()
+                    .process_on_abnormal
+                    .database_connection_error,
+            ),
+            &batch,
+            cache_tx.clone(),
+        );
+        dbg!(&rs);
+        assert!(rs.is_err());
         Ok(())
     }
 }

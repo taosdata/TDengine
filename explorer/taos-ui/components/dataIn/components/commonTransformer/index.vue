@@ -1420,6 +1420,11 @@ async function caculateMappingResult() {
   const mutates: Recordable[] = [];
   const mutateMap = {};
 
+  const precision_res = await executeSqlFn!(`
+        select \`precision\` from information_schema.ins_databases where name = '${sourceForm.targetDB}'
+        `);
+  const precision = precision_res.data[0][0];
+
   tableData.value.forEach((item: Recordable) => {
     // 主键列不能为空
     if (item['PrimaryKey'] && !item['Expression']) {
@@ -1427,10 +1432,10 @@ async function caculateMappingResult() {
       ElMessage.warning(t('dataIn.transformer.mappingvaildtip'));
       isbreak.value = true;
     }
-    // 不支持 VARBINARY & GEOMETRY
-    if ((item['Type'] == 'VARBINARY' || item['Type'] == 'GEOMETRY') && item['Expression']) {
+    // 不支持 GEOMETRY
+    if ((item['Type'] == 'GEOMETRY') && item['Expression']) {
       ElMessage.closeAll();
-      ElMessage.warning(t('dataIn.transformer.nonsupportTypetip', ['VARBINARY/GEOMETRY']));
+      ElMessage.warning(t('dataIn.transformer.nonsupportTypetip', ['GEOMETRY']));
       isbreak.value = true;
     }
     if (item['Expression']) {
@@ -1465,6 +1470,9 @@ async function caculateMappingResult() {
               expreitem['default'] = item.default;
             }
           }
+        }
+        if (expreitem["generator"] === 'now') {
+          expreitem["precision"] = precision
         }
         mutates.push({
           [`${item['Name']}`]: expreitem

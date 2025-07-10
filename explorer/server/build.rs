@@ -71,7 +71,7 @@ fn main() -> shadow_rs::SdResult<()> {
     let service_path = target_dir.join(format!("{cus_prompt}-explorer.service"));
     std::fs::write(&service_path, service).unwrap();
 
-    let canonical_cus_name = if cus_name == "TDengine TSDB-Lite" {
+    let canonical_cus_name = if cus_name.starts_with("TDengine") {
         "TDengine"
     } else {
         cus_name

@@ -728,7 +728,6 @@ async fn sync(
     metrics_arc: Arc<CoreMetrics>,
     with_meta_delete: bool,
     with_meta_drop: bool,
-    group_id: &String,
 ) -> anyhow::Result<Consumer> {
     tracing::info!("Task start");
     let mut stream = consumer.stream();
@@ -740,7 +739,6 @@ async fn sync(
         .await
         .is_ok();
     let metrics = metrics_arc.tmq();
-    let refresh_progress_interval = IntervalLimit::new(Duration::from_secs(1));
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
@@ -769,9 +767,6 @@ async fn sync(
                     )
                         .in_current_span()
                         .await?;
-                    if refresh_progress_interval.ticked() {
-                        let _ = update_progress(source_pool, metrics, &topic.name, group_id).await;
-                    }
 
                 } else {
                     break;
@@ -779,7 +774,6 @@ async fn sync(
             }
         }
     }
-    let _ = update_progress(source_pool, metrics, &topic.name, group_id).await;
     tracing::info!("Task done");
 
     // do not drop consumer when single task done.
@@ -804,7 +798,6 @@ async fn sync_interlace(
     cancel: CancellationToken,
     metrics_arc: Arc<CoreMetrics>,
     options: &WriteOptions,
-    group_id: &String,
 ) -> anyhow::Result<Consumer> {
     tracing::info!("Task start");
     // let mut stream = consumer.stream_with_timeout(Timeout::from_secs(5).into());
@@ -1002,7 +995,6 @@ async fn sync_interlace(
         clean_cache!();
         consumer.commit(last_offset.unwrap()).await?;
     }
-    let _ = update_progress(source_pool, metrics, &topic.name, group_id).await;
     tracing::info!("Task done");
 
     // do not drop consumer when single task done.
@@ -1023,7 +1015,6 @@ async fn sync_concurrently(
     cancel: CancellationToken,
     metrics_arc: Arc<CoreMetrics>,
     options: &WriteOptions,
-    group_id: &String,
 ) -> anyhow::Result<Consumer> {
     tracing::info!("Task start");
     let taos = target_pool.get().await?;
@@ -1115,19 +1106,6 @@ async fn sync_concurrently(
         DEFAULT_POLL_INTERVAL
     };
     let timeout = Timeout::from_millis(poll_interval.as_millis() as _);
-
-    static REFRESH_PROGRESS_INTERVAL: std::sync::OnceLock<Duration> = std::sync::OnceLock::new();
-    let refresh_progress_interval = REFRESH_PROGRESS_INTERVAL.get_or_init(|| {
-        Duration::from_secs(
-            std::env::var("REFRESH_PROGRESS_INTERVAL")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(300),
-        )
-    });
-    let refresh_progress_interval =
-        crate::utils::interval::IntervalLimit::new(*refresh_progress_interval);
-
     let async_loop = async {
         loop {
             if cancel.is_cancelled() {
@@ -1144,9 +1122,6 @@ async fn sync_concurrently(
                     res?
                 }
             } {
-                if refresh_progress_interval.ticked() {
-                    let _ = update_progress(source_pool, metrics, &topic.name, group_id).await;
-                }
                 metrics.add_consume_cost_ms(per_message_instant.elapsed().as_millis() as _);
 
                 let message_type = match &message {
@@ -1223,7 +1198,6 @@ async fn sync_concurrently(
                 metrics.add_commits(1);
             }
         }
-        let _ = update_progress(source_pool, metrics, &topic.name, group_id).await;
         Ok(())
     }
     .in_current_span();
@@ -1367,6 +1341,12 @@ pub async fn tmq_to_td(
         .or(std::env::var("TMQ_COMMIT_INTERVAL_MS").ok())
         .and_then(|s| s.parse().ok())
         .unwrap_or(5000);
+    let refresh_progress_interval = Duration::from_secs(
+        from.remove("refresh.progress.interval")
+            .or(std::env::var("REFRESH_PROGRESS_INTERVAL").ok())
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(7),
+    );
 
     const DEFAULT_ENABLE_CONCURRENT_POLLING: bool = true;
     let concurrent_polling = from
@@ -1384,7 +1364,14 @@ pub async fn tmq_to_td(
             }
         })
         .unwrap_or(DEFAULT_ENABLE_CONCURRENT_POLLING);
-
+    if let Some(v) = from.remove("timeout") {
+        let d = parse_timeout_duration(&v).context("parse timeout error")?;
+        if d == Duration::MAX {
+            from.set("timeout", "never");
+        } else {
+            from.set("timeout", v);
+        }
+    }
     let max_polling_timeout = from
         .remove("max.polling.timeout")
         .or(from.get("timeout").cloned()) // for compatibility
@@ -1676,7 +1663,6 @@ pub async fn tmq_to_td(
             let notify = notify.clone();
             let target = target.clone();
             let options = options.clone();
-            let group_id = group_id.clone();
             let worker = wg.worker();
             join_set.spawn(
                 async move {
@@ -1696,7 +1682,6 @@ pub async fn tmq_to_td(
                                 cancellation.clone(),
                                 metrics_arc.clone(),
                                 &options,
-                                &group_id,
                             )
                             .await
                         } else if concurrent_polling && actions.is_empty() {
@@ -1710,7 +1695,6 @@ pub async fn tmq_to_td(
                                 cancellation.clone(),
                                 metrics_arc.clone(),
                                 &options,
-                                &group_id,
                             )
                             .await
                         } else {
@@ -1726,7 +1710,6 @@ pub async fn tmq_to_td(
                                 metrics_arc.clone(),
                                 with_meta_delete,
                                 with_meta_drop,
-                                &group_id,
                             )
                             .await
                         } {
@@ -1788,7 +1771,7 @@ pub async fn tmq_to_td(
             let source_pool = source_pool.clone();
             let cancel = cancel.clone();
             async move {
-                let mut interval = tokio::time::interval(Duration::from_secs(4));
+                let mut interval = tokio::time::interval(refresh_progress_interval);
                 let metrics = metrics.tmq();
                 loop {
                     tokio::select! {
@@ -1800,10 +1783,20 @@ pub async fn tmq_to_td(
                                 })?;
                         }
                         _ = cancel.cancelled() => {
+                            let _ = update_progress(&source_pool, metrics, &topic.name, &group_id)
+                                .await
+                                .inspect_err(|err| {
+                                    tracing::error!("TMQ process error: {err:#}");
+                                });
                             break Ok(());
                         }
                         _ = wg.wait() => {
                             tracing::info!("All consumers done");
+                            let _ = update_progress(&source_pool, metrics, &topic.name, &group_id)
+                                .await
+                                .inspect_err(|err| {
+                                    tracing::error!("TMQ process error: {err:#}");
+                                });
                             break Ok(());
                         }
                     }

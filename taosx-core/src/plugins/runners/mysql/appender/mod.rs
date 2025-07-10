@@ -338,7 +338,29 @@ pub async fn to_record_batches(
                         }
                     }
                 }
-                "BINARY" | "VARBINARY" | "TINYBLOB" | "BLOB" | "MEDIUMBLOB" | "LONGBLOB" => {
+                // 字节数组
+                "BINARY" | "VARBINARY" => {
+                    let val = row.try_get::<Option<&[u8]>, _>(col_cidx);
+                    match val {
+                        Ok(val) => match val {
+                            None => {
+                                append_null!(builders[col_cidx], array::BinaryBuilder);
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::BinaryBuilder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate mysql, decoding 'BINARY/VARBINARY/...' result error: {e:?}");
+                            append_null!(builders[col_cidx], array::BinaryBuilder);
+                        }
+                    }
+                }
+                "TINYBLOB" | "BLOB" | "MEDIUMBLOB" | "LONGBLOB" => {
                     let val = row.try_get::<Option<&[u8]>, _>(col_cidx);
                     match val {
                         Ok(val) => match val {

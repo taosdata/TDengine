@@ -306,16 +306,16 @@ pub fn to_record_batches(
                     None => {
                         builders[col_cidx]
                             .as_any_mut()
-                            .downcast_mut::<array::StringBuilder>()
+                            .downcast_mut::<array::BinaryBuilder>()
                             .unwrap()
                             .append_null();
                     }
                     Some(val) => {
                         builders[col_cidx]
                             .as_any_mut()
-                            .downcast_mut::<array::StringBuilder>()
+                            .downcast_mut::<array::BinaryBuilder>()
                             .unwrap()
-                            .append_value(format!("{:?}", val));
+                            .append_value(val);
                     }
                 },
                 tiberius::ColumnData::Numeric(val) => match val {
