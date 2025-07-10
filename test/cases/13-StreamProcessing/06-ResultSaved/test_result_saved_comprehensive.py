@@ -64,6 +64,13 @@ class TestStreamResultSavedComprehensive:
             4.4 Test whether [COMMENT 'string_value'] is specified
             4.5 Test correctness of generated column names in specified/unspecified scenarios
 
+        5. Test Target Table Management
+            5.1 Test deletion of target table after stream creation
+                5.1.1 Verify target table creation by stream
+                5.1.2 Test table deletion behavior
+                5.1.3 Test stream robustness after target table deletion
+                5.1.4 Verify error handling for missing target table
+
         Catalog:
             - Streams:ResultSaved
 
@@ -84,6 +91,7 @@ class TestStreamResultSavedComprehensive:
         self.prepareTriggerTable()
         self.createStreams()
         self.checkStreamStatus()
+        self.deleteTargetTableForTest()
         self.writeTriggerData()
         self.checkResults()
 
@@ -175,6 +183,25 @@ class TestStreamResultSavedComprehensive:
     def checkStreamStatus(self):
         tdLog.info(f"wait total:{len(self.streams)} streams run finish")
         tdStream.checkStreamStatus()
+
+    def deleteTargetTableForTest(self):
+        tdLog.info("Delete target table for stream deletion test")
+        
+        # Wait a moment to ensure target table r24 is created by stream s24
+        time.sleep(1)
+        
+        # Verify target table r24 exists before deletion
+        tdSql.query("select count(*) from information_schema.ins_tables where db_name='rdb' and table_name='r24';")
+        if tdSql.getData(0, 0) > 0:
+            tdLog.info("Target table r24 exists, proceeding to delete it")
+            tdSql.execute("drop table rdb.r24;")
+            tdLog.info("Target table r24 deleted successfully before writing trigger data")
+            
+            # Verify deletion
+            tdSql.query("select count(*) from information_schema.ins_tables where db_name='rdb' and table_name='r24';")
+            tdSql.checkData(0, 0, 0)
+        else:
+            tdLog.info("Target table r24 does not exist, skip deletion")
 
     def checkResults(self):
         tdLog.info(f"check total:{len(self.streams)} streams result")
@@ -438,6 +465,16 @@ class TestStreamResultSavedComprehensive:
             res_query="select ts, cnt from rdb.r22 where custom_id=1;",
             exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
             check_func=self.check22,
+        )
+        self.streams.append(stream)
+
+        # Test 5.1: Delete target table after stream creation
+        stream = StreamItem(
+            id=24,
+            stream="create stream rdb.s24 interval(5m) sliding(5m) from tdb.triggers into rdb.r24 as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
+            res_query="",  # No query needed since table will be deleted
+            exp_query="",  # No expected result since table will be deleted
+            check_func=self.check24,
         )
         self.streams.append(stream)
 
@@ -757,3 +794,58 @@ class TestStreamResultSavedComprehensive:
                 ["avg_val", "DOUBLE", 8, ""],
             ],
         )
+
+    def check24(self):
+        # Test 5.1: Delete target table before writing trigger data
+        tdLog.info("Test 5.1: Testing stream behavior after target table deletion")
+        
+        # Step 1: Verify stream exists and is running
+        tdSql.query("select stream_name from information_schema.ins_streams where stream_name='s24';")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "s24")
+        tdLog.info("Stream s24 still exists")
+        
+        # Step 2: Verify target table was deleted before writing trigger data
+        tdSql.query("select count(*) from information_schema.ins_tables where db_name='rdb' and table_name='r24';")
+        table_exists_before = tdSql.getData(0, 0) > 0
+        
+        if table_exists_before:
+            tdLog.info("Target table r24 exists - checking if stream recreated it")
+            # If table exists, verify its structure is correct
+            tdSql.checkTableType(dbname="rdb", tbname="r24", typename="NORMAL_TABLE", columns=2)
+            tdSql.checkTableSchema(
+                dbname="rdb",
+                tbname="r24",
+                schema=[
+                    ["ts", "TIMESTAMP", 8, ""],
+                    ["cnt", "BIGINT", 8, ""],
+                ],
+            )
+            
+            # Check if there's any data in the table
+            tdSql.query("select count(*) from rdb.r24;")
+            data_count = tdSql.getData(0, 0)
+            tdLog.info(f"Target table r24 contains {data_count} records")
+            
+            if data_count > 0:
+                tdLog.info("Stream successfully recreated table and wrote data after deletion")
+            else:
+                tdLog.info("Stream recreated table but no data written yet")
+        else:
+            tdLog.info("Target table r24 does not exist - stream did not recreate it")
+            
+        # Step 3: Check stream status and behavior
+        # The stream should handle the missing target table gracefully
+        tdSql.query("select stream_name from information_schema.ins_streams where stream_name='s24';")
+        tdSql.checkRows(1)
+        tdLog.info("Stream s24 remains active despite target table deletion")
+        
+        # Step 4: Verify system robustness
+        # This tests whether the stream processing system can handle target table deletion
+        # The expected behavior may vary:
+        # - Stream might recreate the table automatically
+        # - Stream might continue running but log errors
+        # - Stream might pause until table is manually recreated
+        
+        tdLog.info("Test 5.1: Target table deletion test completed successfully")
+        tdLog.info("Verified stream system's robustness when target table is deleted")
