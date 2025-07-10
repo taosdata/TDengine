@@ -958,8 +958,15 @@ static int32_t stRealtimeGroupCloseWindow(SSTriggerRealtimeGroup *pGroup, char *
   }
   if (needCalc || needNotify) {
     param.triggerTime = taosGetTimestampNs();
-    param.notifyType = needNotify ? STRIGGER_EVENT_WINDOW_CLOSE : STRIGGER_EVENT_WINDOW_NONE;
     param.extraNotifyContent = ppExtraNotifyContent ? *ppExtraNotifyContent : NULL;
+    if (needNotify) {
+      if ((pTask->triggerType == STREAM_TRIGGER_PERIOD) ||
+          (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval == 0)) {
+        param.notifyType = STRIGGER_EVENT_ON_TIME;
+      } else {
+        param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+      }
+    }
   }
 
   pCurWindow = TRINGBUF_HEAD(&pGroup->winBuf);
@@ -1185,11 +1192,18 @@ static int32_t stRealtimeGroupMergeSavedWindows(SSTriggerRealtimeGroup *pGroup, 
     } else {
       SSTriggerCalcParam param = {
           .triggerTime = taosGetTimestampNs(),
-          .notifyType = (notifyClose ? STRIGGER_EVENT_WINDOW_CLOSE : STRIGGER_EVENT_WINDOW_NONE),
           .wstart = pWin->range.skey,
           .wend = pWin->range.ekey,
           .wduration = pWin->range.ekey - pWin->range.skey,
           .wrownum = pWin->wrownum};
+      if (notifyClose) {
+        if ((pTask->triggerType == STREAM_TRIGGER_PERIOD) ||
+            (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval == 0)) {
+          param.notifyType = STRIGGER_EVENT_ON_TIME;
+        } else {
+          param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+        }
+      }
       if (calcClose) {
         void *px = taosArrayPush(pContext->pCalcReq->params, &param);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
@@ -2254,8 +2268,15 @@ static int32_t stHistoryGroupCloseWindow(SSTriggerHistoryGroup *pGroup, char **p
   }
   if (needCalc || needNotify) {
     param.triggerTime = taosGetTimestampNs();
-    param.notifyType = needNotify ? STRIGGER_EVENT_WINDOW_CLOSE : STRIGGER_EVENT_WINDOW_NONE;
     param.extraNotifyContent = ppExtraNotifyContent ? *ppExtraNotifyContent : NULL;
+    if (needNotify) {
+      if ((pTask->triggerType == STREAM_TRIGGER_PERIOD) ||
+          (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval == 0)) {
+        param.notifyType = STRIGGER_EVENT_ON_TIME;
+      } else {
+        param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+      }
+    }
   }
 
   pCurWindow = TRINGBUF_HEAD(&pGroup->winBuf);
@@ -2478,11 +2499,18 @@ static int32_t stHistoryGroupMergeSavedWindows(SSTriggerHistoryGroup *pGroup, in
     } else if ((calcClose || notifyClose)) {
       SSTriggerCalcParam param = {
           .triggerTime = taosGetTimestampNs(),
-          .notifyType = (notifyClose ? STRIGGER_EVENT_WINDOW_CLOSE : STRIGGER_EVENT_WINDOW_NONE),
           .wstart = pWin->range.skey,
           .wend = pWin->range.ekey,
           .wduration = pWin->range.ekey - pWin->range.skey,
           .wrownum = pWin->wrownum};
+      if (notifyClose) {
+        if ((pTask->triggerType == STREAM_TRIGGER_PERIOD) ||
+            (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval == 0)) {
+          param.notifyType = STRIGGER_EVENT_ON_TIME;
+        } else {
+          param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+        }
+      }
       if (calcClose) {
         void *px = taosArrayPush(pContext->pCalcReq->params, &param);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
@@ -4319,6 +4347,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         }
       }
       if (pContext->haveToRecalc) {
+        ST_TASK_DLOG("[recalc] restart realtime context: %p", pContext);
         code = stRealtimeContextRestart(pContext);
         QUERY_CHECK_CODE(code, lino, _end);
         goto _end;
@@ -4338,11 +4367,13 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         }
 
         if (needMoreMeta) {
+          ST_TASK_DLOG("[recalc] context need more meta: %p", pContext);
           pContext->curReaderIdx = (pContext->curReaderIdx + 1) % taosArrayGetSize(pTask->readerList);
           code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_META);
           QUERY_CHECK_CODE(code, lino, _end);
           goto _end;
         } else {
+          ST_TASK_DLOG("[recalc] context start to check: %p", pContext);
           tSimpleHashClear(pTask->pRecalcLastVer);
         }
       }
@@ -6191,7 +6222,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->ignoreDisorder = pMsg->igDisorder;
   if ((pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval == 0) ||
       pTask->triggerType == STREAM_TRIGGER_COUNT) {
-    pTask->ignoreDisorder = true; // sliding trigger and count window trigger has no recalculation
+    pTask->ignoreDisorder = true;  // sliding trigger and count window trigger has no recalculation
   }
   pTask->fillHistory = pMsg->fillHistory;
   pTask->fillHistoryFirst = pMsg->fillHistoryFirst;
