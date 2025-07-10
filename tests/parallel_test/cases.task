@@ -19,241 +19,242 @@
 #
 # army-test
 #
-,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f multi-level/mlevel_basic.py -N 3 -L 3 -D 2
-,,y,army,./pytest.sh python3 ./test.py -f db-encrypt/basic.py -N 3 -M 3
-,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator_restart.py -N 3
-,,n,army,python3 ./test.py -f storage/s3/s3Basic.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f cluster/snapshot.py -N 3 -L 3 -D 2
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_create.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_alter.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_drop.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_meta.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_create.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_select.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_alter_drop.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_alter.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_drop_origin_table.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_schema_is_old.py
-,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_join.py
-,,y,army,./pytest.sh python3 ./test.py -f query/decimal/test_TS6333.py
-,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_elapsed.py
-,,y,army,./pytest.sh python3 ./test.py -f query/function/test_function.py
-,,y,army,./pytest.sh python3 ./test.py -f query/function/test_selection_function_with_json.py
-,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_paramnum.py
-,,y,army,./pytest.sh python3 ./test.py -f query/function/test_percentile.py
-,,y,army,./pytest.sh python3 ./test.py -f query/function/test_resinfo.py
-,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interp.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f multi-level/mlevel_basic.py -N 3 -L 3 -D 2
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f db-encrypt/basic.py -N 3 -M 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator_restart.py -N 3
+# has migrate to new,,n,army,python3 ./test.py -f storage/s3/s3Basic.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f cluster/snapshot.py -N 3 -L 3 -D 2
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_create.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_alter.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_drop.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_meta.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_create.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_select.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_alter_drop.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_cross_db_stb.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_alter.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query_after_drop_origin_table.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_schema_is_old.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_join.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/decimal/test_TS6333.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_elapsed.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/test_function.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/test_selection_function_with_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_paramnum.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/test_percentile.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/test_resinfo.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interp.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interval.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interval_diff_tz.py
-,,y,army,./pytest.sh python3 ./test.py -f query/function/concat.py
-,,y,army,./pytest.sh python3 ./test.py -f query/function/cast.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/concat.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/cast.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/test_join.py
-,,y,army,./pytest.sh python3 ./test.py -f query/test_join_const.py
-,,y,army,./pytest.sh python3 ./test.py -f query/test_compare.py
-,,y,army,./pytest.sh python3 ./test.py -f query/test_case_when.py
-,,y,army,./pytest.sh python3 ./test.py -f insert/test_column_tag_boundary.py
-,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_desc.py -N 3 -L 3 -D 2
-,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_null.py
-,,y,army,./pytest.sh python3 ./test.py -f cluster/test_drop_table_by_uid.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/test_join_const.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/test_compare.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/test_case_when.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f insert/test_column_tag_boundary.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_desc.py -N 3 -L 3 -D 2
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_null.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f cluster/test_drop_table_by_uid.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/incSnapshot.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f cluster/clusterBasic.py -N 5
-,,y,army,./pytest.sh python3 ./test.py -f cluster/tsdbSnapshot.py -N 3 -M 3
-,,y,army,./pytest.sh python3 ./test.py -f cluster/strongPassword.py
-,,y,army,./pytest.sh python3 ./test.py -f query/query_basic.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_query_accuracy.py
-,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_ts5400.py
-,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_having.py
-,,y,army,./pytest.sh python3 ./test.py -f insert/insert_basic.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f insert/auto_create_insert.py
-,,y,army,./pytest.sh python3 ./test.py -f cluster/splitVgroupByLearner.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f authorith/authBasic.py -N 3
-,,n,army,python3 ./test.py -f cmdline/fullopt.py
-,,y,army,./pytest.sh python3 ./test.py -f query/show.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f alter/alterConfig.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f alter/test_alter_config.py -N 3 
-,,y,army,./pytest.sh python3 ./test.py -f alter/test_alter_config.py -N 3 -M 3
-,,y,army,./pytest.sh python3 ./test.py -f alter/alter_db_option.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f cluster/clusterBasic.py -N 5
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f cluster/tsdbSnapshot.py -N 3 -M 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f cluster/strongPassword.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/query_basic.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_query_accuracy.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_ts5400.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_having.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f insert/insert_basic.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f insert/auto_create_insert.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f cluster/splitVgroupByLearner.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f authorith/authBasic.py -N 3
+# has migrate to new,,n,army,python3 ./test.py -f cmdline/fullopt.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/show.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f alter/alterConfig.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f alter/test_alter_config.py -N 3 
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f alter/test_alter_config.py -N 3 -M 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f alter/alter_db_option.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/subquery/subqueryBugs.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f storage/oneStageComp.py -N 3 -L 3 -D 1
-,,y,army,./pytest.sh python3 ./test.py -f storage/compressBasic.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f grant/grantBugs.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f storage/oneStageComp.py -N 3 -L 3 -D 1
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f storage/compressBasic.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f grant/grantBugs.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/queryBugs.py -N 3
 ,,n,army,python3 ./test.py -f user/test_passwd.py
-,,y,army,./pytest.sh python3 ./test.py -f tmq/tmqBugs.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_compare_asc_desc.py
-,,y,army,./pytest.sh python3 ./test.py -f query/last/test_last.py
-,,y,army,./pytest.sh python3 ./test.py -f query/window/base.py
-,,y,army,./pytest.sh python3 ./test.py -f query/sys/tb_perf_queries_exist_test.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f query/test_having.py
-,,n,army,python3 ./test.py -f tmq/drop_lost_comsumers.py
-,,y,army,./pytest.sh python3 ./test.py -f cmdline/taosCli.py -B
-,,n,army,python3 ./test.py -f whole/checkErrorCode.py
-,,y,army,./pytest.sh python3 ./test.py -f create/create_stb_keep.py
-,,y,army,./pytest.sh python3 ./test.py -f create/create_stb_keep.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py
-,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3 -M 3
-,,y,army,./pytest.sh python3 ./test.py -f create/create_ctb_using_csv_file.py
-,,y,army,./pytest.sh python3 ./test.py -f create/create_ctb_using_csv_file.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f insert/insert_csv_file_with_row_split.py 
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tmq/tmqBugs.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_compare_asc_desc.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/last/test_last.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/window/base.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/sys/tb_perf_queries_exist_test.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/test_having.py
+# has migrate to new,,n,army,python3 ./test.py -f tmq/drop_lost_comsumers.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f cmdline/taosCli.py -B
+# has migrate to new,,n,army,python3 ./test.py -f whole/checkErrorCode.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f create/create_stb_keep.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f create/create_stb_keep.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f create/test_stb_keep_compact.py -N 3 -M 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f create/create_ctb_using_csv_file.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f create/create_ctb_using_csv_file.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f insert/insert_csv_file_with_row_split.py 
 
-,,y,army,./pytest.sh python3 ./test.py -f stream/test_stream_vtable.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f stream/test_stream_vtable.py
 
-,,y,army,./pytest.sh python3 ./test.py -f inspect-tools/taosinspect.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f inspect-tools/taosinspect.py
 
 #
 # army/tools
 #
 
 # benchmark 64 cases
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-partial-col-numpy.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-single-table.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-sml-rest.py -R
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-supplement-insert.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-vgroups.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-partial-col-numpy.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-single-table.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-sml-rest.py -R
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-supplement-insert.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-vgroups.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/connMode.py -B
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/custom_col_tag.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/connMode.py -B
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/demo.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/custom_col_tag.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/csv-export.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/demo.py
+
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/csv-export.py
 # ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/csv-import.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/insert-decimal.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to-continue.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to-continue.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/json_tag.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/json_tag.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_sml.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_sql.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_stmt.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_stmt2.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert-json-csv.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert-json-csv.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/insertBasic.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertBindVGroup.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertBindVGroup.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertMix.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertPrecision.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/invalid_commandline.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertPrecision.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/invalid_commandline.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json.py -B
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-error-sqlfile.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-sqlfile.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/queryMain.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json.py -B
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-error-sqlfile.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-sqlfile.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/queryMain.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/rest_insert_alltypes_json.py -R
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/reuse-exist-stb.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/rest_insert_alltypes_json.py -R
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/reuse-exist-stb.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_auto_create_table_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_json_alltypes.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_json_insert_alltypes-same-min-max.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_taosjson_alltypes.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_telnet_alltypes.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_telnet_insert_alltypes-same-min-max.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_auto_create_table_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_insert_alltypes_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_insert_alltypes-same-min-max.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_offset_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json_doesnt_use_ts.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json-subtable.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt2_insert.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream-test.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream_function_test.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stt.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_auto_create_table_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_json_alltypes.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_json_insert_alltypes-same-min-max.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_taosjson_alltypes.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_telnet_alltypes.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_telnet_insert_alltypes-same-min-max.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_auto_create_table_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_insert_alltypes_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_insert_alltypes-same-min-max.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_offset_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json_doesnt_use_ts.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json-subtable.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt2_insert.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream-test.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream_function_test.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stt.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_auto_create_table_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_sample_csv_json-subtable.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert_alltypes-same-min-max.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert_alltypes_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert_alltypes_json-partial-col.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert-table-creating-interval.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_sample_csv_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestInsertWithJsonStmt-otherPara.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson.py -R
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/telnet_tcp.py -R
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmqBasic.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmq_case.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/websiteCase.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/cloud/cloud-test.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/ws/websocket.py -R
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_auto_create_table_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_sample_csv_json-subtable.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert_alltypes-same-min-max.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert_alltypes_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert_alltypes_json-partial-col.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert-table-creating-interval.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_sample_csv_json.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestInsertWithJsonStmt-otherPara.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson.py -R
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/telnet_tcp.py -R
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmqBasic.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmq_case.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/websiteCase.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/cloud/cloud-test.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/ws/websocket.py -R
 
-,,n,army,python3 ./test.py -f tools/benchmark/basic/bugs.py -B
-,,n,army,python3 ./test.py -f tools/benchmark/basic/commandline-retry.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/commandline-sml.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_json_alltypes-interlace.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_insert_alltypes_json.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_interlace.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_taosjson_insert_alltypes-same-min-max.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/taosadapter_json.py -B
-,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-mix.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-retry-json-global.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-retry-json-stb.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson-mixed-query.py -R
-,,n,army,python3 ./test.py -f tools/benchmark/basic/create_table_from_csv.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_cancle.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_error_exit.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/tmq_cancle.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/taos_config_json.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_data.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_auto_create_table_json.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/bugs.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/commandline-retry.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/commandline-sml.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_json_alltypes-interlace.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_insert_alltypes_json.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_interlace.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_taosjson_insert_alltypes-same-min-max.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/taosadapter_json.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-mix.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-retry-json-global.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-retry-json-stb.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson-mixed-query.py -R
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/create_table_from_csv.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_cancle.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_error_exit.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/tmq_cancle.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/taos_config_json.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_data.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/insert_auto_create_table_json.py
 
 # taosdump 43 cases
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpSchemaChange.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpCompa.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTest.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpDbStb.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeDouble.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeUnsignedBigInt.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpManyCols.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpStartEndTime.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTypeVarbinary.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTypeGeometry.py
-,,n,army,python3 ./test.py -f tools/taosdump/native/taosdumpDbWithNonRoot.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpEscapedDb.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeJson.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestBasic.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeUnsignedSmallInt.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpDbNtb.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeUnsignedTinyInt.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeUnsignedInt.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeSmallInt.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeInt.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestNanoSupport.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeBigInt.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeBinary.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeFloat.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpStartEndTimeLong.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestLooseMode.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeBool.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestInspect.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpInDiffType.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTest2.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeTinyInt.py
-,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeDouble.py -B
-,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedBigInt.py -B
-,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpEscapedDb.py -B
-,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpPrimaryKey.py -B
-,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeJson.py -B
-,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedSmallInt.py -B
-,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedTinyInt.py -B
-,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedInt.py -B
-,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeSmallInt.py -B
-,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeInt.py -B
-,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeBigInt.py -B
-,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeBinary.py -B
-,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeFloat.py -B
-,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeBool.py -B
-,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpRetry.py -B
-,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeTinyInt.py -B
-,,n,army,python3 ./test.py -f tools/taosdump/native/taosdumpCommandline.py -B
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpSchemaChange.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpCompa.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTest.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpDbStb.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeDouble.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeUnsignedBigInt.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpManyCols.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpStartEndTime.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTypeVarbinary.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTypeGeometry.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/native/taosdumpDbWithNonRoot.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpEscapedDb.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeJson.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestBasic.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeUnsignedSmallInt.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpDbNtb.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeUnsignedTinyInt.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeUnsignedInt.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeSmallInt.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeInt.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestNanoSupport.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeBigInt.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeBinary.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeFloat.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpStartEndTimeLong.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestLooseMode.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeBool.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestInspect.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpInDiffType.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTest2.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeTinyInt.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeDouble.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedBigInt.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpEscapedDb.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpPrimaryKey.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeJson.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedSmallInt.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedTinyInt.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedInt.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeSmallInt.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeInt.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeBigInt.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeBinary.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeFloat.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeBool.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpRetry.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeTinyInt.py -B
+# has migrate to new,,n,army,python3 ./test.py -f tools/taosdump/native/taosdumpCommandline.py -B
 
 #
 # system test
@@ -473,10 +474,10 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/checkpoint_info2.py -N 4
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_multi_insert.py
 
-,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3 -i False
-,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3 -i False
-,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreMnode.py -N 5 -M 3 -i False
-,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreQnode.py -N 5 -M 3 -i False
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3 -i False
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3 -i False
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreMnode.py -N 5 -M 3 -i False
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreQnode.py -N 5 -M 3 -i False
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/create_wrong_topic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3
@@ -580,67 +581,67 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-5130.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-5580.py
 
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellError.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellNetChk.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/telemetry.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/backquote_check.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdMonitor.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdNewMonitor.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosd_audit.py
-,,n,system-test,python3 ./test.py -f 0-others/taosdlog.py
-,,n,system-test,python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udfTest.py
-,,n,system-test,python3 ./test.py -f 0-others/udf_create.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_restart_taosd.py
-,,n,system-test,python3 ./test.py -f 0-others/udf_cfg1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_cfg2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/cachemodel.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/sysinfo.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_control.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_manage.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege_show.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege_all.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/retention_test.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/retention_test2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel_createdb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttl.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttlChangeOnWrite.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compress_tsz1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compress_tsz2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/view/non_marterial_view/test_view.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_table_distributed.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_disk_usage.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_disk_usage_multilevel.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_dismatch_config.py
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellError.py
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellNetChk.py
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/telemetry.py
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/backquote_check.py
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdMonitor.py
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdNewMonitor.py
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosd_audit.py
+#has migrate to new#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/taosdlog.py
+#has migrate to new#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udfTest.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/udf_create.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_restart_taosd.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/udf_cfg1.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_cfg2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/cachemodel.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/sysinfo.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_control.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_manage.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege_show.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege_all.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/retention_test.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/retention_test2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel_createdb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttl.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttlChangeOnWrite.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compress_tsz1.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compress_tsz2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/view/non_marterial_view/test_view.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_table_distributed.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_disk_usage.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_disk_usage_multilevel.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_dismatch_config.py
 
-,,n,system-test,python3 ./test.py -f 0-others/sml_restart.py
-,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
-,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
-,,n,system-test,python3 ./test.py -N 3 -f 0-others/walRetention.py
-,,n,system-test,python3 ./test.py -f 0-others/wal_level_skip.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 1
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 1
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 3
-,,n,system-test,python3 ./test.py -f 0-others/timeRangeWise.py -N 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/delete_check.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/subscribe_stream_privilege.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/empty_identifier.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_transaction_detail.py -N 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/kill_balance_leader.py -N 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/kill_restore_dnode.py -N 5
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/persisit_config.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/qmemCtrl.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact_vgroups.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact_auto.py
-,,n,system-test,python3 ./test.py -f 0-others/dumpsdb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact.py -N 3
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/sml_restart.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
+#has migrate to new,,n,system-test,python3 ./test.py -N 3 -f 0-others/walRetention.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/wal_level_skip.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 1
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 1
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 3
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/timeRangeWise.py -N 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/delete_check.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/subscribe_stream_privilege.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/empty_identifier.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_transaction_detail.py -N 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/kill_balance_leader.py -N 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/kill_restore_dnode.py -N 5
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/persisit_config.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/qmemCtrl.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact_vgroups.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact_auto.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/dumpsdb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact.py -N 3
 
 
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_create.py
@@ -708,11 +709,11 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_timestamp.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td29157.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/ddl_in_sysdb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_tag_index.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/information_schema.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ins_filesets.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/grant.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_tag_index.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/information_schema.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ins_filesets.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/grant.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -R
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/and_or_for_byte.py
@@ -980,51 +981,51 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4467.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/geometry.py
 
-,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade_all.py -N 3
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade_all.py -N 3
 
 #has migrate to new,,n,system-test,python3 ./test.py -f 2-query/queryQnode.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode1mnode.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode2mnode.py -N 5
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3 -i False
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3 -i False
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 6 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 6 -M 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 6 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 6 -M 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py -N 6 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py -N 6 -M 3 -n 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode1mnode.py
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode2mnode.py -N 5
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3 -i False
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3 -i False
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 6 -M 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 6 -M 3 -n 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 6 -M 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 6 -M 3 -n 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py -N 6 -M 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py -N 6 -M 3 -n 3
 
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeModifyMeta.py  -N 6 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeModifyMeta.py  -N 6 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 6 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 6 -M 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py -N 6 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py -N 6 -M 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py -N 6 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py -N 6 -M 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3
-#,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3 -n 3
-,,n,system-test,python3 ./test.py -f 6-cluster/manually-test/6dnode3mnodeInsertLessDataAlterRep3to1to3.py -N 6 -M 3
-#,,n,system-test,python3 ./test.py  -f 6-cluster/5dnode3mnodeRoll.py  -N 3  -C 1
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6 -n 3
-#,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRecreateMnode.py -N 6 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStopFollowerLeader.py -N 5 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_createDb_replica1.py -N 4 -M 1
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica1_insertdatas.py -N 4 -M 1
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica1_insertdatas_querys.py -N 4 -M 1
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas.py -N 4 -M 1
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_querys.py -N 4 -M 1
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_vgroups.py -N 4 -M 1
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/compactDBConflict.py -N 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/mnodeEncrypt.py 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeModifyMeta.py  -N 6 -M 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeModifyMeta.py  -N 6 -M 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 6 -M 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 6 -M 3 -n 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py -N 6 -M 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py -N 6 -M 3 -n 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py -N 6 -M 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py -N 6 -M 3 -n 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3 -n 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3
+# has migrate to new#,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3 -n 3
+# has migrate to new,,n,system-test,python3 ./test.py -f 6-cluster/manually-test/6dnode3mnodeInsertLessDataAlterRep3to1to3.py -N 6 -M 3
+# has migrate to new#,,n,system-test,python3 ./test.py  -f 6-cluster/5dnode3mnodeRoll.py  -N 3  -C 1
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6 -n 3
+# has migrate to new#,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeRecreateMnode.py -N 6 -M 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStopFollowerLeader.py -N 5 -M 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_createDb_replica1.py -N 4 -M 1
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica1_insertdatas.py -N 4 -M 1
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica1_insertdatas_querys.py -N 4 -M 1
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas.py -N 4 -M 1
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_querys.py -N 4 -M 1
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_vgroups.py -N 4 -M 1
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/compactDBConflict.py -N 3
+# has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/mnodeEncrypt.py 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 2
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 2
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -Q 2
@@ -1346,7 +1347,7 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f eco-system/manager/schema_change.py -N 3 -M 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_window_true_for.py
-,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 
 #tsim test
 ,,y,script,./test.sh -f tsim/query/timeline.sim

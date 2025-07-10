@@ -526,7 +526,7 @@ class TDCom:
 
         return buildPath
     def getTaosdPath(self, dnodeID="dnode1"):
-        return os.path.join(self.taos_bin_path, "taosd")
+        return os.path.join(self.work_dir, dnodeID)
 
     def getClientCfgPath(self):
         return os.path.join(self.work_dir, "psim", "cfg")
