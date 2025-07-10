@@ -841,6 +841,7 @@ impl PutStream {
                     }
                 }
             } else {
+                drop(archive_rx);
                 loop {
                     tokio::select! {
                         _ = cancellation.cancelled() => {

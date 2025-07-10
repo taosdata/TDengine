@@ -49,7 +49,7 @@ use crate::core_metrics::{CoreMetrics, TaskMetrics};
 use crate::plugins::runners::opc::config::OPCConfig;
 use crate::plugins::runners::opc::model::OpcModelConfig;
 use crate::plugins::transform::archive_records;
-use crate::plugins::transform::handling_strategy::HandlingResult;
+use crate::plugins::transform::handling_strategy::{HandlingResult, ProcessOnAbnormalEnum};
 use crate::plugins::transform::WrittenMethod;
 use crate::plugins::*;
 use crate::utils::breakpoints::BreakpointDb;
@@ -1931,6 +1931,14 @@ async fn consume_flat_record(
     notifier: Option<&crate::TaskNotifySender>,
     archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
+    macro_rules! metrics_failed {
+        ($rows:expr, $cols:expr) => {
+            metrics.add_failed_sqls(1_u64);
+            metrics.add_failed_rows($rows as u64);
+            metrics.add_failed_points(($rows * $cols) as u64);
+        };
+    }
+
     if unsafe { crate::global::DRY_RUN } {
         metrics.add_processed_rows(batch.num_rows() as u64);
         return Ok(());
@@ -1953,6 +1961,8 @@ async fn consume_flat_record(
                     taos.replace(new_taos);
                 }
                 Err(e) => {
+                    tracing::debug!("get taos connection from pool error: {e:?}");
+                    let sleep = ((timeout * 1000) / DEFAULT_MAX_RETRIES_FOR_CONNECTION) as u64;
                     let pool_status = pool.status();
                     if pool_status.available == 0
                         && matches!(e, PoolError::Timeout(TimeoutType::Wait))
@@ -1960,41 +1970,51 @@ async fn consume_flat_record(
                         let new_size = pool_status.max_size + parser.global().concurrent_limit();
                         pool.resize(new_size);
                         tracing::warn!(new_size, "connection pool resized");
-                        taos.replace(pool.get().await?);
-                    }
-                    if Utc::now() - retry_start > TimeDelta::seconds(timeout as i64) {
-                        match parser
-                            .global()
-                            .process_on_abnormal
-                            .database_connection_error
-                            .handle("get taos connection from pool error".to_string())
-                        {
-                            Ok((HandlingResult::Skip, _)) => {
-                                return Ok(());
-                            }
-                            Ok((HandlingResult::Archive, err)) => {
-                                if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
-                                    tracing::error!("archive error: {e:#}");
-                                }
-                                return Ok(());
-                            }
-                            Ok((HandlingResult::Modify(_), _)) => unreachable!(),
-                            Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
-                            Ok((HandlingResult::Retry, _)) => {
-                                if let Err(e) = process_cache(batch, archive_tx.clone()) {
-                                    tracing::error!("cache error: {e:#}");
-                                }
-                                return Ok(());
-                            }
-                            Err(e) => {
-                                return Err(e).context("get taos connection from pool error")?;
-                            }
-                        }
-                    } else {
-                        let sleep = ((timeout * 1000) / DEFAULT_MAX_RETRIES_FOR_CONNECTION) as u64;
                         tokio::time::sleep(Duration::from_millis(sleep)).await;
-                        taos.replace(pool.get().await?);
+                        continue;
                     }
+
+                    if let PoolError::Backend(e) = e {
+                        let errno: i32 = e.code().into();
+                        // 0x0388: Database not exist
+                        if errno == 0x0388 {
+                            tracing::debug!(
+                                "database not exist, handle abnormal strategy:{:?}",
+                                parser.global().process_on_abnormal.database_not_exist,
+                            );
+                            metrics_failed!(batch.num_rows(), batch.num_columns());
+                            handle_flat_abnormal(
+                                ProcessOnAbnormalEnum::DatabaseNotExist(
+                                    &parser.global().process_on_abnormal.database_not_exist,
+                                ),
+                                batch,
+                                archive_tx.clone(),
+                            )?;
+                            tokio::time::sleep(Duration::from_millis(sleep)).await;
+                            continue;
+                        }
+                    }
+
+                    if Utc::now() - retry_start > TimeDelta::seconds(timeout as i64) {
+                        tracing::debug!(
+                            "handle database connection abnormal, strategy:{:?}",
+                            parser
+                                .global()
+                                .process_on_abnormal
+                                .database_connection_error,
+                        );
+                        handle_flat_abnormal(
+                            ProcessOnAbnormalEnum::DatabaseConnectionError(
+                                &parser
+                                    .global()
+                                    .process_on_abnormal
+                                    .database_connection_error,
+                            ),
+                            batch,
+                            archive_tx.clone(),
+                        )?;
+                    }
+                    tokio::time::sleep(Duration::from_millis(sleep)).await;
                 }
             }
         } else {
@@ -2148,6 +2168,53 @@ async fn consume_flat_record(
         _ => unimplemented!(),
     }
     Ok(())
+}
+
+fn handle_flat_abnormal<'a>(
+    abnormal_stragy: ProcessOnAbnormalEnum<'a>,
+    batch: &RecordBatch,
+    archive_tx: Sender<ArchiveType>,
+) -> anyhow::Result<()> {
+    match abnormal_stragy {
+        ProcessOnAbnormalEnum::DatabaseConnectionError(database_connection_error) => {
+            match database_connection_error
+                .handle("get taos connection from pool error".to_string())
+            {
+                Ok((HandlingResult::Skip, _)) => Ok(()),
+                Ok((HandlingResult::Archive, err)) => {
+                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                        tracing::error!("archive error: {e:#}");
+                    }
+                    Ok(())
+                }
+                Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                Ok((HandlingResult::Retry, _)) => {
+                    if let Err(e) = process_cache(batch, archive_tx.clone()) {
+                        tracing::error!("cache error: {e:#}");
+                    }
+                    Ok(())
+                }
+                Err(e) => Err(e).context("get taos connection from pool error")?,
+            }
+        }
+        ProcessOnAbnormalEnum::DatabaseNotExist(handling_strategy) => {
+            match handling_strategy.handle("Database not exist".to_string()) {
+                Ok((HandlingResult::Archive, err)) => {
+                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                        tracing::error!("archive error: {e:#}");
+                    }
+                    Ok(())
+                }
+                Ok((HandlingResult::Skip, err)) => {
+                    tracing::warn!("skip info: {err:#}");
+                    Ok(())
+                }
+                Ok((_, _)) => unreachable!(),
+                Err(e) => Err(e).context("get taos connection from pool error")?,
+            }
+        }
+    }
 }
 
 fn process_cache(batch: &RecordBatch, archive_tx: Sender<ArchiveType>) -> anyhow::Result<()> {
@@ -2752,6 +2819,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
                 }
             }
         } else {
+            drop(archive_rx);
             loop {
                 tokio::select! {
                     _ = cancel_clone.cancelled() => {
@@ -3128,7 +3196,7 @@ impl IpcStreamWorker {
             }
             StreamType::Flat => {
                 let mut count = 0;
-                let mut taos = Some(self.pool.get().await?);
+                let mut taos = None;
                 consume_flat_record(
                     &self.pool,
                     &mut taos,
@@ -3729,6 +3797,8 @@ pub async fn channel_based_transformer(
             .consume(archive_rx)
             .await
         } else {
+            drop(archive_rx);
+
             loop {
                 tokio::select! {
                     _ = cancel_clone.cancelled() => {
@@ -4056,6 +4126,103 @@ mod tests {
         assert_eq!(listen_addr, addr.parse::<SocketAddr>()?);
 
         tokio::try_join!(listen(listener), connect(listen_addr))?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn db_not_exist_abnormal() -> anyhow::Result<()> {
+        let config = r#"{
+            "global": {
+                "database_not_exist": "archive"
+            },
+            "mutate": [],
+            "model": []
+        }"#;
+        let parser = serde_json::from_str::<Parser>(config)?;
+        let batch = arrow::array::record_batch!(
+            ("a", Int32, [1, 2, 3]),
+            ("b", Float64, [Some(4.0), None, Some(5.0)])
+        )?;
+        let (archive_tx, rx) = flume::unbounded();
+        handle_flat_abnormal(
+            ProcessOnAbnormalEnum::DatabaseNotExist(
+                &parser.global().process_on_abnormal.database_not_exist,
+            ),
+            &batch,
+            archive_tx.clone(),
+        )?;
+        let rs = rx.recv();
+        dbg!(&rs);
+        assert!(rs.is_ok());
+
+        let config = r#"{
+            "global": {
+                "database_not_exist": "break"
+            },
+            "mutate": [],
+            "model": []
+        }"#;
+        let parser = serde_json::from_str::<Parser>(config)?;
+        let rs = handle_flat_abnormal(
+            ProcessOnAbnormalEnum::DatabaseNotExist(
+                &parser.global().process_on_abnormal.database_not_exist,
+            ),
+            &batch,
+            archive_tx.clone(),
+        );
+        assert!(rs.is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn db_conn_abnormal() -> anyhow::Result<()> {
+        let config = r#"{
+            "global": {
+                "database_connection_error": "cache"
+            },
+            "mutate": [],
+            "model": []
+        }"#;
+        let parser = serde_json::from_str::<Parser>(config)?;
+        let batch = arrow::array::record_batch!(
+            ("a", Int32, [1, 2, 3]),
+            ("b", Float64, [Some(4.0), None, Some(5.0)])
+        )?;
+        let (cache_tx, rx) = flume::unbounded();
+        handle_flat_abnormal(
+            ProcessOnAbnormalEnum::DatabaseConnectionError(
+                &parser
+                    .global()
+                    .process_on_abnormal
+                    .database_connection_error,
+            ),
+            &batch,
+            cache_tx.clone(),
+        )?;
+        let rs = rx.recv();
+        dbg!(&rs);
+        assert!(rs.is_ok());
+
+        let config = r#"{
+            "global": {
+                "database_connection_error": "break"
+            },
+            "mutate": [],
+            "model": []
+        }"#;
+        let parser = serde_json::from_str::<Parser>(config)?;
+        let rs = handle_flat_abnormal(
+            ProcessOnAbnormalEnum::DatabaseConnectionError(
+                &parser
+                    .global()
+                    .process_on_abnormal
+                    .database_connection_error,
+            ),
+            &batch,
+            cache_tx.clone(),
+        );
+        dbg!(&rs);
+        assert!(rs.is_err());
         Ok(())
     }
 }

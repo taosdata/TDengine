@@ -261,6 +261,8 @@ type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>;
 pub enum FlatWriteError {
     #[error("Connection error")]
     ConnectionPoolError(#[from] deadpool::managed::PoolError<taos::Error>),
+    #[error("Database not exists")]
+    DatabaseNotExits,
     #[error("Table not exists")]
     TableNotExits(String),
     #[error("Invalid column")]
@@ -375,6 +377,10 @@ pub async fn write_stable_with_sql(
                 0x2602 => {
                     // 0x2602: invalid column
                     Err(FlatWriteError::InvalidColumn)
+                }
+                0x0388 => {
+                    // 0x0388: Database not exist
+                    Err(FlatWriteError::DatabaseNotExits)
                 }
                 0x2603 | 0x0618 => {
                     // 0x2603: the table does not exist
@@ -818,6 +824,32 @@ pub async fn flat_write_with_sql(
                                     )
                                     .await?;
                                     break;
+                                }
+                            }
+                            FlatWriteError::DatabaseNotExits => {
+                                metrics_failed!(records.records, cols);
+                                match global
+                                    .process_on_abnormal
+                                    .database_not_exist
+                                    .handle(format!("{err:#}"))
+                                {
+                                    Ok((HandlingResult::Skip, _)) => {
+                                        break;
+                                    }
+                                    Ok((HandlingResult::Archive, err)) => {
+                                        for batch in records.batches {
+                                            if let Err(e) =
+                                                process_archive(&err, &batch, archive_tx.clone())
+                                            {
+                                                tracing::error!("archive error: {e:#}");
+                                            }
+                                        }
+                                        break;
+                                    }
+                                    Ok((_, _)) => unreachable!(),
+                                    Err(e) => {
+                                        return Err(e)?;
+                                    }
                                 }
                             }
                             _ => {
@@ -1311,7 +1343,6 @@ pub async fn flat_write_with_raw_block(
             metrics.add_failed_points(($raw.nrows() * $raw.column_views().len()) as u64);
         };
     }
-
     let mut count = 0;
     let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
     // debug_assert!(qid.task_id() > 0);
@@ -1908,6 +1939,30 @@ pub async fn flat_write_with_raw_block(
                             .await?;
                         }
                         index += 1;
+                    }
+                } else if errno == 0x0388 {
+                    // 0x0388: Database not exist
+                    metrics_failed!(raw);
+                    match global
+                        .process_on_abnormal
+                        .database_not_exist
+                        .handle(format!("{err:#}"))
+                    {
+                        Ok((HandlingResult::Skip, _)) => {
+                            break;
+                        }
+                        Ok((HandlingResult::Archive, err)) => {
+                            if let Err(e) =
+                                process_archive(&err, &records.records, archive_tx.clone())
+                            {
+                                tracing::error!("archive error: {e:#}");
+                            }
+                            break;
+                        }
+                        Ok((_, _)) => unreachable!(),
+                        Err(e) => {
+                            return Err(e)?;
+                        }
                     }
                 } else if errno == 0xE001
                     || errno == 0xE002
