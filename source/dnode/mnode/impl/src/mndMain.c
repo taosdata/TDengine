@@ -338,7 +338,10 @@ static int32_t minCronTime() {
 }
 void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   int32_t code = 0;
-#ifndef TD_ASTRA  
+#ifndef TD_ASTRA
+  if (sec % tsGrantHBInterval == 0) {  // put in the 1st place as to take effect ASAP
+    mndPullupGrant(pMnode);
+  }
   if (sec % tsTtlPushIntervalSec == 0) {
     mndPullupTtl(pMnode);
   }
@@ -367,12 +370,6 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (tsTelemInterval > 0 && sec % tsTelemInterval == 0) {
     mndPullupTelem(pMnode);
   }
-
-#ifndef TD_ASTRA
-  if (sec % tsGrantHBInterval == 0) {
-    mndPullupGrant(pMnode);
-  }
-#endif
   if (sec % tsUptimeInterval == 0) {
     mndIncreaseUpTime(pMnode);
   }
