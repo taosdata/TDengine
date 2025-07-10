@@ -4,34 +4,31 @@ on:
   # workflow_dispatch:
   pull_request:
     paths:
-      - '.github/workflows/pr-ci.yaml'
-      - 'crates/**'
-      - 'plugins/**'
-      - 'src/**'
-      - 'taosx-agent/**'
-      - 'taosx-core/**'
-      - 'taosx-ipc/**'
-      - 'taosx-metrics/**'
-      - 'explorer/server/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'build.rs'
-      - '.github/workflows/**'
-      - 'tests/e2e/**'
-      - 'tests/**'
+      - ".github/workflows/pr-ci.yaml"
+      - "crates/**"
+      - "plugins/**"
+      - "src/**"
+      - "taosx-agent/**"
+      - "taosx-core/**"
+      - "taosx-ipc/**"
+      - "taosx-metrics/**"
+      - "explorer/server/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "build.rs"
+      - ".github/workflows/**"
+      - "tests/e2e/**"
+      - "tests/**"
 
 env:
   RELEASE_HOST: taosx-ci-server
-  # RUSTFLAGS: "-C instrument-coverage --cfg tokio_unstable"
   ARTIFACT_BASE_DIR: /data/artifacts
   COVERAGE_BASE_DIR: /data/coverage
   DIR_PATH: ${{ github.event.number }}
-  # DIR_PATH: ${{ github.sha }}
   RUN_UNIT_TEST_FILE_FLAG: /etc/taos/taosx_run_unit_test
   CONTAINER_DO_NOT_KEEP_FLAG: /etc/taos/taosxci_container_not_keep
   REPORT_BASE_URL: http://192.168.1.45:8787
   ARM_BUILDER_IMAGE: 192.168.1.62:5000/taosx/ci-builder:latest
-  CFLAGS: -fno-builtin
   CARGO_OPTS: --locked
 
 concurrency:
@@ -40,7 +37,7 @@ concurrency:
 
 jobs:
   remove_artifacts:
-    runs-on: [ self-hosted, linux, x64, qa, test ]
+    runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Remove artifacts
         run: |
@@ -49,7 +46,7 @@ jobs:
 
   check:
     name: Check
-    runs-on: [ self-hosted, linux, x64, app2 ]
+    runs-on: [self-hosted, linux, x64, app2]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -69,9 +66,9 @@ jobs:
           cargo clippy --locked --workspace --all --tests --examples -- --no-deps -Dwarnings
 
   unit-test:
-    needs: [ check ]
+    needs: [check]
     name: Unit Test
-    runs-on: [ self-hosted, linux, x64, app2 ]
+    runs-on: [self-hosted, linux, x64, app2]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -89,7 +86,7 @@ jobs:
   check-arm:
     name: Check Arm
     if: github.event.pull_request.base.ref == 'main'
-    runs-on: [ self-hosted, linux, x64, app2 ]
+    runs-on: [self-hosted, linux, x64, app2]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -99,9 +96,9 @@ jobs:
           cargo make zigbuild-aarch64-taosx
 
   build_taosx:
-    needs: [ check ]
+    needs: [check]
     if: ${{ success() || ( needs.check.result == 'success' && needs.check-arm.result == 'skipped') }}
-    runs-on: [ self-hosted, linux, x64, qa, test ]
+    runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -123,9 +120,9 @@ jobs:
           rm $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz
 
   build_agent:
-    needs: [ check ]
+    needs: [check]
     if: ${{ success() || ( needs.check.result == 'success' && needs.check-arm.result == 'skipped') }}
-    runs-on: [ self-hosted, linux, x64, qa, test ]
+    runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -143,7 +140,7 @@ jobs:
 
   build_explorer:
     needs: remove_artifacts
-    runs-on: [ self-hosted, linux, x64, qa, test ]
+    runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -161,7 +158,7 @@ jobs:
 
   build_go:
     needs: remove_artifacts
-    runs-on: [ self-hosted, linux, x64, qa, test ]
+    runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -197,7 +194,7 @@ jobs:
 
   build_java:
     needs: remove_artifacts
-    runs-on: [ self-hosted, linux, x64, qa, test ]
+    runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -243,8 +240,8 @@ jobs:
           scp -r ./target/* root@$RELEASE_HOST:$ARTIFACT_BASE_DIR/$DIR_PATH/bin/opentsdb/
 
   deploy_with_docker:
-    runs-on: [ self-hosted, linux, x64, qa, test ]
-    needs: [ build_taosx, build_agent, build_go, build_java, build_explorer ]
+    runs-on: [self-hosted, linux, x64, qa, test]
+    needs: [build_taosx, build_agent, build_go, build_java, build_explorer]
     if: ${{ always() && needs.build_taosx.result == 'success' && needs.build_agent.result == 'success' && needs.build_go.result == 'success' && needs.build_java.result == 'success' && needs.build_explorer.result == 'success'  }}
     outputs:
       CONTAINER_ID: ${{ steps.run_container.outputs.container_id }}
@@ -298,7 +295,7 @@ jobs:
           cd /data/github/TestNG_taosX/ && source setenv.sh && /root/.local/bin/poetry run python3 testng_taosx/ci_util.py ${{ steps.run_container.outputs.rpc_port }} eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
 
   run_test:
-    runs-on: [ self-hosted, linux, x64, qa, test ]
+    runs-on: [self-hosted, linux, x64, qa, test]
     needs: deploy_with_docker
     if: ${{ always() && needs.deploy_with_docker.result == 'success' }}
     steps:
@@ -325,8 +322,8 @@ jobs:
           docker exec ${{needs.deploy_with_docker.outputs.CONTAINER_ID}} bash -c "cd $ARTIFACT_BASE_DIR/$DIR_PATH/taosx/tests/e2e/ && source ./setenv.sh && poetry run pytest test_function/global_setup.py::test_teardown"
 
   generate_report:
-    runs-on: [ self-hosted, linux, x64, qa, test ]
-    needs: [ deploy_with_docker, run_test, unit-test ]
+    runs-on: [self-hosted, linux, x64, qa, test]
+    needs: [deploy_with_docker, run_test, unit-test]
     # if: ${{ needs.run_test.result == success() || needs.run_test.result == failure() }}
     if: always()
     steps:
@@ -353,8 +350,8 @@ jobs:
           # awk "BEGIN {exit ($pass_rate < 100)}"
 
   clean_up:
-    runs-on: [ self-hosted, linux, x64, qa, test ]
-    needs: [ deploy_with_docker, run_test, generate_report ]
+    runs-on: [self-hosted, linux, x64, qa, test]
+    needs: [deploy_with_docker, run_test, generate_report]
     # needs: [deploy_with_docker, run_test]
     if: ${{ always() && needs.deploy_with_docker.result == 'success' && needs.run_test.result == 'success' && needs.generate_report.result == 'success' }}
     steps:
@@ -365,10 +362,9 @@ jobs:
           docker stop ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
           docker rm ${{needs.deploy_with_docker.outputs.CONTAINER_ID}}
 
-
   feishu_report:
-    runs-on: [ self-hosted, linux, x64, qa, test ]
-    needs: [ deploy_with_docker, run_test, generate_report, clean_up ]
+    runs-on: [self-hosted, linux, x64, qa, test]
+    needs: [deploy_with_docker, run_test, generate_report, clean_up]
     if: failure()
     steps:
       - name: Send Feishu Message
