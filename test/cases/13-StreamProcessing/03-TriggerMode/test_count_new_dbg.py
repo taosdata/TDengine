@@ -2544,6 +2544,13 @@ class TestStreamCountTrigger:
                 f"from %%trows;"
             )
 
+            tdSql.execute(
+                f"create stream s10_1 count_window(4, 2, col_3) from vtb_1 into "
+                f"res_vtb_2 (firstts, lastts, cnt_col_3, sum_col_3, avg_col_3) as "
+                f"select first(_c0), last_row(_c0), count(col_3), sum(col_3), avg(col_3) "
+                f"from %%trows;"
+            )
+
         def insert1(self):
             sqls = [
                 "insert into ct1 values ('2025-01-01 00:00:00', 1);",
@@ -2605,6 +2612,11 @@ class TestStreamCountTrigger:
 
             tdSql.checkResultsByFunc(
                 sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_ct1",
+                func=lambda: tdSql.getRows() == 7,
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_ct2",
                 func=lambda: tdSql.getRows() == 7,
             )
 
