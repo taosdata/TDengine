@@ -1322,12 +1322,12 @@ static int32_t stRealtimeGroupGetDataBlock(SSTriggerRealtimeGroup *pGroup, bool 
           range.ekey = pGroup->newThreshold;
         } else if (pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ) {
           if (pTask->triggerType != STREAM_TRIGGER_PERIOD) {
-            QUERY_CHECK_CONDITION(taosArrayGetSize(pContext->pCalcReq->params) > 0, code, lino, _end,
-                                  TSDB_CODE_INTERNAL_ERROR);
-            SSTriggerCalcParam *pFirst = TARRAY_DATA(pContext->pCalcReq->params);
-            SSTriggerCalcParam *pLast = pFirst + TARRAY_SIZE(pContext->pCalcReq->params) - 1;
-            range.skey = pFirst->wstart;
-            range.ekey = pLast->wend;
+            range.skey = pContext->pParamToFetch->wstart;
+            range.ekey = pContext->pParamToFetch->wend;
+            if (TARRAY_ELEM_IDX(pContext->pCalcReq->params, pContext->pParamToFetch) > 0) {
+              SSTriggerCalcParam *pPrevParam = pContext->pParamToFetch - 1;
+              range.skey = TMAX(range.skey, pPrevParam->wend + 1);
+            }
           }
         } else {
           code = TSDB_CODE_INTERNAL_ERROR;
