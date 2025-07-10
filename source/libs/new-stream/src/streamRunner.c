@@ -6,6 +6,7 @@
 #include "scalar.h"
 #include "stream.h"
 #include "streamInt.h"
+#include "taoserror.h"
 #include "tarray.h"
 #include "tdatablock.h"
 
@@ -289,12 +290,12 @@ static int32_t stRunnerInitTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTaskE
 }
 
 static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, SSDataBlock* pBlock,
-                                   bool createTb) {
+                                   bool* createTb) {
   int32_t code = 0;
   if (pTask->notification.calcNotifyOnly) return 0;
   bool needCalcTbName = pExec->tbname[0] == '\0';
   if (pBlock && pBlock->info.rows > 0) {
-    if (needCalcTbName) {
+    if (createTb && needCalcTbName) {
       code = streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, &pExec->runtimeInfo.funcInfo);
       stDebug("stRunnerOutputBlock tbname: %s", pExec->tbname);
     }
@@ -302,19 +303,20 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
       ST_TASK_ELOG("failed to calc output tbname: %s", tstrerror(code));
     } else {
       SArray* pTagVals = NULL;
-      if (createTb) code = stRunnerInitTbTagVal(pTask, pExec, &pTagVals);
+      if (*createTb) code = stRunnerInitTbTagVal(pTask, pExec, &pTagVals);
       if (code == 0) {
         SStreamDataInserterInfo d = {.tbName = pExec->tbname,
                                      .streamId = pTask->task.streamId,
                                      .groupId = pExec->runtimeInfo.funcInfo.groupId,
-                                     .isAutoCreateTable = createTb,
+                                     .isAutoCreateTable = *createTb,
                                      .pTagVals = pTagVals};
         SInputData              input = {.pData = pBlock, .pStreamDataInserterInfo = &d};
         bool                    cont = false;
         code = dsPutDataBlock(pExec->pSinkHandle, &input, &cont);
         ST_TASK_DLOG("runner output block to sink code:0x%0x, rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %" PRId64,
-                     code, pBlock->info.rows, pExec->tbname, createTb, pExec->runtimeInfo.funcInfo.groupId);
+                     code, pBlock->info.rows, pExec->tbname, *createTb, pExec->runtimeInfo.funcInfo.groupId);
         printDataBlock(pBlock, "output block to sink", "runner");
+        if(code == TSDB_CODE_SUCCESS) *createTb = false;  // if output block success, then no need to create table
       } else {
         ST_TASK_ELOG("failed to init tag vals for output block: %s", tstrerror(code));
       }
@@ -357,8 +359,7 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
 
 static int32_t stRunnerHandleResultBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
                                          SSDataBlock* pBlock, bool* pCreateTb) {
-  int32_t code = stRunnerOutputBlock(pTask, pExec, pBlock, *pCreateTb);
-  //*pCreateTb = false;
+  int32_t code = stRunnerOutputBlock(pTask, pExec, pBlock, pCreateTb);
   if (code == 0) {
     code = streamDoNotification(pTask, pExec, pBlock);
     if (code != TSDB_CODE_SUCCESS) {

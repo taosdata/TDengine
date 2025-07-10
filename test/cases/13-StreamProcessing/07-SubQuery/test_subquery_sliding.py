@@ -835,6 +835,7 @@ class TestStreamSubquerySliding:
             stream="create stream rdb.s84 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r84 as select cts, top(cint, 5) from qdb.meters where tbname=%%1 and cts >= _twstart and cts <= _twend order by cint limit 2 offset 2;",
             res_query="select cts, `top(cint, 5)` from rdb.r84 where tag_tbname='t1' limit 2",
             exp_query="select cts, top(cint, 5) from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts <= '2025-01-01 00:05:00.000' and tbname='t1' order by cint limit 2 offset 2;",
+            check_func=self.check84,
         )
         self.streams.append(stream)
 
