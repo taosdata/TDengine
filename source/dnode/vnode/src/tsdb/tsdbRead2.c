@@ -2423,7 +2423,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
   tRowKeyAssign(&pBlockScanInfo->lastProcKey, &minKey);
 
   // file block ---> stt block -----> mem
-  if (pkCompEx(&minKey, pfKey) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, pfKey) == 0) {
     code = tsdbRowMergerAdd(pMerger, &fRow, NULL);
     TSDB_CHECK_CODE(code, lino, _end);
 
@@ -2431,7 +2431,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, pSttKey) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, pSttKey) == 0) {
     TSDBROW* fRow1 = tMergeTreeGetRow(&pSttBlockReader->mergeTree);
     code = tsdbRowMergerAdd(pMerger, fRow1, NULL);
     TSDB_CHECK_CODE(code, lino, _end);
@@ -2440,7 +2440,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, &k) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, &k) == 0) {
     code = tsdbRowMergerAdd(pMerger, pRow, pSchema);
     TSDB_CHECK_CODE(code, lino, _end);
 
@@ -2656,7 +2656,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
   tRowKeyAssign(&pBlockScanInfo->lastProcKey, &minKey);
 
   // file block -----> stt block -----> imem -----> mem
-  if (pkCompEx(&minKey, pfKey) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, pfKey) == 0) {
     TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
     code = tsdbRowMergerAdd(pMerger, &fRow, NULL);
     TSDB_CHECK_CODE(code, lino, _end);
@@ -2665,7 +2665,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, pSttKey) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, pSttKey) == 0) {
     TSDBROW* pRow1 = tMergeTreeGetRow(&pSttBlockReader->mergeTree);
     code = tsdbRowMergerAdd(pMerger, pRow1, NULL);
     TSDB_CHECK_CODE(code, lino, _end);
@@ -2675,7 +2675,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, &ik) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, &ik) == 0) {
     code = tsdbRowMergerAdd(pMerger, piRow, piSchema);
     TSDB_CHECK_CODE(code, lino, _end);
 
@@ -2683,7 +2683,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, &k) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, &k) == 0) {
     code = tsdbRowMergerAdd(pMerger, pRow, pSchema);
     TSDB_CHECK_CODE(code, lino, _end);
 

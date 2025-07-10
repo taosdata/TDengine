@@ -329,6 +329,7 @@ typedef struct {
   int64_t pointsWritten;
   int64_t totalStorage;
   int64_t compStorage;
+  int64_t storageLastUpd;
 } SVnodeStats;
 
 struct SVnodeCfg {

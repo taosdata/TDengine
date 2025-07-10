@@ -25,27 +25,16 @@
 #include "thash.h"
 
 SDataSinkManager2 g_pDataSinkManager = {0};
-int64_t           gDSMaxMemSizeDefault = (1024 * 1024 * 1024);    // 1G
-int64_t           gMemReservedSizeForWrite = (20 * 1024 * 1024);  // 20M
-int64_t           gMemReservedSize = (30 * 1024 * 1024);          // 30M
-int64_t           gMemAlertSize = (100 * 1024 * 1024);            // 100M
-int64_t           gMemAlertQuitSize = (300 * 1024 * 1024);        // 300M
-int64_t           gDSFileBlockDefaultSize = (10 * 1024 * 1024);   // 10M
 
 void setDataSinkMaxMemSize(int64_t maxMemSize) {
   if (maxMemSize >= 0) {
-    gDSMaxMemSizeDefault = maxMemSize;
+    tsStreamBufferSizeBytes = maxMemSize;
   }
-  stInfo("set data sink max mem size to %" PRId64, gDSMaxMemSizeDefault);
+  stInfo("set data sink max mem size to %" PRId64, tsStreamBufferSizeBytes);
 }
 
 static void destroySStreamDSTaskMgr(void* pData);
-int32_t     initStreamDataSinkOnce() {
-  int8_t flag = atomic_val_compare_exchange_8(&g_pDataSinkManager.status, 0, 1);
-  if (flag != 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-
+int32_t     initStreamDataSink() {
   int32_t code = 0;
   code = initDataSinkFileDir();
   if (code != 0) {
@@ -53,6 +42,7 @@ int32_t     initStreamDataSinkOnce() {
     return code;
   }
 
+  g_pDataSinkManager.memAlterSize = TMIN(100 * 1024 * 1024, tsStreamBufferSizeBytes * 0.1);
   g_pDataSinkManager.usedMemSize = 0;
   g_pDataSinkManager.fileBlockSize = 0;
   g_pDataSinkManager.readDataFromFileTimes = 0;
@@ -62,7 +52,7 @@ int32_t     initStreamDataSinkOnce() {
     return terrno;
   }
   taosHashSetFreeFp(g_pDataSinkManager.dsStreamTaskList, destroySStreamDSTaskMgr);
-  stInfo("data sink manager init success, max mem size: %" PRId64, gDSMaxMemSizeDefault);
+  stInfo("data sink manager init success, max mem size: %" PRId64, tsStreamBufferSizeBytes);
   return TSDB_CODE_SUCCESS;
 };
 
@@ -231,7 +221,7 @@ static int32_t createSlidingTaskMgr(int64_t streamId, int64_t taskId, int64_t se
   pSlidingTaskDSMgr->taskId = taskId;
   pSlidingTaskDSMgr->sessionId = sessionId;
   pSlidingTaskDSMgr->tsSlotId = tsSlotId;
-  pSlidingTaskDSMgr->capacity = gDSFileBlockDefaultSize;
+  pSlidingTaskDSMgr->capacity = DS_FILE_BLOCK_SIZE;
   pSlidingTaskDSMgr->pFileMgr = NULL;
   pSlidingTaskDSMgr->pSlidingGrpList =
       taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
@@ -248,10 +238,7 @@ static int32_t createSlidingTaskMgr(int64_t streamId, int64_t taskId, int64_t se
 // @brief 初始化数据缓存
 int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t cleanMode, int32_t tsSlotId,
                             void** ppCache) {
-  int32_t code = initStreamDataSinkOnce();
-  if (code != 0) {
-    return code;
-  }
+  int32_t code = 0;                            
   *ppCache = NULL;
   char key[64] = {0};
   snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%"PRId64, streamId, taskId, sessionId);
@@ -821,12 +808,9 @@ _end:
 void cancelStreamDataCacheIterate(void** pIter) { releaseDataResult(pIter); }
 
 int32_t destroyDataSinkMgr() {
-  int8_t flag = atomic_val_compare_exchange_8(&g_pDataSinkManager.status, 1, 0);
-  if (flag == 1) {
-    if (g_pDataSinkManager.dsStreamTaskList) {
-      taosHashCleanup(g_pDataSinkManager.dsStreamTaskList);
-      g_pDataSinkManager.dsStreamTaskList = NULL;
-    }
+  if (g_pDataSinkManager.dsStreamTaskList) {
+    taosHashCleanup(g_pDataSinkManager.dsStreamTaskList);
+    g_pDataSinkManager.dsStreamTaskList = NULL;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -837,7 +821,7 @@ void useMemSizeSub(int64_t size) { atomic_fetch_sub_64(&g_pDataSinkManager.usedM
 
 bool hasEnoughMemSize() {
   int64_t usedMemSize = atomic_load_64(&g_pDataSinkManager.usedMemSize);
-  return (usedMemSize < gDSMaxMemSizeDefault - gMemReservedSize);
+  return (usedMemSize < tsStreamBufferSizeBytes - DS_MEM_SIZE_RESERVED);
 }
 
 int32_t moveMemCacheAllList() {
@@ -883,7 +867,7 @@ int32_t moveMemCache() {
   }
 
   stInfo("moveMemCache started, used mem size: %" PRId64 ", max mem size: %" PRId64, g_pDataSinkManager.usedMemSize,
-         gDSMaxMemSizeDefault);
+         tsStreamBufferSizeBytes);
 
   int32_t code = moveMemFromWaitList(0);
   if (code != TSDB_CODE_SUCCESS) {
@@ -903,7 +887,7 @@ int32_t moveMemCache() {
     }
   }
   stInfo("moveMemCache finished, used mem size: %" PRId64 ", max mem size: %" PRId64, g_pDataSinkManager.usedMemSize,
-         gDSMaxMemSizeDefault);
+         tsStreamBufferSizeBytes);
   atomic_val_compare_exchange_8(&g_slidigGrpMemList.status, DATA_MOVING, DATA_NORMAL);
 
   return code;
@@ -943,14 +927,14 @@ static void disableSlidingGrpMemList() {
 
 int32_t checkAndMoveMemCache(bool forWrite) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (!g_slidigGrpMemList.enabled && g_pDataSinkManager.usedMemSize > gDSMaxMemSizeDefault - gMemAlertSize) {
+  if (!g_slidigGrpMemList.enabled && g_pDataSinkManager.usedMemSize > tsStreamBufferSizeBytes - g_pDataSinkManager.memAlterSize) {
     return enableSlidingGrpMemList();
-  } else if (g_slidigGrpMemList.enabled && g_pDataSinkManager.usedMemSize < gDSMaxMemSizeDefault - gMemAlertQuitSize) {
+  } else if (g_slidigGrpMemList.enabled && g_pDataSinkManager.usedMemSize < tsStreamBufferSizeBytes - DS_MEM_SIZE_ALTER_QUIT) {
     disableSlidingGrpMemList();
     return TSDB_CODE_SUCCESS;
   }
 
-  if ((forWrite && g_pDataSinkManager.usedMemSize < gDSMaxMemSizeDefault - gMemReservedSizeForWrite) ||
+  if ((forWrite && g_pDataSinkManager.usedMemSize < tsStreamBufferSizeBytes - DS_MEM_SIZE_RESERVED_FOR_WIRTE) ||
       (!forWrite && hasEnoughMemSize())) {
     return TSDB_CODE_SUCCESS;
   }
@@ -958,7 +942,7 @@ int32_t checkAndMoveMemCache(bool forWrite) {
     return moveMemCache();
   } else {
     stDebug("checkAndReleaseBuffer, used mem size: %" PRId64 ", max mem size: %" PRId64 ", for write: %d",
-            g_pDataSinkManager.usedMemSize, gDSMaxMemSizeDefault, forWrite);
+            g_pDataSinkManager.usedMemSize, tsStreamBufferSizeBytes, forWrite);
   }
   return TSDB_CODE_SUCCESS;
 }
