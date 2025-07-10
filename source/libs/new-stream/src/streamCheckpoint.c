@@ -89,6 +89,7 @@ int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen) {
   STREAM_CHECK_NULL_GOTO(dataLen, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_RET_GOTO(getFileName(filepath, streamId));
 
+  terrno = 0;
   pFile = taosOpenFile(filepath, TD_FILE_READ);
   STREAM_CHECK_NULL_GOTO(pFile, 0);
 
@@ -248,8 +249,9 @@ int32_t streamSyncWriteCheckpoint(int64_t streamId, SEpSet* epSet, void* data, i
 
   if (data == NULL) {
     int32_t ret = streamReadCheckPoint(streamId, &data, &dataLen);
-    if (errno == ENOENT || ret != TSDB_CODE_SUCCESS) {
+    if (ret != TSDB_CODE_SUCCESS || terrno == TAOS_SYSTEM_ERROR(ENOENT)) {
       dataLen = INT_BYTES + LONG_BYTES;
+      taosMemoryFreeClear(data);
       data = taosMemoryCalloc(1, INT_BYTES + LONG_BYTES);
       STREAM_CHECK_NULL_GOTO(data, terrno);
       *(int32_t*)data = -1;
