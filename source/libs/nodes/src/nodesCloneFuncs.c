@@ -703,6 +703,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(windowAlgo);
   COPY_SCALAR_FIELD(windowCount);
   COPY_SCALAR_FIELD(windowSliding);
+  COPY_SCALAR_FIELD(indefRowsFunc);
   CLONE_NODE_FIELD(pAnomalyExpr);
   COPY_CHAR_ARRAY_FIELD(anomalyOpt);
   COPY_SCALAR_FIELD(recalculateInterval);
@@ -887,11 +888,13 @@ static int32_t physiWindowCopy(const SWindowPhysiNode* pSrc, SWindowPhysiNode* p
   COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
   CLONE_NODE_LIST_FIELD(pExprs);
   CLONE_NODE_LIST_FIELD(pFuncs);
+  CLONE_NODE_LIST_FIELD(pProjs);
   CLONE_NODE_FIELD(pTspk);
   CLONE_NODE_FIELD(pTsEnd);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(igExpired);
+  COPY_SCALAR_FIELD(indefRowsFunc);
   return TSDB_CODE_SUCCESS;
 }
 

@@ -2117,6 +2117,47 @@ static EDealRes hasCountLikeFunc(SNode* pNode, void* res) {
   return DEAL_RES_CONTINUE;
 }
 
+static bool isDynVirtualStableScan(SNode* pNode) {
+  if (NULL == pNode || QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL != nodeType(pNode)) {
+    return false;
+  }
+  SDynQueryCtrlPhysiNode* pDynCtrl = (SDynQueryCtrlPhysiNode*)pNode;
+  if (DYN_QTYPE_VTB_SCAN != pDynCtrl->qType) {
+    return false;
+  }
+  if (nodesListGetNode(pDynCtrl->node.pChildren, 0)== NULL) {
+    return false;
+  }
+  if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN != nodeType(nodesListGetNode(pDynCtrl->node.pChildren, 0))) {
+    return false;
+  }
+  return true;
+}
+
+static int32_t getChildTuple(SDataBlockDescNode **pChildTuple, SNodeList* pChildren) {
+  if (isDynVirtualStableScan(nodesListGetNode(pChildren, 0))) {
+    SPhysiNode* pDynNode = (SPhysiNode*)nodesListGetNode(pChildren, 0);
+    if (pDynNode == NULL) {
+      planError("get child tuple failed, pDynNode is NULL");
+      return TSDB_CODE_INVALID_PARA;
+    }
+    SPhysiNode* pVtbScan = (SPhysiNode*)nodesListGetNode(pDynNode->pChildren, 0);
+    if (pVtbScan == NULL) {
+      planError("get child tuple failed, pVtbScan is NULL");
+      return TSDB_CODE_INVALID_PARA;
+    }
+    *pChildTuple = pVtbScan->pOutputDataBlockDesc;
+  } else {
+    SPhysiNode* pChild = (SPhysiNode*)nodesListGetNode(pChildren, 0);
+    if (pChild == NULL) {
+      planError("get child tuple failed, pChild is NULL");
+      return TSDB_CODE_INVALID_PARA;
+    }
+    *pChildTuple = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SAggLogicNode* pAggLogicNode,
                                   SPhysiNode** pPhyNode, SSubplan* pSubPlan) {
   SAggPhysiNode* pAgg =
@@ -2143,12 +2184,8 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
   nodesWalkExprs(pAggFuncs, hasCountLikeFunc, &pAgg->hasCountLikeFunc);
 
   SDataBlockDescNode* pChildTupe = NULL;
-  if (nodeType(nodesListGetNode(pChildren, 0)) == QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL) {
-    SPhysiNode* pDynNode = (SPhysiNode*)nodesListGetNode(pChildren, 0);
-    SPhysiNode* pVtbScan = (SPhysiNode*)nodesListGetNode(pDynNode->pChildren, 0);
-    pChildTupe = pVtbScan->pOutputDataBlockDesc;
-  } else {
-    pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getChildTuple(&pChildTupe, pChildren);
   }
 
   // push down expression to pOutputDataBlockDesc of child node
@@ -2208,12 +2245,8 @@ static int32_t createIndefRowsFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
   }
 
   SDataBlockDescNode* pChildTupe = NULL;
-  if (nodeType(nodesListGetNode(pChildren, 0)) == QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL) {
-    SPhysiNode* pDynNode = (SPhysiNode*)nodesListGetNode(pChildren, 0);
-    SPhysiNode* pVtbScan = (SPhysiNode*)nodesListGetNode(pDynNode->pChildren, 0);
-    pChildTupe = pVtbScan->pOutputDataBlockDesc;
-  } else {
-    pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getChildTuple(&pChildTupe, pChildren);
   }
 
   // push down expression to pOutputDataBlockDesc of child node
@@ -2260,12 +2293,8 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
   int32_t    code = rewritePrecalcExprs(pCxt, pFuncLogicNode->pFuncs, &pPrecalcExprs, &pFuncs);
 
   SDataBlockDescNode* pChildTupe = NULL;
-  if (nodeType(nodesListGetNode(pChildren, 0)) == QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL) {
-    SPhysiNode* pDynNode = (SPhysiNode*)nodesListGetNode(pChildren, 0);
-    SPhysiNode* pVtbScan = (SPhysiNode*)nodesListGetNode(pDynNode->pChildren, 0);
-    pChildTupe = pVtbScan->pOutputDataBlockDesc;
-  } else {
-    pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getChildTuple(&pChildTupe, pChildren);
   }
 
   // push down expression to pOutputDataBlockDesc of child node
@@ -2328,12 +2357,8 @@ static int32_t createForecastFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* p
   int32_t    code = rewritePrecalcExprs(pCxt, pFuncLogicNode->pFuncs, &pPrecalcExprs, &pFuncs);
 
   SDataBlockDescNode* pChildTupe = NULL;
-  if (nodeType(nodesListGetNode(pChildren, 0)) == QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL) {
-    SPhysiNode* pDynNode = (SPhysiNode*)nodesListGetNode(pChildren, 0);
-    SPhysiNode* pVtbScan = (SPhysiNode*)nodesListGetNode(pDynNode->pChildren, 0);
-    pChildTupe = pVtbScan->pOutputDataBlockDesc;
-  } else {
-    pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getChildTuple(&pChildTupe, pChildren);
   }
 
   // push down expression to pOutputDataBlockDesc of child node
@@ -2508,6 +2533,7 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   pWindow->watermark = pWindowLogicNode->watermark;
   pWindow->deleteMark = pWindowLogicNode->deleteMark;
   pWindow->igExpired = pWindowLogicNode->igExpired;
+  pWindow->indefRowsFunc = pWindowLogicNode->indefRowsFunc;
   pWindow->mergeDataBlock = (GROUP_ACTION_KEEP == pWindowLogicNode->node.groupAction ? false : true);
   pWindow->node.inputTsOrder = pWindowLogicNode->node.inputTsOrder;
   pWindow->node.outputTsOrder = pWindowLogicNode->node.outputTsOrder;
@@ -2521,7 +2547,10 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   SNodeList* pProjs = pWindowLogicNode->pProjs;
   int32_t    code = rewritePrecalcExprs(pCxt, pWindowLogicNode->pFuncs, &pPrecalcExprs, &pFuncs);
 
-  SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+  SDataBlockDescNode* pChildTupe = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getChildTuple(&pChildTupe, pChildren);
+  }
   // push down expression to pOutputDataBlockDesc of child node
   if (TSDB_CODE_SUCCESS == code && NULL != pPrecalcExprs) {
     SNodeList* pOutput;
@@ -2651,7 +2680,10 @@ static int32_t createStateWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
   SNode*     pStateKey = NULL;
   int32_t    code = rewritePrecalcExpr(pCxt, pWindowLogicNode->pStateExpr, &pPrecalcExprs, &pStateKey);
 
-  SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+  SDataBlockDescNode* pChildTupe = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getChildTuple(&pChildTupe, pChildren);
+  }
   // push down expression to pOutputDataBlockDesc of child node
   if (TSDB_CODE_SUCCESS == code && NULL != pPrecalcExprs) {
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pState->window.pExprs);
@@ -2694,9 +2726,14 @@ static int32_t createEventWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
   if (NULL == pEvent) {
     return terrno;
   }
-
-  SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
-  int32_t code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pWindowLogicNode->pStartCond, &pEvent->pStartCond);
+  int32_t             code = TSDB_CODE_SUCCESS;
+  SDataBlockDescNode* pChildTupe = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getChildTuple(&pChildTupe, pChildren);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pWindowLogicNode->pStartCond, &pEvent->pStartCond);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pWindowLogicNode->pEndCond, &pEvent->pEndCond);
   }
@@ -2748,7 +2785,10 @@ static int32_t createAnomalyWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
   SNode*     pAnomalyKey = NULL;
   int32_t    code = rewritePrecalcExpr(pCxt, pWindowLogicNode->pAnomalyExpr, &pPrecalcExprs, &pAnomalyKey);
 
-  SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+  SDataBlockDescNode* pChildTupe = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getChildTuple(&pChildTupe, pChildren);
+  }
   // push down expression to pOutputDataBlockDesc of child node
   if (TSDB_CODE_SUCCESS == code && NULL != pPrecalcExprs) {
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pAnomaly->window.pExprs);
@@ -2839,12 +2879,8 @@ static int32_t createSortPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   pSort->excludePkCol = pSortLogicNode->excludePkCol;
 
   SDataBlockDescNode* pChildTupe = NULL;
-  if (nodeType(nodesListGetNode(pChildren, 0)) == QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL) {
-    SPhysiNode* pDynNode = (SPhysiNode*)nodesListGetNode(pChildren, 0);
-    SPhysiNode* pVtbScan = (SPhysiNode*)nodesListGetNode(pDynNode->pChildren, 0);
-    pChildTupe = pVtbScan->pOutputDataBlockDesc;
-  } else {
-    pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getChildTuple(&pChildTupe, pChildren);
   }
 
   // push down expression to pOutputDataBlockDesc of child node
@@ -2895,12 +2931,8 @@ static int32_t createPartitionPhysiNodeImpl(SPhysiPlanContext* pCxt, SNodeList* 
   int32_t    code = rewritePrecalcExprs(pCxt, pPartLogicNode->pPartitionKeys, &pPrecalcExprs, &pPartitionKeys);
   pPart->needBlockOutputTsOrder = pPartLogicNode->needBlockOutputTsOrder;
   SDataBlockDescNode* pChildTupe = NULL;
-  if (nodeType(nodesListGetNode(pChildren, 0)) == QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL) {
-    SPhysiNode* pDynNode = (SPhysiNode*)nodesListGetNode(pChildren, 0);
-    SPhysiNode* pVtbScan = (SPhysiNode*)nodesListGetNode(pDynNode->pChildren, 0);
-    pChildTupe = pVtbScan->pOutputDataBlockDesc;
-  } else {
-    pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getChildTuple(&pChildTupe, pChildren);
   }
   // push down expression to pOutputDataBlockDesc of child node
   if (TSDB_CODE_SUCCESS == code && NULL != pPrecalcExprs) {
@@ -2970,9 +3002,14 @@ static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   pFill->timeRange = pFillNode->timeRange;
   TSWAP(pFill->pTimeRange, pFillNode->pTimeRange);
   pFill->node.inputTsOrder = pFillNode->node.inputTsOrder;
-
-  SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
-  int32_t code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFillNode->pFillExprs, &pFill->pFillExprs);
+  int32_t             code = TSDB_CODE_SUCCESS;
+  SDataBlockDescNode* pChildTupe = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getChildTuple(&pChildTupe, pChildren);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFillNode->pFillExprs, &pFill->pFillExprs);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = addDataBlockSlots(pCxt, pFill->pFillExprs, pFill->node.pOutputDataBlockDesc);
   }
