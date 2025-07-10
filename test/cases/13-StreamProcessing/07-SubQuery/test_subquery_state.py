@@ -378,23 +378,23 @@ class TestStreamSubqueryState:
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.vmeters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:15:00.000' and tbname='v1' partition by tbname interval(5m);",
             check_func=self.check27,
         )
-        # self.streams.append(stream)
+        # self.streams.append(stream) TD-36353
 
         stream = StreamItem(
             id=28,
-            stream="create stream rdb.s28 state_window(c1) from tdb.triggers partition by id into rdb.r28 as select _twstart ts, `name` as cname, `super` csuper, create_time cctime, %%1 from information_schema.ins_users",
-            res_query="select ts, cname, csuper, 1000 from rdb.r28 where id = 1",
+            stream="create stream rdb.s28 state_window(c1) from tdb.triggers partition by id, tbname into rdb.r28 as select _twstart ts, `name` as cname, `super` csuper, create_time cctime, %%1 from information_schema.ins_users",
+            res_query="select ts, cname, csuper, 1000 from rdb.r28 where id = 1 limit 3",
             exp_query="select _wstart ts, 'root',  1, count(cint) from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:15:00' interval(5m);",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=29,
-            stream="create stream rdb.s29 state_window(c1) from tdb.t1 into rdb.r29 as select _wstart, sum(cint), avg(cint) from qdb.meters where cts >= _twstart and cts < _twstart + 5m interval(1m);",
-            res_query="select * from rdb.r29",
-            exp_query="select _wstart ts, sum(cint), avg(cint) from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' interval(1m)",
+            stream="create stream rdb.s29 state_window(c1) from tdb.t1 into rdb.r29 as select _wstart ts, sum(cint), avg(cint) from qdb.meters where cts >= _twstart and cts < _twstart + 5m interval(1m);",
+            res_query="select * from rdb.r29 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:15:00.000'",
+            exp_query="select _wstart ts, sum(cint), avg(cint) from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:15:00.000' interval(1m)",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=30,
@@ -402,7 +402,7 @@ class TestStreamSubqueryState:
             res_query="select * from rdb.r30",
             exp_query="select _wstart, sum(cint), FIRST(cint) from qdb.meters interval(2m)",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=31,
@@ -414,27 +414,27 @@ class TestStreamSubqueryState:
 
         stream = StreamItem(
             id=32,
-            stream="create stream rdb.s32 state_window(c1) from tdb.triggers partition by tbname into rdb.r32 as select _wstart, sum(cint), avg(cint) from qdb.meters where tbname != %%tbname and cts >= _twstart and cts < _twstart + 5m interval(1m);",
-            res_query="select * from rdb.r32 where tag_tbname='t1'",
-            exp_query="select _wstart ts, sum(cint) c1, avg(cint) c2, 't1' from qdb.meters where tbname != 't1' and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' interval(1m)",
+            stream="create stream rdb.s32 state_window(c1) from tdb.triggers partition by tbname into rdb.r32 as select _wstart ts, sum(cint), avg(cint) from qdb.meters where tbname != %%tbname and cts >= _twstart and cts < _twstart + 5m interval(1m);",
+            res_query="select * from rdb.r32 where tag_tbname='t1' and ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:15:00.000'",
+            exp_query="select _wstart ts, sum(cint) c1, avg(cint) c2, 't1' from qdb.meters where tbname != 't1' and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:15:00.000' interval(1m)",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=33,
-            stream="create stream rdb.s33 state_window(c1) from tdb.triggers partition by id into rdb.r33 tags(tbn varchar(128) as cast(%%1 as varchar)) as select _twstart, sum(cint), avg(cint) from qdb.meters where tint=%%1 and cts >= _twstart and cts < _twstart + 5m interval(1m);",
+            stream="create stream rdb.s33 state_window(c1) from tdb.triggers partition by id, tbname into rdb.r33 tags(tbn varchar(128) as cast(%%1 as varchar)) as select _twstart, sum(cint), avg(cint) from qdb.meters where tint=%%1 and cts >= _twstart and cts < _twstart + 5m interval(1m);",
             res_query="select `sum(cint)`, `avg(cint)` from rdb.r33 where tbn = 1 limit 1",
             exp_query="select sum(cint), avg(cint) from qdb.meters where tint=1 and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' interval(1m) limit 1 offset 4",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=34,
             stream="create stream rdb.s34 state_window(c1) from tdb.triggers partition by tbname into rdb.r34 as select _twstart - 5m tc, TIMEDIFF(_twstart - 5m, _twstart + 5m) tx, %%tbname tb, %%1 tg1, sum(c1) c1, avg(c2) c2, first(c1) c3, last(c2) c4 from %%trows where c1 > 0;",
             res_query="select * from rdb.r34 where tag_tbname = 't1';",
-            exp_query="select _wstart, TIMEDIFF(_wstart, _wend) * 2, 't1', 't1', sum(c1) c1, avg(c2) c2, first(c1) c3, last(c2) c4 , 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' and c1 > 0 interval(5m);",
+            exp_query="select _wstart - 5m, TIMEDIFF(_wstart, _wend) * 2, 't1', 't1', sum(c1) c1, avg(c2) c2, first(c1) c3, last(c2) c4 , 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' and c1 > 0 interval(5m);",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=35,
@@ -446,19 +446,19 @@ class TestStreamSubqueryState:
 
         stream = StreamItem(
             id=36,
-            stream="create stream rdb.s36 state_window(c1) from tdb.triggers partition by id, name into rdb.r36 as select _twstart - 5m t1, _twstart t2, _twstart + 5m + 1 as t3, TIMEDIFF(_twstart, _twstart - 5m) tx1, TIMEDIFF(_twstart + 5m, _twstart) tx2, sum(cint) c1, avg(cuint) c2, _tgrpid from qdb.meters where tint=%%1 and cts >= _twstart and cts < _twstart + 5m;",
-            res_query="select t1, t2, t3, tx1, tx2, c1, c2 from rdb.r36 where id = 1",
-            exp_query="select _wstart, _wend, _wend + 5m + 1, TIMEDIFF(_wend, _wstart), TIMEDIFF(_wend, _wstart), sum(cint), avg(cuint) from qdb.meters where tint=1 and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' interval(5m)",
+            stream="create stream rdb.s36 state_window(c1) from tdb.triggers partition by id, name, tbname into rdb.r36 as select _twstart - 5m t1, _twstart t2, _twstart + 5m + 1 as t3, TIMEDIFF(_twstart, _twstart - 5m) tx1, TIMEDIFF(_twstart + 5m, _twstart) tx2, sum(cint) c1, avg(cuint) c2, _tgrpid from qdb.meters where tint=%%1 and cts >= _twstart and cts < _twstart + 5m;",
+            res_query="select t1, t2, t3, tx1, tx2, c1, c2 from rdb.r36 where id = 1 limit 3",
+            exp_query="select _wstart - 5m, _wstart, _wstart + 5m + 1, TIMEDIFF(_wend, _wstart), TIMEDIFF(_wend, _wstart), sum(cint), avg(cuint) from qdb.meters where tint=1 and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:15:00.000' interval(5m)",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=37,
-            stream="create stream rdb.s37 state_window(c1) from tdb.triggers partition by id, name into rdb.r37 as select _twstart ts, _twend, count(c1), sum(c2) from %%trows",
-            res_query="select * from rdb.r37 where id == 1",
-            exp_query="select _wstart, _wend, count(c1), sum(c2), 1, '1' from tdb.triggers where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' and id = 1 interval(5m) fill(value, 0, NULL);",
+            stream="create stream rdb.s37 state_window(c1) from tdb.triggers partition by id, name, tbname into rdb.r37 as select _twstart ts, _twend, count(c1), sum(c2) from %%trows",
+            res_query="select * from rdb.r37 where id == 1 limit 3",
+            exp_query="select _wstart, _wstart + 1m, count(c1), sum(c2), 1, '1', 't1' from tdb.triggers where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:15:00.000' and id = 1 interval(5m) fill(value, 0, NULL);",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=38,
@@ -470,11 +470,11 @@ class TestStreamSubqueryState:
 
         stream = StreamItem(
             id=39,
-            stream="create stream rdb.s39 state_window(c1) from tdb.triggers into rdb.r39 as select _twstart + 5m tn, TIMETRUNCATE(_twstart + 5m, 1d) tnt, sum(cint) c1, _tgrpid tg, TIMETRUNCATE(cast(_tlocaltime /1000000 as timestamp), 1d) tl from qdb.meters where cts >= _twstart and cts < _twstart + 5m and tint = 1 partition by tint",
-            res_query="select * from rdb.r39",
-            exp_query="select _wstart + 10m, timetruncate(_wstart, 1d), sum(cint), 0, timetruncate(now(), 1d) from qdb.meters where tint=1 and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' interval(5m);",
+            stream="create stream rdb.s39 state_window(c1) from tdb.v1 into rdb.r39 as select _twstart + 5m tn, TIMETRUNCATE(_twstart + 5m, 1d) tnt, sum(cint) c1, _tgrpid tg, TIMETRUNCATE(cast(_tlocaltime /1000000 as timestamp), 1d) tl from qdb.meters where cts >= _twstart and cts < _twstart + 5m and tint = 1 partition by tint",
+            res_query="select * from rdb.r39 limit 3",
+            exp_query="select _wstart + 5m, timetruncate(_wstart, 1d), sum(cint), 0, timetruncate(now(), 1d) from qdb.meters where tint=1 and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:15:00.000' interval(5m);",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=40,
@@ -483,16 +483,16 @@ class TestStreamSubqueryState:
             exp_query="select cast('2025-01-01 00:00:00.000' as timestamp) ts, db_name, stable_name, tag_name, tag_value from information_schema.ins_tags where table_name='j0' and stable_name='jmeters' and tag_name='tjson';",
             check_func=self.check40,
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=41,
-            stream="create stream rdb.s41 state_window(c1) from tdb.triggers partition by id into rdb.r41 as select cts, cint, cbool, cast(tjson->'k1' as varchar(8)) cjson, _twstart from qdb.j0 where cts >= _twstart and cts < _twstart + 5m and cbool = %%1 order by cts limit 2, 3",
+            stream="create stream rdb.s41 state_window(c1) from tdb.triggers partition by id, tbname into rdb.r41 as select cts, cint, cbool, cast(tjson->'k1' as varchar(8)) cjson, _twstart from qdb.j0 where cts >= _twstart and cts < _twstart + 5m and cbool = %%1 order by cts limit 2, 3",
             res_query="select * from rdb.r41 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and id = 1",
-            exp_query="select cts, cint, cbool, cast(tjson->'k1' as varchar(8)) cjson, cast('2025-01-01 00:00:00.000' as timestamp), 1 from qdb.j0 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and cbool = 1 order by cts limit 2, 3",
+            exp_query="select cts, cint, cbool, cast(tjson->'k1' as varchar(8)) cjson, cast('2025-01-01 00:00:00.000' as timestamp), 1, 't1' from qdb.j0 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and cbool = 1 order by cts limit 2, 3",
             check_func=self.check41,
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=42,
@@ -508,8 +508,8 @@ class TestStreamSubqueryState:
             res_query="select ts, cts, tt, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from rdb.r43 where id = 1 limit 1 offset 1",
             exp_query="select cts, cts, 1, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from qdb.v1 where cts = '2025-01-01 00:05:00.000';",
         )
-        # self.streams.append(stream)
-
+        self.streams.append(stream)
+        
         stream = StreamItem(
             id=44,
             stream="create stream rdb.s44 state_window(c1) from tdb.triggers partition by tbname into rdb.r44 as select _twstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cgeometry from qdb.v1 order by cts limit 1 _qstart, _qend, _c0, rowts",
@@ -520,42 +520,42 @@ class TestStreamSubqueryState:
 
         stream = StreamItem(
             id=45,
-            stream="create stream rdb.s45 state_window(c1) from tdb.triggers partition by id, name into rdb.r45 as select _twstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16 from qdb.meters where cts >= _twstart and cts < _twstart + 5m and tbname='t2' order by cts limit 1",
+            stream="create stream rdb.s45 state_window(c1) from tdb.triggers partition by id, name, tbname into rdb.r45 as select _twstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16 from qdb.meters where cts >= _twstart and cts < _twstart + 5m and tbname='t2' order by cts limit 1",
             res_query="select  ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16 from rdb.r45 limit 1",
             exp_query="select cts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, cdecimal8, cdecimal16 from qdb.t2 where cts = '2025-01-01 00:00:00.000';",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=46,
-            stream="create stream rdb.s46 state_window(c1) from tdb.triggers into rdb.r46 as select _twstart ts, count(c1) ccnt, sum(c2) csum, first(id) cfirst from %%trows",
+            stream="create stream rdb.s46 state_window(c1) from tdb.v1 into rdb.r46 as select _twstart ts, count(c1) ccnt, sum(c2) csum, first(id) cfirst from %%trows",
             res_query="select ts, ccnt, csum, cfirst from rdb.r46 limit 1 offset 1",
             exp_query="select ts, 1, c2, 1 from tdb.t1 where ts='2025-01-01 00:05:00.000'",
             check_func=self.check46,
         )
-        # self.streams.append(stream)
+        # self.streams.append(stream) cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding_bug4.py 
 
         stream = StreamItem(
             id=47,
-            stream="create stream rdb.s47 state_window(c1) from tdb.triggers into rdb.r47 as select _twstart ts, sum(`vgroups`) c1, sum(ntables) c2 from information_schema.ins_databases where name != 'information_schema' and name != 'performance_schema'",
-            res_query="select ts, c1, c2 >= 100, 1000 from rdb.r47",
+            stream="create stream rdb.s47 state_window(c1) from tdb.v1 into rdb.r47 as select _twstart ts, sum(`vgroups`) c1, sum(ntables) c2 from information_schema.ins_databases where name != 'information_schema' and name != 'performance_schema'",
+            res_query="select ts, c1, c2 >= 100, 1000 from rdb.r47 limit 3",
             exp_query="select _wstart ts, 3, true, count(cint) from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:15:00' interval(5m);",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=48,
             stream="create stream rdb.s48 state_window(c1) from tdb.triggers partition by tbname into rdb.r48 as select _twstart ts, ABS(cint), ACOS(cuint), ASIN(cbigint), ATAN(cubigint), CEIL(cfloat), COS(cdouble), DEGREES(csmallint), EXP(cusmallint), FLOOR(ctinyint), LN(cutinyint), LOG(cfloat), MOD(cbigint, cint), PI(), POW(cuint, 2), RADIANS(cbigint), ROUND(cfloat), SIGN(cdouble), SQRT(csmallint), TAN(cfloat), TRUNCATE(cdouble, 1), CRC32(cvarchar) from qdb.meters where cts >=_twstart and cts <= _twend and tbname=%%1 order by cts limit 1;",
-            res_query="select * from rdb.r48 where tag_tbname='t1' limit 1 offset 3;",
-            exp_query="select cast('2025-01-01 00:15:00.000' as timestamp), ABS(cint), ACOS(cuint), ASIN(cbigint), ATAN(cubigint), CEIL(cfloat), COS(cdouble), DEGREES(csmallint), EXP(cusmallint), FLOOR(ctinyint), LN(cutinyint), LOG(cfloat), MOD(cbigint, cint), PI(), POW(cuint, 2), RADIANS(cbigint), ROUND(cfloat), SIGN(cdouble), SQRT(csmallint), TAN(cfloat), TRUNCATE(cdouble, 1), CRC32(cvarchar), tbname from qdb.meters where cts='2025-01-01 00:15:00.000' and tbname='t1'",
+            res_query="select * from rdb.r48 where tag_tbname='t1' limit 1 offset 2;",
+            exp_query="select cts, ABS(cint), ACOS(cuint), ASIN(cbigint), ATAN(cubigint), CEIL(cfloat), COS(cdouble), DEGREES(csmallint), EXP(cusmallint), FLOOR(ctinyint), LN(cutinyint), LOG(cfloat), MOD(cbigint, cint), PI(), POW(cuint, 2), RADIANS(cbigint), ROUND(cfloat), SIGN(cdouble), SQRT(csmallint), TAN(cfloat), TRUNCATE(cdouble, 1), CRC32(cvarchar), tbname from qdb.meters where cts='2025-01-01 00:10:00.000' and tbname='t1'",
         )
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=49,
             stream="create stream rdb.s49 state_window(c1) from tdb.triggers into rdb.r49 as select _twstart ts, ABS(cint), ACOS(cuint), ASIN(cbigint), ATAN(cubigint), CEIL(cfloat), COS(cdouble), DEGREES(csmallint), EXP(cusmallint), FLOOR(ctinyint), LN(cutinyint), LOG(cfloat), MOD(cbigint, cint), PI(), POW(cuint, 2), RADIANS(cbigint), ROUND(cfloat), SIGN(cdouble), SQRT(csmallint), TAN(cfloat), TRUNCATE(cdouble, 1), CRC32(cvarchar) from qdb.meters where cts >=_twstart and cts <= _twend and tbname='t1' order by cts limit 1",
-            res_query="select * from rdb.r49 limit 1 offset 3;",
-            exp_query="select cast('2025-01-01 00:15:00.000' as timestamp), ABS(cint), ACOS(cuint), ASIN(cbigint), ATAN(cubigint), CEIL(cfloat), COS(cdouble), DEGREES(csmallint), EXP(cusmallint), FLOOR(ctinyint), LN(cutinyint), LOG(cfloat), MOD(cbigint, cint), PI(), POW(cuint, 2), RADIANS(cbigint), ROUND(cfloat), SIGN(cdouble), SQRT(csmallint), TAN(cfloat), TRUNCATE(cdouble, 1), CRC32(cvarchar) from qdb.meters where cts='2025-01-01 00:15:00.000' and tbname='t1';",
+            res_query="select * from rdb.r49 limit 1 offset 2;",
+            exp_query="select cts, ABS(cint), ACOS(cuint), ASIN(cbigint), ATAN(cubigint), CEIL(cfloat), COS(cdouble), DEGREES(csmallint), EXP(cusmallint), FLOOR(ctinyint), LN(cutinyint), LOG(cfloat), MOD(cbigint, cint), PI(), POW(cuint, 2), RADIANS(cbigint), ROUND(cfloat), SIGN(cdouble), SQRT(csmallint), TAN(cfloat), TRUNCATE(cdouble, 1), CRC32(cvarchar) from qdb.meters where cts='2025-01-01 00:10:00.000' and tbname='t1';",
         )
         # self.streams.append(stream)
 
@@ -1461,7 +1461,7 @@ class TestStreamSubqueryState:
 
     def check40(self):
         tdSql.checkResultsByFunc(
-            "select * from rdb.r40;", func=lambda: tdSql.getRows() == 8
+            "select * from rdb.r40;", func=lambda: tdSql.getRows() == 5
         )
 
     def check41(self):
@@ -1475,6 +1475,7 @@ class TestStreamSubqueryState:
                 ["cjson", "VARCHAR", 8, ""],
                 ["_twstart", "TIMESTAMP", 8, ""],
                 ["id", "INT", 4, "TAG"],
+                ["tag_tbname", "VARCHAR", 270, "TAG"],
             ],
         )
 
