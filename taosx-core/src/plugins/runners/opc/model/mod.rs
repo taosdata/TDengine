@@ -14,7 +14,10 @@ use crate::plugins::runners::opc::csv::header::CsvHeader;
 use crate::plugins::runners::opc::csv::CsvParser;
 use crate::runners::opc::config::OPCConfig;
 use crate::runners::opc::csv::column::CsvColumn;
-use crate::runners::opc::{generate_stable_from_pattern, generate_tbname_from_pattern, OpcType};
+use crate::runners::opc::{
+    generate_stable_from_pattern, generate_tag_value_from_pattern, generate_tbname_from_pattern,
+    OpcType,
+};
 use crate::utils::rhai_syntax_validator::check_math_expression;
 use crate::utils::table_meta::{TableMeta, TableMetaQuerier, TableMetaQueryBuilder};
 use crate::utils::validate_table_column_name;
@@ -775,8 +778,17 @@ fn parse_stable(header: &CsvHeader, row: &StringRecord) -> Option<String> {
 ///      入库温度
 /// tag_value map:
 ///      name => 入库温度
+///
+/// ns=2;s=PLC.DEV.SITE
+/// example template:
+///     tag::VARCHAR(200)::id
+///     {id}
+///
+/// tag_value map:
+///     id => "PLC.DEV.SITE"
 fn parse_tag_values(header: &CsvHeader, row: &StringRecord) -> Option<HashMap<String, String>> {
     let mut map = HashMap::new();
+    let point_id = CsvParser::parse_point_id(header, row).ok()?;
 
     for col in header.get_columns() {
         if !col.is_tag {
@@ -784,7 +796,13 @@ fn parse_tag_values(header: &CsvHeader, row: &StringRecord) -> Option<HashMap<St
         }
         let tag_name = col.name.clone();
         let tag_value = row.get(col.index).unwrap_or("").to_string();
-
+        let tag_value = if tag_value.contains("{") {
+            // replace {tag_name} or {TagName} in tbname
+            let opc_type = header.get_opc_type();
+            generate_tag_value_from_pattern(opc_type.as_static_str(), &tag_value, &point_id)
+        } else {
+            tag_value
+        };
         map.insert(tag_name, tag_value);
     }
 
@@ -1763,6 +1781,44 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
         let value_col = TableConfig::parse_value_col(&header, &row).unwrap();
         assert_eq!(value_col.alias.unwrap(), "val");
         assert_eq!(value_col.transform.unwrap(), "val + 1");
+    }
+
+    #[test]
+    fn test_parse_tag_value_col() {
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec![
+                "point_id",
+                "value_col",
+                "value_transform",
+                "tag::VARCHAR(200)::id",
+            ]),
+        )
+        .unwrap();
+        let row = csv_async::StringRecord::from(vec![
+            "ns=2;s=通道 1.设备 1.标记 1",
+            "value",
+            "value + 1",
+            "{id}",
+        ]);
+        let tags = parse_tag_values(&header, &row).unwrap();
+        assert!(!tags.is_empty());
+        assert_eq!(tags["id"], "通道 1.设备 1.标记 1");
+
+        let header = CsvHeader::try_new(
+            OpcType::OPCUA,
+            &StringRecord::from(vec![
+                "point_id",
+                "value_col",
+                "value_transform",
+                "tag::VARCHAR(200)::id",
+            ]),
+        )
+        .unwrap();
+        let row =
+            csv_async::StringRecord::from(vec!["ns=2;i=123", "value", "value + 1", "id.{ns}.{id}"]);
+        let tags = parse_tag_values(&header, &row).unwrap();
+        assert_eq!(tags["id"], "id.2.123");
     }
 
     #[test]

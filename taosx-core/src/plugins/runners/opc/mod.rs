@@ -71,6 +71,14 @@ impl OpcType {
             _ => bail!("invalid opc type"),
         }
     }
+
+    pub fn as_static_str(&self) -> &'static str {
+        match self {
+            OpcType::OPCUA => "opcua",
+            OpcType::OPCDA => "opcda",
+            OpcType::FAKE => "fake",
+        }
+    }
 }
 
 impl TryFrom<&str> for OpcType {
@@ -445,6 +453,65 @@ fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> Stri
     tbname.replace(".", "_").replace("`", "_")
 }
 
+/// OPC UA: {ns} {id}
+/// OPC DA: {tag_name/TagName}
+fn generate_tag_value_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> String {
+    match ty {
+        "opcua" => {
+            // ns=13;i=1003
+            // ns=6;s=Scalar_Instructions
+            // ns=6;g=00000000-0000-0000-0000-000000009204
+            // ns=6;b=CQIABQ==
+            if let Some((ns, id)) = point_id.split_once(";") {
+                let ns = if ns.contains("ns=") {
+                    let (_, ns) = ns.split_once("=").unwrap();
+                    ns
+                } else {
+                    ns
+                };
+                let id = if let Some((_, id)) = id.split_once('=') {
+                    id
+                } else {
+                    id
+                };
+                assert!(!id.is_empty(), "id should not be empty: {}", point_id);
+                tb_name.replace("{ns}", ns).replace("{id}", id)
+            } else {
+                assert!(!point_id.is_empty(), "id should not be empty: {}", point_id);
+                tb_name.replace("{ns}", "0").replace("{id}", point_id)
+            }
+        }
+        "opcda" => {
+            if tb_name.contains("{TagName}") || tb_name.contains("{tag_name}") {
+                let tag_index = point_id.rfind(".");
+                let tag_name = if let Some(index) = tag_index {
+                    // should be Device.DeviceType.TagName pattern
+                    &point_id[index + 1..]
+                } else {
+                    point_id
+                };
+                let tb_name = tb_name.replace("{TagName}", tag_name);
+                tb_name.replace("{tag_name}", tag_name)
+            } else if tb_name.contains("{/tag_name}") {
+                let tag_index = point_id.rfind("/");
+                let tag_name = if let Some(index) = tag_index {
+                    // should be Device/DeviceType/TagName pattern
+                    &point_id[index + 1..]
+                } else {
+                    point_id
+                };
+                tb_name.replace("{/tag_name}", tag_name)
+            } else if tb_name.contains("{id}") {
+                tb_name.replace("{id}", point_id)
+            } else if tb_name.contains("{_id}") {
+                tb_name.replace("{_id}", &point_id.replace("/", "_"))
+            } else {
+                tb_name.to_string()
+            }
+        }
+        _ => tb_name.to_string(),
+    }
+}
 fn generate_stable_from_pattern(stable_expr: &str, value_type: &Option<IpcDataType>) -> String {
     let mut stable = stable_expr.to_string();
     if stable_expr.contains(".") {
