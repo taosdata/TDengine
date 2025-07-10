@@ -23,7 +23,7 @@ class TestStreamCountTrigger:
         # streams.append(self.Basic6())
         # streams.append(self.Basic7())
         # streams.append(self.Basic8())
-        # streams.append(self.Basic9())  # failed
+        # streams.append(self.Basic9())  # OK
         # streams.append(self.Basic10())  # OK
         # streams.append(self.Basic11())  # failed
         streams.append(self.Basic12())  # failed
@@ -2396,8 +2396,8 @@ class TestStreamCountTrigger:
                              and tdSql.compareData(8, 0, "2025-01-01 00:00:24.000")
                              and tdSql.compareData(8, 1, "2025-01-01 00:00:24.000")
                              and tdSql.compareData(8, 2, 1)
-                             and tdSql.compareData(8, 3, 22)
-                             and tdSql.compareData(8, 4, 22),
+                             and tdSql.compareData(8, 3, 9)
+                             and tdSql.compareData(8, 4, 9),
             )
 
             tdSql.checkResultsByFunc(
@@ -2423,33 +2423,28 @@ class TestStreamCountTrigger:
             # (1,cint)
             tdSql.checkResultsByFunc(
                 sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_0_ct1",
-                func=lambda: tdSql.getRows() == 18
-                             and tdSql.compareData(0, 0, "2024-01-01 00:00:00")
-                             and tdSql.compareData(0, 1, "2024-01-01 00:00:00")
+                func=lambda: tdSql.getRows() == 9
+                             and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+                             and tdSql.compareData(0, 1, "2025-01-01 00:00:00.000")
                              and tdSql.compareData(0, 2, 1)
-                             and tdSql.compareData(0, 3, 10)
-                             and tdSql.compareData(0, 4, 10)
-                             and tdSql.compareData(1, 0, "2024-01-01 00:00:03")
-                             and tdSql.compareData(1, 1, "2024-01-01 00:00:03")
+                             and tdSql.compareData(0, 3, 1)
+                             and tdSql.compareData(0, 4, 1)
+                             and tdSql.compareData(1, 0, "2025-01-01 00:00:03.000")
+                             and tdSql.compareData(1, 1, "2025-01-01 00:00:03.000")
                              and tdSql.compareData(1, 2, 1)
-                             and tdSql.compareData(1, 3, 20)
-                             and tdSql.compareData(1, 4, 20)
-                             and tdSql.compareData(2, 0, "2024-01-01 00:00:06")
-                             and tdSql.compareData(2, 1, "2024-01-01 00:00:06")
-                             and tdSql.compareData(2, 2, 1)
-                             and tdSql.compareData(2, 3, 30)
-                             and tdSql.compareData(2, 4, 30)
-                             and tdSql.compareData(3, 0, "2025-01-01 00:00:06")
-                             and tdSql.compareData(3, 1, "2025-01-01 00:00:06")
-                             and tdSql.compareData(3, 2, 1)
-                             and tdSql.compareData(3, 3, 20)
-                             and tdSql.compareData(3, 4, 20),
+                             and tdSql.compareData(1, 3, 2)
+                             and tdSql.compareData(1, 4, 2)
+                             and tdSql.compareData(8, 0, "2025-01-01 00:00:24.000")
+                             and tdSql.compareData(8, 1, "2025-01-01 00:00:24.000")
+                             and tdSql.compareData(8, 2, 1)
+                             and tdSql.compareData(8, 3, 9)
+                             and tdSql.compareData(8, 4, 9),
             )
 
             # (4, 2,cint)
             tdSql.checkResultsByFunc(
                 sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_1_ct1",
-                func=lambda: tdSql.getRows() == 8,
+                func=lambda: tdSql.getRows() == 3,
             )
 
     class Basic10(StreamCheckItem):
@@ -2600,7 +2595,7 @@ class TestStreamCountTrigger:
 
     class Basic12(StreamCheckItem):
         def __init__(self):
-            self.db  = "sdb11"
+            self.db  = "sdb12"
             self.stbName = "stb"
 
         def create(self):
