@@ -312,7 +312,7 @@ class TestCase:
             tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % buildPath)
-        cfgPath = buildPath + "/../sim/psim/cfg"
+        cfgPath = os.path.join(tdDnodes.sim.path,"psim","cfg")
         tdLog.info("cfgPath: %s" % cfgPath)
 
         self.tmqCase1(cfgPath, buildPath)

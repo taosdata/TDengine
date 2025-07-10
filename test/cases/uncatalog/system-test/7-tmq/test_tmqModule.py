@@ -9,7 +9,7 @@ import os
 import taos
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from tmqCommon import tmqCom
-from new_test_framework.utils import tdLog, tdSql, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
 
 class actionType(Enum):
     CREATE_DATABASE = 0
@@ -1442,7 +1442,7 @@ class TestCase:
             tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % buildPath)
-        cfgPath = buildPath + "/../sim/psim/cfg"
+        cfgPath = os.path.join(tdDnodes.sim.path,"psim","cfg")
         tdLog.info("cfgPath: %s" % cfgPath)
 
         self.tmqCase1(cfgPath, buildPath)

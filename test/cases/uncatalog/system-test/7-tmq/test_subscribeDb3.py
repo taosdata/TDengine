@@ -1,13 +1,15 @@
 
 import taos
-import sys
 import time
 import socket
-import os
 import threading
 import platform
 
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from tmqCommon import tmqCom
 
 class TestCase:
     hostname = socket.gethostname()
@@ -364,7 +366,7 @@ class TestCase:
             tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % buildPath)
-        cfgPath = buildPath + "/../sim/psim/cfg"
+        cfgPath = os.path.join(tdDnodes.sim.path,"psim","cfg")
         tdLog.info("cfgPath: %s" % cfgPath)
 
         self.tmqCase10(cfgPath, buildPath)

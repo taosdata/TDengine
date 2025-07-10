@@ -1,6 +1,5 @@
 
 import taos
-import sys
 import time
 import socket
 import os
@@ -8,7 +7,7 @@ import threading
 from enum import Enum
 import platform
 
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
 
 class actionType(Enum):
     CREATE_DATABASE = 0
@@ -379,7 +378,7 @@ class TestCase:
             tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % buildPath)
-        cfgPath = buildPath + "/../sim/psim/cfg"
+        cfgPath = os.path.join(tdDnodes.sim.path,"psim","cfg")
         tdLog.info("cfgPath: %s" % cfgPath)
 
         self.tmqCase6(cfgPath, buildPath)
