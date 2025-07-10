@@ -23,8 +23,9 @@
 
 SStreamMgmtInfo gStreamMgmt = {0};
 
-void streamSetSnodeEnabled(void) {
+void streamSetSnodeEnabled(  SMsgCb* msgCb) {
   gStreamMgmt.snodeEnabled = true;
+  gStreamMgmt.msgCb = *msgCb;
   stInfo("snode %d enabled", (*gStreamMgmt.getDnode)(gStreamMgmt.dnode));
 }
 
@@ -77,6 +78,8 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
   TAOS_CHECK_EXIT(streamTriggerEnvInit());
 
   TAOS_CHECK_EXIT(initInserterGrpInfo());
+
+  TAOS_CHECK_EXIT(initStreamDataSink());
 
 _exit:
 

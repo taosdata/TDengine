@@ -120,7 +120,6 @@ SESSION(ts_col, session_val)
 使用说明：
 
 - 必须指定触发表，触发表为超级表时支持按标签、子表分组，支持不分组。
-- 搭配超级表时，必须与 `partition by tbname` 一起使用。
 - 支持对写入数据进行处理过滤后（有条件）的窗口触发。
 
 适用场景：需要通过会话窗口驱动计算和（或）通知的场景。
@@ -276,7 +275,7 @@ tag_definition:
 使用限制：
 
 - %%trows：只能用于 FROM 子句，推荐在小数据量场景下使用。
-- %%tbname：只能用于 FROM、SELECT 和 WHERE 子句。
+- %%tbname：可以用于 FROM、SELECT 和 WHERE 子句。
 - 其他占位符：只能用于 SELECT 和 WHERE 子句。
 
 ### 流式计算的控制选项

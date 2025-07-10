@@ -33,8 +33,8 @@ extern "C" {
 #define TRINGBUF_SIZE(rbuf)     ((rbuf)->size)
 #define TRINGBUF_IS_EMPTY(rbuf) ((rbuf)->size == 0)
 #define TRINGBUF_IS_FULL(rbuf)  ((rbuf)->size == (rbuf)->capacity)
-#define TRINGBUF_FIRST(rbuf)    ((rbuf)->data[(rbuf)->head])
-#define TRINGBUF_LAST(rbuf)     ((rbuf)->data[(rbuf)->tail > 0 ? ((rbuf)->tail - 1) : ((rbuf)->capacity - 1)])
+#define TRINGBUF_HEAD(rbuf)     (&(rbuf)->data[(rbuf)->head])
+#define TRINGBUF_TAIL(rbuf)     (&(rbuf)->data[(rbuf)->tail])
 #define TRINGBUF_MOVE_NEXT(rbuf, ptr)               \
   do {                                              \
     (ptr)++;                                        \

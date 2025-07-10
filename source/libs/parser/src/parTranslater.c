@@ -5402,6 +5402,20 @@ int32_t validateJoinConds(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
   return code;
 }
 
+static int32_t cloneVgroups(SVgroupsInfo **pDst, SVgroupsInfo* pSrc) {
+  if (pSrc == NULL) {
+    *pDst = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t len = VGROUPS_INFO_SIZE(pSrc);
+  *pDst = taosMemoryMalloc(len);
+  if (NULL == *pDst) {
+    return terrno;
+  }
+  memcpy(*pDst, pSrc, len);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTable, SName* pName,
                                           SVirtualTableNode* pVTable) {
   SRealTableNode*    pRealTable = (SRealTableNode*)*pTable;
@@ -5416,6 +5430,10 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
   PAR_ERR_JRET(getTargetMeta(pCxt, pName, &(pVTable->pMeta), true));
   PAR_ERR_JRET(setVSuperTableVgroupList(pCxt, pName, pVTable));
   PAR_ERR_JRET(setVSuperTableRefScanVgroupList(pCxt, pName, pRealTable));
+  if (pRealTable->pVgroupList->numOfVgroups == 0) {
+    // no vgroups, means virtual super table do not have child table, make a fake one is ok.
+    cloneVgroups(&pRealTable->pVgroupList, pVTable->pVgroupList);
+  }
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRealTable));
 
   bool tmpAsync = pCxt->pParseCxt->async;
@@ -5972,12 +5990,12 @@ static int32_t translatePlaceHolderTable(STranslateContext* pCxt, SNode** pTable
   int32_t               code = TSDB_CODE_SUCCESS;
 
   if (!pCxt->createStreamCalc) {
-    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
                                       "stream place holder should only appear in create stream's query part"));
   }
 
   if (!pTriggerTable) {
-    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "create stream trigger table is NULL"));
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "create stream trigger table is NULL"));
   }
 
   PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&newPlaceHolderTable));
@@ -6006,7 +6024,7 @@ static int32_t translatePlaceHolderTable(STranslateContext* pCxt, SNode** pTable
       break;
     }
     default: {
-      PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "invalid placeholder table type"));
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "invalid placeholder table type"));
       break;
     }
   }
@@ -6943,8 +6961,8 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
     SLogicConditionNode *pLogicCond = (SLogicConditionNode *)pCond;
     SNode *pLeft = nodesListGetNode(pLogicCond->pParameterList, 0);
     SNode *pRight = nodesListGetNode(pLogicCond->pParameterList, 1);
-    bool hasStart = filterHasPlaceHolderRangeStart((SOperatorNode *)pLeft, pCxt->extLeftEq) | filterHasPlaceHolderRangeStart((SOperatorNode *)pRight, pCxt->extLeftEq);
-    bool hasEnd = filterHasPlaceHolderRangeEnd((SOperatorNode *)pLeft, pCxt->extRightEq) | filterHasPlaceHolderRangeEnd((SOperatorNode *)pRight, pCxt->extRightEq);
+    bool hasStart = filterHasPlaceHolderRangeStart((SOperatorNode *)pLeft, pCxt->extLeftEq) || filterHasPlaceHolderRangeStart((SOperatorNode *)pRight, pCxt->extLeftEq);
+    bool hasEnd = filterHasPlaceHolderRangeEnd((SOperatorNode *)pLeft, pCxt->extRightEq) || filterHasPlaceHolderRangeEnd((SOperatorNode *)pRight, pCxt->extRightEq);
     if (hasStart && hasEnd) {
       pCxt->createStreamCalcWithExtWindow = true;
     }
@@ -7496,18 +7514,18 @@ static int32_t translateEventWindow(STranslateContext* pCxt, SSelectStmt* pSelec
   return checkEventWindow(pCxt, (SEventWindowNode*)pSelect->pWindow);
 }
 
-static int32_t checkCountWindow(STranslateContext* pCxt, SCountWindowNode* pCountWin) {
-  if (pCountWin->windowCount <= 1) {
+static int32_t checkCountWindow(STranslateContext* pCxt, SCountWindowNode* pCountWin, bool streamTrigger) {
+  if (pCountWin->windowCount < (streamTrigger ? 1 : 2)) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "Size of Count window must exceed 1."));
   }
 
-  if (pCountWin->windowSliding <= 0) {
+  if (pCountWin->windowSliding < (streamTrigger ? 0 : 1)) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "Size of Count window must exceed 0."));
   }
 
-  if (pCountWin->windowSliding > pCountWin->windowCount) {
+  if (pCountWin->windowSliding > pCountWin->windowCount && !streamTrigger) {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "sliding value no larger than the count value."));
   }
@@ -7536,7 +7554,7 @@ static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelec
     PAR_ERR_JRET(insertCondIntoSelectStmt(pSelect, &pLogicCond));
   }
 
-  return checkCountWindow(pCxt, (SCountWindowNode*)pSelect->pWindow);
+  return checkCountWindow(pCxt, (SCountWindowNode*)pSelect->pWindow, false);
 
 _return:
   if (pLogicCond) {
@@ -13202,6 +13220,7 @@ static void createStreamReqBuildDefaultTriggerOptions(SCMCreateStreamReq* pReq) 
     pReq->fillHistoryFirst = 0;
     pReq->calcNotifyOnly = 0;
     pReq->lowLatencyCalc = 0;
+    pReq->igNoDataTrigger = 0;
 }
 
 static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, const char* streamDb,
@@ -13249,6 +13268,7 @@ static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, const
   pReq->fillHistoryFirst = (int8_t)pOptions->fillHistoryFirst;
   pReq->calcNotifyOnly = (int8_t)pOptions->calcNotifyOnly;
   pReq->lowLatencyCalc = (int8_t)pOptions->lowLatencyCalc;
+  pReq->igNoDataTrigger = (int8_t)pOptions->ignoreNoDataTrigger;
 
   return code;
 
@@ -13543,7 +13563,7 @@ static int32_t createStreamReqBuildTriggerPeriodWindow(STranslateContext* pCxt, 
 
 static int32_t createStreamReqBuildTriggerCountWindow(STranslateContext* pCxt, SCountWindowNode* pTriggerWindow, SCMCreateStreamReq* pReq) {
   pReq->triggerType = WINDOW_TYPE_COUNT;
-  PAR_ERR_RET(checkCountWindow(pCxt, pTriggerWindow));
+  PAR_ERR_RET(checkCountWindow(pCxt, pTriggerWindow, true));
   pReq->trigger.count.sliding = pTriggerWindow->windowSliding;
   pReq->trigger.count.countVal = pTriggerWindow->windowCount;
   pReq->trigger.count.condCols = NULL;

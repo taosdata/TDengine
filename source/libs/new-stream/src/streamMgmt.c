@@ -23,7 +23,7 @@
 #include "streamReader.h"
 
 void smRemoveReaderFromVgMap(SStreamTask* pTask) {
-  SStreamVgReaderTasks* pVg = taosHashGet(gStreamMgmt.vgroupMap, &pTask->nodeId, sizeof(pTask->nodeId));
+  SStreamVgReaderTasks* pVg = taosHashAcquire(gStreamMgmt.vgroupMap, &pTask->nodeId, sizeof(pTask->nodeId));
   if (NULL == pVg) {
     ST_TASK_WLOG("vgroup not exists, tidx:%d", pTask->taskIdx);
     return;
@@ -41,6 +41,7 @@ void smRemoveReaderFromVgMap(SStreamTask* pTask) {
   }
 
   taosWUnLockLatch(&pVg->lock);
+  taosHashRelease(gStreamMgmt.vgroupMap, pVg);  
 }
 
 
@@ -751,6 +752,7 @@ int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp) {
       SStreamMgmtReq* pReq = atomic_load_ptr(&pTask->pMgmtReq);
       if (pReq && pReq->reqId == pRsp->reqId && pReq == atomic_val_compare_exchange_ptr(&pTask->pMgmtReq, pReq, NULL)) {
         stmDestroySStreamMgmtReq(pReq);
+        taosMemoryFree(pReq);
       }
       STM_CHK_SET_ERROR_EXIT(stTriggerTaskExecute((SStreamTriggerTask*)pTask, &pRsp->header));
       break;

@@ -30,6 +30,7 @@ typedef struct SStreamTriggerReaderInfo {
   SNode*       pCalcConditions;
   SNodeList*   partitionCols;
   SNodeList*   triggerCols;
+  SNodeList*   triggerPseudoCols;
   SHashObj*    streamTaskMap;
   SHashObj*    groupIdMap;
   SSubplan*    triggerAst;

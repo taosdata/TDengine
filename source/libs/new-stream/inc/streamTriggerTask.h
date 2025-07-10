@@ -61,6 +61,8 @@ typedef struct SSTriggerRealtimeGroup {
   TriggerWindowBuf winBuf;
   STimeWindow      nextWindow;  // for period trigger and sliding window trigger
   SValue           stateVal;    // for state window trigger
+
+  SArray *pPendingCalcReqs;  // SArray<SSTriggerCalcParam>
 } SSTriggerRealtimeGroup;
 
 typedef struct SSTriggerHistoryGroup {
@@ -80,6 +82,8 @@ typedef struct SSTriggerHistoryGroup {
   TriggerWindowBuf winBuf;
   STimeWindow      nextWindow;
   SValue           stateVal;
+
+  SArray *pPendingCalcReqs;
 } SSTriggerHistoryGroup;
 
 typedef enum ESTriggerContextStatus {
@@ -182,14 +186,6 @@ typedef struct SSTriggerHistoryContext {
   SHashObj *pCalcDataCacheIters;
 } SSTriggerHistoryContext;
 
-typedef enum EStreamTriggerType {
-  STREAM_TRIGGER_PERIOD = 0,
-  STREAM_TRIGGER_SLIDING,  // sliding is 1 , can not change, because used in doOpenExternalWindow
-  STREAM_TRIGGER_SESSION,
-  STREAM_TRIGGER_COUNT,
-  STREAM_TRIGGER_STATE,
-  STREAM_TRIGGER_EVENT,
-} EStreamTriggerType;
 
 typedef enum ESTriggerEventType {
   STRIGGER_EVENT_WINDOW_NONE = 0,
@@ -241,6 +237,7 @@ typedef struct SStreamTriggerTask {
   bool    fillHistory;
   bool    fillHistoryFirst;
   bool    lowLatencyCalc;
+  bool    igNoDataTrigger;
   bool    hasPartitionBy;
   bool    isVirtualTable;
   int64_t placeHolderBitmap;

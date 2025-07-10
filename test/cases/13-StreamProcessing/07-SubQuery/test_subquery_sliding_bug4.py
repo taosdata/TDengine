@@ -106,11 +106,12 @@ class TestStreamDevBasic:
     def createStreams(self):
         self.streams = []
 
+
         stream = StreamItem(
-            id=28,
-            stream="create stream rdb.s28 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r28 as select _twstart ts, `name` as cname, `super` csuper, create_time cctime, %%1 from information_schema.ins_users",
-            res_query="select ts, cname, csuper, 1000 from rdb.r28 where id = 1",
-            exp_query="select _wstart ts, 'root',  1, count(cint) from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+            id=56,
+            stream="create stream rdb.s56 interval(5m) sliding(5m) from tdb.v1 into rdb.r56 as select _wstart ws, _wend we, _twstart tws, _twend twe, first(c1) cf, last(c1) cl, count(c1) cc from %%trows where ts >= _twstart and ts < _twend interval(1m) fill(prev)",
+            res_query="select * from rdb.r56 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:05:00.000' ",
+            exp_query="select _wstart ws, _wend we, cast('2025-01-01 00:00:00.000' as timestamp) tws, cast('2025-01-01 00:05:00.000' as timestamp) twe, first(c1) cf, last(c1) cl, count(c1) cc from tdb.v1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:05:00.000' interval(1m) fill(prev);",
         )
         self.streams.append(stream)
 
@@ -118,17 +119,7 @@ class TestStreamDevBasic:
         for stream in self.streams:
             stream.createStream()
 
-    def check23(self):
-        tdSql.checkTableType(
-            dbname="rdb", tbname="r23", typename="NORMAL_TABLE", columns=4
-        )
-        tdSql.checkTableSchema(
-            dbname="rdb",
-            tbname="r23",
-            schema=[
-                ["ts", "TIMESTAMP", 8, ""],
-                ["cname", "VARCHAR", 24, ""],
-                ["csuper", "TINYINT", 1, ""],
-                ["cctime", "TIMESTAMP", 8, ""],
-            ],
+    def check40(self):
+        tdSql.checkResultsByFunc(
+            "select * from rdb.r40;", func=lambda: tdSql.getRows() == 8
         )
