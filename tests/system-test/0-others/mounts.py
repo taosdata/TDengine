@@ -92,15 +92,6 @@ class TDTestCase:
         tdSql.checkData(0,4,'ready')
         tdSql.execute("create database if not exists d0 replica 1")
 
-    def s2_check_mount_error(self):
-        tdSql.error("create mount mnt_1 on dnode 1 from ''", expectErrInfo=f"The mount name cannot contain _", fullMatched=False)
-        tdSql.error("create mount mnt1 on dnode 1 from ''", expectErrInfo=f"The mount path is invalid", fullMatched=False)
-        tdSql.error("create mount mnt1 on dnode 1 from 'path_not_exist'", expectErrInfo="No such file or directory", fullMatched=False)
-        tdSql.error(f"create mount mnt1 on dnode 1 from '{self.mountPath}'", expectErrInfo="No such file or directory", fullMatched=False)
-        tdSql.error(f"create mount mnt1 on dnode 1 from '{self.hostPrimary}'", expectErrInfo="Cluster id identical to the host clusters id", fullMatched=False)
-        tdSql.error(f"create mount d0 on dnode 1 from '{self.hostPrimary}'", expectErrInfo="Database with identical name already exists", fullMatched=False)
-        # tdSql.error(f"create mount d0 on dnode 1 from '{self.mountPrimary}'", expectErrInfo="Cluster id not match", fullMatched=False)
-
     def replace_string_in_file(self, filename, origin, dest):
         with open(filename, 'r', encoding='utf-8') as file:
             lines = file.readlines()
@@ -117,15 +108,41 @@ class TDTestCase:
             with open(filename, 'w', encoding='utf-8') as file:
                 file.writelines(new_lines)
 
-    def s3_0_refact_mount_dataDir(self):
+    def refact_mount_dataDir(self):
         localMountConf = os.path.join(self.mountPrimary, "dnode", "config", "local.json")
         try:
             self.replace_string_in_file(localMountConf, self.hostPath, self.mountPath)
         except Exception as e:
             raise Exception(f"failed to replace string in {localMountConf}: {repr(e)}")
 
+    def corruptMntClusterId(self):
+        mntDnodeConf = os.path.join(self.mountPrimary, "dnode", "dnode.json")
+        try:
+            self.replace_string_in_file(mntDnodeConf, '"clusterId":\t"', '"clusterId":\t"-')
+        except Exception as e:
+            raise Exception(f"failed to corrupt clusterId in {mntDnodeConf}: {repr(e)}")
+    def recoverMntClusterId(self):
+        mntDnodeConf = os.path.join(self.mountPrimary, "dnode", "dnode.json")
+        try:
+            self.replace_string_in_file(mntDnodeConf, '"clusterId":\t"-', '"clusterId":\t"')
+        except Exception as e:
+            raise Exception(f"failed to restore clusterId in {mntDnodeConf}: {repr(e)}")
+
+    def s2_check_mount_error(self):
+        tdSql.error("create mount mnt_1 on dnode 1 from ''", expectErrInfo=f"The mount name cannot contain _", fullMatched=False)
+        tdSql.error("create mount mnt1 on dnode 1 from ''", expectErrInfo=f"The mount path is invalid", fullMatched=False)
+        tdSql.error("create mount mnt1 on dnode 1 from 'path_not_exist'", expectErrInfo="No such file or directory", fullMatched=False)
+        tdSql.error(f"create mount mnt1 on dnode 1 from '{self.mountPath}'", expectErrInfo="No such file or directory", fullMatched=False)
+        tdSql.error(f"create mount mnt1 on dnode 1 from '{self.hostPrimary}'", expectErrInfo="Cluster id identical to the host cluster id", fullMatched=False)
+        tdSql.error(f"create mount d0 on dnode 1 from '{self.hostPrimary}'", expectErrInfo="Database with identical name already exists", fullMatched=False)
+        self.refact_mount_dataDir()
+        self.corruptMntClusterId()
+        tdSql.error(f"create mount mnt1 on dnode 1 from '{self.mountPrimary}'", expectErrInfo="Cluster id not match", fullMatched=False)
+        self.recoverMntClusterId()
+        tdSql.error(f"drop mount mnt_not_exist", expectErrInfo="Mount not exist", fullMatched=False)
+        tdSql.error(f"drop mount d0", expectErrInfo="Mount not exist", fullMatched=False)
+
     def s3_create_drop_show_mount(self):
-        self.s3_0_refact_mount_dataDir()
         tdSql.execute(f"create mount mnt1 on dnode 1 from '{self.mountPrimary}'")
         tdSql.query("show mounts", count_expected_res=1)
         tdLog.info(f"result: {tdSql.queryResult}")
@@ -135,6 +152,10 @@ class TDTestCase:
         tdSql.checkData(0, 3, self.mountPrimary)
         tdSql.error(f"create mount mnt1 on dnode 1 from '{self.mountPrimary}'", expectErrInfo="Mount already exists", fullMatched=False)
         # query from mount db
+        tdSql.query("show create database `mnt1_db0`")
+        tdSql.checkRows(1)
+        tdSql.query("show create database `mnt1_db1`")
+        tdSql.checkRows(1)
         tdSql.query("show mnt1_db0.stables")
         tdSql.checkRows(2)
         tdSql.query("show mnt1_db0.tables")
@@ -145,8 +166,16 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query("desc mnt1_db0.stb0")
         tdSql.checkRows(7)
+        tdSql.query("desc mnt1_db0.ctb0")
+        tdSql.checkRows(7)
         tdSql.query("desc mnt1_db1.stb0")
         tdSql.checkRows(7)
+        tdSql.query("desc mnt1_db1.ctb0")
+        tdSql.checkRows(7)
+        tdSql.query("select * from mnt1_db0.stb0 limit 1")
+        tdSql.checkRows(1)
+        tdSql.query("select * from mnt1_db0.ctb0 limit 1")
+        tdSql.checkRows(1)
         tdSql.query("select * from mnt1_db1.stb0 limit 1")
         tdSql.checkRows(1)
         tdSql.query("select * from mnt1_db1.ctb0 limit 1")

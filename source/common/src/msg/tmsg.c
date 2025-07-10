@@ -5801,6 +5801,7 @@ int32_t tSerializeSUseDbRspImp(SEncoder *pEncoder, const SUseDbRsp *pRsp) {
 
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pRsp->errCode));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pRsp->stateTs));
+  TAOS_CHECK_RETURN(tEncodeU8(pEncoder, pRsp->flags));
   return 0;
 }
 
@@ -5909,6 +5910,9 @@ int32_t tDeserializeSUseDbRspImp(SDecoder *pDecoder, SUseDbRsp *pRsp) {
 
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pRsp->errCode));
   TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pRsp->stateTs));
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_RETURN(tDecodeU8(pDecoder, &pRsp->flags));
+  }
   return 0;
 }
 
@@ -6395,6 +6399,7 @@ int32_t tSerializeSDbCfgRspImpl(SEncoder *encoder, const SDbCfgRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeI32v(encoder, pRsp->compactStartTime));
   TAOS_CHECK_RETURN(tEncodeI32v(encoder, pRsp->compactEndTime));
   TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->compactTimeOffset));
+  TAOS_CHECK_RETURN(tEncodeU8(encoder, pRsp->flags));
 
   return 0;
 }
@@ -6503,6 +6508,10 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
     pRsp->compactStartTime = TSDB_DEFAULT_COMPACT_START_TIME;
     pRsp->compactEndTime = TSDB_DEFAULT_COMPACT_END_TIME;
     pRsp->compactTimeOffset = TSDB_DEFAULT_COMPACT_TIME_OFFSET;
+  }
+
+  if (!tDecodeIsEnd(decoder)) {
+    TAOS_CHECK_RETURN(tDecodeU8(decoder, &pRsp->flags));
   }
 
   return 0;

@@ -129,6 +129,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   if (!reqTbUid) {
     (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", infoReq.dbFName, infoReq.tbName);
+    if (pVnode->mounted) tTrimMountPrefix(tableFName);
     code = vnodeValidateTableHash(pVnode, tableFName);
     if (code) {
       goto _exit4;
@@ -316,6 +317,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   (void)memcpy(cfgRsp.dbFName, cfgReq.dbFName, sizeof(cfgRsp.dbFName));
 
   (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", cfgReq.dbFName, cfgReq.tbName);
+  if (pVnode->mounted) tTrimMountPrefix(tableFName);
   code = vnodeValidateTableHash(pVnode, tableFName);
   if (code) {
     goto _exit;

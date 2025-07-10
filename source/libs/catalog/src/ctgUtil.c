@@ -1323,7 +1323,7 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* d
              pTableName->dbname, pTableName->tname);
     CTG_ERR_RET(code);
   }
-
+  if (dbInfo->isMount) tTrimMountPrefix(tbFullName);
   uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod,
                                         dbInfo->hashPrefix, dbInfo->hashSuffix);
 

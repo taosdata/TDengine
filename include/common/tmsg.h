@@ -1681,6 +1681,13 @@ typedef struct {
   int16_t hashPrefix;
   int16_t hashSuffix;
   int8_t  hashMethod;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t isMount : 1;  // TS-5868
+      uint8_t padding : 7;
+    };
+  };
   SArray* pVgroupInfos;  // Array of SVgroupInfo
   int32_t errCode;
   int64_t stateTs;  // ms
@@ -1769,6 +1776,13 @@ typedef struct {
   int32_t s3ChunkSize;
   int32_t s3KeepLocal;
   int8_t  s3Compact;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t isMount : 1;  // TS-5868
+      uint8_t padding : 7;
+    };
+  };
   int8_t  compactTimeOffset;
   int32_t compactInterval;
   int32_t compactStartTime;
@@ -2456,6 +2470,7 @@ typedef struct {
 // todo refactor
 typedef struct SVgroupInfo {
   int32_t  vgId;
+  // int32_t  mountVgId;
   uint32_t hashBegin;
   uint32_t hashEnd;
   SEpSet   epSet;

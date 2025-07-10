@@ -1260,6 +1260,10 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO((const char *)&pVgroup->mountVgId, false, pVgroup, pShow->pIter, _OVER);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO((const char *)&pVgroup->hashBegin, false, pVgroup, pShow->pIter, _OVER);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO((const char *)&pVgroup->hashEnd, false, pVgroup, pShow->pIter, _OVER);
 
     numOfRows++;
     sdbRelease(pSdb, pVgroup);

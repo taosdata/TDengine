@@ -409,7 +409,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_DETAIL_NOT_EXIST, "compact detail doesn'
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_ALREADY_EXIST,    "compact already exist")
 
 // mnode-mount
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_DUP_CLUSTER_EXIST,  "Cluster id identical to the host cluster's id")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_DUP_CLUSTER_EXIST,  "Cluster id identical to the host cluster id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_DUP_DB_NAME_EXIST,  "Database with identical name already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_DUP_DB_ID_EXIST,    "Database with identical id already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_ALREADY_EXIST,      "Mount already exists")

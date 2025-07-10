@@ -1464,6 +1464,7 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
   cfgRsp->compactStartTime = pDb->cfg.compactStartTime;
   cfgRsp->compactEndTime = pDb->cfg.compactEndTime;
   cfgRsp->compactTimeOffset = pDb->cfg.compactTimeOffset;
+  cfgRsp->flags = pDb->cfg.flags;
 }
 
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
@@ -1945,6 +1946,7 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
   pRsp->hashMethod = pDb->cfg.hashMethod;
   pRsp->hashPrefix = pDb->cfg.hashPrefix;
   pRsp->hashSuffix = pDb->cfg.hashSuffix;
+  pRsp->flags = pDb->cfg.flags;
   TAOS_RETURN(code);
 }
 
