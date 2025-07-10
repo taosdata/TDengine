@@ -26,7 +26,7 @@ add_test(
 
 ADD_EXECUTABLE(dataSinkTest dataSinkTest.cpp)
 DEP_ext_gtest(dataSinkTest)
-TARGET_LINK_LIBRARIES(dataSinkTest os util ${TAOS_NATIVE_LIB_STATIC} common new-stream)
+TARGET_LINK_LIBRARIES(dataSinkTest PRIVATE os util ${TAOS_NATIVE_LIB_STATIC} common pthread new-stream)
 
 add_test(
     NAME dataSinkTest
