@@ -51,7 +51,7 @@ jobs:
     name: Check
     runs-on: [ self-hosted, linux, x64, app2 ]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           clean: false
       - uses: rustsec/audit-check@v2.0.0
@@ -73,7 +73,7 @@ jobs:
     name: Unit Test
     runs-on: [ self-hosted, linux, x64, app2 ]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           clean: false
       - name: Unit Test
@@ -91,7 +91,7 @@ jobs:
     if: github.event.pull_request.base.ref == 'main'
     runs-on: [ self-hosted, linux, x64, app2 ]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           clean: false
       - name: check
@@ -105,7 +105,8 @@ jobs:
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
-
+        with:
+          clean: false
       - name: Build taosx
         run: |
           cargo make taosx
@@ -115,7 +116,7 @@ jobs:
           ls $ARTIFACT_BASE_DIR/$DIR_PATH/bin || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH/bin
           cp ./target/release/taosx $ARTIFACT_BASE_DIR/$DIR_PATH/bin/
           cd ..
-          tar --exclude=./taosx/target/* -zcvf taosx.tar.gz ./taosx
+          tar --exclude=./taosx/target/* --exclude=./taosx/.git/* -zcf taosx.tar.gz ./taosx
           cp taosx.tar.gz $ARTIFACT_BASE_DIR/$DIR_PATH/
           rm taosx.tar.gz
           tar -xzf $ARTIFACT_BASE_DIR/$DIR_PATH/taosx.tar.gz -C $ARTIFACT_BASE_DIR/$DIR_PATH/
@@ -128,6 +129,8 @@ jobs:
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
+        with:
+          clean: false
 
       - name: Build agent
         run: |
@@ -144,6 +147,8 @@ jobs:
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
+        with:
+          clean: false
 
       - name: Build explorer
         run: |
@@ -160,6 +165,8 @@ jobs:
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
+        with:
+          clean: false
       - name: Print Env
         run: |
           pwd
@@ -194,6 +201,8 @@ jobs:
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
+        with:
+          clean: false
       - name: Print Env
         run: |
           pwd

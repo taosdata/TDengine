@@ -3,7 +3,6 @@ name: Testing coverage on branch 3.0
 on:
   workflow_dispatch:
 
-
 env:
   RELEASE_HOST: taosx-ci-server
   RUSTFLAGS: "-C instrument-coverage --cfg tokio_unstable"
@@ -21,7 +20,7 @@ concurrency:
 
 jobs:
   set_env:
-    runs-on: [ self-hosted, linux, x64, qa, rust ]
+    runs-on: [self-hosted, linux, x64, qa, rust]
     outputs:
       coverage_report_dir: ${{ steps.set_env.outputs.coverage_report_dir }}
     steps:
@@ -32,12 +31,11 @@ jobs:
       - name: Print COVERAGE_REPORT_DIR
         run: echo $COVERAGE_REPORT_DI
 
-
   remove_artifacts:
     needs: set_env
     env:
       COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
-    runs-on: [ self-hosted, linux, x64, qa, rust ]
+    runs-on: [self-hosted, linux, x64, qa, rust]
     steps:
       - name: Remove artifacts
         continue-on-error: true
@@ -60,14 +58,15 @@ jobs:
           systemctl stop taosx
           pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -9 taosx $pid"; kill -9 "$pid"; done; fi
 
-
   build_rust_run_unit_test:
-    needs: [ remove_artifacts,set_env ]
-    runs-on: [ self-hosted, linux, x64, qa, rust ]
+    needs: [remove_artifacts, set_env]
+    runs-on: [self-hosted, linux, x64, qa, rust]
 
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
+        with:
+          clean: false
 
       - name: Print Env
         run: |
@@ -109,17 +108,19 @@ jobs:
           cp -r ./target/debug/taosx-profraw/ $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           cp -r ./target/debug/taosx-agent-profraw/ $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           cd ..
-          tar --exclude=./taosx/target/* --exclude=./taosx/explorer -zcvf taosx.tar.gz ./taosx
+          tar --exclude=./taosx/target/* --exclude=./taosx/explorer --exclude=./taosx/.git/* -caf taosx.tar.gz ./taosx
           cp taosx.tar.gz $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           rm taosx.tar.gz
           tar -xzf $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx.tar.gz -C $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/
           rm $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx.tar.gz
   build_go_run_unit_test:
-    runs-on: [ self-hosted, linux, x64, qa, rust ]
-    needs: [ remove_artifacts,set_env,build_rust_run_unit_test ]
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [remove_artifacts, set_env, build_rust_run_unit_test]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
+        with:
+          clean: false
       - name: Print Env
         run: |
           pwd
@@ -145,11 +146,13 @@ jobs:
           ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc/
           cp taosx-opc $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opc/
   build_java_run_unit_test:
-    runs-on: [ self-hosted, linux, x64, qa, rust ]
-    needs: [ remove_artifacts,set_env,build_go_run_unit_test ]
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [remove_artifacts, set_env, build_go_run_unit_test]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
+        with:
+          clean: false
       - name: Print Env
         run: |
           pwd
@@ -182,10 +185,15 @@ jobs:
           ls $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb || mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/
           cp -r ./target/* $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/opentsdb/
   deploy_taosx_plugins:
-    runs-on: [ self-hosted, linux, x64, qa, rust ]
-    needs: [ build_rust_run_unit_test, build_go_run_unit_test, build_java_run_unit_test,set_env ]
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs:
+      [
+        build_rust_run_unit_test,
+        build_go_run_unit_test,
+        build_java_run_unit_test,
+        set_env,
+      ]
     steps:
-
       - name: Deploy taosx
         run: |
           pwd
@@ -211,8 +219,8 @@ jobs:
           echo $PATH
           cd /data/github/TestNG_taosX/ && source setenv.sh && /root/.local/bin/poetry run python3 testng_taosx/ci_util.py 6055 eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjIsImlhdCI6MTcyMjIzNzU5MH0.JB6VfC34jTvJmN-9juw476-SN9aw-CFw6m8oAmo73OM
   run_e2e_test:
-    runs-on: [ self-hosted, linux, x64, qa, rust ]
-    needs: [ deploy_taosx_plugins,set_env ]
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [deploy_taosx_plugins, set_env]
 
     steps:
       - name: Restart taos-explorer & taosadapter
@@ -232,8 +240,8 @@ jobs:
           poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity -k "not user_migration_test.py"
 
   stop_taosx:
-    runs-on: [ self-hosted, linux, x64, qa, rust ]
-    needs: [ run_e2e_test ]
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [run_e2e_test]
     # 没有用例失败时才会执行，用于在用例失败时查看任务状态
     if: ${{ always() && needs.run_e2e_test.result == 'success' }}
     steps:
@@ -243,8 +251,8 @@ jobs:
           pids=$(pgrep "taosx-agent"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx-agent $pid"; kill -2 "$pid"; done; fi
           pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx $pid"; kill -2 "$pid"; done; fi
   generate_report:
-    runs-on: [ self-hosted, linux, x64, qa, rust ]
-    needs: [ run_e2e_test,set_env ]
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [run_e2e_test, set_env]
     if: ${{ always() }}
     steps:
       - name: allure report
@@ -318,8 +326,8 @@ jobs:
           cp -r $COVERAGE_BASE_DIR/$DIR_PATH_3_0/ $COVERAGE_REPORT_BASE_DIR/$COVERAGE_REPORT_DIR/
           echo "see report at $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/"
   feishu_report:
-    runs-on: [ self-hosted, linux, x64, qa, rust ]
-    needs: [ generate_report,set_env,run_e2e_test ]
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [generate_report, set_env, run_e2e_test]
     if: ${{ always() && needs.run_e2e_test.result == 'success' }}
     steps:
       - name: get coverage percent for taosx and connecter
@@ -519,8 +527,8 @@ jobs:
           post_to_feishu "$PR_INFO"
 
   failed_report:
-    runs-on: [ self-hosted, linux, x64, qa, rust ]
-    needs: [ run_e2e_test,set_env,build_rust_run_unit_test,generate_report ]
+    runs-on: [self-hosted, linux, x64, qa, rust]
+    needs: [run_e2e_test, set_env, build_rust_run_unit_test, generate_report]
     if: ${{ always() && (needs.run_e2e_test.result == 'failure' || needs.build_rust_run_unit_test.result == 'failure') && needs.generate_report.result == 'success'}}
     steps:
       - name: Identify failed jobs
