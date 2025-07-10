@@ -1719,9 +1719,19 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
   int32_t code = TSDB_CODE_SUCCESS;
   // no agg func
   if (!pSelect->hasAggFuncs) {
-    PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
-    PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_WINDOW, NULL));
-    PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
+    if (pSelect->hasIndefiniteRowsFunc) {
+      nodesDestroyList(pWindow->pFuncs);
+      pWindow->pFuncs = NULL;
+      PLAN_ERR_RET(nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL, fmIsVectorFunc, &pWindow->pFuncs));
+      PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW, NULL));
+      PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets));
+      pWindow->indefRowsFunc = true;
+      pSelect->hasIndefiniteRowsFunc = false;
+    } else {
+      PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
+      PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_WINDOW, NULL));
+      PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
+    }
   } else {
     // has agg func, collect again with placeholder func
     nodesDestroyList(pWindow->pFuncs);
