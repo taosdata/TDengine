@@ -43,6 +43,7 @@ use linked_hash_map::LinkedHashMap;
 use std::fmt::{self, Display};
 use std::iter::{Peekable, SkipWhile};
 use std::str::Lines;
+use std::sync::OnceLock;
 use taosx_ipc::stream::writer::IpcDataType;
 
 const PRE_ADDED_LABELS_FOR_ELEMENT: [&str; 4] =
@@ -848,6 +849,7 @@ impl SuperTableConfig {
         // let sub_table_name = format!("${{{}}}", sub_table_name);
         Table {
             name: self.sub_table_name_pattern.clone(),
+            name_expr: OnceLock::new(),
             using: Some(self.super_table_name.clone()),
             tags: Some(tags),
             columns: Some(columns),

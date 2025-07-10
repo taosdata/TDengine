@@ -1,41 +1,128 @@
 use std::{
-    cell::Cell,
     collections::{HashMap, HashSet},
+    sync::OnceLock,
 };
 
-use anyhow::Context;
+use anyhow::{anyhow, Context};
+use arrow::array::RecordBatch;
 use faststr::FastStr;
-use serde_json::Value;
 use taos::Itertools;
-use tinytemplate::TinyTemplate;
 
-use crate::plugins::transform::TableOptions;
+use crate::{
+    expr::Expr,
+    plugins::transform::{modeler::template_to_expr, TableOptions},
+};
+
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(from = "String", into = "String")]
+pub struct FastStrExpr {
+    template: FastStr,
+    #[serde(skip)]
+    expr: OnceLock<Expr>,
+}
+
+impl FastStrExpr {
+    fn new(name: FastStr) -> Self {
+        Self {
+            template: name,
+            expr: OnceLock::new(),
+        }
+    }
+
+    fn eval(&self, records: &RecordBatch, row: usize) -> anyhow::Result<FastStr> {
+        if !self.is_expr() {
+            return Ok(self.template.clone());
+        }
+
+        let expr = match self.expr.get() {
+            Some(expr) => expr,
+            None => {
+                let expr =
+                    template_to_expr(&self.template).context("build stable name expr error")?;
+                self.expr.get_or_init(|| expr)
+            }
+        };
+        eval(expr, records, row).map(|s| s.into())
+    }
+
+    fn is_expr(&self) -> bool {
+        self.template.contains("${")
+    }
+}
+
+impl From<FastStr> for FastStrExpr {
+    fn from(value: FastStr) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<&'static str> for FastStrExpr {
+    fn from(value: &'static str) -> Self {
+        Self::new(FastStr::from_static_str(value))
+    }
+}
+
+impl From<String> for FastStrExpr {
+    fn from(value: String) -> Self {
+        Self {
+            template: FastStr::from_string(value),
+            expr: OnceLock::new(),
+        }
+    }
+}
+
+impl From<FastStrExpr> for String {
+    fn from(value: FastStrExpr) -> Self {
+        value.template.into()
+    }
+}
+
+impl std::fmt::Display for FastStrExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.template.fmt(f)
+    }
+}
+
+impl std::ops::Deref for FastStrExpr {
+    type Target = FastStr;
+
+    fn deref(&self) -> &Self::Target {
+        &self.template
+    }
+}
+
+fn eval(expr: &Expr, records: &RecordBatch, row: usize) -> anyhow::Result<String> {
+    expr.eval_batch_row(records, row)
+        .with_context(|| format!("eval expr {} error", expr.expr))?
+        .into_string()
+        .map_err(|e| anyhow!("expr {e} not string"))
+}
 
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct STableModel {
-    pub name: FastStr,
+    pub name: FastStrExpr,
     pub columns: Vec<Column>,
     pub tags: Vec<Tag>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Tag {
-    pub name: FastStr,
-    pub r#type: FastStr,
+    pub name: FastStrExpr,
+    pub r#type: FastStrExpr,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Column {
-    pub name: FastStr,
-    pub r#type: FastStr,
-    pub encode: Option<FastStr>,
-    pub compress: Option<FastStr>,
-    pub level: Option<FastStr>,
+    pub name: FastStrExpr,
+    pub r#type: FastStrExpr,
+    pub encode: Option<FastStrExpr>,
+    pub compress: Option<FastStrExpr>,
+    pub level: Option<FastStrExpr>,
 }
 
 impl STableModel {
     pub fn name(&self) -> &str {
-        &self.name
+        &self.name.template
     }
 
     pub fn columns(&self) -> impl Iterator<Item = &Column> {
@@ -45,217 +132,84 @@ impl STableModel {
     /// 每行一个 json map
     pub fn apply(
         &self,
-        ctx: &[Value],
+        records: &RecordBatch,
         opts: &TableOptions,
     ) -> anyhow::Result<HashMap<FastStr, Self>> {
-        let mut template = tinytemplate::TinyTemplate::new();
-        let name = self.name.replace("${", "{");
-        if self.name.contains("${") {
-            template
-                .add_template("name", &name)
-                .context("add name template error")?;
-        }
-
-        let col_templates = self.column_templates();
-        for (name, text) in &col_templates {
-            template
-                .add_template(name, text)
-                .context("add template error")?;
-        }
-
-        let tag_templates = self.tag_templates();
-        for (name, text) in &tag_templates {
-            template
-                .add_template(name, text)
-                .context("add template error")?;
-        }
-
-        thread_local! {
-            static STABLES_LEN:Cell<usize> = const { Cell::new(1) };
-            static COLUMNS_LEN:Cell<usize> = const { Cell::new(1024) };
-        };
-
-        let mut models = STABLES_LEN.with(|len| HashMap::with_capacity(len.get()));
-        let mut curr_columns = COLUMNS_LEN.with(|len| HashSet::with_capacity(len.get()));
+        let mut models = HashMap::with_capacity(records.num_rows());
+        let mut curr_columns = HashSet::with_capacity(records.num_rows());
         let mut curr_tags = HashSet::new();
-        for ctx in ctx.iter() {
-            let name = if self.name.contains("${") {
-                template
-                    .render_value("name", ctx)
-                    .context("render stable name error")?
-            } else {
-                self.name.to_string()
-            };
+        for row in 0..records.num_rows() {
+            let name = self.name.eval(records, row)?;
             let name: FastStr = opts.canonical_table_name(&name).to_string().into();
-            let columns = self.render_column(&template, ctx)?;
-            let tags = self.render_tags(&template, ctx)?;
+            let columns = self.render_column(records, row)?;
+            let tags = self.render_tags(records, row)?;
             models
                 .entry(name.clone())
                 .and_modify(|model: &mut STableModel| {
                     for col in &columns {
-                        if !curr_columns.contains(&col.name) {
-                            curr_columns.insert(col.name.clone());
+                        if !curr_columns.contains(&col.name.template) {
+                            curr_columns.insert(col.name.template.clone());
                             model.columns.push(col.clone());
                         }
                     }
                     for tag in &tags {
-                        if !curr_tags.contains(&tag.name) {
-                            curr_tags.insert(tag.name.clone());
+                        if !curr_tags.contains(&tag.name.template) {
+                            curr_tags.insert(tag.name.template.clone());
                             model.tags.push(tag.clone());
                         }
                     }
                 })
                 .or_insert_with(|| {
-                    curr_columns.extend(columns.iter().map(|v| v.name.clone()));
-                    curr_tags.extend(tags.iter().map(|v| v.name.clone()));
+                    curr_columns.extend(columns.iter().map(|v| v.name.template.clone()));
+                    curr_tags.extend(tags.iter().map(|v| v.name.template.clone()));
                     STableModel {
-                        name: name.clone(),
+                        name: FastStrExpr::new(name.clone()),
                         columns,
                         tags,
                     }
                 });
         }
 
-        STABLES_LEN.with(|len| {
-            if len.get() < models.len() {
-                len.set(models.len())
-            }
-        });
-
-        COLUMNS_LEN.with(|len| {
-            if len.get() < curr_columns.len() {
-                len.set(curr_columns.len())
-            }
-        });
-
         Ok(models)
     }
 
-    fn column_templates(&self) -> Vec<(String, String)> {
+    fn render_column(&self, records: &RecordBatch, row: usize) -> anyhow::Result<Vec<Column>> {
         self.columns
             .iter()
-            .enumerate()
-            .flat_map(|(idx, col)| {
-                let mut templates = Vec::with_capacity(5);
-                if col.name.contains("${") {
-                    templates.push((format!("col_{idx}_name"), col.name.replace("${", "{")));
-                }
-                if col.r#type.contains("${") {
-                    templates.push((format!("col_{idx}_type"), col.r#type.replace("${", "{")))
-                }
-                if let Some(encode) = col.encode.as_ref().filter(|s| s.contains("${")) {
-                    templates.push((format!("col_{idx}_encode"), encode.replace("${", "{")));
-                }
-                if let Some(encode) = col.compress.as_ref().filter(|s| s.contains("${")) {
-                    templates.push((format!("col_{idx}_compress"), encode.replace("${", "{")));
-                }
-                if let Some(encode) = col.level.as_ref().filter(|s| s.contains("${")) {
-                    templates.push((format!("col_{idx}_level"), encode.replace("${", "{")));
-                }
-                templates
-            })
-            .collect()
-    }
-
-    fn render_column(&self, template: &TinyTemplate, ctx: &Value) -> anyhow::Result<Vec<Column>> {
-        self.columns
-            .iter()
-            .enumerate()
-            .map(|(idx, col)| {
+            .map(|col| {
                 Ok(Column {
-                    name: if col.name.contains("${") {
-                        template
-                            .render_value(&format!("col_{idx}_name"), ctx)
-                            .context("render stable column name error")?
-                            .into()
-                    } else {
-                        col.name.clone()
-                    },
-                    r#type: if col.r#type.contains("${") {
-                        template
-                            .render_value(&format!("col_{idx}_type"), ctx)
-                            .context("render stable column type error")?
-                            .into()
-                    } else {
-                        col.r#type.clone()
-                    },
+                    name: col.name.eval(records, row)?.into(),
+                    r#type: col.r#type.eval(records, row)?.into(),
                     encode: col
                         .encode
                         .as_ref()
-                        .filter(|v| v.contains("${"))
-                        .map(|_| {
-                            template
-                                .render_value(&format!("col_{idx}_encode"), ctx)
-                                .map(|v| v.into())
-                                .context("render stable column encode error")
-                        })
-                        .transpose()?,
+                        .map(|encode| encode.eval(records, row))
+                        .transpose()?
+                        .map(|s| s.into()),
                     compress: col
                         .compress
                         .as_ref()
-                        .filter(|v| v.contains("${"))
-                        .map(|_| {
-                            template
-                                .render_value(&format!("col_{idx}_compress"), ctx)
-                                .map(|v| v.into())
-                                .context("render stable column compress error")
-                        })
-                        .transpose()?,
+                        .map(|compress| compress.eval(records, row))
+                        .transpose()?
+                        .map(|s| s.into()),
                     level: col
                         .level
                         .as_ref()
-                        .filter(|v| v.contains("${"))
-                        .map(|_| {
-                            template
-                                .render_value(&format!("col_{idx}_level"), ctx)
-                                .map(|v| v.into())
-                                .context("render stable column level error")
-                        })
-                        .transpose()?,
+                        .map(|level| level.eval(records, row))
+                        .transpose()?
+                        .map(|s| s.into()),
                 })
             })
             .collect::<anyhow::Result<_>>()
     }
 
-    fn tag_templates(&self) -> Vec<(String, String)> {
+    fn render_tags(&self, records: &RecordBatch, row: usize) -> anyhow::Result<Vec<Tag>> {
         self.tags
             .iter()
-            .enumerate()
-            .flat_map(|(idx, tag)| {
-                let mut templates = Vec::new();
-                if tag.name.contains("${") {
-                    templates.push((format!("tag_{idx}_name"), tag.name.replace("${", "{")));
-                }
-                if tag.r#type.contains("${") {
-                    templates.push((format!("tag_{idx}_type"), tag.r#type.replace("${", "{")));
-                }
-                templates
-            })
-            .collect()
-    }
-
-    fn render_tags(&self, template: &TinyTemplate, ctx: &Value) -> anyhow::Result<Vec<Tag>> {
-        self.tags
-            .iter()
-            .enumerate()
-            .map(|(idx, tag)| {
+            .map(|tag| {
                 Ok(Tag {
-                    name: if tag.name.contains("${") {
-                        template
-                            .render_value(&format!("tag_{idx}_name"), ctx)
-                            .context("render stable tag name error")?
-                            .into()
-                    } else {
-                        tag.name.clone()
-                    },
-                    r#type: if tag.r#type.contains("${") {
-                        template
-                            .render_value(&format!("tag_{idx}_type"), ctx)
-                            .context("render stable tag type error")?
-                            .into()
-                    } else {
-                        tag.r#type.clone()
-                    },
+                    name: tag.name.eval(records, row)?.into(),
+                    r#type: tag.r#type.eval(records, row)?.into(),
                 })
             })
             .collect::<anyhow::Result<_>>()
@@ -267,22 +221,26 @@ impl STableModel {
             .columns
             .iter()
             .map(|col| {
-                let mut res = format!("`{}` {}", col.name, col.r#type);
+                let mut res = format!("`{}` {}", col.name.template, col.r#type.template);
                 if let Some(encode) = col
                     .encode
                     .as_ref()
-                    .map(|encode| format!(" ENCODE '{encode}'"))
+                    .map(|encode| format!(" ENCODE '{}'", encode.template))
                 {
                     res.push_str(&encode);
                 }
                 if let Some(compress) = col
                     .compress
                     .as_ref()
-                    .map(|compress| format!(" COMPRESS '{compress}'"))
+                    .map(|compress| format!(" COMPRESS '{}'", compress.template))
                 {
                     res.push_str(&compress);
                 }
-                if let Some(level) = col.level.as_ref().map(|level| format!(" LEVEL '{level}'")) {
+                if let Some(level) = col
+                    .level
+                    .as_ref()
+                    .map(|level| format!(" LEVEL '{}'", level.template))
+                {
                     res.push_str(&level);
                 }
                 res
@@ -291,7 +249,7 @@ impl STableModel {
         let tags = self
             .tags
             .iter()
-            .map(|tag| format!("`{}` {}", tag.name, tag.r#type))
+            .map(|tag| format!("`{}` {}", tag.name.template, tag.r#type.template))
             .join(", ");
         format!("CREATE STABLE IF NOT EXISTS `{name}` ({columns}) TAGS ({tags});")
     }
@@ -299,7 +257,6 @@ impl STableModel {
 
 #[cfg(test)]
 mod tests {
-    use serde_json as json;
 
     use super::*;
 
@@ -351,13 +308,13 @@ mod tests {
                 Column {
                     name: "${col1_x}".into(),
                     r#type: "${TIMESTAMP_x}".into(),
-                    encode: Some("${delta-i_x}".into()),
+                    encode: Some("${delta_x}".into()),
                     compress: Some("${lz4_x}".into()),
                     level: Some("${medium_x}".into()),
                 },
                 Column {
                     name: "${col2_x}".into(),
-                    r#type: "${VARCHAR(128)_x}".into(),
+                    r#type: "${varchar_x}".into(),
                     compress: Some("${lz4_x}".into()),
                     ..Default::default()
                 },
@@ -369,27 +326,25 @@ mod tests {
                 },
                 Tag {
                     name: "${tag2_x}".into(),
-                    r#type: "${VARCHAR(128)_x}".into(),
+                    r#type: "${varchar_x}".into(),
                 },
             ],
         };
-        let models = model.apply(
-            &[json::json!({
-                "abc_x": "abc",
-                "col1_x": "col1",
-                "TIMESTAMP_x": "TIMESTAMP",
-                "delta-i_x": "delta-i",
-                "lz4_x": "lz4",
-                "medium_x": "medium",
-                "col2_x": "col2",
-                "VARCHAR(128)_x": "VARCHAR(128)",
-                "tag1_x": "tag1",
-                "INT_x": "INT",
-                "tag2_x": "tag2",
-                "VARCHAR(128)_x": "VARCHAR(128)"
-            })],
-            &TableOptions::default(),
-        )?;
+        let records = arrow::array::record_batch!(
+            ("abc_x", Utf8, ["abc"]),
+            ("col1_x", Utf8, ["col1"]),
+            ("TIMESTAMP_x", Utf8, ["TIMESTAMP"]),
+            ("delta_x", Utf8, ["delta-i"]),
+            ("lz4_x", Utf8, ["lz4"]),
+            ("medium_x", Utf8, ["medium"]),
+            ("col2_x", Utf8, ["col2"]),
+            ("varchar_x", Utf8, ["VARCHAR(128)"]),
+            ("tag1_x", Utf8, ["tag1"]),
+            ("INT_x", Utf8, ["INT"]),
+            ("tag2_x", Utf8, ["tag2"])
+        )
+        .unwrap();
+        let models = model.apply(&records, &TableOptions::default())?;
         assert_eq!(
             models
                 .get("abc")
@@ -411,13 +366,13 @@ mod tests {
                 Column {
                     name: "${col1_x}".into(),
                     r#type: "${TIMESTAMP_x}".into(),
-                    encode: Some("${delta-i_x}".into()),
+                    encode: Some("${delta_x}".into()),
                     compress: Some("${lz4_x}".into()),
                     level: Some("${medium_x}".into()),
                 },
                 Column {
                     name: "${col2_x}".into(),
-                    r#type: "${VARCHAR(128)_x}".into(),
+                    r#type: "${VARCHAR_x}".into(),
                     compress: Some("${lz4_x}".into()),
                     ..Default::default()
                 },
@@ -429,43 +384,25 @@ mod tests {
                 },
                 Tag {
                     name: "${tag2_x}".into(),
-                    r#type: "${VARCHAR(128)_x}".into(),
+                    r#type: "${VARCHAR_x}".into(),
                 },
             ],
         };
-        let models = model.apply(
-            &[
-                json::json!({
-                    "abc_x": "abc",
-                    "col1_x": "col1",
-                    "TIMESTAMP_x": "TIMESTAMP",
-                    "delta-i_x": "delta-i",
-                    "lz4_x": "lz4",
-                    "medium_x": "medium",
-                    "col2_x": "col2",
-                    "VARCHAR(128)_x": "VARCHAR(128)",
-                    "tag1_x": "tag1",
-                    "INT_x": "INT",
-                    "tag2_x": "tag2",
-                    "VARCHAR(128)_x": "VARCHAR(128)"
-                }),
-                json::json!({
-                    "abc_x": "abc",
-                    "col1_x": "col11",
-                    "TIMESTAMP_x": "TIMESTAMP",
-                    "delta-i_x": "delta-i",
-                    "lz4_x": "lz4",
-                    "medium_x": "medium",
-                    "col2_x": "col2",
-                    "VARCHAR(128)_x": "VARCHAR(128)",
-                    "tag1_x": "tag1",
-                    "INT_x": "INT",
-                    "tag2_x": "tag2",
-                    "VARCHAR(128)_x": "VARCHAR(128)"
-                }),
-            ],
-            &TableOptions::default(),
-        )?;
+        let records = arrow::array::record_batch!(
+            ("abc_x", Utf8, ["abc", "abc"]),
+            ("col1_x", Utf8, ["col1", "col11"]),
+            ("TIMESTAMP_x", Utf8, ["TIMESTAMP", "TIMESTAMP"]),
+            ("delta_x", Utf8, ["delta-i", "delta-i"]),
+            ("lz4_x", Utf8, ["lz4", "lz4"]),
+            ("medium_x", Utf8, ["medium", "medium"]),
+            ("col2_x", Utf8, ["col2", "col2"]),
+            ("VARCHAR_x", Utf8, ["VARCHAR(128)", "VARCHAR(128)"]),
+            ("tag1_x", Utf8, ["tag1", "tag1"]),
+            ("INT_x", Utf8, ["INT", "INT"]),
+            ("tag2_x", Utf8, ["tag2", "tag2"])
+        )
+        .unwrap();
+        let models = model.apply(&records, &TableOptions::default())?;
         let sql = models
             .get("abc")
             .context("model not found")?

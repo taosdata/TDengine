@@ -19,6 +19,7 @@ go.work*
 /.idea/centos7.target
 .idea
 logs/*
+*.log
 __pycache__
 plugins/influxdb/target/
 plugins/mqtt/dist/
