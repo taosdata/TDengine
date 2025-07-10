@@ -816,6 +816,10 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = (pExtW->binfo.pRes->info.rows == 0) ? NULL : pExtW->binfo.pRes;
+
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM && (*ppRes)) {
+    printDataBlock(*ppRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+  }
   
   return code;
 }

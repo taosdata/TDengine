@@ -794,9 +794,12 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
 
       SValueNode *valueNode = (SValueNode *)nodesListGetNode(pCtx[k].pExpr->base.pParamList, 0);
       if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type || valueNode->isNull) {
-        colDataSetNULL(&idata, 0);
+        pEntryInfo->isNullRes = 1;
+      } else if (IS_VAR_DATA_TYPE(pCtx[k].pExpr->base.resSchema.type)){
+        void* v = nodesGetValueFromNode(valueNode);
+        memcpy(p, v, varDataTLen(v));
       } else {
-        TAOS_CHECK_EXIT(colDataSetVal(&idata, 0, nodesGetValueFromNode(valueNode), false));
+        memcpy(p, nodesGetValueFromNode(valueNode), pCtx[k].pExpr->base.resSchema.bytes);
       }
       
       pEntryInfo->numOfRes = 1;
