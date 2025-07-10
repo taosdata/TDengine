@@ -17,6 +17,7 @@ use std::{
 };
 
 use anyhow::Context;
+use archive::ArchiveType;
 use arrow::{
     array::{
         Array, ArrayRef, AsArray, BinaryArray, BooleanArray, Decimal128Array, Float16Array,
@@ -64,8 +65,8 @@ use super::expr;
 use crate::core_metrics::CoreMetrics;
 use crate::plugins::transform::parse::ArrayForTaos;
 use crate::{
+    get_data_dir,
     global::{SQL_TAG_CACHE_CAPACITY, TABLE_TAG_CACHE},
-    ArchiveType,
 };
 
 use self::{
@@ -1036,6 +1037,24 @@ impl Parser {
     pub fn set_minimum_timestamp(&mut self, ts: DateTime<Utc>) {
         Arc::make_mut(&mut self.global).minimum_timestamp = Some(ts);
     }
+
+    pub fn organize_cache(&mut self, task_id: i64) -> Result<(), ParserError> {
+        let cache = &mut Arc::make_mut(&mut self.global).process_on_abnormal.cache;
+        let data_dir = get_data_dir();
+        cache
+            .organize_params(task_id, data_dir, true)
+            .map_err(|error| ParserError::OrganizeCacheError { error })?;
+        Ok(())
+    }
+
+    pub fn organize_archive(&mut self, task_id: i64) -> Result<(), ParserError> {
+        let archive = &mut Arc::make_mut(&mut self.global).process_on_abnormal.archive;
+        let data_dir = get_data_dir();
+        archive
+            .organize_params(task_id, data_dir, false)
+            .map_err(|error| ParserError::OrganizeArchiveError { error })?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Error)]
@@ -1050,6 +1069,10 @@ pub enum ParserError {
         input: String,
         error: serde_json::Error,
     },
+    #[error("Organize archive error: {error}")]
+    OrganizeArchiveError { error: archive::CollateError },
+    #[error("Organize cache error: {error}")]
+    OrganizeCacheError { error: archive::CollateError },
 }
 impl FromStr for Parser {
     type Err = ParserError;
@@ -1168,7 +1191,7 @@ impl Parser {
         &self,
         records: &RecordBatch,
         filter_ts: bool,
-        archive_tx: Sender<(ArchiveType, RecordBatch)>,
+        archive_tx: Sender<ArchiveType>,
     ) -> Result<Message, Error> {
         // (ts, value, point_name, ${point_name}, site_controller_id)
         let transformed_batch = self.transform_records(records)?;
@@ -1214,13 +1237,18 @@ impl Parser {
             let spec_columns = if let Some(cols) = &table.columns {
                 let mut indices = Vec::new();
                 for name in cols {
+                    // TS-6763: 首先找名字完全匹配的列，再找 metadata 里 name 匹配的列
+                    if let Ok(index) = schema.index_of(name) {
+                        indices.push(index);
+                        continue;
+                    }
                     if let Some((index, _)) =
                         Self::get_schema_column_with_name(&schema, name.as_str())
                     {
                         indices.push(index);
-                    } else {
-                        tracing::warn!("Selected column {name} not found in stream message");
+                        continue;
                     }
+                    tracing::warn!("Selected column {name} not found in stream message");
                 }
                 indices
             } else {
@@ -1229,6 +1257,11 @@ impl Parser {
             let (tags, columns) = if let Some(tags) = &table.tags {
                 let mut indices = vec![];
                 for name in tags {
+                    if let Ok(index) = schema.index_of(name) {
+                        indices.push(index);
+                        columns_indices[index] = usize::MAX;
+                        continue;
+                    }
                     let (i, _) = Self::get_schema_column_with_name(&schema, name.as_str())
                         .ok_or_else(|| anyhow::format_err!("Invalid field name `{name}`"))?;
                     indices.push(i);
@@ -1804,7 +1837,7 @@ pub fn archive_records(
     batch: &RecordBatch,
     err_vec: Vec<String>,
     err_timestamp_vec: Vec<i64>,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<()> {
     if batch.num_rows() > 0 {
         // get fields and columns
@@ -1830,7 +1863,7 @@ pub fn archive_records(
         let new_schema = Arc::new(Schema::new(fields_vec));
         let new_batch = RecordBatch::try_new(new_schema, columns_vec)?;
 
-        archive_tx.send((ArchiveType::Archive, new_batch))?;
+        archive_tx.send(ArchiveType::Archive(new_batch))?;
     }
     Ok(())
 }
@@ -2508,12 +2541,15 @@ impl MessageArrowRecords {
             .fields()
             .iter()
             .map(|field| {
-                match field.data_type() {
-                    DataType::Binary
-                    | DataType::Utf8
-                    | DataType::LargeBinary
-                    | DataType::LargeUtf8 => {
-                        let cast_to = field.metadata().get("cast_to");
+                let cast_to = field.metadata().get("cast_to");
+                match (field.data_type(), cast_to) {
+                    (
+                        DataType::Binary
+                        | DataType::Utf8
+                        | DataType::LargeBinary
+                        | DataType::LargeUtf8,
+                        _,
+                    ) => {
                         if cast_to.is_some() {
                             let cast_to = cast_to.unwrap();
                             let length = field.metadata().get("length");
@@ -2550,11 +2586,20 @@ impl MessageArrowRecords {
                             ColumnMeta::Column(Described::new(field.name(), field.ty(), None))
                         }
                     }
-                    DataType::Decimal128(precision, scale) => ColumnMeta::Column(
+                    (DataType::Decimal128(precision, scale), _) => ColumnMeta::Column(
                         Described::new(field.name(), field.ty(), None).with_origin_ty_name(
                             &format!("{}({},{})", field.ty(), precision, scale),
                         ),
                     ),
+                    (DataType::List(field), Some(cast_to))
+                        if field.data_type().is_numeric() && cast_to == "VARBINARY" =>
+                    {
+                        ColumnMeta::Column(Described::new(
+                            field.name(),
+                            Ty::from_str(cast_to).unwrap(),
+                            None,
+                        ))
+                    }
                     _ => ColumnMeta::Column(Described::new(field.name(), field.ty(), None)),
                 }
             })

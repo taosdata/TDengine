@@ -33,7 +33,8 @@ impl ColumnMeta {
             "NUMERIC" => Ok(IpcDataType::NChar(50)),
             // 字符串
             "VARCHAR" | "CHAR(N)" | "TEXT" | "NAME" | "CITEXT" => Ok(IpcDataType::NChar(50)),
-            "BYTEA" => Ok(IpcDataType::NChar(50)),
+            // 字节数组
+            "BYTEA" => Ok(IpcDataType::VarBinary(50)),
             // 日期时间
             "DATE" => Ok(IpcDataType::NChar(50)),
             "TIME" => Ok(IpcDataType::NChar(50)),
@@ -78,7 +79,7 @@ pub fn to_arrow_data_type(type_name: String) -> anyhow::Result<DataType> {
         "NUMERIC" => Ok(DataType::Utf8),
         // 字符串
         "VARCHAR" | "CHAR(N)" | "TEXT" | "NAME" | "CITEXT" => Ok(DataType::Utf8),
-        "BYTEA" => Ok(DataType::Utf8),
+        "BYTEA" => Ok(DataType::Binary),
         // 日期时间
         "DATE" => Ok(DataType::Utf8),
         "TIME" => Ok(DataType::Utf8),
@@ -185,7 +186,10 @@ mod tests {
         assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
 
         let column_meta = ColumnMeta::try_new("id".to_string(), "BYTEA".to_string()).unwrap();
-        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+        assert_eq!(
+            column_meta.get_ipc_type().unwrap(),
+            IpcDataType::VarBinary(50)
+        );
 
         let column_meta = ColumnMeta::try_new("id".to_string(), "DATE".to_string()).unwrap();
         assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
@@ -351,7 +355,7 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type("BYTEA".to_string()).unwrap(),
-            DataType::Utf8
+            DataType::Binary
         );
         assert_eq!(
             to_arrow_data_type("DATE".to_string()).unwrap(),

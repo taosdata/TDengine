@@ -37,8 +37,6 @@ impl ColumnMeta {
             // 字符串
             "CHAR" => Ok(IpcDataType::NChar(50)),
             "VARCHAR" => Ok(IpcDataType::NChar(50)),
-            "BINARY" => Ok(IpcDataType::NChar(50)),
-            "VARBINARY" => Ok(IpcDataType::NChar(50)),
             "TINYBLOB" => Ok(IpcDataType::NChar(50)),
             "BLOB" => Ok(IpcDataType::NChar(50)),
             "MEDIUMBLOB" => Ok(IpcDataType::NChar(50)),
@@ -47,6 +45,9 @@ impl ColumnMeta {
             "TEXT" => Ok(IpcDataType::NChar(50)),
             "MEDUIMTEXT" => Ok(IpcDataType::NChar(50)),
             "LONGTEXT" => Ok(IpcDataType::NChar(50)),
+            // 字节数组
+            "BINARY" => Ok(IpcDataType::VarBinary(50)),
+            "VARBINARY" => Ok(IpcDataType::VarBinary(50)),
             // 日期时间
             "DATE" => Ok(IpcDataType::NChar(50)),
             "TIME" => Ok(IpcDataType::NChar(50)),
@@ -81,8 +82,6 @@ pub fn to_arrow_data_type(type_name: String) -> anyhow::Result<DataType> {
         // 字符串
         "CHAR" => Ok(DataType::Utf8),
         "VARCHAR" => Ok(DataType::Utf8),
-        "BINARY" => Ok(DataType::Utf8),
-        "VARBINARY" => Ok(DataType::Utf8),
         "TINYBLOB" => Ok(DataType::Utf8),
         "BLOB" => Ok(DataType::Utf8),
         "MEDIUMBLOB" => Ok(DataType::Utf8),
@@ -91,6 +90,9 @@ pub fn to_arrow_data_type(type_name: String) -> anyhow::Result<DataType> {
         "TEXT" => Ok(DataType::Utf8),
         "MEDUIMTEXT" => Ok(DataType::Utf8),
         "LONGTEXT" => Ok(DataType::Utf8),
+        // 字节数组
+        "BINARY" => Ok(DataType::Binary),
+        "VARBINARY" => Ok(DataType::Binary),
         // 日期时间
         "DATE" => Ok(DataType::Utf8),
         "TIME" => Ok(DataType::Utf8),
@@ -163,10 +165,16 @@ mod tests {
         assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
 
         let column_meta = ColumnMeta::try_new("id".to_string(), "BINARY".to_string()).unwrap();
-        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+        assert_eq!(
+            column_meta.get_ipc_type().unwrap(),
+            IpcDataType::VarBinary(50)
+        );
 
         let column_meta = ColumnMeta::try_new("id".to_string(), "VARBINARY".to_string()).unwrap();
-        assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
+        assert_eq!(
+            column_meta.get_ipc_type().unwrap(),
+            IpcDataType::VarBinary(50)
+        );
 
         let column_meta = ColumnMeta::try_new("id".to_string(), "TINYBLOB".to_string()).unwrap();
         assert_eq!(column_meta.get_ipc_type().unwrap(), IpcDataType::NChar(50));
@@ -281,11 +289,11 @@ mod tests {
         );
         assert_eq!(
             to_arrow_data_type("BINARY".to_string()).unwrap(),
-            DataType::Utf8
+            DataType::Binary
         );
         assert_eq!(
             to_arrow_data_type("VARBINARY".to_string()).unwrap(),
-            DataType::Utf8
+            DataType::Binary
         );
         assert_eq!(
             to_arrow_data_type("TINYBLOB".to_string()).unwrap(),

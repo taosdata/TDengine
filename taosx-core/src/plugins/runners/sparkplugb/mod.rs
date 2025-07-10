@@ -409,7 +409,8 @@ async fn start_task(
         let metrics = metrics.clone();
         move || {
             let ack_reader =
-                AckReaderBuilder::new(AckType::Lush).open(ack_stream);
+                AckReaderBuilder::new(AckType::Lush).open(ack_stream)
+                    .context("Open ACK reader failed")?;
             for ack in ack_reader {
                 permit_rx.try_recv().ok();
                 metrics.add_fetched_acks();

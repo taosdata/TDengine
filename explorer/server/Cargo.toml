@@ -46,7 +46,7 @@ deadpool = "0.10"
 const_format = "0.2.32"
 shadow-rs = { workspace = true }
 geos = { version = "10.0.0", features = ["static"] }
-hex = "0.4.3"
+hex.workspace = true
 chrono = "0.4"
 chrono-tz = "0.10.0"
 scc = { workspace = true }

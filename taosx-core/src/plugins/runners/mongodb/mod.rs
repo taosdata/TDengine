@@ -314,12 +314,7 @@ fn generate_payload(document: Document) -> anyhow::Result<String> {
                     payload.insert(key.clone(), json!(v));
                 }
                 Bson::Binary(v) => {
-                    let value: String = v.bytes.iter().fold(String::new(), |mut output, b| {
-                        use std::fmt::Write;
-                        let _ = write!(output, "{b:02x}");
-                        output
-                    });
-                    payload.insert(key.clone(), json!(format!("\\x{}", value)));
+                    payload.insert(key.clone(), json!(v));
                 }
                 Bson::ObjectId(v) => {
                     payload.insert(key.clone(), json!(v.to_string()));

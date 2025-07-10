@@ -13,6 +13,10 @@
 # The instanceId of each instance is unique on the host
 instanceId = 16
 
+[telemetry]
+# server = "telemetry.taosdata.com"
+# port = "80"
+
 [serve]
 # listen to ip:port address
 #listen = "0.0.0.0:6050"

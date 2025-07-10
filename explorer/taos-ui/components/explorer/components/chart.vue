@@ -39,6 +39,7 @@ import { getAxisType } from 'utils';
 import { t } from 'locales';
 import { sqlExecResult } from './utils';
 import { FormInstance } from 'element-plus';
+import JSONBig from 'json-big';
 
 const chartTypes = ['bar', 'line', 'area'];
 const chartForm = reactive({
@@ -107,7 +108,13 @@ function handleSeriesChange() {
     const op: Recordable = {
       type: chartForm.chartType,
       name: seriesName[index],
-      data: sqlExecResult.data.map(ite => [ite[chartForm.label], ite[item]])
+      data: sqlExecResult.data.map(ite => {
+        const bignumber = JSONBig.stringify(ite[item]);
+        if (bignumber) {
+          return [ite[chartForm.label], bignumber]
+        }
+        [ite[chartForm.label], ite[item]]
+      })
     };
     if (chartForm.chartType === 'area') {
       op.type = 'line';

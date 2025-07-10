@@ -147,7 +147,16 @@ impl DsSampleIn {
         let mut fields = Vec::new();
         for (name, field_parser) in parse.deref() {
             let data_type = match field_parser {
-                FieldParser::Cast(c) => c.r#as().clone().arrow_data_type(),
+                FieldParser::Cast(c) => {
+                    let arrow_dt = c.r#as().clone().arrow_data_type();
+                    match arrow_dt {
+                        // sample 接口使用 json reader 不支持 binary 类型
+                        DataType::Binary => {
+                            DataType::List(Arc::new(Field::new(name, DataType::UInt8, true)))
+                        }
+                        _ => arrow_dt,
+                    }
+                }
                 _ => {
                     tracing::warn!(
                         "Could not infer data type for field {}, use DataType::Utf8",

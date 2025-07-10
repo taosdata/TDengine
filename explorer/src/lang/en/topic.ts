@@ -72,7 +72,6 @@ export default {
     code_len: 'Code Length',
     bufsize: 'Buf Size',
     endpoint: 'End Point',
-    vnodes: 'VNodes',
     support_vnodes: 'Support VNodes',
     data_source_name: 'Name',
     data_source_type: 'Type',

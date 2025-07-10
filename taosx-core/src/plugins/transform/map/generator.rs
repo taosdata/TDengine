@@ -1,4 +1,3 @@
-use std::cmp;
 use std::sync::atomic::{self, AtomicI64};
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -72,27 +71,17 @@ impl ValueBuilder for GeneratorValueBuilder {
         match self.generator.as_str() {
             "now" => {
                 let current_timestamp = self.precision.current_timestamp();
-                let _ = self.last_generated_time.compare_exchange(
-                    0,
-                    current_timestamp,
-                    atomic::Ordering::SeqCst,
-                    atomic::Ordering::SeqCst,
-                );
+                let last_timestamp = self
+                    .last_generated_time
+                    .fetch_max(current_timestamp, atomic::Ordering::SeqCst)
+                    .max(current_timestamp);
 
-                let last_timestamp = self.last_generated_time.load(atomic::Ordering::SeqCst);
-                match current_timestamp.cmp(&last_timestamp) {
-                    cmp::Ordering::Equal => {}
-                    cmp::Ordering::Less => {
-                        tracing::warn!(
-                            "generator time is {}{} ahead of the system time",
-                            (last_timestamp - current_timestamp),
-                            self.precision
-                        );
-                    }
-                    cmp::Ordering::Greater => {
-                        self.last_generated_time
-                            .store(current_timestamp, atomic::Ordering::SeqCst);
-                    }
+                if last_timestamp > current_timestamp {
+                    tracing::warn!(
+                        "generator time is {}{} ahead of the system time",
+                        (last_timestamp - current_timestamp),
+                        self.precision
+                    );
                 }
 
                 let mut time_array = Vec::with_capacity(len);

@@ -1,4 +1,8 @@
-use std::{borrow::Cow, str::FromStr, sync::Arc};
+use std::{
+    borrow::Cow,
+    str::FromStr,
+    sync::{Arc, LazyLock},
+};
 
 use anyhow::Context;
 use arrow::{
@@ -121,13 +125,25 @@ impl Parse for Json {
                 continue;
             }
             let s = string.value(i);
-            let s = s.replace('\n', r"\n");
-            let value = serde_json::from_str::<serde_json::Value>(&s);
+            let value = serde_json::from_str::<JsonValue>(s);
             let value = match value {
                 Ok(v) => v,
+                Err(e) if e.is_syntax() => {
+                    let s = fix_json_control_chars(s);
+                    match serde_json::from_str::<JsonValue>(&s) {
+                        Ok(value) => value,
+                        Err(e) => {
+                            tracing::warn!(
+                                "{:#}",
+                                super::ParseError::JsonDeserializeError(s.to_string(), e)
+                            );
+                            JsonValue::Null
+                        }
+                    }
+                }
                 Err(e) => {
                     tracing::warn!(
-                        "{:#}",
+                        "Parse json row {i} error: {:#}",
                         super::ParseError::JsonDeserializeError(s.to_string(), e)
                     );
                     JsonValue::Null
@@ -176,6 +192,28 @@ impl Parse for Json {
             }
         }
         // dbg!(&schema);
+        let json_value_to_vec = |value: JsonValue, n: usize| match value {
+            JsonValue::Array(array) => array
+                .into_iter()
+                .map(|v| {
+                    (n, {
+                        if v.is_null() {
+                            None
+                        } else {
+                            debug_assert!(v.is_object());
+                            Some(v)
+                        }
+                    })
+                })
+                .collect(),
+            JsonValue::Null => {
+                vec![(n, None)]
+            }
+            JsonValue::Object(object) => {
+                vec![(n, Some(JsonValue::Object(object)))]
+            }
+            _ => unreachable!(),
+        };
         let json_values: Vec<_> = (0..num_rows)
             .enumerate()
             .flat_map(|(n, i)| {
@@ -184,37 +222,30 @@ impl Parse for Json {
                 }
 
                 let str = string.value(i);
-                let str = str.replace('\n', r"\n");
-                let value = serde_json::from_str::<serde_json::Value>(&str);
 
+                let value = serde_json::from_str::<JsonValue>(str);
                 match value {
-                    Ok(JsonValue::Array(array)) => array
-                        .into_iter()
-                        .map(|v| {
-                            (n, {
-                                if v.is_null() {
-                                    None
-                                } else {
-                                    debug_assert!(v.is_object());
-                                    Some(v)
-                                }
-                            })
-                        })
-                        .collect(),
-                    Ok(JsonValue::Null) => {
-                        vec![(n, None)]
-                    }
-                    Ok(JsonValue::Object(object)) => {
-                        vec![(n, Some(JsonValue::Object(object)))]
+                    Ok(value) => json_value_to_vec(value, n),
+                    Err(e) if e.is_syntax() => {
+                        let s = fix_json_control_chars(str);
+                        match serde_json::from_str::<JsonValue>(&s) {
+                            Ok(value) => json_value_to_vec(value, n),
+                            Err(e) => {
+                                tracing::warn!(
+                                    "{:#}",
+                                    super::ParseError::JsonDeserializeError(str.to_string(), e)
+                                );
+                                vec![(n, None)]
+                            }
+                        }
                     }
                     Err(e) => {
                         tracing::warn!(
-                            "{:#}",
+                            "Get values error: {:#}",
                             super::ParseError::JsonDeserializeError(str.to_string(), e)
                         );
                         vec![(n, None)]
                     }
-                    _ => unreachable!(),
                 }
             })
             .collect();
@@ -932,6 +963,25 @@ fn flat_fields(fields: &Fields, current: &String, depth: usize) -> Vec<String> {
     keys.clone()
 }
 
+fn fix_json_control_chars(json_str: &str) -> String {
+    static RE: LazyLock<regex::Regex> =
+        LazyLock::new(|| Regex::new(r#""((?:\\.|[^"\\])*)""#).unwrap());
+
+    let result = RE.replace_all(json_str, |caps: &regex::Captures| {
+        let content = &caps[1]; // 引号内的内容
+
+        // 只替换内容中的换行符，保持转义序列不变
+        let fixed_content = content
+            .replace('\n', "\\n")
+            .replace('\r', "\\r")
+            .replace('\t', "\\t");
+
+        format!("\"{fixed_content}\"")
+    });
+
+    result.into_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use arrow_schema::Field;
@@ -1337,5 +1387,20 @@ mod tests {
             .unwrap()
             .is_null(1));
         Ok(())
+    }
+
+    #[test]
+    fn fix_json_control_chars_test() {
+        let s = fix_json_control_chars("{\"a\": \n \"b\\\"\nc\"}");
+        assert!(serde_json::from_str::<serde_json::Value>(&s).is_ok());
+
+        let s = fix_json_control_chars("{\"a\": \n \"bc\"}");
+        assert!(serde_json::from_str::<serde_json::Value>(&s).is_ok());
+
+        let s = fix_json_control_chars("{\"a\": \n \"b\nc\"}");
+        assert!(serde_json::from_str::<serde_json::Value>(&s).is_ok());
+
+        let s = fix_json_control_chars("{\"a\": \"b\tc\"}");
+        assert!(serde_json::from_str::<serde_json::Value>(&s).is_ok());
     }
 }

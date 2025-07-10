@@ -103,6 +103,12 @@ impl MySqlQuery {
                 .map(|row| -> anyhow::Result<String> {
                     let col0 = row.column(0);
                     let col0_type = col0.type_info().name();
+                    if matches!(col0_type, "BINARY" | "VARBINARY") {
+                        let val = row.try_get::<Option<&[u8]>, _>(0)?;
+                        return Ok(val
+                            .and_then(|s| String::from_utf8(s.to_vec()).ok())
+                            .unwrap_or_else(|| "null".to_string()));
+                    }
                     let col0_value = generate_json_value(row, col0_type, 0, "".to_string())?;
                     Ok(col0_value.as_str().unwrap().to_string())
                 })
