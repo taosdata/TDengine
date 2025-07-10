@@ -143,7 +143,7 @@ class ForecastTest(unittest.TestCase):
         "start_ts": 171000000,
         "time_step": 86400 * 30,
         "seasonality_mode": "additive",
-        "changepoint_prior_scale": 0.2,
+        "changepoint_prior_scale": 0.05,
         })
         r = s.execute()
 

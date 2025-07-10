@@ -16,7 +16,7 @@ class Configure:
         self._log_path = 'taosanode.app.log'
         self._log_level = logging.INFO
         self._model_directory = '/var/lib/taos/taosanode/model/'
-        self._draw_result = 0
+        self._draw_result = 1
 
         self.conf = configparser.ConfigParser()
         self.reload(conf_path)
