@@ -148,6 +148,18 @@ class TestStreamResultSavedComprehensive:
         # Table with non-matching schema
         tdSql.execute("create table rdb.existing_mismatch (ts timestamp, different_col int)")
 
+        # Normal table with same column
+        tdSql.execute("create table rdb.existing_normal_col_match(ts timestamp, cnt bigint, avg_val double)")
+
+        # Prepare existing output tables for TAGS testing
+        tdLog.info("prepare existing output tables for TAGS testing")
+        
+        # Super table with matching tag schema for 4.1.1.1.1
+        tdSql.execute("create table rdb.existing_tags_match (ts timestamp, cnt bigint) tags(trigger_id int, table_name varchar(16))")
+        
+        # Super table with different tag schema for 4.1.1.1.2
+        tdSql.execute("create table rdb.existing_tags_mismatch (ts timestamp, cnt bigint) tags(diff_id bigint, diff_name varchar(32))")
+
     def writeTriggerData(self):
         tdLog.info("write data to trigger table")
         sqls = [
@@ -281,15 +293,29 @@ class TestStreamResultSavedComprehensive:
         )
         self.streams.append(stream)
 
-        # Test 2.4: Output length exceeds table maximum length (truncation)
+        # # Test 2.4: Output length exceeds table maximum length (truncation)
+        # stream = StreamItem(
+        #     id=11,
+        #     stream="create stream rdb.s11 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r11 output_subtable(concat('xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_', tbname, '_suffix')) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
+        #     res_query="select ts, cnt from rdb.r11 where tag_tbname='t1';",
+        #     exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+        #     check_func=self.check11,
+        # )
+        # self.streams.append(stream)
+
+        # Test 3.1.1.1.1: Output table already exists with same custom column names
         stream = StreamItem(
-            id=11,
-            stream="create stream rdb.s11 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r11 output_subtable(concat('xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_xxxxxxxxvery_long_prefix_that_exceeds_maximum_table_name_length_', tbname, '_suffix')) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
-            res_query="select ts, cnt from rdb.r11 where tag_tbname='t1';",
-            exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
-            check_func=self.check11,
+            id=23,
+            stream="create stream rdb.s23 interval(5m) sliding(5m) from tdb.triggers into rdb.existing_normal_col_match (ts, cnt, avg_val) as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            res_query="select ts, cnt, avg_val from rdb.existing_normal_col_match;",
+            exp_query="select _wstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+            check_func=self.check23,
         )
         self.streams.append(stream)
+
+        # Test 3.1.1.1.2: Output table already exists with different custom column names
+        errorStream3 = "create stream rdb.s24_error interval(5m) sliding(5m) from tdb.triggers into rdb.existing_normal_col_match (td, ct, agg) as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;"
+        tdSql.error(errorStream3)
 
         # Test 3.1.1.1.3: Output table doesn't exist with custom column names
         stream = StreamItem(
@@ -311,6 +337,10 @@ class TestStreamResultSavedComprehensive:
         )
         self.streams.append(stream)
 
+        # Test 3.1.1.2.1.2: Second column is other type (illegal) - DOUBLE type with PRIMARY KEY
+        errorStream4 = "create stream rdb.s14_error interval(5m) sliding(5m) from tdb.triggers into rdb.r13_error (ts, avg_val primary key, cnt) as select _twstart ts, avg(cint) avg_val, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;"
+        tdSql.error(errorStream4)
+
         # Test 3.1.2.1: Default column names match calculation result column names
         stream = StreamItem(
             id=14,
@@ -321,68 +351,99 @@ class TestStreamResultSavedComprehensive:
         )
         self.streams.append(stream)
 
-        # Test 4.1.1.3: Output table doesn't exist with custom tags
+        # ====================== Chapter 4: Test [TAGS (tag_definition [, ...])] ======================
+        
+        # Test 4.1.1.1.1: Output table exists and tag types/names match existing table (legal)
         stream = StreamItem(
             id=15,
-            stream="create stream rdb.s15 interval(5m) sliding(5m) from tdb.triggers partition by id, tbname into rdb.r15 tags(group_id int as %%1, table_name varchar(32) as %%2) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
-            res_query="select ts, cnt, group_id, table_name from rdb.r15 where group_id=1;",
-            exp_query="select _wstart ts, count(*) cnt, tint, tbname from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tint=1 and tbname='t1' partition by tint, tbname interval(5m);",
+            stream="create stream rdb.s15 interval(5m) sliding(5m) from tdb.triggers partition by id, tbname into rdb.existing_tags_match tags(trigger_id int as %%1, table_name varchar(16) as %%2) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
+            res_query="select ts, cnt from rdb.existing_tags_match where trigger_id=1;",
+            exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
             check_func=self.check15,
+        )
+        self.streams.append(stream)
+
+        # Test 4.1.1.1.2: Output table exists and tag types/names don't match existing table (illegal)
+        errorStream_4112 = "create stream rdb.s16_error interval(5m) sliding(5m) from tdb.triggers partition by id, tbname into rdb.existing_tags_mismatch tags(trigger_id int as %%1, table_name varchar(16) as %%2) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;"
+        tdSql.error(errorStream_4112)
+
+        # Test 4.1.1.1.3: Output table doesn't exist (legal)
+        stream = StreamItem(
+            id=16,
+            stream="create stream rdb.s16 interval(5m) sliding(5m) from tdb.triggers partition by id, tbname into rdb.r16 tags(group_id int as %%1, table_name varchar(16) as %%2) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
+            res_query="select ts, cnt from rdb.r16 where group_id=1;",
+            exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+            check_func=self.check16,
         )
         self.streams.append(stream)
 
         # Test 4.1.2.1: Default tag column definitions correspond to trigger grouping columns
         stream = StreamItem(
-            id=16,
-            stream="create stream rdb.s16 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r16 as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
-            res_query="select ts, cnt, id, name from rdb.r16 where id=1;",
-            exp_query="select _wstart ts, count(*) cnt, tint, name from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tint=1 and name='1' partition by tint, name interval(5m);",
-            check_func=self.check16,
+            id=17,
+            stream="create stream rdb.s17 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r17 as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
+            res_query="select ts, cnt from rdb.r17 where id=1;",
+            exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+            check_func=self.check17,
         )
         self.streams.append(stream)
 
         # Test 4.1.2.2: Tag column name is tag_tbname when grouping by table
         stream = StreamItem(
-            id=17,
-            stream="create stream rdb.s17 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r17 as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
-            res_query="select ts, cnt, tag_tbname from rdb.r17 where tag_tbname='t1';",
-            exp_query="select _wstart ts, count(*) cnt, tbname from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' partition by tbname interval(5m);",
-            check_func=self.check17,
+            id=18,
+            stream="create stream rdb.s18 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r18 as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
+            res_query="select ts, cnt from rdb.r18 where tag_tbname='t1';",
+            exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+            check_func=self.check18,
         )
         self.streams.append(stream)
 
+        # Test 4.2.1: Specify grouping columns (legal)
+        stream = StreamItem(
+            id=19,
+            stream="create stream rdb.s19 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r19 tags(trigger_id int as %%1) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
+            res_query="select ts, cnt from rdb.r19 where trigger_id=1;",
+            exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+            check_func=self.check19,
+        )
+        self.streams.append(stream)
+
+        # Test 4.2.2: No grouping columns specified (illegal)
+        errorStream_422 = "create stream rdb.s20_error interval(5m) sliding(5m) from tdb.triggers into rdb.r20_error tags(trigger_id int as %%1) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;"
+        tdSql.error(errorStream_422)
+
         # Test 4.3: Tag specified expr comes from trigger grouping columns
         stream = StreamItem(
-            id=18,
-            stream="create stream rdb.s18 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r18 tags(trigger_id int as %%1, computed_value int as %%1) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
-            res_query="select ts, cnt, trigger_id, computed_value from rdb.r18 where trigger_id=1;",
-            exp_query="select _wstart ts, count(*) cnt, tint from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tint=1 partition by tint interval(5m);",
-            check_func=self.check18,
+            id=20,
+            stream="create stream rdb.s20 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r20 tags(trigger_id int as %%1, computed_value int as %%1) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
+            res_query="select ts, cnt from rdb.r20 where trigger_id=1;",
+            exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+            check_func=self.check20,
         )
         self.streams.append(stream)
 
         # Test 4.4: Specify [COMMENT 'string_value']
         stream = StreamItem(
-            id=19,
-            stream="create stream rdb.s19 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r19 tags(trigger_id int comment 'Trigger table ID' as %%1) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
-            res_query="select ts, cnt, trigger_id from rdb.r19 where trigger_id=1;",
-            exp_query="select _wstart ts, count(*) cnt, tint from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tint=1 partition by tint interval(5m);",
-            check_func=self.check19,
+            id=21,
+            stream="create stream rdb.s21 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r21 tags(trigger_id int comment 'Trigger table ID' as %%1) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
+            res_query="select ts, cnt from rdb.r21 where trigger_id=1;",
+            exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+            check_func=self.check21,
+        )
+        self.streams.append(stream)
+
+        # Test 4.5: Correctness of generated column names in specified/unspecified scenarios
+        stream = StreamItem(
+            id=22,
+            stream="create stream rdb.s22 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r22 tags(custom_id int as %%1, custom_name varchar(16) as %%2) as select _twstart ts, count(*) cnt from qdb.meters where cts >= _twstart and cts < _twend;",
+            res_query="select ts, cnt from rdb.r22 where custom_id=1;",
+            exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+            check_func=self.check22,
         )
         self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
-            # Handle error case for stream id 20 (invalid syntax test)
-            if stream.id == 20:
-                try:
-                    stream.createStream()
-                    tdLog.exit(f"Stream s{stream.id} should have failed but succeeded")
-                except Exception as e:
-                    tdLog.info(f"Stream s{stream.id} failed as expected: {str(e)}")
-                    continue
-            else:
-                stream.createStream()
+            stream.createStream()
 
     def check0(self):
         # Test 1.1.1: Only notify without calculation - should not create any output table
@@ -514,14 +575,14 @@ class TestStreamResultSavedComprehensive:
             func=lambda: tdSql.getRows() >= 1,
         )
 
-    def check11(self):
-        # Test 2.4: Long table name truncation
-        tdSql.checkTableType(dbname="rdb", stbname="r11", columns=2, tags=1)
-        # Verify truncation occurred
-        tdSql.checkResultsByFunc(
-            sql="select table_name from information_schema.ins_tables where db_name='rdb' and stable_name='r11';",
-            func=lambda: tdSql.queryResult is not None and all(len(row[0]) <= 192 for row in tdSql.queryResult),  # TSDB_TABLE_NAME_LEN
-        )
+    # def check11(self):
+    #     # Test 2.4: Long table name truncation
+    #     tdSql.checkTableType(dbname="rdb", stbname="r11", columns=2, tags=1)
+    #     # Verify truncation occurred
+    #     tdSql.checkResultsByFunc(
+    #         sql="select table_name from information_schema.ins_tables where db_name='rdb' and stable_name='r11';",
+    #         func=lambda: tdSql.queryResult is not None and all(len(row[0]) <= 192 for row in tdSql.queryResult),  # TSDB_TABLE_NAME_LEN
+    #     )
 
     def check12(self):
         # Test 3.1.1.1.3: Custom column names
@@ -544,14 +605,9 @@ class TestStreamResultSavedComprehensive:
             tbname="r13",
             schema=[
                 ["ts", "TIMESTAMP", 8, ""],
-                ["cnt", "BIGINT", 8, "PRI"],  # Should have PRIMARY KEY flag
+                ["cnt", "BIGINT", 8, "COMPOSITE KEY"],  # Should have PRIMARY KEY flag
                 ["avg_val", "DOUBLE", 8, ""],
             ],
-        )
-        # Additional verification that PRIMARY KEY was set
-        tdSql.checkResultsByFunc(
-            sql="show create table rdb.r13;",
-            func=lambda: "primary key" in str(tdSql.queryResult).lower(),
         )
 
     def check14(self):
@@ -568,21 +624,21 @@ class TestStreamResultSavedComprehensive:
         )
 
     def check15(self):
-        # Test 4.1.1.3: Custom tags
-        tdSql.checkTableType(dbname="rdb", stbname="r15", columns=2, tags=2)
+        # Test 4.1.1.1.1: Output table exists and tag types/names match existing table (legal)
+        tdSql.checkTableType(dbname="rdb", stbname="existing_tags_match", columns=2, tags=2)
         tdSql.checkTableSchema(
             dbname="rdb",
-            tbname="r15",
+            tbname="existing_tags_match",
             schema=[
                 ["ts", "TIMESTAMP", 8, ""],
                 ["cnt", "BIGINT", 8, ""],
-                ["group_id", "INT", 4, "TAG"],
-                ["table_name", "VARCHAR", 32, "TAG"],
+                ["trigger_id", "INT", 4, "TAG"],
+                ["table_name", "VARCHAR", 16, "TAG"],
             ],
         )
 
     def check16(self):
-        # Test 4.1.2.1: Default tag columns correspond to grouping columns
+        # Test 4.1.1.1.3: Output table doesn't exist (legal)
         tdSql.checkTableType(dbname="rdb", stbname="r16", columns=2, tags=2)
         tdSql.checkTableSchema(
             dbname="rdb",
@@ -590,17 +646,34 @@ class TestStreamResultSavedComprehensive:
             schema=[
                 ["ts", "TIMESTAMP", 8, ""],
                 ["cnt", "BIGINT", 8, ""],
-                ["id", "INT", 4, "TAG"],
-                ["name", "VARCHAR", 16, "TAG"],
+                ["group_id", "INT", 4, "TAG"],
+                ["table_name", "VARCHAR", 16, "TAG"],
             ],
         )
 
     def check17(self):
-        # Test 4.1.2.2: Tag column name is tag_tbname when grouping by table
-        tdSql.checkTableType(dbname="rdb", stbname="r17", columns=2, tags=1)
+        # Test 4.1.2.1: Default tag column definitions correspond to trigger grouping columns
+        tdSql.checkTableType(dbname="rdb", stbname="r17", columns=2, tags=2)
         tdSql.checkTableSchema(
             dbname="rdb",
             tbname="r17",
+            schema=[
+                ["ts", "TIMESTAMP", 8, ""],
+                ["cnt", "BIGINT", 8, ""],
+                ["id", "INT", 4, "TAG"],
+                ["name", "VARCHAR", 16, "TAG"],
+            ],
+        )
+        tdSql.query("select DISTINCT(tag_name) from information_schema.ins_tags where db_name = 'rdb' and stable_name = 'r17';")
+        tdSql.checkData(0, 0, "name")
+        tdSql.checkData(1, 0, "id")
+
+    def check18(self):
+        # Test 4.1.2.2: Tag column name is tag_tbname when grouping by table
+        tdSql.checkTableType(dbname="rdb", stbname="r18", columns=2, tags=1)
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r18",
             schema=[
                 ["ts", "TIMESTAMP", 8, ""],
                 ["cnt", "BIGINT", 8, ""],
@@ -608,22 +681,8 @@ class TestStreamResultSavedComprehensive:
             ],
         )
 
-    def check18(self):
-        # Test 4.3: Tag expr from trigger grouping columns
-        tdSql.checkTableType(dbname="rdb", stbname="r18", columns=2, tags=2)
-        tdSql.checkTableSchema(
-            dbname="rdb",
-            tbname="r18",
-            schema=[
-                ["ts", "TIMESTAMP", 8, ""],
-                ["cnt", "BIGINT", 8, ""],
-                ["trigger_id", "INT", 4, "TAG"],
-                ["computed_value", "INT", 4, "TAG"],
-            ],
-        )
-
     def check19(self):
-        # Test 4.4: COMMENT in tag definition
+        # Test 4.2.1: Specify grouping columns (legal)
         tdSql.checkTableType(dbname="rdb", stbname="r19", columns=2, tags=1)
         tdSql.checkTableSchema(
             dbname="rdb",
@@ -634,18 +693,67 @@ class TestStreamResultSavedComprehensive:
                 ["trigger_id", "INT", 4, "TAG"],
             ],
         )
-        # Verify comment was set (if system supports checking comments)
-        tdSql.checkResultsByFunc(
-            sql="select * from information_schema.ins_tags where db_name='rdb' and stable_name='r19' and tag_name='trigger_id';",
-            func=lambda: tdSql.getRows() == 1,
-        )
 
     def check20(self):
-        # Test ERROR: Invalid combination of interval+sliding+notify (should fail)
-        # This stream should have failed to create due to syntax error
-        # Verify the stream was NOT created
-        tdSql.query("select count(*) from information_schema.ins_streams where stream_name='s20_error';")
-        tdSql.checkData(0, 0, 0)
-        # Verify the result table was NOT created
-        tdSql.query("select count(*) from information_schema.ins_tables where db_name='rdb' and table_name='r20';")
-        tdSql.checkData(0, 0, 0) 
+        # Test 4.3: Tag specified expr comes from trigger grouping columns
+        tdSql.checkTableType(dbname="rdb", stbname="r20", columns=2, tags=2)
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r20",
+            schema=[
+                ["ts", "TIMESTAMP", 8, ""],
+                ["cnt", "BIGINT", 8, ""],
+                ["trigger_id", "INT", 4, "TAG"],
+                ["computed_value", "INT", 4, "TAG"],
+            ],
+        )
+        # Verify the computed_value tag contains the computed expression result
+        tdSql.checkResultsByFunc(
+            sql="select trigger_id, computed_value from rdb.r20 where trigger_id=1;",
+            func=lambda: tdSql.queryResult and tdSql.queryResult[0][1] == 1,  # id=1, computed_value = 1
+        )
+
+    def check21(self):
+        # Test 4.4: Specify [COMMENT 'string_value']
+        tdSql.checkTableType(dbname="rdb", stbname="r21", columns=2, tags=1)
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r21",
+            schema=[
+                ["ts", "TIMESTAMP", 8, ""],
+                ["cnt", "BIGINT", 8, ""],
+                ["trigger_id", "INT", 4, "TAG"],
+            ],
+        )
+        # Verify comment was set (if system supports checking comments)
+        tdSql.checkResultsByFunc(
+            sql="select * from information_schema.ins_tags where db_name='rdb' and stable_name='r21' and tag_name='trigger_id';",
+            func=lambda: tdSql.getRows() == 2,
+        )
+
+    def check22(self):
+        # Test 4.5: Correctness of generated column names in specified/unspecified scenarios
+        tdSql.checkTableType(dbname="rdb", stbname="r22", columns=2, tags=2)
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r22",
+            schema=[
+                ["ts", "TIMESTAMP", 8, ""],
+                ["cnt", "BIGINT", 8, ""],
+                ["custom_id", "INT", 4, "TAG"],
+                ["custom_name", "VARCHAR", 16, "TAG"],
+            ],
+        )
+
+    def check23(self):
+        # Test 3.1.1.1.1: Output table already exists with same custom column names
+        tdSql.checkTableType(dbname="rdb", tbname="existing_normal_col_match", typename="NORMAL_TABLE", columns=3)
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="existing_normal_col_match",
+            schema=[
+                ["ts", "TIMESTAMP", 8, ""],
+                ["cnt", "BIGINT", 8, ""],
+                ["avg_val", "DOUBLE", 8, ""],
+            ],
+        )

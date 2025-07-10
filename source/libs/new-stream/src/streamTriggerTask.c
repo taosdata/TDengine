@@ -4338,7 +4338,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         }
 
         if (needMoreMeta) {
-          pContext->curReaderIdx++;
+          pContext->curReaderIdx = (pContext->curReaderIdx + 1) % taosArrayGetSize(pTask->readerList);
           code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_META);
           QUERY_CHECK_CODE(code, lino, _end);
           goto _end;
@@ -6189,6 +6189,10 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->watermark = pMsg->watermark;
   pTask->expiredTime = pMsg->expiredTime;
   pTask->ignoreDisorder = pMsg->igDisorder;
+  if ((pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval == 0) ||
+      pTask->triggerType == STREAM_TRIGGER_COUNT) {
+    pTask->ignoreDisorder = true; // sliding trigger and count window trigger has no recalculation
+  }
   pTask->fillHistory = pMsg->fillHistory;
   pTask->fillHistoryFirst = pMsg->fillHistoryFirst;
   pTask->lowLatencyCalc = pMsg->lowLatencyCalc;
