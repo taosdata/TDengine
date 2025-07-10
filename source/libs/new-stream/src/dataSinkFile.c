@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include "dataSink.h"
 #include "freeBlockMgr.h"
+#include "osAtomic.h"
 #include "osFile.h"
 #include "osMemory.h"
 #include "osTime.h"
@@ -109,9 +110,11 @@ static int32_t openFileForWrite(SDataSinkFileMgr* pFileMgr) {
       stError("open file %s failed, err: %s", pFileMgr->fileName, terrMsg);
       return terrno;
     }
-    void* prevPtr = atomic_exchange_ptr(&pFileMgr->writeFilePtr, newPtr);
-    if (prevPtr != NULL) {
-      taosCloseFile(newPtr);
+
+    void* oldPtr = atomic_val_compare_exchange_ptr(&pFileMgr->writeFilePtr, NULL, newPtr);
+    if (oldPtr != NULL) {
+      TdFilePtr fileToClose = (TdFilePtr)newPtr;
+      taosCloseFile(&fileToClose);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -126,9 +129,11 @@ static int32_t openFileForRead(SDataSinkFileMgr* pFileMgr) {
       stError("open file %s failed, err: %s", pFileMgr->fileName, terrMsg);
       return terrno;
     }
-    void* prevPtr = atomic_exchange_ptr(&pFileMgr->readFilePtr, newPtr);
-    if (prevPtr != NULL) {
-      taosCloseFile(newPtr);
+
+    void* oldPtr = atomic_val_compare_exchange_ptr(&pFileMgr->readFilePtr, NULL, newPtr);
+    if (oldPtr != NULL) {
+      TdFilePtr fileToClose = (TdFilePtr)newPtr;
+      taosCloseFile(&fileToClose);
     }
   }
   return TSDB_CODE_SUCCESS;

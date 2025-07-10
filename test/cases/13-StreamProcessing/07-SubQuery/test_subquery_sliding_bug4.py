@@ -69,8 +69,8 @@ class TestStreamDevBasic:
     def prepareTriggerTable(self):
         tdLog.info("prepare tables for trigger")
 
-        stb = "create table tdb.triggers (ts timestamp, c1 int, c2 int) tags(id int);"
-        ctb = "create table tdb.t1 using tdb.triggers tags(1) tdb.t2 using tdb.triggers tags(2) tdb.t3 using tdb.triggers tags(3)"
+        stb = "create table tdb.triggers (ts timestamp, c1 int, c2 int) tags(id int, name varchar(16));"
+        ctb = "create table tdb.t1 using tdb.triggers tags(1, '1') tdb.t2 using tdb.triggers tags(2, '2') tdb.t3 using tdb.triggers tags(3, '3')"
         tdSql.execute(stb)
         tdSql.execute(ctb)
 
@@ -106,13 +106,12 @@ class TestStreamDevBasic:
     def createStreams(self):
         self.streams = []
 
-
         stream = StreamItem(
-            id=89,
-            stream="create stream rdb.s89 interval(5m) sliding(5m) from tdb.v1 into rdb.r89 as select _twstart tw, _c0 ta, _rowts tb, c1, c2, rand() c3 from %%trows where _c0 >= _twstart and _c0 < _twend order by _c0 limit 1",
-            res_query="select tw, ta, tb, c1, c2 from rdb.r89 limit 3",
-            exp_query="select _c0,  _c0, _rowts, c1, c2 from tdb.v1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:15:00.000' order by _c0 limit 3;",
-            check_func=self.check89,
+            id=102,
+            stream="create stream rdb.s102 interval(5m) sliding(5m) from tdb.t1 into rdb.r102 as select last(ts), cols(last(ts), c1, c2), count(1) from %%trows",
+            res_query="select * from rdb.r102 limit 3",
+            exp_query="select last(ts), cols(last(ts), c1, c2), count(1) from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:15:00.000' interval(5m);",
+            check_func=self.check102,
         )
         self.streams.append(stream)
 
@@ -120,12 +119,7 @@ class TestStreamDevBasic:
         for stream in self.streams:
             stream.createStream()
 
-    def check89(self):
+    def check102(self):
         tdSql.checkResultsByFunc(
-            sql="select tw, ta, tb, c1, c2 from rdb.r89;",
-            func=lambda: tdSql.getRows() == 4
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
-            and tdSql.compareData(1, 0, "2025-01-01 00:05:00.000")
-            and tdSql.compareData(2, 0, "2025-01-01 00:10:00.000")
-            and tdSql.compareData(3, 0, "2025-01-01 00:30:00.000")
+            sql="select * from rdb.r102", func=lambda: tdSql.getRows() == 4
         )

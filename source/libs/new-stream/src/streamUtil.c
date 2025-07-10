@@ -466,6 +466,7 @@ _end:
 
 int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent, const SArray* pFields) {
   int32_t code = 0, lino = 0;
+  cJSON*  pContent = NULL;
   cJSON*  pResult = NULL;
   cJSON*  pRow = NULL;
   pResult = cJSON_CreateObject();
@@ -516,12 +517,17 @@ int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** pp
     TSDB_CHECK_CONDITION(cJSON_AddItemToArray(pArr, pRow), code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
     pRow = NULL;
   }
-  *ppContent = cJSON_PrintUnformatted(pResult);
+  pContent = cJSON_CreateObject();
+  QUERY_CHECK_NULL(pContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  JSON_CHECK_ADD_ITEM(pContent, "result", pResult);
+  pResult = NULL;
+  *ppContent = cJSON_PrintUnformatted(pContent);
   QUERY_CHECK_NULL(*ppContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
 _end:
   if (pRow) cJSON_Delete(pRow);
   if (pResult) cJSON_Delete(pResult);
+  if (pContent) cJSON_Delete(pContent);
   if (code) {
     stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -588,12 +594,12 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   char*   temp = NULL;
 
   const char* eventType = NULL;
-  if (STREAM_TRIGGER_SLIDING == triggerType) {
-    eventType = "SLIDING";
-  } else if (pParam->notifyType == STRIGGER_EVENT_WINDOW_OPEN) {
+  if (pParam->notifyType == STRIGGER_EVENT_WINDOW_OPEN) {
     eventType = "WINDOW_OPEN";
   } else if (pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) {
     eventType = "WINDOW_CLOSE";
+  } else if (pParam->notifyType == STRIGGER_EVENT_ON_TIME) {
+    eventType = "ON_TIME";
   }
 
   uint64_t ar[] = {groupId, pParam->wstart};
@@ -607,7 +613,7 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
       windowType = "Period";
       break;
     case STREAM_TRIGGER_SLIDING:
-      windowType = "Time";
+      windowType = (pParam->notifyType == STRIGGER_EVENT_ON_TIME) ? "Sliding" : "Time";
       break;
     case STREAM_TRIGGER_SESSION:
       windowType = "Session";

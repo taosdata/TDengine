@@ -362,27 +362,6 @@ static SNode* createVtbFirstCol(SVirtualTableNode* pTable, const SSchema* pSchem
   return (SNode*)pCol;
 }
 
-static SNode* createVtbFirstTag(SVirtualTableNode* pTable, const SSchema* pSchema) {
-  SColumnNode* pCol = NULL;
-  terrno = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
-  if (NULL == pCol) {
-    return NULL;
-  }
-  pCol->node.resType.type = pSchema->type;
-  pCol->node.resType.bytes = pSchema->bytes;
-  pCol->tableId = pTable->pMeta->uid;
-  pCol->colId = pSchema->colId;
-  pCol->colType = COLUMN_TYPE_TAG;
-  tstrncpy(pCol->tableAlias, pTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
-  tstrncpy(pCol->tableName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
-  pCol->isPk = false;
-  pCol->tableHasPk = false;
-  pCol->numOfPKs = 0;
-  pCol->isPrimTs = false;
-  tstrncpy(pCol->colName, pSchema->name, TSDB_COL_NAME_LEN);
-  return (SNode*)pCol;
-}
-
 static int32_t addVtbPrimaryTsCol(SVirtualTableNode* pTable, SNodeList** pCols) {
   bool     found = false;
   SNode*   pCol = NULL;
@@ -459,22 +438,6 @@ static int32_t addDefaultScanCol(SRealTableNode* pTable, SNodeList** pCols) {
     code = addPrimaryKeyCol(pTable, pCols);
   }
   return code;
-}
-
-static int32_t addDefaultTagCol(SVirtualTableNode* pTable, SNodeList** pCols) {
-  bool   found = false;
-  SNode* pTag = NULL;
-  FOREACH(pTag, *pCols) {
-    if (((SColumnNode*)pTag)->colType == COLUMN_TYPE_TAG) {
-      found = true;
-      break;
-    }
-  }
-
-  if (!found) {
-    return nodesListMakeStrictAppend(pCols, createVtbFirstTag(pTable, &pTable->pMeta->schema[pTable->pMeta->tableInfo.numOfColumns]));
-  }
-  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealTable, bool hasRepeatScanFuncs,
@@ -1279,9 +1242,6 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
 
   PLAN_ERR_JRET(rewriteExprsForSelect(pVtableScan->pScanPseudoCols, pSelect, SQL_CLAUSE_FROM, NULL));
 
-  if (LIST_LENGTH(pVtableScan->pScanPseudoCols) != 0) {
-    addDefaultTagCol(pVirtualTable, &pVtableScan->pScanPseudoCols);
-  }
   switch (pVtableScan->tableType) {
     case TSDB_SUPER_TABLE:
       PLAN_ERR_JRET(createVirtualSuperTableLogicNode(pCxt, pSelect, pVirtualTable, pVtableScan, pLogicNode));
@@ -1719,9 +1679,19 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
   int32_t code = TSDB_CODE_SUCCESS;
   // no agg func
   if (!pSelect->hasAggFuncs) {
-    PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
-    PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_WINDOW, NULL));
-    PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
+    if (pSelect->hasIndefiniteRowsFunc) {
+      nodesDestroyList(pWindow->pFuncs);
+      pWindow->pFuncs = NULL;
+      PLAN_ERR_RET(nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL, fmIsVectorFunc, &pWindow->pFuncs));
+      PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW, NULL));
+      PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets));
+      pWindow->indefRowsFunc = true;
+      pSelect->hasIndefiniteRowsFunc = false;
+    } else {
+      PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
+      PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_WINDOW, NULL));
+      PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
+    }
   } else {
     // has agg func, collect again with placeholder func
     nodesDestroyList(pWindow->pFuncs);
@@ -1975,7 +1945,7 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
 
   if (pWindow->pTspk == NULL) {
     nodesDestroyNode((SNode*)pWindow);
-    planError("External window can not find timestamp column");
+    planError("External window can not find pk column, listSize:%d", pCxt->pCurrRoot->pTargets->length);
     // TODO(smj): proper error code;
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
