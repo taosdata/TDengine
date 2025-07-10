@@ -157,9 +157,7 @@ bool compareBlockRow(SSDataBlock* b1, SSDataBlock* b2, int32_t row1, int32_t row
 }
 
 TEST(dataSinkTest, fileInit) {
-  int32_t code = initStreamDataSinkOnce();
-  ASSERT_EQ(code, 0);
-  code = initStreamDataSinkOnce();
+  int32_t code = initStreamDataSink();
   ASSERT_EQ(code, 0);
   destroyDataSinkMgr();
 }
@@ -813,7 +811,7 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
 
 TEST(dataSinkTest, testWriteFileSize) {
   SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
-  setDataSinkMaxMemSize(gMemReservedSize + 1024 * 1024);
+  setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1024 * 1024);
   int64_t streamId = 3;
   void*   pCache = NULL;
   int64_t taskId = 1;
@@ -880,7 +878,7 @@ TEST(dataSinkTest, multiThreadGet) {
 
   int32_t groups[100] = {0};
   // Initialize data cache
-  setDataSinkMaxMemSize(gMemReservedSize + 1024 * 1024);
+  setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1024 * 1024);
   int64_t streamId = 100;
   int64_t taskId = 100;
   int32_t cleanMode = DATA_CLEAN_EXPIRED;

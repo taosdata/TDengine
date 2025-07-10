@@ -1054,8 +1054,6 @@ static int32_t getExprTSValue(SScalarCtx *ctx, SNode *pNode, int64_t *tsValue) {
     SValueNode *valueNode = (SValueNode *)pNode;
     if (IS_INTEGER_TYPE(valueNode->node.resType.type)) {
       *tsValue = valueNode->datum.i;
-    } else if (valueNode->node.resType.type == TSDB_DATA_TYPE_SMALLINT) {
-      *tsValue = (int64_t)valueNode->datum.i;
     } else {
       sclError("invalid type for ts range expr, type:%d, node:%p", valueNode->node.resType.type, pNode);
       return TSDB_CODE_QRY_INVALID_INPUT;
@@ -1080,7 +1078,7 @@ static int32_t calcStreamTimeRangeForPseudoCols(SScalarCtx *ctx, SStreamTSRangeP
   int64_t timeValue = 0;
 
   if (isTimeStampCol(node->pRight)) {
-    code = getExprTSValue(ctx, node->pRight, &timeValue);
+    code = getExprTSValue(ctx, node->pLeft, &timeValue);
   } else if (isTimeStampCol(node->pLeft)) {
     code = getExprTSValue(ctx, node->pRight, &timeValue);
 

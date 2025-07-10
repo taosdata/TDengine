@@ -51,12 +51,11 @@
 extern "C" {
 #endif
 
-extern int64_t gDSFileBlockDefaultSize;
-extern int64_t gDSMaxMemSizeDefault;
-extern int64_t gMemReservedSizeForWrite;
-extern int64_t gMemReservedSize;
-extern int64_t gMemAlertSize;
-extern int64_t gMemAlertQuitSize;
+#define DS_MEM_SIZE_RESERVED_FOR_WIRTE (20 * 1024 * 1024)
+#define DS_MEM_SIZE_RESERVED (30 * 1024 * 1024)
+#define DS_MEM_SIZE_ALTER_QUIT (300 * 1024 * 1024)
+#define DS_FILE_BLOCK_SIZE (10 * 1024 * 1024)
+
 
 typedef enum {
   DATA_SAVEMODE_BLOCK = 1,
@@ -89,7 +88,8 @@ typedef enum {
 } SCleanMode;
 
 typedef struct SDataSinkManager2 {
-  int8_t    status;  // 0 - init, 1 - running
+  int64_t   memBufSize;
+  int64_t   memAlterSize;
   int64_t   usedMemSize;
   int64_t   fileBlockSize;
   int64_t   readDataFromFileTimes;
@@ -277,7 +277,7 @@ void setDataSinkMaxMemSize(int64_t maxMemSize);
 //----------------- 以下函数 DataSink 内部调用，不提供于其他模块   -----------------//
 //----------------- **************************************   -----------------//
 int32_t initDataSinkFileDir();
-int32_t initStreamDataSinkOnce();
+int32_t initStreamDataSink();
 int32_t checkAndMoveMemCache(bool forWrite);
 int32_t moveSlidingTaskMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr);
 bool    hasEnoughMemSize();
