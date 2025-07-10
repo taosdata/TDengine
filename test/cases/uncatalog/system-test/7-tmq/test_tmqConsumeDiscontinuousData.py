@@ -1,6 +1,6 @@
 
 import time
-import datetime
+from datetime import datetime
 import threading
 from taos.tmq import Consumer
 import platform
@@ -34,7 +34,7 @@ class TestCase:
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            projPath = selfPath[:selfPath.find("test")]
 
         paths = []
         for root, dirs, files in os.walk(projPath):

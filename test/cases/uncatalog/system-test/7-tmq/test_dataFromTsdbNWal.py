@@ -230,7 +230,7 @@ class TestCase:
 
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
-    def test_datafromtsdb_multictb(self):
+    def test_datafromtsdb(self):
         """summary: xxx
 
         description: xxx

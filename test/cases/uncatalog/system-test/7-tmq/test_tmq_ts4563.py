@@ -1,11 +1,7 @@
 
 import taos
-import sys
-import time
-import socket
 import os
-import threading
-import datetime
+from  datetime import datetime
 
 from new_test_framework.utils import tdLog, tdSql, tdCom
 from taos.tmq import *
@@ -63,7 +59,7 @@ class TestCase:
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            projPath = selfPath[:selfPath.find("test")]
 
         for root, dirs, files in os.walk(projPath):
             if ("taosd" in files or "taosd.exe" in files):

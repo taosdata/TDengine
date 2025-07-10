@@ -1484,6 +1484,117 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_drop.py
 #failed,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/1-insert/test_drop.py -N 3 -M 3 -i False -n 3
 
+### 7-tmq
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqShow.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropStb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb0.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb1.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb3.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb0.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_ins_topics_test.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqMaxTopic.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqParamsTest.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqParamsTest.py -R
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqMaxGroupIds.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsumeDiscontinuousData.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqOffset.py
+#,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_primary_key.py
+,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqDropConsumer.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_create_wrong_topic.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dropDbR3ConflictTransaction.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_basic5.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_ts_4674.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_td_30270.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb1.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb2.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb3.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb4.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb4.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_db.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqError.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_schema.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_stbFilterWhere.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_stbFilter.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqCheckData.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqCheckData1.py
+#,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsumerGroup.py
+,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqConsumerGroup.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqAlterSchema.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_mutilVg.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_mutilVg.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_1ctb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_1ctb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_1ctb_funcNFilter.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_mutilVg_mutilCtb_funcNFilter.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_mutilVg_mutilCtb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_1ctb_funcNFilter.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_mutilVg_mutilCtb_funcNFilter.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_mutilVg_mutilCtb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqAutoCreateTbl.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDnodeRestart.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDnodeRestart1.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUpdate_1ctb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUpdateWithConsume.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUpdate_multiCtb_snapshot0.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUpdate_multiCtb_snapshot1.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDelete_1ctb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDelete_multiCtb.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropStbCtb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropNtb_snapshot0.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropNtb_snapshot1.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_stbTagFilter_1ctb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dataFromTsdbNWal.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dataFromTsdbNWal_multiCtb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_taosx.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts5466.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td33504.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts6392.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts5906.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_td_32187.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_td_33225.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts4563.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td32526.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_td32471.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_ts6115.py
+,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmq_tx484.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_replay.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqSeekAndCommit.py
+,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmq_offset.py
+,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqDataPrecisionUnit.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_raw_block_interface_test.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_stbTagFilter_multiCtb.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqSubscribeStb_r3.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq3mnodeSwitch.py -N 6 -M 3 -I True
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq3mnodeSwitch.py -N 6 -M 3 -n 3 -I True
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_db_removewal.py -N 2 -n 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_stb_removewal.py -N 6 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_stb.py -N 2 -n 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_stb.py -N 6 -n 3
+#,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_db.py -N 6 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select.py -N 2 -n 1
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select_duplicatedata.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select_duplicatedata_false.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_ntb_select.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select_false.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_false.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_column.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_column_false.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_db.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_db_false.py -N 3 -n 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_walRemoveLog.py -N 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeReplicate.py -M 3 -N 3 -n 3
 
 ### 99-TDcase
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/99-TDcase/test_TD_19201.py

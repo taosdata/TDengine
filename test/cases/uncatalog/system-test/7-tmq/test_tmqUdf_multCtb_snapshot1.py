@@ -24,7 +24,7 @@ class TestCase:
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            projPath = selfPath[:selfPath.find("test")]
         print(projPath)
 
         if platform.system().lower() == 'windows':

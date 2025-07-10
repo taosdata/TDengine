@@ -13,7 +13,6 @@ class TestCase:
         cls.db_name = "tmq_db"
         cls.topic_name = "tmq_topic"
         cls.stable_name = "tmqst"
-        cls.prepareData()
         
 
     def prepareData(self):
@@ -203,6 +202,7 @@ class TestCase:
         - xxx
 
         """
+        self.prepareData()
         self.check_seek_and_committed_position_with_autocommit()
         self.check_commit_by_offset()
 

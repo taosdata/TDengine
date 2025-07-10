@@ -1,6 +1,5 @@
 
 import taos
-import sys
 import time
 import socket
 import os
