@@ -14,6 +14,20 @@ else()
   target_link_libraries(new-stream PRIVATE rocksdb)
 endif()
 
+if(${BUILD_WITH_ROCKSDB})
+  if(TD_LINUX)
+    target_include_directories(
+      new-stream
+      PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
+    )
+    target_link_directories(
+      new-stream
+      PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
+    )
+  endif()
+  add_definitions(-DUSE_ROCKSDB)
+endif(${BUILD_WITH_ROCKSDB})
+
 target_link_libraries(
     new-stream
     PUBLIC tdb tcs

@@ -312,6 +312,8 @@ class TestStreamCheckpoint:
 
     def create_and_check_stream_basic_1(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 1: Pass"""
+        tdLog.info(f"start exec stream {stream_name}")
+        
         tdSql.execute("use db")
         tdSql.execute(
             f"create stream {stream_name} PERIOD(3s) into {dst_table} as select cast(_tlocaltime/1000000 as timestamp) ts, count(*) c from source_table")
@@ -322,9 +324,12 @@ class TestStreamCheckpoint:
 
     def create_and_check_stream_basic_2(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 2: Pass"""
+        tdLog.info(f"start exec stream {stream_name}")
+
         tdSql.execute("use db")
         tdSql.execute(
-            f"create stream {stream_name} PERIOD(10a) into {dst_table} as select cast(_tlocaltime/1000000 as timestamp) ts, count(*) c from source_table")
+            f"create stream {stream_name} PERIOD(10a) into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) ts, count(*) c from source_table")
 
         do_write_data(stream_name, info)
 
@@ -334,10 +339,13 @@ class TestStreamCheckpoint:
     def create_and_check_stream_basic_3(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 3:  Pass """
         tdSql.execute("use db")
+        tdLog.info(f"start exec stream {stream_name}")
+
         tdSql.execute(
-            f"create stream {stream_name} PERIOD(3s) into {dst_table} as select cast(_tlocaltime/1000000 as timestamp) ts, now(), \'abcdefg\', "
+            f"create stream {stream_name} PERIOD(3s) into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) ts, now(), \'abcdefg\', "
             f"top(k, 1) top_k_1, concat('abc', cast(_tlocaltime as varchar(1))) "
-            f"from source_table")
+            f"from source_table ")
 
         do_write_data(stream_name, info)
 
@@ -346,6 +354,8 @@ class TestStreamCheckpoint:
 
     def create_and_check_stream_basic_4(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 4: pass"""
+        tdLog.info(f"start exec stream {stream_name}")
+
         tdSql.execute("use db")
         tdSql.execute(
             f"create stream {stream_name} PERIOD(3s) into {dst_table} as "
@@ -362,6 +372,8 @@ class TestStreamCheckpoint:
 
     def create_and_check_stream_basic_5(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """ simple 5: Pass """
+        tdLog.info(f"start exec stream {stream_name}")
+
         tdSql.execute("use db")
         tdSql.execute(f"create stream {stream_name} PERIOD(3s) into {dst_table} as "
                       f"select cast(_tlocaltime/1000000 as timestamp) ts, _wstart wstart, count(*) k, last(k) c "
@@ -374,8 +386,9 @@ class TestStreamCheckpoint:
 
     def create_and_check_stream_basic_6(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 6: Pass """
+        tdLog.info(f"start exec stream {stream_name}")
         time.sleep(10)
-
+        
         tdSql.execute("use db")
         tdSql.execute(
             f"create stream {stream_name} PERIOD(3s) from source_table partition by tbname, a into {dst_table} as "
@@ -389,6 +402,7 @@ class TestStreamCheckpoint:
 
     def create_and_check_stream_basic_7(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 7: Pass """
+        tdLog.info(f"start exec stream {stream_name}")
         time.sleep(10)
 
         tdSql.execute("use db")
@@ -404,6 +418,9 @@ class TestStreamCheckpoint:
 
     def create_and_check_stream_basic_8(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 8: Pass """
+        tdLog.info(f"start exec stream {stream_name}")
+        time.sleep(10)
+        
         tdSql.execute("use db")
         tdSql.execute(
             f"create stream {stream_name} PERIOD(3s) from source_table partition by tbname into {dst_table} as "
@@ -412,11 +429,13 @@ class TestStreamCheckpoint:
             f"state_window(cast(c1 as int))")
 
         do_write_data(stream_name, info)
-
         wait_for_stream_done(dst_table, f"select max(c) from {dst_table}", info.num_of_rows - 1)
 
     def create_and_check_stream_basic_9(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 9: Pass"""
+        tdLog.info(f"start exec stream {stream_name}")
+        time.sleep(10)
+
         tdSql.execute("use db")
         tdSql.execute(
             f"create stream {stream_name} PERIOD(3s) from source_table partition by tbname into {dst_table} as "
@@ -429,6 +448,9 @@ class TestStreamCheckpoint:
 
     def create_and_check_stream_basic_10(self, stream_name, dst_table, info: WriteDataInfo) -> None:
         """simple 10: invalid results """
+        tdLog.info(f"start exec stream {stream_name}")
+        time.sleep(10)
+
         tdSql.execute("use db")
         tdSql.execute(
             f"create stream {stream_name} PERIOD(3s) from source_table partition by tbname into {dst_table} as "

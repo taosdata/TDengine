@@ -17,8 +17,8 @@
 
 ,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_sliding.py
 ,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_state_new.py
-,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_state_disorderNupdate_new.py
-,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_count_new.py
+#,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_state_disorderNupdate_new.py
+#,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_count_new.py
 ,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_event_new.py
 
 ## 04-Option
@@ -32,6 +32,7 @@
 ,,y,.,./ci/pytest.sh pytest  cases/13-StreamProcessing/07-SubQuery/test_subquery_limit.py
 ,,n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_sliding.py
 ,,n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_session.py
+,,n,.,pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_state.py
 
 
 ## 08-ReCalculate

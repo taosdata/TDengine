@@ -165,16 +165,6 @@ class TestStreamTriggerSliding:
         tdSql.prepare(dbname="db", vgroups=self.num_vgroups)
         clusterComCheck.checkDbReady("db")
 
-    def do_prepare_source_table(self, num_of_tables) -> None:
-        tdLog.info("prepare tables for trigger")
-
-        tdSql.execute("use db")
-
-        stb = "create table if not exists source_table (ts timestamp, k int, c1 varchar(12), c2 double) tags(a int)"
-        tdSql.execute(stb)
-
-        for i in range(num_of_tables):
-            tdSql.execute(f"create table if not exists c{i} using source_table tags({i})")
 
     def prepare_tables(self, num_of_rows, num_of_tables, info: WriteDataInfo) -> None:
         info.num_of_rows, info.num_of_tables = num_of_rows, num_of_tables
@@ -182,7 +172,13 @@ class TestStreamTriggerSliding:
         tdLog.info("write data to source table in other thread")
         
         self.conf = get_conf_dir("taosd")
-        self.do_prepare_source_table(num_of_tables)
+        tdSql.execute("use db")
+
+        stb = "create table if not exists source_table (ts timestamp, k int, c1 varchar(12), c2 double) tags(a int)"
+        tdSql.execute(stb)
+
+        for i in range(num_of_tables):
+            tdSql.execute(f"create table if not exists c{i} using source_table tags({i})")
 
     def do_write_data(self, stream_name:str, info: WriteDataInfo):
         while True:
@@ -218,8 +214,7 @@ class TestStreamTriggerSliding:
 
 
     def create_and_check_stream_basic_1(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 1 Pass.
-        """
+        """simple 1 Pass. """
         tdLog.info(f"start exec stream {stream_name}")
 
         tdSql.execute("use db")
@@ -236,8 +231,7 @@ class TestStreamTriggerSliding:
                           [[10000, 49995000, 4999.5, ], [40000, 799980000, 19999.5, ], [70000, 2449965000, 34999.5, ]])
 
     def create_and_check_stream_basic_2(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 2: pass
-        """
+        """simple 2: pass """
         tdLog.info(f"start exec stream {stream_name}")
 
         tdSql.execute("use db")
