@@ -1190,12 +1190,11 @@ static int32_t stRealtimeGroupMergeSavedWindows(SSTriggerRealtimeGroup *pGroup, 
       code = TRINGBUF_APPEND(&pGroup->winBuf, *pWin);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
-      SSTriggerCalcParam param = {
-          .triggerTime = taosGetTimestampNs(),
-          .wstart = pWin->range.skey,
-          .wend = pWin->range.ekey,
-          .wduration = pWin->range.ekey - pWin->range.skey,
-          .wrownum = pWin->wrownum};
+      SSTriggerCalcParam param = {.triggerTime = taosGetTimestampNs(),
+                                  .wstart = pWin->range.skey,
+                                  .wend = pWin->range.ekey,
+                                  .wduration = pWin->range.ekey - pWin->range.skey,
+                                  .wrownum = pWin->wrownum};
       if (notifyClose) {
         if ((pTask->triggerType == STREAM_TRIGGER_PERIOD) ||
             (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval == 0)) {
@@ -2497,12 +2496,11 @@ static int32_t stHistoryGroupMergeSavedWindows(SSTriggerHistoryGroup *pGroup, in
       code = TRINGBUF_APPEND(&pGroup->winBuf, *pWin);
       QUERY_CHECK_CODE(code, lino, _end);
     } else if ((calcClose || notifyClose)) {
-      SSTriggerCalcParam param = {
-          .triggerTime = taosGetTimestampNs(),
-          .wstart = pWin->range.skey,
-          .wend = pWin->range.ekey,
-          .wduration = pWin->range.ekey - pWin->range.skey,
-          .wrownum = pWin->wrownum};
+      SSTriggerCalcParam param = {.triggerTime = taosGetTimestampNs(),
+                                  .wstart = pWin->range.skey,
+                                  .wend = pWin->range.ekey,
+                                  .wduration = pWin->range.ekey - pWin->range.skey,
+                                  .wrownum = pWin->wrownum};
       if (notifyClose) {
         if ((pTask->triggerType == STREAM_TRIGGER_PERIOD) ||
             (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval == 0)) {
@@ -5995,6 +5993,9 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   SArray    *pVirColIds = NULL;
   SArray    *pTrigSlotids = NULL;
   SArray    *pCalcSlotids = NULL;
+  char      *infoBuf = NULL;
+  int64_t    bufLen = 0;
+  int64_t    bufCap = 1024;
 
   code = stTriggerTaskCollectVirCols(pTask, triggerScanPlan, &pTrigColids, &pTrigSlots);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -6032,6 +6033,14 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   QUERY_CHECK_CONDITION(*(col_id_t *)TARRAY_DATA(pVirColIds) == PRIMARYKEY_TIMESTAMP_COL_ID, code, lino, _end,
                         TSDB_CODE_INVALID_PARA);
 
+  if (stDebugFlag & DEBUG_DEBUG) {
+    infoBuf = taosMemoryMalloc(bufCap);
+    QUERY_CHECK_NULL(infoBuf, code, lino, _end, terrno);
+  }
+
+  if (infoBuf && bufLen < bufCap) {
+    bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "columnId in the datablock: {");
+  }
   // create the data block for virtual table
   int32_t nTotalCols = TARRAY_SIZE(pVirColIds);
   code = createDataBlock(&pTask->pVirDataBlock);
@@ -6057,6 +6066,14 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     col.info.noData = pn->reserve;
     code = blockDataAppendColInfo(pTask->pVirDataBlock, &col);
     QUERY_CHECK_CODE(code, lino, _end);
+    if (infoBuf && bufLen < bufCap) {
+      bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", id);
+    }
+  }
+
+  if (infoBuf && bufLen < bufCap) {
+    infoBuf[bufLen - 1] = '}';
+    bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of trigger data:{");
   }
 
   // get new slot id of trig data block and calc data block
@@ -6068,7 +6085,16 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     QUERY_CHECK_CONDITION(slotid >= 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     void *px = taosArrayPush(pTrigSlotids, &slotid);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    if (infoBuf && bufLen < bufCap) {
+      bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
+    }
   }
+
+  if (infoBuf && bufLen < bufCap) {
+    infoBuf[bufLen - 1] = '}';
+    bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of calc data:{");
+  }
+
   pCalcSlotids = taosArrayInit(nCalcCols, sizeof(int32_t));
   QUERY_CHECK_NULL(pCalcSlotids, code, lino, _end, terrno);
   for (int32_t i = 0; i < nCalcCols; i++) {
@@ -6077,6 +6103,12 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     QUERY_CHECK_CONDITION(slotid >= 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     void *px = taosArrayPush(pCalcSlotids, &slotid);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    if (infoBuf && bufLen < bufCap) {
+      bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
+    }
+  }
+  if (infoBuf && bufLen < bufCap) {
+    infoBuf[bufLen - 1] = '}';
   }
 
   SRewriteSlotidCxt cxt = {
@@ -6104,6 +6136,11 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   pTask->pVirCalcSlots = pCalcSlotids;
   pCalcSlotids = NULL;
 
+  if (infoBuf) {
+    infoBuf[bufCap - 1] = '\0';
+    ST_TASK_DLOG("virtual table info: %s", infoBuf);
+  }
+
 _end:
   if (pTrigColids != NULL) {
     taosArrayDestroy(pTrigColids);
@@ -6125,6 +6162,9 @@ _end:
   }
   if (pCalcSlotids != NULL) {
     taosArrayDestroy(pCalcSlotids);
+  }
+  if (infoBuf != NULL) {
+    taosMemoryFreeClear(infoBuf);
   }
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
