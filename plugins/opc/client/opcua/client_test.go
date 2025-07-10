@@ -493,8 +493,9 @@ func TestGetPointsRegexp(t *testing.T) {
 			},
 			want: []common.Point{
 				{
-					ID:   "ns=2;i=1001",
-					Name: "int32",
+					ID:          "ns=2;i=1001",
+					Name:        "int32",
+					Description: "int32",
 				},
 			},
 			wantErr: assert.NoError,

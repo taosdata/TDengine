@@ -983,10 +983,13 @@ var convertType = map[ua.TypeID]types.ValueType{
 var attributes = []ua.AttributeID{
 	ua.AttributeIDNodeClass,
 	ua.AttributeIDBrowseName,
+	ua.AttributeIDDescription,
 }
+
 var attributeNames = []string{
 	"NodeClass",
 	"BrowseName",
+	"Description",
 }
 
 func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcua.Node, pointRegex, nameRegex, idRegex regexp.Regexp, nsMap map[uint16]struct{}) []*common.Point {
@@ -1023,6 +1026,7 @@ func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcu
 	var result []*common.Point
 	for i := 0; i < len(nodes); i++ {
 		index := i * len(attributes)
+		// node class
 		err = res.Results[index].Status
 		if !errors.Is(err, ua.StatusOK) {
 			c.logger.WithError(err).WithField("nodeID", nodes[i].ID.String()).Errorf("get node attribute %s error", attributeNames[0])
@@ -1032,17 +1036,30 @@ func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcu
 		if nodeClass != ua.NodeClassVariable {
 			continue
 		}
+		// Browse Name
 		err = res.Results[index+1].Status
 		if !errors.Is(err, ua.StatusOK) {
 			c.logger.WithError(err).WithField("nodeID", nodes[i].ID.String()).Errorf("get node attribute %s error", attributeNames[1])
 			continue
 		}
 		browseName := res.Results[index+1].Value.String()
-		point := &common.Point{
-			ID:   nodes[i].ID.String(),
-			Name: browseName,
+		// get Description attribute
+		var description string
+		err = res.Results[index+2].Status
+		// ignore get description error, some nodes may not have description
+		if errors.Is(err, ua.StatusOK) {
+			// success
+			description = res.Results[index+2].Value.String()
+		} else if !errors.Is(err, ua.StatusBadAttributeIDInvalid) {
+			// log error if not BadAttributeIDInvalid
+			c.logger.WithError(err).WithField("nodeID", nodes[i].ID.String()).Errorf("get node attribute %s error", attributeNames[2])
 		}
 
+		point := &common.Point{
+			ID:          nodes[i].ID.String(),
+			Name:        browseName,
+			Description: description,
+		}
 		if (pointRegex != nil && !(pointRegex.MatchString(point.Name) || pointRegex.MatchString(point.ID))) ||
 			(nameRegex != nil && !nameRegex.MatchString(point.Name)) ||
 			(idRegex != nil && !idRegex.MatchString(point.ID)) {
@@ -1050,7 +1067,59 @@ func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcu
 		}
 		result = append(result, point)
 	}
+	if len(result) > 0 {
+		if c.isKepServer {
+			// get KepServer point description
+			c.getKepServerDescription(ctx, conn, result)
+		}
+	}
 	return result
+}
+
+func (c *UAClient) getKepServerDescription(ctx context.Context, conn *opcua.Client, result []*common.Point) {
+	// get {point}._Description
+	reqIDList := make([]int, len(result))
+	valueIDs := make([]*ua.ReadValueID, 0, len(result))
+	reqIndex := 0
+	for i := 0; i < len(result); i++ {
+		nodeID := fmt.Sprintf("%s._Description", result[i].ID)
+		descriptionID, err := ua.ParseNodeID(nodeID)
+		if err != nil {
+			c.logger.WithError(err).WithField("node", nodeID).Error("parse node id error")
+			continue
+		}
+		valueID := &ua.ReadValueID{
+			NodeID:      descriptionID,
+			AttributeID: ua.AttributeIDValue,
+		}
+		reqIDList[reqIndex] = i
+		reqIndex++
+		valueIDs = append(valueIDs, valueID)
+	}
+	if len(valueIDs) > 0 {
+		req := &ua.ReadRequest{NodesToRead: valueIDs}
+		res, err := conn.Read(ctx, req)
+		if err != nil {
+			c.logger.WithError(err).Error("get points _Description error")
+			return
+		}
+		if len(res.Results) != reqIndex {
+			c.logger.Error("get points _Description response length not match request length")
+			return
+		}
+		for index := 0; index < len(res.Results); index++ {
+			err = res.Results[index].Status
+			if !errors.Is(err, ua.StatusOK) {
+				c.logger.WithError(err).WithField("nodeID", valueIDs[index].NodeID.String()).Error("get _Description resp status error")
+				continue
+			}
+			descriptionStr := res.Results[index].Value.String()
+			if descriptionStr != "" {
+				resultID := reqIDList[index]
+				result[resultID].Description = descriptionStr
+			}
+		}
+	}
 }
 
 func getChildren(ctx context.Context, n *opcua.Node) ([]*opcua.Node, error) {
