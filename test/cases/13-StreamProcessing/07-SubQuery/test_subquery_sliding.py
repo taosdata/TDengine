@@ -116,7 +116,7 @@ class TestStreamSubquerySliding:
         tdSql.execute(ntb)
 
         vstb = "create stable tdb.vtriggers (ts timestamp, c1 int, c2 int) tags(id int) VIRTUAL 1"
-        vctb = "create vtable tdb.v1 (tdb.t1.c1, tdb.t1.c2) using tdb.vtriggers tags(1)"
+        vctb = "create vtable tdb.v1 (tdb.t1.c1, tdb.t2.c2) using tdb.vtriggers tags(1)"
         tdSql.execute(vstb)
         tdSql.execute(vctb)
 
@@ -1542,6 +1542,21 @@ class TestStreamSubquerySliding:
         tdSql.checkResultsByFunc(
             sql="select * from rdb.r84 where tag_tbname='t1';",
             func=lambda: tdSql.getRows() == 14,
+        )
+
+    def check89(self):
+        tdSql.checkResultsByFunc(
+            sql="select tw, ta, tb, c1, c2 from rdb.r89;",
+            func=lambda: tdSql.getRows() == 5
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(1, 0, "2025-01-01 00:05:00.000")
+            and tdSql.compareData(2, 0, "2025-01-01 00:10:00.000")
+            and tdSql.compareData(3, 0, "2025-01-01 00:15:00.000")
+            and tdSql.compareData(3, 3, None)
+            and tdSql.compareData(3, 4, 150)
+            and tdSql.compareData(4, 0, "2025-01-01 00:30:00.000")
+            and tdSql.compareData(4, 3, 30)
+            and tdSql.compareData(4, 4, None),
         )
 
     def check123(self):
