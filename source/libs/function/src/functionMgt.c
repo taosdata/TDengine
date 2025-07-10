@@ -849,12 +849,11 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
     for (int32_t i = 0; i < taosArrayGetSize(pVal); ++i) {
       SStreamGroupValue* pValue = taosArrayGet(pVal, i);
       if (pValue != NULL && pValue->isTbname) {
-        void *tmp = ((SValueNode*)pFirstParam)->datum.p;
+        taosMemoryFreeClear(((SValueNode*)pFirstParam)->datum.p);
         ((SValueNode*)pFirstParam)->datum.p = taosMemoryCalloc(pValue->data.nData + VARSTR_HEADER_SIZE, 1);
         if (NULL == ((SValueNode*)pFirstParam)->datum.p ) {
           return terrno;
         }
-        taosMemoryFree(tmp);
 
         (void)memcpy(varDataVal(((SValueNode*)pFirstParam)->datum.p), pValue->data.pData, pValue->data.nData);
         varDataLen(((SValueNode*)pFirstParam)->datum.p) = pValue->data.nData;

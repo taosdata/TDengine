@@ -764,7 +764,7 @@ int32_t initAggSup(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo
 
 int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData,
                                         int32_t offset, int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   for (int32_t k = 0; k < numOfOutput; ++k) {
     // keep it temporarily
     SFunctionCtxStatus status = {0};
@@ -790,20 +790,15 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
       idata.info.scale = pCtx[k].pExpr->base.resSchema.scale;
       idata.pData = p;
 
-      if (IS_VAR_DATA_TYPE(idata.info.type)) {   //stream todo
-        // void* data = NULL; stream todo
-        // int32_t size = 0;
-        // fmGetStreamPesudoFuncValTbname(pCtx[k].functionId, &taskInfo->pStreamRuntimeInfo->funcInfo, &data, &size);
-        // code = varColSetVarData(&idata, 0, data, size, false);
+      TAOS_CHECK_EXIT(fmSetStreamPseudoFuncParamVal(pCtx[k].functionId, pCtx[k].pExpr->base.pParamList, &taskInfo->pStreamRuntimeInfo->funcInfo));
+
+      SValueNode *valueNode = (SValueNode *)nodesListGetNode(pCtx[k].pExpr->base.pParamList, 0);
+      if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type || valueNode->isNull) {
+        colDataSetNULL(&idata, 0);
       } else {
-        const void* val = fmGetStreamPesudoFuncVal(pCtx[k].functionId, GET_STM_RTINFO(taskInfo));
-        colDataSetInt64(&idata, 0, (void*)val);
+        TAOS_CHECK_EXIT(colDataSetVal(&idata, 0, nodesGetValueFromNode(valueNode), false));
       }
-      if (code != 0) {
-        qError("col set data failed at %d, code: %s", __LINE__, tstrerror(code));
-        taskInfo->code = code;
-        return code;
-      }
+      
       pEntryInfo->numOfRes = 1;
     } else if (pCtx[k].isPseudoFunc) {
       SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
@@ -817,12 +812,7 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
 
       SScalarParam out = {.columnData = &idata};
       SScalarParam tw = {.numOfRows = 5, .columnData = pTimeWindowData};
-      code = pCtx[k].sfp.process(&tw, 1, &out);
-      if (code != TSDB_CODE_SUCCESS) {
-        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-        taskInfo->code = code;
-        return code;
-      }
+      TAOS_CHECK_EXIT(pCtx[k].sfp.process(&tw, 1, &out));
       pEntryInfo->numOfRes = 1;
     } else {
       if (functionNeedToExecute(&pCtx[k]) && pCtx[k].fpSet.process != NULL) {
@@ -837,9 +827,7 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
           if (pCtx[k].fpSet.cleanup != NULL) {
             pCtx[k].fpSet.cleanup(&pCtx[k]);
           }
-          qError("%s apply functions error, code:%s", GET_TASKID(taskInfo), tstrerror(code));
-          taskInfo->code = code;
-          return code;
+          TAOS_CHECK_EXIT(code);
         }
       }
 
@@ -847,6 +835,14 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
       functionCtxRestore(&pCtx[k], &status);
     }
   }
+
+_exit:
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    taskInfo->code = code;
+  }
+
   return code;
 }
 

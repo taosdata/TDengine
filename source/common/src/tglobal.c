@@ -899,7 +899,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsLogBufferMemoryAllowed = TRANGE(tsLogBufferMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
 
   tsStreamBufferSize = tsTotalMemoryKB / 1024 * 0.3;
-  tsStreamBufferSizeBytes = tsStreamBufferSize * 1048576;
+  tsStreamBufferSizeBytes = tsStreamBufferSize * 1048576L;
 
   // clang-format off
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "dataDir", tsDataDir, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
@@ -1927,7 +1927,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamBufferSize");
   tsStreamBufferSize = pItem->i32;
-  tsStreamBufferSizeBytes = tsStreamBufferSize * 1048576;
+  tsStreamBufferSizeBytes = tsStreamBufferSize * 1048576L;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "filterScalarMode");
   tsFilterScalarMode = pItem->bval;

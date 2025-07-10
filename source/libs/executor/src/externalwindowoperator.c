@@ -187,6 +187,9 @@ int32_t resetMergeAlignedExternalWindowOperator(SOperatorInfo* pOperator) {
   SMergeAlignedIntervalPhysiNode * pPhynode = (SMergeAlignedIntervalPhysiNode*)pOperator->pPhyNode;
   pOperator->status = OP_NOT_OPENED;
 
+  taosArrayDestroy(pExtW->pWins);
+  pExtW->pWins = NULL;
+
   resetBasicOperatorState(&pExtW->binfo);
   pMlExtInfo->curTs = INT64_MIN;
   if (pMlExtInfo->pPrefetchedBlock) blockDataCleanup(pMlExtInfo->pPrefetchedBlock);
