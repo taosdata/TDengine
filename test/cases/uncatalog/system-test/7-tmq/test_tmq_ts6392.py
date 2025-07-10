@@ -100,6 +100,24 @@ class TestCase:
 
 
     def test_tmq_ts6392(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         self.check()
 
         tdLog.success(f"{__file__} successfully executed")

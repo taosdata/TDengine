@@ -10,7 +10,7 @@ from enum import Enum
 from new_test_framework.utils.log import tdLog
 from new_test_framework.utils.sql import tdSql
 
-class TDTestCase:
+class TestCase:
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
         cls.vgroups    = 2

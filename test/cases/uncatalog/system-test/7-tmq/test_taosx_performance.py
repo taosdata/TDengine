@@ -274,3 +274,25 @@ if __name__ == "__main__":
 
     print("performance result:\n" + str(speedupStr))
     tdLog.info("run performance end")
+
+class TestCase:
+  def test_dummy(self):
+    """summary: xxx
+
+    description: xxx
+
+    Since: xxx
+
+    Labels: xxx
+
+    Jira: xxx
+
+    Catalog:
+    - xxx:xxx
+
+    History:
+    - xxx
+    - xxx
+
+    """
+    pass

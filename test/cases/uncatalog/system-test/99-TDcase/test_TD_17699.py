@@ -8,7 +8,7 @@ import taos
 from new_test_framework.utils.log import tdLog
 from new_test_framework.utils.sql import tdSql
 
-class TDTestCase:
+class TestCase:
     paraDict = {'dbName':     'db1',
                 'dropFlag':   1,
                 'event':      '',

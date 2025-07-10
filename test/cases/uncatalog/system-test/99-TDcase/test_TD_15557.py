@@ -9,7 +9,7 @@ import threading
 from new_test_framework.utils.log import tdLog
 from new_test_framework.utils.sql import tdSql
 
-class TDTestCase:
+class TestCase:
     hostname = socket.gethostname()
     #rpcDebugFlagVal = '143'
     #clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}

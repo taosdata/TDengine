@@ -17,7 +17,7 @@ class actionType(Enum):
     CREATE_CTABLE   = 2
     INSERT_DATA     = 3
 
-class TDTestCase:
+class TestCase:
     hostname = socket.gethostname()
     #rpcDebugFlagVal = '143'
     #clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}

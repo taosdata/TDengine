@@ -231,6 +231,24 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq3mnodesSwitch(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
+
+        History:
+        - xxx
+        - xxx
+
+        """
         tdLog.printNoPrefix("======== Notes: must add '-N 5' for run the script ========")
         self.checkDnodesStatusAndCreateMnode(self.dnodes)
         self.tmqCase1()

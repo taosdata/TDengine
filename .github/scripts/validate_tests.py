@@ -132,7 +132,7 @@ def validate_test_file(file_path):
     if has_errors:
         return False
     
-    print(f"File {file_path} passed validation.")
+    #print(f"File {file_path} passed validation.")
     return True
 
 

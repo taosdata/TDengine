@@ -22,7 +22,7 @@ def taos_command (buildPath, key, value, expectString, sqlString=''):
     else:
         taosCmd = buildPath + '/build/bin/taos '
 
-    cfgPath = buildPath + "/../sim/psim/cfg"
+    cfgPath = os.path.join(tdDnodes.sim.path,"psim","cfg")
     taosCmd = taosCmd + ' -c ' + cfgPath + ' -' + key
     if len(value) != 0:
         taosCmd = taosCmd + ' ' + value
@@ -128,7 +128,7 @@ class TestColumnlenupdated:
             tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % buildPath)
-        cfgPath = buildPath + "/../sim/psim/cfg"
+        cfgPath = os.path.join(tdDnodes.sim.path,"psim","cfg")
         tdLog.info("cfgPath: %s" % cfgPath)
 
         checkNetworkStatus = ['0: unavailable', '1: network ok', '2: service ok', '3: service degraded', '4: exiting']
