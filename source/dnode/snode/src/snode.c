@@ -92,7 +92,7 @@ static int32_t handleSyncWriteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   void*   data = NULL;
   int64_t dataLen = 0;
   int32_t code = streamReadCheckPoint(streamId, &data, &dataLen);
-  if (code != 0 || (terrno == TAOS_SYSTEM_ERROR(ENOENT) && ver == -1) || ){
+  if (code != 0 || (terrno == TAOS_SYSTEM_ERROR(ENOENT) && ver == -1)){
     goto end;
   }
   if (terrno == TAOS_SYSTEM_ERROR(ENOENT) || ver > *(int32_t*)data) {
