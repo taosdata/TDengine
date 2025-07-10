@@ -23,10 +23,13 @@ class ForecastTest(unittest.TestCase):
 
     def get_input_list(self):
         """ load data from csv """
+        '''
         url = ('https://raw.githubusercontent.com/jbrownlee/Datasets/refs/heads/master/'
                'airline-passengers.csv')
         data = pd.read_csv(url, index_col='Month', parse_dates=True)
-
+        '''
+        file_path = os.path.join(os.path.dirname(__file__), "airline-passengers.csv")
+        data = pd.read_csv(file_path, index_col='Month', parse_dates=True)
         ts_list = data[['Passengers']].index.tolist()
         dst_list = [int(item.timestamp()) for item in ts_list]
 
@@ -125,6 +128,27 @@ class ForecastTest(unittest.TestCase):
         #
         # rows = len(r["res"][0])
         # draw_fc_results(data, False, r["res"], rows, "gpt")
+
+    def test_prophet_forecast(self):
+        """prophet algorithm check"""
+        s = loader.get_service("prophet")
+        data, ts = self.get_input_list()
+
+        s.set_input_list(data, ts)
+        self.assertRaises(ValueError, s.execute)
+
+       
+        s.set_params({
+        "rows": 10,
+        "start_ts": 171000000,
+        "time_step": 86400 * 30,
+        "seasonality_mode": "additive",
+        "changepoint_prior_scale": 0.2,
+        })
+        r = s.execute()
+
+        rows = len(r["res"][0])
+        draw_fc_results(data, len(r["res"]) > 1, s.conf, r["res"], "prophet")
 
 
 if __name__ == '__main__':
