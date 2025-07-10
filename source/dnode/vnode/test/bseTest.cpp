@@ -312,4 +312,3 @@ TEST(bseCase, snapTest) {
 #endif
 }
 
-#pragma GCC diagnostic pop
