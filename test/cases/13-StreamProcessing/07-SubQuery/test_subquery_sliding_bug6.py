@@ -107,33 +107,13 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=43,
-            stream="create stream rdb.s43 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r43 as select _twstart ts, cts, %%1 tt, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from qdb.v1 where cts >= _twstart and cts < _twend order by cts limit 1",
-            res_query="select ts, cts, tt, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from rdb.r43 where id = 1 limit 1 offset 1",
-            exp_query="select cts, cts, 1, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from qdb.v1 where cts = '2025-01-01 00:05:00.000';",
+            id=35,
+            stream="create stream rdb.s35 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r35 as select _wstart ts, count(c1) c1, sum(c2) c2, %%1 c3, %%2 c4, cast(_tlocaltime / 1000000 as timestamp) c5, _tgrpid c6 from %%trows count_window(2);",
+            res_query="select ts, c1, c2, c3, c4, id, name from rdb.r35 where id = 1",
+            exp_query="select _wstart ts, count(c1) c1, sum(c2) c2, 1, '1', 1, '1' from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(5m);",
         )
         self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()
-
-    def check123(self):
-        tdSql.checkTableSchema(
-            dbname="rdb",
-            tbname="r123",
-            schema=[
-                ["tw", "TIMESTAMP", 8, ""],
-                ["te", "TIMESTAMP", 8, ""],
-                ["_twstart", "TIMESTAMP", 8, ""],
-                ["_twend", "TIMESTAMP", 8, ""],
-                ["c1", "BIGINT", 8, ""],
-                ["c2", "BIGINT", 8, ""],
-                ["id", "INT", 4, "TAG"],
-                ["name", "VARCHAR", 16, "TAG"],
-            ],
-        )
-        tdSql.checkResultsByFunc(
-            sql="select * from information_schema.ins_tables where db_name='rdb' and stable_name='r123';",
-            func=lambda: tdSql.getRows() == 3,
-        )
