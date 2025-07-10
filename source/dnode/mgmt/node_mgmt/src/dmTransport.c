@@ -272,8 +272,8 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   if (code) goto _OVER;
 
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
-  dGTrace("msg:%p, is created, type:%s handle:%p len:%d", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle,
-          pRpc->contLen);
+  dInfo("item:%p, is created, type:%s handle:%p len:%d", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle,
+        pRpc->contLen);
 
   code = dmProcessNodeMsg(pWrapper, pMsg);
 
