@@ -186,11 +186,11 @@ typedef struct SSTriggerHistoryContext {
   SHashObj *pCalcDataCacheIters;
 } SSTriggerHistoryContext;
 
-
 typedef enum ESTriggerEventType {
   STRIGGER_EVENT_WINDOW_NONE = 0,
   STRIGGER_EVENT_WINDOW_CLOSE = 1 << 0,
   STRIGGER_EVENT_WINDOW_OPEN = 1 << 1,
+  STRIGGER_EVENT_ON_TIME = 1 << 2,
 } ESTriggerEventType;
 
 typedef struct SSTriggerCalcSlot {

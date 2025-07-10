@@ -243,8 +243,8 @@ const SSchemaWrapper* qExtractSchemaFromTask(qTaskInfo_t tinfo);
 
 const char* qExtractTbnameFromTask(qTaskInfo_t tinfo);
 
-void* qExtractReaderFromStreamScanner(void* scanner);
-void  qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
+void* qExtractReaderFromTmqScanner(void* scanner);
+void  qExtractTmqScanner(qTaskInfo_t tinfo, void** scanner);
 
 int32_t  qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo);
 int32_t  qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange* pVerRange, STimeWindow* pWindow);
