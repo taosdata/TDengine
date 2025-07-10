@@ -185,7 +185,7 @@ int32_t taosAllocateQitem(int32_t size, EQItype itype, int64_t dataSize, void **
   pNode->size = size;
   pNode->itype = itype;
   pNode->timestamp = taosGetTimestampUs();
-  uTrace("item:%p, node:%p is allocated, alloc:%" PRId64, pNode->item, pNode, alloced);
+  uInfo("item:%p, node:%p is allocated, alloc:%" PRId64, pNode->item, pNode, alloced);
   *item = pNode->item;
   return 0;
 }
@@ -200,7 +200,7 @@ void taosFreeQitem(void *pItem) {
   } else if (pNode->itype == APPLY_QITEM) {
     alloced = atomic_sub_fetch_64(&tsApplyMemoryUsed, pNode->size + pNode->dataSize);
   }
-  uTrace("item:%p, node:%p is freed, alloc:%" PRId64, pItem, pNode, alloced);
+  uInfo("item:%p, node:%p is freed, alloc:%" PRId64, pItem, pNode, alloced);
 
   taosMemoryFree(pNode);
 }
