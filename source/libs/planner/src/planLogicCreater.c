@@ -1975,7 +1975,7 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
 
   if (pWindow->pTspk == NULL) {
     nodesDestroyNode((SNode*)pWindow);
-    planError("External window can not find timestamp column");
+    planError("External window can not find pk column, listSize:%d", pCxt->pCurrRoot->pTargets->length);
     // TODO(smj): proper error code;
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
