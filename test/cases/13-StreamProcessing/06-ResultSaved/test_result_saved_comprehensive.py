@@ -92,8 +92,14 @@ class TestStreamResultSavedComprehensive:
         self.createStreams()
         self.checkStreamStatus()
         self.deleteTargetTableForTest()
+        self.dropColumns()
         self.writeTriggerData()
         self.checkResults()
+        
+
+    def dropColumns(self):
+        tdLog.info("drop columns from output table")
+        tdSql.execute("alter table rdb.existing_super_drop_cols drop column avg_val;")
 
     def createSnode(self):
         tdLog.info("create snode")
@@ -167,6 +173,9 @@ class TestStreamResultSavedComprehensive:
         
         # Super table with different tag schema for 4.1.1.1.2
         tdSql.execute("create table rdb.existing_tags_mismatch (ts timestamp, cnt bigint) tags(diff_id bigint, diff_name varchar(32))")
+
+        # Super table with matching schema and tags for drop columns
+        tdSql.execute("create table rdb.existing_super_drop_cols (ts timestamp, cnt bigint, avg_val double) tags(tag_tbname varchar(16))")
 
     def writeTriggerData(self):
         tdLog.info("write data to trigger table")
@@ -475,6 +484,15 @@ class TestStreamResultSavedComprehensive:
             res_query="",  # No query needed since table will be deleted
             exp_query="",  # No expected result since table will be deleted
             check_func=self.check24,
+        )
+        self.streams.append(stream)
+
+        # Test 6.1: Drop columns from output table
+        stream = StreamItem(
+            id=25,
+            stream="create stream rdb.s25 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.existing_super_drop_cols (ts,cnt,avg_val) as select _twstart ts, count(*) cnt , avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            res_query="select ts, cnt from rdb.existing_super_drop_cols where tag_tbname='t1';",
+            exp_query="select _wstart ts, count(*) cnt from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
         )
         self.streams.append(stream)
 
