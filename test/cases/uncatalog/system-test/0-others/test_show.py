@@ -253,7 +253,7 @@ class TestShow:
         self.show_create_sysdb_sql()
         self.show_create_systb_sql()
         self.show_column_name()
-        self.test_show_variables()
+        self.show_variables()
 
     def get_variable(self, name: str, local: bool = True):
         if local:
@@ -271,7 +271,7 @@ class TestShow:
                 return res[0][0]
         raise Exception(f"variable {name} not found")
 
-    def test_show_variables(self):
+    def show_variables(self):
         epsion = 0.0000001
         var = 'minimalTmpDirGB'
         expect_val: float = 10.11

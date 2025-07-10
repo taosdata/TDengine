@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
 import taos
 import sys
 import time
@@ -8,26 +8,10 @@ import subprocess
 
 class TestUdfRestartTaosd:
     updatecfgDict = {'udfdResFuncs': "udf1,udf2"}
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), logSql)
 
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
-                    break
-        return buildPath
 
     def prepare_udf_so(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -578,7 +562,7 @@ class TestUdfRestartTaosd:
 
     def loop_kill_udfd(self):
 
-        buildPath = self.getBuildPath()
+        buildPath = tdCom.getBuildPath()
         if (buildPath == ""):
             tdLog.exit("taosd not found!")
         else:

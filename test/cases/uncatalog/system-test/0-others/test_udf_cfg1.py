@@ -11,26 +11,9 @@ class TestUdfCfg1:
     updatecfgDict = {'debugFlag': 143, "cDebugFlag": 143, "uDebugFlag": 143, "rpcDebugFlag": 143, "tmrDebugFlag": 143,
                      "jniDebugFlag": 143, "simDebugFlag": 143, "dDebugFlag": 143, "dDebugFlag": 143, "vDebugFlag": 143, "mDebugFlag": 143, "qDebugFlag": 143,
                      "wDebugFlag": 143, "sDebugFlag": 143, "tsdbDebugFlag": 143, "tqDebugFlag": 143, "fsDebugFlag": 143, "fnDebugFlag": 143 ,"udf":0}
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    
+    def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), logSql)
-
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files or "taosd.exe" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
-                    break
-        return buildPath
 
     def prepare_udf_so(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
