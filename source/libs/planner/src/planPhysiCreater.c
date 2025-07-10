@@ -453,7 +453,11 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
     char*                    name = NULL;
     int32_t                  len = 0;
     SColumnNode*             pCol = (SColumnNode*)pNode;
-    if (pCxt->isVtb && !pCol->hasRef && pCol->colType != COLUMN_TYPE_TAG) {
+    if (pCxt->isVtb && !pCol->hasRef && pCol->colType != COLUMN_TYPE_TAG && '\0' != pCol->tableAlias[0]) {
+      // set slot id for :
+      // 1. column with ref
+      // 2. tag column
+      // 3. pseduo column function
       return DEAL_RES_CONTINUE;
     }
 
