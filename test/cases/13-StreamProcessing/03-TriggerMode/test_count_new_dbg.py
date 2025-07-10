@@ -2576,14 +2576,14 @@ class TestStreamCountTrigger:
                 dbname=self.db,
                 tbname="res_vtb_1",
                 schema=[
-                    'firstts', 'TIMESTAMP', 8,
-                    'lastts', 'TIMESTAMP', 8,
-                    'cnt_col_1', 'BIGINT', 8,
-                    'sum_col_1', 'BIGINT', 8,
-                    'avg_col_1', 'DOUBLE', 8,
-                    'cnt_col_2', 'BIGINT', 8,
-                    'sum_col_2', 'BIGINT', 8,
-                    'avg_col_2', 'DOUBLE', 8,
+                    ['firstts', 'TIMESTAMP', 8,  ''] ,
+                    ['lastts', 'TIMESTAMP', 8,   ''] ,
+                    ['cnt_col_1', 'BIGINT', 8,   ''] ,
+                    ['sum_col_1', 'BIGINT', 8,   ''] ,
+                    ['avg_col_1', 'DOUBLE', 8,   ''] ,
+                    ['cnt_col_2', 'BIGINT', 8,   ''] ,
+                    ['sum_col_2', 'BIGINT', 8,   ''] ,
+                    ['avg_col_2', 'DOUBLE', 8,   ''] ,
                 ],
             )
 
@@ -2616,7 +2616,7 @@ class TestStreamCountTrigger:
             # create vtable and continue
             tdSql.execute(
                 f"create stream s12_0 count_window(4, 2, col_3) from vtb_1 into "
-                f"res_vtb_1 (firstts, lastts, cnt_col_3, sum_col_3, avg_col_3, count_col_1, sum_col_1, avg_col_1) as "
+                f"res_vtb_1 (firstts, lastts, cnt_col_3, sum_col_3, avg_col_3, cnt_col_1, sum_col_1, avg_col_1) as "
                 f"select first(_c0), last_row(_c0), count(col_3), sum(col_3), avg(col_3), count(col_1), sum(col_1), avg(col_1) "
                 f"from %%trows;"
             )
@@ -2667,21 +2667,19 @@ class TestStreamCountTrigger:
                 dbname=self.db,
                 tbname="res_vtb_1",
                 schema=[
-                    'firstts', 'TIMESTAMP', 8,
-                    'lastts', 'TIMESTAMP', 8,
-                    'cnt_col_1', 'BIGINT', 8,
-                    'sum_col_1', 'BIGINT', 8,
-                    'avg_col_1', 'DOUBLE', 8,
-                    'cnt_col_2', 'BIGINT', 8,
-                    'sum_col_2', 'BIGINT', 8,
-                    'avg_col_2', 'DOUBLE', 8,
-                    'cnt_col_3', 'BIGINT', 8,
-                    'sum_col_3', 'BIGINT', 8,
+                    ['firstts', 'TIMESTAMP', 8, ''],
+                    ['lastts', 'TIMESTAMP', 8, ''] ,
+                    ['cnt_col_3', 'BIGINT', 8, ''] ,
+                    ['sum_col_3', 'BIGINT', 8, ''] ,
+                    ['avg_col_3', 'DOUBLE', 8, ''] ,
+                    ['cnt_col_1', 'BIGINT', 8, ''] ,
+                    ['sum_col_1', 'BIGINT', 8, ''] ,
+                    ['avg_col_1', 'DOUBLE', 8, ''] ,
                 ],
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_ct1",
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_vtb_1",
                 func=lambda: tdSql.getRows() == 7,
             )
 
