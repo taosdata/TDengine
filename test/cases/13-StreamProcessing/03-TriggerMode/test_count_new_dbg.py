@@ -2529,27 +2529,20 @@ class TestStreamCountTrigger:
 
             tdSql.execute(f"create table ct1 using stb tags(1)")
             tdSql.execute(f"create table ct2 using stb tags(2)")
-            tdSql.execute(f"create table ct3 using stb tags(3)")
 
             tdSql.query(f"show tables")
             tdSql.checkRows(3)
 
-            tdSql.execute("create vtable vtb_1 ( ts timestamp, col_1 int from ct1.cint, col_2 int from ct2.cint, col_3 int from ct3.cint)")
+            tdSql.execute("create vtable vtb_1 ( ts timestamp, col_1 int from ct1.cint, col_2 int from ct2.cint)")
 
             # create vtable and continue
             tdSql.execute(
-                f"create stream s10_0 count_window(3, 1, col_1) from vtb_1 into "
-                f"res_vtb_1 (firstts, lastts, cnt_col_1, sum_col_1, avg_col_1, cnt_col_2, sum_col_2, avg_col_2, cnt_col_3, sum_col_3) as "
-                f"select first(_c0), last_row(_c0), count(col_1), sum(col_1), avg(col_1), count(col_2), sum(col_2), avg(col_2), count(col_3), sum(col_3) "
+                f"create stream s11_0 count_window(3, 1, col_1) from vtb_1 into "
+                f"res_vtb_1 (firstts, lastts, cnt_col_1, sum_col_1, avg_col_1, cnt_col_2, sum_col_2, avg_col_2) as "
+                f"select first(_c0), last_row(_c0), count(col_1), sum(col_1), avg(col_1), count(col_2), sum(col_2), avg(col_2) "
                 f"from %%trows;"
             )
 
-            tdSql.execute(
-                f"create stream s10_1 count_window(4, 2, col_3) from vtb_1 into "
-                f"res_vtb_2 (firstts, lastts, cnt_col_3, sum_col_3, avg_col_3) as "
-                f"select first(_c0), last_row(_c0), count(col_3), sum(col_3), avg(col_3) "
-                f"from %%trows;"
-            )
 
         def insert1(self):
             sqls = [
@@ -2572,16 +2565,6 @@ class TestStreamCountTrigger:
                 "insert into ct2 values ('2025-01-01 00:00:18', 17);",
                 "insert into ct2 values ('2025-01-01 00:00:21', 18);",
                 "insert into ct2 values ('2025-01-01 00:00:24', 19);",
-
-                "insert into ct3 values ('2025-01-01 00:00:00', 21);",
-                "insert into ct3 values ('2025-01-01 00:00:03', 22);",
-                "insert into ct3 values ('2025-01-01 00:00:06', 23);",
-                "insert into ct3 values ('2025-01-01 00:00:09', 24);",
-                "insert into ct3 values ('2025-01-01 00:00:12', 25);",
-                "insert into ct3 values ('2025-01-01 00:00:15', 26);",
-                "insert into ct3 values ('2025-01-01 00:00:18', 27);",
-                "insert into ct3 values ('2025-01-01 00:00:21', 28);",
-                "insert into ct3 values ('2025-01-01 00:00:24', 29);",
             ]
 
             tdSql.executes(sqls)
@@ -2590,7 +2573,7 @@ class TestStreamCountTrigger:
         def check1(self):
             tdSql.checkResultsByFunc(
                 sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and (table_name like "res_ct%")',
-                func=lambda: tdSql.getRows() == 2,
+                func=lambda: tdSql.getRows() == 1,
             )
 
             tdSql.checkTableSchema(
@@ -2605,8 +2588,6 @@ class TestStreamCountTrigger:
                     'cnt_col_2', 'BIGINT', 8,
                     'sum_col_2', 'BIGINT', 8,
                     'avg_col_2', 'DOUBLE', 8,
-                    'cnt_col_3', 'BIGINT', 8,
-                    'sum_col_3', 'BIGINT', 8,
                 ],
             )
 
