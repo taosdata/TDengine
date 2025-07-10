@@ -113,7 +113,6 @@ typedef struct SMnode  SMnode;
 typedef struct SSdb    SSdb;
 typedef struct SSdbRaw SSdbRaw;
 typedef struct SSdbRow SSdbRow;
-typedef int32_t (*SdbRawFp)(SSdb *pSdb, SSdbRaw *pRaw);
 typedef int32_t (*SdbInsertFp)(SSdb *pSdb, void *pObj);
 typedef int32_t (*SdbUpdateFp)(SSdb *pSdb, void *pSrcObj, void *pDstObj);
 typedef int32_t (*SdbDeleteFp)(SSdb *pSdb, void *pObj, bool callFunc);

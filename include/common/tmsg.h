@@ -2470,7 +2470,6 @@ typedef struct {
 // todo refactor
 typedef struct SVgroupInfo {
   int32_t  vgId;
-  // int32_t  mountVgId;
   uint32_t hashBegin;
   uint32_t hashEnd;
   SEpSet   epSet;
