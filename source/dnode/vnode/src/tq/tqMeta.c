@@ -299,9 +299,9 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
                                                        &handle->execHandle.numOfCols, handle->consumerId);
     TQ_NULL_GO_TO_END(handle->execHandle.task);
     void* scanner = NULL;
-    qExtractStreamScanner(handle->execHandle.task, &scanner);
+    qExtractTmqScanner(handle->execHandle.task, &scanner);
     TQ_NULL_GO_TO_END(scanner);
-    handle->execHandle.pTqReader = qExtractReaderFromStreamScanner(scanner);
+    handle->execHandle.pTqReader = qExtractReaderFromTmqScanner(scanner);
     TQ_NULL_GO_TO_END(handle->execHandle.pTqReader);
   } else if (handle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
     handle->pWalReader = walOpenReader(pVnode->pWal, NULL, 0);
