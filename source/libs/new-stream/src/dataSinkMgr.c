@@ -486,7 +486,7 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
   }
   code = checkAndMoveMemCache(true);
   if (code != TSDB_CODE_SUCCESS) {
-    stError("failed to check and move mem cache for write, code: %d err: %s", code, terrMsg);
+    stError("failed to check and move mem cache for write, code: %d err: %s", code, tstrerror(code));
     return code;
   }
   if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
@@ -565,7 +565,7 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     releaseDataResult((void**)&pResultIter);
     *pIter = NULL;
-    stError("failed to get align data cache, err: %s, lineno:%d", terrMsg, lino);
+    stError("failed to get align data cache, err: %s, lineno:%d", tstrerror(code), lino);
   }
   return code;
 }
@@ -627,7 +627,7 @@ _end:
     changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_READING);
     releaseDataResult((void**)&pResultIter);
     *pIter = NULL;
-    stError("failed to get sliding data cache, err: %s, lineno:%d", terrMsg, lino);
+    stError("failed to get sliding data cache, err: %s, lineno:%d", tstrerror(code), lino);
   }
   return code;
 }
@@ -796,7 +796,7 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
   }
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    stError("[get data cache] end, failed to get next data from cache, err: %s, lineno:%d", terrMsg, lino);
+    stError("[get data cache] end, failed to get next data from cache, err: %s, lineno:%d", tstrerror(code), lino);
   } else if (ppBlock != NULL && *ppBlock != NULL) {
     stDebug("[get data cache] end, block rows: %" PRId64 " next:%p", (*ppBlock)->info.rows, *pIter);
   } else {
@@ -839,7 +839,7 @@ int32_t moveMemCacheAllList() {
       int32_t            code = moveSlidingTaskMemCache(pSlidingTaskMgr);
       if (code != TSDB_CODE_SUCCESS) {
         taosHashCancelIterate(g_pDataSinkManager.dsStreamTaskList, ppTaskMgr);
-        stError("failed to move sliding task mem cache, lino:%d code: %d err: %s", __LINE__, code, terrMsg);
+        stError("failed to move sliding task mem cache, lino:%d code: %d err: %s", __LINE__, code, tstrerror(code));
         return code;
       }
       if (hasEnoughMemSize()) {
