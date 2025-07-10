@@ -33,6 +33,9 @@ class Test_Scene_Asset01:
         #  main test
         #
 
+        # env
+        tdStream.createSnode()
+
         # prepare data
         self.prepare()
 
