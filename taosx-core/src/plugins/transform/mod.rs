@@ -67,7 +67,6 @@ use crate::plugins::transform::parse::ArrayForTaos;
 use crate::{
     get_data_dir,
     global::{SQL_TAG_CACHE_CAPACITY, TABLE_TAG_CACHE},
-    ArchiveType,
 };
 
 use self::{

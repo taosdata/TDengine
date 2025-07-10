@@ -458,7 +458,7 @@ dependencies = [
 
 [[package]]
 name = "archive"
-version = "1.10.0"
+version = "1.11.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -577,7 +577,7 @@ dependencies = [
 
 [[package]]
 name = "arrow-compute-ext"
-version = "1.10.0"
+version = "1.11.0"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -3352,7 +3352,7 @@ dependencies = [
 
 [[package]]
 name = "futures-ext"
-version = "1.10.0"
+version = "1.11.0"
 dependencies = [
  "anyhow",
  "futures",
@@ -6004,7 +6004,7 @@ checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 
 [[package]]
 name = "persist-queue"
-version = "1.10.0"
+version = "1.11.0"
 dependencies = [
  "anyhow",
  "bitfield 0.16.1",
@@ -7204,7 +7204,7 @@ dependencies = [
 
 [[package]]
 name = "rotate-file"
-version = "1.10.0"
+version = "1.11.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -8814,7 +8814,7 @@ dependencies = [
 
 [[package]]
 name = "taosx"
-version = "1.10.0"
+version = "1.11.0"
 dependencies = [
  "actix-cors",
  "actix-files",
@@ -8908,7 +8908,7 @@ dependencies = [
 
 [[package]]
 name = "taosx-agent"
-version = "1.10.0"
+version = "1.11.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -8947,7 +8947,7 @@ dependencies = [
 
 [[package]]
 name = "taosx-core"
-version = "1.10.0"
+version = "1.11.0"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -9101,7 +9101,7 @@ dependencies = [
 
 [[package]]
 name = "taosx-metrics"
-version = "1.10.0"
+version = "1.11.0"
 dependencies = [
  "bincode",
  "flume",
@@ -9113,7 +9113,7 @@ dependencies = [
 
 [[package]]
 name = "taosx-tools"
-version = "1.10.0"
+version = "1.11.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -10846,7 +10846,7 @@ dependencies = [
 
 [[package]]
 name = "x-spawner-replication"
-version = "1.10.0"
+version = "1.11.0"
 dependencies = [
  "anyhow",
  "async-trait",

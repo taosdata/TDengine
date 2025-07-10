@@ -3807,8 +3807,8 @@ pub async fn channel_based_transformer(
                     }
                     _ = tokio::time::sleep(Duration::from_secs(5)) => {}
                 }
-                Ok(())
             }
+            Ok(())
         }
     });
 
