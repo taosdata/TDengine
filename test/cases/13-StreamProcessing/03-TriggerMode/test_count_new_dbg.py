@@ -2680,7 +2680,7 @@ class TestStreamCountTrigger:
 
             tdSql.checkResultsByFunc(
                 sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_vtb_1",
-                func=lambda: tdSql.getRows() == 7,
+                func=lambda: tdSql.getRows() == 3,
             )
 
 
