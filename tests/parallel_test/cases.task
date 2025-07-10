@@ -19,7 +19,7 @@
 #
 # army-test
 #
-,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade.py -N 3
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade.py -N 3
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f multi-level/mlevel_basic.py -N 3 -L 3 -D 2
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f db-encrypt/basic.py -N 3 -M 3
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator.py -N 3
@@ -474,10 +474,10 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/checkpoint_info2.py -N 4
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_multi_insert.py
 
-,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3 -i False
-,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3 -i False
-,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreMnode.py -N 5 -M 3 -i False
-,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreQnode.py -N 5 -M 3 -i False
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3 -i False
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreVnode.py -N 5 -M 3 -i False
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreMnode.py -N 5 -M 3 -i False
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreQnode.py -N 5 -M 3 -i False
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/create_wrong_topic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3
@@ -581,67 +581,67 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-5130.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-5580.py
 
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellError.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellNetChk.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/telemetry.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/backquote_check.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdMonitor.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdNewMonitor.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosd_audit.py
-,,n,system-test,python3 ./test.py -f 0-others/taosdlog.py
-,,n,system-test,python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udfTest.py
-,,n,system-test,python3 ./test.py -f 0-others/udf_create.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_restart_taosd.py
-,,n,system-test,python3 ./test.py -f 0-others/udf_cfg1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_cfg2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/cachemodel.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/sysinfo.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_control.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_manage.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege_show.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege_all.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/retention_test.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/retention_test2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel_createdb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttl.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttlChangeOnWrite.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compress_tsz1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compress_tsz2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/view/non_marterial_view/test_view.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_table_distributed.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_disk_usage.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_disk_usage_multilevel.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_dismatch_config.py
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellError.py
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellNetChk.py
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/telemetry.py
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/backquote_check.py
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdMonitor.py
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdNewMonitor.py
+#has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosd_audit.py
+#has migrate to new#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/taosdlog.py
+#has migrate to new#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udfTest.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/udf_create.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_restart_taosd.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/udf_cfg1.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_cfg2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/cachemodel.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/sysinfo.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_control.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_manage.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege_show.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/user_privilege_all.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/retention_test.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/retention_test2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel_createdb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttl.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttlChangeOnWrite.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compress_tsz1.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compress_tsz2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/view/non_marterial_view/test_view.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_table_distributed.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_show_disk_usage.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_disk_usage_multilevel.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_dismatch_config.py
 
-,,n,system-test,python3 ./test.py -f 0-others/sml_restart.py
-,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
-,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
-,,n,system-test,python3 ./test.py -N 3 -f 0-others/walRetention.py
-,,n,system-test,python3 ./test.py -f 0-others/wal_level_skip.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 1
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 1
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 3
-,,n,system-test,python3 ./test.py -f 0-others/timeRangeWise.py -N 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/delete_check.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/subscribe_stream_privilege.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/empty_identifier.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_transaction_detail.py -N 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/kill_balance_leader.py -N 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/kill_restore_dnode.py -N 5
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/persisit_config.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/qmemCtrl.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact_vgroups.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact_auto.py
-,,n,system-test,python3 ./test.py -f 0-others/dumpsdb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact.py -N 3
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/sml_restart.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
+#has migrate to new,,n,system-test,python3 ./test.py -N 3 -f 0-others/walRetention.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/wal_level_skip.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 1
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 1
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroup.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/splitVGroupWal.py -N 3 -n 3
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/timeRangeWise.py -N 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/delete_check.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/subscribe_stream_privilege.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/empty_identifier.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_transaction_detail.py -N 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/kill_balance_leader.py -N 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/kill_restore_dnode.py -N 5
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/persisit_config.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/qmemCtrl.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact_vgroups.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact_auto.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/dumpsdb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compact.py -N 3
 
 
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/composite_primary_key_create.py
@@ -709,11 +709,11 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_timestamp.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_td29157.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/ddl_in_sysdb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_tag_index.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/information_schema.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ins_filesets.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/grant.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_tag_index.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/information_schema.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ins_filesets.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/grant.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -R
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/and_or_for_byte.py
@@ -981,7 +981,7 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4467.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/geometry.py
 
-,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade_all.py -N 3
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade_all.py -N 3
 
 #has migrate to new,,n,system-test,python3 ./test.py -f 2-query/queryQnode.py
 # has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode1mnode.py
@@ -1347,7 +1347,7 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f eco-system/manager/schema_change.py -N 3 -M 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_window_true_for.py
-,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 
 #tsim test
 ,,y,script,./test.sh -f tsim/query/timeline.sim
