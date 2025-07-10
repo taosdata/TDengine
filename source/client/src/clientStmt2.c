@@ -253,7 +253,8 @@ static int32_t stmtUpdateBindInfo(TAOS_STMT2* stmt, STableMeta* pTableMeta, void
   }
 
   if (cols) {
-    pStmt->bInfo.boundCols = tSimpleHashInit(taosArrayGetSize(cols), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+    pStmt->bInfo.boundCols =
+        tSimpleHashInit(taosArrayGetSize(cols), taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
     if (pStmt->bInfo.boundCols) {
       for (int32_t i = 0; i < taosArrayGetSize(cols); i++) {
         SColVal* pColVal = taosArrayGet(cols, i);
@@ -1545,8 +1546,8 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
     STMT_ERRI_JRET(TSDB_CODE_APP_ERROR);
   }
 
-  STMT_ERRI_JRET(
-      qBuildStmtStbColFields(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.tbNameFlag, fieldNum, fields));
+  STMT_ERRI_JRET(qBuildStmtStbColFields(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.boundCols,
+                                        pStmt->bInfo.tbNameFlag, fieldNum, fields));
 
   if (pStmt->bInfo.tbType == TSDB_SUPER_TABLE && cleanStb) {
     taosMemoryFreeClear((*pDataBlock)->boundColsInfo.pColIndex);

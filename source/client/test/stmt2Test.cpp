@@ -468,15 +468,18 @@ TEST(stmt2Case, insert_stb_get_fields_Test) {
     getFieldsSuccess(taos, sql, expectedFields, 33);
   }
 
+  // case 9 : fixed value
+  {
+    const char*    sql = "insert into stmt2_testdb_2.stb(t1,t2,ts,b,tbname) values(1,?,?,'abc',?)";
+    TAOS_FIELD_ALL expectedFields[3] = {{"t2", TSDB_DATA_TYPE_BINARY, 0, 0, 12, TAOS_FIELD_TAG},
+                                        {"ts", TSDB_DATA_TYPE_TIMESTAMP, 2, 0, 8, TAOS_FIELD_COL},
+                                        {"tbname", TSDB_DATA_TYPE_BINARY, 0, 0, 271, TAOS_FIELD_TBNAME}};
+    printf("case 9 : %s\n", sql);
+    getFieldsSuccess(taos, sql, expectedFields, 3);
+  }
+
   // not support case
   printf("not support case \n");
-
-  // case 1 : add in main TD-33353
-  {
-    const char* sql = "insert into stmt2_testdb_2.stb(t1,t2,ts,b,tbname) values(1,?,?,'abc',?)";
-    printf("case 1dif : %s\n", sql);
-    getFieldsError(taos, sql, TSDB_CODE_PAR_INVALID_COLUMNS_NUM);
-  }
 
   // case 2 : no pk
   {
@@ -712,6 +715,41 @@ TEST(stmt2Case, insert_ctb_using_get_fields_Test) {
     printf("case 10 : %s\n", sql);
     getFieldsSuccess(taos, sql, expectedFields, 33);
   }
+
+  // case 12 : fixed value
+  {
+    do_query(taos, "use stmt2_testdb_3");
+    const char*    sql = "INSERT INTO ? using stb (t1,t2) TAGS(1,?) (ts,b)VALUES(?,'abc')";
+    TAOS_FIELD_ALL expectedFields[3] = {
+        {"tbname", TSDB_DATA_TYPE_BINARY, 0, 0, 271, TAOS_FIELD_TBNAME},
+        {"t2", TSDB_DATA_TYPE_BINARY, 0, 0, 12, TAOS_FIELD_TAG},
+        {"ts", TSDB_DATA_TYPE_TIMESTAMP, 2, 0, 8, TAOS_FIELD_COL},
+    };
+    printf("case 12 : %s\n", sql);
+    getFieldsSuccess(taos, sql, expectedFields, 3);
+  }
+  // case 13 : mix value and ?
+  {
+    do_query(taos, "use stmt2_testdb_3");
+    const char*    sql = "INSERT INTO ? using stb (t1,t2) TAGS(?,?) (ts,b)VALUES(15910606280001,?)";
+    TAOS_FIELD_ALL expectedFields[4] = {{"tbname", TSDB_DATA_TYPE_BINARY, 0, 0, 271, TAOS_FIELD_TBNAME},
+                                        {"t1", TSDB_DATA_TYPE_INT, 0, 0, 4, TAOS_FIELD_TAG},
+                                        {"t2", TSDB_DATA_TYPE_BINARY, 0, 0, 12, TAOS_FIELD_TAG},
+                                        {"b", TSDB_DATA_TYPE_BINARY, 0, 0, 12, TAOS_FIELD_COL}};
+    printf("case 13 : %s\n", sql);
+    getFieldsSuccess(taos, sql, expectedFields, 4);
+  }
+  // case 14 : mix value and ?
+  {
+    do_query(taos, "use stmt2_testdb_3");
+    const char*    sql = "INSERT INTO ? using stb (t1,t2) TAGS(?,?) (ts,b)VALUES(15910606280001,'abc')";
+    TAOS_FIELD_ALL expectedFields[3] = {{"tbname", TSDB_DATA_TYPE_BINARY, 0, 0, 271, TAOS_FIELD_TBNAME},
+                                        {"t1", TSDB_DATA_TYPE_INT, 0, 0, 4, TAOS_FIELD_TAG},
+                                        {"t2", TSDB_DATA_TYPE_BINARY, 0, 0, 12, TAOS_FIELD_TAG}};
+    printf("case 13 : %s\n", sql);
+    getFieldsSuccess(taos, sql, expectedFields, 3);
+  }
+
   printf("not support case \n");
 
   // case 1 : test super table not exist
@@ -748,27 +786,7 @@ TEST(stmt2Case, insert_ctb_using_get_fields_Test) {
     printf("case 5 : %s\n", sql);
     getFieldsError(taos, sql, TSDB_CODE_TSC_SQL_SYNTAX_ERROR);
   }
-  // case 6 : mix value and ?
-  {
-    do_query(taos, "use stmt2_testdb_3");
-    const char* sql = "INSERT INTO ? using stb (t1,t2) TAGS(1,?) (ts,b)VALUES(?,?)";
-    printf("case 6 : %s\n", sql);
-    getFieldsError(taos, sql, TSDB_CODE_TSC_SQL_SYNTAX_ERROR);
-  }
-  // case 7 : mix value and ?
-  {
-    do_query(taos, "use stmt2_testdb_3");
-    const char*    sql = "INSERT INTO ? using stb (t1,t2) TAGS(?,?) (ts,b)VALUES(15910606280001,?)";
-    printf("case 7 : %s\n", sql);
-    getFieldsError(taos, sql, TSDB_CODE_TSC_INVALID_OPERATION);
-  }
-  // case 8 : mix value and ?
-  {
-    do_query(taos, "use stmt2_testdb_3");
-    const char* sql = "INSERT INTO ? using stb (t1,t2) TAGS(?,?) (ts,b)VALUES(15910606280001,'abc')";
-    printf("case 8 : %s\n", sql);
-    getFieldsError(taos, sql, TSDB_CODE_TSC_INVALID_OPERATION);
-  }
+
   do_query(taos, "drop database if exists stmt2_testdb_3");
   taos_close(taos);
 }

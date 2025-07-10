@@ -2143,15 +2143,15 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
           }
 
           const SSchema* pTagSchema = &pSchemas[pCols->pColIndex[i]];
-          if (canParseTagsAfter) {
-            tagTokens[(*pNumOfTagTokens)] = *pToken;
-            tagSchemas[(*pNumOfTagTokens)] = (SSchema*)pTagSchema;
-            ++(*pNumOfTagTokens);
-          } else {
-            code = checkAndTrimValue(pToken, pCxt->tmpTokenBuf, &pCxt->msg, pTagSchema->type);
-            if (code == TSDB_CODE_SUCCESS && TK_NK_VARIABLE == pToken->type) {
-              code = buildInvalidOperationMsg(&pCxt->msg, "not expected row value");
-            }
+          // if (canParseTagsAfter) {
+          //   tagTokens[(*pNumOfTagTokens)] = *pToken;
+          //   tagSchemas[(*pNumOfTagTokens)] = (SSchema*)pTagSchema;
+          //   ++(*pNumOfTagTokens);
+          // } else {
+          code = checkAndTrimValue(pToken, pCxt->tmpTokenBuf, &pCxt->msg, pTagSchema->type);
+          if (code == TSDB_CODE_SUCCESS && TK_NK_VARIABLE == pToken->type) {
+            code = buildInvalidOperationMsg(&pCxt->msg, "not expected row value");
+          }
             if (code == TSDB_CODE_SUCCESS) {
               code = parseTagValue(&pCxt->msg, ppSql, precision, (SSchema*)pTagSchema, pToken,
                                    pCxt->tags.parseredTags->STagNames, pCxt->tags.parseredTags->pTagVals,
@@ -2175,7 +2175,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
             pCxt->tags.mixTagsCols = true;
             pCxt->tags.numOfBound++;
             pCxt->tags.numOfCols++;
-          }
+            // }
         } else if (pCols->pColIndex[i] == tbnameIdx) {
           return buildInvalidOperationMsg(&pCxt->msg, "STMT tbname in bound cols should not be a fixed value");
         }

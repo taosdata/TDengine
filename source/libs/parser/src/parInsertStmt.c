@@ -1156,7 +1156,7 @@ int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSc
 }
 
 int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_ALL** fields,
-                            STableMeta* pMeta, void* boundTags, uint8_t tbNameFlag) {
+                            STableMeta* pMeta, void* boundTags, SSHashObj* parsedCols, uint8_t tbNameFlag) {
   SBoundColInfo* tags = (SBoundColInfo*)boundTags;
   bool           hastag = (tags != NULL) && !(tbNameFlag & IS_FIXED_TAG);
   bool           hasPreBindTbname =
@@ -1165,6 +1165,15 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
   if (hastag) {
     numOfBound += tags->mixTagsCols ? 0 : tags->numOfBound;
   }
+
+  // Adjust the number of bound fields if there are parsed tags or parsed columns
+  if (tags->parseredTags) {
+    numOfBound -= tags->parseredTags->numOfTags;
+  }
+  if (parsedCols) {
+    numOfBound -= tSimpleHashGetSize(parsedCols);
+  }
+
   int32_t idx = 0;
   if (fields != NULL) {
     *fields = taosMemoryCalloc(numOfBound, sizeof(TAOS_FIELD_ALL));
@@ -1184,9 +1193,16 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
       SSchema* tagSchema = getTableTagSchema(pMeta);
 
       for (int32_t i = 0; i < tags->numOfBound; ++i) {
+        SSchema* schema = &tagSchema[tags->pColIndex[i]];
+        if (tags->parseredTags && tags->parseredTags->numOfTags > 0) {
+          int32_t tag_idx = schema->colId - 1 - pMeta->tableInfo.numOfColumns;
+          if (tag_idx >= 0 && tag_idx < tags->parseredTags->numOfTags && tags->parseredTags->pTagIndex[tag_idx]) {
+            continue;
+          }
+        }
+
         (*fields)[idx].field_type = TAOS_FIELD_TAG;
 
-        SSchema* schema = &tagSchema[tags->pColIndex[i]];
         tstrncpy((*fields)[idx].name, schema->name, sizeof((*fields)[i].name));
         (*fields)[idx].type = schema->type;
         (*fields)[idx].bytes = schema->bytes;
@@ -1212,8 +1228,17 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
           idx++;
           continue;
         } else if (idxCol < pMeta->tableInfo.numOfColumns) {
+          if (parsedCols && tSimpleHashGet(parsedCols, &pSchema[idxCol].colId, sizeof(int16_t))) {
+            continue;
+          }
           (*fields)[idx].field_type = TAOS_FIELD_COL;
         } else {
+          if (tags->parseredTags && tags->parseredTags->numOfTags > 0) {
+            int32_t tag_idx = idxCol - pMeta->tableInfo.numOfColumns;
+            if (tag_idx >= 0 && tag_idx < tags->parseredTags->numOfTags && tags->parseredTags->pTagIndex[tag_idx]) {
+              continue;
+            }
+          }
           (*fields)[idx].field_type = TAOS_FIELD_TAG;
         }
 
@@ -1276,8 +1301,8 @@ int32_t qBuildStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fiel
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, uint8_t tbNameFlag, int32_t* fieldNum,
-                               TAOS_FIELD_ALL** fields) {
+int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, SSHashObj* parsedCols, uint8_t tbNameFlag,
+                               int32_t* fieldNum, TAOS_FIELD_ALL** fields) {
   STableDataCxt* pDataBlock = (STableDataCxt*)pBlock;
   SSchema*       pSchema = getTableColumnSchema(pDataBlock->pMeta);
   if (pDataBlock->boundColsInfo.numOfBound <= 0) {
@@ -1290,7 +1315,7 @@ int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, uint8_t tbNameFlag
   }
 
   CHECK_CODE(buildStbBoundFields(pDataBlock->boundColsInfo, pSchema, fieldNum, fields, pDataBlock->pMeta, boundTags,
-                                 tbNameFlag));
+                                 parsedCols, tbNameFlag));
 
   return TSDB_CODE_SUCCESS;
 }
