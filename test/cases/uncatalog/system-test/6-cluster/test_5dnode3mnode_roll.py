@@ -234,12 +234,12 @@ class Test5dnode3mnodeRoll:
         os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s  "create topic if not exists tmq_test_topic  as select  current,voltage,phase from test.meters where voltage <= 106 and current <= 5;" ')
         os.system(f'LD_LIBRARY_PATH=/usr/lib taos -s  "use test;show topics;" ')
         
-        print(f"sed -i 's/\"cfgdir\".*/\"cfgdir\": \"{cPath_temp}\",/' 0-others/compa4096.json ")
-        os.system(f"sed -i 's/\"cfgdir\".*/\"cfgdir\": \"{cPath_temp}\",/'0-others/compa4096.json ")
-        tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y   -k 10 -z 5  ")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y   -k 10 -z 5 ")
+        print(f"sed -i 's/\"cfgdir\".*/\"cfgdir\": \"{cPath_temp}\",/' {os.path.dirname(os.path.realpath(__file__))}/compa4096.json ")
+        os.system(f"sed -i 's/\"cfgdir\".*/\"cfgdir\": \"{cPath_temp}\",/' {os.path.dirname(os.path.realpath(__file__))}/compa4096.json ")
+        tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f {os.path.dirname(os.path.realpath(__file__))}/compa4096.json -y   -k 10 -z 5  ")
+        os.system(f"LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f {os.path.dirname(os.path.realpath(__file__))}/compa4096.json -y   -k 10 -z 5 ")
         os.system("LD_LIBRARY_PATH=/usr/lib  taos -s 'flush database db4096 '")
-        os.system("LD_LIBRARY_PATH=/usr/lib  taos -f 0-others/TS-3131.tsql")
+        os.system(f"LD_LIBRARY_PATH=/usr/lib  taos -f {os.path.dirname(os.path.realpath(__file__))}/TS-3131.tsql")
         # self.buildTaosd(bPath)
 
         # add deleted  data

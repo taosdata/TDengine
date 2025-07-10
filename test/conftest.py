@@ -158,7 +158,7 @@ def before_test_session(request):
         else:
             request.session.query_policy = 1
         if request.config.getoption("-I"):   
-            request.session.independentMnode = bool(request.config.getoption("-I"))
+            request.session.independentMnode = True if request.config.getoption("-I") in ["True", "true", "1"] else False
         else:
             request.session.independentMnode = False
         if request.config.getoption("-D"):
