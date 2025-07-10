@@ -1256,11 +1256,13 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
 
   pAPI->metaReaderFn.initReader(&orgTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
   code = pAPI->metaReaderFn.getTableEntryByName(&orgTable, strstr(pParam->pOrgTbInfo->tbName, ".") + 1);
+  pAPI->metaReaderFn.readerReleaseLock(&orgTable);
   QUERY_CHECK_CODE(code, lino, _return);
   switch (orgTable.me.type) {
     case TSDB_CHILD_TABLE:
       pAPI->metaReaderFn.initReader(&superTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
       code = pAPI->metaReaderFn.getTableEntryByUid(&superTable, orgTable.me.ctbEntry.suid);
+      pAPI->metaReaderFn.readerReleaseLock(&superTable);
       QUERY_CHECK_CODE(code, lino, _return);
       schema = &superTable.me.stbEntry.schemaRow;
       break;
