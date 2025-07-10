@@ -1352,8 +1352,8 @@ void *vnodeGetIvtIdx(void *pVnode) {
   return metaGetIvtIdx(((SVnode *)pVnode)->pMeta);
 }
 
-int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid) {
-  return tsdbGetTableSchema(((SVnode *)pVnode)->pMeta, uid, pSchema, suid);
+int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid, SSchemaWrapper **pTagSchema) {
+  return tsdbGetTableSchema(((SVnode *)pVnode)->pMeta, uid, pSchema, suid, pTagSchema);
 }
 
 static FORCE_INLINE int32_t vnodeGetDBPrimaryInfo(SVnode *pVnode, SDbSizeStatisInfo *pInfo) {
