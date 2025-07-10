@@ -183,11 +183,9 @@ int32_t tableBuilderOpen(int64_t ts, STableBuilder **pBuilder, SBse *pBse) {
   seqRangeReset(&p->blockRange);
 
   p->pBse = pBse;
-
   code = tableOpenFile(path, 0, &p->pDataFile, &p->offset);
   *pBuilder = p;
 
-  return code;
 _error:
   if (code != 0) {
     (void)tableBuilderClose(p, 0);
