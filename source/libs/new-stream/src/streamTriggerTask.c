@@ -3743,7 +3743,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
       if (taosArrayGetSize(pTask->pVirTableInfoRsp) == 0) {
         code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_VTABLE_INFO);
         QUERY_CHECK_CODE(code, lino, _end);
-      } else {
+      } else if (taosArrayGetSize(pTask->readerList) > 0) {
         code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_OTABLE_INFO);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -6465,15 +6465,17 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
 
   switch (pMsg->msgType) {
     case STREAM_MSG_START: {
-      if (pTask->pRealtimeContext == NULL) {
-        pTask->pRealtimeContext = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeContext));
-        QUERY_CHECK_NULL(pTask->pRealtimeContext, code, lino, _end, terrno);
-        code = stRealtimeContextInit(pTask->pRealtimeContext, pTask);
+      if (pTask->task.status == STREAM_STATUS_INIT) {
+        if (pTask->pRealtimeContext == NULL) {
+          pTask->pRealtimeContext = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeContext));
+          QUERY_CHECK_NULL(pTask->pRealtimeContext, code, lino, _end, terrno);
+          code = stRealtimeContextInit(pTask->pRealtimeContext, pTask);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        code = stRealtimeContextCheck(pTask->pRealtimeContext);
         QUERY_CHECK_CODE(code, lino, _end);
+        pTask->task.status = STREAM_STATUS_RUNNING;
       }
-      code = stRealtimeContextCheck(pTask->pRealtimeContext);
-      QUERY_CHECK_CODE(code, lino, _end);
-      pTask->task.status = STREAM_STATUS_RUNNING;
       break;
     }
     case STREAM_MSG_ORIGTBL_READER_INFO: {
