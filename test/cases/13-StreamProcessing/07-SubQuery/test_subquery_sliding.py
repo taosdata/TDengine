@@ -116,7 +116,7 @@ class TestStreamSubquerySliding:
         tdSql.execute(ntb)
 
         vstb = "create stable tdb.vtriggers (ts timestamp, c1 int, c2 int) tags(id int) VIRTUAL 1"
-        vctb = "create vtable tdb.v1 (tdb.t1.c1, tdb.t1.c2) using tdb.vtriggers tags(1)"
+        vctb = "create vtable tdb.v1 (tdb.t1.c1, tdb.t2.c2) using tdb.vtriggers tags(1)"
         tdSql.execute(vstb)
         tdSql.execute(vctb)
 
@@ -515,7 +515,7 @@ class TestStreamSubquerySliding:
             res_query="select * from rdb.r44",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream) TD-36111
+        # self.streams.append(stream) TD-36406
 
         stream = StreamItem(
             id=45,
@@ -873,11 +873,12 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=89,
-            stream="create stream rdb.s89 interval(5m) sliding(5m) from tdb.v1 into rdb.r89 as select rand() from %%trows where rand() >= 0 and rand() < 1 _c0, _rowts;",
-            res_query="select * from rdb.r89",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s89 interval(5m) sliding(5m) from tdb.v1 into rdb.r89 as select _twstart tw, _c0 ta, _rowts tb, c1, c2, rand() c3 from %%trows where _c0 >= _twstart and _c0 < _twend order by _c0 limit 1",
+            res_query="select tw, ta, tb, c1, c2 from rdb.r89 limit 3",
+            exp_query="select _c0,  _c0, _rowts, c1, c2 from tdb.v1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:15:00.000' order by _c0 limit 3;",
+            check_func=self.check89,
         )
-        # self.streams.append(stream) TD-36397
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=90,
@@ -1541,6 +1542,21 @@ class TestStreamSubquerySliding:
         tdSql.checkResultsByFunc(
             sql="select * from rdb.r84 where tag_tbname='t1';",
             func=lambda: tdSql.getRows() == 14,
+        )
+
+    def check89(self):
+        tdSql.checkResultsByFunc(
+            sql="select tw, ta, tb, c1, c2 from rdb.r89;",
+            func=lambda: tdSql.getRows() == 5
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(1, 0, "2025-01-01 00:05:00.000")
+            and tdSql.compareData(2, 0, "2025-01-01 00:10:00.000")
+            and tdSql.compareData(3, 0, "2025-01-01 00:15:00.000")
+            and tdSql.compareData(3, 3, None)
+            and tdSql.compareData(3, 4, 150)
+            and tdSql.compareData(4, 0, "2025-01-01 00:30:00.000")
+            and tdSql.compareData(4, 3, 30)
+            and tdSql.compareData(4, 4, None),
         )
 
     def check123(self):
