@@ -4338,7 +4338,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         }
 
         if (needMoreMeta) {
-          pContext->curReaderIdx++;
+          pContext->curReaderIdx = (pContext->curReaderIdx + 1) % taosArrayGetSize(pTask->readerList);
           code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_META);
           QUERY_CHECK_CODE(code, lino, _end);
           goto _end;
