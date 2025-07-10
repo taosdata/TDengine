@@ -3388,7 +3388,7 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
         TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
       }
       
-      SStmTaskStatus taskStatus;
+      SStmTaskStatus taskStatus = {0};
       taskStatus.pStream = pStatus;
       mstSetTaskStatusFromMsg(pCtx, &taskStatus, pTask);
       pNewTask = taosArrayPush(pList, &taskStatus);
@@ -3400,7 +3400,7 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
     }
     case STREAM_TRIGGER_TASK: {
       taosMemoryFreeClear(pStatus->triggerTask);
-      pStatus->triggerTask = taosMemoryMalloc(sizeof(*pStatus->triggerTask));
+      pStatus->triggerTask = taosMemoryCalloc(1, sizeof(*pStatus->triggerTask));
       TSDB_CHECK_NULL(pStatus->triggerTask, code, lino, _exit, terrno);
       pStatus->triggerTask->pStream = pStatus;
       mstSetTaskStatusFromMsg(pCtx, pStatus->triggerTask, pTask);
@@ -3421,7 +3421,7 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
         TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
       }    
       
-      SStmTaskStatus taskStatus;
+      SStmTaskStatus taskStatus = {0};
       taskStatus.pStream = pStatus;
       mstSetTaskStatusFromMsg(pCtx, &taskStatus, pTask);
       pNewTask = taosArrayPush(pStatus->runners[pTask->deployId], &taskStatus);
@@ -3913,7 +3913,7 @@ int32_t msmProcessDeployOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   }
 
   if (tbNum <= 0) {
-    mstsWarn("empty table list in origReader req, array:%p", pTask->pMgmtReq->cont.fullTableNames);
+    mstsWarn("empty table list in origReader req, array:%p", pTbs);
     return TSDB_CODE_SUCCESS;
   }
 

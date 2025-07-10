@@ -982,16 +982,23 @@ int32_t mstGetTaskStatusStr(SStmTaskStatus* pTask, char* status, int32_t statusS
   if (STREAM_STATUS_FAILED == pTask->status && pTask->errCode) {
     snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s", tstrerror(pTask->errCode));
     STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
-  } else if (STREAM_TRIGGER_TASK == pTask->type && pTask->detailStatus) {
-    mstWaitLock(&pTask->detailStatusLock, true);
-    SSTriggerRuntimeStatus* pTrigger = (SSTriggerRuntimeStatus*)pTask->detailStatus;
-    snprintf(tmpBuf, sizeof(tmpBuf), "Current RT/HI/RE session num: %d/%d/%d, histroy progress:%d%%, total AUTO/USER recalc num: %d/%d", 
-        pTrigger->realtimeSessionNum, pTrigger->historySessionNum, pTrigger->recalcSessionNum, pTrigger->histroyProgress,
-        pTrigger->autoRecalcNum, (int32_t)taosArrayGetSize(pTrigger->userRecalcs));
-    taosRUnLockLatch(&pTask->detailStatusLock);
-  } else {
-    STR_WITH_MAXSIZE_TO_VARSTR(msg, "", msgSize);
+    return TSDB_CODE_SUCCESS;
   }
+
+  if (STREAM_TRIGGER_TASK == pTask->type && mstWaitLock(&pTask->detailStatusLock, true)) {
+    if (pTask->detailStatus) {
+      SSTriggerRuntimeStatus* pTrigger = (SSTriggerRuntimeStatus*)pTask->detailStatus;
+      snprintf(tmpBuf, sizeof(tmpBuf), "Current RT/HI/RE session num: %d/%d/%d, histroy progress:%d%%, total AUTO/USER recalc num: %d/%d", 
+          pTrigger->realtimeSessionNum, pTrigger->historySessionNum, pTrigger->recalcSessionNum, pTrigger->histroyProgress,
+          pTrigger->autoRecalcNum, (int32_t)taosArrayGetSize(pTrigger->userRecalcs));
+      taosRUnLockLatch(&pTask->detailStatusLock);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    taosRUnLockLatch(&pTask->detailStatusLock);    
+  }
+  
+  STR_WITH_MAXSIZE_TO_VARSTR(msg, "", msgSize);
   
   return TSDB_CODE_SUCCESS;
 }
