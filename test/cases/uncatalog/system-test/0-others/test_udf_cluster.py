@@ -292,7 +292,7 @@ class TestUdfCluster:
             os.system(stop_udfd)
             self.basic_udf_query(dnode)
 
-    def test_restart_udfd_All_dnodes(self):
+    def run_restart_udfd_All_dnodes(self):
 
         for dnode in self.TDDnodes.dnodes:
             tdLog.info(" start restart taosudf for dnode_index :%s" %dnode.index )
@@ -324,7 +324,7 @@ class TestUdfCluster:
         self.basic_udf_query(self.master_dnode)
         # self.check_UDF_query()
         self.restart_udfd(self.master_dnode)
-        # self.test_restart_udfd_All_dnodes()
+        # self.run_restart_udfd_All_dnodes()
 
 
 

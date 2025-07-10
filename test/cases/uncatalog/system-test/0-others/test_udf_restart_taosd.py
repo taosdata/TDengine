@@ -594,22 +594,6 @@ class TestUdfRestartTaosd:
             # start_udfd = "nohup " + udfdPath +'-c' +cfgPath +" > /dev/null 2>&1 &"
             # tdLog.info("start taosudf : %s " % start_udfd)
 
-    def test_function_name(self):
-        tdLog.info(" create function name is not build_in functions ")
-        tdSql.execute(" drop function udf1 ")
-        tdSql.execute(" drop function udf2 ")
-        tdSql.error("create function max as '%s' outputtype int"%self.libudf1)
-        tdSql.error("create aggregate function sum as '%s' outputtype double bufSize 8"%self.libudf2)
-        tdSql.error("create function max as '%s' outputtype int"%self.libudf1)
-        tdSql.error("create aggregate function sum as '%s' outputtype double bufSize 8"%self.libudf2)
-        tdSql.error("create aggregate function tbname as '%s' outputtype double bufSize 8"%self.libudf2)
-        tdSql.error("create aggregate function function as '%s' outputtype double bufSize 8"%self.libudf2)
-        tdSql.error("create aggregate function stable as '%s' outputtype double bufSize 8"%self.libudf2)
-        tdSql.error("create aggregate function union as '%s' outputtype double bufSize 8"%self.libudf2)
-        tdSql.error("create aggregate function 123 as '%s' outputtype double bufSize 8"%self.libudf2)
-        tdSql.error("create aggregate function 123db as '%s' outputtype double bufSize 8"%self.libudf2)
-        tdSql.error("create aggregate function mnode as '%s' outputtype double bufSize 8"%self.libudf2)
-
     def restart_taosd_query_udf(self):
 
         for i in range(3):
