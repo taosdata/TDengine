@@ -108,10 +108,11 @@ class TestStreamDevBasic:
 
 
         stream = StreamItem(
-            id=56,
-            stream="create stream rdb.s56 interval(5m) sliding(5m) from tdb.v1 into rdb.r56 as select _wstart ws, _wend we, _twstart tws, _twend twe, first(c1) cf, last(c1) cl, count(c1) cc from %%trows where ts >= _twstart and ts < _twend interval(1m) fill(prev)",
-            res_query="select * from rdb.r56 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:05:00.000' ",
-            exp_query="select _wstart ws, _wend we, cast('2025-01-01 00:00:00.000' as timestamp) tws, cast('2025-01-01 00:05:00.000' as timestamp) twe, first(c1) cf, last(c1) cl, count(c1) cc from tdb.v1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:05:00.000' interval(1m) fill(prev);",
+            id=89,
+            stream="create stream rdb.s89 interval(5m) sliding(5m) from tdb.v1 into rdb.r89 as select _twstart tw, _c0 ta, _rowts tb, c1, c2, rand() c3 from %%trows where _c0 >= _twstart and _c0 < _twend order by _c0 limit 1",
+            res_query="select tw, ta, tb, c1, c2 from rdb.r89 limit 3",
+            exp_query="select _c0,  _c0, _rowts, c1, c2 from tdb.v1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:15:00.000' order by _c0 limit 3;",
+            check_func=self.check89,
         )
         self.streams.append(stream)
 
@@ -119,7 +120,12 @@ class TestStreamDevBasic:
         for stream in self.streams:
             stream.createStream()
 
-    def check40(self):
+    def check89(self):
         tdSql.checkResultsByFunc(
-            "select * from rdb.r40;", func=lambda: tdSql.getRows() == 8
+            sql="select tw, ta, tb, c1, c2 from rdb.r89;",
+            func=lambda: tdSql.getRows() == 4
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(1, 0, "2025-01-01 00:05:00.000")
+            and tdSql.compareData(2, 0, "2025-01-01 00:10:00.000")
+            and tdSql.compareData(3, 0, "2025-01-01 00:30:00.000")
         )
