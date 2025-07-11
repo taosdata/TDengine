@@ -352,6 +352,7 @@ typedef struct SWindowLogicNode {
   int64_t          deleteMark;
   int8_t           igExpired;
   int8_t           igCheckUpdate;
+  int8_t           indefRowsFunc;
   EWindowAlgorithm windowAlgo;
   bool             isPartTb;
   int64_t          windowCount;
@@ -724,6 +725,7 @@ typedef struct SWindowPhysiNode {
   int64_t    watermark;
   int64_t    deleteMark;
   int8_t     igExpired;
+  int8_t     indefRowsFunc;
   bool       mergeDataBlock;
   int64_t    recalculateInterval;
 } SWindowPhysiNode;
