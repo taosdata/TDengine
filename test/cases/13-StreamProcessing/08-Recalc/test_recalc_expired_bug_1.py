@@ -116,8 +116,10 @@ class TestStreamRecalcExpiredTime:
         tdSql.executes(trigger_sqls)
 
     def writeData(self):
-        tdSql.executes("insert into qdb.t0 values ('2025-01-01 10:01:01', 6, 6, 65, 65, 0.9, 0.9, 'boundary1', 1, 1, 1, 1, true, 'boundary1', 'boundary1', '6', '6', 'POINT(0.9 0.9)');")
-        tdSql.executes("insert into tdb.et1 values ('2025-01-01 10:00:01', 5, 55, 0.8, 'expired1') ;")
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 10:01:01', 6, 6, 65, 65, 0.9, 0.9, 'boundary1', 1, 1, 1, 1, true, 'boundary1', 'boundary1', '6', '6', 'POINT(0.9 0.9)');")
+        tdSql.execute("insert into tdb.et1 values ('2025-01-01 00:00:01', 5, 55, 0.8, 'expired1');")
+        tdSql.execute("insert into tdb.et1 values ('2025-01-01 10:00:01', 5, 55, 0.8, 'expired1') ;")
+        time.sleep(30)
 
     def checkStreamStatus(self):
         tdLog.info("check stream status")
