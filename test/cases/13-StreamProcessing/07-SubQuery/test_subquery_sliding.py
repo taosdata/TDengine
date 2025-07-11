@@ -983,7 +983,7 @@ class TestStreamSubquerySliding:
             exp_query="select last(ts), cols(last(ts), c1, c2), count(1) from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:15:00.000' interval(5m);",
             check_func=self.check102,
         )
-        # self.streams.append(stream) TD-36411
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=103,
@@ -1134,7 +1134,7 @@ class TestStreamSubquerySliding:
             res_query="select * from rdb.r121",
             exp_query="select ta.ts tats, tb.cts tbts, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2 from tdb.t1 ta right join qdb.t1 tb on ta.ts=tb.cts where ta.ts >= '2025-01-01 00:00:00.000' and ta.ts < '2025-01-01 00:35:00.000';",
         )
-        # self.streams.append(stream) TD-36422
+        # self.streams.append(stream) TD-36443
 
         stream = StreamItem(
             id=122,
@@ -1208,15 +1208,15 @@ class TestStreamSubquerySliding:
             exp_query="select _rowts, CSUM(cint) + CSUM(cuint) from qdb.v1 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
         )
         # self.streams.append(stream) TD-36175
-        
+
         stream = StreamItem(
             id=131,
             stream="create stream rdb.s131 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r131 as select ta.ts tats, tb.cts tbts, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2, _twstart, _twend from %%trows ta right join qdb.t1 tb on ta.ts=tb.cts where ta.ts >= _twstart and ta.ts < _twend;",
-            res_query="select * from rdb.r131",
+            res_query="select tats, tbts, tac1, tac2, tbc1, tbc2 from rdb.r131 where id=1",
             exp_query="select ta.ts tats, tb.cts tbts, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2 from tdb.t1 ta right join qdb.t1 tb on ta.ts=tb.cts where ta.ts >= '2025-01-01 00:00:00.000' and ta.ts < '2025-01-01 00:35:00.000';",
         )
-        # self.streams.append(stream) TD-36423
-        
+        self.streams.append(stream)
+
         stream = StreamItem(
             id=132,
             stream="create stream rdb.s132 interval(5m) sliding(5m) from tdb.t1 partition by id into rdb.r132 as select tb.cts tbts, ta.ts tats, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2, _twstart, _twend from tdb.t1 ta right join qdb.t1 tb on ta.ts=tb.cts where tb.cts >= _twstart and tb.cts < _twend;",
@@ -1578,7 +1578,12 @@ class TestStreamSubquerySliding:
 
     def check102(self):
         tdSql.checkResultsByFunc(
-            sql="select * from rdb.r102", func=lambda: tdSql.getRows() == 4
+            sql="select * from rdb.r102",
+            func=lambda: tdSql.getRows() == 4
+            and tdSql.compareData(3, 0, "2025-01-01 00:32:00.000")
+            and tdSql.compareData(3, 1, 32)
+            and tdSql.compareData(3, 2, 320)
+            and tdSql.compareData(3, 3, 2),
         )
 
     def check123(self):
