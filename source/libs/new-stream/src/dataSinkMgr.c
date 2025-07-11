@@ -672,11 +672,11 @@ int32_t createDataResult(void** pIter) {
 }
 
 void releaseDataResult(void** pIter) {
-  if (pIter == NULL) {
+  if (pIter == NULL || *pIter == NULL) {
     return;
   }
   SResultIter* pResult = (SResultIter*)*pIter;
-  if (pResult && pResult->tmpBlocksInMem) {
+  if (pResult->tmpBlocksInMem) {
     for (int32_t i = 0; i < pResult->tmpBlocksInMem->size; ++i) {
       SSDataBlock** ppBlk = (SSDataBlock**)taosArrayGet(pResult->tmpBlocksInMem, i);
       if (*ppBlk != NULL) {
@@ -687,7 +687,7 @@ void releaseDataResult(void** pIter) {
     taosArrayDestroy(pResult->tmpBlocksInMem);
     pResult->tmpBlocksInMem = NULL;
   }
-  if (pResult && pResult->cleanMode == DATA_CLEAN_EXPIRED) {
+  if (pResult->cleanMode == DATA_CLEAN_EXPIRED) {
     SSlidingGrpMgr* pSlidingGrpMgr = (SSlidingGrpMgr*)pResult->groupData;
     changeMgrStatus(&pSlidingGrpMgr->status, GRP_DATA_IDLE);
   } else {
