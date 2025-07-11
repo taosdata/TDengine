@@ -15118,11 +15118,11 @@ _exit:
   return code;
 }
 
-void tFreeMountInfo(SMountInfo *pReq, bool stbExtracted) {
-  if (pReq) {
-    if (pReq->pDbs) {
-      for (int32_t i = 0; i < TARRAY_SIZE(pReq->pDbs); ++i) {
-        SMountDbInfo *pDbInfo = TARRAY_GET_ELEM(pReq->pDbs, i);
+void tFreeMountInfo(SMountInfo *pInfo, bool stbExtracted) {
+  if (pInfo) {
+    if (pInfo->pDbs) {
+      for (int32_t i = 0; i < TARRAY_SIZE(pInfo->pDbs); ++i) {
+        SMountDbInfo *pDbInfo = TARRAY_GET_ELEM(pInfo->pDbs, i);
         taosArrayDestroy(pDbInfo->pVgs);
         if (stbExtracted) {
           for (int32_t j = 0; j < taosArrayGetSize(pDbInfo->pStbs); ++j) {
@@ -15136,10 +15136,14 @@ void tFreeMountInfo(SMountInfo *pReq, bool stbExtracted) {
           taosArrayDestroyP(pDbInfo->pStbs, NULL);
         }
       }
-      taosArrayDestroy(pReq->pDbs);
+      taosArrayDestroy(pInfo->pDbs);
     }
     for (int32_t i = 0; i < TFS_MAX_TIERS; ++i) {
-      taosArrayDestroyP(pReq->pDisks[i], NULL);
+      taosArrayDestroyP(pInfo->pDisks[i], NULL);
+    }
+    if (pInfo->pFile) {
+      (void)taosUnLockFile(pInfo->pFile);
+      taosCloseFile(&pInfo->pFile);
     }
   }
 }

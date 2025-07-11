@@ -70,6 +70,7 @@ class TDTestCase:
         tdSql.execute("create table stb1(ts timestamp, c0 int primary key,c1 bigint,c2 int,c3 float,c4 double) tags(t0 bigint unsigned)")
         tdSql.execute("create table ctb10 using stb1 tags(0)")
         tdSql.execute("create table ctb11 using stb1 tags(1)")
+        tdSql.execute("create table ntb0(ts timestamp, c0 int)")
         for r in range(0, 5000, 50):
             tdSql.query(f"insert into db0.ctb0 values(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)  "%(r, r*2, r*4, r*3, float(r)/39, float(r)/23,r+1, (r+1)*2, (r+1)*4, (r+1)*3, float(r)/139, float(r)/123,r+2, (r+2)*2, (r+2)*4, (r+2)*3, float(r)/239, float(r)/223,r+3, (r+3)*2, (r+3)*4, (r+3)*3, float(r)/339, float(r)/323,r+4, (r+4)*2, (r+4)*4, (r+4)*3, float(r)/439, float(r)/423,r+5, r+5*2, r+5*4, r+5*3, float(r)/539, float(r)/523,r+6, r+6*2, r+6*4, r+6*3, float(r)/639, float(r)/623,r+7, r+7*2, r+7*4, r+7*3, float(r)/739, float(r)/723,r+8, r+8*2, r+8*4, r+8*3, float(r)/839, float(r)/823,r+9, r+9*2, r+9*4, r*3, float(r)/939, float(r)/923))
         for r in range(0, 5000, 50):
@@ -147,7 +148,7 @@ class TDTestCase:
         tdSql.error("create mount mnt1 on dnode 1 from ''", expectErrInfo=f"The mount path is invalid", fullMatched=False)
         tdSql.error("create mount mnt1 on dnode 1 from 'path_not_exist'", expectErrInfo="No such file or directory", fullMatched=False)
         tdSql.error(f"create mount mnt1 on dnode 1 from '{self.mountPath}'", expectErrInfo="No such file or directory", fullMatched=False)
-        tdSql.error(f"create mount mnt1 on dnode 1 from '{self.hostPrimary}'", expectErrInfo="Cluster id identical to the host cluster id", fullMatched=False)
+        tdSql.error(f"create mount mnt1 on dnode 1 from '{self.hostPrimary}'", expectErrInfo="Resource temporarily unavailable", fullMatched=False)
         tdSql.error(f"create mount d0 on dnode 1 from '{self.hostPrimary}'", expectErrInfo="Database with identical name already exists", fullMatched=False)
         self.refact_mount_dataDir()
         self.corruptMntClusterId()
@@ -182,7 +183,7 @@ class TDTestCase:
         tdSql.query("show mnt1_db0.stables")
         tdSql.checkRows(2)
         tdSql.query("show mnt1_db0.tables")
-        tdSql.checkRows(4)
+        tdSql.checkRows(5)
         tdSql.query("show mnt1_db1.stables")
         tdSql.checkRows(2)
         tdSql.query("show mnt1_db1.tables")
@@ -199,6 +200,8 @@ class TDTestCase:
         tdSql.checkRows(7)
         tdSql.query("desc mnt1_db0.ctb11")
         tdSql.checkRows(7)
+        tdSql.query("desc mnt1_db0.ntb0")
+        tdSql.checkRows(2)
         tdSql.query("desc mnt1_db1.stb0")
         tdSql.checkRows(7)
         tdSql.query("desc mnt1_db1.ctb0")
@@ -247,7 +250,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 5)
 
     def s3_create_drop_show_mount(self):
-        tdLog.info("step 3 create_drop_show_mount")
+        tdLog.info(" =============== step 3 create_drop_show_mount")
         tdSql.execute(f"create mount mnt1 on dnode 1 from '{self.mountPrimary}'")
         tdSql.query("show mounts", count_expected_res=1)
         tdLog.info(f"result: {tdSql.queryResult}")
@@ -263,16 +266,23 @@ class TDTestCase:
         tdDnodes.start(1)
         self.check_mount_query()
         # check conflicts
+        tdSql.error("insert into mnt1_db0.ctb0 values(now, 100, 100, 100, 100.0, 100.0)", expectErrInfo="Operation not supported", fullMatched=False)
+        tdSql.error("create table mnt1_db0.ntb100 (ts timestamp, c0 int)", expectErrInfo="Operation not supported", fullMatched=False)
+        tdSql.error("create table mnt1_db0.ctb100 using mnt1_db0.stb0 tags(100)", expectErrInfo="Operation not supported", fullMatched=False)
+        tdSql.error("drop table mnt1_db0.ctb0", expectErrInfo="Operation not supported", fullMatched=False)
+        tdSql.error("drop table mnt1_db0.ntb0", expectErrInfo="Operation not supported", fullMatched=False)
         tdSql.error("drop dnode 1", expectErrInfo="The replica of mnode cannot less than 1", fullMatched=False)
         tdSql.error("drop database mnt1_db0", expectErrInfo="Mount object not supported", fullMatched=False)
         tdSql.error("drop database mnt1_db1", expectErrInfo="Mount object not supported", fullMatched=False)
+        tdSql.error("drop table mnt1_db0.stb0", expectErrInfo="Mount object not supported", fullMatched=False)
+        tdSql.error("alter table mnt1_db0.stb0 add column c100 int", expectErrInfo="Mount object not supported", fullMatched=False)
         # drop mount
         tdSql.execute("drop mount mnt1")
         tdSql.query("show mounts")
         tdSql.checkRows(0)
 
     def s4_recheck_mount_path(self):
-        tdLog.info("step 4 recheck mount path")
+        tdLog.info(" =============== step 4 recheck mount path")
         tdDnodes.stop(1)
         self.refactConfBetweenHostAndMnt(toMnt=True)
         tdDnodes.start(1)
@@ -305,6 +315,9 @@ class TDTestCase:
         tdSql.query("select count(*) from db0.ctb10")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
+        tdSql.query("select count(*) from db0.ntb0")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
         tdSql.query("select count(*) from db0.ctb11")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
@@ -316,11 +329,11 @@ class TDTestCase:
         tdSql.checkData(0, 0, 0)
 
     def s5_check_remount(self):
-        tdLog.info("step 5 check remount")
+        tdLog.info(" =============== step 5 check remount")
         tdDnodes.stop(1)
         self.refactConfBetweenHostAndMnt(toMnt=False)
         tdDnodes.start(1)
-        self.s3_create_drop_show_mount())
+        self.s3_create_drop_show_mount()
 
     def run(self):
         self.s0_prepare_mount_path()
@@ -329,6 +342,7 @@ class TDTestCase:
         self.s3_create_drop_show_mount()
         self.s4_recheck_mount_path()
         self.s5_check_remount()
+        self.s4_recheck_mount_path() # recheck
 
     def stop(self):
         tdSql.close()

@@ -5231,10 +5231,11 @@ typedef struct {
   void*    pVal;
 
   // response fields
-  SArray* pDbs;   // SMountDbInfo
+  SArray* pDbs;  // SMountDbInfo
 
   // memory fields, no serialized
-  SArray* pDisks[TFS_MAX_TIERS];
+  SArray*   pDisks[TFS_MAX_TIERS];
+  TdFilePtr pFile;
 } SMountInfo;
 
 int32_t tSerializeSMountInfo(void* buf, int32_t bufLen, SMountInfo* pReq);

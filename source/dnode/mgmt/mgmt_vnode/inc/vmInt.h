@@ -56,10 +56,11 @@ typedef struct {
   char    path[TSDB_MOUNT_PATH_LEN];
 } SMountCfg;
 typedef struct {
-  char    name[TSDB_MOUNT_NAME_LEN];
-  char    path[TSDB_MOUNT_PATH_LEN];
-  STfs   *pTfs;
-  int32_t nRef;
+  char      name[TSDB_MOUNT_NAME_LEN];
+  char      path[TSDB_MOUNT_PATH_LEN];
+  TdFilePtr pFile;
+  STfs     *pTfs;
+  int32_t   nRef;
 } SMountTfs;
 
 typedef struct {
@@ -146,6 +147,7 @@ int32_t vmGetAllVnodeListFromHashWithCreating(SVnodeMgmt *pMgmt, int32_t *numOfV
 int32_t vmGetMountListFromFile(SVnodeMgmt *pMgmt, SMountCfg **ppCfgs, int32_t *numOfMounts);
 int32_t vmWriteMountListToFile(SVnodeMgmt *pMgmt);
 int32_t vmGetMountDisks(SVnodeMgmt *pMgmt, const char *mountPath, SArray **ppDisks);
+int32_t vmMountCheckRunning(const char *mountName, const char *mountPath, TdFilePtr *pFile, int32_t retryLimit);
 
 // vmWorker.c
 int32_t vmStartWorker(SVnodeMgmt *pMgmt);

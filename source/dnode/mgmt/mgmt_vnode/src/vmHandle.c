@@ -789,24 +789,6 @@ _exit:
   TAOS_RETURN(code);
 }
 
-#if 0
-/**
- *  Retrieve the stables of from mnode SDB file.
- *  Obsolete, since the stables maybe not written to SDB file yet and still in mnode wal.
- */
-static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pReq, SMountInfo *pMountInfo) {
-  int32_t code = 0, lino = 0;
-  char    path[TSDB_MOUNT_PATH_LEN + 128] = {0};
-
-  int32_t nDb = taosArrayGetSize(pMountInfo->pDbs);
-  if (nDb > 0) {
-    snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(MNODE));
-    mndFetchSdbStables(pReq->mountName, path, &pMountInfo->pStbs);
-  }
-_exit:
-  TAOS_RETURN(code);
-}
-#else
 /**
  *   Retrieve the stables from vnode meta.
  */
@@ -1012,12 +994,39 @@ _exit:
   taosArrayDestroy(pTagExts);
   TAOS_RETURN(code);
 }
-#endif
+
+int32_t vmMountCheckRunning(const char *mountName, const char *mountPath, TdFilePtr *pFile, int32_t retryLimit) {
+  int32_t code = 0, lino = 0;
+  int32_t retryTimes = 0;
+  char    filepath[PATH_MAX] = {0};
+  (void)snprintf(filepath, sizeof(filepath), "%s%s.running", mountPath, TD_DIRSEP);
+  TSDB_CHECK_NULL((*pFile = taosOpenFile(filepath, TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_CLOEXEC)), code, lino, _exit,
+                  terrno);
+  int32_t ret = 0;
+  do {
+    ret = taosLockFile(*pFile);
+    if (ret == 0) break;
+    taosMsleep(1000);
+    ++retryTimes;
+    dError("mount:%s, failed to lock file:%s since %s, retryTimes:%d", mountName, filepath, tstrerror(code),
+           retryTimes);
+  } while (retryTimes < retryLimit);
+  TAOS_CHECK_EXIT(ret);
+_exit:
+  if (code != 0) {
+    taosCloseFile(pFile);
+    *pFile = NULL;
+    dError("mount:%s, failed to check running at line %d since %s, path:%s", mountName, lino, tstrerror(code),
+           filepath);
+  }
+  TAOS_RETURN(code);
+}
 
 static int32_t vmRetrieveMountPreCheck(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pReq, SMountInfo *pMountInfo) {
   int32_t code = 0, lino = 0;
   char    path[TSDB_MOUNT_FPATH_LEN] = {0};
   TSDB_CHECK_CONDITION(taosCheckAccessFile(pReq->mountPath, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
+  TAOS_CHECK_EXIT(vmMountCheckRunning(pReq->mountName, pReq->mountPath, &pMountInfo->pFile, 3));
   snprintf(path, sizeof(path), "%s%s%s%sdnode.json", pReq->mountPath, TD_DIRSEP, dmNodeName(DNODE), TD_DIRSEP);
   TSDB_CHECK_CONDITION(taosCheckAccessFile(path, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
   snprintf(path, sizeof(path), "%s%s%s", pReq->mountPath, TD_DIRSEP, dmNodeName(MNODE));
@@ -1027,7 +1036,6 @@ static int32_t vmRetrieveMountPreCheck(SVnodeMgmt *pMgmt, SRetrieveMountPathReq 
   snprintf(path, sizeof(path), "%s%s%s%sconfig%slocal.json", pReq->mountPath, TD_DIRSEP, dmNodeName(DNODE), TD_DIRSEP,
            TD_DIRSEP);
   TSDB_CHECK_CONDITION(taosCheckAccessFile(path, O_RDONLY), code, lino, _exit, TAOS_SYSTEM_ERROR(errno));
-  // TODO: check dnode/config/local.json, and multi-tier not supported currently.
 _exit:
   if (code != 0) {
     dError("mount:%s, failed to retrieve mount at line %d on dnode:%d since %s, path:%s", pReq->mountName, lino,
