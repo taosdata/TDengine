@@ -25,9 +25,7 @@ class TestSmatest:
 
     # init
     def setup_class(cls):
-        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor(), logSql)
         cls.ts = 1500000000000
 
     def check_TD_33336(self):
@@ -74,6 +72,8 @@ class TestSmatest:
         """
 
         # insert data
+        tdSql.prepare()
+        self.create_tables()
         dbname = "db"
         self.insert_data1(f"{dbname}.t1", self.ts, 10*10000)
         self.insert_data1(f"{dbname}.t4", self.ts, 10*10000)

@@ -262,7 +262,7 @@ class TestMutilStage:
         """
         self.rows = 10
         self.cfg_check()
-        tdSql.prepare(dbname=DBNAME, **{"keep": "1d, 1500m, 26h", "duration":"1h", "vgroups": 10})
+        tdSql.execute(f'create database {DBNAME} keep 1d, 1500m, 26h duration 1h vgroups 10 replica 1;')
         self.__create_tb(dbname=DBNAME)
         self.__insert_data(rows=self.rows, dbname=DBNAME)
         tdSql.query(f"select count(*) from {DBNAME}.{NTB_PRE}1")
