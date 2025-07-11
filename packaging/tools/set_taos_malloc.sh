@@ -29,10 +29,15 @@ usage() {
   exit 1
 }
 
-while getopts "m:h" arg; do
+quiet=0
+
+while getopts "m:shq" arg; do
   case $arg in
     m)
       mode=$OPTARG
+      ;;
+    q)
+      quiet=1
       ;;
     h)
       usage
@@ -41,7 +46,6 @@ while getopts "m:h" arg; do
       usage
       ;;
   esac
-
 done
 
 if [ -z "$mode" ]; then
@@ -59,7 +63,7 @@ declare -A CONF_VARS
 
 case "$mode" in
   0)
-    MODE_DESC="Default mode"
+    MODE_DESC="Default mode:glibc malloc"
     SH_VARS[0]="# Use system default memory allocator"
     CONF_VARS[0]="# Use system default memory allocator"
     ;;
@@ -110,12 +114,20 @@ for i in $(seq 0 $((${#CONF_VARS[@]}-1))); do
   echo "${CONF_VARS[$i]}" >> "$MALLOC_ENV_CONF"
 done
 
-echo "---------------------------------------------"
-echo "Memory allocator setting complete!"
-echo "  Mode: $mode (${MODE_DESC})"
-echo "  Shell env file:    $MALLOC_ENV_SH"
-echo "  Systemd env file:  $MALLOC_ENV_CONF"
-echo
-echo "To use in shell:    source $MALLOC_ENV_SH"
-echo "To use in systemd:  Just restart your service, EnvironmentFile is already configured."
-echo "---------------------------------------------"
+for i in $(seq 0 $((${#CONF_VARS[@]}-1))); do
+  echo "${CONF_VARS[$i]}" >> "$MALLOC_ENV_CONF"
+done
+
+if [ "$quiet" -ne 1 ]; then
+  echo "---------------------------------------------"
+  echo "Memory allocator setting complete!"
+  echo "  Mode: $mode (${MODE_DESC})"
+  echo "  Shell env file:    $MALLOC_ENV_SH"
+  echo "  Systemd env file:  $MALLOC_ENV_CONF"
+  echo
+  echo "To use in shell:    source $MALLOC_ENV_SH"
+  echo "To use in systemd:  Just restart your service, EnvironmentFile is already configured."
+  echo "---------------------------------------------"
+else
+  echo "Memory allocator setting complete! Mode: $mode (${MODE_DESC})"
+fi
