@@ -1,5 +1,5 @@
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
-import datetime
+from datetime import datetime
 class TestJoin:
 
     """Verify the join function
