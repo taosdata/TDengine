@@ -1,7 +1,13 @@
 import pytest
 import os
 import shutil
-from new_test_framework.utils import tdSql, etool, tdLog, BeforeTest, eutil
+import time
+import copy
+import uuid
+import json
+import tempfile
+import random
+from new_test_framework.utils import tdSql, etool, tdLog, BeforeTest, eutil, eos
 
 
 def pytest_addoption(parser):
@@ -13,6 +19,8 @@ def pytest_addoption(parser):
                     help="create mnode numbers in clusters")
     parser.addoption("-R", action="store_true",
                     help="restful realization form")
+    parser.addoption("-B", action="store_true",
+                    help="start taosAdapter but not connect with taosrest")
     parser.addoption("-Q", action="store",
                     help="set queryPolicy in one dnode")
     parser.addoption("-D", action="store",
@@ -132,10 +140,15 @@ def before_test_session(request):
         else:
             request.session.denodes_num = 1
         
+        request.session.restful = False
+        request.session.start_taosadapter = False
         if request.config.getoption("-R"):
             request.session.restful = True
-        else:
-            request.session.restful = False
+            request.session.start_taosadapter = True
+        
+        if request.config.getoption("-B"):
+            request.session.start_taosadapter = True
+        
         if request.config.getoption("-K"):
             request.session.set_taoskeeper = True
         else:
@@ -145,7 +158,7 @@ def before_test_session(request):
         else:
             request.session.query_policy = 1
         if request.config.getoption("-I"):   
-            request.session.independentMnode = bool(request.config.getoption("-I"))
+            request.session.independentMnode = True if request.config.getoption("-I") in ["True", "true", "1"] else False
         else:
             request.session.independentMnode = False
         if request.config.getoption("-D"):
@@ -201,12 +214,12 @@ def before_test_class(request):
     
     # 如果用例中定义了updatecfgDict，则更新配置
     if hasattr(request.cls, "updatecfgDict"):
+        tdLog.info(f"update cfg: {request.cls.updatecfgDict}")
         request.session.before_test.update_cfg(request.cls.updatecfgDict)
 
     # 部署taosd，包括启动dnode，mnode，adapter
     if not request.session.skip_deploy:
         request.session.before_test.deploy_taos(request.cls.yaml_file, request.session.mnodes_num, request.session.clean)
-
     # 为老用例兼容，初始化老框架部分实例
     request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True, level=request.session.level, disk=request.session.disk)
     
@@ -214,7 +227,6 @@ def before_test_class(request):
     request.cls.conn = request.session.before_test.get_taos_conn(request)
     tdSql.init(request.cls.conn.cursor())
     tdSql.replica = request.session.replicaVar
-    tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
 
     # 为兼容老用例，初始化原框架连接
     #tdSql_pytest.init(request.cls.conn.cursor())
@@ -223,6 +235,12 @@ def before_test_class(request):
     # 处理 -C 参数，如果未设置 -C 参数，create_dnode_num 和 -N 参数相同
     for i in range(1, request.session.create_dnode_num):
         tdSql.execute(f"create dnode localhost port {6030+i*100}")
+    tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
+
+    if request.session.mnodes_num:
+        for i in range(2, request.session.mnodes_num + 1):
+            tdSql.execute(f"create mnode on dnode {i}")
+        tdLog.debug(tdSql.query(f"show mnodes", row_tag=True))
 
     # 处理-Q参数，如果-Q参数不等于1，则创建qnode，并设置queryPolicy
     if request.session.query_policy != 1:
@@ -293,6 +311,35 @@ def before_test_class(request):
 @pytest.fixture(scope="class", autouse=True)
 def add_common_methods(request):
     # 兼容原老框架，添加CaseBase方法
+    def init(cls, replicaVar=1, db="db", stb="stb", checkColName="ic"):
+        
+        # init
+        cls.childtable_count = 0
+        cls.insert_rows      = 0
+        cls.timestamp_step   = 0
+
+        # save param
+        cls.replicaVar = int(replicaVar)
+        cls.tmpdir = "tmp"
+
+        # record server information
+        cls.dnodeNum = 0
+        cls.mnodeNum = 0
+        cls.mLevel = 0
+        cls.mLevelDisk = 0
+
+        # test case information
+        cls.db     = db
+        cls.stb    = stb
+
+        # sql 
+        cls.sqlSum = f"select sum({checkColName}) from {db}.{cls.stb}"
+        cls.sqlMax = f"select max({checkColName}) from {db}.{cls.stb}"
+        cls.sqlMin = f"select min({checkColName}) from {db}.{cls.stb}"
+        cls.sqlAvg = f"select avg({checkColName}) from {db}.{cls.stb}"
+        cls.sqlFirst = f"select first(ts) from {db}.{cls.stb}"
+        cls.sqlLast  = f"select last(ts) from {db}.{cls.stb}"
+    request.cls.init = init
 
     def stop(self):
         tdSql.close()
@@ -346,7 +393,7 @@ def add_common_methods(request):
         sql = f"alter database {self.db} replica {replica}"
         tdSql.execute(sql, show=True)
         if self.waitTransactionZero() is False:
-            logger.exit(f"{sql} transaction not finished")
+            tdLog.exit(f"{sql} transaction not finished")
             return False
         return True
 
@@ -356,7 +403,7 @@ def add_common_methods(request):
         sql = f"balance vgroup"
         tdSql.execute(sql, show=True)
         if self.waitTransactionZero() is False:
-            logger.exit(f"{sql} transaction not finished")
+            tdLog.exit(f"{sql} transaction not finished")
             return False
         return True
 
@@ -366,7 +413,7 @@ def add_common_methods(request):
         sql = f"balance vgroup leader"
         tdSql.execute(sql, show=True)
         if self.waitTransactionZero() is False:
-            logger.exit(f"{sql} transaction not finished")
+            tdLog.exit(f"{sql} transaction not finished")
             return False
         return True
 
@@ -375,7 +422,7 @@ def add_common_methods(request):
         sql = f"balance vgroup leader on {vgId}"
         tdSql.execute(sql, show=True)
         if self.waitTransactionZero() is False:
-            logger.exit(f"{sql} transaction not finished")
+            tdLog.exit(f"{sql} transaction not finished")
             return False
         return True
 
@@ -385,7 +432,7 @@ def add_common_methods(request):
         sql = f"balance vgroup leader on {vgId}"
         tdSql.execute(sql, show=True)
         if self.waitTransactionZero() is False:
-            logger.exit(f"{sql} transaction not finished")
+            tdLog.exit(f"{sql} transaction not finished")
             return False
     
     request.cls.balanceVGroupLeaderOn = balanceVGroupLeaderOn
@@ -395,16 +442,15 @@ def add_common_methods(request):
 
     # basic
     def checkInsertCorrect(self, difCnt = 0):
-        # check count
-        sql = f"select count(*) from {self.stb}"
+        sql = f"select count(*) from {self.db}.{self.stb}"
         tdSql.checkAgg(sql, self.childtable_count * self.insert_rows)
 
         # check child table count
-        sql = f" select count(*) from (select count(*) as cnt , tbname from {self.stb} group by tbname) where cnt = {self.insert_rows} "
+        sql = f" select count(*) from (select count(*) as cnt , tbname from {self.db}.{self.stb} group by tbname) where cnt = {self.insert_rows} "
         tdSql.checkAgg(sql, self.childtable_count)
 
         # check step
-        sql = f"select count(*) from (select diff(ts) as dif from {self.stb} partition by tbname order by ts desc) where dif != {self.timestamp_step}"
+        sql = f"select count(*) from (select diff(ts) as dif from {self.db}.{self.stb} partition by tbname order by ts desc) where dif != {self.timestamp_step}"
         tdSql.checkAgg(sql, difCnt)
 
     request.cls.checkInsertCorrect = checkInsertCorrect
@@ -458,23 +504,23 @@ def add_common_methods(request):
 
     # check sql1 is same result with sql2
     def checkSameResult(self, sql1, sql2):
-        logger.info(f"sql1={sql1}")
-        logger.info(f"sql2={sql2}")
-        logger.info("compare sql1 same with sql2 ...")
+        tdLog.info(f"sql1={sql1}")
+        tdLog.info(f"sql2={sql2}")
+        tdLog.info("compare sql1 same with sql2 ...")
 
         # sql
         rows1 = tdSql.query(sql1,queryTimes=2)
-        res1 = copy.deepcopy(tdSql.res)
+        res1 = copy.deepcopy(tdSql.queryResult)
 
         tdSql.query(sql2,queryTimes=2)
-        res2 = tdSql.res
+        res2 = tdSql.queryResult
 
         rowlen1 = len(res1)
         rowlen2 = len(res2)
         errCnt = 0
 
         if rowlen1 != rowlen2:
-            logger.error(f"both row count not equal. rowlen1={rowlen1} rowlen2={rowlen2} ")
+            tdLog.error(f"both row count not equal. rowlen1={rowlen1} rowlen2={rowlen2} ")
             return False
         
         for i in range(rowlen1):
@@ -483,19 +529,38 @@ def add_common_methods(request):
             collen1 = len(row1)
             collen2 = len(row2)
             if collen1 != collen2:
-                logger.error(f"both col count not equal. collen1={collen1} collen2={collen2}")
+                tdLog.error(f"both col count not equal. collen1={collen1} collen2={collen2}")
                 return False
             for j in range(collen1):
                 if row1[j] != row2[j]:
-                    logger.info(f"error both column value not equal. row={i} col={j} col1={row1[j]} col2={row2[j]} .")
+                    tdLog.info(f"error both column value not equal. row={i} col={j} col1={row1[j]} col2={row2[j]} .")
                     errCnt += 1
 
         if errCnt > 0:
-            logger.error(f"sql2 column value different with sql1. different count ={errCnt} ")
+            tdLog.error(f"sql2 column value different with sql1. different count ={errCnt} ")
 
-        logger.info("sql1 same result with sql2.")
+        tdLog.info("sql1 same result with sql2.")
     
     request.cls.checkSameResult = checkSameResult
+    # check same value
+    def checkSame(self, real, expect, show = True):
+        if real == expect:
+            if show:
+                tdLog.info(f"check same succ. real={real} expect={expect}.")
+        else:
+            tdLog.exit(f"check same failed. real={real} expect={expect}.")
+    request.cls.checkSame = checkSame
+    # check except
+    def checkExcept(self, command):
+        try:
+            code = eos.exe(command)
+            if code == 0:
+                tdLog.exit(f"Failed, not report error cmd:{command}")
+            else:
+                tdLog.info(f"Passed, report error code={code} is expect, cmd:{command}")
+        except:
+            tdLog.info(f"Passed, catch expect report error for command {command}")
+    request.cls.checkExcept = checkExcept
 #
 #   get db information
 #
@@ -539,6 +604,18 @@ def add_common_methods(request):
     
     request.cls.getDistributed = getDistributed
 
+    def taos(self, command, show = True, checkRun = False):
+        return etool.runBinFile("taos", command, show, checkRun)
+    request.cls.taos = taos
+
+    def taosdump(self, command, show = True, checkRun = True, retFail = True):
+        return etool.runBinFile("taosdump", command, show, checkRun, retFail)
+    request.cls.taosdump = taosdump
+
+    def benchmark(self, command, show = True, checkRun = True, retFail = True):
+        return etool.runBinFile("taosBenchmark", command, show, checkRun, retFail)
+    request.cls.benchmark = benchmark
+
 #
 #   util 
 #
@@ -550,7 +627,7 @@ def add_common_methods(request):
             sql ="show transactions;"
             rows = tdSql.query(sql)
             if rows == 0:
-                logger.info("transaction count became zero.")
+                tdLog.info("transaction count became zero.")
                 return True
             #tdLog.info(f"i={i} wait ...")
             time.sleep(interval)
@@ -564,7 +641,7 @@ def add_common_methods(request):
             sql ="show compacts;"
             rows = tdSql.query(sql)
             if rows == 0:
-                logger.info("compacts count became zero.")
+                tdLog.info("compacts count became zero.")
                 return True
             #tdLog.info(f"i={i} wait ...")
             time.sleep(interval)
@@ -576,15 +653,39 @@ def add_common_methods(request):
     # check file exist
     def checkFileExist(self, pathFile):
         if os.path.exists(pathFile) == False:
-            logger.error(f"file not exist {pathFile}")
+            tdLog.error(f"file not exist {pathFile}")
 
     # check list not exist
     def checkListNotEmpty(self, lists, tips=""):
         if len(lists) == 0:
-            logger.error(f"list is empty {tips}")
+            tdLog.error(f"list is empty {tips}")
 
     request.cls.checkListNotEmpty = checkListNotEmpty
 
+    # check list have str
+    def checkListString(self, rlist, s):
+        if s is None:
+            return 
+        for i in range(len(rlist)):
+            if rlist[i].find(s) != -1:
+                # found
+                tdLog.info(f'found "{s}" on index {i} , line={rlist[i]}')
+                return 
+
+        # not found
+        
+        i = 1
+        for x in rlist:
+            print(f"{i} {x}")
+            i += 1
+        tdLog.exit(f'faild, not found "{s}" on above')
+    request.cls.checkListString = checkListString
+
+    # check many string
+    def checkManyString(self, rlist, manys):
+        for s in manys:
+            self.checkListString(rlist, s)
+    request.cls.checkManyString = checkManyString
 #
 #  str util
 #
@@ -642,7 +743,7 @@ def add_common_methods(request):
         except:
             vgroups = None
 
-        logger.info(f"get json info: db={db} stb={stb} child_count={child_count} insert_rows={insert_rows} \n")
+        tdLog.info(f"get json info: db={db} stb={stb} child_count={child_count} insert_rows={insert_rows} \n")
         
         # all count insert_rows * child_table_count
         sql = f"select * from {db}.{stb}"
@@ -663,7 +764,7 @@ def add_common_methods(request):
             if cachemode != None:
                 
                 value = eutil.removeQuota(cachemode)                
-                logger.info(f" deal both origin={cachemode} after={value}")
+                tdLog.info(f" deal both origin={cachemode} after={value}")
                 tdSql.checkData(0, 1, value)
 
             if vgroups != None:
@@ -673,7 +774,134 @@ def add_common_methods(request):
 
     request.cls.insertBenchJson = insertBenchJson
 
+# insert & check
+    def benchInsert(self, jsonFile, options = "", results = None):
+        # exe insert 
+        benchmark = etool.benchMarkFile()
+        cmd   = f"{benchmark} {options} -f {jsonFile}"
+        rlist = eos.runRetList(cmd, True, True, True)
+        if results != None:
+            for result in results:
+                self.checkListString(rlist, result)
+        
+        # open json
+        with open(jsonFile, "r") as file:
+            data = json.load(file)
+        
+        # read json
+        dbs = data["databases"]
+        for db in dbs:
+            dbName = db["dbinfo"]["name"]        
+            stbs   = db["super_tables"]
+            for stb in stbs:
+                stbName        = stb["name"]
+                child_count    = stb["childtable_count"]
+                insert_rows    = stb["insert_rows"]
+                timestamp_step = stb["timestamp_step"]
 
+                # check result
+
+                # count
+                sql = f"select count(*) from {dbName}.{stbName}"
+                tdSql.checkAgg(sql, child_count * insert_rows)
+                # diff
+                sql = f"select * from (select diff(ts) as dif from {dbName}.{stbName} partition by tbname) where dif != {timestamp_step};"
+                tdSql.query(sql)
+                tdSql.checkRows(0)
+                # show 
+                tdLog.info(f"insert check passed. db:{dbName} stb:{stbName} child_count:{child_count} insert_rows:{insert_rows}\n")
+    request.cls.benchInsert = benchInsert
+    # tmq
+    def tmqBenchJson(self, jsonFile, options="", checkStep=False):
+        # exe insert 
+        command = f"{options} -f {jsonFile}"
+        rlist = etool.runBinFile("taosBenchmark", command, checkRun = True)
+
+        #
+        # check insert result
+        #
+        print(rlist)
+
+        return rlist
+    request.cls.tmqBenchJson = tmqBenchJson
+    # cmd
+    def benchmarkCmd(self, options, childCnt, insertRows, timeStep, results):
+        # set
+        self.childtable_count = childCnt
+        self.insert_rows      = insertRows
+        self.timestamp_step   = timeStep
+
+        # run
+        cmd = f"{options} -t {childCnt} -n {insertRows} -S {timeStep} -y"
+        rlist = self.benchmark(cmd)
+        for result in results:
+            self.checkListString(rlist, result)
+
+        # check correct
+        self.checkInsertCorrect()    
+
+    request.cls.benchmarkCmd = benchmarkCmd
+    # generate new json file
+    def genNewJson(self, jsonFile, modifyFunc=None):
+        try:
+            with open(jsonFile, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            tdLog.info(f"the specified json file '{jsonFile}' was not found.")
+            return None
+        except Exception as e:
+            tdLog.info(f"error reading the json file: {e}")
+            return None
+        
+        if callable(modifyFunc):
+            modifyFunc(data)
+        
+        tempDir = os.path.join(tempfile.gettempdir(), 'json_templates')
+        try:
+            os.makedirs(tempDir, exist_ok=True)
+        except PermissionError:
+            tdLog.info(f"no sufficient permissions to create directory at '{tempDir}'.")
+            return None
+        except Exception as e:
+            tdLog.info(f"error creating temporary directory: {e}")
+            return None
+        
+        tempPath = os.path.join(tempDir, f"temp_{uuid.uuid4().hex}.json")
+
+        try:
+            with open(tempPath, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            tdLog.info(f"error writing to temporary json file: {e}")
+            return None
+
+        tdLog.info(f"create temporary json file successfully, file: {tempPath}")
+        return tempPath
+    request.cls.genNewJson = genNewJson
+
+    # delete file
+    def deleteFile(self, filename):
+        try:
+            if os.path.exists(filename):
+                os.remove(filename)
+        except Exception as err:
+            raise Exception(err)
+    request.cls.deleteFile = deleteFile
+
+    # read file to list
+    def readFileToList(self, filePath):
+        try:
+            with open(filePath, 'r', encoding='utf-8') as file:
+                lines = file.readlines()
+            # Strip trailing newline characters
+            return [line.rstrip('\n') for line in lines]
+        except FileNotFoundError:
+            tdLog.info(f"Error: File not found {filePath}")
+            return []
+        except Exception as e:
+            tdLog.info(f"Error reading file: {e}")
+            return []
+    request.cls.readFileToList = readFileToList
 
 def pytest_collection_modifyitems(config, items):
     if config.getoption("--only_deploy"):
