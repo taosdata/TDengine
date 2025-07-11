@@ -118,7 +118,8 @@ class Test_Scene_Asset01:
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream1_sub1`  event_window( start with `电压` > 250 end with `电压` <= 250 ) TRUE_FOR(10m) FROM `tdasset`.`vt_em-1`  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN) INTO `tdasset`.`result_stream1_sub1` AS SELECT _twstart+0s AS output_timestamp, avg(`电压`) AS `平均电压`  FROM tdasset.`vt_em-1`  WHERE ts >= _twstart AND ts <=_twend;",
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream1_sub2`  event_window( start with `电压` > 250 end with `电压` <= 250 ) TRUE_FOR(10m) FROM `tdasset`.`vt_em-1`  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_CLOSE) INTO `tdasset`.`result_stream1_sub2` AS SELECT _twstart+0s AS output_timestamp, avg(`电压`) AS `平均电压`  FROM tdasset.`vt_em-1`  WHERE ts >= _twstart AND ts <=_twend;",
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream2`  interval(1h)  sliding(5m) FROM `tdasset`.`vt_em-2`  notify('ws://idmp:6042/eventReceive') ON(window_open|window_close) INTO `tdasset`.`result_stream2` AS SELECT _twstart+0s AS output_timestamp, max(`电流`) AS `最大电流` FROM tdasset.`vt_em-2`  WHERE ts >=_twstart AND ts <=_twend;",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream3`  event_window( start with `电流` > 100 end with `电流` <= 100 ) TRUE_FOR(5m) FROM `tdasset`.`vt_em-3` NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream3` AS SELECT _twstart+0s AS output_timestamp, AVG(`电流`) AS `平均电流` FROM tdasset.`vt_em-3`  WHERE ts >= _twstart AND ts <=_twend"
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream3`  event_window( start with `电流` > 100 end with `电流` <= 100 ) TRUE_FOR(5m) FROM `tdasset`.`vt_em-3` NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream3` AS SELECT _twstart+0s AS output_timestamp, AVG(`电流`) AS `平均电流` FROM tdasset.`vt_em-3`  WHERE ts >= _twstart AND ts <=_twend",
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4` AS SELECT _twstart+0s as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend "
         ]
 
         tdSql.executes(sqls)
@@ -142,6 +143,8 @@ class Test_Scene_Asset01:
         self.trigger_stream2()
         # stream3
         self.trigger_stream3()
+        # stream4
+        self.trigger_stream4()
 
 
     # 
@@ -158,6 +161,7 @@ class Test_Scene_Asset01:
         self.verify_stream1()
         self.verify_stream2()
         self.verify_stream3()
+        self.verify_stream4()
 
 
     # em1-stream1 trigger voltage > 250 start and voltage <= 250 end
@@ -223,7 +227,9 @@ class Test_Scene_Asset01:
             sql = f"insert into asset01.`em-2` values({ts}, {current}, {voltage}, {power}, {phase});"
             tdSql.execute(sql, show=True)
 
-    # stream3 trigger
+    #
+    # ---------------------   stream3 trigger    ----------------------
+    #
     def trigger_stream3(self):
         ts = self.start
         current = 100
@@ -270,6 +276,18 @@ class Test_Scene_Asset01:
         sql = f"insert into asset01.`em-3`(ts, current) values({ts}, 50);"
         tdSql.execute(sql, show=True)
 
+
+    #
+    # ---------------------   stream4 trigger    ----------------------
+    #
+    def trigger_stream4(self):
+        ts = 1752574200000
+        table = "asset01.`em-4`"
+        step  = 1 * 60 * 1000 # 1 minute
+        count = 120
+        cols = "ts,voltage,power"
+        vals = "220,100"
+        tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
 
     # verify stream1
@@ -331,3 +349,23 @@ class Test_Scene_Asset01:
         )
 
         tdLog.info("verify stream3 successfully.")
+
+
+    # verify stream4
+    def verify_stream4(self):
+        # result_stream4
+        ts = 1752574200000
+        result_sql = f"select * from {self.vdb}.`result_stream4` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.getRows() == 11
+        )
+
+        for i in range(tdSql.getRows()):
+            tdSql.checkData(i, 0, ts)
+            tdSql.checkData(i, 1, 10)
+            tdSql.checkData(i, 2, 220)
+            tdSql.checkData(i, 3, 1000)
+            ts += 10 * 60 * 1000 # 10 minutes
+
+        tdLog.info("verify stream4 successfully.")
