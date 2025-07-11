@@ -379,6 +379,7 @@ static int32_t buildDeleteData(void* pTableList, bool isVTable, SSDataBlock* pBl
       buildWalMetaBlock(pBlock, WAL_DELETE_DATA, gid, isVTable, uid, req->skey, req->ekey, ver, 1));
   pBlock->info.rows++;
 
+  stDebug("stream reader scan delete data:uid %" PRIu64 ", skey %" PRIu64 ", ekey %" PRIu64, uid, req->skey, req->ekey);
 end:
   return code;
 }
@@ -389,6 +390,7 @@ static int32_t scanDeleteData(void* pTableList, bool isVTable, SSDataBlock* pBlo
   int32_t    lino = 0;
   SDecoder   decoder = {0};
   SDeleteRes req = {0};
+  req.uidList = taosArrayInit(0, sizeof(tb_uid_t));
   tDecoderInit(&decoder, data, len);
   STREAM_CHECK_RET_GOTO(tDecodeDeleteRes(&decoder, &req));
   
@@ -397,10 +399,9 @@ static int32_t scanDeleteData(void* pTableList, bool isVTable, SSDataBlock* pBlo
     STREAM_CHECK_NULL_GOTO(uid, terrno);
     STREAM_CHECK_RET_GOTO(buildDeleteData(pTableList, isVTable, pBlock, &req, *uid, ver));
   }
-  stDebug("stream reader scan delete data:uid %" PRIu64 ", skey %" PRIu64 ", ekey %" PRIu64, req.suid,
-          req.skey, req.ekey);
 
 end:
+  taosArrayDestroy(req.uidList);
   tDecoderClear(&decoder);
   return code;
 }
