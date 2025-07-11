@@ -3,7 +3,7 @@ pub mod stable;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use arrow::{
     array::{Array, ArrayRef, StringArray},
     datatypes::{DataType, Field, Schema},
@@ -227,6 +227,8 @@ impl<'a> IntoIterator for &'a Modeler {
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Table {
     pub name: String,
+    #[serde(skip)]
+    pub name_expr: std::sync::OnceLock<Expr>,
     #[serde(default)]
     pub using: Option<String>,
     #[serde(default)]
@@ -263,7 +265,7 @@ mod once_lock_serde {
     }
 }
 
-fn template_to_expr(template: &str) -> Result<Expr, super::Error> {
+pub fn template_to_expr(template: &str) -> Result<Expr, super::Error> {
     if template.starts_with("`") {
         Expr::try_new(template, false)
             .map_err(|err| super::Error::TemplateError(template.to_string(), err))
@@ -276,7 +278,7 @@ fn template_to_expr(template: &str) -> Result<Expr, super::Error> {
 
 impl Table {
     pub fn eval_table_name(&self, records: &RecordBatch) -> Result<StringArray, super::Error> {
-        let name_expr = template_to_expr(&self.name)?;
+        let name_expr = self.get_table_name_expr()?;
         let name_array = name_expr.eval_as(records, DataType::Utf8)?;
         let name_array = name_array
             .as_any()
@@ -284,6 +286,28 @@ impl Table {
             .unwrap()
             .clone();
         Ok(name_array)
+    }
+
+    pub fn eval_table_name_row(
+        &self,
+        records: &RecordBatch,
+        row: usize,
+    ) -> Result<String, super::Error> {
+        let name_expr = self.get_table_name_expr()?;
+        let value = name_expr.eval_batch_row(records, row)?;
+        value
+            .into_string()
+            .map_err(|e| super::Error::Other(anyhow!("cannot convert rhai value {e} to string")))
+    }
+
+    pub fn get_table_name_expr(&self) -> Result<&Expr, super::Error> {
+        match self.name_expr.get() {
+            Some(expr) => Ok(expr),
+            None => {
+                let expr = template_to_expr(&self.name)?;
+                Ok(self.name_expr.get_or_init(|| expr))
+            }
+        }
     }
 
     pub fn apply(&self, records: &RecordBatch) -> Result<Vec<ModeledRecordBatch>, super::Error> {
@@ -498,14 +522,14 @@ impl Table {
 #[serde(untagged)]
 enum Model {
     V(Vec<Table>),
-    O(Table),
+    O(Box<Table>),
 }
 
 impl From<Model> for Vec<Table> {
     fn from(value: Model) -> Self {
         match value {
             Model::V(v) => v,
-            Model::O(i) => vec![i],
+            Model::O(i) => vec![*i],
         }
     }
 }
