@@ -12924,6 +12924,13 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     }
   }
 
+  if (nodeType(pTrigger->pTriggerWindow) == QUERY_NODE_PERIOD_WINDOW) {
+    if (pTriggerOptions && (pTriggerOptions->fillHistoryFirst || pTriggerOptions->fillHistory)) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                           "Fill history is not supported when trigger is period"));
+    }
+  }
+
   SDbCfgInfo dbCfg = {0};
   PAR_ERR_JRET(getDBCfg(pCxt, pStmt->streamDbName, &dbCfg));
   if (strlen(pStmt->targetDbName) != 0) {
