@@ -1263,7 +1263,7 @@ static int32_t stRealtimeGroupGetDataBlock(SSTriggerRealtimeGroup *pGroup, bool 
           code = stRealtimeGroupRestoreInitWindow(pGroup, pContext->pInitWindows);
           QUERY_CHECK_CODE(code, lino, _end);
         }
-        STimeWindow range = {.skey = INT64_MIN, .ekey = INT64_MAX};
+        STimeWindow range = {.skey = INT64_MIN, .ekey = INT64_MAX - 1};
         if (pContext->status == STRIGGER_CONTEXT_CHECK_CONDITION) {
           range.skey = pGroup->oldThreshold + 1;
           range.ekey = pGroup->newThreshold;
@@ -1315,7 +1315,7 @@ static int32_t stRealtimeGroupGetDataBlock(SSTriggerRealtimeGroup *pGroup, bool 
           code = stRealtimeGroupRestoreInitWindow(pGroup, pContext->pInitWindows);
           QUERY_CHECK_CODE(code, lino, _end);
         }
-        STimeWindow range = {.skey = INT64_MIN, .ekey = INT64_MAX};
+        STimeWindow range = {.skey = INT64_MIN, .ekey = INT64_MAX - 1};
         if (pContext->status == STRIGGER_CONTEXT_CHECK_CONDITION) {
           range.skey = pGroup->oldThreshold + 1;
           range.ekey = pGroup->newThreshold;
@@ -1595,8 +1595,10 @@ static int32_t stRealtimeGroupDoSessionCheck(SSTriggerRealtimeGroup *pGroup) {
           pCurWin->range.ekey = ts;
           pCurWin->wrownum++;
         } else {
-          code = stRealtimeGroupCloseWindow(pGroup, NULL, true);
-          QUERY_CHECK_CODE(code, lino, _end);
+          if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+            code = stRealtimeGroupCloseWindow(pGroup, NULL, true);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
           code = stRealtimeGroupOpenWindow(pGroup, ts, NULL, true, true);
           QUERY_CHECK_CODE(code, lino, _end);
         }
@@ -2602,7 +2604,7 @@ static int32_t stHistoryGroupGetDataBlock(SSTriggerHistoryGroup *pGroup, bool sa
           code = stHistoryGroupRestoreInitWindow(pGroup, pContext->pInitWindows);
           QUERY_CHECK_CODE(code, lino, _end);
         }
-        STimeWindow range = {.skey = INT64_MIN, .ekey = INT64_MAX};
+        STimeWindow range = {.skey = INT64_MIN, .ekey = INT64_MAX - 1};
         if (pContext->status == STRIGGER_CONTEXT_CHECK_CONDITION) {
           range = pContext->curRange;
         } else if (pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ) {
@@ -2649,7 +2651,7 @@ static int32_t stHistoryGroupGetDataBlock(SSTriggerHistoryGroup *pGroup, bool sa
           code = stHistoryGroupRestoreInitWindow(pGroup, pContext->pInitWindows);
           QUERY_CHECK_CODE(code, lino, _end);
         }
-        STimeWindow range = {.skey = INT64_MIN, .ekey = INT64_MAX};
+        STimeWindow range = {.skey = INT64_MIN, .ekey = INT64_MAX - 1};
         if (pContext->status == STRIGGER_CONTEXT_CHECK_CONDITION) {
           range = pContext->curRange;
         } else if (pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ) {
@@ -6540,20 +6542,26 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
 
   switch (pMsg->msgType) {
     case STREAM_MSG_START: {
-      if (pTask->task.status == STREAM_STATUS_INIT) {
-        if (pTask->pRealtimeContext == NULL) {
-          pTask->pRealtimeContext = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeContext));
-          QUERY_CHECK_NULL(pTask->pRealtimeContext, code, lino, _end, terrno);
-          code = stRealtimeContextInit(pTask->pRealtimeContext, pTask);
-          QUERY_CHECK_CODE(code, lino, _end);
-        }
-        code = stRealtimeContextCheck(pTask->pRealtimeContext);
-        QUERY_CHECK_CODE(code, lino, _end);
-        pTask->task.status = STREAM_STATUS_RUNNING;
+      if (pTask->task.status != STREAM_STATUS_INIT) {
+        // redundant message, ignore it
+        break;
       }
+      if (pTask->pRealtimeContext == NULL) {
+        pTask->pRealtimeContext = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeContext));
+        QUERY_CHECK_NULL(pTask->pRealtimeContext, code, lino, _end, terrno);
+        code = stRealtimeContextInit(pTask->pRealtimeContext, pTask);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      code = stRealtimeContextCheck(pTask->pRealtimeContext);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pTask->task.status = STREAM_STATUS_RUNNING;
       break;
     }
     case STREAM_MSG_ORIGTBL_READER_INFO: {
+      if (pTask->task.status != STREAM_STATUS_INIT || taosArrayGetSize(pTask->readerList) > 0) {
+        // redundant message, ignore it
+        break;
+      }
       SStreamMgmtRsp *pRsp = (SStreamMgmtRsp *)pMsg;
       int32_t        *pVgId = TARRAY_DATA(pRsp->cont.vgIds);
       int32_t         iter1 = 0;
