@@ -662,6 +662,12 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
     if (NULL == pVgCxt->pData->aSubmitTbData) {
       return terrno;
     }
+    if (pTbCtx->hasBlob) {
+      pVgCxt->pData->aSubmitBlobData = taosArrayInit(128, sizeof(SBlobRow2*));
+      if (pVgCxt->pData->aSubmitBlobData == NULL) {
+        return terrno;
+      }
+    }
   }
 
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -703,6 +709,13 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
     return terrno;
   }
 
+  if (pTbCtx->hasBlob) {
+    parserDebug("blob row transfer %p, pData %p, %s", pTbCtx->pData->pBlobRow, pTbCtx->pData, __func__);
+    if (NULL == taosArrayPush(pVgCxt->pData->aSubmitBlobData, &pTbCtx->pData->pBlobRow)) {
+      return terrno;
+    }
+  }
+
   code = tSimpleHashPut(pTableNameHash, tbname, strlen(tbname), &pTbCtx->pData->aRowP, sizeof(SArray*));
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -716,7 +729,6 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
 
 int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
                                   SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq) {
-  int8_t   hasBlob = 0;
   int32_t  code = TSDB_CODE_SUCCESS;
   uint64_t uid;
   int32_t  vgId;
@@ -752,15 +764,18 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
   }
 
   if (!pTbData->isOrdered) {
-    code = tRowSort(pTbCtx->pData->aRowP);
+    if (pTbCtx->hasBlob == 0) {
+      code = tRowSort(pTbCtx->pData->aRowP);
+    } else {
+      code = tRowSortWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobRow);
+    }
   }
 
   if (code == TSDB_CODE_SUCCESS && (!pTbData->isOrdered || pTbData->isDuplicateTs)) {
-    // hasBlob = schemaHasBlob(pTbCtx->pSchema);
-    if (hasBlob == 0) {
+    if (pTbCtx->hasBlob == 0) {
       code = tRowMerge(pTbCtx->pData->aRowP, pTbCtx->pSchema, 0);
     } else {
-      // code = tRowMergeWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobRow, 0);
+      code = tRowMergeWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobRow, 0);
     }
   }
 
@@ -909,11 +924,15 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
       //   continue;
       // }
       if (!pTableCxt->ordered) {
-        code = tRowSort(pTableCxt->pData->aRowP);
+        if (pTableCxt->hasBlob) {
+          code = tRowSort(pTableCxt->pData->aRowP);
+        } else {
+          code = tRowSortWithBlob(pTableCxt->pData->aRowP, pTableCxt->pSchema, pTableCxt->pData->pBlobRow);
+        }
       }
+
       if (code == TSDB_CODE_SUCCESS && (!pTableCxt->ordered || pTableCxt->duplicateTs)) {
-        int8_t hasBlob = schemaHasBlob(pTableCxt->pSchema);
-        if (hasBlob == 0) {
+        if (pTableCxt->hasBlob == 0) {
           code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
         } else {
           code = tRowMergeWithBlob(pTableCxt->pData->aRowP, pTableCxt->pSchema, pTableCxt->pData->pBlobRow, 0);

@@ -2467,7 +2467,7 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
 
   if (TSDB_CODE_SUCCESS == code && !pCxt->isStmtBind) {
     SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
-    if (schemaHasBlob(pTableCxt->pSchema)) {
+    if (pTableCxt->hasBlob) {
       SRowBuildScanInfo sinfo = {.hasBlob = 1, .scanType = ROW_BUILD_UPDATE};
       code = tRowBuildWithBlob(pTableCxt->pValues, pTableCxt->pSchema, pRow, pTableCxt->pData->pBlobRow, &sinfo);
     } else {

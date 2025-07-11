@@ -703,8 +703,8 @@ static int32_t inline vnodeSubmitSubColBlobData(SVnode *pVnode, SSubmitTbData *p
     code = bseBatchPut(pBatch, &seq, pBlobRow->data + p->offset, p->len);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    memcpy(pBlobCol->pData + offset, (void *)&seq, sizeof(uint64_t));
-    offset += sizeof(uint64_t);
+    memcpy(pBlobCol->pData + offset, (void *)&seq, BSE_SEQUECE_SIZE);
+    offset += BSE_SEQUECE_SIZE;
   }
 
   code = bseCommitBatch(pVnode->pBse, pBatch);
