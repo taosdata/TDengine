@@ -754,7 +754,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
           .keepTimeOffset = pVgCfg->config.tsdbCfg.keepTimeOffset,
           .minRows = pVgCfg->config.tsdbCfg.minRows,
           .maxRows = pVgCfg->config.tsdbCfg.maxRows,
-          .tsdbPageSize = pVgCfg->config.tsdbPageSize / TSDB_DEFAULT_PAGE_SIZE,
+          .tsdbPageSize = pVgCfg->config.tsdbPageSize / 1024,
           .s3ChunkSize = pVgCfg->config.s3ChunkSize,
           .s3KeepLocal = pVgCfg->config.s3KeepLocal,
           .s3Compact = pVgCfg->config.s3Compact,

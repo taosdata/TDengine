@@ -2150,6 +2150,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       rsp.useDbRsp->hashMethod = pDb->cfg.hashMethod;
       rsp.useDbRsp->hashPrefix = pDb->cfg.hashPrefix;
       rsp.useDbRsp->hashSuffix = pDb->cfg.hashSuffix;
+      rsp.useDbRsp->flags = pDb->cfg.flags;
     }
 
     if (taosArrayPush(batchRsp.pArray, &rsp) == NULL) {
