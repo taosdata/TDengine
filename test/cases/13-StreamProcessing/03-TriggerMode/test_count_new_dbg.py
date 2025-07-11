@@ -26,7 +26,8 @@ class TestStreamCountTrigger:
         # streams.append(self.Basic9())  # OK
         # streams.append(self.Basic10())  # OK
         # streams.append(self.Basic11())  # failed
-        streams.append(self.Basic12())  # failed
+        # streams.append(self.Basic12())  # failed
+        streams.append(self.Basic13())  # failed
 
         tdStream.checkAll(streams)
 
@@ -2683,3 +2684,97 @@ class TestStreamCountTrigger:
                     f"from {self.db}.res_vtb_1",
                 func=lambda: tdSql.getRows() == 3,
             )
+
+    class Basic13(StreamCheckItem):
+        def __init__(self):
+            self.db  = "sdb13"
+            self.stbName = "stb"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 4 buffer 3")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
+            tdSql.query(f"show stables")
+
+            tdSql.execute(f"create table ct1 using stb tags(1)")
+            tdSql.execute(f"create table ct2 using stb tags(2)")
+            tdSql.execute(f"create table ct3 using stb tags(3)")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(3)
+
+            tdSql.execute("create vtable vtb_1 ( ts timestamp, col_1 int from ct1.cint, col_2 int from ct2.cint, col_3 int from ct3.cint)")
+
+            # create vtable and continue
+            tdSql.execute(
+                f"create stream s12_0 count_window(1) from vtb_1 partition by tbname into "
+                f"res_vtb_1 (ts, firstts, lastts, twduration, cnt_col_3, sum_col_3, avg_col_3, cnt_col_1, sum_col_1, avg_col_1, _x_col, name) as "
+                f"select _twstart, first(_c0), last_row(_c0), _twduration, count(col_3), sum(col_3), avg(col_3), count(col_1), sum(col_1), avg(col_1), "
+                f"  stddev(col_3) + stddev(col_1) + avg(col_2), %%tbname "
+                f"from vtb_1 "
+                f"where _c0 >= _twstart and _c0 <= _twend "
+            )
+
+        def insert1(self):
+            sqls = [
+                "insert into ct1 values ('2025-01-01 00:00:00', 1);",
+                "insert into ct1 values ('2025-01-01 00:00:03', 2);",
+                "insert into ct1 values ('2025-01-01 00:00:06', 3);",
+                "insert into ct1 values ('2025-01-01 00:00:09', 4);",
+                "insert into ct1 values ('2025-01-01 00:00:12', 5);",
+                "insert into ct1 values ('2025-01-01 00:00:15', 6);",
+                "insert into ct1 values ('2025-01-01 00:00:18', 7);",
+                "insert into ct1 values ('2025-01-01 00:00:21', 8);",
+                "insert into ct1 values ('2025-01-01 00:00:24', 9);",
+
+                "insert into ct2 values ('2025-01-01 00:00:00', 11);",
+                "insert into ct2 values ('2025-01-01 00:00:03', 12);",
+                "insert into ct2 values ('2025-01-01 00:00:06', 13);",
+                "insert into ct2 values ('2025-01-01 00:00:09', 14);",
+                "insert into ct2 values ('2025-01-01 00:00:12', 15);",
+                "insert into ct2 values ('2025-01-01 00:00:15', 16);",
+                "insert into ct2 values ('2025-01-01 00:00:18', 17);",
+                "insert into ct2 values ('2025-01-01 00:00:21', 18);",
+                "insert into ct2 values ('2025-01-01 00:00:24', 19);",
+
+                "insert into ct3 values ('2025-01-01 00:00:00', 21);",
+                "insert into ct3 values ('2025-01-01 00:00:03', 22);",
+                "insert into ct3 values ('2025-01-01 00:00:06', 23);",
+                "insert into ct3 values ('2025-01-01 00:00:09', 24);",
+                "insert into ct3 values ('2025-01-01 00:00:12', 25);",
+                "insert into ct3 values ('2025-01-01 00:00:15', 26);",
+                "insert into ct3 values ('2025-01-01 00:00:18', 27);",
+                "insert into ct3 values ('2025-01-01 00:00:21', 28);",
+                "insert into ct3 values ('2025-01-01 00:00:24', 29);",
+            ]
+
+            tdSql.executes(sqls)
+
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and (table_name like "res_vtb_1%")',
+                func=lambda: tdSql.getRows() == 1,
+            )
+
+            tdSql.checkTableSchema(
+                dbname=self.db,
+                tbname="res_vtb_1",
+                schema=[
+                    ['firstts', 'TIMESTAMP', 8, ''],
+                    ['lastts', 'TIMESTAMP', 8, ''] ,
+                    ['cnt_col_3', 'BIGINT', 8, ''] ,
+                    ['sum_col_3', 'BIGINT', 8, ''] ,
+                    ['avg_col_3', 'DOUBLE', 8, ''] ,
+                    ['cnt_col_1', 'BIGINT', 8, ''] ,
+                    ['sum_col_1', 'BIGINT', 8, ''] ,
+                    ['avg_col_1', 'DOUBLE', 8, ''] ,
+                ],
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f"select firstts, lastts, cnt_col_3, sum_col_3, avg_col_3, cnt_col_1, sum_col_1, avg_col_1 "
+                    f"from {self.db}.res_vtb_1",
+                func=lambda: tdSql.getRows() == 3,
+            )
+
