@@ -221,22 +221,24 @@ impl Client {
     ) -> Result<Self> {
         let endpoint = endpoint.to_string();
         let token = token.to_string();
-        const MAX_RETRIES: usize = 5;
+        const MAX_RETRIES: usize = 10;
+        const MAX_SLEEP_DURATION: Duration = Duration::from_secs(5);
         let mut retries = 0;
+        let mut sleep_duration = Duration::from_millis(500);
         let channel = loop {
             match new_channel(endpoint.clone(), ports.clone(), ca.clone()).await {
                 Ok(channel) => break Ok(channel),
                 Err(err) => {
                     retries += 1;
-                    info!(
-                        "Unable to connect to server, retry {}/{}",
-                        retries, MAX_RETRIES
-                    );
-                    if retries > MAX_RETRIES {
+                    if retries >= MAX_RETRIES {
                         break Err(err);
-                    } else {
-                        continue;
                     }
+                    tracing::warn!(
+                        "Unable to connect to server, sleep {:?} and retry...",
+                        sleep_duration
+                    );
+                    tokio::time::sleep(sleep_duration).await;
+                    sleep_duration = (sleep_duration * 2).min(MAX_SLEEP_DURATION);
                 }
             }
         }?;
