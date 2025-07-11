@@ -447,6 +447,15 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       res = rewriteExpr(&pTagDef->pTagExpr, order, rewriter, pContext);
       break;
     }
+    case QUERY_NODE_TIME_RANGE: {
+      STimeRangeNode* pTimeRange = (STimeRangeNode*)pNode;
+      res = rewriteExpr(&pTimeRange->pStart, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pTimeRange->pEnd, order, rewriter, pContext);
+      }
+      break;
+    }
+
     default:
       break;
   }

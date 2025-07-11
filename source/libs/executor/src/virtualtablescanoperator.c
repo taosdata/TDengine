@@ -760,7 +760,8 @@ int32_t extractColMap(SNodeList* pNodeList, SHashObj** pSlotMap, int32_t *tsSlot
     } else if (pColNode->hasRef) {
       int32_t slotKey = pColNode->dataBlockId << 16 | pColNode->slotId;
       VTS_ERR_JRET(taosHashPut(*pSlotMap, &slotKey, sizeof(slotKey), &i, sizeof(i)));
-    } else if (pColNode->colType == COLUMN_TYPE_TAG) {
+    } else if (pColNode->colType == COLUMN_TYPE_TAG || '\0' == pColNode->tableAlias[0]) {
+      // tag column or pseudo column's function
       *tagBlockId = pColNode->dataBlockId;
     }
   }

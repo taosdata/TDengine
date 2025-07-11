@@ -3395,6 +3395,7 @@ enum {
   PHY_WINDOW_CODE_WATERMARK,
   PHY_WINDOW_CODE_DELETE_MARK,
   PHY_WINDOW_CODE_IG_EXPIRED,
+  PHY_WINDOW_CODE_INDEF_ROWS_FUNC,
   PHY_WINDOW_CODE_INPUT_TS_ORDER,
   PHY_WINDOW_CODE_OUTPUT_TS_ORDER,
   PHY_WINDOW_CODE_MERGE_DATA_BLOCK,
@@ -3430,6 +3431,9 @@ static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_WINDOW_CODE_MERGE_DATA_BLOCK, pNode->mergeDataBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, PHY_WINDOW_CODE_INDEF_ROWS_FUNC, pNode->indefRowsFunc);
   }
 
   return code;
@@ -3471,6 +3475,9 @@ static int32_t msgToPhysiWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_WINDOW_CODE_MERGE_DATA_BLOCK:
         code = tlvDecodeBool(pTlv, &pNode->mergeDataBlock);
+        break;
+      case PHY_WINDOW_CODE_INDEF_ROWS_FUNC:
+        code = tlvDecodeI8(pTlv, &pNode->indefRowsFunc);
         break;
       default:
         break;
@@ -3676,6 +3683,44 @@ static int32_t msgToPhysiSessionWindowNode(STlvDecoder* pDecoder, void* pObj) {
     }
   }
 
+  return code;
+}
+
+enum { PHY_EXT_CODE_WINDOW = 1, PHY_EXT_CODE_SKEY, PHY_EXT_CODE_EKEY };
+
+static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SExternalWindowPhysiNode* pNode = (const SExternalWindowPhysiNode*)pObj;
+  int32_t code = tlvEncodeObj(pEncoder, PHY_EXT_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PHY_EXT_CODE_SKEY, pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PHY_EXT_CODE_EKEY, pNode->timeRange.ekey);
+  }
+
+  return code;
+}
+
+static int32_t msgToPhysiExternalWindowNode(STlvDecoder* pDecoder, void* pObj) {
+  SExternalWindowPhysiNode* pNode = (SExternalWindowPhysiNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case PHY_EXT_CODE_WINDOW:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiWindowNode, &pNode->window);
+        break;
+      case PHY_EXT_CODE_SKEY:
+        code = tlvDecodeI64(pTlv, &pNode->timeRange.skey);
+        break;
+      case PHY_EXT_CODE_EKEY:
+        code = tlvDecodeI64(pTlv, &pNode->timeRange.ekey);
+        break;
+      default:
+        break;
+    }
+  }
   return code;
 }
 
@@ -4911,6 +4956,11 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
       code = physiSessionWindowNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL:
+      code = physiExternalWindowNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
       code = physiStateWindowNodeToMsg(pObj, pEncoder);
       break;
@@ -5070,6 +5120,11 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
       code = msgToPhysiSessionWindowNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL:
+      code = msgToPhysiExternalWindowNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
       code = msgToPhysiStateWindowNode(pDecoder, pObj);

@@ -146,7 +146,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   pInfo->inputIgnoreGroup = pProjPhyNode->inputIgnoreGroup;
   pInfo->outputIgnoreGroup = pProjPhyNode->ignoreGroupId;
 
-  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM || pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
     pInfo->mergeDataBlocks = false;
   } else {
     if (!pProjPhyNode->ignoreGroupId) {

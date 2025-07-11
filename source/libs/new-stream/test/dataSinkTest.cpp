@@ -27,6 +27,16 @@
 #include "osSleep.h"
 #include "tdatablock.h"
 
+// Macro to initialize DataSink at the beginning of each test
+#define INIT_DATA_SINK() do { \
+  int32_t initCode = initStreamDataSink(); \
+  ASSERT_EQ(initCode, 0); \
+} while(0)
+
+// Macro to cleanup DataSink at the end of each test  
+#define CLEANUP_DATA_SINK() do { \
+  destroyDataSinkMgr(); \
+} while(0)
 
 const int64_t baseTestTime1 = 1745142096000;
 const int64_t baseTestTime2 = 1745142097000;
@@ -163,6 +173,7 @@ TEST(dataSinkTest, fileInit) {
 }
 
 TEST(dataSinkTest, test_name) {
+  INIT_DATA_SINK();
   SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
   ASSERT_NE(pBlock, nullptr);
   int64_t streamId = 1;
@@ -178,6 +189,8 @@ TEST(dataSinkTest, test_name) {
 }
 
 TEST(dataSinkTest, putStreamDataCacheTest) {
+  INIT_DATA_SINK();
+  
   SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
   ASSERT_NE(pBlock, nullptr);
   int64_t streamId = 1;
@@ -283,6 +296,7 @@ TEST(dataSinkTest, putStreamDataCacheTest) {
 }
 
 TEST(dataSinkTest, getSlidingStreamData) {
+  INIT_DATA_SINK(); 
   SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
   ASSERT_NE(pBlock, nullptr);
   int64_t streamId = 1;
@@ -363,6 +377,7 @@ TEST(dataSinkTest, getSlidingStreamData) {
 }
 
 TEST(dataSinkTest, moveStreamData) {
+  INIT_DATA_SINK(); 
   SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
   ASSERT_NE(pBlock, nullptr);
   int64_t streamId = 3;
@@ -399,6 +414,7 @@ TEST(dataSinkTest, moveStreamData) {
 }
 
 TEST(dataSinkTest, cancelStreamDataCacheIterateTest) {
+  INIT_DATA_SINK(); 
   int64_t streamId = 3;
   int64_t taskId = 1;
   int64_t groupID = 1;
@@ -470,6 +486,7 @@ TEST(dataSinkTest, cancelStreamDataCacheIterateTest) {
 }
 
 TEST(dataSinkTest, putStreamDataRows) {
+  INIT_DATA_SINK(); 
   SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
   ASSERT_NE(pBlock, nullptr);
   int64_t streamId = 1;
@@ -539,6 +556,7 @@ TEST(dataSinkTest, putStreamDataRows) {
 }
 
 TEST(dataSinkTest, allWriteToFileTest) {
+  INIT_DATA_SINK(); 
   setDataSinkMaxMemSize(0);
   SSDataBlock* pBlock11 = createTestBlock(baseTestTime1, 0);
   ASSERT_NE(pBlock11, nullptr);
@@ -673,6 +691,7 @@ TEST(dataSinkTest, allWriteToFileTest) {
 }
 
 TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
+  INIT_DATA_SINK(); 
   setDataSinkMaxMemSize(0);
   SSDataBlock* pBlock11 = createTestBlock(baseTestTime1, 0);
   ASSERT_NE(pBlock11, nullptr);
@@ -810,6 +829,7 @@ TEST(dataSinkTest, allWriteMultiStreamToFileTest) {
 }
 
 TEST(dataSinkTest, testWriteFileSize) {
+  INIT_DATA_SINK(); 
   SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
   setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1024 * 1024);
   int64_t streamId = 3;
@@ -859,6 +879,7 @@ TEST(dataSinkTest, testWriteFileSize) {
 }
 
 TEST(dataSinkTest, multiThreadGet) {
+  INIT_DATA_SINK(); 
   const int producerCount = 1;
   const int consumerCount = 16;
   const int taskPerProducer = 10000;

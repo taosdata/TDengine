@@ -34,9 +34,9 @@
 #include "thash.h"
 #include "ttypes.h"
 
+#include "function.h"
 #include "storageapi.h"
 #include "wal.h"
-#include "function.h"
 
 int32_t scanDebug = 0;
 
@@ -479,7 +479,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     return code;
   }
 
-  if ((pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) && ((STableScanInfo *)pOperator->info)->ignoreTag) {
+  if ((pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) &&
+      ((STableScanInfo*)pOperator->info)->ignoreTag) {
     // do nothing
   } else {
     // dyn vtb scan do not read tag from origin tables.
@@ -731,9 +732,10 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
         code = colDataSetNItems(pColInfoData, 0, data, pBlock->info.rows, false);
         if (IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {
           char* tmp = taosMemoryCalloc(1, varDataLen(data) + 1);
-          if (tmp != NULL){
+          if (tmp != NULL) {
             memcpy(tmp, varDataVal(data), varDataLen(data));
-            qDebug("get tag value:%s, cid:%d, table name:%s, uid%"PRId64, tmp, tagVal.cid, val.pName, pBlock->info.id.uid);
+            qDebug("get tag value:%s, cid:%d, table name:%s, uid%" PRId64, tmp, tagVal.cid, val.pName,
+                   pBlock->info.id.uid);
             taosMemoryFree(tmp);
           }
           taosMemoryFree(data);
@@ -754,8 +756,9 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 _end:
 
   if (NULL != pVal) {
-    insertRet = taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(uint64_t), pVal,
-                                   sizeof(STableCachedVal), freeCachedMetaItem, NULL, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
+    insertRet =
+        taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(uint64_t), pVal,
+                           sizeof(STableCachedVal), freeCachedMetaItem, NULL, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
     if (insertRet != TAOS_LRU_STATUS_OK) {
       qWarn("failed to put meta into lru cache, code:%d, %s", insertRet, idStr);
     }
@@ -1256,11 +1259,13 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
 
   pAPI->metaReaderFn.initReader(&orgTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
   code = pAPI->metaReaderFn.getTableEntryByName(&orgTable, strstr(pParam->pOrgTbInfo->tbName, ".") + 1);
+  pAPI->metaReaderFn.readerReleaseLock(&orgTable);
   QUERY_CHECK_CODE(code, lino, _return);
   switch (orgTable.me.type) {
     case TSDB_CHILD_TABLE:
       pAPI->metaReaderFn.initReader(&superTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
       code = pAPI->metaReaderFn.getTableEntryByUid(&superTable, orgTable.me.ctbEntry.suid);
+      pAPI->metaReaderFn.readerReleaseLock(&superTable);
       QUERY_CHECK_CODE(code, lino, _return);
       schema = &superTable.me.stbEntry.schemaRow;
       break;
@@ -1283,7 +1288,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   QUERY_CHECK_NULL(taosArrayPush(pColArray, &tsPair), code, lino, _return, terrno);
 
   for (int32_t i = 0; i < taosArrayGetSize(pParam->pOrgTbInfo->colMap); ++i) {
-    SColIdNameKV *kv = taosArrayGet(pParam->pOrgTbInfo->colMap, i);
+    SColIdNameKV* kv = taosArrayGet(pParam->pOrgTbInfo->colMap, i);
     for (int32_t j = 0; j < schema->nCols; j++) {
       if (strcmp(kv->colName, schema->pSchema[j].name) == 0) {
         SColIdPair pPair = {.vtbColId = kv->colId, .orgColId = (col_id_t)(j + 1)};
@@ -1294,9 +1299,9 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(pColArray); i++) {
-    SColIdPair *pPair = (SColIdPair*)taosArrayGet(pColArray, i);
+    SColIdPair* pPair = (SColIdPair*)taosArrayGet(pColArray, i);
     for (int32_t j = 0; j < taosArrayGetSize(pInfo->base.matchInfo.pList); j++) {
-      SColMatchItem *pItem = taosArrayGet(pInfo->base.matchInfo.pList, j);
+      SColMatchItem* pItem = taosArrayGet(pInfo->base.matchInfo.pList, j);
       if (pItem->colId == pPair->vtbColId) {
         SColIdPair tmpPair = {.orgColId = pPair->orgColId, .vtbColId = pItem->dstSlotId};
         QUERY_CHECK_NULL(taosArrayPush(pBlockColArray, &tmpPair), code, lino, _return, terrno);
@@ -1313,7 +1318,8 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   taosArraySort(pBlockColArray, compareColIdPair);
   code = createOneDataBlockWithColArray(pInfo->pOrgBlock, pBlockColArray, &pInfo->pResBlock);
   QUERY_CHECK_CODE(code, lino, _return);
-  code = initQueryTableDataCondWithColArray(&pInfo->base.cond, &pInfo->base.orgCond, &pInfo->base.readHandle, pColArray);
+  code =
+      initQueryTableDataCondWithColArray(&pInfo->base.cond, &pInfo->base.orgCond, &pInfo->base.readHandle, pColArray);
   QUERY_CHECK_CODE(code, lino, _return);
   pInfo->base.cond.twindows.skey = pParam->window.ekey + 1;
   pInfo->base.cond.suid = orgTable.me.type == TSDB_CHILD_TABLE ? superTable.me.uid : 0;
@@ -2161,7 +2167,7 @@ _end:
   return code;
 }
 
-static void destroyRawScanOperatorInfo(void* param) {
+static void destroyTmqRawScanOperatorInfo(void* param) {
   SStreamRawScanInfo* pRawScan = (SStreamRawScanInfo*)param;
   pRawScan->pAPI->tsdReader.tsdReaderClose(pRawScan->dataReader);
   pRawScan->pAPI->snapshotFn.destroySnapshot(pRawScan->sContext);
@@ -2172,7 +2178,7 @@ static void destroyRawScanOperatorInfo(void* param) {
 // for subscribing db or stb (not including column),
 // if this scan is used, meta data can be return
 // and schemas are decided when scanning
-int32_t createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+int32_t createTmqRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   // create operator
   // create tb reader
   // create meta reader
@@ -2199,8 +2205,8 @@ int32_t createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pTaskInfo
   setOperatorInfo(pOperator, "RawScanOperator", QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
 
-  pOperator->fpSet = createOperatorFpSet(NULL, doRawScanNext, NULL, destroyRawScanOperatorInfo, optrDefaultBufFn, NULL,
-                                         optrDefaultGetNextExtFn, NULL);
+  pOperator->fpSet = createOperatorFpSet(NULL, doRawScanNext, NULL, destroyTmqRawScanOperatorInfo, optrDefaultBufFn,
+                                         NULL, optrDefaultGetNextExtFn, NULL);
   *pOptrInfo = pOperator;
   return code;
 
@@ -2214,7 +2220,7 @@ _end:
   return code;
 }
 
-void destroyStreamScanOperatorInfo(void* param) {
+void destroyTmqScanOperatorInfo(void* param) {
   if (param == NULL) {
     return;
   }
@@ -2282,10 +2288,10 @@ _end:
   return code;
 }
 
-static SSDataBlock* createStreamVtableBlock(SColMatchInfo *pMatchInfo, const char *idstr) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  SSDataBlock *pRes = NULL;
+static SSDataBlock* createStreamVtableBlock(SColMatchInfo* pMatchInfo, const char* idstr) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SSDataBlock* pRes = NULL;
 
   QUERY_CHECK_NULL(pMatchInfo, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
@@ -2293,7 +2299,7 @@ static SSDataBlock* createStreamVtableBlock(SColMatchInfo *pMatchInfo, const cha
   QUERY_CHECK_CODE(code, lino, _end);
   int32_t numOfOutput = taosArrayGetSize(pMatchInfo->pList);
   for (int32_t i = 0; i < numOfOutput; ++i) {
-    SColMatchItem*  pItem = taosArrayGet(pMatchInfo->pList, i);
+    SColMatchItem* pItem = taosArrayGet(pMatchInfo->pList, i);
     if (!pItem->needOutput) {
       continue;
     }
@@ -2312,6 +2318,242 @@ _end:
     terrno = code;
   }
   return pRes;
+}
+
+ int32_t createTmqScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode,
+                                                  SNode* pTagCond, STableListInfo* pTableListInfo,
+                                                  SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+  QRY_PARAM_CHECK(pOptrInfo);
+
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SArray*          pColIds = NULL;
+  SStreamScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamScanInfo));
+  SOperatorInfo*   pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  SStorageAPI*     pAPI = &pTaskInfo->storageAPI;
+  const char*      idstr = pTaskInfo->id.str;
+  SSHashObj*       pVtableInfos = pTaskInfo->pSubplan->pVTables;
+
+  if (pInfo == NULL || pOperator == NULL) {
+    code = terrno;
+    goto _error;
+  }
+
+  SScanPhysiNode*     pScanPhyNode = &pTableScanNode->scan;
+  SDataBlockDescNode* pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
+
+  pInfo->pTagCond = pTagCond;
+  pInfo->pGroupTags = pTableScanNode->pGroupTags;
+
+  int32_t numOfCols = 0;
+  code = extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID, &pInfo->matchInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  SDataType pkType = {0};
+  pInfo->primaryKeyIndex = -1;
+  pInfo->basic.primaryPkIndex = -1;
+  int32_t numOfOutput = taosArrayGetSize(pInfo->matchInfo.pList);
+  pColIds = taosArrayInit(numOfOutput, sizeof(int16_t));
+  QUERY_CHECK_NULL(pColIds, code, lino, _error, terrno);
+
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    SColMatchItem* id = taosArrayGet(pInfo->matchInfo.pList, i);
+    QUERY_CHECK_NULL(id, code, lino, _error, terrno);
+
+    int16_t colId = id->colId;
+    void*   tmp = taosArrayPush(pColIds, &colId);
+    QUERY_CHECK_NULL(tmp, code, lino, _error, terrno);
+
+    if (id->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      pInfo->primaryTsIndex = id->dstSlotId;
+    }
+    if (id->isPk) {
+      pInfo->primaryKeyIndex = id->dstSlotId;
+      pInfo->basic.primaryPkIndex = id->dstSlotId;
+      pkType = id->dataType;
+    }
+  }
+
+  pInfo->pPartTbnameSup = NULL;
+  if (pTableScanNode->pSubtable != NULL) {
+    SExprInfo* pSubTableExpr = taosMemoryCalloc(1, sizeof(SExprInfo));
+    if (pSubTableExpr == NULL) {
+      code = terrno;
+      goto _error;
+    }
+
+    pInfo->tbnameCalSup.pExprInfo = pSubTableExpr;
+    code = createExprFromOneNode(pSubTableExpr, pTableScanNode->pSubtable, 0);
+    QUERY_CHECK_CODE(code, lino, _error);
+
+    if (initExprSupp(&pInfo->tbnameCalSup, pSubTableExpr, 1, &pTaskInfo->storageAPI.functionStore) != 0) {
+      goto _error;
+    }
+  }
+
+  if (pTableScanNode->pTags != NULL) {
+    int32_t    numOfTags;
+    SExprInfo* pTagExpr = createExpr(pTableScanNode->pTags, &numOfTags);
+    if (pTagExpr == NULL) {
+      goto _error;
+    }
+    code = initExprSupp(&pInfo->tagCalSup, pTagExpr, numOfTags, &pTaskInfo->storageAPI.functionStore);
+    if (code != 0) {
+      goto _error;
+    }
+  }
+
+  pInfo->pBlockLists = taosArrayInit(4, sizeof(SPackedData));
+  TSDB_CHECK_NULL(pInfo->pBlockLists, code, lino, _error, terrno);
+
+  if (pHandle->vnode) {
+    SOperatorInfo* pTableScanOp = NULL;
+    code = createTableScanOperatorInfo(pTableScanNode, pHandle, pTableListInfo, pTaskInfo, &pTableScanOp);
+    if (pTableScanOp == NULL || code != 0) {
+      qError("createTableScanOperatorInfo error, code:%d", pTaskInfo->code);
+      goto _error;
+    }
+
+    STableScanInfo* pTSInfo = (STableScanInfo*)pTableScanOp->info;
+    if (pHandle->version > 0) {
+      pTSInfo->base.cond.endVersion = pHandle->version;
+    }
+
+    STableKeyInfo* pList = NULL;
+    int32_t        num = 0;
+    code = tableListGetGroupList(pTableListInfo, 0, &pList, &num);
+    QUERY_CHECK_CODE(code, lino, _error);
+
+    if (pHandle->initTableReader) {
+      pTSInfo->scanMode = TABLE_SCAN__TABLE_ORDER;
+      pTSInfo->base.dataReader = NULL;
+    }
+
+    if (pHandle->initTqReader) {
+      pInfo->tqReader = pAPI->tqReaderFn.tqReaderOpen(pHandle->vnode);
+      QUERY_CHECK_NULL(pInfo->tqReader, code, lino, _error, terrno);
+    } else {
+      pInfo->tqReader = pHandle->tqReader;
+      QUERY_CHECK_NULL(pInfo->tqReader, code, lino, _error, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    }
+
+    if (pVtableInfos != NULL) {
+      // save vtable info into tqReader for vtable source scan
+      SSDataBlock* pResBlock = createStreamVtableBlock(&pInfo->matchInfo, idstr);
+      QUERY_CHECK_CODE(code, lino, _error);
+      code = pAPI->tqReaderFn.tqReaderSetVtableInfo(pInfo->tqReader, pHandle->vnode, pAPI, pVtableInfos, &pResBlock,
+                                                    idstr);
+      QUERY_CHECK_CODE(code, lino, _error);
+    }
+
+    pInfo->pUpdateInfo = NULL;
+    pInfo->pTableScanOp = pTableScanOp;
+    if (pInfo->pTableScanOp->pTaskInfo->streamInfo.pState) {
+      pAPI->stateStore.streamStateSetNumber(pInfo->pTableScanOp->pTaskInfo->streamInfo.pState, -1,
+                                            pInfo->primaryTsIndex);
+    }
+
+    pInfo->readHandle = *pHandle;
+    pTaskInfo->streamInfo.snapshotVer = pHandle->version;
+    pInfo->pCreateTbRes = buildCreateTableBlock(&pInfo->tbnameCalSup, &pInfo->tagCalSup);
+    QUERY_CHECK_NULL(pInfo->pCreateTbRes, code, lino, _error, terrno);
+    pInfo->hasPart = false;
+
+    code = blockDataEnsureCapacity(pInfo->pCreateTbRes, 8);
+    QUERY_CHECK_CODE(code, lino, _error);
+
+    // set the extract column id to streamHandle
+    code = pAPI->tqReaderFn.tqReaderSetColIdList(pInfo->tqReader, pColIds, idstr);
+    QUERY_CHECK_CODE(code, lino, _error);
+
+    SArray* tableIdList = NULL;
+    code = extractTableIdList(((STableScanInfo*)(pInfo->pTableScanOp->info))->base.pTableListInfo, &tableIdList);
+    QUERY_CHECK_CODE(code, lino, _error);
+    code = pAPI->tqReaderFn.tqReaderSetQueryTableList(pInfo->tqReader, tableIdList, idstr);
+    QUERY_CHECK_CODE(code, lino, _error);
+    taosArrayDestroy(tableIdList);
+    memcpy(&pTaskInfo->streamInfo.tableCond, &pTSInfo->base.cond, sizeof(SQueryTableDataCond));
+  } else {
+    taosArrayDestroy(pColIds);
+    tableListDestroy(pTableListInfo);
+  }
+
+  // clear the local variable to avoid repeatly free
+  pColIds = NULL;
+
+  // create the pseduo columns info
+  if (pTableScanNode->scan.pScanPseudoCols != NULL) {
+    code = createExprInfo(pTableScanNode->scan.pScanPseudoCols, NULL, &pInfo->pPseudoExpr, &pInfo->numOfPseudoExpr);
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
+
+  code = filterInitFromNode((SNode*)pScanPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0, NULL);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  pInfo->pRes = createDataBlockFromDescNode(pDescNode);
+  QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
+  code = createSpecialDataBlock(STREAM_CLEAR, &pInfo->pUpdateRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+  pInfo->windowSup = (SWindowSupporter){.pStreamAggSup = NULL, .gap = -1, .parentType = QUERY_NODE_PHYSICAL_PLAN};
+  pInfo->groupId = 0;
+  pInfo->igCheckGroupId = false;
+  pInfo->pStreamScanOp = pOperator;
+  pInfo->deleteDataIndex = 0;
+  code = createSpecialDataBlock(STREAM_DELETE_DATA, &pInfo->pDeleteDataRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  pInfo->updateWin = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MAX};
+  code = createSpecialDataBlock(STREAM_CLEAR, &pInfo->pUpdateDataRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
+  pInfo->partitionSup.needCalc = false;
+  pInfo->igCheckUpdate = pTableScanNode->igCheckUpdate;
+  pInfo->igExpired = pTableScanNode->igExpired;
+  pInfo->twAggSup.maxTs = INT64_MIN;
+  pInfo->pState = pTaskInfo->streamInfo.pState;
+  pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
+  pInfo->readerFn = pTaskInfo->storageAPI.tqReaderFn;
+  pInfo->pFillSup = NULL;
+  pInfo->useGetResultRange = false;
+  pInfo->pRangeScanRes = NULL;
+
+  code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  setOperatorInfo(pOperator, STREAM_SCAN_OP_NAME, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, false, OP_NOT_OPENED, pInfo,
+                  pTaskInfo);
+  pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
+
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doQueueScanNext, NULL, destroyTmqScanOperatorInfo, optrDefaultBufFn,
+                                         NULL, optrDefaultGetNextExtFn, NULL);
+
+  *pOptrInfo = pOperator;
+  return code;
+
+_error:
+  if (pColIds != NULL) {
+    taosArrayDestroy(pColIds);
+  }
+
+  if (pInfo != NULL && pInfo->pTableScanOp != NULL) {
+    STableScanInfo* p = (STableScanInfo*)pInfo->pTableScanOp->info;
+    if (p != NULL) {
+      p->base.pTableListInfo = NULL;
+    }
+    destroyTmqScanOperatorInfo(pInfo);
+  }
+
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
+  pTaskInfo->code = code;
+  return code;
 }
 
 static int32_t doTagScanOneTable(SOperatorInfo* pOperator, SSDataBlock* pRes, SMetaReader* mr, SStorageAPI* pAPI) {
@@ -2712,17 +2954,16 @@ _end:
 }
 
 static int32_t createTagScanTableListInfoFromParam(SOperatorInfo* pOperator) {
-  STagScanInfo*            pInfo = pOperator->info;
-  SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
-  int32_t                  code = 0;
-  STableListInfo*          pListInfo = pInfo->pTableListInfo;
-  STagScanOperatorParam*   pParam = (STagScanOperatorParam*)pOperator->pOperatorGetParam->value;
-  tb_uid_t                 pUid = pParam->vcUid;
+  STagScanInfo*          pInfo = pOperator->info;
+  SExecTaskInfo*         pTaskInfo = pOperator->pTaskInfo;
+  int32_t                code = 0;
+  STableListInfo*        pListInfo = pInfo->pTableListInfo;
+  STagScanOperatorParam* pParam = (STagScanOperatorParam*)pOperator->pOperatorGetParam->value;
+  tb_uid_t               pUid = pParam->vcUid;
 
-
-  //qDebug("vgId:%d add total %d dynamic tables to scan, tableSeq:%d, exist num:%" PRId64 ", operator status:%d",
-  //       pTaskInfo->id.vgId, num, pParam->tableSeq, (int64_t)taosArrayGetSize(pListInfo->pTableList),
-  //       pOperator->status);
+  // qDebug("vgId:%d add total %d dynamic tables to scan, tableSeq:%d, exist num:%" PRId64 ", operator status:%d",
+  //        pTaskInfo->id.vgId, num, pParam->tableSeq, (int64_t)taosArrayGetSize(pListInfo->pTableList),
+  //        pOperator->status);
 
   STableKeyInfo info = {.groupId = 0};
 
@@ -2747,7 +2988,6 @@ static int32_t createTagScanTableListInfoFromParam(SOperatorInfo* pOperator) {
 
   return code;
 }
-
 
 static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t       code = TSDB_CODE_SUCCESS;
@@ -2775,8 +3015,8 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
 
-  SExprInfo*    pExprInfo = &pOperator->exprSupp.pExprInfo[0];
-  SSDataBlock*  pRes = pInfo->pRes;
+  SExprInfo*   pExprInfo = &pOperator->exprSupp.pExprInfo[0];
+  SSDataBlock* pRes = pInfo->pRes;
   blockDataCleanup(pRes);
 
   int32_t size = 0;
@@ -2795,7 +3035,8 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
 
   while (pInfo->curPos < size && pRes->info.rows < pOperator->resultInfo.capacity) {
     code = doTagScanOneTable(pOperator, pRes, &mr, &pTaskInfo->storageAPI);
-    if (code != TSDB_CODE_OUT_OF_MEMORY && code != TSDB_CODE_QRY_REACH_QMEM_THRESHOLD && code != TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED) {
+    if (code != TSDB_CODE_OUT_OF_MEMORY && code != TSDB_CODE_QRY_REACH_QMEM_THRESHOLD &&
+        code != TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED) {
       // ignore other error
       code = TSDB_CODE_SUCCESS;
     }
@@ -4164,7 +4405,9 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
   pInfo->mergeLimit = -1;
   bool hasLimit = pInfo->limitInfo.limit.limit != -1 || pInfo->limitInfo.limit.offset != -1;
   if (hasLimit) {
-    pInfo->mergeLimit = pInfo->limitInfo.limit.offset != -1 ? pInfo->limitInfo.limit.limit + pInfo->limitInfo.limit.offset : pInfo->limitInfo.limit.limit;
+    pInfo->mergeLimit = pInfo->limitInfo.limit.offset != -1
+                            ? pInfo->limitInfo.limit.limit + pInfo->limitInfo.limit.offset
+                            : pInfo->limitInfo.limit.limit;
     pInfo->mSkipTables = NULL;
   }
 

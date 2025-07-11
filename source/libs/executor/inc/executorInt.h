@@ -53,6 +53,7 @@ typedef enum SOperatorParamType { OP_GET_PARAM = 1, OP_NOTIFY_PARAM } SOperatorP
 #define IS_INVALID_SESSION_WIN_KEY(winKey)   ((winKey).win.skey <= 0)
 #define SET_SESSION_WIN_KEY_INVALID(pWinKey) ((pWinKey)->win.skey = INT64_MIN)
 
+
 /**
  * If the number of generated results is greater than this value,
  * query query will be halt and return results to client immediate.
@@ -923,7 +924,7 @@ bool    getIgoreNullRes(SExprSupp* pExprSup);
 bool    checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t index, bool ignoreNull);
 int64_t getMinWindowSize(struct SOperatorInfo* pOperator);
 
-void    destroyStreamScanOperatorInfo(void* param);
+void    destroyTmqScanOperatorInfo(void* param);
 int32_t checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock* pBlock, bool out);
 void resetBasicOperatorState(SOptrBasicInfo* pBasicInfo);
 

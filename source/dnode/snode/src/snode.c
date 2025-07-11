@@ -92,14 +92,14 @@ static int32_t handleSyncWriteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   void*   data = NULL;
   int64_t dataLen = 0;
   int32_t code = streamReadCheckPoint(streamId, &data, &dataLen);
-  if ((errno == ENOENT && ver == -1) || code != 0){
+  if (code != 0 || (terrno == TAOS_SYSTEM_ERROR(ENOENT) && ver == -1)){
     goto end;
   }
-  if (errno == ENOENT || ver > *(int32_t*)data) {
+  if (terrno == TAOS_SYSTEM_ERROR(ENOENT) || ver > *(int32_t*)data) {
     int32_t ret = streamWriteCheckPoint(streamId, POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead));
     stDebug("[checkpoint] streamId:%" PRIx64 ", checkpoint local updated, ver:%d, dataLen:%" PRId64 ", ret:%d", streamId, ver, dataLen, ret);
   }
-  if (errno == ENOENT || ver >= *(int32_t*)data) {
+  if (terrno == TAOS_SYSTEM_ERROR(ENOENT) || ver >= *(int32_t*)data) {
     stDebug("[checkpoint] streamId:%" PRIx64 ", checkpoint no need send back, ver:%d, dataLen:%" PRId64, streamId, ver, dataLen);
     dataLen = 0;
     taosMemoryFreeClear(data);
@@ -264,7 +264,7 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
 
 _exit:
 
-  stsDebug("task %" PRIx64 " TDMT_STREAM_FETCH_FROM_CACHE_RSP with code:%d size:%d", req.taskId, code, (int32_t)size);  
+  stsDebug("task %" PRIx64 " TDMT_STREAM_FETCH_FROM_CACHE_RSP with code:%d rows:%" PRId64 ", size:%d", req.taskId, code, readInfo.pBlock ? readInfo.pBlock->info.rows : 0, (int32_t)size);  
   SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_FETCH_FROM_CACHE_RSP, .contLen = size, .pCont = buf, .info = pRpcMsg->info};
   tmsgSendRsp(&rsp);
 

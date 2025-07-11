@@ -21,11 +21,13 @@
 #,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_count_new.py
 ,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_event_new.py
 
-## 04-Option
+## 04-Options
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_stbl.py
 
 ## 05-Notify
 
 ## 06-Output
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/06-ResultSaved/test_result_saved_comprehensive.py 
 
 ## 07-SubQuery
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/07-SubQuery/test_subquery_basic.py
