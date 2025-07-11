@@ -48,11 +48,11 @@
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/test_percentile.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/test_resinfo.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interp.py
-,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interval.py
-,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interval_diff_tz.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interval.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interval_diff_tz.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/concat.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/function/cast.py
-,,y,army,./pytest.sh python3 ./test.py -f query/test_join.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/test_join.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/test_join_const.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/test_compare.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/test_case_when.py
@@ -60,7 +60,7 @@
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_desc.py -N 3 -L 3 -D 2
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_null.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f cluster/test_drop_table_by_uid.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f cluster/incSnapshot.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f cluster/incSnapshot.py -N 3
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f cluster/clusterBasic.py -N 5
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f cluster/tsdbSnapshot.py -N 3 -M 3
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f cluster/strongPassword.py
@@ -78,12 +78,12 @@
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f alter/test_alter_config.py -N 3 
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f alter/test_alter_config.py -N 3 -M 3
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f alter/alter_db_option.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f query/subquery/subqueryBugs.py -N 3
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/subquery/subqueryBugs.py -N 3
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f storage/oneStageComp.py -N 3 -L 3 -D 1
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f storage/compressBasic.py -N 3
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f grant/grantBugs.py -N 3
-,,y,army,./pytest.sh python3 ./test.py -f query/queryBugs.py -N 3
-,,n,army,python3 ./test.py -f user/test_passwd.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/queryBugs.py -N 3
+# has migrate to new,,n,army,python3 ./test.py -f user/test_passwd.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tmq/tmqBugs.py -N 3
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/fill/fill_compare_asc_desc.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f query/last/test_last.py
@@ -127,7 +127,7 @@
 
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/csv-export.py
 # ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/csv-import.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/insert-decimal.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/insert-decimal.py
 
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to-continue.py
@@ -138,9 +138,9 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_stmt.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_stmt2.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert-json-csv.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/insertBasic.py
+# has migrate to new,,n,army,python3 ./test.py -f tools/benchmark/basic/insertBasic.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertBindVGroup.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertMix.py
+# has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertMix.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertPrecision.py
 # has migrate to new,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/invalid_commandline.py
 
@@ -1340,12 +1340,12 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
-,,n,system-test,python3 ./test.py -f eco-system/meta/database/keep_time_offset.py
+#has migrate to new,,n,system-test,python3 ./test.py -f eco-system/meta/database/keep_time_offset.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 2
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f eco-system/manager/schema_change.py -N 3 -M 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f eco-system/manager/schema_change.py -N 3 -M 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_window_true_for.py
 #has migrate to new,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 
@@ -1883,11 +1883,11 @@
 
 
 #develop test
-,,n,develop-test,python3 ./test.py -f 2-query/table_count_scan.py
-,,n,develop-test,python3 ./test.py -f 2-query/pseudo_column.py
-,,n,develop-test,python3 ./test.py -f 2-query/ts-range.py
-,,n,develop-test,python3 ./test.py -f 2-query/tag_scan.py
-,,n,develop-test,python3 ./test.py -f 2-query/show_create_db.py
+# has migrate to new,,n,develop-test,python3 ./test.py -f 2-query/table_count_scan.py
+# has migrate to new,,n,develop-test,python3 ./test.py -f 2-query/pseudo_column.py
+# has migrate to new,,n,develop-test,python3 ./test.py -f 2-query/ts-range.py
+# has migrate to new,,n,develop-test,python3 ./test.py -f 2-query/tag_scan.py
+# has migrate to new,,n,develop-test,python3 ./test.py -f 2-query/show_create_db.py
 
 # new test
 ,,y,test_new,./pytest.sh python3 ./test.py -f storage/compact/test_compact_meta.py
