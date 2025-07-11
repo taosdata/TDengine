@@ -3642,6 +3642,10 @@ static int32_t rewriteClientPseudoColumnFunc(STranslateContext* pCxt, SNode** pN
       pCxt->currClause <= SQL_CLAUSE_WHERE) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC, "Illegal pseudo column");
   }
+  if (pCxt->createStreamCalc) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC,
+                                   "%s is not support in stream calc query", ((SFunctionNode*)*pNode)->functionName);
+  }
   switch (((SFunctionNode*)*pNode)->funcType) {
     case FUNCTION_TYPE_QSTART:
       return rewriteQstartFunc(pCxt, pNode);
