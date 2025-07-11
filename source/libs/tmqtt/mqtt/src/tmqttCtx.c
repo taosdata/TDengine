@@ -806,8 +806,8 @@ static void tmq_ctx_msg_to_json(struct tmqtt* ctxt, TAOS_RES* msg) {
 
 static int tmq_ctx_rawb_props(tmqtt_property** props) {
   const uint32_t expire_interval = 0;
-  const uint8_t  payload_format_indicator = 2;
-  const char*    content_type = "TDengineRawblockV1.0";  // "application/json"
+  const uint8_t  payload_format_indicator = 1;
+  const char*    content_type = "TDengineRawblockV1.0";  // "application/octet-stream"
   int            rc = TTQ_ERR_SUCCESS;
 
   rc = tmqtt_property_add_int32(props, MQTT_PROP_MESSAGE_EXPIRY_INTERVAL, expire_interval);
@@ -838,7 +838,7 @@ static void tmq_ctx_rawb_pub(struct tmqtt* ctxt, TAOS_RES* msg) {
   int             rc;
   char*           data = NULL;
   char*           tmp_data = NULL;
-  int32_t         datalen = 1;
+  int32_t         datalen = 0;
   struct tmq_ctx* context = &ctxt->tmq_context;
   const char*     topic_name = tmq_get_topic_name(msg);
   const char*     db_name = tmq_get_db_name(msg);
@@ -866,9 +866,11 @@ static void tmq_ctx_rawb_pub(struct tmqtt* ctxt, TAOS_RES* msg) {
     tmp_data = ttq_realloc(data, datalen + len);
     if (tmp_data) {
       data = tmp_data;
+#if 0  // use raw blocks version field as the flag
       if (1 == datalen) {  // first block, flag it as raw blocks
         data[datalen - 1] = 1;
       }
+#endif
 
       memcpy(&data[datalen], block, len);
 
