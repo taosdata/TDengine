@@ -619,7 +619,7 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
         int32_t dataLen = 0;
         if (pSrc->info.type == TSDB_DATA_TYPE_JSON) {
           dataLen = getJsonValueLen(pData);
-        } else if (IS_STR_DATA_TYPE(pSrc->info.type)) {
+        } else if (IS_STR_DATA_BLOB(pSrc->info.type)) {
           dataLen = blobDataTLen(pData);
         } else {
           dataLen = varDataTLen(pData);
