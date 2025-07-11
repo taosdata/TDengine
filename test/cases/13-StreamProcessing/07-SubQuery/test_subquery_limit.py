@@ -112,6 +112,9 @@ class TestStreamSubqueryLimit:
             "create stream rdb.s77 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r77 as select _twstart ts, SERVER_STATUS();",
             "create stream rdb.s77 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r77 as select _twstart ts, SERVER_VERSION();",
             "create stream rdb.s77 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r77 as select _twstart ts, DATABASE();",
+            "create stream rdb.s44 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r44 as select _twstart ts, _qstart, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from qdb.v1 where cts >= _twstart and cts < _twend order by cts limit 1",
+            "create stream rdb.s44 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r44 as select _twstart ts, _qend, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from qdb.v1 where cts >= _twstart and cts < _twend order by cts limit 1",
+            "create stream rdb.s44 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r44 as select _twstart ts, _qduration, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from qdb.v1 where cts >= _twstart and cts < _twend order by cts limit 1",
         ]
         for sql in sqls:
             tdSql.error(sql)

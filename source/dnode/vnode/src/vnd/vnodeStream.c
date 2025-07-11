@@ -365,6 +365,24 @@ end:
   return code;
 }
 
+static int32_t buildDeleteData(void* pTableList, bool isVTable, SSDataBlock* pBlock, SDeleteRes* req, int64_t uid, int64_t ver){
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  uint64_t   gid = 0;
+  if (isVTable) {
+    STREAM_CHECK_CONDITION_GOTO(taosHashGet(pTableList, &uid, sizeof(uid)) == NULL, TDB_CODE_SUCCESS)
+  } else {
+    gid = qStreamGetGroupId(pTableList, uid);
+    STREAM_CHECK_CONDITION_GOTO(gid == -1, TDB_CODE_SUCCESS);
+  }
+  STREAM_CHECK_RET_GOTO(
+      buildWalMetaBlock(pBlock, WAL_DELETE_DATA, gid, isVTable, uid, req->skey, req->ekey, ver, 1));
+  pBlock->info.rows++;
+
+end:
+  return code;
+}
+
 static int32_t scanDeleteData(void* pTableList, bool isVTable, SSDataBlock* pBlock, void* data, int32_t len,
                               int64_t ver) {
   int32_t    code = 0;
@@ -373,18 +391,14 @@ static int32_t scanDeleteData(void* pTableList, bool isVTable, SSDataBlock* pBlo
   SDeleteRes req = {0};
   tDecoderInit(&decoder, data, len);
   STREAM_CHECK_RET_GOTO(tDecodeDeleteRes(&decoder, &req));
-  uint64_t gid = 0;
-  if (isVTable) {
-    STREAM_CHECK_CONDITION_GOTO(taosHashGet(pTableList, &req.suid, sizeof(req.suid)) == NULL, TDB_CODE_SUCCESS)
-  } else {
-    gid = qStreamGetGroupId(pTableList, req.suid);
-    STREAM_CHECK_CONDITION_GOTO(gid == -1, TDB_CODE_SUCCESS);
+  
+  for (int32_t i = 0; i < taosArrayGetSize(req.uidList); i++) {
+    uint64_t* uid = taosArrayGet(req.uidList, i);
+    STREAM_CHECK_NULL_GOTO(uid, terrno);
+    STREAM_CHECK_RET_GOTO(buildDeleteData(pTableList, isVTable, pBlock, &req, *uid, ver));
   }
-  STREAM_CHECK_RET_GOTO(
-      buildWalMetaBlock(pBlock, WAL_DELETE_DATA, gid, isVTable, req.suid, req.skey, req.ekey, ver, 1));
-  pBlock->info.rows++;
-  stDebug("stream reader scan delete data:uid %" PRIu64 ", skey %" PRIu64 ", ekey %" PRIu64 ", gid %" PRIu64, req.suid,
-          req.skey, req.ekey, gid);
+  stDebug("stream reader scan delete data:uid %" PRIu64 ", skey %" PRIu64 ", ekey %" PRIu64, req.suid,
+          req.skey, req.ekey);
 
 end:
   tDecoderClear(&decoder);
@@ -455,14 +469,14 @@ static int32_t scanWal(SVnode* pVnode, void* pTableList, bool isVTable, SSDataBl
   int32_t code = 0;
   int32_t lino = 0;
 
-  SWalReader* pWalReader = walOpenReader(pVnode->pWal, NULL, 0);
+  SWalReader* pWalReader = walOpenReader(pVnode->pWal, 0);
   STREAM_CHECK_NULL_GOTO(pWalReader, terrno);
   *retVer = walGetLastVer(pWalReader->pWal);
   STREAM_CHECK_CONDITION_GOTO(walReaderSeekVer(pWalReader, lastVer + 1) != 0, TSDB_CODE_SUCCESS);
 
   while (1) {
     *retVer = walGetLastVer(pWalReader->pWal);
-    STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader) < 0, TSDB_CODE_SUCCESS);
+    STREAM_CHECK_CONDITION_GOTO(walNextValidMsg(pWalReader, true) < 0, TSDB_CODE_SUCCESS);
 
     SWalCont* wCont = &pWalReader->pHead->head;
     if (wCont->ingestTs / 1000 > ctime) break;
@@ -498,7 +512,7 @@ int32_t scanWalOneVer(SVnode* pVnode, void* pTableList, SSDataBlock* pBlock, SSD
   SSubmitReq2 submit = {0};
   SDecoder    decoder = {0};
 
-  SWalReader* pWalReader = walOpenReader(pVnode->pWal, NULL, 0);
+  SWalReader* pWalReader = walOpenReader(pVnode->pWal, 0);
   STREAM_CHECK_NULL_GOTO(pWalReader, terrno);
 
   STREAM_CHECK_RET_GOTO(walFetchHead(pWalReader, ver));

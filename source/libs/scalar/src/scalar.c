@@ -1052,7 +1052,7 @@ static int32_t getExprTSValue(SScalarCtx *ctx, SNode *pNode, int64_t *tsValue) {
     }
   } else if (nodeType(pNode) == QUERY_NODE_VALUE) {
     SValueNode *valueNode = (SValueNode *)pNode;
-    if (IS_INTEGER_TYPE(valueNode->node.resType.type)) {
+    if (IS_INTEGER_TYPE(valueNode->node.resType.type) || IS_TIMESTAMP_TYPE(valueNode->node.resType.type)) {
       *tsValue = valueNode->datum.i;
     } else {
       sclError("invalid type for ts range expr, type:%d, node:%p", valueNode->node.resType.type, pNode);

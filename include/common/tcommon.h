@@ -364,16 +364,6 @@ typedef struct SResSchame {
   char    name[TSDB_COL_NAME_LEN];
 } SResSchema;
 
-typedef struct SExprBasicInfo {
-  SResSchema   resSchema;
-  int16_t      numOfParams;  // argument value of each function
-  SFunctParam* pParam;
-} SExprBasicInfo;
-
-typedef struct SExprInfo {
-  struct SExprBasicInfo base;
-  struct tExprNode*     pExpr;
-} SExprInfo;
 
 typedef struct {
   const char* key;
