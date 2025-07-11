@@ -1913,7 +1913,6 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
     if (pStmt->sql.stbInterlaceMode) {
       // (*pDataBlock)->pData->flags = 0;
       (*pDataBlock)->pData->flags &= ~SUBMIT_REQ_COLUMN_DATA_FORMAT;
-
       code = qBindStmtStbColsValue2(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf,
                                     pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo,
                                     pStmt->taos->optionInfo.charsetCxt, &pBlob);
