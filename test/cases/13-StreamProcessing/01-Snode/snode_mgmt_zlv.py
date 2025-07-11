@@ -51,9 +51,9 @@ class TestSnodeMgmt:
 
         """
 
+
         tdStream.dropAllStreamsAndDbs()
         
-
         self.prepareData()
         self.createSnodeTest()
         self.dropAllSnodeTest()
