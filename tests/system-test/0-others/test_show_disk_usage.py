@@ -157,10 +157,10 @@ class TDTestCase:
         tdSql.checkData(0,0,12)
         tdSql.query(f"select sum(table_meta) from information_schema.ins_disk_usage  where db_name='{self.other_dbname}';")
         tdSql.checkData(0,0,152)
-        tdSql.query(f"select sum(s3) from information_schema.ins_disk_usage  where db_name='{self.other_dbname}';")
+        tdSql.query(f"select sum(ss) from information_schema.ins_disk_usage  where db_name='{self.other_dbname}';")
         tdSql.checkData(0,0,0)
-        tdSql.error(f"select sum(s3) from information_schema.ins_disk_usage  where db='{self.other_dbname}';")
-        tdSql.error(f"select sum(s3) from information_schema.ins_disk_usage  where db1='{self.other_dbname}';")
+        tdSql.error(f"select sum(ss) from information_schema.ins_disk_usage  where db='{self.other_dbname}';")
+        tdSql.error(f"select sum(ss) from information_schema.ins_disk_usage  where db1='{self.other_dbname}';")
 
 
         self.insertData()
