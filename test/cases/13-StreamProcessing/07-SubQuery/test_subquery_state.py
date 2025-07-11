@@ -378,7 +378,7 @@ class TestStreamSubqueryState:
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.vmeters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:15:00.000' and tbname='v1' partition by tbname interval(5m);",
             check_func=self.check27,
         )
-        # self.streams.append(stream) TD-36353
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=28,
@@ -1474,7 +1474,9 @@ class TestStreamSubqueryState:
             and tdSql.compareData(2, 0, "2025-01-01 00:10:00.000")
             and tdSql.compareData(2, 1, 245)
             and tdSql.compareData(2, 2, 10)
-            and tdSql.compareData(3, 0, "2025-01-01 00:30:00.000"),
+            and tdSql.compareData(3, 0, "2025-01-01 00:30:00.000")
+            and tdSql.compareData(3, 1, 645)
+            and tdSql.compareData(3, 2, 10),
         )
 
     def check40(self):
