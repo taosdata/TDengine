@@ -14675,7 +14675,6 @@ int32_t tSerializeSMountStbInfo(void *buf, int32_t bufLen, int32_t *pFLen, SMoun
 
   flen = tSerializeSMCreateStbReq(buf, bufLen, pReq);
   if (flen <= 0) {
-    TAOS_CHECK_RETURN(flen);
     TAOS_RETURN(flen < 0 ? flen : TSDB_CODE_INTERNAL_ERROR);
   }
   if (pFLen) *pFLen = flen;
