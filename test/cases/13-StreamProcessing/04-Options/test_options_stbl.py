@@ -32,7 +32,7 @@ class TestStreamOptionsTrigger:
         # streams.append(self.Basic11()) # MAX_DELAY        
         # streams.append(self.Basic11_1()) # MAX_DELAY        
         # streams.append(self.Basic12()) # EVENT_TYPE
-        # streams.append(self.Basic13()) # IGNORE_NODATA_TRIGGER
+        streams.append(self.Basic13()) # IGNORE_NODATA_TRIGGER
         
         tdStream.checkAll(streams)
 
@@ -2367,10 +2367,10 @@ class TestStreamOptionsTrigger:
             tdSql.checkRows(4)
 
             tdSql.execute(
-                f"create stream s13 sliding(10s) from ct1 options(ignore_nodata_trigger) into res_ct1 (wstartts, wendts, firstts, lastts, cnt_v, sum_v, avg_v) as select _twstart, _twend, first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s13 interval(20s) sliding(20s) from ct1 options(ignore_nodata_trigger) into res_ct1 (wstartts, wendts, firstts, lastts, cnt_v, sum_v, avg_v) as select _twstart, _twend, first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
             tdSql.execute(
-                f"create stream s13_g sliding(10s) from {self.stbName} partition by tbname, tint options(ignore_nodata_trigger) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (wstartts, wendts, firstts, lastts, cnt_v, sum_v, avg_v) as select _twstart, _twend, first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s13_g interval(20s) sliding(20s) from {self.stbName} partition by tbname, tint options(ignore_nodata_trigger) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (wstartts, wendts, firstts, lastts, cnt_v, sum_v, avg_v) as select _twstart, _twend, first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
 
         def insert1(self):
@@ -2379,8 +2379,7 @@ class TestStreamOptionsTrigger:
                 "insert into ct1 values ('2025-01-01 00:00:05', 1);",
                 "insert into ct1 values ('2025-01-01 00:00:10', 1);",
                 "insert into ct1 values ('2025-01-01 00:00:15', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:20', 1);",
-                "insert into ct1 values ('2025-01-01 00:00:25', 1);",
+                "insert into ct1 values ('2025-01-01 00:00:19', 1);",
                 "insert into ct1 values ('2025-01-01 00:00:50', 1);",
                 "insert into ct1 values ('2025-01-01 00:00:55', 1);",  
                 "insert into ct1 values ('2025-01-01 00:01:00', 1);",                
@@ -2389,8 +2388,7 @@ class TestStreamOptionsTrigger:
                 "insert into ct2 values ('2025-01-01 00:00:05', 1);",
                 "insert into ct2 values ('2025-01-01 00:00:10', 1);",
                 "insert into ct2 values ('2025-01-01 00:00:15', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:20', 1);",
-                "insert into ct2 values ('2025-01-01 00:00:25', 1);",
+                "insert into ct2 values ('2025-01-01 00:00:19', 1);",
                 "insert into ct2 values ('2025-01-01 00:00:50', 1);",
                 "insert into ct2 values ('2025-01-01 00:00:55', 1);",  
                 "insert into ct2 values ('2025-01-01 00:01:00', 1);",                 
@@ -2399,8 +2397,7 @@ class TestStreamOptionsTrigger:
                 "insert into ct3 values ('2025-01-01 00:00:05', 1);",
                 "insert into ct3 values ('2025-01-01 00:00:10', 1);",
                 "insert into ct3 values ('2025-01-01 00:00:15', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:20', 1);",
-                "insert into ct3 values ('2025-01-01 00:00:25', 1);",
+                "insert into ct3 values ('2025-01-01 00:00:19', 1);",
                 "insert into ct3 values ('2025-01-01 00:00:50', 1);",
                 "insert into ct3 values ('2025-01-01 00:00:55', 1);",  
                 "insert into ct3 values ('2025-01-01 00:01:00', 1);",                 
@@ -2409,8 +2406,7 @@ class TestStreamOptionsTrigger:
                 "insert into ct4 values ('2025-01-01 00:00:05', 1);",
                 "insert into ct4 values ('2025-01-01 00:00:10', 1);",
                 "insert into ct4 values ('2025-01-01 00:00:15', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:20', 1);",
-                "insert into ct4 values ('2025-01-01 00:00:25', 1);",
+                "insert into ct4 values ('2025-01-01 00:00:19', 1);",
                 "insert into ct4 values ('2025-01-01 00:00:50', 1);",
                 "insert into ct4 values ('2025-01-01 00:00:55', 1);",  
                 "insert into ct4 values ('2025-01-01 00:01:00', 1);",     
@@ -2443,68 +2439,54 @@ class TestStreamOptionsTrigger:
 
             tdSql.checkResultsByFunc(
                 sql=f"select wstartts, wendts, firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_ct1",
-                func=lambda: tdSql.getRows() == 4
+                func=lambda: tdSql.getRows() == 2
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
-                and tdSql.compareData(0, 1, "2025-01-01 00:00:10")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:20")
                 and tdSql.compareData(0, 2, "2025-01-01 00:00:00")
-                and tdSql.compareData(0, 3, "2025-01-01 00:00:10")
-                and tdSql.compareData(0, 4, 1)
-                and tdSql.compareData(0, 5, 1)
+                and tdSql.compareData(0, 3, "2025-01-01 00:00:19")
+                and tdSql.compareData(0, 4, 5)
+                and tdSql.compareData(0, 5, 5)
                 and tdSql.compareData(0, 6, 1)
-                and tdSql.compareData(1, 0, "2025-01-01 00:00:25")
-                and tdSql.compareData(1, 1, "2025-01-01 00:00:00")
-                and tdSql.compareData(1, 2, "2025-01-01 00:00:25")
-                and tdSql.compareData(1, 3, "2025-01-01 00:00:00")
-                and tdSql.compareData(1, 4, 6)
-                and tdSql.compareData(1, 5, 6)
-                and tdSql.compareData(1, 6, 1)
-                and tdSql.compareData(2, 0, "2025-01-01 00:00:25")
-                and tdSql.compareData(2, 1, "2025-01-01 00:00:00")
-                and tdSql.compareData(2, 2, "2025-01-01 00:00:30")
-                and tdSql.compareData(2, 3, "2025-01-01 00:00:30")
-                and tdSql.compareData(2, 4, 1)
-                and tdSql.compareData(2, 5, 2)
-                and tdSql.compareData(2, 6, 2)
-                and tdSql.compareData(3, 0, "2025-01-01 00:00:25")
-                and tdSql.compareData(3, 1, "2025-01-01 00:00:00")
-                and tdSql.compareData(3, 2, "2025-01-01 00:00:55")
-                and tdSql.compareData(3, 3, "2025-01-01 00:00:30")
-                and tdSql.compareData(3, 4, 6)
-                and tdSql.compareData(3, 5, 12)
-                and tdSql.compareData(3, 6, 2),
+                # and tdSql.compareData(1, 0, "2025-01-01 00:00:20")
+                # and tdSql.compareData(1, 1, "2025-01-01 00:00:40")
+                # and tdSql.compareData(1, 2, "None")
+                # and tdSql.compareData(1, 3, "None")
+                # and tdSql.compareData(1, 4, "None")
+                # and tdSql.compareData(1, 5, "None")
+                # and tdSql.compareData(1, 6, "None")
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:40")
+                and tdSql.compareData(1, 1, "2025-01-01 00:01:00")
+                and tdSql.compareData(1, 2, "2025-01-01 00:00:50")
+                and tdSql.compareData(1, 3, "2025-01-01 00:00:55")
+                and tdSql.compareData(1, 4, 2)
+                and tdSql.compareData(1, 5, 2)
+                and tdSql.compareData(1, 6, 1),
             )
 
             tdSql.checkResultsByFunc(
                 sql=f"select wstartts, wendts, firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct4",
-                func=lambda: tdSql.getRows() == 4
+                func=lambda: tdSql.getRows() == 2
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
-                and tdSql.compareData(0, 1, "2025-01-01 00:00:10")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:20")
                 and tdSql.compareData(0, 2, "2025-01-01 00:00:00")
-                and tdSql.compareData(0, 3, "2025-01-01 00:00:10")
-                and tdSql.compareData(0, 4, 1)
-                and tdSql.compareData(0, 5, 1)
+                and tdSql.compareData(0, 3, "2025-01-01 00:00:19")
+                and tdSql.compareData(0, 4, 5)
+                and tdSql.compareData(0, 5, 5)
                 and tdSql.compareData(0, 6, 1)
-                and tdSql.compareData(1, 0, "2025-01-01 00:00:25")
-                and tdSql.compareData(1, 1, "2025-01-01 00:00:00")
-                and tdSql.compareData(1, 2, "2025-01-01 00:00:25")
-                and tdSql.compareData(1, 3, "2025-01-01 00:00:00")
-                and tdSql.compareData(1, 4, 6)
-                and tdSql.compareData(1, 5, 6)
-                and tdSql.compareData(1, 6, 1)
-                and tdSql.compareData(2, 0, "2025-01-01 00:00:25")
-                and tdSql.compareData(2, 1, "2025-01-01 00:00:00")
-                and tdSql.compareData(2, 2, "2025-01-01 00:00:30")
-                and tdSql.compareData(2, 3, "2025-01-01 00:00:30")
-                and tdSql.compareData(2, 4, 1)
-                and tdSql.compareData(2, 5, 2)
-                and tdSql.compareData(2, 6, 2)
-                and tdSql.compareData(3, 0, "2025-01-01 00:00:25")
-                and tdSql.compareData(3, 1, "2025-01-01 00:00:00")
-                and tdSql.compareData(3, 2, "2025-01-01 00:00:55")
-                and tdSql.compareData(3, 3, "2025-01-01 00:00:30")
-                and tdSql.compareData(3, 4, 6)
-                and tdSql.compareData(3, 5, 12)
-                and tdSql.compareData(3, 6, 2),
+                # and tdSql.compareData(1, 0, "2025-01-01 00:00:20")
+                # and tdSql.compareData(1, 1, "2025-01-01 00:00:40")
+                # and tdSql.compareData(1, 2, "None")
+                # and tdSql.compareData(1, 3, "None")
+                # and tdSql.compareData(1, 4, "None")
+                # and tdSql.compareData(1, 5, "None")
+                # and tdSql.compareData(1, 6, "None")
+                and tdSql.compareData(1, 0, "2025-01-01 00:00:40")
+                and tdSql.compareData(1, 1, "2025-01-01 00:01:00")
+                and tdSql.compareData(1, 2, "2025-01-01 00:00:50")
+                and tdSql.compareData(1, 3, "2025-01-01 00:00:55")
+                and tdSql.compareData(1, 4, 2)
+                and tdSql.compareData(1, 5, 2)
+                and tdSql.compareData(1, 6, 1),
             )
             
             

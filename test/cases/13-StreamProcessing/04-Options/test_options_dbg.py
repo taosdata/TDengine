@@ -16,7 +16,7 @@ class TestStreamOptionsTrigger:
         streams = []
         # streams.append(self.Basic0())
         # streams.append(self.Basic1()) # expired_time 
-        # streams.append(self.Basic2()) # must not modify for waiting mmwang debug
+        streams.append(self.Basic2()) # must not modify for waiting mmwang debug
         # streams.append(self.Basic3()) # must not modify for waiting jqkuang debug
         
         # TD-36304 [流计算开发阶段] 流计算state窗口+超级表%%rows+expired_time对乱序且过期的数据也进行了重算 must not modify for waiting jqkuang debug
@@ -35,7 +35,7 @@ class TestStreamOptionsTrigger:
         # streams.append(self.Basic11()) # MAX_DELAY
         
         # streams.append(self.Basic12()) # EVENT_TYPE
-        streams.append(self.Basic13()) # IGNORE_NODATA_TRIGGER
+        # streams.append(self.Basic13()) # IGNORE_NODATA_TRIGGER
         
         tdStream.checkAll(streams)
 
