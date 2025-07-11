@@ -687,7 +687,7 @@ void releaseDataResult(void** pIter) {
     taosArrayDestroy(pResult->tmpBlocksInMem);
     pResult->tmpBlocksInMem = NULL;
   }
-  if (pResult->cleanMode == DATA_CLEAN_EXPIRED) {
+  if (pResult && pResult->cleanMode == DATA_CLEAN_EXPIRED) {
     SSlidingGrpMgr* pSlidingGrpMgr = (SSlidingGrpMgr*)pResult->groupData;
     changeMgrStatus(&pSlidingGrpMgr->status, GRP_DATA_IDLE);
   } else {
