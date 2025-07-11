@@ -4000,7 +4000,6 @@ _exit:
   }
 
   mstDestroyDbVgroupsHash(pDbVgroups);
-  taosArrayDestroy(pTbs);
 
   return code;
 }
