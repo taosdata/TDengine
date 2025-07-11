@@ -1267,6 +1267,7 @@ void freeOpParamItem(void* pItem) {
 void freeVirtualTableScanGetOperatorParam(SOperatorParam* pParam) {
   SVTableScanOperatorParam* pVTableScanParam = (SVTableScanOperatorParam*)pParam->value;
   taosArrayDestroyEx(pVTableScanParam->pOpParamArray, freeOpParamItem);
+  freeOpParamItem(&pVTableScanParam->pTagScanOp);
   freeOperatorParamImpl(pParam, OP_GET_PARAM);
 }
 
