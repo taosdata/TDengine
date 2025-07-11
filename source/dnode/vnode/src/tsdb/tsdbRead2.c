@@ -2333,12 +2333,15 @@ _end:
   return ps;
 }
 
-// deep copy the primary key, to avoid ref invalid buffer is the primary key is varchar or something.
+// deep copy the primary key, to avoid ref invalid buffer if the primary key is varchar or something.
 static int32_t primaryKeyDup(SRowKey* pKey) {
   if (pKey->numOfPKs > 0) {
     if (!IS_NUMERIC_TYPE(pKey->pks[0].type)) {
       void* p = taosMemoryMalloc(pKey->pks[0].nData);
       if (p == NULL)  {
+        tsdbError("%s failed at %s:%d since %s", __func__, __FILE__, __LINE__, tstrerror(terrno));
+        // memory allocation failed, set pData to NULL to avoid freeing original buffer
+        pKey->pks[0].pData = NULL;
         return terrno;
       }
 
@@ -2422,7 +2425,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
   tRowKeyAssign(&pBlockScanInfo->lastProcKey, &minKey);
 
   // file block ---> stt block -----> mem
-  if (pkCompEx(&minKey, pfKey) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, pfKey) == 0) {
     code = tsdbRowMergerAdd(pMerger, &fRow, NULL);
     TSDB_CHECK_CODE(code, lino, _end);
 
@@ -2430,7 +2433,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, pSttKey) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, pSttKey) == 0) {
     TSDBROW* fRow1 = tMergeTreeGetRow(&pSttBlockReader->mergeTree);
     code = tsdbRowMergerAdd(pMerger, fRow1, NULL);
     TSDB_CHECK_CODE(code, lino, _end);
@@ -2439,7 +2442,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, &k) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, &k) == 0) {
     code = tsdbRowMergerAdd(pMerger, pRow, pSchema);
     TSDB_CHECK_CODE(code, lino, _end);
 
@@ -2655,7 +2658,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
   tRowKeyAssign(&pBlockScanInfo->lastProcKey, &minKey);
 
   // file block -----> stt block -----> imem -----> mem
-  if (pkCompEx(&minKey, pfKey) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, pfKey) == 0) {
     TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
     code = tsdbRowMergerAdd(pMerger, &fRow, NULL);
     TSDB_CHECK_CODE(code, lino, _end);
@@ -2664,7 +2667,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, pSttKey) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, pSttKey) == 0) {
     TSDBROW* pRow1 = tMergeTreeGetRow(&pSttBlockReader->mergeTree);
     code = tsdbRowMergerAdd(pMerger, pRow1, NULL);
     TSDB_CHECK_CODE(code, lino, _end);
@@ -2674,7 +2677,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, &ik) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, &ik) == 0) {
     code = tsdbRowMergerAdd(pMerger, piRow, piSchema);
     TSDB_CHECK_CODE(code, lino, _end);
 
@@ -2682,7 +2685,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, &k) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, &k) == 0) {
     code = tsdbRowMergerAdd(pMerger, pRow, pSchema);
     TSDB_CHECK_CODE(code, lino, _end);
 
@@ -3198,6 +3201,7 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
     tColRowGetKey(pBlockData, pDumpInfo->rowIndex, pKey);
     code = primaryKeyDup(pKey);
     TSDB_CHECK_CODE(code, lino, _end);
+    lino = __LINE__;
   } else {
     pKey = NULL;
   }
@@ -6806,7 +6810,7 @@ _end:
   return code;
 }
 
-int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_t* suid) {
+int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_t* suid, SSchemaWrapper** pTagSchema) {
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
   int32_t code = metaReaderGetTableEntryByUidCache(&mr, uid);
@@ -6829,6 +6833,15 @@ int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_
       return code;
     }
   } else if (mr.me.type == TSDB_NORMAL_TABLE) {  // do nothing
+  } else if (mr.me.type == TSDB_SUPER_TABLE) {
+    *suid = uid;
+    code = metaReaderGetTableEntryByUidCache(&mr, *suid);
+    if (code != TSDB_CODE_SUCCESS) {
+      code = TSDB_CODE_TDB_INVALID_TABLE_ID;
+      metaReaderClear(&mr);
+      return code;
+    }
+    *pTagSchema = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaTag);
   } else {
     code = TSDB_CODE_INVALID_PARA;
     tsdbError("invalid mr.me.type:%d, code:%s", mr.me.type, tstrerror(code));

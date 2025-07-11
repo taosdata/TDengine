@@ -1352,8 +1352,8 @@ void *vnodeGetIvtIdx(void *pVnode) {
   return metaGetIvtIdx(((SVnode *)pVnode)->pMeta);
 }
 
-int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid) {
-  return tsdbGetTableSchema(((SVnode *)pVnode)->pMeta, uid, pSchema, suid);
+int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid, SSchemaWrapper **pTagSchema) {
+  return tsdbGetTableSchema(((SVnode *)pVnode)->pMeta, uid, pSchema, suid, pTagSchema);
 }
 
 static FORCE_INLINE int32_t vnodeGetDBPrimaryInfo(SVnode *pVnode, SDbSizeStatisInfo *pInfo) {
@@ -1368,7 +1368,7 @@ static FORCE_INLINE int32_t vnodeGetDBPrimaryInfo(SVnode *pVnode, SDbSizeStatisI
 
   for (int i = 0; i < sizeof(dirName) / sizeof(dirName[0]); i++) {
     int64_t size = {0};
-    (void)snprintf(path + offset, TSDB_FILENAME_LEN, "%s%s", TD_DIRSEP, dirName[i]);
+    (void)snprintf(path + offset, TSDB_FILENAME_LEN - offset, "%s%s", TD_DIRSEP, dirName[i]);
     code = taosGetDirSize(path, &size);
     if (code != 0) {
       return code;

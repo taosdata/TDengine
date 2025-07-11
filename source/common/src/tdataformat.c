@@ -3320,10 +3320,10 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
           int32_t   length = infos[iInfo].bind->length[iRow];
           uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo];
           value.nData = length;
-          if (value.nData > pTSchema->columns[infos[iInfo].columnId - 1].bytes - VARSTR_HEADER_SIZE) {
+          if (value.nData > infos[iInfo].bytes - VARSTR_HEADER_SIZE) {
             code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-            uError("stmt bind param[%d] length:%d  greater than type maximum lenght: %d", iInfo, value.nData,
-                   pTSchema->columns[infos[iInfo].columnId - 1].bytes);
+            uError("stmt bind columnId:%d length:%d  greater than type maximum lenght: %d", infos[iInfo].columnId,
+                   value.nData + (uint32_t)VARSTR_HEADER_SIZE, infos[iInfo].bytes);
             goto _exit;
           }
           value.pData = *data;

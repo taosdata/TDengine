@@ -1796,6 +1796,7 @@ static int32_t sclGetMathOperatorResType(SOperatorNode *pOp) {
   if (checkOperatorRestypeIsTimestamp(pOp->opType, ldt.type, rdt.type)) {
     pOp->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
     pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+    pOp->node.resType.precision = sclGetOpValueNodeTsPrecision(pOp->pLeft, pOp->pRight);
   } else {
     if (hasDecimalType) {
       return decimalGetRetType(&ldt, &rdt, pOp->opType, &pOp->node.resType);
