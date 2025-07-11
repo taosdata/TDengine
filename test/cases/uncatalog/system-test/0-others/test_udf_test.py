@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, tdCom, TAOS_SYSTEM_ERROR, TSDB_CODE_MND_FUNC_NOT_EXIST
+from new_test_framework.utils import tdLog, tdSql, tdCom, TAOS_SYSTEM_ERROR, TSDB_CODE_MND_FUNC_NOT_EXIST, TSDB_CODE_UDF_FUNC_EXEC_FAILURE, TSDB_CODE_TSC_INTERNAL_ERROR
 import taos
 import sys
 import time

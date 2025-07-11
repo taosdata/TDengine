@@ -2,12 +2,11 @@ from new_test_framework.utils import tdLog, tdSql
 from urllib.parse import uses_relative
 import os
 import platform
+import sys
 from taos.tmq import Consumer
 from taos.tmq import *
-
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from compatibility_basic import cb
-
 from pathlib import Path
 
 # Define the list of base versions to test
