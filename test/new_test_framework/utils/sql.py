@@ -2607,4 +2607,16 @@ class TDSql:
         self.queryRows = 0
         self.queryResult = []
 
+
+    # insert table with fixed values
+    def insertFixedVal(self, table, startTs, step, count, cols, fixedVals):
+        # init
+        ts = startTs
+        # loop count
+        for i in range(count):
+            sql = f"INSERT INTO {table}({cols}) VALUES({ts},{fixedVals})"
+            self.execute(sql, show=True)
+            # next
+            ts += step
+
 tdSql = TDSql()
