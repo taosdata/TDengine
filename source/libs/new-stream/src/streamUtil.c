@@ -252,7 +252,7 @@ void stmDestroySStreamInfo(void* param) {
 
   taosMemoryFreeClear(p->triggerTask);
 
-  iter = {0};
+  memset(&iter, 0, sizeof(iter));
   tdListInitIter(p->runnerList, &iter, TD_LIST_FORWARD);
   while ((listNode = tdListNext(&iter)) != NULL) {
     SStreamTask* pTask = (SStreamTask*)listNode->data;
