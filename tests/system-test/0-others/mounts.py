@@ -133,7 +133,7 @@ class TDTestCase:
             self.replace_string_in_file(mntDnodeConf, '"clusterId":\t"-', '"clusterId":\t"')
         except Exception as e:
             raise Exception(f"failed to restore clusterId in {mntDnodeConf}: {repr(e)}")
-    def refactConfBetweenMultiAndMnt(self, toMnt = True):
+    def refactConfBetweenHostAndMnt(self, toMnt = True):
         try:
             if toMnt:
                 self.replace_string_in_file(self.configFile, 'multi', 'mnt')
@@ -274,7 +274,7 @@ class TDTestCase:
     def s4_recheck_mount_path(self):
         tdLog.info("step 4 recheck mount path")
         tdDnodes.stop(1)
-        self.refactConfBetweenMultiAndMnt(toMnt=True)
+        self.refactConfBetweenHostAndMnt(toMnt=True)
         tdDnodes.start(1)
         # check mount path
         tdSql.execute("use db0")
@@ -315,12 +315,20 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
 
+    def s5_check_remount(self):
+        tdLog.info("step 5 check remount")
+        tdDnodes.stop(1)
+        self.refactConfBetweenHostAndMnt(toMnt=False)
+        tdDnodes.start(1)
+        self.s3_create_drop_show_mount())
+
     def run(self):
         self.s0_prepare_mount_path()
         self.s1_prepare_host_cluster()
         self.s2_check_mount_error()
         self.s3_create_drop_show_mount()
         self.s4_recheck_mount_path()
+        self.s5_check_remount()
 
     def stop(self):
         tdSql.close()

@@ -5205,8 +5205,8 @@ typedef struct {
 
 typedef struct {
   SMCreateStbReq req;
-  SArray*        pColExts;
-  SArray*        pTagExts;
+  SArray*        pColExts;  // element: column id
+  SArray*        pTagExts;  // element: tag id
 } SMountStbInfo;
 
 int32_t tSerializeSMountStbInfo(void* buf, int32_t bufLen, int32_t* pFLen, SMountStbInfo* pInfo);
