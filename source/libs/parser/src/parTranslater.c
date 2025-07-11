@@ -3115,6 +3115,7 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "unsupported placeholder function %s", pFuncNode->functionName));
   }
 
+  ((SValueNode*)extraValue)->notReserved = true;
   PAR_ERR_JRET(nodesListMakePushFront(&pFuncNode->pParameterList, extraValue));
   return DEAL_RES_CONTINUE;
 _return:

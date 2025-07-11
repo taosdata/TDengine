@@ -787,6 +787,24 @@ void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo
   }
 }
 
+int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv *pEnv) {
+  if (NULL == pParamNodes || pParamNodes->length < 1) {
+    uError("invalid stream pesudo func param list %p", pParamNodes);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  int32_t firstParamType = nodeType(nodesListGetNode(pParamNodes, 0));
+  if (QUERY_NODE_VALUE != firstParamType) {
+    uError("invalid stream pesudo func first param type %d", firstParamType);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  SValueNode* pResDesc = (SValueNode*)nodesListGetNode(pParamNodes, 0);
+  pEnv->calcMemSize = pResDesc->node.resType.bytes;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo) {
   if (!pStreamRuntimeInfo) {
     uError("internal error, should have pVals for stream pseudo funcs");
@@ -849,12 +867,11 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
     for (int32_t i = 0; i < taosArrayGetSize(pVal); ++i) {
       SStreamGroupValue* pValue = taosArrayGet(pVal, i);
       if (pValue != NULL && pValue->isTbname) {
-        void *tmp = ((SValueNode*)pFirstParam)->datum.p;
+        taosMemoryFreeClear(((SValueNode*)pFirstParam)->datum.p);
         ((SValueNode*)pFirstParam)->datum.p = taosMemoryCalloc(pValue->data.nData + VARSTR_HEADER_SIZE, 1);
         if (NULL == ((SValueNode*)pFirstParam)->datum.p ) {
           return terrno;
         }
-        taosMemoryFree(tmp);
 
         (void)memcpy(varDataVal(((SValueNode*)pFirstParam)->datum.p), pValue->data.pData, pValue->data.nData);
         varDataLen(((SValueNode*)pFirstParam)->datum.p) = pValue->data.nData;

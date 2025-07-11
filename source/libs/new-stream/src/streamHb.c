@@ -33,7 +33,7 @@ static int32_t streamHbSendRequestMsg(SStreamHbMsg* pMsg, SEpSet* pEpset) {
   void* buf = rpcMallocCont(tlen + sizeof(SStreamMsgGrpHeader));
   TSDB_CHECK_NULL(buf, code, lino, _exit, terrno);
 
-  ((SStreamMsgGrpHeader *)buf)->streamGid = htonl(pMsg->streamGId);
+  ((SStreamMsgGrpHeader *)buf)->streamGid = pMsg->streamGId;
   void *abuf = POINTER_SHIFT(buf, sizeof(SStreamMsgGrpHeader));
 
   tEncoderInit(&encoder, abuf, tlen);
@@ -168,7 +168,7 @@ int32_t streamHbProcessRspMsg(SMStreamHbRspMsg* pRsp) {
   int32_t      code = 0;
   int32_t      lino = 0;
 
-  stDebug("start to process stream hb rsp msg");
+  stDebug("start to process stream hb rsp msg, gid:%d", pRsp->streamGId);
 
   gStreamMgmt.hb.lastErrCode = 0;
 
