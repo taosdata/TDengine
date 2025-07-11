@@ -2,6 +2,7 @@
 mod test_tmq_to_local {
     use anyhow::Context;
     use assert_cmd::Command;
+    use local_to_taos::local_to_taos;
     use opendal::Entry;
     use std::env;
     use std::path::Path;
@@ -10,9 +11,9 @@ mod test_tmq_to_local {
         TryStreamExt,
     };
     use taosx_core::s3::{S3Config, S3Loader};
-    use taosx_core::tmq_to_local::conf::BackupConfigBuilder;
     use taosx_core::utils::sql::connect_taos;
-    use taosx_core::{local_to_taos, tmq_to_local};
+    use tmq_to_local::conf::BackupConfigBuilder;
+    use tmq_to_local::tmq_to_local;
     use tokio_util::sync::CancellationToken;
 
     /// # description_cn

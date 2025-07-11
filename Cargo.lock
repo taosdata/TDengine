@@ -4530,6 +4530,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
+name = "legacy-to-taos"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "async-backtrace",
+ "chrono",
+ "csv",
+ "flume",
+ "fundu",
+ "futures",
+ "futures-util",
+ "itertools 0.14.0",
+ "lazy_static",
+ "rand 0.8.5",
+ "scc",
+ "semver",
+ "serde",
+ "serde_with",
+ "taos",
+ "taosx-core",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "lexical-core"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4742,6 +4770,30 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "local-waker",
+]
+
+[[package]]
+name = "local-to-taos"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "async-backtrace",
+ "async-compression",
+ "chrono",
+ "flume",
+ "itertools 0.14.0",
+ "semver",
+ "serde",
+ "taos",
+ "taosx-core",
+ "taosx-ipc",
+ "tempfile",
+ "tmq-to-local",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -8065,6 +8117,86 @@ dependencies = [
 ]
 
 [[package]]
+name = "sink-csv"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-schema",
+ "bytes",
+ "chrono",
+ "csv",
+ "csv-async",
+ "faststr",
+ "flate2",
+ "flume",
+ "futures-util",
+ "glob",
+ "notify",
+ "regex",
+ "scc",
+ "serde",
+ "serde_json",
+ "taos",
+ "taosx-core",
+ "taosx-ipc",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "sink-kafka"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "futures-util",
+ "itertools 0.14.0",
+ "kafka",
+ "serde_json",
+ "taos",
+ "taosx-core",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "sink-mqtt"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "faststr",
+ "flume",
+ "parking_lot 0.12.4",
+ "rumqttc",
+ "serde",
+ "serde_json",
+ "snafu",
+ "source-mqtt",
+ "taos",
+ "taosx-core",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "sink-parquet"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "futures",
+ "parquet",
+ "taos",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "siphasher"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8162,6 +8294,325 @@ checksum = "e22376abed350d73dd1cd119b57ffccad95b4e585a7cda43e286245ce23c0678"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "source-historian"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-schema",
+ "chrono",
+ "flume",
+ "futures-util",
+ "itertools 0.14.0",
+ "linked-hash-map",
+ "serde_json",
+ "taos",
+ "taosx-core",
+ "taosx-ipc",
+ "tiberius",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "source-influxdb"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "itertools 0.14.0",
+ "reqwest 0.12.20",
+ "ringbuf",
+ "serde",
+ "taos",
+ "taosx-core",
+ "tempfile",
+ "tokio",
+ "tokio-process-terminate",
+ "tokio-util",
+ "toml 0.8.23",
+ "tracing",
+]
+
+[[package]]
+name = "source-kafka"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-schema",
+ "chrono",
+ "faststr",
+ "flume",
+ "futures-ext",
+ "futures-util",
+ "itertools 0.14.0",
+ "linked-hash-map",
+ "rdkafka 0.37.0",
+ "scc",
+ "serde",
+ "serde_json",
+ "taos",
+ "taosx-core",
+ "taosx-ipc",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "source-mongodb"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-schema",
+ "chrono",
+ "flume",
+ "itertools 0.14.0",
+ "linked-hash-map",
+ "mongodb",
+ "serde_json",
+ "taos",
+ "taosx-core",
+ "taosx-ipc",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "source-mqtt"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-schema",
+ "bytes",
+ "chrono",
+ "csv",
+ "faststr",
+ "flume",
+ "futures",
+ "itertools 0.14.0",
+ "parking_lot 0.12.4",
+ "regex",
+ "rumqttc",
+ "rustls-native-certs 0.7.3",
+ "rustls-pemfile 2.2.0",
+ "scc",
+ "serde_json",
+ "snafu",
+ "taos",
+ "taosx-core",
+ "taosx-ipc",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "source-mssql"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-schema",
+ "chrono",
+ "deadpool",
+ "deadpool-tiberius",
+ "flume",
+ "futures",
+ "itertools 0.14.0",
+ "linked-hash-map",
+ "serde_json",
+ "taos",
+ "taosx-core",
+ "taosx-ipc",
+ "tiberius",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "source-mysql"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-schema",
+ "bigdecimal 0.4.8",
+ "chrono",
+ "flume",
+ "futures",
+ "itertools 0.14.0",
+ "linked-hash-map",
+ "serde_json",
+ "sqlx",
+ "taos",
+ "taosx-core",
+ "taosx-ipc",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "source-opc"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-schema",
+ "base64 0.22.1",
+ "bytes",
+ "cfg-if",
+ "csv",
+ "csv-async",
+ "futures",
+ "futures-util",
+ "itertools 0.14.0",
+ "linked-hash-map",
+ "regex",
+ "ringbuf",
+ "serde",
+ "serde_json",
+ "taos",
+ "taosx-core",
+ "taosx-ipc",
+ "tempfile",
+ "tokio",
+ "tokio-process-terminate",
+ "tokio-stream",
+ "tokio-util",
+ "toml 0.8.23",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "source-opentsdb"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "itertools 0.14.0",
+ "reqwest 0.12.20",
+ "ringbuf",
+ "serde",
+ "serde_json",
+ "taos",
+ "taosx-core",
+ "tempfile",
+ "tokio",
+ "tokio-process-terminate",
+ "tokio-util",
+ "toml 0.8.23",
+ "tracing",
+]
+
+[[package]]
+name = "source-oracle"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-schema",
+ "chrono",
+ "flume",
+ "itertools 0.14.0",
+ "linked-hash-map",
+ "oracle",
+ "serde_json",
+ "taos",
+ "taosx-core",
+ "taosx-ipc",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "source-pi"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "linked-hash-map",
+ "serde",
+ "serde_json",
+ "taos",
+ "taosx-core",
+ "taosx-ipc",
+ "tempfile",
+ "tokio",
+ "tokio-process-terminate",
+ "tokio-util",
+ "toml 0.8.23",
+ "tracing",
+]
+
+[[package]]
+name = "source-postgres"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-schema",
+ "bigdecimal 0.4.8",
+ "bit-vec",
+ "chrono",
+ "flume",
+ "futures",
+ "itertools 0.14.0",
+ "linked-hash-map",
+ "serde_json",
+ "sqlx",
+ "sqlx-postgres",
+ "taos",
+ "taosx-core",
+ "taosx-ipc",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "source-sparkplugb"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-schema",
+ "chrono",
+ "faststr",
+ "flume",
+ "futures",
+ "parking_lot 0.12.4",
+ "prost",
+ "rayon",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "snafu",
+ "source-mqtt",
+ "taos",
+ "taosx-core",
+ "taosx-ipc",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -8848,7 +9299,9 @@ dependencies = [
  "jemalloc_pprof",
  "jsonwebtoken",
  "lazy_static",
+ "legacy-to-taos",
  "linked-hash-map",
+ "local-to-taos",
  "log",
  "metrics 0.23.1",
  "metrics-exporter-prometheus",
@@ -8874,6 +9327,8 @@ dependencies = [
  "shadow-rs 0.38.1",
  "shlex",
  "socket2",
+ "source-kafka",
+ "source-opc",
  "sqlx",
  "strum",
  "sysinfo 0.33.1",
@@ -8882,11 +9337,14 @@ dependencies = [
  "taosx-core",
  "taosx-ipc",
  "taosx-metrics",
+ "taosx-task",
  "tempfile",
  "thiserror 1.0.69",
  "tikv-jemalloc-ctl",
  "tikv-jemalloc-sys",
  "tikv-jemallocator",
+ "tmq-to-local",
+ "tmq-to-td",
  "tokio",
  "tokio-cron-scheduler",
  "tokio-retry2",
@@ -8934,6 +9392,7 @@ dependencies = [
  "taoslog",
  "taosx-core",
  "taosx-metrics",
+ "taosx-task",
  "thiserror 1.0.69",
  "tokio",
  "tokio-util",
@@ -8961,7 +9420,7 @@ dependencies = [
  "async-compression",
  "async-trait",
  "awaitgroup",
- "base64 0.21.7",
+ "base64 0.22.1",
  "bigdecimal 0.4.8",
  "bit-vec",
  "bitfield 0.16.1",
@@ -9109,6 +9568,46 @@ dependencies = [
  "metrics-util",
  "quanta",
  "serde",
+]
+
+[[package]]
+name = "taosx-task"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "chrono",
+ "flume",
+ "legacy-to-taos",
+ "local-to-taos",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "sink-csv",
+ "sink-kafka",
+ "sink-mqtt",
+ "sink-parquet",
+ "source-historian",
+ "source-influxdb",
+ "source-kafka",
+ "source-mongodb",
+ "source-mqtt",
+ "source-mssql",
+ "source-mysql",
+ "source-opc",
+ "source-opentsdb",
+ "source-oracle",
+ "source-pi",
+ "source-postgres",
+ "source-sparkplugb",
+ "taos",
+ "taoslog",
+ "taosx-core",
+ "tmq-to-local",
+ "tmq-to-td",
+ "tokio",
+ "tokio-util",
+ "tracing",
 ]
 
 [[package]]
@@ -9420,6 +9919,52 @@ name = "tinyvec_macros"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
+
+[[package]]
+name = "tmq-to-local"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "async-backtrace",
+ "async-compression",
+ "chrono",
+ "dashmap 6.1.0",
+ "futures-util",
+ "scc",
+ "semver",
+ "serde",
+ "taos",
+ "taosx-core",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "tmq-to-td"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "awaitgroup",
+ "chrono",
+ "deadpool",
+ "faststr",
+ "flume",
+ "humantime",
+ "lazy_static",
+ "legacy-to-taos",
+ "linked-hash-map",
+ "regex",
+ "semver",
+ "serde",
+ "serde_json",
+ "taos",
+ "taosx-core",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "tokio"
@@ -10852,6 +11397,7 @@ dependencies = [
  "async-trait",
  "flume",
  "taosx-core",
+ "tmq-to-td",
 ]
 
 [[package]]

@@ -303,6 +303,36 @@ fn flatten_json(key: &String, value: &serde_json::Value, map: &mut HashMap<Strin
     }
 }
 
+pub fn option_param<'a>(dsn: &'a Dsn, key: &'a str) -> Option<&'a str> {
+    dsn.get(key).map(|v| v.trim()).filter(|v| !v.is_empty())
+}
+
+pub fn parse_option_param<T>(dsn: &Dsn, key: &str) -> std::result::Result<Option<T>, T::Err>
+where
+    T: std::str::FromStr,
+{
+    dsn.get(key)
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+        .map(|value| value.parse::<T>())
+        .transpose()
+}
+
+pub fn parse_simple_params<T>(dsn: &Dsn, key: &str) -> anyhow::Result<Option<T>>
+where
+    T: std::str::FromStr,
+    T::Err: std::error::Error + Send + Sync + 'static,
+{
+    dsn.get(key)
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+        .map(|v| {
+            v.parse::<T>()
+                .with_context(|| format!("invalid {key}: `{v}`"))
+        })
+        .transpose()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::utils::dsn::dsn_to_json;

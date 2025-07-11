@@ -1,0 +1,33 @@
+[package]
+name = "legacy-to-taos"
+edition = "2024"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+futures.workspace = true
+rand.workspace = true
+serde.workspace = true
+serde_with.workspace = true
+taos.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+futures-util.workspace = true
+fundu.workspace = true
+async-backtrace.workspace = true
+flume.workspace = true
+csv.workspace = true
+scc.workspace = true
+semver.workspace = true
+tracing-subscriber.workspace = true
+itertools.workspace = true
+lazy_static.workspace = true
+tempfile.workspace = true
+
+taosx-core.workspace = true
+
+[lints]
+workspace = true

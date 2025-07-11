@@ -10,6 +10,7 @@ use actix_web::{
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{Code, IntoDsn};
+use taosx_task::validate::validate_dsn;
 use tokio::time::timeout;
 use tracing::{Instrument, Span, instrument};
 use utoipa::*;
@@ -17,11 +18,11 @@ use utoipa::*;
 use crate::serve::{controller::TaskControllerRef, task::Failed};
 pub use definition::*;
 pub use point_loader::*;
-use taosx_core::plugins::runners::opc::model::ModelType;
-use taosx_core::plugins::{runners::opc::csv::CsvParser, transform::sample::DsSamples};
+use taosx_core::plugins::transform::sample::DsSamples;
+use taosx_core::runners::opc::{csv::CsvParser, model::ModelType};
 use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::timeout::{Timeout, TimeoutType};
-use taosx_core::{DataSetsReq, get_data_dir, list_datasets_from, plugins, validate_dsn};
+use taosx_core::{DataSetsReq, get_data_dir, list_datasets_from};
 use taosx_core::{QueryDataSourceReq, dsv::DataSourceValidation, utils::license};
 use taosx_core::{
     plugins::transform::parse::plugin::ParserPlugin,
@@ -639,7 +640,7 @@ async fn get_sample_impl(
     let dsn = json_to_dsn(&query.dsn)?;
 
     match via {
-        None => plugins::get_sample(&dsn).await,
+        None => taosx_task::sample::get_sample(&dsn).await,
         Some(agent) => {
             controller
                 .get_sample_via_agent(agent, dsn.to_string())

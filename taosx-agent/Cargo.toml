@@ -7,13 +7,13 @@ edition = "2021"
 
 [dependencies]
 anyhow.workspace = true
-cfg-if = "1"
+cfg-if.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }
 clap-verbosity-flag = { workspace = true }
 const_format = "0.2"
 dotenv = "0.15.0"
 log = { version = "0.4", features = ["serde"] }
-uuid = { version = "1", features = ["serde"] }
+uuid = { workspace = true, features = ["serde"] }
 
 thiserror = "1"
 twelf = { version = "0.15.0", default-features = false, features = [
@@ -53,7 +53,7 @@ tracing = { workspace = true, features = ["log"] }
 taosx-core = { path = "../taosx-core" }
 taosx-metrics = { path = "../taosx-metrics" }
 
-tracing-subscriber = { version = "0.3", features = [
+tracing-subscriber = { workspace = true, features = [
   "time",
   "local-time",
   "env-filter",
@@ -66,6 +66,8 @@ tower = "0.5.2"
 taoslog = { workspace = true }
 bytes = { workspace = true }
 sysinfo = { workspace = true }
+
+taosx-task.workspace = true
 
 [build-dependencies]
 dotenv = "0.15.0"

@@ -1010,7 +1010,7 @@ pub(super) async fn get_tmq_task_table_progress(
         Ok(Some(task)) => {
             let from = &task.task.from;
             let to = &task.task.to;
-            let table_progress = taosx_core::get_table_progress(from, to, table, start, end).await;
+            let table_progress = tmq_to_td::get_table_progress(from, to, table, start, end).await;
             match table_progress {
                 Ok(progress) => Ok(serde_json::to_string(&progress).unwrap()),
                 Err(err) => {

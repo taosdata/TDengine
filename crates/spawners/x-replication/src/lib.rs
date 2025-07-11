@@ -70,7 +70,7 @@ impl TaskExecutor for ReplicationExecutor {
         } = self.opts.clone();
         let tid = context.env.tid().map(|id| id.to_string());
         let (notify, _receiver) = flume::unbounded();
-        taosx_core::tmq_to_td(from, transform, to, cancel, tid, notify).await?;
+        tmq_to_td::tmq_to_td(from, transform, to, cancel, tid, notify).await?;
 
         Ok(Exit::Completed)
     }

@@ -1,0 +1,28 @@
+[package]
+name = "source-mysql"
+edition = "2024"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+chrono.workspace = true
+arrow.workspace = true
+arrow-schema.workspace = true
+linked-hash-map.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+taos.workspace = true
+tokio-util.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+bigdecimal.workspace = true
+flume.workspace = true
+futures.workspace = true
+itertools.workspace = true
+
+taosx-core.workspace = true
+taosx-ipc.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,29 @@
+[package]
+name = "local-to-taos"
+edition = "2024"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+flume.workspace = true
+itertools.workspace = true
+taos.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tokio-stream.workspace = true
+tracing.workspace = true
+async-backtrace.workspace = true
+chrono.workspace = true
+semver.workspace = true
+async-compression.workspace = true
+tracing-subscriber.workspace = true
+tempfile.workspace = true
+serde.workspace = true
+
+taosx-core.workspace = true
+taosx-ipc.workspace = true
+tmq-to-local.path = "../tmq-to-local"
+
+[lints]
+workspace = true

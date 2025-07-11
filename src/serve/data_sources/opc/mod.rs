@@ -7,9 +7,9 @@ use taos::{Code, IntoDsn};
 use taosx_core::utils::dsn::json_to_dsn;
 use utoipa::*;
 
+use taosx_core::get_data_dir;
 use taosx_core::plugins::runners::opc::csv::column::CsvColumn;
 use taosx_core::plugins::runners::opc::csv::get_csv_headers;
-use taosx_core::{get_data_dir, runners};
 use taosx_ipc::prelude::IpcDataType;
 
 use crate::serve::controller::TaskControllerRef;
@@ -301,7 +301,7 @@ async fn append_point_impl(
     let line = PointDetail::to_csv(point, true).await?;
 
     // append point to the csv file
-    runners::opc::append_point_to_csv(&from, &to, line.clone()).await?;
+    source_opc::append_point_to_csv(&from, &to, line.clone()).await?;
 
     // send the new csv to agent if via is not None
     if let Some(agent_id) = req.via {

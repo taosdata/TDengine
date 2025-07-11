@@ -1,0 +1,26 @@
+[package]
+name = "source-oracle"
+edition = "2024"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+oracle.workspace = true
+chrono.workspace = true
+linked-hash-map.workspace = true
+serde_json.workspace = true
+taos.workspace = true
+tokio-util.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+flume.workspace = true
+arrow.workspace = true
+arrow-schema.workspace = true
+itertools.workspace = true
+
+taosx-core.workspace = true
+taosx-ipc.workspace = true
+
+[lints]
+workspace = true

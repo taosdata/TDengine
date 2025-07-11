@@ -23,7 +23,7 @@ reqwest = { version = "0.11.27", default-features = false, features = [
 clap-verbosity-flag = { workspace = true }
 anyhow.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }
-sqlx = { version = "0.8", features = ["sqlite", "chrono", "runtime-tokio"] }
+sqlx = { workspace = true, features = ["sqlite", "chrono", "runtime-tokio"] }
 tokio = { workspace = true, features = ["full"] }
 tokio-util = { workspace = true, features = ["compat"] }
 tokio-stream.workspace = true
@@ -33,15 +33,15 @@ rust-embed = "6.8.1"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { version = "1", features = ["arbitrary_precision"] }
 thiserror = "1"
-toml = "0.8.8"
+toml.workspace = true
 tracing.workspace = true
 tracing-actix-web = "0.7.11"
-tracing-subscriber = "0.3"
+tracing-subscriber.workspace = true
 sha1 = "0.10.6"
 rand.workspace = true
-lazy_static = "1.4.0"
+lazy_static.workspace = true
 captcha = "0.0.9"
-deadpool = "0.10"
+deadpool.workspace = true
 
 const_format = "0.2.32"
 shadow-rs = { workspace = true }

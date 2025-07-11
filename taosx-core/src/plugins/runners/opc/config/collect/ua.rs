@@ -10,7 +10,7 @@ use crate::runners::opc::OpcType;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UaCollectConfig {
     collect_mode: CollectMode,
-    pub(crate) nodes: Vec<UANodeConfig>,
+    pub nodes: Vec<UANodeConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

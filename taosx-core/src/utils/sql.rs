@@ -17,7 +17,7 @@ use tracing::Instrument;
 
 use crate::utils;
 
-pub(crate) type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>;
+pub type TaosConnection = deadpool::managed::Object<Manager<TaosBuilder>>;
 
 const SQL_CURRENT_DATABASE: &str = "select database()";
 const SQL_SHOW_DATABASES: &str = "show databases";

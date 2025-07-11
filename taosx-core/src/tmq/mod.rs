@@ -14,11 +14,11 @@ use crate::{dsv::DataSourceValidation, utils};
 pub mod tmq_metric;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub(crate) struct TopicTable {
-    pub(crate) stable: Option<String>,
-    pub(crate) stable_sql: Option<String>,
-    pub(crate) table: String,
-    pub(crate) table_sql: String,
+pub struct TopicTable {
+    pub stable: Option<String>,
+    pub stable_sql: Option<String>,
+    pub table: String,
+    pub table_sql: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -60,16 +60,16 @@ impl TopicType {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct Topic {
-    pub(crate) name: String,
-    pub(crate) database: String,
-    pub(crate) vgroups: usize,
-    pub(crate) database_sql: Option<String>,
+pub struct Topic {
+    pub name: String,
+    pub database: String,
+    pub vgroups: usize,
+    pub database_sql: Option<String>,
     #[serde(flatten)]
-    pub(crate) table: Option<TopicTable>,
+    pub table: Option<TopicTable>,
     #[serde(default)]
-    pub(crate) topic_type: TopicType,
-    pub(crate) use_table_name: Option<String>,
+    pub topic_type: TopicType,
+    pub use_table_name: Option<String>,
 }
 
 impl Topic {
@@ -165,9 +165,7 @@ impl FromStr for StopAt {
 ///    4.3       then if the `table` is STable, create a topic named `database_table` with meta as stable.
 ///    4.4            if the `table` is child table or normal, create a topic named `database_table` as select * from table.
 ///    4.5            else, bail unexpected input topics error to upstream.
-pub(crate) async fn check_tmq_dsn(
-    mut from: Dsn,
-) -> Result<(Dsn, TaosBuilder, Vec<Topic>, bool, bool)> {
+pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic>, bool, bool)> {
     // let origin = from.clone();
     let database = from.subject.take().ok_or(RawError::new(
         Code::FAILED,
@@ -786,12 +784,12 @@ pub(crate) async fn check_tmq_dsn(
     }
 }
 
-pub(crate) fn group_id_hash_by(from: &Dsn, to: &Dsn) -> String {
+pub fn group_id_hash_by(from: &Dsn, to: &Dsn) -> String {
     let data = vec![from.to_string(), to.to_string()];
     generate_hash(data)
 }
 
-pub(crate) fn generate_hash(data: Vec<String>) -> String {
+pub fn generate_hash(data: Vec<String>) -> String {
     use sha2::Digest;
     let mut hasher = sha2::Sha256::new();
     for s in data {
@@ -848,10 +846,7 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
     }
 }
 
-pub(crate) async fn check_wal_enabled(
-    taos_builder: &TaosBuilder,
-    topics: &[Topic],
-) -> anyhow::Result<()> {
+pub async fn check_wal_enabled(taos_builder: &TaosBuilder, topics: &[Topic]) -> anyhow::Result<()> {
     let taos = taos_builder.build().await?;
     for topic in topics {
         // get all subscriptions by topic and consumer group

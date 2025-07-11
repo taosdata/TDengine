@@ -15,20 +15,11 @@ use rumqttc::tokio_rustls::rustls::pki_types::{CertificateDer, ServerName, UnixT
 use taos::Dsn;
 use taoslog::writer::RollingFileAppender;
 
-mod config;
-pub mod historian;
+pub mod config;
 pub mod influxdb;
-pub mod kafka;
-pub mod mongodb;
-pub mod mqtt;
-pub mod mssql;
-pub mod mysql;
 pub mod opc;
 pub mod opentsdb;
-pub mod oracle;
 pub mod pi;
-pub mod postgres;
-pub mod sparkplugb;
 
 pub const ENV_PLUGINS_HOME: &str = "PLUGINS_HOME";
 pub const ENV_TAOSX_PLUGINS_HOME: &str = "TAOSX_PLUGINS_HOME";
@@ -121,7 +112,7 @@ pub fn get_plugins_home_dir() -> PathBuf {
 }
 
 #[inline]
-pub(crate) fn get_plugin_dir(plugin: &str) -> PathBuf {
+pub fn get_plugin_dir(plugin: &str) -> PathBuf {
     get_plugins_home_dir().join(plugin)
 }
 

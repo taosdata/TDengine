@@ -1,0 +1,4 @@
+﻿0,point_id,enabled,stable,tbname,value_col,value_transform,type,quality_col,ts_col,received_ts_col,ts_transform,received_ts_transform,tag::VARCHAR(200)::name
+1,ns=3;i=1005,1,opc_{type},t_{ns}_{id},val,val*1.8 + 32,int,quality,ts,rts,,rts + 8 * 3600 * 1000,入库温度
+2,ns=3;i=1006,1,opc_{type},t_{ns}_{id},val,val + 10,,quality,ts,rts,ts + 8 * 3600 * 1000,,减压阀压力
+3,ns=3;i=1007,0,opc_{type},t_{ns}_{id},val,,,quality,ts,rts,ts - 6 * 1000,rts - 6 * 1000,总线电流

@@ -9,7 +9,7 @@ use crate::runners::opc::OpcType;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DaCollectConfig {
-    pub(crate) tags: Vec<DaNodeConfig>,
+    pub tags: Vec<DaNodeConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

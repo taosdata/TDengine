@@ -34,6 +34,7 @@ plugins/opentsdb/target/
 plugins/opc/taosx-opc
 targets
 *.csv
+!**/tests/*.csv
 !tests/e2e/**/*.csv
 .DS_Store
 tmp.*
@@ -48,3 +49,4 @@ compose.yaml
 scripts/
 issues
 output.txt
+*.log

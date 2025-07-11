@@ -375,8 +375,8 @@ async fn spawn_stream_writer(
         "pibackfill" => Some("pi"),
         "influxdb" => Some("influxdb"),
         "opentsdb" => Some("opentsdb"),
-        taosx_core::runners::kafka::KAFKA_ID => Some("kafka"),
-        taosx_core::runners::historian::AVEVA_HISTORIAN_ID => Some("avevahistorian"),
+        "kafka" => Some("kafka"),
+        "avevaHistorian" => Some("avevahistorian"),
         "mqtt" => Some("mqtt"),
         _ => None,
     };

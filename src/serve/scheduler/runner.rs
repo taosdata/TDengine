@@ -13,13 +13,14 @@ use metrics::atomics::AtomicU64;
 use multi_index_map::MultiIndexMap;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taoslog::{QidManager, utils::QidMetadataGetter};
+use taosx_task::TaskOpts;
 use tokio::sync::{Mutex, RwLock, oneshot};
 use tokio_cron_scheduler::JobScheduler;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, error, info, instrument, warn};
 use uuid::Uuid;
 
-use taosx_core::{ConnectorLicense, DataSet, TaskOpts, get_data_dir, utils::port_pool::PortPool};
+use taosx_core::{ConnectorLicense, DataSet, get_data_dir, utils::port_pool::PortPool};
 use taosx_core::{
     TaskNotify, TaskNotifyReceiver,
     core_metrics::{

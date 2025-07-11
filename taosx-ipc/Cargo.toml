@@ -40,4 +40,4 @@ tokio = { workspace = true, features = [
   "signal",
   "fs",
 ] }
-tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }
+tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }

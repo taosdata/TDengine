@@ -29,10 +29,10 @@ use sqlx::{FromRow, SqlitePool, migrate::Migrator, sqlite::SqliteJournalMode};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
-use taosx_core::runners::kafka::KAFKA_ID;
-use taosx_core::runners::mqtt::MQTT_ID;
 use taosx_core::task_set::prelude::{HealthNotify, HealthState};
 use taosx_core::utils::dsn::{dsn_to_json, json_to_dsn};
+use taosx_task::TaskOpts;
+use taosx_task::validate::validate_dsn;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -57,15 +57,12 @@ use crate::serve::task::{DeleteTaskParam, ExportTaskDetail, ExportTasksResult};
 use taosx_core::QueryDataSourceReq;
 use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
-use taosx_core::plugins::runners::opc::csv::CsvParser;
 use taosx_core::plugins::transform::sample::DsSamples;
-use taosx_core::runners::opc::config::OPCConfig;
-use taosx_core::tmq_to_local::conf::BackupConfigBuilder;
+use taosx_core::runners::opc::{config::OPCConfig, csv::CsvParser};
 use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_compressed_csv};
 use taosx_core::utils::get_string_content_from_param_value;
-use taosx_core::{
-    DataSet, DataSetsReq, PutFileReq, Response, TaskOpts, get_data_dir, validate_dsn,
-};
+use taosx_core::{DataSet, DataSetsReq, PutFileReq, Response, get_data_dir};
+use tmq_to_local::conf::BackupConfigBuilder;
 
 pub(crate) mod agent;
 pub mod license;
@@ -1160,8 +1157,7 @@ impl TaskController {
 
         let backup_topic = if let ("tmq", "local") = (from.driver.as_str(), to.driver.as_str()) {
             let task_id = Some(id.to_string());
-            let oneshot_topic =
-                taosx_core::tmq_to_local::conf::BackupConfig::group_id(&task_id, &from, &to);
+            let oneshot_topic = tmq_to_local::conf::BackupConfig::group_id(&task_id, &from, &to);
             Some(oneshot_topic)
         } else {
             None
@@ -1201,10 +1197,10 @@ impl TaskController {
         const GROUP_ID_CONTEXT: &str = "consumer group ID not set";
         const GROUP_ID_SWITCH: &str = "group_id_with_task_id";
         match from.driver.as_str() {
-            MQTT_ID => {
+            "mqtt" => {
                 set_id(&mut from, CLIENT_ID, CLIENT_ID_SWITCH, CLIENT_ID_CONTEXT)?;
             }
-            KAFKA_ID => {
+            "kafka" => {
                 set_id(&mut from, GROUP_ID, GROUP_ID_SWITCH, GROUP_ID_CONTEXT)?;
                 set_id(&mut from, CLIENT_ID, CLIENT_ID_SWITCH, CLIENT_ID_CONTEXT)?;
             }
@@ -1773,7 +1769,7 @@ impl TaskController {
             if from.driver == *"sync" {
                 from.driver = "tmq".to_string();
             }
-            let offsets = taosx_core::tmq_offsets(from).await?;
+            let offsets = tmq_to_td::tmq_offsets(from).await?;
             let res = serde_json::to_value(&offsets)?;
             Ok(Some(res))
         } else {

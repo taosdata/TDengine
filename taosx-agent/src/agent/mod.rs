@@ -25,14 +25,16 @@ use serde::{Deserialize, Serialize};
 use taosx_core::task_set::prelude::HealthOpts;
 use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::files::decompress_and_write_file;
+use taosx_task::sample::get_sample;
+use taosx_task::validate::validate_dsn;
 use tokio::net::{TcpSocket, TcpStream};
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
 use tower::{BoxError, Service};
 use tracing::{info, instrument};
 
 use taosx_core::{
-    get_data_dir, list_datasets_from, plugins, validate_dsn, Activity, CheckResponse, DataSetsReq,
-    Fail, HeartbeatResponse, ListResponse, PutFileReq, PutFileResp, QueryDataSourceReq,
+    get_data_dir, list_datasets_from, plugins, Activity, CheckResponse, DataSetsReq, Fail,
+    HeartbeatResponse, ListResponse, PutFileReq, PutFileResp, QueryDataSourceReq,
     QueryDataSourceResp, RespAction, Response, SampleResponse,
 };
 
@@ -679,7 +681,7 @@ impl Client {
                         let dsn = json_to_dsn(&serde_json::Value::String(dsn_str.clone()))?;
                         let resp_tx = resp_tx.clone();
                         tokio::spawn(async move {
-                            let sample = plugins::get_sample(&dsn).await;
+                            let sample = get_sample(&dsn).await;
                             let res = match sample {
                                 Ok(sample) => match serde_json::to_string(&sample) {
                                     Ok(s) => Response::Ok(s),

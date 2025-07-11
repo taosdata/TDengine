@@ -82,11 +82,10 @@ pub mod constants;
 
 pub mod parse;
 
-pub(crate) mod filter;
-
-pub(crate) mod map;
-pub(crate) mod modeler;
-pub(crate) mod mutate;
+pub mod filter;
+pub mod map;
+pub mod modeler;
+pub mod mutate;
 pub mod sample;
 
 pub mod handling_strategy;

@@ -1,0 +1,21 @@
+[package]
+name = "sink-kafka"
+edition = "2024"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kafka.workspace = true
+anyhow.workspace = true
+futures-util.workspace = true
+itertools.workspace = true
+serde_json.workspace = true
+taos.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+
+taosx-core.workspace = true
+
+[lints]
+workspace = true

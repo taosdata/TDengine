@@ -1,0 +1,29 @@
+[package]
+name = "source-mssql"
+edition = "2024"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+linked-hash-map.workspace = true
+serde_json.workspace = true
+taos.workspace = true
+tiberius.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+flume.workspace = true
+arrow.workspace = true
+arrow-schema.workspace = true
+deadpool-tiberius.workspace = true
+deadpool.workspace = true
+futures.workspace = true
+itertools.workspace = true
+
+taosx-core.workspace = true
+taosx-ipc.workspace = true
+
+[lints]
+workspace = true

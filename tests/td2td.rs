@@ -1,9 +1,10 @@
 use assert_cmd::{Command, prelude::*};
 use chrono::Utc;
 use itertools::Itertools;
+use legacy_to_taos::legacy_to_taos;
 use std::time::Duration;
 use taos::{AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
-use taosx_core::{core_metrics::clear_metrics, get_data_dir, legacy_to_taos};
+use taosx_core::{core_metrics::clear_metrics, get_data_dir};
 use tokio_util::sync::CancellationToken;
 
 /// # description

@@ -11,8 +11,8 @@ use taos::IntoDsn;
 use taosx_core::s3::{S3_ENABLE, S3Config, S3Loader};
 use taosx_core::taoz::ZFile;
 use taosx_core::tmq::BackupObject;
-use taosx_core::tmq_to_local::conf::BackupConfig;
 use taosx_core::utils;
+use tmq_to_local::conf::BackupConfig;
 use utoipa::ToSchema;
 
 #[derive(Debug, Serialize, ToSchema)]

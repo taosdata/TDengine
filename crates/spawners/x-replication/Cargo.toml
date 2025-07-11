@@ -6,10 +6,11 @@ rust-version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-async-trait = { version = "0.1.83" }
+async-trait.workspace = true
 flume.workspace = true
 
-taosx-core = { path = "../../../taosx-core" }
+taosx-core.workspace = true
+tmq-to-td.workspace = true
 
 [lints]
 workspace = true
