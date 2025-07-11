@@ -20,6 +20,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_column.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_ts6333.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_composite_key_load.py
 
 # 02-Databases
 ## 01-Create
@@ -226,6 +227,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_join.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_insert.py
 
 # 06-DataIngestion
 ## 01-Insert
@@ -311,6 +313,7 @@
 ## 04-OrderBy
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/04-OrderBy/test_multi_orderby.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/04-OrderBy/test_sort_pre_cols.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/04-OrderBy/test_sort_double_col.py
 ## 05-Aliase
 ## 06-Limit
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/06-Limit/test_limit_complex.py

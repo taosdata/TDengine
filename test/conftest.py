@@ -227,7 +227,6 @@ def before_test_class(request):
     request.cls.conn = request.session.before_test.get_taos_conn(request)
     tdSql.init(request.cls.conn.cursor())
     tdSql.replica = request.session.replicaVar
-    #tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
 
     # 为兼容老用例，初始化原框架连接
     #tdSql_pytest.init(request.cls.conn.cursor())
@@ -236,8 +235,6 @@ def before_test_class(request):
     # 处理 -C 参数，如果未设置 -C 参数，create_dnode_num 和 -N 参数相同
     for i in range(1, request.session.create_dnode_num):
         tdSql.execute(f"create dnode localhost port {6030+i*100}")
-        time.sleep(1)
-
     tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
 
     if request.session.mnodes_num:

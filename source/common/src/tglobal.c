@@ -3187,8 +3187,6 @@ int32_t taosGranted(int8_t type) {
       int32_t grantVal = atomic_load_32(&tsGrant);
       if (grantVal & GRANT_FLAG_EX_MULTI_TIER) {
         return TSDB_CODE_GRANT_MULTI_STORAGE_EXPIRED;
-      } else if (grantVal & GRANT_FLAG_EX_VNODE) {
-        return TSDB_CODE_GRANT_VNODE_LIMITED;
       } else if (grantVal & GRANT_FLAG_EX_STORAGE) {
         return TSDB_CODE_GRANT_STORAGE_LIMITED;
       }

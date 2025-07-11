@@ -30,7 +30,7 @@ import RequestId from "./_request_id.mdx";
 ## 版本历史
 
 | Rust 连接器版本 | 主要变化                                                                      | TDengine 版本      |
-| -------------- | ---------------------------------------------------------------------------- | ----------------- |
+| --------------- | ----------------------------------------------------------------------------- | ------------------ |
 | v0.12.3         | 1. 优化了 WebSocket 查询和插入性能 <br/> 2. 支持了 VARBINARY 和 GEOMETRY 类型 | 3.3.0.0 及更高版本 |
 | v0.12.0         | WebSocket 支持压缩                                                            | 3.2.3.0 及更高版本 |
 | v0.11.0         | TMQ 功能优化                                                                  | 3.2.0.0 及更高版本 |
@@ -102,9 +102,9 @@ TaosBuilder 通过 DSN 连接描述字符串创建一个连接构造器。
 DSN 描述字符串基本结构如下：
 
 ```text
-<driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
-|------|------------|---|-----------|-----------|------|------|------------|-----------------------|
-|driver|   protocol |   | username  | password  | host | port |  database  |  params               |
+<driver>[+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<key1>=<value1>[&...<keyN>=<valueN>]]
+|------|------------|---|----------|-----------|-------------------------------------|------------|--------------------------------------|
+|driver|   protocol |   | username | password  |  addresses                          |   database |   params                             |
 ```
 
 各部分意义见下表：
@@ -116,7 +116,11 @@ DSN 描述字符串基本结构如下：
   - **http/ws**：使用 WebSocket 创建连接。
   - **https/wss**：在 WebSocket 连接方式下显示启用 SSL/TLS 连接。
 - **username/password**：用于创建连接的用户名及密码。
-- **host/port**：指定创建连接的服务器及端口，当不指定服务器地址及端口时（`taos://`），原生连接默认为 `localhost:6030`，WebSocket 连接默认为 `localhost:6041` 。
+- **addresses**：指定创建连接的服务器地址，支持以下配置方式：
+  - 原生连接：仅支持单个地址。当不指定地址时，默认为 `localhost:6030`。
+    - 示例：`taos://localhost:6030` 或 `taos://`（等同于前者）。
+  - WebSocket 连接：支持多个地址，多个地址间用英文逗号分隔。当不指定地址时，默认为 `localhost:6041`。
+    - 示例：`ws://host1:6041,host2:6041` 或 `ws://`（等同于 `ws://localhost:6041`）。
 - **database**：指定默认连接的数据库名，可选参数。
 - **params**：其他可选参数。
 

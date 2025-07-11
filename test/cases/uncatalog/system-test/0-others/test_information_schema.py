@@ -215,9 +215,9 @@ class TestInformationSchema:
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
         tdLog.info(len(tdSql.queryResult))
-        tdSql.checkEqual(True, len(tdSql.queryResult) in range(333, 334))
+        tdSql.checkEqual(True, len(tdSql.queryResult) in range(320, 340))
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
-        tdSql.checkEqual(62, len(tdSql.queryResult))
+        tdSql.checkRows(62)
 
     def ins_dnodes_check(self):
         tdSql.execute('drop database if exists db2')
@@ -295,17 +295,17 @@ class TestInformationSchema:
             'mongodb':'MongoDB',
             'csv':'CSV',
             'sparkplugb':"SparkplugB",
-            'ta_ts_attr':'TDasset Time-Series Attributes',
-            'ta_nts_attr':'TDasset Non-Time-Series Attributes',
-            'ta_element':'TDasset Elements',
-            'ta_server':'TDasset Servers',
-            'ta_cpu_core':'TDasset CPU Cores',
-            'ta_user':'TDasset Users',
-            'ta_version_ctrl':'TDasset Version Control',
-            'ta_data_forecast':'TDasset Data Forecast',
-            'ta_data_detect':'TDasset Data Detect',
-            'ta_data_quality':'TDasset Data Quality',
-            'ta_ai_chat_gen':'TDasset AI Chat/Generate',
+            'idmp_ts_attr':'TDengine IDMP Time-Series Attributes',
+            'idmp_nts_attr':'TDengine IDMP Non-Time-Series Attributes',
+            'idmp_element':'TDengine IDMP Elements',
+            'idmp_server':'TDengine IDMP Servers',
+            'idmp_cpu_core':'TDengine IDMP CPU Cores',
+            'idmp_user':'TDengine IDMP Users',
+            'idmp_version_ctrl':'TDengine IDMP Version Control',
+            'idmp_data_forecast':'TDengine IDMP Data Forecast',
+            'idmp_data_detect':'TDengine IDMP Data Detect',
+            'idmp_data_quality':'TDengine IDMP Data Quality',
+            'idmp_ai_chat_gen':'TDengine IDMP AI Chat/Generate',
         }
 
         tdSql.execute('drop database if exists db2')

@@ -503,38 +503,38 @@ class TaosTestFrame:
         #     stdout = cmd_stdout.read().strip()
         #     self._logger.debug(stdout)
         #     lines = stdout.split("\n")
-        # if needSetup:
-        #     # create mnode on dnode
-        #     for i in range(2, self._opts.mnode_count + 1):
-        #         self._logger.debug(f"taos -h {host} -P {port} -s \"create mnode on dnode {i}\"")
-        #         ret = os.system(f"taos -h {host} -P {port} -s \"create mnode on dnode {i}\"")
-        #         if ret != 0:
-        #             self._logger.error(f"create mnode on dnode {i} failed")
-        #             return False
-        #     # show mnode
-        #     self._logger.debug(f"taos -h {host} -P {port} -s \"show mnodes\"")
-        #     cmd_stdout = os.popen(f"taos -h {host} -P {port} -s \"show mnodes\"")
-        #     stdout = cmd_stdout.read().strip()
-        #     self._logger.debug(stdout)
-        #     lines = stdout.split("\n")
-        #     ## taos -s "show mnodes"
-        #     # Welcome to the TDengine shell from Linux, Client Version:3.0.0.100
-        #     # Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.
-        #     #
-        #     # taos> show mnodes
-        #     #     id      |            endpoint            |     role     |  status   |       create_time       |
-        #     # ====================================================================================================
-        #     #           1 | dnode_1:6030                   | leader       | ready     | 2022-07-19 14:15:10.377 |
-        #     #           2 | dnode_2:6030                   | follower     | ready     | 2022-07-19 14:15:21.898 |
-        #     #           3 | dnode_3:6030                   | follower     | ready     | 2022-07-19 14:15:27.931 |
-        #     # Query OK, 3 rows affected (0.008276s)
-        #     ret = 1
-        #     for line in lines:
-        #         if line.find("Query OK") >= 0:
-        #             ret = 0
-        #     if ret != 0:
-        #         self._logger.error("show mnodes failed")
-        #         return False
+        #if needSetup:
+            # create mnode on dnode
+            # for i in range(2, self._opts.mnode_count + 1):
+            #     self._logger.debug(f"taos -h {host} -P {port} -s \"create mnode on dnode {i}\"")
+            #     ret = os.system(f"taos -h {host} -P {port} -s \"create mnode on dnode {i}\"")
+            #     if ret != 0:
+            #         self._logger.error(f"create mnode on dnode {i} failed")
+            #         return False
+            # # show mnode
+            # self._logger.debug(f"taos -h {host} -P {port} -s \"show mnodes\"")
+            # cmd_stdout = os.popen(f"taos -h {host} -P {port} -s \"show mnodes\"")
+            # stdout = cmd_stdout.read().strip()
+            # self._logger.debug(stdout)
+            # lines = stdout.split("\n")
+            ## taos -s "show mnodes"
+            # Welcome to the TDengine shell from Linux, Client Version:3.0.0.100
+            # Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.
+            #
+            # taos> show mnodes
+            #     id      |            endpoint            |     role     |  status   |       create_time       |
+            # ====================================================================================================
+            #           1 | dnode_1:6030                   | leader       | ready     | 2022-07-19 14:15:10.377 |
+            #           2 | dnode_2:6030                   | follower     | ready     | 2022-07-19 14:15:21.898 |
+            #           3 | dnode_3:6030                   | follower     | ready     | 2022-07-19 14:15:27.931 |
+            # Query OK, 3 rows affected (0.008276s)
+            # ret = 1
+            # for line in lines:
+            #     if line.find("Query OK") >= 0:
+            #         ret = 0
+            # if ret != 0:
+            #     self._logger.error("show mnodes failed")
+            #     return False
         return True
 
     def _setup(self):
