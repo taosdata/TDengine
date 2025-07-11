@@ -13269,6 +13269,12 @@ static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, const
     pReq->watermark = ((SValueNode*)pOptions->pWaterMark)->datum.i;
   }
 
+  if (pOptions->pExpiredTime && pOptions->pWaterMark) {
+    if (pReq->expiredTime <= pReq->watermark) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                           "EXPIRED_TIME must be greater than WATERMARK"));
+    }
+  }
 
   if (pOptions->pFillHisStartTime) {
     STimeWindow range = {.skey = 0, .ekey = 0};
