@@ -46,7 +46,9 @@ int32_t tqCommitOffset(void* p) {
   int32_t vgId = pTq->pVnode != NULL ? pTq->pVnode->config.vgId : -1;
   while ((pIter = taosHashIterate(pTq->pOffset, pIter))) {
     STqOffset* offset = (STqOffset*)pIter;
+    taosWLockLatch(&pTq->lock);
     int32_t    ret = tqMetaSaveOffset(pTq, offset);
+    taosWUnLockLatch(&pTq->lock);
     if (ret != TDB_CODE_SUCCESS) {
       code = ret;
       tqError("tq commit offset error subkey:%s, vgId:%d", offset->subKey, vgId);
