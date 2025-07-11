@@ -263,10 +263,6 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
     return 0;
   }
 
-  if ((*ppRow)->flag == 0) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
   uint8_t *primaryKeys = (*ppRow)->data;
   uint8_t *bitmap = primaryKeys + sinfo->tuplePKSize;
   uint8_t *fixed = bitmap + sinfo->tupleBitmapSize;
@@ -318,9 +314,6 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
         colValIndex++;
       }
     }
-  }
-  if ((*ppRow)->flag == 0) {
-    return TSDB_CODE_INVALID_PARA;
   }
 
   return 0;
