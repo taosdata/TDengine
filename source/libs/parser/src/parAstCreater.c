@@ -4957,10 +4957,10 @@ _err:
 
 SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,
                             SNode* pRealTable, SNode* pInterval) {
+  SCreateTSMAStmt* pStmt = NULL;
   pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "TSMA not support yet");
   goto _err;
 
-  SCreateTSMAStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkTsmaName(pCxt, tsmaName));
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_TSMA_STMT, (SNode**)&pStmt);
