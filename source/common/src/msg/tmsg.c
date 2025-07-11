@@ -13986,6 +13986,13 @@ void tFreeAndClearTableTSMAInfo(void *p) {
   }
 }
 
+void tFreeAndClearRefDbName(void *p) {
+  char *dbName = (char *)p;
+  if (dbName) {
+    taosMemoryFree(dbName);
+  }
+}
+
 int32_t tCloneTbTSMAInfo(STableTSMAInfo *pInfo, STableTSMAInfo **pRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == pInfo) {

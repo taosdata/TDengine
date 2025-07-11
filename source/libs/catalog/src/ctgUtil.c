@@ -202,7 +202,7 @@ void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTsmas);
   pData->pTsmas = NULL;
 
-  taosArrayDestroyEx(pData->pVStbRefDbs, tDestroySVStbRefDbsRsp);
+  taosArrayDestroy(pData->pVStbRefDbs);
   pData->pVStbRefDbs = NULL;
 
   taosMemoryFreeClear(pData->pSvrVer);
@@ -867,6 +867,8 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       break;
     }
     case CTG_TASK_GET_V_STBREFDBS: {
+      SArray* pArray = (SArray*)*pRes;
+      taosArrayDestroyEx(pArray, tDestroySVStbRefDbsRsp);
       break;
     }
     default:
@@ -1071,11 +1073,7 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
         taskCtx->pVgroups = NULL;
       }
       if (taskCtx->pResList) {
-        for (int32_t i = 0; i < taskCtx->vgNum; ++i) {
-          SVStbRefDbsRsp* pVg = taskCtx->pResList + i;
-          tDestroySVStbRefDbsRsp(pVg);
-        }
-        taosMemoryFreeClear(taskCtx->pResList);
+        taosArrayDestroyEx(taskCtx->pResList, tDestroySVStbRefDbsRsp);
       }
       taosMemoryFreeClear(taskCtx->pMeta);
       taosMemoryFreeClear(pTask->taskCtx);
@@ -2103,6 +2101,12 @@ void ctgFreeTbTSMAInfo(void* p) {
   taosMemoryFree(((SMetaRes*)p)->pRes);
 }
 
+void ctgFreeVStbRefDbs(void* p) {
+  taosArrayDestroyEx((SArray*)((SMetaRes*)p)->pRes, tDestroySVStbRefDbsRsp);
+  taosMemoryFree(((SMetaRes*)p)->pRes);
+}
+
+
 int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
   STableMeta*      pMeta = NULL;
@@ -2448,6 +2452,7 @@ void ctgDestroySMetaData(SMetaData* pData) {
   taosArrayDestroyEx(pData->pView, ctgFreeViewMeta);
   taosArrayDestroyEx(pData->pTableTsmas, ctgFreeTbTSMAInfo);
   taosArrayDestroyEx(pData->pTsmas, ctgFreeTbTSMAInfo);
+  taosArrayDestroyEx(pData->pVStbRefDbs, ctgFreeVStbRefDbs);
   taosMemoryFreeClear(pData->pSvrVer);
 }
 
