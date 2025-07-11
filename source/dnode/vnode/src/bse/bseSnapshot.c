@@ -468,6 +468,7 @@ void bseIterDestroy(SBseIter *pIter) {
   }
 
   taosArrayDestroy(pIter->pFileSet);
+  taosMemFree(pIter);
   return;
 }
 int8_t bseIterValid(SBseIter *pIter) {
