@@ -100,11 +100,15 @@ impl DsSampleIn {
 
         let json_batches = to_json_valid_batches(&[batch]);
 
+        let Some(records) = json_batches.first() else {
+            return Ok(vec![]);
+        };
+
         let stables = self
             .parser
             .s_model
             .as_ref()
-            .map(|s| s.apply(&json_batches[0], &self.parser.global))
+            .map(|s| s.apply(records, &self.parser.global))
             .transpose()?
             .context("stable model not found")?;
 
