@@ -551,8 +551,17 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
     if (bind == NULL) {
       break;
     }
-    if (tags->parseredTags && tags->parseredTags->pTagIndex[tags->pColIndex[c]]) {
-      continue;
+    if (tags->parseredTags) {
+      bool found = false;
+      for (int k = 0; k < tags->parseredTags->numOfTags; k++) {
+        if (tags->parseredTags->pTagIndex[k] == tags->pColIndex[c]) {
+          found = true;
+          break;
+        }
+      }
+      if (found) {
+        continue;
+      }
     }
 
     TAOS_STMT2_BIND bindData = bind[bindIdx++];
@@ -1194,9 +1203,17 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
 
       for (int32_t i = 0; i < tags->numOfBound; ++i) {
         SSchema* schema = &tagSchema[tags->pColIndex[i]];
+
         if (tags->parseredTags && tags->parseredTags->numOfTags > 0) {
           int32_t tag_idx = schema->colId - 1 - pMeta->tableInfo.numOfColumns;
-          if (tag_idx >= 0 && tag_idx < tags->parseredTags->numOfTags && tags->parseredTags->pTagIndex[tag_idx]) {
+          bool    found = false;
+          for (int k = 0; k < tags->parseredTags->numOfTags; k++) {
+            if (tags->parseredTags->pTagIndex[k] == tag_idx) {
+              found = true;
+              break;
+            }
+          }
+          if (found) {
             continue;
           }
         }
@@ -1235,7 +1252,14 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
         } else {
           if (tags->parseredTags && tags->parseredTags->numOfTags > 0) {
             int32_t tag_idx = idxCol - pMeta->tableInfo.numOfColumns;
-            if (tag_idx >= 0 && tag_idx < tags->parseredTags->numOfTags && tags->parseredTags->pTagIndex[tag_idx]) {
+            bool    found = false;
+            for (int k = 0; k < tags->parseredTags->numOfTags; k++) {
+              if (tags->parseredTags->pTagIndex[k] == tag_idx) {
+                found = true;
+                break;
+              }
+            }
+            if (found) {
               continue;
             }
           }

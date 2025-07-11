@@ -1009,8 +1009,11 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   SToken   token;
   bool     isJson = false;
   STag*    pTag = NULL;
-  uint8_t*    pTagsIndex = taosMemoryCalloc(pCxt->tags.numOfBound, sizeof(uint8_t));
+  uint8_t*    pTagsIndex;
   int32_t     numOfTags = 0;
+  if (pCxt->pComCxt->isStmtBind && pCxt->pComCxt->pStmtCb != NULL) {
+    pTagsIndex = taosMemoryCalloc(pCxt->tags.numOfBound, sizeof(uint8_t));
+  }
 
   if (!(pTagVals = taosArrayInit(pCxt->tags.numOfBound, sizeof(STagVal))) ||
       !(pTagName = taosArrayInit(pCxt->tags.numOfBound, TSDB_COL_NAME_LEN))) {
@@ -1022,7 +1025,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     NEXT_TOKEN_WITH_PREV(pStmt->pSql, token);
 
     if (token.type == TK_NK_QUESTION) {
-      if (NULL == pCxt->pComCxt->pStmtCb) {
+      if (NULL == pCxt->pComCxt->pStmtCb || !pCxt->isStmtBind) {
         code = buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", token.z);
         break;
       }
@@ -1039,15 +1042,16 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     if (TSDB_CODE_SUCCESS == code) {
       code = parseTagValue(&pCxt->msg, &pStmt->pSql, precision, pTagSchema, &token, pTagName, pTagVals, &pTag, pCxt->pComCxt->timezone, pCxt->pComCxt->charsetCxt);
     }
-    pTagsIndex[pCxt->tags.pColIndex[i]] = 1;
-    numOfTags++;
+    if (pCxt->pComCxt->isStmtBind && pCxt->pComCxt->pStmtCb != NULL) {
+      pTagsIndex[numOfTags++] = pCxt->tags.pColIndex[i];
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pTagCond) {
     code = checkSubtablePrivilege(pTagVals, pTagName, &pStmt->pTagCond);
   }
 
-  if (TSDB_CODE_SUCCESS == code && pCxt->isStmtBind) {
+  if (TSDB_CODE_SUCCESS == code && pCxt->pComCxt->isStmtBind && pCxt->pComCxt->pStmtCb != NULL) {
     if (numOfTags > 0) {
       if (pTagVals->size == pCxt->tags.numOfBound) {
         pCxt->stmtTbNameFlag |= IS_FIXED_TAG;
@@ -2082,7 +2086,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         return buildInvalidOperationMsg(&pCxt->msg, "not expected numOfBound");
       }
     } else {
-      if (pCxt->pComCxt->isStmtBind || pCxt->pComCxt->pStmtCb != NULL) {
+      if (pCxt->pComCxt->isStmtBind && pCxt->pComCxt->pStmtCb != NULL) {
         if (pCols->pColIndex[i] < numOfCols) {
           const SSchema*    pSchema = &pSchemas[pCols->pColIndex[i]];
           const SSchemaExt* pExtSchema = pExtSchemas + pCols->pColIndex[i];
@@ -2158,8 +2162,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
                                    &pStbRowsCxt->pTag, pCxt->pComCxt->timezone, pCxt->pComCxt->charsetCxt);
             }
 
-            pCxt->tags.parseredTags->pTagIndex[pCols->pColIndex[i] - numOfCols] = 1;
-            pCxt->tags.parseredTags->numOfTags++;
+            pCxt->tags.parseredTags->pTagIndex[pCxt->tags.parseredTags->numOfTags++] = pCols->pColIndex[i] - numOfCols;
 
             if (pCxt->tags.pColIndex == NULL) {
               pCxt->tags.pColIndex = taosMemoryCalloc(numOfTags, sizeof(int16_t));

@@ -321,6 +321,7 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
   };
 
   STMT_ERR_RET(stmtCreateRequest(pStmt));
+  pStmt->exec.pRequest->isStmtBind = true;
 
   pStmt->stat.parseSqlNum++;
   STMT_ERR_RET(parseSql(pStmt->exec.pRequest, false, &pStmt->sql.pQuery, &stmtCb));
