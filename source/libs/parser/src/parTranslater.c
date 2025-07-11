@@ -6017,7 +6017,11 @@ static int32_t translatePlaceHolderTable(STranslateContext* pCxt, SNode** pTable
 
   tstrncpy(newPlaceHolderTable->table.dbName, pTriggerTable->table.dbName, sizeof(newPlaceHolderTable->table.dbName));
   tstrncpy(newPlaceHolderTable->table.tableName, pTriggerTable->table.tableName, sizeof(newPlaceHolderTable->table.tableName));
-  tstrncpy(newPlaceHolderTable->table.tableAlias, pTriggerTable->table.tableName, sizeof(newPlaceHolderTable->table.tableAlias));
+  if (pPlaceHolderTable->table.tableAlias[0]) {
+    tstrncpy(newPlaceHolderTable->table.tableAlias, pPlaceHolderTable->table.tableAlias, sizeof(newPlaceHolderTable->table.tableAlias));
+  } else {
+    tstrncpy(newPlaceHolderTable->table.tableAlias, pTriggerTable->table.tableAlias, sizeof(newPlaceHolderTable->table.tableAlias));
+  }
 
   PAR_ERR_JRET(translateTable(pCxt, (SNode**)&newPlaceHolderTable, false));
 
