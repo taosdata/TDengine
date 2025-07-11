@@ -40,6 +40,7 @@ xname="${PREFIX}x"
 explorerName="${PREFIX}-explorer"
 keeperName="${PREFIX}keeper"
 inspect_name="${PREFIX}inspect"
+set_malloc_bin="set_taos_malloc.sh"
 
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
@@ -257,10 +258,10 @@ function install_bin() {
   fi
 
   # set taos_malloc.sh as bin script
-  if [ -f ${script_dir}/bin/set_taos_malloc.sh ] && [ "${verType}" != "client" ]; then
-    ${csudo}cp -r ${script_dir}/bin/set_taos_malloc.sh ${install_main_dir}/bin
+  if [ -f ${script_dir}/bin/${set_malloc_bin} ] && [ "${verType}" != "client" ]; then
+    ${csudo}cp -r ${script_dir}/bin/${set_malloc_bin} ${install_main_dir}/bin
   else
-    echo -e "${RED}Warning: set_taos_malloc.sh not found in bin directory.${NC}"
+    echo -e "${RED}Warning: ${set_malloc_bin} not found in bin directory.${NC}"
   fi
 
 
@@ -701,7 +702,7 @@ function install_config() {
 }
 
 function install_log() {
-  ${csudo}mkdir -p ${logDir} && ${csudo}chmod 777 ${logDir}
+  ${csudo}mkdir -p ${logDir} &&  ${csudo}mkdir -p ${logDir}/tcmalloc &&  ${csudo}mkdir -p ${logDir}/jemalloc && ${csudo}chmod 777 ${logDir}
 
   ${csudo}ln -sf ${logDir} ${install_main_dir}/log
 }
@@ -810,7 +811,7 @@ function install_service_on_systemd() {
   fi
   # set default malloc config for cluster(enterprise) and edge(community)
   if [ "$verMode" == "cluster" ] && [ "$ostype" == "Linux" ] ;then
-    ${install_main_dir}/bin/set_taos_malloc.sh -m 0
+    ${install_main_dir}/bin/${set_malloc_bin} -m 0
   fi
 
   ${csudo}systemctl enable $1

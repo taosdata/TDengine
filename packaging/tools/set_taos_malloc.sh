@@ -7,7 +7,7 @@ TAOS_DIR="${INSTALL_DIR}/taos"
 DRIVER_DIR="${TAOS_DIR}/driver"
 LOG_DIR="${TAOS_DIR}/log"
 BIN_DIR="${TAOS_DIR}/bin"
-CFG_DIR="${TAOS_DIR}/cfg"
+CFG_DIR="/etc/default/taos"
 
 MALLOC_ENV_SH="${BIN_DIR}/set_taos_malloc_env.sh"
 MALLOC_ENV_CONF="${CFG_DIR}/set_taos_malloc_env.conf"
@@ -16,6 +16,8 @@ TCMALLOC_LIB="${DRIVER_DIR}/libtcmalloc.so"
 TCMALLOC_PREFIX="${LOG_DIR}/tcmalloc/prof"
 JEMALLOC_LIB="${DRIVER_DIR}/libjemalloc.so"
 JEMALLOC_PREFIX="${LOG_DIR}/jemalloc/prof"
+
+mkdir -p ${CFG_DIR}
 
 usage() {
   echo "Usage: $0 -m <0|1|2|3|4>"
