@@ -2794,7 +2794,7 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     // precision as timeUnit so we can safely perform operations on them
     int64_t result = timeVal[0] - timeVal[1];
     if (timeUnit > 0) {
-      result = (int64_t)round((double_t)result / timeUnit);
+      result = result / timeUnit;
     }
 
     SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (char *)&result, false));
