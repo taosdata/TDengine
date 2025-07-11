@@ -467,7 +467,7 @@ int32_t moveDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, SSDataBlock* pBl
 
 int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock,
                            int32_t startIndex, int32_t endIndex) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   if (pCache == NULL) {
     stError("putStreamDataCache param invalid, pCache is NULL");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
@@ -487,7 +487,7 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
   code = checkAndMoveMemCache(true);
   if (code != TSDB_CODE_SUCCESS) {
     stError("failed to check and move mem cache for write, code: %d err: %s", code, terrMsg);
-    return code;
+    TAOS_CHECK_EXIT(code);
   }
   if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
     SAlignTaskDSMgr* pStreamTaskMgr = (SAlignTaskDSMgr*)pCache;
@@ -498,6 +498,14 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
   }
   (void)checkAndMoveMemCache(false);
 
+_exit:
+
+  if (code) {
+    stError("%s failed at line %d since %s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    stDebug("group %" PRId64 " time range [%" PRId64 ", %" PRId64 "] rows range [%d, %d] added to cache", 
+        groupId, wstart, wend, startIndex, endIndex);
+  }
   return code;
 }
 
