@@ -924,7 +924,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
       //   continue;
       // }
       if (!pTableCxt->ordered) {
-        if (pTableCxt->hasBlob) {
+        if (pTableCxt->hasBlob == 0) {
           code = tRowSort(pTableCxt->pData->aRowP);
         } else {
           code = tRowSortWithBlob(pTableCxt->pData->aRowP, pTableCxt->pSchema, pTableCxt->pData->pBlobRow);
