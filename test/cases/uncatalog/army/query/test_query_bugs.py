@@ -11,7 +11,7 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
-
+import time
 
 class TestQueryBugs:
 
