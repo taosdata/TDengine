@@ -68,7 +68,7 @@ declare -A CONF_VARS
 
 case "$mode" in
   0)
-    MODE_DESC="Default mode:glibc malloc"
+    MODE_DESC="Glibc default malloc"
     SH_VARS[0]="# Use system default memory allocator"
     CONF_VARS[0]="# Use system default memory allocator"
     ;;
@@ -134,5 +134,5 @@ if [ "$quiet" -ne 1 ]; then
   echo "To use in systemd:  Just restart your service, EnvironmentFile is already configured."
   echo "---------------------------------------------"
 else
-  echo "Memory allocator setting complete! Mode: $mode (${MODE_DESC})"
+  echo "Memory allocator Mode: $mode (${MODE_DESC})"
 fi
