@@ -409,6 +409,7 @@ int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
       if (code) {
         mError("drop db trans:%d failed to append drop stream trans since %s", pTrans->id, tstrerror(code));
         sdbRelease(pSdb, pStream);
+        sdbCancelFetch(pSdb, pIter);
         TAOS_RETURN(code);
       }
     }
