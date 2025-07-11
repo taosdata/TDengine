@@ -1142,7 +1142,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   if ((code = vmOpenMountTfs(pMgmt)) != 0) {
-    return code;
+    goto _OVER;
   }
 #endif
   tmsgReportStartup("vnode-tfs", "initialized");
