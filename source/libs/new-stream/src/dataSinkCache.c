@@ -23,6 +23,7 @@
 #include "tarray.h"
 #include "tdatablock.h"
 #include "tdef.h"
+#include "tglobal.h"
 #include "thash.h"
 
 extern SDataSinkManager2 g_pDataSinkManager;
@@ -100,7 +101,7 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
           }
           atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pMoveWinInfo->moveSize);
         } else {
-          code = getRangeInWindowBlock(pWindowData, pResult->tsColSlotId, pResult->reqStartTime, pResult->reqEndTime,
+          code = getRangeInWindowBlock(pWindowData, pResult->tsColSlotId, TSKEY_MIN, TSKEY_MAX,
                                        ppBlock);
           if (code) {
             return code;
