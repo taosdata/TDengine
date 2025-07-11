@@ -1375,12 +1375,16 @@ _err:
   return NULL;
 }
 
-SNode* createPlaceHolderTableNode(SAstCreateContext* pCxt, EStreamPlaceholder type) {
+SNode* createPlaceHolderTableNode(SAstCreateContext* pCxt, EStreamPlaceholder type, SToken* pTableAlias) {
   CHECK_PARSER_STATUS(pCxt);
 
   SPlaceHolderTableNode * phTable = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_PLACE_HOLDER_TABLE, (SNode**)&phTable);
   CHECK_MAKE_NODE(phTable);
+
+  if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
+    COPY_STRING_FORM_ID_TOKEN(phTable->table.tableAlias, pTableAlias);
+  }
 
   phTable->placeholderType = type;
   return (SNode*)phTable;
@@ -4953,10 +4957,10 @@ _err:
 
 SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,
                             SNode* pRealTable, SNode* pInterval) {
+  SCreateTSMAStmt* pStmt = NULL;
   pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "TSMA not support yet");
   goto _err;
 
-  SCreateTSMAStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkTsmaName(pCxt, tsmaName));
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_TSMA_STMT, (SNode**)&pStmt);
