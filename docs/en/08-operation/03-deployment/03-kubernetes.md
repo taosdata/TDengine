@@ -5,8 +5,6 @@ slug: /operations-and-maintenance/deploy-your-cluster/kubernetes-deployment
 
 You can use kubectl or Helm to deploy TDengine in Kubernetes.
 
-Note that Helm is only supported in TDengine Enterprise. To deploy TDengine OSS in Kubernetes, use kubectl.
-
 ## Deploy TDengine with kubectl
 
 As a time-series database designed for cloud-native architectures, TDengine inherently supports Kubernetes deployment. This section introduces how to step-by-step create a highly available TDengine cluster for production use using YAML files, with a focus on common operations of TDengine in a Kubernetes environment. This subsection requires readers to have a certain understanding of Kubernetes, be proficient in running common kubectl commands, and understand concepts such as statefulset, service, and pvc. Readers unfamiliar with these concepts can refer to the Kubernetes official website for learning.

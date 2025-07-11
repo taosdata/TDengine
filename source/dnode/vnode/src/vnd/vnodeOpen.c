@@ -441,6 +441,8 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   (void)taosThreadMutexInit(&pVnode->mutex, NULL);
   (void)taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
 
+  vInfo("vgId:%d, finished vnode load info %s, vnode committed:%" PRId64, info.config.vgId, dir, pVnode->state.committed);
+
   int8_t rollback = vnodeShouldRollback(pVnode);
 
   // open buffer pool

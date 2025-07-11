@@ -34,6 +34,8 @@ INSERT INTO
     [stb2_name [(field1_name, ...)]
         VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
     ...];
+
+INSERT INTO stb_name (tbname, field1_name, ...) subquery
 ```
 
 #### 关于主键时间戳
@@ -70,7 +72,7 @@ TDengine 要求插入的数据必须要有时间戳，插入数据的时间戳�
 
 1. USING 子句是自动建表语法。如果用户在写数据时并不确定某个表是否存在，此时可以在写入数据时使用自动建表语法来创建不存在的表，若该表已存在则不会建立新表。自动建表时，要求必须以超级表为模板，并写明数据表的 TAGS 取值。可以只是指定部分 TAGS 列的取值，未被指定的 TAGS 列将置为 NULL。
 
-2. 可以使用 `INSERT ... subquery` 语句将 TDengine 中的数据插入到指定表中。subquery 可以是任意的查询语句。此语法只能用于子表和普通表，且不支持自动建表。
+2. 可以使用 `INSERT ... subquery` 语句将 TDengine 中的数据插入到指定表中。subquery 可以是任意的查询语句。
 
 #### 超级表语法说明
 
@@ -79,6 +81,8 @@ TDengine 要求插入的数据必须要有时间戳，插入数据的时间戳�
 2. 在 field_name 列表中支持标签列，当子表已经存在时，指定标签值并不会触发标签值的修改；当子表不存在时会使用所指定的标签值建立子表。如果没有指定任何标签列，则把所有标签列的值设置为 NULL
 
 3. 不支持参数绑定写入
+
+4. 使用`INSERT ... subquery` 语句将 TDengine 中的数据插入到指定超级表中。field_name 必须指定，并且的第一个 field_name 必须是 tbname，否则报错。支持自动建表。
 
 ## 插入一条记录
 

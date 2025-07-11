@@ -2333,12 +2333,15 @@ _end:
   return ps;
 }
 
-// deep copy the primary key, to avoid ref invalid buffer is the primary key is varchar or something.
+// deep copy the primary key, to avoid ref invalid buffer if the primary key is varchar or something.
 static int32_t primaryKeyDup(SRowKey* pKey) {
   if (pKey->numOfPKs > 0) {
     if (!IS_NUMERIC_TYPE(pKey->pks[0].type)) {
       void* p = taosMemoryMalloc(pKey->pks[0].nData);
       if (p == NULL)  {
+        tsdbError("%s failed at %s:%d since %s", __func__, __FILE__, __LINE__, tstrerror(terrno));
+        // memory allocation failed, set pData to NULL to avoid freeing original buffer
+        pKey->pks[0].pData = NULL;
         return terrno;
       }
 
@@ -3198,6 +3201,7 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
     tColRowGetKey(pBlockData, pDumpInfo->rowIndex, pKey);
     code = primaryKeyDup(pKey);
     TSDB_CHECK_CODE(code, lino, _end);
+    lino = __LINE__;
   } else {
     pKey = NULL;
   }
@@ -6806,7 +6810,7 @@ _end:
   return code;
 }
 
-int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_t* suid) {
+int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_t* suid, SSchemaWrapper** pTagSchema) {
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
   int32_t code = metaReaderGetTableEntryByUidCache(&mr, uid);
@@ -6829,6 +6833,15 @@ int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_
       return code;
     }
   } else if (mr.me.type == TSDB_NORMAL_TABLE) {  // do nothing
+  } else if (mr.me.type == TSDB_SUPER_TABLE) {
+    *suid = uid;
+    code = metaReaderGetTableEntryByUidCache(&mr, *suid);
+    if (code != TSDB_CODE_SUCCESS) {
+      code = TSDB_CODE_TDB_INVALID_TABLE_ID;
+      metaReaderClear(&mr);
+      return code;
+    }
+    *pTagSchema = tCloneSSchemaWrapper(&mr.me.stbEntry.schemaTag);
   } else {
     code = TSDB_CODE_INVALID_PARA;
     tsdbError("invalid mr.me.type:%d, code:%s", mr.me.type, tstrerror(code));
