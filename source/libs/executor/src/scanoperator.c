@@ -1321,7 +1321,9 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   code =
       initQueryTableDataCondWithColArray(&pInfo->base.cond, &pInfo->base.orgCond, &pInfo->base.readHandle, pColArray);
   QUERY_CHECK_CODE(code, lino, _return);
-  pInfo->base.cond.twindows.skey = pParam->window.ekey + 1;
+  if (pParam->window.ekey > 0) {
+    pInfo->base.cond.twindows.skey = pParam->window.ekey + 1;
+  }
   pInfo->base.cond.suid = orgTable.me.type == TSDB_CHILD_TABLE ? superTable.me.uid : 0;
   pInfo->currentGroupId = 0;
   pInfo->base.dataReader = NULL;

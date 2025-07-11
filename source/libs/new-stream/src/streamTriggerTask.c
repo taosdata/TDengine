@@ -22,6 +22,7 @@
 #include "streamReader.h"
 #include "tcompare.h"
 #include "tdatablock.h"
+#include "thash.h"
 #include "ttime.h"
 
 static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext);
@@ -3293,6 +3294,7 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
 
   pContext->pCalcDataCacheIters =
       taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  taosHashSetFreeFp(pContext->pCalcDataCacheIters, (_hash_free_fn_t)releaseDataResult);
   QUERY_CHECK_NULL(pContext->pCalcDataCacheIters, code, lino, _end, errno);
 
   pContext->periodWindow = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MIN};
@@ -6542,20 +6544,26 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
 
   switch (pMsg->msgType) {
     case STREAM_MSG_START: {
-      if (pTask->task.status == STREAM_STATUS_INIT) {
-        if (pTask->pRealtimeContext == NULL) {
-          pTask->pRealtimeContext = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeContext));
-          QUERY_CHECK_NULL(pTask->pRealtimeContext, code, lino, _end, terrno);
-          code = stRealtimeContextInit(pTask->pRealtimeContext, pTask);
-          QUERY_CHECK_CODE(code, lino, _end);
-        }
-        code = stRealtimeContextCheck(pTask->pRealtimeContext);
-        QUERY_CHECK_CODE(code, lino, _end);
-        pTask->task.status = STREAM_STATUS_RUNNING;
+      if (pTask->task.status != STREAM_STATUS_INIT) {
+        // redundant message, ignore it
+        break;
       }
+      if (pTask->pRealtimeContext == NULL) {
+        pTask->pRealtimeContext = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeContext));
+        QUERY_CHECK_NULL(pTask->pRealtimeContext, code, lino, _end, terrno);
+        code = stRealtimeContextInit(pTask->pRealtimeContext, pTask);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      code = stRealtimeContextCheck(pTask->pRealtimeContext);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pTask->task.status = STREAM_STATUS_RUNNING;
       break;
     }
     case STREAM_MSG_ORIGTBL_READER_INFO: {
+      if (pTask->task.status != STREAM_STATUS_INIT || taosArrayGetSize(pTask->readerList) > 0) {
+        // redundant message, ignore it
+        break;
+      }
       SStreamMgmtRsp *pRsp = (SStreamMgmtRsp *)pMsg;
       int32_t        *pVgId = TARRAY_DATA(pRsp->cont.vgIds);
       int32_t         iter1 = 0;

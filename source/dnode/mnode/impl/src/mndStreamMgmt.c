@@ -4117,7 +4117,7 @@ void msmEncodeStreamHbRsp(int32_t code, SRpcHandleInfo *pRpcInfo, SMStreamHbRspM
     TAOS_CHECK_EXIT(terrno);    
   }
 
-  ((SStreamMsgGrpHeader *)buf)->streamGid = htonl(pRsp->streamGId);
+  ((SStreamMsgGrpHeader *)buf)->streamGid = pRsp->streamGId;
   void *abuf = POINTER_SHIFT(buf, sizeof(SStreamMsgGrpHeader));
 
   SEncoder encoder;
