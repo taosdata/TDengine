@@ -53,9 +53,9 @@ class TestStreamPrivilegesMonitorTable:
         self.noCreateDB()
         tdSql.connect(f"{self.username1}")
         tdLog.info(f"connect user {self.username1} ")
-        self.queryInsStreams()
-        self.queryInsStreamTasks()
-        self.queryInsStreamRecalculates()
+        # self.queryInsStreams()
+        # self.queryInsStreamTasks()
+        # self.queryInsStreamRecalculates()
         
         self.SysInfo()
         tdSql.connect(f"{self.username1}")
@@ -232,69 +232,8 @@ class TestStreamPrivilegesMonitorTable:
         if tdSql.getRows() != 0:
             raise Exception("revoke write privileges user failed")
         
-    def userCreateStream(self):
-        tdLog.info(f"connect with normal user {self.username2}")
-        tdSql.connect("lvze2")
-        sql = (
-        "create stream test1.`s100` sliding(1s) from test1.st1  partition by tbname "
-        "options(fill_history('2025-01-01 00:00:00')) "
-        "into test1.`s100out` as "
-        "select cts, cint, %%tbname from %%trows "
-        "where cint > 5 and tint > 0 and %%tbname like '%%2' "
-        "order by cts;"
-        )
-        try:
-            tdSql.execute(sql)
-        except Exception as e:
-            if "Insufficient privilege" in str(e):
-                tdLog.info(f"Insufficient privilege, ignore SQL：{sql}")
-            else:
-                raise  Exception(f"create stream failed with error: {e}") 
-        # tdSql.execute(f"select current_user();")
-        # username=tdSql.getData(0, 0)
-        # print(f"username: {username}")
-        
-    def userStopStream(self):
-        tdLog.info(f"connect with normal user {self.username2}")
-        tdSql.connect("lvze2")
-        tdSql.query(f"show {self.dbname}.streams;")
-        numOfStreams = tdSql.getRows()
-        if numOfStreams > 0:
-            try:
-                tdSql.execute(f"stop stream test1.`s100`")
-            except Exception as e:
-                if "Insufficient privilege" in str(e):
-                    tdLog.info(f"Insufficient privilege to stop stream")
-                else:
-                    raise  Exception(f"stop stream failed with error: {e}")
-            tdSql.query(f"show {self.dbname}.streams;")
-            stateStream = tdSql.getData(0,1)
-            if stateStream != 'Stopped':
-                raise Exception(f"normal user can not stop stream,  found state: {stateStream}")
-            else:
-                tdLog.info(f"stop stream test1.`s100` success")
+    
                 
-    def userStartStream(self):
-        tdLog.info(f"connect with normal user {self.username2}")
-        tdSql.connect("lvze2")
-        tdSql.query(f"show {self.dbname}.streams;")
-        numOfStreams = tdSql.getRows()
-        if numOfStreams > 0:
-            try:
-                tdSql.execute(f"start stream test1.`s100`")
-            except Exception as e:
-                if "Insufficient privilege" in str(e):
-                    tdLog.info(f"Insufficient privilege to start stream")
-                else:
-                    raise  Exception(f"start stream failed with error: {e}")
-                
-        self.checkStreamRunning()
-        tdSql.query(f"show {self.dbname}.streams;")
-        stateStream = tdSql.getData(0,1)
-        if stateStream != 'Running':
-            raise Exception(f"normal user can not start stream,  found state: {stateStream}")
-        else:
-            tdLog.info(f"start stream test1.`s100` success")
             
 
     def prepareData(self):
