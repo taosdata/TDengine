@@ -1759,6 +1759,7 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
   for (int32_t j = 0; j < rows; ++j) {  // iterate by row
     taosArrayClear(pVals);
 
+    bool tsIsNull = false;
     for (int32_t k = 0; k < numOfCols; ++k) {  // iterate by column
       int16_t colIdx = k + 1;
 
@@ -1810,9 +1811,9 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
           if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
             if (colDataIsNull_s(pColInfoData, j)) {
               if (PRIMARYKEY_TIMESTAMP_COL_ID == colIdx) {
-                qError("Primary timestamp column should not be null");
-                code = TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL;
-                QUERY_CHECK_CODE(code, lino, _end);
+                tsIsNull = true;
+                qInfo("Primary timestamp column should not be null, skip this row");
+                break;
               }
 
               SColVal cv = COL_VAL_NULL(colIdx, pCol->type);  // should use pCol->type
@@ -1844,8 +1845,9 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
           }
           break;
       }
+      if(tsIsNull) break;  // skip remaining columns because the primary key is null 
     }
-
+    if(tsIsNull) continue;  // skip this row if primary key is null
     SRow* pRow = NULL;
     if ((code = tRowBuild(pVals, pTSchema, &pRow)) != TSDB_CODE_SUCCESS) {
       QUERY_CHECK_CODE(code, lino, _end);
@@ -1855,6 +1857,10 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
       code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
+  }
+  if(taosArrayGetSize(tbData->aRowP) == 0) {
+    stDebug("no valid data to insert, skip this block");
+    code = TSDB_CODE_STREAM_NO_DATA;
   }
   if (needSortMerge) {
     if ((tRowSort(tbData->aRowP) != TSDB_CODE_SUCCESS) ||
@@ -2153,7 +2159,10 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
 
   _return:
     taosArrayClear(pInserter->pDataBlocks);
-    if (code) {
+    if(code == TSDB_CODE_STREAM_NO_DATA) {
+      stDebug("putStreamDataBlock, no valid data to insert, skip this block");
+      code = TSDB_CODE_SUCCESS;
+    } else if (code) {
       stError("submitRes err:%s, code:%0x lino:%d", tstrerror(code), code, lino);
       return code;
     }
