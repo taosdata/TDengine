@@ -1011,7 +1011,9 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   STag*    pTag = NULL;
   uint8_t*    pTagsIndex;
   int32_t     numOfTags = 0;
-  if (pCxt->pComCxt->isStmtBind && pCxt->pComCxt->pStmtCb != NULL) {
+  bool        isStmt = (pCxt->pComCxt->isStmtBind && pCxt->pComCxt->pStmtCb != NULL);
+
+  if (isStmt) {
     pTagsIndex = taosMemoryCalloc(pCxt->tags.numOfBound, sizeof(uint8_t));
   }
 
@@ -1042,7 +1044,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     if (TSDB_CODE_SUCCESS == code) {
       code = parseTagValue(&pCxt->msg, &pStmt->pSql, precision, pTagSchema, &token, pTagName, pTagVals, &pTag, pCxt->pComCxt->timezone, pCxt->pComCxt->charsetCxt);
     }
-    if (pCxt->pComCxt->isStmtBind && pCxt->pComCxt->pStmtCb != NULL) {
+    if (isStmt) {
       pTagsIndex[numOfTags++] = pCxt->tags.pColIndex[i];
     }
   }
@@ -1051,7 +1053,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     code = checkSubtablePrivilege(pTagVals, pTagName, &pStmt->pTagCond);
   }
 
-  if (TSDB_CODE_SUCCESS == code && pCxt->pComCxt->isStmtBind && pCxt->pComCxt->pStmtCb != NULL) {
+  if (TSDB_CODE_SUCCESS == code && isStmt) {
     if (numOfTags > 0) {
       if (pTagVals->size == pCxt->tags.numOfBound) {
         pCxt->stmtTbNameFlag |= IS_FIXED_TAG;
@@ -1087,7 +1089,9 @@ _exit:
     }
     taosArrayDestroy(pTagVals);
     taosArrayDestroy(pTagName);
-    taosMemoryFree(pTagsIndex);
+    if (isStmt) {
+      taosMemoryFreeClear(pTagsIndex);
+    }
   }
 
   tTagFree(pTag);
