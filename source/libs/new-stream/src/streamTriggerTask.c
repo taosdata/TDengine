@@ -22,6 +22,7 @@
 #include "streamReader.h"
 #include "tcompare.h"
 #include "tdatablock.h"
+#include "thash.h"
 #include "ttime.h"
 
 static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext);
@@ -3293,6 +3294,7 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
 
   pContext->pCalcDataCacheIters =
       taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  taosHashSetFreeFp(pContext->pCalcDataCacheIters, (_hash_free_fn_t)releaseDataResult);
   QUERY_CHECK_NULL(pContext->pCalcDataCacheIters, code, lino, _end, errno);
 
   pContext->periodWindow = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MIN};
