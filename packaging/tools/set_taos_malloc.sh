@@ -20,18 +20,23 @@ JEMALLOC_PREFIX="${LOG_DIR}/jemalloc/prof"
 mkdir -p ${CFG_DIR}
 
 usage() {
-  echo "Usage: $0 -m <0|1|2|3|4>"
-  echo "  0: Default"
-  echo "  1: Use tcmalloc for memory optimization"
-  echo "  2: Use tcmalloc for memory checking"
-  echo "  3: Use jemalloc for memory optimization"
-  echo "  4: Use jemalloc for memory checking"
+  echo "Usage: $0 -m <0|1|2|3|4> -q -h"
+  echo "Set the memory allocator for TDengine."
+  echo "Options:"
+  echo "  -m <mode>   Set the memory allocator mode:"
+  echo "    0: Default"
+  echo "    1: Use tcmalloc for memory optimization"
+  echo "    2: Use tcmalloc for memory checking"
+  echo "    3: Use jemalloc for memory optimization"
+  echo "    4: Use jemalloc for memory checking"
+  echo "  -q          Quiet mode, suppress output"
+  echo "  -h          Show this help message"
   exit 1
 }
 
 quiet=0
 
-while getopts "m:shq" arg; do
+while getopts "m:qh" arg; do
   case $arg in
     m)
       mode=$OPTARG
