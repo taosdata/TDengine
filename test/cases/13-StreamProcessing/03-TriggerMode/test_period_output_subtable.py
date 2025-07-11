@@ -50,12 +50,12 @@ class TestPeriodOutputSubtable:
         
         #create stream
         tdSql.execute(sql)
-        
-        self.checkStreamRunning()
-            
         tdSql.execute("insert into test1.a0 values(now,now,200,300);")
         tdSql.execute("insert into test1.a1 values(now,now,200,300);")
         tdSql.execute("insert into test1.a2 values(now,now,500,300);")
+        
+        self.checkStreamRunning()
+            
 
     def checkResultRows(self, expectedRows):
         tdSql.checkResultsByFunc(
