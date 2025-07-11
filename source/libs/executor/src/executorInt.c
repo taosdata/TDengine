@@ -1033,6 +1033,7 @@ void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOf
       SExprInfo* pExprInfo = &pExpr[i];
       for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
         if (pExprInfo->base.pParam[j].type == FUNC_PARAM_TYPE_VALUE) {
+          colDataDestroy(pCtx[i].input.pData[j]);
           taosMemoryFree(pCtx[i].input.pData[j]);
           taosMemoryFree(pCtx[i].input.pColumnDataAgg[j]);
         }
