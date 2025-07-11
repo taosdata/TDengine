@@ -18706,13 +18706,8 @@ static int32_t checkColRef(STranslateContext* pCxt, char* pRefDbName, char* pRef
     PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN));
   }
 
-  const SSchema* pRefCol = getColSchema(pRefTableMeta, pRefColName);
+  const SSchema* pRefCol = getNormalColSchema(pRefTableMeta, pRefColName);
   if (NULL == pRefCol) {
-    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN));
-  }
-
-  // cannot use tag as ref column
-  if (pRefCol->colId > getNumOfColumns(pRefTableMeta)) {
     PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN));
   }
 
