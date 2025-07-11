@@ -231,6 +231,7 @@ COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 ```
 
 ### 流式计算的结果输出
+
 流计算的计算结果默认会保存到输出表中，每个输出表中的计算结果是截至当前时刻已经触发和计算完成的输出。可以指定输出表的结构定义，如果存在分组还可以指定子表的标签值。
 
 ```sql
@@ -518,6 +519,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
     - conditionIndex：整型，表示满足的触发窗口关闭的条件的索引，从 0 开始编号。
     - fieldValue：键值对形式，包含条件列列名及其对应的值。
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
 ###### 计数窗口相关字段
 
 这部分是 windowType 为 Count 时 event 对象才有的字段。
@@ -766,6 +768,7 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 - 对于超级表的窗口触发方式，只有 `interval` 和 `session` 窗口支持按照标签、子表分组和不分组，其他窗口只支持按子表分组。
 
 短期使用限制
+
 - 暂不支持按普通数据列分组的场景。
 - 暂不支持 `Geometry` 数据类型。
 - 暂不支持 `interp` 和 `percentile` 函数。
