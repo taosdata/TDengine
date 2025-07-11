@@ -2185,6 +2185,8 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
 
     tstrncpy(pExprNode->_function.functionName, pFuncNode->functionName, tListLen(pExprNode->_function.functionName));
 
+    pExp->base.pParamList = pFuncNode->pParameterList;
+
 #if 1
     // todo refactor: add the parameter for tbname function
     const char* name = "tbname";

@@ -783,27 +783,22 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
       SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
       char* p = GET_ROWCELL_INTERBUF(pEntryInfo);
 
-      SColumnInfoData idata = {0};
-      idata.info.type = pCtx[k].pExpr->base.resSchema.type;
-      idata.info.bytes = pCtx[k].pExpr->base.resSchema.bytes;
-      idata.info.precision = pCtx[k].pExpr->base.resSchema.precision;
-      idata.info.scale = pCtx[k].pExpr->base.resSchema.scale;
-      idata.pData = p;
-
-      if (IS_VAR_DATA_TYPE(idata.info.type)) {   //stream todo
-        // void* data = NULL; stream todo
-        // int32_t size = 0;
-        // fmGetStreamPesudoFuncValTbname(pCtx[k].functionId, &taskInfo->pStreamRuntimeInfo->funcInfo, &data, &size);
-        // code = varColSetVarData(&idata, 0, data, size, false);
-      } else {
-        const void* val = fmGetStreamPesudoFuncVal(pCtx[k].functionId, GET_STM_RTINFO(taskInfo));
-        colDataSetInt64(&idata, 0, (void*)val);
-      }
-      if (code != 0) {
-        qError("col set data failed at %d, code: %s", __LINE__, tstrerror(code));
-        taskInfo->code = code;
+      code = fmSetStreamPseudoFuncParamVal(pCtx[k].functionId, pCtx[k].pExpr->base.pParamList, &taskInfo->pStreamRuntimeInfo->funcInfo);
+      if (code) {
+        qError("%s fmSetStreamPseudoFuncParamVal failed, code:%s", GET_TASKID(taskInfo), tstrerror(code));
         return code;
       }
+      
+      SValueNode *valueNode = (SValueNode *)nodesListGetNode(pCtx[k].pExpr->base.pParamList, 0);
+      if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type || valueNode->isNull) {
+        pEntryInfo->isNullRes = 1;
+      } else if (IS_VAR_DATA_TYPE(pCtx[k].pExpr->base.resSchema.type)){
+        void* v = nodesGetValueFromNode(valueNode);
+        memcpy(p, v, varDataTLen(v));
+      } else {
+        memcpy(p, nodesGetValueFromNode(valueNode), pCtx[k].pExpr->base.resSchema.bytes);
+      }
+
       pEntryInfo->numOfRes = 1;
     } else if (pCtx[k].isPseudoFunc) {
       SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
