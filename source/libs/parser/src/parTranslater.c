@@ -3053,16 +3053,7 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
     }
     case FUNCTION_TYPE_PLACEHOLDER_TBNAME: {
       BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_TBNAME);
-      if (BIT_FLAG_TEST_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) && pCxt->createStreamCalc) {
-        SFunctionNode *pTbname = NULL;
-        PAR_ERR_JRET(createTbnameFunction(&pTbname));
-        tstrncpy(pTbname->node.userAlias, ((SExprNode*)*pFunc)->userAlias, TSDB_COL_NAME_LEN);
-        nodesDestroyNode(*pFunc);
-        *pFunc = (SNode*)pTbname;
-        return translateFunction(pCxt, (SFunctionNode**)pFunc);
-      } else {
-        PAR_ERR_JRET(nodesMakeValueNodeFromString("", (SValueNode**)&extraValue));
-      }
+      PAR_ERR_JRET(nodesMakeValueNodeFromString("", (SValueNode**)&extraValue));
       break;
     }
     case FUNCTION_TYPE_PLACEHOLDER_COLUMN: {
@@ -3080,35 +3071,15 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
       }
       SExprNode*  pExpr = (SExprNode*)nodesListGetNode(pCxt->createStreamTriggerPartitionList, (int32_t)index - 1);
       if (pExpr == NULL) {
-        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "%%n : partition index out of range"));
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
+                                             "%%n : partition index out of range"));
       }
 
-      if (BIT_FLAG_TEST_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) && pCxt->createStreamCalc) {
-        if (nodeType(pExpr) == QUERY_NODE_FUNCTION) {
-          SFunctionNode* pTbname = NULL;
-          PAR_ERR_JRET(createTbnameFunction(&pTbname));
-          tstrncpy(pTbname->node.userAlias, ((SExprNode*)*pFunc)->userAlias, TSDB_COL_NAME_LEN);
-          nodesDestroyNode(*pFunc);
-          *pFunc = (SNode*)pTbname;
-          return translateFunction(pCxt, (SFunctionNode**)pFunc);
-        } else if (nodeType(pExpr) == QUERY_NODE_COLUMN) {
-          SColumnNode* pCol = NULL;
-          PAR_ERR_JRET(nodesCloneNode((SNode*)pExpr, (SNode**)&pCol));
-          tstrncpy(pCol->node.userAlias, ((SExprNode*)*pFunc)->userAlias, TSDB_COL_NAME_LEN);
-          nodesDestroyNode(*pFunc);
-          *pFunc = (SNode*)pCol;
-          return translateColumn(pCxt, (SColumnNode**)pFunc);
-        } else {
-          PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
-                                           "%%n : partition index must be a column or tbname function"));
-        }
-      } else {
-        PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&extraValue));
-        ((SValueNode*)extraValue)->node.resType = pExpr->resType;
-        ((SValueNode*)extraValue)->isNull = true;
+      PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&extraValue));
+      ((SValueNode*)extraValue)->node.resType = pExpr->resType;
+      ((SValueNode*)extraValue)->isNull = true;
 
-        pFuncNode->node.resType = pExpr->resType;
-      }
+      pFuncNode->node.resType = pExpr->resType;
       break;
     }
     default:
