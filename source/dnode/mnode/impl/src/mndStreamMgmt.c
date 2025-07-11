@@ -1540,13 +1540,13 @@ int32_t msmUpdateLowestPlanSourceAddr(SSubplan* pPlan, SStmTaskDeploy* pDeploy, 
   FOREACH(pNode, pPlan->pChildren) {
     if (QUERY_NODE_VALUE != nodeType(pNode)) {
       msttDebug("node type %d is not valueNode, skip it", nodeType(pNode));
-      break;
+      continue;
     }
     
     SValueNode* pVal = (SValueNode*)pNode;
     if (TSDB_DATA_TYPE_BIGINT != pVal->node.resType.type) {
       msttWarn("invalid value node data type %d for runner's child subplan", pVal->node.resType.type);
-      break;
+      continue;
     }
 
     key[1] = MND_GET_RUNNER_SUBPLANID(pVal->datum.i);
