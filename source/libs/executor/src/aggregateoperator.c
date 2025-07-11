@@ -783,13 +783,6 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
       SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
       char* p = GET_ROWCELL_INTERBUF(pEntryInfo);
 
-      SColumnInfoData idata = {0};
-      idata.info.type = pCtx[k].pExpr->base.resSchema.type;
-      idata.info.bytes = pCtx[k].pExpr->base.resSchema.bytes;
-      idata.info.precision = pCtx[k].pExpr->base.resSchema.precision;
-      idata.info.scale = pCtx[k].pExpr->base.resSchema.scale;
-      idata.pData = p;
-
       TAOS_CHECK_EXIT(fmSetStreamPseudoFuncParamVal(pCtx[k].functionId, pCtx[k].pExpr->base.pParamList, &taskInfo->pStreamRuntimeInfo->funcInfo));
 
       SValueNode *valueNode = (SValueNode *)nodesListGetNode(pCtx[k].pExpr->base.pParamList, 0);

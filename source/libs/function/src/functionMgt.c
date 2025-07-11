@@ -787,6 +787,24 @@ void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo
   }
 }
 
+int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv *pEnv) {
+  if (NULL == pParamNodes || pParamNodes->length < 1) {
+    uError("invalid stream pesudo func param list %p", pParamNodes);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  int32_t firstParamType = nodeType(nodesListGetNode(pParamNodes, 0));
+  if (QUERY_NODE_VALUE != firstParamType) {
+    uError("invalid stream pesudo func first param type %d", firstParamType);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  SValueNode* pResDesc = (SValueNode*)nodesListGetNode(pParamNodes, 0);
+  pEnv->calcMemSize = pResDesc->node.resType.bytes;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, const SStreamRuntimeFuncInfo* pStreamRuntimeInfo) {
   if (!pStreamRuntimeInfo) {
     uError("internal error, should have pVals for stream pseudo funcs");
