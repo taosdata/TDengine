@@ -653,6 +653,8 @@ int32_t cliHandleState_mayCreateAhandle(SCliConn* conn, STransMsgHead* pHead, ST
   pCtx->st = taosGetTimestampUs();
   STraceId* trace = &pHead->traceId;
   pResp->info.ahandle = transCtxDumpVal(pCtx, pHead->msgType);
+
+  transPrintAhandle(pCtx);
   tGDebug("%s conn:%p, %s received from %s, local info:%s, sid:%" PRId64 ", create ahandle %p by %s",
           CONN_GET_INST_LABEL(conn), conn, TMSG_INFO(pHead->msgType), conn->dst, conn->src, qId, pResp->info.ahandle,
           TMSG_INFO(pHead->msgType));
@@ -3093,6 +3095,10 @@ _exception:
 int32_t transSendRequest(void* pInstRef, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) {
   if (isReqExceedLimit(pReq)) {
     return TSDB_CODE_RPC_MSG_EXCCED_LIMIT;
+  }
+
+  if (ctx != NULL) {
+    transPrintAhandle(ctx);
   }
 
   STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)pInstRef);

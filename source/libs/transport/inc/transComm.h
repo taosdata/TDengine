@@ -423,6 +423,7 @@ void  transCtxClear(STransCtx* ctx);
 void  transCtxMerge(STransCtx* dst, STransCtx* src);
 void* transCtxDumpVal(STransCtx* ctx, int32_t key);
 void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType);
+void  transPrintAhandle(STransCtx* pCtx);
 
 // request list
 typedef struct SWriteReq {

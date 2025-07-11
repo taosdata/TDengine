@@ -486,6 +486,19 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
 
   taosHashCleanup(src->args);
 }
+
+void transPrintAhandle(STransCtx* pCtx) {
+  if (pCtx == NULL || pCtx->args == NULL) {
+    return;
+  }
+
+  STransCtxVal* iter = taosHashIterate(pCtx->args, NULL);
+  while (iter) {
+    int32_t* type = taosHashGetKey(iter, NULL);
+    tDebug("dump msg type %s", TMSG_INFO(*type));
+    iter = taosHashIterate(pCtx->args, iter);
+  }
+}
 void* transCtxDumpVal(STransCtx* ctx, int32_t key) {
   if (ctx->args == NULL) {
     return NULL;
