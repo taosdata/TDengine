@@ -1375,12 +1375,16 @@ _err:
   return NULL;
 }
 
-SNode* createPlaceHolderTableNode(SAstCreateContext* pCxt, EStreamPlaceholder type) {
+SNode* createPlaceHolderTableNode(SAstCreateContext* pCxt, EStreamPlaceholder type, SToken* pTableAlias) {
   CHECK_PARSER_STATUS(pCxt);
 
   SPlaceHolderTableNode * phTable = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_PLACE_HOLDER_TABLE, (SNode**)&phTable);
   CHECK_MAKE_NODE(phTable);
+
+  if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
+    COPY_STRING_FORM_ID_TOKEN(phTable->table.tableAlias, pTableAlias);
+  }
 
   phTable->placeholderType = type;
   return (SNode*)phTable;
