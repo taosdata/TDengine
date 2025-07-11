@@ -96,7 +96,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
 
     for (int32_t i = 0; i < totalSources; ++i) {
       pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, i);
-      QUERY_CHECK_NULL(pDataInfo, code, lino, _error, terrno);
+      QUERY_CHECK_NULL(pDataInfo, code, lino, _exit, terrno);
       if (pDataInfo->status == EX_SOURCE_DATA_EXHAUSTED) {
         continue;
       }
@@ -107,13 +107,13 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
 
       if (pDataInfo->code != TSDB_CODE_SUCCESS) {
         code = pDataInfo->code;
-        goto _error;
+        TAOS_CHECK_EXIT(code);
       }
 
       tmemory_barrier();
       SRetrieveTableRsp*     pRsp = pDataInfo->pRsp;
       SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pDataInfo->index);
-      QUERY_CHECK_NULL(pSource, code, lino, _error, terrno);
+      QUERY_CHECK_NULL(pSource, code, lino, _exit, terrno);
 
       // todo
       SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
@@ -123,7 +123,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
           code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
           if (code != TSDB_CODE_SUCCESS) {
             taosMemoryFreeClear(pDataInfo->pRsp);
-            goto _error;
+            TAOS_CHECK_EXIT(code);
           }
         } else {
           pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
@@ -136,10 +136,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
         break;
       }
 
-      code = doExtractResultBlocks(pExchangeInfo, pDataInfo);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto _error;
-      }
+      TAOS_CHECK_EXIT(doExtractResultBlocks(pExchangeInfo, pDataInfo));
 
       SRetrieveTableRsp* pRetrieveRsp = pDataInfo->pRsp;
       updateLoadRemoteInfo(pLoadInfo, pRetrieveRsp->numOfRows, pRetrieveRsp->compLen, pDataInfo->startTime, pOperator);
@@ -167,9 +164,10 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
         code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
         if (code != TSDB_CODE_SUCCESS) {
           taosMemoryFreeClear(pDataInfo->pRsp);
-          goto _error;
+          TAOS_CHECK_EXIT(code);
         }
       }
+      
       return;
     }  // end loop
 
@@ -185,8 +183,12 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
     }
   }
 
-_error:
-  pTaskInfo->code = code;
+_exit:
+
+  if (code) {
+    pTaskInfo->code = code;
+    qError("%s failed at line %d since %s", __FUNCTION__, lino, tstrerror(code));
+  }
 }
 
 static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
@@ -235,7 +237,9 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(pOperator->pTaskInfo->code));
       T_LONG_JMP(pTaskInfo->env, pOperator->pTaskInfo->code);
     }
+    
     if (taosArrayGetSize(pExchangeInfo->pResultBlockList) == 0) {
+      qDebug("empty resultBlockList");
       return NULL;
     } else {
       p = taosArrayGetP(pExchangeInfo->pResultBlockList, 0);
@@ -247,6 +251,8 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
         pTaskInfo->code = code;
         T_LONG_JMP(pTaskInfo->env, code);
       }
+
+      qDebug("block with rows:%" PRId64 " loaded", p->info.rows);
       return p;
     }
   }
@@ -277,6 +283,7 @@ static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (blockDataGetNumOfRows(pBlock) == 0) {
+      qDebug("rows 0 block got, continue next load");
       continue;
     }
 
@@ -284,6 +291,7 @@ static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     if (hasLimitOffsetInfo(pLimitInfo)) {
       int32_t status = handleLimitOffset(pOperator, pLimitInfo, pBlock, false);
       if (status == PROJECT_RETRIEVE_CONTINUE) {
+        qDebug("limit retrieve continue");
         continue;
       } else if (status == PROJECT_RETRIEVE_DONE) {
         if (pBlock->info.rows == 0) {
@@ -297,16 +305,21 @@ static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
       }
     } else {
       (*ppRes) = pBlock;
+      qDebug("block with rows %" PRId64 " returned in exechange", pBlock->info.rows);
       return code;
     }
   }
 
 _end:
+
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
+  } else {
+    qDebug("empty block returned in exchange");
   }
+  
   (*ppRes) = NULL;
   return code;
 }
@@ -1089,6 +1102,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
 
     void* tmp = taosArrayPush(pExchangeInfo->pResultBlockList, &pb);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+    qDebug("%dth block added to resultBlockList, rows:%" PRId64, index, pb->info.rows);
     pb = NULL;
   }
 
