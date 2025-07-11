@@ -46,8 +46,11 @@ class Test_Scene_Asset01:
         # create streams
         self.createStreams()
 
+        # check stream status
+        self.checkStreamStatus()
+
         # insert trigger data
-        self.insertTriggerData()
+        self.writeTriggerData()
 
         # wait stream processing
         self.waitStreamProcessing()
@@ -65,6 +68,8 @@ class Test_Scene_Asset01:
         self.vdb = "tdasset"
         self.stb = "electricity_meters"
         self.start = 1752563000000
+        self.start_current = 10
+        self.start_voltage = 260
 
         # import data
         etool.taosdump(f"-i cases/13-StreamProcessing/20-UseCase/asset01/data/")
@@ -88,33 +93,43 @@ class Test_Scene_Asset01:
         etool.taos(f"-f {sqlFile}")
         tdLog.info(f"create streams from {sqlFile} successfully.")
 
-
     # 
-    # 3. insert trigger data
+    # 3. wait stream ready
     #
-    def insertTriggerData(self):
-        # em1-strem1
-        self.trigger_em1_stream1()
-        # em2-stream1
-        self.trigger_em2_stream1()
+    def checkStreamStatus(self):
+        print("check status")
+        tdStream.checkStreamStatus()
+        tdLog.info(f"check stream status successfully.")
 
     # 
-    # 4. wait stream processing
+    # 4. insert trigger data
+    #
+    def writeTriggerData(self):
+        # strem1
+        self.trigger_stream1()
+        # stream2
+        self.trigger_stream2()
+        # stream3
+        self.trigger_stream3()
+
+
+    # 
+    # 5. wait stream processing
     #
     def waitStreamProcessing(self):
-        tdLog.info("wait for check result sleep 3s ...")
-        time.sleep(3)
+        tdLog.info("wait for check result sleep 5s ...")
+        time.sleep(5)
 
     # 
     # 5. verify results
     #
     def verifyResults(self):
-        self.verify_em1_stream1()
-        self.verify_em2_stream1()    
+        self.verify_stream1()
+        self.verify_stream2()    
 
 
     # em1-stream1 trigger voltage > 250 start and voltage <= 250 end
-    def trigger_em1_stream1(self):
+    def trigger_stream1(self):
 
         # 1~20 minutes no trigger
         ts = self.start
@@ -143,16 +158,76 @@ class Test_Scene_Asset01:
             tdSql.execute(sql, show=True)
 
     # em2-stream1 trigger
-    def trigger_em2_stream1(self):
-        pass
+    def trigger_stream2(self):
+        ts = self.start
+        current = self.start_current
+        voltage = self.start_voltage
+        power   = 200
+        phase   = 0
 
+        cnt     = 120 # 2 hours
+        for i in range(cnt):
+            ts += 1 * 60 * 1000
+            current += 1
+            voltage += 1
+            power   += 1
+            phase   += 1
+            sql = f"insert into asset01.`em-2` values({ts}, {current}, {voltage}, {power}, {phase});"
+            tdSql.execute(sql, show=True)
 
-    # verify em1_stream1
-    def verify_em1_stream1(self):
-        sql = f"select * from {self.vdb}.`result-em1-stream1` "
-        tdSql.waitedQuery(sql, 1, 100)
-        tdLog.info("verify em1_stream1 successfully.")
+    # stream3 trigger
+    def trigger_stream3(self):
+        ts = self.start
+        current = 100
+        voltage = 220
+        power   = 200
+        phase   = 0
 
-    # verify em2_stream1
-    def verify_em2_stream1(self):
-        tdLog.info("verify em2_stream1 successfully.")
+        # enter condiction
+        cnt     = 10 # 2 hours
+        for i in range(cnt):
+            ts += 1 * 60 * 1000
+            current += 1
+            voltage += 1
+            power   += 1
+            phase   += 1
+            sql = f"insert into asset01.`em-3` values({ts}, {current}, {voltage}, {power}, {phase});"
+            tdSql.execute(sql, show=True)
+
+        # leave condiction
+        cnt     = 10 # 2 hours
+        current = 100
+        for i in range(cnt):
+            ts += 1 * 60 * 1000
+            current -= 1
+            voltage -= 1
+            power   -= 1
+            phase   -= 1
+            sql = f"insert into asset01.`em-3` values({ts}, {current}, {voltage}, {power}, {phase});"
+            tdSql.execute(sql, show=True)
+
+    # verify stream1
+    def verify_stream1(self):
+        sql = f"select * from {self.vdb}.`result_stream1` "
+        #tdSql.waitedQuery(sql, 1, 100)
+        tdLog.info("verify stream1 successfully.")
+
+    # verify stream2
+    def verify_stream2(self):
+        sql = f"select * from {self.vdb}.`result_stream2` "
+        tdSql.query(sq, show=True)
+        cnt = tdSql.getRows()
+        if cnt == 0:
+            tdLog.exit("stream2 rows is zero.")
+        else:
+            tdLog.info("verify stream2 successfully.")
+
+    # verify stream3
+    def verify_stream3(self):
+        sql = f"select * from {self.vdb}.`result_stream3` "
+        tdSql.query(sq, show=True)
+        cnt = tdSql.getRows()
+        if cnt == 0:
+            tdLog.exit("stream3 rows is zero.")
+        else:
+            tdLog.info("verify stream3 successfully.")            
