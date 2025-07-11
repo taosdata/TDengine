@@ -11,14 +11,12 @@
 
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql, autogen
+from new_test_framework.utils import tdLog, tdSql, AutoGen
 import os
 
 class TestInsertWideColumn:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
-        #tdSql.init(conn.cursor(), logSql), logSql)
-        cls.autoGen = autogen.AutoGen()
 
     def query_test(self, stbname):
         sql = f"select count(*) from {stbname}"
@@ -33,8 +31,8 @@ class TestInsertWideColumn:
 
     def check_db(self, dbname, stbname, childname, tag_cnt, column_cnt, child_cnt, insert_rows, binary_len, nchar_len):    
         self.autoGen.create_db(dbname)
-        self.autoGen.create_stable(stbname, tag_cnt, column_cnt, binary_len, nchar_len)
-        self.autoGen.create_child(stbname, childname, child_cnt)
+        self.autoGen.create_stable(stbname, tag_cnt, column_cnt, binary_len, nchar_len, type_set='varchar_preferred')
+        self.autoGen.create_child(stbname, childname, child_cnt, tag_data_mode='old')
         self.autoGen.insert_data(insert_rows)
         self.autoGen.insert_samets(insert_rows)
         self.query_test(stbname)
@@ -67,6 +65,7 @@ class TestInsertWideColumn:
         column_cnt = 20
         binary_len = 10240
         nchar_len =  1025
+        self.autoGen = AutoGen(step=1, batch=100,genDataMode="fillone")
         self.autoGen.set_batch_size(1)
         
         # normal

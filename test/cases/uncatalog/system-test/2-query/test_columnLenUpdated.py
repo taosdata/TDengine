@@ -85,11 +85,12 @@ class TestColumnlenupdated:
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
+        buildPath = ""
 
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            projPath = selfPath[:selfPath.find("test")]
 
         for root, dirs, files in os.walk(projPath):
             if ("taosd" in files or "taosd.exe" in files):
