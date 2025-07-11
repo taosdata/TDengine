@@ -451,6 +451,9 @@ static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstList(pSelect->pOrderByList);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstNode(&pSelect->pTimeRange);
+  }
   return code;
 }
 

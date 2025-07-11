@@ -382,6 +382,32 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == type) {
       code = createExchangeOperatorInfo(pHandle ? pHandle->pMsgCb->clientRpc : NULL, (SExchangePhysiNode*)pPhyNode,
                                         pTaskInfo, &pOperator);
+    } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
+      STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
+      STableListInfo*      pTableListInfo = tableListCreate();
+      if (!pTableListInfo) {
+        pTaskInfo->code = terrno;
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+        return terrno;
+      }
+
+      if (pHandle->vnode && (pTaskInfo->pSubplan->pVTables == NULL)) {
+        code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
+                                       pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo, NULL);
+        if (code) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
+          return code;
+        }
+      }
+
+      code = createTmqScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTableListInfo, pTaskInfo, &pOperator);
+      if (code) {
+        pTaskInfo->code = code;
+        tableListDestroy(pTableListInfo);
+        return code;
+      }
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
       SSystemTableScanPhysiNode* pSysScanPhyNode = (SSystemTableScanPhysiNode*)pPhyNode;
       code = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pUser, pTaskInfo, &pOperator);
