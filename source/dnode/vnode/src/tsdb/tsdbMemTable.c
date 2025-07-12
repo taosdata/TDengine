@@ -553,9 +553,6 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
   if (pRow->type == TSDBROW_ROW_FMT) {
     pNode->row.pTSRow = (SRow *)((char *)pNode + nSize);
     memcpy(pNode->row.pTSRow, pRow->pTSRow, pRow->pTSRow->len);
-    uint64_t seq = 0;
-    tGetU64(pRow->pTSRow->data + 5, &seq);
-    uTrace("blob get mem len %d, seq %d", pRow->pTSRow->len, (int)(seq));
   }
 
   // set node
