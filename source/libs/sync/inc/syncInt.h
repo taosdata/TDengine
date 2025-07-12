@@ -55,13 +55,13 @@ typedef struct SSyncLogReplMgr        SSyncLogReplMgr;
 #define MAX_CONFIG_INDEX_COUNT 256
 
 typedef struct SRaftCfg {
-  SSyncCfg          cfg;
-  int32_t           batchSize;
-  int8_t            isStandBy;
-  int8_t            snapshotStrategy;
-  SyncIndex         lastConfigIndex;
-  int32_t           configIndexCount;
-  SyncIndex         configIndexArr[MAX_CONFIG_INDEX_COUNT];
+  SSyncCfg  cfg;
+  int32_t   batchSize;
+  int8_t    isStandBy;
+  int8_t    snapshotStrategy;
+  SyncIndex lastConfigIndex;
+  int32_t   configIndexCount;
+  SyncIndex configIndexArr[MAX_CONFIG_INDEX_COUNT];
 } SRaftCfg;
 
 typedef struct SRaftId {
@@ -70,8 +70,8 @@ typedef struct SRaftId {
 } SRaftId;
 
 typedef struct SRaftStore {
-  SyncTerm currentTerm;
-  SRaftId  voteFor;
+  SyncTerm      currentTerm;
+  SRaftId       voteFor;
   TdThreadMutex mutex;
 } SRaftStore;
 
@@ -297,17 +297,17 @@ bool      syncNodeSnapshotRecving(SSyncNode* pSyncNode);
 bool      syncNodeIsReadyForRead(SSyncNode* pSyncNode);
 
 // raft state change --------------
-void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
-void syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term);
+void    syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
+void    syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term);
 void    syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm, SRaftId id);
 void    syncNodeBecomeFollower(SSyncNode* pSyncNode, SRaftId leaderId, const char* debugStr);
-void syncNodeBecomeLearner(SSyncNode* pSyncNode, const char* debugStr);
-void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr);
-void syncNodeBecomeAssignedLeader(SSyncNode* pSyncNode);
-void syncNodeCandidate2Leader(SSyncNode* pSyncNode);
-void syncNodeFollower2Candidate(SSyncNode* pSyncNode);
-void syncNodeLeader2Follower(SSyncNode* pSyncNode);
-void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
+void    syncNodeBecomeLearner(SSyncNode* pSyncNode, const char* debugStr);
+void    syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr);
+void    syncNodeBecomeAssignedLeader(SSyncNode* pSyncNode);
+void    syncNodeCandidate2Leader(SSyncNode* pSyncNode);
+void    syncNodeFollower2Candidate(SSyncNode* pSyncNode);
+void    syncNodeLeader2Follower(SSyncNode* pSyncNode);
+void    syncNodeCandidate2Follower(SSyncNode* pSyncNode);
 int32_t syncNodeAssignedLeader2Leader(SSyncNode* pSyncNode);
 
 // raft vote --------------
