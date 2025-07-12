@@ -4,11 +4,11 @@ WORKDIR /root
 
 ARG cpuType
 
-# 设置环境变量
+# Set environment variables
 ENV TINI_VERSION=v0.19.0
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 先安装系统依赖和tini，这层可以被缓存
+# Install system dependencies and tini, this layer can be cached
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${cpuType} /tini
 RUN apt-get update && apt-get install -y --no-install-recommends \
     locales tzdata netcat curl gdb vim tmux less \
@@ -18,12 +18,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-get clean && rm -rf /var/lib/apt/lists/* && \
     chmod +x /tini
 
-# 接收构建参数
+# Receive build args
 ARG pkgFile
 ARG dirName
 RUN echo ${pkgFile} && echo ${dirName}
 
-# 处理大文件包 - 只有当包文件变化时才重新构建这层
+# Process large package files - this layer will only be rebuilt if the package file changes
 COPY ${pkgFile} /root/
 RUN tar -zxf $(basename ${pkgFile}) && \
     cd /root/${dirName}/ && \
@@ -32,7 +32,7 @@ RUN tar -zxf $(basename ${pkgFile}) && \
     rm /root/$(basename ${pkgFile}) && \
     rm -rf /root/${dirName}
 
-# 设置运行时环境变量
+# Set runtime environment variables
 ENV LD_LIBRARY_PATH=/usr/lib \
     LC_CTYPE=en_US.UTF-8 \
     LANG=en_US.UTF-8 \
