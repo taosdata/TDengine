@@ -2707,7 +2707,7 @@ class TestStreamCountTrigger:
 
             # create vtable and continue
             tdSql.execute(
-                f"create stream s12_0 count_window(1) from vtb_1 partition by tbname into "
+                f"create stream s13_0 count_window(1) from vtb_1 partition by tbname into "
                 f"res_vtb_1 (ts, firstts, lastts, twduration, cnt_col_3, sum_col_3, avg_col_3, cnt_col_1, sum_col_1, avg_col_1, _x_col, name) as "
                 f"select _twstart, first(_c0), last_row(_c0), _twduration, count(col_3), sum(col_3), avg(col_3), count(col_1), sum(col_1), avg(col_1), "
                 f"  stddev(col_3) + stddev(col_1) + avg(col_2), %%tbname "
