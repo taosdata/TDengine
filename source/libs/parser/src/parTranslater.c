@@ -3053,16 +3053,7 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
     }
     case FUNCTION_TYPE_PLACEHOLDER_TBNAME: {
       BIT_FLAG_SET_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_TBNAME);
-      if (BIT_FLAG_TEST_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) && pCxt->createStreamCalc) {
-        SFunctionNode *pTbname = NULL;
-        PAR_ERR_JRET(createTbnameFunction(&pTbname));
-        tstrncpy(pTbname->node.userAlias, ((SExprNode*)*pFunc)->userAlias, TSDB_COL_NAME_LEN);
-        nodesDestroyNode(*pFunc);
-        *pFunc = (SNode*)pTbname;
-        return translateFunction(pCxt, (SFunctionNode**)pFunc);
-      } else {
-        PAR_ERR_JRET(nodesMakeValueNodeFromString("", (SValueNode**)&extraValue));
-      }
+      PAR_ERR_JRET(nodesMakeValueNodeFromString("", (SValueNode**)&extraValue));
       break;
     }
     case FUNCTION_TYPE_PLACEHOLDER_COLUMN: {
@@ -3083,32 +3074,11 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
         PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "%%n : partition index out of range"));
       }
 
-      if (BIT_FLAG_TEST_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) && pCxt->createStreamCalc) {
-        if (nodeType(pExpr) == QUERY_NODE_FUNCTION) {
-          SFunctionNode* pTbname = NULL;
-          PAR_ERR_JRET(createTbnameFunction(&pTbname));
-          tstrncpy(pTbname->node.userAlias, ((SExprNode*)*pFunc)->userAlias, TSDB_COL_NAME_LEN);
-          nodesDestroyNode(*pFunc);
-          *pFunc = (SNode*)pTbname;
-          return translateFunction(pCxt, (SFunctionNode**)pFunc);
-        } else if (nodeType(pExpr) == QUERY_NODE_COLUMN) {
-          SColumnNode* pCol = NULL;
-          PAR_ERR_JRET(nodesCloneNode((SNode*)pExpr, (SNode**)&pCol));
-          tstrncpy(pCol->node.userAlias, ((SExprNode*)*pFunc)->userAlias, TSDB_COL_NAME_LEN);
-          nodesDestroyNode(*pFunc);
-          *pFunc = (SNode*)pCol;
-          return translateColumn(pCxt, (SColumnNode**)pFunc);
-        } else {
-          PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
-                                           "%%n : partition index must be a column or tbname function"));
-        }
-      } else {
-        PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&extraValue));
-        ((SValueNode*)extraValue)->node.resType = pExpr->resType;
-        ((SValueNode*)extraValue)->isNull = true;
+      PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&extraValue));
+      ((SValueNode*)extraValue)->node.resType = pExpr->resType;
+      ((SValueNode*)extraValue)->isNull = true;
 
-        pFuncNode->node.resType = pExpr->resType;
-      }
+      pFuncNode->node.resType = pExpr->resType;
       break;
     }
     default:
@@ -6040,10 +6010,14 @@ static int32_t translatePlaceHolderTable(STranslateContext* pCxt, SNode** pTable
           newPlaceHolderTable->pMeta->tableType == TSDB_SUPER_TABLE) {
         newPlaceHolderTable->asSingleTable = true;
       }
+      if (inJoin) {
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                             "%%%%trows should not appear in join condition"));
+      }
       break;
     }
     default: {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "invalid placeholder table type"));
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "invalid placeholder table type"));
       break;
     }
   }
@@ -8395,10 +8369,13 @@ static int32_t setTableVgroupsFromEqualTbnameCond(STranslateContext* pCxt, SSele
 
 static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_WHERE;
-  int32_t code = translateExpr(pCxt, &pSelect->pWhere);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = getQueryTimeRange(pCxt, &pSelect->pWhere, &pSelect->timeRange, &pSelect->pTimeRange, pSelect->pFromTable);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pSelect->pWhere && BIT_FLAG_TEST_MASK(pCxt->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) && pCxt->createStreamCalc) {
+    PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                       "%%%%trows can not be used with WHERE clause."));
   }
+  PAR_ERR_RET(translateExpr(pCxt, &pSelect->pWhere));
+  PAR_ERR_RET(getQueryTimeRange(pCxt, &pSelect->pWhere, &pSelect->timeRange, &pSelect->pTimeRange, pSelect->pFromTable));
   if (pSelect->pWhere != NULL && pCxt->pParseCxt->topicQuery == false) {
     PAR_ERR_RET(setTableVgroupsFromEqualTbnameCond(pCxt, pSelect));
   }
