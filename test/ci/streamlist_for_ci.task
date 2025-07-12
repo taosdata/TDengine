@@ -45,6 +45,8 @@
 ## 08-ReCalculate
 
 ## 20-UseCase
+,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters.py
+
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_nevados.py 
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_three_gorges_phase1.py 
 
