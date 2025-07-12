@@ -79,11 +79,33 @@ static void destroyStbJoinDynCtrlInfo(SStbJoinDynCtrlInfo* pStbJoin) {
 
   destroyStbJoinTableList(pStbJoin->ctx.prev.pListHead);
 }
+typedef struct {
+  char*    colName;
+  char*    colrefName;
+  tb_uid_t uid;
+  col_id_t colId;
+  int32_t  vgId;
+} SColRefKV;
 
 void destroyOrgTbInfo(void *info) {
   SOrgTbInfo *pOrgTbInfo = (SOrgTbInfo *)info;
   if (pOrgTbInfo) {
     taosArrayDestroy(pOrgTbInfo->colMap);
+  }
+}
+
+void destroyColRefKV(void *info) {
+  SColRefKV *pColRefKV = (SColRefKV *)info;
+  if (pColRefKV) {
+    taosMemoryFree(pColRefKV->colName);
+    taosMemoryFree(pColRefKV->colrefName);
+  }
+}
+
+void destroyColRefArray(void *info) {
+  SArray *pColRefArray = *(SArray **)info;
+  if (pColRefArray) {
+    taosArrayDestroyEx(pColRefArray, destroyColRefKV);
   }
 }
 
@@ -103,8 +125,11 @@ static void destroyVtbScanDynCtrlInfo(SVtbScanDynCtrlInfo* pVtbScan) {
   if (pVtbScan->dbName) {
     taosMemoryFreeClear(pVtbScan->dbName);
   }
+  if (pVtbScan->stbName) {
+    taosMemoryFreeClear(pVtbScan->stbName);
+  }
   if (pVtbScan->childTableList) {
-    taosArrayDestroy(pVtbScan->childTableList);
+    taosArrayDestroyEx(pVtbScan->childTableList, destroyColRefArray);
   }
   if (pVtbScan->readColList) {
     taosArrayDestroy(pVtbScan->readColList);
@@ -1392,14 +1417,6 @@ _return:
   return code;
 }
 
-typedef struct {
-  char*    colName;
-  char*    colrefName;
-  tb_uid_t uid;
-  col_id_t colId;
-  int32_t  vgId;
-} SColRefKV;
-
 int32_t extractColRefName(const char *colref, char **refDb, char** refTb, char** refCol) {
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     line = 0;
@@ -1496,11 +1513,13 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
               kv.colrefName = NULL;
             } else {
               kv.colrefName = taosMemoryCalloc(varDataTLen(colDataGetData(pRefCol, i)), 1);
+              QUERY_CHECK_NULL(kv.colrefName, code, line, _return, terrno);
               memcpy(kv.colrefName, varDataVal(colDataGetData(pRefCol, i)), varDataLen(colDataGetData(pRefCol, i)));
               kv.colrefName[varDataLen(colDataGetData(pRefCol, i))] = 0;
             }
 
             kv.colName = taosMemoryCalloc(varDataTLen(colDataGetData(pColNameCol, i)), 1);
+            QUERY_CHECK_NULL(kv.colName, code, line, _return, terrno);
             memcpy(kv.colName, varDataVal(colDataGetData(pColNameCol, i)), varDataLen(colDataGetData(pColNameCol, i)));
             kv.colName[varDataLen(colDataGetData(pColNameCol, i))] = 0;
             if (!colDataIsNull_s(pUidCol, i)) {
@@ -1514,19 +1533,18 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
             }
             if (taosHashGet(pVtbScan->childTableMap, varDataVal(ctbName), varDataLen(ctbName)) == NULL) {
               SArray *pColRefArray = taosArrayInit(1, sizeof(SColRefKV));
-              taosArrayPush(pColRefArray, &kv);
+              QUERY_CHECK_NULL(pColRefArray, code, line, _return, terrno);
+              QUERY_CHECK_NULL(taosArrayPush(pColRefArray, &kv), code, line, _return, terrno);
               int32_t tableIdx = (int32_t)taosArrayGetSize(pVtbScan->childTableList);
-              taosArrayPush(pVtbScan->childTableList, &pColRefArray);
-              taosHashPut(pVtbScan->childTableMap, varDataVal(ctbName), varDataLen(ctbName), &tableIdx, sizeof(tableIdx));
+              QUERY_CHECK_NULL(taosArrayPush(pVtbScan->childTableList, &pColRefArray), code, line, _return, terrno);
+              code = taosHashPut(pVtbScan->childTableMap, varDataVal(ctbName), varDataLen(ctbName), &tableIdx, sizeof(tableIdx));
+              QUERY_CHECK_CODE(code, line, _return);
             } else {
-              int32_t tableIdx = *(int32_t*)taosHashGet(pVtbScan->childTableMap, varDataVal(ctbName), varDataLen(ctbName));
-              SArray *pColRefArray = (SArray *)taosArrayGetP(pVtbScan->childTableList, tableIdx);
-              if (pColRefArray == NULL) {
-                qError("failed to get child table colref array for table %s", ctbName);
-                code = terrno;
-                goto _return;
-              }
-              taosArrayPush(pColRefArray, &kv);
+              int32_t *tableIdx = (int32_t*)taosHashGet(pVtbScan->childTableMap, varDataVal(ctbName), varDataLen(ctbName));
+              QUERY_CHECK_NULL(tableIdx, code, line, _return, terrno);
+              SArray *pColRefArray = (SArray *)taosArrayGetP(pVtbScan->childTableList, *tableIdx);
+              QUERY_CHECK_NULL(pColRefArray, code, line, _return, terrno);
+              QUERY_CHECK_NULL(taosArrayPush(pColRefArray, &kv), code, line, _return, terrno);
             }
           }
         }

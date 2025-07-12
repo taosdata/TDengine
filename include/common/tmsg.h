@@ -1567,6 +1567,7 @@ typedef struct {
 int32_t tSerializeSVStbRefDbsRsp(void* buf, int32_t bufLen, SVStbRefDbsRsp* pRsp);
 int32_t tDeserializeSVStbRefDbsRsp(void* buf, int32_t bufLen, SVStbRefDbsRsp* pRsp);
 void    tDestroySVStbRefDbsRsp(void* rsp);
+void    tFreeVStbRefDbsRsp(void* pRsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
