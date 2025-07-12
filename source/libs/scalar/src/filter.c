@@ -2291,10 +2291,11 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
         return code;
       }
 
-      size_t bufBytes = IS_VAR_DATA_TYPE(type) ? varDataTLen(out.columnData->pData)
-                                               : TMAX(out.columnData->info.bytes, sizeof(int64_t));
-      if (IS_STR_DATA_BLOB(type)) {
-        bufBytes = blobDataTLen(out.columnData->pData);
+      size_t bufBytes = 0;
+      if (IS_VAR_DATA_TYPE(type)) {
+        bufBytes = IS_STR_DATA_BLOB(type) ? blobDataTLen(out.columnData->pData) : varDataTLen(out.columnData->pData);
+      } else {
+        bufBytes = TMAX(out.columnData->info.bytes, sizeof(int64_t));
       }
 
       fi->data = taosMemoryCalloc(1, bufBytes);
@@ -2302,9 +2303,11 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
         FLT_ERR_RET(terrno);
       }
 
-      size_t valBytes = IS_VAR_DATA_TYPE(type) ? varDataTLen(out.columnData->pData) : out.columnData->info.bytes;
-      if (IS_STR_DATA_BLOB(type)) {
-        valBytes = blobDataTLen(out.columnData->pData);
+      size_t valBytes = 0;
+      if (IS_VAR_DATA_TYPE(type)) {
+        valBytes = IS_STR_DATA_BLOB(type) ? blobDataTLen(out.columnData->pData) : varDataTLen(out.columnData->pData);
+      } else {
+        valBytes = out.columnData->info.bytes;
       }
 
       (void)memcpy(fi->data, out.columnData->pData, valBytes);
