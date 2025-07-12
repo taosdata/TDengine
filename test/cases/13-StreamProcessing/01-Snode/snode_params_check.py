@@ -45,6 +45,7 @@ class TestStreamParametersCheck:
         self.createSnodeTest()
         self.createOneStream()
         self.checkStreamRunning()
+        self.getCpu()
         #check min value 
         self.checknumOfMnodeStreamMgmtThreads()
         self.checknumOfStreamMgmtThreads()
@@ -120,7 +121,14 @@ class TestStreamParametersCheck:
         if int(result) < 256:
             raise Exception(f"Error: streamNotifyFrameSize is {result}, expected at least 256 KB!")
         tdLog.info(f"streamNotifyFrameSize is {result}, test passed!")  
-    
+        
+
+    def getCpu(self):
+        cmd = "lscpu | grep -v -i numa | grep 'CPU(s):' | awk -F ':' '{print $2}' | head -n 1"
+        output = subprocess.check_output(cmd, shell=True).decode().strip()
+        tdLog.info(f"cpu num is {output}")
+
+        
     def createUser(self):
         tdLog.info(f"create user")
         tdSql.execute(f'create user {self.username1} pass "taosdata"')
