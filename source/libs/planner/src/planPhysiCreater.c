@@ -2142,19 +2142,19 @@ static int32_t getChildTuple(SDataBlockDescNode **pChildTuple, SNodeList* pChild
   if (isDynVirtualStableScan(nodesListGetNode(pChildren, 0))) {
     SPhysiNode* pDynNode = (SPhysiNode*)nodesListGetNode(pChildren, 0);
     if (pDynNode == NULL) {
-      planError("get child tuple failed, pDynNode is NULL");
+      planError("get child tuple failed, pDynNode is NULL, childrenNum:%d", pChildren->length);
       return TSDB_CODE_INVALID_PARA;
     }
     SPhysiNode* pVtbScan = (SPhysiNode*)nodesListGetNode(pDynNode->pChildren, 0);
     if (pVtbScan == NULL) {
-      planError("get child tuple failed, pVtbScan is NULL");
+      planError("get child tuple failed, pVtbScan is NULL, dynNode childrenNum:%d", pDynNode->pChildren->length);
       return TSDB_CODE_INVALID_PARA;
     }
     *pChildTuple = pVtbScan->pOutputDataBlockDesc;
   } else {
     SPhysiNode* pChild = (SPhysiNode*)nodesListGetNode(pChildren, 0);
     if (pChild == NULL) {
-      planError("get child tuple failed, pChild is NULL");
+      planError("get child tuple failed, pChild is NULL, childrenNum:%d", pChildren->length);
       return TSDB_CODE_INVALID_PARA;
     }
     *pChildTuple = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
