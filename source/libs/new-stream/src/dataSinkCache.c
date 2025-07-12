@@ -29,7 +29,7 @@ extern SDataSinkManager2 g_pDataSinkManager;
 SSlidingGrpMemList g_slidigGrpMemList = {0};
 
 void* getNextBuffStart(SAlignBlocksInMem* pAlignBlockInfo) {
-  return (void*)pAlignBlockInfo + sizeof(SAlignBlocksInMem) + pAlignBlockInfo->dataLen;
+  return (char*)pAlignBlockInfo + sizeof(SAlignBlocksInMem) + pAlignBlockInfo->dataLen;
 }
 
 void moveBlockBuf(SAlignBlocksInMem* pAlignBlockInfo, size_t dataEncodeBufSize) {
@@ -37,7 +37,7 @@ void moveBlockBuf(SAlignBlocksInMem* pAlignBlockInfo, size_t dataEncodeBufSize) 
   pAlignBlockInfo->dataLen += dataEncodeBufSize;
 }
 
-void* getWindowDataBuf(SSlidingWindowInMem* pWindowData) { return (void*)pWindowData + sizeof(SSlidingWindowInMem); }
+void* getWindowDataBuf(SSlidingWindowInMem* pWindowData) { return (char*)pWindowData + sizeof(SSlidingWindowInMem); }
 
 static int32_t getRangeInWindowBlock(SSlidingWindowInMem* pWindowData, int32_t tsColSlotId, TSKEY start, TSKEY end,
                                      SSDataBlock** ppBlock) {
@@ -82,7 +82,7 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
       return TSDB_CODE_STREAM_INTERNAL_ERROR;
     }
     while (pResult->winIndex < pBlockInfo->nWindow) {
-      SSlidingWindowInMem* pWindowData = ((void*)pBlockInfo + sizeof(SAlignBlocksInMem) + pResult->offset);
+      SSlidingWindowInMem* pWindowData = ((char*)pBlockInfo + sizeof(SAlignBlocksInMem) + pResult->offset);
 
       bool found = false;
       if (pWindowData->startTime > pResult->reqEndTime) {
