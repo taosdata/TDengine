@@ -502,6 +502,8 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
   }
 
   // push data to submit, rebuild empty data for next submit
+  if (!pTableCxt->hasBlob) pTableCxt->pData->pBlobRow = NULL;
+
   if (NULL == taosArrayPush(pVgCxt->pData->aSubmitTbData, pTableCxt->pData)) {
     return terrno;
   }
@@ -1022,7 +1024,13 @@ int32_t insResetBlob(SSubmitReq2* p) {
 
       *ppBlob = NULL;  // reset blob row to NULL, so that it will not be freed in destroy
     }
+  } else {
+    for (int32_t i = 0; i < taosArrayGetSize(p->aSubmitTbData); i++) {
+      SSubmitTbData* pSubmitTbData = taosArrayGet(p->aSubmitTbData, i);
+      pSubmitTbData->pBlobRow = NULL;  // reset blob row to NULL, so that it will not be freed in destroy
+    }
   }
+
   return code;
 }
 int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, SArray** pVgDataBlocks, bool append) {
