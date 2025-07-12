@@ -583,7 +583,7 @@ class TestStreamTriggerSliding:
         wait_for_stream_done(dst_table, f"select count(*) from {dst_table}_0", 1000)
 
     def create_and_check_stream_basic_17(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 17: Pass"""
+        """simple 17: taosd crash"""
         tdLog.info(f"start exec stream {stream_name}")
 
         tdSql.execute("create vtable vtb_1 (ts timestamp, col_1 int from c0.k, col_2 varchar(12) from c1.c1, "
