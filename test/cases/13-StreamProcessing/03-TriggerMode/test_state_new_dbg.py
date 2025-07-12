@@ -1796,7 +1796,7 @@ class TestStreamStateTrigger:
         def check1(self):
             tdSql.checkResultsByFunc(
                 sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and (table_name like "res_%")',
-                func=lambda: tdSql.getRows() == 6,
+                func=lambda: tdSql.getRows() == 4,
             )
 
             tdSql.checkTableSchema(
@@ -1805,88 +1805,35 @@ class TestStreamStateTrigger:
                 schema=[
                     ["firstts", "TIMESTAMP", 8, ""],
                     ["lastts", "TIMESTAMP", 8, ""],
-                    ["cnt_v", "BIGINT", 8, ""],
-                    ["sum_v", "BIGINT", 8, ""],
-                    ["avg_v", "DOUBLE", 8, ""],
+                    ["cnt_col_1", "BIGINT", 8, ""],
+                    ["sum_col_1", "BIGINT", 8, ""],
+                    ["avg_col_1", "DOUBLE", 8, ""],
+                    ["cnt_col_2", "DOUBLE", 8, ""],
+                    ["sum_col_2", "DOUBLE", 8, ""],
+                    ["avg_col_2", "DOUBLE", 8, ""],
                 ],
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_ct1",
+                sql=f"select firstts, lastts, cnt_col_1, sum_col_1, avg_col_1, cnt_col_2, sum_col_2, avg_col_2 from "
+                    f"{self.db}.res_ct1",
                 func=lambda: tdSql.getRows() == 3
                              and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
-                             and tdSql.compareData(0, 1, "2025-01-01 00:00:09")
-                             and tdSql.compareData(0, 2, 2)
-                             and tdSql.compareData(0, 3, 0)
-                             and tdSql.compareData(0, 4, 0)
+                             and tdSql.compareData(0, 1, "2025-01-01 00:00:40")
+                             and tdSql.compareData(0, 2, 7)
+                             and tdSql.compareData(0, 3, 154)
+                             and tdSql.compareData(0, 4, 22)
+                             and tdSql.compareData(0, 5, 7)
+                             and tdSql.compareData(0, 6, 539)
+                             and tdSql.compareData(0, 7, 77)
+
                              and tdSql.compareData(1, 0, "2025-01-01 00:00:10")
                              and tdSql.compareData(1, 1, "2025-01-01 00:00:19")
                              and tdSql.compareData(1, 2, 2)
                              and tdSql.compareData(1, 3, 2)
                              and tdSql.compareData(1, 4, 1)
-                             and tdSql.compareData(2, 0, "2025-01-01 00:00:20")
-                             and tdSql.compareData(2, 1, "2025-01-01 00:00:29")
-                             and tdSql.compareData(2, 2, 2)
-                             and tdSql.compareData(2, 3, 4)
-                             and tdSql.compareData(2, 4, 2),
+                             and tdSql.compareData(1, 5, 0)
+                             and tdSql.compareData(1, 6, None)
+                             and tdSql.compareData(1, 7, None)
             )
 
-            tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_ct1_1",
-                func=lambda: tdSql.getRows() == 3
-                             and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
-                             and tdSql.compareData(0, 1, "2025-01-01 00:00:09")
-                             and tdSql.compareData(0, 2, 2)
-                             and tdSql.compareData(0, 3, 0)
-                             and tdSql.compareData(0, 4, 0)
-                             and tdSql.compareData(1, 0, "2025-01-01 00:00:10")
-                             and tdSql.compareData(1, 1, "2025-01-01 00:00:19")
-                             and tdSql.compareData(1, 2, 2)
-                             and tdSql.compareData(1, 3, 2)
-                             and tdSql.compareData(1, 4, 1)
-                             and tdSql.compareData(2, 0, "2025-01-01 00:00:20")
-                             and tdSql.compareData(2, 1, "2025-01-01 00:00:29")
-                             and tdSql.compareData(2, 2, 2)
-                             and tdSql.compareData(2, 3, 4)
-                             and tdSql.compareData(2, 4, 2),
-            )
-
-            tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct1",
-                func=lambda: tdSql.getRows() == 3
-                             and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
-                             and tdSql.compareData(0, 1, "2025-01-01 00:00:09")
-                             and tdSql.compareData(0, 2, 2)
-                             and tdSql.compareData(0, 3, 0)
-                             and tdSql.compareData(0, 4, 0)
-                             and tdSql.compareData(1, 0, "2025-01-01 00:00:10")
-                             and tdSql.compareData(1, 1, "2025-01-01 00:00:19")
-                             and tdSql.compareData(1, 2, 2)
-                             and tdSql.compareData(1, 3, 2)
-                             and tdSql.compareData(1, 4, 1)
-                             and tdSql.compareData(2, 0, "2025-01-01 00:00:20")
-                             and tdSql.compareData(2, 1, "2025-01-01 00:00:29")
-                             and tdSql.compareData(2, 2, 2)
-                             and tdSql.compareData(2, 3, 4)
-                             and tdSql.compareData(2, 4, 2),
-            )
-
-            tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_1_ct2",
-                func=lambda: tdSql.getRows() == 3
-                             and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
-                             and tdSql.compareData(0, 1, "2025-01-01 00:00:09")
-                             and tdSql.compareData(0, 2, 2)
-                             and tdSql.compareData(0, 3, 0)
-                             and tdSql.compareData(0, 4, 0)
-                             and tdSql.compareData(1, 0, "2025-01-01 00:00:10")
-                             and tdSql.compareData(1, 1, "2025-01-01 00:00:19")
-                             and tdSql.compareData(1, 2, 2)
-                             and tdSql.compareData(1, 3, 2)
-                             and tdSql.compareData(1, 4, 1)
-                             and tdSql.compareData(2, 0, "2025-01-01 00:00:20")
-                             and tdSql.compareData(2, 1, "2025-01-01 00:00:29")
-                             and tdSql.compareData(2, 2, 2)
-                             and tdSql.compareData(2, 3, 4)
-                             and tdSql.compareData(2, 4, 2),
-            )
