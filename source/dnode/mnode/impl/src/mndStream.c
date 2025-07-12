@@ -2361,6 +2361,10 @@ static void addAllDbsIntoHashmap(SHashObj *pDBMap, SSdb *pSdb) {
     if (pIter == NULL) {
       break;
     }
+    if(pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
 
     code = taosHashPut(pDBMap, pVgroup->dbName, strlen(pVgroup->dbName), NULL, 0);
     sdbRelease(pSdb, pVgroup);

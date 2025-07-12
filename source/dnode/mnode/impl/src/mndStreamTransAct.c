@@ -802,6 +802,11 @@ int32_t mndStreamSetStopStreamTasksActions(SMnode* pMnode, STrans *pTrans, uint6
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
+    if(pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+
     if (pVgroup->dbUid == dbUid) {
       if ((code = doSetStopAllTasksAction(pMnode, pTrans, pVgroup)) != 0) {
         sdbCancelFetch(pSdb, pIter);

@@ -199,6 +199,10 @@ static int32_t mndCheckAndAddVgroupsInfo(SMnode *pMnode, SArray *pVgroupList, bo
     if (pIter == NULL) {
       break;
     }
+    if(pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
 
     SNodeEntry entry = {.nodeId = pVgroup->vgId, .hbTimestamp = pVgroup->updateTime};
     entry.epset = mndGetVgroupEpset(pMnode, pVgroup);

@@ -405,6 +405,13 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  {
+    .showType = QUERY_NODE_SHOW_MOUNTS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_MOUNTS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -9483,6 +9490,23 @@ static int32_t checkCreateDatabase(STranslateContext* pCxt, SCreateDatabaseStmt*
   return checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
 }
 
+static int32_t checkCreateMount(STranslateContext* pCxt, SCreateMountStmt* pStmt) {
+  if (NULL != strchr(pStmt->mountName, '_')) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
+                                   "The mount name cannot contain '_'");
+  }
+  if (IS_SYS_DBNAME(pStmt->mountName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "The mount name cannot equal system database: `%s`", pStmt->mountName);
+  }
+
+  if (pStmt->mountPath[0] == '\0') {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_INPUT, "The mount path is invalid");
+  }
+
+  return checkRangeOption(pCxt, TSDB_CODE_OUT_OF_RANGE, "dnodeId", pStmt->dnodeId, 1, INT32_MAX, false);
+}
+
 #define FILL_CMD_SQL(sql, sqlLen, pCmdReq, CMD_TYPE, genericCmd) \
   CMD_TYPE* pCmdReq = genericCmd;                                \
   char*     cmdSql = taosMemoryMalloc(sqlLen);                   \
@@ -9514,7 +9538,16 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCompactDbReq, pReq);
       break;
     }
-
+#ifdef USE_MOUNT
+    case TDMT_MND_CREATE_MOUNT: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateMountReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_MOUNT: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropMountReq, pReq);
+      break;
+    }
+#endif
     case TDMT_MND_TMQ_DROP_TOPIC: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropTopicReq, pReq);
       break;
@@ -9841,6 +9874,52 @@ static int32_t translateS3MigrateDatabase(STranslateContext* pCxt, SS3MigrateDat
   (void)tNameGetFullDbName(&name, req.db);
   return buildCmdMsg(pCxt, TDMT_MND_S3MIGRATE_DB, (FSerializeFunc)tSerializeSS3MigrateDbReq, &req);
 }
+
+#ifdef USE_MOUNT
+static int32_t translateCreateMount(STranslateContext* pCxt, SCreateMountStmt* pStmt) {
+  int32_t         code = 0, lino = 0;
+  SCreateMountReq createReq = {0};
+
+  TAOS_CHECK_EXIT(checkCreateMount(pCxt, pStmt));
+  createReq.nMounts = 1;
+  TSDB_CHECK_NULL((createReq.dnodeIds = taosMemoryMalloc(sizeof(int32_t) * createReq.nMounts)), code, lino, _exit,
+                  terrno);
+  TSDB_CHECK_NULL((createReq.mountPaths = taosMemoryMalloc(sizeof(char*) * createReq.nMounts)), code, lino, _exit,
+                  terrno);
+  TAOS_UNUSED(snprintf(createReq.mountName, sizeof(createReq.mountName), "%s", pStmt->mountName));
+  createReq.ignoreExist = pStmt->ignoreExists;
+  createReq.dnodeIds[0] = pStmt->dnodeId;
+  int32_t j = strlen(pStmt->mountPath) - 1;
+  while (j > 0 && (pStmt->mountPath[j] == '/' || pStmt->mountPath[j] == '\\')) {
+    pStmt->mountPath[j--] = '\0';  // remove trailing slashes
+  }
+  TSDB_CHECK_NULL((createReq.mountPaths[0] = taosMemoryMalloc(strlen(pStmt->mountPath) + 1)), code, lino, _exit,
+                  terrno);
+  TAOS_UNUSED(sprintf(createReq.mountPaths[0], "%s", pStmt->mountPath));
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_MOUNT, (FSerializeFunc)tSerializeSCreateMountReq, &createReq);
+  }
+_exit:
+  tFreeSCreateMountReq(&createReq);
+  return code;
+}
+
+static int32_t translateDropMount(STranslateContext* pCxt, SDropMountStmt* pStmt) {
+  if (pStmt->mountName[0] == '\0' || IS_SYS_DBNAME(pStmt->mountName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "Invalid mount name: `%s`",
+                                   pStmt->mountName);
+  }
+  int32_t       code = 0;
+  SDropMountReq dropReq = {0};
+  TAOS_UNUSED(snprintf(dropReq.mountName, sizeof(dropReq.mountName), "%s", pStmt->mountName));
+  dropReq.ignoreNotExists = pStmt->ignoreNotExists;
+
+  code = buildCmdMsg(pCxt, TDMT_MND_DROP_MOUNT, (FSerializeFunc)tSerializeSDropMountReq, &dropReq);
+  tFreeSDropMountReq(&dropReq);
+  return code;
+}
+#endif
 
 static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calBytes, bool virtualTable) {
   *pArray = taosArrayInit(LIST_LENGTH(pList), sizeof(SFieldWithOptions));
@@ -15004,6 +15083,14 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
       code = translateAlterSuperTable(pCxt, (SAlterTableStmt*)pNode);
       break;
+#ifdef USE_MOUNT
+    case QUERY_NODE_CREATE_MOUNT_STMT:
+      code = translateCreateMount(pCxt, (SCreateMountStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_MOUNT_STMT:
+      code = translateDropMount(pCxt, (SDropMountStmt*)pNode);
+      break;
+#endif
     case QUERY_NODE_CREATE_USER_STMT:
       code = translateCreateUser(pCxt, (SCreateUserStmt*)pNode);
       break;
@@ -19363,6 +19450,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
+    case QUERY_NODE_SHOW_MOUNTS_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_VTABLES_STMT:

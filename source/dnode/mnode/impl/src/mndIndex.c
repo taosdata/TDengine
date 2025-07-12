@@ -484,6 +484,11 @@ static int32_t mndProcessCreateIdxReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  if(pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
+
   pStb = mndAcquireStb(pMnode, createReq.stbName);
   if (pStb == NULL) {
     mError("idx:%s, failed to create since stb:%s not exist", createReq.idxName, createReq.stbName);
@@ -885,6 +890,11 @@ int32_t mndProcessDropTagIdxReq(SRpcMsg *pReq) {
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
     if (terrno != 0) code = terrno;
+    goto _OVER;
+  }
+
+  if(pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
     goto _OVER;
   }
 

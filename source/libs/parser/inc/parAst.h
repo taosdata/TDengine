@@ -222,6 +222,10 @@ SNode* createDefaultTableOptions(SAstCreateContext* pCxt);
 SNode* createAlterTableOptions(SAstCreateContext* pCxt);
 SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, void* pVal);
 
+SNode* createCreateMountStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pMountName, SToken* pDnodeId,
+                             SToken* pMountPath);
+SNode* createDropMountStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pDbName);
+
 STokenTriplet* createTokenTriplet(SAstCreateContext* pCxt, SToken pName);
 STokenTriplet* setColumnName(SAstCreateContext* pCxt, STokenTriplet* pTokenTri, SToken pName);
 SNode* createColumnRefNodeByName(SAstCreateContext* pCxt, STokenTriplet* pTokenTri);
