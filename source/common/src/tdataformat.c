@@ -106,10 +106,10 @@ static FORCE_INLINE void tRowBuildScanAddValue(SRowBuildScanInfo *sinfo, SColVal
   if (IS_VAR_DATA_TYPE(colVal->value.type)) {
     if (sinfo->hasBlob && IS_STR_DATA_BLOB(colVal->value.type)) {
       sinfo->tupleVarSize += tPutU32v(NULL, colVal->value.nData)     // size
-                             + sizeof(uint64_t);                     // value
+                             + BSE_SEQUECE_SIZE;                     // value
       sinfo->kvPayloadSize += tPutI16v(NULL, colVal->cid)            // colId
                               + tPutU32v(NULL, colVal->value.nData)  // size
-                              + sizeof(uint64_t);                    // seq offset
+                              + BSE_SEQUECE_SIZE;                    // seq offset
     } else {
       sinfo->tupleVarSize += tPutU32v(NULL, colVal->value.nData)  // size
                              + colVal->value.nData;               // value

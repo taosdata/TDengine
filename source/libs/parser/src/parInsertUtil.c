@@ -702,9 +702,9 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
       taosMemoryFree(pTbCtx->pData->pCreateTbReq);
       pTbCtx->pData->pCreateTbReq = NULL;
     }
-
     return TSDB_CODE_SUCCESS;
   }
+
   if (pTbCtx->hasBlob == 0) {
     pTbCtx->pData->pBlobRow = NULL;  // if no blob, set it to NULL
   }
