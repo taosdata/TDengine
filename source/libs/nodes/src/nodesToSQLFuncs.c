@@ -158,13 +158,13 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
       SOperatorNode *pOpNode = (SOperatorNode *)pNode;
       *len += tsnprintf(buf + *len, bufSize - *len, "(");
       if (pOpNode->pLeft) {
-        NODES_ERR_RET(nodesNodeToSQL(pOpNode->pLeft, buf, bufSize, len));
+        NODES_ERR_RET(nodesNodeToSQLFormat(pOpNode->pLeft, buf, bufSize, len, true));
       }
 
       *len += tsnprintf(buf + *len, bufSize - *len, " %s ", operatorTypeStr(pOpNode->opType));
 
       if (pOpNode->pRight) {
-        NODES_ERR_RET(nodesNodeToSQL(pOpNode->pRight, buf, bufSize, len));
+        NODES_ERR_RET(nodesNodeToSQLFormat(pOpNode->pRight, buf, bufSize, len, true));
       }
 
       *len += tsnprintf(buf + *len, bufSize - *len, ")");
@@ -182,7 +182,7 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
         if (!first) {
           *len += tsnprintf(buf + *len, bufSize - *len, " %s ", logicConditionTypeStr(pLogicNode->condType));
         }
-        NODES_ERR_RET(nodesNodeToSQL(node, buf, bufSize, len));
+        NODES_ERR_RET(nodesNodeToSQLFormat(node, buf, bufSize, len, true));
         first = false;
       }
 
@@ -201,7 +201,7 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
         if (!first) {
           *len += tsnprintf(buf + *len, bufSize - *len, ", ");
         }
-        NODES_ERR_RET(nodesNodeToSQL(node, buf, bufSize, len));
+        NODES_ERR_RET(nodesNodeToSQLFormat(node, buf, bufSize, len, true));
         first = false;
       }
 
@@ -227,7 +227,7 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
             }
           }
         }
-        NODES_ERR_RET(nodesNodeToSQL(node, buf, bufSize, len));
+        NODES_ERR_RET(nodesNodeToSQLFormat(node, buf, bufSize, len, true));
         first = false;
       }
 
