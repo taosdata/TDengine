@@ -13,8 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tdataformat.h"
-#include "tencode.h"
 #include "tmsg.h"
 #include "tq.h"
 
