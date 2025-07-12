@@ -1008,7 +1008,7 @@ int32_t vmMountCheckRunning(const char *mountName, const char *mountPath, TdFile
     if (ret == 0) break;
     taosMsleep(1000);
     ++retryTimes;
-    dError("mount:%s, failed to lock file:%s since %s, retryTimes:%d", mountName, filepath, tstrerror(code),
+    dError("mount:%s, failed to lock file:%s since %s, retryTimes:%d", mountName, filepath, tstrerror(ret),
            retryTimes);
   } while (retryTimes < retryLimit);
   TAOS_CHECK_EXIT(ret);
