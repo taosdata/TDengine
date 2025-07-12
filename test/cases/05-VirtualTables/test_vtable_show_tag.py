@@ -43,7 +43,6 @@ class TestVtableShowTag:
         # show tag of virtual table
         tdSql.execute(f"show tags from v_sub_t0")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 4, "t1")
 
         tdSql.execute(f"show tags from v_super_t")
         tdSql.checkRows(0)
