@@ -723,13 +723,6 @@ _exit:
 }
 static int32_t inline vnodeSubmitBlobData(SVnode *pVnode, SSubmitTbData *pData) {
   int32_t code = 0;
-  // int32_t nrow = 0;
-  // int32_t nblob = 0;
-  // uTrace("vgId:%d,submit blob data, nSubmitTbData:%d", TD_VID(pVnode), (int)(TARRAY_SIZE(pReq->aSubmitTbData)));
-  // for (int32_t i = 0; i < TARRAY_SIZE(pReq->aSubmitTbData); ++i) {
-  // SSubmitTbData *pSubmitTbData = taosArrayGet(pReq->aSubmitTbData, i);
-  // nrow += taosArrayGetSize(pSubmitTbData->aRowP);
-  // nblob += taosArrayGetSize(pSubmitTbData->pBlobRow->pSeqTable);
   if (pData->flags & SUBMIT_REQ_WITH_BLOB) {
     if (pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       code = vnodeSubmitSubColBlobData(pVnode, pData);
@@ -737,8 +730,6 @@ static int32_t inline vnodeSubmitBlobData(SVnode *pVnode, SSubmitTbData *pData) 
       code = vnodeSubmitSubRowBlobData(pVnode, pData);
     }
   }
-  //}
-  // uTrace("vgId:%d,submit blob data %d, row:%d", TD_VID(pVnode), nblob, nrow);
 
   return code;
 }
@@ -2041,6 +2032,7 @@ static int32_t vnodeSubmitReqConvertToSubmitReq2(SVnode *pVnode, SSubmitReq *pRe
       code = vnodeTSRowConvertToColValArray(&cxt);
       if (TSDB_CODE_SUCCESS == code) {
         SRow            **pNewRow = taosArrayReserve(cxt.pTbData->aRowP, 1);
+
         SRowBuildScanInfo sinfo = {0};
         code = tRowBuild(cxt.pColValues, cxt.pTbSchema, pNewRow, &sinfo);
       }

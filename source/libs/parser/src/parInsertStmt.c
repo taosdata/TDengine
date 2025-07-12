@@ -56,7 +56,6 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
 
   int32_t colNum = taosArrayGetSize(pNew->aCol);
   for (int32_t i = 0; i < colNum; ++i) {
-    flag = pDataBlock->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT;
     if (pDataBlock->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
       SColData* pCol = (SColData*)taosArrayGet(pNew->aCol, i);
       tColDataDeepClear(pCol);
@@ -72,13 +71,6 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
 
   if (pDataBlock->hasBlob) {
     code = tBlobRowCreate(1024, flag, &pNew->pBlobRow);
-  }
-
-  if (code == TSDB_CODE_SUCCESS) {
-    pNew->aRowP = taosArrayInit(20, POINTER_BYTES);
-    if (NULL == pNew->aRowP) {
-      code = terrno;
-    }
   }
 
   return code;
