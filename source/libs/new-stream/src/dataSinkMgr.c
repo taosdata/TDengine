@@ -424,7 +424,7 @@ int32_t putDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t groupId, 
     }
   }
 
-  code = buildAlignWindowInMemBlock(pAlignGrpMgr, pBlock, pStreamTaskMgr->tsSlotId, wstart, wend);
+  code = buildAlignWindowInMemBlock(pAlignGrpMgr, pBlock, pStreamTaskMgr->tsSlotId, wstart, wend, startIndex, endIndex);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
