@@ -2,15 +2,15 @@ import time
 from new_test_framework.utils import tdLog, tdSql, clusterComCheck, tdStream, StreamItem
 
 
-class TestStreamSubqueryState:
+class TestStreamSubqueryCount:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stream_subquery_state(self):
-        """Subquery in State
+    def test_stream_subquery_count_win1(self):
+        """Subquery in Count Window 1
 
-        1. Use state trigger mode
+        1. Use count trigger mode
 
         2. Output results include 4 dimensions:
             No grouping
@@ -116,25 +116,18 @@ class TestStreamSubqueryState:
         tdSql.execute(ntb)
 
         vstb = "create stable tdb.vtriggers (ts timestamp, c1 int, c2 int) tags(id int) VIRTUAL 1"
-        vctb1 = (
-            "create vtable tdb.v1 (tdb.t1.c1, tdb.t1.c2) using tdb.vtriggers tags(1)"
-        )
-        vctb2 = (
-            "create vtable tdb.v2 (tdb.t1.c1, tdb.t2.c2) using tdb.vtriggers tags(2)"
-        )
+        vctb = "create vtable tdb.v1 (tdb.t1.c1, tdb.t2.c2) using tdb.vtriggers tags(1)"
         tdSql.execute(vstb)
-        tdSql.execute(vctb1)
-        tdSql.execute(vctb2)
+        tdSql.execute(vctb)
 
     def writeTriggerData(self):
         tdLog.info("write data to trigger table")
         sqls = [
-            "insert into tdb.t1 values ('2025-01-01 00:00:00', 0,  0  ) ('2025-01-01 00:01:00', 0,  10 ) ('2025-01-01 00:05:00', 10, 0)",
-            "insert into tdb.t2 values ('2025-01-01 00:15:00', 11, 110) ('2025-01-01 00:16:00', 11, 120) ('2025-01-01 00:20:00', 21, 210)",
-            "insert into tdb.t3 values ('2025-01-01 00:20:00', 20, 210)",
-            "insert into tdb.n1 values ('2025-01-01 00:25:00', 25, 0  ) ('2025-01-01 00:26:00', 25, 10 ) ('2025-01-01 00:30:00', 30, 0)",
-            "insert into tdb.t1 values ('2025-01-01 00:06:00', 10, 10 ) ('2025-01-01 00:10:00', 20, 0  ) ('2025-01-01 00:11:00', 20, 10 ) ('2025-01-01 00:30:00', 30, 0) ('2025-01-01 00:31:00', 30, 10) ('2025-01-01 00:35:00', 40, 0) ('2025-01-01 00:36:00', 40, 2)",
-            "insert into tdb.n1 values ('2025-01-01 00:31:00', 30, 10 ) ('2025-01-01 00:40:00', 40, 0  )",
+            "insert into tdb.t1 values ('2025-01-01 00:00:00', 0,  0  ) ('2025-01-01 00:05:00', 5,  50 )",
+            "insert into tdb.t2 values ('2025-01-01 00:15:00', 15, 150)",
+            "insert into tdb.n1 values ('2025-01-01 00:25:00', 25, 250)",
+            "insert into tdb.t1 values ('2025-01-01 00:10:00', 10, 100) ('2025-01-01 00:30:00', 30, 300)",
+            "insert into tdb.n1 values ('2025-01-01 00:30:00', 30, 300)",
         ]
         tdSql.executes(sqls)
 
@@ -151,30 +144,15 @@ class TestStreamSubqueryState:
     def createStreams(self):
         self.streams = []
 
-        # stream = StreamItem(
-        #     id=56,
-        #     stream="create stream rdb.s56 state_window(c1) from tdb.v1 into rdb.r56 as select _wstart ws, _wend we, _twstart tws, _twend + 4m twe, first(c1) cf, last(c1) cl, count(c1) cc from %%trows where ts >= _twstart and ts < _twend + 4m interval(1m) fill(prev)",
-        #     res_query="select * from rdb.r56 where ws >= '2025-01-01 00:00:00.000' and we <= '2025-01-01 00:05:00.000' ",
-        #     exp_query="select _wstart ws, _wend we, cast('2025-01-01 00:00:00.000' as timestamp) tws, cast('2025-01-01 00:05:00.000' as timestamp) twe, first(c1) cf, last(c1) cl, count(c1) cc from tdb.v1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:05:00.000' interval(1m) fill(prev);",
-        # )
-
-        # stream = StreamItem(
-        #     id=27,
-        #     stream="create stream rdb.s27 state_window(c1) from tdb.v1 partition by tbname into rdb.r27 as select _twstart tw, sum(cint) c1, count(cint) c2 from qdb.vmeters where cts >= _twstart and cts < _twstart + 5m and tbname=%%1",
-        #     res_query="select * from rdb.r27 where tag_tbname='v1' limit 3",
-        #     exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.vmeters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:15:00.000' and tbname='v1' partition by tbname interval(5m);",
-        #     check_func=self.check27,
-        # )
-        # # self.streams.append(stream) TD-36353
-
         stream = StreamItem(
-            id=46,
-            stream="create stream rdb.s46 state_window(c1) from tdb.v1 into rdb.r46 as select _twstart ts, count(c1) ccnt, sum(c2) csum, first(id) cfirst from %%trows",
-            res_query="select ts, ccnt, csum, cfirst from rdb.r46 limit 4",
-            exp_query="select _wstart, count(*), sum(c2), first(id) from tdb.v1 state_window(c1) limit 4",
+            id=131,
+            stream="create stream rdb.s131 count_window(1, c1) from tdb.v1 partition by id, tbname into rdb.r131 as select ta.ts tats, tb.cts tbts, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2, _twstart, _twend from %%trows ta right join qdb.t1 tb on ta.ts=tb.cts where ta.ts >= _twstart and ta.ts < _twend + 5m;",
+            res_query="select tats, tbts, tac1, tac2, tbc1, tbc2 from rdb.r131",
+            exp_query="select ta.ts tats, tb.cts tbts, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2 from tdb.t1 ta right join qdb.t1 tb on ta.ts=tb.cts where ta.ts >= '2025-01-01 00:00:00.000' and ta.ts < '2025-01-01 00:35:00.000';",
         )
-        self.streams.append(stream)
+        self.streams.append(stream)    
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()
+
