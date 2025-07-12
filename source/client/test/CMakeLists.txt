@@ -66,6 +66,13 @@ TARGET_LINK_LIBRARIES(
         os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
 )
 
+ADD_EXECUTABLE(clientBITest clientBITests.cpp)
+DEP_ext_gtest(clientBITest)
+TARGET_LINK_LIBRARIES(
+        clientBITest PRIVATE
+        os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
+)
+
 TARGET_INCLUDE_DIRECTORIES(
         clientTest
         PUBLIC "${TD_SOURCE_DIR}/include/client/"
@@ -74,6 +81,12 @@ TARGET_INCLUDE_DIRECTORIES(
 
 TARGET_INCLUDE_DIRECTORIES(
         connectOptionsTest
+        PUBLIC "${TD_SOURCE_DIR}/include/client/"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        clientBITest
         PUBLIC "${TD_SOURCE_DIR}/include/client/"
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
@@ -94,6 +107,10 @@ IF(${TD_LINUX})
         add_test(
                 NAME stmtTest
                 COMMAND stmtTest
+        )
+        add_test(
+                NAME clientBITest
+                COMMAND clientBITest
         )
 ENDIF ()
 

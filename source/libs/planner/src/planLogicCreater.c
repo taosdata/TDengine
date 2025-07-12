@@ -605,12 +605,13 @@ static int32_t createRefScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
 
   if (TSDB_CODE_SUCCESS == code) {
-    pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType, pSelect->tagScan);
+    code = addDefaultScanCol(pRealTable, &pScan->pScanCols);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = addDefaultScanCol(pRealTable, &pScan->pScanCols);
+    pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType, pSelect->tagScan);
   }
+
   *pLogicNode = (SLogicNode*)pScan;
   pCxt->hasScan = true;
 
