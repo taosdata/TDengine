@@ -237,11 +237,32 @@ void stmDestroySStreamInfo(void* param) {
   }
   
   SStreamInfo* p = (SStreamInfo*)param;
+
+  SListIter iter = {0};
+  SListNode* listNode = NULL;  
+  tdListInitIter(p->readerList, &iter, TD_LIST_FORWARD);
+  while ((listNode = tdListNext(&iter)) != NULL) {
+    SStreamTask* pTask = (SStreamTask*)listNode->data;
+    SListNode* tmp = tdListPopNode(p->readerList, listNode);
+    ST_TASK_DLOG("task removed from stream taskList, remain:%d", TD_DLIST_NELES(p->readerList));
+    taosMemoryFreeClear(tmp);
+  }
   tdListFree(p->readerList);
   p->readerList = NULL;
+
   taosMemoryFreeClear(p->triggerTask);
+
+  memset(&iter, 0, sizeof(iter));
+  tdListInitIter(p->runnerList, &iter, TD_LIST_FORWARD);
+  while ((listNode = tdListNext(&iter)) != NULL) {
+    SStreamTask* pTask = (SStreamTask*)listNode->data;
+    SListNode* tmp = tdListPopNode(p->runnerList, listNode);
+    ST_TASK_DLOG("task removed from stream taskList, remain:%d", TD_DLIST_NELES(p->runnerList));
+    taosMemoryFreeClear(tmp);
+  }
   tdListFree(p->runnerList);
   p->runnerList = NULL;
+
   taosArrayDestroy(p->undeployReaders);
   p->undeployReaders = NULL;
   taosArrayDestroy(p->undeployRunners);
@@ -841,9 +862,10 @@ _end:
   return code;
 }
 #else
-int32_t streamSendNotifyContent(SStreamTask* pTask, int32_t triggerType, int64_t groupId, const SArray* pNotifyAddrUrls,
-                                int32_t notifyErrorHandle, const SSTriggerCalcParam* pParams, int32_t nParam) {
-  ST_TASK_ELOG("stream notify events is not supported on windows");
+int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, int32_t triggerType, int64_t groupId,
+                                const SArray* pNotifyAddrUrls, int32_t errorHandle, const SSTriggerCalcParam* pParams,
+                                int32_t nParam) {
+  ST_TASK_ELOG("stream notify events is not supported on windows, streamName:%s", streamName);
   return TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS;
 }
 #endif
