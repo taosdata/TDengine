@@ -452,9 +452,6 @@ int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, c
     } else {
       bytes = -1;
     }
-    // code = tColDataAddValueByBind(pCol, pBind,
-    //                               IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
-    //                               initCtxAsText, checkWKB);
     code = tColDataAddValueByBind(pCol, pBind, bytes, initCtxAsText, checkWKB);
     if (code) {
       goto _return;
