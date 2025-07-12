@@ -66,6 +66,7 @@ typedef struct {
   void*              pWorkerCb;
   bool               localExec;
   int64_t            uid;
+  void*              streamRtInfo;
 } SReadHandle;
 
 typedef struct SStreamInserterParam {
@@ -242,17 +243,9 @@ const SSchemaWrapper* qExtractSchemaFromTask(qTaskInfo_t tinfo);
 
 const char* qExtractTbnameFromTask(qTaskInfo_t tinfo);
 
-void* qExtractReaderFromStreamScanner(void* scanner);
-void  qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
+void* qExtractReaderFromTmqScanner(void* scanner);
+void  qExtractTmqScanner(qTaskInfo_t tinfo, void** scanner);
 
-int32_t  qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo);
-int32_t  qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange* pVerRange, STimeWindow* pWindow);
-int32_t  qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange* pVerRange, STimeWindow* pWindow);
-int32_t  qStreamRecoverFinish(qTaskInfo_t tinfo);
-bool     qStreamScanhistoryFinished(qTaskInfo_t tinfo);
-int32_t  qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo);
-int32_t  qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval,
-                                    STimeWindow* pLastWindow, TSKEY* pRecInteral);
 int32_t  qStreamOperatorReleaseState(qTaskInfo_t tInfo);
 int32_t  qStreamOperatorReloadState(qTaskInfo_t tInfo);
 int32_t  streamCollectExprsForReplace(qTaskInfo_t tInfo, SArray* pExprs);
@@ -262,6 +255,7 @@ void     streamDestroyExecTask(qTaskInfo_t tInfo);
 int32_t  qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t uid, int8_t tableType,
                                          SNodeList* pGroupTags, bool groupSort, SNode* pTagCond, SNode* pTagIndexCond,
                                          SStorageAPI* storageAPI, void** pTableListInfo, SHashObj* groupIdMap);
+int32_t  qStreamSetTableList(void** pTableListInfo, STableKeyInfo* pKeyInfo);
 int32_t  qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size);
 uint64_t qStreamGetGroupId(void* pTableListInfo, int64_t uid);
 void     qStreamDestroyTableList(void* pTableListInfo);
@@ -282,7 +276,6 @@ int32_t setVgVerColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData
 
 
 int32_t streamCalcOutputTbName(SNode *pExpr, char *tbname, const SStreamRuntimeFuncInfo *pPartColVals);
-void    streamSetTaskRuntimeInfo(qTaskInfo_t tinfo, SStreamRuntimeInfo* pRuntimeInfo);
 
 typedef void (*getMnodeEpset_f)(void *pDnode, SEpSet *pEpset);
 typedef int32_t (*getDnodeId_f)(void *pData);
@@ -305,6 +298,8 @@ int32_t cloneStreamInserterParam(SStreamInserterParam** pDst, SStreamInserterPar
 void    destroyStreamInserterParam(SStreamInserterParam* pParam);
 int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx);
 int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams);
+int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t rowStartIdx, int32_t rowEndIdx,  const SStreamRuntimeFuncInfo* pExtraParams);
+void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 
 #ifdef __cplusplus
 }

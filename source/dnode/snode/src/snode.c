@@ -38,7 +38,7 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
 }
 
 int32_t sndInit(SSnode *pSnode) {
-  streamSetSnodeEnabled();
+  streamSetSnodeEnabled(&pSnode->msgCb);
   return 0;
 }
 
@@ -47,7 +47,7 @@ void sndClose(SSnode *pSnode) {
   taosMemoryFree(pSnode);
 }
 
-static int32_t handleTriggerCalcReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+static int32_t handleTriggerCalcReq(SSnode* pSnode, void* pWorkerCb, SRpcMsg* pRpcMsg) {
   SSTriggerCalcRequest req = {0};
   SStreamRunnerTask* pTask = NULL;
   void* taskAddr = NULL;
@@ -58,6 +58,7 @@ static int32_t handleTriggerCalcReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   req.brandNew = true;
   req.execId = -1;
   pTask->pMsgCb = &pSnode->msgCb;
+  pTask->pWorkerCb = pWorkerCb;
   req.curWinIdx = 0;
   TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &req));
 
@@ -91,18 +92,19 @@ static int32_t handleSyncWriteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   void*   data = NULL;
   int64_t dataLen = 0;
   int32_t code = streamReadCheckPoint(streamId, &data, &dataLen);
-  if ((errno == ENOENT && ver == -1) || code != 0){
+  if (code != 0 || (terrno == TAOS_SYSTEM_ERROR(ENOENT) && ver == -1)){
     goto end;
   }
-  if (errno == ENOENT || ver > *(int32_t*)data) {
+  if (terrno == TAOS_SYSTEM_ERROR(ENOENT) || ver > *(int32_t*)data) {
     int32_t ret = streamWriteCheckPoint(streamId, POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead));
     stDebug("[checkpoint] streamId:%" PRIx64 ", checkpoint local updated, ver:%d, dataLen:%" PRId64 ", ret:%d", streamId, ver, dataLen, ret);
   }
-  if (errno == ENOENT || ver >= *(int32_t*)data) {
+  if (terrno == TAOS_SYSTEM_ERROR(ENOENT) || ver >= *(int32_t*)data) {
     stDebug("[checkpoint] streamId:%" PRIx64 ", checkpoint no need send back, ver:%d, dataLen:%" PRId64, streamId, ver, dataLen);
     dataLen = 0;
     taosMemoryFreeClear(data);
   }
+  
 end:
   if (data == NULL) {
     rsp.contLen = INT_BYTES + LONG_BYTES;
@@ -123,6 +125,7 @@ end:
       taosMemoryFreeClear(data); 
     } 
   }
+  
   rpcSendResponse(&rsp);
   return 0;
 }
@@ -189,7 +192,7 @@ end:
   return code;
 }
 
-static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* pRpcMsg) {
   int32_t code = 0, lino = 0;
   void* taskAddr = NULL;
   SResFetchReq req = {0};
@@ -217,6 +220,8 @@ static int32_t handleStreamFetchData(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   TAOS_CHECK_EXIT(streamAcquireTask(calcReq.streamId, calcReq.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));
 
   pTask->pMsgCb = &pSnode->msgCb;
+  pTask->pWorkerCb = pWorkerCb;
+  
   TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &calcReq));
 
   TAOS_CHECK_EXIT(buildFetchRsp(calcReq.pOutBlock, &buf, &size, 0, false));
@@ -261,7 +266,7 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
 
 _exit:
 
-  stsDebug("task %" PRIx64 " TDMT_STREAM_FETCH_FROM_CACHE_RSP with code:%d size:%d", req.taskId, code, (int32_t)size);  
+  stsDebug("task %" PRIx64 " TDMT_STREAM_FETCH_FROM_CACHE_RSP with code:%d rows:%" PRId64 ", size:%d", req.taskId, code, readInfo.pBlock ? readInfo.pBlock->info.rows : 0, (int32_t)size);  
   SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_FETCH_FROM_CACHE_RSP, .contLen = size, .pCont = buf, .info = pRpcMsg->info};
   tmsgSendRsp(&rsp);
 
@@ -275,11 +280,24 @@ _exit:
   return code;
 }
 
-int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
+static void sndSendErrorRrsp(SRpcMsg *pMsg, int32_t errCode) {
+  SRpcMsg             rspMsg = {0};
+
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = NULL;
+  rspMsg.contLen = 0;
+  rspMsg.code = errCode;
+  rspMsg.msgType = pMsg->msgType;
+
+  tmsgSendRsp(&rspMsg);
+}
+
+
+int32_t sndProcessStreamMsg(SSnode *pSnode, void *pWorkerCb, SRpcMsg *pMsg) {
   int32_t code = 0, lino = 0;
   switch (pMsg->msgType) {
     case TDMT_STREAM_TRIGGER_CALC:
-      TAOS_CHECK_EXIT(handleTriggerCalcReq(pSnode, pMsg));
+      TAOS_CHECK_EXIT(handleTriggerCalcReq(pSnode, pWorkerCb, pMsg));
       break;
     case TDMT_STREAM_DELETE_CHECKPOINT:
       TAOS_CHECK_EXIT(handleSyncDeleteCheckPointReq(pSnode, pMsg));
@@ -291,7 +309,7 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       TAOS_CHECK_EXIT(handleSyncWriteCheckPointRsp(pSnode, pMsg));
       break;
     case TDMT_STREAM_FETCH_FROM_RUNNER:
-      TAOS_CHECK_EXIT(handleStreamFetchData(pSnode, pMsg));
+      TAOS_CHECK_EXIT(handleStreamFetchData(pSnode, pWorkerCb, pMsg));
       break;
     case TDMT_STREAM_FETCH_FROM_CACHE:
       TAOS_CHECK_EXIT(handleStreamFetchFromCache(pSnode, pMsg));

@@ -33,7 +33,7 @@ static int32_t streamHbSendRequestMsg(SStreamHbMsg* pMsg, SEpSet* pEpset) {
   void* buf = rpcMallocCont(tlen + sizeof(SStreamMsgGrpHeader));
   TSDB_CHECK_NULL(buf, code, lino, _exit, terrno);
 
-  ((SStreamMsgGrpHeader *)buf)->streamGid = htonl(pMsg->streamGId);
+  ((SStreamMsgGrpHeader *)buf)->streamGid = pMsg->streamGId;
   void *abuf = POINTER_SHIFT(buf, sizeof(SStreamMsgGrpHeader));
 
   tEncoderInit(&encoder, abuf, tlen);
@@ -123,7 +123,9 @@ void streamHbStart(void* param, void* tmrId) {
 _exit:
 
   streamTmrStart(streamHbStart, STREAM_HB_INTERVAL_MS, NULL, gStreamMgmt.timer, &gStreamMgmt.hb.hbTmr, "stream-hb");
-  
+
+  tCleanupStreamHbMsg(&reqMsg, false);
+
   if (code) {
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
@@ -166,7 +168,7 @@ int32_t streamHbProcessRspMsg(SMStreamHbRspMsg* pRsp) {
   int32_t      code = 0;
   int32_t      lino = 0;
 
-  stDebug("start to process stream hb rsp msg");
+  stDebug("start to process stream hb rsp msg, gid:%d", pRsp->streamGId);
 
   gStreamMgmt.hb.lastErrCode = 0;
 
@@ -180,12 +182,12 @@ int32_t streamHbProcessRspMsg(SMStreamHbRspMsg* pRsp) {
     TAOS_CHECK_EXIT(smDeployStreams(&pRsp->deploy));
   }
 
-  if (pRsp->start.taskList) {
-    TAOS_CHECK_EXIT(smStartTasks(&pRsp->start));
-  }
-
   if (pRsp->rsps.rspList) {
     TAOS_CHECK_EXIT(smHandleMgmtRsp(&pRsp->rsps));
+  }
+
+  if (pRsp->start.taskList) {
+    TAOS_CHECK_EXIT(smStartTasks(&pRsp->start));
   }
 
 _exit:
@@ -195,6 +197,8 @@ _exit:
   } else {
     stDebug("end to process stream hb rsp msg");
   }
+
+  tDeepFreeSMStreamHbRspMsg(pRsp);
   
   return code;
 }

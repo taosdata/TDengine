@@ -35,7 +35,6 @@ typedef struct SVirtualTableScanInfo {
   SSDataBlock*   pIntermediateBlock;   // to hold the intermediate result
   SSDataBlock*   pInputBlock;
   SHashObj*      dataSlotMap;
-  SHashObj*      tagSlotMap;
   int32_t        tsSlotId;
   int32_t        tagBlockId;
   int32_t        tagDownStreamId;
@@ -715,7 +714,7 @@ void destroyVirtualTableScanOperatorInfo(void* param) {
   tsortDestroySortHandle(pInfo->pSortHandle);
   pInfo->pSortHandle = NULL;
   taosArrayDestroy(pInfo->pSortInfo);
-  pInfo->pSortHandle = NULL;
+  pInfo->pSortInfo = NULL;
 
   blockDataDestroy(pInfo->pIntermediateBlock);
   pInfo->pIntermediateBlock = NULL;
@@ -733,11 +732,12 @@ void destroyVirtualTableScanOperatorInfo(void* param) {
       taosMemoryFree(pCtx);
     }
     taosArrayDestroy(pInfo->pSortCtxList);
+    pInfo->pSortCtxList = NULL;
   }
   taosMemoryFreeClear(param);
 }
 
-int32_t extractColMap(SNodeList* pNodeList, SHashObj** pSlotMap, SHashObj** pTagSlotMap, int32_t *tsSlotId, int32_t *tagBlockId) {
+int32_t extractColMap(SNodeList* pNodeList, SHashObj** pSlotMap, int32_t *tsSlotId, int32_t *tagBlockId) {
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -750,8 +750,6 @@ int32_t extractColMap(SNodeList* pNodeList, SHashObj** pSlotMap, SHashObj** pTag
   *tagBlockId = -1;
   *pSlotMap = taosHashInit(numOfCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   TSDB_CHECK_NULL(*pSlotMap, code, lino, _return, terrno);
-  *pTagSlotMap = taosHashInit(numOfCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
-  TSDB_CHECK_NULL(*pTagSlotMap, code, lino, _return, terrno);
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnNode* pColNode = (SColumnNode*)nodesListGetNode(pNodeList, i);
@@ -762,8 +760,8 @@ int32_t extractColMap(SNodeList* pNodeList, SHashObj** pSlotMap, SHashObj** pTag
     } else if (pColNode->hasRef) {
       int32_t slotKey = pColNode->dataBlockId << 16 | pColNode->slotId;
       VTS_ERR_JRET(taosHashPut(*pSlotMap, &slotKey, sizeof(slotKey), &i, sizeof(i)));
-    } else if (pColNode->colType == COLUMN_TYPE_TAG) {
-      VTS_ERR_JRET(taosHashPut(*pTagSlotMap, &i, sizeof(i), &pColNode->slotId, sizeof(pColNode->slotId)));
+    } else if (pColNode->colType == COLUMN_TYPE_TAG || '\0' == pColNode->tableAlias[0]) {
+      // tag column or pseudo column's function
       *tagBlockId = pColNode->dataBlockId;
     }
   }
@@ -778,39 +776,48 @@ _return:
   return code;
 }
 
-static int32_t createVtbExprInfo(SNodeList* pNodeList, SExprInfo** pExprInfo, int32_t* numOfExprs, SHashObj** pTagSlotMap) {
-  QRY_PARAM_CHECK(pExprInfo);
+int32_t resetVirtualTableMergeOperState(SOperatorInfo* pOper) {
+  int32_t code = 0, lino = 0;
+  SVirtualScanMergeOperatorInfo* pMergeInfo = pOper->info;
+  SVirtualScanPhysiNode* pPhynode = (SVirtualScanPhysiNode*)pOper->pPhyNode;
+  SVirtualTableScanInfo* pInfo = &pMergeInfo->virtualScanInfo;
+  
+  pOper->status = OP_NOT_OPENED;
+  resetBasicOperatorState(&pMergeInfo->binfo);
 
-  int32_t    code = 0;
-  int32_t    lino = 0;
-  SExprInfo* pExprs = NULL;
+  tsortDestroySortHandle(pInfo->pSortHandle);
+  pInfo->pSortHandle = NULL;
+  // taosArrayDestroy(pInfo->pSortInfo);
+  // pInfo->pSortInfo = NULL;
 
-  *numOfExprs = LIST_LENGTH(pNodeList);
-  if (*numOfExprs == 0) {
-    return code;
+  blockDataDestroy(pInfo->pIntermediateBlock);
+  pInfo->pIntermediateBlock = NULL;
+
+  blockDataDestroy(pInfo->pInputBlock);
+  pInfo->pInputBlock = createDataBlockFromDescNode(((SPhysiNode*)pPhynode)->pOutputDataBlockDesc);
+  TSDB_CHECK_NULL(pInfo->pInputBlock, code, lino, _exit, terrno);
+
+  pInfo->tagDownStreamId = -1;
+
+  if (pInfo->pSortCtxList) {
+    for (int32_t i = 0; i < taosArrayGetSize(pInfo->pSortCtxList); i++) {
+      SLoadNextCtx* pCtx = *(SLoadNextCtx**)taosArrayGet(pInfo->pSortCtxList, i);
+      blockDataDestroy(pCtx->pIntermediateBlock);
+      taosMemoryFree(pCtx);
+    }
+    taosArrayDestroy(pInfo->pSortCtxList);
+    pInfo->pSortCtxList = NULL;
   }
 
-  pExprs = taosMemoryCalloc(*numOfExprs, sizeof(SExprInfo));
-  TSDB_CHECK_NULL(pExprs, code, lino, _return, terrno);
+  pMergeInfo->pSavedTuple = NULL;
+  pMergeInfo->pSavedTagBlock = NULL;
 
-  *pTagSlotMap = taosHashInit(*numOfExprs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+_exit:
 
-  for (int32_t i = 0; i < (*numOfExprs); ++i) {
-    STargetNode* pTargetNode = (STargetNode*)nodesListGetNode(pNodeList, i);
-    TSDB_CHECK_NULL(pExprs, code, lino, _return, terrno);
-
-    VTS_ERR_JRET(taosHashPut(*pTagSlotMap, &i, sizeof(i), &i, sizeof(i)));
-    SExprInfo* pExp = &pExprs[i];
-    VTS_ERR_JRET(createExprFromTargetNode(pExp, pTargetNode));
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 
-  *pExprInfo = pExprs;
-  return code;
-
-_return:
-  destroyExprInfo(pExprs, *numOfExprs);
-  taosMemoryFreeClear(pExprs);
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;
 }
 
@@ -827,6 +834,8 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
 
   QUERY_CHECK_NULL(pInfo, code, lino, _return, terrno);
   QUERY_CHECK_NULL(pOperator, code, lino, _return, terrno);
+
+  pOperator->pPhyNode = pVirtualScanPhyNode;
 
   pInfo->binfo.inputTsOrder = pVirtualScanPhyNode->scan.node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pVirtualScanPhyNode->scan.node.outputTsOrder;
@@ -867,7 +876,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
   pVirtualScanInfo->sortBufSize =
       pVirtualScanInfo->bufPageSize * (numOfDownstream + 1);  // one additional is reserved for merged result.
   VTS_ERR_JRET(
-      extractColMap(pVirtualScanPhyNode->pTargets, &pVirtualScanInfo->dataSlotMap, &pVirtualScanInfo->tagSlotMap, &pVirtualScanInfo->tsSlotId, &pVirtualScanInfo->tagBlockId));
+      extractColMap(pVirtualScanPhyNode->pTargets, &pVirtualScanInfo->dataSlotMap, &pVirtualScanInfo->tsSlotId, &pVirtualScanInfo->tagBlockId));
 
   pVirtualScanInfo->scanAllCols = pVirtualScanPhyNode->scanAllCols;
 
@@ -882,6 +891,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
   pOperator->fpSet =
       createOperatorFpSet(openVirtualTableScanOperator, virtualTableGetNext, NULL, destroyVirtualTableScanOperatorInfo,
                           optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorResetStateFn(pOperator, resetVirtualTableMergeOperState);
 
   if (NULL != pDownstream) {
     VTS_ERR_JRET(appendDownstream(pOperator, pDownstream, numOfDownstream));

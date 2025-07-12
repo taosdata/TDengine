@@ -107,27 +107,13 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=64,
-            stream="create stream rdb.s64 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r64 as select cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from qdb.view1 where cts >= _twstart and cts < _twend limit 1",
-            res_query="select cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from rdb.r64 where id = 1 limit 1",
-            exp_query="select cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from qdb.view1 where cts = '2025-01-01 00:00:00.000';",
+            id=44,
+            stream="create stream rdb.s44 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r44 as select _twstart ts, _qstart, _qend, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from qdb.v1 where cts >= _twstart and cts < _twend order by cts limit 1",
+            res_query="select * from rdb.r44 where tag_tbname='t1' limit 1 offset 2",
+            exp_query="select cts, _qstart, _qend, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, 't1' from qdb.v1 where cts >= '2025-01-01 00:10:00.000' and cts < '2025-01-01 00:15:00.000' order by cts limit 1",
         )
         self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()
-
-    def check0(self):
-        tdSql.checkTableType(
-            dbname="rdb", tbname="r0", typename="NORMAL_TABLE", columns=3
-        )
-        tdSql.checkTableSchema(
-            dbname="rdb",
-            tbname="r0",
-            schema=[
-                ["ts", "TIMESTAMP", 8, ""],
-                ["c1", "BIGINT", 8, ""],
-                ["c2", "DOUBLE", 8, ""],
-            ],
-        )

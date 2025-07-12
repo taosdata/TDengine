@@ -486,6 +486,10 @@ static void scanPathOptSetGroupOrderScan(SScanLogicNode* pScan) {
 }
 
 static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  if (pCxt->pPlanCxt->streamCalcQuery) {
+    // stream calc query does not support scan path optimization
+    return TSDB_CODE_SUCCESS;
+  }
   SOsdInfo info = {.scanOrder = SCAN_ORDER_ASC};
   int32_t  code = scanPathOptMatch(pCxt, pLogicSubplan->pNode, &info);
   if (TSDB_CODE_SUCCESS == code && info.pScan) {
@@ -2535,6 +2539,10 @@ static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     }
   }
 
+  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pChild) && ((SWindowLogicNode*)pChild)->winType == WINDOW_TYPE_EXTERNAL) {
+    return false;
+  }
+
   FOREACH(pChild, pSort->node.pChildren) {
     SLogicNode* pSortDescendent = optFindPossibleNode((SLogicNode*)pChild, sortPriKeyOptMayBeOptimized, NULL);
     if (pSortDescendent != NULL) {
@@ -3110,6 +3118,7 @@ static int32_t joinCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
     return TSDB_CODE_SUCCESS;
   }
 
+  // TODO(smj) : optimize pTimeRange for join
   switch (pJoin->joinType) {
     case JOIN_TYPE_INNER: {
       SNodeList* pScanList = NULL;

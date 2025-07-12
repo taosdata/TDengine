@@ -57,6 +57,7 @@ Python Connector historical versions (it is recommended to use the latest versio
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
+|2.8.2 | The connection parameter settings support cross-platform compatibility.                                     | - |
 |2.8.1 | Add two functions to set the connect property                                                               | - |
 |2.8.0 | Remove Apache Superset Driver                                                                               | - |
 |2.7.23 | Supports DECIMAL data type                                                                                 | - |
@@ -76,6 +77,7 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
+|0.5.3 | Support IPv6 address format | - |
 |0.5.2 | Upgrade Rust connector to fix dsn token param issue                                                                     | - |
 |0.5.1 | Support WebSocket STMT2 writing and querying                                                                            | - |
 |0.4.0 | Support dynamic add tmq attribute                                                                                       | - |
@@ -172,14 +174,15 @@ Feel free to [ask questions or report issues](https://github.com/taosdata/taos-c
 #### URL Specification
 
 ```text
-[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
-|------------|---|-----------|-----------|------|------|------------|-----------------------|
-|   protocol |   | username  | password  | host | port |  database  |  params               |
+[+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<key1>=<value1>[&...<keyN>=<valueN>]]
+|-----------|---|----------|-----------|-------------------------------------|------------|--------------------------------------|
+|  protocol |   | username | password  |  addresses                          |   database |   params                             |
 ```
 
-- **protocol**: Establish a connection using the websocket protocol. For example, `ws://localhost:6041`
+- **protocol**: Establish a connection using the WebSocket protocol. For example, `ws://localhost:6041`.
 - **username/password**: Username and password for the database.
-- **host/port**: Host address and port number. For example, `localhost:6041`
+- **addresses**: Specifies the server addresses to create a connection. Multiple addresses are separated by commas. For IPv6 addresses, square brackets must be used (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number parsing conflicts.
+  - Example: `ws://host1:6041,host2:6041` or `ws://` (equivalent to `ws://localhost:6041`).
 - **database**: Database name.
 - **params**: Other parameters. For example, token.
 
@@ -191,7 +194,7 @@ Feel free to [ask questions or report issues](https://github.com/taosdata/taos-c
     - `dsn`: Type `Option<&str>` optional, Data Source Name (DSN), used to specify the location and authentication information of the database to connect to.
     - `args`: Type `Option<&PyDict>` optional, provided in the form of a Python dictionary, can be used to set
       - `user`: Username for the database
-      - `password`: Password for the database.
+      - `password`: Password for the database
       - `host`: Host address
       - `port`: Port number
       - `database`: Database name

@@ -206,12 +206,14 @@ def before_test_class(request):
     # 部署taosd，包括启动dnode，mnode，adapter
     if not request.session.skip_deploy:
         request.session.before_test.deploy_taos(request.cls.yaml_file, request.session.mnodes_num, request.session.clean)
-   
+
+    # 为老用例兼容，初始化老框架部分实例
+    request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True, level=request.session.level, disk=request.session.disk)
+    
     # 建立连接
     request.cls.conn = request.session.before_test.get_taos_conn(request)
     tdSql.init(request.cls.conn.cursor())
     tdSql.replica = request.session.replicaVar
-    tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
 
     # 为兼容老用例，初始化原框架连接
     #tdSql_pytest.init(request.cls.conn.cursor())
@@ -220,6 +222,12 @@ def before_test_class(request):
     # 处理 -C 参数，如果未设置 -C 参数，create_dnode_num 和 -N 参数相同
     for i in range(1, request.session.create_dnode_num):
         tdSql.execute(f"create dnode localhost port {6030+i*100}")
+    tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
+
+    if request.session.mnodes_num:
+        for i in range(2, request.session.mnodes_num + 1):
+            tdSql.execute(f"create mnode on dnode {i}")
+        tdLog.debug(tdSql.query(f"show mnodes", row_tag=True))
 
     # 处理-Q参数，如果-Q参数不等于1，则创建qnode，并设置queryPolicy
     if request.session.query_policy != 1:
@@ -227,9 +235,6 @@ def before_test_class(request):
         tdSql.execute("create qnode on dnode 1")
         tdSql.execute("show local variables")
 
-    # 为老用例兼容，初始化老框架部分实例
-    request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True, level=request.session.level, disk=request.session.disk)
-    
     if request.session.skip_test:
         pytest.skip("skip test")
     # ============================

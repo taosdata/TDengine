@@ -544,6 +544,7 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         BDecimal decMax = {0};
         BDecimal decMin = {0};
         int32_t length = 4;
+        uint8_t tagGen = GEN_RANDOM;
         tools_cJSON *tagObj = tools_cJSON_GetArrayItem(tags, k);
         if (!tools_cJSON_IsObject(tagObj)) {
             errorPrint("%s", "Invalid tag format in json\n");
@@ -718,6 +719,13 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             }
         }
 
+        tools_cJSON *tagDataGen = tools_cJSON_GetObjectItem(tagObj, "gen");
+        if (tools_cJSON_IsString(tagDataGen)) {
+            if (strcasecmp(tagDataGen->valuestring, "order") == 0) {
+                tagGen = GEN_ORDER;
+            }
+        }
+
         for (int n = 0; n < count; ++n) {
             Field * tag = benchCalloc(1, sizeof(Field), true);
             benchArrayPush(stbInfo->tags, tag);
@@ -737,6 +745,7 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             tag->decMax = decMax;
             tag->decMin = decMin;
             tag->values = dataValues;
+            tag->gen = tagGen;
             if (customName) {
                 if (n >= 1) {
                     snprintf(tag->name, TSDB_COL_NAME_LEN,
@@ -1647,114 +1656,6 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
     return 0;
 }
 
-static int getStreamInfo(tools_cJSON* json) {
-    tools_cJSON* streamsObj = tools_cJSON_GetObjectItem(json, "streams");
-    if (tools_cJSON_IsArray(streamsObj)) {
-        int streamCnt = tools_cJSON_GetArraySize(streamsObj);
-        for (int i = 0; i < streamCnt; ++i) {
-            tools_cJSON* streamObj = tools_cJSON_GetArrayItem(streamsObj, i);
-            if (!tools_cJSON_IsObject(streamObj)) {
-                errorPrint("%s", "invalid stream format in json\n");
-                return -1;
-            }
-            tools_cJSON* stream_name =
-                tools_cJSON_GetObjectItem(streamObj, "stream_name");
-            tools_cJSON* stream_stb =
-                tools_cJSON_GetObjectItem(streamObj, "stream_stb");
-            tools_cJSON* source_sql =
-                tools_cJSON_GetObjectItem(streamObj, "source_sql");
-            if (!tools_cJSON_IsString(stream_name)
-                || !tools_cJSON_IsString(stream_stb)
-                || !tools_cJSON_IsString(source_sql)) {
-                errorPrint("%s", "Invalid or miss "
-                           "'stream_name'/'stream_stb'/'source_sql' "
-                           "key in json\n");
-                return -1;
-            }
-            SSTREAM * stream = benchCalloc(1, sizeof(SSTREAM), true);
-            TOOLS_STRNCPY(stream->stream_name, stream_name->valuestring,
-                     TSDB_TABLE_NAME_LEN);
-            TOOLS_STRNCPY(stream->stream_stb, stream_stb->valuestring,
-                     TSDB_TABLE_NAME_LEN);
-            TOOLS_STRNCPY(stream->source_sql, source_sql->valuestring,
-                     TSDB_DEFAULT_PKT_SIZE);
-
-            tools_cJSON* trigger_mode =
-                tools_cJSON_GetObjectItem(streamObj, "trigger_mode");
-            if (tools_cJSON_IsString(trigger_mode)) {
-                TOOLS_STRNCPY(stream->trigger_mode, trigger_mode->valuestring,
-                         BIGINT_BUFF_LEN);
-            }
-
-            tools_cJSON* watermark =
-                tools_cJSON_GetObjectItem(streamObj, "watermark");
-            if (tools_cJSON_IsString(watermark)) {
-                TOOLS_STRNCPY(stream->watermark, watermark->valuestring,
-                         BIGINT_BUFF_LEN);
-            }
-
-            tools_cJSON* ignore_expired =
-                tools_cJSON_GetObjectItem(streamObj, "ignore_expired");
-            if (tools_cJSON_IsString(ignore_expired)) {
-                TOOLS_STRNCPY(stream->ignore_expired, ignore_expired->valuestring,
-                         BIGINT_BUFF_LEN);
-            }
-
-            tools_cJSON* ignore_update =
-                tools_cJSON_GetObjectItem(streamObj, "ignore_update");
-            if (tools_cJSON_IsString(ignore_update)) {
-                TOOLS_STRNCPY(stream->ignore_update, ignore_update->valuestring,
-                         BIGINT_BUFF_LEN);
-            }
-
-            tools_cJSON* fill_history =
-                tools_cJSON_GetObjectItem(streamObj, "fill_history");
-            if (tools_cJSON_IsString(fill_history)) {
-                TOOLS_STRNCPY(stream->fill_history, fill_history->valuestring,
-                         BIGINT_BUFF_LEN);
-            }
-
-            tools_cJSON* stream_stb_field =
-                tools_cJSON_GetObjectItem(streamObj, "stream_stb_field");
-            if (tools_cJSON_IsString(stream_stb_field)) {
-                TOOLS_STRNCPY(stream->stream_stb_field,
-                         stream_stb_field->valuestring,
-                         TSDB_DEFAULT_PKT_SIZE);
-            }
-
-            tools_cJSON* stream_tag_field =
-                tools_cJSON_GetObjectItem(streamObj, "stream_tag_field");
-            if (tools_cJSON_IsString(stream_tag_field)) {
-                TOOLS_STRNCPY(stream->stream_tag_field,
-                         stream_tag_field->valuestring,
-                         TSDB_DEFAULT_PKT_SIZE);
-            }
-
-            tools_cJSON* subtable =
-                tools_cJSON_GetObjectItem(streamObj, "subtable");
-            if (tools_cJSON_IsString(subtable)) {
-                TOOLS_STRNCPY(stream->subtable, subtable->valuestring,
-                         TSDB_DEFAULT_PKT_SIZE);
-            }
-
-            tools_cJSON* drop = tools_cJSON_GetObjectItem(streamObj, "drop");
-            if (tools_cJSON_IsString(drop)) {
-                if (0 == strcasecmp(drop->valuestring, "yes")) {
-                    stream->drop = true;
-                } else if (0 == strcasecmp(drop->valuestring, "no")) {
-                    stream->drop = false;
-                } else {
-                    errorPrint("invalid value for drop field: %s\n",
-                               drop->valuestring);
-                    return -1;
-                }
-            }
-            benchArrayPush(g_arguments->streams, stream);
-        }
-    }
-    return 0;
-}
-
 // read common item
 static int getMetaFromCommonJsonFile(tools_cJSON *json) {
     int32_t code = -1;
@@ -1886,6 +1787,16 @@ static int getMetaFromInsertJsonFile(tools_cJSON *json) {
         g_arguments->output_file = resultfile->valuestring;
     }
 
+    tools_cJSON *resultJsonFile = tools_cJSON_GetObjectItem(json, "result_json_file");
+    if (resultJsonFile && resultJsonFile->type == tools_cJSON_String
+            && resultJsonFile->valuestring != NULL) {
+        g_arguments->output_json_file = resultJsonFile->valuestring;
+        if (check_write_permission(g_arguments->output_json_file)) {
+            errorPrint("json file %s does not have write permission.\n", g_arguments->output_json_file);
+            goto PARSE_OVER;
+        }
+    }
+
     tools_cJSON *threads = tools_cJSON_GetObjectItem(json, "thread_count");
     if (threads && threads->type == tools_cJSON_Number) {
         if(!(g_argFlag & ARG_OPT_THREAD)) {
@@ -1982,12 +1893,6 @@ static int getMetaFromInsertJsonFile(tools_cJSON *json) {
             goto PARSE_OVER;
         }
         if (getStableInfo(dbinfos, i)) {
-            goto PARSE_OVER;
-        }
-    }
-
-    if (g_arguments->taosc_version == 3) {
-        if (getStreamInfo(json)) {
             goto PARSE_OVER;
         }
     }
@@ -2454,6 +2359,17 @@ static int getMetaFromQueryJsonFile(tools_cJSON *json) {
             return -1;
         }
     }
+
+    tools_cJSON *resultJsonFile = tools_cJSON_GetObjectItem(json, "result_json_file");
+    if (resultJsonFile && resultJsonFile->type == tools_cJSON_String
+            && resultJsonFile->valuestring != NULL) {
+        g_arguments->output_json_file = resultJsonFile->valuestring;
+        if (check_write_permission(g_arguments->output_json_file)) {
+            errorPrint("json file %s does not have write permission.\n", g_arguments->output_json_file);
+            return -1;
+        }
+    }
+
     // init sqls
     g_queryInfo.specifiedQueryInfo.sqls = benchArrayInit(1, sizeof(SSQL));
 
@@ -2500,6 +2416,16 @@ static int getMetaFromTmqJsonFile(tools_cJSON *json) {
     if (resultfile && resultfile->type == tools_cJSON_String
             && resultfile->valuestring != NULL) {
         g_arguments->output_file = resultfile->valuestring;
+    }
+
+    tools_cJSON *resultJsonFile = tools_cJSON_GetObjectItem(json, "result_json_file");
+    if (resultJsonFile && resultJsonFile->type == tools_cJSON_String
+            && resultJsonFile->valuestring != NULL) {
+        g_arguments->output_json_file = resultJsonFile->valuestring;
+        if (check_write_permission(g_arguments->output_json_file)) {
+            errorPrint("json file %s does not have write permission.\n", g_arguments->output_json_file);
+            goto TMQ_PARSE_OVER;
+        }
     }
 
     tools_cJSON *answerPrompt =

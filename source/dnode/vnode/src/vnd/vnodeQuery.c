@@ -801,7 +801,8 @@ int32_t vnodeGetVSubtablesMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _return;
   }
 
-  SReadHandle handle = {.vnode = pVnode};
+  SReadHandle handle = {0};
+  handle.vnode = pVnode;
   initStorageAPI(&handle.api);
 
   QUERY_CHECK_CODE(vnodeReadVSubtables(&handle, req.suid, &rsp.pTables), line, _return);
@@ -862,7 +863,8 @@ int32_t vnodeGetVStbRefDbs(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _return;
   }
 
-  SReadHandle handle = {.vnode = pVnode};
+  SReadHandle handle = {0};
+  handle.vnode = pVnode;
   initStorageAPI(&handle.api);
 
   code = vnodeReadVStbRefDbs(&handle, req.suid, &rsp.pDbs);
@@ -907,18 +909,44 @@ _return:
   return code;
 }
 
+static int32_t vnodeGetCompStorage(SVnode *pVnode, int64_t *output) {
+  int32_t code = 0;
+#ifdef TD_ENTERPRISE
+  int32_t now = taosGetTimestampSec();
+  if (llabs(now - pVnode->config.vndStats.storageLastUpd) >= 30) {
+    pVnode->config.vndStats.storageLastUpd = now;
+
+    SDbSizeStatisInfo info = {0};
+    if (0 == (code = vnodeGetDBSize(pVnode, &info))) {
+      int64_t compSize =
+          info.l1Size + info.l2Size + info.l3Size + info.cacheSize + info.walSize + info.metaSize + +info.s3Size;
+      if (compSize >= 0) {
+        pVnode->config.vndStats.compStorage = compSize;
+      } else {
+        vError("vnode get comp storage failed since compSize is negative:%" PRIi64, compSize);
+        code = TSDB_CODE_APP_ERROR;
+      }
+    } else {
+      vWarn("vnode get comp storage failed since %s", tstrerror(code));
+    }
+  }
+  if (output) *output = pVnode->config.vndStats.compStorage;
+#endif
+  return code;
+}
+
 static void vnodeGetBufferInfo(SVnode *pVnode, int64_t *bufferSegmentUsed, int64_t *bufferSegmentSize) {
   *bufferSegmentUsed = 0;
   *bufferSegmentSize = 0;
   if (pVnode) {
-    taosThreadMutexLock(&pVnode->mutex);
+    (void)taosThreadMutexLock(&pVnode->mutex);
 
     if (pVnode->inUse) {
       *bufferSegmentUsed = pVnode->inUse->size;
     }
     *bufferSegmentSize = pVnode->config.szBuf / VNODE_BUFPOOL_SEGMENTS;
 
-    taosThreadMutexUnlock(&pVnode->mutex);
+    (void)taosThreadMutexUnlock(&pVnode->mutex);
   }
 }
 
@@ -939,8 +967,8 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->numOfCachedTables = tsdbCacheGetElems(pVnode);
   VNODE_DO_META_QUERY(pVnode, pLoad->numOfTables = metaGetTbNum(pVnode->pMeta));
   VNODE_DO_META_QUERY(pVnode, pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1));
-  pLoad->totalStorage = (int64_t)3 * 1073741824;
-  pLoad->compStorage = (int64_t)2 * 1073741824;
+  pLoad->totalStorage = (int64_t)3 * 1073741824;  // TODO
+  (void)vnodeGetCompStorage(pVnode, &pLoad->compStorage);
   pLoad->pointsWritten = 100;
   pLoad->numOfSelectReqs = 1;
   pLoad->numOfInsertReqs = atomic_load_64(&pVnode->statis.nInsert);
@@ -1364,4 +1392,83 @@ int32_t vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo) {
   code = tsdbGetFsSize(pVnodeObj->pTsdb, pInfo);
 _exit:
   return code;
+}
+
+/*
+ * Get raw write metrics for a vnode
+ */
+int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics) {
+  if (pVnode == NULL || pRawMetrics == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SVnode      *pVnode1 = (SVnode *)pVnode;
+  SSyncMetrics syncMetrics = syncGetMetrics(pVnode1->sync);
+
+  // Copy values following SRawWriteMetrics structure order
+  pRawMetrics->total_requests = atomic_load_64(&pVnode1->writeMetrics.total_requests);
+  pRawMetrics->total_rows = atomic_load_64(&pVnode1->writeMetrics.total_rows);
+  pRawMetrics->total_bytes = atomic_load_64(&pVnode1->writeMetrics.total_bytes);
+  pRawMetrics->fetch_batch_meta_time = atomic_load_64(&pVnode1->writeMetrics.fetch_batch_meta_time);
+  pRawMetrics->fetch_batch_meta_count = atomic_load_64(&pVnode1->writeMetrics.fetch_batch_meta_count);
+  pRawMetrics->preprocess_time = atomic_load_64(&pVnode1->writeMetrics.preprocess_time);
+  pRawMetrics->wal_write_bytes = atomic_load_64(&syncMetrics.wal_write_bytes);
+  pRawMetrics->wal_write_time = atomic_load_64(&syncMetrics.wal_write_time);
+  pRawMetrics->apply_bytes = atomic_load_64(&pVnode1->writeMetrics.apply_bytes);
+  pRawMetrics->apply_time = atomic_load_64(&pVnode1->writeMetrics.apply_time);
+  pRawMetrics->commit_count = atomic_load_64(&pVnode1->writeMetrics.commit_count);
+  pRawMetrics->commit_time = atomic_load_64(&pVnode1->writeMetrics.commit_time);
+  pRawMetrics->memtable_wait_time = atomic_load_64(&pVnode1->writeMetrics.memtable_wait_time);
+  pRawMetrics->blocked_commit_count = atomic_load_64(&pVnode1->writeMetrics.blocked_commit_count);
+  pRawMetrics->blocked_commit_time = atomic_load_64(&pVnode1->writeMetrics.block_commit_time);
+  pRawMetrics->merge_count = atomic_load_64(&pVnode1->writeMetrics.merge_count);
+  pRawMetrics->merge_time = atomic_load_64(&pVnode1->writeMetrics.merge_time);
+  pRawMetrics->last_cache_commit_time = atomic_load_64(&pVnode1->writeMetrics.last_cache_commit_time);
+  pRawMetrics->last_cache_commit_count = atomic_load_64(&pVnode1->writeMetrics.last_cache_commit_count);
+
+  return 0;
+}
+
+/*
+ * Reset raw write metrics for a vnode by subtracting old values
+ */
+int32_t vnodeResetRawWriteMetrics(void *pVnode, const SRawWriteMetrics *pOldMetrics) {
+  if (pVnode == NULL || pOldMetrics == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SVnode *pVnode1 = (SVnode *)pVnode;
+
+  // Reset vnode write metrics using atomic operations to subtract old values
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.total_requests, pOldMetrics->total_requests);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.total_rows, pOldMetrics->total_rows);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.total_bytes, pOldMetrics->total_bytes);
+
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.fetch_batch_meta_time, pOldMetrics->fetch_batch_meta_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.fetch_batch_meta_count, pOldMetrics->fetch_batch_meta_count);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.preprocess_time, pOldMetrics->preprocess_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.apply_bytes, pOldMetrics->apply_bytes);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.apply_time, pOldMetrics->apply_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.commit_count, pOldMetrics->commit_count);
+
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.commit_time, pOldMetrics->commit_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.merge_time, pOldMetrics->merge_time);
+
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.memtable_wait_time, pOldMetrics->memtable_wait_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.blocked_commit_count, pOldMetrics->blocked_commit_count);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.block_commit_time, pOldMetrics->blocked_commit_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.merge_count, pOldMetrics->merge_count);
+
+  // Reset new cache metrics
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.last_cache_commit_time, pOldMetrics->last_cache_commit_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.last_cache_commit_count, pOldMetrics->last_cache_commit_count);
+
+  // Reset sync metrics
+  SSyncMetrics syncMetrics = {
+      .wal_write_bytes = pOldMetrics->wal_write_bytes,
+      .wal_write_time = pOldMetrics->wal_write_time,
+  };
+  syncResetMetrics(pVnode1->sync, &syncMetrics);
+
+  return 0;
 }

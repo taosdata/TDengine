@@ -543,8 +543,6 @@ typedef struct SCreateIndexStmt {
   char            tableName[TSDB_TABLE_NAME_LEN];
   SNodeList*      pCols;
   SIndexOptions*  pOptions;
-  SNode*          pPrevQuery;
-  SMCreateSmaReq* pReq;
 } SCreateIndexStmt;
 
 typedef struct SDropIndexStmt {
@@ -642,6 +640,7 @@ typedef struct SStreamTriggerOptions {
   bool      calcNotifyOnly;
   bool      lowLatencyCalc;
   bool      forceOutput;
+  bool      ignoreNoDataTrigger;
 } SStreamTriggerOptions;
 
 typedef enum EStreamNotifyEventType {
@@ -799,8 +798,6 @@ typedef struct SCreateTSMAStmt {
   char            tableName[TSDB_TABLE_NAME_LEN];  // base tb name or base tsma name
   char            originalTbName[TSDB_TABLE_NAME_LEN];
   STSMAOptions*   pOptions;
-  SNode*          pPrevQuery;
-  SMCreateSmaReq* pReq;
   uint8_t         precision;
 } SCreateTSMAStmt;
 

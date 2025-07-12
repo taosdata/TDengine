@@ -4,7 +4,9 @@
 #include "executor.h"
 #include "plannodes.h"
 #include "scalar.h"
+#include "stream.h"
 #include "streamInt.h"
+#include "taoserror.h"
 #include "tarray.h"
 #include "tdatablock.h"
 
@@ -40,10 +42,16 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
   return 0;
 }
 
+static void stRunnerDestroyRuntimeInfo(SStreamRuntimeInfo* pRuntime) {
+  tDestroyStRtFuncInfo(&pRuntime->funcInfo);
+}
+
 static void stRunnerDestroyTaskExecution(void* pExec) {
   SStreamRunnerTaskExecution* pExecution = pExec;
   pExecution->pPlan = 0;
-  streamDestroyExecTask(pExecution->pExecutor);
+  streamDestroyExecTask(pExecution->pExecutor);  
+  dsDestroyDataSinker(pExecution->pSinkHandle);
+  stRunnerDestroyRuntimeInfo(&pExecution->runtimeInfo);
 }
 
 static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t execId,
@@ -91,12 +99,12 @@ static void stRunnerTaskExecMgrReleaseExec(SStreamRunnerTask* pTask, SStreamRunn
   taosThreadMutexUnlock(&pMgr->lock);
 }
 
-static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
+static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMsg) {
   strncpy(pTask->output.outDbFName, pMsg->outDBFName, TSDB_DB_FNAME_LEN);
-  pTask->output.outCols = pMsg->outCols;
+  TSWAP(pTask->output.outCols, pMsg->outCols);
   pTask->output.outTblType = pMsg->outTblType;
   pTask->output.outStbUid = pMsg->outStbUid;
-  pTask->output.outTags = pMsg->outTags;
+  TSWAP(pTask->output.outTags, pMsg->outTags);
   if (pMsg->outTblType == TSDB_SUPER_TABLE) strncpy(pTask->output.outSTbName, pMsg->outTblName, TSDB_TABLE_NAME_LEN);
 }
 
@@ -111,6 +119,7 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
   pTask->topTask = pMsg->topPlan;
   pTask->notification.calcNotifyOnly = pMsg->calcNotifyOnly;
   pTask->notification.notifyErrorHandle = pMsg->notifyErrorHandle;
+  pTask->streamName = taosStrdup(pMsg->streamName);
 
   int32_t code = nodesStringToList(pMsg->tagValueExpr, &pTask->output.pTagValExprs);
   ST_TASK_DLOG("pTagValExprs: %s", (char*)pMsg->tagValueExpr);
@@ -146,9 +155,12 @@ int32_t stRunnerTaskUndeployImpl(SStreamRunnerTask** ppTask, const SStreamUndepl
   taosThreadMutexDestroy(&pMgr->lock);
   NODES_DESTORY_NODE(pTask->pSubTableExpr);
   NODES_DESTORY_LIST(pTask->output.pTagValExprs);
+  taosArrayDestroy(pTask->output.outCols);
+  taosArrayDestroy(pTask->output.outTags);
   taosMemoryFreeClear(pTask->pPlan);
   taosArrayDestroyEx(pTask->forceOutCols, destroySStreamOutCols);
   taosArrayDestroyP(pTask->notification.pNotifyAddrUrls, taosMemFree);
+  taosMemoryFreeClear(pTask->streamName);
 
   cb(ppTask);
   
@@ -167,6 +179,7 @@ int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, bool force) {
   return stRunnerTaskUndeployImpl(ppTask, &pTask->task.undeployMsg, pTask->task.undeployCb);
 }
 
+bool stRunnerTaskWaitQuit(SStreamRunnerTask* pTask) { return taosHasRWWFlag(&pTask->task.entryLock); }
 
 static int32_t streamResetTaskExec(SStreamRunnerTaskExecution* pExec, bool ignoreTbName) {
   int32_t code = 0;
@@ -247,7 +260,12 @@ static int32_t stRunnerCalcSubTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTa
     dst.colAlloced = true;
     dst.numOfRows = 1;
     dst.columnData = pCol;
-    code = streamCalcOneScalarExpr(pNode, &dst, &pExec->runtimeInfo.funcInfo);
+    if (pNode->type == QUERY_NODE_VALUE) {
+      void* p = nodesGetValueFromNode((SValueNode*)pNode);
+      code = colDataSetVal(pCol, 0, p, ((SValueNode*)pNode)->isNull);
+    } else {
+      code = streamCalcOneScalarExpr(pNode, &dst, &pExec->runtimeInfo.funcInfo);
+    }
     if (code != 0) {
       sclFreeParam(&dst);
       break;
@@ -277,12 +295,12 @@ static int32_t stRunnerInitTbTagVal(SStreamRunnerTask* pTask, SStreamRunnerTaskE
 }
 
 static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, SSDataBlock* pBlock,
-                                   bool createTb) {
+                                   bool* createTb) {
   int32_t code = 0;
   if (pTask->notification.calcNotifyOnly) return 0;
   bool needCalcTbName = pExec->tbname[0] == '\0';
   if (pBlock && pBlock->info.rows > 0) {
-    if (needCalcTbName) {
+    if (*createTb && needCalcTbName) {
       code = streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, &pExec->runtimeInfo.funcInfo);
       stDebug("stRunnerOutputBlock tbname: %s", pExec->tbname);
     }
@@ -290,19 +308,20 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
       ST_TASK_ELOG("failed to calc output tbname: %s", tstrerror(code));
     } else {
       SArray* pTagVals = NULL;
-      if (createTb) code = stRunnerInitTbTagVal(pTask, pExec, &pTagVals);
+      if (*createTb) code = stRunnerInitTbTagVal(pTask, pExec, &pTagVals);
       if (code == 0) {
         SStreamDataInserterInfo d = {.tbName = pExec->tbname,
                                      .streamId = pTask->task.streamId,
                                      .groupId = pExec->runtimeInfo.funcInfo.groupId,
-                                     .isAutoCreateTable = createTb,
+                                     .isAutoCreateTable = *createTb,
                                      .pTagVals = pTagVals};
         SInputData              input = {.pData = pBlock, .pStreamDataInserterInfo = &d};
         bool                    cont = false;
         code = dsPutDataBlock(pExec->pSinkHandle, &input, &cont);
-        ST_TASK_DLOG("runner output block to sink code:%d, rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %" PRId64,
-                     code, pBlock->info.rows, pExec->tbname, createTb, pExec->runtimeInfo.funcInfo.groupId);
+        ST_TASK_DLOG("runner output block to sink code:0x%0x, rows: %" PRId64 ", tbname: %s, createTb: %d, gid: %" PRId64,
+                     code, pBlock->info.rows, pExec->tbname, *createTb, pExec->runtimeInfo.funcInfo.groupId);
         printDataBlock(pBlock, "output block to sink", "runner");
+        if(code == TSDB_CODE_SUCCESS) *createTb = false;  // if output block success, then no need to create table
       } else {
         ST_TASK_ELOG("failed to init tag vals for output block: %s", tstrerror(code));
       }
@@ -321,23 +340,36 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   code = streamBuildBlockResultNotifyContent(pBlock, &pContent, pTask->output.outCols);
   if (code == 0) {
     ST_TASK_DLOG("start to send notify:%s", pContent);
+    int32_t index = pExec->runtimeInfo.funcInfo.curOutIdx;
+    if (pExec->runtimeInfo.funcInfo.curOutIdx >= pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size) {
+      pExec->runtimeInfo.funcInfo.curOutIdx = pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size - 1;
+    }
     SSTriggerCalcParam* pTriggerCalcParams =
         taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, pExec->runtimeInfo.funcInfo.curOutIdx);
+    if (pTriggerCalcParams == NULL) {
+      ST_TASK_ELOG("failed to get trigger calc params for index:%d, size:%d", index,
+                   (int32_t)pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size);
+      taosMemoryFreeClear(pContent);
+      return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+    }
     pTriggerCalcParams->resultNotifyContent = pContent;
 
-    code = streamSendNotifyContent(&pTask->task, pExec->runtimeInfo.funcInfo.triggerType,
+    code = streamSendNotifyContent(&pTask->task, pTask->streamName, pExec->runtimeInfo.funcInfo.triggerType,
                                    pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
                                    pTask->notification.notifyErrorHandle, pTriggerCalcParams, 1);
+    taosMemoryFreeClear(pTriggerCalcParams->resultNotifyContent);
   }
   return code;
 }
 
 static int32_t stRunnerHandleResultBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
                                          SSDataBlock* pBlock, bool* pCreateTb) {
-  int32_t code = stRunnerOutputBlock(pTask, pExec, pBlock, *pCreateTb);
-  //*pCreateTb = false;
+  int32_t code = stRunnerOutputBlock(pTask, pExec, pBlock, pCreateTb);
   if (code == 0) {
-    return streamDoNotification(pTask, pExec, pBlock);
+    code = streamDoNotification(pTask, pExec, pBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("failed to send notification for block, code:%s", tstrerror(code));
+    }
   }
   return code;
 }
@@ -382,46 +414,69 @@ static int32_t stRunnerForceOutput(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
   int32_t             rowIdx = 0;
   int32_t             rowsToCopy = 0;
   SSDataBlock*        pSecondBlock = NULL;
-  bool                allRowsConsumed = false;
 
   for (; curWinIdx < totalWinNum && code == 0;) {
     int64_t ts = INT64_MAX;
     if (rowIdx < rowsInput) {
       ts = *(int64_t*)colDataGetNumData(pTsCol, rowIdx);
-      assert(ts >= curWin.skey);
+      if (ts < curWin.skey) {
+        ST_TASK_ILOG("ts:%" PRId64 " is less than current window start key:%" PRId64
+                     ", skip this row, curWinIdx:%d, totalWinNum:%d", ts, curWin.skey, curWinIdx, totalWinNum);
+        rowIdx++;
+        continue;
+      }
     }
     if (ts < curWin.ekey) {
       // cur window already has data
       rowIdx++;
       rowsToCopy++;
-      if (rowIdx >= rowsInput) {
-        allRowsConsumed = true;
-      }
       continue;
     } else if (ts >= curWin.ekey) {
+      if(ts  == curWin.ekey) {
+        rowIdx++;
+        rowsToCopy++;
+      }
       if (rowsToCopy > 0) {
         // copy rows of prev windows
         if (!*ppForceOutBlock) {
           code = createOneDataBlock(pBlock, false, ppForceOutBlock);
+          if (code == 0) {
+            code = blockDataEnsureCapacity(*ppForceOutBlock, totalWinNum);
+          }
         }
-        if (code == 0) code = blockDataMergeNRows(*ppForceOutBlock, pBlock, rowIdx - rowsToCopy, rowsToCopy);
+        if (code == 0) {
+          code = blockDataEnsureCapacity(*ppForceOutBlock, (*ppForceOutBlock)->info.capacity + rowIdx - rowsToCopy);
+        }
+        if (code == 0) {
+          code = blockDataMergeNRows(*ppForceOutBlock, pBlock, rowIdx - rowsToCopy, rowsToCopy);
+        }
         if (code != 0) break;
-        rowsToCopy = 0;
-        if (allRowsConsumed) break;
+      } else {
+        code = streamForceOutput(pExec->pExecutor, ppForceOutBlock, curWinIdx);
       }
+      rowsToCopy = 0; // reset for next window
+
       curWinIdx++;
-      assert(curWinIdx < taosArrayGetSize(pTriggerCalcParams));
+      if(curWinIdx >= totalWinNum) {
+        // no more windows to process
+        break;
+      }
+
       pTriggerCalcParam = taosArrayGet(pTriggerCalcParams, curWinIdx);
       curWin.skey = pTriggerCalcParam->wstart;
       curWin.ekey = pTriggerCalcParam->wend;
-      if (ts >= curWin.ekey) {
-        // cur win has no data
-        code = streamForceOutput(pExec->pExecutor, ppForceOutBlock, curWinIdx);
-      }
     }
   }
   *pWinIdx = curWinIdx;
   pExec->runtimeInfo.funcInfo.curOutIdx = curWinIdx;
+  if (code != 0) {
+    ST_TASK_ELOG("failed to force output for stream task, code:%s", tstrerror(code));
+    if (*ppForceOutBlock) {
+      blockDataDestroy(*ppForceOutBlock);
+      *ppForceOutBlock = NULL;
+    }
+    return code;
+  }
   return code;
 }
 
@@ -494,7 +549,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   pExec->runtimeInfo.funcInfo.triggerType = pReq->triggerType;
 
   int32_t winNum = taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals);
-  STREAM_CHECK_CONDITION_GOTO(winNum > STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST, TSDB_CODE_STREAM_TASK_IVLD_STATUS);
+  STREAM_CHECK_CONDITION_GOTO(winNum > STREAM_CALC_REQ_MAX_WIN_NUM, TSDB_CODE_STREAM_TASK_IVLD_STATUS);
 
   if (!pExec->pExecutor) {
     STREAM_CHECK_RET_GOTO(streamBuildTask(pTask, pExec));
@@ -502,13 +557,15 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
     STREAM_CHECK_RET_GOTO(streamResetTaskExec(pExec, pTask->output.outTblType == TSDB_NORMAL_TABLE));
   }
 
-  streamSetTaskRuntimeInfo(pExec->pExecutor, &pExec->runtimeInfo);
-
   pExec->runtimeInfo.funcInfo.curIdx = pReq->curWinIdx;
   pExec->runtimeInfo.funcInfo.curOutIdx = pReq->curWinIdx;
   bool    createTable = pReq->createTable;
   int32_t nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx;
   while (pExec->runtimeInfo.funcInfo.curOutIdx < winNum && code == 0) {
+    if (stRunnerTaskWaitQuit(pTask)) {
+      ST_TASK_ILOG("[runner calc]quit, skip calc. gid:%" PRId64 ",, status:%d", pReq->gid, pTask->task.status);
+      break;
+    }
     bool         finished = false;
     SSDataBlock* pBlock = NULL;
     uint64_t     ts = 0;
@@ -585,7 +642,9 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
 
   ST_TASK_DLOG("vgId:%d start to build stream task", vgId);
   SReadHandle handle = {0};
+  handle.streamRtInfo = &pExec->runtimeInfo;
   handle.pMsgCb = pTask->pMsgCb;
+  handle.pWorkerCb = pTask->pWorkerCb;
   if (pTask->topTask) {
     SStreamInserterParam params = {.dbFName = pTask->output.outDbFName,
                                    .tbname = pExec->tbname,
@@ -623,16 +682,22 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
 }
 
 int32_t stRunnerFetchDataFromCache(SStreamCacheReadInfo* pInfo, bool* finished) {
+  int32_t code = 0, lino = 0;
   void**  ppIter = NULL;
-  int32_t code = readStreamDataCache(pInfo->taskInfo.streamId, pInfo->taskInfo.taskId, pInfo->taskInfo.sessionId,
-                                     pInfo->gid, pInfo->start, pInfo->end, &ppIter);
-  if (code == 0 && *ppIter != NULL) {
-    code = getNextStreamDataCache(ppIter, &pInfo->pBlock);
+  int64_t streamId = pInfo->taskInfo.streamId;
+  TAOS_CHECK_EXIT(readStreamDataCache(pInfo->taskInfo.streamId, pInfo->taskInfo.taskId, pInfo->taskInfo.sessionId,
+                                     pInfo->gid, pInfo->start, pInfo->end, &ppIter));
+  if (*ppIter != NULL) {
+    TAOS_CHECK_EXIT(getNextStreamDataCache(ppIter, &pInfo->pBlock));
   }
-  if(*ppIter == NULL) {
-    *finished = true;
-  } else {
-    *finished = false;
+  
+  *finished = (*ppIter == NULL) ? true : false;
+
+_exit:
+
+  if (code) {
+    stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
+  
   return code;
 }

@@ -42,11 +42,32 @@ extern "C" {
 
 #define STREAM_CLR_FLAG(st, f) (st) &= (~f)
 
+#define STREAM_CALC_REQ_MAX_WIN_NUM 4096
+
+
+typedef enum EStreamTriggerType {
+  STREAM_TRIGGER_PERIOD = 0,
+  STREAM_TRIGGER_SLIDING,  // sliding is 1 , can not change, because used in doOpenExternalWindow
+  STREAM_TRIGGER_SESSION,
+  STREAM_TRIGGER_COUNT,
+  STREAM_TRIGGER_STATE,
+  STREAM_TRIGGER_EVENT,
+} EStreamTriggerType;
+
+
 typedef struct SStreamReaderTask {
   SStreamTask task;
   int8_t      triggerReader;
   void*       info;
 } SStreamReaderTask;
+
+
+typedef struct SSTriggerAHandle {
+  int64_t streamId;
+  int64_t taskId;
+  void*   param;
+} SSTriggerAHandle;
+
 
 typedef struct SStreamRunnerTaskExecution {
   const char        *pPlan;
@@ -89,16 +110,18 @@ typedef struct SStreamTagInfo {
 } SStreamTagInfo;
 
 typedef struct SStreamRunnerTask {
-  SStreamTask        task;
+  SStreamTask                   task;
   SStreamRunnerTaskExecMgr      execMgr;
   SStreamRunnerTaskOutput       output;
   SStreamRunnerTaskNotification notification;
-  const char*                   pPlan;
+  const char                   *pPlan;
   int32_t                       parallelExecutionNun;
-  void*                         pMsgCb;
-  void*                         pSubTableExpr;
-  SArray*                       forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
+  void                         *pMsgCb;
+  void                         *pWorkerCb;
+  void                         *pSubTableExpr;
+  SArray                       *forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
   bool                          topTask;
+  char                         *streamName;
 } SStreamRunnerTask;
 
 typedef struct SStreamCacheReadInfo {
@@ -164,6 +187,21 @@ typedef struct SStreamCacheReadInfo {
     stDebug("%s done success", __func__);                                      \
   }
 
+#define STREAM_PRINT_LOG_END_WITHID(code, lino)                                              \
+  if (sStreamReaderInfo) {                                                              \
+    if (code != 0) {                                                             \
+      ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code)); \
+    } else {                                                                     \
+      ST_TASK_DLOG("%s done success", __func__);                                      \
+    }                                                                                 \
+  } else {                                                                            \
+    if (code != 0) {                                                             \
+      stError("%s failed at line %d since %s", __func__, lino, tstrerror(code)); \
+    } else {                                                                     \
+      stDebug("%s done success", __func__);                                      \
+    }                                                                                 \
+  }
+
 // clang-format off
 #define stFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("STM FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }} while(0)
 #define stError(...) do { if (stDebugFlag & DEBUG_ERROR) { taosPrintLog("STM ERROR ", DEBUG_ERROR, 255,         __VA_ARGS__); }} while(0)
@@ -221,7 +259,7 @@ typedef struct SStreamCacheReadInfo {
 int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId);
 void    streamRemoveVnodeLeader(int32_t vgId);
 void    streamAddVnodeLeader(int32_t vgId);
-void    streamSetSnodeEnabled(void);
+void    streamSetSnodeEnabled(  SMsgCb* msgCb);
 void    streamSetSnodeDisabled(bool cleanup);
 int32_t streamHbProcessRspMsg(SMStreamHbRspMsg *pRsp);
 int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs);
@@ -245,8 +283,6 @@ void    streamDeleteAllCheckpoints();
 void    smUndeploySnodeTasks(bool cleanup);
 int32_t stTriggerTaskProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErrTaskId);
 int32_t stTriggerTaskGetStatus(SStreamTask *pTask, SSTriggerRuntimeStatus *pStatus);
-
-#define STREAM_TRIGGER_MAX_WIN_NUM_PER_REQUEST 4096
 
 #ifdef __cplusplus
 }

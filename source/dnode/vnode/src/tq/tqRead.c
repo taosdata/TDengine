@@ -304,7 +304,7 @@ STqReader* tqReaderOpen(SVnode* pVnode) {
     return NULL;
   }
 
-  pReader->pWalReader = walOpenReader(pVnode->pWal, NULL, 0);
+  pReader->pWalReader = walOpenReader(pVnode->pWal, 0);
   if (pReader->pWalReader == NULL) {
     taosMemoryFree(pReader);
     return NULL;
@@ -411,7 +411,7 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id, int sourceExcluded) {
     }
 
     // try next message in wal file
-    if (walNextValidMsg(pWalReader) < 0) {
+    if (walNextValidMsg(pWalReader, false) < 0) {
       return false;
     }
 

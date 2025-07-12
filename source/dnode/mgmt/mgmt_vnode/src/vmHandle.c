@@ -14,10 +14,16 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "metrics.h"
 #include "taos_monitor.h"
 #include "vmInt.h"
+#include "vnodeInt.h"
 
 extern taos_counter_t *tsInsertCounter;
+
+// Forward declaration for function defined in metrics.c
+extern int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const char *dnodeEp,
+                               const char *dbname, const SRawWriteMetrics *pRawMetrics);
 
 void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoad));
@@ -154,6 +160,41 @@ void vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {
   return;
 }
 
+void vmCleanExpiredMetrics(SVnodeMgmt *pMgmt) {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0 || !tsEnableMetrics) {
+    return;
+  }
+
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
+  void     *pIter = taosHashIterate(pMgmt->runngingHash, NULL);
+  SHashObj *pValidVgroups = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (pValidVgroups == NULL) {
+    (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+    return;
+  }
+
+  while (pIter != NULL) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode && *ppVnode) {
+      int32_t vgId = (*ppVnode)->vgId;
+      char    dummy = 1;  // hash table value (we only care about the key)
+      if (taosHashPut(pValidVgroups, &vgId, sizeof(int32_t), &dummy, sizeof(char)) != 0) {
+        dError("failed to put vgId:%d to valid vgroups hash", vgId);
+      }
+    }
+    pIter = taosHashIterate(pMgmt->runngingHash, pIter);
+  }
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+
+  // Clean expired metrics by removing metrics for non-existent vgroups
+  int32_t code = cleanupExpiredMetrics(pValidVgroups);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to clean expired metrics, code:%d", code);
+  }
+
+  taosHashCleanup(pValidVgroups);
+}
+
 static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   memcpy(pCfg, &vnodeCfgDefault, sizeof(SVnodeCfg));
 
@@ -278,17 +319,6 @@ static int32_t vmTsmaAdjustDays(SVnodeCfg *pCfg, SCreateVnodeReq *pReq) {
   return 0;
 }
 
-#if 0
-static int32_t vmTsmaProcessCreate(SVnode *pVnode, SCreateVnodeReq *pReq) {
-  if (pReq->isTsma) {
-    SMsgHead *smaMsg = pReq->pTsma;
-    uint32_t  contLen = (uint32_t)(htonl(smaMsg->contLen) - sizeof(SMsgHead));
-    return vnodeProcessCreateTSma(pVnode, POINTER_SHIFT(smaMsg, sizeof(SMsgHead)), contLen);
-  }
-  return 0;
-}
-#endif
-
 int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SCreateVnodeReq req = {0};
   SVnodeCfg       vnodeCfg = {0};
@@ -399,15 +429,6 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     code = terrno != 0 ? terrno : code;
     goto _OVER;
   }
-
-#if 0
-  code = vmTsmaProcessCreate(pImpl, &req);
-  if (code != 0) {
-    dError("vgId:%d, failed to create tsma since %s", req.vgId, terrstr());
-    code = terrno;
-    goto _OVER;
-  }
-#endif
 
   code = vnodeStart(pImpl);
   if (code != 0) {
@@ -981,9 +1002,6 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_DROP_STB, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_CREATE_TABLE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_DROP_TABLE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_CREATE_SMA, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_CANCEL_SMA, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_DROP_SMA, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_SUBMIT_RSMA, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_SUBSCRIBE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_DELETE_SUB, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
@@ -1053,4 +1071,44 @@ _OVER:
   } else {
     return pArray;
   }
+}
+
+void vmUpdateMetricsInfo(SVnodeMgmt *pMgmt, int64_t clusterId) {
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
+
+  void *pIter = taosHashIterate(pMgmt->runngingHash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode == NULL || *ppVnode == NULL) {
+      continue;
+    }
+
+    SVnodeObj *pVnode = *ppVnode;
+    if (!pVnode->failed) {
+      SRawWriteMetrics metrics = {0};
+      if (vnodeGetRawWriteMetrics(pVnode->pImpl, &metrics) == 0) {
+        // Add the metrics to the global metrics system with cluster ID
+        SName   name = {0};
+        int32_t code = tNameFromString(&name, pVnode->pImpl->config.dbname, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+        if (code < 0) {
+          dError("failed to get db name since %s", tstrerror(code));
+          continue;
+        }
+        code = addWriteMetrics(pVnode->vgId, pMgmt->pData->dnodeId, clusterId, tsLocalEp, name.dbname, &metrics);
+        if (code != TSDB_CODE_SUCCESS) {
+          dError("Failed to add write metrics for vgId: %d, code: %d", pVnode->vgId, code);
+        } else {
+          // After successfully adding metrics, reset the vnode's write metrics using atomic operations
+          if (vnodeResetRawWriteMetrics(pVnode->pImpl, &metrics) != 0) {
+            dError("Failed to reset write metrics for vgId: %d", pVnode->vgId);
+          }
+        }
+      } else {
+        dError("Failed to get write metrics for vgId: %d", pVnode->vgId);
+      }
+    }
+    pIter = taosHashIterate(pMgmt->runngingHash, pIter);
+  }
+
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
 }

@@ -904,7 +904,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   memcpy(pDst->db, pDb->name, TSDB_DB_FNAME_LEN);
   pDst->createdTime = taosGetTimestampMs();
   pDst->updateTime = pDst->createdTime;
-  pDst->uid = (pCreate->source == TD_REQ_FROM_TAOX_OLD || pCreate->source == TD_REQ_FROM_TAOX)
+  pDst->uid = (pCreate->source == TD_REQ_FROM_TAOX_OLD || pCreate->source == TD_REQ_FROM_TAOX || pCreate->source == TD_REQ_FROM_SML)
                   ? pCreate->suid
                   : mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
   pDst->dbUid = pDb->uid;
@@ -1377,7 +1377,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     }
   } else if (terrno != TSDB_CODE_MND_STB_NOT_EXIST) {
     goto _OVER;
-  } else if ((createReq.source == TD_REQ_FROM_TAOX_OLD || createReq.source == TD_REQ_FROM_TAOX) &&
+  } else if ((createReq.source == TD_REQ_FROM_TAOX_OLD || createReq.source == TD_REQ_FROM_TAOX || createReq.source == TD_REQ_FROM_SML) &&
              (createReq.tagVer != 1 || createReq.colVer != 1)) {
     mInfo("stb:%s, alter table does not need to be done, because table is deleted", createReq.name);
     code = 0;
@@ -2923,7 +2923,6 @@ static int32_t mndDropStb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *p
   TAOS_CHECK_GOTO(mndSetDropStbCommitLogs(pMnode, pTrans, pStb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetDropStbRedoActions(pMnode, pTrans, pDb, pStb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDropIdxsByStb(pMnode, pTrans, pDb, pStb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDropSmasByStb(pMnode, pTrans, pDb, pStb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndUserRemoveStb(pMnode, pTrans, pStb->name), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
@@ -3060,10 +3059,12 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+/*
   if (mndCheckDropStbForStream(pMnode, dropReq.name, pStb->uid) < 0) {
     code = TSDB_CODE_MND_STREAM_MUST_BE_DELETED;
     goto _OVER;
   }
+*/
 
   code = mndDropStb(pMnode, pReq, pDb, pStb);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -3269,13 +3270,6 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
       }
 
       (void)tsnprintf(tbFName, sizeof(tbFName), "%s.%s", pStbVersion->dbFName, pStbVersion->stbName);
-      int32_t code = mndGetTableSma(pMnode, tbFName, &indexRsp, &exist);
-      if (code || !exist) {
-        indexRsp.suid = pStbVersion->suid;
-        indexRsp.version = -1;
-        indexRsp.pIndex = NULL;
-      }
-
       tstrncpy(indexRsp.dbFName, pStbVersion->dbFName, sizeof(indexRsp.dbFName));
       tstrncpy(indexRsp.tbName, pStbVersion->stbName, sizeof(indexRsp.tbName));
 

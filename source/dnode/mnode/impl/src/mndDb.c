@@ -1021,6 +1021,9 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DB), &lino, _OVER);
 
+  int32_t nVnodes = createReq.numOfVgroups * createReq.replications;
+  TAOS_CHECK_GOTO(grantCheckEx(TSDB_GRANT_VNODE, &nVnodes), &lino, _OVER);
+
   if (createReq.replications == 2) {
     TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DUAL_REPLICA_HA), &lino, _OVER);
   }
@@ -1741,7 +1744,7 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
 #ifdef TD_ENTERPRISE
   TAOS_CHECK_GOTO(mndDropViewByDb(pMnode, pTrans, pDb), NULL, _OVER);
 #endif
-  TAOS_CHECK_GOTO(mndDropSmasByDb(pMnode, pTrans, pDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDropTSMAsByDb(pMnode, pTrans, pDb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDropIdxsByDb(pMnode, pTrans, pDb), NULL, _OVER);
   //TAOS_CHECK_GOTO(mndStreamSetStopStreamTasksActions(pMnode, pTrans, pDb->uid), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetDropDbRedoActions(pMnode, pTrans, pDb), NULL, _OVER);

@@ -25,27 +25,16 @@
 #include "thash.h"
 
 SDataSinkManager2 g_pDataSinkManager = {0};
-int64_t           gDSMaxMemSizeDefault = (1024 * 1024 * 1024);    // 1G
-int64_t           gMemReservedSizeForWrite = (20 * 1024 * 1024);  // 20M
-int64_t           gMemReservedSize = (30 * 1024 * 1024);          // 30M
-int64_t           gMemAlertSize = (100 * 1024 * 1024);            // 100M
-int64_t           gMemAlertQuitSize = (300 * 1024 * 1024);        // 300M
-int64_t           gDSFileBlockDefaultSize = (10 * 1024 * 1024);   // 10M
 
 void setDataSinkMaxMemSize(int64_t maxMemSize) {
   if (maxMemSize >= 0) {
-    gDSMaxMemSizeDefault = maxMemSize;
+    tsStreamBufferSizeBytes = maxMemSize;
   }
-  stInfo("set data sink max mem size to %" PRId64, gDSMaxMemSizeDefault);
+  stInfo("set data sink max mem size to %" PRId64, tsStreamBufferSizeBytes);
 }
 
 static void destroySStreamDSTaskMgr(void* pData);
-int32_t     initStreamDataSinkOnce() {
-  int8_t flag = atomic_val_compare_exchange_8(&g_pDataSinkManager.status, 0, 1);
-  if (flag != 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-
+int32_t     initStreamDataSink() {
   int32_t code = 0;
   code = initDataSinkFileDir();
   if (code != 0) {
@@ -53,6 +42,7 @@ int32_t     initStreamDataSinkOnce() {
     return code;
   }
 
+  g_pDataSinkManager.memAlterSize = TMIN(100 * 1024 * 1024, tsStreamBufferSizeBytes * 0.1);
   g_pDataSinkManager.usedMemSize = 0;
   g_pDataSinkManager.fileBlockSize = 0;
   g_pDataSinkManager.readDataFromFileTimes = 0;
@@ -62,7 +52,7 @@ int32_t     initStreamDataSinkOnce() {
     return terrno;
   }
   taosHashSetFreeFp(g_pDataSinkManager.dsStreamTaskList, destroySStreamDSTaskMgr);
-  stInfo("data sink manager init success, max mem size: %" PRId64, gDSMaxMemSizeDefault);
+  stInfo("data sink manager init success, max mem size: %" PRId64, tsStreamBufferSizeBytes);
   return TSDB_CODE_SUCCESS;
 };
 
@@ -231,7 +221,7 @@ static int32_t createSlidingTaskMgr(int64_t streamId, int64_t taskId, int64_t se
   pSlidingTaskDSMgr->taskId = taskId;
   pSlidingTaskDSMgr->sessionId = sessionId;
   pSlidingTaskDSMgr->tsSlotId = tsSlotId;
-  pSlidingTaskDSMgr->capacity = gDSFileBlockDefaultSize;
+  pSlidingTaskDSMgr->capacity = DS_FILE_BLOCK_SIZE;
   pSlidingTaskDSMgr->pFileMgr = NULL;
   pSlidingTaskDSMgr->pSlidingGrpList =
       taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
@@ -248,10 +238,7 @@ static int32_t createSlidingTaskMgr(int64_t streamId, int64_t taskId, int64_t se
 // @brief 初始化数据缓存
 int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t cleanMode, int32_t tsSlotId,
                             void** ppCache) {
-  int32_t code = initStreamDataSinkOnce();
-  if (code != 0) {
-    return code;
-  }
+  int32_t code = 0;                            
   *ppCache = NULL;
   char key[64] = {0};
   snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%"PRId64, streamId, taskId, sessionId);
@@ -480,7 +467,7 @@ int32_t moveDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, SSDataBlock* pBl
 
 int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock,
                            int32_t startIndex, int32_t endIndex) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   if (pCache == NULL) {
     stError("putStreamDataCache param invalid, pCache is NULL");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
@@ -500,7 +487,7 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
   code = checkAndMoveMemCache(true);
   if (code != TSDB_CODE_SUCCESS) {
     stError("failed to check and move mem cache for write, code: %d err: %s", code, terrMsg);
-    return code;
+    TAOS_CHECK_EXIT(code);
   }
   if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
     SAlignTaskDSMgr* pStreamTaskMgr = (SAlignTaskDSMgr*)pCache;
@@ -511,6 +498,14 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
   }
   (void)checkAndMoveMemCache(false);
 
+_exit:
+
+  if (code) {
+    stError("%s failed at line %d since %s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    stDebug("group %" PRId64 " time range [%" PRId64 ", %" PRId64 "] rows range [%d, %d] added to cache", 
+        groupId, wstart, wend, startIndex, endIndex);
+  }
   return code;
 }
 
@@ -538,18 +533,18 @@ int32_t getAlignDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end,
   SResultIter*     pResultIter = NULL;
   *pIter = NULL;
 
-  stDebug("[get data cache] init start groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRId64,
+  stDebug("[get data cache] init start groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 " STREAMID:%" PRIx64,
           groupId, start, end, pStreamTaskMgr->streamId);
 
   SAlignGrpMgr** ppExistGrpMgr = (SAlignGrpMgr**)taosHashGet(pStreamTaskMgr->pAlignGrpList, &groupId, sizeof(groupId));
   if (ppExistGrpMgr == NULL) {
-    stDebug("[get data cache] init nogroup groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRId64,
+    stDebug("[get data cache] init nogroup groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 " STREAMID:%" PRIx64,
             groupId, start, end, pStreamTaskMgr->streamId);
     return TSDB_CODE_SUCCESS;
   }
   SAlignGrpMgr* pExistGrpMgr = *ppExistGrpMgr;
   if (pExistGrpMgr->blocksInMem->size == 0 && (!pExistGrpMgr->blocksInFile || pExistGrpMgr->blocksInFile->size == 0)) {
-    stDebug("[get data cache] init nodata groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRId64,
+    stDebug("[get data cache] init nodata groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 " STREAMID:%" PRIx64,
             groupId, start, end, pStreamTaskMgr->streamId);
     return TSDB_CODE_SUCCESS;
   }
@@ -576,7 +571,7 @@ int32_t getAlignDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end,
   return code;
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    releaseDataResult((void**)&pResultIter);
+    releaseDataResultAndResetMgrStatus((void**)&pResultIter);
     *pIter = NULL;
     stError("failed to get align data cache, err: %s, lineno:%d", terrMsg, lino);
   }
@@ -590,13 +585,13 @@ int32_t getSlidingDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
   SResultIter*       pResultIter = NULL;
   *pIter = NULL;
 
-  stDebug("STREAMID:%" PRId64 "  [get data cache] init groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64,
-          pStreamTaskMgr->streamId, groupId, start, end);
+  stDebug("[get data cache] init groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 " STREAMID:%" PRIx64 ,
+          groupId, start, end, pStreamTaskMgr->streamId);
 
   SSlidingGrpMgr** ppExistGrpMgr =
       (SSlidingGrpMgr**)taosHashGet(pStreamTaskMgr->pSlidingGrpList, &groupId, sizeof(groupId));
   if (ppExistGrpMgr == NULL) {
-    stDebug("[get data cache] init nogroup groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRId64,
+    stDebug("[get data cache] init nogroup groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRIx64,
             groupId, start, end, pStreamTaskMgr->streamId);
     return TSDB_CODE_SUCCESS;
   }
@@ -609,7 +604,7 @@ int32_t getSlidingDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
 
   if (pExistGrpMgr->winDataInMem->size == 0 && (!pExistGrpMgr->blocksInFile || pExistGrpMgr->blocksInFile->size == 0)) {
     (void)changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_IDLE);
-    stDebug("[get data cache] init nodata groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRId64,
+    stDebug("[get data cache] init nodata groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 "STREAMID:%" PRIx64,
             groupId, start, end, pStreamTaskMgr->streamId);
     return TSDB_CODE_SUCCESS;
   }
@@ -636,9 +631,9 @@ int32_t getSlidingDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
     return code;
   }
 _end:
+  changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_READING);
   if (code != TSDB_CODE_SUCCESS) {
-    changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_READING);
-    releaseDataResult((void**)&pResultIter);
+    releaseDataResultAndResetMgrStatus((void**)&pResultIter);
     *pIter = NULL;
     stError("failed to get sliding data cache, err: %s, lineno:%d", terrMsg, lino);
   }
@@ -685,11 +680,11 @@ int32_t createDataResult(void** pIter) {
 }
 
 void releaseDataResult(void** pIter) {
-  if (pIter == NULL) {
+  if (pIter == NULL || *pIter == NULL) {
     return;
   }
   SResultIter* pResult = (SResultIter*)*pIter;
-  if (pResult && pResult->tmpBlocksInMem) {
+  if (pResult->tmpBlocksInMem) {
     for (int32_t i = 0; i < pResult->tmpBlocksInMem->size; ++i) {
       SSDataBlock** ppBlk = (SSDataBlock**)taosArrayGet(pResult->tmpBlocksInMem, i);
       if (*ppBlk != NULL) {
@@ -700,6 +695,19 @@ void releaseDataResult(void** pIter) {
     taosArrayDestroy(pResult->tmpBlocksInMem);
     pResult->tmpBlocksInMem = NULL;
   }
+
+  if (pResult != NULL) {
+    taosMemoryFree(pResult);
+    *pIter = NULL;
+  }
+}
+
+void releaseDataResultAndResetMgrStatus(void** pIter) {
+  if (pIter == NULL || *pIter == NULL) {
+    return;
+  }
+  SResultIter* pResult = (SResultIter*)*pIter;
+
   if (pResult->cleanMode == DATA_CLEAN_EXPIRED) {
     SSlidingGrpMgr* pSlidingGrpMgr = (SSlidingGrpMgr*)pResult->groupData;
     changeMgrStatus(&pSlidingGrpMgr->status, GRP_DATA_IDLE);
@@ -708,10 +716,7 @@ void releaseDataResult(void** pIter) {
     changeMgrStatus(&pAlignGrpMgr->status, GRP_DATA_IDLE);
   }
 
-  if (pResult != NULL) {
-    taosMemoryFree(pResult);
-    *pIter = NULL;
-  }
+  releaseDataResult(pIter);
 }
 
 void moveToNextIterator(void** ppIter) {
@@ -746,7 +751,7 @@ void moveToNextIterator(void** ppIter) {
     }
   }
   if (finished) {
-    releaseDataResult(ppIter);
+    releaseDataResultAndResetMgrStatus(ppIter);
     *ppIter = NULL;
   }
 
@@ -797,35 +802,33 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
   }
 
   if (finished) {
-    releaseDataResult(pIter);
+    releaseDataResultAndResetMgrStatus(pIter);
     *pIter = NULL;
     goto _end;
   }
   moveToNextIterator(pIter);
 
   if (code == TSDB_CODE_SUCCESS && *ppBlock == NULL && *pIter != NULL) {
-    return getNextStreamDataCache(pIter, ppBlock);
+    code = getNextStreamDataCache(pIter, ppBlock);
+    goto _end;
   }
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    stError("failed to get next data from cache, err: %s, lineno:%d", terrMsg, lino);
-  }
-  if (ppBlock != NULL && *ppBlock != NULL) {
-    stDebug("[get data cache] end, groupID:%" PRId64 ", start:%" PRId64 " end:%" PRId64 " block rows: %" PRId64 " next:%p",
-            pResult->groupId, pResult->reqStartTime, pResult->reqEndTime, (*ppBlock)->info.rows, *pIter);
+    stError("[get data cache] end, failed to get next data from cache, err: %s, lineno:%d", terrMsg, lino);
+  } else if (ppBlock != NULL && *ppBlock != NULL) {
+    stDebug("[get data cache] end, block rows: %" PRId64 " next:%p", (*ppBlock)->info.rows, *pIter);
+  } else {
+    stDebug("[get data cache] end, not found data, next:%p", *pIter);
   }
   return code;
 }
 
-void cancelStreamDataCacheIterate(void** pIter) { releaseDataResult(pIter); }
+void cancelStreamDataCacheIterate(void** pIter) { releaseDataResultAndResetMgrStatus(pIter); }
 
 int32_t destroyDataSinkMgr() {
-  int8_t flag = atomic_val_compare_exchange_8(&g_pDataSinkManager.status, 1, 0);
-  if (flag == 1) {
-    if (g_pDataSinkManager.dsStreamTaskList) {
-      taosHashCleanup(g_pDataSinkManager.dsStreamTaskList);
-      g_pDataSinkManager.dsStreamTaskList = NULL;
-    }
+  if (g_pDataSinkManager.dsStreamTaskList) {
+    taosHashCleanup(g_pDataSinkManager.dsStreamTaskList);
+    g_pDataSinkManager.dsStreamTaskList = NULL;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -836,7 +839,7 @@ void useMemSizeSub(int64_t size) { atomic_fetch_sub_64(&g_pDataSinkManager.usedM
 
 bool hasEnoughMemSize() {
   int64_t usedMemSize = atomic_load_64(&g_pDataSinkManager.usedMemSize);
-  return (usedMemSize < gDSMaxMemSizeDefault - gMemReservedSize);
+  return (usedMemSize < tsStreamBufferSizeBytes - DS_MEM_SIZE_RESERVED);
 }
 
 int32_t moveMemCacheAllList() {
@@ -882,7 +885,7 @@ int32_t moveMemCache() {
   }
 
   stInfo("moveMemCache started, used mem size: %" PRId64 ", max mem size: %" PRId64, g_pDataSinkManager.usedMemSize,
-         gDSMaxMemSizeDefault);
+         tsStreamBufferSizeBytes);
 
   int32_t code = moveMemFromWaitList(0);
   if (code != TSDB_CODE_SUCCESS) {
@@ -902,7 +905,7 @@ int32_t moveMemCache() {
     }
   }
   stInfo("moveMemCache finished, used mem size: %" PRId64 ", max mem size: %" PRId64, g_pDataSinkManager.usedMemSize,
-         gDSMaxMemSizeDefault);
+         tsStreamBufferSizeBytes);
   atomic_val_compare_exchange_8(&g_slidigGrpMemList.status, DATA_MOVING, DATA_NORMAL);
 
   return code;
@@ -942,14 +945,14 @@ static void disableSlidingGrpMemList() {
 
 int32_t checkAndMoveMemCache(bool forWrite) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (!g_slidigGrpMemList.enabled && g_pDataSinkManager.usedMemSize > gDSMaxMemSizeDefault - gMemAlertSize) {
+  if (!g_slidigGrpMemList.enabled && g_pDataSinkManager.usedMemSize > tsStreamBufferSizeBytes - g_pDataSinkManager.memAlterSize) {
     return enableSlidingGrpMemList();
-  } else if (g_slidigGrpMemList.enabled && g_pDataSinkManager.usedMemSize < gDSMaxMemSizeDefault - gMemAlertQuitSize) {
+  } else if (g_slidigGrpMemList.enabled && g_pDataSinkManager.usedMemSize < tsStreamBufferSizeBytes - DS_MEM_SIZE_ALTER_QUIT) {
     disableSlidingGrpMemList();
     return TSDB_CODE_SUCCESS;
   }
 
-  if ((forWrite && g_pDataSinkManager.usedMemSize < gDSMaxMemSizeDefault - gMemReservedSizeForWrite) ||
+  if ((forWrite && g_pDataSinkManager.usedMemSize < tsStreamBufferSizeBytes - DS_MEM_SIZE_RESERVED_FOR_WIRTE) ||
       (!forWrite && hasEnoughMemSize())) {
     return TSDB_CODE_SUCCESS;
   }
@@ -957,7 +960,7 @@ int32_t checkAndMoveMemCache(bool forWrite) {
     return moveMemCache();
   } else {
     stDebug("checkAndReleaseBuffer, used mem size: %" PRId64 ", max mem size: %" PRId64 ", for write: %d",
-            g_pDataSinkManager.usedMemSize, gDSMaxMemSizeDefault, forWrite);
+            g_pDataSinkManager.usedMemSize, tsStreamBufferSizeBytes, forWrite);
   }
   return TSDB_CODE_SUCCESS;
 }

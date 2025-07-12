@@ -182,7 +182,7 @@ typedef struct SStmTaskStatus {
   int64_t         flags;
   EStreamStatus   status;
   SRWLatch        detailStatusLock;
-  void*           detailStatus;     // SSTriggerRuntimeStatus*
+  void*           detailStatus;     // SSTriggerRuntimeStatus*, only for trigger task now
   int32_t         errCode;
   int64_t         runningStartTs;
   int64_t         lastUpTs;
@@ -266,6 +266,7 @@ typedef struct SStmStatus {
   int64_t           fatalRetryTimes;
 
   SArray*           trigReaders;        // SArray<SStmTaskStatus>
+  SArray*           trigOReaders;       // SArray<SStmTaskStatus>, virtable table only
   SArray*           calcReaders;        // SArray<SStmTaskStatus>  
   SStmTaskStatus*   triggerTask;
   SArray*           runners[MND_STREAM_RUNNER_DEPLOY_NUM];  // SArray<SStmTaskStatus>
@@ -308,7 +309,7 @@ typedef struct SStmVgroupStatus {
 } SStmVgroupStatus;
 
 typedef struct SStmTaskToDeployExt {
-  bool            deployed;
+  volatile bool   deployed;
   int32_t         deployId;     // only for runner task
   SStmTaskDeploy  deploy;
 } SStmTaskToDeployExt;
@@ -517,10 +518,16 @@ void mstDestroyDbVgroupsHash(SSHashObj *pDbVgs);
 void mndStreamUpdateTagsRefFlag(SMnode *pMnode, int64_t suid, SSchema* pTags, int32_t tagNum);
 void mstCheckDbInUse(SMnode *pMnode, char *dbFName, bool *dbStream, bool *vtableStream, bool ignoreCurrDb);
 void mstDestroySStmSnodeTasksDeploy(void* param);
+void mstResetSStmStatus(SStmStatus* pStatus);
 void mstDestroySStmStatus(void* param);
+void mstDestroySStmAction(void* param);
+void mstClearSStmStreamDeploy(SStmStreamDeploy* pDeploy);
 void mstDestroySStmVgroupStatus(void* param);
 void mstDestroySStmSnodeStatus(void* param);
 void mstDestroySStmVgTasksToDeploy(void* param);
+void mstDestroySStmTaskToDeployExt(void* param);
+void mstDestroyScanAddrList(void* param);
+int32_t msmGetTriggerTaskAddr(SMnode *pMnode, int64_t streamId, SStreamTaskAddr* pAddr);
 
 
 #ifdef __cplusplus

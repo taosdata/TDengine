@@ -1079,8 +1079,14 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   if (svrVerNum) {
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_SVR_VER, NULL, NULL));
   }
-  if (vstbRefDbsNum) {
-    CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_V_STBREFDBS, pReq->pVStbRefDbs, NULL));
+
+  for (int32_t i = 0; i < vstbRefDbsNum; ++i) {
+    SName* name = taosArrayGet(pReq->pVStbRefDbs, i);
+    if (NULL == name) {
+      qError("taosArrayGet the %dth tb in pTableCfg failed", i);
+      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+    }
+    CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_V_STBREFDBS, name, NULL));
   }
 
   pJob->refId = taosAddRef(gCtgMgmt.jobPool, pJob);
@@ -2773,15 +2779,15 @@ _return:
   CTG_RET(code);
 }
 
-static int32_t ctgTsmaFetchStreamProgress(SCtgTaskReq* tReq, SHashObj* pVgHash, const STableTSMAInfoRsp* pTsmas) {
+static int32_t ctgTsmaFetchStreamProgress(SCtgTaskReq* tReq, const STableTSMAInfoRsp* pTsmas) {
   int32_t           code = 0;
   SCtgTask*         pTask = tReq->pTask;
   SCatalog*         pCtg = pTask->pJob->pCtg;
-  int32_t           subFetchIdx = 0;
   SCtgTbTSMACtx*    pCtx = pTask->taskCtx;
   SRequestConnInfo* pConn = &pTask->pJob->conn;
   SVgroupInfo*      pVgInfo = NULL;
   SCtgTSMAFetch*    pFetch = taosArrayGet(pCtx->pFetches, tReq->msgIdx);
+  int32_t           subFetchIdx = 0;
   if (NULL == pFetch) {
     ctgError("fail to get the %dth SCtgTSMAFetch, totalNum:%d", tReq->msgIdx,
              (int32_t)taosArrayGetSize(pCtx->pFetches));
@@ -2800,7 +2806,6 @@ static int32_t ctgTsmaFetchStreamProgress(SCtgTaskReq* tReq, SHashObj* pVgHash, 
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
-  pFetch->vgNum = taosHashGetSize(pVgHash);
   for (int32_t i = 0; i < taosArrayGetSize(pTsmas->pTsmas); ++i) {
     STableTSMAInfo* pTsmaInfo = taosArrayGetP(pTsmas->pTsmas, i);
     if (NULL == pTsmaInfo) {
@@ -2808,19 +2813,19 @@ static int32_t ctgTsmaFetchStreamProgress(SCtgTaskReq* tReq, SHashObj* pVgHash, 
       CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    pVgInfo = taosHashIterate(pVgHash, NULL);
     pTsmaInfo->reqTs = taosGetTimestampMs();
-    while (pVgInfo) {
-      // make StreamProgressReq, send it
-      SStreamProgressReq req = {.fetchIdx = pFetch->fetchIdx,
-                                .streamId = pTsmaInfo->streamUid,
-                                .subFetchIdx = subFetchIdx++,
-                                .vgId = pVgInfo->vgId};
-      CTG_ERR_JRET(ctgGetStreamProgressFromVnode(pCtg, pConn, pTbName, pVgInfo, NULL, tReq, &req));
-      pFetch->subFetchNum++;
+    // make StreamProgressReq, send it
+    SStreamProgressReq req = {.fetchIdx = i,
+                              .streamId = pTsmaInfo->streamUid,
+                              .taskId = ((SStreamTaskAddr*)pTsmaInfo->streamAddr)->taskId};
+    SRequestConnInfo vConn = {.pTrans = pConn->pTrans,
+                              .requestId = pConn->requestId,
+                              .requestObjRefId = pConn->requestObjRefId,
+                              .mgmtEps = ((SStreamTaskAddr*)pTsmaInfo->streamAddr)->epset};
 
-      pVgInfo = taosHashIterate(pVgHash, pVgInfo);
-    }
+    CTG_ERR_JRET(ctgGetStreamProgressFromMnode(pCtg, &vConn, pTbName, NULL, tReq, &req, ((SStreamTaskAddr*)pTsmaInfo->streamAddr)->nodeId));
+
+    pFetch->subFetchNum++;
   }
 
 _return:
@@ -2964,7 +2969,7 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
-  if (reqType != TDMT_VND_GET_STREAM_PROGRESS)
+  if (reqType != TDMT_MND_GET_STREAM_PROGRESS)
     CTG_ERR_JRET(ctgProcessRspMsg(pMsgCtx->out, reqType, pMsg->pData, pMsg->len, rspCode, pMsgCtx->target));
 
   switch (reqType) {
@@ -2976,20 +2981,7 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
 
       if (pOut->pTsmas && taosArrayGetSize(pOut->pTsmas) > 0) {
         // fetch progress
-        (void)ctgAcquireVgInfoFromCache(pCtg, pTbReq->dbFName, &pDbCache);  // ignore cache error
-
-        if (!pDbCache) {
-          // do not know which vnodes to fetch, fetch vnode list first
-          SBuildUseDBInput input = {0};
-          tstrncpy(input.db, pTbReq->dbFName, tListLen(input.db));
-          input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
-          CTG_ERR_JRET(ctgGetDBVgInfoFromMnode(pCtg, pConn, &input, NULL, tReq));
-        } else {
-          // fetch progress from every vnode
-          CTG_ERR_JRET(ctgTsmaFetchStreamProgress(tReq, pDbCache->vgCache.vgInfo->vgHash, pOut));
-          ctgReleaseVgInfoToCache(pCtg, pDbCache);
-          pDbCache = NULL;
-        }
+        CTG_ERR_JRET(ctgTsmaFetchStreamProgress(tReq, pOut));
       } else {
         // no tsmas
         if (atomic_sub_fetch_32(&pCtx->fetchNum, 1) == 0) {
@@ -3000,18 +2992,17 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
 
       break;
     }
-    case TDMT_VND_GET_STREAM_PROGRESS: {
+    case TDMT_MND_GET_STREAM_PROGRESS: {
       SStreamProgressRsp rsp = {0};
       CTG_ERR_JRET(ctgProcessRspMsg(&rsp, reqType, pMsg->pData, pMsg->len, rspCode, pMsgCtx->target));
 
       // update progress into res
       STableTSMAInfoRsp*  pTsmasRsp = pRes->pRes;
-      SArray*             pTsmas = pTsmasRsp->pTsmas;
+      SArray*             pTsmaArray = pTsmasRsp->pTsmas;
       SStreamProgressRsp* pRsp = &rsp;
-      int32_t             tsmaIdx = pRsp->subFetchIdx / pFetch->vgNum;
-      STableTSMAInfo*     pTsmaInfo = taosArrayGetP(pTsmas, tsmaIdx);
+      STableTSMAInfo*     pTsmaInfo = taosArrayGetP(pTsmaArray, pRsp->fetchIdx);
       if (NULL == pTsmaInfo) {
-        ctgError("fail to get the %dth STableTSMAInfo, totalNum:%d", tsmaIdx, (int32_t)taosArrayGetSize(pTsmas));
+        ctgError("fail to get STableTSMAInfo, totalNum:%d", (int32_t)taosArrayGetSize(pTsmaArray));
         CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
       }
 
@@ -3023,13 +3014,13 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       pTsmaInfo->delayDuration = TMAX(pRsp->progressDelay, pTsmaInfo->delayDuration);
       pTsmaInfo->fillHistoryFinished = pTsmaInfo->fillHistoryFinished && pRsp->fillHisFinished;
 
-      qDebug("received stream progress for tsma %s rsp history:%d vnode:%d, delay:%" PRId64, pTsmaInfo->name,
-             pRsp->fillHisFinished, pRsp->subFetchIdx, pRsp->progressDelay);
+      qDebug("received stream progress for tsma %s rsp history:%d  delay:%" PRId64, pTsmaInfo->name,
+             pRsp->fillHisFinished, pRsp->progressDelay);
 
       if (atomic_add_fetch_32(&pFetch->finishedSubFetchNum, 1) == pFetch->subFetchNum) {
         // subfetch all finished
-        for (int32_t i = 0; i < taosArrayGetSize(pTsmas); ++i) {
-          STableTSMAInfo* pInfo = taosArrayGetP(pTsmas, i);
+        for (int32_t i = 0; i < taosArrayGetSize(pTsmaArray); ++i) {
+          STableTSMAInfo* pInfo = taosArrayGetP(pTsmaArray, i);
           CTG_ERR_JRET(tCloneTbTSMAInfo(pInfo, &pTsma));
           CTG_ERR_JRET(ctgUpdateTbTSMAEnqueue(pCtg, &pTsma, 0, false));
         }
@@ -3039,6 +3030,7 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
           taskDone = true;
         }
       }
+
 
       break;
     }
@@ -3056,9 +3048,8 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
           break;
         }
         case FETCH_TSMA_STREAM_PROGRESS: {
-          STableTSMAInfoRsp* pTsmas = pRes->pRes;
-          TSWAP(pOut->dbVgroup->vgHash, pVgHash);
-          CTG_ERR_JRET(ctgTsmaFetchStreamProgress(tReq, pVgHash, pTsmas));
+          STableTSMAInfoRsp* pTsmaInfo = pRes->pRes;
+          CTG_ERR_JRET(ctgTsmaFetchStreamProgress(tReq, pTsmaInfo));
 
           break;
         }
@@ -3128,7 +3119,7 @@ _return:
     }
 
     bool allSubFetchFinished = false;
-    if (pMsgCtx->reqType == TDMT_VND_GET_STREAM_PROGRESS) {
+    if (pMsgCtx->reqType == TDMT_MND_GET_STREAM_PROGRESS) {
       allSubFetchFinished = atomic_add_fetch_32(&pFetch->finishedSubFetchNum, 1) >= pFetch->subFetchNum;
     }
     if ((allSubFetchFinished || pFetch->subFetchNum == 0) && 0 == atomic_sub_fetch_32(&pCtx->fetchNum, 1)) {
@@ -4240,7 +4231,6 @@ int32_t ctgLaunchGetVStbRefDbsTask(SCtgTask* pTask) {
   SRequestConnInfo*  pConn = &pTask->pJob->conn;
   SCtgVStbRefDbsCtx* pCtx = (SCtgVStbRefDbsCtx*)pTask->taskCtx;
   SCtgJob*           pJob = pTask->pJob;
-  SName*             pName = NULL;
   char               dbFName[TSDB_DB_FNAME_LEN];
   SCtgDBCache*       dbCache = NULL;
   int32_t            code = TSDB_CODE_SUCCESS;
@@ -4254,12 +4244,6 @@ int32_t ctgLaunchGetVStbRefDbsTask(SCtgTask* pTask) {
     pMsgCtx->pBatchs = pJob->pBatchs;
   }
 
-  pName = taosArrayGet(pCtx->pNames, 0);
-  if (NULL == pName) {
-    ctgError("fail to get SName in VStbRefDbs req, num:%d", 0);
-    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
-  }
-
   if (NULL == pMsgCtx->target) {
     pMsgCtx->target = taosMemoryMalloc(TSDB_TABLE_FNAME_LEN);
     if (NULL == pMsgCtx->target) {
@@ -4267,18 +4251,18 @@ int32_t ctgLaunchGetVStbRefDbsTask(SCtgTask* pTask) {
       CTG_ERR_RET(terrno);
     }
 
-    tNameExtractFullName(pName, pMsgCtx->target);
+    tNameExtractFullName(pCtx->pNames, pMsgCtx->target);
   }
 
-  (void)tNameGetFullDbName(pName, dbFName);
+  (void)tNameGetFullDbName(pCtx->pNames, dbFName);
 
   if (NULL == pCtx->pMeta) {
     SCtgTbMetaCtx metaCtx = {0};
-    metaCtx.pName = pName;
+    metaCtx.pName = pCtx->pNames;
     CTG_ERR_RET(ctgReadTbMetaFromCache(pCtg, &metaCtx, &pCtx->pMeta));
     if (NULL == pCtx->pMeta) {
       SCtgTbMetaParam param;
-      param.pName = pName;
+      param.pName = pCtx->pNames;
       param.flag = 0;
       CTG_ERR_RET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_TB_META, ctgGetVStbRefDbsCb, &param));
       return TSDB_CODE_SUCCESS;

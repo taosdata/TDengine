@@ -105,38 +105,21 @@ class TestStreamDevBasic:
 
     def createStreams(self):
         self.streams = []
-        
+
         stream = StreamItem(
-            id=12,
-            stream="create stream rdb.s12 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r12 as select _twstart ts, %%tbname tb, %%1, count(*) v1, avg(c1) v2, first(c1) v3, last(c1) v4 from %%trows where c2 > 0;",
-            res_query="select ts, tb, `%%1`, v2, v3, v4, tag_tbname from rdb.r12 where tb='t1'",
-            exp_query="select _wstart, 't1', 't1', avg(c1) v2, first(c1) v3, last(c1) v4, 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m) fill(NULL);",
-            check_func=self.check12,
+            id=121,
+            stream="create stream rdb.s121 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r121 as select ta.ts tats, tb.cts tbts, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2, _twstart tw, _twend te, %%tbname tb from %%tbname ta inner join qdb.t1 tb on ta.ts=tb.cts where ta.ts >= _twstart and ta.ts < _twend",
+            res_query="select tats, tbts, tac1, tac2, tbc1, tbc2 from rdb.r121 where tag_tbname='t1'",
+            exp_query="select ta.ts tats, tb.cts tbts, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2 from tdb.t1 ta inner join qdb.t1 tb on ta.ts=tb.cts where ta.ts >= '2025-01-01 00:00:00.000' and ta.ts < '2025-01-01 00:35:00.000';",
         )
+
         self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()
 
-    def check12(self):
-        tdSql.checkTableType(
-            dbname="rdb",
-            stbname="r12",
-            columns=7,
-            tags=1,
-        )
-        tdSql.checkTableSchema(
-            dbname="rdb",
-            tbname="r12",
-            schema=[
-                ["ts", "TIMESTAMP", 8, ""],
-                ["tb", "VARCHAR", 270, ""],
-                ["%%1", "VARCHAR", 270, ""],
-                ["v1", "BIGINT", 8, ""],
-                ["v2", "DOUBLE", 8, ""],
-                ["v3", "INT", 4, ""],
-                ["v4", "INT", 4, ""],
-                ["tag_tbname", "VARCHAR", 270, "TAG"],
-            ],
+    def check102(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from rdb.r102", func=lambda: tdSql.getRows() == 4
         )

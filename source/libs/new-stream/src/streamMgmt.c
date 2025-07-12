@@ -23,7 +23,7 @@
 #include "streamReader.h"
 
 void smRemoveReaderFromVgMap(SStreamTask* pTask) {
-  SStreamVgReaderTasks* pVg = taosHashGet(gStreamMgmt.vgroupMap, &pTask->nodeId, sizeof(pTask->nodeId));
+  SStreamVgReaderTasks* pVg = taosHashAcquire(gStreamMgmt.vgroupMap, &pTask->nodeId, sizeof(pTask->nodeId));
   if (NULL == pVg) {
     ST_TASK_WLOG("vgroup not exists, tidx:%d", pTask->taskIdx);
     return;
@@ -41,6 +41,7 @@ void smRemoveReaderFromVgMap(SStreamTask* pTask) {
   }
 
   taosWUnLockLatch(&pVg->lock);
+  taosHashRelease(gStreamMgmt.vgroupMap, pVg);  
 }
 
 
@@ -272,6 +273,7 @@ int32_t smDeployTasks(SStmStreamDeploy* pDeploy) {
   if (NULL == pGrp) {
     gStreamMgmt.stmGrp[gid] = taosHashInit(STREAM_GRP_STREAM_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
     TSDB_CHECK_NULL(gStreamMgmt.stmGrp[gid], code, lino, _exit, terrno);
+    taosHashSetFreeFp(gStreamMgmt.stmGrp[gid], stmDestroySStreamInfo);
     pGrp = gStreamMgmt.stmGrp[gid];
   }
   
@@ -495,7 +497,10 @@ int32_t smUndeployTask(SStreamTaskUndeploy* pUndeploy, bool rmFromVg) {
   SStreamTask task = **ppTask;
   pTask= &task;
 
-  (void)taosHashRemove(gStreamMgmt.taskMap, key, sizeof(key));
+  code = taosHashRemove(gStreamMgmt.taskMap, key, sizeof(key));
+  if (code) {
+    ST_TASK_WLOG("task remove from taskMap failed, error:%s, tidx:%d", tstrerror(code), pTask->taskIdx);
+  }
 
   (*ppTask)->undeployMsg = pUndeploy->undeployMsg;
   (*ppTask)->undeployCb = smRemoveTaskCb;
@@ -747,6 +752,7 @@ int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp) {
       SStreamMgmtReq* pReq = atomic_load_ptr(&pTask->pMgmtReq);
       if (pReq && pReq->reqId == pRsp->reqId && pReq == atomic_val_compare_exchange_ptr(&pTask->pMgmtReq, pReq, NULL)) {
         stmDestroySStreamMgmtReq(pReq);
+        taosMemoryFree(pReq);
       }
       STM_CHK_SET_ERROR_EXIT(stTriggerTaskExecute((SStreamTriggerTask*)pTask, &pRsp->header));
       break;

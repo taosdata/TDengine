@@ -4244,6 +4244,81 @@ int32_t hllScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 
 int32_t csumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return sumScalarFunction(pInput, inputNum, pOutput);
+  // SColumnInfoData *pInputData = pInput->columnData;
+  // SColumnInfoData *pOutputData = pOutput->columnData;
+
+  // int32_t type = GET_PARAM_TYPE(pInput);
+
+  // union {
+  //   int64_t    d;
+  //   uint64_t   u;
+  //   double     dub;
+  //   Decimal128 dec;
+  // } csumVal;
+
+  // memset(&csumVal, 0, sizeof(csumVal));
+  // for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+  //   if (colDataIsNull_s(pInputData, i)) {
+  //     colDataSetNULL(pOutputData, i);
+  //     continue;
+  //   }
+
+  //   if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
+  //     if (type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_BOOL) {
+  //       int8_t *in = (int8_t *)pInputData->pData;
+  //       csumVal.d += in[i];
+  //     } else if (type == TSDB_DATA_TYPE_SMALLINT) {
+  //       int16_t *in = (int16_t *)pInputData->pData;
+  //       csumVal.d += in[i];
+  //     } else if (type == TSDB_DATA_TYPE_INT) {
+  //       int32_t *in = (int32_t *)pInputData->pData;
+  //       csumVal.d += in[i];
+  //     } else if (type == TSDB_DATA_TYPE_BIGINT) {
+  //       int64_t *in = (int64_t *)pInputData->pData;
+  //       csumVal.d += in[i];
+  //     }
+  //     SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (const char *)&csumVal.d, false));
+  //   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+  //     if (type == TSDB_DATA_TYPE_UTINYINT) {
+  //       uint8_t *in = (uint8_t *)pInputData->pData;
+  //       csumVal.u += in[i];
+  //     } else if (type == TSDB_DATA_TYPE_USMALLINT) {
+  //       uint16_t *in = (uint16_t *)pInputData->pData;
+  //       csumVal.u += in[i];
+  //     } else if (type == TSDB_DATA_TYPE_UINT) {
+  //       uint32_t *in = (uint32_t *)pInputData->pData;
+  //       csumVal.u += in[i];
+  //     } else if (type == TSDB_DATA_TYPE_UBIGINT) {
+  //       uint64_t *in = (uint64_t *)pInputData->pData;
+  //       csumVal.u += in[i];
+  //     }
+  //     SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (const char *)&csumVal.u, false));
+  //   } else if (IS_FLOAT_TYPE(type)) {
+  //     if (type == TSDB_DATA_TYPE_FLOAT) {
+  //       float *in = (float *)pInputData->pData;
+  //       csumVal.dub += in[i];
+  //     } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+  //       double *in = (double *)pInputData->pData;
+  //       csumVal.dub += in[i];
+  //     }
+  //     SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (const char *)&csumVal.dub, false));
+  //   } else if (type == TSDB_DATA_TYPE_DECIMAL) {
+  //     Decimal128 out = {0};
+  //     if (type == TSDB_DATA_TYPE_DECIMAL64) {
+  //       const Decimal64   *pIn = (Decimal64 *)pInputData->pData;
+  //       const SDecimalOps *pOps = getDecimalOps(type);
+  //       pOps->add(&csumVal.dec, pIn + i, DECIMAL_WORD_NUM(Decimal64));
+  //     } else if (type == TSDB_DATA_TYPE_DECIMAL) {
+  //       const Decimal128  *pIn = (Decimal128 *)pInputData->pData;
+  //       const SDecimalOps *pOps = getDecimalOps(type);
+  //       pOps->add(&csumVal.dec, pIn + i, DECIMAL_WORD_NUM(Decimal128));
+  //     }
+  //     SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (const char *)&csumVal.dec, false));
+  //   }
+  // }
+
+  // pOutput->numOfRows = pInput->numOfRows;
+  // return TSDB_CODE_SUCCESS;
 }
 
 typedef enum {
@@ -4861,4 +4936,35 @@ int32_t leastFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   TSWAP(pInput->columnData, pOutput->columnData);
   return 0;
+}
+
+void calcTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinRange, bool *winRangeValid) {
+  SStreamTSRangeParas timeStartParas = {.eType = SCL_VALUE_TYPE_START, .timeValue = INT64_MIN};
+  SStreamTSRangeParas timeEndParas = {.eType = SCL_VALUE_TYPE_END, .timeValue = INT64_MAX};
+  if (scalarCalculate(node->pStart, NULL, NULL, pStRtFuncInfo, &timeStartParas) == 0) {
+    if (timeStartParas.opType == OP_TYPE_GREATER_THAN) {
+      pWinRange->skey = timeStartParas.timeValue + 1;
+    } else if (timeStartParas.opType == OP_TYPE_GREATER_EQUAL) {
+      pWinRange->skey = timeStartParas.timeValue;
+    } else {
+      qError("start time range error, opType:%d", timeStartParas.opType);
+      return;
+    }
+  } else {
+    pWinRange->skey = 0;
+  }
+  if (scalarCalculate(node->pEnd, NULL, NULL, pStRtFuncInfo, &timeEndParas) == 0) {
+    if (timeEndParas.opType == OP_TYPE_LOWER_THAN) {
+      pWinRange->ekey = timeEndParas.timeValue - 1;
+    } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL) {
+      pWinRange->ekey = timeEndParas.timeValue;
+    } else {
+      qError("end time range error, opType:%d", timeEndParas.opType);
+      return;
+    }
+  } else {
+    pWinRange->ekey = INT64_MAX;
+  }
+  qInfo("%s, skey:%" PRId64 ", ekey:%" PRId64, __func__, pWinRange->skey, pWinRange->ekey);
+  *winRangeValid = true;
 }

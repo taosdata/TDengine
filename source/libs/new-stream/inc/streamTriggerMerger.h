@@ -37,6 +37,7 @@ typedef struct SSTriggerMetaData {
 typedef struct SSTriggerTableMeta {
   int64_t tbUid;
   int32_t vgId;
+  int32_t metaIdx;
   SArray *pMetas;  // SArray<SSTriggerMetaData>
 } SSTriggerTableMeta;
 
@@ -80,9 +81,10 @@ typedef enum ETriggerMetaDataMask {
 
 typedef enum ETriggerTimestampSorterMask {
   TRIGGER_TS_SORTER_MASK_SORT_INFO_SET = BIT_FLAG_MASK(0),
-  TRIGGER_TS_SORTER_MASK_DATA_META_SET = BIT_FLAG_MASK(1),
+  TRIGGER_TS_SORTER_MASK_META_DATA_SET = BIT_FLAG_MASK(1),
   TRIGGER_TS_SORTER_MASK_DATA_MERGER_BUILD = BIT_FLAG_MASK(2),
   TRIGGER_TS_SORTER_MASK_SESS_WIN_BUILD = BIT_FLAG_MASK(3),
+  TRIGGER_TS_SORTER_MASK_NO_META_DATA = BIT_FLAG_MASK(4),
 } ETriggerTimestampSorterMask;
 
 typedef struct SSTriggerTimestampSorter {
@@ -146,6 +148,14 @@ int32_t stTimestampSorterSetSortInfo(SSTriggerTimestampSorter *pSorter, STimeWin
  * @return int32_t Status code indicating success or error
  */
 int32_t stTimestampSorterSetMetaDatas(SSTriggerTimestampSorter *pSorter, SSTriggerTableMeta *pTableMeta);
+
+/**
+ * @brief Sets the timestamp sorter without metadata; it would only be used to return bound data blocks.
+ *
+ * @param pSorter The SSTriggerTimestampSorter instance responsible for merging
+ * @return int32_t Status code indicating success or error
+ */
+int32_t stTimestampSorterSetEmptyMetaDatas(SSTriggerTimestampSorter *pSorter);
 
 /**
  * @brief Get next data block from the sorter.
@@ -214,12 +224,13 @@ typedef struct SSTriggerColMatch {
 typedef struct SSTriggerTableColRef {
   int64_t otbSuid;
   int64_t otbUid;
+  int32_t otbVgId;
   SArray *pColMatches;  // SArray<SSTriggerColMatch>
 } SSTriggerTableColRef;
 
 typedef enum ETriggerVtableMergerMask {
   TRIGGER_VTABLE_MERGER_MASK_MERGE_INFO_SET = BIT_FLAG_MASK(0),
-  TRIGGER_VTABLE_MERGER_MASK_DATA_META_SET = BIT_FLAG_MASK(1),
+  TRIGGER_VTABLE_MERGER_MASK_META_DATA_SET = BIT_FLAG_MASK(1),
 } ETriggerVtableMergerMask;
 
 typedef struct SSTriggerVtableMerger {
@@ -283,6 +294,14 @@ int32_t stVtableMergerSetMergeInfo(SSTriggerVtableMerger *pMerger, STimeWindow *
  * @return int32_t Status code indicating success or error
  */
 int32_t stVtableMergerSetMetaDatas(SSTriggerVtableMerger *pMerger, SSHashObj *pOrigTableMetas);
+
+/**
+ * @brief Sets the underlying timestamp sorters without metadata.
+ *
+ * @param pMerger The SSTriggerVtableMerger instance responsible for merging
+ * @return int32_t Status code indicating success or error
+ */
+int32_t stVtableMergerSetEmptyMetaDatas(SSTriggerVtableMerger *pMerger);
 
 /**
  * @brief Gets next data block from the vtable merger.

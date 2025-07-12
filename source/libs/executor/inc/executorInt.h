@@ -31,7 +31,6 @@ extern "C" {
 #include "executor.h"
 #include "planner.h"
 #include "scalar.h"
-#include "streamVtableMerge.h"
 #include "taosdef.h"
 #include "tarray.h"
 #include "tfill.h"
@@ -53,6 +52,7 @@ typedef enum SOperatorParamType { OP_GET_PARAM = 1, OP_NOTIFY_PARAM } SOperatorP
 #define SET_SESSION_WIN_INVALID(winInfo)     ((winInfo).sessionWin.win.skey = INT64_MIN)
 #define IS_INVALID_SESSION_WIN_KEY(winKey)   ((winKey).win.skey <= 0)
 #define SET_SESSION_WIN_KEY_INVALID(pWinKey) ((pWinKey)->win.skey = INT64_MIN)
+
 
 /**
  * If the number of generated results is greater than this value,
@@ -794,6 +794,9 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
 
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
                               int32_t numOfOutput, SArray* pPseudoList, const void* pExtraParams);
+int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock,
+                                        SqlFunctionCtx* pCtx, int32_t numOfOutput, SArray* pPseudoList,
+                                        const void* pExtraParams, bool doSelectFunc);
 
 int32_t setInputDataBlock(SExprSupp* pExprSupp, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
                           bool createDummyCol);
@@ -921,7 +924,7 @@ bool    getIgoreNullRes(SExprSupp* pExprSup);
 bool    checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t index, bool ignoreNull);
 int64_t getMinWindowSize(struct SOperatorInfo* pOperator);
 
-void    destroyStreamScanOperatorInfo(void* param);
+void    destroyTmqScanOperatorInfo(void* param);
 int32_t checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock* pBlock, bool out);
 void resetBasicOperatorState(SOptrBasicInfo* pBasicInfo);
 

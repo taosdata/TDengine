@@ -293,7 +293,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_MNODES,          "The replica of mnode 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARBGROUP_ALREADY_EXIST,   "Arbitrator group already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARBGROUP_NOT_EXIST,       "Arbitrator group not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARB_TOKEN_MISMATCH,       "Arbitrator token mismatch")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_VNODE_NOT_OFFLINE,        "Vnode is not offline on this restoring dnode")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VNODE_NOT_OFFLINE,        "Vnode should be offline/leader/follower on this restoring dnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_OFFLINE,   "VGroup is offline")
 
 // mnode-dnode-part2
@@ -541,6 +541,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED,      "Query memory exhauste
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NO_FETCH_TIMEOUT,         "Timeout for long time no fetch")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_SUCC_TO_PARTSUSS,    "Change task status from success to partial success")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_MEMORY_POOL_NOT_INITIALIZED, "Memory pool not initialized")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_MEMORY_POOL_MEMORY_NOT_ENOUGH, "Alter minReservedMemorySize failed since no enough system available memory")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
@@ -586,7 +587,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DB_ENCRYPTION_EXPIRED,  "License expired for d
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TD_GPT_EXPIRED,         "License expired for TDgpt function")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_VNODE_LIMITED,          "Number of vnodes has reached the licensed upper limit")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_ANODE_LIMITED,          "Number of anodes has reached the licensed upper limit")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_LACK_OF_TA_BASIC,       "Lack of TDasset basic functions in active code")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_LACK_OF_IDMP_BASIC,     "Lack of TDengine IDMP basic functions in active code")
 
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TIMEOUT,                  "Sync timeout")
@@ -738,7 +739,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REDISTRIBUTE_VG,    "The REDISTRIBUTE VG
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC,      "Fill not allowed")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_WINDOW_PC,          "Invalid windows pc")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC,    "Window not allowed")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC,    "Stream not allowed")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC,    "Function not support in stream query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC,  "Group by not allowd")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,      "Invalid interp clause")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN,       "Not valid function in window")
@@ -972,7 +973,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_VGROUP_LOST,         "Vgroup lost leader"
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NOT_AVAILABLE,       "Mnode stream not available now")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_DROPPING,            "Stream is dropping")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NOT_STOPPED,         "Stream was not stopped")
-
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TBNAME_TOO_LONG,     "Stream output table name too long")
 
 
 

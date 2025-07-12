@@ -95,20 +95,24 @@ typedef struct SInsertTableRes {
   int64_t uid;
   int64_t vgid;
   int32_t version;
+  char*   tbname;
 } SInsertTableRes;
 
-int32_t initInserterGrpInfo() {
-  static int8_t initGrpInfo = 0;
-  int8_t        flag = atomic_val_compare_exchange_8(&initGrpInfo, 0, 1);
-  if (flag != 0) {
-    return TSDB_CODE_SUCCESS;
+static void freeCacheTbInfo(void* p) {
+  SInsertTableRes* pTbRes = (SInsertTableRes*)p;
+  if (pTbRes->tbname) {
+    taosMemFree(pTbRes->tbname);
+    pTbRes->tbname = NULL;
   }
+}
 
+int32_t initInserterGrpInfo() {
   gStreamGrpTableHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (NULL == gStreamGrpTableHash) {
     qError("failed to create stream group table hash");
     return terrno;
   }
+  taosHashSetFreeFp(gStreamGrpTableHash, freeCacheTbInfo);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -153,16 +157,38 @@ static int32_t checkResAndGetTableId(const SSubmitRes* pSubmitRes, int8_t tbType
 
 static int32_t saveCreateGrpTableInfo(SStreamDataInserterInfo* pInserterInfo, const SSubmitRes* pSubmitRes,
                                       int8_t tbType) {
-  SInsertTableRes res = {0};
-  int32_t         code = checkResAndGetTableId(pSubmitRes, tbType, &res);
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int64_t          key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
+  SInsertTableRes* pTbRes = taosHashGet(gStreamGrpTableHash, key, sizeof(key));
+  if (NULL == pTbRes) {
+    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+  }
+
+  code = checkResAndGetTableId(pSubmitRes, tbType, pTbRes);
   if (code) {
     return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t initTableInfo(SStreamDataInserterInfo* pInserterInfo) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SInsertTableRes res = {0};
+  res.tbname = taosStrdup(pInserterInfo->tbName);
+  if (res.tbname == NULL) {
+    stError("failed to allocate memory for table name");
+    return terrno;
   }
   int64_t key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
   code = taosHashPut(gStreamGrpTableHash, key, sizeof(key), &res, sizeof(SInsertTableRes));
-  if (code) {
+  if(code == TSDB_CODE_DUP_KEY) {
+    taosMemFree(res.tbname);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (code != 0 && code != TSDB_CODE_DUP_KEY) {
     return code;
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -246,14 +272,9 @@ static bool isSupportedNTableSchema(const STableMetaRsp* pTableMetaRsp, const SS
 
 static int32_t checkAndSaveCreateGrpTableInfo(SDataInserterHandle*     pInserthandle,
                                               SStreamDataInserterInfo* pInserterInfo) {
+  int32_t     code = TSDB_CODE_SUCCESS;
   SSubmitRes* pSubmitRes = &pInserthandle->submitRes;
   int8_t      tbType = pInserthandle->pParam->streamInserterParam->tbType;
-
-  SInsertTableRes res = {0};
-  int32_t         code = checkResAndGetTableId(pSubmitRes, tbType, &res);
-  if (code) {
-    return code;
-  }
 
   SVCreateTbRsp*        pCreateTbRsp = taosArrayGet(pSubmitRes->pRsp->aCreateTbRsp, 0);
   SSchema*              pExistRow = pCreateTbRsp->pMeta->pSchemas;
@@ -273,11 +294,19 @@ static int32_t checkAndSaveCreateGrpTableInfo(SDataInserterHandle*     pInsertha
     stError("checkAndSaveCreateGrpTableInfo failed, tbType:%d is not supported", tbType);
     return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
   }
-  int64_t key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
-  code = taosHashPut(gStreamGrpTableHash, key, sizeof(key), &res, sizeof(SInsertTableRes));
+
+  int64_t          key[2] = {pInserterInfo->streamId, pInserterInfo->groupId};
+  SInsertTableRes* pTbRes = taosHashGet(gStreamGrpTableHash, key, sizeof(key));
+  if (NULL == pTbRes) {
+    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+  }
+
+  SInsertTableRes res = {0};
+  code = checkResAndGetTableId(pSubmitRes, tbType, pTbRes);
   if (code) {
     return code;
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -303,6 +332,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
     tDecoderInit(&coder, pMsg->pData, pMsg->len);
     code = tDecodeSSubmitRsp2(&coder, pInserter->submitRes.pRsp);
     if (code) {
+      tDestroySSubmitRsp2(pInserter->submitRes.pRsp, TSDB_MSG_FLG_DECODE);
       taosMemoryFree(pInserter->submitRes.pRsp);
       pInserter->submitRes.code = code;
       goto _return;
@@ -320,6 +350,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
         }
         if (TSDB_CODE_SUCCESS != pRsp->code) {
           code = pRsp->code;
+          tDestroySSubmitRsp2(pInserter->submitRes.pRsp, TSDB_MSG_FLG_DECODE);
           taosMemoryFree(pInserter->submitRes.pRsp);
           pInserter->submitRes.code = code;
           goto _return;
@@ -335,6 +366,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
     pInserter->submitRes.affectedRows += pInserter->submitRes.pRsp->affectedRows;
     qDebug("submit rsp received, affectedRows:%d, total:%" PRId64, pInserter->submitRes.pRsp->affectedRows,
            pInserter->submitRes.affectedRows);
+    tDestroySSubmitRsp2(pInserter->submitRes.pRsp, TSDB_MSG_FLG_DECODE);
     taosMemoryFree(pInserter->submitRes.pRsp);
   }
 
@@ -352,7 +384,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
       if (code2 == TSDB_CODE_SUCCESS) {
         code2 = checkAndSaveCreateGrpTableInfo(pInserter, (SStreamDataInserterInfo*)pParam->putParam);
       }
-      // todo free tDecodeSSubmitRsp2 过程中分配的内存
+      tDestroySSubmitRsp2(pInserter->submitRes.pRsp, TSDB_MSG_FLG_DECODE);
       taosMemoryFree(pInserter->submitRes.pRsp);
       if (code2) {
         pInserter->submitRes.code = code2;
@@ -411,15 +443,30 @@ static int32_t processUseDbRspForInserter(void* param, SDataBuf* pMsg, int32_t c
   code = tDeserializeSUseDbRsp(pMsg->pData, (int32_t)pMsg->len, pVgInfoReq->pRsp);
   QUERY_CHECK_CODE(code, lino, _return);
 
-  taosMemoryFreeClear(pMsg->pData);
-
-  code = tsem_post(&pVgInfoReq->ready);
-  QUERY_CHECK_CODE(code, lino, _return);
-
-  return code;
 _return:
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  taosMemoryFreeClear(pMsg->pData);
+  taosMemoryFreeClear(pMsg->pEpSet);
+  if (code != 0){
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  int ret = tsem_post(&pVgInfoReq->ready);
+  if (ret != 0) {
+    qError("%s failed code: %d", __func__, ret);
+  }
   return code;
+}
+
+
+int inserterVgInfoComp(const void* lp, const void* rp) {
+  SVgroupInfo* pLeft = (SVgroupInfo*)lp;
+  SVgroupInfo* pRight = (SVgroupInfo*)rp;
+  if (pLeft->hashBegin < pRight->hashBegin) {
+    return -1;
+  } else if (pLeft->hashBegin > pRight->hashBegin) {
+    return 1;
+  }
+
+  return 0;
 }
 
 static int32_t buildDbVgInfoMap(void* clientRpc, const char* dbFName, SUseDbOutput* output) {
@@ -472,7 +519,26 @@ static int32_t buildDbVgInfoMap(void* clientRpc, const char* dbFName, SUseDbOutp
   code = queryBuildUseDbOutput(output, dbVgInfoReq.pRsp);
   QUERY_CHECK_CODE(code, lino, _return);
 
+  output->dbVgroup->vgArray = taosArrayInit(dbVgInfoReq.pRsp->vgNum, sizeof(SVgroupInfo));
+  if (NULL == output->dbVgroup->vgArray) {
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  void* pIter = taosHashIterate(output->dbVgroup->vgHash, NULL);
+  while (pIter) {
+    if (NULL == taosArrayPush(output->dbVgroup->vgArray, pIter)) {
+      taosHashCancelIterate(output->dbVgroup->vgHash, pIter);
+      return terrno;
+    }
+
+    pIter = taosHashIterate(output->dbVgroup->vgHash, pIter);
+  }
+
+  taosArraySort(output->dbVgroup->vgArray, inserterVgInfoComp);
+
 _return:
+
   if (code) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     taosMemoryFree(buf1);
@@ -522,41 +588,15 @@ int32_t inserterHashValueComp(void const* lp, void const* rp) {
   return 0;
 }
 
-int inserterVgInfoComp(const void* lp, const void* rp) {
-  SVgroupInfo* pLeft = (SVgroupInfo*)lp;
-  SVgroupInfo* pRight = (SVgroupInfo*)rp;
-  if (pLeft->hashBegin < pRight->hashBegin) {
-    return -1;
-  } else if (pLeft->hashBegin > pRight->hashBegin) {
-    return 1;
-  }
-
-  return 0;
-}
 
 int32_t inserterGetVgInfo(SDBVgInfo* dbInfo, char* tbName, SVgroupInfo* pVgInfo) {
   if (NULL == dbInfo) {
-    return TSDB_CODE_CTG_INTERNAL_ERROR;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
-  if (dbInfo->vgHash && NULL == dbInfo->vgArray) {
-    int32_t vgSize = taosHashGetSize(dbInfo->vgHash);
-    dbInfo->vgArray = taosArrayInit(vgSize, sizeof(SVgroupInfo));
-    if (NULL == dbInfo->vgArray) {
-      return terrno;
-    }
-
-    void* pIter = taosHashIterate(dbInfo->vgHash, NULL);
-    while (pIter) {
-      if (NULL == taosArrayPush(dbInfo->vgArray, pIter)) {
-        taosHashCancelIterate(dbInfo->vgHash, pIter);
-        return terrno;
-      }
-
-      pIter = taosHashIterate(dbInfo->vgHash, pIter);
-    }
-
-    taosArraySort(dbInfo->vgArray, inserterVgInfoComp);
+  if (NULL == dbInfo->vgArray) {
+    qError("empty db vgArray, hashSize:%d", taosHashGetSize(dbInfo->vgHash));
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
   uint32_t hashValue =
@@ -565,11 +605,13 @@ int32_t inserterGetVgInfo(SDBVgInfo* dbInfo, char* tbName, SVgroupInfo* pVgInfo)
   if (NULL == vgInfo) {
     qError("no hash range found for hash value [%u], table:%s, numOfVgId:%d", hashValue, tbName,
            (int32_t)taosArrayGetSize(dbInfo->vgArray));
-    return TSDB_CODE_CTG_INTERNAL_ERROR;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
+  
   *pVgInfo = *vgInfo;
-  qInfo("insert get vgInfo, vgId:%d epset(%s:%d)", pVgInfo->vgId, pVgInfo->epSet.eps[0].fqdn,
+  qInfo("insert get vgInfo, tbName:%s vgId:%d epset(%s:%d)", tbName, pVgInfo->vgId, pVgInfo->epSet.eps[0].fqdn,
         pVgInfo->epSet.eps[0].port);
+        
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1441,6 +1483,7 @@ static int32_t getStreamTableId(SStreamDataInserterInfo* pInserterInfo, SInsertT
   pTbInfo->uid = pTbRes->uid;
   pTbInfo->version = pTbRes->version;
   pTbInfo->vgid = pTbRes->vgid;
+  pTbInfo->tbname = pTbRes->tbname;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1656,7 +1699,7 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
   tbData->pCreateTbReq->flags |= (TD_CREATE_SUB_TB_IN_STREAM | TD_CREATE_IF_NOT_EXISTS);
 
   code = getDbVgInfoForExec(pInserter->pParam->readHandle->pMsgCb->clientRpc, pInsertParam->dbFName,
-                              pInsertParam->tbname, vgInfo);
+                              pInserterInfo->tbName, vgInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _end;
   }
@@ -1716,6 +1759,7 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
   for (int32_t j = 0; j < rows; ++j) {  // iterate by row
     taosArrayClear(pVals);
 
+    bool tsIsNull = false;
     for (int32_t k = 0; k < numOfCols; ++k) {  // iterate by column
       int16_t colIdx = k + 1;
 
@@ -1767,9 +1811,9 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
           if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
             if (colDataIsNull_s(pColInfoData, j)) {
               if (PRIMARYKEY_TIMESTAMP_COL_ID == colIdx) {
-                qError("Primary timestamp column should not be null");
-                code = TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL;
-                QUERY_CHECK_CODE(code, lino, _end);
+                tsIsNull = true;
+                qInfo("Primary timestamp column should not be null, skip this row");
+                break;
               }
 
               SColVal cv = COL_VAL_NULL(colIdx, pCol->type);  // should use pCol->type
@@ -1801,8 +1845,9 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
           }
           break;
       }
+      if(tsIsNull) break;  // skip remaining columns because the primary key is null 
     }
-
+    if(tsIsNull) continue;  // skip this row if primary key is null
     SRow* pRow = NULL;
     if ((code = tRowBuild(pVals, pTSchema, &pRow)) != TSDB_CODE_SUCCESS) {
       QUERY_CHECK_CODE(code, lino, _end);
@@ -1812,6 +1857,10 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
       code = terrno;
       QUERY_CHECK_CODE(code, lino, _end);
     }
+  }
+  if(taosArrayGetSize(tbData->aRowP) == 0) {
+    stDebug("no valid data to insert, skip this block");
+    code = TSDB_CODE_STREAM_NO_DATA;
   }
   if (needSortMerge) {
     if ((tRowSort(tbData->aRowP) != TSDB_CODE_SUCCESS) ||
@@ -1872,10 +1921,13 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
       stError("buildStreamSubmitReqFromBlock, unknown table type %d", pInsertParam->tbType);
     }
     QUERY_CHECK_CODE(code, lino, _end);
+    code = initTableInfo(pInserterInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
   } else {
     SInsertTableRes tbInfo = {0};
     code = getStreamTableId(pInserterInfo, &tbInfo);
     QUERY_CHECK_CODE(code, lino, _end);
+    pInserterInfo->tbName = tbInfo.tbname; // pInserterInfo->tbName wouldn't be delete
 
     tbData.uid = tbInfo.uid;
     tbData.sver = tbInfo.version;
@@ -1886,6 +1938,10 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
       tbData.sver = pInsertParam->sver;
     }
   }
+  stDebug("[data inserter], Handle:%p, STREAM:0x%" PRIx64 " GROUP:%" PRId64 " tbname:%s autoCreate:%d uid:%" PRId64
+          " suid:%" PRId64 " sver:%d vgid:%d",
+          pInserter, pInserterInfo->streamId, pInserterInfo->groupId, pInserterInfo->tbName,
+          pInserterInfo->isAutoCreateTable, tbData.uid, tbData.suid, tbData.sver, vgInfo->vgId);
 
   code = buildInsertData(pInsertParam, pDataBlock, &tbData);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -1937,7 +1993,7 @@ int32_t streamDataBlocksToSubmitReq(SDataInserterHandle* pInserter, SStreamDataI
   code = submitReqToMsg(vgInfo->vgId, pReq, pMsg, msgLen);
   tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
   taosMemoryFree(pReq);
-  stDebug("[data inserter]submit req, vgid:%d, TREAM:0x%" PRIx64 " GROUP:%" PRId64 " tbname:%s autoCreate:%d code:%d ",
+  stDebug("[data inserter], submit req, vgid:%d, TREAM:0x%" PRIx64 " GROUP:%" PRId64 " tbname:%s autoCreate:%d code:%d ",
           vgInfo->vgId, pInserterInfo->streamId, pInserterInfo->groupId, pInserterInfo->tbName,
           pInserterInfo->isAutoCreateTable, code);
 
@@ -2023,6 +2079,9 @@ static int32_t resetInserterTbVersion(SDataInserterHandle* pInserter, const SInp
     return code;
   }
 
+  stDebug("resetInserterTbVersion, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbName:%s, uid:%" PRId64 ", version:%d",
+          pInput->pStreamDataInserterInfo->streamId, pInput->pStreamDataInserterInfo->groupId,
+          pInput->pStreamDataInserterInfo->tbName, pTbInfo.uid, pTbInfo.version);
   pInserter->pParam->streamInserterParam->pSchema->version = pTbInfo.version;
   if (pInserter->pParam->streamInserterParam->tbType != TSDB_NORMAL_TABLE) {
     pInserter->pParam->streamInserterParam->sver = pTbInfo.version;
@@ -2036,7 +2095,7 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
   int32_t              lino = 0;
   SDataInserterHandle* pInserter = (SDataInserterHandle*)pHandle;
   if (!pInserter || !pInserter->pParam || !pInserter->pParam->streamInserterParam) {
-    stError("putStreamDataBlock: pInserter is NULL");
+    stError("putStreamDataBlock invalid param, pInserter: %p, pParam:%p", pInserter, pInserter ? pInserter->pParam : NULL);
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
   if (!pInserter->explain) {
@@ -2080,8 +2139,8 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
       QUERY_CHECK_CODE(code, lino, _return);
     }
 
-    if (pInserter->submitRes.code == TSDB_CODE_TDB_TABLE_NOT_EXIST &&
-        !pInput->pStreamDataInserterInfo->isAutoCreateTable) {
+    if ((pInserter->submitRes.code == TSDB_CODE_TDB_TABLE_NOT_EXIST &&
+        !pInput->pStreamDataInserterInfo->isAutoCreateTable) || pInserter->submitRes.code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
       rmDbVgInfoFromCache(pInserter->pParam->streamInserterParam->dbFName);
       stInfo("putStreamDataBlock, stream inserter table info not found, groupId:%" PRId64
              ", tbName:%s. so reset dbVgInfo",
@@ -2100,7 +2159,10 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
 
   _return:
     taosArrayClear(pInserter->pDataBlocks);
-    if (code) {
+    if(code == TSDB_CODE_STREAM_NO_DATA) {
+      stDebug("putStreamDataBlock, no valid data to insert, skip this block");
+      code = TSDB_CODE_SUCCESS;
+    } else if (code) {
       stError("submitRes err:%s, code:%0x lino:%d", tstrerror(code), code, lino);
       return code;
     }
@@ -2128,7 +2190,10 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   (void)atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pInserter->cachedSize);
   taosArrayDestroy(pInserter->pDataBlocks);
   taosMemoryFree(pInserter->pSchema);
-  destroyStreamInserterParam(pInserter->pParam->streamInserterParam);
+  if (pInserter->pParam->streamInserterParam) {
+    destroyStreamInserterParam(pInserter->pParam->streamInserterParam);
+    taosMemoryFree(pInserter->pParam->readHandle); // only for stream
+  }
   taosMemoryFree(pInserter->pParam);
   taosHashCleanup(pInserter->pCols);
   nodesDestroyNode((SNode*)pInserter->pNode);
@@ -2262,14 +2327,31 @@ _return:
   return terrno;
 }
 
+                           
+static TdThreadOnce g_dbVgInfoMgrInit = PTHREAD_ONCE_INIT;
+
+SDBVgInfoMgr g_dbVgInfoMgr = {0};
+                           
+void dbVgInfoMgrInitOnce() {
+  g_dbVgInfoMgr.dbVgInfoMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  if (g_dbVgInfoMgr.dbVgInfoMap == NULL) {
+    stError("%s failed at line %d, error:%s", __FUNCTION__, __LINE__, tstrerror(terrno));
+    return;
+  }
+
+  taosHashSetFreeFp(g_dbVgInfoMgr.dbVgInfoMap, freeUseDbOutput_tmp);
+}
+
+
+
 int32_t createStreamDataInserter(SDataSinkManager* pManager, DataSinkHandle* pHandle, void* pParam) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
+
+  TAOS_UNUSED(taosThreadOnce(&g_dbVgInfoMgrInit, dbVgInfoMgrInitOnce));
+  TSDB_CHECK_NULL(g_dbVgInfoMgr.dbVgInfoMap, code, lino, _exit, terrno);
 
   SDataInserterHandle* inserter = taosMemoryCalloc(1, sizeof(SDataInserterHandle));
-  if (NULL == inserter) {
-    code = terrno;
-    goto _return;
-  }
+  TSDB_CHECK_NULL(inserter, code, lino, _exit, terrno);
 
   inserter->sink.fPut = putStreamDataBlock;
   inserter->sink.fEndPut = endPut;
@@ -2286,19 +2368,17 @@ int32_t createStreamDataInserter(SDataSinkManager* pManager, DataSinkHandle* pHa
   inserter->explain = false;
 
   inserter->pDataBlocks = taosArrayInit(1, POINTER_BYTES);
-  if (NULL == inserter->pDataBlocks) {
-    code = terrno;
-    goto _return;
-  }
-  QRY_ERR_JRET(taosThreadMutexInit(&inserter->mutex, NULL));
-  QRY_ERR_JRET(tsem_init(&inserter->ready, 0, 0));
+  TSDB_CHECK_NULL(inserter->pDataBlocks, code, lino, _exit, terrno);
+  
+  TAOS_CHECK_EXIT(taosThreadMutexInit(&inserter->mutex, NULL));
+  TAOS_CHECK_EXIT(tsem_init(&inserter->ready, 0, 0));
 
   inserter->dbVgInfoMap = NULL;
 
   *pHandle = inserter;
   return TSDB_CODE_SUCCESS;
 
-_return:
+_exit:
 
   if (inserter) {
     (void)destroyDataSinker((SDataSinkHandle*)inserter);
@@ -2307,33 +2387,19 @@ _return:
     taosMemoryFree(pManager);
   }
 
+  if (code) {
+    stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
   return code;
 }
 
-SDBVgInfoMgr g_dbVgInfoMgr = {NULL, 0};
 
-int32_t dbVgInfoMgrInitOnce() {
-  int8_t inited = atomic_val_compare_exchange_8(&g_dbVgInfoMgr.inited, 0, 1);
-  if (inited == 1) {
-    return TSDB_CODE_SUCCESS;
-  }
-  if (g_dbVgInfoMgr.dbVgInfoMap == NULL) {
-    g_dbVgInfoMgr.dbVgInfoMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-    if (g_dbVgInfoMgr.dbVgInfoMap == NULL) {
-      g_dbVgInfoMgr.inited = 0;  // reset inited flag
-      return terrno;
-    }
-  }
-  return TSDB_CODE_SUCCESS;
-}
 
 int32_t getDbVgInfoByTbName(void* clientRpc, const char* dbFName, SDBVgInfo** dbVgInfo) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       line = 0;
   SUseDbOutput* output = NULL;
-
-  code = dbVgInfoMgrInitOnce();
-  QUERY_CHECK_CODE(code, line, _return);
 
   SUseDbOutput** find = (SUseDbOutput**)taosHashGet(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
 
@@ -2373,35 +2439,31 @@ _return:
 
 int32_t getDbVgInfoForExec(void* clientRpc, const char* dbFName, const char* tbName, SVgroupInfo* pVgInfo) {
   SDBVgInfo* dbInfo = NULL;
-  int32_t    code = getDbVgInfoByTbName(clientRpc, dbFName, &dbInfo);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
+  int32_t code = 0, lino = 0;
   char tbFullName[TSDB_TABLE_FNAME_LEN];
   snprintf(tbFullName, TSDB_TABLE_FNAME_LEN, "%s.%s", dbFName, tbName);
+  
+  taosRLockLatch(&g_dbVgInfoMgr.lock);
+  
+  TAOS_CHECK_EXIT(getDbVgInfoByTbName(clientRpc, dbFName, &dbInfo));
 
-  code = inserterGetVgInfo(dbInfo, tbFullName, pVgInfo);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
+  TAOS_CHECK_EXIT(inserterGetVgInfo(dbInfo, tbFullName, pVgInfo));
+
+_exit:
+
+  taosRUnLockLatch(&g_dbVgInfoMgr.lock);
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  return TSDB_CODE_SUCCESS;
+
+  return code;
 }
 
 void rmDbVgInfoFromCache(const char* dbFName) {
-  if (g_dbVgInfoMgr.dbVgInfoMap == NULL) {
-    return;
-  }
-
-  SUseDbOutput** find = (SUseDbOutput**)taosHashGet(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
-  if (find == NULL) {
-    return;
-  } else {
-    SUseDbOutput* output = *find;
-    if (output) {
-      freeUseDbOutput_tmp(find);
-      taosHashRemove(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
-    }
-  }
-  return;
+  taosWLockLatch(&g_dbVgInfoMgr.lock);
+  
+  taosHashRemove(g_dbVgInfoMgr.dbVgInfoMap, dbFName, strlen(dbFName));
+  
+  taosWUnLockLatch(&g_dbVgInfoMgr.lock);
 }

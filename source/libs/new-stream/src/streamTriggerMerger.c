@@ -112,6 +112,7 @@ void stTimestampSorterDestroy(void *ptr) {
     taosArrayDestroy(pSorter->pSessWins);
     pSorter->pSessWins = NULL;
   }
+  taosMemoryFree(pSorter);
 }
 
 void stTimestampSorterReset(SSTriggerTimestampSorter *pSorter) {
@@ -210,7 +211,33 @@ int32_t stTimestampSorterSetMetaDatas(SSTriggerTimestampSorter *pSorter, SSTrigg
     TD_DLIST_APPEND(pList, pNode);
   }
 
-  BIT_FLAG_SET_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_DATA_META_SET);
+  BIT_FLAG_SET_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_META_DATA_SET);
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t stTimestampSorterSetEmptyMetaDatas(SSTriggerTimestampSorter *pSorter) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pSorter->pTask;
+  SArray             *pMetaNodeBuf = pSorter->pMetaNodeBuf;
+  SArray             *pMetaLists = pSorter->pMetaLists;
+
+  QUERY_CHECK_CONDITION(pSorter->flags == TRIGGER_TS_SORTER_MASK_SORT_INFO_SET, code, lino, _end,
+                        TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(pMetaNodeBuf != NULL && TARRAY_SIZE(pMetaNodeBuf) == 0, code, lino, _end,
+                        TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(pMetaLists != NULL && TARRAY_SIZE(pMetaLists) == 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  SSTriggerMetaDataList *pList = taosArrayReserve(pMetaLists, 1);
+  QUERY_CHECK_NULL(pList, code, lino, _end, terrno);
+  *pList = (SSTriggerMetaDataList){.nextTs = INT64_MIN};
+
+  BIT_FLAG_SET_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_NO_META_DATA);
 
 _end:
   if (TSDB_CODE_SUCCESS != code) {
@@ -288,11 +315,20 @@ static int32_t stTimestampSorterMetaListCompare(const void *pLeft, const void *p
       // sort by version in descending order
       int64_t verLeft = TD_DLIST_HEAD(pLeftList)->pMeta->ver;
       int64_t verRight = TD_DLIST_HEAD(pRightList)->pMeta->ver;
-      return -(verLeft - verRight);
+      if (verLeft < verRight) {
+        return 1;
+      } else if (verLeft > verRight) {
+        return -1;
+      }
     }
   }
   // fallback to index comparison
-  return left - right;
+  if (left < right) {
+    return -1;
+  } else if (left > right) {
+    return 1;
+  }
+  return 0;
 }
 
 static int32_t stTimestampSorterBuildDataMerger(SSTriggerTimestampSorter *pSorter) {
@@ -300,7 +336,7 @@ static int32_t stTimestampSorterBuildDataMerger(SSTriggerTimestampSorter *pSorte
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pSorter->pTask;
 
-  QUERY_CHECK_CONDITION(BIT_FLAG_TEST_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_DATA_META_SET), code, lino, _end,
+  QUERY_CHECK_CONDITION(BIT_FLAG_TEST_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_META_DATA_SET), code, lino, _end,
                         TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_CONDITION(!BIT_FLAG_TEST_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_DATA_MERGER_BUILD), code, lino, _end,
                         TSDB_CODE_INVALID_PARA);
@@ -350,6 +386,34 @@ int32_t stTimestampSorterNextDataBlock(SSTriggerTimestampSorter *pSorter, SSData
   *ppDataBlock = NULL;
   *pStartIdx = 0;
   *pEndIdx = 0;
+
+  if (BIT_FLAG_TEST_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_NO_META_DATA)) {
+    pList = TARRAY_DATA(pSorter->pMetaLists);
+    if (pList->pDataBlock != NULL && pList->startIdx < pList->endIdx) {
+      int32_t          nrows = blockDataGetNumOfRows(pList->pDataBlock);
+      SColumnInfoData *pTsCol = taosArrayGet(pList->pDataBlock->pDataBlock, pSorter->tsSlotId);
+      QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
+      int64_t *pTsData = (int64_t *)pTsCol->pData;
+      pList->startIdx = pList->endIdx;
+      if (pList->startIdx < nrows) {
+        pList->nextTs = pTsData[pList->startIdx];
+      } else {
+        pList->nextTs = pTsData[nrows - 1] + 1;
+        blockDataDestroy(pList->pDataBlock);
+        pList->startIdx = pList->endIdx = 0;
+      }
+    }
+    if (pList->pDataBlock != NULL) {
+      int32_t nrows = blockDataGetNumOfRows(pList->pDataBlock);
+      pList->endIdx = nrows;
+      *ppDataBlock = pList->pDataBlock;
+      *pStartIdx = pList->startIdx;
+      *pEndIdx = pList->endIdx;
+    } else {
+      // need to fetch new data block
+    }
+    goto _end;
+  }
 
   if (!BIT_FLAG_TEST_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_DATA_MERGER_BUILD)) {
     code = stTimestampSorterBuildDataMerger(pSorter);
@@ -511,10 +575,16 @@ _end:
 static int32_t stTimestampSorterWindowReverseCompare(const void *pLeft, const void *pRight) {
   STimeWindow *pLeftWin = (STimeWindow *)pLeft;
   STimeWindow *pRightWin = (STimeWindow *)pRight;
-  if (pLeftWin->ekey == pRightWin->ekey) {
-    return -(pLeftWin->skey - pRightWin->skey);
+  if (pLeftWin->ekey < pRightWin->ekey) {
+    return 1;
+  } else if (pLeftWin->ekey > pRightWin->ekey) {
+    return -1;
+  } else if (pLeftWin->skey < pRightWin->skey) {
+    return 1;
+  } else if (pLeftWin->skey > pRightWin->skey) {
+    return -1;
   }
-  return -(pLeftWin->ekey - pRightWin->ekey);
+  return 0;
 }
 
 static int32_t stTimestampSorterBuildSessWin(SSTriggerTimestampSorter *pSorter, int64_t gap) {
@@ -523,7 +593,7 @@ static int32_t stTimestampSorterBuildSessWin(SSTriggerTimestampSorter *pSorter, 
   SStreamTriggerTask *pTask = pSorter->pTask;
   SArray             *pSessWins = pSorter->pSessWins;
 
-  QUERY_CHECK_CONDITION(BIT_FLAG_TEST_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_DATA_META_SET), code, lino, _end,
+  QUERY_CHECK_CONDITION(BIT_FLAG_TEST_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_META_DATA_SET), code, lino, _end,
                         TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_CONDITION(!BIT_FLAG_TEST_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_SESS_WIN_BUILD), code, lino, _end,
                         TSDB_CODE_INVALID_PARA);
@@ -675,7 +745,8 @@ int32_t stTimestampSorterGetMetaToFetch(SSTriggerTimestampSorter *pSorter, SSTri
 
   *ppMeta = NULL;
 
-  if (IS_TRIGGER_TIMESTAMP_SORTER_EMPTY(pSorter)) {
+  if (BIT_FLAG_TEST_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_NO_META_DATA) ||
+      IS_TRIGGER_TIMESTAMP_SORTER_EMPTY(pSorter)) {
     goto _end;
   }
 
@@ -698,6 +769,19 @@ int32_t stTimestampSorterBindDataBlock(SSTriggerTimestampSorter *pSorter, SSData
   int32_t                lino = 0;
   SStreamTriggerTask    *pTask = pSorter->pTask;
   SSTriggerMetaDataList *pList = NULL;
+
+  if (BIT_FLAG_TEST_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_NO_META_DATA)) {
+    SColumnInfoData *pTsCol = taosArrayGet((*ppDataBlock)->pDataBlock, pSorter->tsSlotId);
+    QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
+    int64_t *pTsData = (int64_t *)pTsCol->pData;
+
+    pList = TARRAY_DATA(pSorter->pMetaLists);
+    QUERY_CHECK_CONDITION(pList->pDataBlock == NULL, code, lino, _end, TSDB_CODE_INVALID_PARA);
+    pList->pDataBlock = *ppDataBlock;
+    pList->startIdx = pList->endIdx = 0;
+    pList->nextTs = pTsData[0];
+    goto _end;
+  }
 
   QUERY_CHECK_CONDITION(!IS_TRIGGER_TIMESTAMP_SORTER_EMPTY(pSorter), code, lino, _end, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_CONDITION(BIT_FLAG_TEST_MASK(pSorter->flags, TRIGGER_TS_SORTER_MASK_DATA_MERGER_BUILD), code, lino, _end,
@@ -769,7 +853,12 @@ static int32_t stVtableMergerReaderInfoCompare(const void *pLeft, const void *pR
     }
   }
   // fallback to index comparison
-  return left - right;
+  if (left < right) {
+    return -1;
+  } else if (left > right) {
+    return 1;
+  }
+  return 0;
 }
 
 int32_t stVtableMergerInit(SSTriggerVtableMerger *pMerger, struct SStreamTriggerTask *pTask, SSDataBlock **ppDataBlock,
@@ -837,6 +926,7 @@ void stVtableMergerReset(SSTriggerVtableMerger *pMerger) {
 
   pMerger->flags = 0;
   pMerger->readRange = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN};
+  blockDataEmpty(pMerger->pDataBlock);
 
   if (pMerger->pReaderInfos != NULL) {
     taosArrayClear(pMerger->pReaderInfos);
@@ -935,7 +1025,32 @@ int32_t stVtableMergerSetMetaDatas(SSTriggerVtableMerger *pMerger, SSHashObj *pO
     }
   }
 
-  BIT_FLAG_SET_MASK(pMerger->flags, TRIGGER_VTABLE_MERGER_MASK_DATA_META_SET);
+  BIT_FLAG_SET_MASK(pMerger->flags, TRIGGER_VTABLE_MERGER_MASK_META_DATA_SET);
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t stVtableMergerSetEmptyMetaDatas(SSTriggerVtableMerger *pMerger) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pMerger->pTask;
+  SArray             *pReaders = pMerger->pReaders;
+
+  QUERY_CHECK_CONDITION(pMerger->flags == TRIGGER_VTABLE_MERGER_MASK_MERGE_INFO_SET, code, lino, _end,
+                        TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(TARRAY_SIZE(pReaders) >= TARRAY_SIZE(pMerger->pReaderInfos), code, lino, _end,
+                        TSDB_CODE_INVALID_PARA);
+
+  int32_t nReaders = TARRAY_SIZE(pMerger->pReaderInfos);
+  for (int32_t i = 0; i < nReaders; i++) {
+    SSTriggerTimestampSorter *pReader = *(SSTriggerTimestampSorter **)TARRAY_GET_ELEM(pReaders, i);
+    code = stTimestampSorterSetEmptyMetaDatas(pReader);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
 
 _end:
   if (TSDB_CODE_SUCCESS != code) {
@@ -1045,7 +1160,7 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
 
     if (pReaderInfo->pDataBlock == NULL) {
       // get next data block from reader
-      SSTriggerTimestampSorter *pReader = TARRAY_GET_ELEM(pMerger->pReaders, idx);
+      SSTriggerTimestampSorter *pReader = *(SSTriggerTimestampSorter **)TARRAY_GET_ELEM(pMerger->pReaders, idx);
       code = stTimestampSorterNextDataBlock(pReader, &pReaderInfo->pDataBlock, &pReaderInfo->startIdx,
                                             &pReaderInfo->endIdx);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -1129,11 +1244,11 @@ int32_t stVtableMergerGetMetaToFetch(SSTriggerVtableMerger *pMerger, SSTriggerMe
     goto _end;
   }
 
-  QUERY_CHECK_CONDITION(BIT_FLAG_TEST_MASK(pMerger->flags, TRIGGER_VTABLE_MERGER_MASK_DATA_META_SET), code, lino, _end,
+  QUERY_CHECK_CONDITION(BIT_FLAG_TEST_MASK(pMerger->flags, TRIGGER_VTABLE_MERGER_MASK_META_DATA_SET), code, lino, _end,
                         TSDB_CODE_INVALID_PARA);
   int32_t                   idx = tMergeTreeGetChosenIndex(pMerger->pDataMerger);
   SVtableMergerReaderInfo  *pReaderInfo = TARRAY_GET_ELEM(pMerger->pReaderInfos, idx);
-  SSTriggerTimestampSorter *pReader = TARRAY_GET_ELEM(pMerger->pReaders, idx);
+  SSTriggerTimestampSorter *pReader = *(SSTriggerTimestampSorter **)TARRAY_GET_ELEM(pMerger->pReaders, idx);
   if (pReaderInfo->pDataBlock == NULL) {
     code = stTimestampSorterGetMetaToFetch(pReader, ppMeta);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1155,12 +1270,12 @@ int32_t stVtableMergerBindDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
   SStreamTriggerTask *pTask = pMerger->pTask;
 
   QUERY_CHECK_CONDITION(!IS_TRIGGER_VTABLE_MERGER_EMPTY(pMerger), code, lino, _end, TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_CONDITION(BIT_FLAG_TEST_MASK(pMerger->flags, TRIGGER_VTABLE_MERGER_MASK_DATA_META_SET), code, lino, _end,
+  QUERY_CHECK_CONDITION(BIT_FLAG_TEST_MASK(pMerger->flags, TRIGGER_VTABLE_MERGER_MASK_META_DATA_SET), code, lino, _end,
                         TSDB_CODE_INVALID_PARA);
 
   int32_t                   idx = tMergeTreeGetChosenIndex(pMerger->pDataMerger);
   SVtableMergerReaderInfo  *pReaderInfo = TARRAY_GET_ELEM(pMerger->pReaderInfos, idx);
-  SSTriggerTimestampSorter *pReader = TARRAY_GET_ELEM(pMerger->pReaders, idx);
+  SSTriggerTimestampSorter *pReader = *(SSTriggerTimestampSorter **)TARRAY_GET_ELEM(pMerger->pReaders, idx);
   QUERY_CHECK_CONDITION(pReaderInfo->pDataBlock == NULL, code, lino, _end, TSDB_CODE_INVALID_PARA);
   code = stTimestampSorterBindDataBlock(pReader, ppDataBlock);
   QUERY_CHECK_CODE(code, lino, _end);

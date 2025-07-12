@@ -69,8 +69,8 @@ class TestStreamDevBasic:
     def prepareTriggerTable(self):
         tdLog.info("prepare tables for trigger")
 
-        stb = "create table tdb.triggers (ts timestamp, c1 int, c2 int) tags(id int);"
-        ctb = "create table tdb.t1 using tdb.triggers tags(1) tdb.t2 using tdb.triggers tags(2) tdb.t3 using tdb.triggers tags(3)"
+        stb = "create table tdb.triggers (ts timestamp, c1 int, c2 int) tags(id int, name varchar(16));"
+        ctb = "create table tdb.t1 using tdb.triggers tags(1, '1') tdb.t2 using tdb.triggers tags(2, '2') tdb.t3 using tdb.triggers tags(3, '3')"
         tdSql.execute(stb)
         tdSql.execute(ctb)
 
@@ -107,10 +107,11 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=28,
-            stream="create stream rdb.s28 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r28 as select _twstart ts, `name` as cname, `super` csuper, create_time cctime, %%1 from information_schema.ins_users",
-            res_query="select ts, cname, csuper, 1000 from rdb.r28 where id = 1",
-            exp_query="select _wstart ts, 'root',  1, count(cint) from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' interval(5m);",
+            id=102,
+            stream="create stream rdb.s102 interval(5m) sliding(5m) from tdb.t1 into rdb.r102 as select last(ts), cols(last(ts), c1, c2), count(1) from %%trows",
+            res_query="select * from rdb.r102 limit 3",
+            exp_query="select last(ts), cols(last(ts), c1, c2), count(1) from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:15:00.000' interval(5m);",
+            check_func=self.check102,
         )
         self.streams.append(stream)
 
@@ -118,17 +119,7 @@ class TestStreamDevBasic:
         for stream in self.streams:
             stream.createStream()
 
-    def check23(self):
-        tdSql.checkTableType(
-            dbname="rdb", tbname="r23", typename="NORMAL_TABLE", columns=4
-        )
-        tdSql.checkTableSchema(
-            dbname="rdb",
-            tbname="r23",
-            schema=[
-                ["ts", "TIMESTAMP", 8, ""],
-                ["cname", "VARCHAR", 24, ""],
-                ["csuper", "TINYINT", 1, ""],
-                ["cctime", "TIMESTAMP", 8, ""],
-            ],
+    def check102(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from rdb.r102", func=lambda: tdSql.getRows() == 4
         )

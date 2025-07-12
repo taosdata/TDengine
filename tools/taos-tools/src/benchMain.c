@@ -86,7 +86,11 @@ int checkArgumentValid() {
             }
         }
     }
-
+    
+    if (isRest(g_arguments->iface) && g_arguments->bind_vgroup) {
+        errorPrint("rest interface does not support bind vgroup, please use native or websocket mode\n");
+        return -1; 
+    }
     return 0;
 }
 

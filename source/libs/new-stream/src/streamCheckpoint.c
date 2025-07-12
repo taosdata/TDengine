@@ -89,6 +89,7 @@ int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen) {
   STREAM_CHECK_NULL_GOTO(dataLen, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_RET_GOTO(getFileName(filepath, streamId));
 
+  terrno = 0;
   pFile = taosOpenFile(filepath, TD_FILE_READ);
   STREAM_CHECK_NULL_GOTO(pFile, 0);
 
@@ -158,7 +159,7 @@ static int32_t sendSyncMsg(void* data, int64_t dataLen, SEpSet* epSet){
   SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
   pMsgHead->contLen = htonl(msg.contLen);
   pMsgHead->vgId = htonl(SNODE_HANDLE);
-  memcpy(msg.pCont + sizeof(SMsgHead), data, dataLen);
+  memcpy((char*)msg.pCont + sizeof(SMsgHead), data, dataLen);
   return tmsgSendReq(epSet, &msg);
 }
 
@@ -170,10 +171,11 @@ static int32_t sendDeleteMsg(int64_t streamId, SEpSet* epSet){
   if (msg.pCont == NULL) {
     return terrno;
   }
+  msg.info.noResp = 1;
   SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
   pMsgHead->contLen = htonl(msg.contLen);
   pMsgHead->vgId = htonl(SNODE_HANDLE);
-  memcpy(msg.pCont + sizeof(SMsgHead), &streamId, LONG_BYTES);
+  memcpy((char*)msg.pCont + sizeof(SMsgHead), &streamId, LONG_BYTES);
   return tmsgSendReq(epSet, &msg);
 }
 
@@ -248,8 +250,9 @@ int32_t streamSyncWriteCheckpoint(int64_t streamId, SEpSet* epSet, void* data, i
 
   if (data == NULL) {
     int32_t ret = streamReadCheckPoint(streamId, &data, &dataLen);
-    if (errno == ENOENT || ret != TSDB_CODE_SUCCESS) {
+    if (ret != TSDB_CODE_SUCCESS || terrno == TAOS_SYSTEM_ERROR(ENOENT)) {
       dataLen = INT_BYTES + LONG_BYTES;
+      taosMemoryFreeClear(data);
       data = taosMemoryCalloc(1, INT_BYTES + LONG_BYTES);
       STREAM_CHECK_NULL_GOTO(data, terrno);
       *(int32_t*)data = -1;
@@ -259,6 +262,9 @@ int32_t streamSyncWriteCheckpoint(int64_t streamId, SEpSet* epSet, void* data, i
   STREAM_CHECK_RET_GOTO(sendSyncMsg(data, dataLen, epSet));
   stDebug("[checkpoint] sync checkpoint for streamId:%" PRIx64 ", dataLen:%" PRId64, streamId, dataLen);
 end:
+  if (code) {
+    stsWarn("[checkpoint] %s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
   taosMemoryFreeClear(data);
   STREAM_PRINT_LOG_END(code, lino);
   return code;

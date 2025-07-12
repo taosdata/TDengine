@@ -926,6 +926,7 @@ trigger_option(A) ::= MAX_DELAY NK_LP duration_literal(B) NK_RP.                
 trigger_option(A) ::= PRE_FILTER NK_LP search_condition(B) NK_RP.                  { A.type = STREAM_TRIGGER_OPTION_PRE_FILTER; A.pNode = B; }
 trigger_option(A) ::= WATERMARK NK_LP duration_literal(B) NK_RP.                   { A.type = STREAM_TRIGGER_OPTION_WATERMARK; A.pNode = releaseRawExprNode(pCxt, B); }
 trigger_option(A) ::= EVENT_TYPE NK_LP event_type_list(B) NK_RP.                   { A.type = STREAM_TRIGGER_OPTION_EVENT_TYPE; A.flag = B; A.pNode = NULL; }
+trigger_option(A) ::= IGNORE_NODATA_TRIGGER.                                       { A.type = STREAM_TRIGGER_OPTION_IGNORE_NODATA_TRIGGER; A.pNode = NULL; }
 
 /***** notification_opt *****/
 notification_opt(A) ::= .                                                         { A = NULL; }
@@ -1682,8 +1683,8 @@ table_primary(A) ::= table_name(B) alias_opt(C).                                
 table_primary(A) ::= db_name(B) NK_DOT table_name(C) alias_opt(D).                { A = createRealTableNode(pCxt, &B, &C, &D); }
 table_primary(A) ::= subquery(B) alias_opt(C).                                    { A = createTempTableNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
 table_primary(A) ::= parenthesized_joined_table(B).                               { A = B; }
-table_primary(A) ::= NK_PH TBNAME.                                                { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_TBNAME); }
-table_primary(A) ::= NK_PH TROWS.                                                 { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_ROWS); }
+table_primary(A) ::= NK_PH TBNAME alias_opt(C).                                   { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_TBNAME, &C); }
+table_primary(A) ::= NK_PH TROWS alias_opt(C).                                    { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_ROWS, &C); }
 
 %type alias_opt                                                                   { SToken }
 %destructor alias_opt                                                             { }

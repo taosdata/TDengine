@@ -107,13 +107,36 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=99,
-            stream="create stream rdb.s99 interval(5m) sliding(5m) from tdb.triggers into rdb.r99 as (select cts, cint from qdb.t1 where cts >= _twstart and cts <= _twend limit 1 offset 0) union all (select cts, cint from qdb.t2 where cts >= _twstart and cts <= _twend limit 1 offset 2) union all (select cts, cint from qdb.t3 where cts >= _twstart and cts <= _twend limit 1 offset 4)",
-            res_query="select * from rdb.r99 limit 3",
-            exp_query="select * from (select cts, cint from qdb.t1 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' limit 1 offset 0) union all (select cts, cint from qdb.t2 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' limit 1 offset 2) union all (select cts, cint from qdb.t3 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' limit 1 offset 4) order by cts;",
+            id=106,
+            stream="create stream rdb.s106 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r106 as select _twstart, cts, concat(cvarchar, cnchar), cint + cuint, ctinyint - cdouble, cfloat * cdouble, cbigint * 12, -ctinyint from qdb.meters where tbname=%%tbname limit 1 offset 1;",
+            res_query="select * from rdb.r106 where tag_tbname='t1' limit 1",
+            exp_query="select cast('2025-01-01 00:00:00.000' as timestamp) ts, cts, concat(cvarchar, cnchar), cint + cuint, ctinyint - cdouble, cfloat * cdouble, cbigint * 12, -ctinyint, tbname from qdb.t1 limit 1 offset 1;",
+        )
+        self.streams.append(stream)
+
+
+        stream = StreamItem(
+            id=122,
+            stream="create stream rdb.s122 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r122 as select first(tats), last(tbts), count(tat1), sum(tat1), first(tbt1), last(tbt1) from (select ta.cts tats, tb.cts tbts, ta.cint tat1, tb.cint tbt1 from qdb.t1 ta left join qdb.t2 tb on ta.cts=tb.cts and (ta.cint >= tb.cint) order by ta.cts) where tats >= _twstart and tats < _twend",
+            res_query="select * from rdb.r122 where tag_tbname='t1';",
+            exp_query="select first(tats), last(tbts), count(tat1), sum(tat1), first(tbt1), last(tbt1), 't1' from (select ta.cts tats, tb.cts tbts, ta.cint tat1, tb.cint tbt1 from qdb.t1 ta left join qdb.t2 tb on ta.cts=tb.cts and (ta.cint >= tb.cint) order by ta.cts) where tats >= '2025-01-01 00:00:00.000' and tats < '2025-01-01 00:35:00.000' interval(5m);",
         )
         self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()
+
+    def check0(self):
+        tdSql.checkTableType(
+            dbname="rdb", tbname="r0", typename="NORMAL_TABLE", columns=3
+        )
+        tdSql.checkTableSchema(
+            dbname="rdb",
+            tbname="r0",
+            schema=[
+                ["ts", "TIMESTAMP", 8, ""],
+                ["c1", "BIGINT", 8, ""],
+                ["c2", "DOUBLE", 8, ""],
+            ],
+        )

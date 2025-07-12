@@ -13,6 +13,7 @@
  */
 
 #include "transComm.h"
+#include "transLog.h"
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
@@ -416,22 +417,22 @@ void uvWhiteListSetConnVer(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
 }
 
 static void uvPerfLog_receive(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* pTransMsg) {
-  if (!(rpcDebugFlag & DEBUG_DEBUG)) {
-    return;
-  }
+  // if (!(rpcDebugFlag & DEBUG_DEBUG)) {
+  //   return;
+  // }
 
   STrans*   pInst = pConn->pInst;
   STraceId* trace = &pHead->traceId;
 
   int64_t        cost = taosGetTimestampUs() - taosNtoh64(pHead->timestamp);
-  static int64_t EXCEPTION_LIMIT_US = 100 * 1000;
+  static int64_t EXCEPTION_LIMIT_US = 1000 * 1000;
 
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
     if (cost >= EXCEPTION_LIMIT_US) {
-      tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, recv exception, seqNum:%" PRId64
-              ", sid:%" PRId64,
-              transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
-              (int)cost, pTransMsg->info.seqNum, pTransMsg->info.qId);
+      tGWarn("%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, recv exception, seqNum:%" PRId64
+             ", sid:%" PRId64,
+             transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
+             (int)cost, pTransMsg->info.seqNum, pTransMsg->info.qId);
     } else {
       tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, cost:%dus, seqNum:%" PRId64 ", sid:%" PRId64,
               transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,
@@ -439,7 +440,7 @@ static void uvPerfLog_receive(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* 
     }
   } else {
     if (cost >= EXCEPTION_LIMIT_US) {
-      tGDebug(
+      tGWarn(
           "%s conn:%p, %s received from %s, local info:%s, len:%d, noResp:%d, code:%d, cost:%dus, recv exception, "
           "seqNum:%" PRId64 ", sid:%" PRId64,
           transLabel(pInst), pConn, TMSG_INFO(pTransMsg->msgType), pConn->dst, pConn->src, pTransMsg->contLen,

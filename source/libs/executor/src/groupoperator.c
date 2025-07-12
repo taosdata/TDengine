@@ -16,6 +16,7 @@
 #include "filter.h"
 #include "function.h"
 #include "os.h"
+#include "query.h"
 #include "tname.h"
 #include "tutil.h"
 
@@ -526,8 +527,9 @@ static int32_t resetGroupOperState(SOperatorInfo* pOper) {
 
   cleanupGroupResInfo(&pInfo->groupResInfo);
 
+  qInfo("[group key] len use:%d", pInfo->groupKeyLen);
   int32_t code = resetAggSup(&pOper->exprSupp, &pInfo->aggSup, pTaskInfo, pPhynode->pAggFuncs, pPhynode->pGroupKeys,
-    sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+    pInfo->groupKeyLen + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
     &pTaskInfo->storageAPI.functionStore);
 
   if (code == 0){
@@ -1157,6 +1159,17 @@ static int32_t resetPartitionOperState(SOperatorInfo* pOper) {
     pGroupIter = taosHashIterate(pInfo->pGroupSet, pGroupIter);
   }
   taosHashClear(pInfo->pGroupSet);
+
+  int32_t size = taosArrayGetSize(pInfo->sortedGroupArray);
+  for (int32_t i = 0; i < size; i++) {
+    SDataGroupInfo* pGp = taosArrayGet(pInfo->sortedGroupArray, i);
+    if (pGp) {
+      taosArrayDestroy(pGp->pPageList);
+    }
+  }
+  taosArrayDestroy(pInfo->sortedGroupArray);
+  pInfo->sortedGroupArray = NULL;
+
   pInfo->groupIndex = 0;
   pInfo->pageIndex = 0;
   pInfo->remainRows = 0;

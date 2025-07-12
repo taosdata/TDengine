@@ -1375,12 +1375,16 @@ _err:
   return NULL;
 }
 
-SNode* createPlaceHolderTableNode(SAstCreateContext* pCxt, EStreamPlaceholder type) {
+SNode* createPlaceHolderTableNode(SAstCreateContext* pCxt, EStreamPlaceholder type, SToken* pTableAlias) {
   CHECK_PARSER_STATUS(pCxt);
 
   SPlaceHolderTableNode * phTable = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_PLACE_HOLDER_TABLE, (SNode**)&phTable);
   CHECK_MAKE_NODE(phTable);
+
+  if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
+    COPY_STRING_FORM_ID_TOKEN(phTable->table.tableAlias, pTableAlias);
+  }
 
   phTable->placeholderType = type;
   return (SNode*)phTable;
@@ -4391,6 +4395,7 @@ SNode* createStreamTriggerOptions(SAstCreateContext* pCxt) {
   pOptions->lowLatencyCalc = false;
   pOptions->forceOutput = false;
   pOptions->ignoreDisorder = false;
+  pOptions->ignoreNoDataTrigger = false;
   return (SNode*)pOptions;
 _err:
   nodesDestroyNode((SNode*)pOptions);
@@ -4542,6 +4547,14 @@ SNode* setStreamTriggerOptions(SAstCreateContext* pCxt, SNode* pOptions, SStream
         goto _err;
       }
       pStreamOptions->pEventType = pOptionUnit->flag;
+      break;
+    case STREAM_TRIGGER_OPTION_IGNORE_NODATA_TRIGGER:
+      if (pStreamOptions->ignoreNoDataTrigger) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                "IGNORE_NODATA_TRIGGER specified multiple times");
+        goto _err;
+      }
+      pStreamOptions->ignoreNoDataTrigger = true;
       break;
     default:
       break;
@@ -4945,6 +4958,9 @@ _err:
 SNode* createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,
                             SNode* pRealTable, SNode* pInterval) {
   SCreateTSMAStmt* pStmt = NULL;
+  pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "TSMA not support yet");
+  goto _err;
+
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkTsmaName(pCxt, tsmaName));
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_TSMA_STMT, (SNode**)&pStmt);
@@ -5001,6 +5017,8 @@ _err:
 }
 
 SNode* createDropTSMAStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable) {
+  pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "TSMA not support yet");
+  goto _err;
   CHECK_PARSER_STATUS(pCxt);
   SDropTSMAStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_TSMA_STMT, (SNode**)&pStmt);

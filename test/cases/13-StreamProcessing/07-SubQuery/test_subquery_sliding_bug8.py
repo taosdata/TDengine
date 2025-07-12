@@ -107,10 +107,11 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=74,
-            stream="create stream rdb.s74 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r74 as select first(cts), _twstart, %%tbname, cint, avg(cfloat), count(cdouble), sum(cfloat), twa(cdouble) from qdb.meters where cts >= _twstart and cts < _twend and tbname = %%1 group by cint having count(cdouble) == 1 order by first(cts);",
-            res_query="select * from rdb.r74",
-            exp_query="select first(cts), cint, avg(cfloat), count(cdouble), sum(cfloat), twa(cdouble) from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname = 't1' group by cint having count(cdouble) == 1 order by first(cts);",
+            id=10,
+            stream="create stream rdb.s10 interval(5m) sliding(5m) from tdb.triggers partition by id, tbname into rdb.r10 as select _twstart ts, _twend te, _twduration td, _twrownum tw, _tgrpid tg, cast(_tlocaltime % 1000000 as timestamp) tl, %%1 t1_data, %%2 t2_data, %%tbname tb_data, count(cint) c1_data, avg(cint) c2_data from qdb.meters where cts >= _twstart and cts < _twend and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null and tbname = %%2;",
+            res_query="select ts, t1_data, t2_data, tb_data, c1_data, c2_data, id, tag_tbname from rdb.r10 where id=1;",
+            exp_query="select _wstart, 1, 't1', 't1', count(cint) c1, avg(cint) c2, 1, 't1' from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:35:00' and tbname='t1' interval(5m);",
+            check_func=self.check10,
         )
         self.streams.append(stream)
 
@@ -118,16 +119,31 @@ class TestStreamDevBasic:
         for stream in self.streams:
             stream.createStream()
 
-    def check0(self):
-        tdSql.checkTableType(
-            dbname="rdb", tbname="r0", typename="NORMAL_TABLE", columns=3
-        )
+    def check10(self):
         tdSql.checkTableSchema(
             dbname="rdb",
-            tbname="r0",
+            tbname="r10",
             schema=[
                 ["ts", "TIMESTAMP", 8, ""],
-                ["c1", "BIGINT", 8, ""],
-                ["c2", "DOUBLE", 8, ""],
+                ["te", "TIMESTAMP", 8, ""],
+                ["td", "BIGINT", 8, ""],
+                ["tw", "BIGINT", 8, ""],
+                ["tg", "BIGINT", 8, ""],
+                ["tl", "TIMESTAMP", 8, ""],
+                ["t1_data", "INT", 4, ""],
+                ["t2_data", "VARCHAR", 270, ""],
+                ["tb_data", "VARCHAR", 270, ""],
+                ["c1_data", "BIGINT", 8, ""],
+                ["c2_data", "DOUBLE", 8, ""],
+                ["id", "INT", 4, "TAG"],
+                ["tag_tbname", "VARCHAR", 270, "TAG"],
             ],
+        )
+        tdSql.checkResultsByFunc(
+            sql="select * from information_schema.ins_tags where db_name='rdb' and stable_name='r10' and tag_name='tag_tbname';",
+            func=lambda: tdSql.getRows() == 2,
+        )
+        tdSql.checkResultsByFunc(
+            sql="select * from rdb.r10 where tag_tbname='t2'",
+            func=lambda: tdSql.getRows() == 1,
         )

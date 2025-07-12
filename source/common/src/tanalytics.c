@@ -441,12 +441,25 @@ static int32_t taosAnalyJsonBufWriteOptInt(SAnalyticBuf *pBuf, const char *optNa
 }
 
 static int32_t taosAnalyJsonBufWriteOptStr(SAnalyticBuf *pBuf, const char *optName, const char *optVal) {
-  char    buf[128] = {0};
-  int32_t bufLen = tsnprintf(buf, sizeof(buf), "\"%s\": \"%s\",\n", optName, optVal);
-  if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
+  int32_t code = 0;
+  int32_t keyLen = strlen(optName);
+  int32_t valLen = strlen(optVal);
+
+  int32_t totalLen = keyLen + valLen + 20;
+  char *  buf = taosMemoryMalloc(totalLen);
+  if (buf == NULL) {
+    uError("failed to prepare the buffer for serializing the key/value info for analysis, len:%d, code:%s", totalLen,
+           tstrerror(terrno));
     return terrno;
   }
-  return 0;
+
+  int32_t bufLen = tsnprintf(buf, totalLen, "\"%s\": \"%s\",\n", optName, optVal);
+  if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
+    code = terrno;
+  }
+
+  taosMemoryFree(buf);
+  return code;
 }
 
 static int32_t taosAnalyJsonBufWriteOptFloat(SAnalyticBuf *pBuf, const char *optName, float optVal) {

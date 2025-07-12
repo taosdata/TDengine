@@ -39,6 +39,7 @@ int32_t scalarConvertOpValueNodeTs(SOperatorNode *node);
 pDst need to freed in caller
 */
 int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, const void* pExtraParam, void* streamTsRange);
+int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, int32_t rowStartIdx, int32_t rowEndIdx, const void* pExtraParam, void* streamTsRange);
 void    sclFreeParam(SScalarParam* param);
 
 int32_t scalarGetOperatorParamNum(EOperatorType type);
@@ -162,6 +163,8 @@ int32_t modeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
 
 // stream pseudo functions
 int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+ void calcTimeRange(STimeRangeNode* node, void* pStRtFuncInfo, STimeWindow* pWinRange, bool* winRangeValid);
 
 #ifdef __cplusplus
 }

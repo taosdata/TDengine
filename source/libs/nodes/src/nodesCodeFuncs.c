@@ -1125,6 +1125,7 @@ static const char* jkWindowLogicPlanTriggerType = "TriggerType";
 static const char* jkWindowLogicPlanWatermark = "Watermark";
 static const char* jkWindowLogicPlanDeleteMark = "DeleteMark";
 static const char* jkWindowLogicPlanRecalculateInterval = "RecalculateInterval";
+static const char* jkWindowLogicPlanIndefRowsFunc = "IndefRowsFunc";
 
 static int32_t logicWindowNodeToJson(const void* pObj, SJson* pJson) {
   const SWindowLogicNode* pNode = (const SWindowLogicNode*)pObj;
@@ -1177,6 +1178,9 @@ static int32_t logicWindowNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkWindowLogicPlanRecalculateInterval, pNode->recalculateInterval);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkWindowLogicPlanIndefRowsFunc, pNode->indefRowsFunc);
   }
 
   return code;
@@ -1233,6 +1237,9 @@ static int32_t jsonToLogicWindowNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkWindowLogicPlanRecalculateInterval, &pNode->recalculateInterval);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkWindowLogicPlanIndefRowsFunc, &pNode->indefRowsFunc);
   }
 
   return code;
@@ -3162,6 +3169,7 @@ static const char* jkWindowPhysiPlanInputTsOrder = "InputTsOrder";
 static const char* jkWindowPhysiPlanMergeDataBlock = "MergeDataBlock";
 static const char* jkWindowPhysiPlanDestHasPrimaryKey = "DestHasPrimaryKey";
 static const char* jkWindowPhysiPlanRecalculateInterval = "RecalculateInterval";
+static const char* jkWindowPhysiPlanIndefRowsFunc = "IndefRowsFunc";
 
 static int32_t physiWindowNodeToJson(const void* pObj, SJson* pJson) {
   const SWindowPhysiNode* pNode = (const SWindowPhysiNode*)pObj;
@@ -3193,6 +3201,9 @@ static int32_t physiWindowNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkWindowPhysiPlanIgnoreExpired, pNode->igExpired);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkWindowPhysiPlanIndefRowsFunc, pNode->indefRowsFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkWindowPhysiPlanMergeDataBlock, pNode->mergeDataBlock);
@@ -3234,6 +3245,9 @@ static int32_t jsonToPhysiWindowNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkWindowPhysiPlanIgnoreExpired, &pNode->igExpired);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkWindowPhysiPlanIndefRowsFunc, &pNode->indefRowsFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkWindowPhysiPlanMergeDataBlock, &pNode->mergeDataBlock);
@@ -4654,6 +4668,9 @@ static int32_t jsonToPlan(const SJson* pJson, void* pObj) {
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
+    nodesClearList(pTopSubplan->pNodeList);
+    pTopSubplan->pNodeList = NULL;
+    nodesDestroyNode((SNode *)pTopSubplan);
     if (numOfSubplan != pNode->numOfSubplans) {
       code = TSDB_CODE_PLAN_INTERNAL_ERROR;
       nodesError("%s toNode error numOfSubplan %d != %d", nodesNodeName(pNode->type), numOfSubplan, pNode->numOfSubplans);

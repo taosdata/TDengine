@@ -107,34 +107,13 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=123,
-            stream="create stream rdb.s123 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r123 as select _wstart tw, _wend te, _twstart, _twend, count(c1) c1, sum(c2) c2 from %%trows interval(1m)",
-            res_query="select tw, te, c1, c2 from rdb.r123 where id=1",
-            exp_query="select _wstart, _wend, count(c1), sum(c2) from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(1m);",
-            check_func=self.check123,
+            id=35,
+            stream="create stream rdb.s35 interval(5m) sliding(5m) from tdb.triggers partition by id, name into rdb.r35 as select _wstart ts, count(c1) c1, sum(c2) c2, %%1 c3, %%2 c4, cast(_tlocaltime / 1000000 as timestamp) c5, _tgrpid c6 from %%trows count_window(2);",
+            res_query="select ts, c1, c2, c3, c4, id, name from rdb.r35 where id = 1",
+            exp_query="select _wstart ts, count(c1) c1, sum(c2) c2, 1, '1', 1, '1' from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(5m);",
         )
         self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()
-
-    def check123(self):
-        tdSql.checkTableSchema(
-            dbname="rdb",
-            tbname="r123",
-            schema=[
-                ["tw", "TIMESTAMP", 8, ""],
-                ["te", "TIMESTAMP", 8, ""],
-                ["_twstart", "TIMESTAMP", 8, ""],
-                ["_twend", "TIMESTAMP", 8, ""],
-                ["c1", "BIGINT", 8, ""],
-                ["c2", "BIGINT", 8, ""],
-                ["id", "INT", 4, "TAG"],
-                ["name", "VARCHAR", 16, "TAG"],
-            ],
-        )
-        tdSql.checkResultsByFunc(
-            sql="select * from information_schema.ins_tables where db_name='rdb' and stable_name='r123';",
-            func=lambda: tdSql.getRows() == 3,
-        )
