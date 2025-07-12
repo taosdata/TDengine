@@ -387,22 +387,22 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -Q 2
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -Q 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp_extension.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqShow.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb0.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb3.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb0.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/ins_topics_test.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqMaxTopic.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqParamsTest.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqParamsTest.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqMaxGroupIds.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumeDiscontinuousData.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqOffset.py
-#,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_primary_key.py
-,,n,system-test,python3 ./test.py -f 7-tmq/tmqDropConsumer.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqShow.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb0.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb1.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb3.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb0.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/ins_topics_test.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqMaxTopic.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqParamsTest.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqParamsTest.py -R
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqMaxGroupIds.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumeDiscontinuousData.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqOffset.py
+#has migrate to new#,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_primary_key.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 7-tmq/tmqDropConsumer.py
 
 
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/insert_stb.py
@@ -479,107 +479,107 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreMnode.py -N 5 -M 3 -i False
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreQnode.py -N 5 -M 3 -i False
 
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/create_wrong_topic.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/basic5.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/ts-4674.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-30270.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb3.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb4.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb4.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/db.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqError.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/schema.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbFilterWhere.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbFilter.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqCheckData.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqCheckData1.py
-#,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
-,,n,system-test,python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqAlterSchema.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-1ctb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-1ctb-funcNFilter.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb-funcNFilter.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb-funcNFilter.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDnodeRestart1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUpdateWithConsume.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot0.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDelete-1ctb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDelete-multiCtb.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStbCtb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropNtb-snapshot0.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropNtb-snapshot1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUdf.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot0.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot1.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_taosx.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts5466.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td33504.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts6392.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts5906.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-32187.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-33225.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts4563.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td32526.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td32471.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts6115.py
-,,n,system-test,python3 ./test.py -f 7-tmq/tmq_tx484.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_replay.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSeekAndCommit.py
-,,n,system-test,python3 ./test.py -f 7-tmq/tmq_offset.py
-,,n,system-test,python3 ./test.py -f 7-tmq/tmqDataPrecisionUnit.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/raw_block_interface_test.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSubscribeStb-r3.py -N 5
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -i True
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 -i True
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-db-removewal.py -N 2 -n 1
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb-removewal.py -N 6 -n 3
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 2 -n 1
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 6 -n 3
-#,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-db.py -N 6 -n 3
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select.py -N 2 -n 1
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-duplicatedata.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-duplicatedata-false.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-ntb-select.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-false.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-false.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-column.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-column-false.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-db.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-db-false.py -N 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/walRemoveLog.py -N 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/create_wrong_topic.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/basic5.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/ts-4674.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-30270.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb1.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb2.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb3.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeDb4.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb4.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/db.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqError.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/schema.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbFilterWhere.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbFilter.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqCheckData.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqCheckData1.py
+#has migrate to new#,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqAlterSchema.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-1ctb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-1ctb-funcNFilter.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb-funcNFilter.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb-funcNFilter.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb-funcNFilter.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg-mutilCtb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqAutoCreateTbl.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDnodeRestart.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDnodeRestart1.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUpdate-1ctb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUpdateWithConsume.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot0.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUpdate-multiCtb-snapshot1.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDelete-1ctb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDelete-multiCtb.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStbCtb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropNtb-snapshot0.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropNtb-snapshot1.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUdf.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot0.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqUdf-multCtb-snapshot1.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_taosx.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts5466.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td33504.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts6392.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts5906.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-32187.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-33225.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts4563.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td32526.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td32471.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts6115.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 7-tmq/tmq_tx484.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_replay.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSeekAndCommit.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 7-tmq/tmq_offset.py
+#has migrate to new,,n,system-test,python3 ./test.py -f 7-tmq/tmqDataPrecisionUnit.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/raw_block_interface_test.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSubscribeStb-r3.py -N 5
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -i True
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 -i True
+#has migrate to new,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-db-removewal.py -N 2 -n 1
+#has migrate to new,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb-removewal.py -N 6 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 2 -n 1
+#has migrate to new,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-stb.py -N 6 -n 3
+#has migrate to new#,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform-db.py -N 6 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select.py -N 2 -n 1
+#has migrate to new,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-duplicatedata.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-duplicatedata-false.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-ntb-select.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-select-false.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-stb-false.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-column.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-column-false.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-db.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-db-false.py -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/walRemoveLog.py -N 3
 
-,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeReplicate.py -M 3 -N 3 -n 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-19201.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3404.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3581.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3311.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3821.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-5130.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-5580.py
+#has migrate to new,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeReplicate.py -M 3 -N 3 -n 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-19201.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3404.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3581.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3311.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3821.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-5130.py
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-5580.py
 
 #has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/balance_vgroups_r1.py -N 6
 #has migrate to new#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShell.py
@@ -1125,7 +1125,7 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 2
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 2
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 2
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 2
 
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 3
@@ -1225,7 +1225,7 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 3
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/between.py -Q 4
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/distinct.py -Q 4
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -Q 4
@@ -1338,9 +1338,11 @@
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py -Q 2
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py -Q 3
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
+
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
+#has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
 #has migrate to new,,n,system-test,python3 ./test.py -f eco-system/meta/database/keep_time_offset.py
+
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 2
 #has migrate to new,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 3

@@ -2,7 +2,6 @@
 from taos import *
 
 from ctypes import *
-from datetime import datetime
 import taos
 
 from new_test_framework.utils import tdLog
@@ -26,7 +25,7 @@ class TestStmtError:
         cls.err_case = 0
         cls.curret_case = 0
 
-    def conn(self):
+    def get_connect(self):
         # type: () -> taos.TaosConnection
         return taos.connect()
 
@@ -380,9 +379,9 @@ class TestStmtError:
 
         """
 
-        self.check_stmt_insert(self.conn())
+        self.check_stmt_insert(self.get_connect())
         try:
-            self.check_stmt_insert_error(self.conn())
+            self.check_stmt_insert_error(self.get_connect())
         except Exception as error :
 
             if str(error)=='[0x0200]: stmt bind param does not support normal value in sql':
@@ -391,7 +390,7 @@ class TestStmtError:
                 tdLog.exit("expect error(%s) not occured" % str(error))
 
         try:
-            self.check_stmt_nornmal_value_error(self.conn())
+            self.check_stmt_nornmal_value_error(self.get_connect())
         except Exception as error :
 
             if str(error)=='[0x0200]: stmt bind param does not support normal value in sql':
@@ -400,7 +399,7 @@ class TestStmtError:
                 tdLog.exit("expect error(%s) not occured" % str(error))
 
         try:
-            self.check_stmt_insert_error_null_timestamp(self.conn())
+            self.check_stmt_insert_error_null_timestamp(self.get_connect())
             tdLog.exit("expect error not occured - 1")
         except Exception as error :
             if str(error)=='[0x060b]: Timestamp data out of range':
@@ -409,7 +408,7 @@ class TestStmtError:
                 tdLog.exit("expect error(%s) not occured - 2" % str(error))
 
         try:
-            self.check_stmt_insert_vtb_error(self.conn())
+            self.check_stmt_insert_vtb_error(self.get_connect())
         except Exception as error :
 
             if str(error)=='[0x6205]: Virtual table not support in STMT query and STMT insert':
@@ -418,7 +417,7 @@ class TestStmtError:
                 tdLog.exit("expect error(%s) not occured" % str(error))
 
         try:
-            self.check_stmt_insert_vstb_error(self.conn())
+            self.check_stmt_insert_vstb_error(self.get_connect())
         except Exception as error :
 
             if str(error)=='[0x6205]: Virtual table not support in STMT query and STMT insert':

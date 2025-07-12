@@ -35,7 +35,7 @@ class TestOpentsdbJsonTaoscInsert:
         # cls._conn = conn
         cls.defaultJSONStrType_value = "BINARY"
 
-    def createDb(self, name="test", db_update_tag=0, protocol=None):
+    def create_database(self, name="test", db_update_tag=0, protocol=None):
         if protocol == "telnet-tcp":
             name = "opentsdb_telnet"
 
@@ -568,7 +568,7 @@ class TestOpentsdbJsonTaoscInsert:
         res = tdSql.query('select * from test_ns', True)
         tdSql.checkEqual(str(res[0][0]), "1626006833639000000")
         tdSql.checkEqual(str(res[1][0]), "1626006833639000001")
-        self.createDb()
+        self.create_database()
 
     def idSeqCheckCase(self, value_type="obj"):
         """
@@ -1137,7 +1137,7 @@ class TestOpentsdbJsonTaoscInsert:
         tb_name = tdCom.getLongName(7, "letters")
         for db_update_tag in [0, 1]:
             if db_update_tag == 1 :
-                self.createDb("test_update", db_update_tag=db_update_tag)
+                self.create_database("test_update", db_update_tag=db_update_tag)
             input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value=True, t_type="bool", value_type=value_type), tag_value=self.genTagValue(t0_value=True, value_type=value_type))
             self.resCmp(input_json, stb_name)
             input_json, stb_name = self.genFullTypeJson(stb_name=stb_name, tb_name=tb_name, col_value=self.genTsColValue(value=False, t_type="bool", value_type=value_type), tag_value=self.genTagValue(t0_value=True, value_type=value_type), t_add_tag=True)
@@ -1152,7 +1152,7 @@ class TestOpentsdbJsonTaoscInsert:
                 tdSql.checkData(0, 1, True)
                 tdSql.checkData(0, 11, None)
                 tdSql.checkData(0, 12, None)
-            self.createDb()
+            self.create_database()
 
     def tagAddCheckCase(self, value_type="obj"):
         """
@@ -1796,7 +1796,7 @@ class TestOpentsdbJsonTaoscInsert:
 
         """
         print("running {}".format(__file__))
-        self.createDb()
+        self.create_database()
         try:
             self.runAll()
         except Exception as err:
