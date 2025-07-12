@@ -149,7 +149,7 @@ class TDTestCase:
             for unit in self.error_unit:
                 tdSql.error(f'select timediff(ts,{self.subtractor},{unit}) from {self.ntbname}')
             date_time = self.get_time.time_transform(self.ts_str,precision)
-            self.data_check(date_time,precision,'ntb')
+            self.data_check(date_time,precision,self.ntbname)
 
     def function_check_stb(self):
         for precision in self.db_param_precision:
@@ -162,8 +162,8 @@ class TDTestCase:
                 tdSql.execute(f'insert into {self.ctbname} values("{ts}",1)')
 
             date_time = self.get_time.time_transform(self.ts_str,precision)
-            self.data_check(date_time,precision,'ctb')
-            self.data_check(date_time,precision,'stb')
+            self.data_check(date_time,precision,self.ctbname)
+            self.data_check(date_time,precision,self.stbname)
 
     def function_without_unit(self):
         for precision in self.db_param_precision:
