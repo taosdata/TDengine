@@ -1924,6 +1924,7 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
           STMT2_ELOG_E("can't mix bind row format and bind column format");
           STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
         }
+
         code = qBindStmtColsValue2(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf,
                                    pStmt->exec.pRequest->msgBufLen, pStmt->taos->optionInfo.charsetCxt);
       } else {
