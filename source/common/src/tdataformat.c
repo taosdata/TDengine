@@ -323,7 +323,6 @@ static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *
                                       SRow **ppRow, SBlobRow2 *pBlobRow) {
   int32_t  code = 0;
   SColVal *colValArray = (SColVal *)TARRAY_DATA(aColVal);
-  int8_t   hasBlob = 0;
   *ppRow = (SRow *)taosMemoryCalloc(1, sinfo->tupleRowSize);
   if (*ppRow == NULL) {
     return terrno;
@@ -363,6 +362,7 @@ static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *
         break;
       }
 
+      int8_t hasBlob = 0;
       if (colValArray[colValIndex].cid == schema->columns[i].colId) {
         if (COL_VAL_IS_VALUE(&colValArray[colValIndex])) {  // value
           ROW_SET_BITMAP(bitmap, sinfo->tupleFlag, i - 1, BIT_FLG_VALUE);
@@ -433,9 +433,6 @@ static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *
 
   if (((*ppRow)->flag) == 0) {
     return TSDB_CODE_INVALID_PARA;
-  }
-  if (hasBlob == 1) {
-    //(*ppRow)->flag |= HAS_BLOB;
   }
 
   return 0;
@@ -530,7 +527,6 @@ static int32_t tRowBuildKVRowWithBlob(SArray *aColVal, const SRowBuildScanInfo *
   if (*ppRow == NULL) {
     return terrno;
   }
-  int8_t isBlob = 0;
   (*ppRow)->flag = sinfo->kvFlag;
   (*ppRow)->numOfPKs = sinfo->numOfPKs;
   (*ppRow)->sver = schema->version;
@@ -1064,10 +1060,8 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
           pColVal->flag = CV_FLAG_VALUE;
 
           if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-            int8_t isBlob = 0;
-            if (IS_STR_DATA_BLOB(pTColumn->type)) {
-              isBlob = 1;
-            }
+            int8_t isBlob = IS_STR_DATA_BLOB(pTColumn->type) ? 1 : 0;
+
             pData += tGetU32v(pData, &pColVal->value.nData);
             if (pColVal->value.nData > 0) {
               pColVal->value.pData = pData;
@@ -1075,7 +1069,7 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
               pColVal->value.pData = NULL;
             }
             if (isBlob == 1) {
-              pData += sizeof(uint64_t);  // skip seq
+              pData += BSE_SEQUECE_SIZE;  // skip seq
             }
           } else {
             valueSetDatum(&pColVal->value, pTColumn->type, pData, pTColumn->bytes);
@@ -1125,12 +1119,8 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
     pColVal->cid = pTColumn->colId;
     pColVal->value.type = pTColumn->type;
     pColVal->flag = CV_FLAG_VALUE;
-    // uint8_t hasBlob = 0;
     if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-      int8_t isBlob = 0;
-      if (IS_STR_DATA_BLOB(pTColumn->type)) {
-        isBlob = 1;
-      }
+      int8_t isBlob = IS_STR_DATA_BLOB(pTColumn->type) ? 1 : 0;
       pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
       pColVal->value.pData += tGetU32v(pColVal->value.pData, &pColVal->value.nData);
       // TODO(yhDeng): support tuple
