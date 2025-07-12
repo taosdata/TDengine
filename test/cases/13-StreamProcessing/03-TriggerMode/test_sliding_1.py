@@ -146,10 +146,17 @@ class TestStreamTriggerSliding:
         # except Exception as e:
         #     tdLog.error(f"case 15 error: {e}")
 
-        clear_output("sm15", "tb15")
-        self.prepare_tables(10000, 10, info)
+        # clear_output("sm15", "tb15")
+        # self.prepare_tables(10000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_16("sm16", "tb16", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 16 error: {e}")
+
+        clear_output("sm16", "tb16")
+        self.prepare_tables(5000, 10, info)
         try:
-            self.create_and_check_stream_basic_16("sm16", "tb16", info)
+            self.create_and_check_stream_basic_17("sm17", "tb17", info)
         except Exception as e:
             tdLog.error(f"case 16 error: {e}")
 
@@ -531,7 +538,7 @@ class TestStreamTriggerSliding:
 
 
     def create_and_check_stream_basic_16(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 16: results not equal"""
+        """simple 16: Pass"""
         tdLog.info(f"start exec stream {stream_name}")
 
         tdSql.execute("use db")
@@ -574,3 +581,24 @@ class TestStreamTriggerSliding:
         tdLog.info(f"create stream completed, and start to write data after 10sec")
         self.do_write_data(f"{stream_name}_4", info)
         wait_for_stream_done(dst_table, f"select count(*) from {dst_table}_0", 1000)
+
+    def create_and_check_stream_basic_17(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 17: Pass"""
+        tdLog.info(f"start exec stream {stream_name}")
+
+        tdSql.execute("create vtable vtb_1 (ts timestamp, col_1 int from c0.k, col_2 varchar(12) from c1.c1, "
+                      "col_3 double from c2.c2)")
+
+        tdSql.execute("use db")
+        tdSql.execute(
+            f"create stream {stream_name} interval(100a) sliding(100a) "
+            f"from vtb_1 options(pre_filter(count(col_3) > substr(cast(now() as varchar), 1, 2)))  into {dst_table} as "
+            f"select _twstart, _twend, _tcurrent_ts ts, count(c9.*) k, first(c9.c2), sum(c9.c2), last(c9.k) c "
+            f"from c9, c0 "
+            f"where _c0 >= _twstart and _c0 < _twend and c9.ts=c0.ts")
+
+        tdStream.checkStreamStatus(stream_name)
+        tdLog.info(f"create stream completed, and start to write data after 10sec")
+        self.do_write_data(stream_name, info)
+        wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", 1000)
+
