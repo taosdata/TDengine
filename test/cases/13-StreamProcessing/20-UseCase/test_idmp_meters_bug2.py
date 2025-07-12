@@ -2,6 +2,7 @@ import time
 import math
 import random
 from new_test_framework.utils import tdLog, tdSql, tdStream, etool
+from new_test_framework.utils.srvCtl import *
 from datetime import datetime
 from datetime import date
 
@@ -84,7 +85,7 @@ class Test_Scene_Asset01:
         self.start_voltage = 260
 
         # import data
-        etool.taosdump(f"-i cases/13-StreamProcessing/20-UseCase/asset01/data/")
+        etool.taosdump(f"-i cases/13-StreamProcessing/20-UseCase/meters_data/data/")
 
         tdLog.info(f"import data to db={self.db} successfully.")
 
@@ -126,11 +127,6 @@ class Test_Scene_Asset01:
     def createStreams(self):
 
         sqls = [
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream1`  event_window( start with `电压` > 250 end with `电压` <= 250 ) TRUE_FOR(10m) FROM `tdasset`.`vt_em-1`  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream1` AS SELECT _twstart+0s AS output_timestamp, avg(`电压`) AS `平均电压`  FROM tdasset.`vt_em-1`  WHERE ts >= _twstart AND ts <=_twend;",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream1_sub1`  event_window( start with `电压` > 250 end with `电压` <= 250 ) TRUE_FOR(10m) FROM `tdasset`.`vt_em-1`  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN) INTO `tdasset`.`result_stream1_sub1` AS SELECT _twstart+0s AS output_timestamp, avg(`电压`) AS `平均电压`  FROM tdasset.`vt_em-1`  WHERE ts >= _twstart AND ts <=_twend;",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream1_sub2`  event_window( start with `电压` > 250 end with `电压` <= 250 ) TRUE_FOR(10m) FROM `tdasset`.`vt_em-1`  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_CLOSE) INTO `tdasset`.`result_stream1_sub2` AS SELECT _twstart+0s AS output_timestamp, avg(`电压`) AS `平均电压`  FROM tdasset.`vt_em-1`  WHERE ts >= _twstart AND ts <=_twend;",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream2`  interval(1h)  sliding(5m) FROM `tdasset`.`vt_em-2`  notify('ws://idmp:6042/eventReceive') ON(window_open|window_close) INTO `tdasset`.`result_stream2` AS SELECT _twstart+0s AS output_timestamp, max(`电流`) AS `最大电流` FROM tdasset.`vt_em-2`  WHERE ts >=_twstart AND ts <=_twend;",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream3`  event_window( start with `电流` > 100 end with `电流` <= 100 ) TRUE_FOR(5m) FROM `tdasset`.`vt_em-3` NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream3` AS SELECT _twstart+0s AS output_timestamp, AVG(`电流`) AS `平均电流` FROM tdasset.`vt_em-3`  WHERE ts >= _twstart AND ts <=_twend",
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4` AS SELECT _twstart+0s as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend ",
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub1` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4_sub1` AS SELECT _twstart+0s as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend"
         ]
@@ -150,12 +146,6 @@ class Test_Scene_Asset01:
     # 4. write trigger data
     #
     def writeTriggerData(self):
-        # strem1
-        self.trigger_stream1()
-        # stream2
-        self.trigger_stream2()
-        # stream3
-        self.trigger_stream3()
         # stream4
         self.trigger_stream4()
 
@@ -171,9 +161,6 @@ class Test_Scene_Asset01:
     # 6. verify results
     #
     def verifyResults(self):
-        self.verify_stream1()
-        self.verify_stream2()
-        self.verify_stream3()
         self.verify_stream4()
 
 
@@ -193,122 +180,6 @@ class Test_Scene_Asset01:
         self.verify_stream4_again()
 
     # ---------------------   stream trigger    ----------------------
-
-    #
-    #  stream1 trigger 
-    #
-    def trigger_stream1(self):
-
-        # 1~20 minutes no trigger
-        ts = self.start
-        # voltage = 100
-        sql = f"insert into asset01.`em-1`(ts,voltage) values({ts}, 100);"
-        tdSql.execute(sql, show=True)
-
-        # voltage = 300
-        for i in range(20):
-            ts += 1*60*1000
-            sql = f"insert into asset01.`em-1`(ts,voltage) values({ts}, 300);"
-            tdSql.execute(sql, show=True)
-
-        sql = f"insert into asset01.`em-1`(ts,voltage) values({ts}, 100);"
-        tdSql.execute(sql, show=True)
-
-        # voltage = 100
-        ts += 1*60*1000
-        sql = f"insert into asset01.`em-1`(ts,voltage) values({ts}, 100);"
-        tdSql.execute(sql, show=True)
-
-
-        # voltage = 400
-        for i in range(11):
-            ts += 1*60*1000
-            sql = f"insert into asset01.`em-1`(ts,voltage) values({ts}, 400);"
-            tdSql.execute(sql, show=True)
-
-        # voltage = 100
-        ts += 1*60*1000
-        sql = f"insert into asset01.`em-1`(ts,voltage) values({ts}, 100);"
-        tdSql.execute(sql, show=True)
-
-        # high-lower not trigger
-        for i in range(30):
-            ts += 1*60*1000
-            if i % 2 == 0:
-                voltage = 250 - i
-            else:
-                voltage = 250 + i
-            sql = f"insert into asset01.`em-1`(ts,voltage) values({ts}, {voltage});"
-            tdSql.execute(sql, show=True)
-
-    #
-    #  stream2 trigger 
-    #
-    def trigger_stream2(self):
-        ts = self.start
-        current = self.start_current
-        voltage = self.start_voltage
-        power   = 200
-        phase   = 0
-
-        cnt     = 11 # 
-        for i in range(cnt):
-            ts += 1 * 60 * 1000
-            current += 1
-            voltage += 1
-            power   += 1
-            phase   += 1
-            sql = f"insert into asset01.`em-2` values({ts}, {current}, {voltage}, {power}, {phase});"
-            tdSql.execute(sql, show=True)
-
-    #
-    #  stream3 trigger 
-    #
-    def trigger_stream3(self):
-        ts = self.start
-        current = 100
-        voltage = 220
-        power   = 200
-        phase   = 0
-
-        # enter condiction
-        cnt     = 10
-        for i in range(cnt):
-            ts += 1 * 60 * 1000
-            current += 1
-            voltage += 1
-            power   += 1
-            phase   += 1
-            sql = f"insert into asset01.`em-3` values({ts}, {current}, {voltage}, {power}, {phase});"
-            tdSql.execute(sql, show=True)
-
-        # leave condiction
-        cnt     = 10 #
-        current = 100
-        for i in range(cnt):
-            ts += 1 * 60 * 1000
-            current -= 1
-            voltage += 1
-            power   += 1
-            phase   += 1
-            sql = f"insert into asset01.`em-3` values({ts}, {current}, {voltage}, {power}, {phase});"
-            tdSql.execute(sql, show=True)
-
-        cnt     = 20
-        current = 200
-        for i in range(cnt):
-            ts += 1 * 60 * 1000
-            current += 1
-            voltage += 1
-            power   += 1
-            phase   += 1
-            sql = f"insert into asset01.`em-3` values({ts}, {current}, {voltage}, {power}, {phase});"
-            tdSql.execute(sql, show=True)
-
-        # lower
-        ts += 1*60*1000
-        sql = f"insert into asset01.`em-3`(ts, current) values({ts}, 50);"
-        tdSql.execute(sql, show=True)
 
 
     #
@@ -343,72 +214,6 @@ class Test_Scene_Asset01:
     # ---------------------   verify    ----------------------
     #
 
-    #
-    # verify stream1
-    #
-    def verify_stream1(self):
-        # result_stream1
-        result_sql = f"select * from {self.vdb}.`result_stream1` "
-        result_sql_sub1 = f"select * from {self.vdb}.`result_stream1_sub1` "
-        result_sql_sub2 = f"select * from {self.vdb}.`result_stream1_sub2` "
-
-        ''' bug1
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.getRows() == 2
-            and tdSql.compareData(0, 0, "2025-07-15 15:04:20")
-            and tdSql.compareData(1, 0, "2025-07-15 15:25:20")
-            and tdSql.compareData(0, 1, 300)
-            and tdSql.compareData(1, 1, 400)
-        )
-        '''
-
-        # result_stream1_sub1
-        tdSql.checkResultsBySql(
-            sql=result_sql,
-            exp_sql=result_sql_sub1
-        )
-
-        # result_stream1_sub2
-        tdSql.checkResultsBySql(
-            sql=result_sql,
-            exp_sql=result_sql_sub1
-        )
-
-        tdLog.info("verify stream1 successfully.")
-
-    #
-    # verify stream2
-    #
-    def verify_stream2(self):
-        # result_stream2
-        result_sql = f"select * from {self.vdb}.`result_stream2` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.getRows() == 2
-            and tdSql.compareData(0, 0, "2025-07-15 14:05:00")
-            and tdSql.compareData(1, 0, "2025-07-15 14:10:00")
-            and tdSql.compareData(0, 1, 11)
-            and tdSql.compareData(1, 1, 16)
-        )
-
-        tdLog.info("verify stream2 successfully.")
-
-    #
-    # verify stream3
-    #
-    def verify_stream3(self):
-        # result_stream3
-        result_sql = f"select * from {self.vdb}.`result_stream3` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.getRows() == 2
-            and tdSql.compareData(0, 0, "2025-07-15 15:04:20")
-            and tdSql.compareData(1, 0, "2025-07-15 15:24:20")
-        )
-
-        tdLog.info("verify stream3 successfully.")
-
 
     #
     # verify stream4
@@ -439,6 +244,7 @@ class Test_Scene_Asset01:
 
         tdLog.info(f"verify stream4 {tables} successfully.")
 
+
     #
     # verify stream4 again
     #
@@ -460,7 +266,6 @@ class Test_Scene_Asset01:
 
         self.verify_stream4(tables=["result_stream4_sub1"])
 
-        ''' ***** bug2 *****
         # restart dnode
         tdLog.info("restart dnode to verify stream4_sub1 ...")
         sc.dnodeRestartAll()
@@ -480,6 +285,5 @@ class Test_Scene_Asset01:
 
             # verify
             self.verify_stream4(tables=["result_stream4_sub1"])
-        '''    
 
         tdLog.info("verify stream4 again successfully.")
