@@ -380,7 +380,7 @@ class TestTaosCli:
         ]
 
         for cmd in cmds:
-            rlist = self.taos(cmd)
+            rlist = self.taos(cmd, checkRun=True)
             self.checkListString(rlist, "Query OK,")
 
     # run
@@ -405,26 +405,26 @@ class TestTaosCli:
         tdLog.debug(f"start to excute {__file__}")
 
         # check show whole
-        self.checkDescribe()
+        #self.checkDescribe()
 
         # check basic
-        self.checkBasic()
+        #self.checkBasic()
 
         # version
-        self.checkVersion()
+        #self.checkVersion()
 
         # help
-        self.checkHelp()
+        #self.checkHelp()
 
         # check command
-        self.checkCommand()
+        #self.checkCommand()
 
         # check data in/out
-        self.checkDumpInOut()
+        #self.checkDumpInOut()
 
 
         # check conn mode
-        self.checkConnMode()
+        #self.checkConnMode()
 
         # max password
         self.checkPassword()

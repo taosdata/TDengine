@@ -277,7 +277,7 @@ class CompatibilityBase:
         # upgrade only one dnode
         if upgrade == 0:
             tdLog.info("upgrade all dnodes")
-            status, output = subprocess.getstatusoutput(f'ps aux|grep taosd |grep -v "grep"|awk \'{{print $2}}\'')
+            status, output = subprocess.getstatusoutput(f'ps auxww | grep taosd |grep -v "grep"|awk \'{{print $2}}\'')
             if status != 0:
                 tdLog.error(f"Command to get PIDs failed with status {status}: {output}")
                 return 
@@ -296,7 +296,7 @@ class CompatibilityBase:
         # upgrade all dnodes
         elif upgrade == 1:
             tdLog.info("upgrade all dnodes")
-            status, output = subprocess.getstatusoutput(f'ps aux|grep taosd |grep -v "grep"|awk \'{{print $2}}\'')
+            status, output = subprocess.getstatusoutput(f'ps auxww | grep taosd |grep -v "grep"|awk \'{{print $2}}\'')
             if status != 0:
                 tdLog.error(f"Command to get PIDs failed with status {status}: {output}")
                 return 

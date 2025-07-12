@@ -48,7 +48,7 @@ class TestGrant:
                     break
         return buildPath
 
-    def depoly_cluster(self ,dnodes_nums):
+    def deploy_cluster(self ,dnodes_nums):
 
         testCluster = False
         valgrind = 0
@@ -346,7 +346,7 @@ class TestGrant:
         # keep the order of following steps
 
         self.TDDnodes = None
-        self.depoly_cluster(5)
+        self.deploy_cluster(5)
         self.master_dnode = tdDnodes.dnodes[0]
         self.host=self.master_dnode.cfgDict["fqdn"]
         conn1 = taos.connect(self.master_dnode.cfgDict["fqdn"] , config=self.master_dnode.cfgDir)

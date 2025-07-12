@@ -3,6 +3,7 @@ import taos
 import sys
 import time
 import os
+import platform
 
 import subprocess
 

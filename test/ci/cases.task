@@ -720,6 +720,23 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_concat.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/function/test_cast.py
 
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/subquery/test_subquery_bugs.py -N 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/last/test_last.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/window/test_window_base.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/sys/test_tb_perf_queries_exist.py -N 3
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_join.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_join_const.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_compare.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_case_when.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_query_basic.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_show.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_query_bugs.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_having.py
+
 ,,n,.,pytest cases/uncatalog/army/storage/s3/test_s3_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/storage/test_one_stage_comp.py -N 3 -L 3 -D 1
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/storage/test_compress_basic.py -N 3
@@ -745,6 +762,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_from_to.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_from_to_continue.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_json_tag.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_sml.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_sql.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_stmt.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_tag_order_stmt2.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_json_csv.py
 ,,n,.,pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/tools/benchmark/basic/test_insert_bind_vgroup.py
@@ -1814,6 +1835,17 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/0-others/view/non_marterial_view/test_view.py
 
 
+,,n,.,pytest cases/uncatalog/system-test/eco-system/meta/database/test_keep_time_offset.py
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/eco-system/manager/test_schema_change.py -N 3 -M 3
+
+#develop test
+,,n,.,pytest cases/uncatalog/develop-test/2-query/test_table_count_scan.py
+,,n,.,pytest cases/uncatalog/develop-test/2-query/test_pseudo_column.py
+,,n,.,pytest cases/uncatalog/develop-test/2-query/test_ts_range.py
+,,n,.,pytest cases/uncatalog/develop-test/2-query/test_tag_scan.py
+,,n,.,pytest cases/uncatalog/develop-test/2-query/test_show_create_db.py
+
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/test_new/storage/compact/test_compact_meta.py
 ### 7-tmq
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqShow.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropStb.py
@@ -1831,7 +1863,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqOffset.py
 #,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_primary_key.py
 ,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqDropConsumer.py
-
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_create_wrong_topic.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dropDbR3ConflictTransaction.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_basic5.py
@@ -1923,7 +1954,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_db.py -N 3 -n 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_db_false.py -N 3 -n 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_walRemoveLog.py -N 3
-
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeReplicate.py -M 3 -N 3 -n 3
 
 ### 99-TDcase
