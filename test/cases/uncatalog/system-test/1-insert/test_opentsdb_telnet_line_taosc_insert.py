@@ -37,7 +37,7 @@ class TestOpentsdbTelnetLineTaoscInsert:
         # cls._conn = conn
         cls.smlChildTableName_value = "id"
 
-    def createDb(self, name="test", db_update_tag=0, protocol=None):
+    def create_database(self, name="test", db_update_tag=0, protocol=None):
         if protocol == "telnet-tcp":
             name = "opentsdb_telnet"
 
@@ -865,7 +865,7 @@ class TestOpentsdbTelnetLineTaoscInsert:
         tb_name = tdCom.getLongName(7, "letters")
         for db_update_tag in [0, 1]:
             if db_update_tag == 1 :
-                self.createDb("test_update", db_update_tag=db_update_tag)
+                self.create_database("test_update", db_update_tag=db_update_tag)
             input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name, t0="t", value="t")
             self.resCmp(input_sql, stb_name)
             input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t0="t", value="f", t_add_tag=True)
@@ -880,7 +880,7 @@ class TestOpentsdbTelnetLineTaoscInsert:
                 tdSql.checkData(0, 1, True)
                 tdSql.checkData(0, 11, None)
                 tdSql.checkData(0, 12, None)
-            self.createDb()
+            self.create_database()
 
     @tdCom.smlPass
     def tagColAddCheckCase(self):
@@ -1488,9 +1488,9 @@ class TestOpentsdbTelnetLineTaoscInsert:
         print("running {}".format(__file__))
 
         try:
-            self.createDb()
+            self.create_database()
             self.runAll()
-            # self.createDb(protocol="telnet-tcp")
+            # self.create_database(protocol="telnet-tcp")
             # self.initCheckCase('telnet-tcp')
             # self.boolTypeCheckCase('telnet-tcp')
             # self.symbolsCheckCase('telnet-tcp')

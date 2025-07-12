@@ -23,11 +23,7 @@ DBNAME = "db"
 class TestTagfilter:
 
     def setup_class(cls):
-        cls.replicaVar = 1  # 设置默认副本数
-        tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor(), logSql)  
-        tdSql.execute(f'drop database if exists db')
-        tdSql.execute(f'create database if not exists db vgroups 1')   
+        tdLog.debug(f"start to excute {__file__}")  
         
     def __create_tb(self, dbname="db"):
         create_stb_sql  =  f'''create table {dbname}.stb1(
@@ -264,7 +260,9 @@ class TestTagfilter:
             - xxx
 
         """
-
+        tdSql.execute(f'drop database if exists db')
+        tdSql.execute(f'create database if not exists db vgroups 1') 
+        
         tdLog.printNoPrefix("==========step1:create table")
         self.__create_tb()
 

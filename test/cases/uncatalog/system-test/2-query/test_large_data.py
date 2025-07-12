@@ -47,8 +47,7 @@ class TestLargeData:
     def ts6136(self): 
         start = 1500000000000
         tdSql.execute("drop database if exists test1;")
-        
-        etool.benchMark(command ="-d test1 -t 3 -n 1000000 -s {start} -y")
+        etool.benchMark(command =f"-d test1 -t 3 -n 1000000 -s {start} -y")
         
         while True:
             tdSql.query("select count(*) from test1.meters;")

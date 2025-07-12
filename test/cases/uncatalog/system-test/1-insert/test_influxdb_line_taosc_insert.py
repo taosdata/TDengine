@@ -17,18 +17,16 @@ from new_test_framework.utils.types import TDSmlProtocolType, TDSmlTimestampType
 from taos.error import SchemalessError
 import traceback
 import random
-from random import randint
-import os
 import time
 import threading
+import numpy as np
 
 class TestInfluxdbLineTaoscInsert:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
         #tdSql.init(conn.cursor(), logSql), True)
-        # self._conn = conn
 
-    def createDb(self, name="test", db_update_tag=0):
+    def create_database(self, name="test", db_update_tag=0):
         if db_update_tag == 0:
             tdSql.execute(f"drop database if exists {name}")
             tdSql.execute(f"create database if not exists {name} precision 'ms' schemaless 1")
@@ -1280,7 +1278,7 @@ class TestInfluxdbLineTaoscInsert:
         tdSql.query(f"show tables;")
         tdSql.checkRows(6)
 
-    def test(self):
+    def check(self):
         input_sql1 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ddzhiksj\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bnhwlgvj\",c8=L\"ncharTagValue\",c9=7u64 1626006933640000000ns"
         input_sql2 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 1626006933640000000ns"
         try:
@@ -1368,8 +1366,7 @@ class TestInfluxdbLineTaoscInsert:
         - xxx
 
         """
-        print("running {}".format(__file__))
-        self.createDb()
+        self.create_database()
         try:
             self.runAll()
         except Exception as err:

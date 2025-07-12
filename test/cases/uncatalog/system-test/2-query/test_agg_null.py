@@ -11,10 +11,7 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from test_hyperloglog import TestHyperloglog as HyperLogLog
+import hyperloglog
 import numpy as np
 '''
 Test case for TS-5150
@@ -89,7 +86,7 @@ class TestAggNull:
             tdSql.checkEqual(sum_res,sum(col_val_list))
             #verify hyperloglog
             error_rate = 0.01
-            hll = HyperLogLog(error_rate)
+            hll = hyperloglog.HyperLogLog(error_rate)
             for col_val in col_val_list:
                 hll.add(col_val)
             hll_res = tdSql.queryResult[0][10]

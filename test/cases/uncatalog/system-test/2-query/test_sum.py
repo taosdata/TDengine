@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, autogen
+from new_test_framework.utils import tdLog, tdSql, AutoGen
 import datetime
 
 INT_COL     = "c1"
@@ -21,10 +21,7 @@ DBNAME = "db"
 
 class TestSum:
     def setup_class(cls):
-        cls.replicaVar = 1  # 设置默认副本数
         tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor(), logSql)
-        cls.autoGen = autogen.AutoGen(step=1, batch=100,genDataMode="fillone")
 
     def __sum_condition(self):
         sum_condition = []
@@ -207,15 +204,16 @@ class TestSum:
         dbname  = "sumdb"
         stbname = "stb"
         colnum = 16
-        self.autoGen.set_batch_size(1000)
-        self.autoGen.create_db(dbname)
-        self.autoGen.create_stable(stbname, 16, colnum, 8, 16)
-        self.autoGen.create_child(stbname, "d", 4)
-        self.autoGen.insert_data(10000)
+        autoGen = AutoGen(step=1, batch=100,genDataMode="fillone")
+        autoGen.set_batch_size(1000)
+        autoGen.create_db(dbname)
+        autoGen.create_stable(stbname, 16, colnum, 8, 16, type_set='varchar_preferred')
+        autoGen.create_child(stbname, "d", 4)
+        autoGen.insert_data(10000)
 
         # check correct
         i = 0
-        for c in self.autoGen.mcols:
+        for c in autoGen.mcols:
 
             if c in [0, 11, 12, 13]:
                 i += 1

@@ -1060,7 +1060,7 @@ class TestColsFunction:
         tdSql.execute(f'CREATE STREAM last_col_s2 INTO {self.dbname}.last_col2 AS SELECT last(ts), c0 FROM {self.dbname}.meters PARTITION BY tbname INTERVAL(1s) SLIDING(1s);')
         
         tdSql.waitedQuery(f'show streams', 2, 10)
-        sleep(5)
+        time.sleep(5)
         
         tdSql.execute(f'insert into {self.dbname}.d0 values(1734574930000, 0, 1, NULL, NULL)')
         tdSql.execute(f'insert into {self.dbname}.d0 values(1734574931000, 1, 1, NULL, NULL)')
