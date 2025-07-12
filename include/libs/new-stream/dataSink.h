@@ -306,6 +306,7 @@ bool    setNextIteratorFromMem(SResultIter** ppResult);
 bool    setNextIteratorFromFile(SResultIter** ppResult);
 int32_t createDataResult(void** ppResult);
 void    releaseDataResult(void** ppResult);
+void    releaseDataResultAndResetMgrStatus(void** ppIter);
 
 void slidingGrpMgrUsedMemAdd(SSlidingGrpMgr* pSlidingGrpCacheMgr, int64_t size);
 
