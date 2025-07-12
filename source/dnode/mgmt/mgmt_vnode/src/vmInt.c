@@ -446,7 +446,7 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
 
 void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal, bool keepClosed) {
   char path[TSDB_FILENAME_LEN] = {0};
-  bool atExit = true, releaseTfs = false;
+  bool atExit = true;
 
   if (pVnode->pImpl && vnodeIsLeader(pVnode->pImpl)) {
     vnodeProposeCommitOnNeed(pVnode->pImpl, atExit);
@@ -552,12 +552,8 @@ _closed:
     dInfo("vgId:%d, vnode is destroyed, dropped:%d", pVnode->vgId, pVnode->dropped);
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pVnode->vgId);
     vnodeDestroy(pVnode->vgId, path, pMgmt->pTfs, nodeId);
-    releaseTfs = vmReleaseMountTfs(pMgmt, pVnode->mountId, 1);
-  } else {
-    releaseTfs = vmReleaseMountTfs(pMgmt, pVnode->mountId, 0);
   }
-
-  if (releaseTfs) {
+  if (pVnode->mountId && vmReleaseMountTfs(pMgmt, pVnode->mountId, pVnode->dropped ? 1 : 0)) {
     vmWriteMountListToFile(pMgmt);
   }
 
