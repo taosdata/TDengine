@@ -82,7 +82,7 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
       return TSDB_CODE_STREAM_INTERNAL_ERROR;
     }
     while (pResult->winIndex < pBlockInfo->nWindow) {
-      SSlidingWindowInMem* pWindowData = ((char*)pBlockInfo + sizeof(SAlignBlocksInMem) + pResult->offset);
+      SSlidingWindowInMem* pWindowData = (SSlidingWindowInMem*)((char*)pBlockInfo + sizeof(SAlignBlocksInMem) + pResult->offset);
 
       bool found = false;
       if (pWindowData->startTime > pResult->reqEndTime) {
