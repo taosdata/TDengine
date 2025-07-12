@@ -370,7 +370,12 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
       code = taosWriteQitem(pVnode->pSyncW.queue, pMsg);
       break;
     case SYNC_RD_QUEUE:
-      dGDebug("vgId:%d, msg:%p, put into vnode-sync-rd queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
+      if(tsSyncLogHeartbeat){
+        dGInfo("vgId:%d, msg:%p, put into vnode-sync-rd queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
+      }
+      else{
+        dGDebug("vgId:%d, msg:%p, put into vnode-sync-rd queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
+      }
       code = taosWriteQitem(pVnode->pSyncRdW.queue, pMsg);
       break;
     case APPLY_QUEUE:
