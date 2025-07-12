@@ -23,6 +23,7 @@
 
 ## 04-Options
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_stbl.py
+,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options_abnormal.py
 
 ## 05-Notify
 
