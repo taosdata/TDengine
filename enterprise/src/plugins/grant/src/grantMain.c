@@ -23,6 +23,7 @@
 #include "mndDnode.h"
 #include "mndGrant.h"
 #include "mndMnode.h"
+#include "mndMount.h"
 #include "mndShow.h"
 #include "mndSync.h"
 #include "mndUser.h"
@@ -98,7 +99,7 @@
         src = GRANT_UNIQ_UNLIMITED_S;                          \
       }                                                        \
       STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));          \
-      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);          \
+      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, NULL, _exit);    \
     }                                                          \
   } while (0)
 
@@ -121,7 +122,7 @@
       }                                                                                                              \
       src = tmp1;                                                                                                    \
       STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));                                                                \
-      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);                                                                \
+      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, NULL, _exit);                                                          \
     }                                                                                                                \
   } while (0)
 
@@ -232,9 +233,9 @@ static const char *gConnDisplay[CONN_TYPE_DYN_MAX] = {
     "Oracle",         "SqlServer", "MongoDB",     "CSV",         "SparkplugB"};
 
 static const char gGrantName[GRANT_OPT_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
-    "basic",         "service",      "stream",        "subscription",   "audit",
-    "csv",           "view",         "storage",       "backup_restore", "object_storage",
-    "active_active", "dual_replica", "db_encryption", "data_sync",      "tdgpt"};
+    "basic",         "service",   "stream",         "subscription",   "audit",         "csv",
+    "view",          "storage",   "backup_restore", "object_storage", "active_active", "dual_replica",
+    "db_encryption", "data_sync", "tdgpt",          "mount"};
 
 static const char *gGrantDisplay[GRANT_OPT_DYN_MAX] = {"Basic",
                                                        "Service Time",
@@ -250,7 +251,8 @@ static const char *gGrantDisplay[GRANT_OPT_DYN_MAX] = {"Basic",
                                                        "Dual-Replica HA",
                                                        "Database Encryption",
                                                        "Data Synchronization",
-                                                       "TDgpt"};
+                                                       "TDgpt",
+                                                       "Mount"};
 
 static const char gGrantIdmpName[GRANT_OPT_IDMP_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
     "idmp_basic",       "idmp_version_ctrl", "idmp_data_forecast",
@@ -325,6 +327,8 @@ SGrantStatus gStatus = {
     .limitCpuCores = GRANT_UNIQ_UNLIMITED,
     .limitVnodes = GRANT_UNIQ_UNLIMITED,
     .limitStorageSize = GRANT_UNIQ_UNLIMITED,
+    .limitAnodes = GRANT_UNIQ_UNLIMITED,
+    .limitMounts = GRANT_UNIQ_UNLIMITED,
 };
 
 typedef SGrantNotify GrantNotify;
@@ -491,6 +495,9 @@ static void grantInitShowFlags() {
 #if !defined(TD_INDUSTRY) || defined(TD_FUNC_TD_GPT)
   grantHandle.showOpts[GRANT_OPT_TD_GPT] = 1;
 #endif
+#if !defined(TD_INDUSTRY) || defined(TD_FUNC_TD_MOUNT)
+  grantHandle.showOpts[GRANT_OPT_TD_MOUNT] = 1;
+#endif
 
 // DataIns
 #if !defined(TD_INDUSTRY) || defined(TD_DATAIN_OPC_DA)
@@ -589,6 +596,8 @@ static void grantStatusInit(SGrantStatus *pStatus) {
   GRANT_OPT_EXPIRE_INIT(pStatus->dataSyncExpireSec, pStatus->placeHolder, GRANT_OPT_DATA_SYNC);
   GRANT_OPT_EXPIRE_INIT(pStatus->tdGptExpireSec, pStatus->tdGptExpired, GRANT_OPT_TD_GPT);
   GRANT_OPT_LIMITS_INIT(pStatus->limitAnodes, GRANT_OPT_TD_GPT);
+  GRANT_OPT_EXPIRE_INIT(pStatus->mountExpireSec, pStatus->mountExpired, GRANT_OPT_TD_MOUNT);
+  GRANT_OPT_LIMITS_INIT(pStatus->limitMounts, GRANT_OPT_TD_MOUNT);
 
   grantDataInsSetDefault(pStatus->dataIns, CONN_TYPE_DYN_MAX, GRANT_UNIQ_UNLIMITED);
 
@@ -1059,6 +1068,11 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
           GRANT_VALUE_CONVERT(pItemI64->number, gStatus.limitAnodes, 1, GRANT_UNIQ_DFT_TDGPT_ANODE_NUM);
           isTDGptAssign = true;
         } break;
+        case GRANT_OPT_TD_MOUNT: {
+          GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.mountExpireSec, 86400, dftExpireSec,
+                               grantHandle.showOpts[GRANT_OPT_TD_MOUNT]);
+          GRANT_VALUE_CONVERT(pItemI64->number, gStatus.limitMounts, 1, GRANT_UNIQ_DFT_MOUNTS);
+        } break;
         default:
           break;
       }
@@ -1100,6 +1114,7 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
   GRANT_ITEM_LIMIT_CHECK(gStatus.dbEncryptionExpireSec, grantCurTime, 1, gStatus.dbEncryptionExpired);
   GRANT_ITEM_LIMIT_CHECK(gStatus.tdGptExpireSec, grantCurTime, 1, gStatus.tdGptExpired);
   GRANT_ITEM_LIMIT_CHECK(gStatus.limitStorageSize, gStatus.curStorageSize, 1024, gStatus.storageSizeLimited);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.mountExpireSec, grantCurTime, 1, gStatus.mountExpired);
 
   // extract known dataIns from grantObj to grantStatus
   int8_t  knownDataInAssigned[CONN_TYPE_DYN_MAX] = {0};
@@ -1568,7 +1583,7 @@ static int64_t grantGetClusterCurTimeSeries(SMnode *pMnode) {
   void   *pIter = NULL;
 
   while ((pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup))) {
-    if (!pVgroup->isTsma) {
+    if (!pVgroup->isTsma && pVgroup->mountVgId == 0) {
       numOfPoints += pVgroup->numOfTimeSeries;
     }
     sdbRelease(pSdb, pVgroup);
@@ -1590,7 +1605,7 @@ static uint64_t grantGetClusterCurStorage(SMnode *pMnode) {
   void    *pIter = NULL;
 
   while ((pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup))) {
-    if (!pVgroup->isTsma) {
+    if (!pVgroup->isTsma && pVgroup->mountVgId == 0) {
       storage += pVgroup->compStorage;
     }
     sdbRelease(pSdb, pVgroup);
@@ -1658,7 +1673,7 @@ static uint32_t grantGetClusterCurTables(SMnode *pMnode) {
   void    *pIter = NULL;
 
   while ((pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup))) {
-    if (!pVgroup->isTsma) {
+    if (!pVgroup->isTsma && pVgroup->mountVgId == 0) {
       numOfPoints += pVgroup->numOfTables;
     }
     sdbRelease(pSdb, pVgroup);
@@ -1691,6 +1706,16 @@ static int32_t grantGetClusterCurAnodes(SMnode *pMnode) {
   return sdbGetSize(pSdb, SDB_ANODE);
 }
 
+static int64_t grantGetClusterCurMountTimes(SMnode *pMnode) {
+  SMountLogObj *pObj = mndAcquireMountLog(pMnode);
+  if (pObj) {
+    int64_t mountTimes = pObj->mountTimes;
+    mndReleaseMountLog(pMnode, pObj);
+    return mountTimes;
+  }
+  return 0;
+}
+
 static int16_t grantGetClusterCurStreams(SMnode *pMnode) {
   SSdb *pSdb = pMnode->pSdb;
   return (int16_t)sdbGetSize(pSdb, SDB_STREAM);
@@ -1721,6 +1746,7 @@ static void grantRetrieveGrantInfo(SMnode *pMnode) {
   gStatus.curVnodes = grantGetClusterCurVnodes(pMnode);
   gStatus.curAnodes = grantGetClusterCurAnodes(pMnode);
   gStatus.curStorageSize = (grantGetClusterCurStorage(pMnode) >> 20);  // convert to MB
+  gStatus.curMounts = grantGetClusterCurMountTimes(pMnode);
 }
 
 static int32_t tSerializeGrantNotify(void *buf, int32_t bufLen, GrantNotify *pNotify, uint32_t *pLen) {
@@ -1925,6 +1951,7 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
     // #endif
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.dataSyncExpireSec, optExpireSec, gStatus.placeHolder, 0, GRANT_OPT_DATA_SYNC);
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.tdGptExpireSec, optExpireSec, gStatus.tdGptExpired, optExpired, GRANT_OPT_TD_GPT);
+    GRANT_OPT_EXPIRE_ASSIGN(gStatus.mountExpireSec, optExpireSec, gStatus.mountExpired, optExpired, GRANT_OPT_TD_MOUNT);
 
     // fixed dataIns
     grantDataInsSetDefault(gStatus.dataIns, CONN_TYPE_DYN_MAX, optExpireSec);
@@ -1944,6 +1971,8 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
   gStatus.serviceExpireSec = GRANT_UNIQ_UNLIMITED;
   grantDataInsSetDefault(gStatus.dataIns, CONN_TYPE_DYN_MAX, GRANT_UNIQ_DFT_DATAIN_EXPIRE);
 #endif
+  gStatus.limitAnodes = GRANT_UNIQ_DFT_TDGPT_ANODE_NUM;
+  gStatus.limitMounts = GRANT_UNIQ_DFT_MOUNTS;
   GRANT_ITEM_LIMIT_CHECK(gStatus.limitStorageSize, gStatus.curStorageSize, 1024, gStatus.storageSizeLimited);
 }
 
@@ -1996,6 +2025,21 @@ void grantRestore(EGrantType grant, uint64_t value) {
 static int32_t grantCheckUsers() { return 0; }
 
 static int32_t grantCheckDatabases() { return 0; }
+
+static int32_t grantCheckMounts() {
+  int32_t code = 0;
+  if (gStatus.expired || gStatus.mountExpired) {
+    code = gStatus.expired ? TSDB_CODE_GRANT_BASIC_EXPIRED : TSDB_CODE_GRANT_MOUNTS_EXPIRED;
+  } else if (gStatus.limitMounts != GRANT_UNIQ_UNLIMITED) {
+    if (grantHandle.pMnode) gStatus.curMounts = grantGetClusterCurMountTimes(grantHandle.pMnode);
+    if (gStatus.curMounts >= gStatus.limitMounts) code = TSDB_CODE_GRANT_MOUNTS_LIMITED;
+  }
+  if (code < 0) {
+    uError("grant failed to check mount, expire:%" PRIi64 ", num:%d, reason:mounts limited",
+           (int64_t)gStatus.mountExpireSec, (int32_t)gStatus.curMounts);
+  }
+  return code;
+}
 
 static int32_t grantCheckTimeSeries() {
   if (gStatus.limitTimeSeries == GRANT_UNIQ_UNLIMITED || gStatus.curTimeSeries < gStatus.limitTimeSeries) {
@@ -2183,6 +2227,8 @@ int32_t grantCheck(EGrantType grant) {
       return grantCheckUsers();
     case TSDB_GRANT_DB:
       return grantCheckDatabases();
+    case TSDB_GRANT_MOUNT:
+      return grantCheckMounts();
     case TSDB_GRANT_TIMESERIES:
       return grantCheckTimeSeries();
     case TSDB_GRANT_DNODE:
@@ -2773,7 +2819,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     const char      *src = GRANT_VERSION;
     (void)snprintf(tmp1, GRANTS_COL_MAX_LEN, "%s %s", TD_PRODUCT_NAME, src);
     STR_WITH_SIZE_TO_VARSTR(tmp, tmp1, strlen(tmp1));
-    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO(tmp, false, NULL, NULL, _exit);
 
     if (gStatus.grantState == GRANT_STATE_REVOKED) {
       GRANT_EXPIRE_SHOW(gStatus.revokedExpireSec);
@@ -2786,7 +2832,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
       src = (gStatus.expired || (gStatus.multiTierExpired && gStatus.nDiskCfg > 1)) ? "true" : "false";
       STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);
+      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, NULL, _exit);
     }
 
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
@@ -2796,7 +2842,7 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
         src = gGrantState[gStatus.grantState];
       }
       STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
-      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, _exit);
+      COL_DATA_SET_VAL_GOTO(tmp, false, NULL, NULL, _exit);
     }
 
     GRANT_ITEM_SHOW(gStatus.curTimeSeries, gStatus.limitTimeSeries, TSDB_DATA_TYPE_BIGINT);
@@ -2959,6 +3005,9 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_TD_GPT],
                                              gGrantDisplay[GRANT_OPT_TD_GPT], pStatus->tdGptExpireSec,
                                              pStatus->curAnodes, pStatus->limitAnodes, 2, true));
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_TD_MOUNT],
+                                             gGrantDisplay[GRANT_OPT_TD_MOUNT], pStatus->mountExpireSec,
+                                             pStatus->curMounts, pStatus->limitMounts, 2, true));
     taosRLockLatch(&grantHandle.rwLock);
 
     // dynamic grantItem64
@@ -3138,7 +3187,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     }
     qBuf[0] = 0;
     varDataSetLen(pBuf, POINTER_DISTANCE(qBuf, pBuf) - VARSTR_HEADER_SIZE);
-    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, NULL, _exit);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -3155,7 +3204,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     }
     qBuf[0] = 0;
     varDataSetLen(pBuf, POINTER_DISTANCE(qBuf, pBuf) - VARSTR_HEADER_SIZE);
-    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, NULL, _exit);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -3174,7 +3223,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     }
     qBuf[0] = 0;
     varDataSetLen(pBuf, POINTER_DISTANCE(qBuf, pBuf) - VARSTR_HEADER_SIZE);
-    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, NULL, _exit);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -3192,7 +3241,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       qBuf += tmpLen;
       qBuf[0] = 0;
       varDataSetLen(pBuf, POINTER_DISTANCE(qBuf, pBuf) - VARSTR_HEADER_SIZE);
-      COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+      COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, NULL, _exit);
     }
 
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
@@ -3212,7 +3261,7 @@ static int32_t mndRetrieveGrantLogs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       (void)snprintf(qBuf, GRANT_ACTIVE_SIGN_LEN + 1, "%s", sign ? sign : "");
       taosMemoryFreeClear(sign);
       varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
-      COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+      COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, NULL, _exit);
     }
 
     ++numOfRows;
@@ -3267,7 +3316,7 @@ static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
     qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
     (void)snprintf(qBuf, TSDB_CLUSTER_ID_LEN + 1, "%s", grantObj.clusterId);
     varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
-    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, NULL, _exit);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -3287,12 +3336,12 @@ static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       ++index;
       sdbRelease(pSdb, pDnode);
     }
-    COL_DATA_SET_VAL_GOTO((const char *)&index, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)&index, false, NULL, NULL, _exit);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
-    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+    COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, NULL, _exit);
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
@@ -3300,7 +3349,7 @@ static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
       snprintf(qBuf, TSDB_VERSION_LEN, "%s", td_version);
       varDataSetLen(pBuf, strlen(pBuf + VARSTR_HEADER_SIZE));
-      COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, _exit);
+      COL_DATA_SET_VAL_GOTO(pBuf, false, NULL, NULL, _exit);
     }
 
     ++numOfRows;
@@ -3390,6 +3439,9 @@ static int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pSt
   TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pStatus->curVnodes));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->limitStorageSize));
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->curStorageSize));
+  // since 3.3.7.x
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p16));
+
   // for future grantItems
 
   tEndEncode(&encoder);
@@ -3458,6 +3510,10 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
     TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pStatus->curVnodes));
     TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->limitStorageSize));
     TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->curStorageSize));
+  }
+  // since 3.3.7.x
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p16));
   }
   // for future grantItems
   // ...
@@ -3567,13 +3623,13 @@ static int32_t mndRetrieveEncryptions(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
     cols = 0;
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    COL_DATA_SET_VAL_GOTO((const char *)&pDnode->id, false, pDnode, _exit);
+    COL_DATA_SET_VAL_GOTO((const char *)&pDnode->id, false, pDnode, pShow->pIter, _exit);
     ++cols;
 
     const char *keyStr = getEncryptKeyStatStr(online ? pDnode->encryptionKeyStat : ENCRYPT_KEY_STAT_UNKNOWN);
     STR_TO_VARSTR(buf, keyStr)
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    COL_DATA_SET_VAL_GOTO(buf, false, pDnode, _exit);
+    COL_DATA_SET_VAL_GOTO(buf, false, pDnode, pShow->pIter, _exit);
 
     ++numOfRows;
     sdbRelease(pSdb, pDnode);

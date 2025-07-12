@@ -17,6 +17,7 @@
 #include "audit.h"
 #include "mndDb.h"
 #include "mndMnode.h"
+#include "mndMount.h"
 #include "mndPrivilege.h"
 #include "mndQnode.h"
 #include "mndTrans.h"
@@ -227,6 +228,12 @@ int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq) {
   if (!mndIsDnodeOnline(pDnode, taosGetTimestampMs())) {
     code = TSDB_CODE_DNODE_OFFLINE;
     mError("dnode:%d, failed to restore since %s", pDnode->id, terrstr());
+    goto _OVER;
+  }
+
+  if (mndHasMountOnDnode(pMnode, restoreReq.dnodeId)) {
+    code = TSDB_CODE_MND_MOUNT_NOT_EMPTY;
+    mError("dnode:%d, failed to restore since %s", restoreReq.dnodeId, tstrerror(code));
     goto _OVER;
   }
 
