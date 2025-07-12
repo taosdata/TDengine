@@ -380,7 +380,6 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
 
     if (pIter->index >= taosArrayGetSize(pIter->pFileSet)) {
       pIter->fileType = BSE_TABLE_META_SNAP;
-      pTableIter->fileType = pIter->fileType;
       pIter->index = 0;
     } else {
       if (pIter->pTableIter != NULL) {
@@ -409,8 +408,6 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
       code = tableReaderIterNext(pTableIter, pValue, len);
       TSDB_CHECK_CODE(code, lino, _error);
 
-      pTableIter->fileType = pIter->fileType;
-
       if (!tableReaderIterValid(pTableIter)) {
         tableReaderIterDestroy(pTableIter);
         pIter->pTableIter = NULL;
@@ -420,7 +417,6 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
     }
     if (pIter->index >= taosArrayGetSize(pIter->pFileSet)) {
       pIter->fileType = BSE_CURRENT_SNAP;
-      pTableIter->fileType = pIter->fileType;
     } else {
       if (pIter->pTableIter != NULL) {
         tableReaderIterDestroy(pIter->pTableIter);
@@ -431,7 +427,6 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
       code = tableReaderIterInit(pInfo->retentionTs, BSE_TABLE_META_TYPE, &pTableIter, pIter->pBse);
       TSDB_CHECK_CODE(code, lino, _error);
 
-      pTableIter->fileType = BSE_TABLE_META_SNAP;
       code = tableReaderIterNext(pTableIter, pValue, len);
       TSDB_CHECK_CODE(code, lino, _error);
 
@@ -446,7 +441,6 @@ int32_t bseIterNext(SBseIter *pIter, uint8_t **pValue, int32_t *len) {
     // do read current
     pIter->fileType = BSE_MAX_SNAP;
     pIter->isOver = 1;
-    pTableIter->fileType = pIter->fileType;
   } else if (pIter->fileType == BSE_MAX_SNAP) {
     pIter->isOver = 1;
   }
