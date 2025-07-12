@@ -2754,7 +2754,7 @@ class TestStreamCountTrigger:
         def check1(self):
             tdSql.checkResultsByFunc(
                 sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and (table_name like "res_vtb_1%")',
-                func=lambda: tdSql.getRows() == 1,
+                func=lambda: tdSql.getRows() == 9,
             )
 
             tdSql.checkTableSchema(
