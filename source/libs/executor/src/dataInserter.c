@@ -1065,6 +1065,8 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
   SArray*      pVals = NULL;
   SArray*      pTagVals = NULL;
   int32_t      numOfBlks = 0;
+  char*        tableName = NULL;
+  int32_t      code = 0, lino = 0;
 
   terrno = TSDB_CODE_SUCCESS;
 
@@ -1139,13 +1141,15 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
 
       // 获取子表vgId
       SDBVgInfo* dbInfo = NULL;
-      int32_t    code = inserterGetDbVgInfo(pInserter, pInserter->dbFName, &dbInfo);
+      code = inserterGetDbVgInfo(pInserter, pInserter->dbFName, &dbInfo);
       if (code != TSDB_CODE_SUCCESS) {
         goto _end;
       }
 
       char tbFullName[TSDB_TABLE_FNAME_LEN];
-      char tableName[sv.nData + 1];
+      taosMemoryFreeClear(tableName);
+      tableName = taosMemoryCalloc(1, sv.nData + 1);
+      TSDB_CHECK_NULL(tableName, code, lino, _end, terrno);
       tstrncpy(tableName, sv.pData, sv.nData);
       tableName[sv.nData] = '\0';
 
@@ -1359,6 +1363,9 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
   }
 
 _end:
+
+  taosMemoryFreeClear(tableName);
+
   taosArrayDestroy(pTagVals);
   taosArrayDestroy(pVals);
   if (terrno != 0) {

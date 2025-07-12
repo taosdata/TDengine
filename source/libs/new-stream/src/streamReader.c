@@ -199,6 +199,7 @@ static void releaseStreamReaderInfo(void* p) {
   taosMemoryFreeClear(pInfo->pExprInfo);
   taosArrayDestroy(pInfo->uidList);
   taosArrayDestroy(pInfo->uidListIndex);
+  taosHashCleanup(pInfo->uidHash);
   taosMemoryFree(pInfo);
 }
 
