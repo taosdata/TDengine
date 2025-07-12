@@ -104,6 +104,7 @@ static int32_t handleSyncWriteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
     dataLen = 0;
     taosMemoryFreeClear(data);
   }
+  
 end:
   if (data == NULL) {
     rsp.contLen = INT_BYTES + LONG_BYTES;
@@ -124,6 +125,7 @@ end:
       taosMemoryFreeClear(data); 
     } 
   }
+  
   rpcSendResponse(&rsp);
   return 0;
 }
@@ -277,6 +279,19 @@ _exit:
   
   return code;
 }
+
+static void sndSendErrorRrsp(SRpcMsg *pMsg, int32_t errCode) {
+  SRpcMsg             rspMsg = {0};
+
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = NULL;
+  rspMsg.contLen = 0;
+  rspMsg.code = errCode;
+  rspMsg.msgType = pMsg->msgType;
+
+  tmsgSendRsp(&rspMsg);
+}
+
 
 int32_t sndProcessStreamMsg(SSnode *pSnode, void *pWorkerCb, SRpcMsg *pMsg) {
   int32_t code = 0, lino = 0;

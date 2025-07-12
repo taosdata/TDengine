@@ -171,6 +171,7 @@ static int32_t sendDeleteMsg(int64_t streamId, SEpSet* epSet){
   if (msg.pCont == NULL) {
     return terrno;
   }
+  msg.info.noResp = 1;
   SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
   pMsgHead->contLen = htonl(msg.contLen);
   pMsgHead->vgId = htonl(SNODE_HANDLE);
