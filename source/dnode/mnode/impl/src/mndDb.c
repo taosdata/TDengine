@@ -159,6 +159,7 @@ SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactInterval, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
+  SDB_SET_UINT8(pRaw, dataPos, pDb->cfg.flags, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
   terrno = 0;
@@ -260,8 +261,11 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactStartTime, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactEndTime, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactInterval, _OVER)
-
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
+  if (dataPos + sizeof(uint8_t) <= pRaw->dataLen) {
+    SDB_GET_UINT8(pRaw, dataPos, &pDb->cfg.flags, _OVER)
+  }
+
   taosInitRWLatch(&pDb->lock);
 
   if (pDb->cfg.s3ChunkSize == 0) {
@@ -424,7 +428,7 @@ bool mndDbIsExist(SMnode *pMnode, const char *db) {
   }
 }
 
-static int32_t mndCheckDbName(const char *dbName, SUserObj *pUser) {
+int32_t mndCheckDbName(const char *dbName, SUserObj *pUser) {
   char *pos = strstr(dbName, TS_PATH_DELIMITER);
   if (pos == NULL) {
     return TSDB_CODE_MND_INVALID_DB;
@@ -443,7 +447,7 @@ static int32_t mndCheckDbName(const char *dbName, SUserObj *pUser) {
   return 0;
 }
 
-static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
+int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   int32_t code = TSDB_CODE_MND_INVALID_DB_OPTION;
 
   if (pCfg->numOfVgroups < TSDB_MIN_VNODES_PER_DB || pCfg->numOfVgroups > TSDB_MAX_VNODES_PER_DB) return code;
@@ -637,7 +641,7 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->encryptAlgorithm < 0) pCfg->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
 }
 
-static int32_t mndSetCreateDbPrepareAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+int32_t mndSetCreateDbPrepareAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
   if (pDbRaw == NULL) return -1;
 
@@ -1034,6 +1038,10 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _OVER);
 
+  if (sdbGetSize(pMnode->pSdb, SDB_MOUNT) > 0) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_MOUNT_NOT_EMPTY, &lino, _OVER);
+  }
+
   TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser, dnodeList), &lino, _OVER);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -1362,6 +1370,11 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  if (pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
+
   (void)memcpy(&dbObj, pDb, sizeof(SDbObj));
   if (dbObj.cfg.pRetensions != NULL) {
     dbObj.cfg.pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);
@@ -1451,6 +1464,7 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
   cfgRsp->compactStartTime = pDb->cfg.compactStartTime;
   cfgRsp->compactEndTime = pDb->cfg.compactEndTime;
   cfgRsp->compactTimeOffset = pDb->cfg.compactTimeOffset;
+  cfgRsp->flags = pDb->cfg.flags;
 }
 
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
@@ -1505,7 +1519,7 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetDropDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+int32_t mndSetDropDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   int32_t  code = 0;
   SSdbRaw *pRedoRaw = mndDbActionEncode(pDb);
   if (pRedoRaw == NULL) {
@@ -1538,7 +1552,7 @@ static int32_t mndSetDropDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndDbActionEncode(pDb);
   if (pCommitRaw == NULL) {
@@ -1640,7 +1654,7 @@ static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
@@ -1692,7 +1706,7 @@ static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bo
   TAOS_RETURN(code);
 }
 
-static int32_t mndRemoveAllStbUser(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+int32_t mndRemoveAllStbUser(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   int32_t code = -1;
   void   *pIter = NULL;
   while (1) {
@@ -1785,6 +1799,11 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   }
 
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, pDb), NULL, _OVER);
+
+  if(pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
 
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
@@ -1927,6 +1946,7 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
   pRsp->hashMethod = pDb->cfg.hashMethod;
   pRsp->hashPrefix = pDb->cfg.hashPrefix;
   pRsp->hashSuffix = pDb->cfg.hashSuffix;
+  pRsp->flags = pDb->cfg.flags;
   TAOS_RETURN(code);
 }
 
@@ -2130,6 +2150,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       rsp.useDbRsp->hashMethod = pDb->cfg.hashMethod;
       rsp.useDbRsp->hashPrefix = pDb->cfg.hashPrefix;
       rsp.useDbRsp->hashSuffix = pDb->cfg.hashSuffix;
+      rsp.useDbRsp->flags = pDb->cfg.flags;
     }
 
     if (taosArrayPush(batchRsp.pArray, &rsp) == NULL) {
@@ -2169,6 +2190,11 @@ static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
+
+    if (pVgroup->dbUid != pDb->uid) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
 
     SMsgHead *pHead = rpcMallocCont(contLen);
     if (pHead == NULL) {
@@ -2217,11 +2243,16 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb), NULL, _OVER);
 
+  if (pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
+
   code = mndTrimDb(pMnode, pDb);
 
 _OVER:
   if (code != 0) {
-    mError("db:%s, failed to process trim db req since %s", trimReq.db, terrstr());
+    mError("db:%s, failed to process trim db req since %s", trimReq.db, tstrerror(code));
   }
 
   mndReleaseDb(pMnode, pDb);
@@ -2290,11 +2321,16 @@ static int32_t mndProcessS3MigrateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb), NULL, _OVER);
 
+  if(pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
+
   code = mndS3MigrateDb(pMnode, pDb);
 
 _OVER:
   if (code != 0) {
-    mError("db:%s, failed to process s3migrate db req since %s", s3migrateReq.db, terrstr());
+    mError("db:%s, failed to process s3migrate db req since %s", s3migrateReq.db, tstrerror(code));
   }
 
   mndReleaseDb(pMnode, pDb);
