@@ -415,7 +415,6 @@ class Test_Scene_Asset01:
     #
     def verify_stream4(self, tables=None):
         # result_stream4/result_stream4_sub1
-        ts = 1752574200000
         if tables is None:
             tables = [
                 "result_stream4",
@@ -424,11 +423,13 @@ class Test_Scene_Asset01:
 
         for table in tables:
             result_sql = f"select * from {self.vdb}.`{table}` "
+            tdLog.info(result_sql)
             tdSql.checkResultsByFunc (
                 sql = result_sql, 
                 func = lambda: tdSql.getRows() == 11
             )
 
+            ts = 1752574200000
             for i in range(tdSql.getRows()):
                 tdSql.checkData(i, 0, ts)
                 tdSql.checkData(i, 1, 10)
