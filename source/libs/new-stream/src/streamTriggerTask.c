@@ -3650,7 +3650,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
         int32_t nrows = blockDataGetNumOfRows(pDataBlock);
         if (!pTask->isVirtualTable) {
           code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pParamToFetch->wstart,
-                                    pContext->pParamToFetch->wend, pDataBlock, 0, nrows - 1);
+                                    pContext->pParamToFetch->wend, pDataBlock, startIdx, endIdx - 1);
           QUERY_CHECK_CODE(code, lino, _end);
         } else {
           if (pCalcDataBlock == NULL) {
@@ -3668,7 +3668,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
           }
           pCalcDataBlock->info.rows = pDataBlock->info.rows;
           code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pParamToFetch->wstart,
-                                    pContext->pParamToFetch->wend, pCalcDataBlock, 0, nrows - 1);
+                                    pContext->pParamToFetch->wend, pCalcDataBlock, startIdx, endIdx - 1);
           QUERY_CHECK_CODE(code, lino, _end);
         }
       }

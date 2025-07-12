@@ -292,7 +292,7 @@ void    destroySlidingWindowInMem(void* pSlidingWinInMem);
 void    destroySlidingWindowInMemPP(void* ppSlidingWinInMem);
 
 int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
-                                   TSKEY wend);
+                                   TSKEY wend, int32_t startIndex, int32_t endIndex);
 int32_t buildMoveAlignWindowInMem(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
                                   TSKEY wend);
 
