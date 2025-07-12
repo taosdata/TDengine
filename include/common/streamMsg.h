@@ -370,6 +370,8 @@ typedef struct SStreamMgmtReq {
   SStreamMgmtReqCont cont;
 } SStreamMgmtReq;
 
+void tFreeSStreamMgmtReq(SStreamMgmtReq* pReq);
+
 typedef void (*taskUndeplyCallback)(void*);
 
 typedef struct SStreamTask {
