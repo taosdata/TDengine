@@ -2724,15 +2724,6 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   pReq->forceOutCols = NULL;
 }
 
-void* tCloneSStreamCalcScan(void* src) {
-  if (NULL == src) {
-    return NULL;
-  }
-
-  SStreamCalcScan* pDst = taosMemoryCalloc(1, sizeof(SStreamCalcScan));
-  
-}
-
 int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStreamReq** ppDst) {
   int32_t code = 0, lino = 0;
   if (NULL == pSrc) {
