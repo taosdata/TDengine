@@ -119,10 +119,6 @@ for i in $(seq 0 $((${#CONF_VARS[@]}-1))); do
   echo "${CONF_VARS[$i]}" >> "$MALLOC_ENV_CONF"
 done
 
-for i in $(seq 0 $((${#CONF_VARS[@]}-1))); do
-  echo "${CONF_VARS[$i]}" >> "$MALLOC_ENV_CONF"
-done
-
 if [ "$quiet" -ne 1 ]; then
   echo "---------------------------------------------"
   echo "Memory allocator setting complete!"
