@@ -341,31 +341,34 @@ int32_t getEnoughBuffWindow(SAlignGrpMgr* pAlignGrpMgr, size_t dataEncodeBufSize
 }
 
 int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
-                                   TSKEY wend) {
+                                   TSKEY wend, int32_t startIndex, int32_t endIndex) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   size_t  numOfCols = taosArrayGetSize(pBlock->pDataBlock);
 
   // todo dataEncodeBufSize > real len
-  size_t             dataEncodeBufSize = sizeof(SSlidingWindowInMem) + blockGetEncodeSize(pBlock);
+  size_t dataEncodeBufSize = blockGetEncodeSizeOfRows(pBlock, startIndex, endIndex);
+  size_t buffSize = sizeof(SSlidingWindowInMem) + dataEncodeBufSize;
+
   SAlignBlocksInMem* pAlignBlockInfo = NULL;
-  code = getEnoughBuffWindow(pAlignGrpMgr, dataEncodeBufSize, &pAlignBlockInfo);
+  code = getEnoughBuffWindow(pAlignGrpMgr, buffSize, &pAlignBlockInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
   SSlidingWindowInMem* pSlidingWinInMem = (SSlidingWindowInMem*)(getNextBuffStart(pAlignBlockInfo));
   pSlidingWinInMem->endTime = wend;
   pSlidingWinInMem->startTime = wstart;
-  pSlidingWinInMem->dataLen = dataEncodeBufSize;
+  pSlidingWinInMem->dataLen = buffSize;
 
   char*   pStart = getWindowDataBuf(pSlidingWinInMem);
   int32_t len = 0;
-  len = blockEncode(pBlock, pStart, dataEncodeBufSize, numOfCols);
+  code = blockEncodeAsRows(pBlock, pStart, dataEncodeBufSize, numOfCols, startIndex, endIndex, &len);
+  QUERY_CHECK_CODE(code, lino, _end);
   if (len < 0) {
     stError("failed to encode data since %s, lineno:%d", tstrerror(len), lino);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
-  moveBlockBuf(pAlignBlockInfo, dataEncodeBufSize);
+  moveBlockBuf(pAlignBlockInfo, buffSize);
 
   return TSDB_CODE_SUCCESS;
 _end:
