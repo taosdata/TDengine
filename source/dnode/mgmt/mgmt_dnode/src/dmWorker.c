@@ -79,7 +79,7 @@ static void *dmStatusInfoThreadFp(void *param) {
 
       if ((upTimeCount = ((upTimeCount + 1) & 63)) == 0) {
         upTime = taosGetOsUptime() - tsDndStartOsUptime;
-        tsDndUpTime = TMAX(tsDndUpTime, upTime);
+        if (upTime > 0) tsDndUpTime = upTime;
       }
     }
   }
