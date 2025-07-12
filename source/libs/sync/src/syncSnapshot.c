@@ -1158,6 +1158,8 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
   int32_t   code = 0;
   SSnapshot snapshot = {0};
 
+  //when restore multiple level, and all data flush to tsdb, the snapshot begin 
+  //is greater 1 than commitIndex, skip this
   if (pMsg->snapBeginIndex > pSyncNode->commitIndex + 1) {
     sSError(pSender,
             "snapshot begin index is greater than commit index. msg snapBeginIndex:%" PRId64
