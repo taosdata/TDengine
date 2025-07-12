@@ -84,7 +84,7 @@ class ClusterComCheck:
                             query_status+=1
                             tdLog.debug("check %s_%d that status is ready "%(dbNameIndex,j))
                         else:
-                            sleep(1)
+                            time.sleep(1)
                             continue
             # print(query_status)
             if query_status == dbNumbers:
