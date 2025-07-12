@@ -246,14 +246,6 @@ const char* qExtractTbnameFromTask(qTaskInfo_t tinfo);
 void* qExtractReaderFromTmqScanner(void* scanner);
 void  qExtractTmqScanner(qTaskInfo_t tinfo, void** scanner);
 
-int32_t  qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo);
-int32_t  qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange* pVerRange, STimeWindow* pWindow);
-int32_t  qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange* pVerRange, STimeWindow* pWindow);
-int32_t  qStreamRecoverFinish(qTaskInfo_t tinfo);
-bool     qStreamScanhistoryFinished(qTaskInfo_t tinfo);
-int32_t  qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo);
-int32_t  qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval,
-                                    STimeWindow* pLastWindow, TSKEY* pRecInteral);
 int32_t  qStreamOperatorReleaseState(qTaskInfo_t tInfo);
 int32_t  qStreamOperatorReloadState(qTaskInfo_t tInfo);
 int32_t  streamCollectExprsForReplace(qTaskInfo_t tInfo, SArray* pExprs);

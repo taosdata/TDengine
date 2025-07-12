@@ -3115,6 +3115,7 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "unsupported placeholder function %s", pFuncNode->functionName));
   }
 
+  ((SValueNode*)extraValue)->notReserved = true;
   PAR_ERR_JRET(nodesListMakePushFront(&pFuncNode->pParameterList, extraValue));
   return DEAL_RES_CONTINUE;
 _return:
@@ -3641,6 +3642,10 @@ static int32_t rewriteClientPseudoColumnFunc(STranslateContext* pCxt, SNode** pN
   if (NULL == pCxt->pCurrStmt || QUERY_NODE_SELECT_STMT != nodeType(pCxt->pCurrStmt) ||
       pCxt->currClause <= SQL_CLAUSE_WHERE) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC, "Illegal pseudo column");
+  }
+  if (pCxt->createStreamCalc) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC,
+                                   "%s is not support in stream calc query", ((SFunctionNode*)*pNode)->functionName);
   }
   switch (((SFunctionNode*)*pNode)->funcType) {
     case FUNCTION_TYPE_QSTART:
@@ -6013,7 +6018,11 @@ static int32_t translatePlaceHolderTable(STranslateContext* pCxt, SNode** pTable
 
   tstrncpy(newPlaceHolderTable->table.dbName, pTriggerTable->table.dbName, sizeof(newPlaceHolderTable->table.dbName));
   tstrncpy(newPlaceHolderTable->table.tableName, pTriggerTable->table.tableName, sizeof(newPlaceHolderTable->table.tableName));
-  tstrncpy(newPlaceHolderTable->table.tableAlias, pTriggerTable->table.tableName, sizeof(newPlaceHolderTable->table.tableAlias));
+  if (pPlaceHolderTable->table.tableAlias[0]) {
+    tstrncpy(newPlaceHolderTable->table.tableAlias, pPlaceHolderTable->table.tableAlias, sizeof(newPlaceHolderTable->table.tableAlias));
+  } else {
+    tstrncpy(newPlaceHolderTable->table.tableAlias, pTriggerTable->table.tableAlias, sizeof(newPlaceHolderTable->table.tableAlias));
+  }
 
   PAR_ERR_JRET(translateTable(pCxt, (SNode**)&newPlaceHolderTable, false));
 
@@ -12915,6 +12924,13 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     }
   }
 
+  if (nodeType(pTrigger->pTriggerWindow) == QUERY_NODE_PERIOD_WINDOW) {
+    if (pTriggerOptions && (pTriggerOptions->fillHistoryFirst || pTriggerOptions->fillHistory)) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                           "Fill history is not supported when trigger is period"));
+    }
+  }
+
   SDbCfgInfo dbCfg = {0};
   PAR_ERR_JRET(getDBCfg(pCxt, pStmt->streamDbName, &dbCfg));
   if (strlen(pStmt->targetDbName) != 0) {
@@ -13260,6 +13276,12 @@ static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, const
     pReq->watermark = ((SValueNode*)pOptions->pWaterMark)->datum.i;
   }
 
+  if (pOptions->pExpiredTime && pOptions->pWaterMark) {
+    if (pReq->expiredTime <= pReq->watermark) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                           "EXPIRED_TIME must be greater than WATERMARK"));
+    }
+  }
 
   if (pOptions->pFillHisStartTime) {
     STimeWindow range = {.skey = 0, .ekey = 0};
@@ -18697,13 +18719,8 @@ static int32_t checkColRef(STranslateContext* pCxt, char* pRefDbName, char* pRef
     PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN));
   }
 
-  const SSchema* pRefCol = getColSchema(pRefTableMeta, pRefColName);
+  const SSchema* pRefCol = getNormalColSchema(pRefTableMeta, pRefColName);
   if (NULL == pRefCol) {
-    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN));
-  }
-
-  // cannot use tag as ref column
-  if (pRefCol->colId > getNumOfColumns(pRefTableMeta)) {
     PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN));
   }
 

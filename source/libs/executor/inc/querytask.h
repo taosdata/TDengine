@@ -69,7 +69,6 @@ typedef struct {
   int8_t                recoverScanFinished;
   SQueryTableDataCond   tableCond;
   SVersionRange         fillHistoryVer;
-  STimeWindow           fillHistoryWindow;
   SStreamState*         pState;
   SStreamState*         pOtherState;
   int32_t               eventTypes;          // event types to notify

@@ -120,6 +120,7 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
   int32_t lino = 0;
   SListIter iter = {0};
   SListNode* listNode = NULL;
+  SStreamTask* pTask = NULL;
 
   taosWLockLatch(&pStream->lock);
 
@@ -141,16 +142,19 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
     tdListInitIter(pStream->readerList, &iter, TD_LIST_FORWARD);
     while ((listNode = tdListNext(&iter)) != NULL) {
       SStreamReaderTask* pReader = (SStreamReaderTask*)listNode->data;
+      pTask = (SStreamTask*)pReader;
       TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, &pReader->task), code, lino, _exit, terrno);
       if (pReader->task.pMgmtReq) {
         TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
       }
+      ST_TASK_DLOG("task status added to hb %s mgmtReq", pReader->task.pMgmtReq ? "with" : "without");
     }
 
     stsDebug("%d reader tasks status added to hb", TD_DLIST_NELES(pStream->readerList));
   }
 
   if (pStream->triggerTask) {
+    pTask = (SStreamTask*)pStream->triggerTask;
     if (reportPeriod) {
       TAOS_CHECK_EXIT(stmAddPeriodReport(streamId, &pMsg->pTriggerStatus, pStream->triggerTask));
       pStream->triggerTask->task.detailStatus = taosArrayGetSize(pMsg->pTriggerStatus) - 1;
@@ -158,10 +162,12 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
       pStream->triggerTask->task.detailStatus = -1;
     }
     TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, &pStream->triggerTask->task), code, lino, _exit, terrno);
-    stsDebug("%d trigger tasks status added to hb", 1);
     if (pStream->triggerTask->task.pMgmtReq) {
       TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
     }
+    
+    ST_TASK_DLOG("task status added to hb %s mgmtReq", pStream->triggerTask->task.pMgmtReq ? "with" : "without");
+    stsDebug("%d trigger tasks status added to hb", 1);
   }
 
   if (pStream->runnerList) {
@@ -170,10 +176,12 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
     tdListInitIter(pStream->runnerList, &iter, TD_LIST_FORWARD);
     while ((listNode = tdListNext(&iter)) != NULL) {
       SStreamRunnerTask* pRunner = (SStreamRunnerTask*)listNode->data;
+      pTask = (SStreamTask*)pRunner;
       TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, &pRunner->task), code, lino, _exit, terrno);
       if (pRunner->task.pMgmtReq) {
         TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
       }
+      ST_TASK_DLOG("task status added to hb %s mgmtReq", pRunner->task.pMgmtReq ? "with" : "without");
     }
 
     stsDebug("%d runner tasks status added to hb", TD_DLIST_NELES(pStream->runnerList));
@@ -198,6 +206,8 @@ int32_t stmBuildHbStreamsStatusReq(SStreamHbMsg* pMsg) {
   if (0 == pMsg->streamGId) {
     reportPeriod = !reportPeriod;
   }
+
+  stDebug("start to build hb status req, gid:%d", pMsg->streamGId);
   
   SHashObj* pHash = gStreamMgmt.stmGrp[pMsg->streamGId];
   if (NULL == pHash) {
@@ -227,11 +237,32 @@ void stmDestroySStreamInfo(void* param) {
   }
   
   SStreamInfo* p = (SStreamInfo*)param;
+
+  SListIter iter = {0};
+  SListNode* listNode = NULL;  
+  tdListInitIter(p->readerList, &iter, TD_LIST_FORWARD);
+  while ((listNode = tdListNext(&iter)) != NULL) {
+    SStreamTask* pTask = (SStreamTask*)listNode->data;
+    SListNode* tmp = tdListPopNode(p->readerList, listNode);
+    ST_TASK_DLOG("task removed from stream taskList, remain:%d", TD_DLIST_NELES(p->readerList));
+    taosMemoryFreeClear(tmp);
+  }
   tdListFree(p->readerList);
   p->readerList = NULL;
+
   taosMemoryFreeClear(p->triggerTask);
+
+  memset(&iter, 0, sizeof(iter));
+  tdListInitIter(p->runnerList, &iter, TD_LIST_FORWARD);
+  while ((listNode = tdListNext(&iter)) != NULL) {
+    SStreamTask* pTask = (SStreamTask*)listNode->data;
+    SListNode* tmp = tdListPopNode(p->runnerList, listNode);
+    ST_TASK_DLOG("task removed from stream taskList, remain:%d", TD_DLIST_NELES(p->runnerList));
+    taosMemoryFreeClear(tmp);
+  }
   tdListFree(p->runnerList);
   p->runnerList = NULL;
+
   taosArrayDestroy(p->undeployReaders);
   p->undeployReaders = NULL;
   taosArrayDestroy(p->undeployRunners);
@@ -627,11 +658,14 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   JSON_CHECK_ADD_ITEM(obj, "eventType", cJSON_CreateStringReference(eventType));
   JSON_CHECK_ADD_ITEM(obj, "eventTime", cJSON_CreateNumber(taosGetTimestampMs()));
   JSON_CHECK_ADD_ITEM(obj, "windowId", cJSON_CreateString(windowId));
-  JSON_CHECK_ADD_ITEM(obj, "windowType", cJSON_CreateStringReference(windowType));
-  JSON_CHECK_ADD_ITEM(obj, "windowStart", cJSON_CreateNumber(pParam->wstart));
-  if (pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) {
-    int64_t wend = pParam->wend;
-    JSON_CHECK_ADD_ITEM(obj, "windowEnd", cJSON_CreateNumber(wend));
+
+  if (STREAM_TRIGGER_PERIOD != triggerType && STREAM_TRIGGER_SLIDING != triggerType) {
+    JSON_CHECK_ADD_ITEM(obj, "windowType", cJSON_CreateStringReference(windowType));
+    JSON_CHECK_ADD_ITEM(obj, "windowStart", cJSON_CreateNumber(pParam->wstart));
+    if (pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) {
+      int64_t wend = pParam->wend;
+      JSON_CHECK_ADD_ITEM(obj, "windowEnd", cJSON_CreateNumber(wend));
+    }
   }
 
   temp = cJSON_PrintUnformatted(obj);

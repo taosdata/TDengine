@@ -300,7 +300,7 @@ static int32_t stRunnerOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
   if (pTask->notification.calcNotifyOnly) return 0;
   bool needCalcTbName = pExec->tbname[0] == '\0';
   if (pBlock && pBlock->info.rows > 0) {
-    if (createTb && needCalcTbName) {
+    if (*createTb && needCalcTbName) {
       code = streamCalcOutputTbName(pTask->pSubTableExpr, pExec->tbname, &pExec->runtimeInfo.funcInfo);
       stDebug("stRunnerOutputBlock tbname: %s", pExec->tbname);
     }

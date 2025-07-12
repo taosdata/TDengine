@@ -176,6 +176,9 @@ static int32_t msmSTAddSnodesToMap(SMnode* pMnode) {
     tasks.lastUpTs = taosGetTimestampMs();
     code = taosHashPut(mStreamMgmt.snodeMap, &pSnode->id, sizeof(pSnode->id), &tasks, sizeof(tasks));
     if (code && TSDB_CODE_DUP_KEY != code) {
+      sdbRelease(pMnode->pSdb, pSnode);
+      sdbCancelFetch(pMnode->pSdb, pIter);
+      pSnode = NULL;
       TAOS_CHECK_EXIT(code);
     }
 
@@ -187,8 +190,6 @@ static int32_t msmSTAddSnodesToMap(SMnode* pMnode) {
   pSnode = NULL;
 
 _exit:
-
-  sdbRelease(pMnode->pSdb, pSnode);
 
   if (code) {
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -211,6 +212,9 @@ static int32_t msmSTAddDnodesToMap(SMnode* pMnode) {
 
     code = taosHashPut(mStreamMgmt.dnodeMap, &pDnode->id, sizeof(pDnode->id), &lastUpTs, sizeof(lastUpTs));
     if (code && TSDB_CODE_DUP_KEY != code) {
+      sdbRelease(pMnode->pSdb, pDnode);
+      sdbCancelFetch(pMnode->pSdb, pIter);
+      pDnode = NULL;
       TAOS_CHECK_EXIT(code);
     }
 
@@ -221,8 +225,6 @@ static int32_t msmSTAddDnodesToMap(SMnode* pMnode) {
   pDnode = NULL;
 
 _exit:
-
-  sdbRelease(pMnode->pSdb, pDnode);
 
   if (code) {
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -1083,9 +1085,16 @@ int32_t msmAssignRandomSnodeId(SMnode* pMnode, int64_t streamId) {
       continue;
     }
 
-    TAOS_CHECK_EXIT(msmIsSnodeAlive(pMnode, pObj->id, streamId, &alive));
-
+    code = msmIsSnodeAlive(pMnode, pObj->id, streamId, &alive);
+    if (code) {
+      sdbRelease(pMnode->pSdb, pObj);
+      sdbCancelFetch(pMnode->pSdb, pIter);
+      pObj = NULL;
+      TAOS_CHECK_EXIT(code);
+    }
+    
     if (!alive) {
+      sdbRelease(pMnode->pSdb, pObj);
       continue;
     }
 
@@ -1093,9 +1102,11 @@ int32_t msmAssignRandomSnodeId(SMnode* pMnode, int64_t streamId) {
     if (snodeIdx == snodeTarget) {
       sdbRelease(pMnode->pSdb, pObj);
       sdbCancelFetch(pMnode->pSdb, pIter);
+      pObj = NULL;
       goto _exit;
     }
 
+    sdbRelease(pMnode->pSdb, pObj);
     snodeIdx++;
   }
 
@@ -1215,6 +1226,7 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
   int64_t streamId = pStream->pCreate->streamId;
   SSdb   *pSdb = pCtx->pMnode->pSdb;
   SStmTaskStatus* pState = NULL;
+  SVgObj *pVgroup = NULL;
   
   switch (pStream->pCreate->triggerTblType) {
     case TSDB_NORMAL_TABLE:
@@ -1241,7 +1253,6 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
       
       void *pIter = NULL;
       while (1) {
-        SVgObj *pVgroup = NULL;
         SStmTaskDeploy info = {0};
         pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
         if (pIter == NULL) {
@@ -1251,9 +1262,16 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
         if (pVgroup->dbUid == pDb->uid && !pVgroup->isTsma) {
           pState = taosArrayReserve(pInfo->trigReaders, 1);
 
-          TAOS_CHECK_EXIT(msmTDAddSingleTrigReader(pCtx, pState, pVgroup->vgId, pInfo, pStream, streamId));
-          sdbRelease(pSdb, pVgroup);
+          code = msmTDAddSingleTrigReader(pCtx, pState, pVgroup->vgId, pInfo, pStream, streamId);
+          if (code) {
+            sdbRelease(pSdb, pVgroup);
+            sdbCancelFetch(pSdb, pIter);
+            pVgroup = NULL;
+            TAOS_CHECK_EXIT(code);
+          }
         }
+
+        sdbRelease(pSdb, pVgroup);
       }
       break;
     }
@@ -1475,7 +1493,7 @@ _exit:
   return code;
 }
 
-int32_t msmUpdatePlanSourceAddr(SStreamTask* pTask, int64_t streamId, SSubplan* plan, int64_t clientId, SStmTaskSrcAddr* pSrc, int32_t msgType) {
+int32_t msmUpdatePlanSourceAddr(SStreamTask* pTask, int64_t streamId, SSubplan* plan, int64_t clientId, SStmTaskSrcAddr* pSrc, int32_t msgType, int64_t srcSubplanId) {
   SDownstreamSourceNode source = {
       .type = QUERY_NODE_DOWNSTREAM_SOURCE,
       .clientId = clientId,
@@ -1489,8 +1507,8 @@ int32_t msmUpdatePlanSourceAddr(SStreamTask* pTask, int64_t streamId, SSubplan* 
   source.addr.epSet = pSrc->epset;
   source.addr.nodeId = pSrc->vgId;
 
-  msttDebug("try to update subplan %d's sourceAddr, clientId:%" PRId64 ", srcTaskId:%" PRId64 ", srcNodeId:%d, msgType:%d", 
-      plan->id.subplanId, source.clientId, source.taskId, source.addr.nodeId, source.fetchMsgType);
+  msttDebug("try to update subplan %d grp %d sourceAddr from subplan %" PRId64 ", clientId:%" PRIx64 ", srcTaskId:%" PRIx64 ", srcNodeId:%d, msgType:%s", 
+      plan->id.subplanId, pSrc->groupId, srcSubplanId, source.clientId, source.taskId, source.addr.nodeId, TMSG_INFO(source.fetchMsgType));
   
   return qSetSubplanExecutionNode(plan, pSrc->groupId, &source);
 }
@@ -1522,13 +1540,13 @@ int32_t msmUpdateLowestPlanSourceAddr(SSubplan* pPlan, SStmTaskDeploy* pDeploy, 
   FOREACH(pNode, pPlan->pChildren) {
     if (QUERY_NODE_VALUE != nodeType(pNode)) {
       msttDebug("node type %d is not valueNode, skip it", nodeType(pNode));
-      break;
+      continue;
     }
     
     SValueNode* pVal = (SValueNode*)pNode;
     if (TSDB_DATA_TYPE_BIGINT != pVal->node.resType.type) {
       msttWarn("invalid value node data type %d for runner's child subplan", pVal->node.resType.type);
-      break;
+      continue;
     }
 
     key[1] = MND_GET_RUNNER_SUBPLANID(pVal->datum.i);
@@ -1542,7 +1560,7 @@ int32_t msmUpdateLowestPlanSourceAddr(SSubplan* pPlan, SStmTaskDeploy* pDeploy, 
     int32_t childrenNum = taosArrayGetSize(*ppRes);
     for (int32_t i = 0; i < childrenNum; ++i) {
       SStmTaskSrcAddr* pAddr = taosArrayGet(*ppRes, i);
-      TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(pTask, streamId, pPlan, pDeploy->task.taskId, pAddr, pAddr->isFromCache ? TDMT_STREAM_FETCH_FROM_CACHE : TDMT_STREAM_FETCH));
+      TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(pTask, streamId, pPlan, pDeploy->task.taskId, pAddr, pAddr->isFromCache ? TDMT_STREAM_FETCH_FROM_CACHE : TDMT_STREAM_FETCH, key[1]));
     }
   }
 
@@ -1579,7 +1597,7 @@ int32_t msmUpdateRunnerPlan(SStmGrpCtx* pCtx, SArray* pRunners, int32_t beginIdx
   FOREACH(pNode, pPlan->pParents) {
     SSubplan* pSubplan = (SSubplan*)pNode;
     TAOS_CHECK_EXIT(msmGetTaskIdFromSubplanId(pStream, pRunners, beginIdx, pSubplan->id.subplanId, &parentTaskId, &parentTask));
-    TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(parentTask, streamId, pSubplan, parentTaskId, &addr, TDMT_STREAM_FETCH_FROM_RUNNER));
+    TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(parentTask, streamId, pSubplan, parentTaskId, &addr, TDMT_STREAM_FETCH_FROM_RUNNER, pPlan->id.subplanId));
   }
   
 _exit:
@@ -3897,8 +3915,9 @@ int32_t msmProcessDeployOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   int32_t iter = 0;
   void* p = NULL;
   SSHashObj* pVgs = NULL;
-
-  pTask->pMgmtReq = NULL;
+  SStreamMgmtReq* pMgmtReq = NULL;
+  
+  TSWAP(pTask->pMgmtReq, pMgmtReq);
   rsp.task = *(SStreamTask*)pTask;
 
   SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
@@ -3914,13 +3933,13 @@ int32_t msmProcessDeployOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
 
   if (tbNum <= 0) {
     mstsWarn("empty table list in origReader req, array:%p", pTbs);
-    return TSDB_CODE_SUCCESS;
+    goto _exit;
   }
 
   int32_t oReaderNum = taosArrayGetSize(pStatus->trigOReaders);
   if (oReaderNum > 0) {
     mstsWarn("origReaders already exits, num:%d", oReaderNum);
-    return TSDB_CODE_SUCCESS;
+    goto _exit;
   }
 
   TAOS_CHECK_EXIT(mstBuildDBVgroupsMap(pCtx->pMnode, &pDbVgroups));
@@ -3970,6 +3989,9 @@ int32_t msmProcessDeployOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
 
 _exit:
 
+  tFreeSStreamMgmtReq(pMgmtReq);
+  taosMemoryFree(pMgmtReq);
+
   tSimpleHashCleanup(pVgs);
 
   if (code) {
@@ -3978,7 +4000,6 @@ _exit:
   }
 
   mstDestroyDbVgroupsHash(pDbVgroups);
-  taosArrayDestroy(pTbs);
 
   return code;
 }
@@ -4117,7 +4138,7 @@ void msmEncodeStreamHbRsp(int32_t code, SRpcHandleInfo *pRpcInfo, SMStreamHbRspM
     TAOS_CHECK_EXIT(terrno);    
   }
 
-  ((SStreamMsgGrpHeader *)buf)->streamGid = htonl(pRsp->streamGId);
+  ((SStreamMsgGrpHeader *)buf)->streamGid = pRsp->streamGId;
   void *abuf = POINTER_SHIFT(buf, sizeof(SStreamMsgGrpHeader));
 
   SEncoder encoder;

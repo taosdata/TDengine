@@ -1683,8 +1683,8 @@ table_primary(A) ::= table_name(B) alias_opt(C).                                
 table_primary(A) ::= db_name(B) NK_DOT table_name(C) alias_opt(D).                { A = createRealTableNode(pCxt, &B, &C, &D); }
 table_primary(A) ::= subquery(B) alias_opt(C).                                    { A = createTempTableNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
 table_primary(A) ::= parenthesized_joined_table(B).                               { A = B; }
-table_primary(A) ::= NK_PH TBNAME.                                                { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_TBNAME); }
-table_primary(A) ::= NK_PH TROWS.                                                 { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_ROWS); }
+table_primary(A) ::= NK_PH TBNAME alias_opt(C).                                   { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_TBNAME, &C); }
+table_primary(A) ::= NK_PH TROWS alias_opt(C).                                    { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_ROWS, &C); }
 
 %type alias_opt                                                                   { SToken }
 %destructor alias_opt                                                             { }

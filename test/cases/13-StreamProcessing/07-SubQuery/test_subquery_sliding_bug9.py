@@ -105,37 +105,21 @@ class TestStreamDevBasic:
 
     def createStreams(self):
         self.streams = []
-        
+
         stream = StreamItem(
-            id=38,
-            stream="create stream rdb.s38 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r38 as select _twstart ts, _irowts, _isfilled, interp(c1), _twend, _twduration, _twrownum from %%trows RANGE(_twstart) FILL(linear);",
-            res_query="select * from rdb.r38 where tag_tbname='t1' limit 1",
-            exp_query="select _irowts , _isfilled , interp(c1) from tdb.t1 RANGE('2025-01-01 00:05:00.000') FILL(linear);",
+            id=121,
+            stream="create stream rdb.s121 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r121 as select ta.ts tats, tb.cts tbts, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2, _twstart tw, _twend te, %%tbname tb from %%tbname ta inner join qdb.t1 tb on ta.ts=tb.cts where ta.ts >= _twstart and ta.ts < _twend",
+            res_query="select tats, tbts, tac1, tac2, tbc1, tbc2 from rdb.r121 where tag_tbname='t1'",
+            exp_query="select ta.ts tats, tb.cts tbts, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2 from tdb.t1 ta inner join qdb.t1 tb on ta.ts=tb.cts where ta.ts >= '2025-01-01 00:00:00.000' and ta.ts < '2025-01-01 00:35:00.000';",
         )
+
         self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()
 
-    def check12(self):
-        tdSql.checkTableType(
-            dbname="rdb",
-            stbname="r12",
-            columns=7,
-            tags=1,
-        )
-        tdSql.checkTableSchema(
-            dbname="rdb",
-            tbname="r12",
-            schema=[
-                ["ts", "TIMESTAMP", 8, ""],
-                ["tb", "VARCHAR", 270, ""],
-                ["%%1", "VARCHAR", 270, ""],
-                ["v1", "BIGINT", 8, ""],
-                ["v2", "DOUBLE", 8, ""],
-                ["v3", "INT", 4, ""],
-                ["v4", "INT", 4, ""],
-                ["tag_tbname", "VARCHAR", 270, "TAG"],
-            ],
+    def check102(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from rdb.r102", func=lambda: tdSql.getRows() == 4
         )

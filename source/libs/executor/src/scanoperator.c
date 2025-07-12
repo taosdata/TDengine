@@ -1259,11 +1259,13 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
 
   pAPI->metaReaderFn.initReader(&orgTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
   code = pAPI->metaReaderFn.getTableEntryByName(&orgTable, strstr(pParam->pOrgTbInfo->tbName, ".") + 1);
+  pAPI->metaReaderFn.readerReleaseLock(&orgTable);
   QUERY_CHECK_CODE(code, lino, _return);
   switch (orgTable.me.type) {
     case TSDB_CHILD_TABLE:
       pAPI->metaReaderFn.initReader(&superTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
       code = pAPI->metaReaderFn.getTableEntryByUid(&superTable, orgTable.me.ctbEntry.suid);
+      pAPI->metaReaderFn.readerReleaseLock(&superTable);
       QUERY_CHECK_CODE(code, lino, _return);
       schema = &superTable.me.stbEntry.schemaRow;
       break;
@@ -1319,7 +1321,9 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   code =
       initQueryTableDataCondWithColArray(&pInfo->base.cond, &pInfo->base.orgCond, &pInfo->base.readHandle, pColArray);
   QUERY_CHECK_CODE(code, lino, _return);
-  pInfo->base.cond.twindows.skey = pParam->window.ekey + 1;
+  if (pParam->window.ekey > 0) {
+    pInfo->base.cond.twindows.skey = pParam->window.ekey + 1;
+  }
   pInfo->base.cond.suid = orgTable.me.type == TSDB_CHILD_TABLE ? superTable.me.uid : 0;
   pInfo->currentGroupId = 0;
   pInfo->base.dataReader = NULL;
