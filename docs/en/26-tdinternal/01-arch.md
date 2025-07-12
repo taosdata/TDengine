@@ -363,4 +363,4 @@ You can use the following command to dynamically modify dataDir to control wheth
 alter dnode 1 "/mnt/disk2/taos 1";
 ```
 
-Note: Tiered Storage is only supported in Enterprise Edition
+Note: Tiered Storage is only supported in TSDB-Enterprise
