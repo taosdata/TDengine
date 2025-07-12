@@ -41,10 +41,11 @@ class TestVtableShowTag:
         tdSql.execute(f"create vtable v_sub_t0 (sub_t0.flag) using v_super_t TAGS (1)")
 
         # show tag of virtual table
-        tdSql.execute(f"show tags from v_sub_t0")
+        tdSql.query(f"show tags from v_sub_t0")
         tdSql.checkRows(1)
+        tdSql.checkData(0, 5, 1)
 
-        tdSql.execute(f"show tags from v_super_t")
+        tdSql.query(f"show tags from v_super_t")
         tdSql.checkRows(0)
 
         tdLog.info(f"end virtual table show tag test successfully")
