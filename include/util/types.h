@@ -102,7 +102,6 @@ typedef uint32_t BlobDataLenT;  // maxVarDataLen: 2^32 - 1
 #define blobDataCopy(dst, v)    (void)memcpy((dst), (void *)(v), blobDataTLen(v))
 #define blobDataLenByData(v)    (*(BlobDataLenT *)(((char *)(v)) - BLOBSTR_HEADER_SIZE))
 #define blobDataSetLen(v, _len) (((BlobDataLenT *)(v))[0] = (BlobDataLenT)(_len))
-#define BLOB_MAX_LEN            (4 << 20)
 
 typedef int64_t BlobDataOffsetT;
 typedef struct tstr {

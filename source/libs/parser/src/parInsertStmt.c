@@ -950,7 +950,7 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
     if (IS_VAR_DATA_TYPE(pColSchema->type)) {
       if (IS_STR_DATA_BLOB(pColSchema->type)) {
         isBlob = 1;
-        bytes = BLOB_MAX_LEN;
+        bytes = TSDB_MAX_BLOB_LEN;
       } else {
         bytes = pColSchema->bytes - VARSTR_HEADER_SIZE;
       }
@@ -1015,7 +1015,7 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
   int8_t  hasBlob = 0;
   if (IS_VAR_DATA_TYPE(pColSchema->type)) {
     if (IS_STR_DATA_BLOB(pColSchema->type)) {
-      bytes = BLOB_MAX_LEN;
+      bytes = TSDB_MAX_BLOB_LEN;
       hasBlob = 1;
     } else {
       bytes = pColSchema->bytes - VARSTR_HEADER_SIZE;

@@ -300,7 +300,7 @@ int32_t calcTypeBytesFromSchemaBytes(int32_t type, int32_t schemaBytes, bool isS
   } else if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_JSON) {
     return (schemaBytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
   } else if (IS_STR_DATA_BLOB(type)) {
-     return BLOB_MAX_LEN; 
+    return TSDB_MAX_BLOB_LEN;
   }
   return schemaBytes;
 }
