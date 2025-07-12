@@ -4716,7 +4716,7 @@ static int32_t setTrowsTableVgroupList(STranslateContext* pCxt, SName* pName, SR
   if (vg == NULL) {
     PAR_ERR_JRET(terrno);
   }
-  pRealTable->pVgroupList->vgroups[0] = *vg;
+  memcpy(pRealTable->pVgroupList->vgroups, vg, sizeof(SVgroupInfo));
 
 _return:
   taosArrayDestroy(vgroupList);
@@ -6026,6 +6026,7 @@ static int32_t translatePlaceHolderTable(STranslateContext* pCxt, SNode** pTable
 
   return code;
 _return:
+  nodesDestroyNode((SNode*)newPlaceHolderTable);
   parserError("translatePlaceHolderTable failed, code:%d, errmsg:%s", code, tstrerror(code));
   return code;
 }
