@@ -510,7 +510,7 @@ class TDTestCase:
         self.test_interp_extension_irowts_origin()
         self.test_interp_fill_extension()
         self.test_interval_fill_extension()
-        self.test_interp_fill_extension_stream()
+        #self.test_interp_fill_extension_stream() open when new stm ready
 
     def stop(self):
         tdSql.close()

@@ -50,7 +50,7 @@ target_include_directories(
 target_link_libraries(
     ${TAOS_NATIVE_LIB_STATIC}
     INTERFACE api
-    PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry decimal
+    PUBLIC os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry decimal
 )
 
 if(${BUILD_TEST})

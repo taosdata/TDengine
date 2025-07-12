@@ -32,6 +32,8 @@ typedef EFuncReturnRows (*FEstimateReturnRows)(SFunctionNode* pFunc);
 
 #define MAX_FUNC_PARA_NUM 16
 #define MAX_FUNC_PARA_FIXED_VALUE_NUM 16
+
+
 typedef struct SParamRange {
   int64_t  iMinVal;
   int64_t  iMaxVal;

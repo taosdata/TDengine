@@ -36,7 +36,8 @@ typedef enum EConditionType {
   COND_TYPE_PRIMARY_KEY = 1,
   COND_TYPE_TAG_INDEX,
   COND_TYPE_TAG,
-  COND_TYPE_NORMAL
+  COND_TYPE_NORMAL,
+  COND_TYPE_PRIMARY_KEY_EXPR
 } EConditionType;
 
 
@@ -49,7 +50,7 @@ typedef struct SFilterColumnParam {
   SArray *pDataBlock;
 } SFilterColumnParam;
 
-extern int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pinfo, uint32_t options);
+extern int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pinfo, uint32_t options, void* pSclExtraParams);
 extern int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SColumnDataAgg *statis,
                              int16_t numOfCols, int32_t *pFilterResStatus);
 extern int32_t filterSetDataFromSlotId(SFilterInfo *info, void *param);
@@ -68,6 +69,7 @@ int32_t filterIsMultiTableColsCond(SNode *pCond, bool *res);
 EConditionType filterClassifyCondition(SNode *pNode);
 int32_t        filterGetCompFunc(__compar_fn_t *func, int32_t type, int32_t optr);
 bool           filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right);
+const void *filterInfoGetSclExtraParans(const SFilterInfo *pFilterInfo);
 
 #ifdef __cplusplus
 }

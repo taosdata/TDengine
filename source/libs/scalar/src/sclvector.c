@@ -1760,6 +1760,27 @@ int32_t vectorAssign(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pO
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t vectorAssignRange(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t rowStartIdx,
+                          int32_t rowEndIdx, int32_t _ord) {
+  SColumnInfoData *pOutputCol = pOut->columnData;
+
+  if (colDataIsNull_s(pRight->columnData, 0)) {
+    colDataSetNNULL(pOutputCol, rowStartIdx, (rowEndIdx - rowStartIdx + 1));
+  } else {
+    char *d = colDataGetData(pRight->columnData, 0);
+    for (int32_t i = rowStartIdx; i <= rowEndIdx; ++i) {
+      SCL_ERR_RET(colDataSetVal(pOutputCol, i, d, false));
+    }
+  }
+
+  if (pRight->numOfQualified != 1 && pRight->numOfQualified != 0) {
+    sclError("vectorAssign: invalid qualified number %d", pRight->numOfQualified);
+    SCL_ERR_RET(TSDB_CODE_APP_ERROR);
+  }
+  pOut->numOfQualified += pRight->numOfQualified * ((rowEndIdx - rowStartIdx + 1));
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t vectorBitAnd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
   SColumnInfoData *pOutputCol = pOut->columnData;
   pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);

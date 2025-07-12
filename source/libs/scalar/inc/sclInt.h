@@ -38,6 +38,8 @@ typedef struct SScalarCtx {
   SHashObj*          pRes;       /* element is SScalarParam */
   void*              param;      // additional parameter (meta actually) for acquire value such as tbname/tags values
   SOperatorValueType type;
+  const void*        pStreamRuntimeFuncInfo; // used for stream pesudo funcs, it contains the output values for pesudo-funcs
+  void*              streamTsRange;
 } SScalarCtx;
 
 #define SCL_DATA_TYPE_DUMMY_HASH 9000
@@ -147,7 +149,6 @@ int32_t sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode);
 #define GET_PARAM_PRECISON(_c) ((_c)->columnData->info.precision)
 #define GET_PARAM_SCALE(_c)    ((_c)->columnData->info.scale)
 
-void sclFreeParam(SScalarParam* param);
 int32_t doVectorCompare(SScalarParam* pLeft, SScalarParam *pLeftVar, SScalarParam* pRight, SScalarParam *pOut, int32_t startIndex, int32_t numOfRows,
                      int32_t _ord, int32_t optr);
 int32_t vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t startIndex, int32_t numOfRows,

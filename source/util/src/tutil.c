@@ -133,6 +133,9 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
 
 char *strnchr(const char *haystack, char needle, int32_t len, bool skipquote) {
   for (int32_t i = 0; i < len; ++i) {
+    if (0 == haystack[i]) {
+      break;
+    }
     // skip the needle in quote, jump to the end of quoted string
     if (skipquote && (haystack[i] == '\'' || haystack[i] == '"')) {
       char quote = haystack[i++];

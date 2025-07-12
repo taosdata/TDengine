@@ -119,7 +119,7 @@ TEST_F(ParserExplainToSyncdbTest, pauseStreamStmt) {
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_PAUSE_STREAM_STMT);
-    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_PAUSE_STREAM);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_STOP_STREAM);
     SMPauseStreamReq req = {0};
     ASSERT_EQ(tDeserializeSMPauseStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
     ASSERT_EQ(string(req.name), string(expect.name));
@@ -146,7 +146,7 @@ TEST_F(ParserExplainToSyncdbTest, resumeStreamStmt) {
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_RESUME_STREAM_STMT);
-    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_RESUME_STREAM);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_START_STREAM);
     SMResumeStreamReq req = {0};
     ASSERT_EQ(tDeserializeSMResumeStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
     ASSERT_EQ(string(req.name), string(expect.name));

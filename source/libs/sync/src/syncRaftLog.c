@@ -67,7 +67,7 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   }
 
   (void)taosThreadMutexInit(&(pData->mutex), NULL);
-  pData->pWalHandle = walOpenReader(pData->pWal, NULL, 0);
+  pData->pWalHandle = walOpenReader(pData->pWal, 0);
   if (!pData->pWalHandle) {
     taosMemoryFree(pLogStore);
     taosLRUCacheCleanup(pLogStore->pCache);

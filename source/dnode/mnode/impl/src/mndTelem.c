@@ -21,6 +21,7 @@
 #include "tjson.h"
 #include "mndAnode.h"
 
+
 typedef struct {
   int64_t numOfDnode;
   int64_t numOfMnode;

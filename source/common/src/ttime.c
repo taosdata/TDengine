@@ -55,6 +55,9 @@ bool checkTzPresent(const char* str, int32_t len) {
 
   char* c = &seg[seg_len - 1];
   for (int32_t i = 0; i < seg_len; ++i) {
+    if (0 == *c) {
+      break;
+    }
     if (*c == 'Z' || *c == 'z' || *c == '+' || *c == '-') {
       return true;
     }
@@ -740,6 +743,9 @@ int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interva
 }
 
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
+  if (ts <= INT64_MIN || ts >= INT64_MAX) {
+    return ts;
+  }
   if (pInterval->sliding == 0) {
     return ts;
   }
@@ -1004,8 +1010,7 @@ char* formatTimestampLocal(char* buf, int64_t val, int precision) {
   time_t tt;
   if (precision == TSDB_TIME_PRECISION_MICRO) {
     tt = (time_t)(val / 1000000);
-  }
-  if (precision == TSDB_TIME_PRECISION_NANO) {
+  } else if (precision == TSDB_TIME_PRECISION_NANO) {
     tt = (time_t)(val / 1000000000);
   } else {
     tt = (time_t)(val / 1000);

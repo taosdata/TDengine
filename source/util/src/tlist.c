@@ -92,6 +92,18 @@ int32_t tdListAppend(SList *list, const void *data) {
 
   return 0;
 }
+
+void* tdListReserve(SList *list) {
+  SListNode *node = (SListNode *)taosMemoryCalloc(1, sizeof(SListNode) + list->eleSize);
+  if (node == NULL) {
+    return NULL;
+  }
+
+  TD_DLIST_APPEND(list, node);
+
+  return (void*)node->data;
+}
+
 // return the node pointer
 SListNode *tdListAdd(SList *list, const void *data) {
   SListNode *node = (SListNode *)taosMemoryCalloc(1, sizeof(SListNode) + list->eleSize);
@@ -155,6 +167,9 @@ void tdListDiscard(SList *list) {
 void tdListNodeGetData(SList *list, SListNode *node, void *target) { memcpy(target, node->data, listEleSize(list)); }
 
 void tdListInitIter(SList *list, SListIter *pIter, TD_LIST_DIRECTION_T direction) {
+  if (NULL == list) {
+    return;
+  }
   pIter->direction = direction;
   if (direction == TD_LIST_FORWARD) {
     pIter->next = listHead(list);
