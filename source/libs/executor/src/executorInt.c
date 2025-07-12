@@ -117,10 +117,6 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
     }
   }
 
-  if (pData == NULL) {
-    return NULL;
-  }
-
   setBufPageDirty(pData, true);
 
   // set the number of rows in current disk page

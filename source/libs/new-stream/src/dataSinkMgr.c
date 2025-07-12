@@ -571,7 +571,7 @@ int32_t getAlignDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end,
   return code;
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    releaseDataResult((void**)&pResultIter);
+    releaseDataResultAndResetMgrStatus((void**)&pResultIter);
     *pIter = NULL;
     stError("failed to get align data cache, err: %s, lineno:%d", terrMsg, lino);
   }
@@ -631,9 +631,9 @@ int32_t getSlidingDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
     return code;
   }
 _end:
+  changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_READING);
   if (code != TSDB_CODE_SUCCESS) {
-    changeMgrStatus(&pExistGrpMgr->status, GRP_DATA_READING);
-    releaseDataResult((void**)&pResultIter);
+    releaseDataResultAndResetMgrStatus((void**)&pResultIter);
     *pIter = NULL;
     stError("failed to get sliding data cache, err: %s, lineno:%d", terrMsg, lino);
   }
@@ -695,6 +695,19 @@ void releaseDataResult(void** pIter) {
     taosArrayDestroy(pResult->tmpBlocksInMem);
     pResult->tmpBlocksInMem = NULL;
   }
+
+  if (pResult != NULL) {
+    taosMemoryFree(pResult);
+    *pIter = NULL;
+  }
+}
+
+void releaseDataResultAndResetMgrStatus(void** pIter) {
+  if (pIter == NULL || *pIter == NULL) {
+    return;
+  }
+  SResultIter* pResult = (SResultIter*)*pIter;
+
   if (pResult->cleanMode == DATA_CLEAN_EXPIRED) {
     SSlidingGrpMgr* pSlidingGrpMgr = (SSlidingGrpMgr*)pResult->groupData;
     changeMgrStatus(&pSlidingGrpMgr->status, GRP_DATA_IDLE);
@@ -703,10 +716,7 @@ void releaseDataResult(void** pIter) {
     changeMgrStatus(&pAlignGrpMgr->status, GRP_DATA_IDLE);
   }
 
-  if (pResult != NULL) {
-    taosMemoryFree(pResult);
-    *pIter = NULL;
-  }
+  releaseDataResult(pIter);
 }
 
 void moveToNextIterator(void** ppIter) {
@@ -741,7 +751,7 @@ void moveToNextIterator(void** ppIter) {
     }
   }
   if (finished) {
-    releaseDataResult(ppIter);
+    releaseDataResultAndResetMgrStatus(ppIter);
     *ppIter = NULL;
   }
 
@@ -792,7 +802,7 @@ int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock) {
   }
 
   if (finished) {
-    releaseDataResult(pIter);
+    releaseDataResultAndResetMgrStatus(pIter);
     *pIter = NULL;
     goto _end;
   }
@@ -813,7 +823,7 @@ _end:
   return code;
 }
 
-void cancelStreamDataCacheIterate(void** pIter) { releaseDataResult(pIter); }
+void cancelStreamDataCacheIterate(void** pIter) { releaseDataResultAndResetMgrStatus(pIter); }
 
 int32_t destroyDataSinkMgr() {
   if (g_pDataSinkManager.dsStreamTaskList) {
