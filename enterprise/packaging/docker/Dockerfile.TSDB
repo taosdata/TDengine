@@ -19,8 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     chmod +x /tini
 
 # Base package configuration - change here to update base version
-ARG basePkgFile=TDengine-enterprise-3.3.6.14.0710-Linux-x64.tar.gz
-ARG baseDirName=TDengine-enterprise-3.3.6.14.0710
+ARG basePkgFile=TDengine-enterprise-3.3.6.14.0711-Linux-x64.tar.gz
+ARG baseDirName=TDengine-enterprise-3.3.6.14.0711
 
 # Process base package - this layer won't change unless base version changes
 COPY ${basePkgFile} ./
