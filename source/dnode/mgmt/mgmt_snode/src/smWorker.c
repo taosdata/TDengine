@@ -17,16 +17,6 @@
 #include "smInt.h"
 #include "stream.h"
 
-static inline void smSendRsp(SRpcMsg *pMsg, int32_t code) {
-  SRpcMsg rsp = {
-      .code = code,
-      .pCont = pMsg->info.rsp,
-      .contLen = pMsg->info.rspLen,
-      .info = pMsg->info,
-  };
-  tmsgSendRsp(&rsp);
-}
-
 static void smProcessRunnerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SSnodeMgmt     *pMgmt = pInfo->ahandle;
   const STraceId *trace = &pMsg->info.traceId;
@@ -36,12 +26,23 @@ static void smProcessRunnerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   int32_t code = sndProcessStreamMsg(pMgmt->pSnode, pInfo->workerCb, pMsg);
   if (code < 0) {
     dGError("snd, msg:%p failed to process stream msg %s since %s", pMsg, TMSG_INFO(pMsg->msgType), tstrerror(code));
-    smSendRsp(pMsg, terrno);
   }
 
   dTrace("msg:%p, is freed", pMsg);
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
+}
+
+static void smSendErrorRrsp(SRpcMsg *pMsg, int32_t errCode) {
+  SRpcMsg             rspMsg = {0};
+
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = NULL;
+  rspMsg.contLen = 0;
+  rspMsg.code = errCode;
+  rspMsg.msgType = pMsg->msgType;
+
+  tmsgSendRsp(&rspMsg);
 }
 
 static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
@@ -81,6 +82,7 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       code = tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq);
       if (code != TSDB_CODE_SUCCESS) {
         dError("msg:%p, invalid batch meta request in snode-stream-trigger queue", pMsg);
+        smSendErrorRrsp(pMsg, TSDB_CODE_INVALID_MSG);
         break;
       }
       SBatchMsg         *pReq = TARRAY_DATA(batchReq.pMsgs);
@@ -88,11 +90,14 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       code = tDeserializeStreamProgressReq(pReq->msg, pReq->msgLen, &req);
       if (code != TSDB_CODE_SUCCESS) {
         dError("msg:%p, invalid stream progress request in snode-stream-trigger queue", pMsg);
-        code = TSDB_CODE_INVALID_PARA;
+        smSendErrorRrsp(pMsg, TSDB_CODE_INVALID_MSG);
         break;
       }
 
       code = streamAcquireTask(req.streamId, req.taskId, &pTask, &taskAddr);
+      if (code) {
+        smSendErrorRrsp(pMsg, code);
+      }
       break;
     }
     default: {
