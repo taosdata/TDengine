@@ -5987,7 +5987,7 @@ static int32_t saveModeTupleData(SqlFunctionCtx* pCtx, char* data, SModeInfo* pI
   if (IS_VAR_DATA_TYPE(pInfo->colType)) {
     if (pInfo->colType == TSDB_DATA_TYPE_JSON) {
       (void)memcpy(pInfo->buf, data, getJsonValueLen(data));
-    } else if (pInfo->colType) {
+    } else if (IS_STR_DATA_BLOB(pInfo->colType)) {
       (void)memcpy(pInfo->buf, data, blobDataTLen(data));
     } else {
       (void)memcpy(pInfo->buf, data, varDataTLen(data));
