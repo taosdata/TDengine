@@ -960,8 +960,7 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   remainSize = (start > end) ? (start - end - 1) : (start + LOG_BUF_SIZE(pLogBuf) - end - 1);
 
   if (lostLine > 0) {
-    snprintf(tmpBuf, tListLen(tmpBuf), "...Lost %" PRId64 " lines here...\n", lostLine);
-    tmpBufLen = (int32_t)strlen(tmpBuf);
+    tmpBufLen = snprintf(tmpBuf, tListLen(tmpBuf), "...Lost %" PRId64 " lines here...\n", lostLine);
   }
 
   if (remainSize <= msgLen || ((lostLine > 0) && (remainSize <= (msgLen + tmpBufLen)))) {
