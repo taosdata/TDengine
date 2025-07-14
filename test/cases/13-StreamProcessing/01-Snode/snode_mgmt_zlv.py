@@ -51,8 +51,11 @@ class TestSnodeMgmt:
 
         """
 
+
         tdStream.dropAllStreamsAndDbs()
         
+
+
         self.prepareData()
         self.createSnodeTest()
         self.dropAllSnodeTest()
@@ -63,7 +66,7 @@ class TestSnodeMgmt:
         self.checkStreamRunning()
         self.dropOneSnodeTest()
         self.checkStreamRunning()
-        self.killOneDnode()
+        self.killOneDnode2()
         self.checkStreamRunning()
         self.createOneStream()
 
@@ -178,7 +181,7 @@ class TestSnodeMgmt:
         "create stream `s99` sliding(1s) from st1  partition by tbname "
         "options(fill_history('2025-01-01 00:00:00')) "
         "into `s99out` as "
-        "select cts, cint, %%tbname from %%trows "
+        "select cts, cint, %%tbname from st1 "
         "where cint > 5 and tint > 0 and %%tbname like '%%2' "
         "order by cts;"
         )
@@ -236,6 +239,16 @@ class TestSnodeMgmt:
             tdLog.info(f"kill dndoe {numOfDnodes} success")
             #kill dnode后流状态有延迟，需要等待才能看到 failed 状态出现
             time.sleep(15)
+    
+    def killOneDnode2(self):
+        tdSql.query("select * from information_schema.ins_dnodes order by id;")
+        numOfDnodes = tdSql.getRows()
+        if numOfDnodes >2:
+            tdLog.info(f"kill one dnode: ")
+            tdDnodes=cluster.dnodes
+            tdDnodes[numOfDnodes].stoptaosd()
+            # tdDnodes[numOfDnodes].starttaosd()
+    
     
     def checkStreamRunning(self):
         tdLog.info(f"check stream running status:")

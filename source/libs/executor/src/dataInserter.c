@@ -1065,6 +1065,8 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
   SArray*      pVals = NULL;
   SArray*      pTagVals = NULL;
   int32_t      numOfBlks = 0;
+  char*        tableName = NULL;
+  int32_t      code = 0, lino = 0;
 
   terrno = TSDB_CODE_SUCCESS;
 
@@ -1139,13 +1141,15 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
 
       // 获取子表vgId
       SDBVgInfo* dbInfo = NULL;
-      int32_t    code = inserterGetDbVgInfo(pInserter, pInserter->dbFName, &dbInfo);
+      code = inserterGetDbVgInfo(pInserter, pInserter->dbFName, &dbInfo);
       if (code != TSDB_CODE_SUCCESS) {
         goto _end;
       }
 
       char tbFullName[TSDB_TABLE_FNAME_LEN];
-      char tableName[sv.nData + 1];
+      taosMemoryFreeClear(tableName);
+      tableName = taosMemoryCalloc(1, sv.nData + 1);
+      TSDB_CHECK_NULL(tableName, code, lino, _end, terrno);
       tstrncpy(tableName, sv.pData, sv.nData);
       tableName[sv.nData] = '\0';
 
@@ -1359,6 +1363,9 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
   }
 
 _end:
+
+  taosMemoryFreeClear(tableName);
+
   taosArrayDestroy(pTagVals);
   taosArrayDestroy(pVals);
   if (terrno != 0) {
@@ -1776,8 +1783,8 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
         case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
           if (pColInfoData->info.type != pCol->type) {
-            qError("column:%d type:%d in block dismatch with schema col:%d type:%d", k, pColInfoData->info.type, k,
-                   pCol->type);
+            qError("tb:%s column:%d type:%d in block dismatch with schema col:%d type:%d", pInsertParam->tbname, k,
+                   pColInfoData->info.type, k, pCol->type);
             code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
             QUERY_CHECK_CODE(code, lino, _end);
           }
@@ -1788,6 +1795,11 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
               QUERY_CHECK_CODE(code, lino, _end);
             }
           } else {
+            if (pColInfoData->pData == NULL) {
+              qError("build insert tb:%s, column:%d data is NULL in block", pInsertParam->tbname, k);
+              code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+              QUERY_CHECK_CODE(code, lino, _end);
+            }
             void*  data = colDataGetVarData(pColInfoData, j);
             SValue sv = (SValue){
                 .type = pCol->type, .nData = varDataLen(data), .pData = varDataVal(data)};  // address copy, no value
