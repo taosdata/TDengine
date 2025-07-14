@@ -169,7 +169,7 @@ class TestStreamRecalc:
         tdSql.connect("lvze2")
         sql = (
         f"create stream {self.dbname2}.`s100` sliding(1s) from {self.dbname}.st1  partition by tbname "
-        "options(fill_history('2025-01-01 00:00:00')) "
+        "stream_options(fill_history('2025-01-01 00:00:00')) "
         f"into {self.dbname2}.`s100out` as "
         f"select cts, cint, %%tbname from {self.dbname}.st1 "
         "where cint > 5 and tint > 0 and %%tbname like '%%2' "
@@ -329,13 +329,13 @@ class TestStreamRecalc:
         tdSql.query("select * from information_schema.ins_dnodes order by id;")
         numOfNodes=tdSql.getRows()
         for i in range(1,numOfNodes+1):
-            tdSql.execute(f"create stream `s{i}` sliding(1s) from st1 options(fill_history('2025-01-01 00:00:00')) into `s{i}out` as select cts, cint from st1 where _tcurrent_ts % 2 = 0 order by cts;")
+            tdSql.execute(f"create stream `s{i}` sliding(1s) from st1 stream_options(fill_history('2025-01-01 00:00:00')) into `s{i}out` as select cts, cint from st1 where _tcurrent_ts % 2 = 0 order by cts;")
             tdLog.info(f"create stream s{i} success!")
             
     def createOneStream(self):
         sql = (
         f"create stream {self.dbname}.`s99` sliding(1s) from {self.dbname}.st1  partition by tbname "
-        "options(fill_history('2025-01-01 00:00:00')) "
+        "stream_options(fill_history('2025-01-01 00:00:00')) "
         f"into {self.dbname}.`s99out` as "
         f"select cts, cint, %%tbname from {self.dbname}.st1 "
         "where cint > 5 and tint > 0 and %%tbname like '%%2' "

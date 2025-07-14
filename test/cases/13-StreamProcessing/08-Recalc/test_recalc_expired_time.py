@@ -220,7 +220,7 @@ class TestStreamRecalcExpiredTime:
         # Test 1.1: INTERVAL+SLIDING with EXPIRED_TIME - should not process expired data
         stream = StreamItem(
             id=1,
-            stream="create stream rdb.s_interval_expired interval(2m) sliding(2m) from tdb.expired_triggers partition by tbname options(expired_time(1h)) into rdb.r_interval_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_interval_expired interval(2m) sliding(2m) from tdb.expired_triggers partition by tbname stream_options(expired_time(1h)) into rdb.r_interval_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check01,
         )
         self.streams.append(stream)
@@ -228,7 +228,7 @@ class TestStreamRecalcExpiredTime:
         # Test 1.2: SESSION with EXPIRED_TIME - should not process expired data
         stream = StreamItem(
             id=2,
-            stream="create stream rdb.s_session_expired session(ts,45s) from tdb.trigger_test partition by tbname options(expired_time(1h)) into rdb.r_session_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_session_expired session(ts,45s) from tdb.trigger_test partition by tbname stream_options(expired_time(1h)) into rdb.r_session_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check02,
         )
         self.streams.append(stream)
@@ -236,7 +236,7 @@ class TestStreamRecalcExpiredTime:
         # # Test 1.3: STATE_WINDOW with EXPIRED_TIME - should not process expired data
         # stream = StreamItem(
         #     id=3,
-        #     stream="create stream rdb.s_state_expired state_window(status) from tdb.trigger_test partition by tbname options(expired_time(1h)) into rdb.r_state_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val, first(cvarchar) status_val from qdb.meters where cts >= _twstart and cts < _twend;",
+        #     stream="create stream rdb.s_state_expired state_window(status) from tdb.trigger_test partition by tbname stream_options(expired_time(1h)) into rdb.r_state_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val, first(cvarchar) status_val from qdb.meters where cts >= _twstart and cts < _twend;",
         #     res_query="select ts, cnt, avg_val, status_val from rdb.r_state_expired order by ts;",
         #     exp_query="",
         #     check_func=self.check03,
@@ -248,7 +248,7 @@ class TestStreamRecalcExpiredTime:
         # # Test 2.1: INTERVAL+SLIDING with EXPIRED_TIME + WATERMARK - test boundary behavior
         # stream = StreamItem(
         #     id=4,
-        #     stream="create stream rdb.s_interval_combo interval(2m) sliding(1m) from tdb.expired_triggers options(expired_time(1h) | watermark(5m)) into rdb.r_interval_combo as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+        #     stream="create stream rdb.s_interval_combo interval(2m) sliding(1m) from tdb.expired_triggers stream_options(expired_time(1h) | watermark(5m)) into rdb.r_interval_combo as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
         #     res_query="select ts, cnt, avg_val from rdb.r_interval_combo order by ts;",
         #     exp_query="",
         #     check_func=self.check04,
@@ -258,7 +258,7 @@ class TestStreamRecalcExpiredTime:
         # # Test 2.2: SESSION with EXPIRED_TIME + WATERMARK - test boundary behavior
         # stream = StreamItem(
         #     id=5,
-        #     stream="create stream rdb.s_session_combo session(ts, 30s) from tdb.trigger_test partition by tbname options(expired_time(1h) | watermark(5m)) into rdb.r_session_combo as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+        #     stream="create stream rdb.s_session_combo session(ts, 30s) from tdb.trigger_test partition by tbname stream_options(expired_time(1h) | watermark(5m)) into rdb.r_session_combo as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
         #     res_query="select ts, cnt, avg_val from rdb.r_session_combo order by ts;",
         #     exp_query="",
         #     check_func=self.check05,
@@ -270,7 +270,7 @@ class TestStreamRecalcExpiredTime:
         # # Test 3.1: Very short EXPIRED_TIME - strict expiration
         # stream = StreamItem(
         #     id=6,
-        #     stream="create stream rdb.s_interval_short_exp interval(2m) sliding(1m) from tdb.expired_triggers options(expired_time(1m)) into rdb.r_interval_short_exp as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+        #     stream="create stream rdb.s_interval_short_exp interval(2m) sliding(1m) from tdb.expired_triggers stream_options(expired_time(1m)) into rdb.r_interval_short_exp as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
         #     res_query="select ts, cnt, avg_val from rdb.r_interval_short_exp order by ts;",
         #     exp_query="",
         #     check_func=self.check06,
@@ -280,7 +280,7 @@ class TestStreamRecalcExpiredTime:
         # # Test 3.2: Very long EXPIRED_TIME - loose expiration
         # stream = StreamItem(
         #     id=7,
-        #     stream="create stream rdb.s_interval_long_exp interval(2m) sliding(1m) from tdb.expired_triggers options(expired_time(1d)) into rdb.r_interval_long_exp as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+        #     stream="create stream rdb.s_interval_long_exp interval(2m) sliding(1m) from tdb.expired_triggers stream_options(expired_time(1d)) into rdb.r_interval_long_exp as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
         #     res_query="select ts, cnt, avg_val from rdb.r_interval_long_exp order by ts;",
         #     exp_query="",
         #     check_func=self.check07,

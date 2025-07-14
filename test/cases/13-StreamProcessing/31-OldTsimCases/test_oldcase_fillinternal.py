@@ -62,7 +62,7 @@ class TestStreamOldCaseFillInterval:
             f"create table t1(ts timestamp, a int, b int, c int, d double, s varchar(20));"
         )
         tdSql.execute(
-            f"create stream streams1 interval(1s) sliding(1s) from t1 options(max_delay(1s)|force_output|pre_filter(ts >= 1648791210000 and ts < 1648791261000)) into streamt1 as select _twstart as ts, max(a), sum(b), count(*) from t1 where ts >= _twstart and ts < _twend;"
+            f"create stream streams1 interval(1s) sliding(1s) from t1 stream_options(max_delay(1s)|force_output|pre_filter(ts >= 1648791210000 and ts < 1648791261000)) into streamt1 as select _twstart as ts, max(a), sum(b), count(*) from t1 where ts >= _twstart and ts < _twend;"
         )
         # tdSql.execute(
         #     f"create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt2 as select _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(value, 100, 200, 300);"

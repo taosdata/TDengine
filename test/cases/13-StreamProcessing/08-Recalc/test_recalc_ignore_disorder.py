@@ -262,7 +262,7 @@ class TestStreamRecalcIgnoreDisorder:
         # Test 2.1: INTERVAL+SLIDING with IGNORE_DISORDER - should ignore disorder
         stream = StreamItem(
             id=5,
-            stream="create stream rdb.s_interval_ignore interval(2m) sliding(1m) from tdb.recalc_triggers options(ignore_disorder) into rdb.r_interval_ignore as select _twstart ts, count(*) cnt, avg(c1) avg_val from qdb.meters where ts >= _twstart and ts < _twend;",
+            stream="create stream rdb.s_interval_ignore interval(2m) sliding(1m) from tdb.recalc_triggers stream_options(ignore_disorder) into rdb.r_interval_ignore as select _twstart ts, count(*) cnt, avg(c1) avg_val from qdb.meters where ts >= _twstart and ts < _twend;",
             res_query="select ts, cnt, avg_val from rdb.r_interval_ignore order by ts;",
             exp_query="",
             check_func=self.check05,
@@ -272,7 +272,7 @@ class TestStreamRecalcIgnoreDisorder:
         # Test 2.2: SESSION with IGNORE_DISORDER - should ignore disorder
         stream = StreamItem(
             id=6,
-            stream="create stream rdb.s_session_ignore session(ts, 30s) from tdb.recalc_triggers options(ignore_disorder) into rdb.r_session_ignore as select _twstart ts, count(*) cnt, avg(c1) avg_val from qdb.meters where ts >= _twstart and ts < _twend;",
+            stream="create stream rdb.s_session_ignore session(ts, 30s) from tdb.recalc_triggers stream_options(ignore_disorder) into rdb.r_session_ignore as select _twstart ts, count(*) cnt, avg(c1) avg_val from qdb.meters where ts >= _twstart and ts < _twend;",
             res_query="select ts, cnt, avg_val from rdb.r_session_ignore order by ts;",
             exp_query="",
             check_func=self.check06,
@@ -282,7 +282,7 @@ class TestStreamRecalcIgnoreDisorder:
         # Test 2.3: STATE_WINDOW with IGNORE_DISORDER - should ignore disorder
         stream = StreamItem(
             id=7,
-            stream="create stream rdb.s_state_ignore state_window(status_val) from tdb.recalc_triggers partition by tbname options(ignore_disorder) into rdb.r_state_ignore as select _twstart ts, count(*) cnt, avg(c1) avg_val, first(status_val) status_val from qdb.meters where ts >= _twstart and ts < _twend;",
+            stream="create stream rdb.s_state_ignore state_window(status_val) from tdb.recalc_triggers partition by tbname stream_options(ignore_disorder) into rdb.r_state_ignore as select _twstart ts, count(*) cnt, avg(c1) avg_val, first(status_val) status_val from qdb.meters where ts >= _twstart and ts < _twend;",
             res_query="select ts, cnt, avg_val, status_val from rdb.r_state_ignore order by ts;",
             exp_query="",
             check_func=self.check07,

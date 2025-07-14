@@ -58,7 +58,7 @@ class TestStreamOldCaseInterpHistory:
         tdSql.execute(f"insert into t2 values(1648791216001, 41, 1, 1, 1.0);")
 
         tdSql.execute(
-            f"create stream streams1 interval(1s) sliding(1s) from st partition by tbname options(fill_history_first|max_delay(2s)) into streamt as select _irowts, _isfilled as a1, interp(a) as a2 from %%tbname range(_twstart) fill(prev);"
+            f"create stream streams1 interval(1s) sliding(1s) from st partition by tbname stream_options(fill_history_first|max_delay(2s)) into streamt as select _irowts, _isfilled as a1, interp(a) as a2 from %%tbname range(_twstart) fill(prev);"
         )
         tdSql.pause()
 

@@ -8,7 +8,7 @@ class TestStreamOldCaseOptions:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_oldcase_options(self):
-        """Stream options
+        """Stream stream_options
 
         1. basic test
         2. out of order data
@@ -45,7 +45,7 @@ class TestStreamOldCaseOptions:
 
         tdSql.execute(f"drop stream if exists streams0;")
         tdSql.execute(
-            f"create stream streams0 interval(10s) sliding(10s) from t1 options(max_delay(1s)|ignore_update) into streamt as select _twstart c1, count(*) c2, max(b) c3 from t1 where ts >= _twstart and ts < _twend;"
+            f"create stream streams0 interval(10s) sliding(10s) from t1 stream_options(max_delay(1s)|ignore_update) into streamt as select _twstart c1, count(*) c2, max(b) c3 from t1 where ts >= _twstart and ts < _twend;"
         )
 
         tdSql.pause()

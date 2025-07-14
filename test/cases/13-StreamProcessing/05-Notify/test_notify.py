@@ -126,7 +126,7 @@ class TestStreamNotifyTrigger:
         # tdLog.info(f"=============== create sub table")
         # tdSql.execute(f"create table ct5 using stb tags(1);")
         
-        # sql8 = "create stream s8 state_window(cint) from ct5 options(max_delay(3s)) notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into res_max_delay_ct5 (lastts, firstts, num_v, cnt_v, avg_v) as select last_row(_c0), first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        # sql8 = "create stream s8 state_window(cint) from ct5 stream_options(max_delay(3s)) notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into res_max_delay_ct5 (lastts, firstts, num_v, cnt_v, avg_v) as select last_row(_c0), first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
          
         # tdSql.execute(sql8)
         # # tdStream.checkStreamStatus("s8")
@@ -443,7 +443,7 @@ class TestStreamNotifyTrigger:
             tdLog.info(f"=============== create stream")
             tdSql.execute(
                 f"create stream s0 state_window(cint) from ct0 "
-                f"options(DELETE_RECALC) "
+                f"stream_options(DELETE_RECALC) "
                 # f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0 (twstart, twend, top_cdouble_10) as "
@@ -502,7 +502,7 @@ class TestStreamNotifyTrigger:
             tdLog.info(f"=============== create stream")
             tdSql.execute(
                 f"create stream s0 state_window(cint) from ct0 "
-                f"options(DELETE_RECALC) "
+                f"stream_options(DELETE_RECALC) "
                 f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
                 f"res_ct0 (firstts, lastts, cnt_v, sum_v, avg_v, sum_dec) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint), sum(cdecimal) from ct0 "
