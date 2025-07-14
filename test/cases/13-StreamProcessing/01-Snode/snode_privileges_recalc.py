@@ -171,7 +171,7 @@ class TestStreamRecalc:
         f"create stream {self.dbname2}.`s100` sliding(1s) from {self.dbname}.st1  partition by tbname "
         "options(fill_history('2025-01-01 00:00:00')) "
         f"into {self.dbname2}.`s100out` as "
-        "select cts, cint, %%tbname from %%trows "
+        f"select cts, cint, %%tbname from {self.dbname}.st1 "
         "where cint > 5 and tint > 0 and %%tbname like '%%2' "
         "order by cts;"
         )
@@ -337,7 +337,7 @@ class TestStreamRecalc:
         f"create stream {self.dbname}.`s99` sliding(1s) from {self.dbname}.st1  partition by tbname "
         "options(fill_history('2025-01-01 00:00:00')) "
         f"into {self.dbname}.`s99out` as "
-        "select cts, cint, %%tbname from %%trows "
+        f"select cts, cint, %%tbname from {self.dbname}.st1 "
         "where cint > 5 and tint > 0 and %%tbname like '%%2' "
         "order by cts;"
         )

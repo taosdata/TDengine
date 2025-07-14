@@ -85,7 +85,7 @@ class Test_Scene_Asset01:
         self.start_voltage = 260
 
         # import data
-        etool.taosdump(f"-i cases/13-StreamProcessing/20-UseCase/asset01/data/")
+        etool.taosdump(f"-i cases/13-StreamProcessing/20-UseCase/meters_data/data/")
 
         tdLog.info(f"import data to db={self.db} successfully.")
 

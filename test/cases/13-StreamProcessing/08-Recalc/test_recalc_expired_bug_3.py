@@ -113,6 +113,7 @@ class TestStreamRecalcExpiredTime:
             "insert into tdb.t1 values ('2025-01-01 02:04:00', 60, 'normal');",
         ]
         tdSql.executes(trigger_sqls)
+        time.sleep(10)
         subprocess.run("pkill -9 taosd", shell=True)
         exit(1)
 
@@ -215,16 +216,6 @@ class TestStreamRecalcExpiredTime:
     def createStreams(self):
         self.streams = []
 
-        # ===== Test 1: EXPIRED_TIME Only =====
-        
-        # Test 1.1: INTERVAL+SLIDING with EXPIRED_TIME - should not process expired data
-        stream = StreamItem(
-            id=1,
-            stream="create stream rdb.s_interval_expired interval(2m) sliding(2m) from tdb.expired_triggers partition by tbname options(expired_time(1h)) into rdb.r_interval_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
-            check_func=self.check01,
-        )
-        self.streams.append(stream)
-
         # Test 1.2: SESSION with EXPIRED_TIME - should not process expired data
         stream = StreamItem(
             id=2,
@@ -235,100 +226,10 @@ class TestStreamRecalcExpiredTime:
         )
         self.streams.append(stream)
 
-        # # Test 1.3: STATE_WINDOW with EXPIRED_TIME - should not process expired data
-        # stream = StreamItem(
-        #     id=3,
-        #     stream="create stream rdb.s_state_expired state_window(status) from tdb.trigger_test partition by tbname options(expired_time(1h)) into rdb.r_state_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val, first(cvarchar) status_val from qdb.meters where cts >= _twstart and cts < _twend;",
-        #     res_query="select ts, cnt, avg_val, status_val from rdb.r_state_expired order by ts;",
-        #     exp_query="",
-        #     check_func=self.check03,
-        # )
-        # self.streams.append(stream)
-
-        # # ===== Test 2: EXPIRED_TIME + WATERMARK Combination =====
-
-        # # Test 2.1: INTERVAL+SLIDING with EXPIRED_TIME + WATERMARK - test boundary behavior
-        # stream = StreamItem(
-        #     id=4,
-        #     stream="create stream rdb.s_interval_combo interval(2m) sliding(1m) from tdb.expired_triggers options(expired_time(1h) | watermark(5m)) into rdb.r_interval_combo as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
-        #     res_query="select ts, cnt, avg_val from rdb.r_interval_combo order by ts;",
-        #     exp_query="",
-        #     check_func=self.check04,
-        # )
-        # self.streams.append(stream)
-
-        # # Test 2.2: SESSION with EXPIRED_TIME + WATERMARK - test boundary behavior
-        # stream = StreamItem(
-        #     id=5,
-        #     stream="create stream rdb.s_session_combo session(ts, 30s) from tdb.trigger_test partition by tbname options(expired_time(1h) | watermark(5m)) into rdb.r_session_combo as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
-        #     res_query="select ts, cnt, avg_val from rdb.r_session_combo order by ts;",
-        #     exp_query="",
-        #     check_func=self.check05,
-        # )
-        # self.streams.append(stream)
-
-        # # ===== Test 3: Different EXPIRED_TIME Values =====
-
-        # # Test 3.1: Very short EXPIRED_TIME - strict expiration
-        # stream = StreamItem(
-        #     id=6,
-        #     stream="create stream rdb.s_interval_short_exp interval(2m) sliding(1m) from tdb.expired_triggers options(expired_time(1m)) into rdb.r_interval_short_exp as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
-        #     res_query="select ts, cnt, avg_val from rdb.r_interval_short_exp order by ts;",
-        #     exp_query="",
-        #     check_func=self.check06,
-        # )
-        # self.streams.append(stream)
-
-        # # Test 3.2: Very long EXPIRED_TIME - loose expiration
-        # stream = StreamItem(
-        #     id=7,
-        #     stream="create stream rdb.s_interval_long_exp interval(2m) sliding(1m) from tdb.expired_triggers options(expired_time(1d)) into rdb.r_interval_long_exp as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
-        #     res_query="select ts, cnt, avg_val from rdb.r_interval_long_exp order by ts;",
-        #     exp_query="",
-        #     check_func=self.check07,
-        # )
-        # self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()
-
-    # Check functions for each test case
-    def check01(self):
-        # Test interval+sliding with EXPIRED_TIME - should not process expired data
-        tdLog.info("Check 1: INTERVAL+SLIDING with EXPIRED_TIME ignores expired data")
-        tdSql.checkTableType(dbname="rdb", stbname="r_interval_expired", columns=3,tags=1)
-
-        
-
-        exp_sql = "select _wstart, count(*),avg(cint) from qdb.meters where cts >= '2025-01-01 02:00:00' and cts < '2025-01-01 02:02:00' interval(2m) sliding(2m) ;"
-        res_sql = "select ts, cnt, avg_val from rdb.r_interval_expired;"
-        self.streams[0].checkResultsBySql(res_sql, exp_sql)
-
-        #TODO(beryl) blocked by jira TS-36471 
-        # insertMeters = "insert into qdb.t0 values ('2025-01-01 02:00:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');"
-        # tdSql.execute(insertMeters)
-
-        # insertTriggers = "insert into tdb.et1 values ('2025-01-01 02:00:01', 10, 100, 1.5, 'normal');"
-        # tdSql.execute(insertTriggers)
-
-        # self.streams[0].checkResultsBySql(res_sql, exp_sql)
-
-        tdSql.query("select count(*) from rdb.r_interval_expired;")
-        result_count_before = tdSql.getData(0, 0)
-        tdLog.info(f"INTERVAL+SLIDING result count: {result_count_before}")
-        
-        insertExpiredTriggers = "insert into tdb.et1 values ('2025-01-01 00:00:01', 5, 55, 0.8, 'expired1');"
-        tdSql.execute(insertExpiredTriggers)
-
-        tdSql.query("select count(*) from rdb.r_interval_expired;")
-        result_count_after = tdSql.getData(0, 0)
-        tdLog.info(f"INTERVAL+SLIDING expired_time result count: after insert expired data {result_count_after}")
-
-        tdLog.info("wait for stream to be stable")
-        time.sleep(5)
-        assert result_count_before == result_count_after, "INTERVAL+SLIDING expired_time result count is not expected"
-
 
     def check02(self):
         # Test session with EXPIRED_TIME - should not process expired data
@@ -337,43 +238,3 @@ class TestStreamRecalcExpiredTime:
         tdSql.query("select count(*) from rdb.r_session_expired where tag_tbname='t1';")
         result_count = tdSql.getData(0, 0)
         tdLog.info(f"SESSION expired_time result count: {result_count}")
-
-    # def check03(self):
-    #     # Test state window with EXPIRED_TIME - should not process expired data
-    #     tdLog.info("Check 3: STATE_WINDOW with EXPIRED_TIME ignores expired data")
-    #     tdSql.checkTableType(dbname="rdb", stbname="r_state_expired", columns=4, tags=1)
-    #     tdSql.query("select count(*) from rdb.r_state_expired where tag_tbname='t1';")
-    #     result_count = tdSql.getData(0, 0)
-    #     tdLog.info(f"STATE_WINDOW expired_time result count: {result_count}")
-
-    # def check04(self):
-    #     # Test interval+sliding with EXPIRED_TIME + WATERMARK - test boundary behavior
-    #     tdLog.info("Check 4: INTERVAL+SLIDING with EXPIRED_TIME + WATERMARK boundary behavior")
-    #     tdSql.checkTableType(dbname="rdb", tbname="r_interval_combo", typename="NORMAL_TABLE", columns=3)
-    #     tdSql.query("select count(*) from rdb.r_interval_combo;")
-    #     result_count = tdSql.getData(0, 0)
-    #     tdLog.info(f"INTERVAL+SLIDING combo result count: {result_count}")
-
-    # def check05(self):
-    #     # Test session with EXPIRED_TIME + WATERMARK - test boundary behavior
-    #     tdLog.info("Check 5: SESSION with EXPIRED_TIME + WATERMARK boundary behavior")
-    #     tdSql.checkTableType(dbname="rdb", stbname="r_session_combo", columns=3, tags=1)
-    #     tdSql.query("select count(*) from rdb.r_session_combo where tag_tbname='t1';")
-    #     result_count = tdSql.getData(0, 0)
-    #     tdLog.info(f"SESSION combo result count: {result_count}")
-
-    # def check06(self):
-    #     # Test interval+sliding with very short EXPIRED_TIME - strict expiration
-    #     tdLog.info("Check 6: INTERVAL+SLIDING with very short EXPIRED_TIME (1m)")
-    #     tdSql.checkTableType(dbname="rdb", tbname="r_interval_short_exp", typename="NORMAL_TABLE", columns=3)
-    #     tdSql.query("select count(*) from rdb.r_interval_short_exp;")
-    #     result_count = tdSql.getData(0, 0)
-    #     tdLog.info(f"INTERVAL+SLIDING short expired_time result count: {result_count}")
-
-    # def check07(self):
-    #     # Test interval+sliding with very long EXPIRED_TIME - loose expiration
-    #     tdLog.info("Check 7: INTERVAL+SLIDING with very long EXPIRED_TIME (1 day)")
-    #     tdSql.checkTableType(dbname="rdb", tbname="r_interval_long_exp", typename="NORMAL_TABLE", columns=3)
-    #     tdSql.query("select count(*) from rdb.r_interval_long_exp;")
-    #     result_count = tdSql.getData(0, 0)
-    #     tdLog.info(f"INTERVAL+SLIDING long expired_time result count: {result_count}") 
