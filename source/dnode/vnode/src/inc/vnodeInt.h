@@ -89,6 +89,7 @@ typedef struct SStreamNotifyHandleMap SStreamNotifyHandleMap;
 #define VNODE_META_TMP_DIR    "meta.tmp"
 #define VNODE_META_BACKUP_DIR "meta.backup"
 
+#define VNODE_TSDB_NAME_LEN  6
 #define VNODE_META_DIR       "meta"
 #define VNODE_TSDB_DIR       "tsdb"
 #define VNODE_TQ_DIR         "tq"
@@ -499,10 +500,12 @@ struct SVnode {
   SVStatis  statis;
   char*     path;
   STfs*     pTfs;
+  STfs*     pMountTfs;
   int32_t   diskPrimary;
   SVnodeCfg config;
   SMsgCb    msgCb;
   bool      disableWrite;
+  bool      mounted;
 
   //  Metrics
   SVnodeWriteMetrics writeMetrics;
@@ -561,6 +564,8 @@ struct SVnode {
 #define TSDB_CACHE_NO(c)       ((c).cacheLast == 0)
 #define TSDB_CACHE_LAST_ROW(c) (((c).cacheLast & 1) > 0)
 #define TSDB_CACHE_LAST(c)     (((c).cacheLast & 2) > 0)
+#define TSDB_TFS(v)            ((v)->pMountTfs ? (v)->pMountTfs : (v)->pTfs)
+#define TSDB_VID(v)            ((v)->mounted ? (v)->config.mountVgId : (v)->config.vgId)
 
 struct STbUidStore {
   tb_uid_t  suid;

@@ -31,7 +31,7 @@ trigger_type: {
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types)}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER}
 
 notification_definition:
     NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
@@ -49,14 +49,11 @@ tag_definition:
 
 ### 流式计算的触发方式
 
-流式计算支持事件触发和定时触发两种触发方式，触发对象与计算对象彼此分离。
-
-- 事件触发：通过与触发表关联的事件时间驱动，可以灵活的定义和使用各种窗口来产生触发事件，支持在开窗、关窗以及开关窗同时进行触发，支持对触发数据进行预先过滤处理，只有符合条件的数据才会进入触发。
-- 定时触发：与事件时间无关，按照系统时间定时触发。
+事件触发是流计算的驱动方式，事件触发产生的来源可能多种多样，可以来自于某个表的数据写入，也可以来自于对某个表的计算分析结果，甚至可以不来自于任何表。当流计算引擎检测到符合用户定义的触发条件时，就会触发计算，条件符合次数和计算触发次数是相同的，触发对象与计算对象彼此分离。用户可以灵活的定义和使用各种窗口来产生触发事件，支持在开窗、关窗以及开关窗同时进行触发，支持分组触发，支持对触发数据进行预先过滤处理。
 
 #### 触发类型
 
-触发类型通过 `trigger_type` 指定，支持定时触发、滑动触发、会话窗口触发、状态窗口触发、事件窗口触发、计数窗口触发。其中，会话窗口、状态窗口、事件窗口和计数窗口搭配超级表时，必须与 `partition by tbname` 一起使用。
+触发类型通过 `trigger_type` 指定，包括定时触发、滑动触发、滑动窗口触发、会话窗口触发、状态窗口触发、事件窗口触发、计数窗口触发。其中，状态窗口、事件窗口和计数窗口搭配超级表时，必须与 `partition by tbname` 一起使用。
 
 ##### 定时触发
 
@@ -64,7 +61,7 @@ tag_definition:
 PERIOD(period_time[, offset_time])
 ```
 
-定时触发通过系统时间的固定间隔来驱动，以建流当天系统时间的零点作为基准时间点，然后根据间隔来确定下次触发的时间点，可以通过指定时间偏移来改变基准时间点。各参数含义如下：
+定时触发通过系统时间的固定间隔来驱动，以建流当天系统时间的零点作为基准时间点，然后根据间隔来确定下次触发的时间点，可以通过指定时间偏移来改变基准时间点。定时触发本质上就是我们常说的定时任务，定时触发不属于窗口触发。各参数含义如下：
 
 - period_time：定时触发的系统时间间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)，支持的时间范围为 `[10a, 3650d]`。
 - offset_time：可选，指定定时触发的时间偏移，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)。
@@ -84,27 +81,43 @@ PERIOD(period_time[, offset_time])
 ##### 滑动触发
 
 ```sql
-[INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val[, offset_time]) 
+SLIDING(sliding_val[, offset_time]) 
 ```
 
-滑动触发是指对触发表的写入数据按照事件时间的固定间隔来驱动的触发。可以有 INTERVAL 窗口，也可以没有。
-
-- 存在 `INTERVAL` 窗口时，滑动触发的起始时间点是窗口的起始点，可以指定窗口的时间偏移，此时滑动的时间偏移不起作用。
-- 不存在 `INTERVAL` 窗口时，滑动触发的触发时刻、时间偏移规则同定时触发相同，唯一的区别是系统时间变更为事件时间。
+滑动触发是指对触发表的写入数据按照事件时间的固定间隔来驱动的触发。不可以指定 INTERVAL 窗口，不属于窗口触发，必须指定触发表。滑动触发的触发时刻、时间偏移规则和定时触发相同，唯一的区别是系统时间变更为事件时间。
 
 各参数含义如下：
 
-- interval_val：可选，滑动窗口的时长。
-- interval_offset：可选，滑动窗口的时间偏移。
 - sliding_val：必选，事件时间的滑动时长。
 - offset_time：可选，指定滑动触发的时间偏移，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)。
 
 使用说明：
 
 - 必须指定触发表，触发表为超级表时支持按标签、子表分组，支持不分组。
-- 支持对写入数据进行处理过滤后（有条件）的窗口触发。
+- 支持对写入数据进行处理过滤后（有条件）的滑动触发。
 
 适用场景：需要按照事件时间连续定时驱动计算的场景，例如每小时计算生成一次当天的统计数据，每天定时发送统计报告等场景。
+
+##### 滑动窗口触发
+
+```sql
+[INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val) 
+```
+
+滑动窗口触发是指对触发表的写入数据按照事件时间和固定窗口大小滑动而形成的触发，必须指定 INTERVAL 窗口，属于窗口触发，必须指定触发表。
+
+滑动窗口触发的起始时间点是窗口的起始点，窗口默认是从 Unix time 0（1970-01-01 00:00:00 UTC）开始划分，可以通过指定窗口时间偏移的方式来改变窗口的划分起始点。各参数含义如下：
+
+- interval_val：可选，滑动窗口的时长。
+- interval_offset：可选，滑动窗口的时间偏移。
+- sliding_val：必选，事件时间的滑动时长。
+
+使用说明：
+
+- 必须指定触发表，触发表为超级表时支持按标签、子表分组，支持不分组。
+- 支持对写入数据进行处理过滤后（有条件）的滑动窗口触发。
+
+适用场景：需要按照事件时间定时窗口计算的场景，例如每小时计算生成该小时内的统计数据，每隔 1 小时计算最后 5 分钟窗口内的数据等场景。
 
 ##### 会话窗口触发
 
@@ -120,7 +133,6 @@ SESSION(ts_col, session_val)
 使用说明：
 
 - 必须指定触发表，触发表为超级表时支持按标签、子表分组，支持不分组。
-- 搭配超级表时，必须与 `partition by tbname` 一起使用。
 - 支持对写入数据进行处理过滤后（有条件）的窗口触发。
 
 适用场景：需要通过会话窗口驱动计算和（或）通知的场景。
@@ -172,7 +184,7 @@ COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 
 计数窗口触发是指对触发表的写入数据按照计数窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。支持列的触发，只有当指定的列有数据写入时才触发。各参数含义如下：
 
-- count_val：计数条数，当写入数据条目数达到 `count_val` 时触发。
+- count_val：计数条数，当写入数据条目数达到 `count_val` 时触发，最小值为 1。
 - sliding_val：可选，窗口滑动的条数。
 - col1 [, ...]：可选，按列触发模式时的数据列列表，列表中任一列有非空数据写入时才为有效条目，NULL 值视为无效值。
 
@@ -218,7 +230,9 @@ COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 [PARTITION BY col1 [, ...]]
 ```
 
-### 流式计算的输出结果
+### 流式计算的结果输出
+
+流计算的计算结果默认会保存到输出表中，每个输出表中的计算结果是截至当前时刻已经触发和计算完成的输出。可以指定输出表的结构定义，如果存在分组还可以指定子表的标签值。
 
 ```sql
 [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] 
@@ -227,7 +241,7 @@ tag_definition:
     tag_name type_name [COMMENT 'string_value'] AS expr
 ```
 
-指定输出表的结构定义，如果存在分组还可以指定子表的标签值。说明如下：
+说明如下：
 
 - INTO [db_name.]table_name：可选，指定输出表的表名为 `table_name` 和所在数据库名 `db_name`。
   - 存在触发分组时该表为超级表。
@@ -262,21 +276,21 @@ tag_definition:
 | 滑动触发 | _tcurrent_ts     | 本次触发的事件时间（精度同记录）     |
 | 滑动触发 | _tnext_ts        | 下一次触发的事件时间（精度同记录）   |
 | 窗口触发 | _twstart         | 本次触发窗口的起始时间戳            |
-| 窗口触发 | _twend           | 本次触发窗口的结束时间戳            |
-| 窗口触发 | _twduration      | 本次触发窗口的持续时间              |
-| 窗口触发 | _twrownum        | 本次触发窗口的记录条数              |
+| 窗口触发 | _twend           | 本次触发窗口的结束时间戳，只适用于 `WINDOW_CLOSE` 触发使用 |
+| 窗口触发 | _twduration      | 本次触发窗口的持续时间，只适用于 `WINDOW_CLOSE` 触发使用   |
+| 窗口触发 | _twrownum        | 本次触发窗口的记录条数，只适用于 `WINDOW_CLOSE` 触发使用   |
 | 定时触发 | _tprev_localtime | 上一次触发时刻的系统时间（精度：ns） |
 | 定时触发 | _tnext_localtime | 下一次触发时刻的系统时间（精度：ns） |
 | 通用     | _tgrpid     | 触发分组的 ID 值，类型为 BIGINT         |
 | 通用     | _tlocaltime | 本次触发时刻的系统时间（精度：ns）       |
 | 通用     | %%n         | 触发分组列的引用<br/>n 为分组列（来自 `[PARTITION BY col1[, ...]]`）的下标（从 1 开始）       |
 | 通用     | %%tbname    | 触发表每个分组表名的引用<br/>只有触发分组含 tbname 时可用<br/>可作为查询表名使用（`FROM %%tbname`）  |
-| 通用     | %%trows     | 触发表每个分组的触发数据集（满足本次触发的数据集）的引用<br/>定时触发时为上次与本次触发之间写入的触发表数据 |
+| 通用     | %%trows     | 触发表每个分组的触发数据集（满足本次触发的数据集）的引用<br/>定时触发时为上次与本次触发之间写入的触发表数据<br/>只可作为查询表名使用（`FROM %%trows`）<br/>只适用于 `WINDOW_CLOSE` 触发使用<br/>推荐在小数据量场景下使用|
 
 使用限制：
 
-- %%trows：只能用于 FROM 子句，推荐在小数据量场景下使用。
-- %%tbname：只能用于 FROM、SELECT 和 WHERE 子句。
+- %%trows：只能用于 FROM 子句，在使用 %%trows 的语句中不支持 where 条件过滤，不支持对 %%trows 进行关联查询。
+- %%tbname：可以用于 FROM、SELECT 和 WHERE 子句。
 - 其他占位符：只能用于 SELECT 和 WHERE 子句。
 
 ### 流式计算的控制选项
@@ -284,13 +298,13 @@ tag_definition:
 ```sql
 [OPTIONS(stream_option [|...])]
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types)}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER}
 ```
 
 控制选项用于控制触发和计算行为，可以多选，同一个选项不可以多次指定。包括：
 
 - WATERMARK(duration_time)：指定数据乱序的容忍时长，超过该时长的数据会被当做乱序数据，根据不同触发方式的乱序数据处理策略和用户配置进行处理，未指定时默认 `duration_time` 值为 0。
-- EXPIRED_TIME(exp_time) ：指定过期数据间隔并忽略过期数据，未指定时无过期数据。不需要感知超过一定时间范围的数据写入或更新时可以指定。`exp_time` 为过期时间间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)，最小值为 1a。
+- EXPIRED_TIME(exp_time) ：指定过期数据间隔并忽略过期数据，未指定时无过期数据。不需要感知超过一定时间范围的数据写入或更新时可以指定。`exp_time` 为过期时间间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)。
 - IGNORE_DISORDER：指定忽略触发表的乱序数据，未指定时不忽略乱序数据。注重计算或通知的时效性、触发表乱序数据不影响计算结果等场景可以指定。
 - DELETE_RECALC: 指定触发表的数据删除（包含触发子表被删除场景）需要自动重新计算，只有触发方式支持数据删除的自动重算才可以指定。未指定时忽略数据删除，只有触发表数据删除会影响计算结果的场景才需要指定。
 - DELETE_OUTPUT_TABLE：指定触发子表被删除时其对应的输出子表也需要被删除，只适用于按表分组的场景，未指定时触发子表被删除不会删除其输出子表。
@@ -304,6 +318,10 @@ stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISOR
 - EVENT_TYPE(event_types)：指定窗口触发的事件类型，可以多选，未指定时默认值为 `WINDOW_CLOSE`。SLIDING 触发（不带 INTERVAL）和 PERIOD 触发不适用（自动忽略）。各选项含义如下：
   - WINDOW_OPEN：窗口启动事件。
   - WINDOW_CLOSE：窗口关闭事件。
+- IGNORE_NODATA_TRIGGER：指定忽略触发表无输入数据时的触发，适用于滑动触发（SLIDING）、滑动窗口触发（INTERVAL）、定时触发（PERIOD）。
+  - 滑动触发与定时触发：如果两次触发时刻中间触发表没有数据则忽略该次触发。
+  - 滑动窗口触发：如果窗口内触发表没有数据则忽略该次触发。
+  - 没有未指定时：不忽略无输入数据时的触发。
 
 ### 流式计算的通知机制
 
@@ -501,6 +519,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE}
     - conditionIndex：整型，表示满足的触发窗口关闭的条件的索引，从 0 开始编号。
     - fieldValue：键值对形式，包含条件列列名及其对应的值。
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
 ###### 计数窗口相关字段
 
 这部分是 windowType 为 Count 时 event 对象才有的字段。
@@ -532,7 +551,7 @@ DROP STREAM [IF EXISTS] [db_name.]stream_name;
 
 ##### 查看流计算信息
 
-显示当前数据库或指定数据库所属的流计算。
+显示当前数据库或指定数据库的流计算。
 
 ```sql
 SHOW [db_name.]STREAMS;
@@ -639,7 +658,7 @@ TDengine 的窗口类型大多与主键列相关联，比如事件窗口要根�
 
 支持使用 `WATERMARK` 来解决一定程度的乱序、更新、删除场景带来的问题。`WATERMARK` 是用户可以指定的基于事件时间的时长，它代表的是事件时间在流计算中的进展，体现了用户对于乱序数据的容忍程度。`当前处理的最新事件时间 - WATERMARK 指定的固定间隔` 即为当前水位线，只有写入数据的事件时间早于当前水位线才会进入触发判断，只有窗口或其他触发的时间条件早于当前水位线才会启动触发。`WATERMARK` 对于定时触发（PERIOD）不生效，定时触发模式下不会有重新计算。
 
-对于超出 `WATERMARK` 的乱序、更新、删除场景，使用重新计算的方式来保证最终结果的正确性，重新计算意味着对于乱序、更新和删除的数据覆盖区间重新进行触发和运算。为了保证这种方式的有效性，用户需要确保其计算语句和数据源表是与处理时间无关的，也就是说同一个触发即使执行多次其结果依然是有效的。
+对于超出 `WATERMARK` 的乱序、更新、删除场景，使用重新计算的方式来保证最终结果的正确性，重新计算意味着对于乱序、更新和删除的数据覆盖区间重新进行触发和运算。重算时输出表中已经产生的计算结果不会被删除，会重新写入新的结果，为保证这种方式的有效性，用户需要确保其计算语句和数据源表是与处理时间无关的，也就是说同一个触发即使执行多次其结果依然是有效的。
 
 重新计算可以分为自动重新计算与手动重新计算，如果用户不需要自动重新计算，可以通过选项关闭。
 
@@ -654,7 +673,7 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 说明：
 
 - 可以根据需要来指定需要重算流的一段时间区间（事件时间）内的数据。
-- 不适用于定时触发，适用于其他所有触发类型。
+- 不适用于定时触发（PERIOD），适用于其他所有触发类型。
 
 ### 非典型数据写入场景
 
@@ -664,8 +683,9 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 
 | 触发方式       | 影响和处理 |
 | --------------| ----------|
-| 计数窗口触发   | 无影响，当做正常写入数据进行触发 |
-| 定时触发       | 无影响                        |
+| 计数窗口触发   | 忽略，不处理 |
+| 定时触发触发   | 忽略，不处理 |
+| 滑动触发触发   | 忽略，不处理 |
 | 其他窗口触发   | 默认处理：通过重算进行处理 <br/> 可选处理：忽略，不处理 |
 
 #### 数据更新
@@ -675,9 +695,10 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 
 | 触发方式       | 影响和处理 |
 | --------------| ----------|
-| 计数窗口触发   | 无影响，当做正常写入数据进行触发 |
-| 定时触发       | 无影响                        |
-| 其他窗口触发   | 当做乱序数据处理（重算）        |
+| 计数窗口触发   | 忽略，不处理 |
+| 定时触发触发   | 忽略，不处理 |
+| 滑动触发触发   | 忽略，不处理 |
+| 其他窗口触发   | 当做乱序数据处理（重算）|
 
 #### 数据删除
 
@@ -685,15 +706,16 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 
 | 触发方式       | 影响和处理 |
 | --------------| ----------|
-| 计数窗口触发   | 忽略，不处理                   |
-| 定时触发       | 无影响                        |
+| 计数窗口触发   | 忽略，不处理 |
+| 定时触发触发   | 忽略，不处理 |
+| 滑动触发触发   | 忽略，不处理 |
 | 其他窗口触发   | 默认处理：忽略，不处理 <br/> 可选处理：当做乱序数据处理（重算）|
 
 #### 过期数据
 
 引入 `expired_time` 来设置数据的过期时间，流的触发产生的每个分组根据最新数据的事件时间和 `expired_time` 来判断新数据是否过期，过期数据的临界点是通过最新事件时间减去 `expired_time` 得出，所有早于过期数据临界点的数据视为过期数据。
 
-- 过期数据不会自动触发产生新的重算。如果用户没有需要忽略重算的时间区间，则不需要指定 `expired_time`。如果用户指定了过期数据，同时想对部分过期数据进行重算，那么用户可以通过手动重算的方式实现。
+- 过期数据不会自动触发产生新的计算和重算。如果用户没有需要忽略计算和重算的时间区间，则不需要指定 `expired_time`。如果用户指定了过期数据，同时想对部分过期数据进行计算或重算，那么用户可以通过手动重算的方式实现。
 - 过期数据只对是否产生触发有影响，不对计算数据的范围有任何影响。因此如果某次触发的计算范围包含过期数据，这部分过期数据仍然会被计算使用。
 
 ### 库表操作说明
@@ -714,6 +736,8 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 | 用户修改、删除输出表                          | 忽略不额外处理（写入时发现 schema 不一致报错，发现表不存在重新建表）|
 | 用户拆分 vnode                               |当被拆分 vnode 所在库为数据源库或触发表库时不允许 <br/> 当存在虚拟表触发或虚拟表计算时不允许 <br/> 用户在确认无影响后可指定强制执行（`SPLIT VGROUP N FORCE`）|
 | 用户删除数据库                               | 当被删库为某个流的数据源库、或触发表库且不是该流的所在库时不允许 <br/> 当存在非目标数据库的虚拟表触发或虚拟表计算流时不允许 <br/> 用户在确认无影响后可指定强制执行（`DROP DATABASE name FORCE`）|
+
+除了上表中有明确限制和额外处理的操作外，其他未说明的操作和上表中说**忽略不额外处理***的操作都没有限制。但是如果操作对流的计算可能产生影响，需要用户根据情况自行进行处理，可选忽略或者通过手动重算的方式进行重新计算。
 
 ### 配置参数说明
 
@@ -744,13 +768,21 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 - 流计算可以嵌套使用，也就是说可以基于一个流的输出表再创建一个新的流计算。
 - 计数窗口触发不支持乱序、更新、删除的自动处理（采取忽略处理的方式），在非 `FILL_HISTORY_FIRST` 模式下历史与实时窗口可能不对齐。
 - 对于超级表的窗口触发方式，只有 `interval` 和 `session` 窗口支持按照标签、子表分组和不分组，其他窗口只支持按子表分组。
+- 不支持在查询中使用伪列，`qstart`、`qend`、`qduration`。
+
+短期使用限制
+
 - 暂不支持按普通数据列分组的场景。
+- 暂不支持 `Geometry` 数据类型。
+- 暂不支持 `interp` 和 `percentile` 函数。
+- 暂不支持 windows 平台。
 
 ### 兼容性说明
 
 相比于 `3.3.6.0` 版本，流计算进行了全新设计。老版本升级之前要做如下动作后，在新的流计算版本上进行重建。
 
 - 删除所有的流计算任务
+- 删除所有的 TSMA
 - 删除所有的 snode
 - 删除 snode 存储目录
 - 删除所有的结果表
@@ -832,10 +864,11 @@ CREATE stream sm2 count_window(10, 1, col1) FROM tb1
 
 ##### 滑动触发
 
-- 超级表 stb1 的每个子表在每 5 分钟的时间窗口结束后，计算这 5 分钟的 col1 的平均值，每个子表的计算结果分别写入超级表 stb2 的不同子表中。
+- 超级表 stb1 的每个子表在每 5 分钟的时间窗口结束后，计算这 5 分钟的 col1 的平均值（如果没有数据则忽略），每个子表的计算结果分别写入超级表 stb2 的不同子表中。
 
 ```SQL
 CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
+  OPTIONS(FILL_HISTORY_FIRST) 
   INTO stb2 AS 
     SELECT _twstart, avg(col1) FROM %%tbname 
     WHERE _c0 >= _twstart AND _c0 <= _twend;
