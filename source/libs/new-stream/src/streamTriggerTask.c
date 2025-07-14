@@ -3417,11 +3417,11 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
     case STRIGGER_PULL_WAL_TS_DATA:
     case STRIGGER_PULL_WAL_TRIGGER_DATA:
     case STRIGGER_PULL_WAL_CALC_DATA: {
-      SSTriggerWalDataRequest    *pReq = &pContext->pullReq.walDataReq;
       SSTriggerRealtimeGroup *pGroup = stRealtimeContextGetCurrentGroup(pContext);
       QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
       SSTriggerTableMeta *pCurTableMeta = pGroup->pCurTableMeta;
       SSTriggerMetaData  *pMetaToFetch = pContext->pMetaToFetch;
+      SSTriggerWalDataRequest *pReq = &pContext->pullReq.walDataReq;
       pReq->uid = pCurTableMeta->tbUid;
       pReq->ver = pMetaToFetch->ver;
       pReq->skey = pMetaToFetch->skey;
