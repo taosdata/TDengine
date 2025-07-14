@@ -165,6 +165,8 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_FILESETS,
   TSDB_MGMT_TABLE_TRANSACTION_DETAIL,
   TSDB_MGMT_TABLE_BNODE,
+  TSDB_MGMT_TABLE_MOUNT,
+  TSDB_MGMT_TABLE_SSMIGRATE,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -307,8 +309,8 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_INDEX_STMT,
   QUERY_NODE_CREATE_QNODE_STMT,
   QUERY_NODE_DROP_QNODE_STMT,
-  QUERY_NODE_CREATE_BACKUP_NODE_STMT, // no longer used
-  QUERY_NODE_DROP_BACKUP_NODE_STMT,   // no longer used
+  QUERY_NODE_CREATE_BACKUP_NODE_STMT,  // no longer used
+  QUERY_NODE_DROP_BACKUP_NODE_STMT,    // no longer used
   QUERY_NODE_CREATE_SNODE_STMT,
   QUERY_NODE_DROP_SNODE_STMT,
   QUERY_NODE_CREATE_MNODE_STMT,
@@ -334,13 +336,15 @@ typedef enum ENodeType {
   QUERY_NODE_GRANT_STMT,
   QUERY_NODE_REVOKE_STMT,
   QUERY_NODE_ALTER_CLUSTER_STMT,
-  QUERY_NODE_S3MIGRATE_DATABASE_STMT,
+  QUERY_NODE_SSMIGRATE_DATABASE_STMT,
   QUERY_NODE_CREATE_TSMA_STMT,
   QUERY_NODE_DROP_TSMA_STMT,
   QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT,
   QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT,
   QUERY_NODE_DROP_VIRTUAL_TABLE_STMT,
   QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT,
+  QUERY_NODE_CREATE_MOUNT_STMT,
+  QUERY_NODE_DROP_MOUNT_STMT,
 
   // placeholder for [154, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
@@ -387,7 +391,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_MODULES_STMT,
   QUERY_NODE_SHOW_QNODES_STMT,
   QUERY_NODE_SHOW_SNODES_STMT,
-  QUERY_NODE_SHOW_BACKUP_NODES_STMT, // no longer used
+  QUERY_NODE_SHOW_BACKUP_NODES_STMT,  // no longer used
   QUERY_NODE_SHOW_ARBGROUPS_STMT,
   QUERY_NODE_SHOW_CLUSTER_STMT,
   QUERY_NODE_SHOW_DATABASES_STMT,
@@ -427,6 +431,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT,
   QUERY_NODE_SHOW_VTABLES_STMT,
   QUERY_NODE_SHOW_BNODES_STMT,
+  QUERY_NODE_SHOW_MOUNTS_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -1575,9 +1580,9 @@ typedef struct {
   int32_t sstTrigger;
   int16_t hashPrefix;
   int16_t hashSuffix;
-  int32_t s3ChunkSize;
-  int32_t s3KeepLocal;
-  int8_t  s3Compact;
+  int32_t ssChunkSize;
+  int32_t ssKeepLocal;
+  int8_t  ssCompact;
   int32_t tsdbPageSize;
   int32_t sqlLen;
   char*   sql;
@@ -1615,8 +1620,8 @@ typedef struct {
   int32_t minRows;
   int32_t walRetentionPeriod;
   int32_t walRetentionSize;
-  int32_t s3KeepLocal;
-  int8_t  s3Compact;
+  int32_t ssKeepLocal;
+  int8_t  ssCompact;
   int32_t sqlLen;
   char*   sql;
   int8_t  withArbitrator;
@@ -1651,6 +1656,14 @@ int32_t tSerializeSDropDbRsp(void* buf, int32_t bufLen, SDropDbRsp* pRsp);
 int32_t tDeserializeSDropDbRsp(void* buf, int32_t bufLen, SDropDbRsp* pRsp);
 
 typedef struct {
+  char    name[TSDB_MOUNT_NAME_LEN];
+  int64_t uid;
+} SDropMountRsp;
+
+int32_t tSerializeSDropMountRsp(void* buf, int32_t bufLen, SDropMountRsp* pRsp);
+int32_t tDeserializeSDropMountRsp(void* buf, int32_t bufLen, SDropMountRsp* pRsp);
+
+typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int64_t dbId;
   int32_t vgVersion;
@@ -1669,6 +1682,13 @@ typedef struct {
   int16_t hashPrefix;
   int16_t hashSuffix;
   int8_t  hashMethod;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t isMount : 1;  // TS-5868
+      uint8_t padding : 7;
+    };
+  };
   SArray* pVgroupInfos;  // Array of SVgroupInfo
   int32_t errCode;
   int64_t stateTs;  // ms
@@ -1704,17 +1724,86 @@ int32_t tDeserializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
 
 typedef struct {
   char db[TSDB_DB_FNAME_LEN];
-} SS3MigrateDbReq;
+} SSsMigrateDbReq;
 
-int32_t tSerializeSS3MigrateDbReq(void* buf, int32_t bufLen, SS3MigrateDbReq* pReq);
-int32_t tDeserializeSS3MigrateDbReq(void* buf, int32_t bufLen, SS3MigrateDbReq* pReq);
+int32_t tSerializeSSsMigrateDbReq(void* buf, int32_t bufLen, SSsMigrateDbReq* pReq);
+int32_t tDeserializeSSsMigrateDbReq(void* buf, int32_t bufLen, SSsMigrateDbReq* pReq);
 
 typedef struct {
-  int32_t timestamp;
-} SVS3MigrateDbReq;
+  int32_t ssMigrateId;
+  bool    bAccepted;
+} SSsMigrateDbRsp;
 
-int32_t tSerializeSVS3MigrateDbReq(void* buf, int32_t bufLen, SVS3MigrateDbReq* pReq);
-int32_t tDeserializeSVS3MigrateDbReq(void* buf, int32_t bufLen, SVS3MigrateDbReq* pReq);
+int32_t tSerializeSSsMigrateDbRsp(void* buf, int32_t bufLen, SSsMigrateDbRsp* pRsp);
+int32_t tDeserializeSSsMigrateDbRsp(void* buf, int32_t bufLen, SSsMigrateDbRsp* pRsp);
+
+typedef struct {
+  int32_t ssMigrateId;
+  int32_t nodeId; // node id of the leader vnode
+  int64_t timestamp;
+} SSsMigrateVgroupReq;
+
+int32_t tSerializeSSsMigrateVgroupReq(void* buf, int32_t bufLen, SSsMigrateVgroupReq* pReq);
+int32_t tDeserializeSSsMigrateVgroupReq(void* buf, int32_t bufLen, SSsMigrateVgroupReq* pReq);
+
+typedef struct {
+  int32_t ssMigrateId;
+  int32_t vgId;   // vgroup id
+  int32_t nodeId; // node id of the leader vnode
+} SSsMigrateVgroupRsp;
+
+int32_t tSerializeSSsMigrateVgroupRsp(void* buf, int32_t bufLen, SSsMigrateVgroupRsp* pRsp);
+int32_t tDeserializeSSsMigrateVgroupRsp(void* buf, int32_t bufLen, SSsMigrateVgroupRsp* pRsp);
+
+typedef struct {
+  int32_t ssMigrateId;
+  int32_t vgId;
+} SQuerySsMigrateProgressReq;
+
+int32_t tSerializeSQuerySsMigrateProgressReq(void* buf, int32_t bufLen, SQuerySsMigrateProgressReq* pReq);
+int32_t tDeserializeSQuerySsMigrateProgressReq(void* buf, int32_t bufLen, SQuerySsMigrateProgressReq* pReq);
+
+#define FILE_SET_MIGRATE_STATE_IN_PROGRESS  0
+#define FILE_SET_MIGRATE_STATE_SUCCEEDED    1
+#define FILE_SET_MIGRATE_STATE_SKIPPED      2
+#define FILE_SET_MIGRATE_STATE_FAILED       3
+
+typedef struct {
+  int32_t fid;  // file set id
+  int32_t state;
+} SFileSetSsMigrateState;
+
+typedef struct {
+  // if all taosd were restarted during the migration, then vnode migrate id will be 0,
+  // that's mnode will repeatedly request the migration progress. to avoid this, we need
+  // to save mnode migrate id in the response, so that mnode can drop it.
+  int32_t mnodeMigrateId; // migrate id requested by mnode
+  int32_t vnodeMigrateId; // migrate id reponsed by vnode
+  int32_t dnodeId;
+  int32_t vgId;
+  int64_t startTimeSec;
+  SArray* pFileSetStates;
+} SVnodeSsMigrateState;
+
+int32_t tSerializeSVnodeSsMigrateState(void* buf, int32_t bufLen, SVnodeSsMigrateState* pState);
+int32_t tDeserializeSVnodeSsMigrateState(void* buf, int32_t bufLen, SVnodeSsMigrateState* pState);
+void tFreeSVnodeSsMigrateState(SVnodeSsMigrateState* pState);
+
+typedef SVnodeSsMigrateState SQuerySsMigrateProgressRsp;
+#define tSerializeSQuerySsMigrateProgressRsp(buf, bufLen, pRsp) \
+  tSerializeSVnodeSsMigrateState(buf, bufLen, pRsp)
+#define tDeserializeSQuerySsMigrateProgressRsp(buf, bufLen, pRsp) \
+  tDeserializeSVnodeSsMigrateState(buf, bufLen, pRsp)
+#define tFreeSQuerySsMigrateProgressRsp(pRsp) \
+  tFreeSVnodeSsMigrateState(pRsp)
+
+typedef SVnodeSsMigrateState SFollowerSsMigrateReq;
+#define tSerializeSFollowerSsMigrateReq(buf, bufLen, pReq) \
+  tSerializeSVnodeSsMigrateState(buf, bufLen, pReq)
+#define tDeserializeSFollowerSsMigrateReq(buf, bufLen, pReq) \
+  tDeserializeSVnodeSsMigrateState(buf, bufLen, pReq)
+#define tFreeSFollowerSsMigrateReq(pReq) \
+  tFreeSVnodeSsMigrateState(pReq)
 
 typedef struct {
   int32_t timestampSec;
@@ -1754,9 +1843,16 @@ typedef struct {
   int8_t  strict;
   int8_t  cacheLast;
   int8_t  encryptAlgorithm;
-  int32_t s3ChunkSize;
-  int32_t s3KeepLocal;
-  int8_t  s3Compact;
+  int32_t ssChunkSize;
+  int32_t ssKeepLocal;
+  int8_t  ssCompact;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t isMount : 1;  // TS-5868
+      uint8_t padding : 7;
+    };
+  };
   int8_t  compactTimeOffset;
   int32_t compactInterval;
   int32_t compactStartTime;
@@ -2048,7 +2144,7 @@ typedef struct {
   int64_t     walSize;
   int64_t     metaSize;
   int64_t     rawDataSize;
-  int64_t     s3Size;
+  int64_t     ssSize;
   const char* dbname;
 } SDbSizeStatisInfo;
 
@@ -2275,9 +2371,9 @@ typedef struct {
   int16_t  hashPrefix;
   int16_t  hashSuffix;
   int32_t  tsdbPageSize;
-  int32_t  s3ChunkSize;
-  int32_t  s3KeepLocal;
-  int8_t   s3Compact;
+  int32_t  ssChunkSize;
+  int32_t  ssKeepLocal;
+  int8_t   ssCompact;
   int64_t  reserved[6];
   int8_t   learnerReplica;
   int8_t   learnerSelfIndex;
@@ -2377,8 +2473,8 @@ typedef struct {
   // 2nd modification
   int32_t walRetentionPeriod;
   int32_t walRetentionSize;
-  int32_t s3KeepLocal;
-  int8_t  s3Compact;
+  int32_t ssKeepLocal;
+  int8_t  ssCompact;
 } SAlterVnodeConfigReq;
 
 int32_t tSerializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);
@@ -5082,6 +5178,160 @@ void tFreeFetchTtlExpiredTbsRsp(void* p);
 
 void setDefaultOptionsForField(SFieldWithOptions* field);
 void setFieldWithOptions(SFieldWithOptions* fieldWithOptions, SField* field);
+
+#ifdef USE_MOUNT
+typedef struct {
+  char     mountName[TSDB_MOUNT_NAME_LEN];
+  int8_t   ignoreExist;
+  int16_t  nMounts;
+  int32_t* dnodeIds;
+  char**   mountPaths;
+  int32_t  sqlLen;
+  char*    sql;
+} SCreateMountReq;
+
+int32_t tSerializeSCreateMountReq(void* buf, int32_t bufLen, SCreateMountReq* pReq);
+int32_t tDeserializeSCreateMountReq(void* buf, int32_t bufLen, SCreateMountReq* pReq);
+void    tFreeSCreateMountReq(SCreateMountReq* pReq);
+
+typedef struct {
+  char    mountName[TSDB_MOUNT_NAME_LEN];
+  int8_t  ignoreNotExists;
+  int32_t sqlLen;
+  char*   sql;
+} SDropMountReq;
+
+int32_t tSerializeSDropMountReq(void* buf, int32_t bufLen, SDropMountReq* pReq);
+int32_t tDeserializeSDropMountReq(void* buf, int32_t bufLen, SDropMountReq* pReq);
+void    tFreeSDropMountReq(SDropMountReq* pReq);
+
+typedef struct {
+  char     mountName[TSDB_MOUNT_NAME_LEN];
+  char     mountPath[TSDB_MOUNT_PATH_LEN];
+  int64_t  mountUid;
+  int32_t  dnodeId;
+  uint32_t valLen;
+  int8_t   ignoreExist;
+  void*    pVal;
+} SRetrieveMountPathReq;
+
+int32_t tSerializeSRetrieveMountPathReq(void* buf, int32_t bufLen, SRetrieveMountPathReq* pReq);
+int32_t tDeserializeSRetrieveMountPathReq(void* buf, int32_t bufLen, SRetrieveMountPathReq* pReq);
+
+typedef struct {
+  // path
+  int32_t diskPrimary;
+  // vgInfo
+  int32_t  vgId;
+  int32_t  cacheLastSize;
+  int32_t  szPage;
+  int32_t  szCache;
+  uint64_t szBuf;
+  int8_t   cacheLast;
+  int8_t   standby;
+  int8_t   hashMethod;
+  uint32_t hashBegin;
+  uint32_t hashEnd;
+  int16_t  hashPrefix;
+  int16_t  hashSuffix;
+  int16_t  sttTrigger;
+  // syncInfo
+  int32_t replications;
+  // tsdbInfo
+  int8_t  precision;
+  int8_t  compression;
+  int8_t  slLevel;
+  int32_t daysPerFile;
+  int32_t keep0;
+  int32_t keep1;
+  int32_t keep2;
+  int32_t keepTimeOffset;
+  int32_t minRows;
+  int32_t maxRows;
+  int32_t tsdbPageSize;
+  int32_t ssChunkSize;
+  int32_t ssKeepLocal;
+  int8_t  ssCompact;
+  // walInfo
+  int32_t walFsyncPeriod;      // millisecond
+  int32_t walRetentionPeriod;  // secs
+  int32_t walRollPeriod;       // secs
+  int64_t walRetentionSize;
+  int64_t walSegSize;
+  int32_t walLevel;
+  // encryptInfo
+  int32_t encryptAlgorithm;
+  // SVState
+  int64_t committed;
+  int64_t commitID;
+  int64_t commitTerm;
+  // stats
+  int64_t numOfSTables;
+  int64_t numOfCTables;
+  int64_t numOfNTables;
+  // dbInfo
+  uint64_t dbId;
+} SMountVgInfo;
+
+typedef struct {
+  SMCreateStbReq req;
+  SArray*        pColExts;  // element: column id
+  SArray*        pTagExts;  // element: tag id
+} SMountStbInfo;
+
+int32_t tSerializeSMountStbInfo(void* buf, int32_t bufLen, int32_t* pFLen, SMountStbInfo* pInfo);
+int32_t tDeserializeSMountStbInfo(void* buf, int32_t bufLen, int32_t flen, SMountStbInfo* pInfo);
+
+typedef struct {
+  char     dbName[TSDB_DB_FNAME_LEN];
+  uint64_t dbId;
+  SArray*  pVgs;      // SMountVgInfo
+  SArray*  pStbs;     // 0 serialized binary of SMountStbInfo, 1 SMountStbInfo
+} SMountDbInfo;
+
+typedef struct {
+  // common fields
+  char     mountName[TSDB_MOUNT_NAME_LEN];
+  char     mountPath[TSDB_MOUNT_PATH_LEN];
+  int8_t   ignoreExist;
+  int64_t  mountUid;
+  int64_t  clusterId;
+  int32_t  dnodeId;
+  uint32_t valLen;
+  void*    pVal;
+
+  // response fields
+  SArray* pDbs;  // SMountDbInfo
+
+  // memory fields, no serialized
+  SArray*   pDisks[TFS_MAX_TIERS];
+  TdFilePtr pFile;
+} SMountInfo;
+
+int32_t tSerializeSMountInfo(void* buf, int32_t bufLen, SMountInfo* pReq);
+int32_t tDeserializeSMountInfo(SDecoder* decoder, SMountInfo* pReq, bool extractStb);
+void    tFreeMountInfo(SMountInfo* pReq, bool stbExtracted);
+
+typedef struct {
+  SCreateVnodeReq createReq;
+  char            mountPath[TSDB_MOUNT_FPATH_LEN];
+  char            mountName[TSDB_MOUNT_NAME_LEN];
+  int64_t         mountId;
+  int32_t         diskPrimary;
+  int32_t         mountVgId;
+  int64_t         committed;
+  int64_t         commitID;
+  int64_t         commitTerm;
+  int64_t         numOfSTables;
+  int64_t         numOfCTables;
+  int64_t         numOfNTables;
+} SMountVnodeReq;
+
+int32_t tSerializeSMountVnodeReq(void *buf, int32_t *cBufLen, int32_t *tBufLen, SMountVnodeReq *pReq);
+int32_t tDeserializeSMountVnodeReq(void* buf, int32_t bufLen, SMountVnodeReq* pReq);
+int32_t tFreeSMountVnodeReq(SMountVnodeReq* pReq);
+
+#endif  // USE_MOUNT
 
 #pragma pack(pop)
 

@@ -405,6 +405,13 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  {
+    .showType = QUERY_NODE_SHOW_MOUNTS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_MOUNTS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -8806,9 +8813,9 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->hashSuffix = pStmt->pOptions->tableSuffix;
   pReq->tsdbPageSize = pStmt->pOptions->tsdbPageSize;
   pReq->keepTimeOffset = pStmt->pOptions->keepTimeOffset;
-  pReq->s3ChunkSize = pStmt->pOptions->s3ChunkSize;
-  pReq->s3KeepLocal = pStmt->pOptions->s3KeepLocal;
-  pReq->s3Compact = pStmt->pOptions->s3Compact;
+  pReq->ssChunkSize = pStmt->pOptions->ssChunkSize;
+  pReq->ssKeepLocal = pStmt->pOptions->ssKeepLocal;
+  pReq->ssCompact = pStmt->pOptions->ssCompact;
   pReq->ignoreExist = pStmt->ignoreExists;
   pReq->withArbitrator = pStmt->pOptions->withArbitrator;
   pReq->encryptAlgorithm = pStmt->pOptions->encryptAlgorithm;
@@ -8843,20 +8850,20 @@ static int32_t checkTableRangeOption(STranslateContext* pCxt, const char* pName,
   return checkRangeOption(pCxt, TSDB_CODE_PAR_INVALID_TABLE_OPTION, pName, val, minVal, maxVal, true);
 }
 
-static int32_t checkDbS3KeepLocalOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
-  if (NULL != pOptions->s3KeepLocalStr) {
-    if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->s3KeepLocalStr)) {
+static int32_t checkDbSsKeepLocalOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+  if (NULL != pOptions->ssKeepLocalStr) {
+    if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->ssKeepLocalStr)) {
       return pCxt->errCode;
     }
-    if (TIME_UNIT_MINUTE != pOptions->s3KeepLocalStr->unit && TIME_UNIT_HOUR != pOptions->s3KeepLocalStr->unit &&
-        TIME_UNIT_DAY != pOptions->s3KeepLocalStr->unit) {
+    if (TIME_UNIT_MINUTE != pOptions->ssKeepLocalStr->unit && TIME_UNIT_HOUR != pOptions->ssKeepLocalStr->unit &&
+        TIME_UNIT_DAY != pOptions->ssKeepLocalStr->unit) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                     "Invalid option s3_keeplocal unit: %c, only %c, %c, %c allowed",
-                                     pOptions->s3KeepLocalStr->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR, TIME_UNIT_DAY);
+                                     "Invalid option ss_keeplocal unit: %c, only %c, %c, %c allowed",
+                                     pOptions->ssKeepLocalStr->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR, TIME_UNIT_DAY);
     }
-    pOptions->s3KeepLocal = getBigintFromValueNode(pOptions->s3KeepLocalStr);
+    pOptions->ssKeepLocal = getBigintFromValueNode(pOptions->ssKeepLocalStr);
   }
-  return checkDbRangeOption(pCxt, "s3KeepLocal", pOptions->s3KeepLocal, TSDB_MIN_S3_KEEP_LOCAL, TSDB_MAX_S3_KEEP_LOCAL);
+  return checkDbRangeOption(pCxt, "ssKeepLocal", pOptions->ssKeepLocal, TSDB_MIN_SS_KEEP_LOCAL, TSDB_MAX_SS_KEEP_LOCAL);
 }
 
 static int32_t checkDbDaysOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
@@ -9169,7 +9176,7 @@ static FORCE_INLINE int32_t translateGetDbCfg(STranslateContext* pCxt, const cha
 
 static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
   int32_t daysPerFile = pOptions->daysPerFile;
-  int32_t s3KeepLocal = pOptions->s3KeepLocal;
+  int32_t ssKeepLocal = pOptions->ssKeepLocal;
   int64_t daysToKeep0 = pOptions->keep[0];
   if (-1 == daysPerFile && -1 == daysToKeep0) {
     return TSDB_CODE_SUCCESS;
@@ -9182,9 +9189,9 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                    "Invalid duration value, should be keep2 >= keep1 >= keep0 >= 3 * duration");
   }
-  if (s3KeepLocal > 0 && daysPerFile > s3KeepLocal / 3) {
+  if (ssKeepLocal > 0 && daysPerFile > ssKeepLocal / 3) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid parameters, should be s3_keeplocal >= 3 * duration");
+                                   "Invalid parameters, should be ss_keeplocal >= 3 * duration");
   }
 
   if ((pOptions->replica == 2) ^ (pOptions->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR)) {
@@ -9430,17 +9437,17 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbTbPrefixSuffixOptions(pCxt, pOptions->tablePrefix, pOptions->tableSuffix);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbS3KeepLocalOption(pCxt, pOptions);
+    code = checkDbSsKeepLocalOption(pCxt, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkOptionsDependency(pCxt, pDbName, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "s3_chunkpages", pOptions->s3ChunkSize, TSDB_MIN_S3_CHUNK_SIZE,
-                              TSDB_MAX_S3_CHUNK_SIZE);
+    code = checkDbRangeOption(pCxt, "ss_chunkpages", pOptions->ssChunkSize, TSDB_MIN_SS_CHUNK_SIZE,
+                              TSDB_MAX_SS_CHUNK_SIZE);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "s3_compact", pOptions->s3Compact, TSDB_MIN_S3_COMPACT, TSDB_MAX_S3_COMPACT);
+    code = checkDbRangeOption(pCxt, "ss_compact", pOptions->ssCompact, TSDB_MIN_SS_COMPACT, TSDB_MAX_SS_COMPACT);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbCompactIntervalOption(pCxt, pDbName, pOptions);
@@ -9464,6 +9471,23 @@ static int32_t checkCreateDatabase(STranslateContext* pCxt, SCreateDatabaseStmt*
                                    "Cannot create system database: `%s`", pStmt->dbName);
   }
   return checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
+}
+
+static int32_t checkCreateMount(STranslateContext* pCxt, SCreateMountStmt* pStmt) {
+  if (NULL != strchr(pStmt->mountName, '_')) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
+                                   "The mount name cannot contain '_'");
+  }
+  if (IS_SYS_DBNAME(pStmt->mountName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "The mount name cannot equal system database: `%s`", pStmt->mountName);
+  }
+
+  if (pStmt->mountPath[0] == '\0') {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_INPUT, "The mount path is invalid");
+  }
+
+  return checkRangeOption(pCxt, TSDB_CODE_OUT_OF_RANGE, "dnodeId", pStmt->dnodeId, 1, INT32_MAX, false);
 }
 
 #define FILL_CMD_SQL(sql, sqlLen, pCmdReq, CMD_TYPE, genericCmd) \
@@ -9497,7 +9521,16 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCompactDbReq, pReq);
       break;
     }
-
+#ifdef USE_MOUNT
+    case TDMT_MND_CREATE_MOUNT: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateMountReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_MOUNT: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropMountReq, pReq);
+      break;
+    }
+#endif
     case TDMT_MND_TMQ_DROP_TOPIC: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropTopicReq, pReq);
       break;
@@ -9705,8 +9738,8 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
   pReq->minRows = pStmt->pOptions->minRowsPerBlock;
   pReq->walRetentionPeriod = pStmt->pOptions->walRetentionPeriod;
   pReq->walRetentionSize = pStmt->pOptions->walRetentionSize;
-  pReq->s3KeepLocal = pStmt->pOptions->s3KeepLocal;
-  pReq->s3Compact = pStmt->pOptions->s3Compact;
+  pReq->ssKeepLocal = pStmt->pOptions->ssKeepLocal;
+  pReq->ssCompact = pStmt->pOptions->ssCompact;
   pReq->withArbitrator = pStmt->pOptions->withArbitrator;
   pReq->compactInterval = pStmt->pOptions->compactInterval;
   pReq->compactStartTime = pStmt->pOptions->compactStartTime;
@@ -9816,14 +9849,60 @@ static int32_t checkTableKeepOption(STranslateContext* pCxt, STableOptions* pOpt
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateS3MigrateDatabase(STranslateContext* pCxt, SS3MigrateDatabaseStmt* pStmt) {
-  SS3MigrateDbReq req = {0};
+static int32_t translateSsMigrateDatabase(STranslateContext* pCxt, SSsMigrateDatabaseStmt* pStmt) {
+  SSsMigrateDbReq req = {0};
   SName           name = {0};
   int32_t         code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   if (TSDB_CODE_SUCCESS != code) return code;
   (void)tNameGetFullDbName(&name, req.db);
-  return buildCmdMsg(pCxt, TDMT_MND_S3MIGRATE_DB, (FSerializeFunc)tSerializeSS3MigrateDbReq, &req);
+  return buildCmdMsg(pCxt, TDMT_MND_SSMIGRATE_DB, (FSerializeFunc)tSerializeSSsMigrateDbReq, &req);
 }
+
+#ifdef USE_MOUNT
+static int32_t translateCreateMount(STranslateContext* pCxt, SCreateMountStmt* pStmt) {
+  int32_t         code = 0, lino = 0;
+  SCreateMountReq createReq = {0};
+
+  TAOS_CHECK_EXIT(checkCreateMount(pCxt, pStmt));
+  createReq.nMounts = 1;
+  TSDB_CHECK_NULL((createReq.dnodeIds = taosMemoryMalloc(sizeof(int32_t) * createReq.nMounts)), code, lino, _exit,
+                  terrno);
+  TSDB_CHECK_NULL((createReq.mountPaths = taosMemoryMalloc(sizeof(char*) * createReq.nMounts)), code, lino, _exit,
+                  terrno);
+  TAOS_UNUSED(snprintf(createReq.mountName, sizeof(createReq.mountName), "%s", pStmt->mountName));
+  createReq.ignoreExist = pStmt->ignoreExists;
+  createReq.dnodeIds[0] = pStmt->dnodeId;
+  int32_t j = strlen(pStmt->mountPath) - 1;
+  while (j > 0 && (pStmt->mountPath[j] == '/' || pStmt->mountPath[j] == '\\')) {
+    pStmt->mountPath[j--] = '\0';  // remove trailing slashes
+  }
+  TSDB_CHECK_NULL((createReq.mountPaths[0] = taosMemoryMalloc(strlen(pStmt->mountPath) + 1)), code, lino, _exit,
+                  terrno);
+  TAOS_UNUSED(sprintf(createReq.mountPaths[0], "%s", pStmt->mountPath));
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_MOUNT, (FSerializeFunc)tSerializeSCreateMountReq, &createReq);
+  }
+_exit:
+  tFreeSCreateMountReq(&createReq);
+  return code;
+}
+
+static int32_t translateDropMount(STranslateContext* pCxt, SDropMountStmt* pStmt) {
+  if (pStmt->mountName[0] == '\0' || IS_SYS_DBNAME(pStmt->mountName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "Invalid mount name: `%s`",
+                                   pStmt->mountName);
+  }
+  int32_t       code = 0;
+  SDropMountReq dropReq = {0};
+  TAOS_UNUSED(snprintf(dropReq.mountName, sizeof(dropReq.mountName), "%s", pStmt->mountName));
+  dropReq.ignoreNotExists = pStmt->ignoreNotExists;
+
+  code = buildCmdMsg(pCxt, TDMT_MND_DROP_MOUNT, (FSerializeFunc)tSerializeSDropMountReq, &dropReq);
+  tFreeSDropMountReq(&dropReq);
+  return code;
+}
+#endif
 
 static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calBytes, bool virtualTable) {
   *pArray = taosArrayInit(LIST_LENGTH(pList), sizeof(SFieldWithOptions));
@@ -14938,8 +15017,8 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_TRIM_DATABASE_STMT:
       code = translateTrimDatabase(pCxt, (STrimDatabaseStmt*)pNode);
       break;
-    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
-      code = translateS3MigrateDatabase(pCxt, (SS3MigrateDatabaseStmt*)pNode);
+    case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
+      code = translateSsMigrateDatabase(pCxt, (SSsMigrateDatabaseStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:
       code = translateCreateSuperTable(pCxt, (SCreateTableStmt*)pNode);
@@ -14954,6 +15033,14 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
       code = translateAlterSuperTable(pCxt, (SAlterTableStmt*)pNode);
       break;
+#ifdef USE_MOUNT
+    case QUERY_NODE_CREATE_MOUNT_STMT:
+      code = translateCreateMount(pCxt, (SCreateMountStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_MOUNT_STMT:
+      code = translateDropMount(pCxt, (SDropMountStmt*)pNode);
+      break;
+#endif
     case QUERY_NODE_CREATE_USER_STMT:
       code = translateCreateUser(pCxt, (SCreateUserStmt*)pNode);
       break;
@@ -19309,6 +19396,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
+    case QUERY_NODE_SHOW_MOUNTS_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_VTABLES_STMT:

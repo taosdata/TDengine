@@ -21,6 +21,7 @@
 #include "mndCluster.h"
 #include "mndDb.h"
 #include "mndMnode.h"
+#include "mndMount.h"
 #include "mndPrivilege.h"
 #include "mndQnode.h"
 #include "mndShow.h"
@@ -1320,6 +1321,14 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
       goto _OVER;
     }
   }
+
+#ifdef USE_MOUNT
+  if (mndHasMountOnDnode(pMnode, dropReq.dnodeId) && !force) {
+    code = TSDB_CODE_MND_MOUNT_NOT_EMPTY;
+    mError("dnode:%d, failed to drop since %s", dropReq.dnodeId, tstrerror(code));
+    goto _OVER;
+  }
+#endif
 
   int32_t numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
   bool    isonline = mndIsDnodeOnline(pDnode, taosGetTimestampMs());

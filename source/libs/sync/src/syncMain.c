@@ -1153,6 +1153,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
     // create a new raft config file
     sInfo("vgId:%d, create a new raft config file", pSyncInfo->vgId);
     pSyncNode->vgId = pSyncInfo->vgId;
+    pSyncNode->mountVgId = pSyncInfo->mountVgId;
     pSyncNode->raftCfg.isStandBy = pSyncInfo->isStandBy;
     pSyncNode->raftCfg.snapshotStrategy = pSyncInfo->snapshotStrategy;
     pSyncNode->raftCfg.lastConfigIndex = pSyncInfo->syncCfg.lastIndex;
@@ -1195,6 +1196,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
 
   // init by SSyncInfo
   pSyncNode->vgId = pSyncInfo->vgId;
+  pSyncNode->mountVgId = pSyncInfo->mountVgId;
   SSyncCfg* pCfg = &pSyncNode->raftCfg.cfg;
   bool      updated = false;
   sInfo("vgId:%d, start to open sync node, totalReplicaNum:%d replicaNum:%d selfIndex:%d", pSyncNode->vgId,

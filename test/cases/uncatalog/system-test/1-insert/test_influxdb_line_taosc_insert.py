@@ -24,6 +24,7 @@ import numpy as np
 class TestInfluxdbLineTaoscInsert:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
+        cls._conn = cls.conn
         #tdSql.init(conn.cursor(), logSql), True)
 
     def create_database(self, name="test", db_update_tag=0):

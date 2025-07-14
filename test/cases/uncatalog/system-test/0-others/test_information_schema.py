@@ -55,9 +55,14 @@ class TestInformationSchema:
         cls.ins_list = ['ins_dnodes','ins_mnodes','ins_qnodes','ins_snodes','ins_bnodes','ins_cluster','ins_databases','ins_functions',\
             'ins_indexes','ins_stables','ins_tables','ins_tags','ins_columns','ins_users','ins_grants','ins_vgroups','ins_configs','ins_dnode_variables',\
                 'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges','ins_views',
+<<<<<<< HEAD:test/cases/uncatalog/system-test/0-others/test_information_schema.py
                 'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes", "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details"]
         cls.perf_list = ['perf_connections','perf_queries','perf_consumers','perf_trans','perf_apps']
     
+=======
+                'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes", "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details", "ins_mounts"]
+        self.perf_list = ['perf_connections','perf_queries','perf_consumers','perf_trans','perf_apps']
+>>>>>>> 3.0:tests/system-test/0-others/information_schema.py
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
         for i in range(row_num):
@@ -215,7 +220,7 @@ class TestInformationSchema:
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
         tdLog.info(len(tdSql.queryResult))
-        tdSql.checkEqual(True, len(tdSql.queryResult) in range(320, 340))
+        tdSql.checkRows(338)
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
         tdSql.checkRows(62)
 
@@ -273,7 +278,7 @@ class TestInformationSchema:
             'audit':'Audit',
             'storage':'Multi-Tier Storage',
             'backup_restore':'Data Backup & Restore',
-            'object_storage':'Object Storage',
+            'object_storage':'Shared Storage',
             'active_active':'Active-Active',
             'dual_replica':'Dual-Replica HA',
             'db_encryption':'Database Encryption',

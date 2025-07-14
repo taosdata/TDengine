@@ -121,8 +121,8 @@ const char* nodesNodeName(ENodeType type) {
       return "FlushDatabaseStmt";
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return "TrimDatabaseStmt";
-    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
-      return "S3MigrateDatabaseStmt";
+    case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
+      return "SsMigrateDatabaseStmt";
     case QUERY_NODE_CREATE_TABLE_STMT:
       return "CreateTableStmt";
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
@@ -329,6 +329,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowEncryptionsStmt";
     case QUERY_NODE_SHOW_USAGE_STMT:
       return "ShowUsageStmt";
+    case QUERY_NODE_SHOW_MOUNTS_STMT:
+      return "ShowMountsStmt";
     case QUERY_NODE_DELETE_STMT:
       return "DeleteStmt";
     case QUERY_NODE_INSERT_STMT:
@@ -345,6 +347,10 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateViewStmt";
     case QUERY_NODE_DROP_VIEW_STMT:
       return "DropViewStmt";
+    case QUERY_NODE_CREATE_MOUNT_STMT:
+      return "CreateMountStmt";
+    case QUERY_NODE_DROP_MOUNT_STMT:
+      return "DropMountStmt";
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return "LogicScan";
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -6059,10 +6065,17 @@ static const char* jkDatabaseOptionsNumOfVgroups = "NumOfVgroups";
 static const char* jkDatabaseOptionsSingleStable = "SingleStable";
 static const char* jkDatabaseOptionsRetentions = "Retentions";
 static const char* jkDatabaseOptionsSchemaless = "Schemaless";
+
+// shared storage options, the 'S3' ones are for backward compatibility.
+static const char* jkDatabaseOptionsSsChunkSize = "SsChunkSize";
+static const char* jkDatabaseOptionsSsKeepLocalNode = "SsKeepLocalNode";
+static const char* jkDatabaseOptionsSsKeepLocal = "SsKeepLocal";
+static const char* jkDatabaseOptionsSsCompact = "SsCompact";
 static const char* jkDatabaseOptionsS3ChunkSize = "S3ChunkSize";
 static const char* jkDatabaseOptionsS3KeepLocalNode = "S3KeepLocalNode";
 static const char* jkDatabaseOptionsS3KeepLocal = "S3KeepLocal";
 static const char* jkDatabaseOptionsS3Compact = "S3Compact";
+
 static const char* jkDatabaseOptionsCompactIntervalNode = "compactIntervalNode";
 static const char* jkDatabaseOptionsCompactTimeRange = "compactTimeRange";
 static const char* jkDatabaseOptionsCompactTimeOffsetNode = "compactTimeOffsetNode";
@@ -6126,16 +6139,16 @@ static int32_t databaseOptionsToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsSchemaless, pNode->schemaless);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsS3ChunkSize, pNode->s3ChunkSize);
+    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsSsChunkSize, pNode->ssChunkSize);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkDatabaseOptionsS3KeepLocalNode, nodeToJson, pNode->s3KeepLocalStr);
+    code = tjsonAddObject(pJson, jkDatabaseOptionsSsKeepLocalNode, nodeToJson, pNode->ssKeepLocalStr);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsS3KeepLocal, pNode->s3KeepLocal);
+    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsSsKeepLocal, pNode->ssKeepLocal);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsS3Compact, pNode->s3Compact);
+    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsSsCompact, pNode->ssCompact);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkDatabaseOptionsCompactIntervalNode, nodeToJson, pNode->pCompactIntervalNode);
@@ -6209,16 +6222,32 @@ static int32_t jsonToDatabaseOptions(const SJson* pJson, void* pObj) {
     code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsSchemaless, &pNode->schemaless);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetIntValue(pJson, jkDatabaseOptionsS3ChunkSize, &pNode->s3ChunkSize);
+    if (tjsonGetObjectItem(pJson, jkDatabaseOptionsSsChunkSize) != NULL) {
+      code = tjsonGetIntValue(pJson, jkDatabaseOptionsSsChunkSize, &pNode->ssChunkSize);
+    } else {
+      code = tjsonGetIntValue(pJson, jkDatabaseOptionsS3ChunkSize, &pNode->ssChunkSize);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkDatabaseOptionsS3KeepLocalNode, (SNode**)&pNode->s3KeepLocalStr);
+    if (tjsonGetObjectItem(pJson, jkDatabaseOptionsSsKeepLocalNode) != NULL) {
+      code = jsonToNodeObject(pJson, jkDatabaseOptionsSsKeepLocalNode, (SNode**)&pNode->ssKeepLocalStr);
+    } else {
+      code = jsonToNodeObject(pJson, jkDatabaseOptionsSsKeepLocalNode, (SNode**)&pNode->ssKeepLocalStr);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetIntValue(pJson, jkDatabaseOptionsS3KeepLocal, &pNode->s3KeepLocal);
+    if (tjsonGetObjectItem(pJson, jkDatabaseOptionsSsKeepLocal) != NULL) {
+      code = tjsonGetIntValue(pJson, jkDatabaseOptionsSsKeepLocal, &pNode->ssKeepLocal);
+    } else {
+      code = tjsonGetIntValue(pJson, jkDatabaseOptionsS3KeepLocal, &pNode->ssKeepLocal);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsS3Compact, &pNode->s3Compact);
+    if (tjsonGetObjectItem(pJson, jkDatabaseOptionsSsCompact) != NULL) {
+      code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsSsCompact, &pNode->ssCompact);
+    } else {
+      code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsS3Compact, &pNode->ssCompact);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkDatabaseOptionsCompactIntervalNode, (SNode**)&pNode->pCompactIntervalNode);
@@ -6954,21 +6983,81 @@ static int32_t jsonToTrimDatabaseStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
-static const char* jkS3MigrateDatabaseStmtDbName = "DbName";
+static const char* jkSsMigrateDatabaseStmtDbName = "DbName";
 
-static int32_t s3migrateDatabaseStmtToJson(const void* pObj, SJson* pJson) {
-  const SS3MigrateDatabaseStmt* pNode = (const SS3MigrateDatabaseStmt*)pObj;
+static int32_t ssMigrateDatabaseStmtToJson(const void* pObj, SJson* pJson) {
+  const SSsMigrateDatabaseStmt* pNode = (const SSsMigrateDatabaseStmt*)pObj;
 
-  int32_t code = tjsonAddStringToObject(pJson, jkS3MigrateDatabaseStmtDbName, pNode->dbName);
+  int32_t code = tjsonAddStringToObject(pJson, jkSsMigrateDatabaseStmtDbName, pNode->dbName);
 
   return code;
 }
 
-static int32_t jsonToS3MigrateDatabaseStmt(const SJson* pJson, void* pObj) {
-  SS3MigrateDatabaseStmt* pNode = (SS3MigrateDatabaseStmt*)pObj;
+static int32_t jsonToSsMigrateDatabaseStmt(const SJson* pJson, void* pObj) {
+  SSsMigrateDatabaseStmt* pNode = (SSsMigrateDatabaseStmt*)pObj;
 
-  int32_t code = tjsonGetStringValue(pJson, jkS3MigrateDatabaseStmtDbName, pNode->dbName);
+  int32_t code = tjsonGetStringValue(pJson, jkSsMigrateDatabaseStmtDbName, pNode->dbName);
 
+  return code;
+}
+
+static const char* jkMountStmtMountName = "MountName";
+static const char* jkMountStmtIgnoreExists = "IgnoreExists";
+static const char* jkMountStmtIgnoreNotExists = "IgnoreNotExists";
+static const char* jkMountStmtDnode = "Dnode";
+static const char* jkMountStmtMountPath = "MountPath";
+
+static int32_t createMountStmtToJson(const void* pObj, SJson* pJson) {
+  const SCreateMountStmt* pNode = (const SCreateMountStmt*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, jkMountStmtMountName, pNode->mountName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkMountStmtIgnoreExists, pNode->ignoreExists);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkMountStmtDnode, pNode->dnodeId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonAddStringToObject(pJson, jkMountStmtMountPath, pNode->mountPath);
+  }
+
+  return code;
+}
+
+static int32_t jsonToCreateMountStmt(const SJson* pJson, void* pObj) {
+  SCreateMountStmt* pNode = (SCreateMountStmt*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, jkMountStmtMountName, pNode->mountName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkMountStmtIgnoreExists, &pNode->ignoreExists);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkMountStmtDnode, &pNode->dnodeId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkMountStmtMountPath, pNode->mountPath);
+  }
+
+  return code;
+}
+
+static int32_t dropMountStmtToJson(const void* pObj, SJson* pJson) {
+  const SDropMountStmt* pNode = (const SDropMountStmt*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, jkMountStmtMountName, pNode->mountName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkMountStmtIgnoreNotExists, pNode->ignoreNotExists);
+  }
+  return code;
+}
+
+static int32_t jsonToDropMountStmt(const SJson* pJson, void* pObj) {
+  SDropMountStmt* pNode = (SDropMountStmt*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, jkMountStmtMountName, pNode->mountName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkMountStmtIgnoreNotExists, &pNode->ignoreNotExists);
+  }
   return code;
 }
 
@@ -8451,6 +8540,8 @@ static int32_t jsonToShowEncryptionsStmt(const SJson* pJson, void* pObj) { retur
 
 static int32_t showUsageStmtStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
 static int32_t jsonToShowUsageStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+static int32_t showMountsStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+static int32_t jsonToShowMountsStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
 
 static const char* jkShowDnodeVariablesStmtDnodeId = "DnodeId";
 static const char* jkShowDnodeVariablesStmtLikePattern = "LikePattern";
@@ -8940,8 +9031,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return alterDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return trimDatabaseStmtToJson(pObj, pJson);
-    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
-      return s3migrateDatabaseStmtToJson(pObj, pJson);
+    case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
+      return ssMigrateDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_TABLE_STMT:
       return createTableStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
@@ -9044,6 +9135,10 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return revokeStmtToJson(pObj, pJson);
     case QUERY_NODE_ALTER_CLUSTER_STMT:
       return alterClusterStmtToJson(pObj, pJson);
+    case QUERY_NODE_CREATE_MOUNT_STMT:
+      return createDatabaseStmtToJson(pObj, pJson);
+    case QUERY_NODE_DROP_MOUNT_STMT:
+      return createDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_DNODES_STMT:
       return showDnodesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_MNODES_STMT:
@@ -9117,6 +9212,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showTableTagsStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_USAGE_STMT:
       return showUsageStmtStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_MOUNTS_STMT:
+      return showMountsStmtToJson(pObj, pJson);
     case QUERY_NODE_DELETE_STMT:
       return deleteStmtToJson(pObj, pJson);
     case QUERY_NODE_INSERT_STMT:
@@ -9346,8 +9443,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToAlterDatabaseStmt(pJson, pObj);
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return jsonToTrimDatabaseStmt(pJson, pObj);
-    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
-      return jsonToS3MigrateDatabaseStmt(pJson, pObj);
+    case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
+      return jsonToSsMigrateDatabaseStmt(pJson, pObj);
     case QUERY_NODE_CREATE_TABLE_STMT:
       return jsonToCreateTableStmt(pJson, pObj);
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
@@ -9513,6 +9610,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowTableTagsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_USAGE_STMT:
       return jsonToShowUsageStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_MOUNTS_STMT:
+      return jsonToShowMountsStmt(pJson, pObj);
     case QUERY_NODE_DELETE_STMT:
       return jsonToDeleteStmt(pJson, pObj);
     case QUERY_NODE_INSERT_STMT:
