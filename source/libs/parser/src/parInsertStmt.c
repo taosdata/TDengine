@@ -830,9 +830,13 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
                               &pDataBlock->duplicateTs);
   } else {
     code = tBlobRowCreate(1024, 1, pBlobRow);
+    if (code != 0) {
+      parserError("create blob row failed, code:%d, msg:%s", code, tstrerror(code));
+      goto _return;
+    }
+
     code = tRowBuildFromBind2WithBlob(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols,
                                       &pDataBlock->ordered, &pDataBlock->duplicateTs, *pBlobRow);
-    code = tBlobRowEnd(*pBlobRow);
   }
 
   parserDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
