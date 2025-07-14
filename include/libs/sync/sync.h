@@ -21,7 +21,6 @@ extern "C" {
 #endif
 
 #include "cJSON.h"
-#include "metrics.h"
 #include "tdef.h"
 #include "tlrucache.h"
 #include "tmsgcb.h"
@@ -238,6 +237,7 @@ typedef struct SSyncInfo {
   bool          isStandBy;
   ESyncStrategy snapshotStrategy;
   SyncGroupId   vgId;
+  SyncGroupId   mountVgId;
   int32_t       batchSize;
   SSyncCfg      syncCfg;
   char          path[TSDB_FILENAME_LEN];
