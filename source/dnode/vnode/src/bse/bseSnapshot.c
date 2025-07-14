@@ -248,6 +248,10 @@ int32_t bseSnapReaderRead(SBseSnapReader *p, uint8_t **data) {
   code = bseIterNext(p->pIter, &pBuf, &bufLen);
   TSDB_CHECK_CODE(code, line, _error);
 
+  if (bufLen == 0) {
+    return 0; 
+  } 
+
   *data = taosMemoryCalloc(1, sizeof(SSnapDataHdr) + bufLen);
   if (*data == NULL) {
     TSDB_CHECK_CODE(code = terrno, line, _error);

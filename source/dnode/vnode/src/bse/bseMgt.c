@@ -958,20 +958,29 @@ int32_t bseCommit(SBse *pBse) {
   code = bseTableMgtCommit(pBse->pTableMgt, &info);
   TSDB_CHECK_CODE(code, line, _error);
 
+  if (info.size == 0) {
+    bseInfo("vgId:%d no data to commit", BSE_GET_VGID(pBse));
+    return 0;
+  }
+
   code = bseUpdateCommitInfo(pBse, &info);
   TSDB_CHECK_CODE(code, line, _error);
 
   code = bseGetAliveFileList(pBse, &pLiveFile);
   TSDB_CHECK_CODE(code, line, _error);
 
+  if (taosArrayGetSize(pLiveFile) == 0) {
+    bseInfo("vgId:%d no alive file to commit", BSE_GET_VGID(pBse));
+    taosArrayDestroy(pLiveFile);
+    return 0;
+  }
+
   code = bseCommitDo(pBse, pLiveFile);
   TSDB_CHECK_CODE(code, line, _error);
 
 _error:
   cost = taosGetTimestampMs() - st;
-  if (cost > 100) {
-    bseWarn("vgId:%d bse commit cost %" PRId64 " ms", BSE_GET_VGID(pBse), cost);
-  }
+  bseWarn("vgId:%d bse commit cost %" PRId64 " ms", BSE_GET_VGID(pBse), cost);
   if (code != 0) {
     bseError("vgId:%d failed to commit at line %d since %s", BSE_GET_VGID(pBse), line, tstrerror(code));
   }
