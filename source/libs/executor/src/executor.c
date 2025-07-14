@@ -1714,24 +1714,6 @@ int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t ui
   return 0;
 }
 
-int32_t qStreamCreateTableListFromUid(uint64_t uid, void** pTableListInfo) {
-  STableListInfo* pList = tableListCreate();
-  if (pList == NULL) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-    return terrno;
-  }
-
-  int32_t code = tableListAddTableInfo(pList, uid, 0);
-  if (code != 0) {
-    tableListDestroy(pList);
-    qError("failed to add table info for uid:%" PRIu64, uid);
-    return code;
-  }
-
-  *pTableListInfo = pList;
-  return 0;
-}
-
 int32_t qStreamGetTableList(void* pTableListInfo, int32_t currentGroupId, STableKeyInfo** pKeyInfo, int32_t* size) {
   if (pTableListInfo == NULL || pKeyInfo == NULL || size == NULL) {
     return TSDB_CODE_INVALID_PARA;

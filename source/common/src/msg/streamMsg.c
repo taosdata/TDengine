@@ -3395,14 +3395,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
     }
     case STRIGGER_PULL_WAL_TS_DATA:
     case STRIGGER_PULL_WAL_TRIGGER_DATA:
-    case STRIGGER_PULL_WAL_CALC_DATA: {
-      SSTriggerWalRequest* pRequest = (SSTriggerWalRequest*)pReq;
-      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
-      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
-      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
-      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
-      break;
-    }
+    case STRIGGER_PULL_WAL_CALC_DATA:
     case STRIGGER_PULL_WAL_DATA: {
       SSTriggerWalDataRequest* pRequest = (SSTriggerWalDataRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
@@ -3564,14 +3557,7 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
     }
     case STRIGGER_PULL_WAL_TS_DATA:
     case STRIGGER_PULL_WAL_TRIGGER_DATA:
-    case STRIGGER_PULL_WAL_CALC_DATA: {
-      SSTriggerWalRequest* pRequest = &(pReq->walReq);
-      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
-      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
-      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
-      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
-      break;
-    }
+    case STRIGGER_PULL_WAL_CALC_DATA:
     case STRIGGER_PULL_WAL_DATA: {
       SSTriggerWalDataRequest* pRequest = &(pReq->walDataReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));

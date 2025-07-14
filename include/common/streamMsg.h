@@ -785,13 +785,6 @@ typedef struct SSTriggerWalMetaRequest {
   int64_t              lastVer;
   int64_t              ctime;
 } SSTriggerWalMetaRequest;
-typedef struct SSTriggerWalRequest {
-  SSTriggerPullRequest base;
-  int64_t              uid;
-  int64_t              ver;
-  int64_t              skey;
-  int64_t              ekey;
-} SSTriggerWalRequest;
 
 typedef struct SSTriggerWalDataRequest {
   SSTriggerPullRequest base;
@@ -847,7 +840,6 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerTsdbCalcDataRequest        tsdbCalcDataReq;
   SSTriggerTsdbDataRequest            tsdbDataReq;
   SSTriggerWalMetaRequest             walMetaReq;
-  SSTriggerWalRequest                 walReq;
   SSTriggerWalDataRequest             walDataReq;
   SSTriggerGroupColValueRequest       groupColValueReq;
   SSTriggerVirTableInfoRequest        virTableInfoReq;
