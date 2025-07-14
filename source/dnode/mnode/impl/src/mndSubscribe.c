@@ -379,6 +379,10 @@ static int32_t processRemoveAddVgs(SMnode *pMnode, SMqRebOutputObj *pOutput) {
     if (pIter == NULL) {
       break;
     }
+    if (pVgroup->mountVgId) {
+      sdbRelease(pMnode->pSdb, pVgroup);
+      continue;
+    }
 
     if (!mndVgroupInDb(pVgroup, pOutput->pSub->dbUid)) {
       sdbRelease(pMnode->pSdb, pVgroup);
@@ -1085,6 +1089,10 @@ static int32_t sendDeleteSubToVnode(SMnode *pMnode, SMqSubscribeObj *pSub, STran
     pIter = sdbFetch(pMnode->pSdb, SDB_VGROUP, pIter, (void **)&pVgObj);
     if (pIter == NULL) {
       break;
+    }
+    if (pVgObj->mountVgId) {
+      sdbRelease(pMnode->pSdb, pVgObj);
+      continue;
     }
 
     if (!mndVgroupInDb(pVgObj, pSub->dbUid)) {

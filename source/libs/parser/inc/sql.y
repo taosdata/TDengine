@@ -248,7 +248,7 @@ cmd ::= USE db_name(A).                                                         
 cmd ::= ALTER DATABASE db_name(A) alter_db_options(B).                            { pCxt->pRootNode = createAlterDatabaseStmt(pCxt, &A, B); }
 cmd ::= FLUSH DATABASE db_name(A).                                                { pCxt->pRootNode = createFlushDatabaseStmt(pCxt, &A); }
 cmd ::= TRIM DATABASE db_name(A) speed_opt(B).                                    { pCxt->pRootNode = createTrimDatabaseStmt(pCxt, &A, B); }
-cmd ::= S3MIGRATE DATABASE db_name(A).                                            { pCxt->pRootNode = createS3MigrateDatabaseStmt(pCxt, &A); }
+cmd ::= SSMIGRATE DATABASE db_name(A).                                            { pCxt->pRootNode = createSsMigrateDatabaseStmt(pCxt, &A); }
 cmd ::= COMPACT DATABASE db_name(A) start_opt(B) end_opt(C) meta_only(D).                      { pCxt->pRootNode = createCompactStmt(pCxt, &A, B, C, D); }
 cmd ::= COMPACT db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D) meta_only(E).   { pCxt->pRootNode = createCompactVgroupsStmt(pCxt, A, B, C, D, E); }
 
@@ -308,10 +308,10 @@ db_options(A) ::= db_options(B) WAL_SEGMENT_SIZE NK_INTEGER(C).                 
 db_options(A) ::= db_options(B) STT_TRIGGER NK_INTEGER(C).                        { A = setDatabaseOption(pCxt, B, DB_OPTION_STT_TRIGGER, &C); }
 db_options(A) ::= db_options(B) TABLE_PREFIX signed(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_PREFIX, C); }
 db_options(A) ::= db_options(B) TABLE_SUFFIX signed(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_SUFFIX, C); }
-db_options(A) ::= db_options(B) S3_CHUNKPAGES NK_INTEGER(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_S3_CHUNKPAGES, &C); }
-db_options(A) ::= db_options(B) S3_KEEPLOCAL NK_INTEGER(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_S3_KEEPLOCAL, &C); }
-db_options(A) ::= db_options(B) S3_KEEPLOCAL NK_VARIABLE(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_S3_KEEPLOCAL, &C); }
-db_options(A) ::= db_options(B) S3_COMPACT NK_INTEGER(C).                         { A = setDatabaseOption(pCxt, B, DB_OPTION_S3_COMPACT, &C); }
+db_options(A) ::= db_options(B) SS_CHUNKPAGES NK_INTEGER(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_SS_CHUNKPAGES, &C); }
+db_options(A) ::= db_options(B) SS_KEEPLOCAL NK_INTEGER(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_SS_KEEPLOCAL, &C); }
+db_options(A) ::= db_options(B) SS_KEEPLOCAL NK_VARIABLE(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_SS_KEEPLOCAL, &C); }
+db_options(A) ::= db_options(B) SS_COMPACT NK_INTEGER(C).                         { A = setDatabaseOption(pCxt, B, DB_OPTION_SS_COMPACT, &C); }
 db_options(A) ::= db_options(B) KEEP_TIME_OFFSET NK_INTEGER(C).                   { A = setDatabaseOption(pCxt, B, DB_OPTION_KEEP_TIME_OFFSET, &C); }
 db_options(A) ::= db_options(B) KEEP_TIME_OFFSET NK_VARIABLE(C).                  { A = setDatabaseOption(pCxt, B, DB_OPTION_KEEP_TIME_OFFSET, &C); }
 db_options(A) ::= db_options(B) ENCRYPT_ALGORITHM NK_STRING(C).                   { A = setDatabaseOption(pCxt, B, DB_OPTION_ENCRYPT_ALGORITHM, &C); }
@@ -352,9 +352,9 @@ alter_db_option(A) ::= WAL_RETENTION_SIZE NK_MINUS(B) NK_INTEGER(C).            
                                                                                     t.n = (C.z + C.n) - B.z;
                                                                                     A.type = DB_OPTION_WAL_RETENTION_SIZE; A.val = t;
                                                                                   }
-alter_db_option(A) ::= S3_KEEPLOCAL NK_INTEGER(B).                                { A.type = DB_OPTION_S3_KEEPLOCAL; A.val = B; }
-alter_db_option(A) ::= S3_KEEPLOCAL NK_VARIABLE(B).                               { A.type = DB_OPTION_S3_KEEPLOCAL; A.val = B; }
-alter_db_option(A) ::= S3_COMPACT NK_INTEGER(B).                                  { A.type = DB_OPTION_S3_COMPACT, A.val = B; }
+alter_db_option(A) ::= SS_KEEPLOCAL NK_INTEGER(B).                                { A.type = DB_OPTION_SS_KEEPLOCAL; A.val = B; }
+alter_db_option(A) ::= SS_KEEPLOCAL NK_VARIABLE(B).                               { A.type = DB_OPTION_SS_KEEPLOCAL; A.val = B; }
+alter_db_option(A) ::= SS_COMPACT NK_INTEGER(B).                                  { A.type = DB_OPTION_SS_COMPACT, A.val = B; }
 alter_db_option(A) ::= KEEP_TIME_OFFSET NK_INTEGER(B).                            { A.type = DB_OPTION_KEEP_TIME_OFFSET; A.val = B; }
 alter_db_option(A) ::= KEEP_TIME_OFFSET NK_VARIABLE(B).                           { A.type = DB_OPTION_KEEP_TIME_OFFSET; A.val = B; }
 alter_db_option(A) ::= ENCRYPT_ALGORITHM NK_STRING(B).                            { A.type = DB_OPTION_ENCRYPT_ALGORITHM; A.val = B; }
@@ -607,6 +607,10 @@ col_name_list(A) ::= col_name_list(B) NK_COMMA col_name(C).                     
 col_name(A) ::= column_name(B).                                                   { A = createColumnNode(pCxt, NULL, &B); }
 col_name(A) ::= TBNAME(B).                                                        { A = createColumnNode(pCxt, NULL, &B); }
 
+/************************************************ create/drop mount ********************************************/
+cmd ::= CREATE MOUNT not_exists_opt(A) mount_name(B) ON DNODE NK_INTEGER(C) FROM NK_STRING(D). { pCxt->pRootNode = createCreateMountStmt(pCxt, A, &B, &C, &D); }
+cmd ::= DROP MOUNT exists_opt(A) mount_name(B).                                   { pCxt->pRootNode = createDropMountStmt(pCxt, A, &B); }
+
 /************************************************ show ****************************************************************/
 cmd ::= SHOW DNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DNODES_STMT); }
 cmd ::= SHOW USERS.                                                               { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USERS_STMT); }
@@ -644,6 +648,7 @@ cmd ::= SHOW GRANTS.                                                            
 cmd ::= SHOW GRANTS FULL.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_GRANTS_FULL_STMT); }
 cmd ::= SHOW GRANTS LOGS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_GRANTS_LOGS_STMT); }
 cmd ::= SHOW CLUSTER MACHINES.                                                    { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT); }
+cmd ::= SHOW MOUNTS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_MOUNTS_STMT); }
 cmd ::= SHOW CREATE DATABASE db_name(A).                                          { pCxt->pRootNode = createShowCreateDatabaseStmt(pCxt, &A); }
 cmd ::= SHOW CREATE TABLE full_table_name(A).                                     { pCxt->pRootNode = createShowCreateTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_TABLE_STMT, A); }
 cmd ::= SHOW CREATE VTABLE full_table_name(A).                                    { pCxt->pRootNode = createShowCreateVTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_VTABLE_STMT, A); }
@@ -1218,6 +1223,10 @@ literal_list(A) ::= literal_list(B) NK_COMMA signed_literal(C).                 
 %type db_name                                                                     { SToken }
 %destructor db_name                                                               { }
 db_name(A) ::= NK_ID(B).                                                          { A = B; }
+
+%type mount_name                                                                  { SToken }
+%destructor mount_name                                                            { }
+mount_name(A) ::= NK_ID(B).                                                       { A = B; }
 
 %type table_name                                                                  { SToken }
 %destructor table_name                                                            { }

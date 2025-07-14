@@ -1687,6 +1687,21 @@ int32_t taosLinkFile(char *src, char *dst) {
   return 0;
 }
 
+int32_t taosSymLink(const char *target, const char *linkpath) {
+#ifdef WINDOWS
+  DWORD attributes = GetFileAttributesA(target);
+  BOOL  isDir = (attributes != INVALID_FILE_ATTRIBUTES) && (attributes & FILE_ATTRIBUTE_DIRECTORY);
+  if (!CreateSymbolicLinkA(linkpath, target, isDir ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0)) {
+    return (terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError()));
+  }
+#else
+  if (symlink(target, linkpath) == -1) {
+    return (terrno = TAOS_SYSTEM_ERROR(ERRNO));
+  }
+#endif
+  return 0;
+}
+
 FILE *taosOpenCFile(const char *filename, const char *mode) {
   if (filename == NULL || mode == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
