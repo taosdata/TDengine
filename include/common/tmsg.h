@@ -5249,9 +5249,9 @@ typedef struct {
   int32_t minRows;
   int32_t maxRows;
   int32_t tsdbPageSize;
-  int32_t s3ChunkSize;
-  int32_t s3KeepLocal;
-  int8_t  s3Compact;
+  int32_t ssChunkSize;
+  int32_t ssKeepLocal;
+  int8_t  ssCompact;
   // walInfo
   int32_t walFsyncPeriod;      // millisecond
   int32_t walRetentionPeriod;  // secs

@@ -15169,9 +15169,9 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->minRows));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->maxRows));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->tsdbPageSize));
-      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->s3ChunkSize));
-      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->s3KeepLocal));
-      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->s3Compact));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->ssChunkSize));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->ssKeepLocal));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->ssCompact));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->walFsyncPeriod));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->walRetentionPeriod));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->walRollPeriod));
@@ -15257,9 +15257,9 @@ int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo, bool extrac
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->minRows));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->maxRows));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->tsdbPageSize));
-          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->s3ChunkSize));
-          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->s3KeepLocal));
-          TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->s3Compact));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->ssChunkSize));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->ssKeepLocal));
+          TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->ssCompact));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->walFsyncPeriod));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->walRetentionPeriod));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->walRollPeriod));
