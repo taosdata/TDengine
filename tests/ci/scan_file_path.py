@@ -7,9 +7,10 @@ from loguru import logger
 import getopt
 
 web_server = ""
+scan_dir = ""
 
-opts, args = getopt.gnu_getopt(sys.argv[1:], 'b:f:w:', [
-    'branch_name='])
+opts, args = getopt.gnu_getopt(sys.argv[1:], 'b:f:w:d:', [
+    'branch_name=', 'filesName=', 'webServer=', 'dir='])
 for key, value in opts:
     if key in ['-h', '--help']:
         print(
@@ -17,15 +18,17 @@ for key, value in opts:
         print('-b  branch name or PR ID to scan')
         print('-f  change files list')
         print('-w  web server')
-
+        print('-d  directory to scan')  
         sys.exit(0)
-
+    
     if key in ['-b', '--branchName']:
         branch_name = value
     if key in ['-f', '--filesName']:
         change_file_list = value
     if key in ['-w', '--webServer']:
         web_server = value
+    if key in ['-d', '--dir']:
+        scan_dir = value
 
 
 # the base source code file path
@@ -186,7 +189,7 @@ if __name__ == "__main__":
     command_executor = CommandExecutor()
     # get all the c files path
     # scan_files_path("/root/TDinternal/community/source/")
-    input_files(change_file_list)
+    # input_files(change_file_list)
     # print(f"all_file_path:{all_file_path}")
     res = []
     web_path = []
@@ -197,6 +200,15 @@ if __name__ == "__main__":
     # scan_result_path = scan_result_base_path
     # if not os.path.exists(scan_result_path):
     #     os.makedirs(scan_result_path)
+
+    # 优先用 -d 指定目录，否则用 -f 文件列表，否则默认目录
+    if scan_dir:
+        scan_files_path(scan_dir)
+    elif change_file_list:
+        input_files(change_file_list)
+    else:
+        print("Please specify -d <directory> or -f <file_list>")
+        sys.exit(1)
 
     for file in all_file_path:
         cmd = f"clang-query-16 -p {compile_commands_path} {file} -f {clang_scan_rules_path}"
