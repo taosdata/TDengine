@@ -184,7 +184,6 @@ class BeforeTest:
         # os.environ["LIB_PATH"]= f"{lib_path}:{os.environ['LIB_PATH']}"
         #os.environ["LIBRARY_PATH"]= f"{lib_path}:{os.environ['LIBRARY_PATH']}"
         #tdLog.info(f"os.environ: {os.environ}")
-        hostname = socket.gethostname()
         yaml_data = {
             "settings": [{
                 "name": "taosd",
@@ -192,7 +191,7 @@ class BeforeTest:
                 "spec": {
                     "version": "2.4.0.0",
                     "config": {
-                        "firstEP": f"localhost:6030"
+                        "firstEP": "localhost:6030"
                     },
                     "dnodes": []
                 }
