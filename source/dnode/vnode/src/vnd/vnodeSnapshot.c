@@ -496,10 +496,8 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     code = bseSnapReaderRead(pReader->pBseReader, ppData);
     TSDB_CHECK_CODE(code, lino, _exit);
     if (*ppData) {
-      vError("succ to read bse snapshot data, but not expected");
       goto _exit;
     } else {
-      vError("succ to read bse snapshot data");
       pReader->bseDone = 1;
       bseSnapReaderClose(&pReader->pBseReader);
     }
