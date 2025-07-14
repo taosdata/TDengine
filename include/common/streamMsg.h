@@ -26,6 +26,8 @@ typedef struct SStreamRetrieveReq SStreamRetrieveReq;
 typedef struct SStreamDispatchReq SStreamDispatchReq;
 typedef struct STokenBucket       STokenBucket;
 
+#define COPY_STR(_p) ((_p) ? (taosStrdup(_p)) : NULL)
+
 typedef struct SNodeUpdateInfo {
   int32_t nodeId;
   SEpSet  prevEp;
@@ -380,10 +382,10 @@ typedef struct SStreamTask {
   /** KEEP TOGETHER **/
   int64_t streamId;  // ID of the stream
   int64_t taskId;    // ID of the current task
+  int64_t seriousId;  // task deploy idx
   /** KEEP TOGETHER **/
 
   int64_t       flags;
-  int64_t       seriousId;  // task deploy idx
   int32_t       deployId;   // runner task's deploy id
   int32_t       nodeId;     // ID of the vgroup/snode
   int64_t       sessionId;  // ID of the current session (real-time, historical, or recalculation)
@@ -688,6 +690,7 @@ void tFreeStreamOutCol(void* pCol);
 int32_t tSerializeSCMCreateStreamReq(void* buf, int32_t bufLen, const SCMCreateStreamReq* pReq);
 int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStreamReq* pReq);
 void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
+int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStreamReq** ppDst);
 
 int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStreamReq* pReq);
 int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder* pDecoder, SCMCreateStreamReq* pReq);

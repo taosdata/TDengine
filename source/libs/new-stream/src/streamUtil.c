@@ -862,9 +862,10 @@ _end:
   return code;
 }
 #else
-int32_t streamSendNotifyContent(SStreamTask* pTask, int32_t triggerType, int64_t groupId, const SArray* pNotifyAddrUrls,
-                                int32_t notifyErrorHandle, const SSTriggerCalcParam* pParams, int32_t nParam) {
-  ST_TASK_ELOG("stream notify events is not supported on windows");
+int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, int32_t triggerType, int64_t groupId,
+                                const SArray* pNotifyAddrUrls, int32_t errorHandle, const SSTriggerCalcParam* pParams,
+                                int32_t nParam) {
+  ST_TASK_ELOG("stream notify events is not supported on windows, streamName:%s", streamName);
   return TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS;
 }
 #endif

@@ -56,7 +56,7 @@ class TestStreamOldCaseDistribute:
         tdSql.execute(f"create table ts4 using st tags(4, 2, 2);")
         
         tdSql.execute(
-            f"create stream stream_t1 interval(10s) sliding(10s) from st options(watermark(1d)|max_delay(1s)) into streamtST1 as select _twstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from st where ts >= _twstart and ts < _twend;"
+            f"create stream stream_t1 interval(10s) sliding(10s) from st stream_options(watermark(1d)|max_delay(1s)) into streamtST1 as select _twstart, count(*) c1, count(d) c2, sum(a) c3, max(b) c4, min(c) c5 from st where ts >= _twstart and ts < _twend;"
         )
 
         tdStream.checkStreamStatus()

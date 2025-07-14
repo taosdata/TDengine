@@ -398,6 +398,10 @@ static int32_t sendCheckInfoToVnode(STrans *pTrans, SMnode *pMnode, SMqTopicObj 
     // iterate vg
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
+    if (pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
     if (!mndVgroupInDb(pVgroup, topicObj->dbUid)) {
       sdbRelease(pSdb, pVgroup);
       continue;
@@ -705,6 +709,10 @@ static int32_t mndDropCheckInfoByTopic(SMnode *pMnode, STrans *pTrans, SMqTopicO
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
+    if (pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
     if (!mndVgroupInDb(pVgroup, pTopic->dbUid)) {
       sdbRelease(pSdb, pVgroup);
       continue;

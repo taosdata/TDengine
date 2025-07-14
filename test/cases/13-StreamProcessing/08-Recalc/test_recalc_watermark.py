@@ -244,7 +244,6 @@ class TestStreamRecalcWatermark:
             check_func=self.check06,
         )
         self.streams.append(stream)
-
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()

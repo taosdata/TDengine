@@ -52,7 +52,7 @@ class TestStreamOldCaseInterpPrimary:
         tdSql.execute(f"create table t1 using st tags(1, 1, 1);")
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
         tdSql.execute(
-            f"create stream streams1 interval(1s) sliding(1s) from st partition by tbname options(max_delay(1s)) into streamt as select _irowts, interp(b) from st partition by tbname range(_twstart) fill(prev);"
+            f"create stream streams1 interval(1s) sliding(1s) from st partition by tbname stream_options(max_delay(1s)) into streamt as select _irowts, interp(b) from st partition by tbname range(_twstart) fill(prev);"
         )
         tdStream.checkStreamStatus()
         tdSql.pause()

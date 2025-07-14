@@ -3417,15 +3417,29 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
     case STRIGGER_PULL_WAL_TS_DATA:
     case STRIGGER_PULL_WAL_TRIGGER_DATA:
     case STRIGGER_PULL_WAL_CALC_DATA: {
-      SSTriggerWalRequest    *pReq = &pContext->pullReq.walReq;
       SSTriggerRealtimeGroup *pGroup = stRealtimeContextGetCurrentGroup(pContext);
       QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
       SSTriggerTableMeta *pCurTableMeta = pGroup->pCurTableMeta;
       SSTriggerMetaData  *pMetaToFetch = pContext->pMetaToFetch;
-      pReq->uid = pCurTableMeta->tbUid;
-      pReq->ver = pMetaToFetch->ver;
-      pReq->skey = pMetaToFetch->skey;
-      pReq->ekey = pMetaToFetch->ekey;
+      if (pTask->isVirtualTable && type == STRIGGER_PULL_WAL_TS_DATA) {
+        // work around for virtual table
+        type = STRIGGER_PULL_WAL_DATA;
+        SSTriggerWalDataRequest *pReq = &pContext->pullReq.walDataReq;
+        pReq->uid = pCurTableMeta->tbUid;
+        pReq->ver = pMetaToFetch->ver;
+        pReq->skey = pMetaToFetch->skey;
+        pReq->ekey = pMetaToFetch->ekey;
+        pReq->cids = pContext->reqCids;
+        taosArrayClear(pContext->reqCids);
+        *(col_id_t *)TARRAY_DATA(pReq->cids) = PRIMARYKEY_TIMESTAMP_COL_ID;
+        TARRAY_SIZE(pReq->cids) = 1;
+      } else {
+        SSTriggerWalRequest *pReq = &pContext->pullReq.walReq;
+        pReq->uid = pCurTableMeta->tbUid;
+        pReq->ver = pMetaToFetch->ver;
+        pReq->skey = pMetaToFetch->skey;
+        pReq->ekey = pMetaToFetch->ekey;
+      }
       SSTriggerWalProgress *pProgress =
           tSimpleHashGet(pContext->pReaderWalProgress, &pCurTableMeta->vgId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -3562,7 +3576,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
   SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
   pMsgHead->contLen = htonl(msg.contLen);
   pMsgHead->vgId = htonl(pReader->nodeId);
-  int32_t tlen = tSerializeSTriggerPullRequest(msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pReq);
+  int32_t tlen = tSerializeSTriggerPullRequest((char*)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pReq);
   QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   code = tmsgSendReq(&pReader->epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -3715,7 +3729,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
   pMsgHead->contLen = htonl(msg.contLen);
   pMsgHead->vgId = htonl(SNODE_HANDLE);
-  int32_t tlen = tSerializeSTriggerCalcRequest(msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pCalcReq);
+  int32_t tlen = tSerializeSTriggerCalcRequest((char*)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pCalcReq);
   QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   code = tmsgSendReq(&pCalcRunner->addr.epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -4271,7 +4285,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         const char *pCont = pRsp->pCont;
         code = blockDecode(pDataBlock, pCont, &pCont);
         QUERY_CHECK_CODE(code, lino, _end);
-        QUERY_CHECK_CONDITION(pCont == pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        QUERY_CHECK_CONDITION(pCont == (char*)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       }
 
       int32_t nrows = blockDataGetNumOfRows(pDataBlock);
@@ -4407,7 +4421,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         const char *pCont = pRsp->pCont;
         code = blockDecode(pTempDataBlock, pCont, &pCont);
         QUERY_CHECK_CODE(code, lino, _end);
-        QUERY_CHECK_CONDITION(pCont == pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        QUERY_CHECK_CONDITION(pCont == (char*)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       } else {
         blockDataEmpty(pTempDataBlock);
       }
@@ -4998,7 +5012,7 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
   SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
   pMsgHead->contLen = htonl(msg.contLen);
   pMsgHead->vgId = htonl(pReader->nodeId);
-  int32_t tlen = tSerializeSTriggerPullRequest(msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pReq);
+  int32_t tlen = tSerializeSTriggerPullRequest((char*)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pReq);
   QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   code = tmsgSendReq(&pReader->epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -5132,7 +5146,7 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
   SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
   pMsgHead->contLen = htonl(msg.contLen);
   pMsgHead->vgId = htonl(SNODE_HANDLE);
-  int32_t tlen = tSerializeSTriggerCalcRequest(msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pCalcReq);
+  int32_t tlen = tSerializeSTriggerCalcRequest((char*)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pCalcReq);
   QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   code = tmsgSendReq(&pCalcRunner->addr.epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -5393,7 +5407,7 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
         const char *pCont = pRsp->pCont;
         code = blockDecode(pDataBlock, pCont, &pCont);
         QUERY_CHECK_CODE(code, lino, _end);
-        QUERY_CHECK_CONDITION(pCont == pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        QUERY_CHECK_CONDITION(pCont == (char*)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       } else {
         blockDataEmpty(pDataBlock);
       }
@@ -5465,7 +5479,7 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
         const char *pCont = pRsp->pCont;
         code = blockDecode(pDataBlock, pCont, &pCont);
         QUERY_CHECK_CODE(code, lino, _end);
-        QUERY_CHECK_CONDITION(pCont == pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        QUERY_CHECK_CONDITION(pCont == (char*)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       } else {
         blockDataEmpty(pDataBlock);
       }
@@ -5491,7 +5505,7 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
         const char *pCont = pRsp->pCont;
         code = blockDecode(pTempDataBlock, pCont, &pCont);
         QUERY_CHECK_CODE(code, lino, _end);
-        QUERY_CHECK_CONDITION(pCont == pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        QUERY_CHECK_CONDITION(pCont == (char*)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       } else {
         blockDataEmpty(pTempDataBlock);
       }
@@ -5519,7 +5533,7 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
         const char *pCont = pRsp->pCont;
         code = blockDecode(pDataBlock, pCont, &pCont);
         QUERY_CHECK_CODE(code, lino, _end);
-        QUERY_CHECK_CONDITION(pCont == pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        QUERY_CHECK_CONDITION(pCont == (char*)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       } else {
         blockDataEmpty(pDataBlock);
       }
@@ -5545,7 +5559,7 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
         const char *pCont = pRsp->pCont;
         code = blockDecode(pTempDataBlock, pCont, &pCont);
         QUERY_CHECK_CODE(code, lino, _end);
-        QUERY_CHECK_CONDITION(pCont == pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        QUERY_CHECK_CONDITION(pCont == (char*)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       } else {
         blockDataEmpty(pTempDataBlock);
       }
@@ -5782,15 +5796,17 @@ int32_t stTriggerTaskAcquireRequest(SStreamTriggerTask *pTask, int64_t sessionId
   }
 
   // check if the group is running
-  int64_t p[] = {sessionId, gid};
+  int64_t p[2] = {sessionId, gid};
   pRunningFlag = tSimpleHashGet(pTask->pGroupRunning, p, sizeof(p));
   if (pRunningFlag == NULL) {
-    bool flag[nCalcNodes + 1];
-    code = tSimpleHashPut(pTask->pGroupRunning, p, sizeof(p), flag, sizeof(flag));
+    bool* flag = taosMemoryMalloc(nCalcNodes + 1);
+    QUERY_CHECK_NULL(flag, code, lino, _end, terrno);
+    code = tSimpleHashPut(pTask->pGroupRunning, p, sizeof(p), flag, nCalcNodes + 1);
+    taosMemoryFree(flag);
     QUERY_CHECK_CODE(code, lino, _end);
     pRunningFlag = tSimpleHashGet(pTask->pGroupRunning, p, sizeof(p));
     QUERY_CHECK_NULL(pRunningFlag, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    memset(pRunningFlag, 0, sizeof(flag));
+    memset(pRunningFlag, 0, nCalcNodes + 1);
   }
   if (pRunningFlag[0] == true) {
     goto _end;

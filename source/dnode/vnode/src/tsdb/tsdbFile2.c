@@ -373,20 +373,37 @@ int32_t tsdbTFileObjRemoveUpdateLC(STFileObj *fobj) {
 
 void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
   SVnode *pVnode = pTsdb->pVnode;
-  STfs   *pTfs = pVnode->pTfs;
+  STfs   *pTfs = TSDB_TFS(pTsdb->pVnode);
 
   if (pTfs) {
-    snprintf(fname,                              //
-             TSDB_FILENAME_LEN,                  //
-             "%s%s%s%sv%df%dver%" PRId64 ".%s",  //
-             tfsGetDiskPath(pTfs, f->did),       //
-             TD_DIRSEP,                          //
-             pTsdb->path,                        //
-             TD_DIRSEP,                          //
-             TD_VID(pVnode),                     //
-             f->fid,                             //
-             f->cid,                             //
-             g_tfile_info[f->type].suffix);
+    if (!pVnode->mounted) {
+      snprintf(fname,                              //
+               TSDB_FILENAME_LEN,                  //
+               "%s%s%s%sv%df%dver%" PRId64 ".%s",  //
+               tfsGetDiskPath(pTfs, f->did),       //
+               TD_DIRSEP,                          //
+               pTsdb->path,                        //
+               TD_DIRSEP,                          //
+               TD_VID(pVnode),                     //
+               f->fid,                             //
+               f->cid,                             //
+               g_tfile_info[f->type].suffix);
+    } else {
+      snprintf(fname,                                              //
+               TSDB_FILENAME_LEN,                                  //
+               "%s%svnode%svnode%d%s%s%sv%df%dver%" PRId64 ".%s",  //
+               tfsGetDiskPath(pTfs, f->did),                       //
+               TD_DIRSEP,                                          //
+               TD_DIRSEP,                                          //
+               TSDB_VID(pVnode),                                   //
+               TD_DIRSEP,                                          //
+               pTsdb->name,                                        //
+               TD_DIRSEP,                                          //
+               TSDB_VID(pVnode),                                   //
+               f->fid,                                             //
+               f->cid,                                             //
+               g_tfile_info[f->type].suffix);
+    }
   } else {
     snprintf(fname,                          //
              TSDB_FILENAME_LEN,              //
@@ -402,21 +419,39 @@ void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
 
 void tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
   SVnode *pVnode = pTsdb->pVnode;
-  STfs   *pTfs = pVnode->pTfs;
+  STfs   *pTfs = TSDB_TFS(pTsdb->pVnode);
 
   if (pTfs) {
-    snprintf(fname,                                 //
-             TSDB_FILENAME_LEN,                     //
-             "%s%s%s%sv%df%dver%" PRId64 ".%d.%s",  //
-             tfsGetDiskPath(pTfs, f->did),          //
-             TD_DIRSEP,                             //
-             pTsdb->path,                           //
-             TD_DIRSEP,                             //
-             TD_VID(pVnode),                        //
-             f->fid,                                //
-             f->cid,                                //
-             f->lcn,                                //
-             g_tfile_info[f->type].suffix);
+    if (!pVnode->mounted) {
+      snprintf(fname,                                 //
+               TSDB_FILENAME_LEN,                     //
+               "%s%s%s%sv%df%dver%" PRId64 ".%d.%s",  //
+               tfsGetDiskPath(pTfs, f->did),          //
+               TD_DIRSEP,                             //
+               pTsdb->path,                           //
+               TD_DIRSEP,                             //
+               TD_VID(pVnode),                        //
+               f->fid,                                //
+               f->cid,                                //
+               f->lcn,                                //
+               g_tfile_info[f->type].suffix);
+    } else {
+      snprintf(fname,                                                 //
+               TSDB_FILENAME_LEN,                                     //
+               "%s%svnode%svnode%d%s%s%sv%df%dver%" PRId64 ".%d.%s",  //
+               tfsGetDiskPath(pTfs, f->did),                          //
+               TD_DIRSEP,                                             //
+               TD_DIRSEP,                                             //
+               TSDB_VID(pVnode),                                      //
+               TD_DIRSEP,                                             //
+               pTsdb->name,                                           //
+               TD_DIRSEP,                                             //
+               TSDB_VID(pVnode),                                      //
+               f->fid,                                                //
+               f->cid,                                                //
+               f->lcn,                                                //
+               g_tfile_info[f->type].suffix);
+    }
   } else {
     snprintf(fname,                             //
              TSDB_FILENAME_LEN,                 //

@@ -43,7 +43,7 @@ class TestPeriodOutputSubtable:
         self.createSnodeTest()
         self.createTable()
         sql = (
-            "create stream s20 state_window(cint) from devices partition by tbname options(pre_filter(cint>2)|fill_history('1970-01-01 00:00:00')) "  
+            "create stream s20 state_window(cint) from devices partition by tbname stream_options(pre_filter(cint>2)|fill_history('1970-01-01 00:00:00')) "  
             "into s20_out output_subtable('xxxx')  tags(yyyy varchar(100) comment 'table name1' as 'cint+10') "
             "as   select ts,cint,i1,  %%tbname from %%trows where cint >5 and tint >0 and  %%tbname like '%2' order by ts;"
         )

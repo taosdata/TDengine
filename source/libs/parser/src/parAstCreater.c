@@ -343,6 +343,15 @@ static bool checkTsmaName(SAstCreateContext* pCxt, SToken* pTsmaToken) {
   return pCxt->errCode == TSDB_CODE_SUCCESS;
 }
 
+static bool checkMountPath(SAstCreateContext* pCxt, SToken* pMountPath) {
+  trimEscape(pCxt, pMountPath);
+  if (pMountPath->n >= TSDB_MOUNT_PATH_LEN || pMountPath->n == 0) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pMountPath->z);
+    return false;
+  }
+  return true;
+}
+
 SNode* createRawExprNode(SAstCreateContext* pCxt, const SToken* pToken, SNode* pNode) {
   CHECK_PARSER_STATUS(pCxt);
   SRawExprNode* target = NULL;
@@ -510,6 +519,7 @@ SNode* createPlaceHolderColumnNode(SAstCreateContext* pCxt, SNode* pColId) {
   pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   CHECK_PARSER_STATUS(pCxt);
   tstrncpy(pFunc->functionName, "_placeholder_column", TSDB_FUNC_NAME_LEN);
+  ((SValueNode*)pColId)->notReserved = true;
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, pColId);
   CHECK_PARSER_STATUS(pCxt);
   pFunc->tz = pCxt->pQueryCxt->timezone;
@@ -2485,6 +2495,51 @@ _err:
   nodesDestroyNode(pStart);
   nodesDestroyNode(pEnd);
   return NULL;
+}
+
+SNode* createCreateMountStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pMountName, SToken* pDnodeId,
+                             SToken* pMountPath) {
+#ifdef USE_MOUNT
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkDbName(pCxt, pMountName, false));
+  CHECK_NAME(checkMountPath(pCxt, pMountPath));
+  SCreateMountStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_MOUNT_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->mountName, pMountName);
+  COPY_STRING_FORM_STR_TOKEN(pStmt->mountPath, pMountPath);
+  pStmt->ignoreExists = ignoreExists;
+  if (TK_NK_INTEGER == pDnodeId->type) {
+    pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
+  } else {
+    goto _err;
+  }
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+#else
+  pCxt->errCode = TSDB_CODE_OPS_NOT_SUPPORT;
+  return NULL;
+#endif
+}
+
+SNode* createDropMountStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pMountName) {
+#ifdef USE_MOUNT
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkDbName(pCxt, pMountName, false));
+  SDropMountStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_MOUNT_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->mountName, pMountName);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+#else
+  pCxt->errCode = TSDB_CODE_OPS_NOT_SUPPORT;
+  return NULL;
+#endif
 }
 
 SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,

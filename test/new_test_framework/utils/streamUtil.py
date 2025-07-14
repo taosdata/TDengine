@@ -931,8 +931,8 @@ class StreamUtil:
 
         totalTables = tbBatch * tbPerBatch
         tdLog.info(f"create total {totalTables} child tables")
-        str1 = '{\\"k1\\":\\"v1\\",\\"k2\\":\\"v2\\"}'
-        str2 = '{\\"k1\\":\\"v1\\",\\"k2\\":\\"v2\\"}'
+        str1 = '{\\"k1\\":\\"v1\\",\\"k2\\":\\"v1\\"}'
+        str2 = '{\\"k1\\":\\"v2\\",\\"k2\\":\\"v2\\"}'
         for batch in range(tbBatch):
             sql = "create table "
             for tb in range(tbPerBatch):

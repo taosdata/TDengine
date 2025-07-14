@@ -45,6 +45,7 @@ class TestStreamParametersCheck:
         self.createSnodeTest()
         self.createOneStream()
         self.checkStreamRunning()
+        self.getCpu()
         #check min value 
         self.checknumOfMnodeStreamMgmtThreads()
         self.checknumOfStreamMgmtThreads()
@@ -120,7 +121,14 @@ class TestStreamParametersCheck:
         if int(result) < 256:
             raise Exception(f"Error: streamNotifyFrameSize is {result}, expected at least 256 KB!")
         tdLog.info(f"streamNotifyFrameSize is {result}, test passed!")  
-    
+        
+
+    def getCpu(self):
+        cmd = "lscpu | grep -v -i numa | grep 'CPU(s):' | awk -F ':' '{print $2}' | head -n 1"
+        output = subprocess.check_output(cmd, shell=True).decode().strip()
+        tdLog.info(f"cpu num is {output}")
+
+        
     def createUser(self):
         tdLog.info(f"create user")
         tdSql.execute(f'create user {self.username1} pass "taosdata"')
@@ -258,18 +266,18 @@ class TestStreamParametersCheck:
         tdSql.query("select * from information_schema.ins_dnodes order by id;")
         numOfNodes=tdSql.getRows()
         for i in range(1,numOfNodes+1):
-            tdSql.execute(f"create stream `s{i}` sliding(1s) from st1 options(fill_history('2025-01-01 00:00:00')) into `s{i}out` as select cts, cint from st1 where _tcurrent_ts % 2 = 0 order by cts;")
+            tdSql.execute(f"create stream `s{i}` sliding(1s) from st1 stream_options(fill_history('2025-01-01 00:00:00')) into `s{i}out` as select cts, cint from st1 where _tcurrent_ts % 2 = 0 order by cts;")
             tdLog.info(f"create stream s{i} success!")
-        # tdSql.execute("create stream `s2` sliding(1s) from st1 partition by tint, tbname options(fill_history('2025-01-01 00:00:00')) into `s2out` as select cts, cint from st1 order by cts limit 3;")
-        # tdSql.execute("create stream `s3` sliding(1s) from st1 partition by tbname options(pre_filter(cint>2)|fill_history('2025-01-01 00:00:00')) into `s3out` as select cts, cint,   %%tbname from %%trows where cint >15 and tint >0 and  %%tbname like '%2' order by cts;")
-        # tdSql.execute("create stream `s4` sliding(1s) from st1 options(fill_history('2025-01-01 00:00:00')) into `s4out` as select _tcurrent_ts, cint from st1 order by cts limit 4;")
+        # tdSql.execute("create stream `s2` sliding(1s) from st1 partition by tint, tbname stream_options(fill_history('2025-01-01 00:00:00')) into `s2out` as select cts, cint from st1 order by cts limit 3;")
+        # tdSql.execute("create stream `s3` sliding(1s) from st1 partition by tbname stream_options(pre_filter(cint>2)|fill_history('2025-01-01 00:00:00')) into `s3out` as select cts, cint,   %%tbname from %%trows where cint >15 and tint >0 and  %%tbname like '%2' order by cts;")
+        # tdSql.execute("create stream `s4` sliding(1s) from st1 stream_options(fill_history('2025-01-01 00:00:00')) into `s4out` as select _tcurrent_ts, cint from st1 order by cts limit 4;")
     
     def createOneStream(self):
         sql = (
         "create stream `s99` sliding(1s) from st1  partition by tbname "
-        "options(fill_history('2025-01-01 00:00:00')) "
+        "stream_options(fill_history('2025-01-01 00:00:00')) "
         "into `s99out` as "
-        "select cts, cint, %%tbname from %%trows "
+        "select cts, cint, %%tbname from st1 "
         "where cint > 5 and tint > 0 and %%tbname like '%%2' "
         "order by cts;"
         )

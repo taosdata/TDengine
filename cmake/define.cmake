@@ -130,7 +130,7 @@ IF(TD_WINDOWS)
     ELSE()
         MESSAGE("${Green} will build Debug version! ${ColourReset}")
         # NOTE: let cmake to choose default compile options
-        # SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MDd")
+        SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MDd")
     ENDIF()
 
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO /FORCE:MULTIPLE")

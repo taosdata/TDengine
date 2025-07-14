@@ -196,11 +196,11 @@ class TestStreamperiodTrigger:
             (f'create stream stName period({self.period}s) from {self.trigTbname} partition by tbname notify("ws://localhost:8080/notify")  into outTbname as querySql;',(1,True)),#4
             (f'create stream stName period({self.period}s) from {self.trigTbname} partition by tbname notify("ws://localhost:8080/notify")  where cint>10 into outTbname as querySql;',(1,True)),#5
             (f'create stream stName period({self.period}s) from {self.trigTbname} partition by tbname   into outTbname as querySql;',(1,True)),#6
-            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname options(force_output) into outTbname as querySql ;", (1, True)),#7
-            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname options(delete_output_table)  into outTbname as querySql ;", (1, True)),#8
-            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname options(LOW_LATENCY_CALC) into outTbname as querySql ;", (1, True)),#9
-            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname options(delete_output_table) into outTbname as querySql ;", (1, True)),#10
-            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname options(delete_recalc) into outTbname as querySql ;", (1, True)),#11
+            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname stream_options(force_output) into outTbname as querySql ;", (1, True)),#7
+            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname stream_options(delete_output_table)  into outTbname as querySql ;", (1, True)),#8
+            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname stream_options(LOW_LATENCY_CALC) into outTbname as querySql ;", (1, True)),#9
+            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname stream_options(delete_output_table) into outTbname as querySql ;", (1, True)),#10
+            (f"create stream stName period({self.period}s) from {self.trigTbname} partition by tbname stream_options(delete_recalc) into outTbname as querySql ;", (1, True)),#11
         ]
         
         # tdLog.info(f"createStreamSqls num: {len(createStreamSqls)}")
@@ -314,7 +314,7 @@ class TestStreamperiodTrigger:
         st1.appendSubTables(200, 240)
         st1.append_data(0, 40)
                  
-        sql = f"create stream s7 state_window (cint) from test.trigger options(fill_history_first(1)) into st7  as select _twstart, avg(cint), count(cint) from test.st where cts <= _twstart;"
+        sql = f"create stream s7 state_window (cint) from test.trigger stream_options(fill_history_first(1)) into st7  as select _twstart, avg(cint), count(cint) from test.st where cts <= _twstart;"
     
         stream1 = StreamItem(
             id=0,
