@@ -481,6 +481,7 @@ class Test_IDMP_Meters:
         tdLog.info(f"verify stream4_sub2 ~ 6 ....................... successfully.")
 
         # verify stream4_sub7
+        self.verify_stream4_sub7()
 
         # verify stream4_sub8
         # ***** bug5 ****
@@ -494,6 +495,33 @@ class Test_IDMP_Meters:
         # verify virtual table ts null
         # ***** bug3 ****
         #self.check_vt_ts()
+
+    def getSlidingWindow(self, start, step, cnt):
+        wins = []
+        x = int(start/step)
+        i = 0
+
+        while len(wins) < cnt:
+            win = (x + i) * step
+            if win >= start:
+                wins.append(win)
+            # move next    
+            i += 1        
+
+        return wins
+
+    def verify_stream4_sub7(self):
+        # result_stream4_sub7
+        wins = self.getSlidingWindow(self.start2, 1*60*60*1000, 1)
+        result_sql = f"select * from {self.vdb}.`result_stream4_sub7` "
+        tdSql.checkResultsByFunc (
+            sql = result_sql, 
+            func = lambda: tdSql.getRows() == 1
+            and tdSql.checkData(0, 0, wins[0])
+            and tdSql.checkData(0, 1, 10)
+            and tdSql.checkData(0, 2, 400)
+            and tdSql.checkData(0, 3, 10*200)
+        )
 
     def verify_stream4_sub8(self):
         # result_stream4_sub8
