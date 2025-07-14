@@ -1,3 +1,4 @@
+import subprocess
 import time
 from new_test_framework.utils import tdLog, tdSql, clusterComCheck, tdStream, StreamItem
 
@@ -93,11 +94,25 @@ class TestStreamRecalcExpiredTime:
 
     def writeInitialTriggerData(self):
         tdLog.info("write initial trigger data to tdb")
-        # Step 3: Write trigger data to trigger tables (tdb) to start stream computation
+        # Trigger data for interval+sliding stream
         trigger_sqls = [
-            "insert into tdb.et1 values ('2025-01-01 01:00:00', 10, 100, 1.5, 'normal') ('2025-01-01 01:00:30', 20, 200, 2.5, 'normal')",
-            "insert into tdb.et2 values ('2025-01-01 01:01:00', 15, 150, 3.5, 'warning') ('2025-01-01 01:01:30', 25, 250, 4.5, 'warning')", 
-            "insert into tdb.et3 values ('2025-01-01 01:02:00', 30, 300, 5.5, 'error') ('2025-01-01 01:02:30', 40, 400, 6.5, 'error')",
+            "insert into tdb.et1 values ('2025-01-01 02:00:00', 10, 100, 1.5, 'normal');",
+            "insert into tdb.et1 values ('2025-01-01 02:00:30', 20, 200, 2.5, 'normal');",
+            "insert into tdb.et1 values ('2025-01-01 02:01:00', 30, 300, 3.5, 'normal');",
+            "insert into tdb.et1 values ('2025-01-01 02:01:30', 40, 400, 4.5, 'normal');",
+            "insert into tdb.et1 values ('2025-01-01 02:02:00', 50, 500, 5.5, 'normal');",
+            "insert into tdb.et1 values ('2025-01-01 02:02:30', 60, 600, 6.5, 'normal');",
+        ]
+        tdSql.executes(trigger_sqls)
+
+        # Trigger data for session stream
+        trigger_sqls = [
+            "insert into tdb.t1 values ('2025-01-01 02:00:00', 10, 'normal');",
+            "insert into tdb.t1 values ('2025-01-01 02:00:30', 20, 'normal');",
+            "insert into tdb.t1 values ('2025-01-01 02:01:00', 30, 'normal');",
+            "insert into tdb.t1 values ('2025-01-01 02:03:00', 40, 'normal');",
+            "insert into tdb.t1 values ('2025-01-01 02:03:30', 50, 'normal');",
+            "insert into tdb.t1 values ('2025-01-01 02:04:00', 60, 'normal');",
         ]
         tdSql.executes(trigger_sqls)
 
@@ -205,22 +220,18 @@ class TestStreamRecalcExpiredTime:
         # Test 1.1: INTERVAL+SLIDING with EXPIRED_TIME - should not process expired data
         stream = StreamItem(
             id=1,
-            stream="create stream rdb.s_interval_expired interval(2m) sliding(1m) from tdb.expired_triggers options(expired_time(1h)) into rdb.r_interval_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
-            res_query="select ts, cnt, avg_val from rdb.r_interval_expired order by ts;",
-            exp_query="",
+            stream="create stream rdb.s_interval_expired interval(2m) sliding(2m) from tdb.expired_triggers partition by tbname options(expired_time(1h)) into rdb.r_interval_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check01,
         )
         self.streams.append(stream)
 
-        # # Test 1.2: SESSION with EXPIRED_TIME - should not process expired data
-        # stream = StreamItem(
-        #     id=2,
-        #     stream="create stream rdb.s_session_expired session(ts, 30s) from tdb.trigger_test partition by tbname options(expired_time(1h)) into rdb.r_session_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
-        #     res_query="select ts, cnt, avg_val from rdb.r_session_expired order by ts;",
-        #     exp_query="",
-        #     check_func=self.check02,
-        # )
-        # self.streams.append(stream)
+        # Test 1.2: SESSION with EXPIRED_TIME - should not process expired data
+        stream = StreamItem(
+            id=2,
+            stream="create stream rdb.s_session_expired session(ts,45s) from tdb.trigger_test partition by tbname options(expired_time(1h)) into rdb.r_session_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            check_func=self.check02,
+        )
+        self.streams.append(stream)
 
         # # Test 1.3: STATE_WINDOW with EXPIRED_TIME - should not process expired data
         # stream = StreamItem(
@@ -284,18 +295,60 @@ class TestStreamRecalcExpiredTime:
     def check01(self):
         # Test interval+sliding with EXPIRED_TIME - should not process expired data
         tdLog.info("Check 1: INTERVAL+SLIDING with EXPIRED_TIME ignores expired data")
-        tdSql.checkTableType(dbname="rdb", tbname="r_interval_expired", typename="NORMAL_TABLE", columns=3)
-        tdSql.query("select count(*) from rdb.r_interval_expired;")
-        result_count = tdSql.getData(0, 0)
-        tdLog.info(f"INTERVAL+SLIDING expired_time result count: {result_count}")
+        tdSql.checkTableType(dbname="rdb", stbname="r_interval_expired", columns=3,tags=1)
 
-    # def check02(self):
-    #     # Test session with EXPIRED_TIME - should not process expired data
-    #     tdLog.info("Check 2: SESSION with EXPIRED_TIME ignores expired data")
-    #     tdSql.checkTableType(dbname="rdb", stbname="r_session_expired", columns=3, tags=1)
-    #     tdSql.query("select count(*) from rdb.r_session_expired where tag_tbname='t1';")
-    #     result_count = tdSql.getData(0, 0)
-    #     tdLog.info(f"SESSION expired_time result count: {result_count}")
+        
+
+        exp_sql = "select _wstart, count(*),avg(cint) from qdb.meters where cts >= '2025-01-01 02:00:00' and cts < '2025-01-01 02:02:00' interval(2m) sliding(2m) ;"
+        res_sql = "select ts, cnt, avg_val from rdb.r_interval_expired;"
+        self.streams[0].checkResultsBySql(res_sql, exp_sql)
+
+        #TODO(beryl) blocked by jira TS-36471 
+        # insertMeters = "insert into qdb.t0 values ('2025-01-01 02:00:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');"
+        # tdSql.execute(insertMeters)
+
+        # insertTriggers = "insert into tdb.et1 values ('2025-01-01 02:00:01', 10, 100, 1.5, 'normal');"
+        # tdSql.execute(insertTriggers)
+
+        # self.streams[0].checkResultsBySql(res_sql, exp_sql)
+
+        tdSql.query("select count(*) from rdb.r_interval_expired;")
+        result_count_before = tdSql.getData(0, 0)
+        tdLog.info(f"INTERVAL+SLIDING result count: {result_count_before}")
+        
+        insertExpiredTriggers = "insert into tdb.et1 values ('2025-01-01 00:00:01', 5, 55, 0.8, 'expired1');"
+        tdSql.execute(insertExpiredTriggers)
+
+        tdSql.query("select count(*) from rdb.r_interval_expired;")
+        result_count_after = tdSql.getData(0, 0)
+        tdLog.info(f"INTERVAL+SLIDING expired_time result count: after insert expired data {result_count_after}")
+
+        tdLog.info("wait for stream to be stable")
+        time.sleep(5)
+        assert result_count_before == result_count_after, "INTERVAL+SLIDING expired_time result count is not expected"
+
+
+    def check02(self):
+        # Test session with EXPIRED_TIME - should not process expired data
+        tdLog.info("Check 2: SESSION with EXPIRED_TIME ignores expired data")
+        tdSql.checkTableType(dbname="rdb", stbname="r_session_expired", columns=3, tags=1)
+
+        exp_sql = "select count(*),avg(cint) from qdb.meters where cts >= '2025-01-01 02:00:00.000' and cts < '2025-01-01 02:01:00.000';"
+        res_sql = "select cnt, avg_val from rdb.r_session_expired;"
+        self.streams[1].checkResultsBySql(res_sql, exp_sql)
+
+        # trigger data for session stream
+        trigger_sqls = [
+            "insert into tdb.t1 values ('2025-01-01 01:30:00', 10, 'normal');",
+            "insert into tdb.t1 values ('2025-01-01 01:30:30', 20, 'normal');",
+            "insert into tdb.t1 values ('2025-01-01 01:32:00', 30, 'normal');",
+        ]
+        tdSql.executes(trigger_sqls)
+
+        # check results
+        exp_sql = "select count(*),avg(cint) from qdb.meters where cts >= '2025-01-01 01:30:00.000' and cts < '2025-01-01 01:30:30.000';"
+        res_sql = "select cnt, avg_val from rdb.r_session_expired where ts = '2025-01-01 01:30:00.000';"
+        self.streams[1].checkResultsBySql(res_sql, exp_sql)
 
     # def check03(self):
     #     # Test state window with EXPIRED_TIME - should not process expired data

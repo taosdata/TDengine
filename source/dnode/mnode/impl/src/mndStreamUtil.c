@@ -135,6 +135,9 @@ void mstDestroySStmStatus(void* param) {
   taosMemoryFreeClear(pStatus->streamName);
 
   mstResetSStmStatus(pStatus);
+
+  tFreeSCMCreateStreamReq(pStatus->pCreate);
+  taosMemoryFreeClear(pStatus->pCreate);  
 }
 
 void mstDestroySStmAction(void* param) {

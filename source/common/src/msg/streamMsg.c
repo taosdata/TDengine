@@ -2675,6 +2675,8 @@ void tFreeStreamOutCol(void* pCol) {
   taosMemoryFreeClear(pOutCol->expr);
 }
 
+
+
 void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   if (NULL == pReq) {
     return;
@@ -2721,6 +2723,164 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosArrayDestroyEx(pReq->forceOutCols, tFreeStreamOutCol);
   pReq->forceOutCols = NULL;
 }
+
+int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStreamReq** ppDst) {
+  int32_t code = 0, lino = 0;
+  if (NULL == pSrc) {
+    return code;
+  } 
+
+  void* p = NULL;
+  int32_t num = 0;
+  *ppDst = taosMemoryCalloc(1, sizeof(SCMCreateStreamReq));
+  TSDB_CHECK_NULL(*ppDst, code, lino, _exit, terrno);
+
+  SCMCreateStreamReq* pDst = *ppDst;
+
+  if (pSrc->outDB) {
+    pDst->outDB = COPY_STR(pSrc->outDB);
+    TSDB_CHECK_NULL(pDst->outDB, code, lino, _exit, terrno);
+  }
+  
+  if (pSrc->triggerTblName) {
+    pDst->triggerTblName = COPY_STR(pSrc->triggerTblName);
+    TSDB_CHECK_NULL(pDst->triggerTblName, code, lino, _exit, terrno);
+  }
+  
+  if (pSrc->outTblName) {
+    pDst->outTblName = COPY_STR(pSrc->outTblName);
+    TSDB_CHECK_NULL(pDst->outTblName, code, lino, _exit, terrno);
+  }
+  
+  if (pSrc->pNotifyAddrUrls) {
+    num = taosArrayGetSize(pSrc->pNotifyAddrUrls);
+    if (num > 0) {
+      pDst->pNotifyAddrUrls = taosArrayInit(num, POINTER_BYTES);
+      TSDB_CHECK_NULL(pDst->pNotifyAddrUrls, code, lino, _exit, terrno);
+    }
+    for (int32_t i = 0; i < num; ++i) {
+      p = taosStrdup(taosArrayGetP(pSrc->pNotifyAddrUrls, i));
+      TSDB_CHECK_NULL(p, code, lino, _exit, terrno);
+      TSDB_CHECK_NULL(taosArrayPush(pDst->pNotifyAddrUrls, &p), code, lino, _exit, terrno);
+    }
+  }
+  
+  if (pSrc->triggerFilterCols) {
+    pDst->triggerFilterCols = COPY_STR(pSrc->triggerFilterCols);
+    TSDB_CHECK_NULL(pDst->triggerFilterCols, code, lino, _exit, terrno);
+  }
+  
+  if (pSrc->triggerCols) {
+    pDst->triggerCols = COPY_STR(pSrc->triggerCols);
+    TSDB_CHECK_NULL(pDst->triggerCols, code, lino, _exit, terrno);
+  }
+  
+  if (pSrc->partitionCols) {
+    pDst->partitionCols = COPY_STR(pSrc->partitionCols);
+    TSDB_CHECK_NULL(pDst->partitionCols, code, lino, _exit, terrno);
+  }
+  
+  if (pSrc->outCols) {
+    pDst->outCols = taosArrayDup(pSrc->outCols, NULL);
+    TSDB_CHECK_NULL(pDst->outCols, code, lino, _exit, terrno);
+  }
+  
+  if (pSrc->outTags) {
+    pDst->outTags = taosArrayDup(pSrc->outTags, NULL);
+    TSDB_CHECK_NULL(pDst->outTags, code, lino, _exit, terrno);
+  }
+  
+  switch (pSrc->triggerType) {
+    case WINDOW_TYPE_EVENT:
+      if (pSrc->trigger.event.startCond) {
+        pDst->trigger.event.startCond = COPY_STR(pSrc->trigger.event.startCond);
+        TSDB_CHECK_NULL(pDst->trigger.event.startCond, code, lino, _exit, terrno);
+      }
+      
+      if (pSrc->trigger.event.endCond) {
+        pDst->trigger.event.endCond = COPY_STR(pSrc->trigger.event.endCond);
+        TSDB_CHECK_NULL(pDst->trigger.event.endCond, code, lino, _exit, terrno);
+      }
+      pDst->trigger.event.trueForDuration = pSrc->trigger.event.trueForDuration;
+      break;
+    default:
+      pDst->trigger = pSrc->trigger;
+      break;
+  }
+
+
+  if (pSrc->triggerScanPlan) {
+    pDst->triggerScanPlan = COPY_STR(pSrc->triggerScanPlan);
+    TSDB_CHECK_NULL(pDst->triggerScanPlan, code, lino, _exit, terrno);
+  }
+  
+  if (pSrc->calcScanPlanList) {
+    num = taosArrayGetSize(pSrc->calcScanPlanList);
+    if (num > 0) {
+      pDst->calcScanPlanList = taosArrayInit(num, sizeof(SStreamCalcScan));
+      TSDB_CHECK_NULL(pDst->calcScanPlanList, code, lino, _exit, terrno);
+    }
+    for (int32_t i = 0; i < num; ++i) {
+      SStreamCalcScan* sscan = taosArrayGet(pSrc->calcScanPlanList, i);
+      SStreamCalcScan  dscan = {.readFromCache = sscan->readFromCache};
+
+      dscan.vgList = taosArrayDup(sscan->vgList, NULL);
+      TSDB_CHECK_NULL(dscan.vgList, code, lino, _exit, terrno);
+
+      dscan.scanPlan = COPY_STR(sscan->scanPlan);
+      TSDB_CHECK_NULL(dscan.scanPlan, code, lino, _exit, terrno);
+      
+      TSDB_CHECK_NULL(taosArrayPush(pDst->calcScanPlanList, &dscan), code, lino, _exit, terrno);
+    }
+  }
+  
+  if (pSrc->triggerPrevFilter) {
+    pDst->triggerPrevFilter = COPY_STR(pSrc->triggerPrevFilter);
+    TSDB_CHECK_NULL(pDst->triggerPrevFilter, code, lino, _exit, terrno);
+  }
+  
+  if (pSrc->calcPlan) {
+    pDst->calcPlan = COPY_STR(pSrc->calcPlan);
+    TSDB_CHECK_NULL(pDst->calcPlan, code, lino, _exit, terrno);
+  }
+  
+  if (pSrc->subTblNameExpr) {
+    pDst->subTblNameExpr = COPY_STR(pSrc->subTblNameExpr);
+    TSDB_CHECK_NULL(pDst->subTblNameExpr, code, lino, _exit, terrno);
+  }
+  
+  if (pSrc->tagValueExpr) {
+    pDst->tagValueExpr = COPY_STR(pSrc->tagValueExpr);
+    TSDB_CHECK_NULL(pDst->tagValueExpr, code, lino, _exit, terrno);
+  }
+  
+  if (pSrc->forceOutCols) {
+    num = taosArrayGetSize(pSrc->forceOutCols);
+    if (num > 0) {
+      pDst->forceOutCols = taosArrayInit(num, sizeof(SStreamOutCol));
+      TSDB_CHECK_NULL(pDst->forceOutCols, code, lino, _exit, terrno);
+    }
+    for (int32_t i = 0; i < num; ++i) {
+      SStreamOutCol* scol = taosArrayGet(pSrc->forceOutCols, i);
+      SStreamOutCol  dcol = {.type = scol->type};
+
+      dcol.expr = COPY_STR(scol->expr);
+      TSDB_CHECK_NULL(dcol.expr, code, lino, _exit, terrno);
+      
+      TSDB_CHECK_NULL(taosArrayPush(pDst->forceOutCols, &dcol), code, lino, _exit, terrno);
+    }
+  }
+  
+_exit:
+
+  if (code) {
+    tFreeSCMCreateStreamReq(pDst);
+    uError("%s failed at line %d since %s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
 
 int32_t tSerializeSMPauseStreamReq(void *buf, int32_t bufLen, const SMPauseStreamReq *pReq) {
   int32_t  code = 0;

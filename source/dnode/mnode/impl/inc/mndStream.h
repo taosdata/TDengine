@@ -110,6 +110,8 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 #define STREAM_IS_VIRTUAL_TABLE(_type, _flags) (TSDB_VIRTUAL_CHILD_TABLE == (_type) || TSDB_VIRTUAL_NORMAL_TABLE == (_type) || (TSDB_SUPER_TABLE == (_type) && BIT_FLAG_TEST_MASK((_flags), CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB)))
 #define MST_IS_RUNNER_GETTING_READY(_t) (STREAM_STATUS_INIT == (_t)->status && STREAM_RUNNER_TASK == (_t)->type)
 
+#define MST_COPY_STR(_p) ((_p) ? (taosStrdup(_p)) : NULL)
+
 // clang-format off
 #define mstFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("MSTM FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }} while(0)
 #define mstError(...) do { if (stDebugFlag & DEBUG_ERROR) { taosPrintLog("MSTM ERROR ", DEBUG_ERROR, 255,         __VA_ARGS__); }} while(0)
@@ -249,7 +251,9 @@ typedef struct SStmStat {
 
 typedef struct SStmStatus {
   // static part
-  char*             streamName;
+  char*               streamName;
+  SCMCreateStreamReq* pCreate;
+  
   int32_t           trigReaderNum;
   int32_t           calcReaderNum;
   int32_t           runnerNum;        // task num for one deploy

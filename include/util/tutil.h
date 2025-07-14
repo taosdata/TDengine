@@ -53,6 +53,7 @@ void *tmemmem(const char *haystack, int hlen, const char *needle, int nlen);
 int32_t parseCfgReal(const char *str, float *out);
 bool    tIsValidFileName(const char *fileName, const char *pattern);
 bool    tIsValidFilePath(const char *filePath, const char *pattern);
+void    tTrimMountPrefix(char *fullName);
 
 #ifdef TD_ASTRA
 static FORCE_INLINE int32_t taosStrcasecmp(const char *s1, const char *s2) {
