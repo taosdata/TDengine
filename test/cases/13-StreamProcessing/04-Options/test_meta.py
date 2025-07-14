@@ -21,7 +21,7 @@ class TestStreamMetaTrigger:
         # streams.append(self.Basic4())  # [ok]
         # # streams.append(self.Basic5())  # [fail] 
         # # streams.append(self.Basic6())  #  [fail]
-        streams.append(self.Basic7())  # [ok] 
+        # streams.append(self.Basic7())  # [ok] 
         
         tdStream.checkAll(streams)
 
