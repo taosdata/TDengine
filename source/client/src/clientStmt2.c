@@ -1945,11 +1945,10 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
   SBlobRow2* pBlob = NULL;
   if (colIdx < 0) {
     if (pStmt->sql.stbInterlaceMode) {
-      // (*pDataBlock)->pData->flags = 0;
       (*pDataBlock)->pData->flags &= ~SUBMIT_REQ_COLUMN_DATA_FORMAT;
       code = qBindStmtStbColsValue2(*pDataBlock, pCols, pStmt->bInfo.boundCols, bind, pStmt->exec.pRequest->msgBuf,
                                     pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo,
-                                    pStmt->taos->optionInfo.charsetCxt);
+                                    pStmt->taos->optionInfo.charsetCxt, &pBlob);
       param->tblData.isOrdered = (*pDataBlock)->ordered;
       param->tblData.isDuplicateTs = (*pDataBlock)->duplicateTs;
     } else {
