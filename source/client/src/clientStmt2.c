@@ -1973,7 +1973,7 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
   pStmt->stat.bindDataUs3 += startUs4 - startUs3;
 
   if (pStmt->stbInterlaceMode) {
-    param->tblData.pBlobRow = pBlob;
+    if (param) param->tblData.pBlobRow = pBlob;
   }
 
   if (pStmt->sql.stbInterlaceMode) {

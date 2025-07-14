@@ -1845,7 +1845,7 @@ TEST(stmt2Case, stmt2_nchar) {
   do_query(taos, "create database IF NOT EXISTS stmt2_testdb_10;");
   do_query(taos, "use stmt2_testdb_10;");
   do_query(taos,
-           "create table m1 (ts timestamp, blob2 nchar(10), blob nchar(10),blob3 nchar(10),blob4 nchar(10),blob5 "
+           "create table m1 (ts timestamp, blob1 nchar(10), blob2 nchar(10),blob3 nchar(10),blob4 nchar(10),blob5 "
            "nchar(10))");
 
   // insert 10 records
@@ -1915,7 +1915,7 @@ TEST(stmt2Case, stmt2_nchar) {
   params[5].is_null = is_null;
   params[5].num = 10;
 
-  int code = taos_stmt2_prepare(stmt, "insert into ? (ts, blob2, blob, blob3, blob4, blob5) values(?,?,?,?,?,?)", 0);
+  int code = taos_stmt2_prepare(stmt, "insert into ? (ts, blob1, blob2 blob3, blob4, blob5) values(?,?,?,?,?,?)", 0);
   checkError(stmt, code);
 
   int64_t ts = 1591060628000;
