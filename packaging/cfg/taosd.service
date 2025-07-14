@@ -16,7 +16,7 @@ StandardOutput=null
 Restart=always
 StartLimitBurst=3
 StartLimitInterval=900s
-EnvironmentFile=-/etc/default/taos/set_taos_malloc_env.conf
+EnvironmentFile=-/etc/default/taosd
 
 [Install]
 WantedBy=multi-user.target

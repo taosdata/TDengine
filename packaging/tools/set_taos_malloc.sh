@@ -7,10 +7,11 @@ TAOS_DIR="${INSTALL_DIR}/taos"
 DRIVER_DIR="${TAOS_DIR}/driver"
 LOG_DIR="${TAOS_DIR}/log"
 BIN_DIR="${TAOS_DIR}/bin"
-CFG_DIR="/etc/default/taos"
+CFG_DIR="/etc/default/"
 
 MALLOC_ENV_SH="${BIN_DIR}/set_taos_malloc_env.sh"
-MALLOC_ENV_CONF="${CFG_DIR}/set_taos_malloc_env.conf"
+MALLOC_TAOSD_ENV_CONF="${CFG_DIR}/taosd"
+MALLOC_ADAPTER_ENV_CONF="${CFG_DIR}/taosadapter"
 MALLOC_LOG_FILE="${LOG_DIR}/set_taos_malloc.log"
 TCMALLOC_LIB="${DRIVER_DIR}/libtcmalloc.so"
 TCMALLOC_PREFIX="${LOG_DIR}/tcmalloc/prof"
@@ -58,10 +59,9 @@ if [ -z "$mode" ]; then
 fi
 
 echo "# Auto-generated memory allocator environment variables" > "$MALLOC_ENV_SH"
-echo "# Auto-generated memory allocator environment variables" > "$MALLOC_ENV_CONF"
+echo "# Auto-generated memory allocator environment variables" > "$MALLOC_TAOSD_ENV_CONF"
+echo "# Auto-generated memory allocator environment variables" > "$MALLOC_ADAPTER_ENV_CONF"
 
-
-declare -A MODE_DESC
 # Define associative arrays for each mode
 declare -A SH_VARS
 declare -A CONF_VARS
@@ -116,7 +116,8 @@ for i in $(seq 0 $((${#SH_VARS[@]}-1))); do
 done
 
 for i in $(seq 0 $((${#CONF_VARS[@]}-1))); do
-  echo "${CONF_VARS[$i]}" >> "$MALLOC_ENV_CONF"
+  echo "${CONF_VARS[$i]}" >> "$MALLOC_TAOSD_ENV_CONF"
+  echo "${CONF_VARS[$i]}" >> "$MALLOC_ADAPTER_ENV_CONF"
 done
 
 if [ "$quiet" -ne 1 ]; then
@@ -124,7 +125,8 @@ if [ "$quiet" -ne 1 ]; then
   echo "Memory allocator setting complete!"
   echo "  Mode: $mode (${MODE_DESC})"
   echo "  Shell env file:    $MALLOC_ENV_SH"
-  echo "  Systemd env file:  $MALLOC_ENV_CONF"
+  echo "  Systemd taosd env file:  $MALLOC_TAOSD_ENV_CONF"
+  echo "  Systemd taosadapter env file:  $MALLOC_ADAPTER_ENV_CONF"
   echo
   echo "To use in shell:    source $MALLOC_ENV_SH"
   echo "To use in systemd:  Just restart your service, EnvironmentFile is already configured."
