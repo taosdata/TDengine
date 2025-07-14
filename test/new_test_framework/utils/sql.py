@@ -2442,6 +2442,9 @@ class TDSql:
         if delay != 0:
             time.sleep(delay)
 
+        # show sql
+        tdLog.info(sql)
+
         if retry <= 0:
             retry = 1
 
@@ -2454,7 +2457,7 @@ class TDSql:
 
             if loop != retry - 1:
                 if show:
-                    self.printResult("check continue")
+                    self.printResult(f"check continue {loop} after sleep 1s ...")
                 time.sleep(1)
 
         self.printResult(f"check failed for {retry} seconds", exit=True)

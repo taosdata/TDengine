@@ -579,6 +579,12 @@ _exit:
 int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
 
+  if (pVnode->mounted) {
+    vError("vgId:%d, mountVgId:%d, skip write msg:%s", TD_VID(pVnode), pVnode->config.mountVgId,
+           TMSG_INFO(pMsg->msgType));
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+
   switch (pMsg->msgType) {
     case TDMT_VND_CREATE_TABLE: {
       code = vnodePreProcessCreateTableMsg(pVnode, pMsg);
@@ -651,7 +657,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   }
 
   if (!(pVnode->state.applied + 1 == ver)) {
-    vError("vgId:%d, ver mismatch, expected: %" PRId64 ", received: %" PRId64, TD_VID(pVnode),
+    vError("vgId:%d, mountVgId:%d, ver mismatch, expected: %" PRId64 ", received: %" PRId64, TD_VID(pVnode), pVnode->config.mountVgId,
            pVnode->state.applied + 1, ver);
     return terrno = TSDB_CODE_INTERNAL_ERROR;
   }
@@ -1824,7 +1830,7 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
     if (pEntry->type != TSDB_SUPER_TABLE) {
     vError("vgId:%d, table uid:%" PRId64 " exists, but is not super table, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
     code = TSDB_CODE_STREAM_INSERT_SCHEMA_NOT_MATCH;
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
@@ -1882,7 +1888,7 @@ static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTb
   if (pEntry->type != TSDB_NORMAL_TABLE) {
     vError("vgId:%d, table uid:%" PRId64 " exists, but is not normal table, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
     code = TSDB_CODE_STREAM_INSERT_SCHEMA_NOT_MATCH;
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));

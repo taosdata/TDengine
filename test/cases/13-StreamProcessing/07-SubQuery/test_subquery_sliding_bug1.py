@@ -107,19 +107,13 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=19,
-            stream="create stream rdb.s19 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r19 as select _twend tw, sum(c1) sumcnt from (select tbname, count(*) c1 from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and tint=%%1 partition by tbname)",
-            res_query="select tw, sumcnt from rdb.r19 where id = 1",
-            exp_query="select _wend, count(*) from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tint=1 interval(5m)",
+            id=75,
+            stream="create stream rdb.s75 interval(5m) sliding(5m) from tdb.vtriggers partition by id into rdb.r75 as select _wstart, twa(c1), avg(c1), count(c1) from tdb.vtriggers where id=%%1 and ts>=_twstart and ts < _twend interval(1m) fill(prev)",
+            res_query="select * from rdb.r75",
+            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
         self.streams.append(stream)
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()
-
-    def check84(self):
-        tdSql.checkResultsByFunc(
-            sql="select * from rdb.r84 where tag_tbname='t1';",
-            func=lambda: tdSql.getRows() == 14,
-        )

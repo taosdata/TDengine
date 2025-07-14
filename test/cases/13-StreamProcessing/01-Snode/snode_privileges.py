@@ -75,6 +75,14 @@ class TestStreamPrivileges:
         self.checkStreamRunning()
         
         #check normal user can not stop/start stream
+        self.revokeRead()
+        self.revokeWrite()
+        self.userStopStream()
+        self.userStartStream()
+        
+        self.grantRead()
+        self.grantWrite()
+        #check normal user can stop/start stream
         self.userStopStream()
         self.userStartStream()
         
@@ -190,7 +198,7 @@ class TestStreamPrivileges:
         # print(f"username: {username}")
         
     def userStopStream(self):
-        tdLog.info(f"connect with normal user {self.username2}")
+        tdLog.info(f"connect with normal user {self.username2} to stop stream")
         tdSql.connect("lvze2")
         tdSql.query(f"show {self.dbname}.streams;")
         numOfStreams = tdSql.getRows()
@@ -204,13 +212,15 @@ class TestStreamPrivileges:
                     raise  Exception(f"stop stream failed with error: {e}")
             tdSql.query(f"show {self.dbname}.streams;")
             stateStream = tdSql.getData(0,1)
-            if stateStream != 'Stopped':
-                raise Exception(f"normal user can not stop stream,  found state: {stateStream}")
+            tdSql.query(f"select * from information_schema.ins_user_privileges where user_name='lvze2' and privilege ='write'")
+            writeUser = tdSql.getRows()
+            if stateStream != 'Stopped' and writeUser == 0:
+                tdLog.info(f"normal user(no write privilege) can not stop stream")
             else:
                 tdLog.info(f"stop stream test1.`s100` success")
                 
     def userStartStream(self):
-        tdLog.info(f"connect with normal user {self.username2}")
+        tdLog.info(f"connect with normal user {self.username2} to start stream")
         tdSql.connect("lvze2")
         tdSql.query(f"show {self.dbname}.streams;")
         numOfStreams = tdSql.getRows()

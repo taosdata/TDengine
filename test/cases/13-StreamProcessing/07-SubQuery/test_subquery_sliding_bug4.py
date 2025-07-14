@@ -107,11 +107,11 @@ class TestStreamDevBasic:
         self.streams = []
 
         stream = StreamItem(
-            id=102,
-            stream="create stream rdb.s102 interval(5m) sliding(5m) from tdb.t1 into rdb.r102 as select last(ts), cols(last(ts), c1, c2), count(1) from %%trows",
-            res_query="select * from rdb.r102 limit 3",
-            exp_query="select last(ts), cols(last(ts), c1, c2), count(1) from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:15:00.000' interval(5m);",
-            check_func=self.check102,
+            id=103,
+            stream="create stream rdb.s103 interval(5m) sliding(5m) from tdb.vtriggers partition by tbname into rdb.r103 as select cvarchar like 'a', not like, regexp, not regexp from tdb.vtriggers where tbname=%%tbname limit 1 offset 1 ",
+            res_query="select * from rdb.r103",
+            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            check_func=self.check103,
         )
         self.streams.append(stream)
 
@@ -119,7 +119,7 @@ class TestStreamDevBasic:
         for stream in self.streams:
             stream.createStream()
 
-    def check102(self):
+    def check103(self):
         tdSql.checkResultsByFunc(
-            sql="select * from rdb.r102", func=lambda: tdSql.getRows() == 4
+            sql="select * from rdb.r103", func=lambda: tdSql.getRows() == 6
         )

@@ -712,6 +712,7 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path, int32_t vnodeVersion) {
       .snapshotStrategy = SYNC_STRATEGY_WAL_FIRST,
       .batchSize = 1,
       .vgId = pVnode->config.vgId,
+      .mountVgId = pVnode->config.mountVgId,
       .syncCfg = pVnode->config.syncCfg,
       .pWal = pVnode->pWal,
       .msgcb = &pVnode->msgCb,
