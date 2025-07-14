@@ -1246,7 +1246,7 @@ class TestTsma:
         self.check_flush_query()
         
         #cluster test
-        cluster_dnode_list = tdSql.get_cluseter_dnodes()
+        cluster_dnode_list = tdSql.getCluseterDnodes()
         clust_dnode_nums = len(cluster_dnode_list)
         if clust_dnode_nums > 1:
             self.check_redistribute_vgroups()
@@ -1614,7 +1614,7 @@ class TestTsma:
 
         self.create_tsma('`129_tsma`', 'test', 'meters', ['count(c3)'], '5m')
         self.create_tsma('`129_Tsma`', 'test', 'meters', ['count(c3)'], '9m')
-        self.create_tsma('`129_T*\-sma`', 'test', 'meters', ['count(c3)'], '10m', expected_tsma_name='129_T*\\-sma')
+        self.create_tsma('`129_T*\-sma`', 'test', 'meters', ['count(c3)'], '10m', expected_tsma_name='129_T*\\\\-sma')
         tdSql.execute("drop tsma test.`129_tsma`")
         tdSql.execute("drop tsma test.`129_Tsma`")
         tdSql.execute("drop tsma test.`129_T*\-sma`")
