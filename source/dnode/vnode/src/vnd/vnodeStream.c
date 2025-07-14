@@ -44,21 +44,7 @@
 
 static int64_t getSessionKey(int64_t session, int64_t type) { return (session | (type << 32)); }
 
-// static int32_t insertTableToIgnoreList(SHashObj** pIgnoreTables, uint64_t uid) {
-//   if (NULL == *pIgnoreTables) {
-//     *pIgnoreTables = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-//     if (NULL == *pIgnoreTables) {
-//       return terrno;
-//     }
-//   }
-
-//   int32_t tempRes = taosHashPut(*pIgnoreTables, &uid, sizeof(uid), &uid, sizeof(uid));
-//   if (tempRes != TSDB_CODE_SUCCESS) {
-//     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(tempRes));
-//     return tempRes;
-//   }
-//   return TSDB_CODE_SUCCESS;
-// }
+static int32_t buildScheamFromMeta(SVnode* pVnode, int64_t uid, int32_t ver, SArray** schemas);
 
 static int32_t addColData(SSDataBlock* pResBlock, int32_t index, void* data) {
   SColumnInfoData* pSrc = taosArrayGet(pResBlock->pDataBlock, index);
@@ -258,8 +244,23 @@ end:
   return code;
 }
 
-int32_t retrieveWalData(SSubmitTbData* pSubmitTbData, void* pTableList, SSDataBlock* pBlock, STSchema* schemas,
-                        STimeWindow* window) {
+static int32_t getSchemaByVersion(SVnode* pVnode, int32_t ver, int64_t uid, STSchema** sSchema){
+  SStorageAPI  api = {0};
+  initStorageAPI(&api);
+
+  SArray* schemas = NULL;
+  int32_t code = buildScheamFromMeta(pVnode, uid, ver, &schemas);
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("Failed to build schema from meta for uid %" PRId64 ", ver %d, code %d", uid, ver, code);
+    return code;
+  }
+
+  *sSchema = tBuildTSchema(taosArrayGet(schemas, 0), taosArrayGetSize(schemas), ver);
+  taosArrayDestroy(schemas);
+  return 0;
+}
+
+int32_t retrieveWalData(SVnode* pVnode, SSubmitTbData* pSubmitTbData, void* pTableList, SSDataBlock* pBlock, STimeWindow* window) {
   stDebug("stream reader retrieve data block %p", pSubmitTbData);
   int32_t code = 0;
   int32_t lino = 0;
@@ -267,8 +268,9 @@ int32_t retrieveWalData(SSubmitTbData* pSubmitTbData, void* pTableList, SSDataBl
   int32_t ver = pSubmitTbData->sver;
   int64_t uid = pSubmitTbData->uid;
   int32_t numOfRows = 0;
-  schemas->version = ver;
 
+  STSchema* schemas = NULL;
+  STREAM_CHECK_RET_GOTO(getSchemaByVersion(pVnode, ver, uid, &schemas));
   STREAM_CHECK_CONDITION_GOTO(!qStreamUidInTableList(pTableList, uid), TDB_CODE_SUCCESS);
   if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
     SColData* pCol = taosArrayGet(pSubmitTbData->aCol, 0);
@@ -344,7 +346,7 @@ int32_t retrieveWalData(SSubmitTbData* pSubmitTbData, void* pTableList, SSDataBl
             break;
           }
         }
-        if (colVal.cid == pColData->info.colId) {
+        if (colVal.cid == pColData->info.colId && COL_VAL_IS_VALUE(&colVal)) {
           if (IS_VAR_DATA_TYPE(colVal.value.type) || colVal.value.type == TSDB_DATA_TYPE_DECIMAL){
             varColSetVarData(pColData, numOfRows, colVal.value.pData, colVal.value.nData, !COL_VAL_IS_VALUE(&colVal));
           } else {
@@ -361,6 +363,7 @@ int32_t retrieveWalData(SSubmitTbData* pSubmitTbData, void* pTableList, SSDataBl
   pBlock->info.rows = numOfRows;
 
 end:
+  taosMemoryFree(schemas);
   STREAM_PRINT_LOG_END(code, lino)
   return code;
 }
@@ -506,7 +509,7 @@ end:
   return code;
 }
 
-int32_t scanWalOneVer(SVnode* pVnode, void* pTableList, SSDataBlock* pBlock, SSDataBlock* pBlockRet, STSchema* schemas,
+int32_t scanWalOneVer(SVnode* pVnode, void* pTableList, SSDataBlock* pBlock, SSDataBlock* pBlockRet,
                       int64_t ver, int64_t uid, STimeWindow* window) {
   int32_t     code = 0;
   int32_t     lino = 0;
@@ -535,7 +538,7 @@ int32_t scanWalOneVer(SVnode* pVnode, void* pTableList, SSDataBlock* pBlock, SSD
       stDebug("stream reader skip data block uid:%" PRId64, pSubmitTbData->uid);
       continue;
     }
-    STREAM_CHECK_RET_GOTO(retrieveWalData(pSubmitTbData, pTableList, pBlock, schemas, window));
+    STREAM_CHECK_RET_GOTO(retrieveWalData(pVnode, pSubmitTbData, pTableList, pBlock, window));
     printDataBlock(pBlock, __func__, "");
 
     blockDataMerge(pBlockRet, pBlock);
@@ -627,7 +630,6 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
   SSDataBlock* pBlock1 = NULL;
   SSDataBlock* pBlock2 = NULL;
 
-  STSchema*    schemas = sStreamInfo->triggerSchema; // alway use triggerSchema to avoid get data error from wal pRow
   SExprInfo*   pExpr = sStreamInfo->pExprInfo;
   int32_t      numOfExpr = sStreamInfo->numOfExpr;
 
@@ -644,7 +646,7 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
   pBlock2->info.id.uid = uid;
   pBlock1->info.id.uid = uid;
 
-  STREAM_CHECK_RET_GOTO(scanWalOneVer(pVnode, pTableList, pBlock1, pBlock2, schemas, ver, uid, window));
+  STREAM_CHECK_RET_GOTO(scanWalOneVer(pVnode, pTableList, pBlock1, pBlock2, ver, uid, window));
 
   if (pBlock2->info.rows > 0) {
     STREAM_CHECK_RET_GOTO(processTag(pVnode, pExpr, numOfExpr, &api, pBlock2));
@@ -669,7 +671,7 @@ end:
   return code;
 }
 
-static int32_t buildScheamFromMeta(SVnode* pVnode, int64_t uid, SArray** schemas) {
+static int32_t buildScheamFromMeta(SVnode* pVnode, int64_t uid, int32_t ver, SArray** schemas) {
   int32_t code = 0;
   int32_t lino = 0;
   *schemas = taosArrayInit(8, sizeof(SSchema));
@@ -685,7 +687,11 @@ static int32_t buildScheamFromMeta(SVnode* pVnode, int64_t uid, SArray** schemas
   if (metaReader.me.type == TD_CHILD_TABLE) {
     int64_t suid = metaReader.me.ctbEntry.suid;
     tDecoderClear(&metaReader.coder);
-    STREAM_CHECK_RET_GOTO(api.metaReaderFn.getTableEntryByUid(&metaReader, suid));
+    if (ver >= 0){
+      STREAM_CHECK_RET_GOTO(api.metaReaderFn.getTableEntryByVersionUid(&metaReader, ver, suid));
+    } else {
+      STREAM_CHECK_RET_GOTO(api.metaReaderFn.getTableEntryByUid(&metaReader, suid));
+    }
     sSchemaWrapper = &metaReader.me.stbEntry.schemaRow;
   } else if (metaReader.me.type == TD_NORMAL_TABLE) {
     sSchemaWrapper = &metaReader.me.ntbEntry.schemaRow;
@@ -735,15 +741,12 @@ static int32_t processWalVerDataVTable(SVnode* pVnode, SArray *cids, int64_t ver
   int32_t      code = 0;
   int32_t      lino = 0;
   SArray*      schemas = NULL;
-  STSchema*    sSchema = NULL;
   void*        pTableList = NULL;
 
   SSDataBlock* pBlock1 = NULL;
   SSDataBlock* pBlock2 = NULL;
 
-  STREAM_CHECK_RET_GOTO(buildScheamFromMeta(pVnode, uid, &schemas));
-  sSchema = tBuildTSchema(taosArrayGet(schemas, 0), taosArrayGetSize(schemas), 0);
-  STREAM_CHECK_NULL_GOTO(sSchema, terrno);
+  STREAM_CHECK_RET_GOTO(buildScheamFromMeta(pVnode, uid, -1, &schemas));
   STREAM_CHECK_RET_GOTO(shrinkScheams(cids, schemas));
   STREAM_CHECK_RET_GOTO(createDataBlockForStream(schemas, &pBlock1));
   STREAM_CHECK_RET_GOTO(createDataBlockForStream(schemas, &pBlock2));
@@ -753,7 +756,7 @@ static int32_t processWalVerDataVTable(SVnode* pVnode, SArray *cids, int64_t ver
   pBlock2->info.id.uid = uid;
   pBlock1->info.id.uid = uid;
 
-  STREAM_CHECK_RET_GOTO(scanWalOneVer(pVnode, pTableList, pBlock1, pBlock2, sSchema, ver, uid, window));
+  STREAM_CHECK_RET_GOTO(scanWalOneVer(pVnode, pTableList, pBlock1, pBlock2, ver, uid, window));
   printDataBlock(pBlock2, __func__, "");
 
   *pBlock = pBlock2;
@@ -765,7 +768,6 @@ end:
   blockDataDestroy(pBlock2);
   qStreamDestroyTableList(pTableList);
   taosArrayDestroy(schemas);
-  taosMemoryFree(sSchema);
   return code;
 }
 
@@ -1156,7 +1158,7 @@ static int32_t createOptionsForTsdbData(SVnode* pVnode, SStreamTriggerReaderTask
   int32_t lino = 0;
   SArray* schemas = NULL;
 
-  STREAM_CHECK_RET_GOTO(buildScheamFromMeta(pVnode, uid, &schemas));
+  STREAM_CHECK_RET_GOTO(buildScheamFromMeta(pVnode, uid, -1, &schemas));
   STREAM_CHECK_RET_GOTO(shrinkScheams(cols, schemas));
   BUILD_OPTION(op, sStreamReaderInfo, true, order, skey, ekey, schemas, true, STREAM_SCAN_ALL, 0, false, NULL);
   *options = op;

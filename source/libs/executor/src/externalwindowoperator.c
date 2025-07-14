@@ -446,16 +446,23 @@ static void incExtWinCurIdx(SOperatorInfo* pOperator) {
   pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx++;
 }
 
+static void setExtWinCurIdx(SOperatorInfo* pOperator, int32_t idx) {
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx = idx;
+}
+
+
 static void incExtWinOutIdx(SOperatorInfo* pOperator) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   pTaskInfo->pStreamRuntimeInfo->funcInfo.curOutIdx++;
 }
 
-static const STimeWindow* getExtWindow(SExternalWindowOperator* pExtW, TSKEY ts) {
+static const STimeWindow* getExtWindow(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW, TSKEY ts) {
   // TODO handle desc order
   for (int32_t i = 0; i < pExtW->pWins->size; ++i) {
     const STimeWindow* pWin = taosArrayGet(pExtW->pWins, i);
     if (ts >= pWin->skey && ts < pWin->ekey) {
+      setExtWinCurIdx(pOperator, i);
       return pWin;
     }
   }
@@ -525,7 +532,7 @@ static int32_t extWindowCopyRows(SOperatorInfo* pOperator, SSDataBlock* pInputBl
   SExprSupp*               pExprSup = &pExtW->scalarSupp;
 
   if (!pResBlock) {
-    qError("failed to get output block for ext window:%s", tstrerror(terrno));
+    qError("%s failed to get output block for ext window:%s", GET_TASKID(pOperator->pTaskInfo), tstrerror(terrno));
     return terrno;
   }
   int32_t rowsToCopy = forwardRows;
@@ -535,12 +542,12 @@ static int32_t extWindowCopyRows(SOperatorInfo* pOperator, SSDataBlock* pInputBl
   else
     blockDataCleanup(pExtW->pTmpBlock);
   if (code) {
-    qError("failed to create datablock:%s", tstrerror(terrno));
+    qError("%s failed to create datablock:%s", GET_TASKID(pOperator->pTaskInfo), tstrerror(terrno));
     return code;
   }
   code = blockDataEnsureCapacity(pExtW->pTmpBlock, TMAX(1, rowsToCopy));
   if (code) {
-    qError("failed to ensure capacity:%s", tstrerror(terrno));
+    qError("%s failed to ensure capacity:%s", GET_TASKID(pOperator->pTaskInfo), tstrerror(terrno));
     return code;
   }
   if (rowsToCopy > 0) {
@@ -563,7 +570,7 @@ static int32_t hashExternalWindowProject(SOperatorInfo* pOperator, SSDataBlock* 
   SqlFunctionCtx*          pCtx = NULL;
   int64_t*                 tsCol = extractTsCol(pInputBlock, pExtW->primaryTsIndex, pTaskInfo);
   TSKEY                    ts = getStartTsKey(&pInputBlock->info.window, tsCol);
-  const STimeWindow*       pWin = getExtWindow(pExtW, ts);
+  const STimeWindow*       pWin = getExtWindow(pOperator, pExtW, ts);
   bool                     ascScan = pExtW->binfo.inputTsOrder == TSDB_ORDER_ASC;
   int32_t                  tsOrder = pExtW->binfo.inputTsOrder;
   int32_t startPos = 0;
@@ -602,14 +609,14 @@ static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
   SResultRow*              pResult = NULL;
   int32_t                  ret = 0;
 
-  const STimeWindow* pWin = getExtWindow(pExtW, ts);
+  const STimeWindow* pWin = getExtWindow(pOperator, pExtW, ts);
   if (pWin == NULL) {
-    qError("failed to get time window for ts:%" PRId64 ", error:%s", ts, tstrerror(terrno));
+    qError("%s failed to get time window for ts:%" PRId64 ", error:%s", GET_TASKID(pOperator->pTaskInfo), ts, tstrerror(terrno));
     return;
   }
   
-  qDebug("ext window1 start:%" PRId64 ", end:%" PRId64 ", ts:%" PRId64 ", ascScan:%d",
-         pWin->skey, pWin->ekey, ts, ascScan);
+  qDebug("%s ext window1 start:%" PRId64 ", end:%" PRId64 ", ts:%" PRId64 ", ascScan:%d",
+         GET_TASKID(pOperator->pTaskInfo), pWin->skey, pWin->ekey, ts, ascScan);
 
   STimeWindow win = *pWin;
   if (isFirstOpen) {
@@ -640,16 +647,16 @@ static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
     else
       win = *pWin;
       
-    qDebug("ext window2 start:%" PRId64 ", end:%" PRId64 ", ts:%" PRId64 ", ascScan:%d",
-           win.skey, win.ekey, ts, ascScan);
+    qDebug("%s ext window2 start:%" PRId64 ", end:%" PRId64 ", ts:%" PRId64 ", ascScan:%d",
+           GET_TASKID(pOperator->pTaskInfo), win.skey, win.ekey, ts, ascScan);
            
     nextPosGot = getNextStartPos(win, &pInputBlock->info, prevEndPos, pExtW->binfo.inputTsOrder, &startPos);
     if (-1 == nextPosGot) {
-      qDebug("ignore current block");
+      qDebug("%s ignore current block", GET_TASKID(pOperator->pTaskInfo));
       break;
     }
     if (-2 == nextPosGot) {
-      qDebug("skip current window");
+      qDebug("%s skip current window", GET_TASKID(pOperator->pTaskInfo));
       continue;
     }
     
@@ -855,7 +862,7 @@ static int32_t doMergeAlignExtWindowAgg(SOperatorInfo* pOperator, SResultRowInfo
   int64_t* tsCols = extractTsCol(pBlock, pExtW->primaryTsIndex, pTaskInfo);
   TSKEY ts = getStartTsKey(&pBlock->info.window, tsCols);
 
-  const STimeWindow *pWin = getExtWindow(pExtW, ts);
+  const STimeWindow *pWin = getExtWindow(pOperator, pExtW, ts);
   if (pWin == NULL) {
     qError("failed to get time window for ts:%" PRId64 ", index:%d, error:%s", ts, pExtW->primaryTsIndex, tstrerror(terrno));
     T_LONG_JMP(pTaskInfo->env, TSDB_CODE_INVALID_PARA);

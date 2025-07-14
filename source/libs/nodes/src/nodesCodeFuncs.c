@@ -137,8 +137,8 @@ const char* nodesNodeName(ENodeType type) {
       return "FlushDatabaseStmt";
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return "TrimDatabaseStmt";
-    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
-      return "S3MigrateDatabaseStmt";
+    case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
+      return "SsMigrateDatabaseStmt";
     case QUERY_NODE_CREATE_TABLE_STMT:
       return "CreateTableStmt";
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
@@ -6496,10 +6496,17 @@ static const char* jkDatabaseOptionsNumOfVgroups = "NumOfVgroups";
 static const char* jkDatabaseOptionsSingleStable = "SingleStable";
 static const char* jkDatabaseOptionsRetentions = "Retentions";
 static const char* jkDatabaseOptionsSchemaless = "Schemaless";
+
+// shared storage options, the 'S3' ones are for backward compatibility.
+static const char* jkDatabaseOptionsSsChunkSize = "SsChunkSize";
+static const char* jkDatabaseOptionsSsKeepLocalNode = "SsKeepLocalNode";
+static const char* jkDatabaseOptionsSsKeepLocal = "SsKeepLocal";
+static const char* jkDatabaseOptionsSsCompact = "SsCompact";
 static const char* jkDatabaseOptionsS3ChunkSize = "S3ChunkSize";
 static const char* jkDatabaseOptionsS3KeepLocalNode = "S3KeepLocalNode";
 static const char* jkDatabaseOptionsS3KeepLocal = "S3KeepLocal";
 static const char* jkDatabaseOptionsS3Compact = "S3Compact";
+
 static const char* jkDatabaseOptionsCompactIntervalNode = "compactIntervalNode";
 static const char* jkDatabaseOptionsCompactTimeRange = "compactTimeRange";
 static const char* jkDatabaseOptionsCompactTimeOffsetNode = "compactTimeOffsetNode";
@@ -6563,16 +6570,16 @@ static int32_t databaseOptionsToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsSchemaless, pNode->schemaless);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsS3ChunkSize, pNode->s3ChunkSize);
+    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsSsChunkSize, pNode->ssChunkSize);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkDatabaseOptionsS3KeepLocalNode, nodeToJson, pNode->s3KeepLocalStr);
+    code = tjsonAddObject(pJson, jkDatabaseOptionsSsKeepLocalNode, nodeToJson, pNode->ssKeepLocalStr);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsS3KeepLocal, pNode->s3KeepLocal);
+    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsSsKeepLocal, pNode->ssKeepLocal);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsS3Compact, pNode->s3Compact);
+    code = tjsonAddIntegerToObject(pJson, jkDatabaseOptionsSsCompact, pNode->ssCompact);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkDatabaseOptionsCompactIntervalNode, nodeToJson, pNode->pCompactIntervalNode);
@@ -6646,16 +6653,32 @@ static int32_t jsonToDatabaseOptions(const SJson* pJson, void* pObj) {
     code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsSchemaless, &pNode->schemaless);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetIntValue(pJson, jkDatabaseOptionsS3ChunkSize, &pNode->s3ChunkSize);
+    if (tjsonGetObjectItem(pJson, jkDatabaseOptionsSsChunkSize) != NULL) {
+      code = tjsonGetIntValue(pJson, jkDatabaseOptionsSsChunkSize, &pNode->ssChunkSize);
+    } else {
+      code = tjsonGetIntValue(pJson, jkDatabaseOptionsS3ChunkSize, &pNode->ssChunkSize);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkDatabaseOptionsS3KeepLocalNode, (SNode**)&pNode->s3KeepLocalStr);
+    if (tjsonGetObjectItem(pJson, jkDatabaseOptionsSsKeepLocalNode) != NULL) {
+      code = jsonToNodeObject(pJson, jkDatabaseOptionsSsKeepLocalNode, (SNode**)&pNode->ssKeepLocalStr);
+    } else {
+      code = jsonToNodeObject(pJson, jkDatabaseOptionsSsKeepLocalNode, (SNode**)&pNode->ssKeepLocalStr);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetIntValue(pJson, jkDatabaseOptionsS3KeepLocal, &pNode->s3KeepLocal);
+    if (tjsonGetObjectItem(pJson, jkDatabaseOptionsSsKeepLocal) != NULL) {
+      code = tjsonGetIntValue(pJson, jkDatabaseOptionsSsKeepLocal, &pNode->ssKeepLocal);
+    } else {
+      code = tjsonGetIntValue(pJson, jkDatabaseOptionsS3KeepLocal, &pNode->ssKeepLocal);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsS3Compact, &pNode->s3Compact);
+    if (tjsonGetObjectItem(pJson, jkDatabaseOptionsSsCompact) != NULL) {
+      code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsSsCompact, &pNode->ssCompact);
+    } else {
+      code = tjsonGetTinyIntValue(pJson, jkDatabaseOptionsS3Compact, &pNode->ssCompact);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkDatabaseOptionsCompactIntervalNode, (SNode**)&pNode->pCompactIntervalNode);
@@ -7343,20 +7366,20 @@ static int32_t jsonToTrimDatabaseStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
-static const char* jkS3MigrateDatabaseStmtDbName = "DbName";
+static const char* jkSsMigrateDatabaseStmtDbName = "DbName";
 
-static int32_t s3migrateDatabaseStmtToJson(const void* pObj, SJson* pJson) {
-  const SS3MigrateDatabaseStmt* pNode = (const SS3MigrateDatabaseStmt*)pObj;
+static int32_t ssMigrateDatabaseStmtToJson(const void* pObj, SJson* pJson) {
+  const SSsMigrateDatabaseStmt* pNode = (const SSsMigrateDatabaseStmt*)pObj;
 
-  int32_t code = tjsonAddStringToObject(pJson, jkS3MigrateDatabaseStmtDbName, pNode->dbName);
+  int32_t code = tjsonAddStringToObject(pJson, jkSsMigrateDatabaseStmtDbName, pNode->dbName);
 
   return code;
 }
 
-static int32_t jsonToS3MigrateDatabaseStmt(const SJson* pJson, void* pObj) {
-  SS3MigrateDatabaseStmt* pNode = (SS3MigrateDatabaseStmt*)pObj;
+static int32_t jsonToSsMigrateDatabaseStmt(const SJson* pJson, void* pObj) {
+  SSsMigrateDatabaseStmt* pNode = (SSsMigrateDatabaseStmt*)pObj;
 
-  int32_t code = tjsonGetStringValue(pJson, jkS3MigrateDatabaseStmtDbName, pNode->dbName);
+  int32_t code = tjsonGetStringValue(pJson, jkSsMigrateDatabaseStmtDbName, pNode->dbName);
 
   return code;
 }
@@ -9404,8 +9427,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return alterDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return trimDatabaseStmtToJson(pObj, pJson);
-    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
-      return s3migrateDatabaseStmtToJson(pObj, pJson);
+    case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
+      return ssMigrateDatabaseStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_TABLE_STMT:
       return createTableStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
@@ -9813,8 +9836,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToAlterDatabaseStmt(pJson, pObj);
     case QUERY_NODE_TRIM_DATABASE_STMT:
       return jsonToTrimDatabaseStmt(pJson, pObj);
-    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
-      return jsonToS3MigrateDatabaseStmt(pJson, pObj);
+    case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
+      return jsonToSsMigrateDatabaseStmt(pJson, pObj);
     case QUERY_NODE_CREATE_TABLE_STMT:
       return jsonToCreateTableStmt(pJson, pObj);
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:

@@ -474,7 +474,7 @@ class StreamSQLTemplates:
     s1_5 = """
     create stream stream_from.s1_5 INTERVAL(60s) SLIDING(60s)
         from stream_from.stb 
-        OPTIONS(FILL_HISTORY('2025-01-01 00:00:00')) 
+        stream_options(FILL_HISTORY('2025-01-01 00:00:00')) 
         into stream_to.stb1_5
         as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
         max(c0), max(c1), max(c2), max(c3),
@@ -485,7 +485,7 @@ class StreamSQLTemplates:
     s1_6 = """
     create stream stream_from.s1_6 count_window(60) 
         from stream_from.stb partition by tbname 
-        OPTIONS(FILL_HISTORY('2025-01-01 00:00:00')) 
+        stream_options(FILL_HISTORY('2025-01-01 00:00:00')) 
         into stream_to.stb1_6
         as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
         max(c0), max(c1), max(c2), max(c3),
@@ -617,7 +617,7 @@ class StreamStarter:
         # self.stream_sql = stream_sql if stream_sql else """
         # create stream stream_from.s1_5 INTERVAL(60s) SLIDING(60s)
         #     from stream_from.stb 
-        #     OPTIONS(FILL_HISTORY('2025-01-01 00:00:00')) 
+        #     stream_options(FILL_HISTORY('2025-01-01 00:00:00'))
         #     into stream_to.stb
         #     as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
         #     max(c0), max(c1), max(c2), max(c3),
@@ -629,7 +629,7 @@ class StreamStarter:
         # self.stream_sql = stream_sql if stream_sql else """
         # create stream stream_from.s1_6 count_window(60) 
         #     from stream_from.stb 
-        #     OPTIONS(FILL_HISTORY('2025-01-01 00:00:00')) 
+        #     stream_options(FILL_HISTORY('2025-01-01 00:00:00'))
         #     into stream_to.stb
         #     as select _twstart ts, avg(c0), avg(c1), avg(c2), avg(c3),
         #     max(c0), max(c1), max(c2), max(c3),

@@ -1273,6 +1273,43 @@ void destroyIntervalOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
+static int32_t initWindowInterpPrevVal(SIntervalAggOperatorInfo* pInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  void*   tmp = NULL;
+
+  pInfo->pInterpCols = taosArrayInit(4, sizeof(SColumn));
+  QUERY_CHECK_NULL(pInfo->pInterpCols, code, lino, _end, terrno);
+
+  pInfo->pPrevValues = taosArrayInit(4, sizeof(SGroupKeys));
+  QUERY_CHECK_NULL(pInfo->pPrevValues, code, lino, _end, terrno);
+
+  {  // ts column
+    SColumn c = {0};
+    c.colId = 1;
+    c.slotId = pInfo->primaryTsIndex;
+    c.type = TSDB_DATA_TYPE_TIMESTAMP;
+    c.bytes = sizeof(int64_t);
+    tmp = taosArrayPush(pInfo->pInterpCols, &c);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+
+    SGroupKeys key;
+    key.bytes = c.bytes;
+    key.type = c.type;
+    key.isNull = true;  // to denote no value is assigned yet
+    key.pData = taosMemoryCalloc(1, c.bytes);
+    QUERY_CHECK_NULL(key.pData, code, lino, _end, terrno);
+
+    tmp = taosArrayPush(pInfo->pPrevValues, &key);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+  }
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SIntervalAggOperatorInfo* pInfo,
                                    bool* pRes) {
   // the primary timestamp column
@@ -1290,31 +1327,8 @@ static int32_t timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, S
   }
 
   if (needed) {
-    pInfo->pInterpCols = taosArrayInit(4, sizeof(SColumn));
-    QUERY_CHECK_NULL(pInfo->pInterpCols, code, lino, _end, terrno);
-
-    pInfo->pPrevValues = taosArrayInit(4, sizeof(SGroupKeys));
-    QUERY_CHECK_NULL(pInfo->pPrevValues, code, lino, _end, terrno);
-
-    {  // ts column
-      SColumn c = {0};
-      c.colId = 1;
-      c.slotId = pInfo->primaryTsIndex;
-      c.type = TSDB_DATA_TYPE_TIMESTAMP;
-      c.bytes = sizeof(int64_t);
-      tmp = taosArrayPush(pInfo->pInterpCols, &c);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
-
-      SGroupKeys key;
-      key.bytes = c.bytes;
-      key.type = c.type;
-      key.isNull = true;  // to denote no value is assigned yet
-      key.pData = taosMemoryCalloc(1, c.bytes);
-      QUERY_CHECK_NULL(key.pData, code, lino, _end, terrno);
-
-      tmp = taosArrayPush(pInfo->pPrevValues, &key);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
-    }
+    code = initWindowInterpPrevVal(pInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -1384,8 +1398,11 @@ static int32_t resetInterval(SOperatorInfo* pOper, SIntervalAggOperatorInfo* pIn
   taosArrayDestroy(pIntervalInfo->pInterpCols);
   pIntervalInfo->pInterpCols = NULL;
 
-  taosArrayDestroyEx(pIntervalInfo->pPrevValues, freeItem);
-  pIntervalInfo->pPrevValues = NULL;
+  if (pIntervalInfo->pPrevValues != NULL) {
+    taosArrayDestroyEx(pIntervalInfo->pPrevValues, freeItem);
+    pIntervalInfo->pPrevValues = NULL;
+    initWindowInterpPrevVal(pIntervalInfo);
+  }
 
   cleanupGroupResInfo(&pIntervalInfo->groupResInfo);
   destroyBoundedQueue(pIntervalInfo->pBQ);

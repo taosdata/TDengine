@@ -354,7 +354,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
-    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(terrno));
     code = terrno;
     goto _exit;
   }
@@ -379,7 +379,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
     int32_t len = blockEncode(pBlock, pStart, dataEncodeBufSize, pShow->pMeta->numOfColumns);
     if (len < 0) {
-      mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
+      mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(terrno));
       code = terrno;
       return code;
     }
