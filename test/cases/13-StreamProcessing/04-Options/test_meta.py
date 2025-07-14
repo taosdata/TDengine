@@ -15,13 +15,13 @@ class TestStreamMetaTrigger:
 
         streams = []
         streams.append(self.Basic0())  # add ctb and drop ctb from stb [ok]
-        # streams.append(self.Basic1())  # drop data source table [fail]
+        # # streams.append(self.Basic1())  # drop data source table [fail]
         streams.append(self.Basic2())  # tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件 [ok]       
-        # streams.append(self.Basic3())  # [fail]
+        # # streams.append(self.Basic3())  # [fail]
         # streams.append(self.Basic4())  # [ok]
-        # streams.append(self.Basic5())  # [fail] 
-        # streams.append(self.Basic6())  #  [fail]
-        # streams.append(self.Basic7())  # [ok] 
+        # # streams.append(self.Basic5())  # [fail] 
+        # # streams.append(self.Basic6())  #  [fail]
+        streams.append(self.Basic7())  # [ok] 
         
         tdStream.checkAll(streams)
 
@@ -1678,9 +1678,9 @@ class TestStreamMetaTrigger:
             )
             
             sqls = [                                 
-                "insert into ct1 values ('2025-01-01 00:01:05', 4);", 
-                "insert into ct2 values ('2025-01-01 00:01:05', 4);",  
-                f"insert into {self.ntbName} values ('2025-01-01 00:01:05', 4);",  
+                "insert into ct1 (cts, cint) values ('2025-01-01 00:01:05', 4);", 
+                "insert into ct2 (cts, cint) values ('2025-01-01 00:01:05', 4);",  
+                f"insert into {self.ntbName} (cts, cint) values ('2025-01-01 00:01:05', 4);",  
             ]
             tdSql.executes(sqls)
             time.sleep(3)
@@ -1750,17 +1750,17 @@ class TestStreamMetaTrigger:
                 # "insert into ct2 values ('2025-01-01 00:01:05', 4);",  
                 # f"insert into {self.ntbName} values ('2025-01-01 00:01:05', 4);",  
                 
-                "insert into ct1 values ('2025-01-01 00:01:10', 4);", 
-                "insert into ct1 values ('2025-01-01 00:01:15', 4);",
-                "insert into ct1 values ('2025-01-01 00:01:20', 5);",
+                "insert into ct1 (cts, cint) values ('2025-01-01 00:01:10', 4);", 
+                "insert into ct1 (cts, cint) values ('2025-01-01 00:01:15', 4);",
+                "insert into ct1 (cts, cint) values ('2025-01-01 00:01:20', 5);",
                 
-                "insert into ct2 values ('2025-01-01 00:01:10', 4);", 
-                "insert into ct2 values ('2025-01-01 00:01:15', 4);",
-                "insert into ct2 values ('2025-01-01 00:01:20', 5);",
+                "insert into ct2 (cts, cint) values ('2025-01-01 00:01:10', 4);", 
+                "insert into ct2 (cts, cint) values ('2025-01-01 00:01:15', 4);",
+                "insert into ct2 (cts, cint) values ('2025-01-01 00:01:20', 5);",
                  
-                f"insert into {self.ntbName} values ('2025-01-01 00:01:10', 4);",                 
-                f"insert into {self.ntbName} values ('2025-01-01 00:01:15', 4);",                 
-                f"insert into {self.ntbName} values ('2025-01-01 00:01:20', 5);",  
+                f"insert into {self.ntbName} (cts, cint) values ('2025-01-01 00:01:10', 4);",                 
+                f"insert into {self.ntbName} (cts, cint) values ('2025-01-01 00:01:15', 4);",                 
+                f"insert into {self.ntbName} (cts, cint) values ('2025-01-01 00:01:20', 5);",  
             ]
             tdSql.executes(sqls)
             time.sleep(3)
@@ -2051,12 +2051,14 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"drop database {self.db4}")             
             
         def check2(self):
-            tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_databases where name not like "%schema%"',
-                func=lambda: tdSql.getRows() == 1
-                # and tdSql.compareData(0, 0, "2025-01-01 00:00:30")
-                # and tdSql.compareData(0, 1, "2025-01-01 00:01:00")
-                # and tdSql.compareData(0, 2, 7)
-                # and tdSql.compareData(0, 3, 15)
-                # and tdSql.compareData(0, 4, 2.143)
-            )
+            tdSql.query(f'select * from information_schema.ins_databases where name like "sdb7_%"')
+            tdSql.checkRows(0)
+            # tdSql.checkResultsByFunc(
+            #     sql=f'select * from information_schema.ins_databases where name like "sdb7_%"',
+            #     func=lambda: tdSql.getRows() == 0
+            #     # and tdSql.compareData(0, 0, "2025-01-01 00:00:30")
+            #     # and tdSql.compareData(0, 1, "2025-01-01 00:01:00")
+            #     # and tdSql.compareData(0, 2, 7)
+            #     # and tdSql.compareData(0, 3, 15)
+            #     # and tdSql.compareData(0, 4, 2.143)
+            # )
