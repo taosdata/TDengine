@@ -1166,49 +1166,49 @@ class TestStreamSubquerySliding:
             id=125,
             stream="create stream rdb.s125 interval(5m) sliding(5m) from tdb.v1 into rdb.r125 as select _rowts, _twstart ts, DERIVATIVE(cbigint, 5, 0) from qdb.v1 where cts >= _twstart and cts < _twend;",
             res_query="select * from rdb.r125 limit 1 offset 3",
-            exp_query="select _rowts, CSUM(cint) + CSUM(cuint) from qdb.v1 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
+            exp_query="select _rowts, DERIVATIVE(cbigint, 5, 0) from qdb.v1 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
         )
         # self.streams.append(stream) TD-36175
 
         stream = StreamItem(
             id=126,
-            stream="create stream rdb.s126 interval(5m) sliding(5m) from tdb.v1 into rdb.r126 as select _rowts, _twstart ts, IRATE(cubigint) from %%trows where cts >= _twstart and cts < _twend;",
-            res_query="select * from rdb.r126 limit 1 offset 3",
-            exp_query="select _rowts, CSUM(cint) + CSUM(cuint) from qdb.v1 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
+            stream="create stream rdb.s126 interval(5m) sliding(5m) from tdb.vtriggers partition by id, tbname into rdb.r126 as select _twstart ts, IRATE(cbigint) from qdb.vmeters where tbname=%%tbname;",
+            res_query="select * from rdb.r126 where id=1 limit 1 offset 3",
+            exp_query="select cast('2025-01-01 00:15:00.000' as timestamp) ts, IRATE(cubigint), 1, 'v1' from qdb.v1 where cts >= '2025-01-01 00:15:00.000' and cts < '2025-01-01 00:20:00.000'",
         )
-        # self.streams.append(stream) TD-36175
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=127,
-            stream="create stream rdb.s127 interval(5m) sliding(5m) from tdb.vtriggers into rdb.r127 as select _rowts, _twstart ts, MAVG(cfloat, 1) from %%trows where cts >= _twstart and cts < _twend;",
-            res_query="select * from rdb.r127 limit 1 offset 3",
-            exp_query="select _rowts, CSUM(cint) + CSUM(cuint) from qdb.v1 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
+            stream="create stream rdb.s127 interval(5m) sliding(5m) from tdb.vtriggers into rdb.r127 as select _rowts, _twstart ts, MAVG(c1, 1) from %%trows;",
+            res_query="select * from rdb.r127 limit 1 offset 1",
+            exp_query="select _rowts, _rowts, MAVG(c1, 1) from tdb.v1 where ts >= '2025-01-01 00:05:00.000' and ts < '2025-01-01 00:10:00.000'",
         )
-        # self.streams.append(stream) TD-36175
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=128,
-            stream="create stream rdb.s128 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r128 as select _rowts, _twstart ts, STATECOUNT(cdouble, 'LT', 5) from vdb.triggers where tbname=%%tbname and cts >= _twstart and cts < _twend;",
-            res_query="select * from rdb.r128 limit 1 offset 3",
-            exp_query="select _rowts, CSUM(cint) + CSUM(cuint) from qdb.v1 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
+            stream="create stream rdb.s128 interval(5m) sliding(5m) from tdb.vtriggers partition by tbname into rdb.r128 as select _rowts, STATECOUNT(cdouble, 'LT', 5) from qdb.vmeters where tbname=%%tbname and cts >= _twstart and cts < _twend;",
+            res_query="select * from rdb.r128 where tag_tbname='v1' and `_rowts` >= '2025-01-01 00:00:00.000' and `_rowts` < '2025-01-01 00:05:00.000'",
+            exp_query="select cts, STATECOUNT(cdouble, 'LT', 5), 'v1' from qdb.vmeters where tbname='v1' and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
         )
-        # self.streams.append(stream) TD-36175
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=129,
-            stream="create stream rdb.s129 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r129 as select _c0, _twstart ts, STATEDURATION(cusmallint, 'LT', 5, 1m) from vdb.triggers where tint=%%1 and cts >= _twstart and cts < _twend;",
-            res_query="select * from rdb.r129 limit 1 offset 3",
-            exp_query="select _rowts, CSUM(cint) + CSUM(cuint) from qdb.v1 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
+            stream="create stream rdb.s129 interval(5m) sliding(5m) from tdb.triggers partition by id, tbname into rdb.r129 as select _c0, STATEDURATION(cusmallint, 'LT', 5, 1m) from qdb.meters where tbname=%%2 and cts >= _twstart and cts < _twend;",
+            res_query="select * from rdb.r129 where id=1 and `_c0` >= '2025-01-01 00:00:00.000' and `_c0` < '2025-01-01 00:05:00.000'",
+            exp_query="select cts, STATEDURATION(cusmallint, 'LT', 5, 1m), 1, 't1' from qdb.meters where tbname='t1' and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
         )
-        # self.streams.append(stream) TD-36175
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=130,
-            stream="create stream rdb.s130 interval(5m) sliding(5m) from tdb.vtriggers partition by tbname into rdb.r130 as select _c0, _twstart ts, TWA(ctinyint) from vdb.triggers where tbname=%%1 and cts >= _twstart and cts < _twend;",
-            res_query="select * from rdb.r130 limit 1 offset 3",
-            exp_query="select _rowts, CSUM(cint) + CSUM(cuint) from qdb.v1 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
+            stream="create stream rdb.s130 interval(5m) sliding(5m) from tdb.vtriggers partition by tbname into rdb.r130 as select _twstart ts, _twend, TWA(ctinyint) from qdb.vmeters where tbname=%%1 and cts >= _twstart and cts < _twend;",
+            res_query="select * from rdb.r130 where tag_tbname='v1' limit 1 offset 2",
+            exp_query="select _qstart, _qstart + 5m, TWA(ctinyint), 'v1' from qdb.vmeters where tbname='v1' and cts >= '2025-01-01 00:10:00.000' and cts < '2025-01-01 00:15:00.000'",
         )
-        # self.streams.append(stream) TD-36175
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=131,
