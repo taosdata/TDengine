@@ -154,6 +154,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_FILESETS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VC_COLS, len) == 0) {
     type = TSDB_MGMT_TABLE_VC_COL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_MOUNTS, len) == 0) {
+    type = TSDB_MGMT_TABLE_MOUNT;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }

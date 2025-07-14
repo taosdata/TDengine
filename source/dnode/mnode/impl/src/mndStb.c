@@ -36,7 +36,6 @@
 #define STB_VER_NUMBER   3
 #define STB_RESERVE_SIZE 56
 
-static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew);
@@ -217,7 +216,7 @@ _OVER:
   return pRaw;
 }
 
-static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
+SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   int32_t code = 0;
   int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -756,7 +755,7 @@ static int32_t mndSetCreateStbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetCreateStbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
+int32_t mndSetCreateStbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
   int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndStbActionEncode(pStb);
   if (pCommitRaw == NULL) {
@@ -1016,7 +1015,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   }
   TAOS_RETURN(code);
 }
-static int32_t mndGenIdxNameForFirstTag(char *fullname, char *dbname, char *stbname, char *tagname) {
+int32_t mndGenIdxNameForFirstTag(char *fullname, char *dbname, char *stbname, char *tagname) {
   SName name = {0};
   if ((terrno = tNameFromString(&name, stbname, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) {
     return -1;
@@ -1098,6 +1097,11 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
+    if (pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+
     int32_t   code = 0;
     SMsgHead *pHead = rpcMallocCont(contLen);
     if (pHead == NULL) {
@@ -1139,6 +1143,10 @@ static int32_t mndProcessTrimDbTimer(SRpcMsg *pReq) {
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
+    if (pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
 
     int32_t code = 0;
 
@@ -1180,6 +1188,10 @@ static int32_t mndProcessS3MigrateDbTimer(SRpcMsg *pReq) {
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
+    if (pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
 
     int32_t code = 0;
 
@@ -1418,6 +1430,10 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   }
 
   if ((code = mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb)) != 0) {
+    goto _OVER;
+  }
+  if (pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
     goto _OVER;
   }
 
@@ -2798,6 +2814,10 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
     code = TSDB_CODE_MND_DB_NOT_EXIST;
     goto _OVER;
   }
+  if (pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
 
   pStb = mndAcquireStb(pMnode, alterReq.name);
   if (pStb == NULL) {
@@ -3065,6 +3085,11 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 */
+
+  if (pDb->cfg.isMount) {
+    code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
 
   code = mndDropStb(pMnode, pReq, pDb, pStb);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
