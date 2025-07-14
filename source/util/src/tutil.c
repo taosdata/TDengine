@@ -587,3 +587,23 @@ bool taosIsSpecialChar(char c) {
     return false;
   }
 }
+
+void tTrimMountPrefix(char *fullName) {
+  if (fullName == NULL) {
+    return;
+  }
+  char *dot_pos = fullName;
+  while (*dot_pos && *dot_pos != '.') ++dot_pos;
+  if (!*dot_pos) return;
+
+  char *underscore_pos = dot_pos + 1;
+  while (*underscore_pos && *underscore_pos != '_') ++underscore_pos;
+  if (!*underscore_pos) return;
+
+  char *src = underscore_pos + 1;
+  char *dst = dot_pos + 1;
+
+  while (*src) *dst++ = *src++;
+
+  *dst = '\0';
+}
