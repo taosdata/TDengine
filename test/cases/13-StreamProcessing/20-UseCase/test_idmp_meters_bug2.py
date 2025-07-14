@@ -128,7 +128,7 @@ class Test_Scene_Asset01:
 
         sqls = [
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4` AS SELECT _twstart+0s as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend ",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub1` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4_sub1` AS SELECT _twstart+0s as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend"
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub1` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` stream_options(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4_sub1` AS SELECT _twstart+0s as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend"
         ]
 
         tdSql.executes(sqls)

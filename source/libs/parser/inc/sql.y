@@ -909,7 +909,7 @@ stream_partition_by_opt(A) ::= PARTITION BY column_name_list(B).                
 /***** trigger_options_opt *****/
 
 trigger_options_opt(A) ::= .                                                              { A = NULL; }
-trigger_options_opt(A) ::= OPTIONS NK_LP trigger_option_list(B) NK_RP.                    { A = B; }
+trigger_options_opt(A) ::= STREAM_OPTIONS NK_LP trigger_option_list(B) NK_RP.             { A = B; }
 
 trigger_option_list(A) ::= trigger_option(B).                                       { A = createStreamTriggerOptions(pCxt);  A = setStreamTriggerOptions(pCxt, A, &B);  }
 trigger_option_list(A) ::= trigger_option_list(B) NK_BITOR trigger_option(C).       { A = setStreamTriggerOptions(pCxt, B, &C); }

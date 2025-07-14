@@ -63,10 +63,10 @@ class TestStreamCountTrigger:
         tdSql.executes(sqls)
         
         tdLog.info(f"=============== create stream")
-        sql1 = "create stream s1 count_window(4, 4, cint) from ct1                           options(fill_history) into res_ct1 (firstts, lastts, cnt_v, avg_v, sum_v) as select first(_c0), last_row(_c0), count(*), avg(cint), sum(cint) from %%trows;"
-        # sql2 = "create stream s2 count_window(4, 2, cint) from ct2                           options(fill_history) into res_ct2 (firstts, lastts, cnt_v, avg_v, sum_v) as select first(_c0), last_row(_c0), count(*), avg(cint), sum(cint) from %%trows;"
-        # sql3 = "create stream s3 count_window(4, 2, cint) from stb partition by tbname       options(fill_history) into res_stag_stb OUTPUT_SUBTABLE(CONCAT('res_stb_stag_', tbname))                             (firstts, lastts, cnt_v, avg_v, sum_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), last_row(_c0), count(*), avg(cuint), sum(cint) from %%trows;"
-        # sql4 = "create stream s4 count_window(4, 4, cint) from stb partition by tbname, tint options(fill_history) into res_stb_mtag OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', tbname, '_', cast(tint as varchar))) (firstts, lastts, cnt_v, avg_v, sum_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), last_row(_c0), count(*), avg(cuint), sum(cint) from %%trows partition by %%1, %%2;"
+        sql1 = "create stream s1 count_window(4, 4, cint) from ct1                           stream_options(fill_history) into res_ct1 (firstts, lastts, cnt_v, avg_v, sum_v) as select first(_c0), last_row(_c0), count(*), avg(cint), sum(cint) from %%trows;"
+        # sql2 = "create stream s2 count_window(4, 2, cint) from ct2                           stream_options(fill_history) into res_ct2 (firstts, lastts, cnt_v, avg_v, sum_v) as select first(_c0), last_row(_c0), count(*), avg(cint), sum(cint) from %%trows;"
+        # sql3 = "create stream s3 count_window(4, 2, cint) from stb partition by tbname       stream_options(fill_history) into res_stag_stb OUTPUT_SUBTABLE(CONCAT('res_stb_stag_', tbname))                             (firstts, lastts, cnt_v, avg_v, sum_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), last_row(_c0), count(*), avg(cuint), sum(cint) from %%trows;"
+        # sql4 = "create stream s4 count_window(4, 4, cint) from stb partition by tbname, tint stream_options(fill_history) into res_stb_mtag OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', tbname, '_', cast(tint as varchar))) (firstts, lastts, cnt_v, avg_v, sum_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), last_row(_c0), count(*), avg(cuint), sum(cint) from %%trows partition by %%1, %%2;"
          
         streams = [
             self.StreamItem(sql1, self.checks1),

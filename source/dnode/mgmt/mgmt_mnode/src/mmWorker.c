@@ -521,5 +521,8 @@ void mmStopWorker(SMnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->syncWorker);
   tSingleWorkerCleanup(&pMgmt->syncRdWorker);
   tDispatchWorkerCleanup(&pMgmt->streamMgmtWorkerPool);
+  tWWorkerFreeQueue(&pMgmt->streamReaderPool, pMgmt->pStreamReaderQ);
+  tWWorkerCleanup(&pMgmt->streamReaderPool);
+  
   dDebug("mnode workers are closed");
 }

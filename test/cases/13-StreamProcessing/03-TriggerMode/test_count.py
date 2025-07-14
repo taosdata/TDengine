@@ -47,7 +47,7 @@ class TestStreamCountTrigger:
         sql2 = "create stream s2 count_window(4, 2, cint) from ct2 into res_ct2 (firstts, num_v, cnt_v, avg_v, sum_v) as select first(_c0), _twrownum, count(*), avg(cint), sum(cint) from %%trows;"
         sql3 = "create stream s3 count_window(4, 2, cint) from stb partition by tbname into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, num_v, cnt_v, avg_v, sum_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid)  as select first(_c0), _twrownum, count(*), avg(cuint), sum(cint) from %%trows;"
         # sql3 = "create stream s3 count_window(cint) from stb partition by tbname into stb_res OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname;"
-        # sql4 = "create stream s4 count_window(cint) from stb partition by tbname, tint into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', tbname, '_', cast(tint as varchar))) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by %%1, %%2;"
+        # sql4 = "create stream s4 count_window(cint) from stb partition by tbname, tint into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', tbname, '_', cast(tint as varchar))) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
          
         streams = [
             self.StreamItem(sql1, self.checks1),

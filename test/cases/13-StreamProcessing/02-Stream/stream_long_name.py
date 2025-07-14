@@ -7,14 +7,14 @@ import os
 import subprocess
 
 class TestSnodeMgmt:
-    caseName = "test_stream_sliding_trigger"
+    caseName = ""
     currentDir = os.path.dirname(os.path.abspath(__file__))
     runAll = False
     dbname = "test1"
     trigTbname = ""
     calcTbname = ""
     outTbname = ""
-    stName = ""
+    streamName = "123456"
     resultIdx = ""
     sliding = 1
     subTblNum = 3
@@ -25,17 +25,9 @@ class TestSnodeMgmt:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_snode_mgmt(self):
-        """Snode mgmt test
+        """Check stream long name test
         
-        1. create snode
-        2. show snode
-        3. select ins_snodes
-        4. drop snode
-        5. show snode
-        6. select ins_snodes
-        7. recreate snode
-        8. drop dnode
-        9. offline dnode
+        1. Check stream long name 
 
         Catalog:
             - Streams:Snode
@@ -58,28 +50,20 @@ class TestSnodeMgmt:
 
         self.prepareData()
         self.createSnodeTest()
-        self.dropAllSnodeTest()
-        self.createSnodeTest()
-        self.createStream()
-        self.checkStreamRunning()
-        self.dropOneDnode()
-        self.checkStreamRunning()
-        self.dropOneSnodeTest()
-        self.checkStreamRunning()
-        self.killOneDnode2()
-        self.checkStreamRunning()
-        self.createOneStream()
 
-        tdSql.query("select * from information_schema.ins_streams  order by stream_name;")
-        numOfStreams=tdSql.getRows()
-        for i in range(1,numOfStreams):
-            self.dropOneStream()
-        self.checkStreamRunning()
-        
-        # tdSql.query("select * from information_schema.ins_snodes  order by id;")
-        # numOfSnodes=tdSql.getRows()
-        # for i in range(1,numOfSnodes+1):
-        #     self.dropOneSnodeTest()
+        stream_name = "ashdjfklhgt49hg84g89j4hjq904j9m9vm94jg9j4gj94jg90qj490j2390hr823h8bnbuhu4h8gh48gj834g894j0g4j30gj0g4jg2ij9t0j2498gn498gn894ng9843ng894gk9j4e9gj49gh9jg90qj490j2390hr823hfj38jg84gh84h89gh48h8"
+
+        # 创建一个 stream
+        self.createOneStream(stream_name)
+
+        # 检查是否已经存在
+        tdSql.query(f"select stream_name from information_schema.ins_streams;")
+        stname=tdSql.getData(0,0)
+        tdLog.info(f"stream name of ins_streams:{stname}")
+        if stream_name != stname:
+            raise Exception("stream name of ins_streams != stream_name")
+
+  
 
     def prepareData(self):
         tdLog.info(f"prepare data")
@@ -101,7 +85,25 @@ class TestSnodeMgmt:
         ntb.createTable()
         ntb.append_data(0, self.tblRowNum)
         self.tableList.append(f"ntb1")
-
+    
+    
+    def createOneStream(self,stname):
+        tdLog.info(f"create stream:")
+        sql = (
+        f"create stream `{stname}` sliding(1s) from st1  partition by tbname "
+        "options(fill_history('2025-01-01 00:00:00')) "
+        f"into `{stname}out` as "
+        "select cts, cint, %%tbname from st1 "
+        "where cint > 5 and tint > 0 and %%tbname like '%%2' "
+        "order by cts;"
+        )
+        tdLog.info(f"create stream:{sql}")
+        try:
+            tdSql.execute(sql)
+        except Exception as e:
+                if "No stream available snode now" not in str(e):
+                    raise Exception(f" user cant  create stream no snode ,but create success")
+    
     def checkResultRows(self, expectedRows):
         tdSql.checkResultsByFunc(
             f"select * from information_schema.ins_snodes order by id;",
@@ -170,24 +172,13 @@ class TestSnodeMgmt:
         tdSql.query("select * from information_schema.ins_dnodes order by id;")
         numOfNodes=tdSql.getRows()
         for i in range(1,numOfNodes+1):
-            tdSql.execute(f"create stream `s{i}` sliding(1s) from st1 stream_options(fill_history('2025-01-01 00:00:00')) into `s{i}out` as select cts, cint from st1 where _tcurrent_ts % 2 = 0 order by cts;")
+            tdSql.execute(f"create stream `s{i}` sliding(1s) from st1 options(fill_history('2025-01-01 00:00:00')) into `s{i}out` as select cts, cint from st1 where _tcurrent_ts % 2 = 0 order by cts;")
             tdLog.info(f"create stream s{i} success!")
-        # tdSql.execute("create stream `s2` sliding(1s) from st1 partition by tint, tbname stream_options(fill_history('2025-01-01 00:00:00')) into `s2out` as select cts, cint from st1 order by cts limit 3;")
-        # tdSql.execute("create stream `s3` sliding(1s) from st1 partition by tbname stream_options(pre_filter(cint>2)|fill_history('2025-01-01 00:00:00')) into `s3out` as select cts, cint,   %%tbname from %%trows where cint >15 and tint >0 and  %%tbname like '%2' order by cts;")
-        # tdSql.execute("create stream `s4` sliding(1s) from st1 stream_options(fill_history('2025-01-01 00:00:00')) into `s4out` as select _tcurrent_ts, cint from st1 order by cts limit 4;")
+        # tdSql.execute("create stream `s2` sliding(1s) from st1 partition by tint, tbname options(fill_history('2025-01-01 00:00:00')) into `s2out` as select cts, cint from st1 order by cts limit 3;")
+        # tdSql.execute("create stream `s3` sliding(1s) from st1 partition by tbname options(pre_filter(cint>2)|fill_history('2025-01-01 00:00:00')) into `s3out` as select cts, cint,   %%tbname from %%trows where cint >15 and tint >0 and  %%tbname like '%2' order by cts;")
+        # tdSql.execute("create stream `s4` sliding(1s) from st1 options(fill_history('2025-01-01 00:00:00')) into `s4out` as select _tcurrent_ts, cint from st1 order by cts limit 4;")
     
-    def createOneStream(self):
-        sql = (
-        "create stream `s99` sliding(1s) from st1  partition by tbname "
-        "stream_options(fill_history('2025-01-01 00:00:00')) "
-        "into `s99out` as "
-        "select cts, cint, %%tbname from st1 "
-        "where cint > 5 and tint > 0 and %%tbname like '%%2' "
-        "order by cts;"
-        )
 
-        tdSql.execute(sql)
-        tdLog.info(f"create stream s99 success!")
         
     def dropOneStream(self):
         tdLog.info(f"drop one stream: ")

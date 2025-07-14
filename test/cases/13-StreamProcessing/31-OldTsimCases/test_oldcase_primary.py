@@ -55,10 +55,10 @@ class TestStreamOldCaseInterpPrimary:
             f"create table streamt2(ts timestamp, a int composite key, b bigint ) tags(ta varchar(100), tb int, tc int);"
         )
         tdSql.execute(
-            f"create stream streams0 interval(1s) sliding(1s) from t1 options(max_delay(1s)) into streamt0 as select _twstart, count(*) c1, max(b) from %%trows;"
+            f"create stream streams0 interval(1s) sliding(1s) from t1 stream_options(max_delay(1s)) into streamt0 as select _twstart, count(*) c1, max(b) from %%trows;"
         )
         tdSql.execute(
-            f"create stream streams2 interval(1s) sliding(1s) from st partition by tbname options(max_delay(1s)) into streamt2 tags(ta) as select _twstart, count(*) c1, max(b) from %%trows"
+            f"create stream streams2 interval(1s) sliding(1s) from st partition by tbname stream_options(max_delay(1s)) into streamt2 tags(ta) as select _twstart, count(*) c1, max(b) from %%trows"
         )
 
         tdSql.pause()

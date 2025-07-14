@@ -92,7 +92,7 @@ class TestStreamOldCaseConcat:
                 "create stream streams12 interval(10s) sliding(10s) from st partition by tbname into streamt12(a, b, c, d) tags(c varchar(60) as %%tbname) as select _twstart, count(*) c1, max(a), max(b) from st where tbname=%%tbname and ts >= _twstart and ts < _twend;"
             )
             tdSql.error(
-                "create stream streams13 interval(10s) sliding(10s) from st partition by tbname, tc options(max_delay(1s)) into streamt13(a, b, c, d) tags(tx varchar(60)) as select _twstart, count(*) c1, max(a) c2, max(b) from %%trows where ts >= _twstart and ts < _twend;"
+                "create stream streams13 interval(10s) sliding(10s) from st partition by tbname, tc stream_options(max_delay(1s)) into streamt13(a, b, c, d) tags(tx varchar(60)) as select _twstart, count(*) c1, max(a) c2, max(b) from %%trows where ts >= _twstart and ts < _twend;"
             )
             tdSql.error(
                 "create stream streams14 interval(10s) sliding(10s) from st partition by tbname, tc into streamt14 tags(tx varchar(60) as tc) as select _twstart, count(*) tc, max(a) c1, max(b) from st where tbname=%%tbname and tc=%%2 and ts >= _twstart and ts < _twend;"
@@ -208,7 +208,7 @@ class TestStreamOldCaseConcat:
                 "create stream streams17 interval(10s) sliding(10s) from st into streamt17 as select _twstart, count(*) c1, max(a) from st partition by tbname tc event_window start with a = 0 end with a = 9;"
             )
             tdSql.execute(
-                "create stream streams18 interval(10s) sliding(10s) from st  options(watermark(10s)) into streamt18 as select _twstart, count(*) c1, max(a) from st partition by tbname tc count_window(2);"
+                "create stream streams18 interval(10s) sliding(10s) from st  stream_options(watermark(10s)) into streamt18 as select _twstart, count(*) c1, max(a) from st partition by tbname tc count_window(2);"
             )
 
     class Col02(StreamCheckItem):
@@ -275,7 +275,7 @@ class TestStreamOldCaseConcat:
             tdSql.execute("create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                'create stream streams1 interval(10s) sliding(10s) from st partition by tbname options(max_delay(1s)) into result.streamt OUTPUT_SUBTABLE(concat("aaa-", %%tbname)) as select _twstart, count(*) c1 from %%tbname;'
+                'create stream streams1 interval(10s) sliding(10s) from st partition by tbname stream_options(max_delay(1s)) into result.streamt OUTPUT_SUBTABLE(concat("aaa-", %%tbname)) as select _twstart, count(*) c1 from %%tbname;'
             )
 
         def insert1(self):
@@ -309,7 +309,7 @@ class TestStreamOldCaseConcat:
             tdSql.execute("create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                'create stream streams2 interval(10s) sliding(10s) from st partition by tbname options(max_delay(1s)) into result2.streamt2 output_subtable(concat("tag-", %%1)) TAGS(cc varchar(100) as concat("tag-", %%tbname)) as select _twstart, count(*) c1 from %%trows;'
+                'create stream streams2 interval(10s) sliding(10s) from st partition by tbname stream_options(max_delay(1s)) into result2.streamt2 output_subtable(concat("tag-", %%1)) TAGS(cc varchar(100) as concat("tag-", %%tbname)) as select _twstart, count(*) c1 from %%trows;'
             )
 
         def insert1(self):
@@ -352,7 +352,7 @@ class TestStreamOldCaseConcat:
             tdSql.execute("create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                'create stream streams3 interval(10s) sliding(10s) from st partition by tbname options(max_delay(1s)) into result3.streamt3 output_subtable(concat("tbn-", %%tbname)) tags(dd varchar(100) as concat("tag-", %%tbname)) as select _twstart, count(*) c1 from %%trows;'
+                'create stream streams3 interval(10s) sliding(10s) from st partition by tbname stream_options(max_delay(1s)) into result3.streamt3 output_subtable(concat("tbn-", %%tbname)) tags(dd varchar(100) as concat("tag-", %%tbname)) as select _twstart, count(*) c1 from %%trows;'
             )
 
         def insert1(self):
@@ -402,7 +402,7 @@ class TestStreamOldCaseConcat:
             tdSql.execute("create table t3 using st tags(3, 3, 3);")
 
             tdSql.execute(
-                'create stream streams4 interval(10s) sliding(10s) from st partition by tbname options(max_delay(1s)) into result4.streamt4 OUTPUT_SUBTABLE(concat("tbn-", %%tbname)) TAGS(dd varchar(100) as concat("tag-", %%tbname)) as select _twstart, count(*) c1 from %%trows;'
+                'create stream streams4 interval(10s) sliding(10s) from st partition by tbname stream_options(max_delay(1s)) into result4.streamt4 OUTPUT_SUBTABLE(concat("tbn-", %%tbname)) TAGS(dd varchar(100) as concat("tag-", %%tbname)) as select _twstart, count(*) c1 from %%trows;'
             )
 
         def insert1(self):
@@ -446,7 +446,7 @@ class TestStreamOldCaseConcat:
             tdSql.execute('create table t3 using st tags("3", 3, 3);')
 
             tdSql.execute(
-                'create stream streams6 interval(10s) sliding(10s) from st partition by ta, tbname options(max_delay(1s)) into result6.streamt6 TAGS(dd int as cast(concat(%%1, "0") as int)) as select _twstart, count(*) c1 from %%trows;'
+                'create stream streams6 interval(10s) sliding(10s) from st partition by ta, tbname stream_options(max_delay(1s)) into result6.streamt6 TAGS(dd int as cast(concat(%%1, "0") as int)) as select _twstart, count(*) c1 from %%trows;'
             )
 
         def insert1(self):
@@ -476,7 +476,7 @@ class TestStreamOldCaseConcat:
             tdSql.execute("create table streamt5(ts timestamp, a int, b int, c int);")
 
             tdSql.execute(
-                "create stream streams5 interval(10s) sliding(10s) from t1 options(max_delay(1s)) into streamt5(ts, a, b, c) as select _twstart ts, cast(count(*) as int) a, cast(1000 as int) b, cast(NULL as int) c from t1;"
+                "create stream streams5 interval(10s) sliding(10s) from t1 stream_options(max_delay(1s)) into streamt5(ts, a, b, c) as select _twstart ts, cast(count(*) as int) a, cast(1000 as int) b, cast(NULL as int) c from t1;"
             )
 
         def insert1(self):
@@ -512,7 +512,7 @@ class TestStreamOldCaseConcat:
             tdSql.execute("create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                'create stream streams1 interval(10s) sliding(10s) from st partition by tbname options(max_delay(1s)) into result.streamt OUTPUT_SUBTABLE("aaa") as select _twstart, count(*) c1 from st ;'
+                'create stream streams1 interval(10s) sliding(10s) from st partition by tbname stream_options(max_delay(1s)) into result.streamt OUTPUT_SUBTABLE("aaa") as select _twstart, count(*) c1 from st ;'
             )
 
         def insert1(self):

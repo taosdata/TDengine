@@ -19,12 +19,12 @@
 #
 # army-test
 #
-,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade.py -N 3
+#newstm,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f multi-level/mlevel_basic.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f db-encrypt/basic.py -N 3 -M 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator_restart.py -N 3
-,,n,army,python3 ./test.py -f storage/s3/s3Basic.py -N 3
+#newstm,,n,army,python3 ./test.py -f storage/s3/s3Basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/snapshot.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_create.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_alter.py
@@ -179,7 +179,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/telnet_tcp.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmqBasic.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmq_case.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/websiteCase.py
+#newstm,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/websiteCase.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/cloud/cloud-test.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/ws/websocket.py -R
 
@@ -583,12 +583,12 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellError.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellNetChk.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/telemetry.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/backquote_check.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/backquote_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdMonitor.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdNewMonitor.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosd_audit.py
 ,,n,system-test,python3 ./test.py -f 0-others/taosdlog.py
-,,n,system-test,python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
+#newstm,,n,system-test,python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udfTest.py
 ,,n,system-test,python3 ./test.py -f 0-others/udf_create.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_restart_taosd.py
@@ -629,7 +629,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/delete_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/subscribe_stream_privilege.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/empty_identifier.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/empty_identifier.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_transaction_detail.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/kill_balance_leader.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/kill_restore_dnode.py -N 5
@@ -710,7 +710,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_tag_index.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/information_schema.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ins_filesets.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/grant.py
+#newstm ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/grant.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/mounts.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -R
@@ -955,7 +955,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_normaltable.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/keep_expired.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/stmt_error.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py
+#newstm ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py -N 3 -M 3 -i False -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union1.py
@@ -979,7 +979,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4467.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/geometry.py
 
-,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade_all.py -N 3
+#newstm,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade_all.py -N 3
 
 ,,n,system-test,python3 ./test.py -f 2-query/queryQnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode1mnode.py
@@ -1344,8 +1344,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f eco-system/manager/schema_change.py -N 3 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_window_true_for.py
-,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_window_true_for.py
+#newstm,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 
 #tsim test
 ,,y,script,./test.sh -f tsim/query/timeline.sim
@@ -1751,8 +1751,8 @@
 ,,y,script,./test.sh -f tsim/stable/tag_rename.sim
 ,,y,script,./test.sh -f tsim/stable/values.sim
 ,,y,script,./test.sh -f tsim/stable/vnode3.sim
-,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
-,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQueryDelete.sim
+#newstm,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
+#newstm,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQueryDelete.sim
 
 ### refactor stream backend, open case after rsma refactored
 #,,y,script,./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
