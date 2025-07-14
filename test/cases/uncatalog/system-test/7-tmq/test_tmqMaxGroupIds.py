@@ -171,7 +171,7 @@ class TestCase:
         # use taosBenchmark to subscribe  
         binPath = self.getPath()
         jsonfile = os.path.join(os.path.dirname(__file__), "tmqMaxGroupIds.json")
-        tmqCom.startProcess(binPath, jsonfile)
+        tmqCom.startProcess(binPath, f"-f {jsonfile}")
                 
         expectTopicNum = 1
         expectConsumerNUm = 99
