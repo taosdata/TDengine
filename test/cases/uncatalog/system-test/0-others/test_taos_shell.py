@@ -43,7 +43,7 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
             if len(value1) != 0:
                 taosCmd = taosCmd + ' ' + value1
 
-    tdLog.info ("taos cmd: %s" % taosCmd)
+    tdLog.debug ("taos cmd: %s" % taosCmd)
 
     child = taosExpect.spawn(taosCmd, timeout=20)
     #output = child.readline()
