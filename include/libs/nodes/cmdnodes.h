@@ -184,6 +184,20 @@ typedef struct SCompactDatabaseStmt {
   bool      metaOnly;
 } SCompactDatabaseStmt;
 
+typedef struct SCreateMountStmt {
+  ENodeType type;
+  int32_t   dnodeId;
+  bool      ignoreExists;
+  char      mountName[TSDB_MOUNT_NAME_LEN];
+  char      mountPath[TSDB_MOUNT_PATH_LEN];
+} SCreateMountStmt;
+
+typedef struct SDropMountStmt {
+  ENodeType type;
+  char      mountName[TSDB_MOUNT_NAME_LEN];
+  bool      ignoreNotExists;
+} SDropMountStmt;
+
 typedef struct SCompactVgroupsStmt {
   ENodeType  type;
   SNode*     pDbName;
