@@ -44,6 +44,7 @@ int32_t  mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, char *db);
 int32_t  mndUserRemoveStb(SMnode *pMnode, STrans *pTrans, char *stb);
 int32_t  mndUserRemoveView(SMnode *pMnode, STrans *pTrans, char *view);
 int32_t  mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic);
+int32_t  mndRemoveAllStbUser(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 
 int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew);
 void    mndUserFreeObj(SUserObj *pUser);

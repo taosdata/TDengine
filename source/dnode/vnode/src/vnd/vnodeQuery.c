@@ -129,6 +129,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   if (!reqTbUid) {
     (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", infoReq.dbFName, infoReq.tbName);
+    if (pVnode->mounted) tTrimMountPrefix(tableFName);
     code = vnodeValidateTableHash(pVnode, tableFName);
     if (code) {
       goto _exit4;
@@ -316,6 +317,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   (void)memcpy(cfgRsp.dbFName, cfgReq.dbFName, sizeof(cfgRsp.dbFName));
 
   (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", cfgReq.dbFName, cfgReq.tbName);
+  if (pVnode->mounted) tTrimMountPrefix(tableFName);
   code = vnodeValidateTableHash(pVnode, tableFName);
   if (code) {
     goto _exit;
@@ -1363,7 +1365,7 @@ static FORCE_INLINE int32_t vnodeGetDBPrimaryInfo(SVnode *pVnode, SDbSizeStatisI
   char   *dirName[] = {VNODE_TSDB_DIR, VNODE_WAL_DIR, VNODE_META_DIR, VNODE_TSDB_CACHE_DIR};
   int64_t dirSize[4];
 
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, path, TSDB_FILENAME_LEN);
   int32_t offset = strlen(path);
 
   for (int i = 0; i < sizeof(dirName) / sizeof(dirName[0]); i++) {

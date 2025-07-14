@@ -156,10 +156,17 @@ typedef struct SViewMeta {
 } SViewMeta;
 
 typedef struct SDBVgInfo {
-  int32_t   vgVersion;
-  int16_t   hashPrefix;
-  int16_t   hashSuffix;
-  int8_t    hashMethod;
+  int32_t vgVersion;
+  int16_t hashPrefix;
+  int16_t hashSuffix;
+  int8_t  hashMethod;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t isMount : 1;  // TS-5868
+      uint8_t padding : 7;
+    };
+  };
   int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
   int64_t   stateTs;
   SHashObj* vgHash;   // key:vgId, value:SVgroupInfo
