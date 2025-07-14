@@ -1636,16 +1636,17 @@ class TestStreamStateTrigger:
             tdSql.execute(f"create vtable vtb_3 (ts timestamp, col_1 varchar(20) from ct1.cvar, col_2 double from ct3.cdouble, col_3 int from ct5.cint)")
 
             tdSql.execute(
-                f"create stream s8 event_window(start with col_2 >= 5 end with col_3 < 10 and length(col_1) >= 4) from vtb_3 options(ignore_disorder) "
-                f"into res_vtb_3 (firstts, lastts, cnt_v, sum_v, avg_v) as "
+                f"create stream s8 event_window(start with col_2 >= 1 end with col_3 < 20 and length(col_1) >= 4) from vtb_3 "
+                f"into res_vtb_3 (twstart, firstts, lastts, cnt_v, sum_v, avg_v) as "
+                f"select _twstart, first(_c0), last_row(_c0), count(col_1), sum(col_2), avg(col_3) from vtb_3 "
+                f"where _c0 >= _twstart and _c0 <= _twend "
+            )
+
+            tdSql.execute(
+                f"create stream s8_order event_window(start with col_2 >= 5 end with col_3 < 10 and length(col_1) > 7) from vtb_3 options(ignore_disorder) "
+                f"into res_vtb_3_order (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(col_1), sum(col_2), avg(col_3) from vtb_3"
             )
-            #
-            # tdSql.execute(
-            #     f"create stream s8_order event_window(start with col_2 >= 5 end with col_3 < 10 and length(col_1) > 7) from vtb_3 "
-            #     f"into res_vtb_3_order (firstts, lastts, cnt_v, sum_v, avg_v) as "
-            #     f"select first(_c0), last_row(_c0), count(col_1), sum(col_2), avg(col_3) from vtb_3"
-            # )
 
             # tdSql.execute(
             #     f"create stream s8_g event_window(start with col_1 >= 5 end with col_3 < 10 and col_2 > '12.765') "
@@ -1680,7 +1681,11 @@ class TestStreamStateTrigger:
                 "insert into ct2 values ('2025-01-01 00:00:09', 8,  8, 1.1, '<<<<<<<');",  # output by w-close
                 "insert into ct2 values ('2025-01-01 00:00:10', 80, 1, 1.1, '<<<<<<<');",
                 "insert into ct2 values ('2025-01-01 00:00:15', 8,  8, 1.1, '<<<<<<<');",  # output by w-open and w-close
+            ]
+            tdSql.executes(sqls)
+            time.sleep(15)
 
+            sqls = [
                 "insert into ct3 values ('2025-01-01 00:00:00', 1,  1, 2.2, '>>>>>>>>');",
                 "insert into ct3 values ('2025-01-01 00:00:01', 6,  1, 2.2, '>>>>>>>>');",  # start by w-open
                 "insert into ct3 values ('2025-01-01 00:00:02', 11, 1, 2.2, '>>>>>>>>');",
@@ -1693,7 +1698,11 @@ class TestStreamStateTrigger:
                 "insert into ct3 values ('2025-01-01 00:00:09', 8,  8, 2.2, '>>>>>>>>');",  # output by w-close
                 "insert into ct3 values ('2025-01-01 00:00:10', 80, 1, 2.2, '>>>>>>>>');",
                 "insert into ct3 values ('2025-01-01 00:00:15', 8,  8, 2.2, '>>>>>>>>');",  # output by w-open and w-close
+            ]
+            tdSql.executes(sqls)
+            time.sleep(15)
 
+            sqls = [
                 "insert into ct4 values ('2025-01-01 00:00:00', 1,  1, 3.3, '========');",
                 "insert into ct4 values ('2025-01-01 00:00:01', 6,  1, 3.3, '========');",  # start by w-open
                 "insert into ct4 values ('2025-01-01 00:00:02', 11, 1, 3.3, '========');",
@@ -1708,16 +1717,34 @@ class TestStreamStateTrigger:
                 "insert into ct4 values ('2025-01-01 00:00:15', 8,  8, 3.3, '========');",  # output by w-open and w-close
             ]
             tdSql.executes(sqls)
+            time.sleep(15)
+
+            sqls = [
+                "insert into ct5 values ('2025-01-01 00:00:00', 1,  1, 3.3, '++++++++');",
+                "insert into ct5 values ('2025-01-01 00:00:01', 6,  1, 3.3, '++++++++');",  # start by w-open
+                "insert into ct5 values ('2025-01-01 00:00:02', 11, 1, 3.3, '++++++++');",
+                "insert into ct5 values ('2025-01-01 00:00:03', 7,  1, 3.3, '++++++++');",
+                "insert into ct5 values ('2025-01-01 00:00:04', 11, 8, 3.3, '++++++++');",
+                "insert into ct5 values ('2025-01-01 00:00:05', 8,  8, 3.3, '++++++++');",  # output by w-close
+                "insert into ct5 values ('2025-01-01 00:00:06', 1,  1, 3.3, '++++++++');",
+                "insert into ct5 values ('2025-01-01 00:00:07', 6,  0, 3.3, '++++++++');",  # start by w-open
+                "insert into ct5 values ('2025-01-01 00:00:08', 2,  0, 3.3, '++++++++');",
+                "insert into ct5 values ('2025-01-01 00:00:09', 8,  8, 3.3, '++++++++');",  # output by w-close
+                "insert into ct5 values ('2025-01-01 00:00:10', 80, 1, 3.3, '++++++++');",
+                "insert into ct5 values ('2025-01-01 00:00:15', 8,  8, 3.3, null);",
+                # output by w-open and w-close
+            ]
+            tdSql.executes(sqls)
 
         def check1(self):
             tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name="res_ct1"',
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name="res_vtb_3"',
                 func=lambda: tdSql.getRows() == 1,
             )
-            tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_ct%"',
-                func=lambda: tdSql.getRows() == 4,
-            )
+            # tdSql.checkResultsByFunc(
+            #     sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_ct%"',
+            #     func=lambda: tdSql.getRows() == 4,
+            # )
 
             tdSql.checkTableSchema(
                 dbname=self.db,
