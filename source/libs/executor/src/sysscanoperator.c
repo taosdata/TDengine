@@ -2236,7 +2236,7 @@ static int32_t buildVgDiskUsage(SOperatorInfo* pOperator, SDbSizeStatisInfo* pSt
   pStaticsInfo->walSize = pStaticsInfo->walSize >> 10;
   pStaticsInfo->metaSize = pStaticsInfo->metaSize >> 10;
   pStaticsInfo->rawDataSize = pStaticsInfo->rawDataSize >> 10;
-  pStaticsInfo->s3Size = pStaticsInfo->s3Size >> 10;
+  pStaticsInfo->ssSize = pStaticsInfo->ssSize >> 10;
 
 _end:
   return code;
@@ -2358,7 +2358,7 @@ static SSDataBlock* sysTableBuildVgUsage(SOperatorInfo* pOperator) {
     QUERY_CHECK_CODE(code, lino, _end);
 
     pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);
-    code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.s3Size, false);  // s3_size
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&staticsInfo.ssSize, false);  // ss_size
     QUERY_CHECK_CODE(code, lino, _end);
 
     pColInfoData = taosArrayGet(p->pDataBlock, numOfCols++);

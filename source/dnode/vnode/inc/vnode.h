@@ -368,9 +368,9 @@ struct SVnodeCfg {
   int32_t     tsdbPageSize;
   int32_t     tdbEncryptAlgorithm;
   char        tdbEncryptKey[ENCRYPT_KEY_LEN + 1];
-  int32_t     s3ChunkSize;
-  int32_t     s3KeepLocal;
-  int8_t      s3Compact;
+  int32_t     ssChunkSize;
+  int32_t     ssKeepLocal;
+  int8_t      ssCompact;
 };
 
 #define TABLE_ROLLUP_ON       ((int8_t)0x1)
