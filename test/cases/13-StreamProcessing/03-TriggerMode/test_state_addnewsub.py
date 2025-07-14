@@ -161,7 +161,7 @@ class TestStreamStateTrigger:
         
         ############ option: fill history
         # no set start_time
-        sql6 = "create stream s6 state_window(cint) from ct1 options(fill_history) into res_fill_all_ct1 (firstts, lastts, num_v, cnt_v, avg_v) as select first(_c0), last_row(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        sql6 = "create stream s6 state_window(cint) from ct1 stream_options(fill_history) into res_fill_all_ct1 (firstts, lastts, num_v, cnt_v, avg_v) as select first(_c0), last_row(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
          
         tdSql.execute(sql6)
         tdStream.checkStreamStatus("s6")
@@ -184,7 +184,7 @@ class TestStreamStateTrigger:
         self.checks6(1)
         
         # # set start_time
-        # sql7 = "create stream s7 state_window(cint) true_for(5s) from ct1 options(fill_history('2025-01-02 00:00:10')) into res_fill_part_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        # sql7 = "create stream s7 state_window(cint) true_for(5s) from ct1 stream_options(fill_history('2025-01-02 00:00:10')) into res_fill_part_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
         # tdSql.execute(sql7)
         # tdStream.checkStreamStatus("s7")
         # # time.sleep(3)
@@ -210,7 +210,7 @@ class TestStreamStateTrigger:
         # tdLog.info(f"=============== create sub table")
         # tdSql.execute(f"create table ct5 using stb tags(1);")
         
-        # sql8 = "create stream s8 state_window(cint) from ct5 options(max_delay(3s)) into res_max_delay_ct5 (lastts, firstts, num_v, cnt_v, avg_v) as select last_row(_c0), first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        # sql8 = "create stream s8 state_window(cint) from ct5 stream_options(max_delay(3s)) into res_max_delay_ct5 (lastts, firstts, num_v, cnt_v, avg_v) as select last_row(_c0), first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
          
         # tdSql.execute(sql8)
         # tdStream.checkStreamStatus("s8")

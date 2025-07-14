@@ -50,7 +50,7 @@ class TestStreamOldCaseSession:
             f"create table t1(ts timestamp, a int, b int, c int, d double, id int);"
         )
         tdSql.execute(
-            f"create stream streams1 trigger session(ts, 10s) from t1 options(max_delay(10s)) into streamt as select _twstart, count(*) c1, sum(a), max(a), min(d), stddev(a), last(a), first(d), max(id) s from t1 where ts >= _twstart and ts < _twend ;"
+            f"create stream streams1 trigger session(ts, 10s) from t1 stream_options(max_delay(10s)) into streamt as select _twstart, count(*) c1, sum(a), max(a), min(d), stddev(a), last(a), first(d), max(id) s from t1 where ts >= _twstart and ts < _twend ;"
         )
         tdSql.pause()
 

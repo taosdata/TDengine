@@ -14,17 +14,14 @@ class TestStreamMetaTrigger:
         tdStream.createSnode()
 
         streams = []
-        # streams.append(self.Basic0())  # add ctb and drop ctb from stb [ok]
-        # streams.append(self.Basic1())  # drop data source table [ok]
+        streams.append(self.Basic0())  # add ctb and drop ctb from stb [ok]
+        # streams.append(self.Basic1())  # drop data source table [fail]
         streams.append(self.Basic2())  # tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件 [ok]       
         # streams.append(self.Basic3())  # [fail]
         # streams.append(self.Basic4())  # [ok]
-        # streams.append(self.Basic5())  # 
+        # streams.append(self.Basic5())  # [fail] 
         # streams.append(self.Basic6())  #  [fail]
-        # streams.append(self.Basic7())  # 
-        # streams.append(self.Basic8())  # 
-        # streams.append(self.Basic9())  # 
-        # streams.append(self.Basic10()) #
+        # streams.append(self.Basic7())  # [ok] 
         
         tdStream.checkAll(streams)
 
@@ -289,7 +286,7 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"create table ct5 using stb tags(3)")
 
             tdSql.execute(
-                f"create stream s1_g state_window(cint) from {self.stbName} partition by tbname, tint options(force_output | pre_filter(tint=3)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (startts, firstts, lastts, cnt_v, sum_v, avg_v, rownum_s) as select _twstart, first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint), _twrownum from ct2 where _c0 >= _twstart and _c0 <= _twend;"
+                f"create stream s1_g state_window(cint) from {self.stbName} partition by tbname, tint stream_options(force_output | pre_filter(tint=3)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (startts, firstts, lastts, cnt_v, sum_v, avg_v, rownum_s) as select _twstart, first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint), _twrownum from ct2 where _c0 >= _twstart and _c0 <= _twend;"
             )
 
         def insert1(self):
@@ -553,21 +550,21 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"create table {self.db}.ct5 using {self.db}.{self.stbName} (tint, tbigint)tags(5, 5)")
             
             tdSql.execute(
-                f"create stream s2_g state_window(cint) from {self.stbName} partition by tbname, tint options(pre_filter(tbigint == 1 or tbigint == 100)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s2_g state_window(cint) from {self.stbName} partition by tbname, tint stream_options(pre_filter(tbigint == 1 or tbigint == 100)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
             
             tdSql.execute(
-                f"create stream s2_g_f state_window(cint) from {self.stbName} partition by tbname, tint options(pre_filter(tbigint == 2 or tbigint == 200)|fill_history) into res_stb_f OUTPUT_SUBTABLE(CONCAT('res_stb_f_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s2_g_f state_window(cint) from {self.stbName} partition by tbname, tint stream_options(pre_filter(tbigint == 2 or tbigint == 200)|fill_history) into res_stb_f OUTPUT_SUBTABLE(CONCAT('res_stb_f_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
             
             # ct5 的 tbigint 满足 流 s2_g_t1
             tdSql.execute(
-                f"create stream s2_g_t1 state_window(cint) from {self.stbName} partition by tbname, tint options(pre_filter(tbigint == 5)) into res_stb_t1 OUTPUT_SUBTABLE(CONCAT('res_stb_t1_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s2_g_t1 state_window(cint) from {self.stbName} partition by tbname, tint stream_options(pre_filter(tbigint == 5)) into res_stb_t1 OUTPUT_SUBTABLE(CONCAT('res_stb_t1_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
             
             # 修改 ct5 的 tbigint 只后， 满足 流 s2_g_t2
             tdSql.execute(
-                f"create stream s2_g_t2 state_window(cint) from {self.stbName} partition by tbname, tint options(pre_filter(tbigint == 9999)) into res_stb_t2 OUTPUT_SUBTABLE(CONCAT('res_stb_t2_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s2_g_t2 state_window(cint) from {self.stbName} partition by tbname, tint stream_options(pre_filter(tbigint == 9999)) into res_stb_t2 OUTPUT_SUBTABLE(CONCAT('res_stb_t2_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
 
 
@@ -847,11 +844,11 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"create table {self.db}.ct2 using {self.db}.{self.stbName} (tint, tbigint, tfloat)tags(2,2,2)")
             
             tdSql.execute(
-                f"create stream s3_g state_window(cint) from {self.stbName} partition by tbname, tint options(pre_filter(cbigint >= 1)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s3_g state_window(cint) from {self.stbName} partition by tbname, tint stream_options(pre_filter(cbigint >= 1)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
             
             tdSql.execute(
-                f"create stream s3 state_window(cint) from {self.ntbName} options(pre_filter(cbigint >= 1)) into res_ntb (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s3 state_window(cint) from {self.ntbName} stream_options(pre_filter(cbigint >= 1)) into res_ntb (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
 
         def insert1(self):

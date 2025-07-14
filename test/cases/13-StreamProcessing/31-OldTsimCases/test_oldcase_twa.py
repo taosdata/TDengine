@@ -61,43 +61,43 @@ class TestStreamOldCaseTwa:
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                f"create stream streams1 period(2s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder|force_output) into streamt as select _tprev_localtime, twa(a) from st where tbname=%%1 and ta=%%2 and ts >= _tprev_localtime and ts < _tlocaltime;"
+                f"create stream streams1 period(2s) from st partition by tbname, ta stream_options(expired_time(0s)|ignore_disorder|force_output) into streamt as select _tprev_localtime, twa(a) from st where tbname=%%1 and ta=%%2 and ts >= _tprev_localtime and ts < _tlocaltime;"
             )
             tdSql.execute(
-                f"create stream streams2 interval(2s) sliding(2s) from st partition by tbname, ta options(force_output) into streamt2 as select _twstart, twa(a) from st where tbname=%%1 and ta=%%2;"
+                f"create stream streams2 interval(2s) sliding(2s) from st partition by tbname, ta stream_options(force_output) into streamt2 as select _twstart, twa(a) from st where tbname=%%1 and ta=%%2;"
             )
             tdSql.execute(
-                f"create stream streams3 interval(2s) sliding(2s) from st partition by tbname, ta options(expired_time(0s)|force_output) into streamt3 as select _twstart, twa(a) from %%trows;"
+                f"create stream streams3 interval(2s) sliding(2s) from st partition by tbname, ta stream_options(expired_time(0s)|force_output) into streamt3 as select _twstart, twa(a) from %%trows;"
             )
             tdSql.execute(
-                f"create stream streams4 interval(2s) sliding(2s) from st partition by tbname, ta options(max_delay(5s)|force_output) into streamt4 as select _twstart, twa(a) from %%trows;"
+                f"create stream streams4 interval(2s) sliding(2s) from st partition by tbname, ta stream_options(max_delay(5s)|force_output) into streamt4 as select _twstart, twa(a) from %%trows;"
             )
             tdSql.execute(
-                f"create stream streams5 interval(2s) sliding(2s) from st options(expired_time(0s)|ignore_disorder) into streamt5 as select _twstart, twa(a) from %%trows;"
+                f"create stream streams5 interval(2s) sliding(2s) from st stream_options(expired_time(0s)|ignore_disorder) into streamt5 as select _twstart, twa(a) from %%trows;"
             )
             tdSql.execute(
                 f"create stream streams6 period(2s) from st partition by tbname, ta into streamt6 as select last(ts), twa(a) from %%trows;"
             )
             tdSql.execute(
-                f"create stream streams7 session(ts, 2s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt7 as select _twstart, twa(a) from %%trows;"
+                f"create stream streams7 session(ts, 2s) from st partition by tbname, ta stream_options(expired_time(0s)|ignore_disorder) into streamt7 as select _twstart, twa(a) from %%trows;"
             )
             tdSql.execute(
-                f"create stream streams8 state_window(a) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt8 as select _twstart, twa(a) from %%trows;;"
+                f"create stream streams8 state_window(a) from st partition by tbname, ta stream_options(expired_time(0s)|ignore_disorder) into streamt8 as select _twstart, twa(a) from %%trows;;"
             )
             tdSql.execute(
-                f"create stream streams9 interval(2s) sliding(2s) from st partition by tbname, ta options(max_delay(1s)|expired_time(0s)|ignore_disorder|force_output) into streamt9 as select _twstart, elapsed(ts) from st where tbname=%%1 and ta=%%2;"
+                f"create stream streams9 interval(2s) sliding(2s) from st partition by tbname, ta stream_options(max_delay(1s)|expired_time(0s)|ignore_disorder|force_output) into streamt9 as select _twstart, elapsed(ts) from st where tbname=%%1 and ta=%%2;"
             )
             tdSql.execute(
-                f"create stream streams10 interval(2s, 1s) sliding(1s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt10 as select _twstart, sum(a) from %%trows;"
+                f"create stream streams10 interval(2s, 1s) sliding(1s) from st partition by tbname, ta stream_options(expired_time(0s)|ignore_disorder) into streamt10 as select _twstart, sum(a) from %%trows;"
             )
             tdSql.error(
-                f"create stream streams11 interval(2s, 2s) sliding(2s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt11 as select _twstart, avg(a) from %%trows;"
+                f"create stream streams11 interval(2s, 2s) sliding(2s) from st partition by tbname, ta stream_options(expired_time(0s)|ignore_disorder) into streamt11 as select _twstart, avg(a) from %%trows;"
             )
             tdSql.execute(
-                f"create stream streams12 interval(2s) sliding(2s) from st options(expired_time(0s)|ignore_disorder) into streams12 as select _twstart, sum(a) from st where ts >= _twstart and ts < _twend;"
+                f"create stream streams12 interval(2s) sliding(2s) from st stream_options(expired_time(0s)|ignore_disorder) into streams12 as select _twstart, sum(a) from st where ts >= _twstart and ts < _twend;"
             )
             tdSql.execute(
-                f"create stream streams13 interval(2s) sliding(2s) from st options(expired_time(0s)|ignore_disorder) into streams10 as select _twstart, sum(a) from st where ts >= _twstart and ts < _twend;"
+                f"create stream streams13 interval(2s) sliding(2s) from st stream_options(expired_time(0s)|ignore_disorder) into streams10 as select _twstart, sum(a) from st where ts >= _twstart and ts < _twend;"
             )
 
         def check1(self):
@@ -129,7 +129,7 @@ class TestStreamOldCaseTwa:
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                f"create stream streams1 interval(2s) sliding(2s) from st partition by tbname, ta options(expired_time(0s)|ignore_disorder) into streamt as select _twstart, twa(a), twa(b), elapsed(ts), now, timezone() from %%trows;"
+                f"create stream streams1 interval(2s) sliding(2s) from st partition by tbname, ta stream_options(expired_time(0s)|ignore_disorder) into streamt as select _twstart, twa(a), twa(b), elapsed(ts), now, timezone() from %%trows;"
             )
 
         def insert1(self):
@@ -166,7 +166,7 @@ class TestStreamOldCaseTwa:
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                f"create stream streams2 period(2s) options(expired_time(0s) | ignore_disorder) into streamt as select cast(_tprev_localtime / 1000000 as timestamp) tp, cast(_tlocaltime / 1000000 as timestamp) tl, cast(_tnext_localtime / 1000000 as timestamp) tn, twa(a), twa(b), elapsed(ts), now, timezone() from st;"
+                f"create stream streams2 period(2s) stream_options(expired_time(0s) | ignore_disorder) into streamt as select cast(_tprev_localtime / 1000000 as timestamp) tp, cast(_tlocaltime / 1000000 as timestamp) tl, cast(_tnext_localtime / 1000000 as timestamp) tn, twa(a), twa(b), elapsed(ts), now, timezone() from st;"
             )
 
         def insert1(self):

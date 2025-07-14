@@ -626,25 +626,25 @@ def random_option(valid=True, max_options=3, trigger_has_tag=False):
     return [f() for f in option_type]
 
 def generate_options_section(max_options=10, trigger_has_tag = False):
-    options = random_option(valid=True, trigger_has_tag=trigger_has_tag, max_options=max_options)
+    stream_options = random_option(valid=True, trigger_has_tag=trigger_has_tag, max_options=max_options)
     rand_val = random.random()
     if rand_val < 0.2:
-        # 20% chance to generate empty options clause
+        # 20% chance to generate empty stream_options clause
         return "", True
     elif rand_val < 0.3:
-        # 10% chance to generate invalid options clause
-        options = options + random_option(valid=False, trigger_has_tag=trigger_has_tag, max_options=1)
+        # 10% chance to generate invalid stream_options clause
+        stream_options = stream_options + random_option(valid=False, trigger_has_tag=trigger_has_tag, max_options=1)
         valid = False
     else:
-        # 70% chance to generate valid options clause
+        # 70% chance to generate valid stream_options clause
         valid = True
-    combined = '|'.join(options)
+    combined = '|'.join(stream_options)
 
     # FILL_HISTORY and FILL_HISTORY_FIRST cannot be used together
     if "FILL_HISTORY(" in combined and "FILL_HISTORY_FIRST(" in combined:
         valid = False
 
-    return f" OPTIONS({combined}) ", valid
+    return f" stream_options({combined}) ", valid
 
 def pick_random_combo(source_list, max_len):
     if max_len == 0:

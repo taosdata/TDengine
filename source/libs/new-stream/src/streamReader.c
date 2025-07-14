@@ -194,7 +194,6 @@ static void releaseStreamReaderInfo(void* p) {
   blockDataDestroy(pInfo->triggerResBlock);
   blockDataDestroy(pInfo->calcResBlock);
   blockDataDestroy(pInfo->calcResBlockTmp);
-  taosMemoryFree(pInfo->triggerSchema);
   destroyExprInfo(pInfo->pExprInfo, pInfo->numOfExpr);
   taosMemoryFreeClear(pInfo->pExprInfo);
   taosArrayDestroy(pInfo->uidList);
@@ -229,32 +228,32 @@ int32_t qStreamBuildSchema(SArray* schemas, int8_t type, int32_t bytes, col_id_t
   return 0;
 }
 
-static int32_t buildSTSchemaForScanData(STSchema** sSchema, SNodeList* list) {
-  int32_t  code = 0;
-  int32_t  lino = 0;
-  int32_t  nCols = LIST_LENGTH(list);
-  SSchema* pSchema = pSchema = (SSchema*)taosMemoryCalloc(nCols, sizeof(SSchema));
-  STREAM_CHECK_NULL_GOTO(pSchema, terrno);
+// static int32_t buildSTSchemaForScanData(STSchema** sSchema, SNodeList* list) {
+//   int32_t  code = 0;
+//   int32_t  lino = 0;
+//   int32_t  nCols = LIST_LENGTH(list);
+//   SSchema* pSchema = pSchema = (SSchema*)taosMemoryCalloc(nCols, sizeof(SSchema));
+//   STREAM_CHECK_NULL_GOTO(pSchema, terrno);
   
-  SNode*  nodeItem = NULL;
-  int32_t i = 0;
-  FOREACH(nodeItem, list) {
-    SColumnNode*     valueNode = (SColumnNode*)((STargetNode*)nodeItem)->pExpr;
-    pSchema[i].type = valueNode->node.resType.type;
-    pSchema[i].colId = valueNode->colId;
-    pSchema[i].bytes = valueNode->node.resType.bytes;
-    i++;
-  }
+//   SNode*  nodeItem = NULL;
+//   int32_t i = 0;
+//   FOREACH(nodeItem, list) {
+//     SColumnNode*     valueNode = (SColumnNode*)((STargetNode*)nodeItem)->pExpr;
+//     pSchema[i].type = valueNode->node.resType.type;
+//     pSchema[i].colId = valueNode->colId;
+//     pSchema[i].bytes = valueNode->node.resType.bytes;
+//     i++;
+//   }
 
-  *sSchema = tBuildTSchema(pSchema, nCols, 0);
-  STREAM_CHECK_NULL_GOTO(*sSchema, terrno);
+//   *sSchema = tBuildTSchema(pSchema, nCols, 0);
+//   STREAM_CHECK_NULL_GOTO(*sSchema, terrno);
 
-end:
-  STREAM_PRINT_LOG_END(code, lino);
+// end:
+//   STREAM_PRINT_LOG_END(code, lino);
 
-  taosMemoryFree(pSchema);
-  return code;
-}
+//   taosMemoryFree(pSchema);
+//   return code;
+// }
 
 static void releaseGroupIdMap(void* p) {
   if (p == NULL) return;
@@ -389,7 +388,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
         ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.node.pOutputDataBlockDesc;
     sStreamReaderInfo->triggerResBlock = createDataBlockFromDescNode(pDescNode);
     STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->triggerResBlock, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
-    STREAM_CHECK_RET_GOTO(buildSTSchemaForScanData(&sStreamReaderInfo->triggerSchema, sStreamReaderInfo->triggerCols));
+    // STREAM_CHECK_RET_GOTO(buildSTSchemaForScanData(&sStreamReaderInfo->triggerSchema, sStreamReaderInfo->triggerCols));
     sStreamReaderInfo->triggerPseudoCols = ((STableScanPhysiNode*)(sStreamReaderInfo->triggerAst->pNode))->scan.pScanPseudoCols;
     if (sStreamReaderInfo->triggerPseudoCols != NULL) {
       STREAM_CHECK_RET_GOTO(

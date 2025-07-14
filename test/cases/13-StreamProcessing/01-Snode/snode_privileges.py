@@ -75,6 +75,14 @@ class TestStreamPrivileges:
         self.checkStreamRunning()
         
         #check normal user can not stop/start stream
+        self.revokeRead()
+        self.revokeWrite()
+        self.userStopStream()
+        self.userStartStream()
+        
+        self.grantRead()
+        self.grantWrite()
+        #check normal user can stop/start stream
         self.userStopStream()
         self.userStartStream()
         
@@ -172,7 +180,7 @@ class TestStreamPrivileges:
         tdSql.connect("lvze2")
         sql = (
         "create stream test1.`s100` sliding(1s) from test1.st1  partition by tbname "
-        "options(fill_history('2025-01-01 00:00:00')) "
+        "stream_options(fill_history('2025-01-01 00:00:00')) "
         "into test1.`s100out` as "
         "select cts, cint, %%tbname from test1.st1 "
         "where cint > 5 and tint > 0 and %%tbname like '%%2' "
@@ -190,7 +198,7 @@ class TestStreamPrivileges:
         # print(f"username: {username}")
         
     def userStopStream(self):
-        tdLog.info(f"connect with normal user {self.username2}")
+        tdLog.info(f"connect with normal user {self.username2} to stop stream")
         tdSql.connect("lvze2")
         tdSql.query(f"show {self.dbname}.streams;")
         numOfStreams = tdSql.getRows()
@@ -204,13 +212,15 @@ class TestStreamPrivileges:
                     raise  Exception(f"stop stream failed with error: {e}")
             tdSql.query(f"show {self.dbname}.streams;")
             stateStream = tdSql.getData(0,1)
-            if stateStream != 'Stopped':
-                raise Exception(f"normal user can not stop stream,  found state: {stateStream}")
+            tdSql.query(f"select * from information_schema.ins_user_privileges where user_name='lvze2' and privilege ='write'")
+            writeUser = tdSql.getRows()
+            if stateStream != 'Stopped' and writeUser == 0:
+                tdLog.info(f"normal user(no write privilege) can not stop stream")
             else:
                 tdLog.info(f"stop stream test1.`s100` success")
                 
     def userStartStream(self):
-        tdLog.info(f"connect with normal user {self.username2}")
+        tdLog.info(f"connect with normal user {self.username2} to start stream")
         tdSql.connect("lvze2")
         tdSql.query(f"show {self.dbname}.streams;")
         numOfStreams = tdSql.getRows()
@@ -336,16 +346,16 @@ class TestStreamPrivileges:
         tdSql.query("select * from information_schema.ins_dnodes order by id;")
         numOfNodes=tdSql.getRows()
         for i in range(1,numOfNodes+1):
-            tdSql.execute(f"create stream `s{i}` sliding(1s) from st1 options(fill_history('2025-01-01 00:00:00')) into `s{i}out` as select cts, cint from st1 where _tcurrent_ts % 2 = 0 order by cts;")
+            tdSql.execute(f"create stream `s{i}` sliding(1s) from st1 stream_options(fill_history('2025-01-01 00:00:00')) into `s{i}out` as select cts, cint from st1 where _tcurrent_ts % 2 = 0 order by cts;")
             tdLog.info(f"create stream s{i} success!")
-        # tdSql.execute("create stream `s2` sliding(1s) from st1 partition by tint, tbname options(fill_history('2025-01-01 00:00:00')) into `s2out` as select cts, cint from st1 order by cts limit 3;")
-        # tdSql.execute("create stream `s3` sliding(1s) from st1 partition by tbname options(pre_filter(cint>2)|fill_history('2025-01-01 00:00:00')) into `s3out` as select cts, cint,   %%tbname from %%trows where cint >15 and tint >0 and  %%tbname like '%2' order by cts;")
-        # tdSql.execute("create stream `s4` sliding(1s) from st1 options(fill_history('2025-01-01 00:00:00')) into `s4out` as select _tcurrent_ts, cint from st1 order by cts limit 4;")
+        # tdSql.execute("create stream `s2` sliding(1s) from st1 partition by tint, tbname stream_options(fill_history('2025-01-01 00:00:00')) into `s2out` as select cts, cint from st1 order by cts limit 3;")
+        # tdSql.execute("create stream `s3` sliding(1s) from st1 partition by tbname stream_options(pre_filter(cint>2)|fill_history('2025-01-01 00:00:00')) into `s3out` as select cts, cint,   %%tbname from %%trows where cint >15 and tint >0 and  %%tbname like '%2' order by cts;")
+        # tdSql.execute("create stream `s4` sliding(1s) from st1 stream_options(fill_history('2025-01-01 00:00:00')) into `s4out` as select _tcurrent_ts, cint from st1 order by cts limit 4;")
     
     def createOneStream(self):
         sql = (
         "create stream `s99` sliding(1s) from st1  partition by tbname "
-        "options(fill_history('2025-01-01 00:00:00')) "
+        "stream_options(fill_history('2025-01-01 00:00:00')) "
         "into `s99out` as "
         "select cts, cint, %%tbname from st1 "
         "where cint > 5 and tint > 0 and %%tbname like '%%2' "

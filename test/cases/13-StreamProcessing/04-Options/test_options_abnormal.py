@@ -65,52 +65,48 @@ class TestStreamOptionsTrigger:
             # tdSql.query(f"show tables")
             # tdSql.checkRows(2)
 
-            ##### fail to wait fix
-            # tdSql.error(
-            #     f"create stream sn0 state_window(cint) from ct1 options(watermark(10s) | expired_time(5s)) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
-            # )
-            # tdSql.error(
-            #     f"create stream sn0_g state_window(cint) from {self.stbName} partition by tbname, tint options(watermark(10s) | expired_time(5s)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
-            # )
-
             tdSql.error(
-                f"create stream sn1 state_window(cint) from ct1 options(watermark(0.5s)) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream sn0 state_window(cint) from ct1 stream_options(watermark(10s) | expired_time(5s)) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+            )
+            tdSql.error(
+                f"create stream sn0_g state_window(cint) from {self.stbName} partition by tbname, tint stream_options(watermark(10s) | expired_time(5s)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
 
             tdSql.error(
-                f"create stream sn1x state_window(cint) from ct1 options(watermark(0.1d)) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream sn1 state_window(cint) from ct1 stream_options(watermark(0.5s)) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
 
             tdSql.error(
-                f"create stream sn2 state_window(cint) from ct1 options(fill_history(1733368671))) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream sn1x state_window(cint) from ct1 stream_options(watermark(0.1d)) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
 
             tdSql.error(
-                f"create stream sn3 state_window(cint) from ct1 options(fill_history | fill_history_first) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream sn2 state_window(cint) from ct1 stream_options(fill_history(1733368671))) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
 
-            ##### fail to wait fix
-            # tdSql.error(
-            #     f"create stream sn4 period(10s) from ct1 options(fill_history) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
-            # )
+            tdSql.error(
+                f"create stream sn3 state_window(cint) from ct1 stream_options(fill_history | fill_history_first) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+            )
 
-            # tdSql.error(
-            #     f"create stream sn5 period(10s) from ct1 options(fill_history_first) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
-            # )
+            tdSql.error(
+                f"create stream sn4 period(10s) from ct1 stream_options(fill_history) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+            )
+
+            tdSql.error(
+                f"create stream sn5 period(10s) from ct1 stream_options(fill_history_first) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+            )
             
             tdSql.error(
-                f"create stream sn6 state_window(cint) from ct1 options(pre_filter(cdouble < 5)) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream sn6 state_window(cint) from ct1 stream_options(pre_filter(cdouble < 5)) into res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )            
             
             tdSql.execute(
-                f"create stream sok0 state_window(cint) from ntb options(pre_filter(cint < 5 and cvarchar like '%abc%')) into res_ntb (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream sn7 state_window(cint) from ntb stream_options(pre_filter(cint < 5 and cvarchar like '%abc%')) into res_ntb (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
             
             tdSql.error(
-                f"create stream s4 state_window(cint) from {self.ntbName} into res_ntb (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows where cbigint > 1;"
-            )
-            
-            
+                f"create stream sn8 state_window(cint) from {self.ntbName} into res_ntb (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows where cbigint > 1;"
+            )            
             
         def insert1(self):
             pass

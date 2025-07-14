@@ -259,7 +259,7 @@ class TestStreamRecalcWatermark:
         # Test 2.1: INTERVAL+SLIDING with very short WATERMARK - strict watermark processing
         stream = StreamItem(
             id=4,
-            stream="create stream rdb.s_interval_short interval(2m) sliding(1m) from tdb.recalc_triggers options(watermark(1a)) into rdb.r_interval_short as select _twstart ts, count(*) cnt, avg(c1) avg_val from qdb.meters where ts >= _twstart and ts < _twend;",
+            stream="create stream rdb.s_interval_short interval(2m) sliding(1m) from tdb.recalc_triggers stream_options(watermark(1a)) into rdb.r_interval_short as select _twstart ts, count(*) cnt, avg(c1) avg_val from qdb.meters where ts >= _twstart and ts < _twend;",
             res_query="select ts, cnt, avg_val from rdb.r_interval_short order by ts;",
             exp_query="",
             check_func=self.check04,
@@ -269,7 +269,7 @@ class TestStreamRecalcWatermark:
         # Test 2.2: SESSION with very short WATERMARK - strict watermark processing  
         stream = StreamItem(
             id=5,
-            stream="create stream rdb.s_session_short session(ts, 30s) from tdb.trigger_disorder partition by tbname options(watermark(1a)) into rdb.r_session_short as select _twstart ts, count(*) cnt, avg(c1) avg_val from qdb.meters where ts >= _twstart and ts < _twend;",
+            stream="create stream rdb.s_session_short session(ts, 30s) from tdb.trigger_disorder partition by tbname stream_options(watermark(1a)) into rdb.r_session_short as select _twstart ts, count(*) cnt, avg(c1) avg_val from qdb.meters where ts >= _twstart and ts < _twend;",
             res_query="select ts, cnt, avg_val from rdb.r_session_short order by ts;",
             exp_query="",
             check_func=self.check05,
@@ -279,7 +279,7 @@ class TestStreamRecalcWatermark:
         # Test 2.3: STATE_WINDOW with very short WATERMARK - strict watermark processing
         stream = StreamItem(
             id=6,
-            stream="create stream rdb.s_state_short state_window(status_val) from tdb.trigger_disorder partition by tbname options(watermark(1a)) into rdb.r_state_short as select _twstart ts, count(*) cnt, avg(c1) avg_val, first(status_val) status_val from qdb.meters where ts >= _twstart and ts < _twend;",
+            stream="create stream rdb.s_state_short state_window(status_val) from tdb.trigger_disorder partition by tbname stream_options(watermark(1a)) into rdb.r_state_short as select _twstart ts, count(*) cnt, avg(c1) avg_val, first(status_val) status_val from qdb.meters where ts >= _twstart and ts < _twend;",
             res_query="select ts, cnt, avg_val, device_status from rdb.r_state_short order by ts;",
             exp_query="",
             check_func=self.check06,
@@ -291,7 +291,7 @@ class TestStreamRecalcWatermark:
         # Test 3.1: INTERVAL+SLIDING with very long WATERMARK - loose watermark processing
         stream = StreamItem(
             id=7,
-            stream="create stream rdb.s_interval_long interval(2m) sliding(1m) from tdb.recalc_triggers options(watermark(1d)) into rdb.r_interval_long as select _twstart ts, count(*) cnt, avg(c1) avg_val from qdb.meters where ts >= _twstart and ts < _twend;",
+            stream="create stream rdb.s_interval_long interval(2m) sliding(1m) from tdb.recalc_triggers stream_options(watermark(1d)) into rdb.r_interval_long as select _twstart ts, count(*) cnt, avg(c1) avg_val from qdb.meters where ts >= _twstart and ts < _twend;",
             res_query="select ts, cnt, avg_val from rdb.r_interval_long order by ts;",
             exp_query="",
             check_func=self.check07,
@@ -301,7 +301,7 @@ class TestStreamRecalcWatermark:
         # Test 3.2: SESSION with very long WATERMARK - loose watermark processing
         stream = StreamItem(
             id=8,
-            stream="create stream rdb.s_session_long session(ts, 30s) from tdb.trigger_disorder partition by tbname options(watermark(1d)) into rdb.r_session_long as select _twstart ts, count(*) cnt, avg(c1) avg_val from qdb.meters where ts >= _twstart and ts < _twend;",
+            stream="create stream rdb.s_session_long session(ts, 30s) from tdb.trigger_disorder partition by tbname stream_options(watermark(1d)) into rdb.r_session_long as select _twstart ts, count(*) cnt, avg(c1) avg_val from qdb.meters where ts >= _twstart and ts < _twend;",
             res_query="select ts, cnt, avg_val from rdb.r_session_long order by ts;",
             exp_query="",
             check_func=self.check08,
@@ -311,7 +311,7 @@ class TestStreamRecalcWatermark:
         # Test 3.3: STATE_WINDOW with very long WATERMARK - loose watermark processing
         stream = StreamItem(
             id=9,
-            stream="create stream rdb.s_state_long state_window(status_val) from tdb.trigger_disorder partition by tbname options(watermark(1d)) into rdb.r_state_long as select _twstart ts, count(*) cnt, avg(c1) avg_val, first(status_val) status_val from qdb.meters where ts >= _twstart and ts < _twend;",
+            stream="create stream rdb.s_state_long state_window(status_val) from tdb.trigger_disorder partition by tbname stream_options(watermark(1d)) into rdb.r_state_long as select _twstart ts, count(*) cnt, avg(c1) avg_val, first(status_val) status_val from qdb.meters where ts >= _twstart and ts < _twend;",
             res_query="select ts, cnt, avg_val, device_status from rdb.r_state_long order by ts;",
             exp_query="",
             check_func=self.check09,
