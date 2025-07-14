@@ -19,6 +19,7 @@
 #include "dmMgmt.h"
 #include "audit.h"
 #include "libs/function/tudf.h"
+#include "metrics.h"
 #include "tgrant.h"
 #include "tcompare.h"
 #include "tcs.h"

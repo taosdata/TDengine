@@ -1783,8 +1783,8 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
         case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
           if (pColInfoData->info.type != pCol->type) {
-            qError("column:%d type:%d in block dismatch with schema col:%d type:%d", k, pColInfoData->info.type, k,
-                   pCol->type);
+            qError("tb:%s column:%d type:%d in block dismatch with schema col:%d type:%d", pInsertParam->tbname, k,
+                   pColInfoData->info.type, k, pCol->type);
             code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
             QUERY_CHECK_CODE(code, lino, _end);
           }
@@ -1795,6 +1795,11 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
               QUERY_CHECK_CODE(code, lino, _end);
             }
           } else {
+            if (pColInfoData->pData == NULL) {
+              qError("build insert tb:%s, column:%d data is NULL in block", pInsertParam->tbname, k);
+              code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+              QUERY_CHECK_CODE(code, lino, _end);
+            }
             void*  data = colDataGetVarData(pColInfoData, j);
             SValue sv = (SValue){
                 .type = pCol->type, .nData = varDataLen(data), .pData = varDataVal(data)};  // address copy, no value
