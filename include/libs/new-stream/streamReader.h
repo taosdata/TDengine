@@ -38,7 +38,6 @@ typedef struct SStreamTriggerReaderInfo {
   SSDataBlock* triggerResBlock;
   SSDataBlock* calcResBlock;
   SSDataBlock* calcResBlockTmp;
-  STSchema*    triggerSchema;
   SExprInfo*   pExprInfo;
   int32_t      numOfExpr;
   SArray*      uidList;       // for virtual table stream, uid list

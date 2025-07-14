@@ -321,6 +321,7 @@ typedef struct SStoreMetaReader {
   void (*clearReader)(SMetaReader* pReader);
   void (*readerReleaseLock)(SMetaReader* pReader);
   int32_t (*getTableEntryByUid)(SMetaReader* pReader, tb_uid_t uid);
+  int     (*getTableEntryByVersionUid)(SMetaReader *pReader, int64_t version, tb_uid_t uid);
   int32_t (*getTableEntryByName)(SMetaReader* pReader, const char* name);
   int32_t (*getEntryGetUidCache)(SMetaReader* pReader, tb_uid_t uid);
 } SStoreMetaReader;
