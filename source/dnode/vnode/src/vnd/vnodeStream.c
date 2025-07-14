@@ -2011,7 +2011,7 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     STREAM_CHECK_RET_GOTO(tDserializeSTriggerPullRequest(pReq, len, &req));
     stDebug("vgId:%d %s start, type:%d, streamId:%" PRIx64 ", readerTaskId:%" PRIx64 ", sessionId:%" PRIx64,
             TD_VID(pVnode), __func__, req.base.type, req.base.streamId, req.base.readerTaskId, req.base.sessionId);
-    SStreamTriggerReaderInfo* sStreamReaderInfo = (STRIGGER_PULL_OTABLE_INFO == req.base.type || STRIGGER_PULL_WAL_DATA == req.base.type) ? NULL : qStreamGetReaderInfo(req.base.streamId, req.base.readerTaskId, &taskAddr);
+    SStreamTriggerReaderInfo* sStreamReaderInfo = (STRIGGER_PULL_OTABLE_INFO == req.base.type) ? NULL : qStreamGetReaderInfo(req.base.streamId, req.base.readerTaskId, &taskAddr);
     switch (req.base.type) {
       case STRIGGER_PULL_SET_TABLE:
         code = vnodeProcessStreamSetTableReq(pVnode, pMsg, &req, sStreamReaderInfo);
