@@ -786,6 +786,7 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
       TAOS_CHECK_EXIT(fmSetStreamPseudoFuncParamVal(pCtx[k].functionId, pCtx[k].pExpr->base.pParamList, &taskInfo->pStreamRuntimeInfo->funcInfo));
 
       SValueNode *valueNode = (SValueNode *)nodesListGetNode(pCtx[k].pExpr->base.pParamList, 0);
+      pEntryInfo->isNullRes = 0;
       if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type || valueNode->isNull) {
         pEntryInfo->isNullRes = 1;
       } else if (IS_VAR_DATA_TYPE(pCtx[k].pExpr->base.resSchema.type)){
@@ -809,6 +810,7 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
       SScalarParam out = {.columnData = &idata};
       SScalarParam tw = {.numOfRows = 5, .columnData = pTimeWindowData};
       TAOS_CHECK_EXIT(pCtx[k].sfp.process(&tw, 1, &out));
+      pEntryInfo->isNullRes = colDataIsNull_s(&idata, 0);
       pEntryInfo->numOfRes = 1;
     } else {
       if (functionNeedToExecute(&pCtx[k]) && pCtx[k].fpSet.process != NULL) {
