@@ -159,7 +159,7 @@ static int32_t sendSyncMsg(void* data, int64_t dataLen, SEpSet* epSet){
   SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
   pMsgHead->contLen = htonl(msg.contLen);
   pMsgHead->vgId = htonl(SNODE_HANDLE);
-  memcpy(msg.pCont + sizeof(SMsgHead), data, dataLen);
+  memcpy((char*)msg.pCont + sizeof(SMsgHead), data, dataLen);
   return tmsgSendReq(epSet, &msg);
 }
 
@@ -171,10 +171,11 @@ static int32_t sendDeleteMsg(int64_t streamId, SEpSet* epSet){
   if (msg.pCont == NULL) {
     return terrno;
   }
+  msg.info.noResp = 1;
   SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
   pMsgHead->contLen = htonl(msg.contLen);
   pMsgHead->vgId = htonl(SNODE_HANDLE);
-  memcpy(msg.pCont + sizeof(SMsgHead), &streamId, LONG_BYTES);
+  memcpy((char*)msg.pCont + sizeof(SMsgHead), &streamId, LONG_BYTES);
   return tmsgSendReq(epSet, &msg);
 }
 

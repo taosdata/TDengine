@@ -735,15 +735,14 @@ static int32_t processWalVerDataVTable(SVnode* pVnode, SArray *cids, int64_t ver
   int32_t      code = 0;
   int32_t      lino = 0;
   SArray*      schemas = NULL;
-
+  STSchema*    sSchema = NULL;
   void*        pTableList = NULL;
+
   SSDataBlock* pBlock1 = NULL;
-
-
   SSDataBlock* pBlock2 = NULL;
 
   STREAM_CHECK_RET_GOTO(buildScheamFromMeta(pVnode, uid, &schemas));
-  STSchema* sSchema = tBuildTSchema(taosArrayGet(schemas, 0), taosArrayGetSize(schemas), 0);
+  sSchema = tBuildTSchema(taosArrayGet(schemas, 0), taosArrayGetSize(schemas), 0);
   STREAM_CHECK_NULL_GOTO(sSchema, terrno);
   STREAM_CHECK_RET_GOTO(shrinkScheams(cids, schemas));
   STREAM_CHECK_RET_GOTO(createDataBlockForStream(schemas, &pBlock1));
@@ -766,6 +765,7 @@ end:
   blockDataDestroy(pBlock2);
   qStreamDestroyTableList(pTableList);
   taosArrayDestroy(schemas);
+  taosMemoryFree(sSchema);
   return code;
 }
 

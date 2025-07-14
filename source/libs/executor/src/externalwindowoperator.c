@@ -191,6 +191,7 @@ int32_t resetMergeAlignedExternalWindowOperator(SOperatorInfo* pOperator) {
   pExtW->pWins = NULL;
 
   resetBasicOperatorState(&pExtW->binfo);
+  pMlExtInfo->pResultRow = NULL;
   pMlExtInfo->curTs = INT64_MIN;
   if (pMlExtInfo->pPrefetchedBlock) blockDataCleanup(pMlExtInfo->pPrefetchedBlock);
 
@@ -829,6 +830,7 @@ static int32_t setSingleOutputTupleBuf(SResultRowInfo* pResultRowInfo, const STi
   if (*pResult == NULL) {
     *pResult = getNewResultRow(pAggSup->pResultBuf, &pAggSup->currentPageId, pAggSup->resultRowSize);
     if (!*pResult) {
+      qError("get new resultRow failed, err:%s", tstrerror(terrno));
       return terrno;
     }
     pResultRowInfo->cur = (SResultRowPosition){.pageId = (*pResult)->pageId, .offset = (*pResult)->offset};
