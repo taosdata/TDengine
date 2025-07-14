@@ -413,7 +413,7 @@ class TestStreamTriggerSession:
 
         tdSql.execute("use db")
         tdSql.execute(
-            f"create stream {stream_name} session(ts, 1100a) from source_table partition by tbname options(DELETE_RECALC) into {dst_table} as "
+            f"create stream {stream_name} session(ts, 1100a) from source_table partition by tbname stream_options(DELETE_RECALC) into {dst_table} as "
             f"select _twstart st, _twend et, count(*),  max(k) c "
             f"from source_table "
             f"where _c0 >= _twstart and _c0 <= _twend group by tbname")

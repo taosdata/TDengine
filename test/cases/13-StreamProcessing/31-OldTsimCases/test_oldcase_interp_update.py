@@ -48,7 +48,7 @@ class TestStreamOldCaseInterpUpdate:
 
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams1 interval(1s) sliding(1s) from t1 options(max_delay(1s)) into streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(_twstart) fill(prev);"
+            f"create stream streams1 interval(1s) sliding(1s) from t1 stream_options(max_delay(1s)) into streamt as select _irowts, interp(a), interp(b), interp(c), interp(d) from t1 every(_twstart) fill(prev);"
         )
 
         tdStream.checkStreamStatus()

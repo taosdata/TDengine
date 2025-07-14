@@ -217,7 +217,7 @@ class TestStreamRecalcExpiredTime:
         # Test 1.1: INTERVAL+SLIDING with EXPIRED_TIME - should not process expired data
         stream = StreamItem(
             id=1,
-            stream="create stream rdb.s_interval_expired interval(2m) sliding(1m) from tdb.expired_triggers options(expired_time(1h)) into rdb.r_interval_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_interval_expired interval(2m) sliding(1m) from tdb.expired_triggers stream_options(expired_time(1h)) into rdb.r_interval_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             res_query="select ts, cnt, avg_val from rdb.r_interval_expired order by ts;",
             exp_query="",
             check_func=self.check01,
