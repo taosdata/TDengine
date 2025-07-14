@@ -359,16 +359,16 @@ class TestStreamOldCaseBasic2:
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                f"create stream streams1 interval(10s) sliding (5s) from t1 options(MAX_DELAY(1s)) into streamt as select _twstart, _twend, first(ts), last(ts), count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
+                f"create stream streams1 interval(10s) sliding (5s) from t1 stream_options(MAX_DELAY(1s)) into streamt as select _twstart, _twend, first(ts), last(ts), count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
             )
             tdSql.execute(
-                f"create stream streams2 interval(10s) sliding (5s) from t1 options(MAX_DELAY(1s) | WATERMARK(1d)) into streamt2 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
+                f"create stream streams2 interval(10s) sliding (5s) from t1 stream_options(MAX_DELAY(1s) | WATERMARK(1d)) into streamt2 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
             )
             tdSql.execute(
-                f"create stream stream_t1 interval(10s) sliding (5s) from t1 options(MAX_DELAY(1s)) into streamtST as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st where ts >= _twstart and ts < _twend;"
+                f"create stream stream_t1 interval(10s) sliding (5s) from t1 stream_options(MAX_DELAY(1s)) into streamtST as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st where ts >= _twstart and ts < _twend;"
             )
             tdSql.execute(
-                f"create stream stream_t2 interval(10s) sliding (5s) from t1 options(MAX_DELAY(1s) | WATERMARK(1d)) into streamtST2 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st where ts >= _twstart and ts < _twend;"
+                f"create stream stream_t2 interval(10s) sliding (5s) from t1 stream_options(MAX_DELAY(1s) | WATERMARK(1d)) into streamtST2 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st where ts >= _twstart and ts < _twend;"
             )
 
         def insert1(self):
@@ -468,10 +468,10 @@ class TestStreamOldCaseBasic2:
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                f"create stream streams11 interval(10s, 5s) sliding(10s) from t1 options(max_delay(1s)) into streamt as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts <= _twstart and ts > _twend;"
+                f"create stream streams11 interval(10s, 5s) sliding(10s) from t1 stream_options(max_delay(1s)) into streamt as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts <= _twstart and ts > _twend;"
             )
             tdSql.execute(
-                f"create stream streams12 interval(10s, 5s) sliding(10s) from st options(max_delay(1s)) into streamt2 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st where ts <= _twstart and ts > _twend;;"
+                f"create stream streams12 interval(10s, 5s) sliding(10s) from st stream_options(max_delay(1s)) into streamt2 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st where ts <= _twstart and ts > _twend;;"
             )
 
         def insert1(self):
@@ -528,10 +528,10 @@ class TestStreamOldCaseBasic2:
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                f"create stream streams21 interval(10s, 5s) sliding(10s) from t1 options(max_delay(1s)) into streamt21 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
+                f"create stream streams21 interval(10s, 5s) sliding(10s) from t1 stream_options(max_delay(1s)) into streamt21 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
             )
             tdSql.execute(
-                f"create stream streams22 interval(10s, 5s) sliding(10s) from st options(max_delay(1s)) into streamt22 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st where ts >= _twstart and ts < _twend;"
+                f"create stream streams22 interval(10s, 5s) sliding(10s) from st stream_options(max_delay(1s)) into streamt22 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st where ts >= _twstart and ts < _twend;"
             )
 
         def insert1(self):
@@ -588,7 +588,7 @@ class TestStreamOldCaseBasic2:
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                f"create stream streams23 interval(20s) sliding(10s) from st options(max_delay(1s)) into streamt23 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st where ts >= _twstart and ts < _twend;"
+                f"create stream streams23 interval(20s) sliding(10s) from st stream_options(max_delay(1s)) into streamt23 as select _twstart, count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from st where ts >= _twstart and ts < _twend;"
             )
 
         def insert1(self):
@@ -646,7 +646,7 @@ class TestStreamOldCaseBasic2:
             tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
             tdSql.execute(
-                f"create stream streams4 interval(10s) sliding(5s) options(max_delay(1s)) into streamt4 as select _twstart as ts, count(*), min(a) c1 from st where ts >= _twstart and ts < _twend;"
+                f"create stream streams4 interval(10s) sliding(5s) stream_options(max_delay(1s)) into streamt4 as select _twstart as ts, count(*), min(a) c1 from st where ts >= _twstart and ts < _twend;"
             )
 
         def insert1(self):
@@ -693,7 +693,7 @@ class TestStreamOldCaseBasic2:
             tdSql.execute(f"create table t2 using st1 tags(2);")
 
             tdSql.execute(
-                f"create stream streams1 interval(60s) sliding(60s) from st1 options(max_delay(1s) | expired_time(0s) | WATERMARK(100s)) into streamt as select _twstart as s, count(*) c1 from st1 where x >= 2 and ts >= _twstart and ts < _twend;"
+                f"create stream streams1 interval(60s) sliding(60s) from st1 stream_options(max_delay(1s) | expired_time(0s) | WATERMARK(100s)) into streamt as select _twstart as s, count(*) c1 from st1 where x >= 2 and ts >= _twstart and ts < _twend;"
             )
 
         def insert1(self):
