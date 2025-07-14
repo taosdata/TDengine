@@ -301,7 +301,7 @@ typedef enum {
   GRANT_OPT_DATA_BAK_RST = 8,
   GRANT_OPT_MAX = 9,
   // add future grant items here
-  GRANT_OPT_OBJECT_STORAGE = 9,
+  GRANT_OPT_SHARED_STORAGE = 9,
   GRANT_OPT_ACTIVE_ACTIVE = 10,
   GRANT_OPT_DUAL_REPLICA_HA = 11,
   GRANT_OPT_DB_ENCRYPTION = 12,
@@ -460,7 +460,7 @@ typedef struct {
     struct {
       int64_t  multiTierExpireSec : 40;
       int64_t  curDnodes : 16;
-      uint64_t objectStorageExpired : 1;
+      uint64_t sharedStorageExpired : 1;
       uint64_t dualReplicaHAExpired : 1;
       uint64_t dbEncryptionExpired : 1;
       uint64_t tdGptExpired : 1;  // since 3.3.6.0
@@ -514,7 +514,7 @@ typedef struct {
   union {
     int64_t p10;  // since 3.3.0.0
     struct {
-      int64_t objectStorageExpireSec : 40;
+      int64_t sharedStorageExpireSec : 40;
       int64_t reserve7 : 24;
     };
   };

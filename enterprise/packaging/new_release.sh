@@ -224,7 +224,7 @@ function industry_options() {
             -DTD_FUNC_VIEW=false \
             -DTD_FUNC_MULTI_TIER_STORAGE=false \
             -DTD_FUNC_DATA_BAK_RESTORE=false \
-            -DTD_FUNC_OBJECT_STORAGE=false \
+            -DTD_FUNC_SHARED_STORAGE=false \
             -DTD_FUNC_ACTIVE_ACTIVE=false \
             -DTD_FUNC_DUAL_REPLICA_HA=false \
             -DTD_FUNC_DB_ENCRYPTION=false \
@@ -254,7 +254,7 @@ function industry_options() {
             -DTD_FUNC_VIEW=true \
             -DTD_FUNC_MULTI_TIER_STORAGE=true \
             -DTD_FUNC_DATA_BAK_RESTORE=true \
-            -DTD_FUNC_OBJECT_STORAGE=true \
+            -DTD_FUNC_SHARED_STORAGE=true \
             -DTD_FUNC_ACTIVE_ACTIVE=true \
             -DTD_FUNC_DUAL_REPLICA_HA=true \
             -DTD_FUNC_DB_ENCRYPTION=true \

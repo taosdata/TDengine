@@ -285,9 +285,9 @@ static int32_t mndMountSetDbInfo(SMountInfo *pInfo, SMountDbInfo *pDb, SDbObj *p
   pCfg->walSegmentSize = pVg->walSegSize;
   pCfg->sstTrigger = pVg->sttTrigger;
   pCfg->tsdbPageSize = pVg->tsdbPageSize;
-  pCfg->s3ChunkSize = pVg->s3ChunkSize;
-  pCfg->s3KeepLocal = pVg->s3KeepLocal;
-  pCfg->s3Compact = pVg->s3Compact;
+  pCfg->ssChunkSize = pVg->ssChunkSize;
+  pCfg->ssKeepLocal = pVg->ssKeepLocal;
+  pCfg->ssCompact = pVg->ssCompact;
   pCfg->withArbitrator = pVg->replications == 2 ? TSDB_MAX_DB_WITH_ARBITRATOR : TSDB_MIN_DB_WITH_ARBITRATOR;
   pCfg->encryptAlgorithm = pVg->encryptAlgorithm;
 
@@ -582,9 +582,9 @@ static int32_t mndBuildMountVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *
   pCreateReq->daysToKeep1 = pDb->cfg.daysToKeep1;
   pCreateReq->daysToKeep2 = pDb->cfg.daysToKeep2;
   pCreateReq->keepTimeOffset = pDb->cfg.keepTimeOffset;
-  pCreateReq->s3ChunkSize = pDb->cfg.s3ChunkSize;
-  pCreateReq->s3KeepLocal = pDb->cfg.s3KeepLocal;
-  pCreateReq->s3Compact = pDb->cfg.s3Compact;
+  pCreateReq->ssChunkSize = pDb->cfg.ssChunkSize;
+  pCreateReq->ssKeepLocal = pDb->cfg.ssKeepLocal;
+  pCreateReq->ssCompact = pDb->cfg.ssCompact;
   pCreateReq->minRows = pDb->cfg.minRows;
   pCreateReq->maxRows = pDb->cfg.maxRows;
   pCreateReq->walFsyncPeriod = pDb->cfg.walFsyncPeriod;

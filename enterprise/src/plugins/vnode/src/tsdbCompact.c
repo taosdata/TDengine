@@ -78,7 +78,7 @@ typedef struct {
   STsdb    *tsdb;
   int32_t   fid;
   SVATaskID taskid;
-  bool      s3Migrate;
+  bool      ssMigrate;
 } SCompactArg;
 
 static int32_t tsdbCompactFSetOpenReader(SCompactor2 *compactor) {
@@ -545,10 +545,22 @@ void tsdbSetFsetlcn(STFileSet *fset) {
 }
 
 bool tsdbShouldCompact(STFileSet *fset, int32_t vgId) {
-  if (fset->farr[TSDB_FTYPE_DATA]) {
-    tsdbInfo("vgId:%d fid:%d lastCompact:%" PRId64 " lastCommit:%" PRId64 "lcn:%d", vgId, fset->fid, fset->lastCompact,
-             fset->lastCommit, fset->farr[TSDB_FTYPE_DATA]->f->lcn);
+  STFileObj *fobj = fset->farr[TSDB_FTYPE_DATA];
+  if (fobj) {
+    tsdbInfo("vgId:%d, fid:%d,lastCompact:%" PRId64 ", lastCommit:%" PRId64 ", lastMigrate:%" PRId64 ", lcn:%d", vgId,
+             fset->fid, fset->lastCompact, fset->lastCommit, fset->lastMigrate, fobj->f->lcn);
   }
+
+  // because we only do compact on the leader vnode of a migration, "fset->lastCompact > fset->lastCommit"
+  // is true on this vnode, but false on the follower vnodes. that's, when trigger a compact without new
+  // data, only follower vnodes will do compact, and leader vnode will not. so, if we then trigger a
+  // migration and the previous leader is a follower this time, and the migration failed, then the previous
+  // leader may read corrupted data from remote storage. to avoid this, if there's not a commit after the
+  // last migration, we don't do compact.
+  if (fset->lastMigrate > fset->lastCommit) {
+    return false;
+  }
+
   if (fset->lastCompact > fset->lastCommit) {
     tsdbSetFsetlcn(fset);
     return false;
@@ -655,7 +667,7 @@ _exit:
   // clear resources
   tsdbTFileSetClear(&compactor.fset);
   TARRAY2_DESTROY(compactor.fopArr, NULL);
-  if (!compactArg->s3Migrate) { 
+  if (!compactArg->ssMigrate) { 
     tsdbRemoveCompMonitorTask(tsdb, &compactArg->taskid);
   }
   taosMemoryFree(arg);
@@ -668,7 +680,7 @@ _exit:
 
 static void tsdbCompactCancel(void *arg) { taosMemoryFree(arg); }
 
-static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw,bool s3Migrate) {
+static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw,bool ssMigrate) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -693,10 +705,10 @@ static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw,bool s3Mi
 
     arg->tsdb = tsdb;
     arg->fid = fset->fid;
-    arg->s3Migrate = s3Migrate;
+    arg->ssMigrate = ssMigrate;
 
     // if the compact task is already running, skip it
-    // because the compact task may be running by s3 migrate
+    // because the compact task may be running by ss migrate
     if (vnodeATaskValid(&fset->compactTask)) {
       taosMemoryFree(arg);
       continue;
@@ -708,7 +720,7 @@ static int32_t tsdbAsyncCompactImpl(STsdb *tsdb, const STimeWindow *tw,bool s3Mi
       TSDB_CHECK_CODE(code, lino, _exit);
     } else {
       arg->taskid = fset->compactTask;
-      if (!s3Migrate) {
+      if (!ssMigrate) {
         int64_t compactSize = 0;
         if (fset->farr[TSDB_FTYPE_DATA]) {
           compactSize += fset->farr[TSDB_FTYPE_DATA]->f->size;
@@ -731,10 +743,10 @@ _exit:
   return code;
 }
 
-int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool s3Migrate) {
+int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool ssMigrate) {
   int32_t code = 0;
   TAOS_UNUSED(taosThreadMutexLock(&tsdb->mutex));
-  code = tsdbAsyncCompactImpl(tsdb, tw, s3Migrate);
+  code = tsdbAsyncCompactImpl(tsdb, tw, ssMigrate);
   TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
   return code;
 }
