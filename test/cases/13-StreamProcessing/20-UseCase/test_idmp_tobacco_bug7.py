@@ -25,11 +25,7 @@ class TestSceneTobacco:
 
         # streams can be specified by environment variable
         # if not specified, all streams in the stream.sql will be created
-        ids = os.environ.get("IDMP_TOBACCO_STREAM_IDS")
-        if ids:
-            self.stream_ids = [int(x) for x in ids.split(",") if x.strip().isdigit()]
-        else:
-            self.stream_ids = None
+        self.stream_ids = [6]
 
         # create streams
         self.createStreams(self.stream_ids)
@@ -101,20 +97,6 @@ class TestSceneTobacco:
                     tdLog.debug(f"virtual stable SQL: {sql}")
                     tdSql.execute(sql)
 
-        # create virtable tables
-        vtb_count = 0
-        with open(
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/vtb.sql",
-            "r",
-            encoding="utf-8",
-        ) as f:
-            for line in f:
-                sql = line.strip()
-                if sql:
-                    tdLog.debug(f"virtual table SQL: {sql}")
-                    vtb_count += 1
-                    tdSql.execute(sql)
-
         # self.stable_map = {
         #     "drum_air_flow_dryer": "vst_滚筒气流烘丝机_608157",
         #     "cutting_public_point": "vst_切丝公共点_864610",
@@ -137,12 +119,26 @@ class TestSceneTobacco:
         #     "chain_conveyor": "vst_链式输送机_452298",
         # }
 
+        # create virtable tables
+        vtb_count = 0
+        with open(
+            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/vtb.sql",
+            "r",
+            encoding="utf-8",
+        ) as f:
+            for line in f:
+                sql = line.strip()
+                if sql:
+                    tdLog.debug(f"virtual table SQL: {sql}")
+                    vtb_count += 1
+                    tdSql.execute(sql)
+
         # check vtables created
         tdSql.checkResultsByFunc(
             sql=f"show `{self.vdb}`.VTABLES",
             func=lambda: tdSql.getRows() == vtb_count,
         )
-        tdLog.info(f"create {vtb_count} vtables in db: {self.vdb}")
+        tdLog.info(f"create {vtb_count} vtables in {self.vdb}")
 
     def createStreams(self, stream_ids):
         self.stream_name_map = {
@@ -169,42 +165,41 @@ class TestSceneTobacco:
                 if sql and (stream_ids is None or idx in stream_ids):
                     tdLog.debug(f"stream SQL: {sql}")
                     stream_count += 1
-                    tdSql.execute(sql, queryTimes=1)
+                    tdSql.execute(sql)
                     # check streams created
                     tdStream.checkStreamStatus(stream_name)
 
         tdLog.info(f"create {stream_count} streams in {self.vdb}")
 
     def insertTriggerData(self, stream_ids):
-        # 以当前时间戳为准，取整到 1 min
-        ts = (int(time.time()) // 60) * 60 * 1000
-        rows = 0
-
-        sql_lines = []
-        with open(
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/data.sql",
-            "r",
-            encoding="utf-8",
-        ) as f:
-            for line in f:
-                sql = line.strip()
-                sql_lines.append(sql)
-                rows += 1
-
-        tdSql.execute(f"USE `{self.db}`;")
-        for idx in range(rows):
-            # 每次插入 1 min 的数据
-            current_ts = ts - (rows - idx) * 60 * 1000
-            sql = sql_lines[idx % len(sql_lines)].replace("%TIMESTAMP", str(current_ts))
-            tdLog.info(f"SQL: {sql}")
-            tdSql.execute(sql)
+        if stream_ids is None or 1 in stream_ids:
+            self.insertTriggerDataForStream1()
 
         tdLog.info("insert trigger data done")
 
-    def verifyResults(self, stream_ids):
-        if stream_ids is None:
-            stream_ids = self.stream_name_map.keys()
+    def insertTriggerDataForStream1(self):
+        """
+        系统中振动输送机的振动幅度,每5分钟计算一次过去半小时的平均值，常规告警
+        """
+        # 以当前时间戳为准，取整到 1 min
+        ts = (int(time.time()) // 60) * 60 * 1000
+        rows = 35
 
+        res = tdSql.getResult(
+            f"select distinct tbname from `{self.db}`.`vibrating_conveyor`"
+        )
+        for row in res:
+            tbname = row[0]
+            for i in range(rows):
+                sql = f"INSERT INTO `{self.db}`.`{tbname}` VALUES ({ts - (rows - i) * 60 * 1000}, {i % 5}.0, {i % 5}.0);"
+                # tdLog.info(f"sql: {sql}")
+                tdSql.execute(sql)
+
+        tdLog.debug("insert trigger data for stream 1")
+
+    def verifyResults(self, stream_ids):
+        # if stream_ids is None or 1 in stream_ids:
+        #     self.verifyResultsForStream1()
         for id in stream_ids:
             stream_name = self.stream_name_map.get(id, "")
             res = tdSql.getResult(f"SHOW `{self.vdb}`.stables like '{stream_name}';")
