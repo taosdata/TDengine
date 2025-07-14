@@ -354,43 +354,23 @@ class TestAlterConfig:
                 #     "value": 1000,
                 #     "category": "global"
                 # },
-                # {
-                #     "name": "s3Accesskey",
-                #     "value": 1000,
-                #     "category": "global"
-                # },
-                # {
-                #     "name": "s3BucketName",
-                #     "value": 1000,
-                #     "category": "global"
-                # },
-                # {
-                #     "name": "s3Endpoint",
-                #     "value": 1000,
-                #     "category": "global"
-                # },
                 {
-                    "name": "s3MigrateIntervalSec",
+                    "name": "ssAutoMigrateIntervalSec",
                     "value": 1800,
                     "category": "global"
                 },
-                {
-                    "name": "s3MigrateEnabled",
-                    "value": 1,
-                    "category": "global"
-                },
                 # {
-                #     "name": "s3BlockCacheSize",
+                #     "name": "ssBlockCacheSize",
                 #     "value": 32,
                 #     "category": "global"
                 # },
                 {
-                    "name": "s3PageCacheSize",
+                    "name": "ssPageCacheSize",
                     "value": 8192,
                     "category": "global"
                 },
                 {
-                    "name": "s3UploadDelaySec",
+                    "name": "ssUploadDelaySec",
                     "value": 30,
                     "category": "global"
                 },

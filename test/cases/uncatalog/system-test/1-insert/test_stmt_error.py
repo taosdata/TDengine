@@ -362,6 +362,7 @@ class TestStmtError:
     def test_stmt_error(self):
         """summary: xxx
 
+<<<<<<< HEAD:test/cases/uncatalog/system-test/1-insert/test_stmt_error.py
         description: xxx
 
         Since: xxx
@@ -398,6 +399,10 @@ class TestStmtError:
             else:
                 tdLog.exit("expect error(%s) not occured" % str(error))
 
+=======
+        self.test_stmt_insert(self.conn())
+        
+>>>>>>> 3.0:tests/system-test/1-insert/stmt_error.py
         try:
             self.check_stmt_insert_error_null_timestamp(self.get_connect())
             tdLog.exit("expect error not occured - 1")

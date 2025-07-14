@@ -73,9 +73,10 @@ static void destroy_fs(STFileSystem **fs) {
 void current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype) {
   int32_t offset = 0;
 
-  vnodeGetPrimaryDir(pTsdb->path, pTsdb->pVnode->diskPrimary, pTsdb->pVnode->pTfs, fname, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pTsdb->pVnode, false, fname, TSDB_FILENAME_LEN);
   offset = strlen(fname);
-  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, gCurrentFname[ftype]);
+  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%s%s", TD_DIRSEP, pTsdb->name, TD_DIRSEP,
+           gCurrentFname[ftype]);
 }
 
 static int32_t save_json(const cJSON *json, const char *fname) {
@@ -368,7 +369,7 @@ static int32_t tsdbFSDoScanAndFixFile(STFileSystem *fs, const STFileObj *fobj) {
   if (!taosCheckExistFile(fobj->fname)) {
     bool found = false;
 
-    if (tsS3Enabled && fobj->f->lcn > 1) {
+    if (tsSsEnabled && fobj->f->lcn > 1) {
       char fname1[TSDB_FILENAME_LEN];
       tsdbTFileLastChunkName(fs->tsdb, fobj->f, fname1);
       if (!taosCheckExistFile(fname1)) {
@@ -501,6 +502,8 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t corrupt = false;
+
+  if (fs->tsdb->pVnode->mounted) goto _exit;
 
   {  // scan each file
     STFileSet *fset = NULL;
@@ -717,6 +720,8 @@ static int32_t edit_fs(STFileSystem *fs, const TFileOpArray *opArray, EFEditT et
         fset->lastCommit = now;
       } else if (etype == TSDB_FEDIT_COMPACT) {
         fset->lastCompact = now;
+      } else if (etype == TSDB_FEDIT_SSMIGRATE) {
+        fset->lastMigrate = now;
       }
     }
   }
@@ -1440,14 +1445,14 @@ static FORCE_INLINE void getLevelSize(const STFileObj *fObj, int64_t szArr[TFS_M
 static FORCE_INLINE int32_t tsdbGetFsSizeImpl(STsdb *tsdb, SDbSizeStatisInfo *pInfo) {
   int32_t code = 0;
   int64_t levelSize[TFS_MAX_TIERS] = {0};
-  int64_t s3Size = 0;
+  int64_t ssSize = 0;
 
   const STFileSet *fset;
   const SSttLvl   *stt = NULL;
   const STFileObj *fObj = NULL;
 
   SVnodeCfg *pCfg = &tsdb->pVnode->config;
-  int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
+  int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize;
 
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
     for (int32_t t = TSDB_FTYPE_MIN; t < TSDB_FTYPE_MAX; ++t) {
@@ -1462,7 +1467,7 @@ static FORCE_INLINE int32_t tsdbGetFsSizeImpl(STsdb *tsdb, SDbSizeStatisInfo *pI
     if (fObj) {
       int32_t lcn = fObj->f->lcn;
       if (lcn > 1) {
-        s3Size += ((lcn - 1) * chunksize);
+        ssSize += ((lcn - 1) * chunksize);
       }
     }
   }
@@ -1470,7 +1475,7 @@ static FORCE_INLINE int32_t tsdbGetFsSizeImpl(STsdb *tsdb, SDbSizeStatisInfo *pI
   pInfo->l1Size = levelSize[0];
   pInfo->l2Size = levelSize[1];
   pInfo->l3Size = levelSize[2];
-  pInfo->s3Size = s3Size;
+  pInfo->ssSize = ssSize;
   return code;
 }
 int32_t tsdbGetFsSize(STsdb *tsdb, SDbSizeStatisInfo *pInfo) {

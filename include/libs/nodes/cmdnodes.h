@@ -110,10 +110,10 @@ typedef struct SDatabaseOptions {
   int32_t     sstTrigger;
   int32_t     tablePrefix;
   int32_t     tableSuffix;
-  int32_t     s3ChunkSize;
-  int32_t     s3KeepLocal;
-  SValueNode* s3KeepLocalStr;
-  int8_t      s3Compact;
+  int32_t     ssChunkSize;
+  int32_t     ssKeepLocal;
+  SValueNode* ssKeepLocalStr;
+  int8_t      ssCompact;
   int8_t      withArbitrator;
   // for auto-compact
   int32_t     compactTimeOffset;  // hours
@@ -162,10 +162,10 @@ typedef struct STrimDatabaseStmt {
   int32_t   maxSpeed;
 } STrimDatabaseStmt;
 
-typedef struct SS3MigrateDatabaseStmt {
+typedef struct SSsMigrateDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
-} SS3MigrateDatabaseStmt;
+} SSsMigrateDatabaseStmt;
 
 typedef struct SCompactDatabaseStmt {
   ENodeType type;
@@ -174,6 +174,20 @@ typedef struct SCompactDatabaseStmt {
   SNode*    pEnd;
   bool      metaOnly;
 } SCompactDatabaseStmt;
+
+typedef struct SCreateMountStmt {
+  ENodeType type;
+  int32_t   dnodeId;
+  bool      ignoreExists;
+  char      mountName[TSDB_MOUNT_NAME_LEN];
+  char      mountPath[TSDB_MOUNT_PATH_LEN];
+} SCreateMountStmt;
+
+typedef struct SDropMountStmt {
+  ENodeType type;
+  char      mountName[TSDB_MOUNT_NAME_LEN];
+  bool      ignoreNotExists;
+} SDropMountStmt;
 
 typedef struct SCompactVgroupsStmt {
   ENodeType  type;

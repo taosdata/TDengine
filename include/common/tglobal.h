@@ -282,6 +282,7 @@ extern int64_t tsmaDataDeleteMark;
 
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
+extern bool    tsWalForceRepair;
 
 // internal
 extern bool    tsDiskIDCheckEnabled;
@@ -298,8 +299,6 @@ extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushIntervalSec;
 extern int32_t tsTtlBatchDropNum;
 extern int32_t tsTrimVDbIntervalSec;
-extern int32_t tsS3MigrateIntervalSec;
-extern bool    tsS3MigrateEnabled;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 extern bool    tsUpdateCacheBatch;
@@ -311,13 +310,21 @@ extern bool    tsFilterScalarMode;
 extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
 extern bool    tsStreamCoverage;
-extern int8_t  tsS3EpNum;
 extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;
 extern bool    tsCompareAsStrInGreatest;
 extern int32_t tsStreamVirtualMergeMaxDelayMs;
 extern int32_t tsStreamVirtualMergeMaxMemKb;
 extern int32_t tsStreamVirtualMergeWaitMode;
+
+// shared storage
+extern int32_t tsSsEnabled;
+extern int32_t tsSsAutoMigrateIntervalSec;
+extern char    tsSsAccessString[];
+extern int32_t tsSsUploadDelaySec;
+extern int32_t tsSsBlockSize;
+extern int32_t tsSsBlockCacheSize;
+extern int32_t tsSsPageCacheSize;
 
 extern char     tsAdapterFqdn[];
 extern uint16_t tsAdapterPort;
