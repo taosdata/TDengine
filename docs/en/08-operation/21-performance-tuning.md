@@ -1,4 +1,5 @@
 # Performance Tuning
+
 ## Memory Optimization
 
 TDengine provides a memory allocator configuration script, `set_taos_malloc.sh`, for optimizing memory allocation strategies. With this script, users can easily switch between different memory allocator modes to improve the performance and stability of TDengine.
