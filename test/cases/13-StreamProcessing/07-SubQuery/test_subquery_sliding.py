@@ -409,7 +409,7 @@ class TestStreamSubquerySliding:
             res_query="select tp, tc, tn, tg1, tb, c1, c2, tag_tbname from rdb.r31 where tag_tbname = 't1'",
             exp_query="select _wstart, _wstart + 5m, _wstart + 10m, 't1', 't1', count(cint) c1, avg(cint) c2, 't1' from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' interval(5m);",
         )
-        # self.streams.append(stream) TD-36449
+        # self.streams.append(stream) TD-36439
 
         stream = StreamItem(
             id=32,
@@ -465,7 +465,7 @@ class TestStreamSubquerySliding:
             res_query="select * from rdb.r38 where tag_tbname='t1' limit 1",
             exp_query="select _irowts , _isfilled , interp(c1) from tdb.t1 RANGE('2025-01-01 00:05:00.000') FILL(linear);",
         )
-        # self.streams.append(stream) TD-36112 todo
+        # self.streams.append(stream) TD-36112 forbidden
 
         stream = StreamItem(
             id=39,
@@ -604,7 +604,7 @@ class TestStreamSubquerySliding:
             res_query="select * from rdb.r55",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream) TD-36112 todo
+        # self.streams.append(stream) TD-36112 forbidden
 
         stream = StreamItem(
             id=56,
@@ -628,7 +628,7 @@ class TestStreamSubquerySliding:
             res_query="select * from rdb.r58",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream) TD-36112 todo
+        # self.streams.append(stream) TD-36112 forbidden
 
         stream = StreamItem(
             id=59,
@@ -636,7 +636,7 @@ class TestStreamSubquerySliding:
             res_query="select * from rdb.r59",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream) TD-36112 todo
+        # self.streams.append(stream) TD-36112 forbidden
 
         stream = StreamItem(
             id=60,
@@ -760,7 +760,7 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=75,
-            stream="create stream rdb.s75 interval(5m) sliding(5m) from tdb.vtriggers partition by id into rdb.r75 as select _wstart, twa(k),avg(k),count(1) from tdb.vtriggers where id=%%1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:07:00' interval(1m) fill(prev)",
+            stream="create stream rdb.s75 interval(5m) sliding(5m) from tdb.vtriggers partition by id into rdb.r75 as select _wstart, twa(k), avg(k),count(1) from tdb.vtriggers where id=%%1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:07:00' interval(1m) fill(prev)",
             res_query="select * from rdb.r75",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
