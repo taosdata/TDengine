@@ -226,7 +226,7 @@ The effective value of charset is UTF-8.
 | ttlFlushThreshold          |                   | Supported, effective immediately   | Internal parameter, frequency of ttl timer                   |
 | compactPullupInterval      |                   | Supported, effective immediately   | Internal parameter, frequency of data reorganization timer   |
 | walFsyncDataSizeLimit      |                   | Supported, effective immediately   | Internal parameter, threshold for WAL to perform FSYNC       |
-| walForceRepair             |                   | Not supported                      | Internal parameter, repair WAL file forcely, range 0-1; default value 0, 0 means not repair, 1 means repair |
+| walForceRepair             |                   | Not supported                      | Internal parameter, repair WAL file forcibly, range 0-1; default value 0, 0 means not repair, 1 means repair |
 | transPullupInterval        |                   | Supported, effective immediately   | Internal parameter, retry interval for mnode to execute transactions |
 | mqRebalanceInterval        |                   | Supported, effective immediately   | Internal parameter, interval for consumer rebalancing        |
 | uptimeInterval             |                   | Supported, effective immediately   | Internal parameter, for recording system uptime              |
