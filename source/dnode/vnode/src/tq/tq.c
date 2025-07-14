@@ -72,6 +72,12 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
   if (path == NULL || pVnode == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+
+  bool ignoreTq = pVnode->mounted && !taosCheckExistFile(path);
+  if (ignoreTq) {
+    return 0;
+  }
+
   STQ* pTq = taosMemoryCalloc(1, sizeof(STQ));
   if (pTq == NULL) {
     return terrno;
