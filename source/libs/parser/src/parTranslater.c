@@ -15911,12 +15911,11 @@ static int32_t checkShowTags(STranslateContext* pCxt, const SShowStmt* pShow) {
     code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
     goto _exit;
   }
-  if (TSDB_SUPER_TABLE != pTableMeta->tableType && TSDB_CHILD_TABLE != pTableMeta->tableType) {
-    if(pTableMeta->virtualStb != 1 && pTableMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
-        code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_PC,
+  if ((TSDB_SUPER_TABLE != pTableMeta->tableType && TSDB_CHILD_TABLE != pTableMeta->tableType) &&
+      (pTableMeta->virtualStb != 1 && pTableMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE)) {
+    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_PC,
                                     "The _TAGS pseudo column can only be used for child table and super table queries");
-        goto _exit;
-      }
+    goto _exit;
   }
 
 _exit:

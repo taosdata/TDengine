@@ -40,6 +40,9 @@ class TestVtableShowTag:
         tdSql.execute(f"create stable v_super_t (ts timestamp, flag int) tags (t1 VARCHAR(10)) virtual 1")
         tdSql.execute(f"create vtable v_sub_t0 (sub_t0.flag) using v_super_t TAGS (1)")
 
+        # create normal virtual table
+        tdSql.execute(f"CREATE VTABLE v_normal_t (ts timestamp,flag int from sub_t0.flag)")
+
         # show tag of virtual table
         tdSql.query(f"show tags from v_sub_t0")
         tdSql.checkRows(1)
@@ -47,5 +50,7 @@ class TestVtableShowTag:
 
         tdSql.query(f"show tags from v_super_t")
         tdSql.checkRows(0)
+
+        tdSql.error(f"show tags from v_normal_t")
 
         tdLog.info(f"end virtual table show tag test successfully")
