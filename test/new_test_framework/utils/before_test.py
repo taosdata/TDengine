@@ -188,11 +188,11 @@ class BeforeTest:
         yaml_data = {
             "settings": [{
                 "name": "taosd",
-                "fqdn": [f"{hostname}"],
+                "fqdn": ["localhost"],
                 "spec": {
                     "version": "2.4.0.0",
                     "config": {
-                        "firstEP": f"{hostname}:6030"
+                        "firstEP": f"localhost:6030"
                     },
                     "dnodes": []
                 }
@@ -203,7 +203,7 @@ class BeforeTest:
         taoskeeper_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taoskeeper_config.yaml'))
         servers = []
         port_base = dnode_config_template["port"] if "port" in dnode_config_template else 6030
-        yaml_data["settings"][0]["spec"]["config"]["firstEP"] = f"{hostname}:{port_base}"
+        yaml_data["settings"][0]["spec"]["config"]["firstEP"] = f"localhost:{port_base}"
         mqttport_base = dnode_config_template["mqttPort"] if "mqttPort" in dnode_config_template else 6083
         for i in range(request.session.denodes_num):
             dnode_cfg_path = os.path.join(work_dir, f"dnode{i+1}", "cfg")
@@ -225,7 +225,7 @@ class BeforeTest:
             dnode_config["dataDir"] = data_path
             dnode_config["logDir"] = log_path
             dnode = {
-                "endpoint": f"{hostname}:{port_base + i * 100}",
+                "endpoint": f"localhost:{port_base + i * 100}",
                 "config_dir": dnode_cfg_path,
                 "taosdPath": os.path.join(request.session.taos_bin_path, "taosd"),
                 "system": sys.platform,
@@ -268,13 +268,13 @@ class BeforeTest:
             adapter_config["log"]["path"] = adapter_log_dir
             restful_dict = {
                 "name": "taosAdapter",
-                "fqdn": [f"{hostname}"],
+                "fqdn": ["localhost"],
                 "spec": {
                     "version": "2.4.0.0",
                     "config_file": adapter_config_file,
                     "adapter_config": adapter_config,
                     "taos_config": {
-                        "firstEP": f"{hostname}:{port_base}",
+                        "firstEP": f"localhost:{port_base}",
                         "logDir": taos_log_dir
                     },
                     "taosadapterPath": os.path.join(request.session.taos_bin_path, "taosadapter")
@@ -284,13 +284,13 @@ class BeforeTest:
                 restful_dict["spec"]["asanDir"] = os.path.join(work_dir, "asan", f"taosadapter.asan")
             yaml_data["settings"].append(restful_dict)
             adapter = {}
-            adapter["host"] = f"{hostname}"
+            adapter["host"] = "localhost"
             adapter["cfg_dir"] = adapter_config_dir
             adapter["config_file"] = adapter_config_file
             adapter["port"] = 6041
             adapter["logLevel"] = "info"
             adapter["log_path"] = adapter_log_dir
-            adapter["taos_firstEP"] = f"{hostname}:{port_base}"
+            adapter["taos_firstEP"] = f"localhost:{port_base}"
             adapter["taos_logDir"] = taos_log_dir
             request.session.adapter = adapter
         if request.session.set_taoskeeper:
@@ -305,13 +305,13 @@ class BeforeTest:
             taoskeeper_config["log"]["path"] = taoskeeper_log_dir
             taoskeeper_dict = {
                 "name": "taoskeeper",
-                "fqdn": [f"{hostname}"],
+                "fqdn": ["localhost"],
                 "spec": {
                     "version": "2.4.0.0",
                     "config_file": taoskeeper_config_file,
                     "taoskeeper_config": taoskeeper_config,
                     "taos_config": {
-                        "firstEP": f"{hostname}:{port_base}",
+                        "firstEP": f"localhost:{port_base}",
                         "logDir": taos_log_dir
                     },
                     "taoskeeperPath": os.path.join(request.session.taos_bin_path, "taoskeeper")
@@ -320,7 +320,7 @@ class BeforeTest:
             }
             yaml_data["settings"].append(taoskeeper_dict)
             taoskeeper = {}
-            taoskeeper["host"] = f"{hostname}"
+            taoskeeper["host"] = "localhost"
             taoskeeper["port"] = 6043
             taoskeeper["username"] = "root"
             taoskeeper["password"] = "taosdata"
