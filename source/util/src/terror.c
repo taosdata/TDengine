@@ -293,7 +293,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_MNODES,          "The replica of mnode 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARBGROUP_ALREADY_EXIST,   "Arbitrator group already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARBGROUP_NOT_EXIST,       "Arbitrator group not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ARB_TOKEN_MISMATCH,       "Arbitrator token mismatch")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_VNODE_NOT_OFFLINE,        "Vnode is not offline on this restoring dnode")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VNODE_NOT_OFFLINE,        "Vnode should be offline/leader/follower on this restoring dnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_OFFLINE,   "VGroup is offline")
 
 // mnode-dnode-part2
@@ -408,7 +408,20 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_COMPACT_ID,       "Invalid compact id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_DETAIL_NOT_EXIST, "compact detail doesn't exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_ALREADY_EXIST,    "compact already exist")
 
-//mnode-compact
+// mnode-mount
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_DUP_CLUSTER_EXIST,  "Cluster id identical to the host cluster id")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_DUP_DB_NAME_EXIST,  "Database with identical name already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_DUP_DB_ID_EXIST,    "Database with identical id already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_ALREADY_EXIST,      "Mount already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_NOT_EXIST,          "Mount not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_IN_CREATING,        "Mount in creating status")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_IN_DROPPING,        "Mount in dropping status")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_MOUNT_INFO,       "Invalid mount info")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_NOT_EMPTY,          "Mounted db exist, please drop it first")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_DNODE_DROPPED,      "Dnode is dropped")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT,    "Mount object not supported")
+
+//mnode-ssmigrate
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SSMIGRATE_ID,     "Invalid ssmigrate id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SSMIGRATE_DETAIL_NOT_EXIST, "ssmigrate detail doesn't exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SSMIGRATE_ALREADY_EXIST,  "ssmigrate already exist")
@@ -545,6 +558,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED,      "Query memory exhauste
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NO_FETCH_TIMEOUT,         "Timeout for long time no fetch")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_SUCC_TO_PARTSUSS,    "Change task status from success to partial success")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_MEMORY_POOL_NOT_INITIALIZED, "Memory pool not initialized")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_MEMORY_POOL_MEMORY_NOT_ENOUGH, "Alter minReservedMemorySize failed since no enough system available memory")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
@@ -590,7 +604,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DB_ENCRYPTION_EXPIRED,  "License expired for d
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TD_GPT_EXPIRED,         "License expired for TDgpt function")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_VNODE_LIMITED,          "Number of vnodes has reached the licensed upper limit")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_ANODE_LIMITED,          "Number of anodes has reached the licensed upper limit")
-TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_LACK_OF_TA_BASIC,       "Lack of TDasset basic functions in active code")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_LACK_OF_IDMP_BASIC,     "Lack of TDengine IDMP basic functions in active code")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_MOUNTS_EXPIRED,         "License expired for mounts function")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_MOUNTS_LIMITED,         "Number of mounts has reached the licensed upper limit")
 
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TIMEOUT,                  "Sync timeout")

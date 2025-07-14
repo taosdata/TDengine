@@ -59,10 +59,20 @@ For error reporting in other TDengine modules, please refer to [Error Codes](../
 | JSON              | byte[]   |
 | VARBINARY         | byte[]   |
 | GEOMETRY          | byte[]   |
+| DECIMAL           | decimal  |
 
-**Note**: JSON type is only supported in tags.
-The GEOMETRY type is binary data in little endian byte order, conforming to the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)
+**Note**: 
+
+- JSON type is only supported in tags.
+- The GEOMETRY type is binary data in little endian byte order, conforming to the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)
 For WKB standard, please refer to [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)
+- The DECIMAL type in C# is represented using the `decimal` type, which supports high-precision decimal numbers. 
+Since C#'s `decimal` type differs from TDengine's DECIMAL type in precision and range,
+the C#'s `decimal` has a maximum precision of 29 digits, while TDengine's DECIMAL type supports up to 38 digits of precision.
+The following should be noted when using it:
+  - When the value does not exceed the range of C#'s `decimal` type, you can use `GetDecimal` or `GetValue` to retrieve it.
+  - When the value exceeds the range of C#'s `decimal` type, the `GetDecimal` and `GetValue` methods will throw an `OverflowException`. 
+  In such cases, you can use the `GetString` method to obtain the string representation.
 
 ## Summary of Example Programs
 
@@ -96,7 +106,7 @@ Supported parameters include:
 - `password`: Password for the connection.
 - `protocol`: Connection protocol, options are Native or WebSocket, default is Native.
 - `db`: Database to connect to.
-- `timezone`: Time zone, default is the local time zone.
+- `timezone`: The timezone used for parsing time types in the query result set. Defaults to the local timezone. For format details, see [Timezone Settings for Result Sets](#timezone-settings-for-result-sets).
 
 ##### WebSocket Connection
 
@@ -110,7 +120,7 @@ Supported parameters include:
 - `password`: Password for the connection.
 - `protocol`: Connection protocol, options are Native or WebSocket, default is Native.
 - `db`: Database to connect to.
-- `timezone`: Time zone, default is the local time zone.
+- `timezone`: The timezone used for parsing time types in the query result set. Defaults to the local timezone. For format details, see [Timezone Settings for Result Sets](#timezone-settings-for-result-sets).
 - `connTimeout`: Connection timeout, default is 1 minute.
 - `readTimeout`: Read timeout, default is 5 minutes.
 - `writeTimeout`: Send timeout, default is 10 seconds.
@@ -120,6 +130,18 @@ Supported parameters include:
 - `autoReconnect`: Whether to automatically reconnect, default is false.
 - `reconnectRetryCount`: Number of retries for reconnection, default is 3.
 - `reconnectIntervalMs`: Interval for reconnection in milliseconds, default is 2000.
+
+#### Timezone Settings for Result Sets
+
+The C# driver, when parsing result sets, uses the local timezone by default to interpret time types. If you need to use a different timezone to parse time types, you can specify the timezone by setting the `timezone` parameter.  
+Internally, the `TimeZoneInfo.FindSystemTimeZoneById` method is used to retrieve timezone information:
+
+- On Windows systems, `FindSystemTimeZoneById` attempts to match the subkey names under the registry branch `HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Time Zones`.
+- On Linux and macOS, the timezone information provided by the [ICU library](https://unicode-org.github.io/icu/userguide/datetime/timezone/) is used.
+
+Take the New York timezone as an example: Windows uses Eastern Standard Time, while Linux and macOS use America/New_York.
+
+Starting with .NET 6, you can uniformly use the [IANA](https://www.iana.org/time-zones) time zone format, such as `America/New_York`.
 
 #### Interface Description
 
@@ -317,6 +339,15 @@ The `DbDataReader` interface provides the following methods to retrieve the resu
     - `ordinal`: Column index.
   - **Return Value**: Date and time value.
   - **Exception**: Throws `InvalidCastException` if the type does not correspond.
+
+- `public decimal GetDecimal(int ordinal)`
+  - **Interface Description**: Gets the decimal value of the specified column.
+  - **Parameter Description**:
+    - `ordinal`: Column index.
+  - **Return Value**: Decimal value.
+  - **Exception**: 
+    - Throws `InvalidCastException` if the type does not correspond.
+    - Throws `OverflowException` if the value exceeds the range of C#'s `decimal` type.
 
 - `public double GetDouble(int ordinal)`
   - **Interface Description**: Gets the double precision floating-point value of the specified column.

@@ -64,7 +64,7 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
 int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId,
                              int32_t diskPrimary, STfs *pTfs);
 void    vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId);
-SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgCb, bool force);
+SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMountTfs, SMsgCb msgCb, bool force);
 void    vnodePreClose(SVnode *pVnode);
 void    vnodePostClose(SVnode *pVnode);
 void    vnodeSyncCheckTimeout(SVnode *pVnode);
@@ -336,10 +336,12 @@ typedef struct {
   int64_t pointsWritten;
   int64_t totalStorage;
   int64_t compStorage;
+  int64_t storageLastUpd;
 } SVnodeStats;
 
 struct SVnodeCfg {
   int32_t     vgId;
+  int32_t     mountVgId;
   char        dbname[TSDB_DB_FNAME_LEN];
   uint64_t    dbId;
   int32_t     cacheLastSize;

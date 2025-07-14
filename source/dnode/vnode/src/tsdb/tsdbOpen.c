@@ -56,7 +56,8 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
   }
 
   pTsdb->path = (char *)&pTsdb[1];
-  snprintf(pTsdb->path, TD_PATH_MAX, "%s%s%s", pVnode->path, TD_DIRSEP, dir);
+  (void)snprintf(pTsdb->path, TD_PATH_MAX, "%s%s%s", pVnode->path, TD_DIRSEP, dir);
+  (void)snprintf(pTsdb->name, sizeof(pTsdb->name), "%s", dir);
   // taosRealPath(pTsdb->path, NULL, slen);
   pTsdb->pVnode = pVnode;
   (void)taosThreadMutexInit(&pTsdb->mutex, NULL);
@@ -67,12 +68,14 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
   }
 
   // create dir
-  if (pVnode->pTfs) {
-    code = tfsMkdir(pVnode->pTfs, pTsdb->path);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  } else {
-    code = taosMkDir(pTsdb->path);
-    TSDB_CHECK_CODE(code, lino, _exit);
+  if (!pVnode->mounted) {
+    if (pVnode->pTfs) {
+      code = tfsMkdir(pVnode->pTfs, pTsdb->path);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } else {
+      code = taosMkDir(pTsdb->path);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
   }
 
   // open tsdb
@@ -80,7 +83,7 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (pTsdb->pFS->fsstate == TSDB_FS_STATE_INCOMPLETE && force == false) {
-    TAOS_CHECK_GOTO(TSDB_CODE_NEED_RETRY, &lino, _exit);
+    TAOS_CHECK_GOTO(terrno = TSDB_CODE_NEED_RETRY, &lino, _exit);
   }
 
   code = tsdbOpenCache(pTsdb);
@@ -94,7 +97,8 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s failed at %s:%d since %s, path:%s", TD_VID(pVnode), __func__, __FILE__, lino, tstrerror(code),
+              pTsdb->path);
     tsdbCloseFS(&pTsdb->pFS);
     (void)taosThreadMutexDestroy(&pTsdb->mutex);
     taosMemoryFree(pTsdb);

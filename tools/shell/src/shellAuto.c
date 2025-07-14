@@ -112,6 +112,7 @@ SWords shellCommands[] = {
 #ifdef TD_ENTERPRISE    
     {"create view <anyword> as select", 0, 0, NULL},
     {"compact database <db_name>", 0, 0, NULL},
+    {"create mount <mount_name> on dnode <dnode_id> from <path>;", 0, 0, NULL},
 #endif
     {"desc <all_table>;", 0, 0, NULL},
     {"describe <all_table>;", 0, 0, NULL},
@@ -141,6 +142,7 @@ SWords shellCommands[] = {
     {"kill transaction ", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
     {"merge vgroup <vgroup_id> <vgroup_id>;", 0, 0, NULL},
+    {"drop mount <mount_name>;", 0, 0, NULL},
 #endif
     {"pause stream <stream_name>;", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
@@ -221,6 +223,7 @@ SWords shellCommands[] = {
     {"show arbgroups;", 0, 0, NULL},
     {"split vgroup <vgroup_id>;", 0, 0, NULL},
     {"ssmigrate database <db_name>;", 0, 0, NULL},
+    {"show mounts;", 0, 0, NULL},
 #endif
     {"insert into <tb_name> values(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> tags(", 0, 0, NULL},
@@ -644,12 +647,15 @@ void showHelp() {
     balance vgroup leader on <vgroup_id> \n\
     compact database <db_name>; \n\
     create view <view_name> as select ...\n\
+    create mount <mount_name> on dnode <dnode_id> from <path>;\n\
+    drop mount <mount_name>;\n\
     redistribute vgroup <vgroup_id> dnode <dnode_id> ;\n\
     split vgroup <vgroup_id>;\n\
     ssmigrate database <db_name>;\n\
     show compacts;\n\
     show compact \n\
     show arbgroups;\n\
+    show mounts;\n\
     show views;\n\
     show create view <all_table>;");
 #endif

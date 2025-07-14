@@ -38,6 +38,14 @@ static void vmProcessMultiMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_CREATE_VNODE:
       code = vmProcessCreateVnodeReq(pMgmt, pMsg);
       break;
+#ifdef USE_MOUNT
+    case TDMT_DND_RETRIEVE_MOUNT_PATH:
+      code = vmProcessRetrieveMountPathReq(pMgmt, pMsg);
+      break;
+    case TDMT_DND_MOUNT_VNODE:
+      code = vmProcessMountVnodeReq(pMgmt, pMsg);
+      break;
+#endif
   }
 
   if (IsReq(pMsg)) {
@@ -348,12 +356,14 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
                tstrerror(code), TMSG_INFO(pMsg->msgType));
         break;
       }
+#if 0
       if (pMsg->msgType == TDMT_VND_SUBMIT && (grantCheck(TSDB_GRANT_STORAGE) != TSDB_CODE_SUCCESS)) {
         code = TSDB_CODE_VND_NO_WRITE_AUTH;
         dDebug("vgId:%d, msg:%p, failed to put into vnode-write queue since %s, type:%s", pVnode->vgId, pMsg,
                tstrerror(code), TMSG_INFO(pMsg->msgType));
         break;
       }
+#endif
       if (pMsg->msgType != TDMT_VND_ALTER_CONFIRM && pVnode->disable) {
         dDebug("vgId:%d, msg:%p, failed to put into vnode-write queue since its disable, type:%s", pVnode->vgId, pMsg,
                TMSG_INFO(pMsg->msgType));

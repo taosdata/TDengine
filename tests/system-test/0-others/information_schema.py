@@ -61,7 +61,7 @@ class TDTestCase:
         self.ins_list = ['ins_dnodes','ins_mnodes','ins_qnodes','ins_snodes','ins_bnodes','ins_cluster','ins_databases','ins_functions',\
             'ins_indexes','ins_stables','ins_tables','ins_tags','ins_columns','ins_users','ins_grants','ins_vgroups','ins_configs','ins_dnode_variables',\
                 'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges','ins_views',
-                'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes", "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details"]
+                'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes", "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details", "ins_mounts"]
         self.perf_list = ['perf_connections','perf_queries','perf_consumers','perf_trans','perf_apps']
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
@@ -222,9 +222,9 @@ class TDTestCase:
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
         tdLog.info(len(tdSql.queryResult))
-        tdSql.checkEqual(True, len(tdSql.queryResult) in range(333, 334))
+        tdSql.checkRows(338)
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
-        tdSql.checkEqual(62, len(tdSql.queryResult))
+        tdSql.checkRows(62)
 
     def ins_dnodes_check(self):
         tdSql.execute('drop database if exists db2')
@@ -302,17 +302,17 @@ class TDTestCase:
             'mongodb':'MongoDB',
             'csv':'CSV',
             'sparkplugb':"SparkplugB",
-            'ta_ts_attr':'TDasset Time-Series Attributes',
-            'ta_nts_attr':'TDasset Non-Time-Series Attributes',
-            'ta_element':'TDasset Elements',
-            'ta_server':'TDasset Servers',
-            'ta_cpu_core':'TDasset CPU Cores',
-            'ta_user':'TDasset Users',
-            'ta_version_ctrl':'TDasset Version Control',
-            'ta_data_forecast':'TDasset Data Forecast',
-            'ta_data_detect':'TDasset Data Detect',
-            'ta_data_quality':'TDasset Data Quality',
-            'ta_ai_chat_gen':'TDasset AI Chat/Generate',
+            'idmp_ts_attr':'TDengine IDMP Time-Series Attributes',
+            'idmp_nts_attr':'TDengine IDMP Non-Time-Series Attributes',
+            'idmp_element':'TDengine IDMP Elements',
+            'idmp_server':'TDengine IDMP Servers',
+            'idmp_cpu_core':'TDengine IDMP CPU Cores',
+            'idmp_user':'TDengine IDMP Users',
+            'idmp_version_ctrl':'TDengine IDMP Version Control',
+            'idmp_data_forecast':'TDengine IDMP Data Forecast',
+            'idmp_data_detect':'TDengine IDMP Data Detect',
+            'idmp_data_quality':'TDengine IDMP Data Quality',
+            'idmp_ai_chat_gen':'TDengine IDMP AI Chat/Generate',
         }
 
         tdSql.execute('drop database if exists db2')

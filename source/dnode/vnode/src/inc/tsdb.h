@@ -363,6 +363,7 @@ typedef struct SSsMigrateMonitor SSsMigrateMonitor;
 struct STsdb {
   char                *path;
   SVnode              *pVnode;
+  char                 name[VNODE_TSDB_NAME_LEN];
   STsdbKeepCfg         keepCfg;
   TdThreadMutex        mutex;
   bool                 bgTaskDisabled;

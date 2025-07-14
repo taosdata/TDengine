@@ -122,6 +122,7 @@ int32_t tsHeartbeatTimeout = 20 * 1000;
 int32_t tsSnapReplMaxWaitN = 128;
 int64_t tsLogBufferMemoryAllowed = 0;  // bytes
 int32_t tsRoutineReportInterval = 300;
+bool    tsSyncLogHeartbeat = false;
 
 // mnode
 int64_t tsMndSdbWriteDelta = 200;
@@ -330,6 +331,7 @@ bool    tsStartUdfd = true;
 
 // wal
 int64_t tsWalFsyncDataSizeLimit = (100 * 1024 * 1024L);
+bool    tsWalForceRepair = 0;
 
 // ttl
 bool    tsTtlChangeOnWrite = false;  // if true, ttl delete time changes on last write
@@ -828,6 +830,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncSnapReplMaxWaitN", tsSnapReplMaxWaitN, 16, (TSDB_SYNC_SNAP_BUFFER_SIZE >> 2), CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "syncLogBufferMemoryAllowed", tsLogBufferMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncRoutineReportInterval", tsRoutineReportInterval, 5, 600, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "syncLogHeartbeat", tsSyncLogHeartbeat, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbHeartBeatIntervalSec", tsArbHeartBeatIntervalSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "arbCheckSyncIntervalSec", tsArbCheckSyncIntervalSec, 1, 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
@@ -887,6 +890,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "timeseriesThreshold", tsTimeSeriesThreshold, 0, 2000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "walFsyncDataSizeLimit", tsWalFsyncDataSizeLimit, 100 * 1024 * 1024, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "walForceRepair", tsWalForceRepair, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "udf", tsStartUdfd, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "udfdResFuncs", tsUdfdResFuncs, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
@@ -1755,6 +1759,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "timeseriesThreshold");
   tsTimeSeriesThreshold = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "walForceRepair");
+  tsWalForceRepair = pItem->bval;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "walFsyncDataSizeLimit");
   tsWalFsyncDataSizeLimit = pItem->i64;
 
@@ -1775,6 +1782,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "syncRoutineReportInterval");
   tsRoutineReportInterval = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "syncLogHeartbeat");
+  tsSyncLogHeartbeat = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "arbHeartBeatIntervalSec");
   tsArbHeartBeatIntervalSec = pItem->i32;
@@ -2656,6 +2666,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"syncHeartbeatTimeout", &tsHeartbeatTimeout},
                                          {"syncSnapReplMaxWaitN", &tsSnapReplMaxWaitN},
                                          {"syncRoutineReportInterval", &tsRoutineReportInterval},
+                                         {"syncLogHeartbeat", &tsSyncLogHeartbeat},
                                          {"walFsyncDataSizeLimit", &tsWalFsyncDataSizeLimit},
 
                                          {"numOfCores", &tsNumOfCores},
@@ -3072,8 +3083,6 @@ int32_t taosGranted(int8_t type) {
       int32_t grantVal = atomic_load_32(&tsGrant);
       if (grantVal & GRANT_FLAG_EX_MULTI_TIER) {
         return TSDB_CODE_GRANT_MULTI_STORAGE_EXPIRED;
-      } else if (grantVal & GRANT_FLAG_EX_VNODE) {
-        return TSDB_CODE_GRANT_VNODE_LIMITED;
       } else if (grantVal & GRANT_FLAG_EX_STORAGE) {
         return TSDB_CODE_GRANT_STORAGE_LIMITED;
       }

@@ -100,9 +100,10 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 ## 使用限制
 
 - Node.js 连接器（`@tdengine/websocket`）支持 Node.js 14 以上版本，低于 14 的版本可能存在包兼容性的问题。
-- 目前只支持 WebSocket 连接，需要提前启动 taosAdapter
+- 目前只支持 WebSocket 连接，需要提前启动 taosAdapter。
 - 使用连接器结束后，需要调用 taos.connectorDestroy(); 释放连接器资源。
-
+- 如果要设置 SQL 字符串中时间字符串的时区，需要设置 taosadapter 所在机器的 taosc 时区配置。
+- 在解析结果集时，JavaScript 不支持 int64 类型，因此无法直接进行时区转换。若用户有需求，可引入第三方库以提供支持。
 
 ## 常见问题
 

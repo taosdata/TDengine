@@ -337,6 +337,9 @@ typedef enum ELogicConditionType {
 #define TSDB_ANALYTIC_ALGO_URL_LEN    (TSDB_ANALYTIC_ANODE_URL_LEN + TSDB_ANALYTIC_ALGO_TYPE_LEN + 1)
 #define TSDB_ANALYTIC_ALGO_OPTION_LEN 512
 
+#define TSDB_MOUNT_NAME_LEN TSDB_DB_FNAME_LEN
+#define TSDB_MOUNT_PATH_LEN TSDB_FILENAME_LEN
+#define TSDB_MOUNT_FPATH_LEN (TSDB_MOUNT_PATH_LEN + 32)
 #define TSDB_BNODE_OPT_PROTO_STR_MQTT "mqtt"
 #define TSDB_BNODE_OPT_PROTO_MQTT     1
 #define TSDB_BNODE_OPT_PROTO_STR_LEN  sizeof(TSDB_BNODE_OPT_PROTO_STR_MQTT)
@@ -567,7 +570,7 @@ typedef enum ELogicConditionType {
 #ifdef WINDOWS
 #define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
 #else
-#define TSDB_MAX_RPC_THREADS 50
+#define TSDB_MAX_RPC_THREADS 100 
 #endif
 
 #define TSDB_QUERY_TYPE_NON_TYPE 0x00u  // none type

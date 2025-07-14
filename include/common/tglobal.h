@@ -133,6 +133,7 @@ extern int32_t tsHeartbeatTimeout;
 extern int32_t tsSnapReplMaxWaitN;
 extern int64_t tsLogBufferMemoryAllowed;  // maximum allowed log buffer size in bytes for each dnode
 extern int32_t tsRoutineReportInterval;
+extern bool    tsSyncLogHeartbeat;
 
 // arbitrator
 extern int32_t tsArbHeartBeatIntervalSec;
@@ -281,6 +282,7 @@ extern int64_t tsmaDataDeleteMark;
 
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
+extern bool    tsWalForceRepair;
 
 // internal
 extern bool    tsDiskIDCheckEnabled;

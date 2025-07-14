@@ -191,7 +191,7 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight) {
   if (DBL_EQUAL(p1, p2)) {
     return 0;
   }
-  return FLT_GREATER(p1, p2) ? 1 : -1;
+  return DBL_GREATER(p1, p2) ? 1 : -1;
 }
 
 int32_t compareDoubleValDesc(const void *pLeft, const void *pRight) { return compareDoubleVal(pRight, pLeft); }

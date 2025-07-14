@@ -156,10 +156,17 @@ typedef struct SViewMeta {
 } SViewMeta;
 
 typedef struct SDBVgInfo {
-  int32_t   vgVersion;
-  int16_t   hashPrefix;
-  int16_t   hashSuffix;
-  int8_t    hashMethod;
+  int32_t vgVersion;
+  int16_t hashPrefix;
+  int16_t hashSuffix;
+  int8_t  hashMethod;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t isMount : 1;  // TS-5868
+      uint8_t padding : 7;
+    };
+  };
   int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
   int64_t   stateTs;
   SHashObj* vgHash;   // key:vgId, value:SVgroupInfo
@@ -294,9 +301,10 @@ typedef struct SStbInterlaceInfo {
   uint64_t       requestId;
   int64_t        requestSelf;
   bool           tbFromHash;
-  SHashObj*      pVgroupHash;
-  SArray*        pVgroupList;
-  SSHashObj*     pTableHash;
+  SHashObj*      pVgroupHash;        // key:vgId, value:SVgroupDataCxt
+  SArray*        pVgroupList;        // SVgroupDataCxt
+  SSHashObj*     pTableHash;         // key:tbname, value:STableVgUid
+  SSHashObj*     pTableRowDataHash;  // key:tbname, value:SSubmitTbData->aRowP
   int64_t        tbRemainNum;
   STableBufInfo  tbBuf;
   char           firstName[TSDB_TABLE_NAME_LEN];

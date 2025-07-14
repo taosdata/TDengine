@@ -304,11 +304,13 @@ int32_t mndAddSsMigrateToTran(SMnode *pMnode, STrans *pTrans, SSsMigrateObj *pSs
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    if (pVgroup->dbUid == pDb->uid) {
-      SVgroupSsMigrateDetail detail = {.vgId = pVgroup->vgId, .done = false };
-      taosArrayPush(pSsMigrate->vgroups, &detail);
+    if (pVgroup->mountVgId || pVgroup->dbUid != pDb->uid) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
     }
 
+    SVgroupSsMigrateDetail detail = {.vgId = pVgroup->vgId, .done = false };
+    taosArrayPush(pSsMigrate->vgroups, &detail);
     sdbRelease(pSdb, pVgroup);
   }
 

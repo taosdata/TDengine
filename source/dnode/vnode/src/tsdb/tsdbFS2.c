@@ -73,9 +73,10 @@ static void destroy_fs(STFileSystem **fs) {
 void current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype) {
   int32_t offset = 0;
 
-  vnodeGetPrimaryDir(pTsdb->path, pTsdb->pVnode->diskPrimary, pTsdb->pVnode->pTfs, fname, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pTsdb->pVnode, false, fname, TSDB_FILENAME_LEN);
   offset = strlen(fname);
-  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, gCurrentFname[ftype]);
+  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%s%s", TD_DIRSEP, pTsdb->name, TD_DIRSEP,
+           gCurrentFname[ftype]);
 }
 
 static int32_t save_json(const cJSON *json, const char *fname) {
@@ -501,6 +502,8 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t corrupt = false;
+
+  if (fs->tsdb->pVnode->mounted) goto _exit;
 
   {  // scan each file
     STFileSet *fset = NULL;
@@ -1247,7 +1250,7 @@ void tsdbBeginTaskOnFileSet(STsdb *tsdb, int32_t fid, EVATaskT task, STFileSet *
     }
   }
 
-  tsdbInfo("vgId:%d begin %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
+  tsdbTrace("vgId:%d begin %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
   return;
 }
 
@@ -1273,7 +1276,7 @@ void tsdbFinishTaskOnFileSet(STsdb *tsdb, int32_t fid, EVATaskT task) {
     (void)taosThreadCondSignal(&cond->cond);
   }
 
-  tsdbInfo("vgId:%d finish %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
+  tsdbTrace("vgId:%d finish %s task on file set:%d", TD_VID(tsdb->pVnode), vnodeGetATaskName(task), fid);
   return;
 }
 

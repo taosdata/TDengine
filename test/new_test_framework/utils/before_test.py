@@ -80,7 +80,7 @@ class BeforeTest:
         setup_params = {
             "test_root": self.root_dir,
             "setup": yaml_file,
-            "mnode_count": mnodes_num,
+            #"mnode_count": mnodes_num,
             "log_level": self.log_level
         }
         if clean:
@@ -90,9 +90,9 @@ class BeforeTest:
             #subprocess.run([sys.executable, f"taostest --setup {yaml_file} --mnode-count {mnodes_num}"], check=True, text=True, shell=True, env=env_vars)
             result = taostest.main(setup_params)
             if result != 0:
-                tdLog.error(f"Error run taostest --setup {yaml_file} --mnode-count {mnodes_num}: {result}")
+                tdLog.error(f"Error run taostest --setup {yaml_file}: {result}")
         except Exception as e:
-            tdLog.error(f"Exception run taostest --setup {yaml_file} --mnode-count {mnodes_num}: {e}")
+            tdLog.error(f"Exception run taostest --setup {yaml_file}: {e}")
 
     def configure_test(self, yaml_file):
 
@@ -148,7 +148,7 @@ class BeforeTest:
         if request.session.restful:
             return taosrest.connect(url=f"http://{request.session.host}:6041", timezone="utc")
         else:
-            return taos.connect(host=request.session.host, port=request.session.port)
+            return taos.connect(host=request.session.host, port=request.session.port, config=tdDnodes.sim.cfgPath)
 
     def get_tdsql(self, conn):
         tdSql.init(conn.cursor())

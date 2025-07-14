@@ -30,6 +30,23 @@ void vnodeGetPrimaryDir(const char *relPath, int32_t diskPrimary, STfs *pTfs, ch
   buf[bufLen - 1] = '\0';
 }
 
+void vnodeGetPrimaryPath(SVnode *pVnode, bool mount, char *buf, size_t bufLen) {
+  if (pVnode->mounted) {
+    if (mount) {  // mount path
+      SDiskID diskId = {0};
+      diskId.id = pVnode->diskPrimary;
+      snprintf(buf, bufLen - 1, "%s%svnode%svnode%d", tfsGetDiskPath(pVnode->pMountTfs, diskId), TD_DIRSEP, TD_DIRSEP,
+               pVnode->config.mountVgId);
+    } else {  // host path
+      vnodeGetPrimaryDir(pVnode->path, 0, pVnode->pTfs, buf, bufLen);
+    }
+    buf[bufLen - 1] = '\0';
+
+  } else {
+    vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, buf, bufLen);
+  }
+}
+
 static int32_t vnodeMkDir(STfs *pTfs, const char *path) {
   if (pTfs) {
     return tfsMkdirRecur(pTfs, path);
@@ -362,12 +379,13 @@ static int32_t vnodeCheckDisk(int32_t diskPrimary, STfs *pTfs) {
   return 0;
 }
 
-SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgCb, bool force) {
+SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMountTfs, SMsgCb msgCb, bool force) {
   SVnode    *pVnode = NULL;
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
   char       tdir[TSDB_FILENAME_LEN * 2] = {0};
   int32_t    ret = 0;
+  bool       mounted = pMountTfs != NULL;
   terrno = TSDB_CODE_SUCCESS;
 
   if (vnodeCheckDisk(diskPrimary, pTfs)) {
@@ -387,7 +405,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
     return NULL;
   }
 
-  if (vnodeMkDir(pTfs, path)) {
+  if (!mounted && vnodeMkDir(pTfs, path)) {
     vError("vgId:%d, failed to prepare vnode dir since %s, path: %s", info.config.vgId, strerror(ERRNO), path);
     return NULL;
   }
@@ -428,6 +446,8 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   pVnode->state.applied = info.state.committed;
   pVnode->state.applyTerm = info.state.commitTerm;
   pVnode->pTfs = pTfs;
+  pVnode->pMountTfs = pMountTfs;
+  pVnode->mounted = mounted;
   pVnode->diskPrimary = diskPrimary;
   pVnode->msgCb = msgCb;
   (void)taosThreadMutexInit(&pVnode->lock, NULL);
@@ -459,13 +479,13 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   vInfo("vgId:%d, start to upgrade meta", TD_VID(pVnode));
-  if (metaUpgrade(pVnode, &pVnode->pMeta) < 0) {
+  if (!mounted && metaUpgrade(pVnode, &pVnode->pMeta) < 0) {
     vError("vgId:%d, failed to upgrade meta since %s", TD_VID(pVnode), tstrerror(terrno));
   }
 
   // open tsdb
   vInfo("vgId:%d, start to open vnode tsdb", TD_VID(pVnode));
-  if (!VND_IS_RSMA(pVnode) && tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force) < 0) {
+  if (!VND_IS_RSMA(pVnode) && (terrno = tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force)) < 0) {
     vError("vgId:%d, failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }

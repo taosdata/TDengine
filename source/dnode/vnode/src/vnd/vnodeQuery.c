@@ -129,6 +129,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   if (!reqTbUid) {
     (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", infoReq.dbFName, infoReq.tbName);
+    if (pVnode->mounted) tTrimMountPrefix(tableFName);
     code = vnodeValidateTableHash(pVnode, tableFName);
     if (code) {
       goto _exit4;
@@ -316,6 +317,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   (void)memcpy(cfgRsp.dbFName, cfgReq.dbFName, sizeof(cfgRsp.dbFName));
 
   (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", cfgReq.dbFName, cfgReq.tbName);
+  if (pVnode->mounted) tTrimMountPrefix(tableFName);
   code = vnodeValidateTableHash(pVnode, tableFName);
   if (code) {
     goto _exit;
@@ -913,18 +915,44 @@ _return:
   return code;
 }
 
+static int32_t vnodeGetCompStorage(SVnode *pVnode, int64_t *output) {
+  int32_t code = 0;
+#ifdef TD_ENTERPRISE
+  int32_t now = taosGetTimestampSec();
+  if (llabs(now - pVnode->config.vndStats.storageLastUpd) >= 30) {
+    pVnode->config.vndStats.storageLastUpd = now;
+
+    SDbSizeStatisInfo info = {0};
+    if (0 == (code = vnodeGetDBSize(pVnode, &info))) {
+      int64_t compSize =
+          info.l1Size + info.l2Size + info.l3Size + info.cacheSize + info.walSize + info.metaSize + +info.s3Size;
+      if (compSize >= 0) {
+        pVnode->config.vndStats.compStorage = compSize;
+      } else {
+        vError("vnode get comp storage failed since compSize is negative:%" PRIi64, compSize);
+        code = TSDB_CODE_APP_ERROR;
+      }
+    } else {
+      vWarn("vnode get comp storage failed since %s", tstrerror(code));
+    }
+  }
+  if (output) *output = pVnode->config.vndStats.compStorage;
+#endif
+  return code;
+}
+
 static void vnodeGetBufferInfo(SVnode *pVnode, int64_t *bufferSegmentUsed, int64_t *bufferSegmentSize) {
   *bufferSegmentUsed = 0;
   *bufferSegmentSize = 0;
   if (pVnode) {
-    taosThreadMutexLock(&pVnode->mutex);
+    (void)taosThreadMutexLock(&pVnode->mutex);
 
     if (pVnode->inUse) {
       *bufferSegmentUsed = pVnode->inUse->size;
     }
     *bufferSegmentSize = pVnode->config.szBuf / VNODE_BUFPOOL_SEGMENTS;
 
-    taosThreadMutexUnlock(&pVnode->mutex);
+    (void)taosThreadMutexUnlock(&pVnode->mutex);
   }
 }
 
@@ -945,8 +973,8 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->numOfCachedTables = tsdbCacheGetElems(pVnode);
   VNODE_DO_META_QUERY(pVnode, pLoad->numOfTables = metaGetTbNum(pVnode->pMeta));
   VNODE_DO_META_QUERY(pVnode, pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1));
-  pLoad->totalStorage = (int64_t)3 * 1073741824;
-  pLoad->compStorage = (int64_t)2 * 1073741824;
+  pLoad->totalStorage = (int64_t)3 * 1073741824;  // TODO
+  (void)vnodeGetCompStorage(pVnode, &pLoad->compStorage);
   pLoad->pointsWritten = 100;
   pLoad->numOfSelectReqs = 1;
   pLoad->numOfInsertReqs = atomic_load_64(&pVnode->statis.nInsert);
@@ -1337,7 +1365,7 @@ static FORCE_INLINE int32_t vnodeGetDBPrimaryInfo(SVnode *pVnode, SDbSizeStatisI
   char   *dirName[] = {VNODE_TSDB_DIR, VNODE_WAL_DIR, VNODE_META_DIR, VNODE_TSDB_CACHE_DIR};
   int64_t dirSize[4];
 
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, path, TSDB_FILENAME_LEN);
   int32_t offset = strlen(path);
 
   for (int i = 0; i < sizeof(dirName) / sizeof(dirName[0]); i++) {

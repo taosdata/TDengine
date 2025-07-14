@@ -30,6 +30,7 @@
 #include "mndIndex.h"
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
+#include "mndMount.h"
 #include "mndPerfSchema.h"
 #include "mndPrivilege.h"
 #include "mndProfile.h"
@@ -402,7 +403,10 @@ static int32_t minCronTime() {
 }
 void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   int32_t code = 0;
-#ifndef TD_ASTRA  
+#ifndef TD_ASTRA
+  if (sec % tsGrantHBInterval == 0) {  // put in the 1st place as to take effect ASAP
+    mndPullupGrant(pMnode);
+  }
   if (sec % tsTtlPushIntervalSec == 0) {
     mndPullupTtl(pMnode);
   }
@@ -442,7 +446,7 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     mndStreamCheckNode(pMnode);
   }
 
-  if (sec % (tsStreamFailedTimeout/1000) == 0) {
+  if (sec % (tsStreamFailedTimeout / 1000) == 0) {
     mndStreamCheckStatus(pMnode);
   }
 
@@ -452,11 +456,6 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
 
   if (tsTelemInterval > 0 && sec % tsTelemInterval == 0) {
     mndPullupTelem(pMnode);
-  }
-#endif
-#ifndef TD_ASTRA
-  if (sec % tsGrantHBInterval == 0) {
-    mndPullupGrant(pMnode);
   }
 #endif
   if (sec % tsUptimeInterval == 0) {
@@ -673,6 +672,10 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-infos", mndInitInfos, mndCleanupInfos));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-perfs", mndInitPerfs, mndCleanupPerfs));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb));
+#ifdef USE_MOUNT
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-mount", mndInitMount, mndCleanupMount));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-mount-log", mndInitMountLog, mndCleanupMountLog));
+#endif
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-view", mndInitView, mndCleanupView));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-compact", mndInitCompact, mndCleanupCompact));
@@ -1133,6 +1136,11 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     SVgObj *pVgroup = NULL;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
+
+    if (pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
 
     pClusterInfo->vgroups_total++;
     pClusterInfo->tbs_total += pVgroup->numOfTables;

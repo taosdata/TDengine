@@ -1153,6 +1153,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
     // create a new raft config file
     sInfo("vgId:%d, create a new raft config file", pSyncInfo->vgId);
     pSyncNode->vgId = pSyncInfo->vgId;
+    pSyncNode->mountVgId = pSyncInfo->mountVgId;
     pSyncNode->raftCfg.isStandBy = pSyncInfo->isStandBy;
     pSyncNode->raftCfg.snapshotStrategy = pSyncInfo->snapshotStrategy;
     pSyncNode->raftCfg.lastConfigIndex = pSyncInfo->syncCfg.lastIndex;
@@ -1195,6 +1196,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
 
   // init by SSyncInfo
   pSyncNode->vgId = pSyncInfo->vgId;
+  pSyncNode->mountVgId = pSyncInfo->mountVgId;
   SSyncCfg* pCfg = &pSyncNode->raftCfg.cfg;
   bool      updated = false;
   sInfo("vgId:%d, start to open sync node, totalReplicaNum:%d replicaNum:%d selfIndex:%d", pSyncNode->vgId,
@@ -3646,6 +3648,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   int64_t lastRecvTime = syncIndexMgrGetRecvTime(ths->pNextIndex, &(pMsg->srcId));
   syncIndexMgrSetRecvTime(ths->pNextIndex, &(pMsg->srcId), tsMs);
+  syncIndexMgrIncRecvCount(ths->pNextIndex, &(pMsg->srcId));
 
   int64_t netElapsed = tsMs - pMsg->timeStamp;
   int64_t timeDiff = tsMs - lastRecvTime;
@@ -3758,10 +3761,18 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
             ", processTime:%" PRId64,
             ths->vgId, DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp, processTime2);
   } else {
-    sGDebug(&rpcMsg.info.traceId,
+    if(tsSyncLogHeartbeat){
+      sGInfo(&rpcMsg.info.traceId,
             "vgId:%d, send sync-heartbeat-reply to dnode:%d term:%" PRId64 " timestamp:%" PRId64
             ", processTime:%" PRId64,
             ths->vgId, DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp, processTime2);
+    }
+    else{
+      sGDebug(&rpcMsg.info.traceId,
+            "vgId:%d, send sync-heartbeat-reply to dnode:%d term:%" PRId64 " timestamp:%" PRId64
+            ", processTime:%" PRId64,
+            ths->vgId, DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp, processTime2);
+    }
   }
 
   TAOS_CHECK_RETURN(syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg));
@@ -3787,6 +3798,7 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   syncLogRecvHeartbeatReply(ths, pMsg, tsMs - pMsg->timeStamp, &pRpcMsg->info.traceId, tsMs - lastRecvTime);
 
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &pMsg->srcId, tsMs);
+  syncIndexMgrIncRecvCount(ths->pNextIndex, &(pMsg->srcId));
 
   return syncLogReplProcessHeartbeatReply(pMgr, ths, pMsg);
 }
