@@ -272,7 +272,7 @@ class TestStreamSubquerySliding:
             res_query="select ts, t1, t2, c1, c2, c3, c4 from rdb.r14 where id = 1",
             exp_query="select _wstart ts, 't1', 1, count(*) c1, avg(c1) c2, first(c1) c3, last(c1) c4 from tdb.t1 where ts >='2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(5m) fill(value, 0, null, null, null);",
         )
-        # self.streams.append(stream) TD-35989
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=15,
@@ -441,7 +441,7 @@ class TestStreamSubquerySliding:
             res_query="select ts, c1, c2, c3, c4, id, name from rdb.r35 where id = 1",
             exp_query="select _wstart ts, count(c1) c1, sum(c2) c2, 1, '1', 1, '1' from tdb.t1 where ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:35:00.000' interval(5m);",
         )
-        # self.streams.append(stream) TD-36449 TD-36404
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=36,
