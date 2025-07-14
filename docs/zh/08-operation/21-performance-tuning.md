@@ -23,10 +23,12 @@ TDengine 提供了内存分配器配置脚本 `set_taos_malloc.sh`，用于优�
 #### 结果说明
 
 - 脚本会自动生成/更新如下环境变量文件：
-  - Shell 环境变量文件：`${TAOS_DIR}/bin/set_taos_malloc_env.sh`
+  - Shell 环境变量文件：`/usr/local/taos/bin/set_taos_malloc_env.sh`
   - systemd taosd 环境变量文件：`/etc/default/taosd`
   - systemd taosadapter 环境变量文件：`/etc/default/taosadapter`
-- 日志文件：`${TAOS_DIR}/log/set_taos_malloc.log`
+- 日志文件：`/var/log/taos/set_taos_malloc.log`
+
+`/usr/local/taos` 和 `/var/log/taos` 是 TDengine 默认的安装路径和日志路径。
 
 ## 注意事项
 
