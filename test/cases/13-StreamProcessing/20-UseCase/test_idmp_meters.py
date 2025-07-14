@@ -483,15 +483,25 @@ class Test_IDMP_Meters:
         # verify stream4_sub7
 
         # verify stream4_sub8
+        # ***** bug5 ****
+        #self.verify_stream4_sub8()
 
         # verify stream4_sub9
-        # ***** bug4 bug5 ****
+        # ***** bug4 ****
         #self.verify_stream4_sub9()
 
 
         # verify virtual table ts null
         # ***** bug3 ****
         #self.check_vt_ts()
+
+    def verify_stream4_sub8(self):
+        # result_stream4_sub8
+        tdSql.checkResultsBySql(
+            sql     = f"select * from {self.vdb}.`result_stream4_sub8` ", 
+            exp_sql = f"select ts,1,voltage,power from asset01.`em-4` where ts >= 1752574200000 limit 119;"
+        )
+        tdLog.info("verify stream4_sub8 ............................. successfully.")
 
     def verify_stream4_sub9(self):
         # result_stream4_sub9
