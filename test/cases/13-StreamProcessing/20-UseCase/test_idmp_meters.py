@@ -495,6 +495,7 @@ class Test_IDMP_Meters:
 
     def verify_stream4_sub9(self):
         # result_stream4_sub9
+        ts = 1752487800000
         result_sql = f"select * from {self.vdb}.`result_stream4_sub9` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
@@ -502,9 +503,10 @@ class Test_IDMP_Meters:
         )
 
         for i in range(tdSql.getRows()):
-            tdSql.checkData(i, 1, i+1)
+            tdSql.checkData(i, 0, ts + i * (1 * 60 * 1000))
+            tdSql.checkData(i, 1, i + 1)
             tdSql.checkData(i, 2, 400)
-            tdSql.checkData(i, 3, (i + 1) * 400)
+            tdSql.checkData(i, 3, (i + 1) * 200)
 
         tdLog.info("verify stream4_sub9 ............................. successfully.")
 
