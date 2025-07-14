@@ -988,11 +988,11 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=103,
-            stream="create stream rdb.s103 interval(5m) sliding(5m) from tdb.vtriggers partition by tbname into rdb.r103 as select cvarchar like 'a', not like, regexp, not regexp from tdb.vtriggers where tbname=%%tbname limit 1 offset 1 ",
-            res_query="select * from rdb.r103",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s103 interval(5m) sliding(5m) from tdb.vtriggers partition by tbname into rdb.r103 as select ts, cast(c1 as varchar) like '0' t1, cast(c1 as varchar) not like '0' t2, cast(c1 as varchar) regexp '[0-9]+' t3, cast(c1 as varchar) not regexp '[0-9]+' t4 from tdb.vtriggers where tbname=%%tbname and ts >= _twstart and ts < _twend limit 1",
+            res_query="select * from rdb.r103 where tag_tbname='v1' limit 1 offset 1",
+            exp_query="select ts, cast(c1 as varchar) like '0' t1, cast(c1 as varchar) not like '0' t2, cast(c1 as varchar) regexp '[0-9]+' t3, cast(c1 as varchar) not regexp '[0-9]+' t4, tbname from tdb.vtriggers where tbname='v1' and ts >= '2025-01-01 00:05:00.000' and ts < '2025-01-01 00:35:00.000' limit 1",
         )
-        # self.streams.append(stream) TD-36175
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=104,
