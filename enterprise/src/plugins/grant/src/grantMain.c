@@ -234,6 +234,8 @@ static const char *gConnDisplay[CONN_TYPE_DYN_MAX] = {
 
 static const char gGrantName[GRANT_OPT_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
     "basic",         "service",   "stream",         "subscription",   "audit",         "csv",
+    // NOTE: 'object_storage' is actually 'shared storage' now, it should be renamed for consistence,
+    // but was not because of backward compatibility issues.
     "view",          "storage",   "backup_restore", "object_storage", "active_active", "dual_replica",
     "db_encryption", "data_sync", "tdgpt",          "mount"};
 
@@ -246,7 +248,7 @@ static const char *gGrantDisplay[GRANT_OPT_DYN_MAX] = {"Basic",
                                                        "View",
                                                        "Multi-Tier Storage",
                                                        "Data Backup & Restore",
-                                                       "Object Storage",
+                                                       "Shared Storage",
                                                        "Active-Active",
                                                        "Dual-Replica HA",
                                                        "Database Encryption",
@@ -477,8 +479,8 @@ static void grantInitShowFlags() {
 #if !defined(TD_INDUSTRY) || defined(TD_FUNC_DATA_BAK_RESTORE)
   grantHandle.showOpts[GRANT_OPT_DATA_BAK_RST] = 1;
 #endif
-#if !defined(TD_INDUSTRY) || defined(TD_FUNC_OBJECT_STORAGE)
-  grantHandle.showOpts[GRANT_OPT_OBJECT_STORAGE] = 1;
+#if !defined(TD_INDUSTRY) || defined(TD_FUNC_SHARED_STORAGE)
+  grantHandle.showOpts[GRANT_OPT_SHARED_STORAGE] = 1;
 #endif
 #if !defined(TD_INDUSTRY) || defined(TD_FUNC_ACTIVE_ACTIVE)
   grantHandle.showOpts[GRANT_OPT_ACTIVE_ACTIVE] = 1;
@@ -589,7 +591,7 @@ static void grantStatusInit(SGrantStatus *pStatus) {
   GRANT_OPT_LIMITS_INIT(pStatus->limitViews, GRANT_OPT_VIEW);
   GRANT_OPT_EXPIRE_INIT(pStatus->multiTierExpireSec, pStatus->multiTierExpired, GRANT_OPT_STORAGE);
   GRANT_OPT_EXPIRE_INIT(pStatus->bakRstExpireSec, pStatus->placeHolder, GRANT_OPT_DATA_BAK_RST);
-  GRANT_OPT_EXPIRE_INIT(pStatus->objectStorageExpireSec, pStatus->objectStorageExpired, GRANT_OPT_OBJECT_STORAGE);
+  GRANT_OPT_EXPIRE_INIT(pStatus->sharedStorageExpireSec, pStatus->sharedStorageExpired, GRANT_OPT_SHARED_STORAGE);
   GRANT_OPT_EXPIRE_INIT(pStatus->activeActiveExpireSec, pStatus->placeHolder, GRANT_OPT_ACTIVE_ACTIVE);
   GRANT_OPT_EXPIRE_INIT(pStatus->dualReplicaHAExpireSec, pStatus->dualReplicaHAExpired, GRANT_OPT_DUAL_REPLICA_HA);
   GRANT_OPT_EXPIRE_INIT(pStatus->dbEncryptionExpireSec, pStatus->dbEncryptionExpired, GRANT_OPT_DB_ENCRYPTION);
@@ -1029,9 +1031,9 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
     for (int32_t i = 0; i < nVariantGrantItems; ++i) {
       SGrantItemI64 *pItemI64 = TARRAY_GET_ELEM(pObj->pItemI64, i);
       switch (pItemI64->index) {
-        case GRANT_OPT_OBJECT_STORAGE: {
-          GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.objectStorageExpireSec, 86400, dftExpireSec,
-                               grantHandle.showOpts[GRANT_OPT_OBJECT_STORAGE]);
+        case GRANT_OPT_SHARED_STORAGE: {
+          GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.sharedStorageExpireSec, 86400, dftExpireSec,
+                               grantHandle.showOpts[GRANT_OPT_SHARED_STORAGE]);
         } break;
         case GRANT_OPT_ACTIVE_ACTIVE: {
           GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.activeActiveExpireSec, 86400, dftExpireSec,
@@ -1109,7 +1111,7 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
   GRANT_ITEM_LIMIT_CHECK(gStatus.subscriptionExpireSec, grantCurTime, 1, gStatus.subscriptionExpired);
   GRANT_ITEM_LIMIT_CHECK(gStatus.viewExpireSec, grantCurTime, 1, gStatus.viewExpired);
   GRANT_ITEM_LIMIT_CHECK(gStatus.multiTierExpireSec, grantCurTime, 1, gStatus.multiTierExpired);
-  GRANT_ITEM_LIMIT_CHECK(gStatus.objectStorageExpireSec, grantCurTime, 1, gStatus.objectStorageExpired);
+  GRANT_ITEM_LIMIT_CHECK(gStatus.sharedStorageExpireSec, grantCurTime, 1, gStatus.sharedStorageExpired);
   GRANT_ITEM_LIMIT_CHECK(gStatus.dualReplicaHAExpireSec, grantCurTime, 1, gStatus.dualReplicaHAExpired);
   GRANT_ITEM_LIMIT_CHECK(gStatus.dbEncryptionExpireSec, grantCurTime, 1, gStatus.dbEncryptionExpired);
   GRANT_ITEM_LIMIT_CHECK(gStatus.tdGptExpireSec, grantCurTime, 1, gStatus.tdGptExpired);
@@ -1930,8 +1932,8 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.csvExpireSec, optExpireSec, gStatus.csvExpired, optExpired, GRANT_OPT_CSV);
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.bakRstExpireSec, optExpireSec, gStatus.placeHolder, 0, GRANT_OPT_DATA_BAK_RST);
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.viewExpireSec, optExpireSec, gStatus.viewExpired, optExpired, GRANT_OPT_VIEW);
-    GRANT_OPT_EXPIRE_ASSIGN(gStatus.objectStorageExpireSec, optExpireSec, gStatus.objectStorageExpired, optExpired,
-                            GRANT_OPT_OBJECT_STORAGE);
+    GRANT_OPT_EXPIRE_ASSIGN(gStatus.sharedStorageExpireSec, optExpireSec, gStatus.sharedStorageExpired, optExpired,
+                            GRANT_OPT_SHARED_STORAGE);
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.activeActiveExpireSec, optExpireSec, gStatus.placeHolder, 0,
                             GRANT_OPT_ACTIVE_ACTIVE);
 
@@ -2259,8 +2261,8 @@ int32_t grantCheck(EGrantType grant) {
       return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.csvExpired, TSDB_CODE_GRANT_CSV_EXPIRED);
     case TSDB_GRANT_MULTI_TIER:
       return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.multiTierExpired, TSDB_CODE_GRANT_MULTI_STORAGE_EXPIRED);
-    case TSDB_GRANT_OBJECT_STORAGE:
-      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.objectStorageExpired, TSDB_CODE_GRANT_OBJECT_STROAGE_EXPIRED);
+    case TSDB_GRANT_SHARED_STORAGE:
+      return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.sharedStorageExpired, TSDB_CODE_GRANT_SHARED_STROAGE_EXPIRED);
     case TSDB_GRANT_DUAL_REPLICA_HA:
       return GRANT_EXPIRED_OPT(gStatus.expired, gStatus.dualReplicaHAExpired, TSDB_CODE_GRANT_DUAL_REPLICA_HA_EXPIRED);
     case TSDB_GRANT_DB_ENCRYPTION:
@@ -2990,8 +2992,8 @@ static int32_t mndRetrieveGrantFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_DATA_BAK_RST],
                                              gGrantDisplay[GRANT_OPT_DATA_BAK_RST], pStatus->bakRstExpireSec, 0,
                                              GRANT_UNIQ_UNUTILIZED, 0, true));
-    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_OBJECT_STORAGE],
-                                             gGrantDisplay[GRANT_OPT_OBJECT_STORAGE], pStatus->objectStorageExpireSec,
+    TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_SHARED_STORAGE],
+                                             gGrantDisplay[GRANT_OPT_SHARED_STORAGE], pStatus->sharedStorageExpireSec,
                                              0, GRANT_UNIQ_UNUTILIZED, 0, true));
     TAOS_CHECK_EXIT(mndRetrieveGrantFullItem(pBlock, &numOfRows, gGrantName[GRANT_OPT_ACTIVE_ACTIVE],
                                              gGrantDisplay[GRANT_OPT_ACTIVE_ACTIVE], pStatus->activeActiveExpireSec, 0,
