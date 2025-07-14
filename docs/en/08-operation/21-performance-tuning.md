@@ -9,6 +9,7 @@ TDengine provides a memory allocator configuration script, `set_taos_malloc.sh`,
 `set_taos_malloc.sh` is a script provided by TDengine to quickly switch the memory allocation strategy for services such as taosd and taosadapter.
 
 ### Features
+
 - Supports multiple modes: glibc default allocator, tcmalloc, jemalloc, etc.
 - Automatically generates shell environment variable files and systemd environment variable files.
 - Supports silent mode (no output messages).
@@ -16,6 +17,7 @@ TDengine provides a memory allocator configuration script, `set_taos_malloc.sh`,
 ### Basic Usage
 
 #### Parameter Description
+
 - `-m <mode>`  
   Specify the memory allocator mode.  
   - 0: glibc default allocator  
@@ -34,7 +36,7 @@ TDengine provides a memory allocator configuration script, `set_taos_malloc.sh`,
 
 `/usr/local/taos` and `/var/log/taos` are the default installation and log paths for TDengine.
 
-## Notes
+### Notes
 
 - After modification, it is recommended to restart the taosd/taosadapter service or re-source the environment variable file.
 - Only supported when running in the TDengine installation directory.

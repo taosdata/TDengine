@@ -36,7 +36,7 @@ TDengine 提供了内存分配器配置脚本 `set_taos_malloc.sh`，用于优�
 
 `/usr/local/taos` 和 `/var/log/taos` 是 TDengine 默认的安装路径和日志路径。
 
-## 注意事项
+### 注意事项
 
 - 修改后，建议重启 taosd/taosadapter 服务或重新 source 环境变量文件。
 - 仅支持在 TDengine 安装目录下运行。
