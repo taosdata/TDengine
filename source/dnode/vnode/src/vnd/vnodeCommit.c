@@ -262,9 +262,8 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
   pInfo->config.walCfg.committed = pInfo->state.committed;
 _exit:
   if (code) {
-    if (pFile) {
-      vError("vgId:%d %s failed at %s:%d since %s", pInfo->config.vgId, __func__, __FILE__, lino, tstrerror(code));
-    }
+    vError("vgId:%d %s failed at %s:%d since %s, file:%s", pInfo->config.vgId, __func__, __FILE__, lino,
+           tstrerror(code), fname);
   }
   taosMemoryFree(pData);
   if (taosCloseFile(&pFile) != 0) {
@@ -295,7 +294,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   pInfo->txn = metaGetTxn(pVnode->pMeta);
 
   // save info
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, dir, TSDB_FILENAME_LEN);
 
   vDebug("vgId:%d, save config while prepare commit", TD_VID(pVnode));
   code = vnodeSaveInfo(dir, &pInfo->info);
@@ -439,7 +438,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     return code;
   }
 
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, dir, TSDB_FILENAME_LEN);
 
   code = syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -500,7 +499,7 @@ bool vnodeShouldRollback(SVnode *pVnode) {
   char    tFName[TSDB_FILENAME_LEN] = {0};
   int32_t offset = 0;
 
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, tFName, TSDB_FILENAME_LEN);
   offset = strlen(tFName);
   snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 
@@ -511,7 +510,7 @@ void vnodeRollback(SVnode *pVnode) {
   char    tFName[TSDB_FILENAME_LEN] = {0};
   int32_t offset = 0;
 
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, tFName, TSDB_FILENAME_LEN);
   offset = strlen(tFName);
   snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 
