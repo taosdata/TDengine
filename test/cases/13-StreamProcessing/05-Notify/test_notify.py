@@ -444,6 +444,64 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s0 state_window(cint) from ct0 "
                 f"options(DELETE_RECALC) "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) into "
+                f"res_ct0 (twstart, twend, top_cdouble_10) as "
+                f"select _twstart wstart, _twend, top(cdouble, 10) from ct0 "
+                f"where _twstart <= _c0 and _c0 <= _twend "
+            )
+
+        def insert1(self):
+            tdLog.info(f"=============== insert data into stb")
+            sqls = [
+                "insert into ct0 values ('2025-01-01 00:00:00.000', 1, 0, 1.1, 1.1, '1', 3.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:01.000', 1, 0, 1.1, 2.1, '1', 4.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:02.000', 1, 0, 1.1, 3.1, '1', 5.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:03.000', 1, 0, 1.1, 4.1, '1', 6.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:04.000', 1, 0, 1.1, 5.1, '1', 7.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:05.000', 1, 0, 1.1, 6.1, '1', 8.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:06.000', 1, 0, 1.1, 7.1, '1', 9.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:07.000', 1, 0, 1.1, 8.1, '1', 10.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:08.000', 1, 0, 1.1, 9.1, '1', 11.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:09.000', 1, 0, 1.1, 10.1, '1', 12.3333);",
+                "insert into ct0 values ('2025-01-01 00:00:10.000', 1, 0, 1.1, 11.1, '1', 13.3333);",
+            ]
+
+            tdSql.executes(sqls)
+            tdSql.execute(f"delete from ct0 where _c0 = '2025-01-01 00:00:00.000';")
+
+            tdSql.execute(f"insert into ct0 values('2025-01-01 00:00:05.000', 911, 0, 1.1, 1.1, '1', 23.123456);")
+
+        def check1(self):
+            tdLog.info("do check the results")
+
+    class Basic3(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb2"
+            self.stb = "stb"
+
+        def create(self):
+            tdLog.info(f"=============== create database")
+            tdSql.execute(f"create database {self.db} vgroups 4;")
+            tdSql.execute(f"use {self.db}")
+
+            tdSql.execute(f"create table if not exists {self.stb} (ts timestamp, cint int, cbool bool, cfloat float, cdouble double, cbytes varchar(100), cdecimal decimal(10, 2)) tags (tag1 int, tag2 int);")
+            tdSql.query(f"show stables")
+            tdSql.checkRows(1)
+
+            tdLog.info(f"=============== create sub table")
+            tdSql.execute(f"create table ct0 using {self.stb} tags(0, 1);")
+            tdSql.execute(f"create table ct1 using {self.stb} tags(1, 2);")
+            tdSql.execute(f"create table ct2 using {self.stb} tags(2, 3);")
+            tdSql.execute(f"create table ct3 using {self.stb} tags(3, 4);")
+
+            tdSql.query(f"show tables")
+            tdSql.checkRows(4)
+
+
+            tdLog.info(f"=============== create stream")
+            tdSql.execute(
+                f"create stream s0 state_window(cint) from ct0 "
+                f"options(DELETE_RECALC) "
                 f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
                 f"res_ct0 (firstts, lastts, cnt_v, sum_v, avg_v, sum_dec) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint), sum(cdecimal) from ct0 "
