@@ -3421,25 +3421,11 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
       SSTriggerTableMeta *pCurTableMeta = pGroup->pCurTableMeta;
       SSTriggerMetaData  *pMetaToFetch = pContext->pMetaToFetch;
-      if (pTask->isVirtualTable && type == STRIGGER_PULL_WAL_TS_DATA) {
-        // work around for virtual table
-        type = STRIGGER_PULL_WAL_DATA;
-        SSTriggerWalDataRequest *pReq = &pContext->pullReq.walDataReq;
-        pReq->uid = pCurTableMeta->tbUid;
-        pReq->ver = pMetaToFetch->ver;
-        pReq->skey = pMetaToFetch->skey;
-        pReq->ekey = pMetaToFetch->ekey;
-        pReq->cids = pContext->reqCids;
-        taosArrayClear(pContext->reqCids);
-        *(col_id_t *)TARRAY_DATA(pReq->cids) = PRIMARYKEY_TIMESTAMP_COL_ID;
-        TARRAY_SIZE(pReq->cids) = 1;
-      } else {
-        SSTriggerWalRequest *pReq = &pContext->pullReq.walReq;
-        pReq->uid = pCurTableMeta->tbUid;
-        pReq->ver = pMetaToFetch->ver;
-        pReq->skey = pMetaToFetch->skey;
-        pReq->ekey = pMetaToFetch->ekey;
-      }
+      SSTriggerWalDataRequest *pReq = &pContext->pullReq.walDataReq;
+      pReq->uid = pCurTableMeta->tbUid;
+      pReq->ver = pMetaToFetch->ver;
+      pReq->skey = pMetaToFetch->skey;
+      pReq->ekey = pMetaToFetch->ekey;
       SSTriggerWalProgress *pProgress =
           tSimpleHashGet(pContext->pReaderWalProgress, &pCurTableMeta->vgId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -6273,7 +6259,12 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
     }
   }
 
-  pTask->trigTsIndex = pMsg->triTsSlotId;
+  if (pTask->triggerType == STREAM_TRIGGER_SESSION || pTask->triggerType == STREAM_TRIGGER_SLIDING
+      || pTask->triggerType == STREAM_TRIGGER_COUNT) {
+    pTask->trigTsIndex = 0;
+  } else {
+    pTask->trigTsIndex = pMsg->triTsSlotId;
+  }
   pTask->calcTsIndex = pMsg->calcTsSlotId;
   pTask->maxDelay = pMsg->maxDelay * NANOSECOND_PER_MSEC;
   pTask->fillHistoryStartTime = pMsg->fillHistoryStartTime;

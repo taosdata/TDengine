@@ -3272,21 +3272,23 @@ int32_t decodeColsArray(SDecoder* decoder, SArray** cids) {
   int32_t size = 0;
 
   TAOS_CHECK_EXIT(tDecodeI32(decoder, &size));
-  *cids = taosArrayInit(size, sizeof(col_id_t));
-  if (*cids == NULL) {
-    code = terrno;
-    uError("failed to allocate memory for cids, size: %d, errno: %d", size, code);
-    goto _exit;
-  }
-
-  for (int32_t i = 0; i < size; ++i) {
-    col_id_t* pColId = taosArrayReserve(*cids, 1);
-    if (pColId == NULL) {
+  if (size > 0){
+    *cids = taosArrayInit(size, sizeof(col_id_t));
+    if (*cids == NULL) {
       code = terrno;
-      uError("failed to reserve memory for col id at index %d, errno: %d", i, code);
+      uError("failed to allocate memory for cids, size: %d, errno: %d", size, code);
       goto _exit;
     }
-    TAOS_CHECK_RETURN(tDecodeI16(decoder, pColId));
+  
+    for (int32_t i = 0; i < size; ++i) {
+      col_id_t* pColId = taosArrayReserve(*cids, 1);
+      if (pColId == NULL) {
+        code = terrno;
+        uError("failed to reserve memory for col id at index %d, errno: %d", i, code);
+        goto _exit;
+      }
+      TAOS_CHECK_RETURN(tDecodeI16(decoder, pColId));
+    }  
   }
   
 _exit:
@@ -3395,14 +3397,7 @@ int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTrigger
     }
     case STRIGGER_PULL_WAL_TS_DATA:
     case STRIGGER_PULL_WAL_TRIGGER_DATA:
-    case STRIGGER_PULL_WAL_CALC_DATA: {
-      SSTriggerWalRequest* pRequest = (SSTriggerWalRequest*)pReq;
-      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
-      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ver));
-      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->skey));
-      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->ekey));
-      break;
-    }
+    case STRIGGER_PULL_WAL_CALC_DATA:
     case STRIGGER_PULL_WAL_DATA: {
       SSTriggerWalDataRequest* pRequest = (SSTriggerWalDataRequest*)pReq;
       TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRequest->uid));
@@ -3564,14 +3559,7 @@ int32_t tDserializeSTriggerPullRequest(void* buf, int32_t bufLen, SSTriggerPullR
     }
     case STRIGGER_PULL_WAL_TS_DATA:
     case STRIGGER_PULL_WAL_TRIGGER_DATA:
-    case STRIGGER_PULL_WAL_CALC_DATA: {
-      SSTriggerWalRequest* pRequest = &(pReq->walReq);
-      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));
-      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ver));
-      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->skey));
-      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->ekey));
-      break;
-    }
+    case STRIGGER_PULL_WAL_CALC_DATA:
     case STRIGGER_PULL_WAL_DATA: {
       SSTriggerWalDataRequest* pRequest = &(pReq->walDataReq);
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRequest->uid));

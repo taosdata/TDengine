@@ -108,23 +108,6 @@ class TDTestCase:
 
         return
 
-    def checkDataTable(self):
-        '''tdSql.execute('use db_taosx')
-        tdSql.query("select * from meters_summary")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 120)
-        tdSql.checkData(0, 2, 1)
-        tdSql.checkData(0, 3, "San Francisco")
-
-        tdSql.execute('use abc1')
-        tdSql.query("select * from meters_summary")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 120)
-        tdSql.checkData(0, 2, 1)
-        tdSql.checkData(0, 3, "San Francisco")
-        '''
-        return
-
     def checkData(self):
         tdSql.execute('use db_taosx')
         tdSql.query("select * from tb1")
@@ -243,8 +226,7 @@ class TDTestCase:
         os.system(cmdStr)
 
         self.checkJson(cfgPath, "tmq_taosx_tmp")
-        self.checkDataTable()
-
+    
         return
 
     def checkWalMultiVgroups(self):
@@ -313,7 +295,6 @@ class TDTestCase:
         os.system(cmdStr)
 
         self.checkJson(cfgPath, "tmq_taosx_tmp_snapshot")
-        self.checkDataTable()
 
         return
     
@@ -325,7 +306,6 @@ class TDTestCase:
         os.system(cmdStr)
 
         self.checkJson(cfgPath, "tmq_taosx_tmp_snapshot")
-        self.checkDataTable()
 
         return
 

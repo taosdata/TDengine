@@ -390,4 +390,3 @@ class TestStreamParametersAlter:
                 tdLog.info(f"stream running status: {streamRunning}")
                 time.sleep(1)
 
-
