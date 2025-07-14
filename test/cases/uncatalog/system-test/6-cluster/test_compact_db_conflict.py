@@ -12,7 +12,7 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, tdCom
 import threading
-
+import time
 
 class TestCompactDbConflict:
     def setup_class(cls):
@@ -133,20 +133,20 @@ class TestCompactDbConflict:
         tdLog.info("compact db start")
         newtdSql.execute('compact DATABASE db')
         event.set()
-        if self.waitCompactsZero(atdSql=newtdSql) is False:
+        if self.wait_compacts_zero(atdSql=newtdSql) is False:
                 tdLog.info(f"compact not finished")
 
     def alterDBThread(self, p, newtdSql):
         tdLog.info("alter db start")
         newtdSql.execute('ALTER DATABASE db REPLICA 3')
         if self.waitTransactionZero(atdSql=newtdSql) is False:
-                tdLog.info(f"transaction not finished")
+            tdLog.info(f"transaction not finished")
 
     def balanceVGROUPThread(self, p, newtdSql):
         tdLog.info("balance VGROUP start")
         newtdSql.execute('BALANCE VGROUP')
         if self.waitTransactionZero(atdSql=newtdSql) is False:
-                tdLog.info(f"transaction not finished")
+            tdLog.info(f"transaction not finished")
 
     def RedistributeVGroups(self, p, newtdSql):
         tdLog.info("REDISTRIBUTE VGROUP start")
@@ -194,7 +194,7 @@ class TestCompactDbConflict:
             time.sleep(interval)
         
         return False 
-    def waitCompactsZero(self, atdSql, seconds = 300, interval = 1):
+    def wait_compacts_zero(self, atdSql, seconds = 300, interval = 1):
         # wait end
         for i in range(seconds):
             sql ="show compacts;"

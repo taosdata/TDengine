@@ -24,7 +24,6 @@ class TestCase:
         cls.mnodeEpIndex = 1
         cls.dnodeStatusIndex = 4
         cls.mnodeCheckCnt    = 10
-        cls.host = socket.gethostname()
         cls.startPort = 6030
         cls.portStep = 100
         cls.dnodeOfLeader = 0
