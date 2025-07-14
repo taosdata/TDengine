@@ -531,11 +531,6 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
     tagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
   }
 
-  int32_t numOfFixedTags = 0;
-  if (tags->parseredTags) {
-    numOfFixedTags = tags->parseredTags->numOfTags;
-  }
-
   if (!tagName) {
     code = buildInvalidOperationMsg(&pBuf, "out of memory");
     goto end;

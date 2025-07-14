@@ -1232,10 +1232,11 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
 
     taosMemoryFreeClear(pStmt->exec.pRequest->pDb);
     pStmt->exec.pRequest->pDb = taosStrdup(pStmt->db);
-    (void)strdequote(pStmt->exec.pRequest->pDb);
     if (pStmt->exec.pRequest->pDb == NULL) {
       return terrno;
     }
+    (void)strdequote(pStmt->exec.pRequest->pDb);
+
     if (pStmt->sql.stbInterlaceMode) {
       pStmt->sql.siInfo.dbname = pStmt->exec.pRequest->pDb;
     }

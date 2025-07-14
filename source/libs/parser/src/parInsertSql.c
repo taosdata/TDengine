@@ -1060,6 +1060,10 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
       } else {
         pCxt->stmtTbNameFlag &= ~IS_FIXED_TAG;
         pCxt->tags.parseredTags = taosMemoryMalloc(sizeof(STagsInfo));
+        if (pCxt->tags.parseredTags == NULL) {
+          code = terrno;
+          goto _exit;
+        }
         pCxt->tags.parseredTags->numOfTags = numOfTags;
         pCxt->tags.parseredTags->pTagIndex = pTagsIndex;
         pCxt->tags.parseredTags->pTagVals = pTagVals;
@@ -2113,7 +2117,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
           if (code == TSDB_CODE_SUCCESS && pCxt->pParsedValues == NULL) {
             pCxt->pParsedValues = taosArrayInit(16, sizeof(SColVal));
             if (pCxt->pParsedValues == NULL) {
-              code = terrno;
+              return terrno;
             }
           }
 
@@ -2144,8 +2148,9 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
               pCxt->tags.parseredTags->pTagIndex = taosMemoryCalloc(numOfTags, sizeof(uint8_t));
               pCxt->tags.parseredTags->numOfTags = 0;
 
-              if (pCxt->tags.parseredTags->STagNames == NULL || pCxt->tags.parseredTags->pTagVals == NULL) {
-                code = terrno;
+              if (pCxt->tags.parseredTags->STagNames == NULL || pCxt->tags.parseredTags->pTagVals == NULL ||
+                  pCxt->tags.parseredTags->pTagIndex == NULL) {
+                return terrno;
               }
             }
           }
