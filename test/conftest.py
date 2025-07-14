@@ -247,9 +247,17 @@ def before_test_class(request):
 
     # 处理-Q参数，如果-Q参数不等于1，则创建qnode，并设置queryPolicy
     if request.session.query_policy != 1:
-        tdSql.execute(f'alter local "queryPolicy" "{request.session.query_policy}"')
         tdSql.execute("create qnode on dnode 1")
-        tdSql.execute("show local variables")
+        tdSql.execute(f'alter local "queryPolicy" "{request.session.query_policy}"')
+        tdSql.query("show local variables")
+        for i in range(len(tdSql.queryResult)):
+            if tdSql.queryResult[i][0] == "queryPolicy" :
+                if int(tdSql.queryResult[i][1]) == int(request.session.query_policy):
+                    tdLog.info(f'alter queryPolicy to {request.session.query_policy} successfully')
+                else:
+                    tdLog.debug(tdSql.queryResult)
+                    tdLog.exit(f"alter queryPolicy to  {request.session.query_policy} failed")
+    
 
     if request.session.skip_test:
         pytest.skip("skip test")

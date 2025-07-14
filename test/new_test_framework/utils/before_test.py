@@ -233,8 +233,6 @@ class BeforeTest:
                 "mqttPort": dnode_config["mqttPort"],
             }
             tdLog.debug(f"[BeforeTest.ci_init_config] dnode: {dnode}")
-            # if request.session.query_policy > 1:
-            #     dnode["config"]["queryPolicy"] = request.session.query_policy
             if request.session.independentMnode and i < request.session.mnodes_num:
                 dnode["config"]["supportVnodes"] = 0
             if request.session.asan:
