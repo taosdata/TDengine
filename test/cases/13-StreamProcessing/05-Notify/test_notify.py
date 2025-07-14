@@ -31,7 +31,7 @@ class TestStreamNotifyTrigger:
         tdStream.createSnode()
 
         tdLog.info(f"=============== create database")
-        tdSql.prepare(dbname="sdb", vgroups=1)
+        tdSql.prepare(dbname="sdb", vgroups=5)
 
         tdLog.info(f"=============== create super table")
         tdSql.execute(f"create stable stb (cts timestamp, cint int, cuint int unsigned) tags(tint int);")
@@ -43,16 +43,20 @@ class TestStreamNotifyTrigger:
         tdSql.execute(f"create table ct4 using stb tags(2);")
         
         tdLog.info(f"=============== create stream")
-        sql1 = "create stream s1 state_window(cint) from ct1                           notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into res_ct1 (firstts, lastts, num_v, cnt_v, avg_v) as select first(_c0), last_row(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        sql1 = ("create stream s1 state_window(cint) from ct1                           "
+                "notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
+                "res_ct1 (firstts, lastts, num_v, cnt_v, avg_v) as "
+                "select first(_c0), last_row(_c0), _twrownum, count(*), avg(cuint) from %%trows")
+
         sql2 = "create stream s2 state_window(cint) from ct2                           notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into res_ct2 (firstts, lastts, num_v, cnt_v, avg_v) as select first(_c0), last_row(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
         sql3 = "create stream s3 state_window(cint) from stb partition by tbname       notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into stb_res OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), last_row(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname;"
         sql4 = "create stream s4 state_window(cint) from stb partition by tbname, tint notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', tbname, '_', cast(tint as varchar))) (firstts, lastts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), last_row(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by %%1, %%2;"
-         
+
         streams = [
             self.StreamItem(sql1, self.checks1),
-            # self.StreamItem(sql2, self.checks2),
-            # self.StreamItem(sql3, self.checks3),
-            # self.StreamItem(sql4, self.checks4),
+            self.StreamItem(sql2, self.checks2),
+            self.StreamItem(sql3, self.checks3),
+            self.StreamItem(sql4, self.checks4),
         ]
 
         for stream in streams:
@@ -216,19 +220,22 @@ class TestStreamNotifyTrigger:
 
         tdSql.query("desc sdb.res_ct2")
         tdSql.printResult()
-        tdSql.checkRows(4)
+        tdSql.checkRows(5)
         tdSql.checkData(0, 0, "firstts")
-        tdSql.checkData(1, 0, "num_v")
-        tdSql.checkData(2, 0, "cnt_v")
-        tdSql.checkData(3, 0, "avg_v")
+        tdSql.checkData(1, 0, "lastts")
+        tdSql.checkData(2, 0, "num_v")
+        tdSql.checkData(3, 0, "cnt_v")
+        tdSql.checkData(4, 0, "avg_v")
         tdSql.checkData(0, 1, "TIMESTAMP")
-        tdSql.checkData(1, 1, "BIGINT")
+        tdSql.checkData(1, 1, "TIMESTAMP")
         tdSql.checkData(2, 1, "BIGINT")
-        tdSql.checkData(3, 1, "DOUBLE")
+        tdSql.checkData(3, 1, "BIGINT")
+        tdSql.checkData(4, 1, "DOUBLE")
         tdSql.checkData(0, 2, "8")
         tdSql.checkData(1, 2, "8")
         tdSql.checkData(2, 2, "8")
         tdSql.checkData(3, 2, "8")
+        tdSql.checkData(4, 2, "8")
         tdLog.info(f"=============== check s2 result success !!!!!!!! =====================")
         return
 
@@ -250,27 +257,30 @@ class TestStreamNotifyTrigger:
 
         tdSql.query("desc sdb.stb_res")
         tdSql.printResult()
-        tdSql.checkRows(6)
+        tdSql.checkRows(7)
         tdSql.checkData(0, 0, "firstts")
-        tdSql.checkData(1, 0, "num_v")
-        tdSql.checkData(2, 0, "cnt_v")
-        tdSql.checkData(3, 0, "avg_v")
-        tdSql.checkData(4, 0, "nameoftbl")
-        tdSql.checkData(5, 0, "gid")
+        tdSql.checkData(1, 0, "lastts")
+        tdSql.checkData(2, 0, "num_v")
+        tdSql.checkData(3, 0, "cnt_v")
+        tdSql.checkData(4, 0, "avg_v")
+        tdSql.checkData(5, 0, "nameoftbl")
+        tdSql.checkData(6, 0, "gid")
         tdSql.checkData(0, 1, "TIMESTAMP")
-        tdSql.checkData(1, 1, "BIGINT")
+        tdSql.checkData(1, 1, "TIMESTAMP")
         tdSql.checkData(2, 1, "BIGINT")
-        tdSql.checkData(3, 1, "DOUBLE")
-        tdSql.checkData(4, 1, "VARCHAR")
-        tdSql.checkData(5, 1, "BIGINT")
+        tdSql.checkData(3, 1, "BIGINT")
+        tdSql.checkData(4, 1, "DOUBLE")
+        tdSql.checkData(5, 1, "VARCHAR")
+        tdSql.checkData(6, 1, "BIGINT")
         tdSql.checkData(0, 2, "8")
         tdSql.checkData(1, 2, "8")
         tdSql.checkData(2, 2, "8")
         tdSql.checkData(3, 2, "8")
-        tdSql.checkData(4, 2, "128")
-        tdSql.checkData(5, 2, "8")
-        tdSql.checkData(4, 3, "TAG")
+        tdSql.checkData(4, 2, "8")
+        tdSql.checkData(5, 2, "128")
+        tdSql.checkData(6, 2, "8")
         tdSql.checkData(5, 3, "TAG")
+        tdSql.checkData(6, 3, "TAG")
         tdLog.info(f"=============== check s3 result success !!!!!!!! =====================")
         return
 
@@ -292,27 +302,30 @@ class TestStreamNotifyTrigger:
 
         tdSql.query("desc sdb.stb_mtag_res")
         tdSql.printResult()
-        tdSql.checkRows(6)
+        tdSql.checkRows(7)
         tdSql.checkData(0, 0, "firstts")
-        tdSql.checkData(1, 0, "num_v")
-        tdSql.checkData(2, 0, "cnt_v")
-        tdSql.checkData(3, 0, "avg_v")
-        tdSql.checkData(4, 0, "nameoftbl")
-        tdSql.checkData(5, 0, "gid")
+        tdSql.checkData(1, 0, "lastts")
+        tdSql.checkData(2, 0, "num_v")
+        tdSql.checkData(3, 0, "cnt_v")
+        tdSql.checkData(4, 0, "avg_v")
+        tdSql.checkData(5, 0, "nameoftbl")
+        tdSql.checkData(6, 0, "gid")
         tdSql.checkData(0, 1, "TIMESTAMP")
-        tdSql.checkData(1, 1, "BIGINT")
+        tdSql.checkData(1, 1, "TIMESTAMP")
         tdSql.checkData(2, 1, "BIGINT")
-        tdSql.checkData(3, 1, "DOUBLE")
-        tdSql.checkData(4, 1, "VARCHAR")
-        tdSql.checkData(5, 1, "BIGINT")
+        tdSql.checkData(3, 1, "BIGINT")
+        tdSql.checkData(4, 1, "DOUBLE")
+        tdSql.checkData(5, 1, "VARCHAR")
+        tdSql.checkData(6, 1, "BIGINT")
         tdSql.checkData(0, 2, "8")
         tdSql.checkData(1, 2, "8")
         tdSql.checkData(2, 2, "8")
         tdSql.checkData(3, 2, "8")
-        tdSql.checkData(4, 2, "128")
-        tdSql.checkData(5, 2, "8")
-        tdSql.checkData(4, 3, "TAG")
+        tdSql.checkData(4, 2, "8")
+        tdSql.checkData(5, 2, "128")
+        tdSql.checkData(6, 2, "8")
         tdSql.checkData(5, 3, "TAG")
+        tdSql.checkData(6, 3, "TAG")
         tdLog.info(f"=============== check s4 result success !!!!!!!! =====================")
         return
 
