@@ -760,11 +760,11 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=75,
-            stream="create stream rdb.s75 interval(5m) sliding(5m) from tdb.vtriggers partition by id into rdb.r75 as select _wstart, twa(k), avg(k),count(1) from tdb.vtriggers where id=%%1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:07:00' interval(1m) fill(prev)",
-            res_query="select * from rdb.r75",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s75 interval(5m) sliding(5m) from tdb.vtriggers partition by id into rdb.r75 as select _wstart, twa(c1), avg(c1), count(c1) from tdb.vtriggers where id=%%1 and ts>=_twstart and ts < _twend interval(1m) fill(prev)",
+            res_query="select * from rdb.r75 where id=1 limit 5",
+            exp_query="select _wstart, twa(c1), avg(c1), count(c1), 1 from tdb.vtriggers where id=1 and ts >= '2025-01-01 00:00:00.000' and ts < '2025-01-01 00:05:00.000' interval(1m) fill(prev)",
         )
-        # self.streams.append(stream) TD-36554
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=76,
