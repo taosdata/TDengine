@@ -17,8 +17,6 @@ class TestStreamOptionsTrigger:
         streams.append(self.Basic0())  # WATERMARK [ok]
         # streams.append(self.Basic1())  # EXPIRED_TIME   fail 
         streams.append(self.Basic2())  # IGNORE_DISORDER  [ok]
-        
-        # TD-36343 [流计算开发阶段] 流计算state窗口+delete_recalc删除数据后重算结果错误
         streams.append(self.Basic3())  # DELETE_RECALC  [ok]
         
         # TD-36305 [流计算开发阶段] 流计算state窗口+超级表%%rows+delete_output_table没有删除结果表
@@ -26,7 +24,7 @@ class TestStreamOptionsTrigger:
         
         streams.append(self.Basic5())  # FILL_HISTORY        [ok]
         streams.append(self.Basic6())  # FILL_HISTORY_FIRST  [ok]
-        streams.append(self.Basic7())  # CALC_NOTIFY_ONLY
+        streams.append(self.Basic7())  # CALC_NOTIFY_ONLY [ok]
         # # streams.append(self.Basic8())  # LOW_LATENCY_CALC  temp no test
         streams.append(self.Basic9())  # PRE_FILTER     [ok]
         streams.append(self.Basic10()) # FORCE_OUTPUT   [ok] 
