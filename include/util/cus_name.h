@@ -21,9 +21,9 @@
 //
 #ifndef TD_PRODUCT_NAME
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA)
-#define TD_PRODUCT_NAME "TDengine Enterprise Edition"
+#define TD_PRODUCT_NAME "TDengine TSDB-Enterprise"
 #else
-#define TD_PRODUCT_NAME "TDengine Community Edition"
+#define TD_PRODUCT_NAME "TDengine TSDB-OSS"
 #endif
 #endif
 
