@@ -7024,10 +7024,11 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
   timeRange = res < 0 ? res == INT64_MIN ? INT64_MAX : -res : res;
   if (IS_CALENDAR_TIME_DURATION(pInterval->unit)) {
     int64_t f = 1;
+    int64_t tickPerDay = convertTimePrecision(MILLISECOND_PER_DAY, TSDB_TIME_PRECISION_MILLI, precision);
     if (pInterval->unit == 'n') {
-      f = 30LL * MILLISECOND_PER_DAY;
+      f = 30LL * tickPerDay;
     } else if (pInterval->unit == 'y') {
-      f = 365LL * MILLISECOND_PER_DAY;
+      f = 365LL * tickPerDay;
     }
     intervalRange = pInterval->datum.i * f;
   } else {
