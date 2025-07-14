@@ -16,7 +16,7 @@ TARGET_INCLUDE_DIRECTORIES(
 
 TARGET_LINK_LIBRARIES(
   streamRunnerTest
-  PUBLIC taos os common executor tcs function index
+  PUBLIC taos os common executor function index
 )
 
 add_test(
