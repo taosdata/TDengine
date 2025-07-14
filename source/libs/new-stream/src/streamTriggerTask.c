@@ -3417,15 +3417,29 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
     case STRIGGER_PULL_WAL_TS_DATA:
     case STRIGGER_PULL_WAL_TRIGGER_DATA:
     case STRIGGER_PULL_WAL_CALC_DATA: {
-      SSTriggerWalRequest    *pReq = &pContext->pullReq.walReq;
       SSTriggerRealtimeGroup *pGroup = stRealtimeContextGetCurrentGroup(pContext);
       QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
       SSTriggerTableMeta *pCurTableMeta = pGroup->pCurTableMeta;
       SSTriggerMetaData  *pMetaToFetch = pContext->pMetaToFetch;
-      pReq->uid = pCurTableMeta->tbUid;
-      pReq->ver = pMetaToFetch->ver;
-      pReq->skey = pMetaToFetch->skey;
-      pReq->ekey = pMetaToFetch->ekey;
+      if (pTask->isVirtualTable && type == STRIGGER_PULL_WAL_TS_DATA) {
+        // work around for virtual table
+        type = STRIGGER_PULL_WAL_DATA;
+        SSTriggerWalDataRequest *pReq = &pContext->pullReq.walDataReq;
+        pReq->uid = pCurTableMeta->tbUid;
+        pReq->ver = pMetaToFetch->ver;
+        pReq->skey = pMetaToFetch->skey;
+        pReq->ekey = pMetaToFetch->ekey;
+        pReq->cids = pContext->reqCids;
+        taosArrayClear(pContext->reqCids);
+        *(col_id_t *)TARRAY_DATA(pReq->cids) = PRIMARYKEY_TIMESTAMP_COL_ID;
+        TARRAY_SIZE(pReq->cids) = 1;
+      } else {
+        SSTriggerWalRequest *pReq = &pContext->pullReq.walReq;
+        pReq->uid = pCurTableMeta->tbUid;
+        pReq->ver = pMetaToFetch->ver;
+        pReq->skey = pMetaToFetch->skey;
+        pReq->ekey = pMetaToFetch->ekey;
+      }
       SSTriggerWalProgress *pProgress =
           tSimpleHashGet(pContext->pReaderWalProgress, &pCurTableMeta->vgId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
