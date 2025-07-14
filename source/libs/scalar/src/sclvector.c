@@ -403,6 +403,45 @@ static FORCE_INLINE int32_t varToVarbinary(char *buf, SScalarParam *pOut, int32_
   SCL_RET(TSDB_CODE_SUCCESS);
 }
 
+static FORCE_INLINE int32_t varToVarbinaryBlob(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+  if (isHex(blobDataVal(buf), blobDataLen(buf))) {
+    if (!isValidateHex(blobDataVal(buf), blobDataLen(buf))) {
+      SCL_ERR_RET(TSDB_CODE_PAR_INVALID_VARBINARY);
+    }
+
+    void    *data = NULL;
+    uint32_t size = 0;
+    if (taosHex2Ascii(blobDataVal(buf), blobDataLen(buf), &data, &size) < 0) {
+      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    int32_t inputLen = size + BLOBSTR_HEADER_SIZE;
+    char   *t = taosMemoryCalloc(1, inputLen);
+    if (t == NULL) {
+      sclError("Out of memory");
+      taosMemoryFree(data);
+      SCL_ERR_RET(terrno);
+    }
+    blobDataSetLen(t, size);
+    (void)memcpy(blobDataVal(t), data, size);
+    int32_t code = colDataSetVal(pOut->columnData, rowIndex, t, false);
+    taosMemoryFree(t);
+    taosMemoryFree(data);
+    SCL_ERR_RET(code);
+  } else {
+    int32_t inputLen = blobDataTLen(buf);
+    char   *t = taosMemoryCalloc(1, inputLen);
+    if (t == NULL) {
+      sclError("Out of memory");
+      SCL_ERR_RET(terrno);
+    }
+    (void)memcpy(t, buf, inputLen);
+    int32_t code = colDataSetVal(pOut->columnData, rowIndex, t, false);
+    taosMemoryFree(t);
+    SCL_ERR_RET(code);
+  }
+  SCL_RET(TSDB_CODE_SUCCESS);
+}
+
 static FORCE_INLINE int32_t varToNchar(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
   int32_t len = 0;
   int32_t inputLen = varDataLen(buf);
@@ -523,6 +562,9 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
     vton = true;
   } else if (IS_DECIMAL_TYPE(pCtx->outType)) {
     func = varToDecimal;
+  } else if (IS_STR_DATA_BLOB(pCtx->outType)) {
+    func = varToVarbinaryBlob;
+    vton = true;
   } else {
     sclError("invalid convert outType:%d, inType:%d", pCtx->outType, pCtx->inType);
     SCL_ERR_RET(TSDB_CODE_APP_ERROR);

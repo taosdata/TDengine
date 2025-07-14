@@ -1864,7 +1864,7 @@ int32_t fltConverToStr(char *str, int32_t strMaxLen, int type, void *buf, int32_
     case TSDB_DATA_TYPE_UBIGINT:
       n = tsnprintf(str, strMaxLen, "%" PRIu64, *(uint64_t *)buf);
       break;
-
+      
     default:
       //      tscError("unsupported type:%d", type);
       return TSDB_CODE_TSC_INVALID_VALUE;
