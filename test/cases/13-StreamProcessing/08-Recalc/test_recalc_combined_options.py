@@ -213,7 +213,7 @@ class TestStreamRecalcCombinedOptions:
         # Test 1.1: EXPIRED_TIME + WATERMARK combination
         stream = StreamItem(
             id=1,
-            stream="create stream rdb.s_comb_expired_watermark interval(2m) sliding(2m) from tdb.comb_expired_watermark partition by tbname options(expired_time(1h)|watermark(30s)) into rdb.r_comb_expired_watermark as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_comb_expired_watermark interval(2m) sliding(2m) from tdb.comb_expired_watermark partition by tbname stream_options(expired_time(1h)|watermark(30s)) into rdb.r_comb_expired_watermark as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check01,
         )
         self.streams.append(stream)
@@ -221,7 +221,7 @@ class TestStreamRecalcCombinedOptions:
         # Test 1.2: IGNORE_DISORDER + WATERMARK combination - IGNORE_DISORDER should take precedence
         stream = StreamItem(
             id=2,
-            stream="create stream rdb.s_comb_ignore_watermark session(ts,45s) from tdb.comb_ignore_watermark partition by tbname options(ignore_disorder|watermark(1m)) into rdb.r_comb_ignore_watermark as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_comb_ignore_watermark session(ts,45s) from tdb.comb_ignore_watermark partition by tbname stream_options(ignore_disorder|watermark(1m)) into rdb.r_comb_ignore_watermark as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check02,
         )
         self.streams.append(stream)
@@ -229,7 +229,7 @@ class TestStreamRecalcCombinedOptions:
         # Test 1.3: DELETE_RECALC + EXPIRED_TIME combination
         stream = StreamItem(
             id=3,
-            stream="create stream rdb.s_comb_delete_expired state_window(status) from tdb.comb_delete_expired partition by tbname options(delete_recalc|expired_time(1h)) into rdb.r_comb_delete_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val, first(cvarchar) status_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_comb_delete_expired state_window(status) from tdb.comb_delete_expired partition by tbname stream_options(delete_recalc|expired_time(1h)) into rdb.r_comb_delete_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val, first(cvarchar) status_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check03,
         )
         self.streams.append(stream)
@@ -237,7 +237,7 @@ class TestStreamRecalcCombinedOptions:
         # Test 1.4: Comprehensive combination (WATERMARK + DELETE_RECALC + EXPIRED_TIME)
         stream = StreamItem(
             id=4,
-            stream="create stream rdb.s_comb_comprehensive event_window(start with event_val >= 5 end with event_val > 10) from tdb.comb_comprehensive partition by tbname options(watermark(1m)|delete_recalc|expired_time(2h)) into rdb.r_comb_comprehensive as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_comb_comprehensive event_window(start with event_val >= 5 end with event_val > 10) from tdb.comb_comprehensive partition by tbname stream_options(watermark(1m)|delete_recalc|expired_time(2h)) into rdb.r_comb_comprehensive as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check04,
         )
         self.streams.append(stream)
@@ -245,7 +245,7 @@ class TestStreamRecalcCombinedOptions:
         # Test 5: PERIOD with EXPIRED_TIME + WATERMARK - test option interaction
         stream = StreamItem(
             id=5,
-            stream="create stream rdb.s_period_combined period(30s) from tdb.trigger_period_combined partition by tbname options(expired_time(1h), watermark(45s)) into rdb.r_period_combined as select _tlocaltime ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _tlocaltime - 30000000000 and cts <= _tlocaltime;",
+            stream="create stream rdb.s_period_combined period(30s) from tdb.trigger_period_combined partition by tbname stream_options(expired_time(1h), watermark(45s)) into rdb.r_period_combined as select _tlocaltime ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _tlocaltime - 30000000000 and cts <= _tlocaltime;",
             check_func=self.check05,
         )
         self.streams.append(stream)
@@ -253,7 +253,7 @@ class TestStreamRecalcCombinedOptions:
         # Test 6: COUNT_WINDOW with IGNORE_DISORDER + DELETE_RECALC - test option interaction
         stream = StreamItem(
             id=6,
-            stream="create stream rdb.s_count_combined count_window(3) from tdb.trigger_count_combined partition by tbname options(ignore_disorder, delete_recalc) into rdb.r_count_combined as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_count_combined count_window(3) from tdb.trigger_count_combined partition by tbname stream_options(ignore_disorder, delete_recalc) into rdb.r_count_combined as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check06,
         )
         self.streams.append(stream)

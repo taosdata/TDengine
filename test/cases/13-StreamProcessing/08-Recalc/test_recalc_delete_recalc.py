@@ -200,7 +200,7 @@ class TestStreamRecalcDeleteRecalc:
         # Test 1.1: INTERVAL+SLIDING with DELETE_RECALC - should trigger recalculation when data is deleted
         stream = StreamItem(
             id=1,
-            stream="create stream rdb.s_interval_delete interval(2m) sliding(2m) from tdb.delete_triggers partition by tbname options(delete_recalc) into rdb.r_interval_delete as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_interval_delete interval(2m) sliding(2m) from tdb.delete_triggers partition by tbname stream_options(delete_recalc) into rdb.r_interval_delete as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check01,
         )
         self.streams.append(stream)
@@ -208,7 +208,7 @@ class TestStreamRecalcDeleteRecalc:
         # # Test 1.2: SESSION with DELETE_RECALC - should trigger recalculation when data is deleted
         # stream = StreamItem(
         #     id=2,
-        #     stream="create stream rdb.s_session_delete session(ts,45s) from tdb.trigger_session_delete partition by tbname options(delete_recalc) into rdb.r_session_delete as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+        #     stream="create stream rdb.s_session_delete session(ts,45s) from tdb.trigger_session_delete partition by tbname stream_options(delete_recalc) into rdb.r_session_delete as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
         #     check_func=self.check02,
         # )
         # self.streams.append(stream)
@@ -216,7 +216,7 @@ class TestStreamRecalcDeleteRecalc:
         # # Test 1.3: STATE_WINDOW with DELETE_RECALC - should trigger recalculation when data is deleted
         # stream = StreamItem(
         #     id=3,
-        #     stream="create stream rdb.s_state_delete state_window(status) from tdb.trigger_state_delete partition by tbname options(delete_recalc) into rdb.r_state_delete as select _twstart ts, count(*) cnt, avg(cint) avg_val, first(cvarchar) status_val from qdb.meters where cts >= _twstart and cts < _twend;",
+        #     stream="create stream rdb.s_state_delete state_window(status) from tdb.trigger_state_delete partition by tbname stream_options(delete_recalc) into rdb.r_state_delete as select _twstart ts, count(*) cnt, avg(cint) avg_val, first(cvarchar) status_val from qdb.meters where cts >= _twstart and cts < _twend;",
         #     check_func=self.check03,
         # )
         # self.streams.append(stream)
@@ -224,7 +224,7 @@ class TestStreamRecalcDeleteRecalc:
         # # Test 1.4: EVENT_WINDOW with DELETE_RECALC - should trigger recalculation when data is deleted
         # stream = StreamItem(
         #     id=4,
-        #     stream="create stream rdb.s_event_delete event_window(start with event_val >= 5 end with event_val > 10) from tdb.trigger_event_delete partition by tbname options(delete_recalc) into rdb.r_event_delete as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+        #     stream="create stream rdb.s_event_delete event_window(start with event_val >= 5 end with event_val > 10) from tdb.trigger_event_delete partition by tbname stream_options(delete_recalc) into rdb.r_event_delete as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
         #     check_func=self.check04,
         # )
         # self.streams.append(stream)
@@ -232,7 +232,7 @@ class TestStreamRecalcDeleteRecalc:
         # # Test 5: PERIOD with DELETE_RECALC - should recalculate when data is deleted
         # stream = StreamItem(
         #     id=5,
-        #     stream="create stream rdb.s_period_delete period(30s) from tdb.trigger_period_delete partition by tbname options(delete_recalc) into rdb.r_period_delete as select _tlocaltime ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _tlocaltime - 30000000000 and cts <= _tlocaltime;",
+        #     stream="create stream rdb.s_period_delete period(30s) from tdb.trigger_period_delete partition by tbname stream_options(delete_recalc) into rdb.r_period_delete as select _tlocaltime ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _tlocaltime - 30000000000 and cts <= _tlocaltime;",
         #     check_func=self.check05,
         # )
         # self.streams.append(stream)
@@ -240,7 +240,7 @@ class TestStreamRecalcDeleteRecalc:
         # # Test 6: COUNT_WINDOW with DELETE_RECALC - should recalculate when data is deleted
         # stream = StreamItem(
         #     id=6,
-        #     stream="create stream rdb.s_count_delete count_window(3) from tdb.trigger_count_delete partition by tbname options(delete_recalc) into rdb.r_count_delete as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+        #     stream="create stream rdb.s_count_delete count_window(3) from tdb.trigger_count_delete partition by tbname stream_options(delete_recalc) into rdb.r_count_delete as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
         #     check_func=self.check06,
         # )
         # self.streams.append(stream)

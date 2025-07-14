@@ -200,7 +200,7 @@ class TestStreamRecalcIgnoreDisorder:
         # Test 1.1: INTERVAL+SLIDING with IGNORE_DISORDER - should not trigger recalculation for out-of-order data
         stream = StreamItem(
             id=1,
-            stream="create stream rdb.s_interval_disorder interval(2m) sliding(2m) from tdb.disorder_triggers partition by tbname options(ignore_disorder) into rdb.r_interval_disorder as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_interval_disorder interval(2m) sliding(2m) from tdb.disorder_triggers partition by tbname stream_options(ignore_disorder) into rdb.r_interval_disorder as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check01,
         )
         self.streams.append(stream)
@@ -208,7 +208,7 @@ class TestStreamRecalcIgnoreDisorder:
         # Test 1.2: SESSION with IGNORE_DISORDER - should not trigger recalculation for out-of-order data
         stream = StreamItem(
             id=2,
-            stream="create stream rdb.s_session_disorder session(ts,45s) from tdb.trigger_session_disorder partition by tbname options(ignore_disorder) into rdb.r_session_disorder as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_session_disorder session(ts,45s) from tdb.trigger_session_disorder partition by tbname stream_options(ignore_disorder) into rdb.r_session_disorder as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check02,
         )
         self.streams.append(stream)
@@ -216,7 +216,7 @@ class TestStreamRecalcIgnoreDisorder:
         # Test 1.3: STATE_WINDOW with IGNORE_DISORDER - should not trigger recalculation for out-of-order data
         stream = StreamItem(
             id=3,
-            stream="create stream rdb.s_state_disorder state_window(status) from tdb.trigger_state_disorder partition by tbname options(ignore_disorder) into rdb.r_state_disorder as select _twstart ts, count(*) cnt, avg(cint) avg_val, first(cvarchar) status_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_state_disorder state_window(status) from tdb.trigger_state_disorder partition by tbname stream_options(ignore_disorder) into rdb.r_state_disorder as select _twstart ts, count(*) cnt, avg(cint) avg_val, first(cvarchar) status_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check03,
         )
         self.streams.append(stream)
@@ -224,7 +224,7 @@ class TestStreamRecalcIgnoreDisorder:
         # Test 1.4: EVENT_WINDOW with IGNORE_DISORDER - should not trigger recalculation for out-of-order data
         stream = StreamItem(
             id=4,
-            stream="create stream rdb.s_event_disorder event_window(start with event_val >= 5 end with event_val > 10) from tdb.trigger_event_disorder partition by tbname options(ignore_disorder) into rdb.r_event_disorder as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_event_disorder event_window(start with event_val >= 5 end with event_val > 10) from tdb.trigger_event_disorder partition by tbname stream_options(ignore_disorder) into rdb.r_event_disorder as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check04,
         )
         self.streams.append(stream)
@@ -232,7 +232,7 @@ class TestStreamRecalcIgnoreDisorder:
         # Test 1.5: PERIOD with IGNORE_DISORDER - should not trigger recalculation for out-of-order data
         stream = StreamItem(
             id=5,
-            stream="create stream rdb.s_period_disorder period(30s) from tdb.trigger_period_disorder partition by tbname options(ignore_disorder) into rdb.r_period_disorder as select _tlocaltime ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _tlocaltime - 30000000000 and cts <= _tlocaltime;",
+            stream="create stream rdb.s_period_disorder period(30s) from tdb.trigger_period_disorder partition by tbname stream_options(ignore_disorder) into rdb.r_period_disorder as select _tlocaltime ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _tlocaltime - 30000000000 and cts <= _tlocaltime;",
             check_func=self.check05,
         )
         self.streams.append(stream)
@@ -240,7 +240,7 @@ class TestStreamRecalcIgnoreDisorder:
         # Test 1.6: COUNT_WINDOW with IGNORE_DISORDER - should not trigger recalculation for out-of-order data
         stream = StreamItem(
             id=6,
-            stream="create stream rdb.s_count_disorder count_window(3) from tdb.trigger_count_disorder partition by tbname options(ignore_disorder) into rdb.r_count_disorder as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_count_disorder count_window(3) from tdb.trigger_count_disorder partition by tbname stream_options(ignore_disorder) into rdb.r_count_disorder as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check06,
         )
         self.streams.append(stream)
