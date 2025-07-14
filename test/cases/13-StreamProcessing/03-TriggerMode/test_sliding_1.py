@@ -495,7 +495,7 @@ class TestStreamTriggerSliding:
 
         tdSql.execute("use db")
         tdSql.execute(
-            f"create stream {stream_name} interval(3s) sliding(3s) from source_table partition by tbname options(DELETE_OUTPUT_TABLE) into {dst_table} as "
+            f"create stream {stream_name} interval(3s) sliding(3s) from source_table partition by tbname stream_options(DELETE_OUTPUT_TABLE) into {dst_table} as "
             f"select _twstart st, _twend et, count(*),  max(k) c, sum(k), first(ts), last(ts) "
             f"from source_table "
             f"where _c0 >= _twstart and _c0 <= _twend group by tbname")
@@ -543,31 +543,31 @@ class TestStreamTriggerSliding:
 
         tdSql.execute("use db")
         tdSql.execute(
-            f"create stream {stream_name}_0 interval(10a) sliding(10a) from source_table options(LOW_LATENCY_CALC) into {dst_table}_0 as "
+            f"create stream {stream_name}_0 interval(10a) sliding(10a) from source_table stream_options(LOW_LATENCY_CALC) into {dst_table}_0 as "
             f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
             f"from source_table "
             f"where _c0 >= _twstart and _c0 < _twend ")
 
         tdSql.execute(
-            f"create stream {stream_name}_1 interval(10a) sliding(10a) from source_table options(LOW_LATENCY_CALC) into {dst_table}_1 as "
+            f"create stream {stream_name}_1 interval(10a) sliding(10a) from source_table stream_options(LOW_LATENCY_CALC) into {dst_table}_1 as "
             f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
             f"from source_table "
             f"where _c0 >= _twstart and _c0 < _twend ")
 
         tdSql.execute(
-            f"create stream {stream_name}_2 interval(10a) sliding(10a) from source_table options(LOW_LATENCY_CALC) into {dst_table}_2 as "
+            f"create stream {stream_name}_2 interval(10a) sliding(10a) from source_table stream_options(LOW_LATENCY_CALC) into {dst_table}_2 as "
             f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
             f"from source_table "
             f"where _c0 >= _twstart and _c0 < _twend ")
 
         tdSql.execute(
-            f"create stream {stream_name}_3 interval(10a) sliding(10a) from source_table options(LOW_LATENCY_CALC) into {dst_table}_3 as "
+            f"create stream {stream_name}_3 interval(10a) sliding(10a) from source_table stream_options(LOW_LATENCY_CALC) into {dst_table}_3 as "
             f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
             f"from source_table "
             f"where _c0 >= _twstart and _c0 < _twend ")
 
         tdSql.execute(
-            f"create stream {stream_name}_4 interval(10a) sliding(10a) from source_table options(LOW_LATENCY_CALC) into {dst_table}_4 as "
+            f"create stream {stream_name}_4 interval(10a) sliding(10a) from source_table stream_options(LOW_LATENCY_CALC) into {dst_table}_4 as "
             f"select _twstart, _tcurrent_ts ts, count(*) k, first(c2), sum(c2), last(k) c "
             f"from source_table "
             f"where _c0 >= _twstart and _c0 < _twend ")
@@ -592,7 +592,7 @@ class TestStreamTriggerSliding:
         tdSql.execute("use db")
         tdSql.execute(
             f"create stream {stream_name} interval(100a) sliding(100a) "
-            f"from vtb_1 options(pre_filter(count(col_3) > substr(cast(now() as varchar), 1, 2)))  into {dst_table} as "
+            f"from vtb_1 stream_options(pre_filter(count(col_3) > substr(cast(now() as varchar), 1, 2)))  into {dst_table} as "
             f"select _twstart, _twend, _tcurrent_ts ts, count(c9.*) k, first(c9.c2), sum(c9.c2), last(c9.k) c "
             f"from c9, c0 "
             f"where _c0 >= _twstart and _c0 < _twend and c9.ts=c0.ts")
