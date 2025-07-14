@@ -1830,7 +1830,7 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
     if (pEntry->type != TSDB_SUPER_TABLE) {
     vError("vgId:%d, table uid:%" PRId64 " exists, but is not super table, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
     code = TSDB_CODE_STREAM_INSERT_SCHEMA_NOT_MATCH;
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
@@ -1888,7 +1888,7 @@ static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTb
   if (pEntry->type != TSDB_NORMAL_TABLE) {
     vError("vgId:%d, table uid:%" PRId64 " exists, but is not normal table, line:%d", TD_VID(pVnode), pSubmitTbData->uid, __LINE__);
     code = TSDB_CODE_STREAM_INSERT_SCHEMA_NOT_MATCH;
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
