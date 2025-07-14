@@ -344,13 +344,18 @@ class TestStreamRecalcExpiredTime:
 
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_state_expired",
-                func=lambda: tdSql.getRows() == 2
-                and tdSql.compareData(0, 0, "2025-01-01 02:00:00")
-                and tdSql.compareData(0, 1, 100)
-                and tdSql.compareData(0, 2, 240)
-                and tdSql.compareData(1, 0, "2025-01-01 02:01:00")
-                and tdSql.compareData(1, 1, 100)
-                and tdSql.compareData(1, 2, 242)
+                func=lambda: (
+                    print(f"=== STATE_WINDOW Results (rows={tdSql.getRows()}) ===") or
+                    [print(f"Row {i}: {list(tdSql.getData(i, j) for j in range(3))}") for i in range(tdSql.getRows())] and
+                    print("Expected: [['2025-01-01 02:00:00', 101, 240], ['2025-01-01 02:01:00', 100, 242]]") or
+                    tdSql.getRows() == 2
+                    and tdSql.compareData(0, 0, "2025-01-01 02:00:00")
+                    and tdSql.compareData(0, 1, 100)
+                    and tdSql.compareData(0, 2, 240)
+                    and tdSql.compareData(1, 0, "2025-01-01 02:01:00")
+                    and tdSql.compareData(1, 1, 100)
+                    and tdSql.compareData(1, 2, 242)
+                )
             )
 
         #TODO(beryl) blocked by jira TS-36568
