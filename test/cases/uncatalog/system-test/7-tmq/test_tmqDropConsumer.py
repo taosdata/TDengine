@@ -174,7 +174,7 @@ class TestCase:
         # use taosBenchmark to subscribe  
         binPath = self.getPath()
         jsonfile = os.path.join(os.path.dirname(__file__), "tmqDropConsumer.json")
-        tmqCom.startProcess(binPath, jsonfile)        
+        tmqCom.startProcess(binPath, f" -f {jsonfile}")        
                 
         expectTopicNum = len(topicNameList)
         consumerThreadNum = 2
