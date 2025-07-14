@@ -772,6 +772,7 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     if (pTbCtx->hasBlob == 0) {
       code = tRowSort(pTbCtx->pData->aRowP);
     } else {
+      return TSDB_CODE_BLOB_NOT_SUPPORT;
       code = tRowSortWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobRow);
     }
   }
@@ -929,6 +930,8 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
         if (pTableCxt->hasBlob == 0) {
           code = tRowSort(pTableCxt->pData->aRowP);
         } else {
+          code = TSDB_CODE_BLOB_NOT_SUPPORT;
+          return code;
           code = tRowSortWithBlob(pTableCxt->pData->aRowP, pTableCxt->pSchema, pTableCxt->pData->pBlobRow);
         }
       }
