@@ -55,22 +55,23 @@ typedef struct SStmtQueryResInfo {
 } SStmtQueryResInfo;
 
 typedef struct SStmtBindInfo {
-  bool     needParse;
-  bool     inExecCache;
-  uint64_t tbUid;
-  uint64_t tbSuid;
-  int32_t  tbVgId;
-  int32_t  sBindRowNum;
-  int32_t  sBindLastIdx;
-  int8_t   tbType;
-  bool     tagsCached;
-  uint8_t  tbNameFlag;
-  void    *boundTags;
-  char     tbName[TSDB_TABLE_FNAME_LEN];
-  char     tbFName[TSDB_TABLE_FNAME_LEN];
-  char     stbFName[TSDB_TABLE_FNAME_LEN];
-  SName    sname;
-  char     statbName[TSDB_TABLE_FNAME_LEN];
+  bool       needParse;
+  bool       inExecCache;
+  uint64_t   tbUid;
+  uint64_t   tbSuid;
+  int32_t    tbVgId;
+  int32_t    sBindRowNum;
+  int32_t    sBindLastIdx;
+  int8_t     tbType;
+  bool       tagsCached;
+  uint8_t    tbNameFlag;
+  void      *boundTags;
+  SSHashObj *boundCols;  // SArray<SBoundColInfo>
+  char       tbName[TSDB_TABLE_FNAME_LEN];
+  char       tbFName[TSDB_TABLE_FNAME_LEN];
+  char       stbFName[TSDB_TABLE_FNAME_LEN];
+  SName      sname;
+  char       statbName[TSDB_TABLE_FNAME_LEN];
 } SStmtBindInfo;
 
 typedef struct SStmtAsyncParam {

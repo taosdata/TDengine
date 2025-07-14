@@ -479,9 +479,9 @@ typedef struct {
   int32_t walRollPeriod;
   int64_t walRetentionSize;
   int64_t walSegmentSize;
-  int32_t s3ChunkSize;
-  int32_t s3KeepLocal;
-  int8_t  s3Compact;
+  int32_t ssChunkSize;
+  int32_t ssKeepLocal;
+  int8_t  ssCompact;
   int8_t  withArbitrator;
   int8_t  encryptAlgorithm;
   int8_t  compactTimeOffset;  // hour
@@ -503,6 +503,7 @@ typedef struct {
   SRWLatch lock;
   int64_t  stateTs;
   int64_t  compactStartTime;
+  int64_t  ssMigrateStartTime; // TODO: add this field to mndDbActionEncode/Decode
   int32_t  tsmaVersion;
 } SDbObj;
 
@@ -1006,6 +1007,21 @@ typedef struct {
   int64_t startTime;
   SArray* compactDetail;
 } SCompactObj;
+
+
+typedef struct {
+  int32_t vgId;
+  int32_t nodeId; // dnode id of the leader vnode
+  bool done;
+} SVgroupSsMigrateDetail;
+
+typedef struct {
+  int32_t id;
+  int64_t dbUid;
+  char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t startTime; // migration start time in seconds
+  SArray* vgroups;   // SArray<SVgroupSsMigrateDetail>
+} SSsMigrateObj;
 
 // SGrantLogObj
 typedef enum {

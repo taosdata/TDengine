@@ -296,8 +296,6 @@ extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushIntervalSec;
 extern int32_t tsTtlBatchDropNum;
 extern int32_t tsTrimVDbIntervalSec;
-extern int32_t tsS3MigrateIntervalSec;
-extern bool    tsS3MigrateEnabled;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 extern bool    tsUpdateCacheBatch;
@@ -306,10 +304,18 @@ extern int64_t tsStreamBufferSizeBytes;
 extern bool    tsFilterScalarMode;
 extern int32_t tsPQSortMemThreshold;
 extern bool    tsStreamCoverage;
-extern int8_t  tsS3EpNum;
 extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;
 extern bool    tsCompareAsStrInGreatest;
+
+// shared storage
+extern int32_t tsSsEnabled;
+extern int32_t tsSsAutoMigrateIntervalSec;
+extern char    tsSsAccessString[];
+extern int32_t tsSsUploadDelaySec;
+extern int32_t tsSsBlockSize;
+extern int32_t tsSsBlockCacheSize;
+extern int32_t tsSsPageCacheSize;
 
 // insert performance
 extern bool tsInsertPerfEnabled;

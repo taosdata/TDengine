@@ -81,9 +81,9 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_STT_TRIGGER,
   DB_OPTION_TABLE_PREFIX,
   DB_OPTION_TABLE_SUFFIX,
-  DB_OPTION_S3_CHUNKPAGES,
-  DB_OPTION_S3_KEEPLOCAL,
-  DB_OPTION_S3_COMPACT,
+  DB_OPTION_SS_CHUNKPAGES,
+  DB_OPTION_SS_KEEPLOCAL,
+  DB_OPTION_SS_COMPACT,
   DB_OPTION_KEEP_TIME_OFFSET,
   DB_OPTION_ENCRYPT_ALGORITHM,
   DB_OPTION_DNODES,
@@ -247,7 +247,7 @@ SNode* createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, STo
 SNode* createAlterDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pOptions);
 SNode* createFlushDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createTrimDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, int32_t maxSpeed);
-SNode* createS3MigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
+SNode* createSsMigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd, bool metaOnly);
 SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,
                                 SNode* pEnd, bool metaOnly);
