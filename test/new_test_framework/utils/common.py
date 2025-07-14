@@ -2007,14 +2007,24 @@ class TDCom:
             # print(file1, file2)
             if platform.system().lower() != 'windows':
                 cmd='diff'
+                tdLog.info(f"cmd: {cmd} -u --color {file1} {file2}")
                 result = subprocess.run([cmd, "-u", "--color", file1, file2], text=True, capture_output=True)
+                tdLog.info(f"result: {result}")
             else:
                 cmd='fc'
                 result = subprocess.run([cmd, file1, file2], text=True, capture_output=True)
             # if result is not empty, print the differences and files name. Otherwise, the files are identical.
+            if result.returncode != 0:
+                tdLog.info(f"{cmd} result.returncode: {result.returncode}")
+                tdLog.info(f"{cmd} result.stdout: {result.stdout}")
+                tdLog.info(f"{cmd} result.stderr: {result.stderr}")
+                return False
             if result.stdout:
                 tdLog.debug(f"Differences between {file1} and {file2}")
                 tdLog.notice(f"\r\n{result.stdout}")
+                return False
+            elif result.stderr:
+                tdLog.info(f"{cmd} result.stderr: {result.stderr}")
                 return False
             else:
                 return True
