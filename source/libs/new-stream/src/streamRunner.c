@@ -402,7 +402,7 @@ static int32_t stRunnerMergeBlockHandleOverflow(const SSDataBlock* pSrc, SSDataB
 
 static int32_t stRunnerForceOutput(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
                                    const SSDataBlock* pBlock, SSDataBlock** ppForceOutBlock, int32_t* pWinIdx) {
-  int32_t          code = 0;
+  int32_t          code = 0, lino = 0;
   SArray*          pTriggerCalcParams = pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals;
   int32_t          curWinIdx = *pWinIdx;
   int32_t          rowsInput = pBlock ? pBlock->info.rows : 0;
@@ -414,6 +414,11 @@ static int32_t stRunnerForceOutput(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
   int32_t             rowIdx = 0;
   int32_t             rowsToCopy = 0;
   SSDataBlock*        pSecondBlock = NULL;
+
+  if (!*ppForceOutBlock) {
+    TAOS_CHECK_EXIT(createOneDataBlock(pBlock, false, ppForceOutBlock));
+    TAOS_CHECK_EXIT(blockDataEnsureCapacity(*ppForceOutBlock, totalWinNum));
+  }
 
   for (; curWinIdx < totalWinNum && code == 0;) {
     int64_t ts = INT64_MAX;
@@ -438,18 +443,7 @@ static int32_t stRunnerForceOutput(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
       }
       if (rowsToCopy > 0) {
         // copy rows of prev windows
-        if (!*ppForceOutBlock) {
-          code = createOneDataBlock(pBlock, false, ppForceOutBlock);
-          if (code == 0) {
-            code = blockDataEnsureCapacity(*ppForceOutBlock, totalWinNum);
-          }
-        }
-        if (code == 0) {
-          code = blockDataEnsureCapacity(*ppForceOutBlock, (*ppForceOutBlock)->info.capacity + rowIdx - rowsToCopy);
-        }
-        if (code == 0) {
-          code = blockDataMergeNRows(*ppForceOutBlock, pBlock, rowIdx - rowsToCopy, rowsToCopy);
-        }
+        TAOS_CHECK_EXIT(blockDataMergeNRows(*ppForceOutBlock, pBlock, rowIdx - rowsToCopy, rowsToCopy));
         if (code != 0) break;
       } else {
         code = streamForceOutput(pExec->pExecutor, ppForceOutBlock, curWinIdx);
@@ -469,8 +463,11 @@ static int32_t stRunnerForceOutput(SStreamRunnerTask* pTask, SStreamRunnerTaskEx
   }
   *pWinIdx = curWinIdx;
   pExec->runtimeInfo.funcInfo.curOutIdx = curWinIdx;
+
+_exit:
+
   if (code != 0) {
-    ST_TASK_ELOG("failed to force output for stream task, code:%s", tstrerror(code));
+    ST_TASK_ELOG("%s failed to force output for stream task at line %d, code:%s", __FUNCTION__, lino, tstrerror(code));
     if (*ppForceOutBlock) {
       blockDataDestroy(*ppForceOutBlock);
       *ppForceOutBlock = NULL;
@@ -486,7 +483,10 @@ static int32_t stRunnerTopTaskHandleOutputBlockAgg(SStreamRunnerTask* pTask, SSt
   int32_t      code = 0;
   SSDataBlock* pOutputBlock = pBlock;
   if (taosArrayGetSize(pExec->runtimeInfo.pForceOutputCols) > 0) {
-    if (*ppForceOutBlock) blockDataCleanup(*ppForceOutBlock);
+    if (*ppForceOutBlock) {
+      blockDataCleanup(*ppForceOutBlock);
+      *ppForceOutBlock = NULL;
+    }
     code = stRunnerForceOutput(pTask, pExec, pBlock, ppForceOutBlock, pNextOutIdx);
     pOutputBlock = *ppForceOutBlock;
   }

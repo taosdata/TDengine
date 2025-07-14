@@ -800,26 +800,30 @@ void blockDataTransform(SSDataBlock* pDest, const SSDataBlock* pSrc) {
 }
 
 int32_t blockDataMergeNRows(SSDataBlock* pDest, const SSDataBlock* pSrc, int32_t srcIdx, int32_t numOfRows) {
-  int32_t code = 0;
+  int32_t code = 0, lino = 0;
   if (pDest->info.rows + numOfRows > pDest->info.capacity) {
-    return TSDB_CODE_INVALID_PARA;
+    uError("block capacity %d not enough to merge %d rows, currRows:%" PRId64, pDest->info.capacity, numOfRows, pDest->info.rows);
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
   }
 
   size_t numOfCols = taosArrayGetSize(pDest->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pCol2 = taosArrayGet(pDest->pDataBlock, i);
+    TSDB_CHECK_NULL(pCol2, code, lino, _exit, terrno);
     SColumnInfoData* pCol1 = taosArrayGet(pSrc->pDataBlock, i);
-    if (pCol2 == NULL || pCol1 == NULL) {
-      return terrno;
-    }
+    TSDB_CHECK_NULL(pCol1, code, lino, _exit, terrno);
 
-    code = colDataAssignNRows(pCol2, pDest->info.rows, pCol1, srcIdx, numOfRows);
-    if (code) {
-      return code;
-    }
+    TAOS_CHECK_EXIT(colDataAssignNRows(pCol2, pDest->info.rows, pCol1, srcIdx, numOfRows));
   }
 
   pDest->info.rows += numOfRows;
+
+_exit:
+
+  if (code) {
+    uError("%s failed at line %d since %s", __FUNCTION__, lino, tstrerror(code));
+  }
+  
   return code;
 }
 
@@ -2052,16 +2056,12 @@ _end:
 }
 
 int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataBlock** pResBlock) {
+  int32_t code = 0, lino = 0;
   QRY_PARAM_CHECK(pResBlock);
-  if (pDataBlock == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
+  TSDB_CHECK_NULL(pDataBlock, code, lino, _exit, TSDB_CODE_INVALID_PARA);
 
   SSDataBlock* pDstBlock = NULL;
-  int32_t code = createDataBlock(&pDstBlock);
-  if (code) {
-    return code;
-  }
+  TAOS_CHECK_EXIT(createDataBlock(&pDstBlock));
 
   pDstBlock->info = pDataBlock->info;
   pDstBlock->info.pks[0].pData = NULL;
@@ -2078,14 +2078,14 @@ int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataB
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
     if (p == NULL) {
       blockDataDestroy(pDstBlock);
-      return terrno;
+      TSDB_CHECK_NULL(p, code, lino, _exit, terrno);
     }
 
     SColumnInfoData  colInfo = {.hasNull = true, .info = p->info};
     code = blockDataAppendColInfo(pDstBlock, &colInfo);
     if (code) {
       blockDataDestroy(pDstBlock);
-      return code;
+      TAOS_CHECK_EXIT(code);
     }
   }
 
@@ -2093,14 +2093,14 @@ int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataB
   if (code != TSDB_CODE_SUCCESS) {
     blockDataDestroy(pDstBlock);
     uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    return code;
+    TAOS_CHECK_EXIT(code);
   }
 
   if (copyData) {
     code = blockDataEnsureCapacity(pDstBlock, pDataBlock->info.rows);
     if (code != TSDB_CODE_SUCCESS) {
       blockDataDestroy(pDstBlock);
-      return code;
+      TAOS_CHECK_EXIT(code);
     }
 
     for (int32_t i = 0; i < numOfCols; ++i) {
@@ -2109,20 +2109,20 @@ int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataB
       if (pDst == NULL) {
         blockDataDestroy(pDstBlock);
         uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-        return terrno;
+        TSDB_CHECK_NULL(pDst, code, lino, _exit, terrno);
       }
 
       if (pSrc == NULL) {
         blockDataDestroy(pDstBlock);
         uError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-        return terrno;
+        TSDB_CHECK_NULL(pSrc, code, lino, _exit, terrno);
       }
 
       int32_t ret = colDataAssign(pDst, pSrc, pDataBlock->info.rows, &pDataBlock->info);
       if (ret < 0) {
         code = ret;
         blockDataDestroy(pDstBlock);
-        return code;
+        TAOS_CHECK_EXIT(code);
       }
     }
 
@@ -2131,6 +2131,9 @@ int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataB
   }
 
   *pResBlock = pDstBlock;
+
+_exit:
+  
   return code;
 }
 
