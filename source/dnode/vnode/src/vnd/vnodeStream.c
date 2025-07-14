@@ -619,7 +619,7 @@ end:
   return code;
 }
 
-static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStreamInfo, int64_t ver,
+static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStreamInfo, int64_t ver, bool isTrigger,
                                  int64_t uid, STimeWindow* window, SSDataBlock* pSrcBlock, SSDataBlock** pBlock) {
   int32_t      code = 0;
   int32_t      lino = 0;
@@ -632,8 +632,10 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
 
   STREAM_CHECK_RET_GOTO(filterInitFromNode(sStreamInfo->pConditions, &pFilterInfo, 0, NULL));
 
-  STREAM_CHECK_RET_GOTO(createOneDataBlock(pSrcBlock, false, &pBlock1));
-  STREAM_CHECK_RET_GOTO(createOneDataBlock(pSrcBlock, false, &pBlock2));
+  STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamInfo->triggerResBlock, false, &pBlock1));
+  STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamInfo->triggerResBlock, false, &pBlock2));
+  if (!isTrigger) STREAM_CHECK_RET_GOTO(createOneDataBlock(pSrcBlock, false, pBlock));
+
   pBlock2->info.id.uid = uid;
   pBlock1->info.id.uid = uid;
 
@@ -645,8 +647,12 @@ static int32_t processWalVerData(SVnode* pVnode, SStreamTriggerReaderInfo* sStre
     STREAM_CHECK_RET_GOTO(processTag(pVnode, pExpr, numOfExpr, &api, pBlock2));
   }
   STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock2, pFilterInfo));
-  *pBlock = pBlock2;
-  pBlock2 = NULL;  
+  if (!isTrigger) {
+    blockDataTransform(*pBlock, pBlock2);
+  } else {
+    *pBlock = pBlock2;
+    pBlock2 = NULL;  
+  }
 
   printDataBlock(*pBlock, __func__, "processWalVerData2");
 
@@ -1684,13 +1690,13 @@ static int32_t vnodeProcessStreamWalDataReq(SVnode* pVnode, SRpcMsg* pMsg, SSTri
     STREAM_CHECK_RET_GOTO(processWalVerDataVTable(pVnode, req->walDataReq.cids, req->walDataReq.ver,
       req->walDataReq.uid, &window, &pBlock));
   } else if (req->walDataReq.base.type == STRIGGER_PULL_WAL_CALC_DATA){
-    STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, req->walDataReq.ver,
+    STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, req->walDataReq.ver, false,
       req->walDataReq.uid, &window, sStreamReaderInfo->calcResBlock, &pBlock));
   } else if (req->walDataReq.base.type == STRIGGER_PULL_WAL_TRIGGER_DATA) {
-    STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, req->walDataReq.ver, 
+    STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, req->walDataReq.ver, true,
       req->walDataReq.uid, &window, sStreamReaderInfo->triggerResBlock, &pBlock));
   } else if (req->walDataReq.base.type == STRIGGER_PULL_WAL_TS_DATA){
-    STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, req->walDataReq.ver, 
+    STREAM_CHECK_RET_GOTO(processWalVerData(pVnode, sStreamReaderInfo, req->walDataReq.ver, false,
       req->walDataReq.uid, &window, sStreamReaderInfo->tsBlock, &pBlock));
 
   }
