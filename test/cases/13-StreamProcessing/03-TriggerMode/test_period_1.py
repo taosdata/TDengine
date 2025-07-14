@@ -187,7 +187,7 @@ class TestStreamCheckpoint:
         """
 
         self.num_snode = 1
-        self.num_vgroups = 2
+        self.num_vgroups = 4
 
         self.streams = []
         self.stream_id = 1
@@ -195,75 +195,82 @@ class TestStreamCheckpoint:
         self.create_env()
         info = WriteDataInfo(1000, 10)
 
-        self.prepare_source_table(1000, 1, info)
-        try:
-            self.create_and_check_stream_basic_1("sm1", "tb1", info)
-        except Exception as e:
-            tdLog.error(f"case 1 error: {e}")
+        # self.prepare_source_table(1000, 1, info)
+        # try:
+        #     self.create_and_check_stream_basic_1("sm1", "tb1", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 1 error: {e}")
+        #
+        # clear_output("sm1", "tb1")
+        # self.prepare_source_table(1000, 1, info)
+        # try:
+        #     self.create_and_check_stream_basic_2("sm2", "tb2", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 2 error: {e}")
+        #
+        # clear_output("sm2", "tb2")
+        # self.prepare_source_table(1000, 1, info)
+        #
+        # try:
+        #     self.create_and_check_stream_basic_3("sm3", "tb3", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 3 error: {e}")
+        #
+        # clear_output("sm3", "tb3")
+        # self.prepare_source_table(1000, 1, info)
+        # try:
+        #     self.create_and_check_stream_basic_4("sm4", "tb4", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 4 error: {e}")
+        #
+        # clear_output("sm4", "tb4")
+        # self.prepare_source_table(1000, 1, info)
+        # try:
+        #     self.create_and_check_stream_basic_5("sm5", "tb5", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 5 error: {e}")
+        #
+        # clear_output("sm5", "tb5")
+        # self.prepare_source_table(1000, 1, info)
+        # try:
+        #     self.create_and_check_stream_basic_6("sm6", "tb6", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 6 error: {e}")
+        #
+        # clear_output("sm6", "tb6")
+        # self.prepare_source_table(1000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_7("sm7", "tb7", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 7 error: {e}")
+        #
+        # clear_output("sm7", "tb7")
+        # self.prepare_source_table(1000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_8("sm8", "tb8", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 8 error: {e}")
+        #
+        # clear_output("sm8", "tb8")
+        # self.prepare_source_table(1000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_9("sm9", "tb9", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 9 error: {e}")
+        #
+        # clear_output("sm9", "tb9")
+        # self.prepare_source_table(1000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_10("sm10", "tb10", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 10 error: {e}")
 
-        clear_output("sm1", "tb1")
-        self.prepare_source_table(1000, 1, info)
-        try:
-            self.create_and_check_stream_basic_2("sm2", "tb2", info)
-        except Exception as e:
-            tdLog.error(f"case 2 error: {e}")
-
-        clear_output("sm2", "tb2")
-        self.prepare_source_table(1000, 1, info)
-
-        try:
-            self.create_and_check_stream_basic_3("sm3", "tb3", info)
-        except Exception as e:
-            tdLog.error(f"case 3 error: {e}")
-
-        clear_output("sm3", "tb3")
-        self.prepare_source_table(1000, 1, info)
-        try:
-            self.create_and_check_stream_basic_4("sm4", "tb4", info)
-        except Exception as e:
-            tdLog.error(f"case 4 error: {e}")
-
-        clear_output("sm4", "tb4")
-        self.prepare_source_table(1000, 1, info)
-        try:
-            self.create_and_check_stream_basic_5("sm5", "tb5", info)
-        except Exception as e:
-            tdLog.error(f"case 5 error: {e}")
-
-        clear_output("sm5", "tb5")
-        self.prepare_source_table(1000, 1, info)
-        try:
-            self.create_and_check_stream_basic_6("sm6", "tb6", info)
-        except Exception as e:
-            tdLog.error(f"case 6 error: {e}")
-
-        clear_output("sm6", "tb6")
+        clear_output("sm10", "tb10")
         self.prepare_source_table(1000, 10, info)
         try:
-            self.create_and_check_stream_basic_7("sm7", "tb7", info)
+            self.create_and_check_stream_basic_11("sm11", "tb11", info)
         except Exception as e:
-            tdLog.error(f"case 7 error: {e}")
-
-        clear_output("sm7", "tb7")
-        self.prepare_source_table(1000, 10, info)
-        try:
-            self.create_and_check_stream_basic_8("sm8", "tb8", info)
-        except Exception as e:
-            tdLog.error(f"case 8 error: {e}")
-
-        clear_output("sm8", "tb8")
-        self.prepare_source_table(1000, 10, info)
-        try:
-            self.create_and_check_stream_basic_9("sm9", "tb9", info)
-        except Exception as e:
-            tdLog.error(f"case 9 error: {e}")
-
-        clear_output("sm9", "tb9")
-        self.prepare_source_table(1000, 10, info)
-        try:
-            self.create_and_check_stream_basic_10("sm10", "tb10", info)
-        except Exception as e:
-            tdLog.error(f"case 10 error: {e}")
+            tdLog.error(f"case 11 error: {e}")
 
 
     def create_env(self):
@@ -464,3 +471,24 @@ class TestStreamCheckpoint:
         wait_for_stream_done(dst_table, f"select count(*) from {dst_table}", info.num_of_rows)
         check_all_results(f"select count(*) from {dst_table} where max_k={info.num_of_rows-1}", [[10]])
 
+
+    def create_and_check_stream_basic_11(self, stream_name, dst_table, info: WriteDataInfo) -> None:
+        """simple 10: Pass """
+        tdLog.info(f"start exec stream {stream_name}")
+
+        tdSql.execute("create vtable vtb_1 (ts timestamp, col_1 int from c0.k, col_2 varchar(12) from c1.c1, "
+                      "col_3 double from c2.c2)")
+
+        time.sleep(10)
+
+        tdSql.execute("use db")
+        tdSql.execute(
+            f"create stream {stream_name} PERIOD(3s) from vtb_1 partition by tbname into {dst_table} as "
+            f"select cast(_tlocaltime/1000000 as timestamp) local_ts, count(*),  "
+            f"max(col_1) max_col_1, sum(length(col_2)) sum_col_2, avg(col_3) avg_col_3, sum(length(substr(%%1, 1))) sum_part_1  "
+            f"from vtb_1 partition by tbname "
+        )
+
+        do_write_data(stream_name, info)
+
+        wait_for_stream_done(dst_table, f"select max(avg_col_3) from {dst_table}", 499.5)

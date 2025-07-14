@@ -151,7 +151,7 @@ class TestStreamPrivileges:
         f"create stream {self.dbname2}.`s100` sliding(1s) from {self.dbname}.st1  partition by tbname "
         "options(fill_history('2025-01-01 00:00:00')) "
         f"into {self.dbname2}.`s100out` as "
-        "select cts, cint, %%tbname from %%trows "
+        f"select cts, cint, %%tbname from {self.dbname}.st1 "
         "where cint > 5 and tint > 0 and %%tbname like '%%2' "
         "order by cts;"
         )
@@ -317,7 +317,7 @@ class TestStreamPrivileges:
         "create stream `s99` sliding(1s) from st1  partition by tbname "
         "options(fill_history('2025-01-01 00:00:00')) "
         "into `s99out` as "
-        "select cts, cint, %%tbname from %%trows "
+        "select cts, cint, %%tbname from st1 "
         "where cint > 5 and tint > 0 and %%tbname like '%%2' "
         "order by cts;"
         )
