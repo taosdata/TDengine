@@ -6259,7 +6259,12 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
     }
   }
 
-  pTask->trigTsIndex = pMsg->triTsSlotId;
+  if (pTask->triggerType == STREAM_TRIGGER_SESSION || pTask->triggerType == STREAM_TRIGGER_SLIDING
+      || pTask->triggerType == STREAM_TRIGGER_COUNT) {
+    pTask->trigTsIndex = 0;
+  } else {
+    pTask->trigTsIndex = pMsg->triTsSlotId;
+  }
   pTask->calcTsIndex = pMsg->calcTsSlotId;
   pTask->maxDelay = pMsg->maxDelay * NANOSECOND_PER_MSEC;
   pTask->fillHistoryStartTime = pMsg->fillHistoryStartTime;
