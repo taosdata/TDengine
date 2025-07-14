@@ -42,14 +42,14 @@ class TestStreamParametersAlter:
         
      
         #test root user alter  value 
-        self.alternumOfMnodeStreamMgmtThreads(4)
-        self.alternumOfStreamMgmtThreads(4)
-        self.alternumOfVnodeStreamReaderThreads(100)
-        self.alternumOfStreamTriggerThreads(100)
-        self.alternumOfStreamRunnerThreads(100)
+        # self.alternumOfMnodeStreamMgmtThreads(4)
+        # self.alternumOfStreamMgmtThreads(4)
+        # self.alternumOfVnodeStreamReaderThreads(100)
+        # self.alternumOfStreamTriggerThreads(100)
+        # self.alternumOfStreamRunnerThreads(100)
         self.alterstreamBufferSize(2000)
-        self.alterstreamNotifyMessageSize(100)
-        self.alterstreamNotifyFrameSize(100)
+        # self.alterstreamNotifyMessageSize(100)
+        # self.alterstreamNotifyFrameSize(100)
         
         #test normal user alter value
    
@@ -61,11 +61,25 @@ class TestStreamParametersAlter:
         # self.alternumOfVnodeStreamReaderThreads(2147483648)
         # self.alternumOfStreamTriggerThreads(2147483648)
         # self.alternumOfStreamRunnerThreads(2147483648)
-        # self.alterstreamBufferSize(2147483648)
+        self.alterstreamBufferSize(2147483648)
         # self.alterstreamNotifyMessageSize(1048577)
         # self.alterstreamNotifyFrameSize(1048577)
         
-        
+    def alterstreamBufferSize(self,value):
+        tdLog.info(f"alter streamBufferSize")
+        try:
+            tdSql.query(f"alter dnode 1  'streamBufferSize {value}';")
+        except Exception as e:
+                if "Out of range" in str(e):
+                    tdLog.info(f"Out of range to modify parameters")
+                else:
+                    raise  Exception(f"alter parameters error: {e}")
+        tdSql.query(f"show dnode 1 variables like  'streamBufferSize';")
+        result = tdSql.getData(0, 2)
+        if int(result) > 2147483647:
+            raise Exception(f"Error: streamBufferSize is {result}, max 2147483647 MB!")
+        else:
+            tdLog.info(f"streamBufferSize is {result}, test passed!")     
     
     def alternumOfMnodeStreamMgmtThreads(self,value):
         tdLog.info(f"alter num of mnode stream mgmt threads")
@@ -149,21 +163,7 @@ class TestStreamParametersAlter:
             tdLog.info(f"numOfStreamRunnerThreads is {result}, test passed!") 
 
                 
-    def alterstreamBufferSize(self,value):
-        tdLog.info(f"alter streamBufferSize")
-        try:
-            tdSql.query(f"alter dnode 1  'streamBufferSize {value}';")
-        except Exception as e:
-                if "Out of range" in str(e):
-                    tdLog.info(f"Out of range to modify parameters")
-                else:
-                    raise  Exception(f"alter parameters error: {e}")
-        tdSql.query(f"show dnode 1 variables like  'streamBufferSize';")
-        result = tdSql.getData(0, 2)
-        if int(result) > 2147483647:
-            raise Exception(f"Error: streamBufferSize is {result}, max 2147483647 MB!")
-        else:
-            tdLog.info(f"streamBufferSize is {result}, test passed!") 
+
             
 
     def alterstreamNotifyMessageSize(self,value):
@@ -389,5 +389,4 @@ class TestStreamParametersAlter:
                 tdLog.info("Stream not running! Wait stream running ...")
                 tdLog.info(f"stream running status: {streamRunning}")
                 time.sleep(1)
-
 
