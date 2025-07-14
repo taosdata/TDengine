@@ -7,6 +7,7 @@ import uuid
 import json
 import tempfile
 import random
+import socket
 from new_test_framework.utils import tdSql, etool, tdLog, BeforeTest, eutil, eos
 
 
@@ -233,8 +234,9 @@ def before_test_class(request):
     #tdSql_army.init(request.cls.conn.cursor())
 
     # 处理 -C 参数，如果未设置 -C 参数，create_dnode_num 和 -N 参数相同
+    hostname = socket.gethostname()
     for i in range(1, request.session.create_dnode_num):
-        tdSql.execute(f"create dnode localhost port {6030+i*100}")
+        tdSql.execute(f"create dnode '{hostname}' port {6030+i*100}")
         time.sleep(1)
     tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
 
