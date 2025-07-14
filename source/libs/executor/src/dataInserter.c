@@ -834,8 +834,8 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
           break;
         }
         case TSDB_DATA_TYPE_BLOB:
-        case TSDB_DATA_TYPE_JSON:
         case TSDB_DATA_TYPE_MEDIUMBLOB:
+        case TSDB_DATA_TYPE_JSON:
           qError("the column type %" PRIi16 " is defined but not implemented yet", pColInfoData->info.type);
           terrno = TSDB_CODE_APP_ERROR;
           goto _end;

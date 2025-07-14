@@ -1052,6 +1052,7 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, c
   int32_t          code = 0;
   int16_t          lastColId = -1;
   bool             colInOrder = true;
+  int8_t           hasBlob = 0;
 
   if (NULL == pTSchema || NULL == *pTSchema) {
     *pTSchema = tBuildTSchema(pSchema, pDataBlock->pMeta->tableInfo.numOfColumns, pDataBlock->pMeta->sversion);
@@ -1102,6 +1103,9 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, c
       }
       pBindInfos[c].bind = bind + c;
     } else {
+      if (IS_STR_DATA_BLOB(pColSchema->type)) {
+        hasBlob = 1;
+      }
       pBindInfos[c].bind = bind + c;
     }
 
@@ -1119,8 +1123,13 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, c
     pDataBlock->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
   }
 
-  code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered,
-                            &pDataBlock->duplicateTs);
+  if (hasBlob == 0) {
+    code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered,
+                              &pDataBlock->duplicateTs);
+  } else {
+    code = TSDB_CODE_BLOB_NOT_SUPPORT;
+  }
+
   qDebug("stmt2 all %d columns bind %d rows data as row format", boundInfo->numOfBound, rowNum);
 
 _return:

@@ -4377,6 +4377,9 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
         goto _exit;
       }
     } else {
+      code = TSDB_CODE_BLOB_NOT_SUPPORT;
+      goto _exit;
+
       SRowBuildScanInfo sinfo = {.hasBlob = 1, .scanType = ROW_BUILD_UPDATE};
       if ((code = tRowBuildWithBlob(colValArray, pTSchema, &row, NULL, &sinfo))) {
         goto _exit;
@@ -4406,6 +4409,9 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
     }
   }
 _exit:
+  if (code != 0) {
+    uError("tRowBuildFromBind2 failed, code=%d", code);
+  }
   taosArrayDestroy(colValArray);
   taosArrayDestroy(bufArray);
   return code;
