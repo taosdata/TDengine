@@ -373,9 +373,6 @@ static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *
             }
             if (sinfo->scanType == ROW_BUILD_MERGE && hasBlob) {
               uInfo("merge block");
-              // if (colValArray[colValIndex].value.nData > UINT32_MAX) {
-              //   return TSDB_CODE_INVALID_PARA;
-              // }
             }
 
             *(int32_t *)(fixed + schema->columns[i].offset) = varlen - fixed - sinfo->tupleFixedSize;
