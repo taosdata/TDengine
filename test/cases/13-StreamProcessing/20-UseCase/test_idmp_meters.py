@@ -83,6 +83,8 @@ class Test_IDMP_Meters:
         self.start_current = 10
         self.start_voltage = 260
 
+        self.start2 = 1752574200000
+
         # import data
         etool.taosdump(f"-i cases/13-StreamProcessing/20-UseCase/meters_data/data/")
 
@@ -139,6 +141,9 @@ class Test_IDMP_Meters:
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub4` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN) INTO `tdasset`.`result_stream4_sub4` AS SELECT _twstart + 10m as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend",
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub5` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN) INTO `tdasset`.`result_stream4_sub5` AS SELECT _twstart + 10h as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend",
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub6` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN) INTO `tdasset`.`result_stream4_sub6` AS SELECT _twstart + 10d as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend",
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub7` INTERVAL(600s)  SLIDING(1h) FROM `tdasset`.`vt_em-4` OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4_sub7` AS SELECT _twstart as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend AND `电流` is null",
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub8` INTERVAL(1a)  SLIDING(1a) FROM `tdasset`.`vt_em-4` OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4_sub8` AS SELECT _twstart as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend AND `电流` is null",
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub9` INTERVAL(1d)  SLIDING(60s) FROM `tdasset`.`vt_em-4` OPTIONS(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4_sub9` AS SELECT _twstart as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend AND `电流` is null",
         ]
 
         tdSql.executes(sqls)
@@ -321,7 +326,7 @@ class Test_IDMP_Meters:
     #  stream4 trigger 
     #
     def trigger_stream4(self):
-        ts = 1752574200000
+        ts = self.start2
         table = "asset01.`em-4`"
         step  = 1 * 60 * 1000 # 1 minute
         count = 120
@@ -334,7 +339,7 @@ class Test_IDMP_Meters:
     #  stream4 trigger again
     #
     def trigger_stream4_again(self):
-        ts = 1752574200000 + 30 * 1000  # offset 30 seconds
+        ts = self.start2 + 30 * 1000  # offset 30 seconds
         table = "asset01.`em-4`"
         step  = 1 * 60 * 1000 # 1 minute
         count = 119
@@ -437,7 +442,7 @@ class Test_IDMP_Meters:
                 func = lambda: tdSql.getRows() == 11
             )
 
-            ts = 1752574200000
+            ts = self.start2
             for i in range(tdSql.getRows()):
                 tdSql.checkData(i, 0, ts)
                 tdSql.checkData(i, 1, 10)
@@ -468,7 +473,7 @@ class Test_IDMP_Meters:
                 func = lambda: tdSql.getRows() == 11
             )
 
-            ts = 1752574200000 + offsets[i - 2]
+            ts = self.start2 + offsets[i - 2]
             for j in range(tdSql.getRows()):
                 tdSql.checkData(j, 0, ts)
                 tdSql.checkData(j, 1, 10)       
@@ -477,12 +482,16 @@ class Test_IDMP_Meters:
                 ts += 10 * 60 * 1000 # 10 minutes   
         tdLog.info(f"verify stream4_sub2 ~ 6 successfully.")
 
+        # verify virtual table ts null
+        # ***** bug3 ****
+        #self.check_vt_ts()
+
     #
     # verify stream4 again
     #
     def verify_stream4_again(self):
         # result_stream4
-        ts = 1752574200000
+        ts = self.start2
         result_sql = f"select * from {self.vdb}.`result_stream4` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
@@ -521,3 +530,19 @@ class Test_IDMP_Meters:
         '''    
 
         tdLog.info("verify stream4 again successfully.")
+
+
+    #
+    # ---------------------   find other bugs   ----------------------
+    #
+    
+    # virtual table ts is null
+    def check_vt_ts(self):
+        # vt_em-4
+        tdSql.checkResultsByFunc (
+            sql  = "SELECT *  FROM tdasset.`vt_em-4` WHERE `电流` is null;",
+            func = lambda: tdSql.getRows() == 239 
+            and tdSql.compareData(0, 0, self.start2) 
+            and tdSql.compareData(0, 1, 400)
+            and tdSql.compareData(0, 2, 200)
+        )        
