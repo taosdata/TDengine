@@ -395,8 +395,9 @@ bool vmReleaseMountTfs(SVnodeMgmt *pMgmt, int64_t mountId, int32_t minRef) {
         if ((code = taosHashRemove(pMgmt->mountTfsHash, &mountId, sizeof(mountId))) < 0) {
           dError("failed to remove mountId:%" PRIi64 " from mount tfs hash", mountId);
         }
-        (void)taosThreadMutexUnlock(&pMgmt->mutex);
-        return true;
+      }
+      (void)taosThreadMutexUnlock(&pMgmt->mutex);
+      return true;
     }
   }
 #endif
