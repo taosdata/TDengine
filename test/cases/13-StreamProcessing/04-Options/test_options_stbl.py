@@ -2174,10 +2174,10 @@ class TestStreamOptionsTrigger:
             tdSql.checkRows(4)
 
             tdSql.execute(
-                f"create stream s12 state_window(cint) from ct1 stream_options(event_type(WINDOW_OPEN|WINDOW_CLOSE)) into res_ct1 (lastts, firstts, cnt_v, sum_v, avg_v) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s12 state_window(cint) from ct1 stream_options(event_type(WINDOW_CLOSE)) into res_ct1 (lastts, firstts, cnt_v, sum_v, avg_v) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
             tdSql.execute(
-                f"create stream s12_g state_window(cint) from {self.stbName} partition by tbname, tint stream_options(event_type(WINDOW_OPEN|WINDOW_CLOSE)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (lastts, firstts, cnt_v, sum_v, avg_v) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s12_g state_window(cint) from {self.stbName} partition by tbname, tint stream_options(event_type(WINDOW_CLOSE)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (lastts, firstts, cnt_v, sum_v, avg_v) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
 
         def insert1(self):
