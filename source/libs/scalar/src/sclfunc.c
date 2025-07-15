@@ -459,7 +459,11 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
 
 /** String functions **/
 static int32_t tlength(char *input, int32_t type, VarDataLenT *len) {
-  *len = varDataLen(input);
+  if (type == IS_STR_DATA_BLOB(type)) {
+    *len = blobDataLen(input);
+  } else {
+    *len = varDataLen(input);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
