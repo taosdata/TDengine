@@ -821,7 +821,7 @@ static int generateChildTblName(int len, char *buffer, SDataBase *database,
                     database->dbName, tableName,
                     database->dbName, stbInfo->stbName,
                     tagsForSQL, ttl);
-    infoPrint("create table: <%s> <%s>\n", buffer, tableName);
+    debugPrint("create table: <%s> <%s>\n", buffer, tableName);
     return len;
 }
 
