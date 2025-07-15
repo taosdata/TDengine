@@ -97,7 +97,7 @@ function install_main_path() {
   ${csudo}mkdir -p ${install_main_dir}/cfg
   ${csudo}mkdir -p ${install_main_dir}/bin
   ${csudo}mkdir -p ${install_main_dir}/driver
-  if [ "$productName2" == "TDengine" ]; then
+  if [ "$productName2" == "TDengine"* ]; then
     ${csudo}mkdir -p ${install_main_dir}/examples
   fi
   ${csudo}mkdir -p ${install_main_dir}/include
