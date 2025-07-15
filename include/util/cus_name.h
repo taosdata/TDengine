@@ -28,7 +28,7 @@
 #endif
 
 #ifndef CUS_NAME
-#define CUS_NAME    "TDengine"
+#define CUS_NAME "TDengine"
 #endif
 
 #ifndef CUS_PROMPT
@@ -36,7 +36,7 @@
 #endif
 
 #ifndef CUS_EMAIL
-#define CUS_EMAIL   "<support@taosdata.com>"
+#define CUS_EMAIL "<support@taosdata.com>"
 #endif
 
 #endif  // _CUS_NAME_H_

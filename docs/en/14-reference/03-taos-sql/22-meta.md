@@ -219,7 +219,7 @@ Provides information about users created in the system. Users with SYSINFO attri
 
 ## INS_GRANTS
 
-Provides information about enterprise edition licenses. Users with SYSINFO attribute as 0 cannot view this table.
+Provides information about TSDB-Enterprise licenses. Users with SYSINFO attribute as 0 cannot view this table.
 
 | #    | **Column Name** | **Data Type** | **Description**                                              |
 | ---- | :-------------: | ------------- | ------------------------------------------------------------ |
