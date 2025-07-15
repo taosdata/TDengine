@@ -748,7 +748,7 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 - **numOfVnodeStreamReaderThreads**：vnode 流计算读线程个数
 - **numOfStreamTriggerThreads**：流计算触发线程个数
 - **numOfStreamRunnerThreads**：流计算执行线程个数
-- **streamBufferSize**：整个流计算可以使用的最大缓存大小
+- **streamBufferSize**：流计算可以使用的最大缓存大小，只适用于%%trows的结果缓存（单位：MB）
 - **streamNotifyMessageSize**：用于控制事件通知的消息大小
 - **streamNotifyFrameSize**：用于控制事件通知消息发送时底层的帧大小
 
