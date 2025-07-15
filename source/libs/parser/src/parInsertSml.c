@@ -26,17 +26,17 @@ int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char*
   int32_t lino = 0;
 
   NEXT_TOKEN(pTableName, sToken);
-  TSDB_CHECK_CONDITION(sToken.n != 0, code, lino, end, TSDB_CODE_TSC_INVALID_OPERATION);
+  TSDB_CHECK_CONDITION(sToken.n != 0, code, lino, end, TSDB_CODE_TSC_STMT_TBNAME_ERROR);
   code = insCreateSName(pName, &sToken, acctId, dbName, &msg);
   TSDB_CHECK_CODE(code, lino, end);
   NEXT_TOKEN(pTableName, sToken);
-  TSDB_CHECK_CONDITION(sToken.n <= 0, code, lino, end, TSDB_CODE_TSC_INVALID_OPERATION);
+  TSDB_CHECK_CONDITION(sToken.n <= 0, code, lino, end, TSDB_CODE_TSC_STMT_TBNAME_ERROR);
 
 end:
   if (code != 0) {
     uError("%s failed at %d since %s", __func__, lino, tstrerror(code));
   }
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t smlBoundColumnData(SArray* cols, SBoundColInfo* pBoundInfo, SSchema* pSchema, bool isTag) {
