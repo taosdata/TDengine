@@ -444,10 +444,10 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s0 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                # f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
                 f"into "
                 f"res_ct0 (twstart, twend, top_cdouble_10) as "
-                f"select _twstart wstart, _twend, count(*) from ct0 "
+                f"select _twstart wstart, _twend, top(cdouble, 10) from ct0 "
                 f"where _twstart <= _c0 and _c0 <= _twend "
             )
 
