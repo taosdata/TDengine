@@ -147,7 +147,7 @@ class Test_IDMP_Meters:
             "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub9` INTERVAL(1d)   SLIDING(60s) FROM `tdasset`.`vt_em-4` stream_options(IGNORE_DISORDER|LOW_LATENCY_CALC) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4_sub9` AS SELECT _twstart as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend AND ts >= 1752574200000",
             
             # stream5
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream5` SESSION(ts, 10m) FROM `idmp`.`vt_em-5` STREAM_OPTIONS(IGNORE_DISORDER)  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5` AS SELECT _twstart+0s AS output_timestamp, COUNT(ts) AS cnt, LAST(`电流`) AS `最后电流` FROM tdasset.`vt_em-5` WHERE ts >= _twstart AND ts <=_twend",
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream5` SESSION(ts, 10m) FROM `tdasset`.`vt_em-5` STREAM_OPTIONS(IGNORE_DISORDER)  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5` AS SELECT _twstart+0s AS output_timestamp, COUNT(ts) AS cnt, LAST(`电流`) AS `最后电流` FROM tdasset.`vt_em-5` WHERE ts >= _twstart AND ts <=_twend",
         ]
 
         tdSql.executes(sqls)
@@ -366,22 +366,23 @@ class Test_IDMP_Meters:
         # first window have 3 + 5 = 10 rows
         count = 3
         cols = "ts,current,voltage,power"
-        vals = "3,400,200"
+        vals = "30,400,200"
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
         # boundary of first window
-        count = 5
+        count = 4
         ts += 9 * step
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
         # last
         count = 1
-        vals = "4,401,201"
+        vals = "31,401,201"
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
 
         # trigger first windows close with 11 steps
         count = 1
-        ts += 11 * step
+        ts += 10 * step
+        vals = "40,500,300"
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)        
 
 
@@ -637,13 +638,11 @@ class Test_IDMP_Meters:
         # result_stream5
         result_sql = f"select * from {self.vdb}.`result_stream5` "
         tdSql.checkResultsByFunc (
-            sql = result_sql, 
+            sql  = result_sql, 
             func = lambda: tdSql.getRows() == 1
-            and tdSql.compareData(0, 0, ts.start2) # ts
-            and tdSql.compareData(1, 0, 3 + 5)     # cnt
-            and tdSql.compareData(2, 0, 4)         # last current
-            and tdSql.compareData(3, 0, 401)       # last voltage
-            and tdSql.compareData(4, 0, 201)       # last power
+            and tdSql.compareData(0, 0, self.start2) # ts
+            and tdSql.compareData(0, 1, 3 + 4 + 1)   # cnt
+            and tdSql.compareData(0, 2, 31)          # last current
         )
 
     #
