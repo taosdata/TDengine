@@ -393,7 +393,7 @@ bool vmReleaseMountTfs(SVnodeMgmt *pMgmt, int64_t mountId, int32_t minRef) {
         }
         taosMemoryFree(*(SMountTfs **)pTmp);
         if ((code = taosHashRemove(pMgmt->mountTfsHash, &mountId, sizeof(mountId))) < 0) {
-          dError("failed to remove mountId:%" PRIi64 " from mount tfs hash", mountId);
+          dError("failed at line %d to remove mountId:%" PRIi64 " from mount tfs hash", __LINE__, mountId);
         }
       }
       (void)taosThreadMutexUnlock(&pMgmt->mutex);
@@ -557,7 +557,7 @@ _closed:
   }
   if (pVnode->mountId && vmReleaseMountTfs(pMgmt, pVnode->mountId, pVnode->dropped ? 1 : 0)) {
     if (vmWriteMountListToFile(pMgmt) != 0) {
-      dError("vgId:%d, failed to write mount list at line %d since %s", pVnode->vgId, __LINE__, terrstr());
+      dError("vgId:%d, failed at line %d to write mount list since %s", pVnode->vgId, __LINE__, terrstr());
     }
   }
 
