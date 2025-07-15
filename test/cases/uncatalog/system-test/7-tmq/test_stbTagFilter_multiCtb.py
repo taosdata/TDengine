@@ -18,8 +18,8 @@ class TestCase:
         tdLog.debug(f"start to excute {__file__}")
         cls.snapshot   = 0
         cls.vgroups    = 4
-        cls.ctbNum     = 1
-        cls.rowsPerTbl = 10000
+        cls.ctbNum     = 100
+        cls.rowsPerTbl = 1000
 
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
