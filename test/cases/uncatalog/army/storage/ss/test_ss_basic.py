@@ -48,7 +48,7 @@ ssAccessString For Test:
     SecretAccessKey : vK1VcwxgSOykicx6hk8fL1x15uEtyDSFU3w4hTaZ
 '''
 
-class TestS3Basic:
+class TestSSBasic:
 
     index = eutil.cpuRand(40) + 1
     bucketName = f"ci-bucket{index}"
@@ -302,7 +302,7 @@ class TestS3Basic:
         
 
     # run
-    def test_s3_basic(self):
+    def test_ss_basic(self):
         """summary: xxx
 
         description: xxx

@@ -737,7 +737,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_query_bugs.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/query/test_having.py
 
-,,n,.,pytest cases/uncatalog/army/storage/s3/test_s3_basic.py -N 3
+,,n,.,pytest cases/uncatalog/army/storage/ss/test_ss_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/storage/test_one_stage_comp.py -N 3 -L 3 -D 1
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/storage/test_compress_basic.py -N 3
 
