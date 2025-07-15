@@ -2624,6 +2624,23 @@ class TDSql:
 
         return ts
 
+    # insert table with order values, only support number cols, return next write ts
+    def insertOrderVal(self, table, startTs, step, count, cols, orderVals, colStep = 1):
+        # init
+        ts      = startTs
+        colsVal = orderVals
+
+        # loop count
+        for i in range(count):
+            # insert sql
+            sql = f"INSERT INTO {table}({cols}) VALUES({ts}, {','.join(map(str, colsVal))})"
+            self.execute(sql, show=True)
+            # next
+            ts += step
+            for j in range(len(colsVal)):
+                colsVal[j] += colStep
+
+        return ts
 
 # global
 tdSql = TDSql()
