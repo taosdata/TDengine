@@ -892,8 +892,11 @@ static void *createTable(void *sarg) {
     int smallBatchCount = 0;
     int index=  pThreadInfo->start_table_from;
     int tableSum = pThreadInfo->end_table_to - pThreadInfo->start_table_from + 1;
-    pThreadInfo->childNames = benchCalloc(tableSum, sizeof(char *), false);
-    pThreadInfo->childTblCount = tableSum;
+    if (stbInfo->useTagTableName) {
+        pThreadInfo->childNames = benchCalloc(tableSum, sizeof(char *), false);
+        pThreadInfo->childTblCount = tableSum;
+    }
+
     for (uint64_t i = pThreadInfo->start_table_from, j = 0;
                   i <= pThreadInfo->end_table_to && !g_arguments->terminate;
                   i++, j++) {
@@ -931,7 +934,9 @@ static void *createTable(void *sarg) {
             char tbName[TSDB_TABLE_NAME_LEN] = {0};
             len = generateChildTblName(len, pThreadInfo->buffer,
                                        database, stbInfo, i, tagData, w, ttl, tbName);
-            pThreadInfo->childNames[j] = strdup(tbName);
+            if (stbInfo->useTagTableName) {}                      
+                pThreadInfo->childNames[j] = strdup(tbName);
+            }
             // move next
             if (++w >= TAG_BATCH_COUNT) {
                 // reset for gen again
@@ -1115,8 +1120,12 @@ static int startMultiThreadCreateChildTable(SDataBase* database, SSuperTable* st
         if ((REST_IFACE != stbInfo->iface) && pThreadInfo->conn) {
             closeBenchConn(pThreadInfo->conn);
         }
-        for (int j = 0; j < pThreadInfo->childTblCount; j++) {
-            stbInfo->childTblArray[nCount++]->name = pThreadInfo->childNames[j];
+        
+        if (stbInfo->useTagTableName) {
+            for (int j = 0; j < pThreadInfo->childTblCount; j++) {
+                stbInfo->childTblArray[nCount++]->name = pThreadInfo->childNames[j];
+            }
+            tmfree(pThreadInfo->childNames);
         }
     }
 
