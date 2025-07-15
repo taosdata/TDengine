@@ -148,7 +148,7 @@ class TestStreamParametersCheckDefault:
 
     
     def getMemoryMB(self):
-        cmd = "free -m | grep Mem | awk '{print $2}'"
+        cmd = "unset LD_PRELOAD;free -m | grep Mem | awk '{print $2}'"
         output = subprocess.check_output(cmd, shell=True).decode().strip()
         tdLog.info(f"total memory is {output} MB")
         return int(output)  # 单位：MB

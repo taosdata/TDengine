@@ -222,7 +222,7 @@ SWords shellCommands[] = {
     {"show views;", 0, 0, NULL},
     {"show arbgroups;", 0, 0, NULL},
     {"split vgroup <vgroup_id>;", 0, 0, NULL},
-    {"s3migrate database <db_name>;", 0, 0, NULL},
+    {"ssmigrate database <db_name>;", 0, 0, NULL},
     {"show mounts;", 0, 0, NULL},
 #endif
     {"insert into <tb_name> values(", 0, 0, NULL},
@@ -316,9 +316,9 @@ char* db_options[] = {"keep ",
                       "wal_level ",
                       "vgroups ",
                       "single_stable ",
-                      "s3_chunksize ",
-                      "s3_keeplocal ",
-                      "s3_compact ",
+                      "ss_chunksize ",
+                      "ss_keeplocal ",
+                      "ss_compact ",
                       "wal_retention_period ",
                       "wal_roll_period ",
                       "wal_retention_size ",
@@ -331,7 +331,7 @@ char* db_options[] = {"keep ",
 
 char* alter_db_options[] = {"cachemodel ", "replica ", "keep ", "stt_trigger ",
                             "wal_retention_period ", "wal_retention_size ", "cachesize ", 
-			                      "s3_keeplocal ", "s3_compact ",
+			                      "ss_keeplocal ", "ss_compact ",
                             "wal_fsync_period ", "buffer ", "pages " ,"wal_level "};
 
 char* data_types[] = {"timestamp",    "int",
@@ -651,7 +651,7 @@ void showHelp() {
     drop mount <mount_name>;\n\
     redistribute vgroup <vgroup_id> dnode <dnode_id> ;\n\
     split vgroup <vgroup_id>;\n\
-    s3migrate database <db_name>;\n\
+    ssmigrate database <db_name>;\n\
     show compacts;\n\
     show compact \n\
     show arbgroups;\n\

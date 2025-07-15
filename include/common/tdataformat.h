@@ -21,6 +21,7 @@
 #include "tarray.h"
 #include "tbuffer.h"
 #include "tencode.h"
+#include "tsimplehash.h"
 #include "ttypes.h"
 #include "tutil.h"
 
@@ -407,8 +408,8 @@ typedef struct {
   TAOS_STMT2_BIND *bind;
 } SBindInfo2;
 
-int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                           SArray *rowArray, bool *pOrdered, bool *pDupTs);
+int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *parsedCols, bool infoSorted,
+                           const STSchema *pTSchema, SArray *rowArray, bool *pOrdered, bool *pDupTs);
 
 #endif
 
