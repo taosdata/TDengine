@@ -865,11 +865,11 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=88,
-            stream="create stream rdb.s88 interval(5m) sliding(5m) from tdb.v1 into rdb.r88 as select _twstart tw, cbool, cast(avg(cint) as int) from qdb.view1 where cts >= _twstart and cts < _twend and cbool = true group by cbool having avg(cint) > 0 order by tw",
+            stream="create stream rdb.s88 interval(5m) sliding(5m) from tdb.v1 into rdb.r88 as select _twstart tw, cbool, cast(avg(cint) as int) from qdb.view1 where cts >= _twstart and cts < _twend and cbool = true group by cbool having avg(cint) > 0",
             res_query="select * from rdb.r88 limit 1",
             exp_query="select cast('2025-01-01 00:00:00.000' as timestamp) tw, cbool, cast(avg(cint) as int) from qdb.view1 where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' and cbool = true group by cbool having avg(cint) > 0 order by tw;",
         )
-        # self.streams.append(stream) TD-36555
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=89,
@@ -1212,7 +1212,7 @@ class TestStreamSubquerySliding:
 
         stream = StreamItem(
             id=131,
-            stream="create stream rdb.s131 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r131 as select ta.ts tats, tb.cts tbts, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2, _twstart, _twend from tdb.triggers ta right join qdb.t1 tb on ta.ts=tb.cts and ta.id=%%1 where ta.ts >= _twstart and ta.ts < _twend;",
+            stream="create stream rdb.s131 interval(5m) sliding(5m) from tdb.triggers partition by id into rdb.r131 as select ta.ts tats, tb.cts tbts, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2, _twstart, _twend from tdb.triggers ta right join qdb.t1 tb on ta.ts=tb.cts where ta.ts >= _twstart and ta.ts < _twend and ta.id=%%1;",
             res_query="select tats, tbts, tac1, tac2, tbc1, tbc2 from rdb.r131 where id=1",
             exp_query="select ta.ts tats, tb.cts tbts, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2 from tdb.t1 ta right join qdb.t1 tb on ta.ts=tb.cts where ta.ts >= '2025-01-01 00:00:00.000' and ta.ts < '2025-01-01 00:35:00.000';",
         )
