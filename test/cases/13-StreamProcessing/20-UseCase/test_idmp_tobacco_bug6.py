@@ -172,15 +172,6 @@ class TestSceneTobacco:
         tdLog.info(f"create {stream_count} streams in {self.vdb}")
 
     def insertTriggerData(self, stream_ids):
-        if stream_ids is None or 1 in stream_ids:
-            self.insertTriggerDataForStream1()
-
-        tdLog.info("insert trigger data done")
-
-    def insertTriggerDataForStream1(self):
-        """
-        系统中振动输送机的振动幅度,每5分钟计算一次过去半小时的平均值，常规告警
-        """
         # 以当前时间戳为准，取整到 1 min
         ts = (int(time.time()) // 60) * 60 * 1000
         rows = 35
@@ -188,18 +179,25 @@ class TestSceneTobacco:
         res = tdSql.getResult(
             f"select distinct tbname from `{self.db}`.`vibrating_conveyor`"
         )
-        for row in res:
-            tbname = row[0]
+        table_count = len(res)
+        for table_idx in res:
+            tbname = table_idx[0]
             for i in range(rows):
                 sql = f"INSERT INTO `{self.db}`.`{tbname}` VALUES ({ts - (rows - i) * 60 * 1000}, {i % 5}.0, {i % 5}.0);"
                 # tdLog.info(f"sql: {sql}")
                 tdSql.execute(sql)
 
-        tdLog.debug("insert trigger data for stream 1")
+        tdSql.checkResultsByFunc(
+            sql=f"SELECT COUNT(*) FROM `{self.db}`.`vibrating_conveyor`;",
+            func=lambda: tdSql.compareData(0, 0, rows * table_count),
+        )
+
+        tdLog.info("insert trigger data done")
 
     def verifyResults(self, stream_ids):
-        # if stream_ids is None or 1 in stream_ids:
-        #     self.verifyResultsForStream1()
+        if stream_ids is None:
+            stream_ids = self.stream_name_map.keys()
+
         for id in stream_ids:
             stream_name = self.stream_name_map.get(id, "")
             res = tdSql.getResult(f"SHOW `{self.vdb}`.stables like '{stream_name}';")
