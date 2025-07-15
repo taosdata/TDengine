@@ -503,7 +503,8 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s0 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"into "
                 f"res_ct0_0 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
                 f"where _twstart - 10s <= _c0 and _c0 <= _twend "
@@ -512,7 +513,8 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s1 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"into "
                 f"res_ct0_1 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
                 f"where _twstart - 10s <= _c0 and _c0 <= _twend "
@@ -521,7 +523,8 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s2 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"into "
                 f"res_ct0_2 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
                 f"where _twstart - 10s <= _c0 and _c0 <= _twend "
@@ -530,7 +533,8 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s3 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"into "
                 f"res_ct0_3 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
                 f"where _twstart - 10s <= _c0 and _c0 <= _twend "
@@ -539,7 +543,8 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s4 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"into "
                 f"res_ct0_4 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
                 f"where _twstart - 10s <= _c0 and _c0 <= _twend "
@@ -548,7 +553,8 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s5 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"into "
                 f"res_ct0_5 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
                 f"where _twstart - 10s <= _c0 and _c0 <= _twend "
@@ -557,7 +563,8 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s6 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"into "
                 f"res_ct0_6 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
                 f"where _twstart - 10s <= _c0 and _c0 <= _twend "
@@ -566,7 +573,8 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s7 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"into "
                 f"res_ct0_7 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
                 f"where _twstart - 10s <= _c0 and _c0 <= _twend "
@@ -575,7 +583,8 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s8 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"into "
                 f"res_ct0_8 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
                 f"where _twstart - 10s <= _c0 and _c0 <= _twend "
@@ -584,7 +593,8 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s9 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"into "
                 f"res_ct0_9 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
                 f"where _twstart - 10s <= _c0 and _c0 <= _twend "
@@ -593,7 +603,8 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s10 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"into "
                 f"res_ct0_10 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
                 f"where _twstart - 10s <= _c0 and _c0 <= _twend "
@@ -602,7 +613,8 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s11 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"into "
                 f"res_ct0_11 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
                 f"where _twstart - 10s <= _c0 and _c0 <= _twend "
@@ -611,7 +623,8 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s12 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"into "
                 f"res_ct0_12 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
                 f"where _twstart - 10s <= _c0 and _c0 <= _twend "
@@ -620,7 +633,8 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s13 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) into "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history|on_failure_pause) "
+                f"into "
                 f"res_ct0_13 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
                 f"where _twstart - 10s <= _c0 and _c0 <= _twend "
@@ -629,7 +643,8 @@ class TestStreamNotifyTrigger:
             tdSql.execute(
                 f"create stream s14 state_window(cint) from ct0 "
                 f"stream_options(DELETE_RECALC) "
-                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) into "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"into "
                 f"res_ct0_14 (firstts, lastts, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from ct0 "
                 f"where _twstart - 10s <= _c0 and _c0 <= _twend "
