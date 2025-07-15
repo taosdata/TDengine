@@ -25,7 +25,7 @@ dependencies = [
     "requests==2.32.4",
     "taospy>=2.8.2",
     "tomli==2.2.1",
-    "urllib3==1.26.20",
+    "urllib3==2.5.0",
     "pywinrm>=0.5.0",
     "patchwork>=1.0.1",
     "fabric2>=2.7.1",
