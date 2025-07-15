@@ -3350,6 +3350,17 @@ static void stRealtimeContextDestroy(void *ptr) {
     taosArrayDestroyEx(pContext->pNotifyParams, tDestroySSTriggerCalcParam);
     pContext->pNotifyParams = NULL;
   }
+  
+  if (pContext->reqCids != NULL) {
+    taosArrayDestroy(pContext->reqCids);
+    pContext->reqCids = NULL;
+  }
+
+  if (pContext->reqCols != NULL) {
+    taosArrayDestroy(pContext->reqCols);
+    pContext->reqCols = NULL;
+  }
+
   for (int32_t i = 0; i < STRIGGER_PULL_TYPE_MAX; ++i) {
     if (pContext->pullRes[i] != NULL) {
       blockDataDestroy(pContext->pullRes[i]);
