@@ -22,15 +22,15 @@ TDengine uses SQL to create three types of topics, which are introduced below.
 Subscribe to the results of an SQL query, essentially a continuous query, returning only the latest values each time, with the following creation syntax:
 
 ```sql
-CREATE TOPIC [IF NOT EXISTS] topic_name AS subquery;
+CREATE TOPIC [IF NOT EXISTS] topic_name as subquery
 ```
 
-This SQL subscribes through a SELECT statement (including SELECT \*, or specific query subscriptions like SELECT ts, c1, with condition filtering, scalar function computations, but does not support aggregate functions or time window aggregation). Note that:
+This SQL subscribes through a SELECT statement (including SELECT *, or specific query subscriptions like SELECT ts, c1, with condition filtering, scalar function computations, but does not support aggregate functions or time window aggregation). Note that:
 
 1. Once this type of TOPIC is created, the structure of the subscribed data is fixed.
-1. Columns or tags that are subscribed to or used for calculations cannot be deleted (ALTER table DROP) or modified (ALTER table MODIFY).
-1. If table structure changes occur, newly added columns will not appear in the results.
-1. For select \*, it subscribes to all columns at the time of creation (data columns for subtables and basic tables, data columns plus tag columns for supertables).
+2. Columns or tags that are subscribed to or used for calculations cannot be deleted (ALTER table DROP) or modified (ALTER table MODIFY).
+3. If table structure changes occur, newly added columns will not appear in the results.
+4. For select *, it subscribes to all columns at the time of creation (data columns for subtables and basic tables, data columns plus tag columns for supertables).
 
 Suppose you need to subscribe to data where the voltage value in all smart meters is greater than 200, and only return the timestamp, current, and voltage (not phase), then you can create the topic power_topic with the following SQL.
 
@@ -43,23 +43,23 @@ CREATE TOPIC power_topic AS SELECT ts, current, voltage FROM power.meters WHERE 
 Subscribe to all data in a supertable, with the following syntax:
 
 ```sql
-CREATE TOPIC [IF NOT EXISTS] topic_name [WITH META] AS STABLE stb_name [where_condition];
+CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS STABLE stb_name [where_condition]
 ```
 
 The difference from subscribing using `SELECT * from stbName` is:
 
 1. It does not restrict user table structure changes, i.e., both structure changes and new data after changes can be subscribed to.
-1. It returns unstructured data, and the structure of the returned data will change with the structure of the supertable.
-1. The with meta parameter is optional; when selected, it returns statements for creating supertables, subtables, etc., mainly used for supertable migration in taosx.
-1. The where_condition parameter is optional; when selected, it will be used to filter subtables that meet the conditions, subscribing to these subtables. The where condition cannot include ordinary columns, only tags or tbname, and functions can be used to filter tags, but not aggregate functions, as subtable tag values cannot be aggregated. It can also be a constant expression, such as 2 > 1 (subscribe to all subtables), or false (subscribe to 0 subtables).
-1. Returned data does not include tags.
+2. It returns unstructured data, and the structure of the returned data will change with the structure of the supertable.
+3. The with meta parameter is optional; when selected, it returns statements for creating supertables, subtables, etc., mainly used for supertable migration in taosx.
+4. The where_condition parameter is optional; when selected, it will be used to filter subtables that meet the conditions, subscribing to these subtables. The where condition cannot include ordinary columns, only tags or tbname, and functions can be used to filter tags, but not aggregate functions, as subtable tag values cannot be aggregated. It can also be a constant expression, such as 2 > 1 (subscribe to all subtables), or false (subscribe to 0 subtables).
+5. Returned data does not include tags.
 
 ### Database Topics
 
 Subscribe to all data in a database, with the syntax as follows:
 
 ```sql
-CREATE TOPIC [IF NOT EXISTS] topic_name [WITH META] AS DATABASE db_name;
+CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS DATABASE db_name;
 ```
 
 This statement creates a subscription that includes all table data in the database:
@@ -121,8 +121,6 @@ TDengine provides comprehensive and rich data subscription APIs, aimed at meetin
 
 It is worth mentioning that TDengine's data subscription APIs are highly consistent with the popular Kafka subscription APIs in the industry, making it easy for developers to get started and leverage their existing knowledge and experience. To facilitate user understanding and reference, TDengine's official documentation provides detailed descriptions and example codes of various APIs, which can be accessed in the connectors section of the TDengine official website. Through these APIs, developers can efficiently implement real-time data subscription and processing to meet data handling needs in various complex scenarios.
 
-TDengine 3.3.7.0 includes MQTT-based data subscription, allowing data to be subscribed to directly via an MQTT client. For details, refer to the MQTT Data Subscription section.
-
 ### Replay Feature
 
 TDengine's data subscription feature supports a replay function, allowing users to replay the data stream in the actual order of data writing. This feature is based on TDengine's efficient WAL mechanism, ensuring data consistency and reliability.
@@ -132,9 +130,9 @@ To use the data subscription's replay feature, users can specify the time range 
 If the following 3 data entries were written, then during replay, the first entry is returned first, followed by the second entry after 5 seconds, and the third entry 3 seconds after obtaining the second entry.
 
 ```text
-2023-09-22 00:00:00.000
-2023-09-22 00:00:05.000
-2023-09-22 00:00:08.000
+2023/09/22 00:00:00.000
+2023/09/22 00:00:05.000
+2023/09/22 00:00:08.000
 ```
 
 When using the data subscription's replay feature, note the following:
@@ -143,123 +141,3 @@ When using the data subscription's replay feature, note the following:
 - The replay function of data subscription only supports data playback for query subscriptions; supertable and database subscriptions do not support playback.
 - Replay does not support progress saving.
 - Because data playback itself requires processing time, there is a precision error of several tens of milliseconds in playback.
-- MQTT data subscription does not support replay.
-
-## MQTT Data Subscription
-
-In addition to classic data subscription, TDengine supports subscription over MQTT. You can create a broker node (bnode) in TDengine and connect your MQTT client to it. The client can then subscribe to TDengine topics.
-
-### Bnode Management
-
-You manage bnodes through the taos CLI.
-
-#### Create a Bnode
-
-Use the following SQL statement to create a bnode:
-
-```sql
-CREATE BNODE ON DNODE <dnode_id>;
-```
-
-You can create only one bnode on each dnode. Once the bnode is successfully created, a bnode subprocess named `taosmqtt` is automatically started to provide MQTT subscription services.
-
-The `taosmqtt` service uses port 6083 by default. You can modify the `mqttPort` parameter in `taos.cfg` to provide MQTT subscription services on a different port.
-
-#### View Bnodes
-
-Use the following SQL statement to display information about the bnodes in your cluster:
-
-```sql
-SHOW BNODES;
-```
-
-Information similar to the following is displayed:
-
-```text
-taos> show bnodes;
-     id    |   endpoint       |    protocol    |       create_time    | 
-======================================================================
-     1     | 192.168.0.1:6083 | mqtt        | 2024-11-28 18:44:27.089 | 
-Query OK, 1 row(s) in set (0.037205s)
-```
-
-#### Delete a Bnode
-
-Use the following SQL statement to delete a bnode:
-
-```sql
-DROP BNODE ON DNODE <dnode_id>;
-```
-
-Deleting a bnode removes it from the TDengine cluster and stops the `taosmqtt` service.
-
-### MQTT Data Subscription Example
-
-This example creates test data in TDengine and subscribes to the data. You can use any client that supports the MQTT v5.0 protocol to subscribe; this example uses the Python `paho-mqtt` library.
-
-#### Create Test Data
-
-In the taos CLI, run the following SQL statements to set up your environment for this example.
-
-```sql
-CREATE DATABASE db VGROUPS 1;
-CREATE TABLE db.meters (ts TIMESTAMP, f1 INT) TAGS (t1 INT);
-CREATE TOPIC topic_meters AS SELECT ts, tbname, f1, t1 FROM db.meters;
-INSERT INTO db.tb USING db.meters TAGS (1) VALUES (now, 1);
-CREATE BNODE ON DNODE 1;
-```
-
-This creates a database, a supertable, and a topic. It then inserts a test data point and creates a bnode.
-
-#### Create a Consumer
-
-Write a consumer in Python as follows:
-
-```python
-import time
-import paho.mqtt
-import paho.mqtt.properties as p
-import paho.mqtt.packettypes as pt
-import paho.mqtt.client as mqttClient
-
-def on_connect(client, userdata, flags, rc, properties=None):
-    print("CONNACK received with code %s." % rc)
-    sub_properties = p.Properties(pt.PacketTypes.SUBSCRIBE)
-    sub_properties.UserProperty = ('sub-offset', 'earliest')
-    client.subscribe("$share/g1/topic_meters", qos=1, properties=sub_properties)
-
-def on_subscribe(client, userdata, mid, granted_qos, properties=None):
-    print("Subscribed: " + str(mid) + " " + str(granted_qos))
-
-def on_message(client, userdata, msg):
-    print(msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
-
-if paho.mqtt.__version__[0] > '1':
-    client = mqttClient.Client(mqttClient.CallbackAPIVersion.VERSION2, client_id="tmq_sub_cid", userdata=None, protocol=mqttClient.MQTTv5)
-else:
-    client = mqttClient.Client(client_id="tmq_sub_cid", userdata=None, protocol=mqttClient.MQTTv5)
-
-client.on_connect = on_connect
-client.username_pw_set("root", "taosdata")
-client.connect("127.0.1.1", 6083)
-
-client.on_subscribe = on_subscribe
-client.on_message = on_message
-
-client.loop_forever()
-```
-
-Save this program as `sub.py`.
-
-#### Subscribe to the Topic
-
-Run the following commands to subscribe to the data in `topic_meters`:
-
-```shell
-python3 -m venv .test-env
-source .test-env/bin/activate
-pip3 install paho-mqtt==2.1.0
-python3 ./sub.py
-```
-
-Once the subscription is successful, any new data written to the `topic_meters` topic will be automatically pushed to the client via MQTT.

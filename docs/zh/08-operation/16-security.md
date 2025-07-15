@@ -211,6 +211,3 @@ key_status 有三种取值：
 taosd -y  {encryptKey}
 ```
 更新密钥配置，需要先停止 taosd，并且使用完全相同的密钥，也即密钥在数据库创建后不能修改。
-
-### 加密用户密码
-默认的情况下，用户的密码会以 MD5 的形式进行存储。可以通过参数 encryptPassAlgorithm 将用户密码进行加密储存。encryptPassAlgorithm 默认是未设置的状态，在未设置时，不对用户密码进行加密，也即只以 MD5 的形式存储。当 encryptPassAlgorithm 设置为 sm4 时（目前只支持 sm4 加密算法），对用户密码进行加密存储。设置 encryptPassAlgorithm 参数前，同样按照前面的步骤配置密钥。

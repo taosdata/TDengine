@@ -58,17 +58,10 @@ TDengine 其他功能模块的报错，请参考 [错误码](../../../reference/
 | JSON              | byte[]           |
 | VARBINARY         | byte[]           |
 | GEOMETRY          | byte[]           |
-| DECIMAL           | decimal          |
 
-**注意**：
-
-- JSON 类型仅在 tag 中支持。
-- GEOMETRY 类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)。
+**注意**：JSON 类型仅在 tag 中支持。
+GEOMETRY 类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)。
 WKB 规范请参考 [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)。
-- DECIMAL 类型在 C# 中使用 `decimal` 类型表示，支持高精度的十进制数值。因为 C# 的 `decimal` 类型与 TDengine 的 DECIMAL 类型在精度和范围上有所不同，
-  C# `decimal` 精度最大 29 位，TDengine DECIMAL 类型精度最大 38 位，所以在使用时需要注意：
-    - 未超出 C# decimal 类型范围时可以使用 `GetDecimal` 或 `GetValue` 获取。
-    - 当超出 C# decimal 类型范围时 `GetDecimal` 和 `GetValue` 方法会抛出 `OverflowException`，此时可以使用 `GetString` 方法获取字符串表示形式。
 
 ## 示例程序汇总
 
@@ -139,7 +132,7 @@ C# 驱动在解析结果集时，默认使用本地时区解析时间类型。�
 
 .Net 6.0 及以上版本，可以统一使用 [IANA](https://www.iana.org/time-zones) 时区格式，例如：`America/New_York`。
 
-#### 接口说明  
+#### 接口说明
 
 `ConnectionStringBuilder` 类提供了连接配置字符串的解析功能。
 
@@ -148,7 +141,7 @@ C# 驱动在解析结果集时，默认使用本地时区解析时间类型。�
     - **参数说明**：
         - `connectionString`：连接配置字符串。
 
-### 连接功能 
+### 连接功能
 
 C# 驱动支持创建 ADO.NET 连接，返回支持 ADO.NET 标准的 `DbConnection` 接口的对象，还提供了 `ITDengineClient` 接口，扩充了一些无模式写入接口。
 
@@ -194,7 +187,7 @@ ADO.NET 连接支持的标准接口如下：
         - `connection`：TDengineConnection 对象。
     - **异常**：执行失败抛出 `TDengineError` 异常。
 
-- `public void Prepare()` 
+- `public void Prepare()`
     - **接口说明**：检查连接和命令文本，并准备命令执行。
     - **异常**：未执行 open 或未设置 CommandText 抛出 `InvalidOperationException` 异常。
 
@@ -337,15 +330,6 @@ C# 驱动提供了符合 ADO.NET 标准的 `DbDataReader` 接口，提供了用�
         - `ordinal`：列索引。
     - **返回值**：日期时间值。
     - **异常**：类型不对应抛出 `InvalidCastException` 异常。
-
-- `public decimal GetDecimal(int ordinal)`
-  - **接口说明**：获取指定列的十进制数值。
-  - **参数说明**：
-  - `ordinal`：列索引。
-  - **返回值**：十进制数值。
-  - **异常**：
-    - 类型不对应抛出 `InvalidCastException` 异常。
-    - 超出范围抛出 `OverflowException` 异常。
 
 - `public double GetDouble(int ordinal)`
     - **接口说明**：获取指定列的双精度浮点数值。

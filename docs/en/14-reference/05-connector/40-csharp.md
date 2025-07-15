@@ -59,20 +59,10 @@ For error reporting in other TDengine modules, please refer to [Error Codes](../
 | JSON              | byte[]   |
 | VARBINARY         | byte[]   |
 | GEOMETRY          | byte[]   |
-| DECIMAL           | decimal  |
 
-**Note**: 
-
-- JSON type is only supported in tags.
-- The GEOMETRY type is binary data in little endian byte order, conforming to the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)
+**Note**: JSON type is only supported in tags.
+The GEOMETRY type is binary data in little endian byte order, conforming to the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)
 For WKB standard, please refer to [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)
-- The DECIMAL type in C# is represented using the `decimal` type, which supports high-precision decimal numbers. 
-Since C#'s `decimal` type differs from TDengine's DECIMAL type in precision and range,
-the C#'s `decimal` has a maximum precision of 29 digits, while TDengine's DECIMAL type supports up to 38 digits of precision.
-The following should be noted when using it:
-  - When the value does not exceed the range of C#'s `decimal` type, you can use `GetDecimal` or `GetValue` to retrieve it.
-  - When the value exceeds the range of C#'s `decimal` type, the `GetDecimal` and `GetValue` methods will throw an `OverflowException`. 
-  In such cases, you can use the `GetString` method to obtain the string representation.
 
 ## Summary of Example Programs
 
@@ -339,15 +329,6 @@ The `DbDataReader` interface provides the following methods to retrieve the resu
     - `ordinal`: Column index.
   - **Return Value**: Date and time value.
   - **Exception**: Throws `InvalidCastException` if the type does not correspond.
-
-- `public decimal GetDecimal(int ordinal)`
-  - **Interface Description**: Gets the decimal value of the specified column.
-  - **Parameter Description**:
-    - `ordinal`: Column index.
-  - **Return Value**: Decimal value.
-  - **Exception**: 
-    - Throws `InvalidCastException` if the type does not correspond.
-    - Throws `OverflowException` if the value exceeds the range of C#'s `decimal` type.
 
 - `public double GetDouble(int ordinal)`
   - **Interface Description**: Gets the double precision floating-point value of the specified column.
