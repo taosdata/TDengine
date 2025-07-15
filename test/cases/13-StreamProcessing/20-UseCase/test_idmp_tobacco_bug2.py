@@ -101,28 +101,6 @@ class TestSceneTobacco:
                     tdLog.debug(f"virtual stable SQL: {sql}")
                     tdSql.execute(sql)
 
-        # self.stable_map = {
-        #     "drum_air_flow_dryer": "vst_滚筒气流烘丝机_608157",
-        #     "cutting_public_point": "vst_切丝公共点_864610",
-        #     "fragrance_machine": "vst_加香机_101420",
-        #     "metering_pipe": "vst_计量管_958712",
-        #     "electronic_belt_scale": "vst_电子皮带秤_527456",
-        #     "belt_conveyor": "vst_带式输送机_703474",
-        #     "drying_public_point": "vst_烘丝公共点_915945",
-        #     "thin_plate_dryer": "vst_薄板烘丝机_884743",
-        #     "flip_box_feeder": "vst_翻箱喂料机构_553580",
-        #     "drum_type_stem_rehumidifier": "vst_滚筒式烟梗回潮机_514261",
-        #     "jet_vacuum_rehumidifier": "vst_喷射式真空回潮机_348599",
-        #     "wind_fiber_feed_public_point": "vst_风力送丝公共点_734506",
-        #     "public_point": "vst_公共点_725959",
-        #     "fragrance_public_point": "vst_加香公共点_667004",
-        #     "leaf_storage_cabinet": "vst_贮叶柜_597655",
-        #     "feeding_machine2": "vst_喂料机_369036",
-        #     "vibrating_conveyor": "vst_振动输送机_701259",
-        #     "feeding_machine": "vst_加料机_130700",
-        #     "chain_conveyor": "vst_链式输送机_452298",
-        # }
-
         # create virtable tables
         vtb_count = 0
         with open(
@@ -177,15 +155,6 @@ class TestSceneTobacco:
         tdLog.info(f"create {stream_count} streams in {self.vdb}")
 
     def insertTriggerData(self, stream_ids):
-        if stream_ids is None or 1 in stream_ids:
-            self.insertTriggerDataForStream1()
-
-        tdLog.info("insert trigger data done")
-
-    def insertTriggerDataForStream1(self):
-        """
-        系统中振动输送机的振动幅度,每5分钟计算一次过去半小时的平均值，常规告警
-        """
         # 以当前时间戳为准，取整到 1 min
         ts = (int(time.time()) // 60) * 60 * 1000
         rows = 35
@@ -193,21 +162,31 @@ class TestSceneTobacco:
         res = tdSql.getResult(
             f"select distinct tbname from `{self.db}`.`vibrating_conveyor`"
         )
-        for row in res:
-            tbname = row[0]
+        table_count = len(res)
+        for table_idx in res:
+            tbname = table_idx[0]
             for i in range(rows):
                 sql = f"INSERT INTO `{self.db}`.`{tbname}` VALUES ({ts - (rows - i) * 60 * 1000}, {i % 5}.0, {i % 5}.0);"
                 # tdLog.info(f"sql: {sql}")
                 tdSql.execute(sql)
 
-        tdLog.debug("insert trigger data for stream 1")
+        tdSql.checkResultsByFunc(
+            sql=f"SELECT COUNT(*) FROM `{self.db}`.`vibrating_conveyor`;",
+            func=lambda: tdSql.compareData(0, 0, rows * table_count),
+        )
+
+        tdLog.info("insert trigger data done")
 
     def verifyResults(self, stream_ids):
-        if stream_ids is None or 1 in stream_ids:
-            self.verifyResultsForStream1()
+        if stream_ids is None:
+            stream_ids = self.stream_name_map.keys()
+
+        for id in stream_ids:
+            stream_name = self.stream_name_map.get(id, "")
+            res = tdSql.getResult(f"SHOW `{self.vdb}`.stables like '{stream_name}';")
+            if res is None or len(res) == 0:
+                raise RuntimeError(
+                    f"查询结果为空: SHOW `{self.vdb}`.stables like '{stream_name}';"
+                )
 
         tdLog.info("verify results done")
-
-    def verifyResultsForStream1(self):
-        # 验证振动输送机的振动幅度平均值
-        tdLog.info("verify results for stream 1 done")
