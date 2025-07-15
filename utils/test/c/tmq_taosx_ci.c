@@ -589,6 +589,7 @@ int32_t create_topic() {
   pRes = taos_query(pConn, "use abc1");
   if (taos_errno(pRes) != 0) {
     printf("error in use db, reason:%s\n", taos_errstr(pRes));
+    taos_close(pConn);
     return -1;
   }
   taos_free_result(pRes);
@@ -600,6 +601,7 @@ int32_t create_topic() {
     pRes = taos_query(pConn, topic);
     if (taos_errno(pRes) != 0) {
       printf("failed to create topic meters_summary_t1, reason:%s\n", taos_errstr(pRes));
+      taos_close(pConn);
       return -1;
     }
     taos_free_result(pRes);
@@ -609,6 +611,7 @@ int32_t create_topic() {
     pRes = taos_query(pConn, topic);
     if (taos_errno(pRes) != 0) {
       printf("failed to create topic topic_db, reason:%s\n", taos_errstr(pRes));
+      taos_close(pConn);
       return -1;
     }
     taos_free_result(pRes);
