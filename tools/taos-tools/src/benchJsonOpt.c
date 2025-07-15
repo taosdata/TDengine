@@ -1061,6 +1061,7 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
         superTable->timestamp_step = 1;
         superTable->angle_step = 1;
         superTable->useSampleTs = false;
+        superTable->useTagTableName = false;
         superTable->non_stop = false;
         superTable->insertRows = 0;
         superTable->interlaceRows = 0;
@@ -1402,6 +1403,12 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
                      MAX_FILE_NAME_LEN);
         } else {
             memset(superTable->tagsFile, 0, MAX_FILE_NAME_LEN);
+        }
+
+        tools_cJSON *useTagTableName =
+            tools_cJSON_GetObjectItem(stbInfo, "use_tag_table_name");
+        if (tools_cJSON_IsNumber(useTagTableName)) {
+            superTable->useTagTableName = useTagTableName->valueint;
         }
 
         tools_cJSON *insertRows =

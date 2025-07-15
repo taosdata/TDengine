@@ -579,6 +579,7 @@ typedef struct SSuperTable_S {
 
     char      *sampleDataBuf;
     bool      useSampleTs;
+    bool      useTagTableName;
     bool      tcpTransfer;
     bool      non_stop;
     bool      autoFillback; // "start_fillback_time" item set "auto"

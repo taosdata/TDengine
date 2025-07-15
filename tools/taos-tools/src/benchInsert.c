@@ -797,14 +797,54 @@ static int generateChildTblName(int len, char *buffer, SDataBase *database,
                         TSDB_MAX_ALLOWED_SQL_LEN - len, "CREATE TABLE");
     }
 
-    len += snprintf(
-            buffer + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
-            g_arguments->escape_character
-            ? " IF NOT EXISTS `%s`.`%s%" PRIu64 "` USING `%s`.`%s` TAGS (%s) %s "
-            : " IF NOT EXISTS %s.%s%" PRIu64 " USING %s.%s TAGS (%s) %s ",
-            database->dbName, stbInfo->childTblPrefix, tableSeq, database->dbName,
-            stbInfo->stbName,
-            tagData + i * stbInfo->lenOfTags, ttl);
+    char tableName[TSDB_TABLE_NAME_LEN] = {0};
+    const char *tagStart = tagData + i * stbInfo->lenOfTags;  // 当前行的TAG起始位置
+    const char *tagsForSQL = tagStart;  // 实际用于SQL的TAG部分
+
+    // 统一获取格式字符串（避免重复条件判断）
+    const char *fmt = g_arguments->escape_character ?
+        " IF NOT EXISTS `%s`.`%s` USING `%s`.`%s` TAGS (%s) %s " :
+        " IF NOT EXISTS %s.%s USING %s.%s TAGS (%s) %s ";
+
+    if (stbInfo->useTagTableName) {
+        // 查找第一个逗号作为分隔符
+        char *firstComma = strchr(tagStart, ',');
+        
+        if (firstComma) {
+            // 安全拷贝表名部分（逗号前的内容）
+            size_t nameLen = firstComma - tagStart;
+            size_t copyLen = MIN(nameLen, sizeof(tableName) - 1);
+            strncpy(tableName, tagStart, copyLen);
+            tableName[copyLen] = '\0';
+            // TAG部分从逗号后开始（跳过表名和逗号）
+            tagsForSQL = firstComma + 1;
+        } else {
+            // 整个字段作为表名，TAG部分置空
+            strncpy(tableName, tagStart, sizeof(tableName) - 1);
+            tableName[sizeof(tableName)-1] = '\0';
+            tagsForSQL = "";  // 明确标记无TAG数据
+        }
+    } else {
+        // 使用前缀+序号生成表名
+        snprintf(tableName, sizeof(tableName), "%s%" PRIu64, 
+                 stbInfo->childTblPrefix, tableSeq);
+        // 使用完整TAG数据
+        tagsForSQL = tagStart;
+    }        
+
+
+    size_t tbnameLen = 0;
+    if (stbInfo->useTagTableName) {
+        char *firstField = tagData + i * stbInfo->lenOfTags;
+        char *comma = strchr(firstField, ',');
+        tbnameLen = comma - firstField;
+    }
+
+    // 统一生成SQL语句
+    len += snprintf(buffer + len, TSDB_MAX_ALLOWED_SQL_LEN - len, fmt,
+                    database->dbName, tableName,
+                    database->dbName, stbInfo->stbName,
+                    tagsForSQL, ttl);
 
     return len;
 }
