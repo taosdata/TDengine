@@ -81,26 +81,26 @@ dataDir /mnt/data6 2 0
 
 | 参数名称 | 参数含义 |
 |:---------------------|:-----------------------------------------------|
-| ssEnabled | 是否启用共享存储，默认值为 0，表示禁用共享存储；1 表示启用共享存储，但仅支持数据的手动迁移；2 表示启用共享存储且支持自动迁移 |
-| ssAccessString | 一个包含各种共享存储访问选项的字符串，格式为 `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`。 目前，仅支持 S3 兼容的对象存储服务，故 `device-type` 必须是 `s3`，下一个表格列出了具体选项的详细信息。 |
+| ssEnabled            | 是否启用共享存储，默认值为 0，表示禁用共享存储；1 表示启用共享存储，但仅支持数据的手动迁移；2 表示启用共享存储且支持自动迁移 |
+| ssAccessString       | 一个包含各种共享存储访问选项的字符串，格式为 `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`<br/>目前，仅支持 S3 兼容的对象存储服务，故 `device-type` 必须是 `s3`，下一个表格列出了具体选项的详细信息|
 | ssUploadDelaySec     | data 文件持续多长时间不再变动后上传至共享存储，单位：秒。最小值：1；最大值：2592000（30 天），默认值 60 秒 |
 | ssPageCacheSize      | 共享存储 page cache 缓存页数目，单位：页。最小值：4；最大值：1024*1024*1024。 ，默认值 4096|
 | ssAutoMigrateIntervalSec | 本地数据文件自动上传共享存储的触发周期，单位为秒。最小值：600；最大值：100000。默认值 3600 |
 
 `ssAccessString` 针对 S3 兼容的对象存储的选项如下：
 
-名称            |   含义
-----------------|----------------------------------------------
-endpoint        | 对象存储服务的机器名或 IP 地址，可以包含可选的端口号
-bucket          | 存储桶的名字
-protocol        | `https` 或 `http`，默认是 `https`
-uriStyle        | `virtualHost` 或 `path`，默认是 `virtualHost`，注意，部分对象存储仅支持其中之一
-region          | 对象存储服务所在区域，此参数可选
-accessKeyId     | 用于访问对象存储的 access key id.              
-secretAccessKey | 上述 access key id 对应的密钥
-chunkSize       | 以 MB 为单位的数据片大小，默认值是 64，超过此大小的文件，将使用 multipart 方式上传
-maxChunks       | 单个数据文件的最大分片数量，默认值为 10000
-maxRetry        | 访问对象存储时出现可重试错误时的最大重试次数，默认值是 3，负值表示一直重试直到成功为止
+| 名称            |   含义| 
+| ----------------|----------------------------------------------| 
+| endpoint        | 对象存储服务的机器名或 IP 地址，可以包含可选的端口号| 
+| bucket          | 存储桶的名字| 
+| protocol        | `https` 或 `http`，默认是 `https`| 
+| uriStyle        | `virtualHost` 或 `path`，默认是 `virtualHost`，注意，部分对象存储仅支持其中之一| 
+| region          | 对象存储服务所在区域，此参数可选| 
+| accessKeyId     | 用于访问对象存储的 `access key id`|               
+| secretAccessKey | 上述 `access key id` 对应的密钥| 
+| chunkSize       | 以 MB 为单位的数据片大小，默认值是 64，超过此大小的文件，将使用 multipart 方式上传| 
+| maxChunks       | 单个数据文件的最大分片数量，默认值为 10000| 
+| maxRetry        | 访问对象存储时出现可重试错误时的最大重试次数，默认值是 3，负值表示一直重试直到成功为止| 
 
 
 #### 检查配置参数可用性
