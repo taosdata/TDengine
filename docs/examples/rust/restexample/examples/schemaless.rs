@@ -1,11 +1,5 @@
-use taos_query::common::SchemalessPrecision;
-use taos_query::common::SchemalessProtocol;
-use taos_query::common::SmlDataBuilder;
-
-use taos::taos_query;
-use taos::AsyncQueryable;
-use taos::AsyncTBuilder;
-use taos::TaosBuilder;
+use taos::*;
+use taos_query::common::{SchemalessPrecision, SchemalessProtocol, SmlDataBuilder};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

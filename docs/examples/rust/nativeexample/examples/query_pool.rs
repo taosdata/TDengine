@@ -3,8 +3,7 @@ use taos::*;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let dsn = "taos://";
-
+    let dsn = "taos://localhost:6030";
     let pool = TaosBuilder::from_dsn(dsn)?.pool()?;
     let taos = pool.get().await?;
 
@@ -34,6 +33,7 @@ async fn main() -> anyhow::Result<()> {
     ]).await?;
 
     assert_eq!(inserted, 6);
+
     loop {
         let count: usize = taos
             .query_one("select count(*) from `meters`")
@@ -93,5 +93,6 @@ async fn main() -> anyhow::Result<()> {
     dbg!(result.summary());
     assert_eq!(records.len(), 6);
     dbg!(records);
+
     Ok(())
 }

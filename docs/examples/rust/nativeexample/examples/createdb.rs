@@ -2,10 +2,10 @@ use taos::*;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let url = "taos://localhost:6030";
-
     // ANCHOR: create_db_and_table
-    let taos = TaosBuilder::from_dsn(url)?.build().await?;
+
+    let dsn = "taos://localhost:6030";
+    let taos = TaosBuilder::from_dsn(dsn)?.build().await?;
 
     // create database and use it
     match taos
@@ -34,6 +34,7 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    Ok(())
     // ANCHOR_END: create_db_and_table
+
+    Ok(())
 }

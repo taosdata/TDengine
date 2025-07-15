@@ -5,9 +5,16 @@ use taos::*;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let dsn = "taos://localhost:6030";
-    let builder = TaosBuilder::from_dsn(dsn)?;
-
-    let taos = builder.build().await?;
+    let taos = TaosBuilder::from_dsn(dsn)?.build().await?;
+    taos.exec_many([
+        "drop database if exists power",
+        "create database power",
+        "use power",
+        "create table meters (ts timestamp, current float, voltage int, phase float) tags (groupid int, location varchar(64))",
+        "insert into d0 using meters tags(2, 'California.SanFrancisco') values (now, 10.3, 219, 0.31)",
+        "insert into d1 using meters tags(3, 'California.SanFrancisco') values (now, 12.6, 218, 0.33)",
+    ])
+    .await?;
 
     // ANCHOR: query_data
     // query data, make sure the database and table are created before

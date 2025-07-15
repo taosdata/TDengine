@@ -1,30 +1,16 @@
-use taos_query::common::SchemalessPrecision;
-use taos_query::common::SchemalessProtocol;
-use taos_query::common::SmlDataBuilder;
-
-use taos::taos_query;
-use taos::AsyncQueryable;
-use taos::AsyncTBuilder;
-use taos::TaosBuilder;
+use taos::*;
+use taos_query::common::{SchemalessPrecision, SchemalessProtocol, SmlDataBuilder};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    std::env::set_var("RUST_LOG", "taos=debug");
-    pretty_env_logger::init();
-    let host = "localhost";
-    let dsn = format!("taos://{}:6030", host);
-    log::debug!("dsn: {:?}", &dsn);
-
-    let client = TaosBuilder::from_dsn(dsn)?.build().await?;
-
-    let db = "power";
-
-    client
-        .exec(format!("create database if not exists {db}"))
-        .await?;
-
-    // should specify database before insert
-    client.exec(format!("use {db}")).await?;
+    let dsn = "taos://localhost:6030";
+    let taos = TaosBuilder::from_dsn(dsn)?.build().await?;
+    taos.exec_many([
+        "drop database if exists power",
+        "create database power",
+        "use power",
+    ])
+    .await?;
 
     // SchemalessProtocol::Line
     let data = [
@@ -40,7 +26,8 @@ async fn main() -> anyhow::Result<()> {
         .ttl(1000)
         .req_id(100u64)
         .build()?;
-    match client.put(&sml_data).await {
+
+    match taos.put(&sml_data).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!(
@@ -63,7 +50,8 @@ async fn main() -> anyhow::Result<()> {
         .ttl(1000)
         .req_id(200u64)
         .build()?;
-    match client.put(&sml_data).await {
+
+    match taos.put(&sml_data).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!(
@@ -95,7 +83,8 @@ async fn main() -> anyhow::Result<()> {
         .ttl(1000)
         .req_id(300u64)
         .build()?;
-    match client.put(&sml_data).await {
+
+    match taos.put(&sml_data).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!(
@@ -107,5 +96,6 @@ async fn main() -> anyhow::Result<()> {
     }
 
     println!("Inserted data with schemaless successfully.");
+    
     Ok(())
 }
