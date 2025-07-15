@@ -164,7 +164,7 @@ def input_files(change_files):
                             tdc_file_path = os.path.join(TD_project_path, "community/")
                             file_name = os.path.join(tdc_file_path, file_name)                    
                         all_file_path.append(file_name)
-                        print(f"all_file_path:{all_file_path}")
+                        logger.info(f"all_file_path:{all_file_path}")
     logger.info("Found %s files" % len(all_file_path))
 file_res_path = ""
 
@@ -213,7 +213,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     for file in all_file_path:
-        cmd = f"clang-query-16 -p {compile_commands_path} {file} -f {clang_scan_rules_path}"
+        cmd = f"clang-query-16 -p {compile_commands_path} {file} -f {clang_scan_rules_path} 2>&1 | grep -v 'error:' | grep -v 'warning:'"
         logger.debug(f"cmd:{cmd}")
         try:
             stdout, stderr = command_executor.execute(cmd)
