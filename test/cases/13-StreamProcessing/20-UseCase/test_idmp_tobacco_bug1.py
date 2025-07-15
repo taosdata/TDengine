@@ -99,7 +99,7 @@ class TestSceneTobacco:
 
     def createStreams(self):
         # create stream
-        sql = f"CREATE STREAM IF NOT EXISTS `{self.vdb}`.`{self.stream}` INTERVAL(5m) SLIDING(5m) From `{self.vdb}`.`{self.vstb}` PARTITION BY tbname OPTIONS(IGNORE_NODATA_TRIGGER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `{self.vdb}`.`{self.stream}` AS SELECT _twstart as output_timestamp, AVG(电机信号) AS `电机信号平均值` From %%tbname WHERE ts >=_twstart and ts <=_twend"
+        sql = f"CREATE STREAM IF NOT EXISTS `{self.vdb}`.`{self.stream}` INTERVAL(5m) SLIDING(5m) From `{self.vdb}`.`{self.vstb}` PARTITION BY tbname stream_options(IGNORE_NODATA_TRIGGER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `{self.vdb}`.`{self.stream}` AS SELECT _twstart as output_timestamp, AVG(电机信号) AS `电机信号平均值` From %%tbname WHERE ts >=_twstart and ts <=_twend"
         tdLog.info(f"create stream sql: {sql}")
         tdSql.execute(sql)
 

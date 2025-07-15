@@ -212,23 +212,23 @@ class TestStreamSlidingTrigger:
         tdLog.debug("start to execute %s", __file__)
         # 初始化 createStreamSqls
         cls.createStreamSqls = [ #(SQL, (minPartitionColNum, partitionByTbname))
-            ("create stream stName session(cts,{session}s) from {trigTbname} options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (0, False)),#0
-            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#1
-            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tint, tbname options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (2, True)),#2
-            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tvarchar, tbname, tint options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (3, True)),#3
-            ("create stream stName session(cts,{session}s) from {trigTbname} options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (0, False)),#4
-            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#5
-            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#6
-            ("create stream stName session(cts,{session}+1s)  from {trigTbname} options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (0, False)),#7
-            ("create stream stName session(cts,{session}+30s)  from {trigTbname} partition by tbname options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#8
-            ("create stream stName session(cts,{session}s) from {trigTbname} options(watermark(10s)|expired_time(40s)|ignore_disorder|delete_recalc|delete_output_table) into outTbname as querySql;", (3, True)),#9
-            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname options(delete_recalc|fill_history('2025-01-01 00:01:30')) into outTbname as querySql ;", (1, True)),#10
-            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname options(watermark(3s)|fill_history('2025-01-01 00:01:30')) into outTbname as querySql;", (1, True)),#11
-            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname options(pre_filter(cint>2)|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#12
-            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname options(calc_notify_only|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#13
-            ('create stream stName session(cts,{session}s) from {trigTbname} partition by tbname options(calc_notify_only|fill_history("2025-01-01 00:00:00")) notify("ws://localhost:8080/notify") into outTbname as querySql;', (1, True)),#14
-            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname,tint options(pre_filter(tint>0)|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#15
-            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname options(pre_filter(cint is null)|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#16
+            ("create stream stName session(cts,{session}s) from {trigTbname} stream_options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (0, False)),#0
+            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname stream_options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#1
+            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tint, tbname stream_options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (2, True)),#2
+            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tvarchar, tbname, tint stream_options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (3, True)),#3
+            ("create stream stName session(cts,{session}s) from {trigTbname} stream_options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (0, False)),#4
+            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname stream_options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#5
+            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname stream_options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#6
+            ("create stream stName session(cts,{session}+1s)  from {trigTbname} stream_options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (0, False)),#7
+            ("create stream stName session(cts,{session}+30s)  from {trigTbname} partition by tbname stream_options(fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#8
+            ("create stream stName session(cts,{session}s) from {trigTbname} stream_options(watermark(10s)|expired_time(40s)|ignore_disorder|delete_recalc|delete_output_table) into outTbname as querySql;", (3, True)),#9
+            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname stream_options(delete_recalc|fill_history('2025-01-01 00:01:30')) into outTbname as querySql ;", (1, True)),#10
+            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname stream_options(watermark(3s)|fill_history('2025-01-01 00:01:30')) into outTbname as querySql;", (1, True)),#11
+            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname stream_options(pre_filter(cint>2)|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#12
+            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname stream_options(calc_notify_only|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#13
+            ('create stream stName session(cts,{session}s) from {trigTbname} partition by tbname stream_options(calc_notify_only|fill_history("2025-01-01 00:00:00")) notify("ws://localhost:8080/notify") into outTbname as querySql;', (1, True)),#14
+            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname,tint stream_options(pre_filter(tint>0)|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#15
+            ("create stream stName session(cts,{session}s) from {trigTbname} partition by tbname stream_options(pre_filter(cint is null)|fill_history('2025-01-01 00:00:00')) into outTbname as querySql;", (1, True)),#16
         ]
             
     def log_variable(self,var, log_file_path):

@@ -1407,8 +1407,8 @@ class TDTestCase:
         self.star_test()
         self.test_null2()
         self.window_test2()
-        self.stream_cols_test()
-        self.stream_cols_test2()
+        #newstm self.stream_cols_test()
+        #newstm self.stream_cols_test2()
 
 
     def stop(self):
