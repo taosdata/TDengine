@@ -156,14 +156,17 @@ def input_files(change_files):
 file_res_path = ""
 
 def save_scan_res(res_base_path, file_path, out, err):
-    file_res_path = os.path.join(res_base_path, file_path.replace(f"{work_path}", "").split(".")[0] + ".txt")
+    rel_path = file_path.replace(f"{work_path}", "")
+    base, ext = os.path.splitext(rel_path)
+    ext_map = {".c": "-c", ".h": "-h", ".cpp": "-cpp"}
+    suffix = ext_map.get(ext, ext)
+    file_res_path = os.path.join(res_base_path, base.lstrip(os.sep) + suffix + ".txt")
     if not os.path.exists(os.path.dirname(file_res_path)):
         os.makedirs(os.path.dirname(file_res_path))
     logger.info("Save scan result to: %s" % file_res_path)
     with open(file_res_path, "w") as f:
         f.write(err)
         f.write(out)
-    # logger.debug(f"file_res_file: {file_res_path}")
     return file_res_path
 
 def write_csv(file_path, data):
@@ -222,6 +225,7 @@ if __name__ == "__main__":
             if os.path.exists(abs_dir):
                 scan_files_path(abs_dir)
 
+    all_file_path = list(set(all_file_path))
     # 多进程并发扫描
     with concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
         results = list(executor.map(scan_one_file, all_file_path))
