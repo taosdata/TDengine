@@ -259,6 +259,8 @@ void stmDestroySStreamInfo(void* param) {
   if (NULL == param) {
     return;
   }
+
+  stDebug("start to destroy stream info");
   
   SStreamInfo* p = (SStreamInfo*)param;
 
@@ -268,7 +270,7 @@ void stmDestroySStreamInfo(void* param) {
   while ((listNode = tdListNext(&iter)) != NULL) {
     SStreamTask* pTask = (SStreamTask*)listNode->data;
     SListNode* tmp = tdListPopNode(p->readerList, listNode);
-    ST_TASK_DLOG("task removed from stream taskList, remain:%d", TD_DLIST_NELES(p->readerList));
+    ST_TASK_DLOG("task removed from stream readerList, remain:%d, listNode:%p", TD_DLIST_NELES(p->readerList), tmp);
     taosMemoryFreeClear(tmp);
   }
   tdListFree(p->readerList);
@@ -281,7 +283,7 @@ void stmDestroySStreamInfo(void* param) {
   while ((listNode = tdListNext(&iter)) != NULL) {
     SStreamTask* pTask = (SStreamTask*)listNode->data;
     SListNode* tmp = tdListPopNode(p->runnerList, listNode);
-    ST_TASK_DLOG("task removed from stream taskList, remain:%d", TD_DLIST_NELES(p->runnerList));
+    ST_TASK_DLOG("task removed from stream runnerList, remain:%d", TD_DLIST_NELES(p->runnerList));
     taosMemoryFreeClear(tmp);
   }
   tdListFree(p->runnerList);

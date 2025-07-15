@@ -34,7 +34,7 @@ void smRemoveReaderFromVgMap(SStreamTask* pTask) {
   for (int32_t i = 0; i < taskNum; ++i) {
     SStreamTask** ppTask = taosArrayGet(pVg->taskList, i);
     if ((*ppTask)->taskId == pTask->taskId && (*ppTask)->seriousId == pTask->seriousId) {
-      ST_TASK_ILOG("task removed from vgroupMap, tidx:%d", pTask->taskIdx);
+      ST_TASK_ILOG("task %p removed from vgroupMap, tidx:%d", *ppTask, pTask->taskIdx);
       taosArrayRemove(pVg->taskList, i);
       break;
     }
@@ -86,6 +86,8 @@ _return:
 
   if (code) {
     stsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  } else {
+    stsDebug("reader task %p added to vgroupMap", pTask);
   }
   
   return code;
@@ -554,7 +556,7 @@ void smUndeployVgTasks(int32_t vgId) {
   for (int32_t i = 0; i < taskNum; ++i) {
     SStreamTask* pTask = taosArrayGetP(pVg->taskList, i);
     undeploy.task = *pTask;
-    ST_TASK_DLOG("task removed from vgroupMap for vgroup reason, totalNum:%d", taskNum);
+    ST_TASK_DLOG("task %p removed from vgroupMap for vgroup reason, totalNum:%d", pTask, taskNum);
     (void)smUndeployTask(&undeploy, false);
   }
   taosArrayDestroy(pVg->taskList);
