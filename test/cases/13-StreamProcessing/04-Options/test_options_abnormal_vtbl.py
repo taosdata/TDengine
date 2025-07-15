@@ -3,6 +3,7 @@ from new_test_framework.utils import (tdLog,tdSql,tdStream,StreamCheckItem,)
 
 
 class TestStreamOptionsTrigger:
+    precision = 'ms'
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -31,7 +32,7 @@ class TestStreamOptionsTrigger:
             self.vntbName = "vntb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName}  (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.stbName2} (cts timestamp, cint int, cdouble double, cvarchar varchar(16)) tags (tint int)")

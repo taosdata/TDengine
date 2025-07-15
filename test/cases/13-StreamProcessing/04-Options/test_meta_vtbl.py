@@ -3,6 +3,7 @@ from new_test_framework.utils import (tdLog,tdSql,tdStream,StreamCheckItem,)
 
 
 class TestStreamMetaTrigger:
+    precision = 'ms'
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -34,7 +35,7 @@ class TestStreamMetaTrigger:
             self.vntbName = "vntb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.ntbName} (cts timestamp, cint int)")
@@ -285,7 +286,7 @@ class TestStreamMetaTrigger:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")            
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -559,7 +560,7 @@ class TestStreamMetaTrigger:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName}  (cts timestamp, cint int) tags (tint int, tbigint bigint)")            
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int, tbigint bigint) virtual 1")
@@ -867,7 +868,7 @@ class TestStreamMetaTrigger:
             self.vntbName = "vntb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.ntbName} (cts timestamp, cint int, cbigint bigint, cfloat float)")
@@ -1102,7 +1103,7 @@ class TestStreamMetaTrigger:
             self.vntbName1 = "vntb1"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName1} (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float)")
@@ -1447,7 +1448,7 @@ class TestStreamMetaTrigger:
             self.vntbName2 = "vntb2"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             
             tdSql.execute(f"create table if not exists  {self.db}.{self.ntbName}  (cts timestamp, cint int, cbigint bigint, cfloat float)")
@@ -1632,7 +1633,7 @@ class TestStreamMetaTrigger:
             
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.ntbName} (cts timestamp, cint int, cbigint bigint, cfloat float)")
@@ -1952,12 +1953,12 @@ class TestStreamMetaTrigger:
             self.vntbName1 = "vntb1"            
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
-            tdSql.execute(f"create database {self.db1} vgroups 1 buffer 8")
-            tdSql.execute(f"create database {self.db2} vgroups 1 buffer 8")
-            tdSql.execute(f"create database {self.db3} vgroups 1 buffer 8")
-            tdSql.execute(f"create database {self.db4} vgroups 1 buffer 8")
-            tdSql.execute(f"create database {self.db5} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
+            tdSql.execute(f"create database {self.db1} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
+            tdSql.execute(f"create database {self.db2} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
+            tdSql.execute(f"create database {self.db3} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
+            tdSql.execute(f"create database {self.db4} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
+            tdSql.execute(f"create database {self.db5} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
             
             # db1
             tdSql.execute(f"create table if not exists  {self.db1}.{self.stbName} (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float)")
