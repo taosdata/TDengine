@@ -469,7 +469,7 @@ static void tsdbRemoveSsGarbageFiles(int32_t vid, STFileSet* fset) {
         }
       }
 
-      taosMemFree(p);
+      taosMemoryFree(p);
   }
 
   taosArrayDestroy(paths);

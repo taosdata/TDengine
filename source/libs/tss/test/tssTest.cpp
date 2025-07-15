@@ -52,7 +52,7 @@ static void tssInstTest(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
         if (strcmp(p, path) == 0) {
             found = true;
         }
-        taosMemFree(p);
+        taosMemoryFree(p);
     }
     taosArrayDestroy(paths);
     GTEST_ASSERT_TRUE(found);
@@ -108,7 +108,7 @@ static void tssInstTest(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
         if (strcmp(p, path) == 0) {
             found = true;
         }
-        taosMemFree(p);
+        taosMemoryFree(p);
     }
     taosArrayDestroy(paths);
     GTEST_ASSERT_FALSE(found);

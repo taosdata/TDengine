@@ -364,12 +364,12 @@ static int32_t listFileInDir(const char* dirPath, size_t baseLen, SArray* res) {
             }
             code = listFileInDir(path, baseLen, res);
         } else {
-            char* p = strdup(path + baseLen);
+            char* p = taosStrdup(path + baseLen);
             if ( p == NULL ) {
                 code = TSDB_CODE_OUT_OF_MEMORY;
             } else if (taosArrayPush(res, &p) == NULL) {
                 code = TSDB_CODE_OUT_OF_MEMORY;
-                taosMemFree(p);
+                taosMemoryFree(p);
             }
         }
 
@@ -408,7 +408,7 @@ static int32_t listFile(SSharedStorage* pss, const char* prefix, SArray* paths) 
         tssError("failed to list files in directory %s, code = %d", fullPath, code);
         for (int i = 0; i < taosArrayGetSize(paths); i++) {
             char* p = *(char**)taosArrayGet(paths, i);
-            taosMemFree(p);
+            taosMemoryFree(p);
         }
         taosArrayClear(paths);
         paths = NULL;
