@@ -797,10 +797,8 @@ static int generateChildTblName(int len, char *buffer, SDataBase *database,
                         TSDB_MAX_ALLOWED_SQL_LEN - len, "CREATE TABLE");
     }
 
-    const char *tagStart = tagData + i * stbInfo->lenOfTags;  // 当前行的TAG起始位置
-    const char *tagsForSQL = tagStart;  // 实际用于SQL的TAG部分
-
-    // 统一获取格式字符串（避免重复条件判断）
+    const char *tagStart = tagData + i * stbInfo->lenOfTags;  // start position of current row's TAG
+    const char *tagsForSQL = tagStart;  // actual TAG part for SQL
     const char *fmt = g_arguments->escape_character ?
         " IF NOT EXISTS `%s`.`%s` USING `%s`.`%s` TAGS (%s) %s " :
         " IF NOT EXISTS %s.%s USING %s.%s TAGS (%s) %s ";
@@ -812,15 +810,13 @@ static int generateChildTblName(int len, char *buffer, SDataBase *database,
         tableName[nameLen] = '\0';
         tagsForSQL = firstComma + 1;      
     } else {
-        // 使用前缀+序号生成表名 
+        // generate table name using prefix + sequence number 
         snprintf(tableName, sizeof(tableName), "%s%" PRIu64, 
                  stbInfo->childTblPrefix, tableSeq);
-        // 使用完整TAG数据
         tagsForSQL = tagStart;
 
     }        
 
-    // 统一生成SQL语句
     len += snprintf(buffer + len, TSDB_MAX_ALLOWED_SQL_LEN - len, fmt,
                     database->dbName, tableName,
                     database->dbName, stbInfo->stbName,
