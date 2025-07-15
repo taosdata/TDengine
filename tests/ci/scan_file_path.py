@@ -6,8 +6,10 @@ from datetime import datetime
 from loguru import logger
 import getopt
 
-web_server = ""
+change_file_list = ""
 scan_dir = ""
+web_server = ""
+branch_name = ""
 
 opts, args = getopt.gnu_getopt(sys.argv[1:], 'b:f:w:d:', [
     'branch_name=', 'filesName=', 'webServer=', 'dir='])
