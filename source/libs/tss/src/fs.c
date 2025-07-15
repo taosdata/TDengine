@@ -44,7 +44,7 @@ static void printConfig(SSharedStorage* pss) {
 
 // joinPath is a helper function which joins the base directory and the path to
 // create a full path.
-static char* joinPath(SSharedStorageFS* ss, const char* path, char* fullPath) {
+static void joinPath(SSharedStorageFS* ss, const char* path, char* fullPath) {
     uint32_t len = ss->baseDirLen;
 
     memcpy(fullPath, ss->baseDir, len);
@@ -59,8 +59,6 @@ static char* joinPath(SSharedStorageFS* ss, const char* path, char* fullPath) {
         }
         strcpy(fullPath + len, path);
     }
-
-    return fullPath;
 }
 
 
@@ -180,7 +178,7 @@ static int32_t upload(SSharedStorage* pss, const char* dstPath, const void* data
         tssError("failed to write to destination file: %s, want to write %" PRId64 " bytes, actually write %" PRId64 " bytes", fullPath, size, wrote);
     }
 
-    taosCloseFile(&dstFile);
+    TAOS_UNUSED(taosCloseFile(&dstFile));
     TAOS_RETURN(code);
 }
 
@@ -315,7 +313,7 @@ static int32_t readFile(SSharedStorage* pss, const char* srcPath, int64_t offset
         *size = read;
     }
 
-    taosCloseFile(&srcFile);
+    TAOS_UNUSED(taosCloseFile(&srcFile));
     return code;
 }
 

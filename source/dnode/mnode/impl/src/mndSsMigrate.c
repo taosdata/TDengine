@@ -628,7 +628,7 @@ void mndSendQuerySsMigrateProgressReq(SMnode *pMnode, SSsMigrateObj *pSsMigrate)
       }
       pHead->contLen = htonl(contLen);
       pHead->vgId = htonl(pDetail->vgId);
-      tSerializeSQuerySsMigrateProgressReq((char *)pHead + sizeof(SMsgHead), reqLen, &req);
+      TAOS_UNUSED(tSerializeSQuerySsMigrateProgressReq((char *)pHead + sizeof(SMsgHead), reqLen, &req));
 
       SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_SSMIGRATE_PROGRESS, .pCont = pHead, .contLen = contLen};
 
