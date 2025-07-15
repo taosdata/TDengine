@@ -811,7 +811,7 @@ static int generateChildTblName(int len, char *buffer, SDataBase *database,
         tagsForSQL = firstComma + 1;      
     } else {
         // generate table name using prefix + sequence number 
-        snprintf(tableName, sizeof(tableName), "%s%" PRIu64, 
+        snprintf(tableName, TSDB_MAX_ALLOWED_SQL_LEN, "%s%" PRIu64, 
                  stbInfo->childTblPrefix, tableSeq);
         tagsForSQL = tagStart;
 
@@ -821,7 +821,7 @@ static int generateChildTblName(int len, char *buffer, SDataBase *database,
                     database->dbName, tableName,
                     database->dbName, stbInfo->stbName,
                     tagsForSQL, ttl);
-
+    infoPrint("create table: <%s> <%s>\n", buffer, tableName);
     return len;
 }
 
