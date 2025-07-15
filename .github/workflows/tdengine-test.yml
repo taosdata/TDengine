@@ -48,7 +48,7 @@ env:
 jobs:
   run-tests-on-linux:
     # NOTE: using tomchon-patch-3 branch for the moment
-    uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@main
+    uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@fix/check-3.0/failed-in-return
     with:
       tdinternal: false
       specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_source_branch }}

@@ -5,6 +5,7 @@ import csv
 from datetime import datetime
 from loguru import logger
 import getopt
+import concurrent.futures
 
 change_file_list = ""
 scan_dir = ""
@@ -70,31 +71,19 @@ os.makedirs(log_file_path, exist_ok=True)
 
 scan_log_file = f"{log_file_path}/scan_log.txt"
 logger.add(scan_log_file, rotation="10MB", retention="7 days", level="DEBUG")
-# if error happens, open this to debug
-# print(self_path,work_path,TD_project_path,log_file_path,change_file_list)
+
 
 # scan result base path
 scan_result_base_path = f"{log_file_path}/clang_scan_result/"
 
 
 # the compile commands json file path
-# compile_commands_path = f"{work_path}/debugNoSan/compile_commands.json"
 compile_commands_path = f"{TD_project_path}/debug/compile_commands.json"
 
-# if error happens, open this to debug
-# print(f"compile_commands_path:{compile_commands_path}")
-
-# # replace the docerk worf path with real work path in compile_commands.json
-# docker_work_path = "home"
-# replace_path= work_path[1:-1]
-# replace_path = replace_path.replace("/", "\/")
-# sed_command = f"sed -i 's/{docker_work_path}/{replace_path}/g' {compile_commands_path}"
-# print(sed_command)
-# result = subprocess.run(sed_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-# logger.debug(f"STDOUT: {result.stdout} STDERR: {result.stderr}")
 
 # the ast parser rule for c file
 clang_scan_rules_path = f"{self_path}/filter_for_return_values"
+scan_dir_list = ["source", "include", "docs/examples", "src/plugins"]
 
 #
 # all the c files path will be checked
@@ -123,20 +112,18 @@ def scan_files_path(source_file_path):
     # scan_dir_list = ["source", "include", "docs/examples", "tests/script/api", "src/plugins"]
     scan_dir_list = ["source", "include", "docs/examples", "src/plugins"]
     scan_skip_file_list = [
-        "/root/charles/TDinternal/community/tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl",
-        "/test/",
-        "contrib",
-        "debug",
-        "deps",
-        "/root/charles/TDinternal/community/source/libs/parser/src/sql.c",
-        "/root/charles/TDinternal/community/source/client/jni/windows/win32/bridge/AccessBridgeCalls.c",
+        "tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl",
+        "/test/", "contrib",  "debug", "deps",
+        "source/libs/parser/src/sql.c",
+        "source/client/jni/windows/win32/bridge/AccessBridgeCalls.c",
     ]
     for root, dirs, files in os.walk(source_file_path):
+        if not any(item in root for item in scan_dir_list):
+            continue
         for file in files:
-            if any(item in root for item in scan_dir_list):
-                file_path = os.path.join(root, file)
-                if (file_path.endswith(".c") or file_path.endswith(".h") or file_path.endswith(".cpp")) and all(item not in file_path for item in scan_skip_file_list):
-                    all_file_path.append(file_path)
+            file_path = os.path.join(root, file)
+            if (file_path.endswith(".c") or file_path.endswith(".h") or file_path.endswith(".cpp")) and all(item not in file_path for item in scan_skip_file_list):
+                all_file_path.append(file_path)
     logger.info("Found %s files" % len(all_file_path))
 
 def input_files(change_files):
@@ -186,7 +173,27 @@ def write_csv(file_path, data):
             writer.writerows(data)
     except Exception as ex:
         raise Exception("Failed to write the csv file: {} with msg: {}".format(file_path, repr(ex)))
-
+    
+def scan_one_file(file):
+    cmd = f"clang-query-16 -p {compile_commands_path} {file} -f {clang_scan_rules_path} 2>&1 | grep -v 'error:' | grep -v 'warning:'"
+    logger.debug(f"cmd:{cmd}")
+    try:
+        stdout, stderr = CommandExecutor().execute(cmd)
+        lines = stdout.split("\n")
+        scan_valid = len(lines) >= 2 and (lines[-2].endswith("matches.") or lines[-2].endswith("match."))
+        if scan_valid:
+            match_num = int(lines[-2].split(" ")[0])
+            logger.info("The match lines of file %s: %s" % (file, match_num))
+            this_file_res_path = save_scan_res(log_file_path, file, stdout, stderr)
+            return [file, this_file_res_path, match_num, 'Pass' if match_num == 0 else 'Fail']
+        else:
+            logger.warning("The result of scan is invalid for: %s" % file)
+            this_file_res_path = save_scan_res(log_file_path, file, stdout, stderr)
+            return [file, this_file_res_path, 0, 'Invalid']
+    except Exception as e:
+        logger.error("Execute command failed: %s" % e)
+        return [file, "", 0, 'Error']
+    
 if __name__ == "__main__":
     command_executor = CommandExecutor()
     # get all the c files path
@@ -204,42 +211,50 @@ if __name__ == "__main__":
     #     os.makedirs(scan_result_path)
 
     # 优先用 -d 指定目录，否则用 -f 文件列表，否则默认目录
-    if scan_dir:
-        scan_files_path(scan_dir)
-    elif change_file_list:
+    if change_file_list:
         input_files(change_file_list)
+    elif scan_dir:
+        scan_files_path(scan_dir)
     else:
-        print("Please specify -d <directory> or -f <file_list>")
-        sys.exit(1)
+        for sub_dir in scan_dir_list:
+            abs_dir = os.path.join(TD_project_path,"community", sub_dir)
+            print(abs_dir)
+            if os.path.exists(abs_dir):
+                scan_files_path(abs_dir)
 
-    for file in all_file_path:
-        cmd = f"clang-query-16 -p {compile_commands_path} {file} -f {clang_scan_rules_path} 2>&1 | grep -v 'error:' | grep -v 'warning:'"
-        logger.debug(f"cmd:{cmd}")
-        try:
-            stdout, stderr = command_executor.execute(cmd)
-            print(stderr)
-            lines = stdout.split("\n")
-            scan_valid = len(lines) >= 2 and (lines[-2].endswith("matches.") or lines[-2].endswith("match."))
-            if scan_valid:
-                match_num = int(lines[-2].split(" ")[0])
-                logger.info("The match lines of file %s: %s" % (file, match_num))
-                this_file_res_path = save_scan_res(log_file_path, file, stdout, stderr)
-                if match_num > 0:
-                    # logger.info(f"log_file_path: {log_file_path} ,file:{file}")
-                    index_tests = this_file_res_path.find("scan_log")
-                    if index_tests != -1:
-                        web_path_file = this_file_res_path[index_tests:]
-                        web_path_file = os.path.join(web_server, web_path_file)
-                        web_path.append(web_path_file)
-                res.append([file, this_file_res_path, match_num, 'Pass' if match_num == 0 else 'Fail'])
-            else:
-                logger.warning("The result of scan is invalid for: %s" % file)
-                this_file_res_path = save_scan_res(log_file_path, file, stdout, stderr)
-                res.append([file, this_file_res_path, 0, 'Invalid'])
-        except Exception as e:
-            logger.error("Execute command failed: %s" % e)
-            this_file_res_path = ""
-            res.append([file, this_file_res_path, 0, 'Error'])
+    # 多进程并发扫描
+    with concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+        results = list(executor.map(scan_one_file, all_file_path))
+    res.extend(results)
+    
+    # for file in all_file_path:
+    #     cmd = f"clang-query-16 -p {compile_commands_path} {file} -f {clang_scan_rules_path} 2>&1 | grep -v 'error:' | grep -v 'warning:'"
+    #     logger.debug(f"cmd:{cmd}")
+    #     try:
+    #         stdout, stderr = command_executor.execute(cmd)
+    #         print(stderr)
+    #         lines = stdout.split("\n")
+    #         scan_valid = len(lines) >= 2 and (lines[-2].endswith("matches.") or lines[-2].endswith("match."))
+    #         if scan_valid:
+    #             match_num = int(lines[-2].split(" ")[0])
+    #             logger.info("The match lines of file %s: %s" % (file, match_num))
+    #             this_file_res_path = save_scan_res(log_file_path, file, stdout, stderr)
+    #             if match_num > 0:
+    #                 # logger.info(f"log_file_path: {log_file_path} ,file:{file}")
+    #                 index_tests = this_file_res_path.find("scan_log")
+    #                 if index_tests != -1:
+    #                     web_path_file = this_file_res_path[index_tests:]
+    #                     web_path_file = os.path.join(web_server, web_path_file)
+    #                     web_path.append(web_path_file)
+    #             res.append([file, this_file_res_path, match_num, 'Pass' if match_num == 0 else 'Fail'])
+    #         else:
+    #             logger.warning("The result of scan is invalid for: %s" % file)
+    #             this_file_res_path = save_scan_res(log_file_path, file, stdout, stderr)
+    #             res.append([file, this_file_res_path, 0, 'Invalid'])
+    #     except Exception as e:
+    #         logger.error("Execute command failed: %s" % e)
+    #         this_file_res_path = ""
+    #         res.append([file, this_file_res_path, 0, 'Error'])
     # data = ""
     # for item in res:
     #     data += item[0] + "," + str(item[1]) + "\n"
