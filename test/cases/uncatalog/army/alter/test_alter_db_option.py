@@ -163,7 +163,6 @@ class TestAlterDbOption:
 
     def check_alter_unsupport_option(self):
         tdLog.info(f"check alter unsupport option")
-<<<<<<< HEAD:test/cases/uncatalog/army/alter/test_alter_db_option.py
         tdSql.error("ALTER DATABASE test COMP 1",expectErrInfo="syntax error", fullMatched=False)
         tdSql.error("ALTER DATABASE test DURATION 1",expectErrInfo="syntax error", fullMatched=False)
         tdSql.error("ALTER DATABASE test maxrows 1",expectErrInfo="syntax error", fullMatched=False)
@@ -179,26 +178,6 @@ class TestAlterDbOption:
         tdSql.error("ALTER DATABASE test pagesize 4096",expectErrInfo="syntax error", fullMatched=False)
         tdSql.error("ALTER DATABASE test tsdb_pagesize 4096",expectErrInfo="syntax error", fullMatched=False)
         tdSql.error("ALTER DATABASE test retentions '1d:1d'",expectErrInfo="syntax error", fullMatched=False)
-=======
-        tdSql.error("ALTER DATABASE test COMP 1",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test DURATION 1",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test maxrows 1",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test encrypt_algorithm 'sm4'",expectErrInfo="Encryption is not allowed to be changed after database is created")
-        tdSql.error("ALTER DATABASE test vgroups 4",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test single_stable 1",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test schemaless 1",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test table_prefix 't'",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test table_suffix 't'",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test ss_chunkpages 100",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test wal_roll_period 3600",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test wal_segment_size 1000",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test dnodes 'dnode1'",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test precision 'ms'",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test strict 'on'",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test pagesize 4096",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test tsdb_pagesize 4096",expectErrInfo="syntax error")
-        tdSql.error("ALTER DATABASE test retentions '1d:1d'",expectErrInfo="syntax error")
->>>>>>> 3.0:tests/army/alter/alter_db_option.py
 
     # run
     def test_alter_db_option(self):

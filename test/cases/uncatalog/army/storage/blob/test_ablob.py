@@ -339,11 +339,3 @@ class TestAblob:
             self.dropDb()
 
             tdLog.success(f"{__file__} successfully executed")
-
-<<<<<<< HEAD:test/cases/uncatalog/army/storage/blob/test_ablob.py
-        
-=======
-# we don't support AZure API for now        
-# tdCases.addLinux(__file__, TDTestCase())
-# tdCases.addWindows(__file__, TDTestCase())
->>>>>>> 3.0:tests/army/storage/blob/ablob.py

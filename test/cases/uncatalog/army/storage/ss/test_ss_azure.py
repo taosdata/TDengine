@@ -372,10 +372,3 @@ class TestSSAzure:
 
             tdLog.success(f"{__file__} successfully executed")
 
-<<<<<<<< HEAD:test/cases/uncatalog/army/storage/s3/test_s3azure.py
-
-========
-# we don't support Azure API for now
-# tdCases.addLinux(__file__, TDTestCase())
-# tdCases.addWindows(__file__, TDTestCase())
->>>>>>>> 3.0:tests/army/storage/ss/ssAzure.py
