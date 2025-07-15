@@ -807,23 +807,13 @@ static int generateChildTblName(int len, char *buffer, SDataBase *database,
         " IF NOT EXISTS %s.%s USING %s.%s TAGS (%s) %s ";
 
     if (stbInfo->useTagTableName) {
-        // 查找第一个逗号作为分隔符
         char *firstComma = strchr(tagStart, ',');
+        size_t nameLen = firstComma - tagStart;
+        size_t copyLen = MIN(nameLen, sizeof(tableName) - 1);
+        strncpy(tableName, tagStart, copyLen);
+        tableName[copyLen] = '\0';
+        tagsForSQL = firstComma + 1;
         
-        if (firstComma) {
-            // 安全拷贝表名部分（逗号前的内容）
-            size_t nameLen = firstComma - tagStart;
-            size_t copyLen = MIN(nameLen, sizeof(tableName) - 1);
-            strncpy(tableName, tagStart, copyLen);
-            tableName[copyLen] = '\0';
-            // TAG部分从逗号后开始（跳过表名和逗号）
-            tagsForSQL = firstComma + 1;
-        } else {
-            // 整个字段作为表名，TAG部分置空
-            strncpy(tableName, tagStart, sizeof(tableName) - 1);
-            tableName[sizeof(tableName)-1] = '\0';
-            tagsForSQL = "";  // 明确标记无TAG数据
-        }
     } else {
         // 使用前缀+序号生成表名
         snprintf(tableName, sizeof(tableName), "%s%" PRIu64, 
@@ -831,14 +821,6 @@ static int generateChildTblName(int len, char *buffer, SDataBase *database,
         // 使用完整TAG数据
         tagsForSQL = tagStart;
     }        
-
-
-    size_t tbnameLen = 0;
-    if (stbInfo->useTagTableName) {
-        char *firstField = tagData + i * stbInfo->lenOfTags;
-        char *comma = strchr(firstField, ',');
-        tbnameLen = comma - firstField;
-    }
 
     // 统一生成SQL语句
     len += snprintf(buffer + len, TSDB_MAX_ALLOWED_SQL_LEN - len, fmt,
