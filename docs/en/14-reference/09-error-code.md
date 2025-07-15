@@ -79,28 +79,28 @@ This document details the server error codes that may be encountered when using 
 
 ## tsc
 
-| Error Code | Error Description           | Possible Error Scenarios or Reasons             | Recommended Actions for Users                                |
-| ---------- | --------------------------- | ----------------------------------------------- | ------------------------------------------------------------ |
-| 0x80000207 | Invalid user name           | Invalid database username                       | Check if the database username is correct                    |
-| 0x80000208 | Invalid password            | Invalid database password                       | Check if the database password is correct                    |
-| 0x80000209 | Database name too long      | Invalid database name                           | Check if the database name is correct                        |
-| 0x8000020A | Table name too long         | Invalid table name                              | Check if the table name is correct                           |
-| 0x8000020F | Query terminated            | Query was terminated                            | Check if the query was terminated by a user                  |
-| 0x80000213 | Disconnected from server    | Connection was interrupted                      | Check if the connection was interrupted by someone or if the client is exiting |
-| 0x80000216 | Syntax error in SQL         | SQL syntax error                                | Check and correct the SQL statement                          |
-| 0x80000219 | SQL statement too long      | SQL length exceeds limit                        | Check and correct the SQL statement                          |
-| 0x8000021A | File is empty               | File content is empty                           | Check the content of the input file                          |
-| 0x8000021F | Invalid column length       | Incorrect column length                         | Preserve the scene and logs, report issue on GitHub          |
-| 0x80000222 | Invalid JSON data type      | Incorrect JSON data type                        | Check the JSON content input                                 |
-| 0x80000224 | Value out of range          | Data size exceeds type range                    | Check the data value input                                   |
-| 0x80000229 | Invalid tsc input           | API input error                                 | Check the parameters passed when calling the API from the application |
-| 0x8000022A | Stmt API usage error        | Incorrect usage of STMT API                     | Check the order of STMT API calls, applicable scenarios, and error handling |
-| 0x8000022B | Stmt table name not set     | STMT table name not set correctly               | Check if the table name setting interface was called         |
-| 0x8000022D | Query killed                | Query was terminated                            | Check if the query was terminated by a user                  |
-| 0x8000022E | No available execution node | No available query execution node               | Check the current query policy configuration, ensure available Qnode if needed |
-| 0x8000022F | Table is not a supertable   | Table name in the statement is not a supertable | Check if the table name used in the statement is a supertable |
-| 0x80000230 | Stmt cache error            | STMT internal cache error                       | Preserve the scene and logs, report issue on GitHub          |
-| 0x80000231 | Tsc internal error          | TSC internal error                              | Preserve the scene and logs, report issue on GitHub          |
+| Error Code | Error Description                 | Possible Error Scenarios or Reasons             | Recommended Actions for Users                                                  |
+| ---------- | --------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------ |
+| 0x80000207 | Invalid user name                 | Invalid database username                       | Check if the database username is correct                                      |
+| 0x80000208 | Invalid password                  | Invalid database password                       | Check if the database password is correct                                      |
+| 0x80000209 | Database name too long            | Invalid database name                           | Check if the database name is correct                                          |
+| 0x8000020A | Table name too long               | Invalid table name                              | Check if the table name is correct                                             |
+| 0x8000020F | Query terminated                  | Query was terminated                            | Check if the query was terminated by a user                                    |
+| 0x80000213 | Disconnected from server          | Connection was interrupted                      | Check if the connection was interrupted by someone or if the client is exiting |
+| 0x80000216 | Syntax error in SQL               | SQL syntax error                                | Check and correct the SQL statement                                            |
+| 0x80000219 | SQL statement too long            | SQL length exceeds limit                        | Check and correct the SQL statement                                            |
+| 0x8000021A | File is empty                     | File content is empty                           | Check the content of the input file                                            |
+| 0x8000021F | Invalid column length             | Incorrect column length                         | Preserve the scene and logs, report issue on GitHub                            |
+| 0x80000222 | Invalid JSON data type            | Incorrect JSON data type                        | Check the JSON content input                                                   |
+| 0x80000224 | Value out of range                | Data size exceeds type range                    | Check the data value input                                                     |
+| 0x80000229 | Invalid tsc input                 | API input error                                 | Check the parameters passed when calling the API from the application          |
+| 0x8000022A | Stmt API usage error              | Incorrect usage of STMT API                     | Check the order of STMT API calls, applicable scenarios, and error handling    |
+| 0x8000022B | Stmt table name not set correctly | STMT table name not set correctly               | Check if the table name setting interface was called                           |
+| 0x8000022D | Query killed                      | Query was terminated                            | Check if the query was terminated by a user                                    |
+| 0x8000022E | No available execution node       | No available query execution node               | Check the current query policy configuration, ensure available Qnode if needed |
+| 0x8000022F | Table is not a supertable         | Table name in the statement is not a supertable | Check if the table name used in the statement is a supertable                  |
+| 0x80000230 | Stmt cache error                  | STMT internal cache error                       | Preserve the scene and logs, report issue on GitHub                            |
+| 0x80000231 | Tsc internal error                | TSC internal error                              | Preserve the scene and logs, report issue on GitHub                            |
 
 ## mnode
 
