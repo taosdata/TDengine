@@ -934,7 +934,7 @@ static void *createTable(void *sarg) {
             char tbName[TSDB_TABLE_NAME_LEN] = {0};
             len = generateChildTblName(len, pThreadInfo->buffer,
                                        database, stbInfo, i, tagData, w, ttl, tbName);
-            if (stbInfo->useTagTableName) {}                      
+            if (stbInfo->useTagTableName) {                     
                 pThreadInfo->childNames[j] = strdup(tbName);
             }
             // move next
