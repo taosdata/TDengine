@@ -2611,7 +2611,7 @@ class TDSql:
         self.queryResult = []
 
 
-    # insert table with fixed values
+    # insert table with fixed values, return next write ts
     def insertFixedVal(self, table, startTs, step, count, cols, fixedVals):
         # init
         ts = startTs
@@ -2622,4 +2622,8 @@ class TDSql:
             # next
             ts += step
 
+        return ts
+
+
+# global
 tdSql = TDSql()
