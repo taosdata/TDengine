@@ -65,6 +65,7 @@ typedef struct SStreamReaderTask {
 typedef struct SSTriggerAHandle {
   int64_t streamId;
   int64_t taskId;
+  int64_t sessionId;
   void*   param;
 } SSTriggerAHandle;
 
