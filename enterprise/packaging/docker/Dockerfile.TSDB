@@ -48,7 +48,7 @@ RUN PREFIX="taos" && \
     installDir="/usr/local/${PREFIX}" && \
     install_main_dir=${installDir} && \
     cp -rf ${dirName}/bin/* ${install_main_dir}/bin/ && \
-    rm -rf ${install_main_dir}/driver/libtaos.so.* && \
+    rm -rf ${install_main_dir}/driver/libtaos.so.* ${install_main_dir}/driver/libtaosnative.so.* ${install_main_dir}/driver/libtaosws.so.* && \
     cp -rf ${dirName}/driver/* ${install_main_dir}/driver/ && \
     chmod 777 ${install_main_dir}/driver/* && \
     rm -f ${lib_link_dir}/libtaos.* ${lib64_link_dir}/libtaos.* && \
