@@ -194,7 +194,7 @@ if __name__ == "__main__":
     # input_files(change_file_list)
     # print(f"all_file_path:{all_file_path}")
     res = []
-    # web_path = []
+    web_path = []
     res.append(["scan_source_file", "scan_result_file", "match_num", "check_result"])
     # create dir
     # current_time = datetime.now().strftime("%Y%m%d%H%M%S")
