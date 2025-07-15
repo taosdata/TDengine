@@ -1,6 +1,6 @@
-use taos::*;
-use chrono::Local;
 use chrono::DateTime;
+use chrono::Local;
+use taos::*;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -12,12 +12,12 @@ async fn main() -> anyhow::Result<()> {
     // ANCHOR: query_data
     // query data, make sure the database and table are created before
     let sql = "SELECT ts, current, location FROM power.meters limit 100";
-    match taos.query(sql).await{
+    match taos.query(sql).await {
         Ok(mut result) => {
             for field in result.fields() {
                 println!("got field: {}", field.name());
             }
-        
+
             let mut rows = result.rows();
             let mut nrows = 0;
             while let Some(row) = rows.try_next().await? {
@@ -31,11 +31,13 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Err(err) => {
-            eprintln!("Failed to query data from power.meters, sql: {}, ErrMessage: {}", sql, err);
+            eprintln!(
+                "Failed to query data from power.meters, sql: {}, ErrMessage: {}",
+                sql, err
+            );
             return Err(err.into());
         }
     }
-
 
     // ANCHOR_END: query_data
 
@@ -53,20 +55,24 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let sql = "SELECT ts, current, location FROM power.meters limit 100";
-    match taos.query("SELECT ts, current, location FROM power.meters limit 100").await {
-        Ok(mut query) => {
-            match query.deserialize::<Record>().try_collect::<Vec<_>>().await {
-                Ok(records) => {
-                    dbg!(records);
-                }
-                Err(err) => {
-                    eprintln!("Failed to deserialize query results; ErrMessage: {}", err);
-                    return Err(err.into());
-                }
+    match taos
+        .query("SELECT ts, current, location FROM power.meters limit 100")
+        .await
+    {
+        Ok(mut query) => match query.deserialize::<Record>().try_collect::<Vec<_>>().await {
+            Ok(records) => {
+                dbg!(records);
             }
-        }
+            Err(err) => {
+                eprintln!("Failed to deserialize query results; ErrMessage: {}", err);
+                return Err(err.into());
+            }
+        },
         Err(err) => {
-            eprintln!("Failed to query data from power.meters, sql: {}, ErrMessage: {}", sql, err);
+            eprintln!(
+                "Failed to query data from power.meters, sql: {}, ErrMessage: {}",
+                sql, err
+            );
             return Err(err.into());
         }
     }
@@ -74,13 +80,19 @@ async fn main() -> anyhow::Result<()> {
 
     // ANCHOR: query_with_req_id
 
-    let req_id :u64  = 3;
-    match taos.query_with_req_id("SELECT ts, current, location FROM power.meters limit 1", req_id).await{
+    let req_id: u64 = 3;
+    match taos
+        .query_with_req_id(
+            "SELECT ts, current, location FROM power.meters limit 1",
+            req_id,
+        )
+        .await
+    {
         Ok(mut result) => {
             for field in result.fields() {
                 println!("got field: {}", field.name());
             }
-        
+
             let mut rows = result.rows();
             let mut nrows = 0;
             while let Some(row) = rows.try_next().await? {
@@ -94,7 +106,10 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Err(err) => {
-            eprintln!("Failed to execute sql with reqId: {}, ErrMessage: {}", req_id, err);
+            eprintln!(
+                "Failed to execute sql with reqId: {}, ErrMessage: {}",
+                req_id, err
+            );
             return Err(err.into());
         }
     }

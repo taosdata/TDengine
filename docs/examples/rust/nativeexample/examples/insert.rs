@@ -7,7 +7,6 @@ async fn main() -> anyhow::Result<()> {
 
     let taos = builder.build().await?;
 
-
     // ANCHOR: insert_data
     let insert_sql = r#"INSERT INTO 
                         power.d1001 USING power.meters TAGS(2,'California.SanFrancisco')  
@@ -18,10 +17,16 @@ async fn main() -> anyhow::Result<()> {
                         power.d1002 USING power.meters TAGS(3, 'California.SanFrancisco') 
                         VALUES 
                         (NOW + 1a, 10.30000, 218, 0.25000) "#;
-    match taos.exec(insert_sql).await{
-        Ok(affected_rows) => println!("Successfully inserted {} rows to power.meters.", affected_rows),
+    match taos.exec(insert_sql).await {
+        Ok(affected_rows) => println!(
+            "Successfully inserted {} rows to power.meters.",
+            affected_rows
+        ),
         Err(err) => {
-            eprintln!("Failed to insert data to power.meters, sql: {}, ErrMessage: {}", insert_sql, err);
+            eprintln!(
+                "Failed to insert data to power.meters, sql: {}, ErrMessage: {}",
+                insert_sql, err
+            );
             return Err(err.into());
         }
     }

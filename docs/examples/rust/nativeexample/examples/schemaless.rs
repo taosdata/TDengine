@@ -2,10 +2,10 @@ use taos_query::common::SchemalessPrecision;
 use taos_query::common::SchemalessProtocol;
 use taos_query::common::SmlDataBuilder;
 
+use taos::taos_query;
 use taos::AsyncQueryable;
 use taos::AsyncTBuilder;
 use taos::TaosBuilder;
-use taos::taos_query;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -40,20 +40,21 @@ async fn main() -> anyhow::Result<()> {
         .ttl(1000)
         .req_id(100u64)
         .build()?;
-    match client.put(&sml_data).await{
-        Ok(_) => {},
+    match client.put(&sml_data).await {
+        Ok(_) => {}
         Err(err) => {
-            eprintln!("Failed to insert data with schemaless, data:{:?}, ErrMessage: {}", data, err);
+            eprintln!(
+                "Failed to insert data with schemaless, data:{:?}, ErrMessage: {}",
+                data, err
+            );
             return Err(err.into());
         }
     }
 
     // SchemalessProtocol::Telnet
-    let data = [
-        "metric_telnet 1707095283260 4 host=host0 interface=eth0",
-    ]
-    .map(String::from)
-    .to_vec();
+    let data = ["metric_telnet 1707095283260 4 host=host0 interface=eth0"]
+        .map(String::from)
+        .to_vec();
 
     let sml_data = SmlDataBuilder::default()
         .protocol(SchemalessProtocol::Telnet)
@@ -62,17 +63,19 @@ async fn main() -> anyhow::Result<()> {
         .ttl(1000)
         .req_id(200u64)
         .build()?;
-    match client.put(&sml_data).await{
-        Ok(_) => {},
+    match client.put(&sml_data).await {
+        Ok(_) => {}
         Err(err) => {
-            eprintln!("Failed to insert data with schemaless, data:{:?}, ErrMessage: {}", data, err);
+            eprintln!(
+                "Failed to insert data with schemaless, data:{:?}, ErrMessage: {}",
+                data, err
+            );
             return Err(err.into());
         }
     }
 
     // SchemalessProtocol::Json
-    let data = [
-        r#"[{
+    let data = [r#"[{
             "metric": "metric_json",
             "timestamp": 1626846400,
             "value": 10.3,
@@ -81,8 +84,7 @@ async fn main() -> anyhow::Result<()> {
                 "location": "California.SanFrancisco",
                 "id": "d1001"
             }
-            }]"#
-    ]
+            }]"#]
     .map(String::from)
     .to_vec();
 
@@ -93,10 +95,13 @@ async fn main() -> anyhow::Result<()> {
         .ttl(1000)
         .req_id(300u64)
         .build()?;
-    match client.put(&sml_data).await{
-        Ok(_) => {},
+    match client.put(&sml_data).await {
+        Ok(_) => {}
         Err(err) => {
-            eprintln!("Failed to insert data with schemaless, data:{:?}, ErrMessage: {}", data, err);
+            eprintln!(
+                "Failed to insert data with schemaless, data:{:?}, ErrMessage: {}",
+                data, err
+            );
             return Err(err.into());
         }
     }

@@ -4,7 +4,7 @@ use taos::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let taos = TaosBuilder::from_dsn("taos://")?.build()?;
+    let taos = TaosBuilder::from_dsn("taos://")?.build().await?;
     taos.exec_many([
         "drop database if exists test",
         "create database test keep 36500",
@@ -14,12 +14,14 @@ async fn main() -> Result<()> {
             c10 float, c11 double, c12 varchar(100), c13 nchar(100)) tags(t1 varchar(100))",
     ])
     .await?;
-    let mut stmt = Stmt::init(&taos)?;
+
+    let mut stmt = Stmt::init(&taos).await?;
     stmt.prepare(
         "insert into ? using tb1 tags(?) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    )?;
-    stmt.set_tbname("d0")?;
-    stmt.set_tags(&[Value::VarChar("涛思".to_string())])?;
+    )
+    .await?;
+    stmt.set_tbname("d0").await?;
+    stmt.set_tags(&[Value::VarChar("涛思".to_string())]).await?;
 
     let params = vec![
         ColumnView::from_millis_timestamp(vec![164000000000]),
@@ -37,7 +39,14 @@ async fn main() -> Result<()> {
         ColumnView::from_varchar(vec!["ABC"]),
         ColumnView::from_nchar(vec!["涛思数据"]),
     ];
-    let rows = stmt.bind(&params)?.add_batch()?.execute()?;
+
+    let rows = stmt
+        .bind(&params)
+        .await?
+        .add_batch()
+        .await?
+        .execute()
+        .await?;
     assert_eq!(rows, 1);
 
     #[derive(Debug, Deserialize)]
@@ -72,7 +81,7 @@ async fn main() -> Result<()> {
     assert_eq!(row.c8, u32::MAX);
     assert_eq!(row.c9, u64::MAX);
     assert_eq!(row.c10.unwrap(), f32::MAX);
-    // assert_eq!(row.c11, f64::MAX);
+    assert_eq!(row.c11, f64::MAX);
     assert_eq!(row.c12, "ABC");
     assert_eq!(row.c13, "涛思数据");
 
