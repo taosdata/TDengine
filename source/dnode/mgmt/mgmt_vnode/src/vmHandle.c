@@ -1014,7 +1014,7 @@ int32_t vmMountCheckRunning(const char *mountName, const char *mountPath, TdFile
   TAOS_CHECK_EXIT(ret);
 _exit:
   if (code != 0) {
-    taosCloseFile(pFile);
+    (void)taosCloseFile(pFile);
     *pFile = NULL;
     dError("mount:%s, failed to check running at line %d since %s, path:%s", mountName, lino, tstrerror(code),
            filepath);
