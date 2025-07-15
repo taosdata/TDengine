@@ -91,7 +91,7 @@ dataDir /mnt/data6 2 0
 
 | 名称            |   含义| 
 | ----------------|----------------------------------------------| 
-| endpoint        | 对象存储服务的机器名或 IP 地址，可以包含可选的端口号| 
+| endpoint        | 对象存储服务的机器名或 IP 地址，可以包含可选的端口号 | 
 | bucket          | 存储桶的名字| 
 | protocol        | `https` 或 `http`，默认是 `https`| 
 | uriStyle        | `virtualHost` 或 `path`，默认是 `virtualHost`，注意，部分对象存储仅支持其中之一| 
