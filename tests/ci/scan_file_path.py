@@ -164,7 +164,7 @@ def input_files(change_files):
                             tdc_file_path = os.path.join(TD_project_path, "community/")
                             file_name = os.path.join(tdc_file_path, file_name)                    
                         all_file_path.append(file_name)
-                        logger.info(f"all_file_path:{all_file_path}")
+    logger.info(f"all_file_path:{all_file_path}")
     logger.info("Found %s files" % len(all_file_path))
 file_res_path = ""
 
@@ -176,7 +176,7 @@ def save_scan_res(res_base_path, file_path, out, err):
     with open(file_res_path, "w") as f:
         f.write(err)
         f.write(out)
-    logger.debug(f"file_res_file: {file_res_path}")
+    # logger.debug(f"file_res_file: {file_res_path}")
     return file_res_path
 
 def write_csv(file_path, data):
@@ -194,7 +194,7 @@ if __name__ == "__main__":
     # input_files(change_file_list)
     # print(f"all_file_path:{all_file_path}")
     res = []
-    # web_path = []
+    web_path = []
     res.append(["scan_source_file", "scan_result_file", "match_num", "check_result"])
     # create dir
     # current_time = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -225,7 +225,7 @@ if __name__ == "__main__":
                 logger.info("The match lines of file %s: %s" % (file, match_num))
                 this_file_res_path = save_scan_res(log_file_path, file, stdout, stderr)
                 if match_num > 0:
-                    logger.info(f"log_file_path: {log_file_path} ,file:{file}")
+                    # logger.info(f"log_file_path: {log_file_path} ,file:{file}")
                     index_tests = this_file_res_path.find("scan_log")
                     if index_tests != -1:
                         web_path_file = this_file_res_path[index_tests:]
