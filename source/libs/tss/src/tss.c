@@ -167,7 +167,7 @@ int32_t tssGetFileSize(SSharedStorage* ss, const char* path, int64_t* size) {
 
 
 
-void tssPrintDefaultConfig(SSharedStorage* ss) {
+void tssPrintDefaultConfig() {
     g_default->type->printConfig(g_default);
 }
 
