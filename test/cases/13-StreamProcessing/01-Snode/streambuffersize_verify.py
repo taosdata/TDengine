@@ -276,7 +276,7 @@ class TestSnodeMgmt:
         
     def createStream(self):
         tdLog.info(f"create stream ")
-        for i in range(1):
+        for i in range(2):
             tdSql.execute(f"create stream {self.dbname}.`s{i}` interval(1s) sliding(1s) from {self.dbname}.{self.stbname} stream_options(fill_history('2025-01-01 00:00:00')) into {self.dbname}.`s{i}out` as select _wstart, sum(cint) from %%trows interval(10a)  order by _wstart;")
             tdLog.info(f"create stream s{i} success!")
     
