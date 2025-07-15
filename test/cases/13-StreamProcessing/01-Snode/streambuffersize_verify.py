@@ -57,6 +57,7 @@ class TestSnodeMgmt:
         self.createStream()
         self.checkStreamRunning()
         self.checkstreamBufferSize()
+        
 
 
     
@@ -70,8 +71,8 @@ class TestSnodeMgmt:
         
         tables = ['a0', 'a1', 'a2']
         base_ts = int(time.mktime(time.strptime("2025-01-01 00:00:00", "%Y-%m-%d %H:%M:%S"))) * 1000
-        interval_ms = 30 * 1000  
-        total_rows = 5000
+        interval_ms = 600 * 1000  
+        total_rows = 10000
         
         for i in range(total_rows):
             ts = base_ts + i * interval_ms
@@ -80,6 +81,28 @@ class TestSnodeMgmt:
             for tb in tables:
                 sql = "INSERT INTO test1.%s VALUES (%d,%d, %d, %d)" % (tb, ts,ts, c1, c2)
                 tdSql.execute(sql)
+                
+    def data2(self):
+        random.seed(42)
+        # tdSql.execute("create database test1 vgroups 6;")
+        # tdSql.execute("CREATE STABLE test1.`stba` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `cint` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium', `i1` INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'medium') TAGS (`tint` INT, `tdouble` DOUBLE, `tvar` VARCHAR(100), `tnchar` NCHAR(100), `tts` TIMESTAMP, `tbool` BOOL)")
+        # tdSql.execute('CREATE TABLE test1.`a0` USING test1.`stba` (`tint`, `tdouble`, `tvar`, `tnchar`, `tts`, `tbool`) TAGS (44, 3.757254e+01, "klPqiAWzV1F6hSPMjm80YOOZEcSCF", "xOYc37COtmFYhKEUkL8hKVUmJmorOS30uOcmIC12OtNT4hE", 1943455971, true)')
+        # tdSql.execute('CREATE TABLE test1.`a1` USING test1.`stba` (`tint`, `tdouble`, `tvar`, `tnchar`, `tts`, `tbool`) TAGS (19, 6.525488e+01, "jMGdGyha8Q7WZxFBv6XO", "GvDFs3DREMcgidLGjJBZFmM2RbmLY", 439606400, false)')
+        # tdSql.execute('CREATE TABLE test1.`a2` USING test1.`stba` (`tint`, `tdouble`, `tvar`, `tnchar`, `tts`, `tbool`) TAGS (9, 4.416963e+01, "lE0hSUOVxfVkGrORvnnLiOJp", "TMxs9A8VS4", 1291130063, true)')
+        
+        tables = ['a0', 'a1', 'a2']
+        base_ts = int(time.mktime(time.strptime("2025-01-05 00:00:00", "%Y-%m-%d %H:%M:%S"))) * 1000
+        interval_ms = 30 * 1000  
+        total_rows = 10000
+        
+        for i in range(total_rows):
+            ts = base_ts + i * interval_ms
+            c1 = random.randint(0, 1000)
+            c2 = random.randint(1000, 2000)
+            for tb in tables:
+                sql = "INSERT INTO test1.%s VALUES (%d,%d, %d, %d)" % (tb, ts,ts, c1, c2)
+                tdSql.execute(sql)        
+    
 
     def prepareData(self):
         tdLog.info(f"prepare data")
@@ -227,7 +250,7 @@ class TestSnodeMgmt:
         
         pid = self.get_pid_by_cmdline('taosd -c')
         
-        for i in range(10):
+        for i in range(1000):
             mem = self.get_memory_usage_mb(pid)
             time.sleep(3)
             if mem > float(result):
@@ -253,12 +276,9 @@ class TestSnodeMgmt:
         
     def createStream(self):
         tdLog.info(f"create stream ")
-        for i in range(100):
-            tdSql.execute(f"create stream {self.dbname}.`s{i}` sliding(1s) from {self.dbname}.{self.stbname} stream_options(fill_history('2025-01-01 00:00:00')) into {self.dbname}.`s{i}out` as select cts, cint from {self.dbname}.{self.stbname} where _tcurrent_ts % 2 = 0 order by cts;")
+        for i in range(1):
+            tdSql.execute(f"create stream {self.dbname}.`s{i}` interval(1s) sliding(1s) from {self.dbname}.{self.stbname} stream_options(fill_history('2025-01-01 00:00:00')) into {self.dbname}.`s{i}out` as select _wstart, sum(cint) from %%trows interval(10a)  order by _wstart;")
             tdLog.info(f"create stream s{i} success!")
-        # tdSql.execute("create stream `s2` sliding(1s) from st1 partition by tint, tbname stream_options(fill_history('2025-01-01 00:00:00')) into `s2out` as select cts, cint from st1 order by cts limit 3;")
-        # tdSql.execute("create stream `s3` sliding(1s) from st1 partition by tbname stream_options(pre_filter(cint>2)|fill_history('2025-01-01 00:00:00')) into `s3out` as select cts, cint,   %%tbname from %%trows where cint >15 and tint >0 and  %%tbname like '%2' order by cts;")
-        # tdSql.execute("create stream `s4` sliding(1s) from st1 stream_options(fill_history('2025-01-01 00:00:00')) into `s4out` as select _tcurrent_ts, cint from st1 order by cts limit 4;")
     
     def getMemoryMB(self):
         cmd = "unset LD_PRELOAD;free -m | grep  Mem | awk '{print $2}'"
