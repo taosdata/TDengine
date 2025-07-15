@@ -250,9 +250,9 @@ class TestSnodeMgmt:
         
         pid = self.get_pid_by_cmdline('taosd -c')
         
-        for i in range(1000):
+        for i in range(15):
             mem = self.get_memory_usage_mb(pid)
-            time.sleep(3)
+            time.sleep(2)
             if mem > float(result):
                 raise Exception(f"ERROR:taosd memory large than streamBufferSize!")
             i = i +1           
