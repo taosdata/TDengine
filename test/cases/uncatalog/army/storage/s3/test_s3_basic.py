@@ -48,12 +48,8 @@ ssAccessString For Test:
     SecretAccessKey : vK1VcwxgSOykicx6hk8fL1x15uEtyDSFU3w4hTaZ
 '''
 
-<<<<<<<< HEAD:test/cases/uncatalog/army/storage/s3/test_s3_basic.py
-
 class TestS3Basic:
-========
-class TDTestCase(TBase):
->>>>>>>> 3.0:tests/army/storage/ss/ssBasic.py
+
     index = eutil.cpuRand(40) + 1
     bucketName = f"ci-bucket{index}"
     updatecfgDict = {
