@@ -4942,9 +4942,10 @@ void calcTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinR
   SStreamTSRangeParas timeStartParas = {.eType = SCL_VALUE_TYPE_START, .timeValue = INT64_MIN};
   SStreamTSRangeParas timeEndParas = {.eType = SCL_VALUE_TYPE_END, .timeValue = INT64_MAX};
   if (scalarCalculate(node->pStart, NULL, NULL, pStRtFuncInfo, &timeStartParas) == 0) {
-    if (timeStartParas.opType == OP_TYPE_GREATER_THAN) {
+    if (timeStartParas.opType == OP_TYPE_GREATER_THAN || timeStartParas.opType == OP_TYPE_LOWER_THAN) {
+      // For greater than or lower than, used different param, rigth or left. 
       pWinRange->skey = timeStartParas.timeValue + 1;
-    } else if (timeStartParas.opType == OP_TYPE_GREATER_EQUAL) {
+    } else if (timeStartParas.opType == OP_TYPE_GREATER_EQUAL || OP_TYPE_LOWER_EQUAL) {
       pWinRange->skey = timeStartParas.timeValue;
     } else {
       qError("start time range error, opType:%d", timeStartParas.opType);
@@ -4954,9 +4955,9 @@ void calcTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinR
     pWinRange->skey = 0;
   }
   if (scalarCalculate(node->pEnd, NULL, NULL, pStRtFuncInfo, &timeEndParas) == 0) {
-    if (timeEndParas.opType == OP_TYPE_LOWER_THAN) {
+    if (timeEndParas.opType == OP_TYPE_LOWER_THAN || timeEndParas.opType == OP_TYPE_GREATER_THAN) {
       pWinRange->ekey = timeEndParas.timeValue - 1;
-    } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL) {
+    } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL || timeEndParas.opType == OP_TYPE_GREATER_EQUAL) {
       pWinRange->ekey = timeEndParas.timeValue;
     } else {
       qError("end time range error, opType:%d", timeEndParas.opType);
