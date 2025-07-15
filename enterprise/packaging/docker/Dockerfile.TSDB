@@ -72,6 +72,27 @@ RUN PREFIX="taos" && \
             ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so || :; \
         fi; \
     fi && \
+    rm -f ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so && \
+    if ls ${install_main_dir}/driver/libtaosnative.* >/dev/null 2>&1; then \
+        for lib_file in ${install_main_dir}/driver/libtaosnative.*; do \
+            ln -sf "$lib_file" ${lib_link_dir}/libtaosnative.so.1; \
+            break; \
+        done; \
+    fi && \
+    if [ -f ${lib_link_dir}/libtaosnative.so.1 ]; then \
+        ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so; \
+    fi && \
+    if [ -d ${lib64_link_dir} ] && [ ! -e ${lib64_link_dir}/libtaosnative.so ]; then \
+        if ls ${install_main_dir}/driver/libtaosnative.* >/dev/null 2>&1; then \
+            for lib_file in ${install_main_dir}/driver/libtaosnative.*; do \
+                ln -sf "$lib_file" ${lib64_link_dir}/libtaosnative.so.1 || :; \
+                break; \
+            done; \
+        fi && \
+        if [ -f ${lib64_link_dir}/libtaosnative.so.1 ]; then \
+            ln -sf ${lib64_link_dir}/libtaosnative.so.1 ${lib64_link_dir}/libtaosnative.so || :; \
+        fi; \
+    fi && \
     ldconfig
 
 COPY ./bin/* /usr/bin/
