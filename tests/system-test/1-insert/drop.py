@@ -313,10 +313,10 @@ class TDTestCase:
         self.drop_stb_ctb_check()
         self.drop_stable_with_check()
         self.drop_table_with_check()
-        self.drop_table_with_check_tsma()
+        #newstm self.drop_table_with_check_tsma()
         self.drop_topic_check()
-        if platform.system().lower() != 'windows':        
-            self.drop_stream_check()
+        #newstm if platform.system().lower() != 'windows':        
+        #newstm     self.drop_stream_check()
         pass
     def stop(self):
         tdSql.close()

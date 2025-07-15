@@ -196,7 +196,7 @@ static int32_t mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStre
   int32_t     code = 0;
 
   pObj->pCreate = pCreate;
-  strncpy(pObj->name, pCreate->name, TSDB_STREAM_NAME_LEN);
+  strncpy(pObj->name, pCreate->name, TSDB_STREAM_FNAME_LEN);
   pObj->mainSnodeId = snodeId;
   
   pObj->userDropped = 0;

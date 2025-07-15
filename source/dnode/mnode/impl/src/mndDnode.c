@@ -1340,6 +1340,8 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  mError("vnode num:%d", numOfVnodes);
+
   bool    vnodeOffline = false;
   void   *pIter = NULL;
   int32_t vgId = -1;
@@ -1349,6 +1351,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     if (pIter == NULL) break;
 
     for (int32_t i = 0; i < pVgroup->replica; ++i) {
+      mError("vnode dnodeId:%d state:%d", pVgroup->vnodeGid[i].dnodeId, pVgroup->vnodeGid[i].syncState);
       if (pVgroup->vnodeGid[i].dnodeId == pDnode->id) {
         if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_OFFLINE) {
           vgId = pVgroup->vgId;

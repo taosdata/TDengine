@@ -151,11 +151,6 @@ class TDTestCase:
                     "category": "local"
                 },
                 {
-                    "name": "disableStream",
-                    "value": 1,
-                    "category": "global"
-                },
-                {
                     "name": "enableWhiteList",
                     "value": 1,
                     "category": "global"

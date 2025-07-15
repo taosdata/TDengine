@@ -417,6 +417,7 @@ _exit:
 
 void tCleanupStreamRetrieveReq(SStreamRetrieveReq* pReq) { taosMemoryFree(pReq->pRetrieve); }
 
+
 int32_t tEncodeSStreamMgmtReq(SEncoder* pEncoder, const SStreamMgmtReq* pReq) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -454,6 +455,36 @@ void tFreeSStreamMgmtReq(SStreamMgmtReq* pReq) {
 
   taosArrayDestroy(pReq->cont.fullTableNames);
 }
+
+
+int32_t tCloneSStreamMgmtReq(SStreamMgmtReq* pSrc, SStreamMgmtReq** ppDst) {
+  *ppDst = NULL;
+  
+  if (NULL == pSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = 0, lino = 0;
+  *ppDst = taosMemoryCalloc(1, sizeof(SStreamMgmtReq));
+  TSDB_CHECK_NULL(*ppDst, code, lino, _exit, terrno);
+
+  memcpy(*ppDst, pSrc, sizeof(*pSrc));
+  if (pSrc->cont.fullTableNames) {
+    (*ppDst)->cont.fullTableNames = taosArrayDup(pSrc->cont.fullTableNames, NULL);
+    TSDB_CHECK_NULL((*ppDst)->cont.fullTableNames, code, lino, _exit, terrno);
+  }
+  
+_exit:
+
+  if (code) {
+    tFreeSStreamMgmtReq(*ppDst);
+    taosMemoryFreeClear(*ppDst);
+    uError("%s failed at line %d since %s", __FUNCTION__, lino, tstrerror(code));
+  }
+  
+  return code;
+}
+
 
 int32_t tDecodeSStreamMgmtReq(SDecoder* pDecoder, SStreamMgmtReq* pReq) {
   int32_t code = 0;

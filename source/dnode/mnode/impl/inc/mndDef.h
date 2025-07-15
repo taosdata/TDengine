@@ -848,7 +848,7 @@ typedef struct {
 } SMqRebOutputObj;
 
 typedef struct {
-  char                name[TSDB_STREAM_NAME_LEN];
+  char                name[TSDB_STREAM_FNAME_LEN];
   SCMCreateStreamReq* pCreate;
 
   SRWLatch lock;
