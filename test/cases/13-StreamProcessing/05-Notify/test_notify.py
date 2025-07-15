@@ -477,7 +477,7 @@ class TestStreamNotifyTrigger:
 
     class Basic3(StreamCheckItem):
         def __init__(self):
-            self.db = "sdb2"
+            self.db = "sdb3"
             self.stb = "stb"
 
         def create(self):
