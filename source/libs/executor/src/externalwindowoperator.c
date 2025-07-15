@@ -617,6 +617,7 @@ static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
   
   qDebug("%s ext window1 start:%" PRId64 ", end:%" PRId64 ", ts:%" PRId64 ", ascScan:%d",
          GET_TASKID(pOperator->pTaskInfo), pWin->skey, pWin->ekey, ts, ascScan);
+        
 
   STimeWindow win = *pWin;
   if (isFirstOpen) {

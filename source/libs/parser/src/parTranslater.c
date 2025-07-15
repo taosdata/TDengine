@@ -6273,7 +6273,7 @@ static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
       }
     } else if (isMultiResFunc(pNode)) {
       SNodeList* pNodeList = NULL;
-      if (FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pNode)->funcType) {
+      if (FUNCTION_TYPE_TAGS == ((SFunctionNode*)pNode)->funcType) {
         code = createTags(pCxt, &pNodeList);
       } else {
         code = createMultiResFuncsFromStar(pCxt, (SFunctionNode*)pNode, &pNodeList);
