@@ -118,7 +118,7 @@ int32_t tssGetFileSize(SSharedStorage* ss, const char* path, int64_t* size);
 
 
 // these functions wrap the functions in SSharedStorageType for the default instance.
-void tssPrintDefaultConfig(SSharedStorage* ss);
+void tssPrintDefaultConfig();
 // tssCreateDefaultInstance creates the default shared storage instance using
 // [tsSsAccessString] as the access string.
 int32_t tssCreateDefaultInstance();
