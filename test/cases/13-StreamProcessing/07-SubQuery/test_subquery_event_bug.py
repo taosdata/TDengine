@@ -116,9 +116,15 @@ class TestStreamSubqueryCount:
         tdSql.execute(ntb)
 
         vstb = "create stable tdb.vtriggers (ts timestamp, c1 int, c2 int) tags(id int) VIRTUAL 1"
-        vctb = "create vtable tdb.v1 (tdb.t1.c1, tdb.t1.c2) using tdb.vtriggers tags(1)"
+        vctb1 = (
+            "create vtable tdb.v1 (tdb.t1.c1, tdb.t1.c2) using tdb.vtriggers tags(1)"
+        )
+        vctb2 = (
+            "create vtable tdb.v2 (tdb.t1.c1, tdb.t2.c2) using tdb.vtriggers tags(2)"
+        )
         tdSql.execute(vstb)
-        tdSql.execute(vctb)
+        tdSql.execute(vctb1)
+        tdSql.execute(vctb2)
 
     def writeTriggerData(self):
         tdLog.info("write data to trigger table")
@@ -127,7 +133,7 @@ class TestStreamSubqueryCount:
             "insert into tdb.t2 values ('2025-01-01 00:15:00', 11, 0  ) ('2025-01-01 00:16:00', 11, 10 ) ('2025-01-01 00:20:00', 21, 210)",
             "insert into tdb.t3 values ('2025-01-01 00:20:00', 20, 210)",
             "insert into tdb.n1 values ('2025-01-01 00:25:00', 25, 0  ) ('2025-01-01 00:26:00', 25, 10 ) ('2025-01-01 00:30:00', 30, 0)",
-            "insert into tdb.t1 values ('2025-01-01 00:06:00', 10, 10 ) ('2025-01-01 00:10:00', 20, 0  ) ('2025-01-01 00:11:00', 20, 10 ) ('2025-01-01 00:30:00', 30, 0) ('2025-01-01 00:31:00', 30, 10) ('2025-01-01 00:35:00', 40, 0) ('2025-01-01 00:36:00', 40, 10)",
+            "insert into tdb.t1 values ('2025-01-01 00:06:00', 10, 10 ) ('2025-01-01 00:10:00', 20, 0  ) ('2025-01-01 00:11:00', 20, 10 ) ('2025-01-01 00:30:00', 30, 0) ('2025-01-01 00:31:00', 30, 10) ('2025-01-01 00:35:00', 40, 0) ('2025-01-01 00:36:00', 40, 2)",
             "insert into tdb.n1 values ('2025-01-01 00:31:00', 30, 10 ) ('2025-01-01 00:40:00', 40, 0  )",
         ]
         tdSql.executes(sqls)
@@ -146,11 +152,10 @@ class TestStreamSubqueryCount:
         self.streams = []
 
         stream = StreamItem(
-            id=2,
-            stream="create stream rdb.s2 event_window(start with c2=0 end with c2=10) from tdb.triggers partition by tbname into rdb.r2 as select _twstart ts, _twstart + 5m te, _twduration td, _twrownum tw, _tgrpid tg, _tlocaltime tl, tbname tb, count(cint) c1, avg(cint) c2 from qdb.meters where cts >= _twstart and cts < _twstart + 5m and _twduration is not null and _twrownum is not null and _tgrpid is not null and _tlocaltime is not null partition by tbname",
-            res_query="select ts, te, td, c1, tag_tbname from rdb.r2 where tag_tbname='t1' limit 3;",
-            exp_query="select _wstart ts, _wend te, 60000, count(cint) c1, 't1' from qdb.t1 where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:15:00' interval(5m);",
-            check_func=self.check2,
+            id=109,
+            stream="create stream rdb.s109 event_window(start with c2=0 end with c2=10) from tdb.v1 into rdb.r109 as select _wstart, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2) from tdb.v1 ta join tdb.t1 tb on ta.ts = tb.ts where ta.ts >= '2025-01-01 00:10:00.000' and ta.ts < '2025-01-01 00:15:00.000' group by ta.c2 having sum(tb.c2) > 0;;",
+            res_query="select * from rdb.r109 limit 1",
+            exp_query="select cast('2025-01-01 00:10:00.000' as timestamp) ts, count(ta.c1), count(ta.c2), sum(ta.c2), count(tb.c1), count(tb.c2), sum(tb.c2) from tdb.v1 ta join tdb.t1 tb on ta.ts = tb.ts where ta.ts >= '2025-01-01 00:10:00.000' and ta.ts < '2025-01-01 00:15:00.000' group by ta.c2 having sum(tb.c2) > 0;",
         )
         self.streams.append(stream)
 

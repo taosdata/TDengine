@@ -518,7 +518,7 @@ class TestStreamSubqueryState:
 
         stream = StreamItem(
             id=44,
-            stream="create stream rdb.s44 interval(5m) sliding(5m) from tdb.triggers partition by tbname into rdb.r44 as select _twstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from qdb.v1 where cts >= _twstart and cts < _twend + 4m order by cts limit 1",
+            stream="create stream rdb.s44 state_window(c1) from tdb.triggers partition by tbname into rdb.r44 as select _twstart ts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary from qdb.v1 where cts >= _twstart and cts < _twend + 4m order by cts limit 1",
             res_query="select * from rdb.r44 where tag_tbname='t1' limit 1 offset 2",
             exp_query="select cts, cts, cint, cuint, cbigint, cubigint, cfloat, cdouble, cvarchar, csmallint, cusmallint, ctinyint, cutinyint, cbool, cnchar, cvarbinary, 't1' from qdb.v1 where cts >= '2025-01-01 00:10:00.000' and cts < '2025-01-01 00:15:00.000' order by cts limit 1",
         )
@@ -879,7 +879,7 @@ class TestStreamSubqueryState:
 
         stream = StreamItem(
             id=89,
-            stream="create stream rdb.s89 interval(5m) sliding(5m) from tdb.v1 into rdb.r89 as select _twstart tw, _c0 ta, _rowts tb, c1, c2, rand() c3 from %%trows order by _c0 limit 1",
+            stream="create stream rdb.s89 state_window(c1) from tdb.v1 into rdb.r89 as select _twstart tw, _c0 ta, _rowts tb, c1, c2, rand() c3 from %%trows order by _c0 limit 1",
             res_query="select tw, ta, tb, c1, c2 from rdb.r89 limit 3",
             exp_query="select _c0,  _c0, _rowts, c1, c2 from tdb.v1 where ts = '2025-01-01 00:00:00.000' or ts = '2025-01-01 00:05:00.000' or ts = '2025-01-01 00:10:00.000' order by _c0 limit 3;",
             check_func=self.check89,
@@ -1150,7 +1150,7 @@ class TestStreamSubqueryState:
             res_query="select * from rdb.r122 where tag_tbname='t1';",
             exp_query="select first(tats), last(tbts), count(tat1), sum(tat1), first(tbt1), last(tbt1), 't1' from (select ta.cts tats, tb.cts tbts, ta.cint tat1, tb.cint tbt1 from qdb.t1 ta left join qdb.t2 tb on ta.cts=tb.cts and (ta.cint >= tb.cint) order by ta.cts) where tats >= '2025-01-01 00:00:00.000' and tats < '2025-01-01 00:35:00.000' interval(5m);",
         )
-       # self.streams.append(stream) TD-36170
+        # self.streams.append(stream) TD-36170
 
         stream = StreamItem(
             id=123,
@@ -1200,7 +1200,7 @@ class TestStreamSubqueryState:
             exp_query="select cts, STATECOUNT(cdouble, 'LT', 5), 'v1' from qdb.vmeters where tbname='v1' and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000'",
         )
         self.streams.append(stream)
-        
+
         stream = StreamItem(
             id=129,
             stream="create stream rdb.s129 state_window(c1) from tdb.triggers partition by id, tbname into rdb.r129 as select _c0, STATEDURATION(cusmallint, 'LT', 5, 1m) from qdb.meters where tbname=%%2 and cts >= _twstart and cts < _twend + 4m;",
@@ -1585,7 +1585,7 @@ class TestStreamSubqueryState:
         tdSql.checkResultsByFunc(
             sql="select * from rdb.r101", func=lambda: tdSql.getRows() == 4
         )
-        
+
     def check102(self):
         tdSql.checkResultsByFunc(
             sql="select * from rdb.r102",
