@@ -16,7 +16,7 @@ class TestStreamDisorderTrigger:
         tdStream.createSnode()
 
         streams = []
-        streams.append(self.Basic0())
+        streams.append(self.Basic0()) # [ok]
         # streams.append(self.Basic1())
         # streams.append(self.Basic2())
         # streams.append(self.Basic3()) # [fail]
@@ -27,20 +27,29 @@ class TestStreamDisorderTrigger:
         def __init__(self):
             self.db  = "sdb0"
             self.stbName = "stb"
+            self.vstbName = "vstb"
 
         def create(self):
             tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
+            tdSql.execute(f"create table if not exists {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
             tdSql.query(f"show stables")
-            tdSql.checkRows(1)
+            tdSql.checkRows(2)
 
             tdSql.execute(f"create table {self.db}.ct1 using {self.db}.{self.stbName} tags(1)")
             tdSql.execute(f"create table {self.db}.ct2 using {self.db}.{self.stbName} tags(2)")
             tdSql.execute(f"create table {self.db}.ct3 using {self.db}.{self.stbName} tags(3)")
             tdSql.execute(f"create table {self.db}.ct4 using {self.db}.{self.stbName} tags(4)")
 
+            tdSql.execute(f"create vtable vct1 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(1)")
+            tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2)")
+            tdSql.execute(f"create vtable vct3 (cint from {self.db}.ct3.cint) using {self.db}.{self.vstbName} tags(3)")
+            tdSql.execute(f"create vtable vct4 (cint from {self.db}.ct4.cint) using {self.db}.{self.vstbName} tags(4)")   
+
             tdSql.query(f"show tables")
+            tdSql.checkRows(4)
+            tdSql.query(f"show vtables")
             tdSql.checkRows(4)
             
             tdLog.info(f"start to insert history data, include disorder, update , delete")
@@ -93,10 +102,10 @@ class TestStreamDisorderTrigger:
             tdSql.executes(sqls)
 
             tdSql.execute(
-                f"create stream s0 state_window(cint) from ct1 stream_options(fill_history|delete_recalc) into {self.db}.res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s0 state_window(cint) from vct1 stream_options(fill_history|delete_recalc) into {self.db}.res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
             tdSql.execute(
-                f"create stream s0_g state_window(cint) from {self.db}.{self.stbName} partition by tbname, tint stream_options(fill_history|delete_recalc) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s0_g state_window(cint) from {self.db}.{self.vstbName} partition by tbname, tint stream_options(fill_history|delete_recalc) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
 
         def insert1(self):
@@ -159,7 +168,7 @@ class TestStreamDisorderTrigger:
                 func=lambda: tdSql.getRows() == 1,
             )
             tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_ct%"',
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_vct%"',
                 func=lambda: tdSql.getRows() == 4,
             )
             
@@ -226,7 +235,7 @@ class TestStreamDisorderTrigger:
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct4",
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct4",
                 func=lambda: tdSql.getRows() == 9
                 and tdSql.compareData(0, 0, "2024-01-01 00:00:00")
                 and tdSql.compareData(0, 1, "2024-01-01 00:00:00")
@@ -279,18 +288,25 @@ class TestStreamDisorderTrigger:
         def __init__(self):
             self.db  = "sdb1"
             self.stbName = "stb"
+            self.vstbName = "vstb"
 
         def create(self):
             tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
+            tdSql.execute(f"create table if not exists {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
             tdSql.query(f"show stables")
-            tdSql.checkRows(1)
+            tdSql.checkRows(2)
 
             tdSql.execute(f"create table {self.db}.ct1 using {self.db}.{self.stbName} tags(1)")
             tdSql.execute(f"create table {self.db}.ct2 using {self.db}.{self.stbName} tags(2)")
             tdSql.execute(f"create table {self.db}.ct3 using {self.db}.{self.stbName} tags(3)")
             tdSql.execute(f"create table {self.db}.ct4 using {self.db}.{self.stbName} tags(4)")
+
+            tdSql.execute(f"create vtable vct1 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(1)")
+            tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2)")
+            tdSql.execute(f"create vtable vct3 (cint from {self.db}.ct3.cint) using {self.db}.{self.vstbName} tags(3)")
+            tdSql.execute(f"create vtable vct4 (cint from {self.db}.ct4.cint) using {self.db}.{self.vstbName} tags(4)")   
 
             tdSql.query(f"show tables")
             tdSql.checkRows(4)
@@ -345,10 +361,10 @@ class TestStreamDisorderTrigger:
             tdSql.executes(sqls)
 
             tdSql.execute(
-                f"create stream s1 state_window(cint) from ct1 stream_options(fill_history) into {self.db}.res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s1 state_window(cint) from vct1 stream_options(fill_history) into {self.db}.res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
             tdSql.execute(
-                f"create stream s1_g state_window(cint) from {self.db}.{self.stbName} partition by tbname, tint stream_options(fill_history) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s1_g state_window(cint) from {self.db}.{self.vstbName} partition by tbname, tint stream_options(fill_history) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
 
         def insert1(self):
@@ -369,7 +385,7 @@ class TestStreamDisorderTrigger:
                 func=lambda: tdSql.getRows() == 1,
             )
             tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_ct%"',
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_vct%"',
                 func=lambda: tdSql.getRows() == 4,
             )
             
@@ -411,7 +427,7 @@ class TestStreamDisorderTrigger:
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct4",
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct4",
                 func=lambda: tdSql.getRows() == 4
                 and tdSql.compareData(0, 0, "2024-01-01 00:00:00")
                 and tdSql.compareData(0, 1, "2024-01-01 00:00:00")
@@ -439,18 +455,25 @@ class TestStreamDisorderTrigger:
         def __init__(self):
             self.db  = "sdb2"
             self.stbName = "stb"
+            self.vstbName = "vstb"
 
         def create(self):
             tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
+            tdSql.execute(f"create table if not exists {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
             tdSql.query(f"show stables")
-            tdSql.checkRows(1)
+            tdSql.checkRows(2)
 
             tdSql.execute(f"create table {self.db}.ct1 using {self.db}.{self.stbName} tags(1)")
             tdSql.execute(f"create table {self.db}.ct2 using {self.db}.{self.stbName} tags(2)")
             tdSql.execute(f"create table {self.db}.ct3 using {self.db}.{self.stbName} tags(3)")
             tdSql.execute(f"create table {self.db}.ct4 using {self.db}.{self.stbName} tags(4)")
+
+            tdSql.execute(f"create vtable vct1 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(1)")
+            tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2)")
+            tdSql.execute(f"create vtable vct3 (cint from {self.db}.ct3.cint) using {self.db}.{self.vstbName} tags(3)")
+            tdSql.execute(f"create vtable vct4 (cint from {self.db}.ct4.cint) using {self.db}.{self.vstbName} tags(4)")   
 
             tdSql.query(f"show tables")
             tdSql.checkRows(4)
@@ -512,10 +535,10 @@ class TestStreamDisorderTrigger:
             tdSql.executes(sqls)
 
             tdSql.execute(
-                f"create stream s2 state_window(cint) from ct1 stream_options(delete_recalc|expired_time(10d)) into {self.db}.res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s2 state_window(cint) from vct1 stream_options(delete_recalc|expired_time(10d)) into {self.db}.res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
             tdSql.execute(
-                f"create stream s2_g state_window(cint) from {self.db}.{self.stbName} partition by tbname, tint stream_options(delete_recalc|expired_time(10d)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s2_g state_window(cint) from {self.db}.{self.vstbName} partition by tbname, tint stream_options(delete_recalc|expired_time(10d)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
 
         def insert1(self):
@@ -576,7 +599,7 @@ class TestStreamDisorderTrigger:
                 func=lambda: tdSql.getRows() == 1,
             )
             tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_ct%"',
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_vct%"',
                 func=lambda: tdSql.getRows() == 4,
             )
             
@@ -623,7 +646,7 @@ class TestStreamDisorderTrigger:
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct4",
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct4",
                 func=lambda: tdSql.getRows() == 5
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
                 and tdSql.compareData(0, 1, "2025-01-01 00:00:00")
@@ -761,22 +784,22 @@ class TestStreamDisorderTrigger:
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct1",
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct1",
                 func=lambda: tdSql.getRows() == 9
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct2",
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct2",
                 func=lambda: tdSql.getRows() == 9
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct3",
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct3",
                 func=lambda: tdSql.getRows() == 9
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct4",
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct4",
                 func=lambda: tdSql.getRows() == 9
                 and tdSql.compareData(0, 0, "2024-12-25 00:00:00")
                 and tdSql.compareData(0, 1, "2024-12-25 00:00:04")
@@ -829,18 +852,25 @@ class TestStreamDisorderTrigger:
         def __init__(self):
             self.db  = "sdb3"
             self.stbName = "stb"
+            self.vstbName = "vstb"
 
         def create(self):
             tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamDisorderTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
+            tdSql.execute(f"create table if not exists {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
             tdSql.query(f"show stables")
-            tdSql.checkRows(1)
+            tdSql.checkRows(2)
 
             tdSql.execute(f"create table {self.db}.ct1 using {self.db}.{self.stbName} tags(1)")
             tdSql.execute(f"create table {self.db}.ct2 using {self.db}.{self.stbName} tags(2)")
             tdSql.execute(f"create table {self.db}.ct3 using {self.db}.{self.stbName} tags(3)")
             tdSql.execute(f"create table {self.db}.ct4 using {self.db}.{self.stbName} tags(4)")
+
+            tdSql.execute(f"create vtable vct1 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(1)")
+            tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2)")
+            tdSql.execute(f"create vtable vct3 (cint from {self.db}.ct3.cint) using {self.db}.{self.vstbName} tags(3)")
+            tdSql.execute(f"create vtable vct4 (cint from {self.db}.ct4.cint) using {self.db}.{self.vstbName} tags(4)")   
 
             tdSql.query(f"show tables")
             tdSql.checkRows(4)
@@ -902,10 +932,10 @@ class TestStreamDisorderTrigger:
             tdSql.executes(sqls)
 
             tdSql.execute(
-                f"create stream s3 state_window(cint) from ct1 stream_options(delete_recalc|expired_time(10d)|ignore_disorder) into {self.db}.res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s3 state_window(cint) from vct1 stream_options(delete_recalc|expired_time(10d)|ignore_disorder) into {self.db}.res_ct1 (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
             tdSql.execute(
-                f"create stream s3_g state_window(cint) from {self.db}.{self.stbName} partition by tbname, tint stream_options(delete_recalc|expired_time(10d)|ignore_disorder) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s3_g state_window(cint) from {self.db}.{self.vstbName} partition by tbname, tint stream_options(delete_recalc|expired_time(10d)|ignore_disorder) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
             )
 
         def insert1(self):
@@ -966,7 +996,7 @@ class TestStreamDisorderTrigger:
                 func=lambda: tdSql.getRows() == 1,
             )
             tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_ct%"',
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_vct%"',
                 func=lambda: tdSql.getRows() == 4,
             )
             
@@ -1013,7 +1043,7 @@ class TestStreamDisorderTrigger:
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct4",
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct4",
                 func=lambda: tdSql.getRows() == 4
                 and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
                 and tdSql.compareData(0, 1, "2025-01-01 00:00:00")
@@ -1105,7 +1135,7 @@ class TestStreamDisorderTrigger:
                 func=lambda: tdSql.getRows() == 1,
             )
             tdSql.checkResultsByFunc(
-                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_ct%"',
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_vct%"',
                 func=lambda: tdSql.getRows() == 4,
             )
             
@@ -1162,22 +1192,22 @@ class TestStreamDisorderTrigger:
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct1",
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct1",
                 func=lambda: tdSql.getRows() == 7
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct2",
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct2",
                 func=lambda: tdSql.getRows() == 7
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct3",
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct3",
                 func=lambda: tdSql.getRows() == 7
             )
 
             tdSql.checkResultsByFunc(
-                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_ct4",
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct4",
                 func=lambda: tdSql.getRows() == 7
                 and tdSql.compareData(0, 0, "2024-12-25 00:00:01")
                 and tdSql.compareData(0, 1, "2024-12-25 00:00:04")
