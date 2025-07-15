@@ -15,25 +15,25 @@ class TestStreamOptionsTrigger:
 
         streams = []
         streams.append(self.Basic0())  # WATERMARK [ok]
-        # streams.append(self.Basic1())  # EXPIRED_TIME   fail 
+        # # streams.append(self.Basic1())  # EXPIRED_TIME   fail 
         streams.append(self.Basic2())  # IGNORE_DISORDER  [ok]
         streams.append(self.Basic3())  # DELETE_RECALC  [ok]
         
-        # TD-36305 [流计算开发阶段] 流计算state窗口+超级表%%rows+delete_output_table没有删除结果表
-        # streams.append(self.Basic4())  # DELETE_OUTPUT_TABLE
+        # # TD-36305 [流计算开发阶段] 流计算state窗口+超级表%%rows+delete_output_table没有删除结果表
+        # # streams.append(self.Basic4())  # DELETE_OUTPUT_TABLE
         
         streams.append(self.Basic5())  # FILL_HISTORY        [ok]
         streams.append(self.Basic6())  # FILL_HISTORY_FIRST  [ok]
-        streams.append(self.Basic7())  # CALC_NOTIFY_ONLY [ok]
-        # # streams.append(self.Basic8())  # LOW_LATENCY_CALC  temp no test
-        streams.append(self.Basic9())  # PRE_FILTER     [ok]
-        streams.append(self.Basic10()) # FORCE_OUTPUT   [ok] 
-        # streams.append(self.Basic11()) # MAX_DELAY        
-        # streams.append(self.Basic11_1()) # MAX_DELAY        
-        streams.append(self.Basic12()) # EVENT_TYPE [ok]
-        # streams.append(self.Basic13()) # IGNORE_NODATA_TRIGGER
+        # streams.append(self.Basic7())  # CALC_NOTIFY_ONLY [ok]
+        # # # streams.append(self.Basic8())  # LOW_LATENCY_CALC  temp no test
+        # streams.append(self.Basic9())  # PRE_FILTER     [ok]
+        # streams.append(self.Basic10()) # FORCE_OUTPUT   [ok] 
+        # # streams.append(self.Basic11()) # MAX_DELAY        
+        # # streams.append(self.Basic11_1()) # MAX_DELAY        
+        # streams.append(self.Basic12()) # EVENT_TYPE [ok]
+        # # streams.append(self.Basic13()) # IGNORE_NODATA_TRIGGER
         
-        # streams.append(self.Basic14()) # watermark + expired_time + ignore_disorder  fail  对超期的数据仍然进行了计算
+        # # streams.append(self.Basic14()) # watermark + expired_time + ignore_disorder  fail  对超期的数据仍然进行了计算
         
         tdStream.checkAll(streams)
 

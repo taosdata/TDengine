@@ -17,7 +17,7 @@ class TestStreamMetaTrigger:
         streams.append(self.Basic0())  # add ctb and drop ctb from stb [ok]
         # # streams.append(self.Basic1())  # drop data source table [fail]
         streams.append(self.Basic2())  # tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件 [ok]       
-        # # streams.append(self.Basic3())  # [fail]
+        streams.append(self.Basic3())  # [ok]
         # streams.append(self.Basic4())  # [ok]
         # # streams.append(self.Basic5())  # [fail] 
         # # streams.append(self.Basic6())  #  [fail]
