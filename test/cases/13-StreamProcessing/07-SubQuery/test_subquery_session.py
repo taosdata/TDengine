@@ -476,11 +476,12 @@ class TestStreamSubquerySession:
 
         stream = StreamItem(
             id=39,
-            stream="create stream rdb.s39 session(ts, 2m) from tdb.v1 into rdb.r39 as select _twstart + 5m tn, TIMETRUNCATE(_twstart + 5m, 1d) tnt, sum(cint) c1, _tgrpid tg, TIMETRUNCATE(cast(_tlocaltime /1000000 as timestamp), 1d) tl from qdb.meters where cts >= _twstart and cts < _twstart + 5m and tint = 1 partition by tint",
-            res_query="select * from rdb.r39 limit 3",
-            exp_query="select _wstart + 5m, timetruncate(_wstart, 1d), sum(cint), 0, timetruncate(now(), 1d) from qdb.meters where tint=1 and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:15:00.000' interval(5m);",
+            stream="create stream rdb.s39 session(ts, 2m) from tdb.v2 into rdb.r39 as select _twstart + 5m tn, TIMETRUNCATE(_twstart + 5m, 1d) tnt, sum(cint) c1, _tgrpid tg, TIMETRUNCATE(cast(_tlocaltime /1000000 as timestamp), 1d) tl from qdb.meters where cts >= _twstart and cts < _twstart + 5m and tint = 1 partition by tint",
+            res_query="select * from rdb.r39 limit 5",
+            exp_query="select _wstart + 5m, timetruncate(_wstart, 1d), sum(cint), 0, timetruncate(now(), 1d) from qdb.meters where tint=1 and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:25:00.000' interval(5m);",
+            check_func=self.check39,
         )
-        # self.streams.append(stream) TD-36470
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=40,
@@ -1494,6 +1495,14 @@ class TestStreamSubquerySession:
             and tdSql.compareData(2, 1, 245)
             and tdSql.compareData(2, 2, 10)
             and tdSql.compareData(3, 0, "2025-01-01 00:30:00.000"),
+        )
+
+    def check39(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from rdb.r39",
+            func=lambda: tdSql.getRows() == 6
+            and tdSql.compareData(5, 0, "2025-01-01 00:35:00.000")
+            and tdSql.compareData(5, 2, 19995),
         )
 
     def check40(self):
