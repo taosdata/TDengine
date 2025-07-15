@@ -222,8 +222,8 @@ class TestStreamSubqueryCount:
 
         stream = StreamItem(
             id=8,
-            stream="create stream rdb.s8 count_window(1, c1) from tdb.triggers partition by tbname into rdb.r8 as select _twstart ts, count(c1), avg(c2) from %%trows partition by %%1",
-            res_query="select *, tag_tbname from rdb.r8 where tag_tbname='t1'",
+            stream="create stream rdb.s8 count_window(1, c1) from tdb.triggers partition by tbname into rdb.r8 as select _twstart ts, count(c1), avg(c2) from %%trows",
+            res_query="select *, tag_tbname from rdb.r8 where tag_tbname='t1' and `count(c1)` != 0;",
             exp_query="select _wstart, count(c1), avg(c2), 't1', 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m);",
         )
         self.streams.append(stream)
@@ -257,7 +257,7 @@ class TestStreamSubqueryCount:
         stream = StreamItem(
             id=12,
             stream="create stream rdb.s12 count_window(1, c1) from tdb.triggers partition by tbname into rdb.r12 as select _twstart ts, %%tbname tb, %%1, count(*) v1, avg(c1) v2, first(c1) v3, last(c1) v4 from %%trows;",
-            res_query="select ts, tb, `%%1`, v2, v3, v4, tag_tbname from rdb.r12 where tb='t1'",
+            res_query="select ts, tb, `%%1`, v2, v3, v4, tag_tbname from rdb.r12 where tb='t1';",
             exp_query="select _wstart, 't1', 't1', avg(c1) v2, first(c1) v3, last(c1) v4, 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m);",
             check_func=self.check12,
         )
@@ -471,7 +471,7 @@ class TestStreamSubqueryCount:
             res_query="select * from rdb.r38 where tag_tbname='t1' limit 1",
             exp_query="select _irowts , _isfilled , interp(c1) from tdb.t1 RANGE('2025-01-01 00:05:00.000') FILL(linear);",
         )
-        # self.streams.append(stream) TD-36112 todo
+        # self.streams.append(stream) TD-36112 forbidden
 
         stream = StreamItem(
             id=39,
@@ -609,7 +609,7 @@ class TestStreamSubqueryCount:
             res_query="select * from rdb.r55",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream) TD-36112 todo
+        # self.streams.append(stream) TD-36112 forbidden
 
         stream = StreamItem(
             id=56,
@@ -633,7 +633,7 @@ class TestStreamSubqueryCount:
             res_query="select * from rdb.r58",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream) TD-36112 todo
+        # self.streams.append(stream) TD-36112 forbidden
 
         stream = StreamItem(
             id=59,
@@ -641,7 +641,7 @@ class TestStreamSubqueryCount:
             res_query="select * from rdb.r59",
             exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
         )
-        # self.streams.append(stream) TD-36112 todo
+        # self.streams.append(stream) TD-36112 forbidden
 
         stream = StreamItem(
             id=60,
@@ -777,7 +777,7 @@ class TestStreamSubqueryCount:
             res_query="select * from rdb.r76 limit 1 offset 3",
             exp_query="select cast('2025-01-01 00:15:00.000' as timestamp), ST_GeomFromText('POINT (2.000000 2.000000)'), ST_AsText(cgeometry), ST_Contains(cgeometry, cgeometry), ST_ContainsProperly(cgeometry, cgeometry), ST_Covers(cgeometry, cgeometry), ST_Equals(cgeometry, cgeometry), ST_Intersects(cgeometry, cgeometry), ST_Touches(cgeometry, cgeometry), 1, '1' from qdb.t4 where cts='2025-01-01 00:15:00.000';",
         )
-        # self.streams.append(stream)TD-35766 todo
+        # self.streams.append(stream) TD-35766 forbidden
 
         stream = StreamItem(
             id=77,
