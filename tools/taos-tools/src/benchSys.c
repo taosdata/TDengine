@@ -181,6 +181,7 @@ static struct argp_option bench_options[] = {
     {"nodrop", 'Q', 0, 0, BENCH_NODROP},
     {"dsn", 'X', "DSN", 0, DSN_DESC},
     {DRIVER_OPT, 'Z', "DRIVER", 0, DRIVER_DESC},
+    {"result_json_file", 'j', "FILE", 0, BENCH_OUTPUT_JSON},
     {0}
 };
 
@@ -296,7 +297,9 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
         case 'o':
             g_arguments->output_file = arg;
             break;
-
+        case 'j':
+            g_arguments->output_json_file = arg;
+            break;
         case 'T':
             if (!toolsIsStringNumber(arg)) {
                 errorPrintReqArg2(CUS_PROMPT"Benchmark", "T");
