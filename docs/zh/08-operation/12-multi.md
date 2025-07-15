@@ -95,7 +95,7 @@ dataDir /mnt/data6 2 0
 | bucket          | 存储桶的名字 | 
 | protocol        | `https` 或 `http`，默认是 `https`| 
 | uriStyle        | `virtualHost` 或 `path`，默认是 `virtualHost`，注意，部分对象存储仅支持其中之一| 
-| region          | 对象存储服务所在区域，此参数可选| 
+| region          | 对象存储服务所在区域，此参数可选 | 
 | accessKeyId     | 用于访问对象存储的 `access key id`|               
 | secretAccessKey | 上述 `access key id` 对应的密钥| 
 | chunkSize       | 以 MB 为单位的数据片大小，默认值是 64，超过此大小的文件，将使用 multipart 方式上传| 
