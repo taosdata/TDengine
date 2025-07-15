@@ -98,7 +98,7 @@ dataDir /mnt/data6 2 0
 | region          | 对象存储服务所在区域，此参数可选 | 
 | accessKeyId     | 用于访问对象存储的 `access key id`|               
 | secretAccessKey | 上述 `access key id` 对应的密钥| 
-| chunkSize       | 以 MB 为单位的数据片大小，默认值是 64，超过此大小的文件，将使用 multipart 方式上传| 
+| chunkSize       | 以 MB 为单位的数据片大小，默认值是 64，超过此大小的文件，将使用 multipart 方式上传 | 
 | maxChunks       | 单个数据文件的最大分片数量，默认值为 10000| 
 | maxRetry        | 访问对象存储时出现可重试错误时的最大重试次数，默认值是 3，负值表示一直重试直到成功为止| 
 
