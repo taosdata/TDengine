@@ -124,56 +124,56 @@ class TestStreamRecalcWatermark:
 
         # Trigger data for session stream
         trigger_sqls = [
-            "insert into tdb.ws1 values ('2025-01-01 02:00:00', 10, 'normal');",
-            "insert into tdb.ws1 values ('2025-01-01 02:00:30', 20, 'normal');",
-            "insert into tdb.ws1 values ('2025-01-01 02:01:00', 30, 'normal');",
-            "insert into tdb.ws1 values ('2025-01-01 02:03:00', 40, 'normal');",
-            "insert into tdb.ws1 values ('2025-01-01 02:03:30', 50, 'normal');",
-            "insert into tdb.ws1 values ('2025-01-01 02:04:00', 60, 'normal');",
+            "insert into tdb.ws1 values ('2025-01-01 02:10:00', 10, 'normal');",
+            "insert into tdb.ws1 values ('2025-01-01 02:10:30', 20, 'normal');",
+            "insert into tdb.ws1 values ('2025-01-01 02:11:00', 30, 'normal');",
+            "insert into tdb.ws1 values ('2025-01-01 02:11:30', 40, 'normal');",
+            "insert into tdb.ws1 values ('2025-01-01 02:12:00', 50, 'normal');",
+            "insert into tdb.ws1 values ('2025-01-01 02:12:30', 60, 'normal');",
         ]
         tdSql.executes(trigger_sqls)
 
         # Trigger data for state window stream
         trigger_sqls = [
-            "insert into tdb.ww1 values ('2025-01-01 02:00:00', 10, 'normal');",
-            "insert into tdb.ww1 values ('2025-01-01 02:00:30', 20, 'normal');",
-            "insert into tdb.ww1 values ('2025-01-01 02:01:00', 30, 'warning');",
-            "insert into tdb.ww1 values ('2025-01-01 02:01:30', 40, 'warning');",
-            "insert into tdb.ww1 values ('2025-01-01 02:02:00', 50, 'error');",
-            "insert into tdb.ww1 values ('2025-01-01 02:02:30', 60, 'error');",
+            "insert into tdb.ww1 values ('2025-01-01 02:20:00', 10, 'normal');",
+            "insert into tdb.ww1 values ('2025-01-01 02:20:30', 20, 'normal');",
+            "insert into tdb.ww1 values ('2025-01-01 02:21:00', 30, 'warning');",
+            "insert into tdb.ww1 values ('2025-01-01 02:21:30', 40, 'warning');",
+            "insert into tdb.ww1 values ('2025-01-01 02:22:00', 50, 'error');",
+            "insert into tdb.ww1 values ('2025-01-01 02:22:30', 60, 'error');",
         ]
         tdSql.executes(trigger_sqls)
 
         # Trigger data for event window stream
         trigger_sqls = [
-            "insert into tdb.we1 values ('2025-01-01 02:00:00', 10, 6);",
-            "insert into tdb.we1 values ('2025-01-01 02:00:30', 20, 7);",
-            "insert into tdb.we1 values ('2025-01-01 02:01:00', 30, 12);",
-            "insert into tdb.we1 values ('2025-01-01 02:01:30', 40, 6);",
-            "insert into tdb.we1 values ('2025-01-01 02:02:00', 50, 9);",
-            "insert into tdb.we1 values ('2025-01-01 02:02:30', 60, 13);",
+            "insert into tdb.we1 values ('2025-01-01 02:30:00', 10, 6);",
+            "insert into tdb.we1 values ('2025-01-01 02:30:30', 20, 7);",
+            "insert into tdb.we1 values ('2025-01-01 02:31:00', 30, 12);",
+            "insert into tdb.we1 values ('2025-01-01 02:31:30', 40, 6);",
+            "insert into tdb.we1 values ('2025-01-01 02:32:00', 50, 9);",
+            "insert into tdb.we1 values ('2025-01-01 02:32:30', 60, 13);",
         ]
         tdSql.executes(trigger_sqls)
 
         # Trigger data for period stream
         trigger_sqls = [
-            "insert into tdb.wp1 values ('2025-01-01 02:00:00', 10, 1.5);",
-            "insert into tdb.wp1 values ('2025-01-01 02:00:30', 20, 2.5);",
-            "insert into tdb.wp1 values ('2025-01-01 02:01:00', 30, 3.5);",
-            "insert into tdb.wp1 values ('2025-01-01 02:01:30', 40, 4.5);",
-            "insert into tdb.wp1 values ('2025-01-01 02:02:00', 50, 5.5);",
-            "insert into tdb.wp1 values ('2025-01-01 02:02:30', 60, 6.5);",
+            "insert into tdb.wp1 values ('2025-01-01 02:40:00', 10, 1.5);",
+            "insert into tdb.wp1 values ('2025-01-01 02:40:30', 20, 2.5);",
+            "insert into tdb.wp1 values ('2025-01-01 02:41:00', 30, 3.5);",
+            "insert into tdb.wp1 values ('2025-01-01 02:41:30', 40, 4.5);",
+            "insert into tdb.wp1 values ('2025-01-01 02:42:00', 50, 5.5);",
+            "insert into tdb.wp1 values ('2025-01-01 02:42:30', 60, 6.5);",
         ]
         tdSql.executes(trigger_sqls)
 
         # Trigger data for count window stream
         trigger_sqls = [
-            "insert into tdb.wc1 values ('2025-01-01 02:00:00', 10, 'normal');",
-            "insert into tdb.wc1 values ('2025-01-01 02:00:15', 20, 'normal');",
-            "insert into tdb.wc1 values ('2025-01-01 02:00:30', 30, 'warning');",
-            "insert into tdb.wc1 values ('2025-01-01 02:00:45', 40, 'warning');",
-            "insert into tdb.wc1 values ('2025-01-01 02:01:00', 50, 'error');",
-            "insert into tdb.wc1 values ('2025-01-01 02:01:15', 60, 'error');",
+            "insert into tdb.wc1 values ('2025-01-01 02:50:00', 10, 'normal');",
+            "insert into tdb.wc1 values ('2025-01-01 02:50:15', 20, 'normal');",
+            "insert into tdb.wc1 values ('2025-01-01 02:50:30', 30, 'warning');",
+            "insert into tdb.wc1 values ('2025-01-01 02:50:45', 40, 'warning');",
+            "insert into tdb.wc1 values ('2025-01-01 02:51:00', 50, 'error');",
+            "insert into tdb.wc1 values ('2025-01-01 02:51:15', 60, 'error');",
         ]
         tdSql.executes(trigger_sqls)
 
@@ -206,45 +206,45 @@ class TestStreamRecalcWatermark:
         )
         self.streams.append(stream)
 
-        # # Test 1.2: SESSION with WATERMARK(1m) - should handle out-of-order data within tolerance
-        # stream = StreamItem(
-        #     id=2,
-        #     stream="create stream rdb.s_session_watermark session(ts,45s) from tdb.trigger_session_watermark partition by tbname stream_options(watermark(1m)) into rdb.r_session_watermark as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
-        #     check_func=self.check02,
-        # )
-        # self.streams.append(stream)
+        # Test 1.2: SESSION with WATERMARK(1m) - should handle out-of-order data within tolerance
+        stream = StreamItem(
+            id=2,
+            stream="create stream rdb.s_session_watermark session(ts,45s) from tdb.trigger_session_watermark partition by tbname stream_options(watermark(1m)) into rdb.r_session_watermark as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            check_func=self.check02,
+        )
+        self.streams.append(stream)
 
-        # # Test 1.3: STATE_WINDOW with WATERMARK(45s) - should handle out-of-order data within tolerance
-        # stream = StreamItem(
-        #     id=3,
-        #     stream="create stream rdb.s_state_watermark state_window(status) from tdb.trigger_state_watermark partition by tbname stream_options(watermark(45s)) into rdb.r_state_watermark as select _twstart ts, count(*) cnt, avg(cint) avg_val, first(cvarchar) status_val from qdb.meters where cts >= _twstart and cts < _twend;",
-        #     check_func=self.check03,
-        # )
-        # self.streams.append(stream)
+        # Test 1.3: STATE_WINDOW with WATERMARK(45s) - should handle out-of-order data within tolerance
+        stream = StreamItem(
+            id=3,
+            stream="create stream rdb.s_state_watermark state_window(status) from tdb.trigger_state_watermark partition by tbname stream_options(watermark(45s)) into rdb.r_state_watermark as select _twstart ts, count(*) cnt, avg(cint) avg_val, first(cvarchar) status_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            check_func=self.check03,
+        )
+        self.streams.append(stream)
 
-        # # Test 1.4: EVENT_WINDOW with WATERMARK - should handle out-of-order data within tolerance
-        # stream = StreamItem(
-        #     id=4,
-        #     stream="create stream rdb.s_event_watermark event_window(start with event_val >= 5 end with event_val > 10) from tdb.trigger_event_watermark partition by tbname stream_options(watermark(1m)) into rdb.r_event_watermark as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
-        #     check_func=self.check04,
-        # )
-        # self.streams.append(stream)
+        # Test 1.4: EVENT_WINDOW with WATERMARK - should handle out-of-order data within tolerance
+        stream = StreamItem(
+            id=4,
+            stream="create stream rdb.s_event_watermark event_window(start with event_val >= 5 end with event_val > 10) from tdb.trigger_event_watermark partition by tbname stream_options(watermark(1m)) into rdb.r_event_watermark as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            check_func=self.check04,
+        )
+        self.streams.append(stream)
 
-        # # Test 5: PERIOD with WATERMARK - should handle out-of-order data within tolerance
-        # stream = StreamItem(
-        #     id=5,
-        #     stream="create stream rdb.s_period_watermark period(30s) from tdb.trigger_period_watermark partition by tbname stream_options(watermark(45s)) into rdb.r_period_watermark as select _tlocaltime ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _tlocaltime - 30000000000 and cts <= _tlocaltime;",
-        #     check_func=self.check05,
-        # )
-        # self.streams.append(stream)
+        # Test 5: PERIOD with WATERMARK - should handle out-of-order data within tolerance
+        stream = StreamItem(
+            id=5,
+            stream="create stream rdb.s_period_watermark period(30s) from tdb.trigger_period_watermark partition by tbname stream_options(watermark(45s)) into rdb.r_period_watermark as select _tlocaltime ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _tlocaltime - 30000000000 and cts <= _tlocaltime;",
+            check_func=self.check05,
+        )
+        self.streams.append(stream)
 
-        # # Test 6: COUNT_WINDOW with WATERMARK - should handle out-of-order data within tolerance
-        # stream = StreamItem(
-        #     id=6,
-        #     stream="create stream rdb.s_count_watermark count_window(3) from tdb.trigger_count_watermark partition by tbname stream_options(watermark(1m)) into rdb.r_count_watermark as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
-        #     check_func=self.check06,
-        # )
-        # self.streams.append(stream)
+        # Test 6: COUNT_WINDOW with WATERMARK - should handle out-of-order data within tolerance
+        stream = StreamItem(
+            id=6,
+            stream="create stream rdb.s_count_watermark count_window(3) from tdb.trigger_count_watermark partition by tbname stream_options(watermark(1m)) into rdb.r_count_watermark as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            check_func=self.check06,
+        )
+        self.streams.append(stream)
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
             stream.createStream()
@@ -276,198 +276,319 @@ class TestStreamRecalcWatermark:
                     and tdSql.compareData(0, 2, 240.922693266833)
                 )
             )
+        
+        # water mark is 45s , so there is no recalc
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:03:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.wm1 values ('2025-01-01 02:04:10', 10, 100, 1.5, 'normal');")
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_interval_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 1
+                    and tdSql.compareData(0, 0, "2025-01-01 02:00:00")
+                    and tdSql.compareData(0, 1, 401)
+                    and tdSql.compareData(0, 2, 240.922693266833)
+                )
+            )
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:03:02', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.wm1 values ('2025-01-01 02:04:58', 10, 100, 1.5, 'normal');")
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_interval_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 2
+                    and tdSql.compareData(0, 0, "2025-01-01 02:00:00")
+                    and tdSql.compareData(0, 1, 401)
+                    and tdSql.compareData(0, 2, 240.922693266833)
+                )
+            )
 
 
         # With WATERMARK, the stream should process out-of-order data within tolerance
         tdLog.info("INTERVAL+SLIDING with WATERMARK successfully handled out-of-order data")
 
-    # def check02(self):
-    #     # Test session with WATERMARK - should handle out-of-order data within tolerance
-    #     tdLog.info("Check 2: SESSION with WATERMARK handles out-of-order data")
-    #     tdSql.checkTableType(dbname="rdb", stbname="r_session_watermark", columns=3, tags=1)
+    def check02(self):
+        # Test session with WATERMARK - should handle out-of-order data within tolerance
+        tdLog.info("Check 2: SESSION with WATERMARK handles out-of-order data")
+        tdSql.checkTableType(dbname="rdb", stbname="r_session_watermark", columns=3, tags=1)
 
-    #     tdSql.checkResultsByFunc(
-    #             sql=f"select cnt, avg_val from rdb.r_session_watermark",
-    #             func=lambda: (
-    #                 tdSql.getRows() == 1
-    #                 and tdSql.compareData(0, 0, 200)
-    #                 and tdSql.compareData(0, 1, 246.5)
-    #             )
-    #         )
+        tdSql.checkResultsByFunc(
+                sql=f"select cnt, avg_val from rdb.r_session_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 1
+                    and tdSql.compareData(0, 0, 200)
+                    and tdSql.compareData(0, 1, 246.5)
+                )
+            )
 
-    #     # Insert out-of-order data within WATERMARK tolerance (1m)
-    #     watermark_sqls = [
-    #         "insert into tdb.ws1 values ('2025-01-01 02:03:45', 35, 'late1');",  # 15s late, within 1m watermark
-    #         "insert into tdb.ws1 values ('2025-01-01 02:02:30', 25, 'late2');",  # 90s late, exceeds 1m watermark
-    #     ]
-    #     tdSql.executes(watermark_sqls)
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:11:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.ws1 values ('2025-01-01 02:11:02', 10, 'normal');")
 
-    #     time.sleep(5)
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_session_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 1
+                    and tdSql.compareData(0, 0, "2025-01-01 02:10:00")
+                    and tdSql.compareData(0, 1, 201)
+                    and tdSql.compareData(0, 2, 245.025)
+                )
+            )
+        
+        # water mark is 1m , so there is no recalc
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:13:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.ws1 values ('2025-01-01 02:14:10', 10, 'normal');")
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_session_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 1
+                    and tdSql.compareData(0, 0, "2025-01-01 02:10:00")
+                    and tdSql.compareData(0, 1, 201)
+                    and tdSql.compareData(0, 2, 245.025)
+                )
+            )
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:13:02', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.ws1 values ('2025-01-01 02:14:58', 10, 'normal');")
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_session_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 2
+                    and tdSql.compareData(0, 0, "2025-01-01 02:10:00")
+                    and tdSql.compareData(0, 1, 201)
+                    and tdSql.compareData(0, 2, 245.025)
+                )
+            )
 
-    #     # WATERMARK should allow the stream to handle out-of-order data appropriately
-    #     tdSql.checkResultsByFunc(
-    #             sql=f"select count(*) from rdb.r_session_watermark",
-    #             func=lambda: (
-    #                 tdSql.getRows() == 1
-    #                 and tdSql.getData(0, 0) >= 1
-    #             )
-    #         )
+        # With WATERMARK, the session stream should process out-of-order data within tolerance
+        tdLog.info("SESSION with WATERMARK successfully handled out-of-order data")
 
-    #     # With WATERMARK, the stream should process out-of-order data within tolerance
-    #     tdLog.info("SESSION with WATERMARK successfully handled out-of-order data")
+    def check03(self):
+        # Test state window with WATERMARK - should handle out-of-order data within tolerance
+        tdLog.info("Check 3: STATE_WINDOW with WATERMARK handles out-of-order data")
+        tdSql.checkTableType(dbname="rdb", stbname="r_state_watermark", columns=4, tags=1)
 
-    # def check03(self):
-    #     # Test state window with WATERMARK - should handle out-of-order data within tolerance
-    #     tdLog.info("Check 3: STATE_WINDOW with WATERMARK handles out-of-order data")
-    #     tdSql.checkTableType(dbname="rdb", stbname="r_state_watermark", columns=4, tags=1)
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_state_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 2
+                    and tdSql.compareData(0, 0, "2025-01-01 02:20:00")
+                    and tdSql.compareData(0, 1, 100)
+                    and tdSql.compareData(0, 2, 240)
+                    and tdSql.compareData(1, 0, "2025-01-01 02:21:00")
+                    and tdSql.compareData(1, 1, 100)
+                    and tdSql.compareData(1, 2, 242)
+                )
+            )
 
-    #     tdSql.checkResultsByFunc(
-    #             sql=f"select ts, cnt, avg_val from rdb.r_state_watermark",
-    #             func=lambda: (
-    #                 tdSql.getRows() == 2
-    #                 and tdSql.compareData(0, 0, "2025-01-01 02:00:00")
-    #                 and tdSql.compareData(0, 1, 100)
-    #                 and tdSql.compareData(0, 2, 240)
-    #                 and tdSql.compareData(1, 0, "2025-01-01 02:01:00")
-    #                 and tdSql.compareData(1, 1, 100)
-    #                 and tdSql.compareData(1, 2, 242)
-    #             )
-    #         )
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:21:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.ww1 values ('2025-01-01 02:21:02', 10, 'warning');")
 
-    #     # Insert out-of-order data within WATERMARK tolerance (45s)
-    #     watermark_sqls = [
-    #         "insert into tdb.ww1 values ('2025-01-01 02:02:00', 35, 'error');",    # 30s late, within 45s watermark
-    #         "insert into tdb.ww1 values ('2025-01-01 02:01:15', 25, 'warning');", # 75s late, exceeds 45s watermark
-    #     ]
-    #     tdSql.executes(watermark_sqls)
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_state_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 2
+                    and tdSql.compareData(0, 0, "2025-01-01 02:20:00")
+                    and tdSql.compareData(0, 1, 100)
+                    and tdSql.compareData(0, 2, 240)
+                    and tdSql.compareData(1, 0, "2025-01-01 02:21:00")
+                    and tdSql.compareData(1, 1, 101)
+                    and tdSql.compareData(1, 2, 241.583)
+                )
+            )
+        
+        # water mark is 45s , so there is no recalc
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:23:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.ww1 values ('2025-01-01 02:24:10', 10, 'error');")
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_state_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 2
+                    and tdSql.compareData(0, 0, "2025-01-01 02:20:00")
+                    and tdSql.compareData(0, 1, 100)
+                    and tdSql.compareData(0, 2, 240)
+                    and tdSql.compareData(1, 0, "2025-01-01 02:21:00")
+                    and tdSql.compareData(1, 1, 101)
+                    and tdSql.compareData(1, 2, 241.583)
+                )
+            )
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:23:02', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.ww1 values ('2025-01-01 02:24:58', 10, 'error');")
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_state_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 3
+                    and tdSql.compareData(0, 0, "2025-01-01 02:20:00")
+                    and tdSql.compareData(0, 1, 100)
+                    and tdSql.compareData(0, 2, 240)
+                    and tdSql.compareData(1, 0, "2025-01-01 02:21:00")
+                    and tdSql.compareData(1, 1, 101)
+                    and tdSql.compareData(1, 2, 241.583)
+                )
+            )
 
-    #     time.sleep(5)
+        # With WATERMARK, the state window stream should process out-of-order data within tolerance
+        tdLog.info("STATE_WINDOW with WATERMARK successfully handled out-of-order data")
 
-    #     # WATERMARK should allow the stream to handle out-of-order data appropriately
-    #     tdSql.checkResultsByFunc(
-    #             sql=f"select count(*) from rdb.r_state_watermark",
-    #             func=lambda: (
-    #                 tdSql.getRows() == 1
-    #                 and tdSql.getData(0, 0) >= 2
-    #             )
-    #         )
+    def check04(self):
+        # Test event window with WATERMARK - should handle out-of-order data within tolerance
+        tdLog.info("Check 4: EVENT_WINDOW with WATERMARK handles out-of-order data")
+        tdSql.checkTableType(dbname="rdb", stbname="r_event_watermark", columns=3, tags=1)
 
-    #     # With WATERMARK, the stream should process out-of-order data within tolerance
-    #     tdLog.info("STATE_WINDOW with WATERMARK successfully handled out-of-order data")
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_event_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 2
+                    and tdSql.compareData(0, 0, "2025-01-01 02:30:00.000")
+                    and tdSql.compareData(0, 1, 200)
+                    and tdSql.compareData(0, 2, 240.5)
+                    and tdSql.compareData(1, 0, "2025-01-01 02:31:30.000")
+                    and tdSql.compareData(1, 1, 200)
+                    and tdSql.compareData(1, 2, 243.5)
+                )
+            )
 
-    # def check04(self):
-    #     # Test event window with WATERMARK - should handle out-of-order data within tolerance
-    #     tdLog.info("Check 4: EVENT_WINDOW with WATERMARK handles out-of-order data")
-    #     tdSql.checkTableType(dbname="rdb", stbname="r_event_watermark", columns=3, tags=1)
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:31:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.we1 values ('2025-01-01 02:31:02', 10, 8);")
 
-    #     tdSql.checkResultsByFunc(
-    #             sql=f"select ts, cnt, avg_val from rdb.r_event_watermark",
-    #             func=lambda: (
-    #                 tdSql.getRows() == 2
-    #                 and tdSql.compareData(0, 0, "2025-01-01 02:00:00.000")
-    #                 and tdSql.compareData(0, 1, 200)
-    #                 and tdSql.compareData(0, 2, 240.5)
-    #                 and tdSql.compareData(1, 0, "2025-01-01 02:01:30.000")
-    #                 and tdSql.compareData(1, 1, 200)
-    #                 and tdSql.compareData(1, 2, 243.5)
-    #             )
-    #         )
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_event_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 2
+                    and tdSql.compareData(0, 0, "2025-01-01 02:30:00.000")
+                    and tdSql.compareData(0, 1, 200)
+                    and tdSql.compareData(0, 2, 240.5)
+                    and tdSql.compareData(1, 0, "2025-01-01 02:31:30.000")
+                    and tdSql.compareData(1, 1, 201)
+                    and tdSql.compareData(1, 2, 243.033)
+                )
+            )
+        
+        # water mark is 1m , so there is no recalc
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:33:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.we1 values ('2025-01-01 02:34:10', 10, 15);")
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_event_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 2
+                    and tdSql.compareData(0, 0, "2025-01-01 02:30:00.000")
+                    and tdSql.compareData(0, 1, 200)
+                    and tdSql.compareData(0, 2, 240.5)
+                    and tdSql.compareData(1, 0, "2025-01-01 02:31:30.000")
+                    and tdSql.compareData(1, 1, 201)
+                    and tdSql.compareData(1, 2, 243.033)
+                )
+            )
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:33:02', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.we1 values ('2025-01-01 02:34:58', 10, 16);")
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_event_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 3
+                    and tdSql.compareData(0, 0, "2025-01-01 02:30:00.000")
+                    and tdSql.compareData(0, 1, 200)
+                    and tdSql.compareData(0, 2, 240.5)
+                    and tdSql.compareData(1, 0, "2025-01-01 02:31:30.000")
+                    and tdSql.compareData(1, 1, 201)
+                    and tdSql.compareData(1, 2, 243.033)
+                )
+            )
 
-    #     # Insert out-of-order data within WATERMARK tolerance (1m)
-    #     watermark_sqls = [
-    #         "insert into tdb.we1 values ('2025-01-01 02:02:00', 35, 12);",  # 30s late, within 1m watermark
-    #         "insert into tdb.we1 values ('2025-01-01 02:01:00', 25, 6);",   # 90s late, exceeds 1m watermark
-    #     ]
-    #     tdSql.executes(watermark_sqls)
-
-    #     tdLog.info("wait for stream to be stable after watermark test")
-    #     time.sleep(5)
-
-    #     # WATERMARK should allow the stream to handle out-of-order data appropriately
-    #     tdSql.checkResultsByFunc(
-    #             sql=f"select count(*) from rdb.r_event_watermark",
-    #             func=lambda: (
-    #                 tdSql.getRows() == 1
-    #                 and tdSql.getData(0, 0) >= 2
-    #             )
-    #         )
-
-    #     # With WATERMARK, the stream should process out-of-order data within tolerance
-    #     tdLog.info("EVENT_WINDOW with WATERMARK successfully handled out-of-order data") 
-
-
-    # def check05(self):
-    #     # Test period with WATERMARK - should handle out-of-order data within tolerance
-    #     tdLog.info("Check 5: PERIOD with WATERMARK handles out-of-order data within tolerance")
-    #     tdSql.checkTableType(dbname="rdb", stbname="r_period_watermark", columns=3, tags=1)
-
-    #     # Check initial results from period trigger
-    #     tdSql.checkResultsByFunc(
-    #             sql=f"select count(*) from rdb.r_period_watermark",
-    #             func=lambda: (
-    #                 tdSql.getRows() == 1
-    #                 and tdSql.getData(0, 0) >= 0
-    #             )
-    #         )
-
-    #     # Insert out-of-order data within WATERMARK tolerance (45s) - should be processed
-    #     watermark_sqls = [
-    #         "insert into tdb.wp1 values ('2025-01-01 02:01:45', 70, 7.5);",  # Within 45s tolerance
-    #         "insert into tdb.wp1 values ('2025-01-01 02:02:15', 80, 8.5);",  # Within 45s tolerance
-    #     ]
-    #     tdSql.executes(watermark_sqls)
-
-    #     tdLog.info("wait for stream to be stable")
-    #     time.sleep(5)
-
-    #     # Check that watermark data was processed
-    #     tdSql.checkResultsByFunc(
-    #             sql=f"select count(*) from rdb.r_period_watermark",
-    #             func=lambda: (
-    #                 tdSql.getRows() == 1
-    #                 and tdSql.getData(0, 0) >= 1
-    #             )
-    #         )
-
-    #     # For PERIOD trigger with WATERMARK, in-tolerance data should be processed
-    #     tdLog.info("PERIOD with WATERMARK successfully handled out-of-order data within tolerance")
+        # With WATERMARK, the event window stream should process out-of-order data within tolerance
+        tdLog.info("EVENT_WINDOW with WATERMARK successfully handled out-of-order data")
 
 
-    # def check06(self):
-    #     # Test count window with WATERMARK - should handle out-of-order data within tolerance
-    #     tdLog.info("Check 6: COUNT_WINDOW with WATERMARK handles out-of-order data within tolerance")
-    #     tdSql.checkTableType(dbname="rdb", stbname="r_count_watermark", columns=3, tags=1)
+    def check05(self):
+        # Test period with WATERMARK - should handle out-of-order data within tolerance
+        tdLog.info("Check 5: PERIOD with WATERMARK handles out-of-order data within tolerance")
+        tdSql.checkTableType(dbname="rdb", stbname="r_period_watermark", columns=3, tags=1)
 
-    #     # Check initial results from count window trigger
-    #     # COUNT_WINDOW(3) means every 3 records should trigger computation
-    #     # Initial data has 6 records, so should have 2 windows
-    #     tdSql.checkResultsByFunc(
-    #             sql=f"select count(*) from rdb.r_count_watermark",
-    #             func=lambda: (
-    #                 tdSql.getRows() == 1
-    #                 and tdSql.getData(0, 0) >= 0
-    #             )
-    #         )
+        # Check initial results from period trigger
+        tdSql.checkResultsByFunc(
+                sql=f"select count(*) from rdb.r_period_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 1
+                    and tdSql.getData(0, 0) >= 0
+                )
+            )
 
-    #     # Insert out-of-order data within WATERMARK tolerance (1m) - should be processed
-    #     watermark_sqls = [
-    #         "insert into tdb.wc1 values ('2025-01-01 02:01:30', 70, 'watermark1');",  # Within 1m tolerance
-    #         "insert into tdb.wc1 values ('2025-01-01 02:01:45', 80, 'watermark2');",  # Within 1m tolerance
-    #         "insert into tdb.wc1 values ('2025-01-01 02:02:00', 90, 'watermark3');",  # Within 1m tolerance
-    #     ]
-    #     tdSql.executes(watermark_sqls)
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:41:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.wp1 values ('2025-01-01 02:41:02', 70, 7.5);")
 
-    #     tdLog.info("wait for stream to be stable")
-    #     time.sleep(5)
+        tdSql.checkResultsByFunc(
+                sql=f"select count(*) from rdb.r_period_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 1
+                    and tdSql.getData(0, 0) >= 1
+                )
+            )
+        
+        # water mark is 45s , so there is no recalc for period trigger
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:43:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.wp1 values ('2025-01-01 02:44:10', 80, 8.5);")
+        tdSql.checkResultsByFunc(
+                sql=f"select count(*) from rdb.r_period_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 1
+                    and tdSql.getData(0, 0) >= 1
+                )
+            )
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:43:02', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.wp1 values ('2025-01-01 02:44:58', 90, 9.5);")
+        tdSql.checkResultsByFunc(
+                sql=f"select count(*) from rdb.r_period_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 1
+                    and tdSql.getData(0, 0) >= 1
+                )
+            )
 
-    #     # Check that COUNT_WINDOW processed the watermark data
-    #     tdSql.checkResultsByFunc(
-    #             sql=f"select count(*) from rdb.r_count_watermark",
-    #             func=lambda: (
-    #                 tdSql.getRows() == 1
-    #                 and tdSql.getData(0, 0) >= 1
-    #             )
-    #         )
+        # For PERIOD trigger with WATERMARK, in-tolerance data should be processed
+        tdLog.info("PERIOD with WATERMARK successfully handled out-of-order data within tolerance")
 
-    #     # For COUNT_WINDOW with WATERMARK, in-tolerance data should be processed
-    #     tdLog.info("COUNT_WINDOW with WATERMARK successfully handled out-of-order data within tolerance") 
+
+    def check06(self):
+        # Test count window with WATERMARK - should handle out-of-order data within tolerance
+        tdLog.info("Check 6: COUNT_WINDOW with WATERMARK handles out-of-order data within tolerance")
+        tdSql.checkTableType(dbname="rdb", stbname="r_count_watermark", columns=3, tags=1)
+
+        # Check initial results from count window trigger
+        # COUNT_WINDOW(3) means every 3 records should trigger computation
+        # Initial data has 6 records, so should have 2 windows
+        tdSql.checkResultsByFunc(
+                sql=f"select count(*) from rdb.r_count_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 1
+                    and tdSql.getData(0, 0) >= 0
+                )
+            )
+
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:51:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.wc1 values ('2025-01-01 02:51:02', 70, 'watermark1');")
+
+        tdSql.checkResultsByFunc(
+                sql=f"select count(*) from rdb.r_count_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 1
+                    and tdSql.getData(0, 0) >= 1
+                )
+            )
+        
+        # water mark is 1m , so there is no recalc for count window trigger
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:52:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.wc1 values ('2025-01-01 02:53:10', 80, 'watermark2');")
+        tdSql.checkResultsByFunc(
+                sql=f"select count(*) from rdb.r_count_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 1
+                    and tdSql.getData(0, 0) >= 1
+                )
+            )
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:52:02', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("insert into tdb.wc1 values ('2025-01-01 02:53:58', 90, 'watermark3');")
+        tdSql.checkResultsByFunc(
+                sql=f"select count(*) from rdb.r_count_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 1
+                    and tdSql.getData(0, 0) >= 1
+                )
+            )
+
+        # For COUNT_WINDOW with WATERMARK, in-tolerance data should be processed
+        tdLog.info("COUNT_WINDOW with WATERMARK successfully handled out-of-order data within tolerance") 
