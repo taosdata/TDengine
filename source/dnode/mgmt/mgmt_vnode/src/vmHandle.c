@@ -267,9 +267,9 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->hashSuffix = pCreate->hashSuffix;
   pCfg->tsdbPageSize = pCreate->tsdbPageSize * 1024;
 
-  pCfg->s3ChunkSize = pCreate->s3ChunkSize;
-  pCfg->s3KeepLocal = pCreate->s3KeepLocal;
-  pCfg->s3Compact = pCreate->s3Compact;
+  pCfg->ssChunkSize = pCreate->ssChunkSize;
+  pCfg->ssKeepLocal = pCreate->ssKeepLocal;
+  pCfg->ssCompact = pCreate->ssCompact;
 
   pCfg->standby = 0;
   pCfg->syncCfg.replicaNum = 0;
@@ -338,7 +338,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dInfo(
       "vgId:%d, vnode management handle msgType:%s, start to create vnode, page:%d pageSize:%d buffer:%d szPage:%d "
       "szBuf:%" PRIu64 ", cacheLast:%d cacheLastSize:%d sstTrigger:%d tsdbPageSize:%d %d dbname:%s dbId:%" PRId64
-      ", days:%d keep0:%d keep1:%d keep2:%d keepTimeOffset%d s3ChunkSize:%d s3KeepLocal:%d s3Compact:%d tsma:%d "
+      ", days:%d keep0:%d keep1:%d keep2:%d keepTimeOffset%d ssChunkSize:%d ssKeepLocal:%d ssCompact:%d tsma:%d "
       "precision:%d compression:%d minRows:%d maxRows:%d"
       ", wal fsync:%d level:%d retentionPeriod:%d retentionSize:%" PRId64 " rollPeriod:%d segSize:%" PRId64
       ", hash method:%d begin:%u end:%u prefix:%d surfix:%d replica:%d selfIndex:%d "
@@ -346,7 +346,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       req.vgId, TMSG_INFO(pMsg->msgType), req.pages, req.pageSize, req.buffer, req.pageSize * 1024,
       (uint64_t)req.buffer * 1024 * 1024, req.cacheLast, req.cacheLastSize, req.sstTrigger, req.tsdbPageSize,
       req.tsdbPageSize * 1024, req.db, req.dbUid, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
-      req.keepTimeOffset, req.s3ChunkSize, req.s3KeepLocal, req.s3Compact, req.isTsma, req.precision, req.compression,
+      req.keepTimeOffset, req.ssChunkSize, req.ssKeepLocal, req.ssCompact, req.isTsma, req.precision, req.compression,
       req.minRows, req.maxRows, req.walFsyncPeriod, req.walLevel, req.walRetentionPeriod, req.walRetentionSize,
       req.walRollPeriod, req.walSegmentSize, req.hashMethod, req.hashBegin, req.hashEnd, req.hashPrefix, req.hashSuffix,
       req.replica, req.selfIndex, req.learnerReplica, req.learnerSelfIndex, req.strict, req.changeVersion,
@@ -735,9 +735,9 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
           .minRows = pVgCfg->config.tsdbCfg.minRows,
           .maxRows = pVgCfg->config.tsdbCfg.maxRows,
           .tsdbPageSize = pVgCfg->config.tsdbPageSize / 1024,
-          .s3ChunkSize = pVgCfg->config.s3ChunkSize,
-          .s3KeepLocal = pVgCfg->config.s3KeepLocal,
-          .s3Compact = pVgCfg->config.s3Compact,
+          .ssChunkSize = pVgCfg->config.ssChunkSize,
+          .ssKeepLocal = pVgCfg->config.ssKeepLocal,
+          .ssCompact = pVgCfg->config.ssCompact,
           .walFsyncPeriod = pVgCfg->config.walCfg.fsyncPeriod,
           .walRetentionPeriod = pVgCfg->config.walCfg.retentionPeriod,
           .walRollPeriod = pVgCfg->config.walCfg.rollPeriod,
@@ -815,9 +815,9 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
                  .config.tsdbCfg.minRows = pVgInfo->minRows,
                  .config.tsdbCfg.maxRows = pVgInfo->maxRows,
                  .config.tsdbPageSize = pVgInfo->tsdbPageSize,
-                 .config.s3ChunkSize = pVgInfo->s3ChunkSize,
-                 .config.s3KeepLocal = pVgInfo->s3KeepLocal,
-                 .config.s3Compact = pVgInfo->s3Compact,
+                 .config.ssChunkSize = pVgInfo->ssChunkSize,
+                 .config.ssKeepLocal = pVgInfo->ssKeepLocal,
+                 .config.ssCompact = pVgInfo->ssCompact,
                  .config.walCfg.fsyncPeriod = pVgInfo->walFsyncPeriod,
                  .config.walCfg.retentionPeriod = pVgInfo->walRetentionPeriod,
                  .config.walCfg.rollPeriod = pVgInfo->walRollPeriod,
@@ -1819,6 +1819,8 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_QUERY_COMPACT_PROGRESS, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_KILL_COMPACT, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TABLE_NAME, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_QUERY_SSMIGRATE_PROGRESS, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_KILL_SSMIGRATE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_REPLICA, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_CONFIG, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
@@ -1827,7 +1829,8 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_HASHRANGE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_COMPACT, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TRIM, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_S3MIGRATE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_SSMIGRATE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_FOLLOWER_SSMIGRATE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_VNODE, vmPutMsgToMultiMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_MOUNT_VNODE, vmPutMsgToMultiMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_RETRIEVE_MOUNT_PATH, vmPutMsgToMultiMgmtQueue, 0) == NULL) goto _OVER;

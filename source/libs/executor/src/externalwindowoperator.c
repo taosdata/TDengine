@@ -596,7 +596,7 @@ static int32_t hashExternalWindowProject(SOperatorInfo* pOperator, SSDataBlock* 
   return code;
 }
 
-static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputBlock) {
+static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputBlock, bool isFirstOpen) {
   SExternalWindowOperator* pExtW = (SExternalWindowOperator*)pOperator->info;
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
   SExprSupp*               pSup = &pOperator->exprSupp;
@@ -617,14 +617,17 @@ static void hashExternalWindowAgg(SOperatorInfo* pOperator, SSDataBlock* pInputB
   
   qDebug("%s ext window1 start:%" PRId64 ", end:%" PRId64 ", ts:%" PRId64 ", ascScan:%d",
          GET_TASKID(pOperator->pTaskInfo), pWin->skey, pWin->ekey, ts, ascScan);
-         
+        
+
   STimeWindow win = *pWin;
-  ret = setExtWindowOutputBuf(pResultRowInfo, &win, &pResult, pInputBlock->info.id.groupId, pSup->pCtx,
-                              numOfOutput, pSup->rowEntryInfoOffset, &pExtW->aggSup, pTaskInfo);
-  if (ret != 0 || !pResult) {
-    T_LONG_JMP(pTaskInfo->env, ret);
+  if (isFirstOpen) {
+    ret = setExtWindowOutputBuf(pResultRowInfo, &win, &pResult, pInputBlock->info.id.groupId, pSup->pCtx, numOfOutput,
+                                pSup->rowEntryInfoOffset, &pExtW->aggSup, pTaskInfo);
+    if (ret != 0 || !pResult) {
+      T_LONG_JMP(pTaskInfo->env, ret);
+    }
   }
-  
+
   TSKEY   ekey = ascScan ? win.ekey : win.skey;
   int32_t forwardRows = getNumOfRowsInTimeWindow(&pInputBlock->info, tsCols, startPos, ekey - 1, binarySearchForKey, NULL,
                                                  pExtW->binfo.inputTsOrder);
@@ -713,6 +716,7 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
     pExtW->outputWinId = pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx;
   }
 
+  bool isFirstOpen = true;
   while (1) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) break;
@@ -724,7 +728,7 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
 
     qDebug("ext windowpExtW->scalarMode:%d", pExtW->scalarMode);
     if (!pExtW->scalarMode) {
-      hashExternalWindowAgg(pOperator, pBlock);
+      hashExternalWindowAgg(pOperator, pBlock, isFirstOpen);
     } else {
       // scalar mode, no need to do agg, just output rows partitioned by window
       code = hashExternalWindowProject(pOperator, pBlock);
@@ -732,6 +736,7 @@ static int32_t doOpenExternalWindow(SOperatorInfo* pOperator) {
     }
 
     OPTR_SET_OPENED(pOperator);
+    isFirstOpen = false;
   }
 
   code = initGroupedResultInfo(&pExtW->groupResInfo, pExtW->aggSup.pResultRowHashTable, pExtW->binfo.inputTsOrder);

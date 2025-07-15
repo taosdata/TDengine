@@ -1835,6 +1835,13 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
     }
   }
   if (*pFound) {
+    if (nodeType(pFoundNode) == QUERY_NODE_FUNCTION && fmIsPlaceHolderFunc(((SFunctionNode*)pFoundNode)->funcId)) {
+      if (pCxt->currClause != SQL_CLAUSE_WHERE && pCxt->currClause!= SQL_CLAUSE_SELECT) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
+                                                "stream placeholder should only appear in select and where clause");
+        return DEAL_RES_ERROR;
+      }
+    }
     SNode*  pNew = NULL;
     int32_t code = nodesCloneNode(pFoundNode, &pNew);
     if (NULL == pNew) {
@@ -3000,6 +3007,10 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
 
   if (!pCxt->createStreamCalc && !pCxt->createStreamOutTable) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "stream placeholder should only appear in create stream's query part"));
+  }
+
+  if (pCxt->currClause != SQL_CLAUSE_SELECT && pCxt->currClause != SQL_CLAUSE_WHERE) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "stream placeholder should only appear in select and where clause"));
   }
 
   switch (pFuncNode->funcType) {
@@ -9570,9 +9581,9 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->hashSuffix = pStmt->pOptions->tableSuffix;
   pReq->tsdbPageSize = pStmt->pOptions->tsdbPageSize;
   pReq->keepTimeOffset = pStmt->pOptions->keepTimeOffset;
-  pReq->s3ChunkSize = pStmt->pOptions->s3ChunkSize;
-  pReq->s3KeepLocal = pStmt->pOptions->s3KeepLocal;
-  pReq->s3Compact = pStmt->pOptions->s3Compact;
+  pReq->ssChunkSize = pStmt->pOptions->ssChunkSize;
+  pReq->ssKeepLocal = pStmt->pOptions->ssKeepLocal;
+  pReq->ssCompact = pStmt->pOptions->ssCompact;
   pReq->ignoreExist = pStmt->ignoreExists;
   pReq->withArbitrator = pStmt->pOptions->withArbitrator;
   pReq->encryptAlgorithm = pStmt->pOptions->encryptAlgorithm;
@@ -9607,20 +9618,20 @@ static int32_t checkTableRangeOption(STranslateContext* pCxt, const char* pName,
   return checkRangeOption(pCxt, TSDB_CODE_PAR_INVALID_TABLE_OPTION, pName, val, minVal, maxVal, true);
 }
 
-static int32_t checkDbS3KeepLocalOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
-  if (NULL != pOptions->s3KeepLocalStr) {
-    if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->s3KeepLocalStr)) {
+static int32_t checkDbSsKeepLocalOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+  if (NULL != pOptions->ssKeepLocalStr) {
+    if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->ssKeepLocalStr)) {
       return pCxt->errCode;
     }
-    if (TIME_UNIT_MINUTE != pOptions->s3KeepLocalStr->unit && TIME_UNIT_HOUR != pOptions->s3KeepLocalStr->unit &&
-        TIME_UNIT_DAY != pOptions->s3KeepLocalStr->unit) {
+    if (TIME_UNIT_MINUTE != pOptions->ssKeepLocalStr->unit && TIME_UNIT_HOUR != pOptions->ssKeepLocalStr->unit &&
+        TIME_UNIT_DAY != pOptions->ssKeepLocalStr->unit) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                     "Invalid option s3_keeplocal unit: %c, only %c, %c, %c allowed",
-                                     pOptions->s3KeepLocalStr->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR, TIME_UNIT_DAY);
+                                     "Invalid option ss_keeplocal unit: %c, only %c, %c, %c allowed",
+                                     pOptions->ssKeepLocalStr->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR, TIME_UNIT_DAY);
     }
-    pOptions->s3KeepLocal = getBigintFromValueNode(pOptions->s3KeepLocalStr);
+    pOptions->ssKeepLocal = getBigintFromValueNode(pOptions->ssKeepLocalStr);
   }
-  return checkDbRangeOption(pCxt, "s3KeepLocal", pOptions->s3KeepLocal, TSDB_MIN_S3_KEEP_LOCAL, TSDB_MAX_S3_KEEP_LOCAL);
+  return checkDbRangeOption(pCxt, "ssKeepLocal", pOptions->ssKeepLocal, TSDB_MIN_SS_KEEP_LOCAL, TSDB_MAX_SS_KEEP_LOCAL);
 }
 
 static int32_t checkDbDaysOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
@@ -9933,7 +9944,7 @@ static FORCE_INLINE int32_t translateGetDbCfg(STranslateContext* pCxt, const cha
 
 static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbName, SDatabaseOptions* pOptions) {
   int32_t daysPerFile = pOptions->daysPerFile;
-  int32_t s3KeepLocal = pOptions->s3KeepLocal;
+  int32_t ssKeepLocal = pOptions->ssKeepLocal;
   int64_t daysToKeep0 = pOptions->keep[0];
   if (-1 == daysPerFile && -1 == daysToKeep0) {
     return TSDB_CODE_SUCCESS;
@@ -9946,9 +9957,9 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                    "Invalid duration value, should be keep2 >= keep1 >= keep0 >= 3 * duration");
   }
-  if (s3KeepLocal > 0 && daysPerFile > s3KeepLocal / 3) {
+  if (ssKeepLocal > 0 && daysPerFile > ssKeepLocal / 3) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid parameters, should be s3_keeplocal >= 3 * duration");
+                                   "Invalid parameters, should be ss_keeplocal >= 3 * duration");
   }
 
   if ((pOptions->replica == 2) ^ (pOptions->withArbitrator == TSDB_MAX_DB_WITH_ARBITRATOR)) {
@@ -10194,17 +10205,17 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbTbPrefixSuffixOptions(pCxt, pOptions->tablePrefix, pOptions->tableSuffix);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbS3KeepLocalOption(pCxt, pOptions);
+    code = checkDbSsKeepLocalOption(pCxt, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkOptionsDependency(pCxt, pDbName, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "s3_chunkpages", pOptions->s3ChunkSize, TSDB_MIN_S3_CHUNK_SIZE,
-                              TSDB_MAX_S3_CHUNK_SIZE);
+    code = checkDbRangeOption(pCxt, "ss_chunkpages", pOptions->ssChunkSize, TSDB_MIN_SS_CHUNK_SIZE,
+                              TSDB_MAX_SS_CHUNK_SIZE);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "s3_compact", pOptions->s3Compact, TSDB_MIN_S3_COMPACT, TSDB_MAX_S3_COMPACT);
+    code = checkDbRangeOption(pCxt, "ss_compact", pOptions->ssCompact, TSDB_MIN_SS_COMPACT, TSDB_MAX_SS_COMPACT);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbCompactIntervalOption(pCxt, pDbName, pOptions);
@@ -10491,8 +10502,8 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
   pReq->minRows = pStmt->pOptions->minRowsPerBlock;
   pReq->walRetentionPeriod = pStmt->pOptions->walRetentionPeriod;
   pReq->walRetentionSize = pStmt->pOptions->walRetentionSize;
-  pReq->s3KeepLocal = pStmt->pOptions->s3KeepLocal;
-  pReq->s3Compact = pStmt->pOptions->s3Compact;
+  pReq->ssKeepLocal = pStmt->pOptions->ssKeepLocal;
+  pReq->ssCompact = pStmt->pOptions->ssCompact;
   pReq->withArbitrator = pStmt->pOptions->withArbitrator;
   pReq->compactInterval = pStmt->pOptions->compactInterval;
   pReq->compactStartTime = pStmt->pOptions->compactStartTime;
@@ -10602,13 +10613,13 @@ static int32_t checkTableKeepOption(STranslateContext* pCxt, STableOptions* pOpt
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateS3MigrateDatabase(STranslateContext* pCxt, SS3MigrateDatabaseStmt* pStmt) {
-  SS3MigrateDbReq req = {0};
+static int32_t translateSsMigrateDatabase(STranslateContext* pCxt, SSsMigrateDatabaseStmt* pStmt) {
+  SSsMigrateDbReq req = {0};
   SName           name = {0};
   int32_t         code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   if (TSDB_CODE_SUCCESS != code) return code;
   (void)tNameGetFullDbName(&name, req.db);
-  return buildCmdMsg(pCxt, TDMT_MND_S3MIGRATE_DB, (FSerializeFunc)tSerializeSS3MigrateDbReq, &req);
+  return buildCmdMsg(pCxt, TDMT_MND_SSMIGRATE_DB, (FSerializeFunc)tSerializeSSsMigrateDbReq, &req);
 }
 
 #ifdef USE_MOUNT
@@ -15700,8 +15711,8 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_TRIM_DATABASE_STMT:
       code = translateTrimDatabase(pCxt, (STrimDatabaseStmt*)pNode);
       break;
-    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
-      code = translateS3MigrateDatabase(pCxt, (SS3MigrateDatabaseStmt*)pNode);
+    case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
+      code = translateSsMigrateDatabase(pCxt, (SSsMigrateDatabaseStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:
       code = translateCreateSuperTable(pCxt, (SCreateTableStmt*)pNode);

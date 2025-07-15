@@ -106,7 +106,16 @@ class TestStreamOptionsTrigger:
             
             tdSql.error(
                 f"create stream sn8 state_window(cint) from {self.ntbName} into res_ntb (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows where cbigint > 1;"
-            )            
+            )           
+            
+            tdSql.error(
+                f"create stream sn9 state_window(cint) from ntb options(pre_filter(cint < 5 and cvarchar like '%abc%')) into res_ntb (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+            )
+            
+            # %%trows must not use with WINDOW_OPEN in event_type
+            # tdSql.error(
+            #     f"create stream sn10 state_window(cint) from ct1 stream_options(event_type(WINDOW_OPEN|WINDOW_CLOSE)) into res_ct1 (lastts, firstts, cnt_v, sum_v, avg_v) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+            # )               
             
         def insert1(self):
             pass

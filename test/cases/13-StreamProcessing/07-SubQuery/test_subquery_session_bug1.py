@@ -78,9 +78,15 @@ class TestStreamDevBasic:
         tdSql.execute(ntb)
 
         vstb = "create stable tdb.vtriggers (ts timestamp, c1 int, c2 int) tags(id int) VIRTUAL 1"
-        vctb = "create vtable tdb.v1 (tdb.t1.c1, tdb.t2.c2) using tdb.vtriggers tags(1)"
+        vctb1 = (
+            "create vtable tdb.v1 (tdb.t1.c1, tdb.t1.c2) using tdb.vtriggers tags(1)"
+        )
+        vctb2 = (
+            "create vtable tdb.v2 (tdb.t1.c1, tdb.t2.c2) using tdb.vtriggers tags(2)"
+        )
         tdSql.execute(vstb)
-        tdSql.execute(vctb)
+        tdSql.execute(vctb1)
+        tdSql.execute(vctb2)
 
     def writeTriggerData(self):
         tdLog.info("write data to trigger table")
@@ -108,9 +114,10 @@ class TestStreamDevBasic:
 
         stream = StreamItem(
             id=39,
-            stream="create stream rdb.s39 session(ts, 2m) from tdb.v1 into rdb.r39 as select _twstart + 5m tn, TIMETRUNCATE(_twstart + 5m, 1d) tnt, sum(cint) c1, _tgrpid tg, TIMETRUNCATE(cast(_tlocaltime /1000000 as timestamp), 1d) tl from qdb.meters where cts >= _twstart and cts < _twstart + 5m and tint = 1 partition by tint",
-            res_query="select * from rdb.r39 limit 3",
-            exp_query="select _wstart + 5m, timetruncate(_wstart, 1d), sum(cint), 0, timetruncate(now(), 1d) from qdb.meters where tint=1 and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:15:00.000' interval(5m);",
+            stream="create stream rdb.s39 session(ts, 2m) from tdb.v2 into rdb.r39 as select _twstart + 5m tn, TIMETRUNCATE(_twstart + 5m, 1d) tnt, sum(cint) c1, _tgrpid tg, TIMETRUNCATE(cast(_tlocaltime /1000000 as timestamp), 1d) tl from qdb.meters where cts >= _twstart and cts < _twstart + 5m and tint = 1 partition by tint",
+            res_query="select * from rdb.r39 limit 5",
+            exp_query="select _wstart + 5m, timetruncate(_wstart, 1d), sum(cint), 0, timetruncate(now(), 1d) from qdb.meters where tint=1 and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:25:00.000' interval(5m);",
+            check_func=self.check39,
         )
         self.streams.append(stream)
 
@@ -118,26 +125,11 @@ class TestStreamDevBasic:
         for stream in self.streams:
             stream.createStream()
 
-    def check1(self):
-        tdSql.checkTableType(
-            dbname="rdb", tbname="r1", typename="NORMAL_TABLE", columns=8
+    def check39(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from rdb.r39",
+            func=lambda: tdSql.getRows() == 6
+            and tdSql.compareData(5, 0, "2025-01-01 00:35:00.000")
+            and tdSql.compareData(5, 2, 19995),
         )
-        tdSql.checkTableSchema(
-            dbname="rdb",
-            tbname="r1",
-            schema=[
-                ["ts", "TIMESTAMP", 8, ""],
-                ["te", "TIMESTAMP", 8, ""],
-                ["td", "BIGINT", 8, ""],
-                ["tw", "BIGINT", 8, ""],
-                ["tg", "BIGINT", 8, ""],
-                ["tl", "BIGINT", 8, ""],
-                ["c1", "BIGINT", 8, ""],
-                ["c2", "DOUBLE", 8, ""],
-            ],
-        )
-
-        # tdSql.checkResultsBySql(
-        #     sql="select ts, tw from rdb.r1;",
-        #     exp_sql="select _wstart, count(*) from tdb.triggers where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m) fill(value, 0);",
-        # )
+                
