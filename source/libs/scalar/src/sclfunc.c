@@ -498,8 +498,16 @@ static int32_t tcharlength(char *input, int32_t type, VarDataLenT *len) {
     return TSDB_CODE_SUCCESS;
   } else if (type == TSDB_DATA_TYPE_GEOMETRY) {
     *len = varDataLen(input);
-  } else {  // NCHAR
-    *len = varDataLen(input) / TSDB_NCHAR_SIZE;
+  } else if (IS_STR_DATA_BLOB(type)) {
+    // for blob, we just return the length of the blob data
+    *len = blobDataLen(input);
+  } else {
+    // for nchar, we assume each character is 4 bytes
+    if (type != TSDB_DATA_TYPE_NCHAR) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    } else {  // NCHAR
+      *len = varDataLen(input) / TSDB_NCHAR_SIZE;
+    }
   }
   return TSDB_CODE_SUCCESS;
 }
