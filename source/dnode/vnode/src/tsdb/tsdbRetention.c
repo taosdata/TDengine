@@ -380,7 +380,7 @@ _exit:
 }
 
 static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool ssMigrate, int32_t nodeId) {
-  void tsdbSsMigrateMonitorAddFileSet(STsdb *tsdb, int32_t fid);
+  int32_t tsdbSsMigrateMonitorAddFileSet(STsdb *tsdb, int32_t fid);
 
   int32_t code = 0;
   int32_t lino = 0;
@@ -417,7 +417,11 @@ static int32_t tsdbAsyncRetentionImpl(STsdb *tsdb, int64_t now, bool ssMigrate, 
     arg->lastCommit = fset->lastCommit;
 
     if (ssMigrate) {
-      tsdbSsMigrateMonitorAddFileSet(tsdb, fset->fid);
+      code = tsdbSsMigrateMonitorAddFileSet(tsdb, fset->fid);
+      if (code) {
+        taosMemoryFree(arg);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
     }
     code = vnodeAsync(RETENTION_TASK_ASYNC, EVA_PRIORITY_LOW, tsdbRetention, tsdbRetentionCancel, arg,
                       &fset->retentionTask);
