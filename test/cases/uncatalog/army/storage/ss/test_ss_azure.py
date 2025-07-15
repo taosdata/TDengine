@@ -31,7 +31,7 @@ for test:
 '''
 
 
-class TestS3azure:
+class TestSSAzure:
     def __init__(self):
         self.fileName = ""  # track the upload of S3 file
 
@@ -311,7 +311,7 @@ class TestS3azure:
         tdSql.checkAgg(sql, self.insert_rows * self.childtable_count)
 
     # run
-    def test_s3azure(self):
+    def test_ss_azure(self):
         """summary: xxx
 
         description: xxx
