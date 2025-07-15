@@ -378,7 +378,7 @@ class TestStmtError:
         - xxx
 
         """
-        self.test_stmt_insert(self.get_connect())
+        self.check_stmt_insert(self.get_connect())
 
         try:
             self.check_stmt_insert_error_null_timestamp(self.get_connect())
