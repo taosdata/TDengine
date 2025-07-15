@@ -135,7 +135,7 @@ class TestAlterDbOption:
         tdSql.query("select * from information_schema.ins_databases")
         tdSql.checkData(2, 31, '0')
 
-        tdSql.error("ALTER DATABASE test s3_compact 2",expectErrInfo="Invalid option", fullMatched=False)
+        tdSql.error("ALTER DATABASE test ss_compact 2",expectErrInfo="Invalid option", fullMatched=False)
 
 
     def check_alter_keep_time_offset(self):
