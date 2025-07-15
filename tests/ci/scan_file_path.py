@@ -253,9 +253,22 @@ if __name__ == "__main__":
     logger.info("Pass files: %s" % len([item for item in res if item[3] == 'Pass']))
     logger.info("Fail files: %s" % len([item for item in res if item[3] == 'Fail']))
     fail_files = [item for item in res if item[3] == 'Fail']
+
     logger.error(f"Total failed files: {len(fail_files)}")
-    for index, fail_item in enumerate(fail_files):
-        logger.error(f"failed number: {index+1}, failed_result_file: {fail_item[1]}")
+    if web_server:
+        # 打印 web_path
+        for index, fail_item in enumerate(fail_files):
+            file_res_path = fail_item[1]
+            index_tests = file_res_path.find("scan_log")
+            if index_tests != -1:
+                web_path_file = os.path.join(web_server, file_res_path[index_tests:])
+            else:
+                web_path_file = file_res_path
+            logger.error(f"failed number: {index+1}, failed_result_file: {web_path_file}")
+    else:
+        # 打印本地路径
+        for index, fail_item in enumerate(fail_files):
+            logger.error(f"failed number: {index+1}, failed_result_file: {fail_item[1]}")
 
     if len(fail_files) > 0:
         logger.error(f"Scan failed, please check the log file: {scan_result_log}")
