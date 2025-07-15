@@ -222,8 +222,8 @@ class TestStreamSubqueryCount:
 
         stream = StreamItem(
             id=8,
-            stream="create stream rdb.s8 count_window(1, c1) from tdb.triggers partition by tbname into rdb.r8 as select _twstart ts, count(c1), avg(c2) from %%trows partition by %%1",
-            res_query="select *, tag_tbname from rdb.r8 where tag_tbname='t1'",
+            stream="create stream rdb.s8 count_window(1, c1) from tdb.triggers partition by tbname into rdb.r8 as select _twstart ts, count(c1), avg(c2) from %%trows",
+            res_query="select *, tag_tbname from rdb.r8 where tag_tbname='t1' and `count(c1)` != 0;",
             exp_query="select _wstart, count(c1), avg(c2), 't1', 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m);",
         )
         self.streams.append(stream)
@@ -257,7 +257,7 @@ class TestStreamSubqueryCount:
         stream = StreamItem(
             id=12,
             stream="create stream rdb.s12 count_window(1, c1) from tdb.triggers partition by tbname into rdb.r12 as select _twstart ts, %%tbname tb, %%1, count(*) v1, avg(c1) v2, first(c1) v3, last(c1) v4 from %%trows;",
-            res_query="select ts, tb, `%%1`, v2, v3, v4, tag_tbname from rdb.r12 where tb='t1'",
+            res_query="select ts, tb, `%%1`, v2, v3, v4, tag_tbname from rdb.r12 where tb='t1';",
             exp_query="select _wstart, 't1', 't1', avg(c1) v2, first(c1) v3, last(c1) v4, 't1' from tdb.t1 where ts >= '2025-01-01 00:00:00' and ts < '2025-01-01 00:35:00' interval(5m);",
             check_func=self.check12,
         )
