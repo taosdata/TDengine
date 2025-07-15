@@ -790,14 +790,13 @@ int createDatabase(SDataBase* database) {
 
 static int generateChildTblName(int len, char *buffer, SDataBase *database,
                                 SSuperTable *stbInfo, uint64_t tableSeq, char* tagData, int i,
-                                char *ttl) {
+                                char *ttl, char *tableName) {
     if (0 == len) {
         memset(buffer, 0, TSDB_MAX_ALLOWED_SQL_LEN);
         len += snprintf(buffer + len,
                         TSDB_MAX_ALLOWED_SQL_LEN - len, "CREATE TABLE");
     }
 
-    char tableName[TSDB_TABLE_NAME_LEN] = {0};
     const char *tagStart = tagData + i * stbInfo->lenOfTags;  // 当前行的TAG起始位置
     const char *tagsForSQL = tagStart;  // 实际用于SQL的TAG部分
 
@@ -807,38 +806,19 @@ static int generateChildTblName(int len, char *buffer, SDataBase *database,
         " IF NOT EXISTS %s.%s USING %s.%s TAGS (%s) %s ";
 
     if (stbInfo->useTagTableName) {
-        // 查找第一个逗号作为分隔符
         char *firstComma = strchr(tagStart, ',');
-        
-        if (firstComma) {
-            // 安全拷贝表名部分（逗号前的内容）
-            size_t nameLen = firstComma - tagStart;
-            size_t copyLen = MIN(nameLen, sizeof(tableName) - 1);
-            strncpy(tableName, tagStart, copyLen);
-            tableName[copyLen] = '\0';
-            // TAG部分从逗号后开始（跳过表名和逗号）
-            tagsForSQL = firstComma + 1;
-        } else {
-            // 整个字段作为表名，TAG部分置空
-            strncpy(tableName, tagStart, sizeof(tableName) - 1);
-            tableName[sizeof(tableName)-1] = '\0';
-            tagsForSQL = "";  // 明确标记无TAG数据
-        }
+        size_t nameLen = firstComma - tagStart;
+        strncpy(tableName, tagStart, nameLen);
+        tableName[nameLen] = '\0';
+        tagsForSQL = firstComma + 1;      
     } else {
-        // 使用前缀+序号生成表名
+        // 使用前缀+序号生成表名 
         snprintf(tableName, sizeof(tableName), "%s%" PRIu64, 
                  stbInfo->childTblPrefix, tableSeq);
         // 使用完整TAG数据
         tagsForSQL = tagStart;
+
     }        
-
-
-    size_t tbnameLen = 0;
-    if (stbInfo->useTagTableName) {
-        char *firstField = tagData + i * stbInfo->lenOfTags;
-        char *comma = strchr(firstField, ',');
-        tbnameLen = comma - firstField;
-    }
 
     // 统一生成SQL语句
     len += snprintf(buffer + len, TSDB_MAX_ALLOWED_SQL_LEN - len, fmt,
@@ -915,9 +895,12 @@ static void *createTable(void *sarg) {
 
     int smallBatchCount = 0;
     int index=  pThreadInfo->start_table_from;
-    for (uint64_t i = pThreadInfo->start_table_from;
+    int tableSum = pThreadInfo->end_table_to - pThreadInfo->start_table_from + 1;
+    pThreadInfo->childNames = benchCalloc(tableSum, sizeof(char *), false);
+    pThreadInfo->childTblCount = tableSum;
+    for (uint64_t i = pThreadInfo->start_table_from, j = 0;
                   i <= pThreadInfo->end_table_to && !g_arguments->terminate;
-                  i++) {
+                  i++, j++) {
         if (g_arguments->terminate) {
             goto create_table_end;
         }
@@ -949,9 +932,10 @@ static void *createTable(void *sarg) {
                     goto create_table_end;
                 }
             }
-
+            char tbName[TSDB_TABLE_NAME_LEN] = {0};
             len = generateChildTblName(len, pThreadInfo->buffer,
-                                       database, stbInfo, i, tagData, w, ttl);
+                                       database, stbInfo, i, tagData, w, ttl, tbName);
+            pThreadInfo->childNames[j] = strdup(tbName);
             // move next
             if (++w >= TAG_BATCH_COUNT) {
                 // reset for gen again
@@ -1065,6 +1049,7 @@ static int startMultiThreadCreateChildTable(SDataBase* database, SSuperTable* st
     int32_t code    = -1;
     int32_t threads = g_arguments->table_threads;
     int64_t ntables;
+
     if (stbInfo->childTblTo > 0) {
         ntables = stbInfo->childTblTo - stbInfo->childTblFrom;
     } else if(stbInfo->childTblFrom > 0) {
@@ -1126,12 +1111,16 @@ static int startMultiThreadCreateChildTable(SDataBase* database, SSuperTable* st
 
     if (g_arguments->terminate)  toolsMsleep(100);
 
+    int nCount = 0;
     for (int i = 0; i < threadCnt; i++) {
         threadInfo *pThreadInfo = infos + i;
         g_arguments->actualChildTables += pThreadInfo->tables_created;
 
         if ((REST_IFACE != stbInfo->iface) && pThreadInfo->conn) {
             closeBenchConn(pThreadInfo->conn);
+        }
+        for (int j = 0; j < pThreadInfo->childTblCount; j++) {
+            stbInfo->childTblArray[nCount++]->name = pThreadInfo->childNames[j];
         }
     }
 
@@ -1879,8 +1868,8 @@ static void *syncWriteInterlace(void *sarg) {
             } else {
                 childTbl = stbInfo->childTblArray[tableSeq];
             }
-
-            char *  tableName   = childTbl->name;
+            
+            char*  tableName   = childTbl->name;
             char *sampleDataBuf = childTbl->useOwnSample?
                                         childTbl->sampleDataBuf:
                                         stbInfo->sampleDataBuf;
@@ -3391,6 +3380,10 @@ static int parseBufferToStmtBatch(SSuperTable* stbInfo, uint64_t *bind_ts_array)
 }
 
 static int64_t fillChildTblNameByCount(SSuperTable *stbInfo) {
+    if (stbInfo->useTagTableName) {
+        return stbInfo->childTblCount;
+    }
+
     for (int64_t i = 0; i < stbInfo->childTblCount; i++) {
         char childName[TSDB_TABLE_NAME_LEN]={0};
         snprintf(childName,

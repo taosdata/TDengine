@@ -50,7 +50,8 @@
                     "sample_format": "csv",
                     "sample_file": "./sample.csv",
                     "use_sample_ts": "no",
-                    "tags_file": "./tools/benchmark/basic/csv/create_table_tags.csv",
+                    "tags_file": "/root/TDengine/tests/army/tools/benchmark/basic/csv/create_table_tag_tbname.csv",
+                    "use_tag_table_name": "yes",
                     "columns": [
                         { "type": "SMALLINT", "count": 700, "encode": "simple8b", "compress": "zstd", "level": "high", "max": 2250, "min": 15 }
                     ],

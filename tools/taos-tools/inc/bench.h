@@ -874,7 +874,8 @@ typedef struct SThreadInfo_S {
     char        *csql;
     int32_t     clen;  // csql current write position
     bool        stmtBind;
-
+    char **     childNames;
+    int32_t     childTblCount;
     // stmt2
     BArray      *tagsStmt;
 } threadInfo;

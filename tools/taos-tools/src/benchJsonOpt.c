@@ -1407,8 +1407,9 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
 
         tools_cJSON *useTagTableName =
             tools_cJSON_GetObjectItem(stbInfo, "use_tag_table_name");
-        if (tools_cJSON_IsNumber(useTagTableName)) {
-            superTable->useTagTableName = useTagTableName->valueint;
+        if (tools_cJSON_IsString(useTagTableName) &&
+            (0 == strcasecmp(useTagTableName->valuestring, "yes"))) {
+            superTable->useTagTableName = true;
         }
 
         tools_cJSON *insertRows =
