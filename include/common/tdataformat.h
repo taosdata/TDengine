@@ -41,7 +41,6 @@ typedef struct SRowIter   SRowIter;
 typedef struct STagVal    STagVal;
 typedef struct STag       STag;
 typedef struct SColData   SColData;
-typedef struct SBlobRow   SBlobRow;
 typedef struct SBlobRow2  SBlobRow2;
 
 typedef struct SRowKey           SRowKey;
@@ -284,14 +283,6 @@ struct SRow {
   uint16_t sver;
   uint32_t len;
   TSKEY    ts;
-  uint8_t  data[];
-};
-
-struct SBlobRow {
-  uint8_t  flag;
-  uint8_t  numOfPKs;
-  uint16_t sver;
-  uint32_t len;
   uint8_t  data[];
 };
 

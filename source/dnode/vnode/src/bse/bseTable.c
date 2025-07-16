@@ -465,13 +465,15 @@ _error:
 
 int32_t tableBuilderGetBlockSize(STableBuilder *p) { return p->blockCap; }
 
-int32_t tableBuilderClose(STableBuilder *p, int8_t commited) {
+void tableBuilderClose(STableBuilder *p, int8_t commited) {
+  if (p == NULL) {
+    return;
+  }
   int32_t code = 0;
   blockWrapperCleanup(&p->pBlockWrapper);
   taosCloseFile(&p->pDataFile);
   taosArrayDestroy(p->pMetaHandle);
   taosMemoryFree(p);
-  return code;
 }
 
 static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
@@ -698,8 +700,8 @@ _error:
   return code;
 }
 
-int32_t tableReaderClose(STableReader *p) {
-  if (p == NULL) return 0;
+void tableReaderClose(STableReader *p) {
+  if (p == NULL) return;
   int32_t code = 0;
 
   taosArrayDestroy(p->pMetaHandle);
@@ -709,7 +711,6 @@ int32_t tableReaderClose(STableReader *p) {
   blockWrapperCleanup(&p->blockWrapper);
 
   taosMemoryFree(p);
-  return code;
 }
 
 int32_t blockCreate(int32_t cap, SBlock **p) {

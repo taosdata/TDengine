@@ -382,7 +382,7 @@ int32_t bseCreateCommitInfo(SBse *pBse) {
   SBseCommitInfo *pCommit = &pBse->commitInfo;
   pCommit->pFileList = taosArrayInit(64, sizeof(SBseLiveFileInfo));
   if (pCommit->pFileList == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pCommit->fmtVer = BSE_FMT_VER;
   return 0;
@@ -442,6 +442,7 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   *pBse = p;
 _err:
   if (code != 0) {
+    bseClose(p);
     bseError("vgId:%d failed to open bse at line %d since %s", BSE_GET_VGID(p), lino, tstrerror(code));
   }
   return code;
