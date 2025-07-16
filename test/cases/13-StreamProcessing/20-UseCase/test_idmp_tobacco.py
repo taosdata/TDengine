@@ -1,10 +1,10 @@
 from new_test_framework.utils import tdLog, tdSql, tdStream, etool
 import time
 import os
+import json
 
 
-class TestSceneTobacco:
-
+class TestIdmpTobacco:
     def test_tobacco(self):
         """
         Refer: https://taosdata.feishu.cn/wiki/XaqbweV96iZVRnkgHLJcx2ZCnQf
@@ -17,31 +17,32 @@ class TestSceneTobacco:
         History:
             - 2025-7-11 zyyang90 Created
         """
+        TestIdmpTobaccoImpl().run()
+
+
+class TestIdmpTobaccoImpl:
+    def __init__(self):
+        self.stream_ids = []
+
+    def run(self):
+
         # prepare data
         self.prepare()
 
         # create vtables
         self.createVirTables()
 
-        # streams can be specified by environment variable
-        # if not specified, all streams in the stream.sql will be created
-        ids = os.environ.get("IDMP_TOBACCO_STREAM_IDS")
-        if ids:
-            self.stream_ids = [int(x) for x in ids.split(",") if x.strip().isdigit()]
-        else:
-            self.stream_ids = None
-
         # create streams
-        self.createStreams(self.stream_ids)
+        self.createStreams()
 
         # insert trigger data
-        self.insertTriggerData(self.stream_ids)
+        self.insertTriggerData()
 
-        # wait stream processing
+        # # wait stream processing
         time.sleep(5)
 
-        # verify results
-        self.verifyResults(self.stream_ids)
+        # # verify results
+        self.verifyResults()
 
         tdLog.info("test IDMP tobacco scene done")
 
@@ -122,73 +123,139 @@ class TestSceneTobacco:
         )
         tdLog.info(f"create {vtb_count} vtables in db: {self.vdb}")
 
-    def createStreams(self, stream_ids):
-        self.stream_name_map = {
-            1: "ana_振动输送机_平均值",
-            2: "ana_振动输送机_超过10分钟没有上报数据",
-            3: "ana_振动输送机_电机信号最大值",
-            4: "ana_振动输送机_振动幅度总和",
-            5: "ana_振动输送机_最后一条电机信号",
-            6: "ana_振动输送机_振动幅度标准差",
-            7: "ana_振动输送机_电机信号极差",
-            8: "ana_振动输送机_超过15分钟没有上报电机信号数据",
-            9: "ana_振动输送机_过去15分钟的振动幅度变化率",
-        }
-
-        stream_count = 0
+    def createStreams(self):
         with open(
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/stream.sql",
+            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/stream.json",
             "r",
             encoding="utf-8",
         ) as f:
-            for idx, line in enumerate(f, start=1):
-                stream_name = self.stream_name_map.get(idx, "")
-                sql = line.strip().replace("%STREAM_NAME", stream_name)
-                if sql and (stream_ids is None or idx in stream_ids):
-                    tdLog.debug(f"stream SQL: {sql}")
-                    stream_count += 1
-                    tdSql.execute(sql, queryTimes=1)
-                    # check streams created
-                    tdStream.checkStreamStatus(stream_name)
+            arr = json.load(f)
+            self.stream_objs = [StreamObj.from_dict(obj) for obj in arr]
+
+        # streams can be specified by environment variable
+        # if not specified, all streams in the stream.sql will be created
+        if hasattr(self, "stream_ids") and len(self.stream_ids) > 0:
+            tdLog.info(f"USE specified stream ids: {self.stream_ids}")
+        elif "IDMP_TOBACCO_STREAM_IDS" in os.environ:
+            ids = os.environ.get("IDMP_TOBACCO_STREAM_IDS")
+            if ids:
+                self.stream_ids = [
+                    int(x) for x in ids.split(",") if x.strip().isdigit()
+                ]
+                tdLog.info(f"use IDMP_TOBACCO_STREAM_IDS from env: {self.stream_ids}")
+        else:
+            self.stream_ids = [obj.id for obj in self.stream_objs]
+            tdLog.info(f"use all stream ids: {self.stream_ids}")
+
+        # 遍历 self.stream_objs，如果 id 在 self.stream_ids 中，则创建 Stream
+        stream_count = 0
+        for obj in self.stream_objs:
+            if obj.id in self.stream_ids and obj.create:
+                # 生成 stream 名称，可根据实际需求生成
+                stream_name = obj.name if obj.name else f"stream_{obj.id}"
+                create_sql = obj.create.replace("%STREAM_NAME", stream_name)
+                tdLog.info(f"create stream SQL: {create_sql}")
+                tdSql.execute(create_sql, queryTimes=1)
+                stream_count += 1
+                # check streams created
+                # tdStream.checkStreamStatus(stream_name)
+
+            # check streams created
+            tdStream.checkStreamStatus()
 
         tdLog.info(f"create {stream_count} streams in {self.vdb}")
 
-    def insertTriggerData(self, stream_ids):
-        # 以当前时间戳为准，取整到 1 min
-        ts = (int(time.time()) // 60) * 60 * 1000
-        rows = 0
-
-        sql_lines = []
-        with open(
-            "cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp/data.sql",
-            "r",
-            encoding="utf-8",
-        ) as f:
-            for line in f:
-                sql = line.strip()
-                sql_lines.append(sql)
-                rows += 1
-
+    def insertTriggerData(self):
         tdSql.execute(f"USE `{self.db}`;")
-        for idx in range(rows):
-            # 每次插入 1 min 的数据
-            current_ts = ts - (rows - idx) * 60 * 1000
-            sql = sql_lines[idx % len(sql_lines)].replace("%TIMESTAMP", str(current_ts))
-            tdLog.info(f"SQL: {sql}")
-            tdSql.execute(sql)
+
+        for obj in self.stream_objs:
+            # skip if id not in self.stream_ids
+            if obj.id not in self.stream_ids:
+                continue
+            # skip if no data or data is not a list
+            if not obj.data or not isinstance(obj.data, list):
+                continue
+
+            # 以当前时间戳为准，取整到 1 min
+            ts = (int(time.time()) // 60) * 60 * 1000
+            # 默认间隔为 1 分钟
+            interval = obj.interval if obj.interval else 60 * 1000
+            rows = len(obj.data)
+
+            for i, sql in enumerate(obj.data):
+                if "%TIMESTAMP" in sql:
+                    current_ts = ts - (rows - i) * interval
+                    exec_sql = sql.replace("%TIMESTAMP", str(current_ts))
+                else:
+                    exec_sql = sql
+                tdLog.info(f"SQL: {exec_sql}")
+                tdSql.execute(exec_sql, queryTimes=1)
 
         tdLog.info("insert trigger data done")
 
-    def verifyResults(self, stream_ids):
-        if stream_ids is None:
-            stream_ids = self.stream_name_map.keys()
+    def verifyResults(self):
+        for id in self.stream_ids:
+            # 从 self.stream_objs 中找到 id 相同的 stream 的 name
+            obj = next((o for o in self.stream_objs if o.id == id), None)
+            name = obj.name if obj and obj.name else f"stream_{id}"
+            if not obj:
+                raise RuntimeError(f"未找到 id={id} 对应的 streamObj")
 
-        for id in stream_ids:
-            stream_name = self.stream_name_map.get(id, "")
-            res = tdSql.getResult(f"SHOW `{self.vdb}`.stables like '{stream_name}';")
+            # check the output table
+            res = tdSql.getResult(f"SHOW `{self.vdb}`.stables like '{name}';")
             if res is None or len(res) == 0:
                 raise RuntimeError(
-                    f"查询结果为空: SHOW `{self.vdb}`.stables like '{stream_name}';"
+                    f"查询结果为空: SHOW `{self.vdb}`.stables like '{name}';"
                 )
 
+            # check the output
+            output = tdSql.getResult(f"SELECT * FROM `{self.vdb}`.`{name}`;")
+            for a in obj.assert_list:
+                if a.row >= len(output) or a.col >= len(output[a.row]):
+                    raise AssertionError(
+                        f"assert failed: out of boundary, row: {a.row}, col: {a.col}"
+                    )
+                actual = output[a.row][a.col]
+                if str(actual) != str(a.data):
+                    raise AssertionError(
+                        f"assert failed: not equal, row: {a.row}, col: {a.col}, expect: {a.data}, actual: {actual}"
+                    )
+
         tdLog.info("verify results done")
+
+
+class StreamObj:
+    def __init__(self, id, name, create, data=None, interval=None, assert_list=None):
+        self.id = id
+        self.name = name
+        self.create = create
+        self.data = data
+        self.interval = interval
+        self.assert_list = assert_list if assert_list else []
+
+    @staticmethod
+    def from_dict(d):
+        assert_list = [AssertObj.from_dict(a) for a in d.get("assert", [])]
+        return StreamObj(
+            id=d.get("id"),
+            name=d.get("name"),
+            create=d.get("create"),
+            data=d.get("data"),
+            interval=d.get("interval"),
+            assert_list=assert_list,
+        )
+
+
+class AssertObj:
+    def __init__(self, row, col, data):
+        self.row = row
+        self.col = col
+        self.data = data
+
+    @staticmethod
+    def from_dict(d):
+        return AssertObj(
+            row=d.get("row"),
+            col=d.get("col"),
+            data=d.get("data"),
+        )
