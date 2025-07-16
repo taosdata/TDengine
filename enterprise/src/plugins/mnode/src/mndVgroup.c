@@ -144,11 +144,18 @@ int32_t mndProcessSplitVgroupMsgImp(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  int32_t numOfStreams = 0;
-  code = mndGetNumOfStreams(pMnode, pVgroup->dbName, &numOfStreams);
-  if (numOfStreams > 0) {
-    code = TSDB_CODE_OPS_NOT_SUPPORT;
+  bool dbStream = false;
+  bool vtableStream = false;
+  mstCheckDbInUse(pMnode, pVgroup->dbName, &dbStream, &vtableStream, false);
+  if (dbStream) {
+    code = TSDB_CODE_MND_STREAM_DB_IN_USE;
     mError("vgId:%d, db:%s, stream exists, split vgroup not allowed", req.vgId, pVgroup->dbName);
+    goto _OVER;
+  }
+
+  if (vtableStream && !req.force) {
+    code = TSDB_CODE_MND_STREAM_VTABLE_EXITS;
+    mError("vgId:%d, db:%s, vtable stream exists, split vgroup not allowed", req.vgId, pVgroup->dbName);
     goto _OVER;
   }
 

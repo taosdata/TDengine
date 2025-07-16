@@ -172,6 +172,22 @@ _OVER:
 
 int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *dbname) {
   int32_t code = 0;
+
+  const char *realDbName = NULL;
+  const char *dot = strchr(dbname, '.');
+  if (dot != NULL && *(dot + 1) != '\0') {
+    realDbName = dot + 1;
+  }
+
+  if ((0 == strcasecmp(realDbName, TSDB_INFORMATION_SCHEMA_DB) ||
+       (0 == strcasecmp(realDbName, TSDB_PERFORMANCE_SCHEMA_DB)))) {
+    if (operType == MND_OPER_READ_DB) {
+      return TSDB_CODE_SUCCESS;
+    } else {
+      return TSDB_CODE_MND_NO_RIGHTS;
+    }
+  }
+
   SDbObj *pDb = mndAcquireDb(pMnode, dbname);
 
   if (pDb == NULL) {

@@ -20,6 +20,7 @@ DNODE_CREATED=0
 MNODE_CREATED=0
 SNODE_CREATED=0
 ANODE_CREATED=0
+TDASSET_DB_CREATED=0
 
 # Add for TDgpt
 CONFIG_FILE="/usr/local/taos/taosanode/cfg/taosanode.ini"
@@ -353,7 +354,7 @@ function initDnodeAndMnode {
         # first check dnode created
         DNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
         if [[ "$DNODETmp" == "" ]]; then
-            timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$ENDPOINT\";create user admin_user pass 'NDS65R6t' sysinfo 0;"
+            timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$ENDPOINT\";create user admin_user pass 'NDS65R6t' sysinfo 0 createdb 1;"
             DNODETmp=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -w 2000 -s "show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
             if [[ "$DNODETmp" != "" ]]; then
                 DNODE_CREATED=1
@@ -431,7 +432,7 @@ function initDnodeAndMnode {
             # check admin_user created or not
             ADMINUSER=$(timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "show users;" | grep -E "admin_user" -o)
             if [[ "$ADMINUSER" == "" ]]; then
-                timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create user admin_user pass 'NDS65R6t' sysinfo 0;"
+                timeout $TAOS_TIMEOUT_SECOND taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create user admin_user pass 'NDS65R6t' sysinfo 0 createdb 1;"
                 logger "INFO" "created admin_user"
             fi
             MNODE_CREATED=1
@@ -532,6 +533,12 @@ do
         fi
         run_tdgpt
         initDnodeAndMnode
+        # create tdasset db if not exist
+        if [ $TDASSET_DB_CREATED  -eq 0 ]; then
+            taos -s "create database if not exists idmp;GRANT ALL on idmp.* to admin_user;"
+            TDASSET_DB_CREATED=1
+        fi
+
         if [ "$clustercheckneeded"x = "0"x ]; then
             td_cluster_check "no"
             if [ $? -eq 0 ]; then
