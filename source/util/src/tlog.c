@@ -960,8 +960,7 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   remainSize = (start > end) ? (start - end - 1) : (start + LOG_BUF_SIZE(pLogBuf) - end - 1);
 
   if (lostLine > 0) {
-    snprintf(tmpBuf, tListLen(tmpBuf), "...Lost %" PRId64 " lines here...\n", lostLine);
-    tmpBufLen = (int32_t)strlen(tmpBuf);
+    tmpBufLen = snprintf(tmpBuf, tListLen(tmpBuf), "...Lost %" PRId64 " lines here...\n", lostLine);
   }
 
   if (remainSize <= msgLen || ((lostLine > 0) && (remainSize <= (msgLen + tmpBufLen)))) {
@@ -1006,8 +1005,10 @@ static void taosWriteSlowLog(SLogBuff *pLogBuf) {
   atomic_store_32(&pLogBuf->lock, 0);
 }
 static void taosWriteLog(SLogBuff *pLogBuf) {
+  (void)taosThreadMutexLock(&LOG_BUF_MUTEX(pLogBuf));
   int32_t start = LOG_BUF_START(pLogBuf);
   int32_t end = LOG_BUF_END(pLogBuf);
+  (void)taosThreadMutexUnlock(&LOG_BUF_MUTEX(pLogBuf));
 
   if (start == end) {
     dbgEmptyW++;
@@ -1051,10 +1052,12 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
     }
   }
 
+  (void)taosThreadMutexLock(&LOG_BUF_MUTEX(pLogBuf));
   LOG_BUF_START(pLogBuf) = (LOG_BUF_START(pLogBuf) + pollSize) % LOG_BUF_SIZE(pLogBuf);
 
   start = LOG_BUF_START(pLogBuf);
   end = LOG_BUF_END(pLogBuf);
+  (void)taosThreadMutexUnlock(&LOG_BUF_MUTEX(pLogBuf));
 
   pollSize = taosGetLogRemainSize(pLogBuf, start, end);
   if (pollSize < pLogBuf->minBuffSize) {

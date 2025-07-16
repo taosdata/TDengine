@@ -110,9 +110,9 @@ void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntries
                                    const STraceId* trace);
 
 void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool printX, int64_t timerElapsed,
-                          int64_t execTime);
+                          int64_t execTime, const STraceId* trace);
 void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64_t netElapsed, const STraceId* trace,
-                          int64_t timeDiff);
+                          int64_t timeDiff, const SRpcMsg* pRpcMsg);
 
 void syncLogSendHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, const char* s,
                                const STraceId* trace);

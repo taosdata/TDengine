@@ -226,6 +226,7 @@ The effective value of charset is UTF-8.
 | ttlFlushThreshold          |                   | Supported, effective immediately   | Internal parameter, frequency of ttl timer                   |
 | compactPullupInterval      |                   | Supported, effective immediately   | Internal parameter, frequency of data reorganization timer   |
 | walFsyncDataSizeLimit      |                   | Supported, effective immediately   | Internal parameter, threshold for WAL to perform FSYNC       |
+| walForceRepair             |                   | Not supported                      | Internal parameter, repair WAL file forcibly, range 0-1; default value 0, 0 means not repair, 1 means repair |
 | transPullupInterval        |                   | Supported, effective immediately   | Internal parameter, retry interval for mnode to execute transactions |
 | mqRebalanceInterval        |                   | Supported, effective immediately   | Internal parameter, interval for consumer rebalancing        |
 | uptimeInterval             |                   | Supported, effective immediately   | Internal parameter, for recording system uptime              |
@@ -377,7 +378,7 @@ taosd reports monitoring metrics to taosKeeper, which are written into the monit
 | connections\_total       | DOUBLE    |         | total number of connections in the current cluster           |
 | topics\_total            | DOUBLE    |         | total number of topics in the current cluster                |
 | streams\_total           | DOUBLE    |         | total number of streams in the current cluster               |
-| grants_expire\_time      | DOUBLE    |         | authentication expiration time, valid in enterprise edition, maximum DOUBLE value in community edition |
+| grants_expire\_time      | DOUBLE    |         | authentication expiration time, valid in TSDB-Enterprise, maximum DOUBLE value in TSDB-OSS |
 | grants_timeseries\_used  | DOUBLE    |         | number of used timeseries                                    |
 | grants_timeseries\_total | DOUBLE    |         | total number of timeseries, maximum DOUBLE value in open source version |
 | cluster\_id              | VARCHAR   | tag     | cluster id                                                   |
