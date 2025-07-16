@@ -28,3 +28,4 @@ if(${BUILD_CLOUD})
 endif(${BUILD_CLOUD})
 
 add_definitions(-DTD_ENTERPRISE)
+add_definitions(-DUSE_MOUNT)

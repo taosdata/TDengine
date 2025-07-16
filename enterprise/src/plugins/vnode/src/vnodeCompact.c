@@ -19,7 +19,7 @@
 extern int32_t metaCompact(SMeta *pOldMeta, SMeta *pNewMeta, int64_t compactVersion);
 extern int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t rollback);
 extern void    tsdbStopAllCompTask(STsdb *tsdb);
-extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool s3Migrate);
+extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool ssMigrate);
 extern int32_t tsdbCompMonitorGetInfo(STsdb *tsdb, SQueryCompactProgressRsp *rsp);
 extern void    tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId);
 
