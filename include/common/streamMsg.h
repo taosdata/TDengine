@@ -373,6 +373,7 @@ typedef struct SStreamMgmtReq {
 } SStreamMgmtReq;
 
 void tFreeSStreamMgmtReq(SStreamMgmtReq* pReq);
+int32_t tCloneSStreamMgmtReq(SStreamMgmtReq* pSrc, SStreamMgmtReq** ppDst);
 
 typedef void (*taskUndeplyCallback)(void*);
 
@@ -398,7 +399,7 @@ typedef struct SStreamTask {
   SStreamMgmtReq* pMgmtReq;  // request that should be handled by stream mgmt thread
 
   // FOR LOCAL PART
-
+  SRWLatch        mgmtReqLock;
   SRWLatch        entryLock;       
 
   SStreamUndeployTaskMsg undeployMsg;
@@ -932,7 +933,7 @@ typedef struct SStreamMsgVTableInfo {
 
 void tDestroyVTableInfo(void *ptr);
 int32_t tSerializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, const SStreamMsgVTableInfo* pRsp);
-int32_t tDeserializeSStreamMsgVTableInfo(SDecoder* decoder, SStreamMsgVTableInfo *pBlock);
+int32_t tDeserializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, SStreamMsgVTableInfo *pBlock);
 void    tDestroySStreamMsgVTableInfo(SStreamMsgVTableInfo *ptr);
 
 

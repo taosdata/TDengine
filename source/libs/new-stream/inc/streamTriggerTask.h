@@ -25,6 +25,8 @@
 extern "C" {
 #endif
 
+#define TRIGGER_USE_HISTORY_META 0  // todo(kjq): remove the flag
+
 typedef struct SSTriggerVirTableInfo {
   int64_t tbGid;
   int64_t tbUid;
@@ -54,15 +56,12 @@ typedef struct SSTriggerRealtimeGroup {
   int64_t newThreshold;
   int64_t prevWindowEnd;
 
-  int32_t                tbIter;
-  SSTriggerVirTableInfo *pCurVirTable;  // only for virtual tables
-  SSTriggerTableMeta    *pCurTableMeta;
-
   TriggerWindowBuf winBuf;
   STimeWindow      nextWindow;  // for period trigger and sliding window trigger
   SValue           stateVal;    // for state window trigger
 
-  SArray *pPendingCalcReqs;  // SArray<SSTriggerCalcParam>
+  int64_t prevCalcTime;        // only used in batch window mode (lowLatencyCalc is false)
+  SArray *pPendingCalcParams;  // SArray<SSTriggerCalcParam>
 } SSTriggerRealtimeGroup;
 
 typedef struct SSTriggerHistoryGroup {
@@ -94,22 +93,22 @@ typedef enum ESTriggerContextStatus {
   STRIGGER_CONTEXT_ACQUIRE_REQUEST,
   STRIGGER_CONTEXT_CHECK_CONDITION,
   STRIGGER_CONTEXT_SEND_CALC_REQ,
-  STRIGGER_CONTEXT_CLEAR_META,
 } ESTriggerContextStatus;
 
 typedef struct SSTriggerWalProgress {
-  SStreamTaskAddr *pTaskAddr;    // reader task address
-  int64_t          lastScanVer;  // version of the last committed record in previous scan
-  int64_t          latestVer;    // latest version of committed records in the vnode WAL
+  SStreamTaskAddr          *pTaskAddr;    // reader task address
+  int64_t                   lastScanVer;  // version of the last committed record in previous scan
+  int64_t                   latestVer;    // latest version of committed records in the vnode WAL
+  SSTriggerPullRequestUnion pullReq;
+  SArray                   *reqCids;  // SArray<col_id_t>
+  SArray                   *reqCols;  // SArray<OTableInfo>
+  SArray                   *pMetadatas; // SArray<SSDataBlock*>
 } SSTriggerWalProgress;
 
 typedef struct SSTriggerRealtimeContext {
   struct SStreamTriggerTask *pTask;
   int64_t                    sessionId;
   ESTriggerContextStatus     status;
-
-  int32_t maxMetaDelta;      // tables lagging behind the fastest table by this threshold will be ignored
-  int32_t minMetaThreshold;  // window check start when any single table's metadata number exceed the threshold
 
   SSHashObj *pReaderWalProgress;  // SSHashObj<vgId, SSTriggerWalProgress>
   int32_t    curReaderIdx;
@@ -119,32 +118,34 @@ typedef struct SSTriggerRealtimeContext {
   TD_DLIST(SSTriggerRealtimeGroup) groupsToCheck;
   TD_DLIST(SSTriggerRealtimeGroup) groupsMaxDelay;
 
+  // these fields are shared by all groups and do not need to be destroyed
+  bool                   reenterCheck;
+  int32_t                tbIter;
+  STimeWindow            periodWindow;   // for period trigger
+  SSTriggerVirTableInfo *pCurVirTable;   // only for virtual tables
+  SSTriggerTableMeta    *pCurTableMeta;  // only for non-virtual tables
+  SSTriggerMetaData     *pMetaToFetch;
+  SSTriggerTableColRef  *pColRefToFetch;
+  SSTriggerCalcParam    *pParamToFetch;
+  SSTriggerCalcRequest  *pCalcReq;
+  // these fields are shared by all groups and need to be destroyed
   SSTriggerTimestampSorter *pSorter;
   SSTriggerVtableMerger    *pMerger;
-  SSTriggerMetaData        *pMetaToFetch;
-  SSTriggerTableColRef     *pColRefToFetch;
-
-  SArray      *pSavedWindows;  // for sliding trigger and session window trigger
-  SArray      *pInitWindows;   // for sliding trigger and session window trigger
-  SFilterInfo *pStartCond;     // for event window trigger
-  SFilterInfo *pEndCond;       // for event window trigger
-
+  SArray                   *pSavedWindows;  // for sliding trigger and session window trigger
+  SArray                   *pInitWindows;   // for sliding trigger and session window trigger
+  SFilterInfo              *pStartCond;     // for event window trigger
+  SFilterInfo              *pEndCond;       // for event window trigger
   SArray                   *pNotifyParams;  // SArray<SSTriggerCalcParam>
-  SSTriggerPullRequestUnion pullReq;
-  SArray                   *reqCids;  // SArray<col_id_t>
-  SArray                   *reqCols;  // SArray<OTableInfo>
-  SSDataBlock              *pullRes[STRIGGER_PULL_TYPE_MAX];
-  SSTriggerCalcRequest     *pCalcReq;
-  SSTriggerCalcParam       *pParamToFetch;
 
   void     *pCalcDataCache;
   SHashObj *pCalcDataCacheIters;
 
-  bool        haveReadCheckpoint;
-  bool        haveToRecalc;
-  bool        retryPull;
-  int64_t     lastCheckpointTime;
-  STimeWindow periodWindow;  // for period trigger
+#if !TRIGGER_USE_HISTORY_META
+  bool haveToRecalc;
+#endif
+  bool                  haveReadCheckpoint;
+  int64_t               lastCheckpointTime;
+  SSTriggerPullRequest *pRetryReq;
 } SSTriggerRealtimeContext;
 
 typedef struct SSTriggerHistoryContext {
@@ -184,6 +185,8 @@ typedef struct SSTriggerHistoryContext {
 
   void     *pCalcDataCache;
   SHashObj *pCalcDataCacheIters;
+
+  SSTriggerPullRequest *pRetryReq;
 } SSTriggerHistoryContext;
 
 typedef enum ESTriggerEventType {
@@ -229,7 +232,7 @@ typedef struct SStreamTriggerTask {
   };
   int32_t trigTsIndex;
   int32_t calcTsIndex;
-  int64_t maxDelay;  // precision is ms
+  int64_t maxDelayNs;
   int64_t fillHistoryStartTime;
   int64_t watermark;
   int64_t expiredTime;
@@ -262,7 +265,8 @@ typedef struct SStreamTriggerTask {
   SArray      *pVirTableInfoRsp;  // SArray<VTableInfo>
   SSHashObj   *pOrigTableCols;    // SSHashObj<dbname, SSHashObj<tbname, SSTriggerOrigTableInfo>>
   SSHashObj   *pReaderUidMap;     // SSHashObj<vgId, SArray<int64_t, int64_t>>
-  SSHashObj   *pVirTableInfos;    // SSHashObj<tbUid, SSTriggerVirTableInfo>
+  SSHashObj   *pOrigTableGroups;  // SSHashObj<otbUid, SArray<vtbUid>>
+  SSHashObj   *pVirTableInfos;    // SSHashObj<vtbUid, SSTriggerVirTableInfo>
   bool         virTableInfoReady;
 
   // calc request pool

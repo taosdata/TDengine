@@ -4,17 +4,6 @@ import time
 
 class TestSceneTobacco:
     def test_tobacco(self):
-        """
-        Refer: https://taosdata.feishu.cn/wiki/XaqbweV96iZVRnkgHLJcx2ZCnQf
-        Catalog:
-            - Streams:UseCases
-        Since: v3.3.6.14
-        Labels: common,ci
-        Jira:
-            - https://jira.taosdata.com:18080/browse/TD-36368
-        History:
-            - 2025-7-11 zyyang90 Created
-        """
         # prepare data
         self.prepare()
 
@@ -40,9 +29,9 @@ class TestSceneTobacco:
             tdStream.createSnode()
 
         # name
-        self.db = "tdasset_demo_tobacco"
+        self.db = "idmp_sample_tobacco"
         self.stb = "vibrating_conveyor"
-        self.vdb = "tdasset"
+        self.vdb = "idmp"
         self.vstb = "vst_振动输送机"
         self.stream = "ana_振动输送机"
         # 以当前时间戳为准，取整到 10 min
@@ -53,7 +42,9 @@ class TestSceneTobacco:
         tdSql.execute(f"DROP DATABASE IF EXISTS {self.db};")
 
         # import tobacco scene data
-        etool.taosdump("-i cases/13-StreamProcessing/20-UseCase/tobacco_data/")
+        etool.taosdump(
+            "-i cases/13-StreamProcessing/20-UseCase/tobacco_data/idmp_sample_tobacco",
+        )
 
         #
         tdSql.execute(f"DELETE FROM `{self.db}`.`{self.stb}`;")
@@ -125,8 +116,14 @@ class TestSceneTobacco:
         )
 
     def verifyResults(self):
+
+        res = tdSql.getResult(f"SHOW `{self.vdb}`.stables like '{self.stream}';")
+        if res is None or len(res) == 0:
+            raise RuntimeError(
+                f"查询结果为空: SHOW `{self.vdb}`.stables like '{self.stream}';"
+            )
+
         # 打印流计算结果
-        res = tdSql.getResult(f"select * from `{self.vdb}`.`{self.stream}`;")
         tdLog.debug(f"stream results: {res}")
 
         # expect: 流计算产生 5 行数据，电机信号平均值为 2.0
@@ -139,5 +136,6 @@ class TestSceneTobacco:
             and tdSql.compareData(2, 1, 2.0)
             and tdSql.compareData(3, 1, 2.0)
             and tdSql.compareData(4, 1, 2.0),
+            retry=0,
         )
         tdLog.info("verify result")

@@ -3,6 +3,7 @@ from new_test_framework.utils import (tdLog,tdSql,tdStream,StreamCheckItem,)
 
 
 class TestStreamOptionsTrigger:
+    precision = 'ms'
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -44,7 +45,7 @@ class TestStreamOptionsTrigger:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -235,7 +236,7 @@ class TestStreamOptionsTrigger:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -444,7 +445,7 @@ class TestStreamOptionsTrigger:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -613,7 +614,7 @@ class TestStreamOptionsTrigger:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -810,7 +811,7 @@ class TestStreamOptionsTrigger:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -977,7 +978,7 @@ class TestStreamOptionsTrigger:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -1210,7 +1211,7 @@ class TestStreamOptionsTrigger:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -1444,7 +1445,7 @@ class TestStreamOptionsTrigger:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -1558,7 +1559,7 @@ class TestStreamOptionsTrigger:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -1704,7 +1705,7 @@ class TestStreamOptionsTrigger:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -1877,7 +1878,7 @@ class TestStreamOptionsTrigger:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int, ctiny tinyint) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -2020,7 +2021,7 @@ class TestStreamOptionsTrigger:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int, cuint INT UNSIGNED) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -2243,7 +2244,7 @@ class TestStreamOptionsTrigger:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -2419,7 +2420,7 @@ class TestStreamOptionsTrigger:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")
@@ -2571,7 +2572,7 @@ class TestStreamOptionsTrigger:
             self.vstbName = "vstb"
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8")
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamOptionsTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
             tdSql.execute(f"create table if not exists  {self.stbName} (cts timestamp, cint int) tags (tint int)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int) virtual 1")

@@ -254,9 +254,13 @@ class TestStreamRecalcIgnoreDisorder:
         tdLog.info("Check 1: INTERVAL+SLIDING with IGNORE_DISORDER ignores out-of-order data")
         tdSql.checkTableType(dbname="rdb", stbname="r_interval_disorder", columns=3, tags=1)
 
-        exp_sql = "select _wstart, count(*),avg(cint) from qdb.meters where cts >= '2025-01-01 02:00:00' and cts < '2025-01-01 02:02:00' interval(2m) sliding(2m) ;"
-        res_sql = "select ts, cnt, avg_val from rdb.r_interval_disorder;"
-        self.streams[0].checkResultsBySql(res_sql, exp_sql)
+        tdSql.checkResultsByFunc(
+            sql=f"select ts, cnt, avg_val from rdb.r_interval_disorder",
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "2025-01-01 02:00:00.000")
+            and tdSql.compareData(0, 1, 400)
+            and tdSql.compareData(0, 2, 241.5)
+        )
 
         tdSql.query("select count(*) from rdb.r_interval_disorder;")
         result_count_before = tdSql.getData(0, 0)
@@ -283,9 +287,13 @@ class TestStreamRecalcIgnoreDisorder:
         tdLog.info("Check 2: SESSION with IGNORE_DISORDER ignores out-of-order data")
         tdSql.checkTableType(dbname="rdb", stbname="r_session_disorder", columns=3, tags=1)
 
-        exp_sql = "select count(*),avg(cint) from qdb.meters where cts >= '2025-01-01 02:00:00.000' and cts < '2025-01-01 02:01:00.000';"
-        res_sql = "select cnt, avg_val from rdb.r_session_disorder;"
-        self.streams[1].checkResultsBySql(res_sql, exp_sql)
+        tdSql.checkResultsByFunc(
+            sql=f"select ts, cnt, avg_val from rdb.r_session_disorder",
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "2025-01-01 02:00:00.000")
+            and tdSql.compareData(0, 1, 200)
+            and tdSql.compareData(0, 2, 240.5)
+        )
 
         tdSql.query("select count(*) from rdb.r_session_disorder;")
         result_count_before = tdSql.getData(0, 0)

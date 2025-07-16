@@ -429,7 +429,7 @@ static int32_t buildExchangeOperatorParamForVTagScan(SOperatorParam** ppRes, int
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
   (*ppRes)->downstreamIdx = downstreamIdx;
   (*ppRes)->value = pExc;
-  (*ppRes)->reUse = false;
+  (*ppRes)->reUse = true;
 
   return TSDB_CODE_SUCCESS;
 

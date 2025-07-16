@@ -42,7 +42,7 @@ void streamMgmtCleanup() {
 }
 
 void streamCleanup(void) {
-  streamTriggerEnvCleanup();
+  stTriggerTaskEnvCleanup();
   streamTimerCleanUp();
   smUndeployAllTasks();
   destroyDataSinkMgr();
@@ -65,7 +65,7 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
   gStreamMgmt.taskMap = taosHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   TSDB_CHECK_NULL(gStreamMgmt.taskMap, code, lino, _exit, terrno);
 
-  gStreamMgmt.vgroupMap = taosHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  gStreamMgmt.vgroupMap = taosHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
   TSDB_CHECK_NULL(gStreamMgmt.vgroupMap, code, lino, _exit, terrno);
 
 //  gStreamMgmt.snodeTasks = taosArrayInit(20, POINTER_BYTES);
@@ -75,7 +75,7 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
 
   TAOS_CHECK_EXIT(streamHbInit(&gStreamMgmt.hb));
 
-  TAOS_CHECK_EXIT(streamTriggerEnvInit());
+  TAOS_CHECK_EXIT(stTriggerTaskEnvInit());
 
   TAOS_CHECK_EXIT(initInserterGrpInfo());
 
