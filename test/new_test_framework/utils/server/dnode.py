@@ -682,7 +682,7 @@ class TDDnode:
                 )
             else:
                 psCmd = (
-                    "ps -ef | grep -w %s | grep dnode%d | grep -v grep | awk '{print $2}' | xargs"
+                    "ps -efww | grep -w %s | grep dnode%d | grep -v grep | awk '{print $2}' | xargs"
                     % (toBeKilled, self.index)
                 )
             processID = (
