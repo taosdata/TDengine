@@ -30,6 +30,7 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
     if (pMsg->outTblType == TSDB_NORMAL_TABLE) {
       strncpy(exec.tbname, pMsg->outTblName, TSDB_TABLE_NAME_LEN);
     }
+    ST_TASK_DLOG("init task exec mgr with execId:%d, topTask:%d", exec.runtimeInfo.execId, pTask->topTask);
     code = tdListAppend(pMgr->pFreeExecs, &exec);
     if (code != 0) {
       ST_TASK_ELOG("failed to append task exec mgr:%s", tstrerror(code));
@@ -59,6 +60,7 @@ static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t 
   SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
   int32_t                   code = 0;
   taosThreadMutexLock(&pMgr->lock);
+  ST_TASK_DLOG("get task exec with execId:%d", execId);
   if (execId == -1) {
     if (pMgr->pFreeExecs->dl_neles_ > 0) {
       SListNode* pNode = tdListPopHead(pMgr->pFreeExecs);
@@ -86,7 +88,7 @@ static int32_t stRunnerTaskExecMgrAcquireExec(SStreamRunnerTask* pTask, int32_t 
     }
   }
   taosThreadMutexUnlock(&pMgr->lock);
-  if (*ppExec) ST_TASK_DLOG("get exec task with nodeId: %d", (*ppExec)->runtimeInfo.execId);
+  if (*ppExec) ST_TASK_DLOG("get exec task with execId: %d", (*ppExec)->runtimeInfo.execId);
   return code;
 }
 
