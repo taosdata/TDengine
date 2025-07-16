@@ -1968,9 +1968,9 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
   pOptions->tablePrefix = TSDB_DEFAULT_HASH_PREFIX;
   pOptions->tableSuffix = TSDB_DEFAULT_HASH_SUFFIX;
-  pOptions->s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
-  pOptions->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
-  pOptions->s3Compact = TSDB_DEFAULT_S3_COMPACT;
+  pOptions->ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE;
+  pOptions->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
+  pOptions->ssCompact = TSDB_DEFAULT_SS_COMPACT;
   pOptions->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
   pOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
   pOptions->dnodeListStr[0] = 0;
@@ -2016,9 +2016,9 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->sstTrigger = -1;
   pOptions->tablePrefix = -1;
   pOptions->tableSuffix = -1;
-  pOptions->s3ChunkSize = -1;
-  pOptions->s3KeepLocal = -1;
-  pOptions->s3Compact = -1;
+  pOptions->ssChunkSize = -1;
+  pOptions->ssKeepLocal = -1;
+  pOptions->ssCompact = -1;
   pOptions->withArbitrator = -1;
   pOptions->encryptAlgorithm = -1;
   pOptions->dnodeListStr[0] = 0;
@@ -2143,20 +2143,20 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       nodesDestroyNode((SNode*)pNode);
       break;
     }
-    case DB_OPTION_S3_CHUNKPAGES:
-      pDbOptions->s3ChunkSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+    case DB_OPTION_SS_CHUNKPAGES:
+      pDbOptions->ssChunkSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
-    case DB_OPTION_S3_KEEPLOCAL: {
+    case DB_OPTION_SS_KEEPLOCAL: {
       SToken* pToken = pVal;
       if (TK_NK_INTEGER == pToken->type) {
-        pDbOptions->s3KeepLocal = taosStr2Int32(pToken->z, NULL, 10) * 1440;
+        pDbOptions->ssKeepLocal = taosStr2Int32(pToken->z, NULL, 10) * 1440;
       } else {
-        pDbOptions->s3KeepLocalStr = (SValueNode*)createDurationValueNode(pCxt, pToken);
+        pDbOptions->ssKeepLocalStr = (SValueNode*)createDurationValueNode(pCxt, pToken);
       }
       break;
     }
-    case DB_OPTION_S3_COMPACT:
-      pDbOptions->s3Compact = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+    case DB_OPTION_SS_COMPACT:
+      pDbOptions->ssCompact = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_KEEP_TIME_OFFSET:
       if (TK_NK_INTEGER == ((SToken*)pVal)->type) {
@@ -2292,11 +2292,11 @@ _err:
   return NULL;
 }
 
-SNode* createS3MigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
+SNode* createSsMigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, pDbName, false));
-  SS3MigrateDatabaseStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_S3MIGRATE_DATABASE_STMT, (SNode**)&pStmt);
+  SSsMigrateDatabaseStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SSMIGRATE_DATABASE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
   return (SNode*)pStmt;
