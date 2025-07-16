@@ -239,7 +239,7 @@ static int32_t load_fs(STsdb *pTsdb, const char *fname, TFileSetArray *arr) {
 
 _exit:
   if (code) {
-    tsdbError("%s failed at %sP%d since %s, fname:%s", __func__, __FILE__, lino, tstrerror(code), fname);
+    tsdbError("%s failed at %s:%d since %s, fname:%s", __func__, __FILE__, lino, tstrerror(code), fname);
   }
   if (json) {
     cJSON_Delete(json);

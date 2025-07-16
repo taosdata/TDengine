@@ -85,10 +85,13 @@ bool tsdbResetSsMigrateMonitor(STsdb *tsdb, int32_t ssMigrateId) {
   return true;
 }
 
-void tsdbSsMigrateMonitorAddFileSet(STsdb *tsdb, int32_t fid) {
+int32_t tsdbSsMigrateMonitorAddFileSet(STsdb *tsdb, int32_t fid) {
   // no need to lock mutex here, since the caller should have already locked it
   SFileSetSsMigrateState state = { .fid = fid, .state = FILE_SET_MIGRATE_STATE_IN_PROGRESS };
-  taosArrayPush(tsdb->pSsMigrateMonitor->state.pFileSetStates, &state);
+  if (taosArrayPush(tsdb->pSsMigrateMonitor->state.pFileSetStates, &state) == NULL) {
+    return terrno;
+  }
+  return 0;
 }
 
 void tsdbSsMigrateMonitorSetFileSetState(STsdb *tsdb, int32_t fid, int32_t state) {
@@ -133,7 +136,7 @@ int32_t tsdbQuerySsMigrateProgress(STsdb *tsdb, int32_t ssMigrateId, int32_t *rs
     tsdbError("rpcMallocCont %d failed", *rspSize);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  tSerializeSQuerySsMigrateProgressRsp(*ppRsp, *rspSize, pState);
+  TAOS_UNUSED(tSerializeSQuerySsMigrateProgressRsp(*ppRsp, *rspSize, pState));
   TAOS_UNUSED(taosThreadMutexUnlock(&tsdb->mutex));
 
   return 0;
@@ -307,9 +310,21 @@ static int32_t uploadManifest(int32_t dnode, int32_t vnode, STFileSet* fset, int
     }
   }
   
-  cJSON_AddNumberToObject(json, "fmtv", 1);
-  cJSON_AddNumberToObject(json, "dnode", dnode);
-  cJSON_AddNumberToObject(json, "vnode", vnode);
+  if (cJSON_AddNumberToObject(json, "fmtv", 1) == NULL) {
+    code = terrno;
+    cJSON_Delete(json);
+    return code;
+  }
+  if (cJSON_AddNumberToObject(json, "dnode", dnode) == NULL) {
+    code = terrno;
+    cJSON_Delete(json);
+    return code;
+  }
+  if (cJSON_AddNumberToObject(json, "vnode", vnode) == NULL) {
+    code = terrno;
+    cJSON_Delete(json);
+    return code;
+  }
 
   code = tsdbTFileSetToJson(fset, json);
   if (code != TSDB_CODE_SUCCESS) {
@@ -469,7 +484,7 @@ static void tsdbRemoveSsGarbageFiles(int32_t vid, STFileSet* fset) {
         }
       }
 
-      taosMemFree(p);
+      taosMemoryFree(p);
   }
 
   taosArrayDestroy(paths);
@@ -566,7 +581,11 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
 
   f->lcn = totalChunks;
   op.nf = *f;
-  TARRAY2_APPEND(&rtner->fopArr, op);
+  code = TARRAY2_APPEND(&rtner->fopArr, op);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("vgId:%d, fid:%d, failed to append file operation since %s", vid, f->fid, tstrerror(code));
+    return code;
+  }
 
   // manifest must be uploaded before copy last chunk, otherwise, failed to upload manifest
   // will result in a broken migration
@@ -611,7 +630,7 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
   if (fdTo == NULL) {
     code = terrno;
     tsdbError("vgId:%d, fid:%d, failed to open target file %s since %s", vid, f->fid, newPath, tstrerror(code));
-    taosCloseFile(&fdFrom);
+    TAOS_UNUSED(taosCloseFile(&fdFrom));
     return code;
   }
 
@@ -620,8 +639,8 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
     code = terrno;
     tsdbError("vgId:%d, fid:%d, failed to copy file %s to %s since %s", vid, f->fid, path, newPath, tstrerror(code));
   }
-  taosCloseFile(&fdFrom);
-  taosCloseFile(&fdTo);
+  TAOS_UNUSED(taosCloseFile(&fdFrom));
+  TAOS_UNUSED(taosCloseFile(&fdTo));
 
   return code;
 }
@@ -780,7 +799,11 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
 
   while(pState->state == FILE_SET_MIGRATE_STATE_IN_PROGRESS) {
     struct timespec ts;
-    taosClockGetTime(CLOCK_REALTIME, &ts);
+    if ((code = taosClockGetTime(CLOCK_REALTIME, &ts)) != TSDB_CODE_SUCCESS) {
+      tsdbError("vgId:%d, fid:%d, failed to get current time since %s", vid, fset->fid, tstrerror(code));
+      TAOS_UNUSED(taosThreadMutexUnlock(&rtner->tsdb->mutex));
+      return code;
+    }
     ts.tv_sec += 30; // TODO: make it configurable
     code = taosThreadCondTimedWait(&pmm->stateChanged, &rtner->tsdb->mutex, &ts);
     pState = taosArrayGet(pmm->state.pFileSetStates, fsIdx);
@@ -820,7 +843,12 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
     return code;
   }
   STFileOp op = {.optype = TSDB_FOP_MODIFY, .fid = fset->fid, .of = *fset->farr[TSDB_FTYPE_HEAD]->f, .nf = *pRemoteFset->farr[TSDB_FTYPE_HEAD]->f};
-  TARRAY2_APPEND(&rtner->fopArr, op);
+  code = TARRAY2_APPEND(&rtner->fopArr, op);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbTFileSetClear(&pRemoteFset);
+    tsdbError("vgId:%d, fid:%d, failed to append head file operation since %s", vid, fset->fid, tstrerror(code));
+    return code;
+  }
 
   tsdbInfo("vgId:%d, fid:%d, head file downloaded, begin downloading sma file", vid, fset->fid);
   code = downloadFile(rtner, pRemoteFset->farr[TSDB_FTYPE_SMA]);
@@ -829,7 +857,12 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
     return code;
   }
   op = (STFileOp) {.optype = TSDB_FOP_MODIFY, .fid = fset->fid, .of = *fset->farr[TSDB_FTYPE_SMA]->f, .nf = *pRemoteFset->farr[TSDB_FTYPE_SMA]->f};
-  TARRAY2_APPEND(&rtner->fopArr, op);
+  code = TARRAY2_APPEND(&rtner->fopArr, op);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbTFileSetClear(&pRemoteFset);
+    tsdbError("vgId:%d, fid:%d, failed to append sma file operation since %s", vid, fset->fid, tstrerror(code));
+    return code;
+  }
 
   tsdbInfo("vgId:%d, fid:%d, sma file downloaded, begin downloading tomb file", vid, fset->fid);
   code = downloadFile(rtner, pRemoteFset->farr[TSDB_FTYPE_TOMB]);
@@ -839,14 +872,19 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
   }
   if (fset->farr[TSDB_FTYPE_TOMB] != NULL && pRemoteFset->farr[TSDB_FTYPE_TOMB] != NULL) {
     op = (STFileOp) {.optype = TSDB_FOP_MODIFY, .fid = fset->fid, .of = *fset->farr[TSDB_FTYPE_TOMB]->f, .nf = *pRemoteFset->farr[TSDB_FTYPE_TOMB]->f};
-    TARRAY2_APPEND(&rtner->fopArr, op);
+    code = TARRAY2_APPEND(&rtner->fopArr, op);
   } else if (fset->farr[TSDB_FTYPE_TOMB] != NULL) {
     // the remote tomb file is not found, but local tomb file exists, we should remove it
     op = (STFileOp) {.optype = TSDB_FOP_REMOVE, .fid = fset->fid, .of = *fset->farr[TSDB_FTYPE_TOMB]->f};
-    TARRAY2_APPEND(&rtner->fopArr, op);
+    code = TARRAY2_APPEND(&rtner->fopArr, op);
   } else if (pRemoteFset->farr[TSDB_FTYPE_TOMB] != NULL) {
     op = (STFileOp) {.optype = TSDB_FOP_CREATE, .fid = fset->fid, .nf = *pRemoteFset->farr[TSDB_FTYPE_TOMB]->f};
-    TARRAY2_APPEND(&rtner->fopArr, op);
+    code = TARRAY2_APPEND(&rtner->fopArr, op);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbTFileSetClear(&pRemoteFset);
+    tsdbError("vgId:%d, fid:%d, failed to append tomb file operation since %s", vid, fset->fid, tstrerror(code));
+    return code;
   }
 
   tsdbInfo("vgId:%d, fid:%d, tomb file downloaded, begin downloading stt files", vid, fset->fid);
@@ -855,7 +893,12 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
     STFileObj* fobj;
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
       op = (STFileOp) {.optype = TSDB_FOP_REMOVE, .fid = fset->fid, .of = *fobj->f};
-      TARRAY2_APPEND(&rtner->fopArr, op);
+      code = TARRAY2_APPEND(&rtner->fopArr, op);
+      if (code != TSDB_CODE_SUCCESS) {
+        tsdbTFileSetClear(&pRemoteFset);
+        tsdbError("vgId:%d, fid:%d, failed to append stt file remove operation since %s", vid, fset->fid, tstrerror(code));
+        return code;
+      }
     }
   }
   TARRAY2_FOREACH(pRemoteFset->lvlArr, lvl) {
@@ -867,7 +910,12 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
         return code;
       }
       op = (STFileOp) {.optype = TSDB_FOP_CREATE, .fid = fset->fid, .nf = *fobj->f};
-      TARRAY2_APPEND(&rtner->fopArr, op);
+      code = TARRAY2_APPEND(&rtner->fopArr, op);
+      if (code != TSDB_CODE_SUCCESS) {
+        tsdbTFileSetClear(&pRemoteFset);
+        tsdbError("vgId:%d, fid:%d, failed to append stt file create operation since %s", vid, fset->fid, tstrerror(code));
+        return code;
+      }
     }
   }
 
@@ -878,7 +926,12 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
     return code;
   }
   op = (STFileOp) {.optype = TSDB_FOP_MODIFY, .fid = fset->fid, .of = *fset->farr[TSDB_FTYPE_DATA]->f, .nf = *pRemoteFset->farr[TSDB_FTYPE_DATA]->f};
-  TARRAY2_APPEND(&rtner->fopArr, op);
+  code = TARRAY2_APPEND(&rtner->fopArr, op);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbTFileSetClear(&pRemoteFset);
+    tsdbError("vgId:%d, fid:%d, failed to append data file operation since %s", vid, fset->fid, tstrerror(code));
+    return code;
+  }
 
   tsdbInfo("vgId:%d, fid:%d, data file downloaded", vid, fset->fid);
   tsdbTFileSetClear(&pRemoteFset);

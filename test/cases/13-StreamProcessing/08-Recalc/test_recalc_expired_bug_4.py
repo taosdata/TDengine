@@ -218,7 +218,7 @@ class TestStreamRecalcExpiredTime:
         # Test 1.2: SESSION with EXPIRED_TIME - should not process expired data
         stream = StreamItem(
             id=2,
-            stream="create stream rdb.s_session_expired session(ts,45s) from tdb.trigger_test partition by tbname stream_options((expired_time(1h)) into rdb.r_session_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_session_expired session(ts,45s) from tdb.trigger_test partition by tbname stream_options(expired_time(1h)) into rdb.r_session_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check02,
         )
         self.streams.append(stream)

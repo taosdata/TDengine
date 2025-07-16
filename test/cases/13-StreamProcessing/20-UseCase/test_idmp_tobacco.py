@@ -99,7 +99,7 @@ class TestSceneTobacco:
                 sql = line.strip()
                 if sql:
                     tdLog.debug(f"virtual stable SQL: {sql}")
-                    tdSql.execute(sql)
+                    tdSql.execute(sql, queryTimes=1)
 
         # create virtable tables
         vtb_count = 0
@@ -113,29 +113,7 @@ class TestSceneTobacco:
                 if sql:
                     tdLog.debug(f"virtual table SQL: {sql}")
                     vtb_count += 1
-                    tdSql.execute(sql)
-
-        # self.stable_map = {
-        #     "drum_air_flow_dryer": "vst_滚筒气流烘丝机_608157",
-        #     "cutting_public_point": "vst_切丝公共点_864610",
-        #     "fragrance_machine": "vst_加香机_101420",
-        #     "metering_pipe": "vst_计量管_958712",
-        #     "electronic_belt_scale": "vst_电子皮带秤_527456",
-        #     "belt_conveyor": "vst_带式输送机_703474",
-        #     "drying_public_point": "vst_烘丝公共点_915945",
-        #     "thin_plate_dryer": "vst_薄板烘丝机_884743",
-        #     "flip_box_feeder": "vst_翻箱喂料机构_553580",
-        #     "drum_type_stem_rehumidifier": "vst_滚筒式烟梗回潮机_514261",
-        #     "jet_vacuum_rehumidifier": "vst_喷射式真空回潮机_348599",
-        #     "wind_fiber_feed_public_point": "vst_风力送丝公共点_734506",
-        #     "public_point": "vst_公共点_725959",
-        #     "fragrance_public_point": "vst_加香公共点_667004",
-        #     "leaf_storage_cabinet": "vst_贮叶柜_597655",
-        #     "feeding_machine2": "vst_喂料机_369036",
-        #     "vibrating_conveyor": "vst_振动输送机_701259",
-        #     "feeding_machine": "vst_加料机_130700",
-        #     "chain_conveyor": "vst_链式输送机_452298",
-        # }
+                    tdSql.execute(sql, queryTimes=1)
 
         # check vtables created
         tdSql.checkResultsByFunc(

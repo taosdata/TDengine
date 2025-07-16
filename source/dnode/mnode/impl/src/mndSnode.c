@@ -759,7 +759,7 @@ static void mndSnodeAddLeaderId(SSnodeObj *pObj, int32_t leaderId) {
   mError("snode %d can't add new leaderId %d since already has two leaders:%d, %d", pObj->id, leaderId, pObj->leadersId[0], pObj->leadersId[1]);
 }
 
-int32_t mndDropSnodeImpl(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj, STrans *pTrans) {
+int32_t mndDropSnodeImpl(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj, STrans *pTrans, bool force) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SArray* streamList = NULL;
@@ -833,7 +833,7 @@ int32_t mndDropSnodeImpl(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj, STrans 
   }
 
   mInfo("trans:%d, used to drop snode:%d", pTrans->id, pObj->id);
-  TAOS_CHECK_GOTO(mndSetDropSnodeInfoToTrans(pMnode, pTrans, pObj, false), NULL, _exit);
+  TAOS_CHECK_GOTO(mndSetDropSnodeInfoToTrans(pMnode, pTrans, pObj, force), NULL, _exit);
   
 _exit:
 
@@ -858,7 +858,7 @@ static int32_t mndDropSnode(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj) {
   }
   mndTransSetSerial(pTrans);
 
-  TAOS_CHECK_GOTO(mndDropSnodeImpl(pMnode, pReq, pObj, pTrans), &lino, _exit);
+  TAOS_CHECK_GOTO(mndDropSnodeImpl(pMnode, pReq, pObj, pTrans, false), &lino, _exit);
   
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), &lino, _exit);
 

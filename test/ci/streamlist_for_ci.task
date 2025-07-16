@@ -47,6 +47,10 @@
 
 
 ## 08-ReCalculate
+,,n,.,pytest cases/13-StreamProcessing/08-Recalc/test_recalc_expired_time.py
+,,n,.,pytest cases/13-StreamProcessing/08-Recalc/test_recalc_ignore_disorder.py
+,,n,.,pytest cases/13-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
+
 
 ## 20-UseCase
 ,,n,.,pytest cases/13-StreamProcessing/20-UseCase/test_idmp_meters.py

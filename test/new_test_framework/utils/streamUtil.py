@@ -1139,16 +1139,6 @@ class StreamItem:
         tdLog.info(self.stream)
         tdSql.execute(self.stream)
 
-    def checkResultsBySql(self, res_sql, exp_sql, delay=0.0, retry=60, show=False):
-        tdSql.query(exp_sql)
-        exp_result = tdSql.getResult(exp_sql)
-        tdSql.query(res_sql)
-        res_result = tdSql.getResult(res_sql)
-        self.exp_query = exp_sql
-        self.res_query = res_sql
-        self.awaitRowStability(len(exp_result))
-        tdSql.checkResultsBySql(res_sql, exp_sql, delay, retry, show)
-
     def checkResults(self):
         if self.check_func != None:
             tdLog.info(f"check stream:s{self.id} func")

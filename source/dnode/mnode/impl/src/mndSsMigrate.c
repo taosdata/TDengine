@@ -95,7 +95,7 @@ _exit:
 }
 
 int32_t tDeserializeSSsMigrateObj(void *buf, int32_t bufLen, SSsMigrateObj *pObj) {
-  int32_t  code = 0;
+  int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino;
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
@@ -108,23 +108,36 @@ int32_t tDeserializeSSsMigrateObj(void *buf, int32_t bufLen, SSsMigrateObj *pObj
 
   int32_t numVnode = 0;
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numVnode));
-  if (pObj->vgroups) {
-    taosArrayClear(pObj->vgroups);
-  } else {
-    pObj->vgroups = taosArrayInit(numVnode, sizeof(SVgroupSsMigrateDetail));
+  SArray* vgroups = pObj->vgroups;
+  if (vgroups) {
+    taosArrayClear(vgroups);
+  } else if ((vgroups = taosArrayInit(numVnode, sizeof(SVgroupSsMigrateDetail))) == NULL) {
+    code = terrno;
+    goto _exit;
   }
+
   for (int32_t i = 0; i < numVnode; ++i) {
     SVgroupSsMigrateDetail detail;
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &detail.vgId));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &detail.nodeId));
     TAOS_CHECK_EXIT(tDecodeBool(&decoder, &detail.done));
-    taosArrayPush(pObj->vgroups, &detail);
+    if(taosArrayPush(vgroups, &detail) == NULL) {
+      code = terrno;
+      goto _exit;
+    }
   }
 
   tEndDecode(&decoder);
 
 _exit:
   tDecoderClear(&decoder);
+  if (code == TSDB_CODE_SUCCESS) {
+    pObj->vgroups = vgroups;
+  } else if (pObj->vgroups) {
+    taosArrayClear(pObj->vgroups);
+  } else {
+    taosArrayDestroy(vgroups);
+  }
   return code;
 }
 
@@ -294,9 +307,7 @@ int32_t mndAddSsMigrateToTran(SMnode *pMnode, STrans *pTrans, SSsMigrateObj *pSs
 
   pSsMigrate->vgroups = taosArrayInit(8, sizeof(SVgroupSsMigrateDetail));
   if (pSsMigrate->vgroups == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    terrno = code;
-    TAOS_RETURN(code);
+    TAOS_RETURN(terrno);
   }
 
   while (1) {
@@ -310,12 +321,18 @@ int32_t mndAddSsMigrateToTran(SMnode *pMnode, STrans *pTrans, SSsMigrateObj *pSs
     }
 
     SVgroupSsMigrateDetail detail = {.vgId = pVgroup->vgId, .done = false };
-    taosArrayPush(pSsMigrate->vgroups, &detail);
     sdbRelease(pSdb, pVgroup);
+    if (taosArrayPush(pSsMigrate->vgroups, &detail) == NULL) {
+      code = terrno;
+      taosArrayDestroy(pSsMigrate->vgroups);
+      pSsMigrate->vgroups = NULL;
+      TAOS_RETURN(code);
+    }
   }
 
   SSdbRaw *pVgRaw = mndSsMigrateActionEncode(pSsMigrate);
   taosArrayDestroy(pSsMigrate->vgroups);
+  pSsMigrate->vgroups = NULL;
   if (pVgRaw == NULL) {
     code = TSDB_CODE_SDB_OBJ_NOT_THERE;
     if (terrno != 0) code = terrno;
@@ -611,7 +628,7 @@ void mndSendQuerySsMigrateProgressReq(SMnode *pMnode, SSsMigrateObj *pSsMigrate)
       }
       pHead->contLen = htonl(contLen);
       pHead->vgId = htonl(pDetail->vgId);
-      tSerializeSQuerySsMigrateProgressReq((char *)pHead + sizeof(SMsgHead), reqLen, &req);
+      TAOS_UNUSED(tSerializeSQuerySsMigrateProgressReq((char *)pHead + sizeof(SMsgHead), reqLen, &req));
 
       SRpcMsg rpcMsg = {.msgType = TDMT_VND_QUERY_SSMIGRATE_PROGRESS, .pCont = pHead, .contLen = contLen};
 

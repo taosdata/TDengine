@@ -97,28 +97,6 @@ class TestSceneTobacco:
                     tdLog.debug(f"virtual stable SQL: {sql}")
                     tdSql.execute(sql)
 
-        # self.stable_map = {
-        #     "drum_air_flow_dryer": "vst_滚筒气流烘丝机_608157",
-        #     "cutting_public_point": "vst_切丝公共点_864610",
-        #     "fragrance_machine": "vst_加香机_101420",
-        #     "metering_pipe": "vst_计量管_958712",
-        #     "electronic_belt_scale": "vst_电子皮带秤_527456",
-        #     "belt_conveyor": "vst_带式输送机_703474",
-        #     "drying_public_point": "vst_烘丝公共点_915945",
-        #     "thin_plate_dryer": "vst_薄板烘丝机_884743",
-        #     "flip_box_feeder": "vst_翻箱喂料机构_553580",
-        #     "drum_type_stem_rehumidifier": "vst_滚筒式烟梗回潮机_514261",
-        #     "jet_vacuum_rehumidifier": "vst_喷射式真空回潮机_348599",
-        #     "wind_fiber_feed_public_point": "vst_风力送丝公共点_734506",
-        #     "public_point": "vst_公共点_725959",
-        #     "fragrance_public_point": "vst_加香公共点_667004",
-        #     "leaf_storage_cabinet": "vst_贮叶柜_597655",
-        #     "feeding_machine2": "vst_喂料机_369036",
-        #     "vibrating_conveyor": "vst_振动输送机_701259",
-        #     "feeding_machine": "vst_加料机_130700",
-        #     "chain_conveyor": "vst_链式输送机_452298",
-        # }
-
         # create virtable tables
         vtb_count = 0
         with open(
@@ -172,9 +150,12 @@ class TestSceneTobacco:
         tdLog.info(f"create {stream_count} streams in {self.vdb}")
 
     def insertTriggerData(self, stream_ids):
+        self.insertTriggerDataForStream2()
+
+    def insertTriggerDataForStream2(self):
         # 以当前时间戳为准，取整到 1 min
         ts = (int(time.time()) // 60) * 60 * 1000
-        rows = 35
+        session_window_size = 10 * 60 * 1000  # 10 min
 
         res = tdSql.getResult(
             f"select distinct tbname from `{self.db}`.`vibrating_conveyor`"
@@ -182,14 +163,16 @@ class TestSceneTobacco:
         table_count = len(res)
         for table_idx in res:
             tbname = table_idx[0]
-            for i in range(rows):
-                sql = f"INSERT INTO `{self.db}`.`{tbname}` VALUES ({ts - (rows - i) * 60 * 1000}, {i % 5}.0, {i % 5}.0);"
-                # tdLog.info(f"sql: {sql}")
-                tdSql.execute(sql)
+            sql = f"INSERT INTO `{self.db}`.`{tbname}` VALUES ({ts - session_window_size - 60 * 1000}, 1.0, 1.0);"
+            tdLog.info(f"SQL: {sql}")
+            tdSql.execute(sql, queryTimes=1)
+            sql = f"INSERT INTO `{self.db}`.`{tbname}` VALUES ({ts}, 2.0, 2.0);"
+            tdLog.info(f"SQL: {sql}")
+            tdSql.execute(sql, queryTimes=1)
 
         tdSql.checkResultsByFunc(
             sql=f"SELECT COUNT(*) FROM `{self.db}`.`vibrating_conveyor`;",
-            func=lambda: tdSql.compareData(0, 0, rows * table_count),
+            func=lambda: tdSql.compareData(0, 0, 2 * table_count),
         )
 
         tdLog.info("insert trigger data done")

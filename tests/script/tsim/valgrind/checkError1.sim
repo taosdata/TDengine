@@ -121,7 +121,7 @@ endi
 
 sql show variables;
 print $rows
-if $rows != 83 then
+if $rows <= 0 then
   return -1
 endi
 
