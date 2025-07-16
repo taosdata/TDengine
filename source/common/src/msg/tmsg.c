@@ -4700,9 +4700,9 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
 
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->withArbitrator));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->encryptAlgorithm));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->s3ChunkSize));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->s3KeepLocal));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->s3Compact));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssChunkSize));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssKeepLocal));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ssCompact));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->dnodeListStr));
 
   // auto-compact parameters
@@ -4789,15 +4789,15 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->withArbitrator));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->encryptAlgorithm));
-    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->s3ChunkSize));
-    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->s3KeepLocal));
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->s3Compact));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssChunkSize));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssKeepLocal));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ssCompact));
   } else {
     pReq->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
     pReq->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
-    pReq->s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
-    pReq->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
-    pReq->s3Compact = TSDB_DEFAULT_S3_COMPACT;
+    pReq->ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE;
+    pReq->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
+    pReq->ssCompact = TSDB_DEFAULT_SS_COMPACT;
   }
 
   if (!tDecodeIsEnd(&decoder)) {
@@ -4861,8 +4861,8 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->walRetentionSize));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->keepTimeOffset));
 
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->s3KeepLocal));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->s3Compact));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssKeepLocal));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ssCompact));
 
   ENCODESQL();
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->withArbitrator));
@@ -4926,11 +4926,11 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->keepTimeOffset));
   }
 
-  pReq->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
-  pReq->s3Compact = TSDB_DEFAULT_S3_COMPACT;
+  pReq->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
+  pReq->ssCompact = TSDB_DEFAULT_SS_COMPACT;
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->s3KeepLocal));
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->s3Compact));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssKeepLocal));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ssCompact));
   }
 
   DECODESQL();
@@ -6211,7 +6211,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSS3MigrateDbReq(void *buf, int32_t bufLen, SS3MigrateDbReq *pReq) {
+int32_t tSerializeSSsMigrateDbReq(void *buf, int32_t bufLen, SSsMigrateDbReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -6232,7 +6232,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSS3MigrateDbReq(void *buf, int32_t bufLen, SS3MigrateDbReq *pReq) {
+int32_t tDeserializeSSsMigrateDbReq(void *buf, int32_t bufLen, SSsMigrateDbReq *pReq) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -6247,7 +6247,7 @@ _exit:
   return code;
 }
 
-int32_t tSerializeSVS3MigrateDbReq(void *buf, int32_t bufLen, SVS3MigrateDbReq *pReq) {
+int32_t tSerializeSSsMigrateDbRsp(void *buf, int32_t bufLen, SSsMigrateDbRsp *pRsp) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -6255,7 +6255,8 @@ int32_t tSerializeSVS3MigrateDbReq(void *buf, int32_t bufLen, SVS3MigrateDbReq *
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->timestamp));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->ssMigrateId));
+  TAOS_CHECK_EXIT(tEncodeBool(&encoder, pRsp->bAccepted));
   tEndEncode(&encoder);
 
 _exit:
@@ -6268,20 +6269,220 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSVS3MigrateDbReq(void *buf, int32_t bufLen, SVS3MigrateDbReq *pReq) {
+int32_t tDeserializeSSsMigrateDbRsp(void *buf, int32_t bufLen, SSsMigrateDbRsp *pRsp) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->timestamp));
-
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->ssMigrateId));
+  TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pRsp->bAccepted));
   tEndDecode(&decoder);
 
 _exit:
   tDecoderClear(&decoder);
   return code;
+}
+
+int32_t tSerializeSSsMigrateVgroupReq(void *buf, int32_t bufLen, SSsMigrateVgroupReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssMigrateId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->nodeId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->timestamp));
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSSsMigrateVgroupReq(void *buf, int32_t bufLen, SSsMigrateVgroupReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssMigrateId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->nodeId));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timestamp));
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSSsMigrateVgroupRsp(void *buf, int32_t bufLen, SSsMigrateVgroupRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->ssMigrateId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->vgId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->nodeId));
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSSsMigrateVgroupRsp(void *buf, int32_t bufLen, SSsMigrateVgroupRsp *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->ssMigrateId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->vgId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->nodeId));
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+
+
+int32_t tSerializeSQuerySsMigrateProgressReq(void* buf, int32_t bufLen, SQuerySsMigrateProgressReq* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssMigrateId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->vgId));
+  //TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->timestamp));
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSQuerySsMigrateProgressReq(void* buf, int32_t bufLen, SQuerySsMigrateProgressReq* pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssMigrateId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->vgId));
+  //TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timestamp));
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSVnodeSsMigrateState(void* buf, int32_t bufLen, SVnodeSsMigrateState* pState) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pState->mnodeMigrateId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pState->vnodeMigrateId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pState->dnodeId));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pState->vgId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pState->startTimeSec));
+
+  int32_t numFs = taosArrayGetSize(pState->pFileSetStates);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, numFs));
+  for (int32_t i = 0; i < numFs; ++i) {
+    SFileSetSsMigrateState *fs = taosArrayGet(pState->pFileSetStates, i);
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, fs->fid));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, fs->state));
+  }
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVnodeSsMigrateState(void* buf, int32_t bufLen, SVnodeSsMigrateState* pState) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t numFs = 0;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pState->mnodeMigrateId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pState->vnodeMigrateId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pState->dnodeId));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pState->vgId));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pState->startTimeSec));
+
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numFs));
+  if (numFs > 0) {
+    pState->pFileSetStates = taosArrayInit(numFs, sizeof(SFileSetSsMigrateState));
+    if (pState->pFileSetStates == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
+  for (int32_t i = 0; i < numFs; ++i) {
+    SFileSetSsMigrateState state = {0};
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &state.fid));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &state.state));
+    taosArrayPush(pState->pFileSetStates, &state);
+  }
+
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSVnodeSsMigrateState(SVnodeSsMigrateState* pState) {
+  if (pState->pFileSetStates) {
+    taosArrayDestroy(pState->pFileSetStates);
+    pState->pFileSetStates = NULL;
+  }
 }
 
 int32_t tSerializeSVDropTtlTableReq(void *buf, int32_t bufLen, SVDropTtlTableReq *pReq) {
@@ -6391,9 +6592,9 @@ int32_t tSerializeSDbCfgRspImpl(SEncoder *encoder, const SDbCfgRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeI32(encoder, pRsp->keepTimeOffset));
   TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->withArbitrator));
   TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->encryptAlgorithm));
-  TAOS_CHECK_RETURN(tEncodeI32(encoder, pRsp->s3ChunkSize));
-  TAOS_CHECK_RETURN(tEncodeI32(encoder, pRsp->s3KeepLocal));
-  TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->s3Compact));
+  TAOS_CHECK_RETURN(tEncodeI32(encoder, pRsp->ssChunkSize));
+  TAOS_CHECK_RETURN(tEncodeI32(encoder, pRsp->ssKeepLocal));
+  TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->ssCompact));
   TAOS_CHECK_RETURN(tEncodeI8(encoder, pRsp->hashMethod));
   TAOS_CHECK_RETURN(tEncodeI32v(encoder, pRsp->compactInterval));
   TAOS_CHECK_RETURN(tEncodeI32v(encoder, pRsp->compactStartTime));
@@ -6483,15 +6684,15 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
   if (!tDecodeIsEnd(decoder)) {
     TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->withArbitrator));
     TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->encryptAlgorithm));
-    TAOS_CHECK_RETURN(tDecodeI32(decoder, &pRsp->s3ChunkSize));
-    TAOS_CHECK_RETURN(tDecodeI32(decoder, &pRsp->s3KeepLocal));
-    TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->s3Compact));
+    TAOS_CHECK_RETURN(tDecodeI32(decoder, &pRsp->ssChunkSize));
+    TAOS_CHECK_RETURN(tDecodeI32(decoder, &pRsp->ssKeepLocal));
+    TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->ssCompact));
   } else {
     pRsp->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
     pRsp->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
-    pRsp->s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
-    pRsp->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
-    pRsp->s3Compact = TSDB_DEFAULT_S3_COMPACT;
+    pRsp->ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE;
+    pRsp->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
+    pRsp->ssCompact = TSDB_DEFAULT_SS_COMPACT;
   }
   if (!tDecodeIsEnd(decoder)) {
     TAOS_CHECK_RETURN(tDecodeI8(decoder, &pRsp->hashMethod));
@@ -7870,9 +8071,9 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->changeVersion));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->keepTimeOffset));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->encryptAlgorithm));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->s3ChunkSize));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->s3KeepLocal));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->s3Compact));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssChunkSize));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssKeepLocal));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ssCompact));
 
   tEndEncode(&encoder);
 
@@ -7973,14 +8174,14 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->keepTimeOffset));
   }
   pReq->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
-  pReq->s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
-  pReq->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
-  pReq->s3Compact = TSDB_DEFAULT_S3_COMPACT;
+  pReq->ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE;
+  pReq->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
+  pReq->ssCompact = TSDB_DEFAULT_SS_COMPACT;
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->encryptAlgorithm));
-    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->s3ChunkSize));
-    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->s3KeepLocal));
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->s3Compact));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssChunkSize));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssKeepLocal));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ssCompact));
   }
 
   tEndDecode(&decoder);
@@ -8332,8 +8533,8 @@ int32_t tSerializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeCon
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->walRetentionSize));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->keepTimeOffset));
 
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->s3KeepLocal));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->s3Compact));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssKeepLocal));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ssCompact));
 
   tEndEncode(&encoder);
 
@@ -8393,11 +8594,11 @@ int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeC
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->keepTimeOffset));
   }
 
-  pReq->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
-  pReq->s3Compact = TSDB_DEFAULT_S3_COMPACT;
+  pReq->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
+  pReq->ssCompact = TSDB_DEFAULT_SS_COMPACT;
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->s3KeepLocal) < 0);
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->s3Compact) < 0);
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssKeepLocal) < 0);
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ssCompact) < 0);
   }
 
   tEndDecode(&decoder);
@@ -15016,9 +15217,9 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->minRows));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->maxRows));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->tsdbPageSize));
-      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->s3ChunkSize));
-      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->s3KeepLocal));
-      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->s3Compact));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->ssChunkSize));
+      TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->ssKeepLocal));
+      TAOS_CHECK_EXIT(tEncodeI8(&encoder, pVgInfo->ssCompact));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->walFsyncPeriod));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->walRetentionPeriod));
       TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pVgInfo->walRollPeriod));
@@ -15104,9 +15305,9 @@ int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo, bool extrac
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->minRows));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->maxRows));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->tsdbPageSize));
-          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->s3ChunkSize));
-          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->s3KeepLocal));
-          TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->s3Compact));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->ssChunkSize));
+          TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->ssKeepLocal));
+          TAOS_CHECK_EXIT(tDecodeI8(decoder, &pVgInfo->ssCompact));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->walFsyncPeriod));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->walRetentionPeriod));
           TAOS_CHECK_EXIT(tDecodeI32v(decoder, &pVgInfo->walRollPeriod));

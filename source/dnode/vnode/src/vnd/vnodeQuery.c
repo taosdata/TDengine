@@ -925,7 +925,7 @@ static int32_t vnodeGetCompStorage(SVnode *pVnode, int64_t *output) {
     SDbSizeStatisInfo info = {0};
     if (0 == (code = vnodeGetDBSize(pVnode, &info))) {
       int64_t compSize =
-          info.l1Size + info.l2Size + info.l3Size + info.cacheSize + info.walSize + info.metaSize + +info.s3Size;
+          info.l1Size + info.l2Size + info.l3Size + info.cacheSize + info.walSize + info.metaSize + +info.ssSize;
       if (compSize >= 0) {
         pVnode->config.vndStats.compStorage = compSize;
       } else {
