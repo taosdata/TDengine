@@ -2642,5 +2642,9 @@ class TDSql:
 
         return ts
 
+    # flush db
+    def flushDb(self, dbName):
+        self.execute(f"flush database {dbName}", show=True)
+
 # global
 tdSql = TDSql()
