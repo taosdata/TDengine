@@ -36,7 +36,7 @@ class TestStreamNotifyTrigger:
         # streams.append(self.Basic2())  # failed
         # streams.append(self.Basic3())    # failed
         # streams.append(self.Basic4())    # failed
-        streams.append(self.Basic5())    #
+        streams.append(self.Basic5())    # failed
 
         tdStream.checkAll(streams)
 
