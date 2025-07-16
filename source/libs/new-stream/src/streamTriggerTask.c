@@ -5261,7 +5261,7 @@ static int32_t stRealtimeGroupDoCountCheck(SSTriggerRealtimeGroup *pGroup) {
           TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = lastTs;
           TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += skipped;
         }
-        if (skipped == nrowsNextWstart) {
+        if (nrowsCurWin + skipped == nrowsNextWstart) {
           code = stRealtimeGroupOpenWindow(pGroup, lastTs, NULL, false, true);
           QUERY_CHECK_CODE(code, lino, _end);
         }
