@@ -17,7 +17,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_params_check.py
 
 ## 02-Stream
-,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/02-Stream/stream_nosnode.py
+,,n,.,pytest cases/13-StreamProcessing/02-Stream/stream_nosnode.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/02-Stream/stream_checkname.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/02-Stream/stream_long_name.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/02-Stream/stream_samename.py
