@@ -5,7 +5,6 @@ on:
     branches:
       - '3.0'
       - 'main'
-      - 'new_testcases'
     paths-ignore:
       - 'packaging/**'
       - 'docs/**'
@@ -25,6 +24,6 @@ concurrency:
 
 jobs:
   test-new-cases:
-    uses: taosdata/.github/.github/workflows/new-framework-test.yml@new_testcases
+    uses: taosdata/.github/.github/workflows/new-framework-test.yml@main
     with:
       tdinternal: false
