@@ -69,6 +69,7 @@ class TestWalLevelSkip:
 
         tdLog.info(" alter wal level from 0 to 1")
         self.alterWalLevel(1)
+        time.sleep(1)
         self.insertData()
         tdDnodes.stop(1)
         tdDnodes.start(1)
@@ -84,6 +85,7 @@ class TestWalLevelSkip:
 
         tdLog.info(" alter wal level from 0 to 2")
         self.alterWalLevel(2)
+        time.sleep(1)
         self.insertData()
         tdDnodes.forcestop(1)
         tdDnodes.start(1)
@@ -101,6 +103,7 @@ class TestWalLevelSkip:
 
         tdLog.info(" alter wal level from 0 to 1")
         self.alterWalLevel(1)
+        time.sleep(1)
         tdDnodes.forcestop(1)
         tdDnodes.start(1)
         time.sleep(1)
@@ -115,6 +118,7 @@ class TestWalLevelSkip:
 
         tdLog.info(" alter wal level from 0 to 2")
         self.alterWalLevel(2)
+        time.sleep(1)
         tdDnodes.forcestop(1)
         tdDnodes.start(1)
         time.sleep(1)
