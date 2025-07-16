@@ -101,9 +101,9 @@ class TestStreamOptionsTrigger:
             )
             
             # %%trows must not use with WINDOW_OPEN in event_type
-            # tdSql.error(
-            #     f"create stream sn10 state_window(cint) from vct1 stream_options(event_type(WINDOW_OPEN|WINDOW_CLOSE)) into res_ct1 (lastts, firstts, cnt_v, sum_v, avg_v) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
-            # ) 
+            tdSql.error(
+                f"create stream sn10 state_window(cint) from vct1 stream_options(event_type(WINDOW_OPEN|WINDOW_CLOSE)) into res_ct1 (lastts, firstts, cnt_v, sum_v, avg_v) as select last_row(_c0), first(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+            ) 
             
             tdSql.execute(
                 f"create stream sn11_g state_window(cint) from {self.vstbName} partition by tbname, tint stream_options(watermark(10s) | expired_time(500s)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
