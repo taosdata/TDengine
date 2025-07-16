@@ -12,11 +12,11 @@ export const $IS_OEM = !$IS_TSDBLITE && import.meta.env.VITE_APP_CUS_NAME && !is
 export const OEM_NAME =
   import.meta.env.VITE_APP_CUS_NAME && !is_tdengine
     ? import.meta.env.VITE_APP_CUS_NAME
-    : "TDengine";
+    : "TDengine TSDB";
 export const GRAFANA_GDS =
   import.meta.env.VITE_APP_CUS_NAME && !is_tdengine
     ? ""
-    : "TDengine";
+    : "TDengine TSDB";
 
 /**
  * 是否火狐浏览器

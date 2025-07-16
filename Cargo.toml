@@ -21,7 +21,7 @@ exclude = ["crates/transform/parsers/hebeipower"]
 [workspace.dependencies]
 chrono = { version = "0.4.37" }
 chrono-tz = { version = "0.10.1" }
-shadow-rs = { version = "0.38.1" }
+shadow-rs = { version = "0.38.1", default-features = false }
 itertools = { version = "0.14.0" }
 flume = { version = "0.11" }
 urlencoding = { version = "2" }
@@ -258,7 +258,7 @@ opendal = { workspace = true }
 urlencoding = { workspace = true }
 
 [features]
-default = ["native-tls", "mimalloc"]
+default = ["rustls", "mimalloc"]
 optin = []
 jemallocator = [
   "tikv-jemallocator",

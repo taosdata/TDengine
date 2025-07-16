@@ -7,7 +7,7 @@ let cmd = process.argv[2] || "build";
 let mode = process.argv[3] || "prd";
 
 let cus_prompt = process.env.CUS_PROMPT || "taos";
-let cus_name = process.env.CUS_NAME || "TDengine";
+let cus_name = process.env.CUS_NAME || "TDengine TSDB";
 let cus_email = process.env.CUS_EMAIL || "support@taosdata.com";
 
 let data_path = path.join("src", "views", "0_login", "data.json");
@@ -39,6 +39,6 @@ if (cus_name.includes("TDengine") || cus_prompt === "taos") {
 }
 
 process.env.VITE_APP_CUS_CONFIG = cus_config_data;
-console.log('output:',"vite " + cmd + " --mode " + mode);
+console.log('output:', "vite " + cmd + " --mode " + mode);
 
 child_process.execSync("vite " + cmd + " --mode " + mode, { stdio: "inherit", shell: true })

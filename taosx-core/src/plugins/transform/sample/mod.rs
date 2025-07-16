@@ -3,7 +3,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::Context;
-use arrow_compute_ext::RecordBatchExt;
 use arrow_schema::{DataType, Field};
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
@@ -101,17 +100,15 @@ impl DsSampleIn {
 
         let json_batches = to_json_valid_batches(&[batch]);
 
-        let json: Vec<_> = json_batches
-            .iter()
-            .map(|batch| batch.to_json_rows::<serde_json::Value>())
-            .flatten_ok()
-            .try_collect()?;
+        let Some(records) = json_batches.first() else {
+            return Ok(vec![]);
+        };
 
         let stables = self
             .parser
             .s_model
             .as_ref()
-            .map(|s| s.apply(&json, &self.parser.global))
+            .map(|s| s.apply(records, &self.parser.global))
             .transpose()?
             .context("stable model not found")?;
 

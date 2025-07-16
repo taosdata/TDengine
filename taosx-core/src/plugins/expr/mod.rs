@@ -127,9 +127,7 @@ impl Expr {
     }
 
     fn eval_inner(&self, records: &RecordBatch) -> Result<Vec<Dynamic>, EvalError> {
-        let (rows, cols) = (records.num_rows(), records.num_columns());
-        let schema = records.schema();
-        let columns = records.columns();
+        let rows = records.num_rows();
         if rows == 0 {
             return Ok(vec![]);
         }
@@ -138,134 +136,139 @@ impl Expr {
             return Ok(vec![Dynamic::UNIT; rows]);
         }
 
-        // fn parse_variables_from_expr(expr: &rhai::AST) -> Vec<String> {
-        //     let mut variables = vec![];
-        //     expr.walk();
-        //     variables
-        // }
-
         let mut values = Vec::with_capacity(rows);
         for rix in 0..rows {
-            let mut scope = Scope::new();
-            #[allow(clippy::needless_range_loop)]
-            for cix in 0..cols {
-                let field = schema.field(cix);
-                let name = field.name();
-                let column = &columns[cix];
-
-                if column.is_null(rix) {
-                    scope.set_or_push(name, Dynamic::UNIT);
-                    continue;
-                }
-
-                macro_rules! set_scope {
-                    ($t:ident) => {
-                        paste::paste! {
-                            let value = column
-                                .as_any()
-                                .downcast_ref::<arrow::array::[<$t Array>]>()
-                                .unwrap()
-                                .value(rix);
-                            scope.set_or_push(name, value);
-                        }
-                    };
-                    (Float16, $to:ty) => {
-                        paste::paste! {
-                            let value = column
-                                .as_any()
-                                .downcast_ref::<arrow::array::Float16Array>()
-                                .unwrap()
-                                .value(rix);
-                            scope.set_or_push(name, value.to_f64());
-                        }
-                    };
-                    ($t:ident, $to:ty) => {
-                        paste::paste! {
-                            let value = column
-                                .as_any()
-                                .downcast_ref::<arrow::array::[<$t Array>]>()
-                                .unwrap()
-                                .value(rix);
-                            scope.set_or_push(name, value as $to);
-                        }
-                    };
-                }
-
-                match field.data_type() {
-                    DataType::Boolean => {
-                        set_scope!(Boolean);
-                    }
-                    DataType::Int8 => {
-                        set_scope!(Int8, i64);
-                    }
-                    DataType::Int16 => {
-                        set_scope!(Int16, i64);
-                    }
-                    DataType::Int32 => {
-                        set_scope!(Int32, i64);
-                    }
-                    DataType::Int64 => {
-                        set_scope!(Int64, i64);
-                    }
-                    DataType::UInt8 => {
-                        set_scope!(UInt8, i64);
-                    }
-                    DataType::UInt16 => {
-                        set_scope!(UInt16, i64);
-                    }
-                    DataType::UInt32 => {
-                        set_scope!(UInt32, i64);
-                    }
-                    DataType::UInt64 => {
-                        set_scope!(UInt64, u64);
-                    }
-                    DataType::Float16 => {
-                        set_scope!(Float16, f64);
-                    }
-                    DataType::Float32 => {
-                        set_scope!(Float32, f64);
-                    }
-                    DataType::Float64 => {
-                        set_scope!(Float64, f64);
-                    }
-                    DataType::Binary => {
-                        let value = column
-                            .as_any()
-                            .downcast_ref::<arrow::array::BinaryArray>()
-                            .unwrap()
-                            .value(rix);
-                        scope.set_or_push(name, String::from_utf8_lossy(value).to_string());
-                    }
-                    DataType::Utf8 => {
-                        let value = column
-                            .as_any()
-                            .downcast_ref::<arrow::array::StringArray>()
-                            .unwrap()
-                            .value(rix);
-                        scope.set_value(name, value.to_string());
-                    }
-                    dt => {
-                        let _ = dt; // TODO: support more types
-
-                        // return Err(EvalError::ScopeTypeNotSupported(dt.clone()));
-                    }
-                }
-            }
-            let res: rhai::Dynamic = match self.engine.eval_ast_with_scope(&mut scope, &self.ast) {
-                Ok(v) => v,
-                Err(e) => {
-                    println!("Error: {:?}", e);
-                    if self.null_if_error {
-                        rhai::Dynamic::UNIT
-                    } else {
-                        return Err(EvalError::RhaiError(self.expr.clone(), e));
-                    }
-                }
-            };
+            let res = self.eval_batch_row(records, rix)?;
             values.push(res);
         }
         Ok(values)
     }
+
+    pub fn eval_batch_row(
+        &self,
+        records: &RecordBatch,
+        row: usize,
+    ) -> Result<rhai::Dynamic, EvalError> {
+        let columns = records.columns();
+        let schema = records.schema();
+        let mut scope = Scope::new();
+        for (cix, column) in columns.iter().enumerate() {
+            let field = schema.field(cix);
+            let name = field.name();
+
+            if column.is_null(row) {
+                scope.set_or_push(name, Dynamic::UNIT);
+                continue;
+            }
+
+            macro_rules! set_scope {
+                ($t:ident) => {
+                    paste::paste! {
+                        let value = column
+                            .as_any()
+                            .downcast_ref::<arrow::array::[<$t Array>]>()
+                            .unwrap()
+                            .value(row);
+                        scope.set_or_push(name, value);
+                    }
+                };
+                (Float16, $to:ty) => {
+                    paste::paste! {
+                        let value = column
+                            .as_any()
+                            .downcast_ref::<arrow::array::Float16Array>()
+                            .unwrap()
+                            .value(row);
+                        scope.set_or_push(name, value.to_f64());
+                    }
+                };
+                ($t:ident, $to:ty) => {
+                    paste::paste! {
+                        let value = column
+                            .as_any()
+                            .downcast_ref::<arrow::array::[<$t Array>]>()
+                            .unwrap()
+                            .value(row);
+                        scope.set_or_push(name, value as $to);
+                    }
+                };
+            }
+
+            match field.data_type() {
+                DataType::Boolean => {
+                    set_scope!(Boolean);
+                }
+                DataType::Int8 => {
+                    set_scope!(Int8, i64);
+                }
+                DataType::Int16 => {
+                    set_scope!(Int16, i64);
+                }
+                DataType::Int32 => {
+                    set_scope!(Int32, i64);
+                }
+                DataType::Int64 => {
+                    set_scope!(Int64, i64);
+                }
+                DataType::UInt8 => {
+                    set_scope!(UInt8, i64);
+                }
+                DataType::UInt16 => {
+                    set_scope!(UInt16, i64);
+                }
+                DataType::UInt32 => {
+                    set_scope!(UInt32, i64);
+                }
+                DataType::UInt64 => {
+                    set_scope!(UInt64, u64);
+                }
+                DataType::Float16 => {
+                    set_scope!(Float16, f64);
+                }
+                DataType::Float32 => {
+                    set_scope!(Float32, f64);
+                }
+                DataType::Float64 => {
+                    set_scope!(Float64, f64);
+                }
+                DataType::Binary => {
+                    let value = column
+                        .as_any()
+                        .downcast_ref::<arrow::array::BinaryArray>()
+                        .unwrap()
+                        .value(row);
+                    scope.set_or_push(name, String::from_utf8_lossy(value).to_string());
+                }
+                DataType::Utf8 => {
+                    let value = column
+                        .as_any()
+                        .downcast_ref::<arrow::array::StringArray>()
+                        .unwrap()
+                        .value(row);
+                    scope.set_value(name, value.to_string());
+                }
+                dt => {
+                    let _ = dt; // TODO: support more types
+
+                    // return Err(EvalError::ScopeTypeNotSupported(dt.clone()));
+                }
+            }
+        }
+        match self
+            .engine
+            .eval_ast_with_scope::<rhai::Dynamic>(&mut scope, &self.ast)
+        {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                if self.null_if_error {
+                    Ok(rhai::Dynamic::UNIT)
+                } else {
+                    Err(EvalError::RhaiError(self.expr.clone(), e))
+                }
+            }
+        }
+    }
+
     pub fn eval_as(&self, records: &RecordBatch, r#as: DataType) -> Result<ArrayRef, EvalError> {
         let rows = records.num_rows();
         if rows == 0 {

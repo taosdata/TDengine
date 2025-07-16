@@ -487,3 +487,9 @@ pub enum HandlingResult {
     ModifyAndArchive(Vec<String>),
     Retry,
 }
+
+#[non_exhaustive]
+pub enum ProcessOnAbnormalEnum<'a> {
+    DatabaseConnectionError(&'a HandlingConnectionError),
+    DatabaseNotExist(&'a HandlingStrategy),
+}

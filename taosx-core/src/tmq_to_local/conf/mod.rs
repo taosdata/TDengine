@@ -173,8 +173,8 @@ impl BackupConfig {
 
         let version = semver::Version::parse(&self.server_version.split('.').take(3).join("."))
             .context(format!("invalid server version: {}", &self.server_version))?;
-        if version >= VERSION_3_3_6 {
-            dsn.set("msg.consume.rawdata", "1");
+        if version < VERSION_3_3_6 && dsn.get("msg.consume.rawdata").is_some() {
+            bail!("msg.consume.rawdata is not supported in server version < 3.3.6");
         }
 
         Ok(dsn)

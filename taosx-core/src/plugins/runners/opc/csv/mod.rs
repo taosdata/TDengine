@@ -533,7 +533,7 @@ impl CsvParser {
         let tbname = if value.contains("{") {
             // replace {tag_name} or {TagName} in tbname
             let opc_type = header.get_opc_type();
-            generate_tbname_from_pattern(opc_type.to_string().as_str(), value, &point_id)
+            generate_tbname_from_pattern(opc_type.as_static_str(), value, &point_id)
         } else {
             value.to_string()
         };

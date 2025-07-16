@@ -3,14 +3,14 @@ name: InfluxDB
 on:
   pull_request:
     paths:
-      - '.github/workflows/influxdb.yaml'
-      - 'plugins/influxdb/**'
+      - ".github/workflows/influxdb.yaml"
+      - "plugins/influxdb/**"
   workflow_dispatch:
 
 jobs:
   build:
     name: Build
-    runs-on: [ self-hosted, linux, x64, app2 ]
+    runs-on: [self-hosted, linux, x64, app2]
     steps:
       - uses: actions/checkout@v3
         with:
