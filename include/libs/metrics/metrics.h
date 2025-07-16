@@ -82,7 +82,7 @@ int32_t cleanupExpiredMetrics(SHashObj *pValidVgroups);
   do {                                                                                         \
     if ((tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && tsEnableMetrics) && \
         ((priority) == METRIC_LEVEL_HIGH || tsMetricsLevel == 1)) {                             \
-      atomic_add_fetch_64(&(field), (value));                                                  \
+      (void)atomic_add_fetch_64(&(field), (value));                                                  \
     }                                                                                          \
   } while (0)
 
@@ -95,7 +95,7 @@ int32_t cleanupExpiredMetrics(SHashObj *pValidVgroups);
       int64_t start_time = taosGetTimestampMs();                                               \
       code_block;                                                                              \
       int64_t end_time = taosGetTimestampMs();                                                 \
-      atomic_add_fetch_64(&(field), end_time - start_time);                                    \
+      (void)atomic_add_fetch_64(&(field), end_time - start_time);                                    \
     } else {                                                                                   \
       code_block;                                                                              \
     }                                                                                          \

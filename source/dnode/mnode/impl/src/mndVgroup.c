@@ -3853,7 +3853,6 @@ static void *mndBuildSsMigrateVgroupReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVg
 
   void *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
