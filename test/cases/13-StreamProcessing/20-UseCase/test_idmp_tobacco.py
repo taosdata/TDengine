@@ -21,7 +21,7 @@ class TestIdmpTobacco:
 
 
 class TestIdmpTobaccoImpl:
-    def __init__(self):
+    def init(self):
         self.stream_ids = []
 
     def run(self):
