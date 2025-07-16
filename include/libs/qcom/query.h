@@ -343,6 +343,7 @@ typedef struct SMsgSendInfo {
   STargetInfo          target;  // for update epset
   __freeFunc           paramFreeFp;
   void*                param;
+  int8_t               streamAHandle;
   uint64_t             requestId;
   uint64_t             requestObjRefId;
   int32_t              msgType;
