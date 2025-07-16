@@ -6,10 +6,10 @@
 ,,n,.,pytest cases/13-StreamProcessing/01-Snode/snode_mgmt_zlv.py -N 6 --replica 3
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_mgmt.py -N 8
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_replicas.py -N 8
-,,n,.,pytest pytest cases/13-StreamProcessing/01-Snode/snode_privileges.py
+,,n,.,pytest  cases/13-StreamProcessing/01-Snode/snode_privileges.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_privileges_monitor_table.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_privileges_recalc.py
-,,n,.,pytest pytest cases/13-StreamProcessing/01-Snode/snode_privileges_twodb.py
+,,n,.,pytest cases/13-StreamProcessing/01-Snode/snode_privileges_twodb.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_params_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_params_alter_normaluser.py
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/01-Snode/snode_params_check_default.py
