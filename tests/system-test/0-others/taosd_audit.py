@@ -150,12 +150,12 @@ class TDTestCase:
     def createTbThread(self, sql, newTdSql):
         tdLog.info("create tb")
         sql = "create table db3.tb using db3.stb tags (1)"
-        tdSql.query(sql)
+        tdSql.execute(sql, queryTimes = 1)
 
         tdLog.info("delete tb")
         sql = "delete from db3.tb"
-        tdSql.query(sql)
-
+        tdSql.execute(sql, queryTimes = 1)
+        
         global threadisExit
         while True:
                 

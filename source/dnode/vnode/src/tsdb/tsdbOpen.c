@@ -19,6 +19,8 @@
 
 extern int32_t tsdbOpenCompMonitor(STsdb *tsdb);
 extern void    tsdbCloseCompMonitor(STsdb *tsdb);
+extern int32_t tsdbOpenSsMigrateMonitor(STsdb *tsdb);
+extern void    tsdbCloseSsMigrateMonitor(STsdb *tsdb);
 
 void tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
   STsdbKeepCfg *pKeepCfg = &pTsdb->keepCfg;
@@ -54,7 +56,8 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
   }
 
   pTsdb->path = (char *)&pTsdb[1];
-  snprintf(pTsdb->path, TD_PATH_MAX, "%s%s%s", pVnode->path, TD_DIRSEP, dir);
+  (void)snprintf(pTsdb->path, TD_PATH_MAX, "%s%s%s", pVnode->path, TD_DIRSEP, dir);
+  (void)snprintf(pTsdb->name, sizeof(pTsdb->name), "%s", dir);
   // taosRealPath(pTsdb->path, NULL, slen);
   pTsdb->pVnode = pVnode;
   (void)taosThreadMutexInit(&pTsdb->mutex, NULL);
@@ -65,12 +68,14 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
   }
 
   // create dir
-  if (pVnode->pTfs) {
-    code = tfsMkdir(pVnode->pTfs, pTsdb->path);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  } else {
-    code = taosMkDir(pTsdb->path);
-    TSDB_CHECK_CODE(code, lino, _exit);
+  if (!pVnode->mounted) {
+    if (pVnode->pTfs) {
+      code = tfsMkdir(pVnode->pTfs, pTsdb->path);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } else {
+      code = taosMkDir(pTsdb->path);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
   }
 
   // open tsdb
@@ -88,9 +93,12 @@ int32_t tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *
   TAOS_CHECK_GOTO(tsdbOpenCompMonitor(pTsdb), &lino, _exit);
 #endif
 
+  TAOS_CHECK_GOTO(tsdbOpenSsMigrateMonitor(pTsdb), &lino, _exit);
+
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s failed at %s:%d since %s, path:%s", TD_VID(pVnode), __func__, __FILE__, lino, tstrerror(code),
+              pTsdb->path);
     tsdbCloseFS(&pTsdb->pFS);
     (void)taosThreadMutexDestroy(&pTsdb->mutex);
     taosMemoryFree(pTsdb);
@@ -119,6 +127,7 @@ void tsdbClose(STsdb **pTsdb) {
 #ifdef TD_ENTERPRISE
     tsdbCloseCompMonitor(*pTsdb);
 #endif
+    tsdbCloseSsMigrateMonitor(*pTsdb);
     (void)taosThreadMutexDestroy(&(*pTsdb)->mutex);
     taosMemoryFreeClear(*pTsdb);
   }

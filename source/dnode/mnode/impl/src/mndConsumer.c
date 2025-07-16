@@ -177,7 +177,7 @@ static int32_t checkPrivilege(SMnode *pMnode, SMqConsumerObj *pConsumer, SMqHbRs
     char        *topic = taosArrayGetP(pConsumer->currentTopics, i);
     SMqTopicObj *pTopic = NULL;
     code = mndAcquireTopic(pMnode, topic, &pTopic);
-    if (code != TDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_SUCCESS) {
       continue;
     }
     STopicPrivilege *data = taosArrayReserve(rsp->topicPrivileges, 1);
@@ -314,7 +314,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
     // 2.1 fetch topic schema
     SMqTopicObj *pTopic = NULL;
     code = mndAcquireTopic(pMnode, topic, &pTopic);
-    if (code != TDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_SUCCESS) {
       taosRUnLockLatch(&pSub->lock);
       mndReleaseSubscribe(pMnode, pSub);
       continue;

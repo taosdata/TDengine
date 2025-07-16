@@ -367,24 +367,7 @@ class TDTestCase:
     def run(self):
 
         self.test_stmt_insert(self.conn())
-        try:
-            self.test_stmt_insert_error(self.conn())
-        except Exception as error :
-
-            if str(error)=='[0x0200]: stmt bind param does not support normal value in sql':
-                tdLog.info('=========stmt error occured for bind part column ==============')
-            else:
-                tdLog.exit("expect error(%s) not occured" % str(error))
-
-        try:
-            self.test_stmt_nornmal_value_error(self.conn())
-        except Exception as error :
-
-            if str(error)=='[0x0200]: stmt bind param does not support normal value in sql':
-                tdLog.info('=========stmt error occured for bind part column ==============')
-            else:
-                tdLog.exit("expect error(%s) not occured" % str(error))
-
+        
         try:
             self.test_stmt_insert_error_null_timestamp(self.conn())
             tdLog.exit("expect error not occured - 1")

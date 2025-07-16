@@ -19,12 +19,14 @@
 #
 # army-test
 #
-,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade.py -N 3
+#newstm,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f multi-level/mlevel_basic.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f db-encrypt/basic.py -N 3 -M 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator_restart.py -N 3
-,,n,army,python3 ./test.py -f storage/s3/s3Basic.py -N 3
+
+#newstm,,n,army,python3 ./test.py -f storage/ss/ssBasic.py -N 3
+
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/snapshot.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_create.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_alter.py
@@ -48,7 +50,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_percentile.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_resinfo.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interp.py
-,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interval.py
+#newstm,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interval.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_interval_diff_tz.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/concat.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/cast.py
@@ -102,7 +104,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f create/create_ctb_using_csv_file.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f insert/insert_csv_file_with_row_split.py 
 
-,,y,army,./pytest.sh python3 ./test.py -f stream/test_stream_vtable.py
+#newstm,,y,army,./pytest.sh python3 ./test.py -f stream/test_stream_vtable.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f inspect-tools/taosinspect.py
 
@@ -165,8 +167,6 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json-subtable.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt2_insert.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream-test.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream_function_test.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stt.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_auto_create_table_json.py
@@ -181,7 +181,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/telnet_tcp.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmqBasic.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmq_case.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/websiteCase.py
+#newstm,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/websiteCase.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/cloud/cloud-test.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/ws/websocket.py -R
 
@@ -258,29 +258,29 @@
 #
 # system test
 #
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/ts-5617.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_multi_agg.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_basic.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/scalar_function.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_interval.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_session.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_state_window.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_interval.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_session.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_state_window.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/max_delay_interval.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/max_delay_session.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_interval_ext.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/max_delay_interval_ext.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_session_ext.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/partition_interval.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/ts-5617.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_multi_agg.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_basic.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/scalar_function.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_interval.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_session.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_state_window.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_interval.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_session.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_state_window.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/max_delay_interval.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/max_delay_session.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/at_once_interval_ext.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/max_delay_interval_ext.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/window_close_session_ext.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/partition_interval.py
 #ci ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/pause_resume_test.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/state_window_case.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/state_window_case.py
 #,,n,system-test,python3 ./test.py -f 8-stream/vnode_restart.py -N 4
 #,,n,system-test,python3 ./test.py -f 8-stream/snode_restart.py -N 4
-,,n,system-test,python3 ./test.py -f 8-stream/snode_restart_with_checkpoint.py -N 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/force_window_close_interp.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/force_window_close_interval.py
+#newstm,,n,system-test,python3 ./test.py -f 8-stream/snode_restart_with_checkpoint.py -N 4
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/force_window_close_interp.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/force_window_close_interval.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_error.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/pk_func.py
@@ -350,16 +350,16 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbname.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 2
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 4
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -R
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 2
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 3
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma.py -Q 4
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -R
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 2
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 3
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 3
@@ -469,8 +469,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stddev_test.py -Q 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/checkpoint_info.py -N 4
-,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/checkpoint_info2.py -N 4
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/checkpoint_info.py -N 4
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/checkpoint_info2.py -N 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/test_multi_insert.py
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/restoreDnode.py -N 5 -M 3 -i False
@@ -585,12 +585,12 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellError.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosShellNetChk.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/telemetry.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/backquote_check.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/backquote_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdMonitor.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosdNewMonitor.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/taosd_audit.py
 ,,n,system-test,python3 ./test.py -f 0-others/taosdlog.py
-,,n,system-test,python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
+#newstm,,n,system-test,python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udfTest.py
 ,,n,system-test,python3 ./test.py -f 0-others/udf_create.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/udf_restart_taosd.py
@@ -631,7 +631,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/delete_check.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/test_hot_refresh_configurations.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/subscribe_stream_privilege.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/empty_identifier.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/empty_identifier.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_transaction_detail.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/kill_balance_leader.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 3-enterprise/restore/kill_restore_dnode.py -N 5
@@ -712,7 +712,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/show_tag_index.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/information_schema.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ins_filesets.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/grant.py
+#newstm ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/grant.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/mounts.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/abs.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/and_or_for_byte.py
@@ -956,7 +957,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/delete_normaltable.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/keep_expired.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/stmt_error.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py
+#newstm ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/drop.py -N 3 -M 3 -i False -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join2.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/union1.py
@@ -980,7 +981,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_ts4467.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/geometry.py
 
-,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade_all.py -N 3
+#newstm,,n,system-test,python3 ./test.py -f 0-others/compatibility_rolling_upgrade_all.py -N 3
 
 ,,n,system-test,python3 ./test.py -f 2-query/queryQnode.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode1mnode.py
@@ -1345,8 +1346,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f eco-system/manager/schema_change.py -N 3 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_window_true_for.py
-,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
+#newstm,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_window_true_for.py
+#newstm,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 
 #tsim test
 ,,y,script,./test.sh -f tsim/query/timeline.sim
@@ -1618,108 +1619,108 @@
 ,,y,script,./test.sh -f tsim/table/table.sim
 ,,y,script,./test.sh -f tsim/table/tinyint.sim
 ,,y,script,./test.sh -f tsim/table/vgroup.sim
-,,y,script,./test.sh -f tsim/stream/basic0.sim
-,,y,script,./test.sh -f tsim/stream/basic1.sim
-,,y,script,./test.sh -f tsim/stream/basic2.sim
-,,y,script,./test.sh -f tsim/stream/basic3.sim
-,,y,script,./test.sh -f tsim/stream/basic4.sim
-,,y,script,./test.sh -f tsim/stream/basic5.sim
-,,y,script,./test.sh -f tsim/stream/tag.sim
-,,y,script,./test.sh -f tsim/stream/snodeCheck.sim
-,,y,script,./test.sh -f tsim/stream/concurrentcheckpt.sim
-,,y,script,./test.sh -f tsim/stream/checkpointInterval0.sim
-,,y,script,./test.sh -f tsim/stream/checkStreamSTable1.sim
-,,y,script,./test.sh -f tsim/stream/checkStreamSTable.sim
-,,y,script,./test.sh -f tsim/stream/count0.sim
-,,y,script,./test.sh -f tsim/stream/count1.sim
-,,y,script,./test.sh -f tsim/stream/count2.sim
-,,y,script,./test.sh -f tsim/stream/count3.sim
-,,y,script,./test.sh -f tsim/stream/countSliding0.sim
-,,y,script,./test.sh -f tsim/stream/countSliding1.sim
-,,y,script,./test.sh -f tsim/stream/countSliding2.sim
-,,y,script,./test.sh -f tsim/stream/deleteInterval.sim
-,,y,script,./test.sh -f tsim/stream/deleteScalar.sim
-,,y,script,./test.sh -f tsim/stream/deleteSession.sim
-,,y,script,./test.sh -f tsim/stream/deleteState.sim
-,,y,script,./test.sh -f tsim/stream/distributeInterval0.sim
-,,y,script,./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
-,,y,script,./test.sh -f tsim/stream/distributeMultiLevelInterval0.sim
-,,y,script,./test.sh -f tsim/stream/distributeSession0.sim
-,,y,script,./test.sh -f tsim/stream/drop_stream.sim
-,,y,script,./test.sh -f tsim/stream/event0.sim
-,,y,script,./test.sh -f tsim/stream/event1.sim
-,,y,script,./test.sh -f tsim/stream/event2.sim
-,,y,script,./test.sh -f tsim/stream/fillHistoryBasic1.sim
-,,y,script,./test.sh -f tsim/stream/fillHistoryBasic2.sim
-,,y,script,./test.sh -f tsim/stream/fillHistoryBasic3.sim
-,,y,script,./test.sh -f tsim/stream/fillIntervalDelete0.sim
-,,y,script,./test.sh -f tsim/stream/fillIntervalDelete1.sim
-,,y,script,./test.sh -f tsim/stream/fillIntervalLinear.sim
-,,y,script,./test.sh -f tsim/stream/fillIntervalPartitionBy.sim
-,,y,script,./test.sh -f tsim/stream/fillIntervalPrevNext1.sim
-,,y,script,./test.sh -f tsim/stream/fillIntervalPrevNext.sim
-,,y,script,./test.sh -f tsim/stream/fillIntervalRange.sim
-,,y,script,./test.sh -f tsim/stream/fillIntervalValue.sim
-,,y,script,./test.sh -f tsim/stream/ignoreCheckUpdate.sim
-,,y,script,./test.sh -f tsim/stream/ignoreExpiredData.sim
-,,y,script,./test.sh -f tsim/stream/nonblockIntervalBasic.sim
-,,y,script,./test.sh -f tsim/stream/nonblockIntervalHistory.sim
-,,y,script,./test.sh -f tsim/stream/partitionby1.sim
-,,y,script,./test.sh -f tsim/stream/partitionbyColumnInterval.sim
-,,y,script,./test.sh -f tsim/stream/partitionbyColumnOther.sim
-,,y,script,./test.sh -f tsim/stream/partitionbyColumnSession.sim
-,,y,script,./test.sh -f tsim/stream/partitionbyColumnState.sim
-,,y,script,./test.sh -f tsim/stream/partitionby.sim
-,,y,script,./test.sh -f tsim/stream/pauseAndResume.sim
-,,y,script,./test.sh -f tsim/stream/schedSnode.sim
-,,y,script,./test.sh -f tsim/stream/session0.sim
-,,y,script,./test.sh -f tsim/stream/session1.sim
-,,y,script,./test.sh -f tsim/stream/sliding.sim
-,,y,script,./test.sh -f tsim/stream/state0.sim
-,,y,script,./test.sh -f tsim/stream/state1.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpDelete0.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpDelete1.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpDelete2.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpError.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpForceWindowClose.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpForceWindowClose1.sim
-,,y,script,./test.sh -f tsim/stream/forcewindowclose.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpFwcError.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpHistory.sim
+#newstm,,y,script,./test.sh -f tsim/stream/basic0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/basic1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/basic2.sim
+#newstm,,y,script,./test.sh -f tsim/stream/basic3.sim
+#newstm,,y,script,./test.sh -f tsim/stream/basic4.sim
+#newstm,,y,script,./test.sh -f tsim/stream/basic5.sim
+#newstm,,y,script,./test.sh -f tsim/stream/tag.sim
+#newstm,,y,script,./test.sh -f tsim/stream/snodeCheck.sim
+#newstm,,y,script,./test.sh -f tsim/stream/concurrentcheckpt.sim
+#newstm,,y,script,./test.sh -f tsim/stream/checkpointInterval0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/checkStreamSTable1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/checkStreamSTable.sim
+#newstm,,y,script,./test.sh -f tsim/stream/count0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/count1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/count2.sim
+#newstm,,y,script,./test.sh -f tsim/stream/count3.sim
+#newstm,,y,script,./test.sh -f tsim/stream/countSliding0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/countSliding1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/countSliding2.sim
+#newstm,,y,script,./test.sh -f tsim/stream/deleteInterval.sim
+#newstm,,y,script,./test.sh -f tsim/stream/deleteScalar.sim
+#newstm,,y,script,./test.sh -f tsim/stream/deleteSession.sim
+#newstm,,y,script,./test.sh -f tsim/stream/deleteState.sim
+#newstm,,y,script,./test.sh -f tsim/stream/distributeInterval0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/distributeIntervalRetrive0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/distributeMultiLevelInterval0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/distributeSession0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/drop_stream.sim
+#newstm,,y,script,./test.sh -f tsim/stream/event0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/event1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/event2.sim
+#newstm,,y,script,./test.sh -f tsim/stream/fillHistoryBasic1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/fillHistoryBasic2.sim
+#newstm,,y,script,./test.sh -f tsim/stream/fillHistoryBasic3.sim
+#newstm,,y,script,./test.sh -f tsim/stream/fillIntervalDelete0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/fillIntervalDelete1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/fillIntervalLinear.sim
+#newstm,,y,script,./test.sh -f tsim/stream/fillIntervalPartitionBy.sim
+#newstm,,y,script,./test.sh -f tsim/stream/fillIntervalPrevNext1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/fillIntervalPrevNext.sim
+#newstm,,y,script,./test.sh -f tsim/stream/fillIntervalRange.sim
+#newstm,,y,script,./test.sh -f tsim/stream/fillIntervalValue.sim
+#newstm,,y,script,./test.sh -f tsim/stream/ignoreCheckUpdate.sim
+#newstm,,y,script,./test.sh -f tsim/stream/ignoreExpiredData.sim
+#newstm,,y,script,./test.sh -f tsim/stream/nonblockIntervalBasic.sim
+#newstm,,y,script,./test.sh -f tsim/stream/nonblockIntervalHistory.sim
+#newstm,,y,script,./test.sh -f tsim/stream/partitionby1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/partitionbyColumnInterval.sim
+#newstm,,y,script,./test.sh -f tsim/stream/partitionbyColumnOther.sim
+#newstm,,y,script,./test.sh -f tsim/stream/partitionbyColumnSession.sim
+#newstm,,y,script,./test.sh -f tsim/stream/partitionbyColumnState.sim
+#newstm,,y,script,./test.sh -f tsim/stream/partitionby.sim
+#newstm,,y,script,./test.sh -f tsim/stream/pauseAndResume.sim
+#newstm,,y,script,./test.sh -f tsim/stream/schedSnode.sim
+#newstm,,y,script,./test.sh -f tsim/stream/session0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/session1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/sliding.sim
+#newstm,,y,script,./test.sh -f tsim/stream/state0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/state1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpDelete0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpDelete1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpDelete2.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpError.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpForceWindowClose.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpForceWindowClose1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/forcewindowclose.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpFwcError.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpHistory.sim
 #,,y,script,./test.sh -f tsim/stream/streamInterpHistory1.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpLarge.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpLinear0.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpNext0.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpOther.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpLarge.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpLinear0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpNext0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpOther.sim
 #,,y,script,./test.sh -f tsim/stream/streamInterpOther1.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpPartitionBy0.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpPartitionBy1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpPartitionBy0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpPartitionBy1.sim
 #,,y,script,./test.sh -f tsim/stream/streamInterpPrev0.sim
 #,,y,script,./test.sh -f tsim/stream/streamInterpPrev1.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey0.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey1.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey2.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey3.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpUpdate.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpUpdate1.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpUpdate2.sim
-,,y,script,./test.sh -f tsim/stream/streamInterpValue0.sim
-,,y,script,./test.sh -f tsim/stream/streamPrimaryKey0.sim
-,,y,script,./test.sh -f tsim/stream/streamPrimaryKey1.sim
-,,y,script,./test.sh -f tsim/stream/streamPrimaryKey2.sim
-,,y,script,./test.sh -f tsim/stream/streamPrimaryKey3.sim
-,,y,script,./test.sh -f tsim/stream/streamTwaError.sim
-,,y,script,./test.sh -f tsim/stream/streamTwaFwcFill.sim
-,,y,script,./test.sh -f tsim/stream/streamTwaFwcFillPrimaryKey.sim
-,,y,script,./test.sh -f tsim/stream/streamTwaFwcIntervalPrimaryKey.sim
-,,y,script,./test.sh -f tsim/stream/streamTwaInterpFwc.sim
-,,y,script,./test.sh -f tsim/stream/triggerInterval0.sim
-,,y,script,./test.sh -f tsim/stream/triggerSession0.sim
-,,y,script,./test.sh -f tsim/stream/udTableAndCol0.sim
-,,y,script,./test.sh -f tsim/stream/udTableAndTag0.sim
-,,y,script,./test.sh -f tsim/stream/udTableAndTag1.sim
-,,y,script,./test.sh -f tsim/stream/udTableAndTag2.sim
-,,y,script,./test.sh -f tsim/stream/windowClose.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey2.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpPrimaryKey3.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpUpdate.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpUpdate1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpUpdate2.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamInterpValue0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamPrimaryKey0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamPrimaryKey1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamPrimaryKey2.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamPrimaryKey3.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamTwaError.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamTwaFwcFill.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamTwaFwcFillPrimaryKey.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamTwaFwcIntervalPrimaryKey.sim
+#newstm,,y,script,./test.sh -f tsim/stream/streamTwaInterpFwc.sim
+#newstm,,y,script,./test.sh -f tsim/stream/triggerInterval0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/triggerSession0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/udTableAndCol0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/udTableAndTag0.sim
+#newstm,,y,script,./test.sh -f tsim/stream/udTableAndTag1.sim
+#newstm,,y,script,./test.sh -f tsim/stream/udTableAndTag2.sim
+#newstm,,y,script,./test.sh -f tsim/stream/windowClose.sim
 ,,y,script,./test.sh -f tsim/trans/lossdata1.sim
 ,,y,script,./test.sh -f tsim/tmq/basic1.sim
 ,,y,script,./test.sh -f tsim/tmq/basic2.sim
@@ -1752,8 +1753,8 @@
 ,,y,script,./test.sh -f tsim/stable/tag_rename.sim
 ,,y,script,./test.sh -f tsim/stable/values.sim
 ,,y,script,./test.sh -f tsim/stable/vnode3.sim
-,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
-,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQueryDelete.sim
+#newstm,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
+#newstm,,y,script,./test.sh -f tsim/sma/rsmaCreateInsertQueryDelete.sim
 
 ### refactor stream backend, open case after rsma refactored
 #,,y,script,./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim

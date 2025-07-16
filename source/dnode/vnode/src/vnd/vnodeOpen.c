@@ -14,7 +14,7 @@
  */
 
 #include "sync.h"
-#include "tcs.h"
+#include "tss.h"
 #include "tq.h"
 #include "tsdb.h"
 #include "vnd.h"
@@ -28,6 +28,23 @@ void vnodeGetPrimaryDir(const char *relPath, int32_t diskPrimary, STfs *pTfs, ch
     snprintf(buf, bufLen - 1, "%s", relPath);
   }
   buf[bufLen - 1] = '\0';
+}
+
+void vnodeGetPrimaryPath(SVnode *pVnode, bool mount, char *buf, size_t bufLen) {
+  if (pVnode->mounted) {
+    if (mount) {  // mount path
+      SDiskID diskId = {0};
+      diskId.id = pVnode->diskPrimary;
+      snprintf(buf, bufLen - 1, "%s%svnode%svnode%d", tfsGetDiskPath(pVnode->pMountTfs, diskId), TD_DIRSEP, TD_DIRSEP,
+               pVnode->config.mountVgId);
+    } else {  // host path
+      vnodeGetPrimaryDir(pVnode->path, 0, pVnode->pTfs, buf, bufLen);
+    }
+    buf[bufLen - 1] = '\0';
+
+  } else {
+    vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, buf, bufLen);
+  }
 }
 
 static int32_t vnodeMkDir(STfs *pTfs, const char *path) {
@@ -340,12 +357,12 @@ void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId) {
     vError("failed to remove path:%s since %s", path, tstrerror(terrno));
   }
 
-  // int32_t nlevel = tfsGetLevel(pTfs);
-#ifdef USE_S3
-  if (nodeId > 0 && vgId > 0 /*&& nlevel > 1*/ && tsS3Enabled) {
-    char vnode_prefix[TSDB_FILENAME_LEN];
-    snprintf(vnode_prefix, TSDB_FILENAME_LEN, "%d/v%df", nodeId, vgId);
-    tcsDeleteObjectsByPrefix(vnode_prefix);
+#ifdef USE_SHARED_STORAGE
+  if (nodeId > 0 && vgId > 0 && tsSsEnabled) {
+    // we should only do this on the leader node, but it is ok to do this on all nodes
+    char prefix[TSDB_FILENAME_LEN];
+    snprintf(prefix, TSDB_FILENAME_LEN, "vnode%d/", vgId);
+    tssDeleteFileByPrefixFromDefault(prefix);
   }
 #endif
 }
@@ -362,12 +379,13 @@ static int32_t vnodeCheckDisk(int32_t diskPrimary, STfs *pTfs) {
   return 0;
 }
 
-SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgCb, bool force) {
+SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMountTfs, SMsgCb msgCb, bool force) {
   SVnode    *pVnode = NULL;
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
   char       tdir[TSDB_FILENAME_LEN * 2] = {0};
   int32_t    ret = 0;
+  bool       mounted = pMountTfs != NULL;
   terrno = TSDB_CODE_SUCCESS;
 
   if (vnodeCheckDisk(diskPrimary, pTfs)) {
@@ -387,7 +405,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
     return NULL;
   }
 
-  if (vnodeMkDir(pTfs, path)) {
+  if (!mounted && vnodeMkDir(pTfs, path)) {
     vError("vgId:%d, failed to prepare vnode dir since %s, path: %s", info.config.vgId, strerror(ERRNO), path);
     return NULL;
   }
@@ -428,6 +446,8 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   pVnode->state.applied = info.state.committed;
   pVnode->state.applyTerm = info.state.commitTerm;
   pVnode->pTfs = pTfs;
+  pVnode->pMountTfs = pMountTfs;
+  pVnode->mounted = mounted;
   pVnode->diskPrimary = diskPrimary;
   pVnode->msgCb = msgCb;
   (void)taosThreadMutexInit(&pVnode->lock, NULL);
@@ -461,7 +481,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   vInfo("vgId:%d, start to upgrade meta", TD_VID(pVnode));
-  if (metaUpgrade(pVnode, &pVnode->pMeta) < 0) {
+  if (!mounted && metaUpgrade(pVnode, &pVnode->pMeta) < 0) {
     vError("vgId:%d, failed to upgrade meta since %s", TD_VID(pVnode), tstrerror(terrno));
   }
 
@@ -488,14 +508,6 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
   ret = taosRealPath(tdir, NULL, sizeof(tdir));
   TAOS_UNUSED(ret);
-
-  // init handle map for stream event notification
-  ret = tqInitNotifyHandleMap(&pVnode->pNotifyHandleMap);
-  if (ret != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, failed to init StreamNotifyHandleMap", TD_VID(pVnode));
-    terrno = ret;
-    goto _err;
-  }
 
   // open query
   vInfo("vgId:%d, start to open vnode query", TD_VID(pVnode));
@@ -570,7 +582,7 @@ void vnodeClose(SVnode *pVnode) {
     vnodeAWait(&pVnode->commitTask);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
-    tqDestroyNotifyHandleMap(&pVnode->pNotifyHandleMap);
+    streamRemoveVnodeLeader(pVnode->config.vgId);
     tqClose(pVnode->pTq);
     walClose(pVnode->pWal);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);

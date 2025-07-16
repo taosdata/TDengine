@@ -64,6 +64,7 @@ extern int32_t qDebugFlag;
 extern int32_t stDebugFlag;
 extern int32_t wDebugFlag;
 extern int32_t azDebugFlag;
+extern int32_t tssDebugFlag;
 extern int32_t sDebugFlag;
 extern int32_t tsdbDebugFlag;
 extern int32_t tqDebugFlag;
@@ -74,6 +75,7 @@ extern int32_t smaDebugFlag;
 extern int32_t idxDebugFlag;
 extern int32_t tdbDebugFlag;
 extern int32_t sndDebugFlag;
+extern int32_t bndDebugFlag;
 extern int32_t simDebugFlag;
 
 extern int32_t tqClientDebugFlag;

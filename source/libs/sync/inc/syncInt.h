@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "sync.h"
+#include "metrics.h"
 #include "tglobal.h"
 #include "trpc.h"
 #include "ttimer.h"
@@ -109,6 +110,7 @@ typedef struct SPeerState {
 struct SSyncNode {
   // init by SSyncInfo
   SyncGroupId vgId;
+  SyncGroupId mountVgId;
   SRaftCfg    raftCfg;
   char        path[TSDB_FILENAME_LEN];
   char        raftStorePath[TSDB_FILENAME_LEN * 2];
@@ -235,12 +237,16 @@ struct SSyncNode {
 
   bool isStart;
 
+  int32_t applyQueueErrorCount;
+
   // statis
   int64_t sendCount;
   int64_t recvCount;
   int64_t slowCount;
 
-  int32_t applyQueueErrorCount;
+  // metrics
+  int64_t wal_write_bytes;
+  int64_t wal_write_time;
 };
 
 // open/close --------------

@@ -1064,7 +1064,8 @@ static void doHandleTimeslice(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
   if (pSliceInfo->scalarSup.pExprInfo != NULL) {
     SExprSupp* pExprSup = &pSliceInfo->scalarSup;
-    code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL);
+    code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
+                                 GET_STM_RTINFO(pOperator->pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       T_LONG_JMP(pTaskInfo->env, code);
@@ -1240,6 +1241,69 @@ static int32_t getQueryExtWindow(const STimeWindow* cond, const STimeWindow* ran
   return code;
 }
 
+static int32_t resetTimeSliceOperState(SOperatorInfo* pOper) {
+  STimeSliceOperatorInfo* pInfo = pOper->info;
+  SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
+  SInterpFuncPhysiNode* pPhynode = (SInterpFuncPhysiNode*)pOper->pPhyNode;
+  pOper->status = OP_NOT_OPENED;
+
+  setTaskStatus(pOper->pTaskInfo, TASK_NOT_COMPLETED);
+
+  int32_t  code = resetExprSupp(&pOper->exprSupp, pTaskInfo, pPhynode->pFuncs, NULL,
+                         &pTaskInfo->storageAPI.functionStore);
+  if (code == 0) {
+    code = resetExprSupp(&pInfo->scalarSup, pTaskInfo, pPhynode->pExprs, NULL,
+                         &pTaskInfo->storageAPI.functionStore);
+  }
+
+  pInfo->current = pInfo->win.skey;
+  pInfo->prevTsSet = false;
+  pInfo->prevKey.ts = INT64_MIN;
+  pInfo->groupId = 0;
+  pInfo->pNextGroupRes = NULL;
+  pInfo->pRemainRes = NULL;
+  pInfo->remainIndex = 0;
+
+  if (pInfo->hasPk) {
+    pInfo->prevKey.numOfPKs = 1;
+    pInfo->prevKey.pks[0].type = pInfo->pkCol.type;
+
+    if (IS_VAR_DATA_TYPE(pInfo->pkCol.type)) {
+      memset(pInfo->prevKey.pks[0].pData, 0, pInfo->pkCol.bytes);
+    }
+  }
+  blockDataCleanup(pInfo->pRes);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pPrevRow); ++i) {
+    SGroupKeys* pKey = taosArrayGet(pInfo->pPrevRow, i);
+    taosMemoryFree(pKey->pData);
+  }
+  taosArrayDestroy(pInfo->pPrevRow);
+  pInfo->pPrevRow = NULL;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pNextRow); ++i) {
+    SGroupKeys* pKey = taosArrayGet(pInfo->pNextRow, i);
+    taosMemoryFree(pKey->pData);
+  }
+  taosArrayDestroy(pInfo->pNextRow);
+  pInfo->pNextRow = NULL;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pLinearInfo); ++i) {
+    SFillLinearInfo* pKey = taosArrayGet(pInfo->pLinearInfo, i);
+    taosMemoryFree(pKey->start.val);
+    taosMemoryFree(pKey->end.val);
+  }
+  taosArrayDestroy(pInfo->pLinearInfo);
+  pInfo->pLinearInfo = NULL;
+
+  if (pInfo->pPrevGroupKeys) {
+    taosArrayDestroyEx(pInfo->pPrevGroupKeys, destroyGroupKey);
+    pInfo->pPrevGroupKeys = NULL;
+  }
+
+  return code;
+}
+
 int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
@@ -1253,6 +1317,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
     goto _error;
   }
 
+  pOperator->pPhyNode = pPhyNode;
   SInterpFuncPhysiNode* pInterpPhyNode = (SInterpFuncPhysiNode*)pPhyNode;
   SExprSupp*            pSup = &pOperator->exprSupp;
 
@@ -1274,7 +1339,8 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
-  code = filterInitFromNode((SNode*)pInterpPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  code = filterInitFromNode((SNode*)pInterpPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
+                            pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->tsCol = extractColumnFromColumnNode((SColumnNode*)pInterpPhyNode->pTimeSeries);
@@ -1321,7 +1387,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
     code = getQueryExtWindow(&cond->twindows, &pInfo->win, &cond->twindows, cond->extTwindows);
     QUERY_CHECK_CODE(code, lino, _error);
   }
-
+  
   setOperatorInfo(pOperator, "TimeSliceOperator", QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTimesliceNext, NULL, destroyTimeSliceOperatorInfo,
@@ -1331,7 +1397,8 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   QUERY_CHECK_CODE(code, lino, _error);
 
   //  int32_t code = initKeeperInfo(pSliceInfo, pBlock, &pOperator->exprSupp);
-
+  setOperatorResetStateFn(pOperator, resetTimeSliceOperState);
+  
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -1399,12 +1466,8 @@ int64_t getMinWindowSize(struct SOperatorInfo* pOperator) {
   switch (pOperator->operatorType) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
       return ((SStateWindowOperatorInfo*)pOperator->info)->trueForLimit;
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
-      return ((SStreamStateAggOperatorInfo*)pOperator->info)->trueForLimit;
-      case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
       return ((SEventWindowOperatorInfo*)pOperator->info)->trueForLimit;
-      case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
-        return ((SStreamEventAggOperatorInfo*)pOperator->info)->trueForLimit;
     default:
       return 0;
   }

@@ -151,11 +151,6 @@ class TDTestCase:
                     "category": "local"
                 },
                 {
-                    "name": "disableStream",
-                    "value": 1,
-                    "category": "global"
-                },
-                {
                     "name": "enableWhiteList",
                     "value": 1,
                     "category": "global"
@@ -351,14 +346,9 @@ class TDTestCase:
                     "category": "global"
                 },
                 {
-                    "name": "checkpointInterval",
-                    "value": 120,
-                    "category": "global"
-                },
-                {
-                    "name": "concurrentCheckpoint",
-                    "value": 3,
-                    "category": "global"
+                    "name": "streamBufferSize",
+                    "value": 1024,
+                    "category": "local"
                 },
                 {
                     "name": "retentionSpeedLimitMB",
@@ -374,11 +364,6 @@ class TDTestCase:
                     "name": "logKeepDays",
                     "value": 30,
                     "category": "local"
-                },
-                {
-                    "name": "maxStreamBackendCache",
-                    "value": 256,
-                    "category": "global"
                 },
                 {
                     "name": "mqRebalanceInterval",
@@ -460,43 +445,23 @@ class TDTestCase:
                 #     "value": 1000,
                 #     "category": "global"
                 # },
-                # {
-                #     "name": "s3Accesskey",
-                #     "value": 1000,
-                #     "category": "global"
-                # },
-                # {
-                #     "name": "s3BucketName",
-                #     "value": 1000,
-                #     "category": "global"
-                # },
-                # {
-                #     "name": "s3Endpoint",
-                #     "value": 1000,
-                #     "category": "global"
-                # },
                 {
-                    "name": "s3MigrateIntervalSec",
+                    "name": "ssAutoMigrateIntervalSec",
                     "value": 1800,
                     "category": "global"
                 },
-                {
-                    "name": "s3MigrateEnabled",
-                    "value": 1,
-                    "category": "global"
-                },
                 # {
-                #     "name": "s3BlockCacheSize",
+                #     "name": "ssBlockCacheSize",
                 #     "value": 32,
                 #     "category": "global"
                 # },
                 {
-                    "name": "s3PageCacheSize",
+                    "name": "ssPageCacheSize",
                     "value": 8192,
                     "category": "global"
                 },
                 {
-                    "name": "s3UploadDelaySec",
+                    "name": "ssUploadDelaySec",
                     "value": 30,
                     "category": "global"
                 },

@@ -341,7 +341,7 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 6   | data3      | BIGINT      | 三级存储上数据文件的大小，单位为 KB  |
 | 7   | cache_rdb  | BIGINT      | last/last_row 文件的大小，单位为 KB |
 | 8   | table_meta | BIGINT      | meta 文件的大小，单位为 KB         |
-| 9   | s3         | BIGINT      | s3 上占用的大小，单位为 KB          |
+| 9   | ss         | BIGINT      | 共享存储上占用的大小，单位为 KB          |
 | 10  | raw_data   | BIGINT      | 预估的原始数据的大小，单位为 KB      | 
 
 
