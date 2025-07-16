@@ -1410,9 +1410,9 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
         if (tools_cJSON_IsString(primaryKeyName) 
             && primaryKeyName->valuestring != NULL 
             && strlen(primaryKeyName->valuestring) > 0) {
-            TOOLS_STRNCPY(superTable->primaryKeyName, primaryKeyName->valuestring, MAX_FILE_NAME_LEN);
+            TOOLS_STRNCPY(superTable->primaryKeyName, primaryKeyName->valuestring, TSDB_COL_NAME_LEN);
         } else {
-            TOOLS_STRNCPY(superTable->primaryKeyName, "ts", MAX_FILE_NAME_LEN);
+            TOOLS_STRNCPY(superTable->primaryKeyName, "ts", TSDB_COL_NAME_LEN);
         }
 
         tools_cJSON *useTagTableName =

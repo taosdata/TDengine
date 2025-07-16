@@ -566,7 +566,7 @@ typedef struct SSuperTable_S {
     int64_t   specifiedColumns;
     char      sampleFile[MAX_FILE_NAME_LEN];
     char      tagsFile[MAX_FILE_NAME_LEN];
-    char      primaryKeyName[MAX_FILE_NAME_LEN];
+    char      primaryKeyName[MAX_C];
     uint32_t  partialColNum;
     uint32_t  partialColFrom;
     char      *partialColNameBuf;
