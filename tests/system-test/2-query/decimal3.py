@@ -1989,9 +1989,9 @@ class TDTestCase:
         #self.no_decimal_table_test()
         self.test_insert_decimal_values()
         self.test_query_decimal()
-        self.test_decimal_and_tsma()
+        #self.test_decimal_and_tsma()  open when new tsma ready
         self.test_decimal_and_view()
-        self.test_decimal_and_stream()
+        #self.test_decimal_and_stream() open when new strm ready
 
     def stop(self):
         tdSql.close()

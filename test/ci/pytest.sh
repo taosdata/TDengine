@@ -7,7 +7,7 @@
 ##################################################
 
 set +e
-#set -x
+# set -x
 if [[ "$OSTYPE" == "darwin"* ]]; then
   TD_OS="Darwin"
 else

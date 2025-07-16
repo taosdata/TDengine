@@ -194,13 +194,13 @@ int32_t tableBuilderPutBatch(STableBuilder *p, SBseBatch *pBatch);
 int32_t tableBuilderGet(STableBuilder *p, int64_t seq, uint8_t **value, int32_t *len);
 int32_t tableBuilderFlush(STableBuilder *p, int8_t type);
 int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo);
-int32_t tableBuilderClose(STableBuilder *p, int8_t commited);
+void    tableBuilderClose(STableBuilder *p, int8_t commited);
 int32_t tableBuilderTruncFile(STableBuilder *p, int64_t size);
 
 int32_t tableReaderOpen(int64_t timestamp, STableReader **pReader, void *pReaderMgt);
 void    tableReaderShouldPutToCache(STableReader *pReader, int8_t putInCache);
 int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *len);
-int32_t tableReaderClose(STableReader *p);
+void    tableReaderClose(STableReader *p);
 int32_t tableReaderGetMeta(STableReader *p, SArray **pMeta);
 
 int32_t tableMetaOpen(char *name, SBTableMeta **pMeta, void *pMetaMgt);

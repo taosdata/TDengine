@@ -433,6 +433,9 @@ int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
 
   STableCommitInfo commitInfo = {0};
   SArray *pMetaBlock = NULL;
+  if (p == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   code = tableBuilderFlush(p, BSE_TABLE_DATA_TYPE);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -465,13 +468,15 @@ _error:
 
 int32_t tableBuilderGetBlockSize(STableBuilder *p) { return p->blockCap; }
 
-int32_t tableBuilderClose(STableBuilder *p, int8_t commited) {
+void tableBuilderClose(STableBuilder *p, int8_t commited) {
+  if (p == NULL) {
+    return;
+  }
   int32_t code = 0;
   blockWrapperCleanup(&p->pBlockWrapper);
   taosCloseFile(&p->pDataFile);
   taosArrayDestroy(p->pMetaHandle);
   taosMemoryFree(p);
-  return code;
 }
 
 static void addSnapshotMetaToBlock(SBlockWrapper *pBlkWrapper, SSeqRange range, int8_t fileType, int8_t blockType,
@@ -698,8 +703,8 @@ _error:
   return code;
 }
 
-int32_t tableReaderClose(STableReader *p) {
-  if (p == NULL) return 0;
+void tableReaderClose(STableReader *p) {
+  if (p == NULL) return;
   int32_t code = 0;
 
   taosArrayDestroy(p->pMetaHandle);
@@ -709,7 +714,6 @@ int32_t tableReaderClose(STableReader *p) {
   blockWrapperCleanup(&p->blockWrapper);
 
   taosMemoryFree(p);
-  return code;
 }
 
 int32_t blockCreate(int32_t cap, SBlock **p) {
@@ -986,7 +990,9 @@ int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlk
   int32_t  code = 0;
   int32_t  lino = 0;
 
-  blockWrapperResize(pBlkW, pHandle->size + 16);
+  code = blockWrapperResize(pBlkW, pHandle->size + 16);
+  TSDB_CHECK_CODE(code, lino, _error);
+
   SBlock  *pBlk = pBlkW->data;
   uint8_t *pRead = (uint8_t *)pBlk;
 
@@ -1538,7 +1544,8 @@ int32_t tableMetaWriterFlushBlock(SBtableMetaWriter *pMeta) {
   int32_t size = pMeta->blockCap;
 
   blockWrapperClear(&pMeta->blockWrapper);
-  blockWrapperResize(&pMeta->blockWrapper, size);
+  code = blockWrapperResize(&pMeta->blockWrapper, size);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   for (int32_t i = 0; i < taosArrayGetSize(pMeta->pBlock); i++) {
     SMetaBlock *pBlk = taosArrayGet(pMeta->pBlock, i);
@@ -1554,7 +1561,8 @@ int32_t tableMetaWriterFlushBlock(SBtableMetaWriter *pMeta) {
       handle.size = nWrite;
 
       blockWrapperClear(&pMeta->blockWrapper);
-      blockWrapperResize(&pMeta->blockWrapper, size);
+      code = blockWrapperResize(&pMeta->blockWrapper, size);
+      TSDB_CHECK_CODE(code, lino, _error);
 
       if (taosArrayPush(pMeta->pBlkHandle, &handle) == NULL) {
         TSDB_CHECK_CODE(code = terrno, lino, _error);
@@ -1608,7 +1616,8 @@ int32_t tableMetaWriterFlushIndex(SBtableMetaWriter *pMeta) {
   SSeqRange range = {-1, -1};
 
   blockWrapperClear(&pMeta->blockWrapper);
-  blockWrapperResize(&pMeta->blockWrapper, size + extra);
+  code = blockWrapperResize(&pMeta->blockWrapper, size + extra);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   for (int32_t i = 0; i < taosArrayGetSize(pMeta->pBlkHandle); i++) {
     SBlkHandle *pHandle = taosArrayGet(pMeta->pBlkHandle, i);
@@ -2050,7 +2059,8 @@ int32_t tableMetaReaderIterNext(SBtableMetaReaderIter *pIter, SBlockWrapper *pDa
   }
 
   SBlockWrapper *pWrapper = &pIter->pBlockWrapper;
-  blockWrapperResize(pWrapper, pHandle->size);
+  code = blockWrapperResize(pWrapper, pHandle->size);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableLoadBlock(pIter->pReader->pFile, pHandle, pWrapper);
   TSDB_CHECK_CODE(code, lino, _error);

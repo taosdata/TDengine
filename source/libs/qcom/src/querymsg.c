@@ -15,6 +15,7 @@
 
 #include "query.h"
 #include "queryInt.h"
+#include "streamMsg.h"
 #include "systable.h"
 #include "tmsg.h"
 #include "trpc.h"
@@ -1180,7 +1181,7 @@ void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_MND_VIEW_META)] = queryBuildGetViewMetaMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_TABLE_TSMA)] = queryBuildGetTableTSMAMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_TSMA)] = queryBuildGetTSMAMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_VND_GET_STREAM_PROGRESS)] = queryBuildGetStreamProgressMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_STREAM_PROGRESS)] = queryBuildGetStreamProgressMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_VND_VSUBTABLES_META)] = queryBuildVSubTablesMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_VND_VSTB_REF_DBS)] = queryBuildVStbRefDBsMsg;
 
@@ -1201,7 +1202,7 @@ void initQueryModuleMsgHandle() {
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_VIEW_META)] = queryProcessGetViewMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_TABLE_TSMA)] = queryProcessGetTbTSMARsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_TSMA)] = queryProcessGetTbTSMARsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_GET_STREAM_PROGRESS)] = queryProcessStreamProgressRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_STREAM_PROGRESS)] = queryProcessStreamProgressRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_VSUBTABLES_META)] = queryProcessVSubTablesRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_VSTB_REF_DBS)] = queryProcessVStbRefDbsRsp;
 }

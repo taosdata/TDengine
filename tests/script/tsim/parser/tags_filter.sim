@@ -109,7 +109,7 @@ print ============tbase-1328
 sql drop database if exists testselectwheretags;
 sql CREATE DATABASE IF NOT EXISTS testselectwheretags;
 sql USE testselectwheretags;
-sql CREATE TABLE IF NOT EXISTS st1 (ts TIMESTAMP, v1 INT, v2 FLOAT, v3 BOOL) TAGS (farm NCHAR(2), period NCHAR(2), line NCHAR(2), unit INT);
+sql CREATE TABLE IF NOT EXISTS st1 (ts TIMESTAMP, v1 INT, v2 FLOAT, v3 BOOL) TAGS (farm NCHAR(2), period1 NCHAR(2), line NCHAR(2), unit INT);
 sql CREATE TABLE IF NOT EXISTS a01 USING st1 TAGS ('2', 'c', '2', 2);
 sql CREATE TABLE IF NOT EXISTS a02 USING st1 TAGS ('1', 'c', 'a', 1);
 sql CREATE TABLE IF NOT EXISTS a03 USING st1 TAGS ('1', 'c', '02', 1);
@@ -122,7 +122,7 @@ if $rows != 1 then
   return -1
 endi
 
-sql CREATE TABLE IF NOT EXISTS st2 (ts TIMESTAMP, v1 INT, v2 FLOAT) TAGS (farm BINARY(2), period BINARY(2), line BINARY(2));
+sql CREATE TABLE IF NOT EXISTS st2 (ts TIMESTAMP, v1 INT, v2 FLOAT) TAGS (farm BINARY(2), period1 BINARY(2), line BINARY(2));
 
 sql CREATE TABLE IF NOT EXISTS b01 USING st2 TAGS ('01', '01', '01');
 sql CREATE TABLE IF NOT EXISTS b02 USING st2 TAGS ('01', '01', '01');
@@ -139,12 +139,12 @@ sql INSERT INTO b02 VALUES (1576043317167, 2, 2.000000);
 sql INSERT INTO b01 VALUES (1576043305972, 1, 1.000000);
 sql INSERT INTO b01 VALUES (1576043308513, 1, 1.000000);
 
-sql select * from st2 where period='02';
+sql select * from st2 where period1='02';
 if $rows != 2 then
   return -1
 endi
 
-sql select sum(v2) from st2 group by farm,period,line;
+sql select sum(v2) from st2 group by farm,period1,line;
 if $rows != 2 then
   return -1
 endi

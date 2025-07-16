@@ -407,10 +407,6 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   code = vnodePrepareCommit(pVnode, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = vnodeAsync(COMMIT_TASK_ASYNC, EVA_PRIORITY_HIGH, vnodeBseCommit, vnodeCommitCancel, pBseCommitInfo,
-                    &pVnode->commitTask2);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
   // schedule the task
   code = vnodeAsync(COMMIT_TASK_ASYNC, EVA_PRIORITY_HIGH, vnodeCommit, vnodeCommitCancel, pInfo, &pVnode->commitTask);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -479,7 +475,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   // blob storage engine commit
-  // code = bseCommit(pVnode->pBse);
+  code = bseCommit(pVnode->pBse);
   // commit info
   code = vnodeCommitInfo(dir);
   TSDB_CHECK_CODE(code, lino, _exit);

@@ -209,6 +209,7 @@ SVnodeObj *vmAcquireVnodeImpl(SVnodeMgmt *pMgmt, int32_t vgId, bool strict) {
   int32_t r = taosHashGetDup(pMgmt->runngingHash, &vgId, sizeof(int32_t), (void *)&pVnode);
   if (pVnode == NULL || strict && (pVnode->dropped || pVnode->failed)) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
+    dDebug("vgId:%d, acquire vnode failed.", vgId);
     pVnode = NULL;
   } else {
     int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
@@ -496,21 +497,8 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal,
   dInfo("vgId:%d, wait for vnode query queue:%p is empty", pVnode->vgId, pVnode->pQueryQ);
   while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
 
-  tqNotifyClose(pVnode->pImpl->pTq);
-
-  dInfo("vgId:%d, wait for vnode stream queue:%p is empty, %d remains", pVnode->vgId,
-        pVnode->pStreamQ, taosQueueItemSize(pVnode->pStreamQ));
-  while (!taosQueueEmpty(pVnode->pStreamQ)) taosMsleep(50);
-
-  dInfo("vgId:%d, wait for vnode stream ctrl queue:%p is empty", pVnode->vgId, pVnode->pStreamCtrlQ);
-  while (!taosQueueEmpty(pVnode->pStreamCtrlQ)) taosMsleep(50);
-
-  dInfo("vgId:%d, wait for vnode stream long-exec queue:%p is empty, %d remains", pVnode->vgId,
-        pVnode->pStreamLongExecQ, taosQueueItemSize(pVnode->pStreamLongExecQ));
-  while (!taosQueueEmpty(pVnode->pStreamLongExecQ)) taosMsleep(50);
-
-  dInfo("vgId:%d, wait for vnode stream chkpt queue:%p is empty", pVnode->vgId, pVnode->pStreamChkQ);
-  while (!taosQueueEmpty(pVnode->pStreamChkQ)) taosMsleep(10);
+  dInfo("vgId:%d, wait for vnode stream reader queue:%p is empty", pVnode->vgId, pVnode->pStreamReaderQ);
+  while (!taosQueueEmpty(pVnode->pStreamReaderQ)) taosMsleep(10);
 
   dInfo("vgId:%d, all vnode queues is empty", pVnode->vgId);
 
@@ -926,21 +914,6 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
 
   pMgmt->state.openVnodes = 0;
   dInfo("close %d vnodes with %d threads", numOfVnodes, threadNum);
-
-  int64_t st = taosGetTimestampMs();
-  dInfo("notify all streams closed in all %d vnodes, ts:%" PRId64, numOfVnodes, st);
-  if (ppVnodes != NULL) {
-    for (int32_t i = 0; i < numOfVnodes; ++i) {
-      if (ppVnodes[i] != NULL) {
-        if (ppVnodes[i]->pImpl != NULL) {
-          tqNotifyClose(ppVnodes[i]->pImpl->pTq);
-        }
-      }
-    }
-  }
-
-  int64_t et = taosGetTimestampMs();
-  dInfo("notify close stream completed in %d vnodes, elapsed time: %" PRId64 "ms", numOfVnodes, et - st);
 
   for (int32_t t = 0; t < threadNum; ++t) {
     SVnodeThread *pThread = &threads[t];

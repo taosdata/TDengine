@@ -555,3 +555,18 @@ int32_t sdbGetValidSize(SSdb *pSdb, ESdbType type) {
   sdbTraverse(pSdb, type, countValid, &num, 0, 0);
   return num;
 }
+
+
+bool sdbCheckExists(SSdb *pSdb, ESdbType type, const void *pKey) {
+  SHashObj *hash = sdbGetHash(pSdb, type);
+  if (hash == NULL) return false;
+  int32_t keySize = sdbGetkeySize(pSdb, type, pKey);
+
+  sdbReadLock(pSdb, type);
+  void* p = taosHashGet(hash, pKey, keySize);
+  sdbUnLock(pSdb, type);
+
+  return (NULL != p);
+}
+
+

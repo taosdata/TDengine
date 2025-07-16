@@ -117,15 +117,15 @@ void bseBuildDataFullName(SBse *pBse, char *name, char *buf) {
   // build data file name
   // snprintf(name, strlen(name), "%s/%s020"."BSE_DATA_SUFFIX, ver, pBse->path);
   // sprintf(name, strlen(name), "%s/%020"."BSE_DATA_SUFFIX, ver, pBse->path);
-  TAOS_UNUSED(sprintf(buf, "%s/%s.%s", pBse->path, name, BSE_DATA_SUFFIX));
+  TAOS_UNUSED(snprintf(buf, BSE_FILE_FULL_LEN, "%s/%s.%s", pBse->path, name, BSE_DATA_SUFFIX));
 }
 
 void bseBuildIndexFullName(SBse *pBse, int64_t ver, char *buf) {
   // build index file name
-  TAOS_UNUSED(sprintf(buf, "%s/%020" PRId64 "." BSE_INDEX_SUFFIX, pBse->path, ver));
+  TAOS_UNUSED(snprintf(buf, BSE_FILE_FULL_LEN, "%s/%020" PRId64 "." BSE_INDEX_SUFFIX, pBse->path, ver));
 }
 void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf) {
-  TAOS_UNUSED(sprintf(buf, "%s/%020" PRId64 "." BSE_LOG_SUFFIX, pBse->path, ver));
+  TAOS_UNUSED(snprintf(buf, BSE_FILE_FULL_LEN, "%s/%020" PRId64 "." BSE_LOG_SUFFIX, pBse->path, ver));
 }
 
 void bseBuildCurrentName(SBse *pBse, char *name) {
@@ -163,6 +163,10 @@ void bseBuildDataName(int64_t ts, char *name) {
 int32_t bseGetRetentionTsBySeq(SBse *pBse, int64_t seq, int64_t *retentionTs) {
   int32_t code = 0;
   int64_t tts = 0;
+
+  if (pBse == NULL || pBse->commitInfo.pFileList == NULL) {
+    return TSDB_CODE_INVALID_CFG;
+  }
 
   SBseCommitInfo *pCommitInfo = &pBse->commitInfo;
   for (int32_t i = 0; i < taosArrayGetSize(pCommitInfo->pFileList); i++) {

@@ -69,6 +69,39 @@ int32_t taosWTryLockLatch(SRWLatch *pLatch) {
   return -1;
 }
 
+int32_t taosWTryForceLockLatch(SRWLatch *pLatch) {
+  SRWLatch oLatch, nLatch;
+
+  while (1) {
+    oLatch = atomic_load_32(pLatch);
+    if (oLatch) {
+      nLatch = oLatch | TD_RWLATCH_WRITE_FLAG;
+      if (atomic_val_compare_exchange_32(pLatch, oLatch, nLatch) == oLatch) {
+        return -1;
+      }
+      
+      continue;
+    } else {
+      nLatch = oLatch | TD_RWLATCH_WRITE_FLAG;
+      if (atomic_val_compare_exchange_32(pLatch, oLatch, nLatch) == oLatch) {
+        return 0;
+      }
+      
+      continue;
+    }
+  }
+
+  return -1;
+}
+
+bool taosIsOnlyWLocked(SRWLatch *pLatch) {
+  return TD_RWLATCH_WRITE_FLAG == atomic_load_32(pLatch);
+}
+
+bool taosHasRWWFlag(SRWLatch *pLatch) {
+  return TD_RWLATCH_WRITE_FLAG & atomic_load_32(pLatch);
+}
+
 void taosWUnLockLatch(SRWLatch *pLatch) { atomic_store_32(pLatch, 0); }
 
 void taosRLockLatch(SRWLatch *pLatch) {
@@ -94,18 +127,23 @@ void taosRLockLatch(SRWLatch *pLatch) {
 // no reentrant
 int32_t taosRTryLockLatch(SRWLatch *pLatch) {
   SRWLatch oLatch, nLatch;
-  oLatch = atomic_load_32(pLatch);
-  if (oLatch) {
-    return -1;
+  int32_t  nLoops = 0;
+
+  while (1) {
+    oLatch = atomic_load_32(pLatch);
+    if (oLatch & TD_RWLATCH_WRITE_FLAG) {
+      return -1;
+    }
+
+    nLatch = oLatch + 1;
+    if (atomic_val_compare_exchange_32(pLatch, oLatch, nLatch) == oLatch) {
+      break;
+    }
   }
 
-  nLatch = oLatch + 1;
-  if (atomic_val_compare_exchange_32(pLatch, oLatch, nLatch) == oLatch) {
-    return 0;
-  }
-
-  return -1;
+  return 0;
 }
 
+void taosRUnLockLatch(SRWLatch *pLatch) { (void)atomic_sub_fetch_32(pLatch, 1); }
 
-void taosRUnLockLatch(SRWLatch *pLatch) { (void)atomic_fetch_sub_32(pLatch, 1); }
+int32_t taosRUnLockLatch_r(SRWLatch *pLatch) { return atomic_sub_fetch_32(pLatch, 1); }

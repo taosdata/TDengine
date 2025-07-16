@@ -4746,7 +4746,7 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
 
   *isStrict = true;
 
-  FLT_ERR_JRET(filterInitFromNode(pNode, &info, FLT_OPTION_NO_REWRITE | FLT_OPTION_TIMESTAMP));
+  FLT_ERR_JRET(filterInitFromNode(pNode, &info, FLT_OPTION_NO_REWRITE | FLT_OPTION_TIMESTAMP, NULL));
 
   if (info->scalarMode) {
     SArray        *colRanges = info->sclCtx.fltSclRange;
@@ -5495,7 +5495,7 @@ int32_t filterSetDataFromColId(SFilterInfo *info, void *param) {
   return fltSetColFieldDataImpl(info, param, fltGetDataFromColId, true);
 }
 
-int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) {
+int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options, void* pSclExtraParams) {
   SFilterInfo *info = NULL;
   if (pNode == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -5517,6 +5517,7 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) 
 
   info = *pInfo;
   info->options = options;
+  info->pStreamRtInfo = pSclExtraParams;
 
   SFltTreeStat stat = {0};
   stat.precision = -1;
@@ -5567,8 +5568,8 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
       taosArrayDestroy(pList);
       FLT_ERR_JRET(terrno);
     }
-
-    code = scalarCalculate(info->sclCtx.node, pList, &output);
+    code =
+        scalarCalculate(info->sclCtx.node, pList, &output, info->pStreamRtInfo, NULL);
     taosArrayDestroy(pList);
 
     *p = output.columnData;

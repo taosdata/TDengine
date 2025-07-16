@@ -29,10 +29,7 @@ from frame import *
 class TDTestCase(TBase):
     updatecfgDict = {
         'queryMaxConcurrentTables': '2K',
-        'streamMax': '1M',
         'totalMemoryKB': '32000000',
-        'streamMax': '1P',
-        'streamBufferSize':'1T',
         'slowLogScope':"query"
     }
 

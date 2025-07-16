@@ -286,7 +286,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_MNODE_NOT_EXIST,          "Mnode not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_QNODE_ALREADY_EXIST,      "Qnode already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_QNODE_NOT_EXIST,          "Qnode not there")
 //TAOS_DEFINE_ERROR(TSDB_CODE_MND_SNODE_ALREADY_EXIST,      "Snode already exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_SNODE_ALREADY_EXIST,      "Snode can only be created 1")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SNODE_ALREADY_EXIST,      "Only one snode can be created in each dnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SNODE_NOT_EXIST,          "Snode not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_FEW_MNODES,           "The replica of mnode cannot less than 1")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_MNODES,          "The replica of mnode cannot exceed 3")
@@ -457,6 +457,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_TTL_CHG_ON_WR,  "ttlChangeOnWrite not 
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_EN_WHITELIST,   "enableWhiteList not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_STOPPED,                "Mnode stopped")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,  "Invalid max compact tasks")
+TAOS_DEFINE_ERROR(TSDB_CODE_SNODE_NO_AVAILABLE_NODE,      "No stream available snode now")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")
@@ -758,7 +759,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REDISTRIBUTE_VG,    "The REDISTRIBUTE VG
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC,      "Fill not allowed")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_WINDOW_PC,          "Invalid windows pc")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC,    "Window not allowed")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC,    "Stream not allowed")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC,    "Function not support in stream query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC,  "Group by not allowd")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,      "Invalid interp clause")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NO_VALID_FUNC_IN_WIN,       "Not valid function in window")
@@ -805,9 +806,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLS_SELECTFUNC,    "cols function's fir
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLS_ALIAS,         "Invalid using alias for cols function")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIM_KEY_MUST_BE_TS,        "Join primary key col must be timestmap type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REF_COLUMN,         "Invalid virtual table's ref column")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLUMN,             "Invalid table type")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TABLE_TYPE,             "Invalid table type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,    "Invalid ref column type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_MISMATCH_STABLE_TYPE,       "Create child table using virtual super table")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_TAG_REF_BY_STM,         "Col/Tag referenced by stream")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 
 //planner
@@ -931,6 +933,21 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INTERNAL_ERROR,          "Stream internal err
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NOT_LEADER,              "Stream task not on leader vnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INPUTQ_FULL,             "Task input queue is full")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVLD_CHKPT,             "Invalid checkpoint trigger msg")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_TASK_TYPE,       "Invalid stream task type")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_TIME_UNIT,       "Invalid time unit in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_SYNTAX,          "Invalid syntax in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_NOTIFY,          "Invalid notify clause in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_TRIGGER,         "Invalid trigger clause in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_QUERY,           "Invalid query clause in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_OUT_TABLE,       "Invalid out table clause in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NO_TRIGGER_TABLE,        "Trigger table not specified in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_PRE_FILTER,      "Invalid pre-filter in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_PARTITION,       "Invalid partition in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_SUBTABLE,        "Invalid subtable in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_OUT_TAGS,        "Invalid out tags in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_NOTIFY_COND,     "Invalid notify condition in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,    "Invalid placeholder in create stream clause")
+
 
 // TDLite
 TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_FLAGS,         "Invalid TDLite open flags")
@@ -961,6 +978,31 @@ TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT_PRIMARY_KEY, "Blob type not support
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_VALUE_TOO_LONG, "Blob value too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_EXHAUST_TOO_MANY_MEMORY, "Blob data exhaust too many memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT, "Blob data not support")
+// NEW-STREAM
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INTERNAL_ERROR,      "Mnode stream internal error")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_WAL_VER_NOT_DATA,        "Wal version is not data in stream reader task")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NO_CONTEXT,              "No context in stream reader task")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NO_DATA,                 "No data in stream reader task")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND, "Insert table info not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INSERT_SCHEMA_NOT_MATCH, "Insert table info not match")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN,     "Not a table scan plan in stream reader task")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_SNODE_IN_USE,        "Snode still in use with streams")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_PLAN_ERROR,          "Stream plan error")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NODE_NOT_EXISTS,     "Dnode/snode not exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NOT_RUNNING,         "Stream not running")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_STOPPED,             "Stream stopped")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TASK_LOST,           "Stream task lost")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_SNODE_LOST,          "Snode lost")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_DB_IN_USE,           "Db used by stream")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_VTABLE_EXITS,        "Virtual table stream exists, use FORCE when ensure no impact")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_VGROUP_LOST,         "Vgroup lost leader")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NOT_AVAILABLE,       "Mnode stream not available now")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_DROPPING,            "Stream is dropping")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NOT_STOPPED,         "Stream was not stopped")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TBNAME_TOO_LONG,     "Stream output table name too long")
+
+
+
 #ifdef TAOS_ERROR_C
 };
 #endif
