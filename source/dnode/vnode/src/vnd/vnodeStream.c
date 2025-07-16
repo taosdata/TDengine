@@ -679,6 +679,7 @@ static int32_t buildScheamFromMeta(SVnode* pVnode, int64_t uid, SArray** schemas
 
 end:
   api.metaReaderFn.clearReader(&metaReader);
+  STREAM_PRINT_LOG_END(code, lino);
   if (code != 0)  taosArrayDestroy(*schemas);
   return code;
 }
