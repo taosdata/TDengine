@@ -2018,7 +2018,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
   pMsgHead->contLen = htonl(msg.contLen);
   pMsgHead->vgId = htonl(SNODE_HANDLE);
-  int32_t tlen = tSerializeSTriggerCalcRequest(msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pCalcReq);
+  int32_t tlen = tSerializeSTriggerCalcRequest((char*)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pCalcReq);
   QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   code = tmsgSendReq(&pCalcRunner->addr.epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -3529,7 +3529,7 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
   SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
   pMsgHead->contLen = htonl(msg.contLen);
   pMsgHead->vgId = htonl(SNODE_HANDLE);
-  int32_t tlen = tSerializeSTriggerCalcRequest(msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pCalcReq);
+  int32_t tlen = tSerializeSTriggerCalcRequest((char*)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pCalcReq);
   QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   code = tmsgSendReq(&pCalcRunner->addr.epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -5261,7 +5261,7 @@ static int32_t stRealtimeGroupDoCountCheck(SSTriggerRealtimeGroup *pGroup) {
           TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = lastTs;
           TRINGBUF_HEAD(&pGroup->winBuf)->wrownum += skipped;
         }
-        if (skipped == nrowsNextWstart) {
+        if (nrowsCurWin + skipped == nrowsNextWstart) {
           code = stRealtimeGroupOpenWindow(pGroup, lastTs, NULL, false, true);
           QUERY_CHECK_CODE(code, lino, _end);
         }
