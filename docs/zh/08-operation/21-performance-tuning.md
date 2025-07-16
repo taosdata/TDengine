@@ -1,5 +1,3 @@
-# 性能优化
-
 ## 内存优化
 
 TDengine 提供了内存分配器配置脚本 `set_taos_malloc.sh`，用于优化内存分配策略。通过该脚本，用户可以轻松切换不同的内存分配器模式，以提高 TDengine 的性能和稳定性。
@@ -16,7 +14,7 @@ TDengine 提供了内存分配器配置脚本 `set_taos_malloc.sh`，用于优�
 
 ### 基本用法
 
-####  参数说明
+#####  参数说明
 
 - `-m <mode>`  
   指定内存分配器模式。  
@@ -26,7 +24,7 @@ TDengine 提供了内存分配器配置脚本 `set_taos_malloc.sh`，用于优�
   - 3：jemalloc 优化  
   - 4：jemalloc 定制检查，用于内存泄漏检测
 
-#### 结果说明
+##### 结果说明
 
 - 脚本会自动生成/更新如下环境变量文件：
   - Shell 环境变量文件：`/usr/local/taos/bin/set_taos_malloc_env.sh`
