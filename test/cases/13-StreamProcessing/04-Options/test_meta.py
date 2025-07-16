@@ -15,12 +15,12 @@ class TestStreamMetaTrigger:
         tdStream.createSnode()
 
         streams = []
-        streams.append(self.Basic0())  # add ctb and drop ctb from stb [ok]
+        streams.append(self.Basic0())  # [ok] add ctb and drop ctb from stb 
         
         # TD-36358 [流计算开发阶段] 多条流同时运行时force_output下多个分组的结果有的正确有的错误
-        # streams.append(self.Basic1())  # drop data source table [fail]
+        # streams.append(self.Basic1())  # [fail] drop data source table 
         
-        # streams.append(self.Basic2())  # tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件 [ok]       
+        streams.append(self.Basic2())  # [ok] tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件      
         streams.append(self.Basic3())  # [ok]
         streams.append(self.Basic4())  # [ok]
         # # # streams.append(self.Basic5())  # [fail] 
