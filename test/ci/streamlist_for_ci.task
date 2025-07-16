@@ -20,6 +20,8 @@
 #,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_state_disorderNupdate_new.py
 #,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_count_new.py
 ,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_event_new.py
+,,n,.,pytest cases/13-StreamProcessing/03-TriggerMode/test_period_1.py
+
 
 ## 04-Options
 ,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/04-Options/test_options.py
