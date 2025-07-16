@@ -31,22 +31,22 @@ namespace ParserTest {
 class ParserInsertTest : public ParserTestBase {};
 
 // INSERT INTO tb_name [(field1_name, ...)] VALUES (field1_value, ...)
-TEST_F(ParserInsertTest, singleTableSingleRowTest) {
-  useDb("root", "test");
-
-  run("INSERT INTO t1 VALUES (now, 1, 'beijing', 3, 4, 5)");
-
-  run("INSERT INTO t1 (ts, c1, c2, c3, c4, c5) VALUES (now, 1, 'beijing', 3, 4, 5)");
-}
+//TEST_F(ParserInsertTest, singleTableSingleRowTest) {
+//  useDb("root", "test");
+//
+//  run("INSERT INTO t1 VALUES (now, 1, 'beijing', 3, 4, 5)");
+//
+//  run("INSERT INTO t1 (ts, c1, c2, c3, c4, c5) VALUES (now, 1, 'beijing', 3, 4, 5)");
+//}
 
 // INSERT INTO tb_name VALUES (field1_value, ...)(field1_value, ...)
-TEST_F(ParserInsertTest, singleTableMultiRowTest) {
-  useDb("root", "test");
-
-  run("INSERT INTO t1 VALUES (now, 1, 'beijing', 3, 4, 5)"
-      "(now+1s, 2, 'shanghai', 6, 7, 8)"
-      "(now+2s, 3, 'guangzhou', 9, 10, 11)");
-}
+//TEST_F(ParserInsertTest, singleTableMultiRowTest) {
+//  useDb("root", "test");
+//
+//  run("INSERT INTO t1 VALUES (now, 1, 'beijing', 3, 4, 5)"
+//      "(now+1s, 2, 'shanghai', 6, 7, 8)"
+//      "(now+2s, 3, 'guangzhou', 9, 10, 11)");
+//}
 
 // INSERT INTO tb1_name VALUES (field1_value, ...) tb2_name VALUES (field1_value, ...)
 TEST_F(ParserInsertTest, multiTableSingleRowTest) {

@@ -144,4 +144,6 @@ int32_t taosRTryLockLatch(SRWLatch *pLatch) {
   return 0;
 }
 
-int32_t taosRUnLockLatch(SRWLatch *pLatch) { return atomic_sub_fetch_32(pLatch, 1); }
+void taosRUnLockLatch(SRWLatch *pLatch) { (void)atomic_sub_fetch_32(pLatch, 1); }
+
+int32_t taosRUnLockLatch_r(SRWLatch *pLatch) { return atomic_sub_fetch_32(pLatch, 1); }

@@ -319,7 +319,7 @@ typedef struct SCtgVStbRefDbsCtx {
   SArray*         pVgroups;
   int32_t         resCode;
   int32_t         resDoneNum;
-  SVStbRefDbsRsp* pResList;
+  SArray*         pResList;
   int32_t         resIdx;
 } SCtgVStbRefDbsCtx;
 
