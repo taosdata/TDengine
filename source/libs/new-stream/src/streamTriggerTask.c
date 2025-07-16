@@ -6908,7 +6908,6 @@ _end:
   }
   return code;
 }
-<<<<<<< HEAD
 
 #define SSTRIGGER_REALTIME_SESSIONID 1
 #define SSTRIGGER_HISTORY_SESSIONID  2
@@ -10438,5 +10437,3 @@ int32_t stTriggerTaskGetStatus(SStreamTask *pTask, SSTriggerRuntimeStatus *pStat
   // todo(kjq): implement how to get recalculation progress
   return TSDB_CODE_SUCCESS;
 }
-=======
->>>>>>> origin/feat/TS-6100-3.0
