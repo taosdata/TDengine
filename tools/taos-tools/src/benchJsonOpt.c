@@ -2203,36 +2203,6 @@ int32_t readSpecQueryJson(tools_cJSON * specifiedQuery) {
                         int strLen = strlen(sqlStr->valuestring) + 1;
                         sql->command = benchCalloc(1, strLen, true);
                         TOOLS_STRNCPY(sql->command, sqlStr->valuestring, strLen);
-                        // default value is -1, which mean infinite loop
-                        g_queryInfo.specifiedQueryInfo.endAfterConsume[j] = -1;
-                        tools_cJSON *endAfterConsume =
-                            tools_cJSON_GetObjectItem(specifiedQuery,
-                                                      "endAfterConsume");
-                        if (tools_cJSON_IsNumber(endAfterConsume)) {
-                            g_queryInfo.specifiedQueryInfo.endAfterConsume[j] =
-                                (int)endAfterConsume->valueint;
-                        }
-                        if (g_queryInfo.specifiedQueryInfo
-                                .endAfterConsume[j] < -1) {
-                            g_queryInfo.specifiedQueryInfo
-                                .endAfterConsume[j] = -1;
-                        }
-
-                        g_queryInfo.specifiedQueryInfo
-                                .resubAfterConsume[j] = -1;
-                        tools_cJSON *resubAfterConsume =
-                            tools_cJSON_GetObjectItem(
-                                    specifiedQuery, "resubAfterConsume");
-                        if (tools_cJSON_IsNumber(resubAfterConsume)) {
-                            g_queryInfo.specifiedQueryInfo.resubAfterConsume[j]
-                                = (int)resubAfterConsume->valueint;
-                        }
-
-                        if (g_queryInfo.specifiedQueryInfo
-                                .resubAfterConsume[j] < -1)
-                            g_queryInfo.specifiedQueryInfo
-                                    .resubAfterConsume[j] = -1;
-
                         tools_cJSON *result =
                             tools_cJSON_GetObjectItem(sqlObj, "result");
                         if (tools_cJSON_IsString(result)) {
