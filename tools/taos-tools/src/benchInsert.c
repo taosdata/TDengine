@@ -805,6 +805,10 @@ static int generateChildTblName(int len, char *buffer, SDataBase *database,
 
     if (stbInfo->useTagTableName) {
         char *firstComma = strchr(tagStart, ',');
+        if (firstComma == NULL && tagStart >= firstComma) {
+            errorPrint("Invalid tag data format: %s\n", tagStart);
+            return -1;
+        }
         size_t nameLen = firstComma - tagStart;
         strncpy(tableName, tagStart, nameLen);
         tableName[nameLen] = '\0';
