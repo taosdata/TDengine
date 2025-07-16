@@ -39,15 +39,21 @@ void streamMgmtCleanup() {
   taosArrayDestroy(gStreamMgmt.vgLeaders);
   taosHashCleanup(gStreamMgmt.taskMap);
   taosHashCleanup(gStreamMgmt.vgroupMap);
+  for (int32_t i = 0; i < STREAM_MAX_GROUP_NUM; ++i) {
+    taosHashCleanup(gStreamMgmt.stmGrp[i]);
+    gStreamMgmt.stmGrp[i] = NULL;
+  }
 }
 
 void streamCleanup(void) {
+  stInfo("stream cleanup start");
   stTriggerTaskEnvCleanup();
   streamTimerCleanUp();
   smUndeployAllTasks();
   destroyDataSinkMgr();
   streamMgmtCleanup();
   destroyInserterGrpInfo();
+  stInfo("stream cleanup end");
 }
 
 int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode, getSynEpset_f getSynEpset) {
