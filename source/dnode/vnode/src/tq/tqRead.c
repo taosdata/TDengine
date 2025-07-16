@@ -636,7 +636,7 @@ static int32_t buildResSDataBlock(STqReader* pReader, SSchemaWrapper* pSchema, c
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doSetBlobVal(SColumnInfoData* pColumnInfoData, int32_t idx, SColVal* pColVal, SBlobValueSet* pBlobRow2) {
+static int32_t doSetBlobVal(SColumnInfoData* pColumnInfoData, int32_t idx, SColVal* pColVal, SBlobSet* pBlobRow2) {
   int32_t code = 0;
   if (pColumnInfoData == NULL || pColVal == NULL || pBlobRow2 == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -796,7 +796,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
           if (isBlob == 0) {
             code = doSetVal(pColData, i, &colVal);
           } else {
-            code = doSetBlobVal(pColData, i, &colVal, pSubmitTbData->pBlobRow);
+            code = doSetBlobVal(pColData, i, &colVal, pSubmitTbData->pBlobSet);
           }
           TSDB_CHECK_CODE(code, line, END);
         }
@@ -834,7 +834,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
             if (isBlob == 0) {
               code = doSetVal(pColData, i, &colVal);
             } else {
-              code = doSetBlobVal(pColData, i, &colVal, pSubmitTbData->pBlobRow);
+              code = doSetBlobVal(pColData, i, &colVal, pSubmitTbData->pBlobSet);
             }
 
             TSDB_CHECK_CODE(code, line, END);
@@ -875,7 +875,7 @@ END:
     sourceIdx++;                                                                                    \
   } else if (colVal.cid == pColData->info.colId) {                                                  \
     if (IS_STR_DATA_BLOB(pColData->info.type)) {                                                    \
-      TQ_ERR_GO_TO_END(doSetBlobVal(pColData, curRow - lastRow, &colVal, pSubmitTbData->pBlobRow)); \
+      TQ_ERR_GO_TO_END(doSetBlobVal(pColData, curRow - lastRow, &colVal, pSubmitTbData->pBlobSet)); \
     } else {                                                                                        \
       TQ_ERR_GO_TO_END(doSetVal(pColData, curRow - lastRow, &colVal));                              \
     }                                                                                               \

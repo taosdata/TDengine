@@ -183,14 +183,14 @@ static int32_t tEncodeSubSubmitAndUpdate(SVnode *pVnode, SEncoder *pEncoder, SSu
   if (hasBlob) {
     int32_t    nr = 0;
     uint64_t   seq = 0;
-    SBlobValueSet *pBlobRow = pSubmitTbData->pBlobRow;
+    SBlobSet  *pBlobSet = pSubmitTbData->pBlobSet;
 
     SRow  **pRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
-    int32_t sz = taosArrayGetSize(pBlobRow->pSeqTable);
+    int32_t sz = taosArrayGetSize(pBlobSet->pSeqTable);
     for (int32_t i = 0; i < sz; i++) {
-      SBlobValue *p = taosArrayGet(pBlobRow->pSeqTable, i);
+      SBlobValue *p = taosArrayGet(pBlobSet->pSeqTable, i);
 
-      // code = bseAppend(pVnode->pBse, &seq, pBlobRow->data + p->offset, p->len);
+      // code = bseAppend(pVnode->pBse, &seq, pBlobSet->data + p->offset, p->len);
       memcpy(pRow[i]->data + p->dataOffset, (void *)&seq, sizeof(uint64_t));
     }
   }

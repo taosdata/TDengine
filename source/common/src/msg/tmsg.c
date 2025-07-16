@@ -13152,10 +13152,10 @@ _exit:
 static int32_t tPreCheckSubmitTbData(const SSubmitTbData *pSubmitData, int8_t *hasBlog) {
   int32_t code = 0;
   int32_t line = 0;
-  if (tBlobRowSize(pSubmitData->pBlobRow) > 0) {
+  if (tBlobSetSize(pSubmitData->pBlobSet) > 0) {
     *hasBlog = 1;
     return code;
-    }
+  }
     return 0;
 }
 static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubmitTbData) {
@@ -13210,7 +13210,7 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->ctimeMs));
 
   if (hasBlog) {
-    tEncodeBlobRow2(pCoder, pSubmitTbData->pBlobRow);
+    tEncodeBlobRow2(pCoder, pSubmitTbData->pBlobSet);
   }
 
   tEndEncode(pCoder);
@@ -13296,7 +13296,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
   }
 
   if (!tDecodeIsEnd(pCoder) && hasBlob) {
-    TAOS_CHECK_EXIT(tDecodeBlobRow2(pCoder, &pSubmitTbData->pBlobRow));
+    TAOS_CHECK_EXIT(tDecodeBlobRow2(pCoder, &pSubmitTbData->pBlobSet));
   }
 
   if (rawData != NULL) {
@@ -13428,9 +13428,9 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
     }
   }
 
-  if (pTbData->pBlobRow) {
-    tBlobRowDestroy(pTbData->pBlobRow);
-    pTbData->pBlobRow = NULL;
+  if (pTbData->pBlobSet) {
+    tBlobSetDestroy(pTbData->pBlobSet);
+    pTbData->pBlobSet = NULL;
   }
   pTbData->aRowP = NULL;
 }
@@ -13453,9 +13453,9 @@ void tDestroySubmitReq(SSubmitReq2 *pReq, int32_t flag) {
   if (pReq->aSubmitBlobData != NULL) {
     int32_t nSubmitBlobData = TARRAY_SIZE(pReq->aSubmitBlobData);
     for (int32_t i = 0; i < nSubmitBlobData; i++) {
-      SBlobValueSet *pBlobData = taosArrayGetP(pReq->aSubmitBlobData, i);
+      SBlobSet *pBlobData = taosArrayGetP(pReq->aSubmitBlobData, i);
       if (pBlobData) {
-        tBlobRowDestroy(pBlobData);
+        tBlobSetDestroy(pBlobData);
       }
     }
     taosArrayDestroy(pReq->aSubmitBlobData);

@@ -70,7 +70,7 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
   }
 
   if (pDataBlock->hasBlob) {
-    code = tBlobRowCreate(1024, flag, &pNew->pBlobRow);
+    code = tBlobSetCreate(1024, flag, &pNew->pBlobSet);
   }
 
   return code;
@@ -761,7 +761,7 @@ static int32_t convertStmtStbNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_
 
 int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, TAOS_STMT2_BIND* bind, char* msgBuf,
                                int32_t msgBufLen, STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt,
-                               SBlobValueSet** ppBlob) {
+                               SBlobSet** ppBlob) {
   STableDataCxt*  pDataBlock = (STableDataCxt*)pBlock;
   SSchema*        pSchema = getTableColumnSchema(pDataBlock->pMeta);
   SBoundColInfo*  boundInfo = &pDataBlock->boundColsInfo;
@@ -869,9 +869,9 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
     code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, parsedCols, colInOrder, *pTSchema, pCols,
                               &pDataBlock->ordered, &pDataBlock->duplicateTs);
   } else {
-    code = tBlobRowCreate(1024, 1, ppBlob);
+    code = tBlobSetCreate(1024, 1, ppBlob);
     if (code != 0) {
-      qError("tBlobRowCreate failed:%s", tstrerror(code));
+      qError("tBlobSetCreate failed:%s", tstrerror(code));
       goto _return;
     }
     code = tRowBuildFromBind2WithBlob(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols,
@@ -1015,7 +1015,7 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
     if (isBlob == 0) {
       code = tColDataAddValueByBind2(pCol, pBind, bytes, initCtxAsText, checkWKB);
     } else {
-      code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobRow);
+      code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobSet);
     }
 
     if (code) {
@@ -1083,7 +1083,7 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
   }
 
   if (hasBlob) {
-    code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobRow);
+    code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobSet);
   } else {
     code = tColDataAddValueByBind2(pCol, pBind, bytes, initCtxAsText, checkWKB);
   }
@@ -1448,9 +1448,9 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
     }
   }
 
-  tBlobRowDestroy(pBlock->pData->pBlobRow);
+  tBlobSetDestroy(pBlock->pData->pBlobSet);
   if (block->hasBlob) {
-    code = tBlobRowCreate(1024, flag, &pBlock->pData->pBlobRow);
+    code = tBlobSetCreate(1024, flag, &pBlock->pData->pBlobSet);
   }
 
   return code;
@@ -1504,10 +1504,10 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
 
     memcpy(pNewTb, pCxt->pData, sizeof(*pCxt->pData));
     pNewTb->pCreateTbReq = NULL;
-    if (pNewTb->pBlobRow != NULL) {
-      flag = pNewTb->pBlobRow->type;
+    if (pNewTb->pBlobSet != NULL) {
+      flag = pNewTb->pBlobSet->type;
     }
-    pNewTb->pBlobRow = NULL;
+    pNewTb->pBlobSet = NULL;
 
     pNewTb->aCol = taosArrayDup(pCxt->pData->aCol, NULL);
     if (NULL == pNewTb->aCol) {
@@ -1516,7 +1516,7 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
     }
 
     if (pNewCxt->hasBlob) {
-      tBlobRowCreate(1024, flag, &pNewTb->pBlobRow);
+      tBlobSetCreate(1024, flag, &pNewTb->pBlobSet);
     }
 
     pNewCxt->pData = pNewTb;
