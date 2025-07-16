@@ -397,11 +397,11 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   if (NULL == pInfo) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
-  SCommitInfo *pBseCommitInfo = (SCommitInfo *)taosMemoryCalloc(1, sizeof(*pInfo));
-  if (NULL == pInfo) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  }
-  pBseCommitInfo->pVnode = pVnode;
+  // SCommitInfo *pBseCommitInfo = (SCommitInfo *)taosMemoryCalloc(1, sizeof(*pInfo));
+  // if (NULL == pInfo) {
+  //   TSDB_CHECK_CODE(code = terrno, lino, _exit);
+  // }
+  // pBseCommitInfo->pVnode = pVnode;
 
   // prepare to commit
   code = vnodePrepareCommit(pVnode, pInfo);
