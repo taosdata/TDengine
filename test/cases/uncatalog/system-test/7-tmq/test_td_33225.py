@@ -38,7 +38,6 @@ class TestCase:
         tdSql.execute(f'insert into t1 using s33225 tags("__devicid__", 1) values(1669092069068, 0, 1)')
 
         tdSql.execute("create topic db_33225_topic as select ts,c1,t2 from s33225")
-        tdSql.execute(f'create stream s1 into st1 as select _wstart, count(*), avg(c2),t2 from s33225 PARTITION BY tbname INTERVAL(1m)')
 
         tdSql.execute(f'alter table s33225 modify column c2 COMPRESS "zlib"')
         tdSql.execute(f'create index dex1 on s33225(t2)')

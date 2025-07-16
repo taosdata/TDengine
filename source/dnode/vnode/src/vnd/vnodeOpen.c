@@ -507,14 +507,6 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   ret = taosRealPath(tdir, NULL, sizeof(tdir));
   TAOS_UNUSED(ret);
 
-  // init handle map for stream event notification
-  ret = tqInitNotifyHandleMap(&pVnode->pNotifyHandleMap);
-  if (ret != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, failed to init StreamNotifyHandleMap", TD_VID(pVnode));
-    terrno = ret;
-    goto _err;
-  }
-
   // open query
   vInfo("vgId:%d, start to open vnode query", TD_VID(pVnode));
   if (vnodeQueryOpen(pVnode)) {
@@ -588,7 +580,7 @@ void vnodeClose(SVnode *pVnode) {
     vnodeAWait(&pVnode->commitTask);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
-    tqDestroyNotifyHandleMap(&pVnode->pNotifyHandleMap);
+    streamRemoveVnodeLeader(pVnode->config.vgId);
     tqClose(pVnode->pTq);
     walClose(pVnode->pWal);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);

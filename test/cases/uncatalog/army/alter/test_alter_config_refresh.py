@@ -138,11 +138,6 @@ class TestAlterConfigRefresh:
                     "category": "local"
                 },
                 {
-                    "name": "disableStream",
-                    "value": 1,
-                    "category": "global"
-                },
-                {
                     "name": "enableWhiteList",
                     "value": 1,
                     "category": "global"
@@ -338,14 +333,9 @@ class TestAlterConfigRefresh:
                     "category": "global"
                 },
                 {
-                    "name": "checkpointInterval",
-                    "value": 120,
-                    "category": "global"
-                },
-                {
-                    "name": "concurrentCheckpoint",
-                    "value": 3,
-                    "category": "global"
+                    "name": "streamBufferSize",
+                    "value": 1024,
+                    "category": "local"
                 },
                 {
                     "name": "retentionSpeedLimitMB",
@@ -361,11 +351,6 @@ class TestAlterConfigRefresh:
                     "name": "logKeepDays",
                     "value": 30,
                     "category": "local"
-                },
-                {
-                    "name": "maxStreamBackendCache",
-                    "value": 256,
-                    "category": "global"
                 },
                 {
                     "name": "mqRebalanceInterval",

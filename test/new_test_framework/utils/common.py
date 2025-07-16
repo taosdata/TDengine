@@ -19,6 +19,8 @@ import socket
 import json
 import toml
 import subprocess
+import os
+import platform
 from .boundary import DataBoundary
 import taos
 from .log import *
@@ -1991,6 +1993,14 @@ class TDCom:
                 if i == 1:
                     self.record_history_ts = ts_value
 
+    def generate_query_result_file(self, test_case, idx, sql):
+        self.query_result_file = f"./{test_case}.{idx}.csv"
+        cfgPath = self.getClientCfgPath()
+        taosCmd = f"taos -c {cfgPath} -s '{sql}' | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine Command' > {self.query_result_file}  "
+        #print(f"taosCmd:{taosCmd}, currentPath:{os.getcwd()}")
+        os.system(taosCmd)
+        return self.query_result_file
+    
     def generate_query_result(self, inputfile, test_case):
         if not os.path.exists(inputfile):
             tdLog.exit(f"Input file '{inputfile}' does not exist.")
@@ -2004,7 +2014,7 @@ class TDCom:
 
         try:
             # use subprocess.run to execute  diff/fc commands
-            # print(file1, file2)
+            #print(file1, file2)
             if platform.system().lower() != 'windows':
                 cmd='diff'
                 tdLog.info(f"cmd: {cmd} -u --color {file1} {file2}")
@@ -2032,6 +2042,15 @@ class TDCom:
             tdLog.debug("The 'diff' command is not found. Please make sure it's installed and available in your PATH.")
         except Exception as e:
             tdLog.debug(f"An error occurred: {e}")
+
+    def compare_query_with_result_file(self, idx, sql, resultFile, test_case):
+        self.generate_query_result_file(test_case, idx, sql)
+        if self.compare_result_files(resultFile, self.query_result_file):
+            tdLog.info("Test passed: Result files are identical.")
+            #os.system(f"rm -f {self.query_result_file}")
+        else:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            tdLog.exit(f"{caller.lineno}(line:{caller.lineno}) failed: expect_file:{resultFile}  != reult_file:{self.query_result_file} ")
 
 
     def compare_testcase_result(self, inputfile,expected_file,test_case):

@@ -24,11 +24,23 @@ from .eos import *
 from .log import *
 from .sql import tdSql
 
+TAOS = "taos"
+TAOSDUMP = "taosdump"
+TAOSBENCHMARK = "taosBenchmark"
+TAOSADAPTER = "taosAdapter"
+
+# taos
 def taosFile():
-    bin_file = binFile("taos")
+    """Get the path to the `taos` binary file.
+
+    Returns:
+        str: The full path to the `taos` binary file, with `.exe` appended if on Windows.
+    """
+
+    bmFile = binFile(TAOS)
     if isWin():
-        bin_file += ".exe"
-    return bin_file
+        bmFile += ".exe"
+    return bmFile
 
 # taosdump
 def taosDumpFile():
@@ -37,7 +49,7 @@ def taosDumpFile():
     Returns:
         str: The full path to the `taosdump` binary file, with `.exe` appended if on Windows.
     """
-    bmFile = binFile("taosdump")
+    bmFile = binFile(TAOSDUMP)
     if isWin():
         bmFile += ".exe"
     return bmFile
@@ -52,7 +64,7 @@ def benchMarkFile():
     Returns:
         str: The full path to the `taosBenchmark` binary file, with `.exe` appended if on Windows.
     """
-    bmFile = binFile("taosBenchmark")
+    bmFile = binFile(TAOSBENCHMARK)
     if isWin():
         bmFile += ".exe"
     return bmFile
@@ -67,7 +79,7 @@ def taosAdapterFile():
     Returns:
         str: The full path to the `taosAdapter` binary file, with `.exe` appended if on Windows.
     """
-    bmFile = binFile("taosAdapter")
+    bmFile = binFile(TAOSADAPTER)
     if isWin():
         bmFile += ".exe"
     return bmFile
@@ -97,8 +109,8 @@ def benchMark(command = "", json = "") :
         print(cmd)
         status = exe(cmd)
         if status !=0:
-          tdLog.exit(f"run failed {cmd} status={status}")
-       
+            tdLog.exit(f"run failed {cmd} status={status}")
+
 
 # get current directory file name
 def curFile(fullPath, filename):
@@ -115,7 +127,7 @@ def curFile(fullPath, filename):
 
 
 # run build/bin file
-def runBinFile(fname, command, show=True, checkRun = False, retFail = False ):
+def runBinFile(fname, command, show = True, checkRun = False, retFail = False ):
     """Run a binary file with the specified command.
 
     Args:
@@ -169,3 +181,17 @@ def exeBinFile(fname, command, wait=True, show=True):
         if show:
             tdLog.info("no wait exe:" + cmd)
         return exeNoWait(cmd)
+
+#
+#  run bin file
+#
+
+# taos
+def taos(command, show = True, checkRun = False):
+    return runBinFile(TAOS, command, show, checkRun)
+
+def taosdump(command, show = True, checkRun = True, retFail = True):
+    return runBinFile(TAOSDUMP, command, show, checkRun, retFail)
+
+def benchmark(command, show = True, checkRun = True, retFail = True):
+    return runBinFile(TAOSBENCHMARK, command, show, checkRun, retFail)        

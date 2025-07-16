@@ -463,7 +463,7 @@ class TestSplitVGroupWal:
         self.splitEmptyDB()
 
         # check topic and stream forib
-        self.checkForbid()
+        #newstm self.checkForbid()
 
         # compact database
         self.compactAndCheck()

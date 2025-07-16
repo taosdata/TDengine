@@ -150,15 +150,14 @@ class TestTaosinspect:
         # 14. information_schema.ins_streams
         result = tdSql.getResult("desc information_schema.ins_streams")
         self.check_column(result, "stream_name", "information_schema.ins_streams")
+        self.check_column(result, "db_name", "information_schema.ins_streams")
         self.check_column(result, "create_time", "information_schema.ins_streams")
+        self.check_column(result, "stream_id", "information_schema.ins_streams")
         self.check_column(result, "sql", "information_schema.ins_streams")
         self.check_column(result, "status", "information_schema.ins_streams")
-        self.check_column(result, "watermark", "information_schema.ins_streams")
-        self.check_column(result, "trigger", "information_schema.ins_streams")
-        self.check_column(result, "sink_quota", "information_schema.ins_streams")
-        if server_version.startswith("3.2") or server_version.startswith("3.3"):
-            self.check_column(result, "stream_id", "information_schema.ins_streams")
-            self.check_column(result, "sink_quota", "information_schema.ins_streams")
+        self.check_column(result, "snodeLeader", "information_schema.ins_streams")
+        self.check_column(result, "snodeReplica", "information_schema.ins_streams")
+        self.check_column(result, "message", "information_schema.ins_streams")
         # tdSql.query("select count(*) as stream_count from information_schema.ins_streams")
         # tdSql.query("select stream_name, create_time, "--" as stream_id, sql, status, `watermark`, `trigger`, "--" as sink_quota from information_schema.ins_streams") # 3.1
         # tdSql.query("select stream_name, create_time, stream_id, sql, status, `watermark`, `trigger`, sink_quota from information_schema.ins_streams") # 3.2+
@@ -203,18 +202,19 @@ class TestTaosinspect:
         # 18. information_schema.ins_stream_tasks
         result = tdSql.getResult("desc information_schema.ins_stream_tasks")
         self.check_column(result, "stream_name", "information_schema.ins_stream_tasks")
+        self.check_column(result, "stream_id", "information_schema.ins_stream_tasks")
         self.check_column(result, "task_id", "information_schema.ins_stream_tasks")
+        self.check_column(result, "type", "information_schema.ins_stream_tasks")
+        self.check_column(result, "serious_id", "information_schema.ins_stream_tasks")
+        self.check_column(result, "deploy_id", "information_schema.ins_stream_tasks")
         self.check_column(result, "node_type", "information_schema.ins_stream_tasks")
         self.check_column(result, "node_id", "information_schema.ins_stream_tasks")
-        self.check_column(result, "level", "information_schema.ins_stream_tasks")
+        self.check_column(result, "task_idx", "information_schema.ins_stream_tasks")
         self.check_column(result, "status", "information_schema.ins_stream_tasks")
-        if server_version.startswith("3.2") or server_version.startswith("3.3"):
-            self.check_column(result, "in_queue", "information_schema.ins_stream_tasks")
-            self.check_column(result, "process_total", "information_schema.ins_stream_tasks")
-            self.check_column(result, "process_throughput", "information_schema.ins_stream_tasks")
-            self.check_column(result, "out_total", "information_schema.ins_stream_tasks")
-            self.check_column(result, "out_throughput", "information_schema.ins_stream_tasks")
-            self.check_column(result, "info", "information_schema.ins_stream_tasks")
+        self.check_column(result, "start_time", "information_schema.ins_stream_tasks")
+        self.check_column(result, "last_update", "information_schema.ins_stream_tasks")
+        self.check_column(result, "extra_info", "information_schema.ins_stream_tasks")
+        self.check_column(result, "message", "information_schema.ins_stream_tasks")
         # tdSql.query("select stream_name,task_id,node_type,node_id,level,status from information_schema.ins_stream_tasks where stream_name='{stream[0]}'") # 3.1
         # tdSql.query("select stream_name,task_id,start_time,node_type,node_id,level,status,in_queue,process_total,process_throughput,out_total,out_throughput,info from information_schema.ins_stream_tasks where stream_name='{stream[0]}'")  # 3.2+
 

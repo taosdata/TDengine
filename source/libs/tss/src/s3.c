@@ -391,7 +391,7 @@ static int32_t simpleUpload(SSharedStorageS3* ss, const char* dstPath, SUploadSo
 static S3Status multipartInitialCallback(const char *uploadId, void *cbd) {
     SUploadCallbackData* ucbd = (SUploadCallbackData*)cbd;
 
-    char* id = strdup(uploadId);
+    char* id = taosStrdup(uploadId);
     if (id == NULL) {
         tssError("failed to allocate memory for upload ID");
         ucbd->status = S3StatusOutOfMemory;
@@ -409,7 +409,7 @@ static S3Status multipartInitialCallback(const char *uploadId, void *cbd) {
 static S3Status multipartResponseProperiesCallback(const S3ResponseProperties *properties, void *cbd) {
     SUploadCallbackData* ucbd = (SUploadCallbackData*)cbd;
 
-    char* etag = strdup(properties->eTag);
+    char* etag = taosStrdup(properties->eTag);
     if (etag == NULL) {
         tssError("failed to allocate memory for eTag");
         ucbd->status = S3StatusOutOfMemory;
@@ -641,12 +641,12 @@ static int32_t multipartUpload(SSharedStorageS3* ss, const char* dstPath, SUploa
     }
 
     if (ucbd.uploadId) {
-        taosMemFree(ucbd.uploadId);
+        taosMemoryFree(ucbd.uploadId);
     }
 
     if (ucbd.etags) {
         for (uint32_t i = 0; i < ucbd.numChunks; i++) {
-            taosMemFree(ucbd.etags[i]);
+            taosMemoryFree(ucbd.etags[i]);
         }
         taosMemFree(ucbd.etags);
     }
@@ -885,7 +885,7 @@ static S3Status listFileCallback(int                        isTruncated,
             continue;
         }
         
-        char* path = strdup(key);
+        char* path = taosStrdup(key);
         if (path == NULL) {
             tssError("failed to allocate memory for list path");
             lcbd->status = S3StatusOutOfMemory;
@@ -894,7 +894,7 @@ static S3Status listFileCallback(int                        isTruncated,
 
         if (taosArrayPush(lcbd->paths, &path) == NULL) {
             tssError("failed to append path to list");
-            taosMemFree(path);
+            taosMemoryFree(path);
             lcbd->status = S3StatusOutOfMemory;
             break;
         }
@@ -929,7 +929,7 @@ static int32_t listFile(SSharedStorage* pss, const char* prefix, SArray* paths) 
 
         for(size_t i = 0; i < taosArrayGetSize(paths); i++) {
             char* path = *(char**)taosArrayGet(paths, i);
-            taosMemFree(path);
+            taosMemoryFree(path);
         }
         taosArrayClear(paths);
 

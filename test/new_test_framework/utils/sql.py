@@ -236,7 +236,13 @@ class TDSql:
             raise (ex)
 
     def query(
-        self, sql, row_tag=None, queryTimes=10, count_expected_res=None, show=False
+        self,
+        sql,
+        row_tag=None,
+        queryTimes=10,
+        count_expected_res=None,
+        show=False,
+        exit=True,
     ):
         """
         Executes a SQL query and fetches the results.
@@ -280,12 +286,16 @@ class TDSql:
                     return self.queryResult
                 return self.queryRows
             except Exception as e:
-                tdLog.notice("Try to query again, query times: %d " % i)
+                if exit:
+                    tdLog.notice("Try to query again, query times: %d " % i)
                 if i == queryTimes:
-                    caller = inspect.getframeinfo(inspect.stack()[1][0])
-                    args = (caller.filename, caller.lineno, sql, repr(e))
-                    tdLog.error("%s(%d) failed: sql:%s, %s" % args)
-                    raise Exception(repr(e))
+                    if exit:
+                        caller = inspect.getframeinfo(inspect.stack()[1][0])
+                        args = (caller.filename, caller.lineno, sql, repr(e))
+                        tdLog.error("%s(%d) failed: sql:%s, %s" % args)
+                        raise Exception(repr(e))
+                    else:
+                        return False
                 i += 1
                 time.sleep(1)
                 pass
@@ -872,7 +882,25 @@ class TDSql:
             colDatas.append(self.queryResult[i][col])
         return colDatas
 
-    def getResult(self, sql):
+    def getRowData(self, row):
+        """
+        Retrieves all data from the specified row in the last query result.
+
+        Args:
+            row (int): The row index of the data to be retrieved.
+
+        Returns:
+            list: A list containing all data from the specified row.
+
+        Raises:
+            SystemExit: If the specified row is out of range.
+        """
+        if row >= self.queryRows:
+            return None
+        
+        return self.queryResult[row]
+
+    def getResult(self, sql, exit=True):
         """
         Executes a SQL query and fetches the results.
 
@@ -890,10 +918,13 @@ class TDSql:
             self.cursor.execute(sql)
             self.queryResult = self.cursor.fetchall()
         except Exception as e:
-            caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, sql, repr(e))
-            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
-            raise Exception(repr(e))
+            if exit:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                args = (caller.filename, caller.lineno, sql, repr(e))
+                tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+                raise Exception(repr(e))
+            else:
+                return []
         return self.queryResult
 
     def getVariable(self, search_attr):
@@ -967,6 +998,21 @@ class TDSql:
             None
         """
         return self.queryRows
+    
+    def getCols(self):
+        """
+        Retrieves the number of cols fetched by the last query.
+
+        Args:
+            None
+
+        Returns:
+            int: The number of cols fetched by the last query.
+
+        Raises:
+            None
+        """
+        return self.queryCols
 
     # get first value
     def getFirstValue(self, sql):
@@ -1718,6 +1764,8 @@ class TDSql:
 
         if exit:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
+            tdLog.info(f"{name} {caller.filename}({caller.lineno})")
+            caller = inspect.getframeinfo(inspect.stack()[2][0])
             tdLog.exit(f"{name} {caller.filename}({caller.lineno})")
 
     def expectKeyData(self, key, col, data, show=False):
@@ -2141,6 +2189,20 @@ class TDSql:
     def __check_equal(self, elm, expect_elm):
         if elm == expect_elm:
             return True
+
+        if isinstance(elm, datetime.datetime) and isinstance(expect_elm, str):
+            try:
+                parsed = datetime.datetime.fromisoformat(expect_elm)
+                return elm == parsed
+            except ValueError:
+                return False
+        if isinstance(expect_elm, datetime.datetime) and isinstance(elm, str):
+            try:
+                parsed = datetime.datetime.fromisoformat(elm)
+                return expect_elm == parsed
+            except ValueError:
+                return False
+        
         if type(elm) in (list, tuple) and type(expect_elm) in (list, tuple):
             if len(elm) != len(expect_elm):
                 return False
@@ -2454,18 +2516,18 @@ class TDSql:
 
     def getDbVgroups(self, db_name: str = "test") -> list:
         db_vgroups_list = []
-        tdSql.query(f"show {db_name}.vgroups")
-        for result in tdSql.queryResult:
+        self.query(f"show {db_name}.vgroups")
+        for result in self.queryResult:
             db_vgroups_list.append(result[0])
         vgroup_nums = len(db_vgroups_list)
         tdLog.debug(f"{db_name} has {vgroup_nums} vgroups :{db_vgroups_list}")
-        tdSql.query("select * from information_schema.ins_vnodes")
+        self.query("select * from information_schema.ins_vnodes")
         return db_vgroups_list
 
     def getCluseterDnodes(self) -> list:
         cluset_dnodes_list = []
-        tdSql.query("show dnodes")
-        for result in tdSql.queryResult:
+        self.query("show dnodes")
+        for result in self.queryResult:
             cluset_dnodes_list.append(result[0])
         self.clust_dnode_nums = len(cluset_dnodes_list)
         tdLog.debug(
@@ -2493,17 +2555,17 @@ class TDSql:
         else:
             raise ValueError(f"Replica count must be 1 or 3,but got {replica}")
         tdLog.debug(f"redistributeSql:{redistribute_sql}")
-        tdSql.query(redistribute_sql)
+        self.query(redistribute_sql)
         tdLog.debug("redistributeSql ok")
 
     def redistributeDbAllVgroups(self, db_name: str = "test", replica: int = 1):
         db_vgroups_list = self.getDbVgroups(db_name)
         cluset_dnodes_list = self.getCluseterDnodes()
         useful_trans_dnodes_list = cluset_dnodes_list.copy()
-        tdSql.query("select * from information_schema.ins_vnodes")
+        self.query("select * from information_schema.ins_vnodes")
         # result: dnode_id|vgroup_id|db_name|status|role_time|start_time|restored|
 
-        results = list(tdSql.queryResult)
+        results = list(self.queryResult)
         for vnode_group_id in db_vgroups_list:
             for result in results:
                 print(
@@ -2554,29 +2616,32 @@ class TDSql:
         """
         tdLog.info(f"set connection mode:{mode}")
 
-    def checkResultsByFunc(self, sql, func, delay=0.0, retry=20, show=False):
+    def checkResultsByFunc(self, sql, func, delay=0.0, retry=60, show=False):
         if delay != 0:
             time.sleep(delay)
+
+        # show sql
+        tdLog.info(sql)
 
         if retry <= 0:
             retry = 1
 
         for loop in range(retry):
-            tdSql.query(sql)
-
-            if func():
-                tdSql.printResult(f"check succeed in {loop} seconds")
-                return
+            self.clearResult()
+            if self.query(sql, queryTimes=1, exit=False):
+                if func():
+                    self.printResult(f"check succeed in {loop} seconds")
+                    return
 
             if loop != retry - 1:
                 if show:
-                    tdSql.printResult("check continue")
+                    self.printResult(f"check continue {loop} after sleep 1s ...")
                 time.sleep(1)
 
-        tdSql.printResult(f"check failed for {retry} seconds", exit=True)
+        self.printResult(f"check failed for {retry} seconds", exit=True)
 
     def checkResultsByArray(
-        self, sql, exp_result, exp_sql="", delay=0.0, retry=20, show=False
+        self, sql, exp_result, exp_sql="", delay=0.0, retry=60, show=False
     ):
         if delay != 0:
             time.sleep(delay)
@@ -2585,29 +2650,107 @@ class TDSql:
             retry = 1
 
         for loop in range(retry):
-            res_result = tdSql.getResult(sql)
-
-            if self.compareResults(res_result, exp_result):
-                tdSql.printResult(f"check succeed in {loop} seconds")
-                return
+            self.clearResult()
+            res_result = self.getResult(sql, exit=False)
+            if res_result != []:
+                if self.compareResults(res_result, exp_result):
+                    self.printResult(
+                        f"check succeed in {loop} seconds", input_result=res_result
+                    )
+                    return
 
             if loop != retry - 1:
                 if show:
-                    tdSql.printResult("check continue")
+                    self.printResult("check continue", input_result=res_result)
                 time.sleep(1)
 
-        tdSql.printResult(f"expect results", input_result=exp_result, input_sql=exp_sql)
-        tdSql.printResult(
+        self.printResult(f"expect results", input_result=exp_result, input_sql=exp_sql)
+        self.printResult(
             f"check failed for {retry} seconds", input_result=res_result, input_sql=sql
         )
         self.compareResults(res_result, exp_result, show=True)
 
         caller = inspect.getframeinfo(inspect.stack()[1][0])
+        tdLog.info(f"{caller.filename}(caller.lineno)  check result failed")
+        caller = inspect.getframeinfo(inspect.stack()[2][0])
         tdLog.exit(f"{caller.filename}(caller.lineno)  check result failed")
 
-    def checkResultsBySql(self, sql, exp_sql, delay=0.0, retry=20, show=False):
-        exp_result = tdSql.getResult(exp_sql)
-        return self.checkResultsByArray(sql, exp_result, exp_sql, delay, retry, show)
+    def checkResultsBySql(self, sql, exp_sql, delay=0.0, retry=60, show=False):
+        self.clearResult()
+        exp_result = self.getResult(exp_sql)
+        self.checkResultsByArray(sql, exp_result, exp_sql, delay, retry, show)
+
+    def checkTableType(
+        self,
+        dbname,
+        columns,
+        tags=0,
+        stbname=None,
+        tbname=None,
+        typename=None,
+        delay=0.0,
+        retry=60,
+        show=False,
+    ):
+        if tags == 0:
+            sql = f"select * from information_schema.ins_tables where db_name='{dbname}' and table_name='{tbname}'"
+            self.checkResultsByFunc(
+                sql=sql,
+                func=lambda: self.getRows() == 1
+                and self.compareData(0, 0, tbname)
+                and self.compareData(0, 1, dbname)
+                and self.compareData(0, 3, columns)
+                and self.compareData(0, 4, stbname)
+                and self.compareData(0, 9, typename),
+                delay=delay,
+                retry=retry,
+                show=show,
+            )
+        else:
+            sql = f"select * from information_schema.ins_stables where db_name='{dbname}' and stable_name='{stbname}'"
+            self.checkResultsByFunc(
+                sql=sql,
+                func=lambda: self.getRows() == 1
+                and self.compareData(0, 0, stbname)
+                and self.compareData(0, 1, dbname)
+                and self.compareData(0, 3, columns)
+                and self.compareData(0, 4, tags),
+                delay=delay,
+                retry=retry,
+                show=show,
+            )
+
+    def checkTableSchema(
+        self,
+        dbname,
+        tbname,
+        schema,
+        delay=0.0,
+        retry=60,
+        show=False,
+    ):
+        sql = f"desc {dbname}.{tbname}"
+        self.checkResultsByFunc(
+            sql=sql,
+            func=lambda: self.compareSchema(schema),
+            delay=delay,
+            retry=retry,
+            show=show,
+        )
+
+    def compareSchema(self, schema):
+        row = len(schema)
+        for r in range(row):
+            if (
+                schema[r][0] != self.queryResult[r][0]  # field
+                or schema[r][1] != self.queryResult[r][1]  # type
+                or schema[r][2] != self.queryResult[r][2]  # length
+                or schema[r][3] != self.queryResult[r][3]  # note
+            ):
+                tdLog.info(f"exp_schema[{r}]={schema[r]}, res_schema[{r}]={self.queryResult[r]}")
+                return False
+
+        return True
 
     def compareResults(self, res_result, exp_result, show=False):
         exp_rows = len(exp_result)
@@ -2640,5 +2783,46 @@ class TDSql:
 
         return True
 
+    def clearResult(self):
+        self.queryCols = 0
+        self.queryRows = 0
+        self.queryResult = []
 
+
+    # insert table with fixed values, return next write ts
+    def insertFixedVal(self, table, startTs, step, count, cols, fixedVals):
+        # init
+        ts = startTs
+        # loop count
+        for i in range(count):
+            sql = f"INSERT INTO {table}({cols}) VALUES({ts},{fixedVals})"
+            self.execute(sql, show=True)
+            # next
+            ts += step
+
+        return ts
+
+    # insert table with order values, only support number cols, return next write ts
+    def insertOrderVal(self, table, startTs, step, count, cols, orderVals, colStep = 1):
+        # init
+        ts      = startTs
+        colsVal = orderVals
+
+        # loop count
+        for i in range(count):
+            # insert sql
+            sql = f"INSERT INTO {table}({cols}) VALUES({ts}, {','.join(map(str, colsVal))})"
+            self.execute(sql, show=True)
+            # next
+            ts += step
+            for j in range(len(colsVal)):
+                colsVal[j] += colStep
+
+        return ts
+
+    # flush db
+    def flushDb(self, dbName):
+        self.execute(f"flush database {dbName}", show=True)
+
+# global
 tdSql = TDSql()

@@ -1538,6 +1538,7 @@ void tmqClearUnhandleMsg(tmq_t* tmq) {
 int32_t tmqSubscribeCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (pMsg) {
     taosMemoryFreeClear(pMsg->pEpSet);
+    taosMemoryFreeClear(pMsg->pData);
   }
 
   if (param == NULL) {
