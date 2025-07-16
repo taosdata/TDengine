@@ -566,6 +566,7 @@ typedef struct SSuperTable_S {
     int64_t   specifiedColumns;
     char      sampleFile[MAX_FILE_NAME_LEN];
     char      tagsFile[MAX_FILE_NAME_LEN];
+    char      primaryKeyName[MAX_FILE_NAME_LEN];
     uint32_t  partialColNum;
     uint32_t  partialColFrom;
     char      *partialColNameBuf;
@@ -1039,7 +1040,7 @@ int tmpInt32ImplTag(Field *field, int i, int k);
 
 char* genQMark( int32_t QCnt);
 // get colNames , first is tbname if tbName is true
-char *genColNames(BArray *cols, bool tbName);
+char *genColNames(BArray *cols, bool tbName, char *primaryKeyName);
 
 // stmt2
 TAOS_STMT2_BINDV* createBindV(int32_t count, int32_t tagCnt, int32_t colCnt);

@@ -1054,13 +1054,13 @@ char* genQMark( int32_t QCnt) {
 }
 
 // get colNames , first is tbname if tbName is true
-char *genColNames(BArray *cols, bool tbName) {
+char *genColNames(BArray *cols, bool tbName, char * primaryKeyName) {
     // reserve tbname,ts and "," space
     char * buf = benchCalloc(TSDB_TABLE_NAME_LEN + 1, cols->size + 1, false);
     if (tbName) {
-        strcpy(buf, "tbname,ts");
+        snprintf(buf, TSDB_TABLE_NAME_LEN, "tbname,%s", primaryKeyName);
     } else {
-        strcpy(buf, "ts");
+        strcpy(buf, primaryKeyName);
     }
    
     for (int32_t i = 0; i < cols->size; i++) {

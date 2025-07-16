@@ -313,7 +313,7 @@ static int createSuperTable(SDataBase* database, SSuperTable* stbInfo) {
         (char *)benchCalloc(len + TIMESTAMP_BUFF_LEN, 1, true);
 
     snprintf(stbInfo->colsOfCreateChildTable, len + TIMESTAMP_BUFF_LEN,
-             "(ts timestamp%s)", colsBuf);
+             "(%s timestamp%s)", stbInfo->primaryKeyName, colsBuf);
 
     if (stbInfo->tags->size == 0) {
         free(colsBuf);
@@ -391,9 +391,9 @@ skip:
     int length = snprintf(
         command, TSDB_MAX_ALLOWED_SQL_LEN,
         g_arguments->escape_character
-            ? "CREATE TABLE IF NOT EXISTS `%s`.`%s` (ts TIMESTAMP%s) TAGS %s"
-            : "CREATE TABLE IF NOT EXISTS %s.%s (ts TIMESTAMP%s) TAGS %s",
-        database->dbName, stbInfo->stbName, colsBuf, tagsBuf);
+            ? "CREATE TABLE IF NOT EXISTS `%s`.`%s` (%s TIMESTAMP%s) TAGS %s"
+            : "CREATE TABLE IF NOT EXISTS %s.%s (%s TIMESTAMP%s) TAGS %s",
+        database->dbName, stbInfo->stbName, stbInfo->primaryKeyName, colsBuf, tagsBuf);
     tmfree(colsBuf);
     tmfree(tagsBuf);
     if (stbInfo->comment != NULL) {

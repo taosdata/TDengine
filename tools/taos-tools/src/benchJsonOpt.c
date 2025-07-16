@@ -1405,6 +1405,16 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
             memset(superTable->tagsFile, 0, MAX_FILE_NAME_LEN);
         }
 
+        tools_cJSON *primaryKeyName =
+            tools_cJSON_GetObjectItem(stbInfo, "primary_key_name");
+        if (tools_cJSON_IsString(primaryKeyName) 
+            && primaryKeyName->valuestring != NULL 
+            && strlen(primaryKeyName->valuestring) > 0) {
+            TOOLS_STRNCPY(superTable->primaryKeyName, primaryKeyName->valuestring, MAX_FILE_NAME_LEN);
+        } else {
+            TOOLS_STRNCPY(superTable->primaryKeyName, "ts", MAX_FILE_NAME_LEN);
+        }
+
         tools_cJSON *useTagTableName =
             tools_cJSON_GetObjectItem(stbInfo, "use_tag_table_name");
         if (tools_cJSON_IsString(useTagTableName) &&
