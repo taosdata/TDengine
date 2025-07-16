@@ -44,17 +44,18 @@ class TestPeriodOutputSubtable:
         self.createTable()
         sql = (
             f"create stream {self.dbname}.s16 period(1s) from {self.dbname}.stba partition by tbname stream_options(pre_filter(cint>90)) " 
-            f"into {self.dbname}.s16_out output_subtable('xxxx') tags(yyyy varchar(100) comment 'table name1' as 'cint+10') " 
+            f"into {self.dbname}.s16_out output_subtable(concat(tbname,'xxxx')) tags(yyyy varchar(100) comment 'table name1' as 'cint+10') " 
             "as  select ts,max(cint),i1,  %%tbname from %%trows  order by ts;"
         )
         
         #create stream
         tdSql.execute(sql)
+        self.checkStreamRunning()
         tdSql.execute("insert into test1.a0 values(now,now,200,300);")
         tdSql.execute("insert into test1.a1 values(now,now,200,300);")
         tdSql.execute("insert into test1.a2 values(now,now,500,300);")
         
-        self.checkStreamRunning()
+      
         time.sleep(10)
         tdSql.query(f"select * from {self.dbname}.s16_out;")
         if tdSql.getRows() == 0:
