@@ -122,7 +122,6 @@ void initTqAPI(SStoreTqReader* pTq) {
 
   pTq->tqReaderClose = tqReaderClose;
   pTq->tqReaderSeek = tqReaderSeek;
-  pTq->tqRetrieveBlock = tqRetrieveDataBlock;
 
   pTq->tqGetTablePrimaryKey = tqGetTablePrimaryKey;
   pTq->tqSetTablePrimaryKey = tqSetTablePrimaryKey;
@@ -139,7 +138,6 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqReaderCurrentBlockConsumed = tqCurrentBlockConsumed;
 
   pTq->tqReaderGetWalReader = tqGetWalReader;  // todo remove it
-  //  pTq->tqReaderRetrieveTaosXBlock = tqRetrieveTaosxBlock;  // todo remove it
 
   pTq->tqReaderSetSubmitMsg = tqReaderSetSubmitMsg;  // todo remove it
   pTq->tqGetResultBlock = tqGetResultBlock;
@@ -156,6 +154,7 @@ void initMetaReaderAPI(SStoreMetaReader* pMetaReader) {
   pMetaReader->clearReader = metaReaderClear;
 
   pMetaReader->getTableEntryByUid = metaReaderGetTableEntryByUid;
+  pMetaReader->getTableEntryByVersionUid = metaGetTableEntryByVersion;
 
   pMetaReader->getEntryGetUidCache = metaReaderGetTableEntryByUidCache;
   pMetaReader->getTableEntryByName = metaGetTableEntryByName;

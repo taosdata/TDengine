@@ -196,7 +196,7 @@ static int32_t mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStre
   int32_t     code = 0;
 
   pObj->pCreate = pCreate;
-  strncpy(pObj->name, pCreate->name, TSDB_STREAM_NAME_LEN);
+  strncpy(pObj->name, pCreate->name, TSDB_STREAM_FNAME_LEN);
   pObj->mainSnodeId = snodeId;
   
   pObj->userDropped = 0;
@@ -409,6 +409,7 @@ int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
       if (code) {
         mError("drop db trans:%d failed to append drop stream trans since %s", pTrans->id, tstrerror(code));
         sdbRelease(pSdb, pStream);
+        sdbCancelFetch(pSdb, pIter);
         TAOS_RETURN(code);
       }
     }
@@ -849,19 +850,21 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     lino = 0;
   STrans     *pTrans = NULL;
+  uint64_t    streamId = 0;
+  SCMCreateStreamReq* pCreate = NULL;
 
 #ifdef WINDOWS
   code = TSDB_CODE_MND_INVALID_PLATFORM;
   goto _OVER;
 #endif
 
-  SCMCreateStreamReq* pCreate = taosMemoryCalloc(1, sizeof(SCMCreateStreamReq));
+  pCreate = taosMemoryCalloc(1, sizeof(SCMCreateStreamReq));
   TSDB_CHECK_NULL(pCreate, code, lino, _OVER, terrno);
   
   code = tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, pCreate);
   TSDB_CHECK_CODE(code, lino, _OVER);
 
-  uint64_t    streamId = pCreate->streamId;
+  streamId = pCreate->streamId;
 
   mstsInfo("start to create stream %s, sql:%s", pCreate->name, pCreate->sql);
 
@@ -932,9 +935,9 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 _OVER:
 
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mstsError("failed to create stream %s at line:%d since %s", pCreate->name, lino, tstrerror(code));
+    mstsError("failed to create stream %s at line:%d since %s", pCreate ? pCreate->name : "unknown", lino, tstrerror(code));
   } else {
-    mstsDebug("create stream %s half completed", pCreate->name);
+    mstsDebug("create stream %s half completed", pCreate ? pCreate->name : "unknown");
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 

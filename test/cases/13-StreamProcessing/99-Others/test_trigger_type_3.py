@@ -62,7 +62,7 @@ class TestStreamTriggerType1:
         sql4 = "create stream s4 state_window (c1)        from stream_trigger                     into st4                                 as select _twstart ts, count(*) c1, avg(cint) c2 from meters;"
         sql5 = "create stream s5 state_window (c1)        from stream_trigger                     into st5                                 as select _twstart ts, count(*) c1, avg(c1) c2, first(c1) c3, last(c1) c4 from %%trows;"
         sql6 = "create stream s6 sliding (1s)             from stream_trigger                     into st6                                 as select _tcurrent_ts, now, count(cint) from meters;"
-        sql7 = "create stream s7 state_window (c1)        from stream_trigger partition by tbname options(fill_history_first(1)) into st7  as select _twstart, avg(cint), count(cint) from meters;"
+        sql7 = "create stream s7 state_window (c1)        from stream_trigger partition by tbname stream_options(fill_history_first(1)) into st7  as select _twstart, avg(cint), count(cint) from meters;"
         sql8 = "create stream s8 state_window (c1)        from stream_trigger partition by tbname into st8                                 as select _twstart ts, count(*) c1, avg(cint) c2, _twstart + 1 as ts2 from meters;"
         sql9 = "create stream s9 PERIOD(10s, 10a)                                                 into st9                                 as select cast(_tlocaltime/1000000 as timestamp) as tl, _tprev_localtime/1000000 tp, _tnext_localtime/1000000 tn, now, max(cint) from meters;"
         

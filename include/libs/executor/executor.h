@@ -246,14 +246,6 @@ const char* qExtractTbnameFromTask(qTaskInfo_t tinfo);
 void* qExtractReaderFromTmqScanner(void* scanner);
 void  qExtractTmqScanner(qTaskInfo_t tinfo, void** scanner);
 
-int32_t  qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo);
-int32_t  qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange* pVerRange, STimeWindow* pWindow);
-int32_t  qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange* pVerRange, STimeWindow* pWindow);
-int32_t  qStreamRecoverFinish(qTaskInfo_t tinfo);
-bool     qStreamScanhistoryFinished(qTaskInfo_t tinfo);
-int32_t  qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo);
-int32_t  qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval,
-                                    STimeWindow* pLastWindow, TSKEY* pRecInteral);
 int32_t  qStreamOperatorReleaseState(qTaskInfo_t tInfo);
 int32_t  qStreamOperatorReloadState(qTaskInfo_t tInfo);
 int32_t  streamCollectExprsForReplace(qTaskInfo_t tInfo, SArray* pExprs);
@@ -272,7 +264,6 @@ SArray*  qStreamGetTableArrayList(const void* pTableList);
 int32_t  qStreamGetGroupIndex(void* pTableListInfo, int64_t gid);
 int32_t  qStreamFilter(SSDataBlock* pBlock, void* pFilterInfo);
 bool     qStreamUidInTableList(void* pTableListInfo, uint64_t uid);
-int32_t  qStreamCreateTableListFromUid(uint64_t uid, void** pTableListInfo);
 
 int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** pExprInfo, int32_t* numOfExprs);
 void    destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs);

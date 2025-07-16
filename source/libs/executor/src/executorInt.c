@@ -117,10 +117,6 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
     }
   }
 
-  if (pData == NULL) {
-    return NULL;
-  }
-
   setBufPageDirty(pData, true);
 
   // set the number of rows in current disk page
@@ -537,6 +533,7 @@ int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t n
     }
 
     struct SResultRowEntryInfo* pResInfo = pCtx[i].resultInfo;
+    
     if (isRowEntryCompleted(pResInfo) && isRowEntryInitialized(pResInfo)) {
       continue;
     }
@@ -686,9 +683,6 @@ int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResu
         }
       }
 
-      code = blockDataEnsureCapacity(pBlock, pBlock->info.rows + pCtx[j].resultInfo->numOfRes);
-      QUERY_CHECK_CODE(code, lino, _end);
-
       code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
       if (TSDB_CODE_SUCCESS != code) {
         qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
@@ -702,7 +696,7 @@ int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResu
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
-      for (int32_t k = 0; k < pRow->numOfRows; ++k) {
+      for (int32_t k = 0; k < pRow->numOfRows; ++k) {        
         code = colDataSetValOrCover(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -1035,6 +1029,7 @@ void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOf
       SExprInfo* pExprInfo = &pExpr[i];
       for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
         if (pExprInfo->base.pParam[j].type == FUNC_PARAM_TYPE_VALUE) {
+          colDataDestroy(pCtx[i].input.pData[j]);
           taosMemoryFree(pCtx[i].input.pData[j]);
           taosMemoryFree(pCtx[i].input.pColumnDataAgg[j]);
         }
@@ -1272,6 +1267,7 @@ void freeOpParamItem(void* pItem) {
 void freeVirtualTableScanGetOperatorParam(SOperatorParam* pParam) {
   SVTableScanOperatorParam* pVTableScanParam = (SVTableScanOperatorParam*)pParam->value;
   taosArrayDestroyEx(pVTableScanParam->pOpParamArray, freeOpParamItem);
+  freeOpParamItem(&pVTableScanParam->pTagScanOp);
   freeOperatorParamImpl(pParam, OP_GET_PARAM);
 }
 

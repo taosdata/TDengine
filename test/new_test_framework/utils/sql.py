@@ -2442,6 +2442,9 @@ class TDSql:
         if delay != 0:
             time.sleep(delay)
 
+        # show sql
+        tdLog.info(sql)
+
         if retry <= 0:
             retry = 1
 
@@ -2454,7 +2457,7 @@ class TDSql:
 
             if loop != retry - 1:
                 if show:
-                    self.printResult("check continue")
+                    self.printResult(f"check continue {loop} after sleep 1s ...")
                 time.sleep(1)
 
         self.printResult(f"check failed for {retry} seconds", exit=True)
@@ -2607,4 +2610,37 @@ class TDSql:
         self.queryRows = 0
         self.queryResult = []
 
+
+    # insert table with fixed values, return next write ts
+    def insertFixedVal(self, table, startTs, step, count, cols, fixedVals):
+        # init
+        ts = startTs
+        # loop count
+        for i in range(count):
+            sql = f"INSERT INTO {table}({cols}) VALUES({ts},{fixedVals})"
+            self.execute(sql, show=True)
+            # next
+            ts += step
+
+        return ts
+
+    # insert table with order values, only support number cols, return next write ts
+    def insertOrderVal(self, table, startTs, step, count, cols, orderVals, colStep = 1):
+        # init
+        ts      = startTs
+        colsVal = orderVals
+
+        # loop count
+        for i in range(count):
+            # insert sql
+            sql = f"INSERT INTO {table}({cols}) VALUES({ts}, {','.join(map(str, colsVal))})"
+            self.execute(sql, show=True)
+            # next
+            ts += step
+            for j in range(len(colsVal)):
+                colsVal[j] += colStep
+
+        return ts
+
+# global
 tdSql = TDSql()

@@ -1321,7 +1321,9 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   code =
       initQueryTableDataCondWithColArray(&pInfo->base.cond, &pInfo->base.orgCond, &pInfo->base.readHandle, pColArray);
   QUERY_CHECK_CODE(code, lino, _return);
-  pInfo->base.cond.twindows.skey = pParam->window.ekey + 1;
+  if (pParam->window.ekey > 0) {
+    pInfo->base.cond.twindows.skey = pParam->window.ekey + 1;
+  }
   pInfo->base.cond.suid = orgTable.me.type == TSDB_CHILD_TABLE ? superTable.me.uid : 0;
   pInfo->currentGroupId = 0;
   pInfo->base.dataReader = NULL;
@@ -1858,6 +1860,136 @@ _end:
   return code;
 }
 
+int32_t colIdComparFn(const void* param1, const void* param2) {
+  int32_t p1 = *(int32_t*)param1;
+  int32_t p2 = *(int32_t*)param2;
+
+  if (p1 == p2) {
+    return 0;
+  } else {
+    return (p1 < p2) ? -1 : 1;
+  }
+}
+
+static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
+  SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
+  SOperatorInfo*  pOperator = pInfo->pStreamScanOp;
+  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
+  const char*     id = GET_TASKID(pTaskInfo);
+  bool            isVtableSourceScan = (pTaskInfo->pSubplan->pVTables != NULL);
+
+  code = blockDataEnsureCapacity(pInfo->pRes, pBlock->info.rows);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pBlockInfo->rows = pBlock->info.rows;
+  pBlockInfo->id.uid = pBlock->info.id.uid;
+  pBlockInfo->type = STREAM_NORMAL;
+  pBlockInfo->version = pBlock->info.version;
+
+  STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
+  if (!isVtableSourceScan) {
+    pBlockInfo->id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
+  } else {
+    // use original table uid as groupId for vtable
+    pBlockInfo->id.groupId = pBlock->info.id.groupId;
+  }
+
+  SArray* pColList = taosArrayInit(4, sizeof(int32_t));
+  QUERY_CHECK_NULL(pColList, code, lino, _end, terrno);
+
+  // todo extract method
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); ++i) {
+    SColMatchItem* pColMatchInfo = taosArrayGet(pInfo->matchInfo.pList, i);
+    if (!pColMatchInfo->needOutput) {
+      continue;
+    }
+
+    bool colExists = false;
+    for (int32_t j = 0; j < blockDataGetNumOfCols(pBlock); ++j) {
+      SColumnInfoData* pResCol = NULL;
+      code = bdGetColumnInfoData(pBlock, j, &pResCol);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      if (pResCol->info.colId == pColMatchInfo->colId) {
+        SColumnInfoData* pDst = taosArrayGet(pInfo->pRes->pDataBlock, pColMatchInfo->dstSlotId);
+        code = colDataAssign(pDst, pResCol, pBlock->info.rows, &pInfo->pRes->info);
+        QUERY_CHECK_CODE(code, lino, _end);
+
+        colExists = true;
+        void* tmp = taosArrayPush(pColList, &pColMatchInfo->dstSlotId);
+        QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+        break;
+      }
+    }
+
+    // the required column does not exists in submit block, let's set it to be all null value
+    if (!colExists) {
+      SColumnInfoData* pDst = taosArrayGet(pInfo->pRes->pDataBlock, pColMatchInfo->dstSlotId);
+      colDataSetNNULL(pDst, 0, pBlockInfo->rows);
+      void* tmp = taosArrayPush(pColList, &pColMatchInfo->dstSlotId);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+    }
+  }
+
+  // currently only the tbname pseudo column
+  if (pInfo->numOfPseudoExpr > 0 && !isVtableSourceScan) {
+    code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
+                                  pBlockInfo->rows, pTaskInfo, &pTableScanInfo->base.metaCache);
+    // ignore the table not exists error, since this table may have been dropped during the scan procedure.
+    if (code) {
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    // reset the error code.
+    terrno = 0;
+
+    for (int32_t i = 0; i < pInfo->numOfPseudoExpr; ++i) {
+      void* tmp = taosArrayPush(pColList, &pInfo->pPseudoExpr[i].base.resSchema.slotId);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+    }
+  }
+
+  taosArraySort(pColList, colIdComparFn);
+
+  int32_t i = 0, j = 0;
+  while (i < taosArrayGetSize(pColList)) {
+    int32_t slot1 = *(int32_t*)taosArrayGet(pColList, i);
+    if (slot1 > j) {
+      SColumnInfoData* pDst = taosArrayGet(pInfo->pRes->pDataBlock, j);
+      colDataSetNNULL(pDst, 0, pBlockInfo->rows);
+      j += 1;
+    } else {
+      i += 1;
+      j += 1;
+    }
+  }
+
+  while (j < taosArrayGetSize(pInfo->pRes->pDataBlock)) {
+    SColumnInfoData* pDst = taosArrayGet(pInfo->pRes->pDataBlock, j);
+    colDataSetNNULL(pDst, 0, pBlockInfo->rows);
+    j += 1;
+  }
+
+  taosArrayDestroy(pColList);
+
+  code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  code = blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (pInfo->pRes->info.rows == 0) {
+    return 0;
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t processPrimaryKey(SSDataBlock* pBlock, bool hasPrimaryKey, STqOffsetVal* offset) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -1961,8 +2093,7 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, pRes->info.rows,
                pTaskInfo->streamInfo.currentOffset.version);
         blockDataCleanup(pInfo->pRes);
-        STimeWindow defaultWindow = {.skey = INT64_MIN, .ekey = INT64_MAX};
-        // code = setBlockIntoRes(pInfo, pRes, &defaultWindow, true);
+        code = setBlockIntoRes(pInfo, pRes);
         QUERY_CHECK_CODE(code, lino, _end);
         qDebug("doQueueScan after filter get data from log %" PRId64 " rows, version:%" PRId64, pInfo->pRes->info.rows,
                pTaskInfo->streamInfo.currentOffset.version);

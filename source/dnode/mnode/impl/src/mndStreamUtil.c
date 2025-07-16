@@ -135,6 +135,9 @@ void mstDestroySStmStatus(void* param) {
   taosMemoryFreeClear(pStatus->streamName);
 
   mstResetSStmStatus(pStatus);
+
+  tFreeSCMCreateStreamReq(pStatus->pCreate);
+  taosMemoryFreeClear(pStatus->pCreate);  
 }
 
 void mstDestroySStmAction(void* param) {
@@ -162,6 +165,7 @@ int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped) {
     if (pStream->pCreate->streamId == streamId) {
       *dropped = pStream->userDropped ? true : false;
       sdbRelease(pSdb, pStream);
+      sdbCancelFetch(pSdb, pIter);
       mstsDebug("stream found, dropped:%d", *dropped);
       return TSDB_CODE_SUCCESS;
     }
@@ -555,11 +559,20 @@ int32_t mstBuildDBVgroupsMap(SMnode* pMnode, SSHashObj** ppRes) {
     pDbInfo = (SDBVgHashInfo*)tSimpleHashGet(pDbVgroup, pVgroup->dbName, strlen(pVgroup->dbName) + 1);
     if (NULL == pDbInfo) {
       pNew = taosArrayInit(20, sizeof(SVGroupHashInfo));
-      TSDB_CHECK_NULL(pNew, code, lino, _exit, terrno);
-
+      if (NULL == pNew) {
+        sdbRelease(pMnode->pSdb, pVgroup);
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        pVgroup = NULL;
+        TSDB_CHECK_NULL(pNew, code, lino, _exit, terrno);
+      }
+      
       pDb = mndAcquireDb(pMnode, pVgroup->dbName);
-      TSDB_CHECK_NULL(pNew, code, lino, _exit, terrno);
-
+      if (NULL == pDb) {
+        sdbRelease(pMnode->pSdb, pVgroup);
+        sdbCancelFetch(pMnode->pSdb, pIter);      
+        pVgroup = NULL;
+        TSDB_CHECK_NULL(pDb, code, lino, _exit, terrno);
+      }
       dbInfo.vgSorted = false;
       dbInfo.hashMethod = pDb->cfg.hashMethod;
       dbInfo.hashPrefix = pDb->cfg.hashPrefix;
@@ -574,10 +587,21 @@ int32_t mstBuildDBVgroupsMap(SMnode* pMnode, SSHashObj** ppRes) {
     }
 
     SVGroupHashInfo vgInfo = {.vgId = pVgroup->vgId, .hashBegin = pVgroup->hashBegin, .hashEnd = pVgroup->hashEnd};
-    TSDB_CHECK_NULL(taosArrayPush(pTarget, &vgInfo), code, lino, _exit, terrno);
+    if (NULL == taosArrayPush(pTarget, &vgInfo)) {
+      sdbRelease(pMnode->pSdb, pVgroup);
+      sdbCancelFetch(pMnode->pSdb, pIter);      
+      pVgroup = NULL;
+      TSDB_CHECK_NULL(NULL, code, lino, _exit, terrno);
+    }
 
     if (NULL == pDbInfo) {
-      TAOS_CHECK_EXIT(tSimpleHashPut(pDbVgroup, pVgroup->dbName, strlen(pVgroup->dbName) + 1, &dbInfo, sizeof(dbInfo)));
+      code = tSimpleHashPut(pDbVgroup, pVgroup->dbName, strlen(pVgroup->dbName) + 1, &dbInfo, sizeof(dbInfo));
+      if (code) {
+        sdbRelease(pMnode->pSdb, pVgroup);
+        sdbCancelFetch(pMnode->pSdb, pIter);      
+        pVgroup = NULL;
+        TAOS_CHECK_EXIT(code);
+      }
       pNew = NULL;
     }
 
@@ -590,7 +614,6 @@ int32_t mstBuildDBVgroupsMap(SMnode* pMnode, SSHashObj** ppRes) {
 _exit:
 
   taosArrayDestroy(pNew);
-  sdbRelease(pMnode->pSdb, pVgroup);
 
   if (code) {
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));

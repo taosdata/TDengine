@@ -106,7 +106,7 @@ if(${BUILD_CONTRIB})
         vnode
         PUBLIC "inc"
         PUBLIC "src/inc"
-        PUBLIC "${TD_SOURCE_DIR}/include/libs/tcs"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/tss"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
         PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
@@ -116,7 +116,7 @@ else()
         vnode
         PUBLIC "inc"
         PUBLIC "src/inc"
-        PUBLIC "${TD_SOURCE_DIR}/include/libs/tcs"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/tss"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
         PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
@@ -153,7 +153,7 @@ target_link_libraries(
     PUBLIC tdb
     PUBLIC audit
     PUBLIC crypt
-    PUBLIC tcs
+    PUBLIC tss
 
     # PUBLIC bdb
     # PUBLIC scalar

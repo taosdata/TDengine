@@ -378,11 +378,6 @@ int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle
     return code;
   }
 
-  code = qStreamInfoResetTimewindowFilter(*pTaskInfo);
-  if (code != TSDB_CODE_SUCCESS) {
-    qDestroyTask(*pTaskInfo);
-  }
-
   return code;
 }
 
@@ -1103,72 +1098,6 @@ void qExtractTmqScanner(qTaskInfo_t tinfo, void** scanner) {
   }
 }
 
-int32_t qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange* pVerRange, STimeWindow* pWindow) {
-  int32_t        code = TSDB_CODE_SUCCESS;
-  int32_t        lino = 0;
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  QUERY_CHECK_CONDITION((pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM), code, lino, _end,
-                        TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
-
-  SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
-
-  pStreamInfo->fillHistoryVer = *pVerRange;
-  pStreamInfo->fillHistoryWindow = *pWindow;
-  pStreamInfo->recoverStep = STREAM_RECOVER_STEP__PREPARE1;
-
-  qDebug("%s step 1. set param for stream scanner for scan-history data, verRange:%" PRId64 " - %" PRId64
-         ", window:%" PRId64 " - %" PRId64,
-         GET_TASKID(pTaskInfo), pStreamInfo->fillHistoryVer.minVer, pStreamInfo->fillHistoryVer.maxVer, pWindow->skey,
-         pWindow->ekey);
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange* pVerRange, STimeWindow* pWindow) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  if (tinfo == NULL) {
-    return TSDB_CODE_INTERNAL_ERROR;
-  }
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  QUERY_CHECK_CONDITION((pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM), code, lino, _end,
-                        TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
-
-  SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
-
-  pStreamInfo->fillHistoryVer = *pVerRange;
-  pStreamInfo->fillHistoryWindow = *pWindow;
-  pStreamInfo->recoverStep = STREAM_RECOVER_STEP__PREPARE2;
-
-  qDebug("%s step 2. set param for stream scanner scan wal, verRange:%" PRId64 "-%" PRId64 ", window:%" PRId64
-         "-%" PRId64,
-         GET_TASKID(pTaskInfo), pStreamInfo->fillHistoryVer.minVer, pStreamInfo->fillHistoryVer.maxVer, pWindow->skey,
-         pWindow->ekey);
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-int32_t qStreamRecoverFinish(qTaskInfo_t tinfo) {
-  int32_t        code = TSDB_CODE_SUCCESS;
-  int32_t        lino = 0;
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  QUERY_CHECK_CONDITION((pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM), code, lino, _end,
-                        TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
-  pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__NONE;
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
 static int32_t getOpratorIntervalInfo(SOperatorInfo* pOperator, int64_t* pWaterMark, SInterval* pInterval,
                                       STimeWindow* pLastWindow, TSKEY* pRecInteral) {
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
@@ -1180,51 +1109,6 @@ static int32_t getOpratorIntervalInfo(SOperatorInfo* pOperator, int64_t* pWaterM
   *pLastWindow = pScanOp->lastScanRange;
   *pRecInteral = pScanOp->recalculateInterval;
   return TSDB_CODE_SUCCESS;
-}
-
-int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval,
-                                   STimeWindow* pLastWindow, TSKEY* pRecInteral) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  SOperatorInfo* pOperator = pTaskInfo->pRoot;
-  return getOpratorIntervalInfo(pOperator, pWaterMark, pInterval, pLastWindow, pRecInteral);
-}
-
-int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  SOperatorInfo* pOperator = pTaskInfo->pRoot;
-
-  while (1) {
-    int32_t type = pOperator->operatorType;
-    // iterate operator tree
-    if (pOperator->numOfDownstream != 1 || pOperator->pDownstream[0] == NULL) {
-      if (pOperator->numOfDownstream > 1) {
-        qError("unexpected stream, multiple downstream");
-        return -1;
-      }
-      return 0;
-    } else {
-      pOperator = pOperator->pDownstream[0];
-    }
-  }
-
-  return 0;
-}
-
-bool qStreamScanhistoryFinished(qTaskInfo_t tinfo) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  return pTaskInfo->streamInfo.recoverScanFinished;
-}
-
-int32_t qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  STimeWindow*   pWindow = &pTaskInfo->streamInfo.fillHistoryWindow;
-
-  qDebug("%s remove timeWindow filter:%" PRId64 "-%" PRId64 ", set new window:%" PRId64 "-%" PRId64,
-         GET_TASKID(pTaskInfo), pWindow->skey, pWindow->ekey, INT64_MIN, INT64_MAX);
-
-  pWindow->skey = INT64_MIN;
-  pWindow->ekey = INT64_MAX;
-  return 0;
 }
 
 void* qExtractReaderFromTmqScanner(void* scanner) {
@@ -1826,24 +1710,6 @@ int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t ui
     qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
     return code;
   }
-  *pTableListInfo = pList;
-  return 0;
-}
-
-int32_t qStreamCreateTableListFromUid(uint64_t uid, void** pTableListInfo) {
-  STableListInfo* pList = tableListCreate();
-  if (pList == NULL) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-    return terrno;
-  }
-
-  int32_t code = tableListAddTableInfo(pList, uid, 0);
-  if (code != 0) {
-    tableListDestroy(pList);
-    qError("failed to add table info for uid:%" PRIu64, uid);
-    return code;
-  }
-
   *pTableListInfo = pList;
   return 0;
 }

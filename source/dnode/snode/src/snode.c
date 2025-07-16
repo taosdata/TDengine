@@ -104,6 +104,7 @@ static int32_t handleSyncWriteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
     dataLen = 0;
     taosMemoryFreeClear(data);
   }
+  
 end:
   if (data == NULL) {
     rsp.contLen = INT_BYTES + LONG_BYTES;
@@ -124,6 +125,7 @@ end:
       taosMemoryFreeClear(data); 
     } 
   }
+  
   rpcSendResponse(&rsp);
   return 0;
 }
@@ -264,7 +266,7 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
 
 _exit:
 
-  stsDebug("task %" PRIx64 " TDMT_STREAM_FETCH_FROM_CACHE_RSP with code:%d size:%d", req.taskId, code, (int32_t)size);  
+  stsDebug("task %" PRIx64 " TDMT_STREAM_FETCH_FROM_CACHE_RSP with code:%d rows:%" PRId64 ", size:%d", req.taskId, code, readInfo.pBlock ? readInfo.pBlock->info.rows : 0, (int32_t)size);  
   SRpcMsg rsp = {.code = code, .msgType = TDMT_STREAM_FETCH_FROM_CACHE_RSP, .contLen = size, .pCont = buf, .info = pRpcMsg->info};
   tmsgSendRsp(&rsp);
 
@@ -277,6 +279,19 @@ _exit:
   
   return code;
 }
+
+static void sndSendErrorRrsp(SRpcMsg *pMsg, int32_t errCode) {
+  SRpcMsg             rspMsg = {0};
+
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = NULL;
+  rspMsg.contLen = 0;
+  rspMsg.code = errCode;
+  rspMsg.msgType = pMsg->msgType;
+
+  tmsgSendRsp(&rspMsg);
+}
+
 
 int32_t sndProcessStreamMsg(SSnode *pSnode, void *pWorkerCb, SRpcMsg *pMsg) {
   int32_t code = 0, lino = 0;

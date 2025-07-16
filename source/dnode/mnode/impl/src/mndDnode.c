@@ -21,6 +21,7 @@
 #include "mndCluster.h"
 #include "mndDb.h"
 #include "mndMnode.h"
+#include "mndMount.h"
 #include "mndPrivilege.h"
 #include "mndQnode.h"
 #include "mndShow.h"
@@ -1213,7 +1214,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
 
   if (pSObj != NULL) {
     mInfo("trans:%d, snode on dnode:%d will be dropped", pTrans->id, pDnode->id);
-    TAOS_CHECK_GOTO(mndDropSnodeImpl(pMnode, pReq, pSObj, pTrans), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndDropSnodeImpl(pMnode, pReq, pSObj, pTrans, force), &lino, _OVER);
   }
 
   if (pMObj != NULL) {
@@ -1321,6 +1322,14 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     }
   }
 
+#ifdef USE_MOUNT
+  if (mndHasMountOnDnode(pMnode, dropReq.dnodeId) && !force) {
+    code = TSDB_CODE_MND_MOUNT_NOT_EMPTY;
+    mError("dnode:%d, failed to drop since %s", dropReq.dnodeId, tstrerror(code));
+    goto _OVER;
+  }
+#endif
+
   int32_t numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
   bool    isonline = mndIsDnodeOnline(pDnode, taosGetTimestampMs());
 
@@ -1331,6 +1340,8 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  mError("vnode num:%d", numOfVnodes);
+
   bool    vnodeOffline = false;
   void   *pIter = NULL;
   int32_t vgId = -1;
@@ -1340,6 +1351,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     if (pIter == NULL) break;
 
     for (int32_t i = 0; i < pVgroup->replica; ++i) {
+      mError("vnode dnodeId:%d state:%d", pVgroup->vnodeGid[i].dnodeId, pVgroup->vnodeGid[i].syncState);
       if (pVgroup->vnodeGid[i].dnodeId == pDnode->id) {
         if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_OFFLINE) {
           vgId = pVgroup->vgId;

@@ -130,7 +130,7 @@ typedef struct SMetaData {
   SArray*   pView;        // pRes = SViewMeta*
   SArray*   pTableTsmas;  // pRes = SArray<STableTSMAInfo*>
   SArray*   pTsmas;       // pRes = SArray<STableTSMAInfo*>
-  SArray*   pVStbRefDbs;  // pRes = SVStbRefDbsRsp
+  SArray*   pVStbRefDbs;  // pRes = SArray<SVStbRefDbsRsp*>
   SMetaRes* pSvrVer;      // pRes = char*
 } SMetaData;
 

@@ -421,7 +421,7 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
 
   if (pInfo->pTimeRange != NULL) {
-    STimeWindow pWinRange = {};
+    STimeWindow pWinRange = {0};
     bool        isWinRangeValid = false;
     calcTimeRange((STimeRangeNode*)pInfo->pTimeRange, &pTaskInfo->pStreamRuntimeInfo->funcInfo, &pWinRange,
                   &isWinRangeValid);
@@ -763,7 +763,7 @@ static void reviseFillStartAndEndKey(SFillOperatorInfo* pInfo, int32_t order) {
     while (next < pInfo->win.skey) {
       next = taosTimeAdd(skey, pInfo->pFillInfo->interval.sliding, pInfo->pFillInfo->interval.slidingUnit,
                          pInfo->pFillInfo->interval.precision, NULL);
-      if (next == ekey) break;
+      if (next == skey) break;
       skey = next > pInfo->win.skey ? skey : next;
     }
     taosFillUpdateStartTimestampInfo(pInfo->pFillInfo, skey);

@@ -89,11 +89,11 @@ class TestStreamDevBasic:
         st1.append_data(0, 10)
 
         tdSql.error(
-            f"create stream s0 state_window (cint) from test.trigger options(fill_history_first(1)) into test.out0  \
+            f"create stream s0 state_window (cint) from test.trigger stream_options(fill_history_first(1)) into test.out0  \
             as select _twstart ts, _twend, avg(cint) avg_cint, count(cint) count_cint from %%trows;"
         )
 
-        sql = f"create stream s0 state_window (cint) from test.trigger_0 options(fill_history_first(1)) into test.out0  \
+        sql = f"create stream s0 state_window (cint) from test.trigger_0 stream_options(fill_history_first(1)) into test.out0  \
             as select _twstart ts, _twend, avg(cint) avg_cint, count(cint) count_cint from %%trows;"
 
         stream = StreamItem(
@@ -126,7 +126,7 @@ class TestStreamDevBasic:
         st1.appendSubTables(200, 240)
         st1.append_data(0, 40)
 
-        sql = f"create stream s7 state_window (cint) from test.trigger_0 options(fill_history_first(1)) into st7  as select _twstart ts, _twend, avg(cint) avg_cint, count(cint) count_cint from test.st where cts <= _twstart;"
+        sql = f"create stream s7 state_window (cint) from test.trigger_0 stream_options(fill_history_first(1)) into st7  as select _twstart ts, _twend, avg(cint) avg_cint, count(cint) count_cint from test.st where cts <= _twstart;"
 
         stream1 = StreamItem(
             id=0,
@@ -204,11 +204,11 @@ class TestStreamDevBasic:
         st1.appendSubTables(200, 240)
         st1.append_data(0, 40)
 
-        sql1 = f"create stream s1 state_window (cint) from test.trigger options(fill_history_first(1)) into out1  as \
+        sql1 = f"create stream s1 state_window (cint) from test.trigger stream_options(fill_history_first(1)) into out1  as \
             select _twstart ts, _twend, avg(cint) avg_cint, count(cint) count_cint from test.st where cts <= _twstart;"
-        sql2 = f"create stream s2 state_window (cint) from test.trigger partition by tbname options(fill_history_first(1)) into out2  as \
+        sql2 = f"create stream s2 state_window (cint) from test.trigger partition by tbname stream_options(fill_history_first(1)) into out2  as \
             select _twstart ts, _twend, avg(cint) avg_cint, count(cint) count_cint from test.st where cts <= _twstart;"
-        sql3 = f"create stream s3 state_window (cint) from test.trigger partition by tbname options(fill_history_first(1)) into out3  as \
+        sql3 = f"create stream s3 state_window (cint) from test.trigger partition by tbname stream_options(fill_history_first(1)) into out3  as \
             select _twstart ts, _twend, avg(cint) avg_cint, count(cint) count_cint from %%trows;"
         stream1 = StreamItem(
             id=0,

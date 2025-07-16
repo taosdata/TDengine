@@ -80,6 +80,8 @@ const char *sdbTableName(ESdbType type) {
       return "bnode";
     case SDB_CFG:
       return "config";
+    case SDB_MOUNT:
+      return "mount";
     default:
       return "undefine";
   }

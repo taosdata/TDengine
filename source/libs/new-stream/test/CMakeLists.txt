@@ -4,6 +4,7 @@ MESSAGE(STATUS "build new-stream unit test")
 SET(CMAKE_CXX_STANDARD 11)
 AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
+if(NOT ${TD_WINDOWS})
 ADD_EXECUTABLE(streamRunnerTest streamRunnerTest.cpp)
 DEP_ext_gtest(streamRunnerTest)
 
@@ -16,7 +17,7 @@ TARGET_INCLUDE_DIRECTORIES(
 
 TARGET_LINK_LIBRARIES(
   streamRunnerTest
-  PUBLIC taos os common executor tcs function index
+  PUBLIC taos os common executor function index
 )
 
 add_test(
@@ -32,3 +33,4 @@ add_test(
     NAME dataSinkTest
     COMMAND dataSinkTest
 )
+endif(NOT ${TD_WINDOWS})

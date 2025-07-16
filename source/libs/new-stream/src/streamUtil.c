@@ -115,11 +115,38 @@ void stmHandleStreamRemovedTasks(SStreamInfo* pStream, int64_t streamId, int32_t
   }
 }
 
+
+int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg* pMsg, SStreamTask* pTask) {
+  int32_t code = 0, lino = 0;
+
+  taosWLockLatch(&pTask->mgmtReqLock);
+  if (pTask->pMgmtReq) {
+    TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, pTask), code, lino, _exit, terrno);
+    SStmTaskStatusMsg* pStatus = taosArrayGetLast(pMsg->pStreamStatus);
+    TAOS_CHECK_EXIT(tCloneSStreamMgmtReq(pStatus->pMgmtReq, &pStatus->pMgmtReq));
+    TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
+  } else {
+    TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, pTask), code, lino, _exit, terrno);
+  }
+  
+_exit:
+
+  taosWUnLockLatch(&pTask->mgmtReqLock);
+
+  if (code) {
+    stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
+
 int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t streamId, bool reportPeriod) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SListIter iter = {0};
   SListNode* listNode = NULL;
+  SStreamTask* pTask = NULL;
 
   taosWLockLatch(&pStream->lock);
 
@@ -141,27 +168,30 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
     tdListInitIter(pStream->readerList, &iter, TD_LIST_FORWARD);
     while ((listNode = tdListNext(&iter)) != NULL) {
       SStreamReaderTask* pReader = (SStreamReaderTask*)listNode->data;
+      pTask = (SStreamTask*)pReader;
       TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, &pReader->task), code, lino, _exit, terrno);
-      if (pReader->task.pMgmtReq) {
-        TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
-      }
+      //if (pReader->task.pMgmtReq) {
+      //  TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
+      //}
+      ST_TASK_DLOG("task status added to hb %s mgmtReq", pReader->task.pMgmtReq ? "with" : "without");
     }
 
     stsDebug("%d reader tasks status added to hb", TD_DLIST_NELES(pStream->readerList));
   }
 
   if (pStream->triggerTask) {
+    pTask = (SStreamTask*)pStream->triggerTask;
     if (reportPeriod) {
       TAOS_CHECK_EXIT(stmAddPeriodReport(streamId, &pMsg->pTriggerStatus, pStream->triggerTask));
       pStream->triggerTask->task.detailStatus = taosArrayGetSize(pMsg->pTriggerStatus) - 1;
     } else {
       pStream->triggerTask->task.detailStatus = -1;
     }
-    TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, &pStream->triggerTask->task), code, lino, _exit, terrno);
+    
+    TAOS_CHECK_EXIT(stmHbAddTaskStatus(streamId, pMsg, &pStream->triggerTask->task));
+    
+    ST_TASK_DLOG("task status added to hb %s mgmtReq", pStream->triggerTask->task.pMgmtReq ? "with" : "without");
     stsDebug("%d trigger tasks status added to hb", 1);
-    if (pStream->triggerTask->task.pMgmtReq) {
-      TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
-    }
   }
 
   if (pStream->runnerList) {
@@ -170,10 +200,12 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
     tdListInitIter(pStream->runnerList, &iter, TD_LIST_FORWARD);
     while ((listNode = tdListNext(&iter)) != NULL) {
       SStreamRunnerTask* pRunner = (SStreamRunnerTask*)listNode->data;
+      pTask = (SStreamTask*)pRunner;
       TSDB_CHECK_NULL(taosArrayPush(pMsg->pStreamStatus, &pRunner->task), code, lino, _exit, terrno);
-      if (pRunner->task.pMgmtReq) {
-        TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
-      }
+      //if (pRunner->task.pMgmtReq) {
+      //  TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
+      //}
+      ST_TASK_DLOG("task status added to hb %s mgmtReq", pRunner->task.pMgmtReq ? "with" : "without");
     }
 
     stsDebug("%d runner tasks status added to hb", TD_DLIST_NELES(pStream->runnerList));
@@ -198,6 +230,8 @@ int32_t stmBuildHbStreamsStatusReq(SStreamHbMsg* pMsg) {
   if (0 == pMsg->streamGId) {
     reportPeriod = !reportPeriod;
   }
+
+  stDebug("start to build hb status req, gid:%d", pMsg->streamGId);
   
   SHashObj* pHash = gStreamMgmt.stmGrp[pMsg->streamGId];
   if (NULL == pHash) {
@@ -225,13 +259,36 @@ void stmDestroySStreamInfo(void* param) {
   if (NULL == param) {
     return;
   }
+
+  stDebug("start to destroy stream info");
   
   SStreamInfo* p = (SStreamInfo*)param;
+
+  SListIter iter = {0};
+  SListNode* listNode = NULL;  
+  tdListInitIter(p->readerList, &iter, TD_LIST_FORWARD);
+  while ((listNode = tdListNext(&iter)) != NULL) {
+    SStreamTask* pTask = (SStreamTask*)listNode->data;
+    SListNode* tmp = tdListPopNode(p->readerList, listNode);
+    ST_TASK_DLOG("task removed from stream readerList, remain:%d, listNode:%p", TD_DLIST_NELES(p->readerList), tmp);
+    taosMemoryFreeClear(tmp);
+  }
   tdListFree(p->readerList);
   p->readerList = NULL;
+
   taosMemoryFreeClear(p->triggerTask);
+
+  memset(&iter, 0, sizeof(iter));
+  tdListInitIter(p->runnerList, &iter, TD_LIST_FORWARD);
+  while ((listNode = tdListNext(&iter)) != NULL) {
+    SStreamTask* pTask = (SStreamTask*)listNode->data;
+    SListNode* tmp = tdListPopNode(p->runnerList, listNode);
+    ST_TASK_DLOG("task removed from stream runnerList, remain:%d", TD_DLIST_NELES(p->runnerList));
+    taosMemoryFreeClear(tmp);
+  }
   tdListFree(p->runnerList);
   p->runnerList = NULL;
+
   taosArrayDestroy(p->undeployReaders);
   p->undeployReaders = NULL;
   taosArrayDestroy(p->undeployRunners);
@@ -831,9 +888,10 @@ _end:
   return code;
 }
 #else
-int32_t streamSendNotifyContent(SStreamTask* pTask, int32_t triggerType, int64_t groupId, const SArray* pNotifyAddrUrls,
-                                int32_t notifyErrorHandle, const SSTriggerCalcParam* pParams, int32_t nParam) {
-  ST_TASK_ELOG("stream notify events is not supported on windows");
+int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, int32_t triggerType, int64_t groupId,
+                                const SArray* pNotifyAddrUrls, int32_t errorHandle, const SSTriggerCalcParam* pParams,
+                                int32_t nParam) {
+  ST_TASK_ELOG("stream notify events is not supported on windows, streamName:%s", streamName);
   return TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS;
 }
 #endif

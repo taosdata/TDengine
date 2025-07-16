@@ -545,8 +545,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_TRIM_DATABASE_STMT:
       code = makeNode(type, sizeof(STrimDatabaseStmt), &pNode);
       break;
-    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:
-      code = makeNode(type, sizeof(SS3MigrateDatabaseStmt), &pNode);
+    case QUERY_NODE_SSMIGRATE_DATABASE_STMT:
+      code = makeNode(type, sizeof(SSsMigrateDatabaseStmt), &pNode);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:
       code = makeNode(type, sizeof(SCreateTableStmt), &pNode);
@@ -582,6 +582,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
     case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
       code = makeNode(type, sizeof(SAlterTableStmt), &pNode);
+      break;
+    case QUERY_NODE_CREATE_MOUNT_STMT:
+      code = makeNode(type, sizeof(SCreateMountStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_MOUNT_STMT:
+      code = makeNode(type, sizeof(SDropMountStmt), &pNode);
       break;
     case QUERY_NODE_CREATE_USER_STMT:
       code = makeNode(type, sizeof(SCreateUserStmt), &pNode);
@@ -762,6 +768,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
     case QUERY_NODE_SHOW_USAGE_STMT:
+    case QUERY_NODE_SHOW_MOUNTS_STMT:
       code = makeNode(type, sizeof(SShowStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
@@ -1274,7 +1281,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_DATABASE_OPTIONS: {
       SDatabaseOptions* pOptions = (SDatabaseOptions*)pNode;
       nodesDestroyNode((SNode*)pOptions->pDaysPerFile);
-      nodesDestroyNode((SNode*)pOptions->s3KeepLocalStr);
+      nodesDestroyNode((SNode*)pOptions->ssKeepLocalStr);
       nodesDestroyList(pOptions->pKeep);
       nodesDestroyList(pOptions->pRetentions);
       nodesDestroyNode((SNode*)pOptions->pCompactIntervalNode);
@@ -1501,7 +1508,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_FLUSH_DATABASE_STMT:  // no pointer field
     case QUERY_NODE_TRIM_DATABASE_STMT:   // no pointer field
       break;
-    case QUERY_NODE_S3MIGRATE_DATABASE_STMT:  // no pointer field
+    case QUERY_NODE_SSMIGRATE_DATABASE_STMT:  // no pointer field
       break;
     case QUERY_NODE_CREATE_TABLE_STMT: {
       SCreateTableStmt* pStmt = (SCreateTableStmt*)pNode;
@@ -1563,6 +1570,10 @@ void nodesDestroyNode(SNode* pNode) {
       }
       break;
     }
+    case QUERY_NODE_CREATE_MOUNT_STMT:  // no pointer field
+      break;
+    case QUERY_NODE_DROP_MOUNT_STMT:  // no pointer field
+      break;
     case QUERY_NODE_CREATE_USER_STMT: {
       SCreateUserStmt* pStmt = (SCreateUserStmt*)pNode;
       taosMemoryFree(pStmt->pIpRanges);
@@ -1718,7 +1729,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
-    case QUERY_NODE_SHOW_USAGE_STMT: {
+    case QUERY_NODE_SHOW_USAGE_STMT:
+    case QUERY_NODE_SHOW_MOUNTS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);

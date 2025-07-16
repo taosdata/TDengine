@@ -53,7 +53,7 @@ class TestStreamOldCaseCount:
 
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams1 count_window(3) from t1 options(max_delay(1s)|expired_time(0)|watermark(100s)) into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 where ts >= _wstart and ts < _twend;"
+            f"create stream streams1 count_window(3) from t1 stream_options(max_delay(1s)|expired_time(0)|watermark(100s)) into streamt as select _wstart as s, count(*) c1, sum(b), max(c) from t1 where ts >= _wstart and ts < _twend;"
         )
 
         tdStream.checkStreamStatus()

@@ -154,6 +154,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_FILESETS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VC_COLS, len) == 0) {
     type = TSDB_MGMT_TABLE_VC_COL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_MOUNTS, len) == 0) {
+    type = TSDB_MGMT_TABLE_MOUNT;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }
@@ -352,7 +354,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
-    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(terrno));
     code = terrno;
     goto _exit;
   }
@@ -377,7 +379,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
     int32_t len = blockEncode(pBlock, pStart, dataEncodeBufSize, pShow->pMeta->numOfColumns);
     if (len < 0) {
-      mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
+      mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(terrno));
       code = terrno;
       return code;
     }

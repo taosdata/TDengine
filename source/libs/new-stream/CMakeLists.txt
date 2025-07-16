@@ -4,7 +4,6 @@ add_library(new-stream STATIC ${STREAM_SRC})
 target_include_directories(
     new-stream
     PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
-    PUBLIC "${TD_SOURCE_DIR}/include/libs/tcs"
     PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
@@ -30,7 +29,7 @@ endif(${BUILD_WITH_ROCKSDB})
 
 target_link_libraries(
     new-stream
-    PUBLIC tdb tcs
+    PUBLIC tdb
     PRIVATE os util transport qcom executor wal index
 )
 

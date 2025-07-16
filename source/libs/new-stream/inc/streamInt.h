@@ -50,9 +50,9 @@ typedef struct SStreamInfo {
 
   SRWLatch            undeployLock;
 
-  SArray*             undeployReaders;        // SArray<taskId>
+  SArray*             undeployReaders;        // SArray<taskId+seriousId>
   int64_t             undeployTriggerId;
-  SArray*             undeployRunners;        // SArray<taskId>
+  SArray*             undeployRunners;        // SArray<taskId+seriousId>
 } SStreamInfo;
 
 typedef struct SStreamVgReaderTasks {
@@ -103,8 +103,8 @@ void streamTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* pParam, void* 
 int32_t stmBuildHbStreamsStatusReq(SStreamHbMsg* pMsg);
 int32_t stmAddFetchStreamGid(void);
 
-int32_t streamTriggerEnvInit();
-void    streamTriggerEnvCleanup();
+int32_t stTriggerTaskEnvInit();
+void    stTriggerTaskEnvCleanup();
 
 int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMsg* pMsg);
 int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, bool force);

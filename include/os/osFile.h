@@ -132,6 +132,7 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName);
 int32_t taosSetFileHandlesLimit();
 
 int32_t taosLinkFile(char *src, char *dst);
+int32_t taosSymLink(const char *target, const char *linkpath);
 
 FILE  *taosOpenCFile(const char *filename, const char *mode);
 int    taosSeekCFile(FILE *file, int64_t offset, int whence);

@@ -23,7 +23,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f db-encrypt/basic.py -N 3 -M 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator_restart.py -N 3
-,,n,army,python3 ./test.py -f storage/s3/s3Basic.py -N 3
+,,n,army,python3 ./test.py -f storage/ss/ssBasic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/snapshot.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_create.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_alter.py

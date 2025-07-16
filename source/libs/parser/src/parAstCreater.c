@@ -343,6 +343,15 @@ static bool checkTsmaName(SAstCreateContext* pCxt, SToken* pTsmaToken) {
   return pCxt->errCode == TSDB_CODE_SUCCESS;
 }
 
+static bool checkMountPath(SAstCreateContext* pCxt, SToken* pMountPath) {
+  trimEscape(pCxt, pMountPath);
+  if (pMountPath->n >= TSDB_MOUNT_PATH_LEN || pMountPath->n == 0) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pMountPath->z);
+    return false;
+  }
+  return true;
+}
+
 SNode* createRawExprNode(SAstCreateContext* pCxt, const SToken* pToken, SNode* pNode) {
   CHECK_PARSER_STATUS(pCxt);
   SRawExprNode* target = NULL;
@@ -510,6 +519,7 @@ SNode* createPlaceHolderColumnNode(SAstCreateContext* pCxt, SNode* pColId) {
   pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   CHECK_PARSER_STATUS(pCxt);
   tstrncpy(pFunc->functionName, "_placeholder_column", TSDB_FUNC_NAME_LEN);
+  ((SValueNode*)pColId)->notReserved = true;
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, pColId);
   CHECK_PARSER_STATUS(pCxt);
   pFunc->tz = pCxt->pQueryCxt->timezone;
@@ -2133,9 +2143,9 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
   pOptions->tablePrefix = TSDB_DEFAULT_HASH_PREFIX;
   pOptions->tableSuffix = TSDB_DEFAULT_HASH_SUFFIX;
-  pOptions->s3ChunkSize = TSDB_DEFAULT_S3_CHUNK_SIZE;
-  pOptions->s3KeepLocal = TSDB_DEFAULT_S3_KEEP_LOCAL;
-  pOptions->s3Compact = TSDB_DEFAULT_S3_COMPACT;
+  pOptions->ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE;
+  pOptions->ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL;
+  pOptions->ssCompact = TSDB_DEFAULT_SS_COMPACT;
   pOptions->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
   pOptions->encryptAlgorithm = TSDB_DEFAULT_ENCRYPT_ALGO;
   pOptions->dnodeListStr[0] = 0;
@@ -2181,9 +2191,9 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->sstTrigger = -1;
   pOptions->tablePrefix = -1;
   pOptions->tableSuffix = -1;
-  pOptions->s3ChunkSize = -1;
-  pOptions->s3KeepLocal = -1;
-  pOptions->s3Compact = -1;
+  pOptions->ssChunkSize = -1;
+  pOptions->ssKeepLocal = -1;
+  pOptions->ssCompact = -1;
   pOptions->withArbitrator = -1;
   pOptions->encryptAlgorithm = -1;
   pOptions->dnodeListStr[0] = 0;
@@ -2308,20 +2318,20 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       nodesDestroyNode((SNode*)pNode);
       break;
     }
-    case DB_OPTION_S3_CHUNKPAGES:
-      pDbOptions->s3ChunkSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+    case DB_OPTION_SS_CHUNKPAGES:
+      pDbOptions->ssChunkSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
-    case DB_OPTION_S3_KEEPLOCAL: {
+    case DB_OPTION_SS_KEEPLOCAL: {
       SToken* pToken = pVal;
       if (TK_NK_INTEGER == pToken->type) {
-        pDbOptions->s3KeepLocal = taosStr2Int32(pToken->z, NULL, 10) * 1440;
+        pDbOptions->ssKeepLocal = taosStr2Int32(pToken->z, NULL, 10) * 1440;
       } else {
-        pDbOptions->s3KeepLocalStr = (SValueNode*)createDurationValueNode(pCxt, pToken);
+        pDbOptions->ssKeepLocalStr = (SValueNode*)createDurationValueNode(pCxt, pToken);
       }
       break;
     }
-    case DB_OPTION_S3_COMPACT:
-      pDbOptions->s3Compact = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+    case DB_OPTION_SS_COMPACT:
+      pDbOptions->ssCompact = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_KEEP_TIME_OFFSET:
       if (TK_NK_INTEGER == ((SToken*)pVal)->type) {
@@ -2458,11 +2468,11 @@ _err:
   return NULL;
 }
 
-SNode* createS3MigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
+SNode* createSsMigrateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, pDbName, false));
-  SS3MigrateDatabaseStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_S3MIGRATE_DATABASE_STMT, (SNode**)&pStmt);
+  SSsMigrateDatabaseStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SSMIGRATE_DATABASE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
   return (SNode*)pStmt;
@@ -2485,6 +2495,51 @@ _err:
   nodesDestroyNode(pStart);
   nodesDestroyNode(pEnd);
   return NULL;
+}
+
+SNode* createCreateMountStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pMountName, SToken* pDnodeId,
+                             SToken* pMountPath) {
+#ifdef USE_MOUNT
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkDbName(pCxt, pMountName, false));
+  CHECK_NAME(checkMountPath(pCxt, pMountPath));
+  SCreateMountStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_MOUNT_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->mountName, pMountName);
+  COPY_STRING_FORM_STR_TOKEN(pStmt->mountPath, pMountPath);
+  pStmt->ignoreExists = ignoreExists;
+  if (TK_NK_INTEGER == pDnodeId->type) {
+    pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
+  } else {
+    goto _err;
+  }
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+#else
+  pCxt->errCode = TSDB_CODE_OPS_NOT_SUPPORT;
+  return NULL;
+#endif
+}
+
+SNode* createDropMountStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pMountName) {
+#ifdef USE_MOUNT
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkDbName(pCxt, pMountName, false));
+  SDropMountStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_MOUNT_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->mountName, pMountName);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+#else
+  pCxt->errCode = TSDB_CODE_OPS_NOT_SUPPORT;
+  return NULL;
+#endif
 }
 
 SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,

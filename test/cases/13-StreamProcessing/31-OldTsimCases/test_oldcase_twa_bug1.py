@@ -59,7 +59,7 @@ class TestStreamOldCaseTwa:
 
 
             tdSql.execute(
-                f"create stream streams2 period(2s) options(expired_time(0s) | ignore_disorder) into streamt as select cast(_tprev_localtime / 1000000 as timestamp) tp, cast(_tlocaltime / 1000000 as timestamp) tl, cast(_tnext_localtime / 1000000 as timestamp) tn, twa(a), twa(b), elapsed(ts), now, timezone() from st;"
+                f"create stream streams2 period(2s) stream_options(expired_time(0s) | ignore_disorder) into streamt as select cast(_tprev_localtime / 1000000 as timestamp) tp, cast(_tlocaltime / 1000000 as timestamp) tl, cast(_tnext_localtime / 1000000 as timestamp) tn, twa(a), twa(b), elapsed(ts), now, timezone() from st;"
             )
 
         def insert1(self):

@@ -931,8 +931,8 @@ class StreamUtil:
 
         totalTables = tbBatch * tbPerBatch
         tdLog.info(f"create total {totalTables} child tables")
-        str1 = '{\\"k1\\":\\"v1\\",\\"k2\\":\\"v2\\"}'
-        str2 = '{\\"k1\\":\\"v1\\",\\"k2\\":\\"v2\\"}'
+        str1 = '{\\"k1\\":\\"v1\\",\\"k2\\":\\"v1\\"}'
+        str2 = '{\\"k1\\":\\"v2\\",\\"k2\\":\\"v2\\"}'
         for batch in range(tbBatch):
             sql = "create table "
             for tb in range(tbPerBatch):
@@ -1111,6 +1111,7 @@ class StreamItem:
         exp_query="",
         exp_rows=[],
         check_func=None,
+        check_func_recalc=None,
         check_mode=StreamResultCheckMode.CHHECK_DEFAULT,
         exp_query_param_mapping={},
         caseName="",
@@ -1124,7 +1125,7 @@ class StreamItem:
         self.exp_query = exp_query
         self.exp_rows = exp_rows
         self.check_func = check_func
-
+        self.check_func_recalc = check_func_recalc
         self.exp_query_param_mapping = exp_query_param_mapping
         self.check_mode = check_mode
         self.caseName = caseName

@@ -26,6 +26,8 @@ typedef struct SStreamRetrieveReq SStreamRetrieveReq;
 typedef struct SStreamDispatchReq SStreamDispatchReq;
 typedef struct STokenBucket       STokenBucket;
 
+#define COPY_STR(_p) ((_p) ? (taosStrdup(_p)) : NULL)
+
 typedef struct SNodeUpdateInfo {
   int32_t nodeId;
   SEpSet  prevEp;
@@ -370,6 +372,9 @@ typedef struct SStreamMgmtReq {
   SStreamMgmtReqCont cont;
 } SStreamMgmtReq;
 
+void tFreeSStreamMgmtReq(SStreamMgmtReq* pReq);
+int32_t tCloneSStreamMgmtReq(SStreamMgmtReq* pSrc, SStreamMgmtReq** ppDst);
+
 typedef void (*taskUndeplyCallback)(void*);
 
 typedef struct SStreamTask {
@@ -378,10 +383,10 @@ typedef struct SStreamTask {
   /** KEEP TOGETHER **/
   int64_t streamId;  // ID of the stream
   int64_t taskId;    // ID of the current task
+  int64_t seriousId;  // task deploy idx
   /** KEEP TOGETHER **/
 
   int64_t       flags;
-  int64_t       seriousId;  // task deploy idx
   int32_t       deployId;   // runner task's deploy id
   int32_t       nodeId;     // ID of the vgroup/snode
   int64_t       sessionId;  // ID of the current session (real-time, historical, or recalculation)
@@ -394,7 +399,7 @@ typedef struct SStreamTask {
   SStreamMgmtReq* pMgmtReq;  // request that should be handled by stream mgmt thread
 
   // FOR LOCAL PART
-
+  SRWLatch        mgmtReqLock;
   SRWLatch        entryLock;       
 
   SStreamUndeployTaskMsg undeployMsg;
@@ -686,6 +691,7 @@ void tFreeStreamOutCol(void* pCol);
 int32_t tSerializeSCMCreateStreamReq(void* buf, int32_t bufLen, const SCMCreateStreamReq* pReq);
 int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStreamReq* pReq);
 void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
+int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStreamReq** ppDst);
 
 int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStreamReq* pReq);
 int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder* pDecoder, SCMCreateStreamReq* pReq);
@@ -780,13 +786,6 @@ typedef struct SSTriggerWalMetaRequest {
   int64_t              lastVer;
   int64_t              ctime;
 } SSTriggerWalMetaRequest;
-typedef struct SSTriggerWalRequest {
-  SSTriggerPullRequest base;
-  int64_t              uid;
-  int64_t              ver;
-  int64_t              skey;
-  int64_t              ekey;
-} SSTriggerWalRequest;
 
 typedef struct SSTriggerWalDataRequest {
   SSTriggerPullRequest base;
@@ -842,7 +841,6 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerTsdbCalcDataRequest        tsdbCalcDataReq;
   SSTriggerTsdbDataRequest            tsdbDataReq;
   SSTriggerWalMetaRequest             walMetaReq;
-  SSTriggerWalRequest                 walReq;
   SSTriggerWalDataRequest             walDataReq;
   SSTriggerGroupColValueRequest       groupColValueReq;
   SSTriggerVirTableInfoRequest        virTableInfoReq;
@@ -935,7 +933,7 @@ typedef struct SStreamMsgVTableInfo {
 
 void tDestroyVTableInfo(void *ptr);
 int32_t tSerializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, const SStreamMsgVTableInfo* pRsp);
-int32_t tDeserializeSStreamMsgVTableInfo(SDecoder* decoder, SStreamMsgVTableInfo *pBlock);
+int32_t tDeserializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, SStreamMsgVTableInfo *pBlock);
 void    tDestroySStreamMsgVTableInfo(SStreamMsgVTableInfo *ptr);
 
 
