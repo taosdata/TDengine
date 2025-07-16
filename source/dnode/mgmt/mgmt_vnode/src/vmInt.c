@@ -859,7 +859,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
       taosMemoryFree(pMountTfs);
       if ((code = taosHashRemove(pMgmt->mountTfsHash, &mountId, keyLen)) != 0) {
         dWarn("failed at line %d to remove mount:%s, %s, %" PRIi64 " from mount tfs hash since %s", __LINE__,
-              pMountTfs->name, pMountTfs->path, mountId, tsterrror(code));
+              pMountTfs->name, pMountTfs->path, mountId, tstrerror(code));
       }
       updateMountList = true;
     }
