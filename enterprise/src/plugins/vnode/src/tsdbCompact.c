@@ -537,20 +537,12 @@ _exit:
   return code;
 }
 
-void tsdbSetFsetlcn(STFileSet *fset) {
-  STFileObj *fobj = fset->farr[TSDB_FTYPE_DATA];
-  if (fobj && fobj->f->lcn < 0) {
-    fobj->f->lcn = 0;
-  }
-}
-
 bool tsdbShouldCompact(STFileSet *fset, int32_t vgId) {
   if (fset->farr[TSDB_FTYPE_DATA]) {
     tsdbInfo("vgId:%d fid:%d lastCompact:%" PRId64 " lastCommit:%" PRId64 "lcn:%d", vgId, fset->fid, fset->lastCompact,
              fset->lastCommit, fset->farr[TSDB_FTYPE_DATA]->f->lcn);
   }
   if (fset->lastCompact > fset->lastCommit) {
-    tsdbSetFsetlcn(fset);
     return false;
   }
 
