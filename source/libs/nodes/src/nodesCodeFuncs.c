@@ -4836,7 +4836,9 @@ static int32_t datumToJson(const void* pObj, SJson* pJson) {
       break;
     }
     case TSDB_DATA_TYPE_DECIMAL:
+      break;
     case TSDB_DATA_TYPE_BLOB:
+      code = tjsonAddStringToObject(pJson, jkValueDatum, blobDataVal(pNode->datum.p));
       // todo
     default:
       break;
@@ -4989,7 +4991,17 @@ static int32_t jsonToDatum(const SJson* pJson, void* pObj) {
       break;
     }
     case TSDB_DATA_TYPE_DECIMAL:
-    case TSDB_DATA_TYPE_BLOB:
+      break;
+    case TSDB_DATA_TYPE_BLOB: {
+      pNode->datum.p = taosMemoryCalloc(1, pNode->node.resType.bytes + 1);
+      if (NULL == pNode->datum.p) {
+        code = terrno;
+        break;
+      }
+      blobDataSetLen(pNode->datum.p, pNode->node.resType.bytes - BLOBSTR_HEADER_SIZE);
+      code = tjsonGetStringValue(pJson, jkValueDatum, blobDataVal(pNode->datum.p));
+      break;
+    }
       // todo
     default:
       break;

@@ -2595,6 +2595,16 @@ char* nodesGetStrValueFromNode(SValueNode* pNode) {
       snprintf(buf, bufSize, "'%s'", varDataVal(pNode->datum.p));
       return buf;
     }
+    case TSDB_DATA_TYPE_BLOB: {
+      int32_t bufSize = blobDataLen(pNode->datum.p) + 4 + 1;
+      void*   buf = taosMemoryMalloc(bufSize);
+      if (NULL == buf) {
+        return NULL;
+      }
+
+      snprintf(buf, bufSize, "'%s'", blobDataVal(pNode->datum.p));
+      return buf;
+    }
     default:
       break;
   }
@@ -3183,7 +3193,14 @@ int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
       memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
       break;
     case TSDB_DATA_TYPE_BLOB:
-      // todo
+      pVal->nLen = blobDataLen(pNode->datum.p);
+      pVal->pz = taosMemoryCalloc(1, pVal->nLen);
+      if (pVal->pz) {
+        memcpy(pVal->pz, blobDataVal(pNode->datum.p), pVal->nLen);
+      } else {
+        code = terrno;
+      }
+      break;
     default:
       break;
   }
