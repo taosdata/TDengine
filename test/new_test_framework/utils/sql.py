@@ -720,6 +720,9 @@ class TDSql:
 
         try:
             self.cursor.execute(sql)
+            self.queryResult = self.cursor.fetchall()
+            self.queryRows = len(self.queryResult)
+            self.queryCols = len(self.cursor.description)
         except BaseException as e:
             expectErrNotOccured = False
             self.errno = e.errno
