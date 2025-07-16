@@ -685,17 +685,18 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
         }
       }
 
-      if (pTbCtx->hasBlob) {
-        return TSDB_CODE_BLOB_NOT_SUPPORT;
-      }
-
-      code = tRowSort(*rowP);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-      code = tRowMerge(*rowP, pTbCtx->pSchema, 0);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
+      if (pTbCtx->hasBlob == 0) {
+        code = tRowSort(*rowP);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+        code = tRowMerge(*rowP, pTbCtx->pSchema, 0);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+      } else {
+        code = TSDB_CODE_BLOB_NOT_SUPPORT;
+        break;
       }
     }
 
@@ -772,20 +773,18 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     }
   }
 
-  if (!pTbData->isOrdered) {
-    if (pTbCtx->hasBlob == 0) {
+  if (pTbCtx->hasBlob == 0) {
+    if (!pTbData->isOrdered) {
       code = tRowSort(pTbCtx->pData->aRowP);
-    } else {
-      return TSDB_CODE_BLOB_NOT_SUPPORT;
+    }
+    if (code == TSDB_CODE_SUCCESS && (!pTbData->isOrdered || pTbData->isDuplicateTs)) {
+      code = tRowMerge(pTbCtx->pData->aRowP, pTbCtx->pSchema, 0);
+    }
+  } else {
+    if (!pTbData->isOrdered) {
       code = tRowSortWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobRow);
     }
-  }
-
-  if (code == TSDB_CODE_SUCCESS && (!pTbData->isOrdered || pTbData->isDuplicateTs)) {
-    if (pTbCtx->hasBlob == 0) {
-      code = tRowMerge(pTbCtx->pData->aRowP, pTbCtx->pSchema, 0);
-    } else {
-      return TSDB_CODE_BLOB_NOT_SUPPORT;
+    if (code == TSDB_CODE_SUCCESS && (!pTbData->isOrdered || pTbData->isDuplicateTs)) {
       code = tRowMergeWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobRow, 0);
     }
   }
@@ -931,22 +930,19 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
       //   p = taosHashIterate(pTableHash, p);
       //   continue;
       // }
-      if (!pTableCxt->ordered) {
-        if (pTableCxt->hasBlob == 0) {
+      if (pTableCxt->hasBlob == 0) {
+        if (!pTableCxt->ordered) {
           code = tRowSort(pTableCxt->pData->aRowP);
-        } else {
-          code = TSDB_CODE_BLOB_NOT_SUPPORT;
-          return code;
+        }
+        if (code == TSDB_CODE_SUCCESS && (!pTableCxt->ordered || pTableCxt->duplicateTs)) {
+        code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
+        }
+      } else {
+        return TSDB_CODE_BLOB_NOT_SUPPORT;
+        if (!pTableCxt->ordered) {
           code = tRowSortWithBlob(pTableCxt->pData->aRowP, pTableCxt->pSchema, pTableCxt->pData->pBlobRow);
         }
-      }
-
-      if (code == TSDB_CODE_SUCCESS && (!pTableCxt->ordered || pTableCxt->duplicateTs)) {
-        if (pTableCxt->hasBlob == 0) {
-          code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
-        } else {
-          code = TSDB_CODE_BLOB_NOT_SUPPORT;
-          return code;
+        if (code == TSDB_CODE_SUCCESS && (!pTableCxt->ordered || pTableCxt->duplicateTs)) {
           code = tRowMergeWithBlob(pTableCxt->pData->aRowP, pTableCxt->pSchema, pTableCxt->pData->pBlobRow, 0);
         }
       }
