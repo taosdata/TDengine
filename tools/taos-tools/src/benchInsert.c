@@ -460,7 +460,7 @@ skip:
     if (!first_sma) {
         snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length, ")");
     }
-    infoPrint("create stable: <%s>\n", command);
+    debugPrint("create stable: <%s>\n", command);
 
     int ret = queryDbExec(database, stbInfo, command);
     free(command);
