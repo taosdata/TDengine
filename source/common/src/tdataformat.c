@@ -20,6 +20,11 @@
 #include "tdatablock.h"
 #include "tlog.h"
 
+enum {
+  BLOB_ROW_KV = 0,
+  BLOB_ROW_TUPLE = 1,
+};
+
 static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData);
 static int32_t (*tColDataUpdateValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward);
 
@@ -671,8 +676,10 @@ int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRo
 
   if (sinfo->tupleRowSize <= sinfo->kvRowSize) {
     code = tRowBuildTupleWithBlob(aColVal, sinfo, pTSchema, ppRow, pBlobSet);
+    pBlobSet->rowType = BLOB_ROW_TUPLE;
   } else {
     code = tRowBuildKVRowWithBlob(aColVal, sinfo, pTSchema, ppRow, pBlobSet);
+    pBlobSet->rowType = BLOB_ROW_KV;
   }
 
   return code;

@@ -288,6 +288,7 @@ struct SRow {
 
 struct SBlobSet {
   int8_t    type;
+  int8_t    rowType;
   SHashObj *pSeqToffset;
   int64_t  seq;
   int64_t  len;
