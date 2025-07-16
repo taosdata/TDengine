@@ -19,10 +19,10 @@ TDengine 的流计算引擎还提供了其他使用上的便利。针对结果�
 ## 流式计算的创建
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name stream_options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
+CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
-stream_options: {
-    trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [OPTIONS(stream_option [|...])] [notification_definition]
+options: {
+    trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
 }
     
 trigger_type: {
@@ -113,7 +113,7 @@ CREATE stream sm1 count_window(1) FROM tb1
 
 ```SQL
 CREATE stream sm2 count_window(10, 1, col1) FROM tb1 
-  OPTIONS(CALC_ONTIFY_ONLY | PRE_FILTER(col1 > 0)) 
+  STREAM_OPTIONS(CALC_ONTIFY_ONLY | PRE_FILTER(col1 > 0)) 
   NOTIFY("ws://localhost:8080/notify") ON (WINDOW_CLOSE) 
   AS 
     SELECT avg(col1) FROM %%trows;
@@ -136,7 +136,7 @@ CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname
 
 ```SQL
 CREATE stream sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
-  OPTIONS(MAX_DELAY(1m) | FILL_HISTORY_FIRST) 
+  STREAM_OPTIONS(MAX_DELAY(1m) | FILL_HISTORY_FIRST) 
   INTO stb2 AS 
     SELECT _twstart, avg(col1) FROM %%tbname WHERE _c0 >= _twstart AND _c0 <= _twend;
 ```

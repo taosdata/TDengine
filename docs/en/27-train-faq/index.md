@@ -44,7 +44,7 @@ If the client encounters a connection failure, please follow the steps below to 
 - Local virtual machine: Check if the network can ping through, try to avoid using `localhost` as the hostname
 - Company server: If it is a NAT network environment, be sure to check if the server can return messages to the client
 
-1. Ensure that the client and server version numbers are exactly the same, open source community edition and enterprise edition cannot be mixed
+1. Ensure that the client and server version numbers are exactly the same, open source TSDB-OSS edition and TSDB-Enterprise edition cannot be mixed
 
 1. On the server, execute `systemctl status taosd` to check the *taosd* running status. If it is not running, start *taosd*
 

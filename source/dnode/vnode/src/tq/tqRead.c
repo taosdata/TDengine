@@ -1140,7 +1140,7 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SMqDataRsp* pRsp, SArray* block
   pReader->lastBlkUid = uid;
 
   tDeleteSchemaWrapper(pReader->pSchemaWrapper);
-  taosMemoryFree(pReader->extSchema);
+  taosMemoryFreeClear(pReader->extSchema);
   pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1, &pReader->extSchema);
   if (pReader->pSchemaWrapper == NULL) {
     tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", version %d, possibly dropped table",

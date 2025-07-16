@@ -19,6 +19,7 @@
 #include "vnd.h"
 
 extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, bool s3Migrate);
+extern bool    tsdbShouldCompact(const STFileSet *fset, int32_t vgId);
 
 typedef struct {
   STsdb  *tsdb;
@@ -683,6 +684,10 @@ static int32_t tsdbDoS3Migrate(SRTNer *rtner) {
   int32_t    s3ExpLevel = tsdbS3FidLevel(fset->fid, &rtner->tsdb->keepCfg, s3KeepLocal, rtner->now);
   if (s3ExpLevel < 1) {  // keep on local storage
     return 0;
+  }
+
+  if (!tsdbShouldCompact(fset, TD_VID(rtner->tsdb->pVnode)) && fobj->f->lcn < 0) {
+    fobj->f->lcn = 0;
   }
 
   int64_t chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;

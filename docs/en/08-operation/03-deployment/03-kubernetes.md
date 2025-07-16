@@ -5,8 +5,6 @@ slug: /operations-and-maintenance/deploy-your-cluster/kubernetes-deployment
 
 You can use kubectl or Helm to deploy TDengine in Kubernetes.
 
-Note that Helm is only supported in TDengine Enterprise. To deploy TDengine OSS in Kubernetes, use kubectl.
-
 ## Deploy TDengine with kubectl
 
 As a time-series database designed for cloud-native architectures, TDengine inherently supports Kubernetes deployment. This section introduces how to step-by-step create a highly available TDengine cluster for production use using YAML files, with a focus on common operations of TDengine in a Kubernetes environment. This subsection requires readers to have a certain understanding of Kubernetes, be proficient in running common kubectl commands, and understand concepts such as statefulset, service, and pvc. Readers unfamiliar with these concepts can refer to the Kubernetes official website for learning.
@@ -14,7 +12,7 @@ To meet the requirements of high availability, the cluster needs to meet the fol
 
 - 3 or more dnodes: Multiple vnodes in the same vgroup of TDengine should not be distributed on the same dnode, so if creating a database with 3 replicas, the number of dnodes should be 3 or more.
 - 3 mnodes: mnodes are responsible for managing the entire cluster, with TDengine defaulting to one mnode. If the dnode hosting this mnode goes offline, the entire cluster becomes unavailable.
-- 3 replicas of the database: TDengine's replica configuration is at the database level, so 3 replicas can ensure that the cluster remains operational even if any one of the 3 dnodes goes offline. If 2 dnodes go offline, the cluster becomes unavailable because RAFT cannot complete the election. (Enterprise edition: In disaster recovery scenarios, if the data files of any node are damaged, recovery can be achieved by restarting the dnode.)
+- 3 replicas of the database: TDengine's replica configuration is at the database level, so 3 replicas can ensure that the cluster remains operational even if any one of the 3 dnodes goes offline. If 2 dnodes go offline, the cluster becomes unavailable because RAFT cannot complete the election. (TSDB-Enterprise: In disaster recovery scenarios, if the data files of any node are damaged, recovery can be achieved by restarting the dnode.)
 
 ### Prerequisites
 
