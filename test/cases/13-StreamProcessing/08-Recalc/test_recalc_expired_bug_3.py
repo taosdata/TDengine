@@ -113,7 +113,7 @@ class TestStreamRecalcExpiredTime:
             "insert into tdb.t1 values ('2025-01-01 02:04:00', 60, 'normal');",
         ]
         tdSql.executes(trigger_sqls)
-        time.sleep(10)
+        # time.sleep(10)
         subprocess.run("pkill -9 taosd", shell=True)
         exit(1)
 
@@ -219,7 +219,7 @@ class TestStreamRecalcExpiredTime:
         # Test 1.2: SESSION with EXPIRED_TIME - should not process expired data
         stream = StreamItem(
             id=2,
-            stream="create stream rdb.s_session_expired session(ts,45s) from tdb.trigger_test partition by tbname stream_options((expired_time(1h)) into rdb.r_session_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_session_expired session(ts,45s) from tdb.trigger_test partition by tbname stream_options(expired_time(1h)) into rdb.r_session_expired as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             res_query="select ts, cnt, avg_val from rdb.r_session_expired order by ts;",
             exp_query="",
             check_func=self.check02,

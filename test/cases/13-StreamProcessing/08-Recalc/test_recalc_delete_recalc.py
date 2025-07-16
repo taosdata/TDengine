@@ -289,7 +289,7 @@ class TestStreamRecalcDeleteRecalc:
                     and tdSql.compareData(0, 2, 246.5)
                 )
             )
-        # TODO(beryl) blocked
+
         # tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:03:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
         # tdSql.execute("delete from tdb.ds1 where ts = '2025-01-01 02:03:30';")
 
@@ -298,8 +298,11 @@ class TestStreamRecalcDeleteRecalc:
         #         func=lambda: (
         #             tdSql.getRows() == 1
         #             and tdSql.compareData(0, 0, "2025-01-01 02:03:00")
-        #             and tdSql.compareData(0, 1, 201)
-        #             and tdSql.compareData(0, 2, 245.323383084577)
+        #             and tdSql.compareData(0, 1, 0)
+        #             and tdSql.compareData(0, 2, "NULL")
+        #             and tdSql.compareData(1, 0, "2025-01-01 02:04:00")
+        #             and tdSql.compareData(1, 1, 0)
+        #             and tdSql.compareData(1, 2, "NULL")
         #         )
         #     )
 
@@ -315,10 +318,10 @@ class TestStreamRecalcDeleteRecalc:
         #         func=lambda: tdSql.getRows() == 2
         #         and tdSql.compareData(0, 0, "2025-01-01 02:06:00")
         #         and tdSql.compareData(0, 1, 100)
-        #         and tdSql.compareData(0, 2, 240)
+        #         and tdSql.compareData(0, 2, 252)
         #         and tdSql.compareData(1, 0, "2025-01-01 02:07:00")
         #         and tdSql.compareData(1, 1, 100)
-        #         and tdSql.compareData(1, 2, 242)
+        #         and tdSql.compareData(1, 2, 254)
         #     )
 
         # tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:06:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
@@ -328,11 +331,11 @@ class TestStreamRecalcDeleteRecalc:
         #         sql=f"select ts, cnt, avg_val from rdb.r_state_delete",
         #         func=lambda: tdSql.getRows() == 2
         #         and tdSql.compareData(0, 0, "2025-01-01 02:06:00")
-        #         and tdSql.compareData(0, 1, 100)
-        #         and tdSql.compareData(0, 2, 241)
+        #         and tdSql.compareData(0, 1, 0)
+        #         and tdSql.compareData(0, 2, "NULL")
         #         and tdSql.compareData(1, 0, "2025-01-01 02:07:00")
         #         and tdSql.compareData(1, 1, 100)
-        #         and tdSql.compareData(1, 2, 242)
+        #         and tdSql.compareData(1, 2, 254)
         #     )
 
         # # Verify that recalculation occurred
@@ -343,33 +346,33 @@ class TestStreamRecalcDeleteRecalc:
         tdLog.info("Check 4: EVENT_WINDOW with DELETE_RECALC recalculates on data deletion")
         tdSql.checkTableType(dbname="rdb", stbname="r_event_delete", columns=3, tags=1)
 
-        # tdSql.checkResultsByFunc(
-        #         sql=f"select ts, cnt, avg_val from rdb.r_event_delete",
-        #         func=lambda: tdSql.getRows() == 2
-        #         and tdSql.compareData(0, 0, "2025-01-01 02:00:00.000")
-        #         and tdSql.compareData(0, 1, 200)
-        #         and tdSql.compareData(0, 2, 240.5)
-        #         and tdSql.compareData(1, 0, "2025-01-01 02:01:30.000")
-        #         and tdSql.compareData(1, 1, 200)
-        #         and tdSql.compareData(1, 2, 243.5)
-        #     )
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_event_delete",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2025-01-01 02:09:00.000")
+                and tdSql.compareData(0, 1, 200)
+                and tdSql.compareData(0, 2, 258.5)
+                and tdSql.compareData(1, 0, "2025-01-01 02:10:30.000")
+                and tdSql.compareData(1, 1, 200)
+                and tdSql.compareData(1, 2, 261.5)
+            )
         
-        # tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:09:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
-        # tdSql.execute("delete from tdb.de1 where ts = '2025-01-01 02:09:30';")
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:09:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("delete from tdb.de1 where ts = '2025-01-01 02:09:30';")
 
-        # tdSql.checkResultsByFunc(
-        #         sql=f"select ts, cnt, avg_val from rdb.r_event_delete",
-        #         func=lambda: tdSql.getRows() == 2
-        #         and tdSql.compareData(0, 0, "2025-01-01 02:09:00")
-        #         and tdSql.compareData(0, 1, 200)
-        #         and tdSql.compareData(0, 2, 241.5)
-        #         and tdSql.compareData(1, 0, "2025-01-01 02:10:00")
-        #         and tdSql.compareData(1, 1, 200)
-        #         and tdSql.compareData(1, 2, 242.5)
-        #     )
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_event_delete",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2025-01-01 02:09:00")
+                and tdSql.compareData(0, 1, 201)
+                and tdSql.compareData(0, 2, 257.26368159204)
+                and tdSql.compareData(1, 0, "2025-01-01 02:10:30")
+                and tdSql.compareData(1, 1, 200)
+                and tdSql.compareData(1, 2, 261.5)
+            )
 
-        # # Verify that recalculation occurred
-        # tdLog.info("EVENT_WINDOW with DELETE_RECALC successfully handled data deletion") 
+        # Verify that recalculation occurred
+        tdLog.info("EVENT_WINDOW with DELETE_RECALC successfully handled data deletion") 
 
 
     def check05(self):
@@ -405,21 +408,27 @@ class TestStreamRecalcDeleteRecalc:
         tdLog.info("Check 6: COUNT_WINDOW with DELETE_RECALC triggers recalculation when data is deleted")
         tdSql.checkTableType(dbname="rdb", stbname="r_count_delete", columns=3, tags=1)
 
-        # tdSql.checkResultsByFunc(
-        #         sql=f"select ts, cnt, avg_val from rdb.r_count_delete",
-        #         func=lambda: tdSql.getRows() == 1
-        #         and tdSql.compareData(0, 0, "2025-01-01 02:15:00")
-        #         and tdSql.compareData(0, 1, 100)
-        #         and tdSql.compareData(0, 2, 241.5)
-        #     )
-        # tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:15:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
-        # tdSql.execute("delete from tdb.dc1 where ts = '2025-01-01 02:15:15';")
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_count_delete",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2025-01-01 02:15:00")
+                and tdSql.compareData(0, 1, 100)
+                and tdSql.compareData(0, 2, 270)
+                and tdSql.compareData(1, 0, "2025-01-01 02:15:45")
+                and tdSql.compareData(1, 1, 100)
+                and tdSql.compareData(1, 2, 272)
+            )
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:15:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
+        tdSql.execute("delete from tdb.dc1 where ts = '2025-01-01 02:15:15';")
 
-        # tdSql.checkResultsByFunc(
-        #         sql=f"select ts, cnt, avg_val from rdb.r_count_delete",
-        #         func=lambda: tdSql.getRows() == 1
-        #         and tdSql.compareData(0, 0, "2025-01-01 02:15:00")
-        #         and tdSql.compareData(0, 1, 100)
-        #         and tdSql.compareData(0, 2, 241.5)
-        #     )
-        # tdLog.info("COUNT_WINDOW with DELETE_RECALC successfully handled data deletion")
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_count_delete",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2025-01-01 02:15:00")
+                and tdSql.compareData(0, 1, 100)
+                and tdSql.compareData(0, 2, 270)
+                and tdSql.compareData(1, 0, "2025-01-01 02:15:45")
+                and tdSql.compareData(1, 1, 100)
+                and tdSql.compareData(1, 2, 272)
+            )
+        tdLog.info("COUNT_WINDOW with DELETE_RECALC successfully handled data deletion")
