@@ -511,7 +511,8 @@ _end:
   return code;
 }
 
-int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent, const SArray* pFields) {
+int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** ppContent, const SArray* pFields,
+                                            const int32_t startRow, const int32_t endRow) {
   int32_t code = 0, lino = 0;
   cJSON*  pContent = NULL;
   cJSON*  pResult = NULL;
@@ -541,7 +542,7 @@ int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** pp
     goto _end;
   }
 
-  for (int32_t rowIdx = 0; rowIdx < pBlock->info.rows; ++rowIdx) {
+  for (int32_t rowIdx = startRow; rowIdx <= endRow && rowIdx < pBlock->info.rows; ++rowIdx) {
     pRow = cJSON_CreateObject();
     QUERY_CHECK_NULL(pRow, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
@@ -556,8 +557,7 @@ int32_t streamBuildBlockResultNotifyContent(const SSDataBlock* pBlock, char** pp
       }
       colName = pField->name;
       bool isNull = colDataIsNull_s(pCol, rowIdx);
-      code = jsonAddColumnField(colName, pCol->info.type, isNull, isNull ? NULL : colDataGetData(pCol, rowIdx),
-                                pRow);
+      code = jsonAddColumnField(colName, pCol->info.type, isNull, isNull ? NULL : colDataGetData(pCol, rowIdx), pRow);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 

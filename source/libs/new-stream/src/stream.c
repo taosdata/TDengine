@@ -174,7 +174,7 @@ void streamReleaseTask(void* taskAddr) {
   }
   
   SStreamTask* pTask = *(SStreamTask**)taskAddr;
-  SRWLatch lock = taosRUnLockLatch(&pTask->entryLock);
+  SRWLatch lock = taosRUnLockLatch_r(&pTask->entryLock);
   if (taosIsOnlyWLocked(&lock)) {
     switch (pTask->type) {
       case STREAM_READER_TASK:

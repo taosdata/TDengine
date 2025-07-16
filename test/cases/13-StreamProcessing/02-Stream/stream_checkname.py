@@ -53,6 +53,7 @@ class TestSnodeMgmt:
         self.createOneStream("123456")
         self.createOneStream("A123!@#$%^&*,;'[]-=+_")
         self.checkStreamRunning()
+        time.sleep(10)
         tdSql.query("select * from test1.`A123!@#$%^&*,;'[]-=+_out`;")
         if tdSql.getRows() < 4:
             raise Exception(f"ERROR: check stream out table error")
@@ -63,7 +64,9 @@ class TestSnodeMgmt:
         
         #check stream name length
         self.createOneStream("ashdjfklhgt49hg84g89j4hjq904j9m9vm94jg9j4gj94jg90qj490j2390hr823h8bnbuhu4h8gh48gj834g894j0g4j30gj0g4jg2ij9t0j2498gn498gn894ng9843ng894gk9j4e9gj49gh9jg90qj490j2390hr823hfj38jg84gh84h89gh48h8")
+        self.checkStreamRunning()
         tdSql.query("select * from test1.`ashdjfklhgt49hg84g89j4hjq904j9m9vm94jg9j4gj94jg90qj490j2390hr823h8bnbuhu4h8gh48gj834g894j0g4j30gj0g4jg2ij9t0j2498gn498gn894ng9843ng894gk9j4e9gj49gh9jg90qj490j2390hr823hfj38jg84gh84h89gh48h8out`;")
+        time.sleep(10)
         if tdSql.getRows() < 4:
             raise Exception(f"ERROR: check stream out table error")
 

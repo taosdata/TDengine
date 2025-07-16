@@ -118,10 +118,11 @@ class Test_IDMP_Meters:
     #
     def createStreams(self):
 
-        sqls = [           
-            # stream5
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream5`      SESSION(ts, 10m) FROM `tdasset`.`vt_em-5` STREAM_OPTIONS(IGNORE_DISORDER)  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5`      AS SELECT _twstart+0s AS output_timestamp, COUNT(ts) AS cnt, LAST(`电流`) AS `最后电流` FROM tdasset.`vt_em-5` WHERE ts >= _twstart AND ts <=_twend",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream5_sub1` SESSION(ts, 10m) FROM `tdasset`.`vt_em-5`                                  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub1` AS SELECT _twstart+0s AS output_timestamp, COUNT(ts) AS cnt, LAST(`电流`) AS `最后电流` FROM tdasset.`vt_em-5` WHERE ts >= _twstart AND ts <=_twend",
+        sqls = [
+            # stream6
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream6`      COUNT_WINDOW(5) FROM `tdasset`.`vt_em-6` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6` AS SELECT _twstart+0s AS output_timestamp, COUNT(ts) AS cnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压` FROM tdasset.`vt_em-6` WHERE ts >= _twstart AND ts <=_twend",
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream6_sub1` COUNT_WINDOW(5) FROM `tdasset`.`vt_em-6`                                 NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6_sub1` AS SELECT _twstart+0s AS output_timestamp, COUNT(ts) AS cnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压` FROM tdasset.`vt_em-6` WHERE ts >= _twstart AND ts <=_twend",
+
         ]
 
         tdSql.executes(sqls)
@@ -139,8 +140,8 @@ class Test_IDMP_Meters:
     # 4. write trigger data
     #
     def writeTriggerData(self):
-        # stream5
-        self.trigger_stream5()
+        # stream6
+        self.trigger_stream6()
 
 
     # 
@@ -154,82 +155,79 @@ class Test_IDMP_Meters:
     # 6. verify results
     #
     def verifyResults(self):
-        self.verify_stream5()
+        self.verify_stream6()
 
 
     # ---------------------   stream trigger    ----------------------
 
     #
-    #  stream5 trigger 
+    #  stream6 trigger 
     #
-    def trigger_stream5(self):
+    def trigger_stream6(self):
         ts = self.start2
-        table = "asset01.`em-5`"
+        table = "asset01.`em-6`"
         step  = 1 * 60 * 1000 # 1 minute
         
-        # first window have 3 + 5 = 10 rows
-        count = 3
-        cols = "ts,current,voltage,power"
-        vals = "30,400,200"
-        ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
-        # boundary of first window
-        count = 4
-        ts += 9 * step
-        ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
-        # last
-        count = 1
-        vals = "31,401,201"
-        ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+        # write to windows 1 ~ 2
+        count = 10
+        cols = "ts,voltage"
+        orderVals = [200]
+        ts = tdSql.insertOrderVal(table, ts, step, count, cols, orderVals)
 
-        # save span ts
-        spanTs = ts
+        # save disTs
+        disTs = ts
 
-        # trigger first windows close with 11 steps
-        count = 1
-        ts += 10 * step
-        vals = "40,500,300"
-        ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
-
-        # disorder data
-
-        # from span write 2 rows
+        # write end window 5
         count = 2
-        disTs = spanTs + 5 * step
-        orderVals = [36, 406, 206]
-        disTs = tdSql.insertOrderVal(table, disTs, step, count, cols, orderVals)
+        ts += 10 * step
+        win5Vals = [600]
+        win5Ts   = tdSql.insertOrderVal(table, ts, step, count, cols, win5Vals)
+
+        # flush db to write disorder data
+        tdSql.flushDb("asset01")
+        tdSql.flushDb(self.vdb)
+
+        # write disorder window 3
+        ts = disTs
+        count = 5
+        orderVals = [400]
+        ts = tdSql.insertOrderVal(table, ts, step, count, cols, orderVals)
+
+        # write window5 1 rows to tigger 
 
     #
     # ---------------------   verify    ----------------------
     #
-    
+
     #
-    # verify stream5
+    # verify stream6
     #
 
-    def verify_stream5(self):
-        # result_stream5
-        result_sql = f"select * from {self.vdb}.`result_stream5` "
+    def verify_stream6(self):
+        # result_stream6
+        result_sql = f"select * from {self.vdb}.`result_stream6` "
+        ts         = self.start2
+        step       = 1 * 60 * 1000 # 1 minute
+        cnt        = 5
+
         tdSql.checkResultsByFunc (
             sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 1
-            and tdSql.compareData(0, 0, self.start2) # ts
-            and tdSql.compareData(0, 1, 3 + 4 + 1)   # cnt
-            and tdSql.compareData(0, 2, 31)          # last current
+            func = lambda: tdSql.getRows() == 2
+            # window1
+            and tdSql.compareData(0, 0, ts)      # ts
+            and tdSql.compareData(0, 1, 5)       # cnt
+            and tdSql.compareData(0, 2, 200)     # min(voltage)
+            and tdSql.compareData(0, 3, 204)     # max(voltage)
+            # window2
+            and tdSql.compareData(1, 0, ts + 5 * step) # ts
+            and tdSql.compareData(1, 1, 5)       # cnt
+            and tdSql.compareData(1, 2, 205)     # min(voltage)
+            and tdSql.compareData(1, 3, 209)     # max(voltage)
         )
 
-        # sub
-        #self.verify_stream5_sub1()
+        # sub1
+        exp_sql = f"select * from {self.vdb}.`result_stream6_sub1` "
+        tdSql.checkResultsBySql(result_sql, exp_sql)
 
-
-    def verify_stream5_sub1(self):    
-        # result_stream5_sub1
-        result_sql_sub1 = f"select * from {self.vdb}.`result_stream5_sub1` "
-        tdSql.checkResultsByFunc (
-            sql  = result_sql, 
-            func = lambda: tdSql.getRows() == 1
-            and tdSql.compareData(0, 0, self.start2) # ts
-            and tdSql.compareData(0, 1, 3 + 4 + 1)   # cnt
-            and tdSql.compareData(0, 2, 31)          # last current
-        )     
-    
+        tdLog.info(f"verify stream6 ................................. successfully.")
