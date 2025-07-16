@@ -146,7 +146,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
         QW_ERR_JRET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       }
 
-      SInputData inputData = {.pData = pRes};
+      SInputData inputData = {.pData = pRes, .pStreamDataInserterInfo = NULL};
       QW_SINK_ENABLE_MEMPOOL(ctx);
       code = dsPutDataBlock(sinkHandle, &inputData, &qcontinue);
       QW_SINK_DISABLE_MEMPOOL();

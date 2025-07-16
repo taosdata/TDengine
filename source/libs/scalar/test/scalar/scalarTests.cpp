@@ -1517,7 +1517,7 @@ int32_t makeCalculate(void *json, void *key, int32_t rightType, void *rightData,
 
   SCL_ERR_RET(makeOperator(&opNode, blockList, opType, rightType, rightData, isReverse));
 
-  SCL_ERR_RET(scalarCalculate(opNode, blockList, NULL));
+  SCL_ERR_RET(scalarCalculate(opNode, blockList, NULL, NULL, NULL));
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
   if (res->info.rows != 1) {
@@ -2005,7 +2005,7 @@ TEST(columnTest, smallint_value_add_int_column) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2049,7 +2049,7 @@ TEST(columnTest, bigint_column_multi_binary_column) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2094,7 +2094,7 @@ TEST(columnTest, smallint_column_and_binary_column) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2134,7 +2134,7 @@ TEST(columnTest, smallint_column_or_float_column) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2174,7 +2174,7 @@ TEST(columnTest, smallint_column_or_double_value) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2214,7 +2214,7 @@ TEST(columnTest, smallint_column_greater_double_value) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2269,7 +2269,7 @@ TEST(columnTest, int_column_in_double_list) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2343,7 +2343,7 @@ TEST(columnTest, binary_column_in_binary_list) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2394,7 +2394,7 @@ TEST(columnTest, binary_column_like_binary) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2438,7 +2438,7 @@ TEST(columnTest, binary_column_is_true) {
   code = scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2489,7 +2489,7 @@ TEST(columnTest, binary_column_is_null) {
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2539,7 +2539,7 @@ TEST(columnTest, binary_column_is_not_null) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2592,7 +2592,7 @@ TEST(columnTest, greater_and_lower) {
   code = scltMakeTargetNode(&logicNode, dataBlockId, slotId, logicNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(logicNode, blockList, NULL);
+  code = scalarCalculate(logicNode, blockList, NULL, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);

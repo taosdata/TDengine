@@ -40,6 +40,7 @@
 #endif
 #endif
 #include <sys/stat.h>
+#include <sys/uio.h>
 #include <unistd.h>
 #define LINUX_FILE_NO_TEXT_OPTION 0
 #define O_TEXT                    LINUX_FILE_NO_TEXT_OPTION
@@ -1765,5 +1766,92 @@ int taosSetAutoDelFile(char *path) {
     return terrno;
   }
   return 0;
+#endif
+}
+
+int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt) {
+  if (pFile == NULL || iov == NULL || iovcnt <= 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
+  }
+#if FILE_WITH_LOCK
+  (void)taosThreadRwlockWrlock(&(pFile->rwlock));
+#endif
+
+#ifdef __linux__
+  if (pFile->fd < 0) {
+#if FILE_WITH_LOCK
+    (void)taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
+  }
+  ssize_t written = writev(pFile->fd, iov, iovcnt);
+  if (written < 0) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+  }
+#if FILE_WITH_LOCK
+  (void)taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+  return (int64_t)written;
+#elif defined(WINDOWS)
+  if (pFile == NULL || pFile->hFile == NULL) {
+#if FILE_WITH_LOCK
+    (void)taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
+  }
+  int64_t totalWritten = 0;
+  for (int i = 0; i < iovcnt; ++i) {
+    TaosIOVec *vec = &iov[i];
+    if (vec->iov_len <= 0) continue;
+    DWORD written;
+    if (!WriteFile(pFile->hFile, vec->iov_base, vec->iov_len, &written, NULL)) {
+      SET_ERRNO(GetLastError());
+      terrno = TAOS_SYSTEM_WINAPI_ERROR(ERRNO);
+      written = -1;
+      break;
+    }
+    totalWritten += written;
+  }
+#if FILE_WITH_LOCK
+  (void)taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+  if (totalWritten < 0) {
+    return -1;
+  }
+  return (int64_t)totalWritten;
+#else
+  if (pFile->fd < 0) {
+#if FILE_WITH_LOCK
+    (void)taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
+  }
+  int64_t totalWritten = 0;
+  for (int i = 0; i < iovcnt; ++i) {
+    const struct iovec *vec = &iov[i];
+    if (vec->iov_len <= 0) continue;
+    ssize_t written = write(pFile->fd, vec->iov_base, vec->iov_len);
+    if (written < 0) {
+      if (ERRNO == EINTR || ERRNO == EAGAIN || ERRNO == EWOULDBLOCK) {
+        continue;
+      } else {
+        terrno = TAOS_SYSTEM_ERROR(ERRNO);
+        totalWritten = -1;
+        break;
+      }
+    }
+    totalWritten += written;
+  }
+#if FILE_WITH_LOCK
+  (void)taosThreadRwlockUnlock(&(pFile->rwlock));
+#endif
+  if (totalWritten < 0) {
+    return -1;
+  }
+  return (int64_t)totalWritten;
 #endif
 }

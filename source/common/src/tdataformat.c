@@ -1805,10 +1805,12 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
   // timestamp column
   if (!(aSchema[0].type == TSDB_DATA_TYPE_TIMESTAMP)) {
     terrno = TSDB_CODE_INVALID_PARA;
+    taosMemoryFree(pTSchema);
     return NULL;
   }
   if (!(aSchema[0].colId == PRIMARYKEY_TIMESTAMP_COL_ID)) {
     terrno = TSDB_CODE_INVALID_PARA;
+    taosMemoryFree(pTSchema);
     return NULL;
   }
   pTSchema->columns[0].colId = aSchema[0].colId;
