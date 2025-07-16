@@ -232,3 +232,4 @@ class Test_IDMP_Meters:
             and tdSql.compareData(0, 1, 3 + 4 + 1)   # cnt
             and tdSql.compareData(0, 2, 31)          # last current
         )     
+    
