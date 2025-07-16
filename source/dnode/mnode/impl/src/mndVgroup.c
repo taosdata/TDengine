@@ -46,6 +46,7 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessVgroupBalanceLeaderMsg(SRpcMsg *pReq);
+int32_t mndTransProcessSsMigrateVgroupRsp(SRpcMsg *pRsp);
 
 int32_t mndInitVgroup(SMnode *pMnode) {
   SSdbTable table = {
@@ -66,6 +67,7 @@ int32_t mndInitVgroup(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_HASHRANGE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_DND_DROP_VNODE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_COMPACT_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_SSMIGRATE_RSP, mndTransProcessSsMigrateVgroupRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DISABLE_WRITE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_SYNC_FORCE_FOLLOWER_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_DND_ALTER_VNODE_TYPE_RSP, mndTransProcessRsp);
@@ -293,9 +295,9 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.daysToKeep1 = pDb->cfg.daysToKeep1;
   createReq.daysToKeep2 = pDb->cfg.daysToKeep2;
   createReq.keepTimeOffset = pDb->cfg.keepTimeOffset;
-  createReq.s3ChunkSize = pDb->cfg.s3ChunkSize;
-  createReq.s3KeepLocal = pDb->cfg.s3KeepLocal;
-  createReq.s3Compact = pDb->cfg.s3Compact;
+  createReq.ssChunkSize = pDb->cfg.ssChunkSize;
+  createReq.ssKeepLocal = pDb->cfg.ssKeepLocal;
+  createReq.ssCompact = pDb->cfg.ssCompact;
   createReq.minRows = pDb->cfg.minRows;
   createReq.maxRows = pDb->cfg.maxRows;
   createReq.walFsyncPeriod = pDb->cfg.walFsyncPeriod;
@@ -427,8 +429,8 @@ static void *mndBuildAlterVnodeConfigReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pV
   alterReq.minRows = pDb->cfg.minRows;
   alterReq.walRetentionPeriod = pDb->cfg.walRetentionPeriod;
   alterReq.walRetentionSize = pDb->cfg.walRetentionSize;
-  alterReq.s3KeepLocal = pDb->cfg.s3KeepLocal;
-  alterReq.s3Compact = pDb->cfg.s3Compact;
+  alterReq.ssKeepLocal = pDb->cfg.ssKeepLocal;
+  alterReq.ssCompact = pDb->cfg.ssCompact;
 
   mInfo("vgId:%d, build alter vnode config req", pVgroup->vgId);
   int32_t contLen = tSerializeSAlterVnodeConfigReq(NULL, 0, &alterReq);
@@ -3373,11 +3375,10 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
     goto _OVER;
   }
 
-#if defined(USE_S3)
-  extern int8_t tsS3Enabled;
-  if (tsS3Enabled) {
+#if defined(USE_SHARED_STORAGE)
+  if (tsSsEnabled) {
     code = TSDB_CODE_OPS_NOT_SUPPORT;
-    mError("vgId:%d, db:%s, s3 exists, split vgroup not allowed", pVgroup->vgId, pVgroup->dbName);
+    mError("vgId:%d, db:%s, shared storage exists, split vgroup not allowed", pVgroup->vgId, pVgroup->dbName);
     goto _OVER;
   }
 #endif
@@ -3836,5 +3837,64 @@ static int32_t mndAddCompactVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *
 int32_t mndBuildCompactVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int64_t compactTs,
                                     STimeWindow tw, bool metaOnly) {
   TAOS_CHECK_RETURN(mndAddCompactVnodeAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly));
+  return 0;
+}
+
+static void *mndBuildSsMigrateVgroupReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen, SSsMigrateObj* pMigrateObj) {
+  SSsMigrateVgroupReq req = {.ssMigrateId = pMigrateObj->id, .nodeId = 0, .timestamp = pMigrateObj->startTime };
+
+  mInfo("vgId:%d, build ssmigrate vnode config req", pVgroup->vgId);
+  int32_t contLen = tSerializeSSsMigrateVgroupReq(NULL, 0, &req);
+  if (contLen < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  contLen += sizeof(SMsgHead);
+
+  void *pReq = taosMemoryMalloc(contLen);
+  if (pReq == NULL) {
+    return NULL;
+  }
+
+  SMsgHead *pHead = pReq;
+  pHead->contLen = htonl(contLen);
+  pHead->vgId = htonl(pVgroup->vgId);
+
+  if (tSerializeSSsMigrateVgroupReq((char *)pReq + sizeof(SMsgHead), contLen - sizeof(SMsgHead), &req) < 0) {
+    taosMemoryFree(pReq);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  *pContLen = contLen;
+  return pReq;
+}
+
+static int32_t mndAddSsMigrateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, SSsMigrateObj* pMigrateObj) {
+  int32_t      code = 0;
+  STransAction action = {0};
+  action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+
+  int32_t contLen = 0;
+  void   *pReq = mndBuildSsMigrateVgroupReq(pMnode, pDb, pVgroup, &contLen, pMigrateObj);
+  if (pReq == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+
+  action.pCont = pReq;
+  action.contLen = contLen;
+  action.msgType = TDMT_VND_SSMIGRATE;
+
+  if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
+    taosMemoryFree(pReq);
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
+int32_t mndBuildSsMigrateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, SSsMigrateObj* pMigrateObj) {
+  TAOS_CHECK_RETURN(mndAddSsMigrateVgroupAction(pMnode, pTrans, pDb, pVgroup, pMigrateObj));
   return 0;
 }
