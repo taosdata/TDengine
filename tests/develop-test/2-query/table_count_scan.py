@@ -68,7 +68,7 @@ class TDTestCase:
         for i in range(0, 3):
             db_name = tdSql.getData(i, 1)
             if db_name == 'information_schema':
-                tdSql.checkData(i, 0, 38)
+                tdSql.checkData(i, 0, 41)
                 tdSql.checkData(i, 2, None)
             elif db_name == 'performance_schema':
                 tdSql.checkData(i, 0, 5)
@@ -81,7 +81,7 @@ class TDTestCase:
         
         tdSql.query('select count(1) v,db_name, stable_name from information_schema.ins_tables group by db_name, stable_name order by v desc;')
         tdSql.checkRows(3)
-        tdSql.checkData(0, 0, 38)
+        tdSql.checkData(0, 0, 41)
         tdSql.checkData(0, 1, 'information_schema')
         tdSql.checkData(0, 2, None)
         tdSql.checkData(1, 0, 5)
@@ -97,7 +97,7 @@ class TDTestCase:
         tdSql.checkData(1, 1, 'performance_schema')
         tdSql.checkData(0, 0, 3)
         tdSql.checkData(0, 1, 'tbl_count')
-        tdSql.checkData(2, 0, 38)
+        tdSql.checkData(2, 0, 41)
         tdSql.checkData(2, 1, 'information_schema')
 
         tdSql.query("select count(*) from information_schema.ins_tables where db_name='tbl_count'")
@@ -110,7 +110,7 @@ class TDTestCase:
 
         tdSql.query('select count(*) from information_schema.ins_tables')
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 46)
+        tdSql.checkData(0, 0, 49)
 
 
         tdSql.execute('create table stba (ts timestamp, c1 bool, c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 float, c7 double, c8 binary(10), c9 nchar(10), c10 tinyint unsigned, c11 smallint unsigned, c12 int unsigned, c13 bigint unsigned) TAGS(t1 int, t2 binary(10), t3 double);')
@@ -193,7 +193,7 @@ class TDTestCase:
         tdSql.checkData(2, 0, 5)
         tdSql.checkData(2, 1, 'performance_schema')
         tdSql.checkData(2, 2, None)
-        tdSql.checkData(3, 0, 38)
+        tdSql.checkData(3, 0, 41)
         tdSql.checkData(3, 1, 'information_schema')
         tdSql.checkData(3, 2, None)
 
@@ -208,7 +208,7 @@ class TDTestCase:
         tdSql.checkData(2, 0, 5)
         tdSql.checkData(2, 1, 'performance_schema')
         tdSql.checkData(2, 2, None)
-        tdSql.checkData(3, 0, 38)
+        tdSql.checkData(3, 0, 41)
         tdSql.checkData(3, 1, 'information_schema')
         tdSql.checkData(3, 2, None)
 
@@ -219,7 +219,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 'tbl_count')
         tdSql.checkData(1, 0, 5)
         tdSql.checkData(1, 1, 'performance_schema')
-        tdSql.checkData(2, 0, 38)
+        tdSql.checkData(2, 0, 41)
         tdSql.checkData(2, 1, 'information_schema')
 
         tdSql.query("select count(*) from information_schema.ins_tables where db_name='tbl_count'")
@@ -232,7 +232,7 @@ class TDTestCase:
 
         tdSql.query('select count(*) from information_schema.ins_tables')
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 47)
+        tdSql.checkData(0, 0, 50)
 
 
         tdSql.execute('drop database tbl_count')

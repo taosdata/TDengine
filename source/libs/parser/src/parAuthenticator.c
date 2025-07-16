@@ -314,6 +314,25 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
   return code;
 }
 
+static int32_t authCreateStream(SAuthCxt* pCxt, SCreateStreamStmt* pStmt) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+
+  if (IS_SYS_DBNAME(pStmt->streamDbName)) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+  if (IS_SYS_DBNAME(pStmt->targetDbName)) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+  if (pStmt->pTrigger) {
+    SStreamTriggerNode *pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
+    STableNode* pTriggerTable = (STableNode*)pTrigger->pTrigerTable;
+    if (pTriggerTable && IS_SYS_DBNAME(pTriggerTable->dbName)) {
+      return TSDB_CODE_PAR_PERMISSION_DENIED;
+    }
+  }
+  return code;
+}
+
 static int32_t authCreateMultiTable(SAuthCxt* pCxt, SCreateMultiTablesStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
@@ -414,6 +433,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authCreateVSubTable(pCxt, (SCreateVSubTableStmt*)pStmt);
     case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
       return authCreateMultiTable(pCxt, (SCreateMultiTablesStmt*)pStmt);
+    case QUERY_NODE_CREATE_STREAM_STMT:
+      return authCreateStream(pCxt, (SCreateStreamStmt*)pStmt);
     case QUERY_NODE_DROP_TABLE_STMT:
       return authDropTable(pCxt, (SDropTableStmt*)pStmt);
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
@@ -449,6 +470,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
+    case QUERY_NODE_SHOW_MOUNTS_STMT:
       return !pCxt->pParseCxt->enableSysInfo ? TSDB_CODE_PAR_PERMISSION_DENIED : TSDB_CODE_SUCCESS;
     case QUERY_NODE_SHOW_USAGE_STMT:
     case QUERY_NODE_SHOW_ANODES_STMT:

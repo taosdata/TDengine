@@ -103,6 +103,7 @@ def before_test_session(request):
     request.session.work_dir = os.getenv('WORK_DIR', None)
     request.session.work_dir = request.session.before_test.get_and_mkdir_workdir(request.session.work_dir)
     if request.session.clean and os.path.exists(request.session.work_dir):
+        tdLog.info(f"rm {request.session.work_dir} before deploy")
         shutil.rmtree(request.session.work_dir)
 
     # 获取yaml文件，缓存到servers变量中，供cls使用
@@ -213,7 +214,6 @@ def before_test_class(request):
     request.cls.conn = request.session.before_test.get_taos_conn(request)
     tdSql.init(request.cls.conn.cursor())
     tdSql.replica = request.session.replicaVar
-    tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
 
     # 为兼容老用例，初始化原框架连接
     #tdSql_pytest.init(request.cls.conn.cursor())
@@ -222,6 +222,12 @@ def before_test_class(request):
     # 处理 -C 参数，如果未设置 -C 参数，create_dnode_num 和 -N 参数相同
     for i in range(1, request.session.create_dnode_num):
         tdSql.execute(f"create dnode localhost port {6030+i*100}")
+    tdLog.debug(tdSql.query(f"show dnodes", row_tag=True))
+
+    if request.session.mnodes_num:
+        for i in range(2, request.session.mnodes_num + 1):
+            tdSql.execute(f"create mnode on dnode {i}")
+        tdLog.debug(tdSql.query(f"show mnodes", row_tag=True))
 
     # 处理-Q参数，如果-Q参数不等于1，则创建qnode，并设置queryPolicy
     if request.session.query_policy != 1:

@@ -16,9 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "sync.h"
 #include "tq.h"
-#include "tqCommon.h"
 #include "tsdb.h"
 #include "vnd.h"
+#include "stream.h"
 
 #define BATCH_ENABLE 0
 
@@ -347,10 +347,25 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
 
     SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
     if (rsp.code == 0) {
-      if (vnodeProcessWriteMsg(pVnode, pMsg, pMsg->info.conn.applyIndex, &rsp) < 0) {
-        rsp.code = terrno;
-        vGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to apply since %s, index:%" PRId64, vgId, pMsg, terrstr(),
-                pMsg->info.conn.applyIndex);
+      int32_t ret = 0;
+      int32_t count = 0;
+      while (1) {
+        ret = vnodeProcessWriteMsg(pVnode, pMsg, pMsg->info.conn.applyIndex, &rsp);
+        if (ret < 0) {
+          rsp.code = ret;
+          vGError(&pMsg->info.traceId, "vgId:%d, msg:%p, failed to apply since %s, index:%" PRId64, vgId, pMsg,
+                  tstrerror(ret), pMsg->info.conn.applyIndex);
+        }
+        if (ret == TSDB_CODE_VND_WRITE_DISABLED) {
+          if (count % 100 == 0)
+            vGError(&pMsg->info.traceId,
+                    "vgId:%d, msg:%p, failed to apply since %s, retry after 200ms, retry count:%d index:%" PRId64, vgId,
+                    pMsg, tstrerror(ret), count, pMsg->info.conn.applyIndex);
+          count++;
+          taosMsleep(200);  // wait for a while before retrying
+        } else{
+          break;
+        } 
       }
     }
 
@@ -587,45 +602,6 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
 
   walApplyVer(pVnode->pWal, commitIdx);
   pVnode->restored = true;
-
-#ifdef USE_STREAM
-  SStreamMeta *pMeta = pVnode->pTq->pStreamMeta;
-  streamMetaWLock(pMeta);
-
-  if (pMeta->startInfo.tasksWillRestart) {
-    vInfo("vgId:%d, sync restore finished, stream tasks will be launched by other thread", vgId);
-    streamMetaWUnLock(pMeta);
-    return;
-  }
-
-  if (vnodeIsRoleLeader(pVnode)) {
-    // start to restore all stream tasks
-    if (tsDisableStream) {
-      vInfo("vgId:%d, sync restore finished, not launch stream tasks, since stream tasks are disabled", vgId);
-    } else {
-      vInfo("vgId:%d sync restore finished, start to launch stream task(s)", vgId);
-      if (pMeta->startInfo.startAllTasks == 1) {
-        pMeta->startInfo.restartCount += 1;
-        vDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, remaining restart:%d", vgId,
-               pMeta->startInfo.restartCount);
-      } else {
-        pMeta->startInfo.startAllTasks = 1;
-        streamMetaWUnLock(pMeta);
-
-        tqInfo("vgId:%d stream task already loaded, start them", vgId);
-        int32_t code = streamTaskSchedTask(&pVnode->msgCb, TD_VID(pVnode), 0, 0, STREAM_EXEC_T_START_ALL_TASKS, false);
-        if (code != 0) {
-          tqError("vgId:%d failed to sched stream task, code:%s", vgId, tstrerror(code));
-        }
-        return;
-      }
-    }
-  } else {
-    vInfo("vgId:%d, sync restore finished, not launch stream tasks since not leader", vgId);
-  }
-
-  streamMetaWUnLock(pMeta);
-#endif
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
@@ -642,14 +618,7 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
   }
   (void)taosThreadMutexUnlock(&pVnode->lock);
 
-#ifdef USE_TQ
-  if (pVnode->pTq) {
-    tqUpdateNodeStage(pVnode->pTq, false);
-    if (tqStopStreamAllTasksAsync(pVnode->pTq->pStreamMeta, &pVnode->msgCb) != 0) {
-      vError("vgId:%d, failed to stop stream tasks", pVnode->config.vgId);
-    }
-  }
-#endif
+  streamRemoveVnodeLeader(pVnode->config.vgId);
 }
 
 static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
@@ -665,26 +634,22 @@ static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
     }
   }
   (void)taosThreadMutexUnlock(&pVnode->lock);
+
+  streamRemoveVnodeLeader(pVnode->config.vgId);  
 }
 
 static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
   vDebug("vgId:%d, become leader", pVnode->config.vgId);
-#ifdef USE_TQ
-  if (pVnode->pTq) {
-    tqUpdateNodeStage(pVnode->pTq, true);
-  }
-#endif
+
+  streamAddVnodeLeader(pVnode->config.vgId);
 }
 
 static void vnodeBecomeAssignedLeader(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
   vDebug("vgId:%d, become assigned leader", pVnode->config.vgId);
-#ifdef USE_TQ
-  if (pVnode->pTq) {
-    tqUpdateNodeStage(pVnode->pTq, true);
-  }
-#endif
+
+  streamAddVnodeLeader(pVnode->config.vgId);
 }
 
 static bool vnodeApplyQueueEmpty(const SSyncFSM *pFsm) {
@@ -747,6 +712,7 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path, int32_t vnodeVersion) {
       .snapshotStrategy = SYNC_STRATEGY_WAL_FIRST,
       .batchSize = 1,
       .vgId = pVnode->config.vgId,
+      .mountVgId = pVnode->config.mountVgId,
       .syncCfg = pVnode->config.syncCfg,
       .pWal = pVnode->pWal,
       .msgcb = &pVnode->msgCb,

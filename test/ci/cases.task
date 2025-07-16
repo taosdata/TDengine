@@ -1,3 +1,5 @@
+#caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
+#NA,NA,y or n,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 # 01-DataTypes
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bool.py
@@ -18,6 +20,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_column.py
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_ts6333.py
+,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_composite_key_load.py
 
 # 02-Databases
 ## 01-Create
@@ -115,7 +118,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_reuse1.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_reuse2.py
 ,,n,.,pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_delete_writing.py
-,,n,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_drop.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/02-Drop/test_normal_table_drop.py
 ### 03-Alter
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_1.py 
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_2.py
@@ -124,6 +127,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/03-Alter/test_normal_table_alter_5.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_basic04.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/04-Query/test_normal_table_query.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/01-Create/test_normal_table_column_num_limit.py
 ### 04-Query
 ## 02-SubTables
 ### 01-Create
@@ -223,6 +227,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_join.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_insert.py
 
 # 06-DataIngestion
 ## 01-Insert
@@ -297,6 +302,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_table_filter_no.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_table_filter_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_tags_filter.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/02-Filter/test_sma_filter.py
 ## 03-GroupBy
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/03-GroupBy/test_groupby_complex.py
@@ -307,6 +313,7 @@
 ## 04-OrderBy
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/04-OrderBy/test_multi_orderby.py
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/04-OrderBy/test_sort_pre_cols.py
+,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/04-OrderBy/test_sort_double_col.py
 ## 05-Aliase
 ## 06-Limit
 ,,y,.,./ci/pytest.sh pytest cases/07-DataQuerying/06-Limit/test_limit_complex.py
@@ -436,14 +443,14 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/02-Fill/test_fill_us.py
 ,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/02-Fill/test_fill.py
 ## 03-TimeWindow
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_bug.py
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_empty_range_scl.py
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_empty_range.py
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_function.py
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_offset.py
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval.py
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval2.py
-,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_sliding.py
+,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_bug.py
+,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_empty_range_scl.py
+,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_empty_range.py
+,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_function.py
+,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval_offset.py
+,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval.py
+,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_interval2.py
+,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/03-TimeWindow/test_sliding.py
 ## 04-StateWindow
 ## 05-EventWindow
 ,,y,.,./ci/pytest.sh pytest cases/11-TimeSeriesExtensions/05-EventWindow/test_event.py
@@ -497,35 +504,6 @@
 ## 22-Performance
 ## 23-Compatibility 
 ## 24-OldCases
-## 30-OldPyCases
-,,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/30-OldPyCases/test_max_delay_interval.py
-## 31-OldTsimCases
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_check.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_checkpoint.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_concat.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_continuewindowclose.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_count.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_delete.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_distribute.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_event.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_fillhistory.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_fillinternal.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_forcewindowclose.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_delete.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_fill.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_history.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_partitionby.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_primary.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_interp_update.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_options.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_partitionby.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_primary.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_session.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_snode.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_state.py
-,y,.,./ci/pytest.sh pytest cases/13-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
 ## 99-Others
 
 # 14-Operators

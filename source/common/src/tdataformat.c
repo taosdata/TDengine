@@ -1805,10 +1805,12 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
   // timestamp column
   if (!(aSchema[0].type == TSDB_DATA_TYPE_TIMESTAMP)) {
     terrno = TSDB_CODE_INVALID_PARA;
+    taosMemoryFree(pTSchema);
     return NULL;
   }
   if (!(aSchema[0].colId == PRIMARYKEY_TIMESTAMP_COL_ID)) {
     terrno = TSDB_CODE_INVALID_PARA;
+    taosMemoryFree(pTSchema);
     return NULL;
   }
   pTSchema->columns[0].colId = aSchema[0].colId;
@@ -3267,8 +3269,8 @@ _exit:
  * `pOrdered` is the pointer to store ordered
  * `pDupTs` is the pointer to store duplicateTs
  */
-int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                           SArray *rowArray, bool *pOrdered, bool *pDupTs) {
+int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *parsedCols, bool infoSorted,
+                           const STSchema *pTSchema, SArray *rowArray, bool *pOrdered, bool *pDupTs) {
   if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -3281,6 +3283,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
   int32_t numOfRows = infos[0].bind->num;
   SArray *colValArray, *bufArray;
   SColVal colVal;
+  int32_t numOfFixedValue = 0;
 
   if ((colValArray = taosArrayInit(numOfInfos, sizeof(SColVal))) == NULL) {
     return terrno;
@@ -3290,6 +3293,12 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
     return terrno;
   }
   for (int i = 0; i < numOfInfos; ++i) {
+    if (parsedCols) {
+      SColVal *pParsedVal = tSimpleHashGet(parsedCols, &infos[i].columnId, sizeof(int16_t));
+      if (pParsedVal) {
+        continue;
+      }
+    }
     if (!taosArrayPush(bufArray, &infos[i].bind->buffer)) {
       taosArrayDestroy(colValArray);
       taosArrayDestroy(bufArray);
@@ -3302,6 +3311,23 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
     taosArrayClear(colValArray);
 
     for (int32_t iInfo = 0; iInfo < numOfInfos; iInfo++) {
+      if (parsedCols) {
+        SColVal *pParsedVal = tSimpleHashGet(parsedCols, &infos[iInfo].columnId, sizeof(int16_t));
+        if (pParsedVal) {
+          numOfFixedValue++;
+          colVal = *pParsedVal;
+
+          if (taosArrayPush(colValArray, &colVal) == NULL) {
+            if (IS_VAR_DATA_TYPE(pParsedVal->value.type)) {
+              taosMemoryFree(colVal.value.pData);
+            }
+            code = terrno;
+            goto _exit;
+          }
+          continue;
+        }
+      }
+
       if (infos[iInfo].bind->is_null && infos[iInfo].bind->is_null[iRow]) {
         if (infos[iInfo].bind->is_null[iRow] == 1) {
           if (iInfo == 0) {
@@ -3318,12 +3344,12 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorte
         };
         if (IS_VAR_DATA_TYPE(infos[iInfo].type)) {
           int32_t   length = infos[iInfo].bind->length[iRow];
-          uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo];
+          uint8_t **data = &((uint8_t **)TARRAY_DATA(bufArray))[iInfo - numOfFixedValue];
           value.nData = length;
-          if (value.nData > pTSchema->columns[infos[iInfo].columnId - 1].bytes - VARSTR_HEADER_SIZE) {
+          if (value.nData > infos[iInfo].bytes - VARSTR_HEADER_SIZE) {
             code = TSDB_CODE_PAR_VALUE_TOO_LONG;
-            uError("stmt bind param[%d] length:%d  greater than type maximum lenght: %d", iInfo, value.nData,
-                   pTSchema->columns[infos[iInfo].columnId - 1].bytes);
+            uError("stmt bind columnId:%d length:%d  greater than type maximum lenght: %d", infos[iInfo].columnId,
+                   value.nData + (uint32_t)VARSTR_HEADER_SIZE, infos[iInfo].bytes);
             goto _exit;
           }
           value.pData = *data;

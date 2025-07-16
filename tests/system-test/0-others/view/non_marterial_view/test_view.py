@@ -107,9 +107,9 @@ class TDTestCase:
         tdSql.execute(f"create view v1 as select * from {self.stbname};")
         self.check_view_num(1)
         tdSql.error(f'create view v1 as select * from {self.stbname};', expectErrInfo='view already exists in db')
-        tdSql.error(f'create view db2.v2 as select * from {self.stbname};', expectErrInfo='Fail to get table info, error: Database not exist')
+        tdSql.error(f'create view db2.v2 as select * from {self.stbname};', expectErrInfo='Database not exist')
         tdSql.error(f'create view v2 as select c2 from {self.stbname};', expectErrInfo='Invalid column name: c2')
-        tdSql.error(f'create view v2 as select ts, col1 from tt1;', expectErrInfo='Fail to get table info, error: Table does not exist')
+        tdSql.error(f'create view v2 as select ts, col1 from tt1;', expectErrInfo='Table does not exist')
 
         tdSql.execute(f"drop database {self.dbname}")
         tdLog.debug("Finish test case 'test_create_view_from_one_database'")

@@ -645,9 +645,10 @@ _end:
   return code;
 }
 
-void tsdbReleaseDataBlock2(STsdbReader* pReader) {
-  if (pReader == NULL) return;
+void tsdbReleaseDataBlock2(void* p) {
+  if (p == NULL) return;
 
+  STsdbReader* pReader = (STsdbReader*)p;
   SReaderStatus* pStatus = &pReader->status;
   if (!pStatus->composedDataBlock) {
     (void) tsdbReleaseReader(pReader);
@@ -2422,7 +2423,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
   tRowKeyAssign(&pBlockScanInfo->lastProcKey, &minKey);
 
   // file block ---> stt block -----> mem
-  if (pkCompEx(&minKey, pfKey) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, pfKey) == 0) {
     code = tsdbRowMergerAdd(pMerger, &fRow, NULL);
     TSDB_CHECK_CODE(code, lino, _end);
 
@@ -2430,7 +2431,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, pSttKey) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, pSttKey) == 0) {
     TSDBROW* fRow1 = tMergeTreeGetRow(&pSttBlockReader->mergeTree);
     code = tsdbRowMergerAdd(pMerger, fRow1, NULL);
     TSDB_CHECK_CODE(code, lino, _end);
@@ -2439,7 +2440,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, &k) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, &k) == 0) {
     code = tsdbRowMergerAdd(pMerger, pRow, pSchema);
     TSDB_CHECK_CODE(code, lino, _end);
 
@@ -2655,7 +2656,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
   tRowKeyAssign(&pBlockScanInfo->lastProcKey, &minKey);
 
   // file block -----> stt block -----> imem -----> mem
-  if (pkCompEx(&minKey, pfKey) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, pfKey) == 0) {
     TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
     code = tsdbRowMergerAdd(pMerger, &fRow, NULL);
     TSDB_CHECK_CODE(code, lino, _end);
@@ -2664,7 +2665,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, pSttKey) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, pSttKey) == 0) {
     TSDBROW* pRow1 = tMergeTreeGetRow(&pSttBlockReader->mergeTree);
     code = tsdbRowMergerAdd(pMerger, pRow1, NULL);
     TSDB_CHECK_CODE(code, lino, _end);
@@ -2674,7 +2675,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, &ik) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, &ik) == 0) {
     code = tsdbRowMergerAdd(pMerger, piRow, piSchema);
     TSDB_CHECK_CODE(code, lino, _end);
 
@@ -2682,7 +2683,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pkCompEx(&minKey, &k) == 0) {
+  if (pkCompEx(&pBlockScanInfo->lastProcKey, &k) == 0) {
     code = tsdbRowMergerAdd(pMerger, pRow, pSchema);
     TSDB_CHECK_CODE(code, lino, _end);
 
@@ -5427,7 +5428,7 @@ _end:
 }
 
 // TODO refactor: with createDataBlockScanInfo
-int32_t tsdbSetTableList2(STsdbReader* pReader, const void* pTableList, int32_t num) {
+int32_t tsdbSetTableList2(void* ptr, const void* pTableList, int32_t num) {
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
   int32_t               size = 0;
@@ -5436,8 +5437,8 @@ int32_t tsdbSetTableList2(STsdbReader* pReader, const void* pTableList, int32_t 
   int32_t               iter = 0;
   bool                  acquired = false;
 
+  STsdbReader* pReader = (STsdbReader*)ptr;
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
-
   size = tSimpleHashGetSize(pReader->status.pTableMap);
 
   code = tsdbAcquireReader(pReader);
@@ -5675,11 +5676,11 @@ _end:
   return code;
 }
 
-void tsdbReaderClose2(STsdbReader* pReader) {
-  if (pReader == NULL) {
+void tsdbReaderClose2(void* ptr) {
+  if (ptr == NULL) {
     return;
   }
-
+  STsdbReader* pReader = (STsdbReader*)ptr;
   int32_t code = tsdbAcquireReader(pReader);
   if (code) {
     return;
@@ -6116,12 +6117,13 @@ _end:
   return code;
 }
 
-int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
+int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SReaderStatus* pStatus = NULL;
   bool           acquired = false;
 
+  STsdbReader* pReader = (STsdbReader*)p;
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(hasNext, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
@@ -6449,11 +6451,12 @@ _end:
   return code;
 }
 
-int32_t tsdbRetrieveDataBlock2(STsdbReader* pReader, SSDataBlock** pBlock, SArray* pIdList) {
+int32_t tsdbRetrieveDataBlock2(void* p, SSDataBlock** pBlock, SArray* pIdList) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   STsdbReader* pTReader = NULL;
 
+  STsdbReader* pReader = (STsdbReader*)p;
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
@@ -6491,11 +6494,12 @@ _end:
   return code;
 }
 
-int32_t tsdbReaderReset2(STsdbReader* pReader, SQueryTableDataCond* pCond) {
+int32_t tsdbReaderReset2(void* p, SQueryTableDataCond* pCond) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   bool    acquired = false;
 
+  STsdbReader* pReader = (STsdbReader*)p;
   tsdbTrace("tsdb/reader-reset: %p, take read mutex", pReader);
   code = tsdbAcquireReader(pReader);
   TSDB_CHECK_CODE(code, lino, _end);

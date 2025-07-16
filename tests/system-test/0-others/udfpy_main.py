@@ -459,7 +459,7 @@ class TDTestCase:
         self.create_aggr_udfpy()
 
         # create stream
-        self.create_stream()
+        #newstm self.create_stream()
 
         # create tmq
         self.create_tmq()

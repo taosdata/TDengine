@@ -129,6 +129,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   if (!reqTbUid) {
     (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", infoReq.dbFName, infoReq.tbName);
+    if (pVnode->mounted) tTrimMountPrefix(tableFName);
     code = vnodeValidateTableHash(pVnode, tableFName);
     if (code) {
       goto _exit4;
@@ -316,6 +317,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   (void)memcpy(cfgRsp.dbFName, cfgReq.dbFName, sizeof(cfgRsp.dbFName));
 
   (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", cfgReq.dbFName, cfgReq.tbName);
+  if (pVnode->mounted) tTrimMountPrefix(tableFName);
   code = vnodeValidateTableHash(pVnode, tableFName);
   if (code) {
     goto _exit;
@@ -536,12 +538,6 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
       case TDMT_VND_TABLE_CFG:
         // error code has been set into reqMsg, no need to handle it here.
         if (TSDB_CODE_SUCCESS != vnodeGetTableCfg(pVnode, &reqMsg, false)) {
-          qWarn("vnodeGetBatchMeta failed, msgType:%d", req->msgType);
-        }
-        break;
-      case TDMT_VND_GET_STREAM_PROGRESS:
-        // error code has been set into reqMsg, no need to handle it here.
-        if (TSDB_CODE_SUCCESS != vnodeGetStreamProgress(pVnode, &reqMsg, false)) {
           qWarn("vnodeGetBatchMeta failed, msgType:%d", req->msgType);
         }
         break;
@@ -807,7 +803,8 @@ int32_t vnodeGetVSubtablesMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _return;
   }
 
-  SReadHandle handle = {.vnode = pVnode};
+  SReadHandle handle = {0};
+  handle.vnode = pVnode;
   initStorageAPI(&handle.api);
 
   QUERY_CHECK_CODE(vnodeReadVSubtables(&handle, req.suid, &rsp.pTables), line, _return);
@@ -868,7 +865,8 @@ int32_t vnodeGetVStbRefDbs(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _return;
   }
 
-  SReadHandle handle = {.vnode = pVnode};
+  SReadHandle handle = {0};
+  handle.vnode = pVnode;
   initStorageAPI(&handle.api);
 
   code = vnodeReadVStbRefDbs(&handle, req.suid, &rsp.pDbs);
@@ -913,18 +911,44 @@ _return:
   return code;
 }
 
+static int32_t vnodeGetCompStorage(SVnode *pVnode, int64_t *output) {
+  int32_t code = 0;
+#ifdef TD_ENTERPRISE
+  int32_t now = taosGetTimestampSec();
+  if (llabs(now - pVnode->config.vndStats.storageLastUpd) >= 30) {
+    pVnode->config.vndStats.storageLastUpd = now;
+
+    SDbSizeStatisInfo info = {0};
+    if (0 == (code = vnodeGetDBSize(pVnode, &info))) {
+      int64_t compSize =
+          info.l1Size + info.l2Size + info.l3Size + info.cacheSize + info.walSize + info.metaSize + +info.ssSize;
+      if (compSize >= 0) {
+        pVnode->config.vndStats.compStorage = compSize;
+      } else {
+        vError("vnode get comp storage failed since compSize is negative:%" PRIi64, compSize);
+        code = TSDB_CODE_APP_ERROR;
+      }
+    } else {
+      vWarn("vnode get comp storage failed since %s", tstrerror(code));
+    }
+  }
+  if (output) *output = pVnode->config.vndStats.compStorage;
+#endif
+  return code;
+}
+
 static void vnodeGetBufferInfo(SVnode *pVnode, int64_t *bufferSegmentUsed, int64_t *bufferSegmentSize) {
   *bufferSegmentUsed = 0;
   *bufferSegmentSize = 0;
   if (pVnode) {
-    taosThreadMutexLock(&pVnode->mutex);
+    (void)taosThreadMutexLock(&pVnode->mutex);
 
     if (pVnode->inUse) {
       *bufferSegmentUsed = pVnode->inUse->size;
     }
     *bufferSegmentSize = pVnode->config.szBuf / VNODE_BUFPOOL_SEGMENTS;
 
-    taosThreadMutexUnlock(&pVnode->mutex);
+    (void)taosThreadMutexUnlock(&pVnode->mutex);
   }
 }
 
@@ -945,8 +969,8 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->numOfCachedTables = tsdbCacheGetElems(pVnode);
   VNODE_DO_META_QUERY(pVnode, pLoad->numOfTables = metaGetTbNum(pVnode->pMeta));
   VNODE_DO_META_QUERY(pVnode, pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1));
-  pLoad->totalStorage = (int64_t)3 * 1073741824;
-  pLoad->compStorage = (int64_t)2 * 1073741824;
+  pLoad->totalStorage = (int64_t)3 * 1073741824;  // TODO
+  (void)vnodeGetCompStorage(pVnode, &pLoad->compStorage);
   pLoad->pointsWritten = 100;
   pLoad->numOfSelectReqs = 1;
   pLoad->numOfInsertReqs = atomic_load_64(&pVnode->statis.nInsert);
@@ -1337,7 +1361,7 @@ static FORCE_INLINE int32_t vnodeGetDBPrimaryInfo(SVnode *pVnode, SDbSizeStatisI
   char   *dirName[] = {VNODE_TSDB_DIR, VNODE_WAL_DIR, VNODE_META_DIR, VNODE_TSDB_CACHE_DIR};
   int64_t dirSize[4];
 
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, path, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, path, TSDB_FILENAME_LEN);
   int32_t offset = strlen(path);
 
   for (int i = 0; i < sizeof(dirName) / sizeof(dirName[0]); i++) {
@@ -1369,64 +1393,6 @@ int32_t vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo) {
 
   code = tsdbGetFsSize(pVnodeObj->pTsdb, pInfo);
 _exit:
-  return code;
-}
-
-int32_t vnodeGetStreamProgress(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
-  int32_t            code = 0;
-  SStreamProgressReq req;
-  SStreamProgressRsp rsp = {0};
-  SRpcMsg            rpcMsg = {.info = pMsg->info, .code = 0};
-  char              *buf = NULL;
-  int32_t            rspLen = 0;
-  code = tDeserializeStreamProgressReq(pMsg->pCont, pMsg->contLen, &req);
-
-  if (code == TSDB_CODE_SUCCESS) {
-    rsp.fetchIdx = req.fetchIdx;
-    rsp.subFetchIdx = req.subFetchIdx;
-    rsp.vgId = req.vgId;
-    rsp.streamId = req.streamId;
-    rspLen = tSerializeStreamProgressRsp(0, 0, &rsp);
-    if (rspLen < 0) {
-      code = terrno;
-      goto _OVER;
-    }
-    if (direct) {
-      buf = rpcMallocCont(rspLen);
-    } else {
-      buf = taosMemoryCalloc(1, rspLen);
-    }
-    if (!buf) {
-      code = terrno;
-      goto _OVER;
-    }
-  }
-
-  if (code == TSDB_CODE_SUCCESS) {
-    code = tqGetStreamExecInfo(pVnode, req.streamId, &rsp.progressDelay, &rsp.fillHisFinished);
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-    rspLen = tSerializeStreamProgressRsp(buf, rspLen, &rsp);
-    if (rspLen < 0) {
-      code = terrno;
-      goto _OVER;
-    }
-    rpcMsg.pCont = buf;
-    buf = NULL;
-    rpcMsg.contLen = rspLen;
-    rpcMsg.code = code;
-    rpcMsg.msgType = pMsg->msgType;
-    if (direct) {
-      tmsgSendRsp(&rpcMsg);
-    } else {
-      *pMsg = rpcMsg;
-    }
-  }
-
-_OVER:
-  if (buf) {
-    taosMemoryFree(buf);
-  }
   return code;
 }
 

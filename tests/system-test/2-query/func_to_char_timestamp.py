@@ -199,6 +199,10 @@ class TDTestCase:
         tdSql.query("select to_char(ts2, 'yyyy-mm-dd hh:mi:ss.ns') from meters_ns", queryTimes=1)
         tdSql.checkData(0, 0, '2023-07-01 12:00:00.123456000')
         tdSql.checkData(1, 0, '2023-08-01 12:00:00.123456789')
+        tdSql.query("select to_char(ts+1d+1h+1m+1s, 'yyyy-mm-dd') from `test_us`.`ctb1_us`", queryTimes=1)
+        tdSql.checkData(0, 0, '2023-07-02')
+        tdSql.query("select to_char(ts+1d+1h-1m-1s, 'yyyy-mm-dd') from `test_ns`.`ctb2_ns`", queryTimes=1)
+        tdSql.checkData(0, 0, '2023-08-02')
 
         tdSql.query("select to_timestamp(to_char(ts2, 'yyyy-mm-dd hh:mi:ss.ns'), 'yyyy-mm-dd hh:mi:ss.ns') from meters_ns", queryTimes=1)
         tdSql.checkData(0, 0, 1688140800123456000)

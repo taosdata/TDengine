@@ -103,6 +103,14 @@ static void dmUpdateRpcIpWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
 
   rpcFreeCont(pRpc->pCont);
 }
+
+static void dmUpdateRpcIpWhiteUnused(SDnodeData *pDnode, void *pTrans, SRpcMsg *pRpc) {
+  int32_t code = TSDB_CODE_INVALID_MSG;
+  dError("failed to update rpc ip-white since: %s", tstrerror(code));
+  rpcFreeCont(pRpc->pCont);
+  pRpc->pCont = NULL;
+  return;
+}
 static bool dmIsForbiddenIp(int8_t forbidden, char *user, SIpAddr *clientIp) {
   if (forbidden) {
     dError("User:%s host:%s not in ip white list", user, IP_ADDR_STR(clientIp));
@@ -161,6 +169,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     case TDMT_SCH_MERGE_FETCH_RSP:
     case TDMT_VND_SUBMIT_RSP:
     case TDMT_MND_GET_DB_INFO_RSP:
+    case TDMT_STREAM_FETCH_RSP:
+    case TDMT_STREAM_FETCH_FROM_RUNNER_RSP:
+    case TDMT_STREAM_FETCH_FROM_CACHE_RSP:
       code = qWorkerProcessRspMsg(NULL, NULL, pRpc, 0);
       return;
     case TDMT_MND_STATUS_RSP:
@@ -169,7 +180,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       }
       break;
     case TDMT_MND_RETRIEVE_IP_WHITE_RSP:
-      dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
+      dmUpdateRpcIpWhiteUnused(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
     case TDMT_MND_RETRIEVE_IP_WHITE_DUAL_RSP:
       dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
@@ -255,8 +266,11 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   pRpc->info.wrapper = pWrapper;
 
   EQItype itype = RPC_QITEM;  // rsp msg is not restricted by tsQueueMemoryUsed
-  if (IsReq(pRpc) && pRpc->msgType != TDMT_SYNC_HEARTBEAT && pRpc->msgType != TDMT_SYNC_HEARTBEAT_REPLY)
-    itype = RPC_QITEM;
+  if (pRpc->msgType == TDMT_SYNC_HEARTBEAT || pRpc->msgType == TDMT_SYNC_HEARTBEAT_REPLY) {
+    itype = DEF_QITEM;
+  } else if (IsReq(pRpc)) {
+    itype = APPLY_QITEM;
+  }
   code = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg);
   if (code) goto _OVER;
 
@@ -343,8 +357,10 @@ static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
     return code;
   } else {
     pMsg->info.handle = 0;
-    if (rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL) != 0) {
+    code = rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL);
+    if (code != 0) {
       dError("failed to send rpc msg");
+      return code;
     }
     return 0;
   }
@@ -389,8 +405,9 @@ static bool rpcRfp(int32_t code, tmsg_t msgType) {
   }
 }
 static bool rpcNoDelayMsg(tmsg_t msgType) {
-  if (msgType == TDMT_VND_FETCH_TTL_EXPIRED_TBS || msgType == TDMT_VND_S3MIGRATE || msgType == TDMT_VND_S3MIGRATE ||
-      msgType == TDMT_VND_QUERY_COMPACT_PROGRESS || msgType == TDMT_VND_DROP_TTL_TABLE) {
+  if (msgType == TDMT_VND_FETCH_TTL_EXPIRED_TBS || msgType == TDMT_VND_SSMIGRATE ||
+      msgType == TDMT_VND_QUERY_COMPACT_PROGRESS || msgType == TDMT_VND_DROP_TTL_TABLE ||
+      msgType == TDMT_VND_FOLLOWER_SSMIGRATE) {
     return true;
   }
   return false;
