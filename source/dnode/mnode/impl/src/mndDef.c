@@ -18,80 +18,16 @@
 #include "taoserror.h"
 #include "tunit.h"
 
-#ifdef USE_STREAM
-static void *freeStreamTasks(SArray *pTaskLevel);
-
 int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   TAOS_CHECK_RETURN(tStartEncode(pEncoder));
-  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->name));
 
+  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->name));
+  TAOS_CHECK_RETURN(tSerializeSCMCreateStreamReqImpl(pEncoder, pObj->pCreate));
+
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pObj->mainSnodeId));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pObj->userStopped));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->createTime));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->updateTime));
-  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pObj->version));
-  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pObj->totalLevel));
-  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->smaId));
-
-  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->uid));
-  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pObj->status));
-
-  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pObj->conf.igExpired));
-  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pObj->conf.trigger));
-  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pObj->conf.fillHistory));
-  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->conf.triggerParam));
-  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->conf.watermark));
-
-  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->sourceDbUid));
-  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->targetDbUid));
-  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->sourceDb));
-  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->targetDb));
-  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->targetSTbName));
-  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->targetStbUid));
-  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pObj->fixedSinkVgId));
-
-  if (pObj->sql != NULL) {
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->sql));
-  } else {
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, ""));
-  }
-
-  if (pObj->ast != NULL) {
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->ast));
-  } else {
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, ""));
-  }
-
-  if (pObj->physicalPlan != NULL) {
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->physicalPlan));
-  } else {
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, ""));
-  }
-
-  int32_t sz = taosArrayGetSize(pObj->pTaskList);
-  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, sz));
-  for (int32_t i = 0; i < sz; i++) {
-    SArray *pArray = taosArrayGetP(pObj->pTaskList, i);
-    int32_t innerSz = taosArrayGetSize(pArray);
-    TAOS_CHECK_RETURN(tEncodeI32(pEncoder, innerSz));
-    for (int32_t j = 0; j < innerSz; j++) {
-      SStreamTask *pTask = taosArrayGetP(pArray, j);
-      if (pTask->ver < SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
-        pTask->ver = SSTREAM_TASK_VER;
-      }
-      TAOS_CHECK_RETURN(tEncodeStreamTask(pEncoder, pTask));
-    }
-  }
-
-  TAOS_CHECK_RETURN(tEncodeSSchemaWrapper(pEncoder, &pObj->outputSchema));
-
-  // 3.0.20 ver =2
-  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->checkpointFreq));
-  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pObj->igCheckUpdate));
-
-  // 3.0.50 ver = 3
-  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->checkpointId));
-  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pObj->subTableWithoutMd5));
-
-  TAOS_CHECK_RETURN(tEncodeCStrWithLen(pEncoder, pObj->reserve, sizeof(pObj->reserve) - 1));
 
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -99,149 +35,34 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
 
 int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   int32_t code = 0;
+  int32_t lino = 0;
   TAOS_CHECK_RETURN(tStartDecode(pDecoder));
-  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pObj->name));
 
+  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pObj->name));
+  pObj->pCreate = taosMemoryCalloc(1, sizeof(*pObj->pCreate));
+  if (NULL == pObj) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  
+  TAOS_CHECK_RETURN(tDeserializeSCMCreateStreamReqImpl(pDecoder, pObj->pCreate));
+
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pObj->mainSnodeId));
+  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pObj->userStopped));
   TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->createTime));
   TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->updateTime));
-  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pObj->version));
-  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pObj->totalLevel));
-  TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->smaId));
 
-  TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->uid));
-  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pObj->status));
-
-  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pObj->conf.igExpired));
-  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pObj->conf.trigger));
-  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pObj->conf.fillHistory));
-  TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->conf.triggerParam));
-  TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->conf.watermark));
-
-  TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->sourceDbUid));
-  TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->targetDbUid));
-  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pObj->sourceDb));
-  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pObj->targetDb));
-  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pObj->targetSTbName));
-  TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->targetStbUid));
-  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pObj->fixedSinkVgId));
-
-  TAOS_CHECK_RETURN(tDecodeCStrAlloc(pDecoder, &pObj->sql));
-  TAOS_CHECK_RETURN(tDecodeCStrAlloc(pDecoder, &pObj->ast));
-  TAOS_CHECK_RETURN(tDecodeCStrAlloc(pDecoder, &pObj->physicalPlan));
-
-  if (pObj->pTaskList != NULL) {
-    pObj->pTaskList = freeStreamTasks(pObj->pTaskList);
-  }
-
-  int32_t sz;
-  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &sz));
-
-  if (sz != 0) {
-    pObj->pTaskList = taosArrayInit(sz, sizeof(void *));
-    if (pObj->pTaskList == NULL) {
-      code = terrno;
-      TAOS_RETURN(code);
-    }
-
-    for (int32_t i = 0; i < sz; i++) {
-      int32_t innerSz;
-      TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &innerSz));
-      SArray *pArray = taosArrayInit(innerSz, sizeof(void *));
-      if (pArray != NULL) {
-        for (int32_t j = 0; j < innerSz; j++) {
-          SStreamTask *pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
-          if (pTask == NULL) {
-            taosArrayDestroy(pArray);
-            code = terrno;
-            TAOS_RETURN(code);
-          }
-          if ((code = tDecodeStreamTask(pDecoder, pTask)) < 0) {
-            taosMemoryFree(pTask);
-            taosArrayDestroy(pArray);
-            TAOS_RETURN(code);
-          }
-          if (taosArrayPush(pArray, &pTask) == NULL) {
-            taosMemoryFree(pTask);
-            taosArrayDestroy(pArray);
-            code = terrno;
-            TAOS_RETURN(code);
-          }
-        }
-      }
-      if (taosArrayPush(pObj->pTaskList, &pArray) == NULL) {
-        taosArrayDestroy(pArray);
-        code = terrno;
-        TAOS_RETURN(code);
-      }
-    }
-  }
-
-  TAOS_CHECK_RETURN(tDecodeSSchemaWrapper(pDecoder, &pObj->outputSchema));
-
-  // 3.0.20
-  if (sver >= 2) {
-    TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->checkpointFreq));
-    if (!tDecodeIsEnd(pDecoder)) {
-      TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pObj->igCheckUpdate));
-    }
-  }
-  if (sver >= 3) {
-    TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->checkpointId));
-  }
-
-  if (sver >= 5) {
-    TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pObj->subTableWithoutMd5));
-  }
-  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pObj->reserve));
+_exit:
 
   tEndDecode(pDecoder);
+  tDecoderClear(pDecoder);  
+  
   TAOS_RETURN(code);
 }
 
-void *freeStreamTasks(SArray *pTaskLevel) {
-  if (pTaskLevel == NULL) return NULL;
-  int32_t numOfLevel = taosArrayGetSize(pTaskLevel);
-
-  for (int32_t i = 0; i < numOfLevel; i++) {
-    SArray *pLevel = taosArrayGetP(pTaskLevel, i);
-    int32_t taskSz = taosArrayGetSize(pLevel);
-    for (int32_t j = 0; j < taskSz; j++) {
-      SStreamTask *pTask = taosArrayGetP(pLevel, j);
-      tFreeStreamTask(pTask);
-    }
-
-    taosArrayDestroy(pLevel);
-  }
-
-  taosArrayDestroy(pTaskLevel);
-
-  return NULL;
-}
-
 void tFreeStreamObj(SStreamObj *pStream) {
-  taosMemoryFree(pStream->sql);
-  taosMemoryFree(pStream->ast);
-  taosMemoryFree(pStream->physicalPlan);
-
-  if (pStream->outputSchema.nCols || pStream->outputSchema.pSchema) {
-    taosMemoryFree(pStream->outputSchema.pSchema);
-  }
-
-  pStream->pTaskList = freeStreamTasks(pStream->pTaskList);
-  pStream->pHTaskList = freeStreamTasks(pStream->pHTaskList);
-
-  // tagSchema.pSchema
-  if (pStream->tagSchema.nCols > 0) {
-    taosMemoryFree(pStream->tagSchema.pSchema);
-  }
-
-  qDestroyQueryPlan(pStream->pPlan);
-  pStream->pPlan = NULL;
-
-  tSimpleHashCleanup(pStream->pVTableMap);
-  pStream->pVTableMap = NULL;
+  tFreeSCMCreateStreamReq(pStream->pCreate);
+  taosMemoryFreeClear(pStream->pCreate);
 }
-#endif
 
 SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {
   SMqVgEp *pVgEpNew = taosMemoryMalloc(sizeof(SMqVgEp));

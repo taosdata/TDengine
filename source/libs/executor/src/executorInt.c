@@ -117,10 +117,6 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
     }
   }
 
-  if (pData == NULL) {
-    return NULL;
-  }
-
   setBufPageDirty(pData, true);
 
   // set the number of rows in current disk page
@@ -537,6 +533,7 @@ int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t n
     }
 
     struct SResultRowEntryInfo* pResInfo = pCtx[i].resultInfo;
+    
     if (isRowEntryCompleted(pResInfo) && isRowEntryInitialized(pResInfo)) {
       continue;
     }
@@ -594,7 +591,8 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
   QUERY_CHECK_CODE(code, lino, _err);
 
   int32_t status = 0;
-  code = filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
+  code =
+      filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
   QUERY_CHECK_CODE(code, lino, _err);
 
   code = extractQualifiedTupleByFilterResult(pBlock, p, status);
@@ -685,9 +683,6 @@ int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResu
         }
       }
 
-      code = blockDataEnsureCapacity(pBlock, pBlock->info.rows + pCtx[j].resultInfo->numOfRes);
-      QUERY_CHECK_CODE(code, lino, _end);
-
       code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
       if (TSDB_CODE_SUCCESS != code) {
         qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
@@ -700,8 +695,8 @@ int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResu
       // the _wstart needs to copy to 20 following rows, since the results of top-k expands to 20 different rows.
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      char* in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
-      for (int32_t k = 0; k < pRow->numOfRows; ++k) {
+      char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
+      for (int32_t k = 0; k < pRow->numOfRows; ++k) {        
         code = colDataSetValOrCover(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -1016,6 +1011,7 @@ void initResultSizeInfo(SResultInfo* pResultInfo, int32_t numOfRows) {
   if (pResultInfo->threshold == 0) {
     pResultInfo->threshold = numOfRows;
   }
+  pResultInfo->totalRows = 0;
 }
 
 void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock) {
@@ -1023,7 +1019,7 @@ void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock) {
   initResultRowInfo(&pInfo->resultRowInfo);
 }
 
-static void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOfOutput) {
+void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOfOutput) {
   if (pCtx == NULL) {
     return;
   }
@@ -1033,6 +1029,7 @@ static void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_
       SExprInfo* pExprInfo = &pExpr[i];
       for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
         if (pExprInfo->base.pParam[j].type == FUNC_PARAM_TYPE_VALUE) {
+          colDataDestroy(pCtx[i].input.pData[j]);
           taosMemoryFree(pCtx[i].input.pData[j]);
           taosMemoryFree(pCtx[i].input.pColumnDataAgg[j]);
         }
@@ -1082,6 +1079,20 @@ void cleanupExprSupp(SExprSupp* pSupp) {
   }
 
   taosMemoryFree(pSupp->rowEntryInfoOffset);
+  memset(pSupp, 0, sizeof(SExprSupp));
+}
+
+void cleanupExprSuppWithoutFilter(SExprSupp* pSupp) {
+  destroySqlFunctionCtx(pSupp->pCtx, pSupp->pExprInfo, pSupp->numOfExprs);
+  if (pSupp->pExprInfo != NULL) {
+    destroyExprInfo(pSupp->pExprInfo, pSupp->numOfExprs);
+    taosMemoryFreeClear(pSupp->pExprInfo);
+  }
+
+  taosMemoryFreeClear(pSupp->rowEntryInfoOffset);
+  pSupp->numOfExprs = 0;
+  pSupp->hasWindowOrGroup = false;
+  pSupp->pCtx = NULL;
 }
 
 void cleanupBasicInfo(SOptrBasicInfo* pInfo) {
@@ -1231,6 +1242,8 @@ void freeMergeJoinGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamIm
 
 void freeMergeJoinNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
+void freeTagScanGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_GET_PARAM); }
+
 void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
   STableScanOperatorParam* pTableScanParam = (STableScanOperatorParam*)pParam->value;
   taosArrayDestroy(pTableScanParam->pUidList);
@@ -1243,6 +1256,8 @@ void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
 
 void freeTableScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
+void freeTagScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
+
 void freeOpParamItem(void* pItem) {
   SOperatorParam* pParam = *(SOperatorParam**)pItem;
   pParam->reUse = false;
@@ -1252,6 +1267,7 @@ void freeOpParamItem(void* pItem) {
 void freeVirtualTableScanGetOperatorParam(SOperatorParam* pParam) {
   SVTableScanOperatorParam* pVTableScanParam = (SVTableScanOperatorParam*)pParam->value;
   taosArrayDestroyEx(pVTableScanParam->pOpParamArray, freeOpParamItem);
+  freeOpParamItem(&pVTableScanParam->pTagScanOp);
   freeOperatorParamImpl(pParam, OP_GET_PARAM);
 }
 
@@ -1277,6 +1293,9 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
       type == OP_GET_PARAM ? freeVirtualTableScanGetOperatorParam(pParam) : freeVTableScanNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
+      type == OP_GET_PARAM ? freeTagScanGetOperatorParam(pParam) : freeTagScanNotifyOperatorParam(pParam);
       break;
     default:
       qError("unsupported op %d param, type %d", pParam->opType, type);

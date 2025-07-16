@@ -2105,6 +2105,8 @@ static int32_t processCacheMeta(SHashObj* pVgHash, SHashObj* pNameHash, SHashObj
       taosMemoryFree(pTableMeta);
       goto end;
     }
+    uDebug("put table meta to hash1, suid:%" PRId64 ", metaHashSIze:%d, nameHashSize:%d, vgHashSize:%d", info.suid, taosHashGetSize(pMetaHash),
+           taosHashGetSize(pNameHash), taosHashGetSize(pVgHash));
     if (pCreateReqDst) {
       pTableMeta->vgId = info.vgInfo.vgId;
       pTableMeta->uid = pCreateReqDst->uid;
@@ -2126,7 +2128,8 @@ static int32_t processCacheMeta(SHashObj* pVgHash, SHashObj* pNameHash, SHashObj
         taosMemoryFree(pTableMeta);
         goto end;
       }
-
+      uDebug("put table meta to hash2, suid:%" PRId64 ", metaHashSIze:%d, nameHashSize:%d, vgHashSize:%d", tmpInfo->suid, taosHashGetSize(pMetaHash),
+      taosHashGetSize(pNameHash), taosHashGetSize(pVgHash));
     } else {
       pTableMeta = *pTableMetaTmp;
       pTableMeta->uid = tmpInfo->uid;

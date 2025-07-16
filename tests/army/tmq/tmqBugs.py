@@ -36,7 +36,7 @@ class TDTestCase:
         
         tdSql.error(f'create topic t1 with meta as database d2', expectErrInfo="Database not exist")
         tdSql.error(f'create topic t1 as database d2', expectErrInfo="Database not exist")
-        tdSql.error(f'create topic t2 as select * from st2', expectErrInfo="Fail to get table info, error: Table does not exist")
+        tdSql.error(f'create topic t2 as select * from st2', expectErrInfo="Table does not exist")
         tdSql.error(f'create topic t3 as stable st2', expectErrInfo="STable not exist")
         tdSql.error(f'create topic t3 with meta as stable st2', expectErrInfo="STable not exist")
 
