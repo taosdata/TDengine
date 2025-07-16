@@ -1535,6 +1535,9 @@ int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
             if (!colDataIsNull_s(pVgIdCol, i)) {
               GET_TYPED_DATA(kv.vgId, int32_t, TSDB_DATA_TYPE_INT, colDataGetNumData(pVgIdCol, i), 0);
             }
+            if (pInfo->vtbScan.dynTbUid != 0 && kv.uid != pInfo->vtbScan.dynTbUid) {
+              continue;
+            }
             if (taosHashGet(pVtbScan->childTableMap, varDataVal(ctbName), varDataLen(ctbName)) == NULL) {
               pColRefArray = taosArrayInit(1, sizeof(SColRefKV));
               QUERY_CHECK_NULL(pColRefArray, code, line, _return, terrno);
@@ -1727,10 +1730,22 @@ static int32_t initVtbScanInfo(SOperatorInfo* pOperator, SDynQueryCtrlOperatorIn
   pInfo->vtbScan.pMsgCb = pMsgCb;
   pInfo->vtbScan.curTableIdx = 0;
   pInfo->vtbScan.lastTableIdx = -1;
+  pInfo->vtbScan.dynTbUid = 0;
   pInfo->vtbScan.dbName = taosStrdup(pPhyciNode->vtbScan.dbName);
   pInfo->vtbScan.stbName = taosStrdup(pPhyciNode->vtbScan.stbName);
   QUERY_CHECK_NULL(pInfo->vtbScan.dbName, code, line, _return, terrno);
   QUERY_CHECK_NULL(pInfo->vtbScan.stbName, code, line, _return, terrno);
+
+  if (pPhyciNode->dynTbname) {
+    SArray* vals = pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPartColVals;
+    for (int32_t i = 0; i < taosArrayGetSize(vals); ++i) {
+      SStreamGroupValue* pValue = taosArrayGet(vals, i);
+      if (pValue != NULL && pValue->isTbname) {
+        pInfo->vtbScan.dynTbUid = pValue->vgId;
+        break;
+      }
+    }
+  }
 
   pInfo->vtbScan.readColList = taosArrayInit(LIST_LENGTH(pPhyciNode->vtbScan.pScanCols), sizeof(col_id_t));
   QUERY_CHECK_NULL(pInfo->vtbScan.readColList, code, line, _return, terrno);

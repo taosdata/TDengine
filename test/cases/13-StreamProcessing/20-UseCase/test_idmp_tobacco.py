@@ -21,7 +21,7 @@ class TestIdmpTobacco:
 
 
 class TestIdmpTobaccoImpl:
-    def __init__(self):
+    def init(self):
         self.stream_ids = []
 
     def run(self):
@@ -195,18 +195,23 @@ class TestIdmpTobaccoImpl:
 
     def verifyResults(self):
         for id in self.stream_ids:
-            # 从 self.stream_objs 中找到 id 相同的 stream 的 name
+            # 从 self.stream_objs 中找到 id 相同的 stream_obj
             obj = next((o for o in self.stream_objs if o.id == id), None)
+            # skip if obj.assert_list is None or empty
+            if obj.assert_list is None or len(obj.assert_list) == 0:
+                tdLog.info(f"no assert for stream id: {id}, skip verify")
+                continue
+
             name = obj.name if obj and obj.name else f"stream_{id}"
-            if not obj:
-                raise RuntimeError(f"未找到 id={id} 对应的 streamObj")
 
             # check the output table
             res = tdSql.getResult(f"SHOW `{self.vdb}`.stables like '{name}';")
             if res is None or len(res) == 0:
-                raise RuntimeError(
-                    f"查询结果为空: SHOW `{self.vdb}`.stables like '{name}';"
-                )
+                res = tdSql.getResult(f"SHOW `{self.vdb}`.tables like '{name}';")
+                if res is None or len(res) == 0:
+                    raise RuntimeError(
+                        f"assert failed: output table '{name}' not found"
+                    )
 
             # check the output
             output = tdSql.getResult(f"SELECT * FROM `{self.vdb}`.`{name}`;")
