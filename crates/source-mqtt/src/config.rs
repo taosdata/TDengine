@@ -173,9 +173,10 @@ pub fn parse_tls_certificates(dsn: &Dsn) -> anyhow::Result<Option<Certificates>>
 pub fn build_tls_config(certificates: Option<&Certificates>) -> anyhow::Result<TlsConfiguration> {
     let mut root_cert_store = rustls::RootCertStore::empty();
     // 添加机器上的 ca
-    root_cert_store.add_parsable_certificates(
-        rustls_native_certs::load_native_certs().context("MQTT load platform certs error")?,
-    );
+    let result = rustls_native_certs::load_native_certs();
+    if !result.certs.is_empty() {
+        root_cert_store.add_parsable_certificates(result.certs);
+    }
 
     let tls_config = match certificates {
         Some(certificates) => {

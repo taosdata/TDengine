@@ -1157,7 +1157,7 @@ impl LushMessageInsert {
                         if let Some(v) = cv.get(j) {
                             let column_name = &columns[index];
                             if self.is_delete(j, n) {
-                                metrics::counter!("ipc.stream.points", 1);
+                                metrics::counter!("ipc.stream.points").increment(1);
                                 insert_columns.push_str(format!("`{}`,", column_name).as_str());
                                 insert_values.push_str("NULL,");
                                 tracing::warn!(row = j, col = n, "Set column to NULL");
@@ -1187,7 +1187,7 @@ impl LushMessageInsert {
                                         );
                                     }
                                 }
-                                metrics::counter!("ipc.stream.points", 1);
+                                metrics::counter!("ipc.stream.points").increment(1);
                                 insert_columns.push_str(format!("`{}`,", column_name).as_str());
                                 insert_values.push_str(format!("{},", sql_value).as_str());
                             } else {

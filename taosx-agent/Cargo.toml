@@ -10,12 +10,11 @@ anyhow.workspace = true
 cfg-if.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }
 clap-verbosity-flag = { workspace = true }
-const_format = "0.2"
-dotenv = "0.15.0"
-log = { version = "0.4", features = ["serde"] }
+const_format.workspace = true
+log = { workspace = true, features = ["serde"] }
 uuid = { workspace = true, features = ["serde"] }
 
-thiserror = "1"
+thiserror.workspace = true
 twelf = { version = "0.15.0", default-features = false, features = [
   "toml",
   "env",

@@ -3,6 +3,8 @@ use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 use anyhow::Context;
 use chrono::Local;
 use itertools::Itertools;
+use ringbuf::traits::Consumer;
+use ringbuf::traits::RingBuffer;
 use taos::Dsn;
 use taosx_core::TaskNotifySender;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
@@ -191,7 +193,6 @@ pub async fn opentsdb_to_taos(
                     break; // End of stream, exit the loop
                 }
                 if line.contains("ERROR") {
-                    use ringbuf::Rb;
                     let mut guard = error_buf_producer.lock().await;
                     let _ = guard.push_overwrite(line.clone());
                 }
@@ -219,7 +220,6 @@ pub async fn opentsdb_to_taos(
                     let status = status?;
                     tracing::info!("OpenTSDB exit with {}", status);
                     if !status.success() {
-                        use ringbuf::Rb;
                         safe_exit!();
                         let error = error_buf.lock().await.iter().join("");
                         anyhow::bail!("OpenTSDB exit with {}\n{error}", status);

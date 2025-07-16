@@ -10,7 +10,6 @@ description = "taosX - TDengine data integration tool"
 anyhow.workspace = true
 chrono = { workspace = true }
 chrono-tz = { workspace = true }
-
 arrow = { workspace = true }
 arrow-schema = { workspace = true, features = ["serde"] }
 arrow-flight = { workspace = true }
@@ -21,38 +20,32 @@ rayon = { workspace = true }
 tonic = { workspace = true, features = ["gzip", "tls"] }
 zerocopy = { workspace = true }
 dashmap = { workspace = true }
-
-dlopen2 = "0.7.0"
-
+dlopen2 = "0.8.0"
 regex = { workspace = true }
-
 arrow-cast-guess-precision = { workspace = true }
 arrow-compute-ext = { workspace = true }
 ring-channel = "0.12"
-
 async-compression.workspace = true
 async-trait.workspace = true
 bon = "3.3.0"
-bytes = "1"
+bytes.workspace = true
 bitflags = "2"
-crossbeam = { version = "0.8.4" }
+crossbeam.workspace = true
 rhai = { version = "1.18.0", features = ["sync"] }
-rhai-dylib = { version = "0.3.0", features = ["sync"] }
-strum = { version = "0.26.3", features = ["derive"] }
-paste = "1"
+rhai-dylib = { version = "0.7", features = ["sync"] }
+strum = { workspace = true, features = ["derive"] }
+paste.workspace = true
 half = "2.3"
 humantime.workspace = true
-
 clap = { workspace = true, features = ["default", "derive"] }
-convert_case = "0.6.0"
+convert_case = "0.8"
 csv-async.workspace = true
-
 flate2.workspace = true
 futures = { workspace = true, features = ["thread-pool"] }
 itertools = { workspace = true }
 lazy_static.workspace = true
 linked-hash-map.workspace = true
-log = "0.4"
+log.workspace = true
 fundu.workspace = true
 scc = { workspace = true, features = ["serde"] }
 semver.workspace = true
@@ -74,115 +67,63 @@ tokio = { workspace = true, features = [
 ] }
 tokio-util = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true, features = ["time"] }
-tokio-process-terminate.workspace = true
 toml.workspace = true
 either = "1.8"
-serde_regex = "1"
 tinytemplate = { git = "https://github.com/bitcapybara/TinyTemplate.git", rev = "9085af2b9c824e670750369827b9d6bbf24ae876" }
 serde_json_path = "0.7"
 csv.workspace = true
 glob.workspace = true
 notify.workspace = true
 futures-ext.workspace = true
-
 file-rotate = "0.7.5"
 ringbuf.workspace = true
 deadpool.workspace = true
-
-actix-web = "4"
-serde_json = { version = "1.0", features = ["raw_value", "preserve_order"] }
-utoipa = { version = "4.0.0", features = ["actix_extras", "chrono"] }
-utoipa-swagger-ui = { version = "7.1.0", features = ["actix-web"] }
-
+actix-web.workspace = true
+serde_json = { workspace = true, features = ["raw_value", "preserve_order"] }
+utoipa.workspace = true
 cfg-if.workspace = true
 metrics = { workspace = true }
-
 async-backtrace.workspace = true
-dotenv = "0.15.0"
 tracing = { workspace = true, features = ["log"] }
 tracing-subscriber.workspace = true
-
 flume.workspace = true
 futures-util.workspace = true
-serde_with = "3.3"
-
+serde_with.workspace = true
 bitvec = "1"
 tempfile.workspace = true
-
 reqwest = { workspace = true }
 taosx-ipc.workspace = true
-
 taos = { workspace = true }
 shadow-rs = { workspace = true }
-
-md5 = "0.7.0"
-kafka.workspace = true
+md5 = "0.8"
 rand.workspace = true
 base64.workspace = true
-
 sled = "0.34.7"
-socket2 = "0.5.5"
+socket2.workspace = true
 sysinfo = { workspace = true }
 chardetng = "0.1.17"
-encoding_rs = "0.8.33"
-
-sqlx = { workspace = true, features = [
-  "mysql",
-  "runtime-tokio",
-  "chrono",
-  "bigdecimal",
-  "tls-rustls",
-] }
+encoding_rs.workspace = true
 bigdecimal.workspace = true
-bit-vec.workspace = true
-uuid.workspace = true
-sqlx-postgres = { workspace = true, features = [
-  "chrono",
-  "bigdecimal",
-  "bit-vec",
-] }
-oracle.workspace = true
 rumqttc.workspace = true
-rustls-pemfile = "2"
-rustls-native-certs.workspace = true
-
-mongodb.workspace = true
-
 opendal = { workspace = true }
 taoslog.workspace = true
 bitfield.workspace = true
-tiberius.workspace = true
-deadpool-tiberius.workspace = true
 file-guard = "0.2.0"
 config = "0.14.0"
 snafu.workspace = true
 parking_lot.workspace = true
-lz4 = "1.28.0"
-snap = "1.1.1"
-datafusion = { version = "45.0.0", default-features = false, features = [
-  "parquet",
-] }
-zstd = "0.13.2"
-awaitgroup.workspace = true
-
+lz4.workspace = true
+snap.workspace = true
+datafusion = { workspace = true }
+zstd.workspace = true
 hex.workspace = true
-
 persist-queue = { path = "../crates/persist-queue" }
 archive = { workspace = true }
-
-prost.workspace = true
+serde_regex = "1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
 openssl = "0.10.55"
-
-rdkafka = { version = "0.37.0", features = ["cmake-build", "ssl", "tracing"] }
-[target.'cfg(not(windows))'.dependencies]
-rdkafka = { version = "0.37.0", features = [
-  "cmake-build",
-  "ssl",
-  "gssapi-vendored",
-] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

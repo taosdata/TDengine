@@ -313,7 +313,7 @@ pub fn to_record_batches(
                         }
                     }
                 }
-                OracleType::Object(_) | OracleType::Long | OracleType::Json => {
+                OracleType::Object(_) | OracleType::Long | OracleType::Json | OracleType::Xml => {
                     let val = col.get::<String>();
                     match val {
                         Err(_) => {

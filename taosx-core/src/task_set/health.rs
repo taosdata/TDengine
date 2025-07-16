@@ -9,7 +9,10 @@ use std::{
 use crate::core_metrics::CoreMetrics;
 use bon::Builder;
 use chrono::{DateTime, Utc};
-use ringbuf::{ring_buffer::RbBase, HeapRb, Rb};
+use ringbuf::{
+    traits::{Consumer, Observer, RingBuffer},
+    HeapRb,
+};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIs, EnumString, VariantNames};
 use tokio::{sync::broadcast, task::AbortHandle};
@@ -374,13 +377,13 @@ impl HealthChecker {
             (0..(window_start - self.window_start)
                 / self.options.health_check_interval_in_second as i64)
                 .for_each(|_| {
-                    self.errors_in_window.pop();
-                    self.messages_in_window.pop();
+                    self.errors_in_window.try_pop();
+                    self.messages_in_window.try_pop();
                 });
         }
 
         let queue_index = period / self.options.health_check_interval_in_second as i64;
-        if queue_index >= self.errors_in_window.len() as i64 {
+        if queue_index >= self.errors_in_window.occupied_len() as i64 {
             self.total_errors += error;
             self.total_messages += message;
             self.errors_in_window.push_overwrite(error);

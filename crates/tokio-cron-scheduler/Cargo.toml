@@ -50,7 +50,7 @@ features = ["with-uuid-1"]
 [dev-dependencies]
 anyhow.workspace = true
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-chrono-tz = { version = "0.8.5" }
+chrono-tz.workspace = true
 
 [build-dependencies]
 prost-build = { version = "0.13", optional = true }
