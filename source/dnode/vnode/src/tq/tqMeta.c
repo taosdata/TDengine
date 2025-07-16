@@ -154,8 +154,9 @@ int32_t tqMetaSaveOffset(STQ* pTq, STqOffset* pOffset) {
     goto END;
   }
 
-  TQ_ERR_GO_TO_END(tqMetaSaveInfo(pTq, pTq->pOffsetStore, pOffset->subKey, strlen(pOffset->subKey), buf, vlen));
-
+  taosWLockLatch(&pTq->lock);
+  code = tqMetaSaveInfo(pTq, pTq->pOffsetStore, pOffset->subKey, strlen(pOffset->subKey), buf, vlen);
+  taosWUnLockLatch(&pTq->lock);
 END:
   tEncoderClear(&encoder);
   taosMemoryFree(buf);
@@ -209,10 +210,13 @@ int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset** pOffset) {
   void* data = taosHashGet(pTq->pOffset, subkey, strlen(subkey));
   if (data == NULL) {
     int vLen = 0;
+    taosRLockLatch(&pTq->lock);
     if (tdbTbGet(pTq->pOffsetStore, subkey, strlen(subkey), &data, &vLen) < 0) {
+      taosRUnLockLatch(&pTq->lock);
       tdbFree(data);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+    taosRUnLockLatch(&pTq->lock);
 
     STqOffset offset = {0};
     if (tqMetaDecodeOffsetInfo(&offset, data, vLen >= 0 ? vLen : 0) != TDB_CODE_SUCCESS) {
