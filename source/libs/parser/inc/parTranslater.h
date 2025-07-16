@@ -40,7 +40,6 @@ typedef struct STranslateContext {
   SHashObj*        pTargetTables;
   SExplainOptions* pExplainOpt;
   SParseMetaCache* pMetaCache;
-  bool             createStream;
   bool             stableQuery;
   bool             showRewrite;
   bool             withOpt;
@@ -49,6 +48,15 @@ typedef struct STranslateContext {
   bool             dual;  // whether select stmt without from stmt, true for without.
   bool             skipCheck;
   bool             refTable;
+  int64_t          placeHolderBitmap;
+  bool             createStreamCalc;
+  bool             createStreamTrigger;
+  bool             createStreamOutTable;
+  bool             createStreamCalcWithExtWindow;
+  bool             extLeftEq; // used for external window, true means include left border
+  bool             extRightEq; // used for external window, true means include right border
+  SNode*           createStreamTriggerTbl;
+  SNodeList*       createStreamTriggerPartitionList;
 } STranslateContext;
 
 int32_t biRewriteToTbnameFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRet);

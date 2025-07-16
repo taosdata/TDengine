@@ -26,9 +26,8 @@
 #include "tlog.h"
 #include "tmsg.h"
 #include "trpc.h"
-#include "tstream.h"
 #include "ttimer.h"
-
+#include "tconfig.h"
 #include "mnode.h"
 
 #ifdef __cplusplus
@@ -289,12 +288,22 @@ typedef struct {
   SQnodeLoad load;
 } SQnodeObj;
 
+
 typedef struct {
   int32_t    id;
+  int32_t    leadersId[2];
+  int32_t    replicaId;
   int64_t    createdTime;
   int64_t    updateTime;
   SDnodeObj* pDnode;
 } SSnodeObj;
+
+typedef struct {
+  SSnodeObj* target;
+  int32_t    affNum;
+  SSnodeObj  affSnode[2];
+  SSnodeObj  affNewReplica[2];
+} SSnodeDropTraversaCtx;
 
 typedef struct {
   int32_t    id;
@@ -570,6 +579,8 @@ typedef struct {
   int32_t   mountVgId;  // TS-5868
 } SVgObj;
 
+
+
 typedef struct {
   char           name[TSDB_TABLE_FNAME_LEN];
   char           stb[TSDB_TABLE_FNAME_LEN];
@@ -837,6 +848,20 @@ typedef struct {
   //  SMqSubActionLogEntry* pLogEntry;
 } SMqRebOutputObj;
 
+typedef struct {
+  char                name[TSDB_STREAM_FNAME_LEN];
+  SCMCreateStreamReq* pCreate;
+
+  SRWLatch lock;
+  
+  // dynamic info
+  int32_t mainSnodeId;
+  int8_t  userDropped;  // no need to serialize
+  int8_t  userStopped;
+  int64_t createTime;
+  int64_t updateTime;
+} SStreamObj;
+#if 0
 typedef struct SStreamConf {
   int8_t  igExpired;
   int8_t  trigger;
@@ -844,6 +869,31 @@ typedef struct SStreamConf {
   int64_t triggerParam;
   int64_t watermark;
 } SStreamConf;
+
+typedef struct {
+  int32_t   vgId;
+  int64_t   createdTime;
+  int64_t   updateTime;
+  int32_t   version;
+  uint32_t  hashBegin;
+  uint32_t  hashEnd;
+  char      dbName[TSDB_DB_FNAME_LEN];
+  int64_t   dbUid;
+  int64_t   cacheUsage;
+  int64_t   numOfTables;
+  int64_t   numOfTimeSeries;
+  int64_t   totalStorage;
+  int64_t   compStorage;
+  int64_t   pointsWritten;
+  int8_t    compact;
+  int8_t    isTsma;
+  int8_t    replica;
+  SVnodeGid vnodeGid[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  void*     pTsma;
+  int32_t   numOfCachedTables;
+  int32_t   syncConfChangeVer;
+} SVgObj;
+
 
 typedef struct {
   char     name[TSDB_STREAM_FNAME_LEN];
@@ -899,6 +949,7 @@ typedef struct {
   SSHashObj*  pVTableMap;  // do not serialize
   SQueryPlan* pPlan;       // do not serialize
 } SStreamObj;
+#endif
 
 typedef struct SStreamSeq {
   char     name[24];

@@ -304,7 +304,7 @@ STqReader* tqReaderOpen(SVnode* pVnode) {
     return NULL;
   }
 
-  pReader->pWalReader = walOpenReader(pVnode->pWal, NULL, 0);
+  pReader->pWalReader = walOpenReader(pVnode->pWal, 0);
   if (pReader->pWalReader == NULL) {
     taosMemoryFree(pReader);
     return NULL;
@@ -366,81 +366,6 @@ int32_t tqReaderSeek(STqReader* pReader, int64_t ver, const char* id) {
   return 0;
 }
 
-int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, const char* id) {
-  int32_t code = 0;
-
-  while (1) {
-    TAOS_CHECK_RETURN(walNextValidMsg(pReader));
-
-    SWalCont* pCont = &pReader->pHead->head;
-    int64_t   ver = pCont->version;
-    if (ver > maxVer) {
-      tqDebug("maxVer in WAL:%" PRId64 " reached, current:%" PRId64 ", do not scan wal anymore, %s", maxVer, ver, id);
-      return TSDB_CODE_SUCCESS;
-    }
-
-    if (pCont->msgType == TDMT_VND_SUBMIT) {
-      void*   pBody = POINTER_SHIFT(pCont->body, sizeof(SSubmitReq2Msg));
-      int32_t len = pCont->bodyLen - sizeof(SSubmitReq2Msg);
-
-      void* data = taosMemoryMalloc(len);
-      if (data == NULL) {
-        // todo: for all stream in this vnode, keep this offset in the offset files, and wait for a moment, and then
-        // retry
-        tqError("vgId:%d, failed to copy submit data for stream processing, since out of memory", 0);
-        return terrno;
-      }
-
-      (void)memcpy(data, pBody, len);
-      SPackedData data1 = (SPackedData){.ver = ver, .msgLen = len, .msgStr = data};
-
-      code = streamDataSubmitNew(&data1, STREAM_INPUT__DATA_SUBMIT, (SStreamDataSubmit**)pItem);
-      if (code != 0) {
-        tqError("%s failed to create data submit for stream since out of memory", id);
-        return code;
-      }
-    } else if (pCont->msgType == TDMT_VND_DELETE) {
-      void*       pBody = POINTER_SHIFT(pCont->body, sizeof(SMsgHead));
-      int32_t     len = pCont->bodyLen - sizeof(SMsgHead);
-      EStreamType blockType = STREAM_DELETE_DATA;
-      code = tqExtractDelDataBlock(pBody, len, ver, (void**)pItem, 0, blockType);
-      if (code == TSDB_CODE_SUCCESS) {
-        if (*pItem == NULL) {
-          tqDebug("s-task:%s empty delete msg, discard it, len:%d, ver:%" PRId64, id, len, ver);
-          // we need to continue check next data in the wal files.
-          continue;
-        } else {
-          tqDebug("s-task:%s delete msg extract from WAL, len:%d, ver:%" PRId64, id, len, ver);
-        }
-      } else {
-        terrno = code;
-        tqError("s-task:%s extract delete msg from WAL failed, code:%s", id, tstrerror(code));
-        return code;
-      }
-
-    } else if (pCont->msgType == TDMT_VND_DROP_TABLE && pReader->cond.scanDropCtb) {
-      void*   pBody = POINTER_SHIFT(pCont->body, sizeof(SMsgHead));
-      int32_t len = pCont->bodyLen - sizeof(SMsgHead);
-      code = tqExtractDropCtbDataBlock(pBody, len, ver, (void**)pItem, 0);
-      if (TSDB_CODE_SUCCESS == code) {
-        if (!*pItem) {
-          continue;
-        } else {
-          tqDebug("s-task:%s drop ctb msg extract from WAL, len:%d, ver:%" PRId64, id, len, ver);
-        }
-      } else {
-        terrno = code;
-        return code;
-      }
-    } else {
-      tqError("s-task:%s invalid msg type:%d, ver:%" PRId64, id, pCont->msgType, ver);
-      return TSDB_CODE_STREAM_INTERNAL_ERROR;
-    }
-
-    return code;
-  }
-}
-
 bool tqNextBlockInWal(STqReader* pReader, const char* id, int sourceExcluded) {
   if (pReader == NULL) {
     return false;
@@ -486,7 +411,7 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id, int sourceExcluded) {
     }
 
     // try next message in wal file
-    if (walNextValidMsg(pWalReader) < 0) {
+    if (walNextValidMsg(pWalReader, false) < 0) {
       return false;
     }
 
@@ -1312,6 +1237,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   taosWUnLockLatch(&pTq->lock);
 
   // update the table list handle for each stream scanner/wal reader
+/* STREAMTODO
   streamMetaWLock(pTq->pStreamMeta);
   while (1) {
     pIter = taosHashIterate(pTq->pStreamMeta->pTasksMap, pIter);
@@ -1338,6 +1264,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   }
 
   streamMetaWUnLock(pTq->pStreamMeta);
+*/  
   return 0;
 }
 
@@ -1465,7 +1392,6 @@ int32_t tqReaderSetVtableInfo(STqReader* pReader, void* vnode, void* ptr, SSHash
   *ppResBlock = NULL;
 
   // update reader callback for vtable source scan
-  pAPI->tqReaderFn.tqRetrieveBlock = tqRetrieveVTableDataBlock;
   pAPI->tqReaderFn.tqNextBlockImpl = tqNextVTableSourceBlockImpl;
   pAPI->tqReaderFn.tqReaderIsQueriedTable = tqReaderIsQueriedSourceTable;
 
@@ -1576,253 +1502,6 @@ static void freeTableSchemaCache(const void* key, size_t keyLen, void* value, vo
     SSchemaWrapper* pSchemaWrapper = value;
     tDeleteSchemaWrapper(pSchemaWrapper);
   }
-}
-
-int32_t tqRetrieveVTableDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* idstr) {
-  int32_t            code = TSDB_CODE_SUCCESS;
-  int32_t            lino = 0;
-  SVTSourceScanInfo* pScanInfo = NULL;
-  SSubmitTbData*     pSubmitTbData = NULL;
-  SSDataBlock*       pBlock = NULL;
-  void*              px = NULL;
-  int64_t            vTbUid = 0;
-  int64_t            pTbUid = 0;
-  LRUHandle*         h = NULL;
-  STSchema*          pPhyTblSchema = NULL;
-
-  TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  TSDB_CHECK_NULL(pRes, code, lino, _end, TSDB_CODE_INVALID_PARA);
-
-  pScanInfo = &pReader->vtSourceScanInfo;
-  tqDebug("tq reader retrieve vtable data block from %p, nextBlk:%d, vtbIdx:%d, id:%s", pReader->msg.msgStr,
-          pReader->nextBlk, pScanInfo->nextVirtualTableIdx, idstr);
-
-  *pRes = NULL;
-  pBlock = pReader->pResBlock;
-  blockDataCleanup(pBlock);
-
-  pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
-  TSDB_CHECK_NULL(pSubmitTbData, code, lino, _end, terrno);
-
-  pReader->lastTs = pSubmitTbData->ctimeMs;
-
-  pTbUid = pSubmitTbData->uid;
-  px = taosHashGet(pScanInfo->pPhysicalTables, &pTbUid, sizeof(int64_t));
-  TSDB_CHECK_NULL(px, code, lino, _end, terrno);
-  SArray* pRelatedVTs = *(SArray**)px;
-  vTbUid = *(int64_t*)taosArrayGet(pRelatedVTs, pScanInfo->nextVirtualTableIdx);
-  px = taosHashGet(pScanInfo->pVirtualTables, &vTbUid, sizeof(int64_t));
-  TSDB_CHECK_NULL(px, code, lino, _end, terrno);
-  SArray* pColInfos = *(SArray**)px;
-  TSDB_CHECK_NULL(pColInfos, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-
-  int32_t nColInfos = taosArrayGetSize(pColInfos);
-  int32_t nOutputCols = taosArrayGetSize(pBlock->pDataBlock);
-
-  int32_t numOfRows = 0;
-  int32_t nInputCols = 0;
-  if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-    SColData* pCol = taosArrayGet(pSubmitTbData->aCol, 0);
-    TSDB_CHECK_NULL(pCol, code, lino, _end, terrno);
-    numOfRows = pCol->nVal;
-    nInputCols = taosArrayGetSize(pSubmitTbData->aCol);
-  } else {
-    // try to get physical table schema from cache
-    pScanInfo->metaFetch++;
-    int64_t         cacheKey = (pSubmitTbData->suid == 0) ? pTbUid : pSubmitTbData->suid;
-    SSchemaWrapper* pWrapper = NULL;
-    h = taosLRUCacheLookup(pScanInfo->pPhyTblSchemaCache, &cacheKey, sizeof(int64_t));
-    if (h != NULL) {
-      pWrapper = taosLRUCacheValue(pScanInfo->pPhyTblSchemaCache, h);
-      TSDB_CHECK_NULL(pWrapper, code, lino, _end, terrno);
-    }
-
-    if (pWrapper != NULL && pWrapper->version != pSubmitTbData->sver) {
-      // reset outdated schema
-      tDeleteSchemaWrapper(pWrapper);
-      pWrapper = NULL;
-      taosLRUCacheUpdate(pScanInfo->pPhyTblSchemaCache, h, pWrapper);
-    }
-
-    if (pWrapper == NULL) {
-      // get physical table schema from meta
-      pWrapper = metaGetTableSchema(pReader->pVnodeMeta, pTbUid, pSubmitTbData->sver, 1, NULL);
-      if (pWrapper == NULL) {
-        tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", uid:%" PRId64
-               "version %d, possibly dropped table",
-               pReader->pWalReader->pWal->cfg.vgId, pSubmitTbData->suid, pTbUid, pSubmitTbData->sver);
-        TSDB_CHECK_NULL(pWrapper, code, lino, _end, TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND);
-      }
-      if (h == NULL) {
-        // insert schema to cache
-        code = taosLRUCacheInsert(pScanInfo->pPhyTblSchemaCache, &cacheKey, sizeof(int64_t), pWrapper, POINTER_BYTES,
-                                  freeTableSchemaCache, NULL, NULL, TAOS_LRU_PRIORITY_LOW, NULL);
-        if (code != TSDB_CODE_SUCCESS) {
-          tDeleteSchemaWrapper(pWrapper);
-        }
-        TSDB_CHECK_CODE(code, lino, _end);
-      } else {
-        // update schema in cache
-        taosLRUCacheUpdate(pScanInfo->pPhyTblSchemaCache, h, pWrapper);
-      }
-    } else {
-      pScanInfo->cacheHit++;
-    }
-    TSDB_CHECK_NULL(pWrapper, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    pPhyTblSchema = tBuildTSchema(pWrapper->pSchema, pWrapper->nCols, pWrapper->version);
-    TSDB_CHECK_NULL(pPhyTblSchema, code, lino, _end, terrno);
-
-    numOfRows = taosArrayGetSize(pSubmitTbData->aRowP);
-    nInputCols = pPhyTblSchema->numOfCols;
-  }
-
-  code = blockDataEnsureCapacity(pBlock, numOfRows);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-  // convert one block
-  for (int32_t i = 0, j = 1; j < nOutputCols;) {
-    SColumnInfoData* pOutCol = taosArrayGet(pBlock->pDataBlock, j);
-    TSDB_CHECK_NULL(pOutCol, code, lino, _end, terrno);
-    if (i >= nColInfos) {
-      tqTrace("%s has %d column info, but vtable column %d is missing, id: %s", __func__, nColInfos,
-              pOutCol->info.colId, idstr);
-      colDataSetNNULL(pOutCol, 0, numOfRows);
-      j++;
-      continue;
-    }
-
-    SVTColInfo* pCol = taosArrayGet(pColInfos, i);
-    TSDB_CHECK_NULL(pCol, code, lino, _end, terrno);
-    if (pCol->vColId < pOutCol->info.colId) {
-      i++;
-      continue;
-    } else if (pCol->vColId > pOutCol->info.colId) {
-      tqTrace("%s does not find column info for vtable column %d, closest vtable column is %d, id: %s", __func__,
-              pOutCol->info.colId, pCol->vColId, idstr);
-      colDataSetNNULL(pOutCol, 0, numOfRows);
-      j++;
-      continue;
-    }
-
-    // skip this column if it is from another physical table
-    if (pCol->pTbUid != pTbUid) {
-      tqTrace("skip column %d of virtual table %" PRId64 " since it is from table %" PRId64
-              ", current block table %" PRId64 ", id: %s",
-              pCol->vColId, vTbUid, pCol->pTbUid, pTbUid, idstr);
-      colDataSetNNULL(pOutCol, 0, numOfRows);
-      i++;
-      j++;
-      continue;
-    }
-
-    // copy data from physical table to the result block of virtual table
-    if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-      // try to find the corresponding column data of physical table
-      SColData* pColData = NULL;
-      for (int32_t k = 0; k < nInputCols; ++k) {
-        pColData = taosArrayGet(pSubmitTbData->aCol, k);
-        TSDB_CHECK_NULL(pColData, code, lino, _end, terrno);
-        if (pColData->cid == pCol->pColId) {
-          break;
-        }
-        pColData = NULL;
-      }
-      if (pColData == NULL) {
-        tqError("%s does not find data of physical table %" PRId64 " column %d, virtual table: %" PRId64
-                " column: %d, id: %s",
-                __func__, pTbUid, pCol->pColId, vTbUid, pCol->vColId, idstr);
-        colDataSetNNULL(pOutCol, 0, numOfRows);
-        i++;
-        j++;
-        continue;
-      }
-      SColVal colVal = {0};
-      for (int32_t k = 0; k < pColData->nVal; ++k) {
-        code = tColDataGetValue(pColData, k, &colVal);
-        TSDB_CHECK_CODE(code, lino, _end);
-        code = doSetVal(pOutCol, k, &colVal);
-        TSDB_CHECK_CODE(code, lino, _end);
-      }
-    } else {
-      SArray* pRows = pSubmitTbData->aRowP;
-      TSDB_CHECK_NULL(pPhyTblSchema, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-
-      SColVal colVal = {0};
-      for (int32_t k = 0; k < numOfRows; ++k) {
-        SRow* pRow = taosArrayGetP(pRows, k);
-        TSDB_CHECK_NULL(pRow, code, lino, _end, terrno);
-        for (int32_t l = 0; l < nInputCols; ++l) {
-          code = tRowGet(pRow, pPhyTblSchema, l, &colVal);
-          TSDB_CHECK_CODE(code, lino, _end);
-          if (colVal.cid == pCol->pColId) {
-            code = doSetVal(pOutCol, k, &colVal);
-            TSDB_CHECK_CODE(code, lino, _end);
-            break;
-          } else if (colVal.cid > pCol->pColId || l == (nInputCols - 1)) {
-            colDataSetNULL(pOutCol, k);
-            break;
-          }
-        }
-      }
-    }
-
-    i++;
-    j++;
-  }
-
-  // enforce to fill the first ts column
-  if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-    SColumnInfoData* pOutCol = taosArrayGet(pBlock->pDataBlock, 0);
-    SColData*        pColData = taosArrayGet(pSubmitTbData->aCol, 0);
-    TSDB_CHECK_NULL(pColData, code, lino, _end, terrno);
-    SColVal colVal = {0};
-    for (int32_t k = 0; k < pColData->nVal; ++k) {
-      code = tColDataGetValue(pColData, k, &colVal);
-      TSDB_CHECK_CODE(code, lino, _end);
-      code = doSetVal(pOutCol, k, &colVal);
-      TSDB_CHECK_CODE(code, lino, _end);
-    }
-  } else {
-    SColumnInfoData* pOutCol = taosArrayGet(pBlock->pDataBlock, 0);
-    SArray*          pRows = pSubmitTbData->aRowP;
-    TSDB_CHECK_NULL(pPhyTblSchema, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    SColVal colVal = {0};
-    for (int32_t k = 0; k < numOfRows; ++k) {
-      SRow* pRow = taosArrayGetP(pRows, k);
-      TSDB_CHECK_NULL(pRow, code, lino, _end, terrno);
-      code = tRowGet(pRow, pPhyTblSchema, 0, &colVal);
-      TSDB_CHECK_CODE(code, lino, _end);
-      code = doSetVal(pOutCol, k, &colVal);
-      TSDB_CHECK_CODE(code, lino, _end);
-    }
-  }
-
-  pBlock->info.rows = numOfRows;
-  pBlock->info.id.uid = vTbUid;
-  pBlock->info.id.groupId = pTbUid;
-  pBlock->info.version = pReader->msg.ver;
-  pScanInfo->nextVirtualTableIdx++;
-  if (pScanInfo->nextVirtualTableIdx >= taosArrayGetSize(pRelatedVTs)) {
-    pReader->nextBlk++;
-    pScanInfo->nextVirtualTableIdx = -1;
-  }
-  tqDebug("tq reader will retrieve next vtable data block from %p, nextBlk:%d, vtbIdx:%d, id:%s", pReader->msg.msgStr,
-          pReader->nextBlk, pScanInfo->nextVirtualTableIdx, idstr);
-
-  *pRes = pBlock;
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    tqError("%s failed at line %d since %s, id: %s", __func__, lino, tstrerror(code), idstr);
-  }
-  if (h != NULL) {
-    bool bRes = taosLRUCacheRelease(pScanInfo->pPhyTblSchemaCache, h, false);
-    tqTrace("release LRU cache, res %d, id: %s", bRes, idstr);
-  }
-  if (pPhyTblSchema != NULL) {
-    taosMemoryFreeClear(pPhyTblSchema);
-  }
-  return code;
 }
 
 bool tqNextVTableSourceBlockImpl(STqReader* pReader, const char* idstr) {

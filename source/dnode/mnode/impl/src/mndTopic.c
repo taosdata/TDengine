@@ -332,7 +332,7 @@ int32_t mndAcquireTopic(SMnode *pMnode, const char *topicName, SMqTopicObj **pTo
   if (*pTopic == NULL) {
     return TSDB_CODE_MND_TOPIC_NOT_EXIST;
   }
-  return TDB_CODE_SUCCESS;
+  return TSDB_CODE_SUCCESS;
 }
 
 void mndReleaseTopic(SMnode *pMnode, SMqTopicObj *pTopic) {
@@ -544,7 +544,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     return TSDB_CODE_INVALID_MSG;
   }
   SMnode           *pMnode = pReq->info.node;
-  int32_t           code = TDB_CODE_SUCCESS;
+  int32_t           code = TSDB_CODE_SUCCESS;
   SMqTopicObj      *pTopic = NULL;
   SDbObj           *pDb = NULL;
   SCMCreateTopicReq createTopicReq = {0};
@@ -560,7 +560,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   MND_TMQ_RETURN_CHECK(mndCheckCreateTopicReq(&createTopicReq));
 
   code = mndAcquireTopic(pMnode, createTopicReq.name, &pTopic);
-  if (code == TDB_CODE_SUCCESS) {
+  if (code == TSDB_CODE_SUCCESS) {
     if (createTopicReq.igExists) {
       mInfo("topic:%s already exist, ignore exist is set", createTopicReq.name);
       goto END;
