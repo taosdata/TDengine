@@ -83,7 +83,6 @@ set(
     "src/bse/bseTableMgt.c"
     "src/bse/bseUtil.c"
     "src/bse/bseSnapshot.c"
-    "src/tq/tqStreamNotify.c"
 )
 
 aux_source_directory("src/tsdb/" TSDB_SOURCE_FILES)

@@ -1862,7 +1862,9 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
     }
     if(tsIsNull) continue;  // skip this row if primary key is null
     SRow* pRow = NULL;
-    if ((code = tRowBuild(pVals, pTSchema, &pRow)) != TSDB_CODE_SUCCESS) {
+    
+    SRowBuildScanInfo sinfo = {0};
+    if ((code = tRowBuild(pVals, pTSchema, &pRow, &sinfo)) != TSDB_CODE_SUCCESS) {
       QUERY_CHECK_CODE(code, lino, _end);
     }
     if (NULL == taosArrayPush(tbData->aRowP, &pRow)) {
