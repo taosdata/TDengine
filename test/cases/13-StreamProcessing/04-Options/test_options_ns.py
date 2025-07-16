@@ -3,7 +3,7 @@ from new_test_framework.utils import (tdLog,tdSql,tdStream,StreamCheckItem,)
 
 
 class TestStreamOptionsTrigger:
-    precision = 'ms'
+    precision = 'ns'
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")

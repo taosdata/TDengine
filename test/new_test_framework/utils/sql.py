@@ -2498,8 +2498,32 @@ class TDSql:
         tdLog.exit(f"{caller.filename}(caller.lineno)  check result failed")
 
     def checkResultsBySql(self, sql, exp_sql, delay=0.0, retry=60, show=False):
-        self.clearResult()
-        exp_result = self.getResult(exp_sql)
+        # sleep
+        if delay != 0:
+            time.sleep(delay)
+
+        # show sql
+        tdLog.info(sql)
+
+        if retry <= 0:
+            retry = 1
+
+        # loop retry
+        for loop in range(retry):
+            # clear
+            self.clearResult()
+            # query
+            exp_result = self.getResult(exp_sql, exit=False)
+            # check result
+            if exp_result != [] and exp_result != None:
+                # success
+                break
+            # sleep and retry
+            if loop != retry - 1:
+                if show:
+                    self.printResult(f"check continue {loop} after sleep 1s ...")
+                time.sleep(1)
+
         self.checkResultsByArray(sql, exp_result, exp_sql, delay, retry, show)
 
     def checkTableType(
@@ -2641,6 +2665,10 @@ class TDSql:
                 colsVal[j] += colStep
 
         return ts
+
+    # flush db
+    def flushDb(self, dbName):
+        self.execute(f"flush database {dbName}", show=True)
 
 # global
 tdSql = TDSql()
