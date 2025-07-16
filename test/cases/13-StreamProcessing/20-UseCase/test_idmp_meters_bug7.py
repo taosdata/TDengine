@@ -228,7 +228,6 @@ class Test_IDMP_Meters:
 
         # sub1
         exp_sql = f"select * from {self.vdb}.`result_stream6_sub1` "
-
         tdSql.checkResultsBySql(result_sql, exp_sql)
 
         tdLog.info(f"verify stream6 ................................. successfully.")
