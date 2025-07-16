@@ -4765,14 +4765,17 @@ static int32_t setVSuperTableRefScanVgroupList(STranslateContext* pCxt, SName* p
   vgroupList = taosArrayInit(1, sizeof(SVgroupInfo));
   QUERY_CHECK_NULL(vgroupList, code, lino, _return, terrno);
 
-  dbNameHash = tSimpleHashInit(taosArrayGetSize(pCxt->pMetaCache->pVStbRefDbs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+
+  SArray* pVStbRefs = NULL;
+  getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
+  dbNameHash = tSimpleHashInit(taosArrayGetSize(pVStbRefs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
   QUERY_CHECK_NULL(dbNameHash, code, lino, _return, terrno);
 
   // set async to false since other db's info won't be collect during collectMetaKey
   pCxt->pParseCxt->async = false;
   // travel all vnodes' response
-  for (int32_t i = 0; i < taosArrayGetSize(pCxt->pMetaCache->pVStbRefDbs); i++) {
-    SVStbRefDbsRsp *pRsp = taosArrayGet(pCxt->pMetaCache->pVStbRefDbs, i);
+  for (int32_t i = 0; i < taosArrayGetSize(pVStbRefs); i++) {
+    SVStbRefDbsRsp *pRsp = taosArrayGet(pVStbRefs, i);
     QUERY_CHECK_NULL(pRsp, code, lino, _return, terrno);
 
     // travel all ref dbs in one vnode's response
@@ -4793,8 +4796,6 @@ static int32_t setVSuperTableRefScanVgroupList(STranslateContext* pCxt, SName* p
   }
 
   pCxt->pParseCxt->async = tmpasyn;
-  taosArrayDestroyEx(pCxt->pMetaCache->pVStbRefDbs, tDestroySVStbRefDbsRsp);
-  pCxt->pMetaCache->pVStbRefDbs = NULL;
   taosMemoryFreeClear(pRefScanTable->pVgroupList);
   PAR_ERR_JRET(toVgroupsInfo(vgroupList, &pRefScanTable->pVgroupList));
 
@@ -14361,7 +14362,13 @@ static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreat
 
   if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_TBNAME)) {
     if (!hasTbnameFunction(pTriggerPartition)) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "%%tbname can only be used when partition with tbname"));
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "%%%%tbname can only be used when partition with tbname"));
+    }
+  }
+
+  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS)) {
+    if (pReq->eventTypes != EVENT_WINDOW_CLOSE) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER, "%%%%trows can only be used when event type is window close"));
     }
   }
 

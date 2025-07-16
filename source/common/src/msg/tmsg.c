@@ -5488,7 +5488,6 @@ void tDestroySVStbRefDbsRsp(void *rsp) {
   SVStbRefDbsRsp *pRsp = (SVStbRefDbsRsp *)rsp;
 
   taosArrayDestroyP(pRsp->pDbs, NULL);
-  pRsp->pDbs = NULL;
 }
 
 int32_t tSerializeSQnodeListReq(void *buf, int32_t bufLen, SQnodeListReq *pReq) {
@@ -14193,6 +14192,13 @@ void tFreeAndClearTableTSMAInfo(void *p) {
   if (pTsmaInfo) {
     tFreeTableTSMAInfo(pTsmaInfo);
     taosMemoryFree(pTsmaInfo);
+  }
+}
+
+void tFreeAndClearRefDbName(void *p) {
+  char *dbName = (char *)p;
+  if (dbName) {
+    taosMemoryFree(dbName);
   }
 }
 
