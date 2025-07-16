@@ -1366,7 +1366,7 @@ static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     if (code != TSDB_CODE_MND_CONSUMER_NOT_READY){
       tqErrorC("consumer:0x%" PRIx64 ", get topic endpoint error, code:%s", tmq->consumerId, tstrerror(code));
-      if (code == TSDB_CODE_MND_CONSUMER_NOT_EXIST){
+      if (code == TSDB_CODE_MND_CONSUMER_NOT_EXIST){ //TODO::EthanLiu
         atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__LOST);
       }
     }
@@ -1952,10 +1952,10 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
 
   int32_t retryCnt = 0;
   while ((code = syncAskEp(tmq)) != 0) {
-    if (retryCnt++ > SUBSCRIBE_RETRY_MAX_COUNT || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) {
+    if (retryCnt++ > SUBSCRIBE_RETRY_MAX_COUNT || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) { //TODO::EthanLiu
       tqErrorC("consumer:0x%" PRIx64 ", mnd not ready for subscribe, retry more than 2 minutes, code:%s",
                tmq->consumerId, tstrerror(code));
-      if (code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) {
+      if (code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) { //TODO::EthanLiu
         code = 0;
       }
       goto END;
@@ -2295,7 +2295,7 @@ static int32_t tmqPollImpl(tmq_t* tmq) {
   taosWLockLatch(&tmq->lock);
 
   if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__LOST){
-    code = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
+    code = TSDB_CODE_MND_CONSUMER_NOT_EXIST; //TODO::EthanLiu
     goto end;
   }
 

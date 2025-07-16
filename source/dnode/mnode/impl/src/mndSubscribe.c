@@ -835,7 +835,7 @@ static int32_t mndCheckConsumer(SRpcMsg *pMsg, SHashObj *rebSubHash) {
 
   // iterate all consumers, find all modification
   while (1) {
-    pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
+    pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer); //TODO::EthanLiu
     if (pIter == NULL) {
       break;
     }
@@ -1124,19 +1124,22 @@ static int32_t mndCheckConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgr
   SMqConsumerObj *pConsumerNew = NULL;
   int             code = 0;
   while (1) {
-    pIter = sdbFetch(pMnode->pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
+    pIter = sdbFetch(pMnode->pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer); //TODO::EthanLiu
     if (pIter == NULL) {
       break;
     }
 
     if (strcmp(cgroup, pConsumer->cgroup) != 0) {
+      mError("call sub count consumer at line:%d for consumer %lld", __LINE__, pConsumer->consumerId);
       sdbRelease(pMnode->pSdb, pConsumer);
       continue;
     }
 
     if (deleteConsumer) {
+      mError("call delete consumer at line:%d for consumer %lld", __LINE__, pConsumer->consumerId);
       MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, -1, NULL, NULL, &pConsumerNew));
       MND_TMQ_RETURN_CHECK(mndSetConsumerDropLogs(pTrans, pConsumerNew));
+
       tDeleteSMqConsumerObj(pConsumerNew);
       pConsumerNew = NULL;
     } else {
@@ -1149,7 +1152,7 @@ static int32_t mndCheckConsumerByGroup(SMnode *pMnode, STrans *pTrans, char *cgr
       }
     }
 
-
+    mError("call sub count consumer at line:%d for consumer %lld", __LINE__, pConsumer->consumerId);
     sdbRelease(pMnode->pSdb, pConsumer);
   }
 
@@ -1590,7 +1593,7 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
 
       char          *user = NULL;
       char          *fqdn = NULL;
-      SMqConsumerObj *pConsumer = sdbAcquire(pSdb, SDB_CONSUMER, &pConsumerEp->consumerId);
+      SMqConsumerObj *pConsumer = sdbAcquire(pSdb, SDB_CONSUMER, &pConsumerEp->consumerId); //TODO::EthanLiu
       if (pConsumer != NULL) {
         user = pConsumer->user;
         fqdn = pConsumer->fqdn;

@@ -437,7 +437,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   if (strncmp(req.cgroup, pConsumer->cgroup, tListLen(pConsumer->cgroup)) != 0) {
     mError("consumer:0x%" PRIx64 " group:%s not consistent with data in sdb, saved cgroup:%s", consumerId, req.cgroup,
            pConsumer->cgroup);
-    code = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
+    code = TSDB_CODE_MND_CONSUMER_NOT_EXIST; //TODO::EthanLiu
     goto END;
   }
 
@@ -675,7 +675,7 @@ END:
   mndTransDrop(pTrans);
   tDeleteSMqConsumerObj(pConsumerNew);
   taosArrayDestroyP(subscribe.topicNames, NULL);
-  code = (code == TSDB_CODE_TMQ_NO_NEED_REBALANCE || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) ? 0 : code;
+  code = (code == TSDB_CODE_TMQ_NO_NEED_REBALANCE || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) ? 0 : code;  //TODO::EthanLiu
   PRINT_LOG_END(code);
   return code;
 }
@@ -946,7 +946,9 @@ int32_t mndAcquireConsumer(SMnode *pMnode, int64_t consumerId, SMqConsumerObj** 
   SSdb           *pSdb = pMnode->pSdb;
   *pConsumer = sdbAcquire(pSdb, SDB_CONSUMER, &consumerId);
   if (*pConsumer == NULL) {
-    return TSDB_CODE_MND_CONSUMER_NOT_EXIST;
+    mError("Can't find the consumer id {%lld}, error: {%s}", consumerId, terrstr());
+    mndDumpSdb();
+    return TSDB_CODE_MND_CONSUMER_NOT_EXIST;  //TODO::EthanLiu
   }
   return 0;
 }
@@ -955,6 +957,9 @@ void mndReleaseConsumer(SMnode *pMnode, SMqConsumerObj *pConsumer) {
   if (pMnode == NULL || pConsumer == NULL) {
     return;
   }
+
+  mError("call release the consumer id {%lld}", pConsumer->consumerId);
+
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pConsumer);
 }
@@ -972,13 +977,14 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
   char           *status = NULL;
 
   while (numOfRows < rowsCapacity) {
-    pShow->pIter = sdbFetch(pSdb, SDB_CONSUMER, pShow->pIter, (void **)&pConsumer);
+    pShow->pIter = sdbFetch(pSdb, SDB_CONSUMER, pShow->pIter, (void **)&pConsumer);//TODO::EthanLiu
     if (pShow->pIter == NULL) {
       break;
     }
 
     if (taosArrayGetSize(pConsumer->assignedTopics) == 0) {
       mInfo("showing consumer:0x%" PRIx64 " no assigned topic, skip", pConsumer->consumerId);
+      mError("sub ref count consumer:0x%" PRIx64 " in mndRetrieveConsumer since no topic", pConsumer->consumerId);
       sdbRelease(pSdb, pConsumer);
       continue;
     }
@@ -1103,6 +1109,8 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
     }
 
     taosRUnLockLatch(&pConsumer->lock);
+
+    mError("sub count consumer id {%lld}", pConsumer->consumerId);
     sdbRelease(pSdb, pConsumer);
 
     pBlock->info.rows = numOfRows;

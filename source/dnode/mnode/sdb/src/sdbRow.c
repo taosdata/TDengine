@@ -43,6 +43,9 @@ void sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc) {
   SdbDeleteFp deleteFp = pSdb->deleteFps[pRow->type];
   if (deleteFp != NULL) {
     mInfo("vgId:1, deleteFp:%p, type:%s, row:%p", deleteFp, sdbTableName(pRow->type), pRow);
+    if(pRow->type == SDB_CONSUMER) {
+      mError("delete consumer vgId:1, deleteFp:%p, type:%s, row:%p", deleteFp, sdbTableName(pRow->type), pRow);
+    }
     (void)(*deleteFp)(pSdb, pRow->pObj, callFunc);
   }
 

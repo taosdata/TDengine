@@ -662,7 +662,7 @@ static int32_t mndCheckConsumerByTopic(SMnode *pMnode, STrans *pTrans, char *top
   SMqConsumerObj *pConsumerNew = NULL;
 
   while (1) {
-    pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
+    pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer); //TODO::EthanLiu
     if (pIter == NULL) {
       break;
     }

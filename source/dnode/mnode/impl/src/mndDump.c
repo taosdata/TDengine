@@ -373,7 +373,7 @@ void dumpConsumer(SSdb *pSdb, SJson *json) {
 
   while (1) {
     SMqConsumerObj *pObj = NULL;
-    pIter = sdbFetchAll(pSdb, SDB_CONSUMER, pIter, (void **)&pObj, &status, false);
+    pIter = sdbFetchAll(pSdb, SDB_CONSUMER, pIter, (void **)&pObj, &status, false); //TODO::EthanLiu 这个可以直接调用输出
     if (pIter == NULL) break;
 
     SJson *item = tjsonCreateObject();
@@ -382,6 +382,7 @@ void dumpConsumer(SSdb *pSdb, SJson *json) {
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "status", i642str(status)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "consumerId", i642str(pObj->consumerId)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "cgroup", pObj->cgroup), pObj, &lino, _OVER);
+    mError("sub consumer ref count at line:%d for consumer %lld", lino, pObj->consumerId);
     sdbRelease(pSdb, pObj);
   }
 _OVER:
