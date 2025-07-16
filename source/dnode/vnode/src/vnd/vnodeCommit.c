@@ -414,7 +414,7 @@ int vnodeAsyncCommit(SVnode *pVnode) {
 _exit:
   if (code) {
     taosMemoryFree(pInfo);
-    taosMemoryFree(pBseCommitInfo);
+    // taosMemoryFree(pBseCommitInfo);
     vError("vgId:%d %s failed at line %d since %s" PRId64, TD_VID(pVnode), __func__, lino, tstrerror(code));
   } else {
     vInfo("vgId:%d, vnode async commit done, commitId:%" PRId64 " term:%" PRId64 " applied:%" PRId64, TD_VID(pVnode),
