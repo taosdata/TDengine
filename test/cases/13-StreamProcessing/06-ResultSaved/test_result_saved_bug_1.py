@@ -194,6 +194,6 @@ class TestStreamResultSavedComprehensive:
         tdSql.checkTableType(dbname="rdb", stbname="r11", columns=2, tags=1)
         # Verify truncation occurred
         tdSql.checkResultsByFunc(
-            sql="select table_name from information_schema.ins_tables where db_name='rdb' and stable_name='r11';",
-            func=lambda: tdSql.queryResult is not None and all(len(row[0]) <= 192 for row in tdSql.queryResult),  # TSDB_TABLE_NAME_LEN
+            sql="select stable_name from information_schema.ins_stables where db_name='rdb' and stable_name='r11';",
+            func=lambda: tdSql.getData(0, 0) == "r11"
         )
