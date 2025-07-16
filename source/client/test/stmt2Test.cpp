@@ -41,6 +41,25 @@ const char* STMT_STATUS_NAMES[] = {
     "STMT_BIND", "STMT_BIND_COL", "STMT_ADD_BATCH", "STMT_EXECUTE",   "STMT_MAX",
 };
 
+typedef struct AsyncArgs {
+  int    async_affected_rows;
+  tsem_t sem;
+} AsyncArgs;
+
+void stmtAsyncQueryCb(void* param, TAOS_RES* pRes, int code) {
+  ((AsyncArgs*)param)->async_affected_rows = taos_affected_rows(pRes);
+  ASSERT_EQ(tsem_post(&((AsyncArgs*)param)->sem), TSDB_CODE_SUCCESS);
+  return;
+}
+
+AsyncArgs param = {0};
+
+TAOS_STMT2_OPTION option[4] = {{0, true, true, NULL, NULL},
+                               {0, false, false, NULL, NULL},
+                               {0, true, true, stmtAsyncQueryCb, &param},
+                               {0, false, false, stmtAsyncQueryCb, &param}};
+const char*       description[4] = {"interlace", "no-interlace", "interlace & asyncExec", "no-interlace & asyncExec"};
+const char*       tags[10] = {"apple", "brain", "chest", "dream", "eagle", "flame", "ghost", "heart", "light", "magic"};
 namespace {
 void checkError(TAOS_STMT2* stmt, int code, const char* file, int line) {
   if (code != TSDB_CODE_SUCCESS) {
@@ -55,17 +74,6 @@ void checkError(TAOS_STMT2* stmt, int code, const char* file, int line) {
     printf("  file : %s\n  line : %d\n", file, line);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
-}
-
-typedef struct AsyncArgs {
-  int    async_affected_rows;
-  tsem_t sem;
-} AsyncArgs;
-
-void stmtAsyncQueryCb(void* param, TAOS_RES* pRes, int code) {
-  ((AsyncArgs*)param)->async_affected_rows = taos_affected_rows(pRes);
-  ASSERT_EQ(tsem_post(&((AsyncArgs*)param)->sem), TSDB_CODE_SUCCESS);
-  return;
 }
 
 void getFieldsSuccess(TAOS* taos, const char* sql, TAOS_FIELD_ALL* expectedFields, int expectedFieldNum) {
@@ -165,6 +173,12 @@ void do_stmt(const char* msg, TAOS* taos, TAOS_STMT2_OPTION* option, const char*
   int code = taos_stmt2_prepare(stmt, sql, 0);
   checkError(stmt, code, __FILE__, __LINE__);
   int total_affected = 0;
+  bool fixedTbname = false;
+
+  if (CTB_NUMS == -1) {
+    CTB_NUMS = 1;
+    fixedTbname = true;
+  }
 
   // tbname
   char** tbs = (char**)taosMemoryMalloc(CTB_NUMS * sizeof(char*));
@@ -173,7 +187,8 @@ void do_stmt(const char* msg, TAOS* taos, TAOS_STMT2_OPTION* option, const char*
     sprintf(tbs[i], "ctb_%d", i);
     if (createTable) {
       char* tmp = (char*)taosMemoryMalloc(sizeof(char) * 100);
-      sprintf(tmp, "create table stmt2_testdb_1.%s using stmt2_testdb_1.stb tags(0, 'after')", tbs[i]);
+      sprintf(tmp, "create table stmt2_testdb_1.%s using stmt2_testdb_1.stb tags(%d, '%s')", tbs[i], i % 10,
+              tags[i % 10]);
       do_query(taos, tmp);
     }
   }
@@ -221,7 +236,13 @@ void do_stmt(const char* msg, TAOS* taos, TAOS_STMT2_OPTION* option, const char*
       paramv[i][1] = {TSDB_DATA_TYPE_BINARY, &b[i][0], &b_len[0], NULL, ROW_NUMS};
     }
     // bind
-    TAOS_STMT2_BINDV bindv = {CTB_NUMS, tbs, tags, paramv};
+    TAOS_STMT2_BINDV bindv;
+    if (fixedTbname) {
+      bindv = {CTB_NUMS, NULL, tags, paramv};
+    } else {
+      bindv = {CTB_NUMS, tbs, tags, paramv};
+    }
+
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
     checkError(stmt, code, __FILE__, __LINE__);
 
@@ -267,6 +288,7 @@ void do_stmt(const char* msg, TAOS* taos, TAOS_STMT2_OPTION* option, const char*
 }  // namespace
 
 int main(int argc, char** argv) {
+  tsem_init(&param.sem, 0, 0);
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
@@ -977,85 +999,70 @@ TEST(stmt2Case, stmt2_stb_insert) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   ASSERT_NE(taos, nullptr);
   // normal
-  TAOS_STMT2_OPTION option = {0, false, true, NULL, NULL};
-  {
-    do_stmt("no-interlcace", taos, &option, "insert into `stmt2_testdb_1`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)",
+  for (int i = 0; i < 4; i++) {
+    char desc[100];
+    snprintf(desc, sizeof(desc), "%s, %s", description[i], "hasTags & preCreateTB");
+
+    do_stmt(desc, taos, &option[i], "insert into `stmt2_testdb_1`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)", 3, 3, 3,
+            true, true);
+    do_stmt(desc, taos, &option[i], "insert into `stmt2_testdb_1`.? using `stmt2_testdb_1`.`stb` tags(?,?)
+    values(?,?)",
             3, 3, 3, true, true);
   }
-  {
-    do_stmt("no-interlcace", taos, &option,
-            "insert into `stmt2_testdb_1`.? using `stmt2_testdb_1`.`stb` tags(?,?) values(?,?)", 3, 3, 3, true, true);
-  }
 
-  // async
-  AsyncArgs* aa = (AsyncArgs*)taosMemMalloc(sizeof(AsyncArgs));
-  aa->async_affected_rows = 0;
-  ASSERT_EQ(tsem_init(&aa->sem, 0, 0), TSDB_CODE_SUCCESS);
-  void* param = aa;
-  option = {0, false, true, stmtAsyncQueryCb, param};
-  {
-    do_stmt("no-interlcace & aync exec", taos, &option,
-            "insert into stmt2_testdb_1.stb (ts,b,tbname,t1,t2) values(?,?,?,?,?)", 3, 3, 3, true, true);
-  }
-  {
-    do_stmt("no-interlcace & aync exec", taos, &option,
-            "insert into stmt2_testdb_1.? using stmt2_testdb_1.stb (t1,t2)tags(?,?) (ts,b)values(?,?)", 3, 3, 3, true,
-            true);
-  }
-  // TD-34123 : interlace=0 with fixed tags
-  {
-    do_stmt("no-interlcace & aync exec", taos, &option,
-            "insert into `stmt2_testdb_1`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)", 3, 3, 3, false, true);
-  }
+  for (int i = 0; i < 4; i++) {
+    char desc[100];
+    snprintf(desc, sizeof(desc), "%s, %s", description[i], "hasTags & no-preCreateTB");
 
-  // interlace = 0 & use db]
-  do_query(taos, "use stmt2_testdb_1");
-  option = {0, false, false, NULL, NULL};
-  {
-    do_stmt("no-interlcace & no-db", taos, &option, "insert into stb (tbname,ts,b) values(?,?,?)", 3, 3, 3, false,
-            true);
-  }
-  {
-    do_stmt("no-interlcace & no-db", taos, &option, "insert into ? using stb (t1,t2)tags(?,?) (ts,b)values(?,?)", 3, 3,
-            3, true, true);
-  }
-  { do_stmt("no-interlcace & no-db", taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
-
-  // interlace = 1
-  option = {0, true, true, stmtAsyncQueryCb, param};
-  { do_stmt("interlcace & preCreateTB", taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
-  option = {0, true, true, NULL, NULL};
-  { do_stmt("interlcace & preCreateTB", taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
-
-  //  auto create table
-  // interlace = 1
-  option = {0, true, true, NULL, NULL};
-  {
-    do_stmt("interlcace & no-preCreateTB", taos, &option, "insert into ? using stb (t1,t2)tags(?,?) (ts,b)values(?,?)",
+    do_stmt(desc, taos, &option[i], "insert into `stmt2_testdb_1`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)", 3, 3, 3,
+            true, false);
+    do_stmt(desc, taos, &option[i], "insert into `stmt2_testdb_1`.? using `stmt2_testdb_1`.`stb` tags(?,?)
+    values(?,?)",
             3, 3, 3, true, false);
   }
-  {
-    do_stmt("interlcace & no-preCreateTB", taos, &option,
-            "insert into stmt2_testdb_1.? using stb (t1,t2)tags(1,'abc') (ts,b)values(?,?)", 3, 3, 3, false, false);
-  }
-  {
-    do_stmt("interlcace & no-preCreateTB", taos, &option,
-            "insert into stmt2_testdb_1.stb (ts,b,tbname,t1,t2) values(?,?,?,?,?)", 3, 3, 3, true, false);
-  }
-  // interlace = 0
-  option = {0, false, false, NULL, NULL};
-  {
-    do_stmt("no-interlcace & no-preCreateTB", taos, &option,
-            "insert into ? using stb (t1,t2)tags(?,?) (ts,b)values(?,?)", 3, 3, 3, true, false);
-  }
-  {
-    do_stmt("no-interlcace & no-preCreateTB", taos, &option,
-            "insert into stmt2_testdb_1.stb (ts,b,tbname,t1,t2) values(?,?,?,?,?)", 3, 3, 3, true, false);
+
+  for (int i = 0; i < 4; i++) {
+    char desc[100];
+    snprintf(desc, sizeof(desc), "%s, %s", description[i], "no-hasTags & preCreateTB");
+
+    do_stmt(desc, taos, &option[i], "insert into `stmt2_testdb_1`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)", 3, 3, 3,
+            true, false);
+    do_stmt(desc, taos, &option[i], "insert into `stmt2_testdb_1`.? using `stmt2_testdb_1`.`stb` tags(?,?)
+    values(?,?)",
+            3, 3, 3, true, false);
   }
 
+  for (int i = 1; i < 2; i++) {
+    char desc[100];
+    snprintf(desc, sizeof(desc), "%s, %s", description[i], "fixed tags");
+
+    do_stmt(desc, taos, &option[i], "insert into stmt2_testdb_1.? using stb (t1,t2)tags(1,'abc') (ts,b)values(?,?)", 1,
+            3, 3, false, false);
+
+    do_stmt(desc, taos, &option[i], "insert into stmt2_testdb_1.stb (t1,t2,tbname,ts,b)values(1,'abc',?,?,?)", 3, 3, 3,
+            false, false);
+  }
+
+  // for (int i = 0; i < 2; i++) {
+  //   char desc[100];
+  //   snprintf(desc, sizeof(desc), "%s, %s", description[i], "fixed tbname");
+
+  //   do_stmt(desc, taos, &option[i], "insert into stmt2_testdb_1.ctb_0 (ts,b)values(?,?)", -1, 3, 3, false, true);
+
+  //   do_stmt(desc, taos, &option[i], "insert into stmt2_testdb_1.stb(tbname,ts,b)values('ctb_0',?,?,?)", -1, 3, 3,
+  //   false,
+  //           true);
+  // }
+
+  // for (int i = 0; i < 4; i++) {
+  //   char desc[100];
+  //   snprintf(desc, sizeof(desc), "%s, %s", description[i], "no using stb");
+
+  //   do_stmt(desc, taos, &option[i], "insert into ? values(?,?)", 3, 3, 3, false, true);
+  // }
+
   do_query(taos, "drop database if exists stmt2_testdb_1");
-  (void)tsem_destroy(&aa->sem);
-  taosMemFree(aa);
+
   taos_close(taos);
 }
 

@@ -1055,7 +1055,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
 
   if (TSDB_CODE_SUCCESS == code && isStmt) {
     if (numOfTags > 0) {
-      if (pTagVals->size == pCxt->tags.numOfBound) {
+      if (numOfTags == pCxt->tags.numOfBound) {
         pCxt->stmtTbNameFlag |= IS_FIXED_TAG;
       } else {
         pCxt->stmtTbNameFlag &= ~IS_FIXED_TAG;
@@ -2203,7 +2203,9 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
             pCxt->tags.mixTagsCols = true;
             pCxt->tags.numOfBound++;
             pCxt->tags.numOfCols++;
-            // }
+            if (pCxt->tags.parseredTags->numOfTags == numOfTags && numOfTags > 0) {
+              pCxt->stmtTbNameFlag |= IS_FIXED_TAG;
+            }
         } else if (pCols->pColIndex[i] == tbnameIdx) {
           return buildInvalidOperationMsg(&pCxt->msg, "STMT tbname in bound cols should not be a fixed value");
         }

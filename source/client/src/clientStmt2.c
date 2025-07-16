@@ -1390,7 +1390,7 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags, SVCreateTbReq** pCre
     STMT_ERR_RET(stmtInitStbInterlaceTableInfo(pStmt));
   }
 
-  SBoundColInfo* tags_info = (SBoundColInfo*)pStmt->bInfo.boundTags;
+  //   SBoundColInfo* tags_info = (SBoundColInfo*)pStmt->bInfo.boundTags;
   // if (tags_info->numOfBound <= 0 || tags_info->numOfCols <= 0) {
   //   tscWarn("no tags or cols bound in sql, will not bound tags");
   //   return TSDB_CODE_SUCCESS;
@@ -1439,7 +1439,7 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags, SVCreateTbReq** pCre
   return TSDB_CODE_SUCCESS;
 }
 
-int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
+int stmtSetFixedTags(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
   STMT2_TLOG_E("start to clone createTbRequest for fixed tags");
@@ -1448,33 +1448,23 @@ int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
     return pStmt->errCode;
   }
 
-  if (!pStmt->sql.stbInterlaceMode) {
-    return TSDB_CODE_SUCCESS;
-  }
-
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_SETTAGS));
 
-  if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
-      STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
-    pStmt->bInfo.needParse = false;
-  }
   STMT_ERR_RET(stmtCreateRequest(pStmt));
 
   if (pStmt->bInfo.needParse) {
-    STMT_ERR_RET(stmtParseSql(pStmt));
-    if (!pStmt->sql.autoCreateTbl) {
-      STMT2_WLOG_E("don't need to create table, will not check tags");
-      return TSDB_CODE_SUCCESS;
-    }
+    STMT2_ELOG_E("stmtSetFixedTags should not parse sql again");
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
   if (pStmt->sql.stbInterlaceMode && NULL == pStmt->sql.siInfo.pDataCtx) {
     STMT_ERR_RET(stmtInitStbInterlaceTableInfo(pStmt));
   }
-
-  STMT_ERR_RET(qCreateSName(&pStmt->bInfo.sname, pStmt->bInfo.tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb,
-                            pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
-  STMT_ERR_RET(tNameExtractFullName(&pStmt->bInfo.sname, pStmt->bInfo.tbFName));
+  if (pStmt->sql.stbInterlaceMode) {
+    STMT_ERR_RET(qCreateSName(&pStmt->bInfo.sname, pStmt->bInfo.tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb,
+                              pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
+    STMT_ERR_RET(tNameExtractFullName(&pStmt->bInfo.sname, pStmt->bInfo.tbFName));
+  }
 
   STableDataCxt** pDataBlock = NULL;
   if (pStmt->exec.pCurrBlock) {
@@ -1493,25 +1483,53 @@ int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (pStmt->sql.fixValueTags) {
-    STMT2_TLOG_E("tags are fixed, use one createTbReq");
-    STMT_ERR_RET(cloneSVreateTbReq(pStmt->sql.fixValueTbReq, pCreateTbReq));
-    if ((*pCreateTbReq)->name) {
-      taosMemoryFree((*pCreateTbReq)->name);
+  if (pStmt->sql.fixValueTbReq == NULL) {
+    if ((*pDataBlock)->pData->pCreateTbReq == NULL) {
+      STMT_ERR_RET(TSDB_CODE_TSC_STMT_CACHE_ERROR);
     }
-    (*pCreateTbReq)->name = taosStrdup(pStmt->bInfo.tbName);
-    int32_t vgId = -1;
-    STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &vgId));
-    (*pCreateTbReq)->uid = vgId;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if ((*pDataBlock)->pData->pCreateTbReq) {
     STMT2_TLOG_E("tags are fixed, set createTbReq first time");
     pStmt->sql.fixValueTags = true;
     STMT_ERR_RET(cloneSVreateTbReq((*pDataBlock)->pData->pCreateTbReq, &pStmt->sql.fixValueTbReq));
-    STMT_ERR_RET(cloneSVreateTbReq(pStmt->sql.fixValueTbReq, pCreateTbReq));
-    (*pCreateTbReq)->uid = (*pDataBlock)->pMeta->vgId;
+    //   STMT_ERR_RET(cloneSVreateTbReq(pStmt->sql.fixValueTbReq, pCreateTbReq));
+    pStmt->sql.fixValueTbReq->uid = (*pDataBlock)->pMeta->vgId;
+    pStmt->sql.fixValueTags = true;
+  }
+
+  if (pStmt->sql.fixValueTags) {
+    if (pStmt->sql.stbInterlaceMode) {
+      // STMT2_TLOG_E("tags are fixed, use one createTbReq");
+      STMT_ERR_RET(cloneSVreateTbReq(pStmt->sql.fixValueTbReq, pCreateTbReq));
+      if ((*pCreateTbReq)->name) {
+        taosMemoryFree((*pCreateTbReq)->name);
+      }
+      (*pCreateTbReq)->name = taosStrdup(pStmt->bInfo.tbName);
+      int32_t vgId = -1;
+      STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &vgId));
+      (*pCreateTbReq)->uid = vgId;
+    } else {
+      //   (*pDataBlock)->pData->pCreateTbReq;
+      if ((*pDataBlock)->pData->pCreateTbReq) {
+        taosMemoryFreeClear((*pDataBlock)->pData->pCreateTbReq->name);
+        taosMemoryFreeClear((*pDataBlock)->pData->pCreateTbReq->ctb.pTag);
+        taosMemoryFreeClear((*pDataBlock)->pData->pCreateTbReq->ctb.stbName);
+        taosArrayDestroy((*pDataBlock)->pData->pCreateTbReq->ctb.tagName);
+        (*pDataBlock)->pData->pCreateTbReq->ctb.tagName = NULL;
+      } else {
+        (*pDataBlock)->pData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+        if (NULL == (*pDataBlock)->pData->pCreateTbReq) {
+          return terrno;
+        }
+      }
+
+      STMT_ERR_RET(cloneSVreateTbReq(pStmt->sql.fixValueTbReq, &(*pDataBlock)->pData->pCreateTbReq));
+      if ((*pDataBlock)->pData->pCreateTbReq->name) {
+        taosMemoryFree((*pDataBlock)->pData->pCreateTbReq->name);
+      }
+      (*pDataBlock)->pData->pCreateTbReq->name = taosStrdup(pStmt->bInfo.sname.tname);
+      int32_t vgId = -1;
+      STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &vgId));
+      (*pDataBlock)->pData->pCreateTbReq->uid = vgId;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
