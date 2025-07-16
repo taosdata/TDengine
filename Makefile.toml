@@ -99,7 +99,7 @@ condition.files_modified = { input = [
   "taosx-ipc/src/**/*.rs",
   "taosx-metrics/src/**/*.rs",
 ], output = [
-  "./target/${BUILD_PROFILE}/taosx*",
+  "target/${BUILD_PROFILE}/taosx",
 ] }
 command = "cargo"
 args = ["build", "-p", "taosx", "--profile", "${BUILD_PROFILE}"]
@@ -603,7 +603,7 @@ echo "Detect OS ${os}"
 upx_dir = get_env "UPX_DIR"
 echo "Use upx dir ${upx_dir}"
 
-version = set "4.2.4"
+version = set "5.0.1"
 
 if eq ${os} "windows"
   if is_path_exists "${upx_dir}/upx.exe"
@@ -665,10 +665,18 @@ script = """
 upx_run ${1} ${2}
 """
 
-[tasks.deploy-taosx]
-dependencies = ["taosx"]
+[tasks.clean-taosx]
 script_runner = "@duckscript"
-script = """
+script.pre = """
+echo "Before deploy taosx with ${BUILD_PROFILE}"
+echo rm target/${BUILD_PROFILE}/taosx
+rm target/${BUILD_PROFILE}/taosx
+"""
+
+[tasks.deploy-taosx]
+dependencies = ["clean-taosx", "taosx"]
+script_runner = "@duckscript"
+script.main = """
 !include_files .github/helpers.duck
 
 cus_prompt = get_env CUS_PROMPT
