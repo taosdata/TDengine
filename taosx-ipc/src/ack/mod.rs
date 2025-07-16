@@ -182,21 +182,21 @@ impl AckReaderBuilder {
         self
     }
 
-    pub fn open<R: Read>(&self, reader: R) -> AckReader<R> {
+    pub fn open<R: Read>(&self, reader: R) -> Result<AckReader<R>, ArrowError> {
         let ack = self.ack;
         match ack {
-            AckType::None => AckReader {
+            AckType::None => Ok(AckReader {
                 ack,
                 schema: None,
                 reader: Some(reader),
                 ipc_reader: None,
-            },
-            AckType::Code => AckReader {
+            }),
+            AckType::Code => Ok(AckReader {
                 ack,
                 schema: None,
                 reader: Some(reader),
                 ipc_reader: None,
-            },
+            }),
             AckType::Lush => {
                 let fields = vec![
                     Field::new("code", DataType::Int32, true),
@@ -205,12 +205,12 @@ impl AckReaderBuilder {
                 ];
                 let schema = Schema::new(fields).with_metadata(self.metadata.clone());
                 let reader = std::io::BufReader::new(reader);
-                AckReader {
+                Ok(AckReader {
                     ack: self.ack,
                     schema: Some(schema),
                     reader: None,
-                    ipc_reader: Some(StreamReader::try_new(reader, None).unwrap()),
-                }
+                    ipc_reader: Some(StreamReader::try_new(reader, None)?),
+                })
             }
         }
     }
@@ -429,7 +429,8 @@ mod tests {
         let mut buf = Cursor::new(buf);
         let mut reader = AckReaderBuilder::new(AckType::Lush)
             .with_meta("ack", "lush")
-            .open(&mut buf);
+            .open(&mut buf)
+            .unwrap();
         let schema = reader.schema().unwrap();
         assert_eq!(schema.metadata().get("ack"), Some(&"lush".to_string()));
 
@@ -467,7 +468,8 @@ mod tests {
         let mut buf = Cursor::new(buf);
         let mut reader = AckReaderBuilder::new(AckType::Code)
             .with_meta("ack", "lush")
-            .open(&mut buf);
+            .open(&mut buf)
+            .unwrap();
         assert_eq!(reader.ack(), AckType::Code);
         let ack = reader.next().unwrap();
         assert_eq!(ack.code, 0);
@@ -502,7 +504,8 @@ mod tests {
         let mut buf = Cursor::new(buf);
         let mut reader = AckReaderBuilder::new(AckType::None)
             .with_meta("ack", "lush")
-            .open(&mut buf);
+            .open(&mut buf)
+            .unwrap();
         assert_eq!(reader.ack(), AckType::None);
         let ack = reader.next().unwrap();
         assert_eq!(ack.code, 0);

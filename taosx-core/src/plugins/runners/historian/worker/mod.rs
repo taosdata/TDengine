@@ -1,3 +1,4 @@
+use anyhow::Context;
 use arrow::array;
 use arrow::array::{ArrayBuilder, ArrayRef, RecordBatchWriter};
 use arrow::csv::Writer;
@@ -119,7 +120,9 @@ pub async fn sync_history(
 
     // handle ack from ipc reader
     tokio::task::spawn_blocking(move || {
-        let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
+        let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush)
+            .open(&ack_stream)
+            .context("failed to open ack stream")?;
         for ack in ack_reader {
             if !ack.success() {
                 tracing::error!("sync history write records error: {ack:?}",);
@@ -254,7 +257,9 @@ pub async fn sync_live(task_config: TaskConfig, logger: Sender<String>) -> anyho
 
     // handle ack from ipc reader
     tokio::task::spawn_blocking(move || {
-        let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
+        let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush)
+            .open(&ack_stream)
+            .context("failed to open ack stream")?;
         for ack in ack_reader {
             if !ack.success() {
                 tracing::error!("sync live write records error: {ack:?}",);
@@ -618,8 +623,9 @@ impl Consumer {
 
         // receive ACK from IPC
         let ack = tokio::task::spawn_blocking(move || {
-            let ack_reader =
-                AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush).open(&ack_stream);
+            let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush)
+                .open(&ack_stream)
+                .context("failed to open ack stream")?;
             for ack in ack_reader {
                 if !ack.success() {
                     tracing::error!("migrate history write records error: {ack:?}",);

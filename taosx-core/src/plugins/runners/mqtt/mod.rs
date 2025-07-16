@@ -236,7 +236,7 @@ async fn execute(
                 ack_read_stream
                     .set_read_timeout(None)
                     .context("Set ack read stream read timeout error")?;
-                AckReaderBuilder::new(AckType::Lush).open(ack_read_stream)
+                AckReaderBuilder::new(AckType::Lush).open(ack_read_stream).context("failed to open ack stream")?
             };
 
             for ack in ack_stream {

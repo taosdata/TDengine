@@ -170,7 +170,8 @@ export function handleSqlExecuteFail(data: RestApiResult, sql: string, startTime
     sql,
     type: 0,
     createAt: Date.now(),
-    rows: 0
+    rows: 0,
+    message: data
   });
   sqlExecResult.data = [];
   sqlExecResult.head = [];

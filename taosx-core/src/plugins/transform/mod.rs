@@ -60,8 +60,8 @@ pub use select::Select;
 use taosx_ipc::prelude::IpcDataType;
 use tracing::instrument;
 
-use crate::core_metrics::CoreMetrics;
 use crate::plugins::transform::parse::ArrayForTaos;
+use crate::{core_metrics::CoreMetrics, plugins::transform::modeler::Table};
 use crate::{
     get_data_dir,
     global::{SQL_TAG_CACHE_CAPACITY, TABLE_TAG_CACHE},
@@ -1215,7 +1215,7 @@ impl Parser {
         let stables = self
             .s_model
             .as_ref()
-            .map(|s| s.apply(&json, self.global()))
+            .map(|s| s.apply(transformed_batch, self.global()))
             .transpose()?;
 
         let mut data = vec![];
@@ -1421,9 +1421,11 @@ impl Parser {
                 .map(|row| {
                     match generate_table_name(
                         self.global.process_on_abnormal.clone(),
-                        &template,
+                        table,
+                        row,
+                        transformed_batch,
                         &table.name,
-                        &json[row],
+                        &json,
                     ) {
                         Ok((HandlingResult::Skip, err)) => {
                             let _ = skip_indices.upsert(row, err);
@@ -1782,12 +1784,14 @@ pub fn get_primary_timestamp_ns(
 /// - data: the record processed by mutate
 fn generate_table_name(
     process_on_abnormal: ProcessOnAbnormal,
-    template: &TinyTemplate,
+    table: &Table,
+    row: usize,
+    records: &RecordBatch,
     table_name_org: &str,
-    data: &serde_json::Value,
+    data: &[serde_json::Value],
 ) -> anyhow::Result<(HandlingResult, String)> {
     // render table name
-    match template.render_value("name", data) {
+    match table.eval_table_name_row(records, row) {
         Ok(name) => {
             // the length of table name should not exceed 192
             if name.len() > 192 {
@@ -1812,7 +1816,7 @@ fn generate_table_name(
                 .variable_not_exist_in_table_name_template
                 .handle(
                     table_name_org,
-                    data,
+                    &data[row],
                     format!("render table name '{table_name_org}' failed, e: {:?}", e),
                 )
         }

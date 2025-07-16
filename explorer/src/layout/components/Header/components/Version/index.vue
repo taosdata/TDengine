@@ -103,16 +103,17 @@ async function getLicense() {
         tdClusterId: getClusterID()
       });
       let versionName = '';
-      console.log(grants.value[0].version);
       switch (grants.value[0].version) {
         case 'trial':
         case `${OEM_NAME} Enterprise Edition trial`:
         case `${OEM_NAME} TSDB Enterprise Edition trial`:
+        case `${OEM_NAME}-Enterprise trial`:
           versionName = license.value[0].valid ? 'Trial Expired' : 'Trial';
           break;
         case 'official':
         case `${OEM_NAME} Enterprise Edition official`:
         case `${OEM_NAME} TSDB Enterprise Edition official`:
+        case `${OEM_NAME}-Enterprise official`:
           versionName = license.value[0].valid ? 'Enterprise License Expired' : 'Enterprise';
           break;
         case `TDengine ${$INDUSTRY} Edition trial`:
@@ -126,10 +127,10 @@ async function getLicense() {
           industry.value = 'power';
           break;
         default:
-          versionName = $IS_TSDBLITE ? 'Lite' : 'Community';
+          versionName = $IS_TSDBLITE ? 'Lite' : 'OSS';
           break;
       }
-      version.value = getVersion(license.value[0]['server_version()']) + ' ' + versionName;
+      version.value = versionName + ' ' + getVersion(license.value[0]['server_version()']);
       localStorage.setItem('serverVersion', version.value);
     });
   } catch (error: any) {

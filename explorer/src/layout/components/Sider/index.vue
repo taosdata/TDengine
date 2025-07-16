@@ -43,7 +43,7 @@ const permission_routes = ref([
     title: 'route.dataIn',
     icon: 'dataIn',
     meta: {
-      show: store.state.app.sysinfo //目前oem暂时不支持datain，后续根据taosx修改需要开放
+      show: flag ? false : true //目前oem暂时不支持datain，后续根据taosx修改需要开放
     }
   },
   {
