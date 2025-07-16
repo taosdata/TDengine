@@ -990,7 +990,9 @@ int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlk
   int32_t  code = 0;
   int32_t  lino = 0;
 
-  blockWrapperResize(pBlkW, pHandle->size + 16);
+  code = blockWrapperResize(pBlkW, pHandle->size + 16);
+  TSDB_CHECK_CODE(code, lino, _error);
+
   SBlock  *pBlk = pBlkW->data;
   uint8_t *pRead = (uint8_t *)pBlk;
 
@@ -1542,7 +1544,8 @@ int32_t tableMetaWriterFlushBlock(SBtableMetaWriter *pMeta) {
   int32_t size = pMeta->blockCap;
 
   blockWrapperClear(&pMeta->blockWrapper);
-  blockWrapperResize(&pMeta->blockWrapper, size);
+  code = blockWrapperResize(&pMeta->blockWrapper, size);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   for (int32_t i = 0; i < taosArrayGetSize(pMeta->pBlock); i++) {
     SMetaBlock *pBlk = taosArrayGet(pMeta->pBlock, i);
@@ -1558,7 +1561,8 @@ int32_t tableMetaWriterFlushBlock(SBtableMetaWriter *pMeta) {
       handle.size = nWrite;
 
       blockWrapperClear(&pMeta->blockWrapper);
-      blockWrapperResize(&pMeta->blockWrapper, size);
+      code = blockWrapperResize(&pMeta->blockWrapper, size);
+      TSDB_CHECK_CODE(code, lino, _error);
 
       if (taosArrayPush(pMeta->pBlkHandle, &handle) == NULL) {
         TSDB_CHECK_CODE(code = terrno, lino, _error);
@@ -1612,7 +1616,8 @@ int32_t tableMetaWriterFlushIndex(SBtableMetaWriter *pMeta) {
   SSeqRange range = {-1, -1};
 
   blockWrapperClear(&pMeta->blockWrapper);
-  blockWrapperResize(&pMeta->blockWrapper, size + extra);
+  code = blockWrapperResize(&pMeta->blockWrapper, size + extra);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   for (int32_t i = 0; i < taosArrayGetSize(pMeta->pBlkHandle); i++) {
     SBlkHandle *pHandle = taosArrayGet(pMeta->pBlkHandle, i);
@@ -2054,7 +2059,8 @@ int32_t tableMetaReaderIterNext(SBtableMetaReaderIter *pIter, SBlockWrapper *pDa
   }
 
   SBlockWrapper *pWrapper = &pIter->pBlockWrapper;
-  blockWrapperResize(pWrapper, pHandle->size);
+  code = blockWrapperResize(pWrapper, pHandle->size);
+  TSDB_CHECK_CODE(code, lino, _error);
 
   code = tableLoadBlock(pIter->pReader->pFile, pHandle, pWrapper);
   TSDB_CHECK_CODE(code, lino, _error);
