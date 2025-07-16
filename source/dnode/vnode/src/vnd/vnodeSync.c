@@ -183,7 +183,7 @@ static int32_t tEncodeSubSubmitAndUpdate(SVnode *pVnode, SEncoder *pEncoder, SSu
   if (hasBlob) {
     int32_t    nr = 0;
     uint64_t   seq = 0;
-    SBlobRow2 *pBlobRow = pSubmitTbData->pBlobRow;
+    SBlobValueSet *pBlobRow = pSubmitTbData->pBlobRow;
 
     SRow  **pRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
     int32_t sz = taosArrayGetSize(pBlobRow->pSeqTable);

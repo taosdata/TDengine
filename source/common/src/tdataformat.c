@@ -320,7 +320,7 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
 }
 
 static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *sinfo, const STSchema *schema,
-                                      SRow **ppRow, SBlobRow2 *pBlobRow) {
+                                      SRow **ppRow, SBlobValueSet *pBlobRow) {
   int32_t  code = 0;
   SColVal *colValArray = (SColVal *)TARRAY_DATA(aColVal);
   *ppRow = (SRow *)taosMemoryCalloc(1, sinfo->tupleRowSize);
@@ -517,7 +517,7 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
 }
 
 static int32_t tRowBuildKVRowWithBlob(SArray *aColVal, const SRowBuildScanInfo *sinfo, const STSchema *schema,
-                                      SRow **ppRow, SBlobRow2 *ppBlobRow) {
+                                      SRow **ppRow, SBlobValueSet *ppBlobRow) {
   SColVal *colValArray = (SColVal *)TARRAY_DATA(aColVal);
 
   *ppRow = (SRow *)taosMemoryCalloc(1, sinfo->kvRowSize);
@@ -662,7 +662,7 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SRowB
   return code;
 }
 
-int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobRow2 *pBlobRow,
+int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobValueSet *pBlobRow,
                           SRowBuildScanInfo *sinfo) {
   int32_t code;
 
@@ -678,10 +678,10 @@ int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRo
   return code;
 }
 
-int32_t tBlobRowCreate(int64_t cap, int8_t type, SBlobRow2 **ppBlobRow) {
+int32_t tBlobRowCreate(int64_t cap, int8_t type, SBlobValueSet **ppBlobRow) {
   int32_t    lino = 0;
   int32_t    code = 0;
-  SBlobRow2 *p = taosMemCalloc(1, sizeof(SBlobRow2));
+  SBlobValueSet *p = taosMemCalloc(1, sizeof(SBlobValueSet));
   if (p == NULL) {
     return terrno;
   }
@@ -724,7 +724,7 @@ _exit:
   uDebug("create blob row %p", p);
   return code;
 }
-int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pItem, uint64_t *seq, int8_t nextRow) {
+int32_t tBlobRowPush(SBlobValueSet *pBlobRow, SBlobItem *pItem, uint64_t *seq, int8_t nextRow) {
   if (pBlobRow == NULL || pItem == NULL || seq == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -776,7 +776,7 @@ int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pItem, uint64_t *seq, int8_
 _exit:
   return code;
 }
-int32_t tBlobRowUpdate(SBlobRow2 *pBlobRow, uint64_t seq, SBlobItem *pItem) {
+int32_t tBlobRowUpdate(SBlobValueSet *pBlobRow, uint64_t seq, SBlobItem *pItem) {
   int32_t code = 0;
   return code;
   if (pBlobRow == NULL || pItem == NULL) {
@@ -788,7 +788,7 @@ int32_t tBlobRowUpdate(SBlobRow2 *pBlobRow, uint64_t seq, SBlobItem *pItem) {
 
   return code;
 }
-int32_t tBlobRowGet(SBlobRow2 *pBlobRow, uint64_t seq, SBlobItem *pItem) {
+int32_t tBlobRowGet(SBlobValueSet *pBlobRow, uint64_t seq, SBlobItem *pItem) {
   if (pBlobRow == NULL || pItem == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -822,11 +822,11 @@ int32_t tBlobRowGet(SBlobRow2 *pBlobRow, uint64_t seq, SBlobItem *pItem) {
   return code;
 }
 
-int32_t tBlobRowSize(SBlobRow2 *pBlobRow) {
+int32_t tBlobRowSize(SBlobValueSet *pBlobRow) {
   if (pBlobRow == NULL) return 0;
   return taosArrayGetSize(pBlobRow->pSeqTable);
 }
-int32_t tBlobRowEnd(SBlobRow2 *pBlobRow) {
+int32_t tBlobRowEnd(SBlobValueSet *pBlobRow) {
   if (pBlobRow == NULL) return 0;
   int32_t sz = taosArrayGetSize(pBlobRow->pSeqTable);
   if (taosArrayPush(pBlobRow->pSet, &sz) == NULL) {
@@ -834,7 +834,7 @@ int32_t tBlobRowEnd(SBlobRow2 *pBlobRow) {
   }
   return 0;
 }
-int32_t tBlobRowRebuild(SBlobRow2 *p, int32_t sRow, int32_t nrow, SBlobRow2 **pDst) {
+int32_t tBlobRowRebuild(SBlobValueSet *p, int32_t sRow, int32_t nrow, SBlobValueSet **pDst) {
   int32_t code = 0;
 
   code = tBlobRowCreate(p->cap, p->type, pDst);
@@ -842,7 +842,7 @@ int32_t tBlobRowRebuild(SBlobRow2 *p, int32_t sRow, int32_t nrow, SBlobRow2 **pD
     return code;
   }
 
-  SBlobRow2 *pBlobRow = *pDst;
+  SBlobValueSet *pBlobRow = *pDst;
   if (p->pSeqToffset == NULL || p->pSeqTable == NULL || p->data == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -866,7 +866,7 @@ int32_t tBlobRowRebuild(SBlobRow2 *p, int32_t sRow, int32_t nrow, SBlobRow2 **pD
   return code;
 }
 
-int32_t tBlobRowDestroy(SBlobRow2 *pBlobRow) {
+int32_t tBlobRowDestroy(SBlobValueSet *pBlobRow) {
   if (pBlobRow == NULL) return 0;
   int32_t code = 0;
   uInfo("destroy blob row, seqTable size %p", pBlobRow);
@@ -877,7 +877,7 @@ int32_t tBlobRowDestroy(SBlobRow2 *pBlobRow) {
   taosMemoryFree(pBlobRow);
   return code;
 }
-int32_t tBlobRowClear(SBlobRow2 *pBlobRow) {
+int32_t tBlobRowClear(SBlobValueSet *pBlobRow) {
   if (pBlobRow == NULL) return 0;
   int32_t code = 0;
   uInfo("clear blob row, seqTable size %p", pBlobRow);
@@ -1222,8 +1222,8 @@ _exit:
   return code;
 }
 
-static int32_t tRowMergeWithBlobImpl(SArray *aRowP, STSchema *pTSchema, SBlobRow2 *pBlob, int32_t iStart, int32_t iEnd,
-                                     int8_t flag) {
+static int32_t tRowMergeWithBlobImpl(SArray *aRowP, STSchema *pTSchema, SBlobValueSet *pBlob, int32_t iStart,
+                                     int32_t iEnd, int8_t flag) {
   int32_t code = 0;
 
   int32_t    nRow = iEnd - iStart;
@@ -1348,7 +1348,7 @@ int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
   return code;
 }
 
-int32_t tRowSortWithBlob(SArray *aRowP, STSchema *pTSchema, SBlobRow2 *pBlobRow) {
+int32_t tRowSortWithBlob(SArray *aRowP, STSchema *pTSchema, SBlobValueSet *pBlobRow) {
   if (TARRAY_SIZE(aRowP) <= 1) return 0;
   int32_t code = taosArrayMSort(aRowP, tRowPCmprFn);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1359,7 +1359,7 @@ int32_t tRowSortWithBlob(SArray *aRowP, STSchema *pTSchema, SBlobRow2 *pBlobRow)
 
   return code;
 }
-int32_t tRowMergeWithBlob(SArray *aRowP, STSchema *pTSchema, SBlobRow2 *pBlobRow, int8_t flag) {
+int32_t tRowMergeWithBlob(SArray *aRowP, STSchema *pTSchema, SBlobValueSet *pBlobRow, int8_t flag) {
   int32_t code = 0;
 
   int32_t iStart = 0;
@@ -4256,7 +4256,7 @@ _exit:
   return code;
 }
 int32_t tColDataAddValueByBind2WithBlob(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen,
-                                        SBlobRow2 *pBlobRow) {
+                                        SBlobValueSet *pBlobRow) {
   int32_t code = 0;
 
   if (!(pBind->num == 1 && pBind->is_null && *pBind->is_null)) {
@@ -4473,7 +4473,7 @@ _exit:
  * `pDupTs` is the pointer to store duplicateTs
  */
 int32_t tRowBuildFromBind2WithBlob(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                                   SArray *rowArray, bool *pOrdered, bool *pDupTs, SBlobRow2 *pBlobRow) {
+                                   SArray *rowArray, bool *pOrdered, bool *pDupTs, SBlobValueSet *pBlobRow) {
   if (infos == NULL || numOfInfos <= 0 || numOfInfos > pTSchema->numOfCols || pTSchema == NULL || rowArray == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -4947,7 +4947,7 @@ _exit:
   return 0;
 }
 
-int32_t tColDataSortMergeWithBlob(SArray **arr, SBlobRow2 *pBlob) {
+int32_t tColDataSortMergeWithBlob(SArray **arr, SBlobValueSet *pBlob) {
   SArray   *colDataArr = *arr;
   int32_t   nColData = TARRAY_SIZE(colDataArr);
   SColData *aColData = (SColData *)TARRAY_DATA(colDataArr);
@@ -5158,7 +5158,7 @@ int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow) {
   return tDecodeBinaryWithSize(pDecoder, pRow->len, (uint8_t **)ppRow);
 }
 
-int32_t tEncodeBlobRow2(SEncoder *pEncoder, SBlobRow2 *pRow) {
+int32_t tEncodeBlobRow2(SEncoder *pEncoder, SBlobValueSet *pRow) {
   int32_t code = 0;
   int32_t lino = 0;
   uint8_t compressed = 0;
@@ -5196,13 +5196,13 @@ _exit:
   return code;
 }
 
-int32_t tDecodeBlobRow2(SDecoder *pDecoder, SBlobRow2 **pBlobRow) {
+int32_t tDecodeBlobRow2(SDecoder *pDecoder, SBlobValueSet **pBlobRow) {
   int32_t    code = 0;
   int32_t    lino = 0;
   int32_t    nSeq = 0;
   uint8_t    compressd = 0;
   int32_t    compressSize = 0;
-  SBlobRow2 *pBlob = taosMemCalloc(1, sizeof(SBlobRow2));
+  SBlobValueSet *pBlob = taosMemCalloc(1, sizeof(SBlobValueSet));
   if (pBlob == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }

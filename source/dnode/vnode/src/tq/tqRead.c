@@ -636,7 +636,7 @@ static int32_t buildResSDataBlock(STqReader* pReader, SSchemaWrapper* pSchema, c
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doSetBlobVal(SColumnInfoData* pColumnInfoData, int32_t idx, SColVal* pColVal, SBlobRow2* pBlobRow2) {
+static int32_t doSetBlobVal(SColumnInfoData* pColumnInfoData, int32_t idx, SColVal* pColVal, SBlobValueSet* pBlobRow2) {
   int32_t code = 0;
   if (pColumnInfoData == NULL || pColVal == NULL || pBlobRow2 == NULL) {
     return TSDB_CODE_INVALID_PARA;

@@ -493,7 +493,7 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
       return terrno;
     }
     if (pTableCxt->hasBlob) {
-      pVgCxt->pData->aSubmitBlobData = taosArrayInit(128, sizeof(SBlobRow2*));
+      pVgCxt->pData->aSubmitBlobData = taosArrayInit(128, sizeof(SBlobValueSet*));
       if (NULL == pVgCxt->pData->aSubmitBlobData) {
         return terrno;
       }
@@ -664,7 +664,7 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
       return terrno;
     }
     if (pTbCtx->hasBlob) {
-      pVgCxt->pData->aSubmitBlobData = taosArrayInit(128, sizeof(SBlobRow2*));
+      pVgCxt->pData->aSubmitBlobData = taosArrayInit(128, sizeof(SBlobValueSet*));
       if (pVgCxt->pData->aSubmitBlobData == NULL) {
         return terrno;
       }
@@ -697,6 +697,12 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
       } else {
         code = TSDB_CODE_BLOB_NOT_SUPPORT;
         break;
+
+        code = tRowSortWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobRow);
+        TAOS_CHECK_RETURN(code);
+
+        code = tRowMergeWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobRow, 0);
+        TAOS_CHECK_RETURN(code);
       }
     }
 
@@ -1018,8 +1024,8 @@ int32_t insResetBlob(SSubmitReq2* p) {
   if (p->aSubmitBlobData != NULL) {
     for (int32_t i = 0; i < taosArrayGetSize(p->aSubmitTbData); i++) {
       SSubmitTbData* pSubmitTbData = taosArrayGet(p->aSubmitTbData, i);
-      SBlobRow2**    ppBlob = taosArrayGet(p->aSubmitBlobData, i);
-      SBlobRow2*     pBlob = *ppBlob;
+      SBlobValueSet** ppBlob = taosArrayGet(p->aSubmitBlobData, i);
+      SBlobValueSet*  pBlob = *ppBlob;
       int32_t        nrow = taosArrayGetSize(pSubmitTbData->aRowP);
       int32_t        nblob = 0;
       if (nrow > 0) {

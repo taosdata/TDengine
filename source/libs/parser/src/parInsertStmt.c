@@ -761,7 +761,7 @@ static int32_t convertStmtStbNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_
 
 int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, TAOS_STMT2_BIND* bind, char* msgBuf,
                                int32_t msgBufLen, STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt,
-                               SBlobRow2** ppBlob) {
+                               SBlobValueSet** ppBlob) {
   STableDataCxt*  pDataBlock = (STableDataCxt*)pBlock;
   SSchema*        pSchema = getTableColumnSchema(pDataBlock->pMeta);
   SBoundColInfo*  boundInfo = &pDataBlock->boundColsInfo;

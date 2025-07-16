@@ -653,7 +653,7 @@ static int32_t inline vnodeSubmitSubRowBlobData(SVnode *pVnode, SSubmitTbData *p
   int32_t lino = 0;
 
   int64_t    st = taosGetTimestampUs();
-  SBlobRow2 *pBlobRow = pSubmitTbData->pBlobRow;
+  SBlobValueSet *pBlobRow = pSubmitTbData->pBlobRow;
   int32_t    sz = taosArrayGetSize(pBlobRow->pSeqTable);
 
   SBseBatch *pBatch = NULL;
@@ -709,7 +709,7 @@ static int32_t inline vnodeSubmitSubColBlobData(SVnode *pVnode, SSubmitTbData *p
   int32_t    blobColIdx = 0;
   SColData  *pBlobCol = NULL;
   int64_t    st = taosGetTimestampUs();
-  SBlobRow2 *pBlobRow = pSubmitTbData->pBlobRow;
+  SBlobValueSet *pBlobRow = pSubmitTbData->pBlobRow;
   int32_t    sz = taosArrayGetSize(pBlobRow->pSeqTable);
 
   SBseBatch *pBatch = NULL;
