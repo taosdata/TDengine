@@ -929,7 +929,6 @@ class Test_IDMP_Meters:
             # window4
             and tdSql.compareData(3, 0, ts + 6 * step) # ts
             and tdSql.compareData(3, 1, 2)       # cnt
-
             and tdSql.compareData(3, 2, 400)     # avg(current)
             and tdSql.compareData(3, 3, 1200)    # sum(power)
         )
