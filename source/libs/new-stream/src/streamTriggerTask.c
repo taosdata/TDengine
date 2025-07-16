@@ -5351,7 +5351,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
       char   *newVal = colDataGetData(pStateCol, startIdx);
       int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
       if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
-        code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCol->info.type, NULL, newVal,
+        code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, NULL, newVal,
                                              &pExtraNotifyContent);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -5368,14 +5368,14 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
         TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
       } else {
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
-          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, pStateCol->info.type, pStateData, newVal,
+          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, pStateData, newVal,
                                                &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         code = stRealtimeGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
         QUERY_CHECK_CODE(code, lino, _end);
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
-          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCol->info.type, pStateData, newVal,
+          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, pStateData, newVal,
                                                &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
@@ -6619,7 +6619,7 @@ static int32_t stHitoryGrupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
       char   *newVal = colDataGetData(pStateCol, startIdx);
       int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
       if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
-        code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCol->info.type, NULL, newVal,
+        code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, NULL, newVal,
                                              &pExtraNotifyContent);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -6636,14 +6636,14 @@ static int32_t stHitoryGrupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
         TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
       } else {
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
-          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, pStateCol->info.type, pStateData, newVal,
+          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, pStateData, newVal,
                                                &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
         QUERY_CHECK_CODE(code, lino, _end);
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
-          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCol->info.type, pStateData, newVal,
+          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, pStateData, newVal,
                                                &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
