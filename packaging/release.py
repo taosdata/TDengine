@@ -118,16 +118,18 @@ def get_install_path():
     elif release_info.OS == 'Windows':  # Windows操作系统
         return f'C:\\{release_info.CustomName}'
     else:
-        return os.path.join(taosx_dir,"release","{0}-{1}-linux-{2}".format(target, release_info.TdengineVersion, release_info.CpuType.lower()))
+        product_name = release_info.CustomName.lower()
+        return os.path.join(taosx_dir,"release","{0}-{1}-{2}-linux-{3}".format(product_name, target, release_info.TdengineVersion, release_info.CpuType.lower()))
 
 def get_package_name():
     target = f"{release_info.CustomPrompt}x"
+    product_name = release_info.CustomName.lower()
     if release_info.Target == "agent" or release_info.UploadAgent == True or release_info.BuildAgent == True:
         target = f"{release_info.CustomPrompt}x-agent"
     if release_info.OS == 'Windows':  # Windows操作系统
-        return  f'{target}-{release_info.TdengineVersion}-{release_info.OS.lower()}-{release_info.CpuType.lower()}-installer'
+        return f'{product_name}-{target}-{release_info.TdengineVersion}-{release_info.OS.lower()}-{release_info.CpuType.lower()}'
     else:
-        return f'{target}-{release_info.TdengineVersion}-{release_info.OS.lower()}-{release_info.CpuType.lower()}-installer'
+        return f'{product_name}-{target}-{release_info.TdengineVersion}-{release_info.OS.lower()}-{release_info.CpuType.lower()}'
 
 def get_taosx_output_name():
     if release_info.OS == 'Windows':  # Windows操作系统
