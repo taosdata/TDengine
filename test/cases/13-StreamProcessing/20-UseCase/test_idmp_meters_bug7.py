@@ -189,10 +189,10 @@ class Test_IDMP_Meters:
         tdSql.flushDb(self.vdb)
 
         # write disorder window 3
-        ts = disTs
-        count = 5
-        orderVals = [400]
-        ts = tdSql.insertOrderVal(table, ts, step, count, cols, orderVals)
+        count = 10
+        cols = "ts,voltage"
+        orderVals = [2000]
+        tdSql.insertOrderVal(table, self.start2, step, count, cols, orderVals)
 
         # write window5 1 rows to tigger 
 
