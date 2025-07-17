@@ -358,14 +358,14 @@ class TestStreamTriggerSliding:
                            [10000, 9999, "c9"]])
 
     def create_and_check_stream_basic_8(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 8: Results error
+        """simple 8: Pass
         """
         tdLog.info(f"start exec stream {stream_name}")
         time.sleep(10)
 
         tdSql.execute("use db")
         tdSql.execute(
-            f"create stream {stream_name} interval(30s) sliding(30s) from source_table partition by tbname into {dst_table} as "
+            f"create stream {stream_name} interval(100a) sliding(100a) from source_table partition by tbname into {dst_table} as "
             f"select ts, k c, c1, c2 "
             f"from source_table partition by tbname")
 

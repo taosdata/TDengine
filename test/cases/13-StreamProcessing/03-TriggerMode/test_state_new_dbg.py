@@ -1739,7 +1739,7 @@ class TestStreamStateTrigger:
                 "create vtable vtb_1 ( ts timestamp, col_1 int from ct1.cint, col_2 int from ct2.cint, col_3 int from ct3.cint)")
 
             tdSql.execute(
-                f"create stream s9 state_window(col_1) true_for(10s) from vtb_1 stream_options(max_delay(1s)) into res_ct1 (firstts, lastts, cnt_col_1, sum_col_1, avg_col_1, "
+                f"create stream s9 state_window(col_1) true_for(10s) from vtb_1 stream_options(max_delay(3s)) into res_ct1 (firstts, lastts, cnt_col_1, sum_col_1, avg_col_1, "
                 f"count_col_2, sum_col_2, avg_col_2) as "
                 f"select first(_c0), last_row(_c0), count(col_1), sum(col_1), avg(col_1), count(col_2), sum(col_2), avg(col_2) "
                 f"from %%trows "

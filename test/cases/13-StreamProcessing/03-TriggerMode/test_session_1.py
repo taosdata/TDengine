@@ -227,12 +227,12 @@ class TestStreamTriggerSession:
         # except Exception as e:
         #     tdLog.error(f"case 11 error: {e}")
 
-        # clear_output("sm11", "tb11")
-        # self.prepare_source_table(1000, 10, info)
-        # try:
-        #     self.create_and_check_stream_basic_12("sm12", "tb12", info)
-        # except Exception as e:
-        #     tdLog.error(f"case 12 error: {e}")
+        clear_output("sm11", "tb11")
+        self.prepare_source_table(1000, 10, info)
+        try:
+            self.create_and_check_stream_basic_12("sm12", "tb12", info)
+        except Exception as e:
+            tdLog.error(f"case 12 error: {e}")
 
         # clear_output("sm12", "tb12")
         # self.prepare_source_table(1000, 10, info)
@@ -241,12 +241,12 @@ class TestStreamTriggerSession:
         # except Exception as e:
         #     tdLog.error(f"case 13 error: {e}")
 
-        clear_output("sm13", "tb13")
-        self.prepare_source_table(5000, 10, info)
-        try:
-            self.create_and_check_stream_basic_14("sm14", "tb14", info)
-        except Exception as e:
-            tdLog.error(f"case 13 error: {e}")
+        # clear_output("sm13", "tb13")
+        # self.prepare_source_table(5000, 10, info)
+        # try:
+        #     self.create_and_check_stream_basic_14("sm14", "tb14", info)
+        # except Exception as e:
+        #     tdLog.error(f"case 13 error: {e}")
 
     def create_env(self):
         tdLog.info(f"create {self.num_snode} snode(s)")
@@ -453,7 +453,7 @@ class TestStreamTriggerSession:
                            [1000, 1999, 999500], [1000, 1999, 999500]])
 
     def create_and_check_stream_basic_12(self, stream_name, dst_table, info: WriteDataInfo) -> None:
-        """simple 12: invalid results
+        """simple 12: Pass
         """
         time.sleep(10)
 

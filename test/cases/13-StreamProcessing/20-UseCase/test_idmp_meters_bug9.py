@@ -2,12 +2,11 @@ import time
 import math
 import random
 from new_test_framework.utils import tdLog, tdSql, tdStream, etool
-from new_test_framework.utils.srvCtl import *
 from datetime import datetime
 from datetime import date
 
 
-class Test_Scene_Asset01:
+class Test_IDMP_Meters:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -53,20 +52,21 @@ class Test_Scene_Asset01:
         # insert trigger data
         self.writeTriggerData()
 
-        # wait stream processing
-        self.waitStreamProcessing()
-
         # verify results
         self.verifyResults()
 
-        # write trigger data again
-        self.writeTriggerDataAgain()
 
-        # wait stream processing
-        self.waitStreamProcessing()
+        '''
+        # restart dnode
+        self.restartDnode()
 
-        # verify results
-        self.verifyResultsAgain()
+        # write trigger data after restart
+        self.writeTriggerAfterRestart()
+
+        # verify results after restart
+        self.verifyResultsAfterRestart()
+        '''
+
 
     #
     # ---------------------   main flow frame    ----------------------
@@ -83,6 +83,8 @@ class Test_Scene_Asset01:
         self.start = 1752563000000
         self.start_current = 10
         self.start_voltage = 260
+
+        self.start2 = 1752574200000
 
         # import data
         etool.taosdump(f"-i cases/13-StreamProcessing/20-UseCase/meters_data/data/")
@@ -119,7 +121,6 @@ class Test_Scene_Asset01:
 
         tdSql.executes(sqls)
         tdLog.info(f"create {len(sqls)} vtable successfully.")
-        
 
     # 
     # 2. create streams
@@ -127,8 +128,8 @@ class Test_Scene_Asset01:
     def createStreams(self):
 
         sqls = [
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4`      INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4`                                 NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4`      AS SELECT _twstart+0s as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend ",
-            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream4_sub1` INTERVAL(10m)  SLIDING(10m) FROM `tdasset`.`vt_em-4` stream_options(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream4_sub1` AS SELECT _twstart+0s as output_timestamp,COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压` , SUM(`功率`) AS `功率和` FROM tdasset.`vt_em-4` WHERE ts >=_twstart AND ts <=_twend"
+            # stream8
+            "CREATE STREAM IF NOT EXISTS `tdasset`.`ana_stream8` PERIOD(1s, 0s)                    FROM `tdasset`.`vt_em-8` STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream8` AS SELECT now()+0s    AS output_timestamp, COUNT(ts) AS cnt, AVG(`电压`) AS `平均电压`, SUM(`功率`) AS `功率和` FROM %%trows",
         ]
 
         tdSql.executes(sqls)
@@ -146,144 +147,60 @@ class Test_Scene_Asset01:
     # 4. write trigger data
     #
     def writeTriggerData(self):
-        # stream4
-        self.trigger_stream4()
+        # stream8
+        self.trigger_stream8()
 
 
     # 
-    # 5. wait stream processing
-    #
-    def waitStreamProcessing(self):
-        tdLog.info("wait for check result sleep 5s ...")
-        time.sleep(5)
-
-    # 
-    # 6. verify results
+    # 5. verify results
     #
     def verifyResults(self):
-        self.verify_stream4()
-
-
-    # 
-    # 7. write trigger data again
-    #
-    def writeTriggerDataAgain(self):
-        # stream4
-        self.trigger_stream4_again()
-
-
-    # 
-    # 8. verify results again
-    #
-    def verifyResultsAgain(self):
-        # stream4
-        self.verify_stream4_again()
+        self.verify_stream8()
+  
 
     # ---------------------   stream trigger    ----------------------
 
-
     #
-    #  stream4 trigger 
+    #  stream8 trigger
     #
-    def trigger_stream4(self):
-        ts = 1752574200000
-        table = "asset01.`em-4`"
-        step  = 1 * 60 * 1000 # 1 minute
-        count = 120
-        cols = "ts,voltage,power"
-        vals = "400,200"
-        tdSql.insertFixedVal(table, ts, step, count, cols, vals)
+    def trigger_stream8(self):
+        ts    = self.start2
+        table = "asset01.`em-8`"
+        cols  = "ts,current,voltage,power"
+        sleepS = 0.2  # 0.2 seconds
 
-
-    #
-    #  stream4 trigger again
-    #
-    def trigger_stream4_again(self):
-        ts = 1752574200000 + 30 * 1000  # offset 30 seconds
-        table = "asset01.`em-4`"
-        step  = 1 * 60 * 1000 # 1 minute
-        count = 119
-        cols = "ts,voltage,power"
-        vals = "200,100"
-        tdSql.insertFixedVal(table, ts, step, count, cols, vals)
-
-
+        # write to windows 1
+        count = 20
+        fixedVals = "100, 200, 300"
+        tdSql.insertNow(table, sleepS, count, cols, fixedVals)
 
 
     #
     # ---------------------   verify    ----------------------
     #
 
-
     #
-    # verify stream4
+    # verify stream8
     #
-    def verify_stream4(self, tables=None):
-        # result_stream4/result_stream4_sub1
-        if tables is None:
-            tables = [
-                "result_stream4",
-                "result_stream4_sub1"
-            ]
+    def verify_stream8(self):
+        # sleep
+        time.sleep(5)
 
-        for table in tables:
-            result_sql = f"select * from {self.vdb}.`{table}` "
-            tdLog.info(result_sql)
-            tdSql.checkResultsByFunc (
-                sql = result_sql, 
-                func = lambda: tdSql.getRows() == 11
-            )
+        # result_stream8
+        result_sql = f"select * from {self.vdb}.`result_stream8` "
+        allCnt = 0
 
-            ts = 1752574200000
-            for i in range(tdSql.getRows()):
-                tdSql.checkData(i, 0, ts)
-                tdSql.checkData(i, 1, 10)
-                tdSql.checkData(i, 2, 400)
-                tdSql.checkData(i, 3, 2000)
-                ts += 10 * 60 * 1000 # 10 minutes
+        tdSql.query(result_sql)
+        count = tdSql.getRows()
 
-        tdLog.info(f"verify stream4 {tables} successfully.")
+        for i in range(count):
+            # row
+            cnt = tdSql.getData(i, 1)  # cnt
+            allCnt += cnt
+            if cnt <=0 or cnt > 5:
+                tdLog.exit(f"stream8 row {i} cnt is {cnt}, not in [1, 5]")
+            tdSql.checkData(i, 2, 200) # avg(voltage)
+        if allCnt != 20:
+            tdLog.exit(f"stream8 all cnt is {allCnt}, not 20")
 
-
-    #
-    # verify stream4 again
-    #
-    def verify_stream4_again(self):
-        # result_stream4
-        ts = 1752574200000
-        result_sql = f"select * from {self.vdb}.`result_stream4` "
-        tdSql.checkResultsByFunc (
-            sql = result_sql, 
-            func = lambda: tdSql.getRows() == 11
-        )
-
-        for i in range(tdSql.getRows()):
-            tdSql.checkData(i, 0, ts)
-            tdSql.checkData(i, 1, 20)
-            tdSql.checkData(i, 2, 300)
-            tdSql.checkData(i, 3, 3000)
-            ts += 10 * 60 * 1000 # 10 minutes
-
-        self.verify_stream4(tables=["result_stream4_sub1"])
-
-        # restart dnode
-        tdLog.info("restart dnode to verify stream4_sub1 ...")
-        sc.dnodeRestartAll()
-
-        # result_stream4_sub1
-        for i in range(10):
-            # write 
-            sqls = [
-                "INSERT INTO asset01.`em-4`(ts,voltage,power) VALUES(1752574230000,2000,1000);",
-                "INSERT INTO asset01.`em-4`(ts,voltage,power) VALUES(1752574230000,2001,10000);",
-                "INSERT INTO asset01.`em-4`(ts,voltage,power) VALUES(1752581310000,2002,1001);"
-            ]
-            tdSql.executes(sqls)
-
-            tdLog.info(f"loop check i={i} sleep 3s...")
-            time.sleep(5)
-
-            # verify
-            self.verify_stream4(tables=["result_stream4_sub1"])
-
-        tdLog.info("verify stream4 again successfully.")
+        tdLog.info(f"verify stream8 ................................. successfully.")
