@@ -14,7 +14,7 @@
  */
 
 // TAOS standard API example. The same syntax as MySQL, but only a subset
-// to compile: gcc -o insert_data_demo insert_data_demo.c -ltaos
+// to compile: gcc -o insert_data_demo insert_data_demo.c -ltaosws
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -49,17 +49,33 @@ static int DemoInsertData() {
   if (code != 0) {
     fprintf(stderr, "Failed to insert data to power.meters, sql: %s, ErrCode: 0x%x, ErrMessage: %s\n.", sql, code,
             ws_errstr(result));
-    ws_close(taos);
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    }
     return -1;
   }
-  ws_free_result(result);
+  code = ws_free_result(result);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s\n.", code, ws_errstr(result));
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    }
+    return -1;
+  }
 
   // you can check affectedRows here
   int rows = ws_affected_rows(result);
   fprintf(stdout, "Successfully inserted %d rows into power.meters.\n", rows);
 
   // close & clean
-  ws_close(taos);
+  code = ws_close(taos);
+  if (code != 0) {
+    fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    return -1;
+  }
+
   return 0;
   // ANCHOR_END: insert_data
 }

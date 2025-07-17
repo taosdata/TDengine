@@ -14,7 +14,7 @@
  */
 
 // TAOS standard API example. The same syntax as MySQL, but only a subset
-// to compile: gcc -o stmt_insert_demo stmt_insert_demo.c -ltaos
+// to compile: gcc -o stmt_insert_demo stmt_insert_demo.c -ltaosws
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,11 +33,25 @@ void executeSQL(WS_TAOS *taos, const char *sql) {
   int     code = ws_errno(res);
   if (code != 0) {
     fprintf(stderr, "%s\n", ws_errstr(res));
-    ws_free_result(res);
-    ws_close(taos);
+    code = ws_free_result(res);
+    if (code != 0) {
+      fprintf(stderr, "%s\n", ws_errstr(NULL));
+    }
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "%s\n", ws_errstr(NULL));
+    }
     exit(EXIT_FAILURE);
   }
-  ws_free_result(res);
+  code = ws_free_result(res);
+  if (code != 0) {
+    fprintf(stderr, "%s\n", ws_errstr(NULL));
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "%s\n", ws_errstr(NULL));
+    }
+    exit(EXIT_FAILURE);
+  }
 }
 
 /**
@@ -50,7 +64,10 @@ void executeSQL(WS_TAOS *taos, const char *sql) {
 void checkErrorCode(WS_STMT *stmt, int code, const char *msg) {
   if (code != 0) {
     fprintf(stderr, "%s. code: %d, error: %s\n", msg, code, ws_stmt_errstr(stmt));
-    ws_stmt_close(stmt);
+    code = ws_stmt_close(stmt);
+    if (code != 0) {
+      fprintf(stderr, "%s. code: %d, error: %s\n", msg, code, ws_stmt_errstr(stmt));
+    }
     exit(EXIT_FAILURE);
   }
 }
@@ -135,7 +152,8 @@ void insertData(WS_TAOS *taos) {
 
     for (int j = 0; j < num_of_row; j++) {
       struct timeval tv;
-      gettimeofday(&tv, NULL);
+      code = gettimeofday(&tv, NULL);
+      checkErrorCode(stmt, code, "Failed to get current time");
       long long milliseconds = tv.tv_sec * 1000LL + tv.tv_usec / 1000;  // current timestamp in milliseconds
       int64_t   ts = milliseconds + j;
       float     current = (float)rand() / RAND_MAX * 30;
@@ -161,7 +179,8 @@ void insertData(WS_TAOS *taos) {
     total_affected += affected;
   }
   fprintf(stdout, "Successfully inserted %d rows to power.meters.\n", total_affected);
-  ws_stmt_close(stmt);
+  code = ws_stmt_close(stmt);
+  checkErrorCode(stmt, code, "Failed to close stmt");
 }
 
 int main() {
@@ -179,5 +198,10 @@ int main() {
              "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
              "(groupId INT, location BINARY(24))");
   insertData(taos);
-  ws_close(taos);
+  code = ws_close(taos);
+  if (code != 0) {
+    fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    exit(EXIT_FAILURE);
+  }
+  return 0;
 }
