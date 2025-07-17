@@ -182,10 +182,10 @@ int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, bool force) {
 
 bool stRunnerTaskWaitQuit(SStreamRunnerTask* pTask) { return taosHasRWWFlag(&pTask->task.entryLock); }
 
-static int32_t streamResetTaskExec(SStreamRunnerTaskExecution* pExec, bool ignoreTbName) {
+static int32_t streamResetTaskExec(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, bool ignoreTbName) {
   int32_t code = 0;
   if (!ignoreTbName) pExec->tbname[0] = '\0';
-  stDebug("streamResetTaskExec:%p, ignoreTbName:%d tbname: %s", pExec, ignoreTbName, pExec->tbname);
+  ST_TASK_DLOG("streamResetTaskExec:%p, execId:%d, ignoreTbName:%d tbname: %s", pExec, pExec->runtimeInfo.execId, ignoreTbName, pExec->tbname);
   code = streamClearStatesForOperators(pExec->pExecutor);
   return code;
 }
@@ -675,7 +675,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   if (!pExec->pExecutor) {
     STREAM_CHECK_RET_GOTO(streamBuildTask(pTask, pExec));
   } else if (pReq->brandNew) {
-    STREAM_CHECK_RET_GOTO(streamResetTaskExec(pExec, pTask->output.outTblType == TSDB_NORMAL_TABLE));
+    STREAM_CHECK_RET_GOTO(streamResetTaskExec(pTask, pExec, pTask->output.outTblType == TSDB_NORMAL_TABLE));
   }
 
   pExec->runtimeInfo.funcInfo.curIdx = pReq->curWinIdx;
@@ -737,7 +737,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
       break;
     }
     if (finished) {
-      streamResetTaskExec(pExec, true);
+      streamResetTaskExec(pTask, pExec, true);
       if (pExec->runtimeInfo.funcInfo.withExternalWindow) break;
     }
   }
