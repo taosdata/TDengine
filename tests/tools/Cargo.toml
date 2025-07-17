@@ -12,13 +12,13 @@ crossterm = { version = "0.28.1", default-features = false, features = [
     "event-stream",
 ] }
 csv = "1.3.1"
-encoding_rs = "0.8.35"
+encoding_rs.workspace = true
 flate2.workspace = true
 flume.workspace = true
 fundu.workspace = true
 futures.workspace = true
 faststr.workspace = true
-lz4 = "1.28.0"
+lz4.workspace = true
 rand.workspace = true
 rayon.workspace = true
 rdkafka = { version = "0.36.2", features = ["cmake-build"] }
@@ -27,26 +27,26 @@ rumqttc.workspace = true
 serde_json = { version = "1.0.132", features = ["raw_value"] }
 serde_with.workspace = true
 snafu.workspace = true
-snap = "1.1.1"
+snap.workspace = true
 taos.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
 toml.workspace = true
-zstd = "0.13.2"
+zstd.workspace = true
 
 arrow = { workspace = true }
 arrow-schema = { workspace = true }
 parquet = { workspace = true }
 bytes = { workspace = true }
 signal-hook = "0.3.17"
-socket2 = "0.5.8"
+socket2.workspace = true
 
 num-traits = "0.2"
 num-integer = "0.1"
 num-bigint = "0.4"
 prost.workspace = true
-paste = "1"
+paste.workspace = true
 
 [lints]
 workspace = true

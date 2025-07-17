@@ -11,5 +11,5 @@ metrics = { workspace = true }
 metrics-util = { workspace = true }
 flume.workspace = true
 quanta = { version = "0.12", default-features = true }
-bincode = "2.0.0-rc.3"
+bincode = "2"
 serde = { workspace = true, features = ["derive"] }

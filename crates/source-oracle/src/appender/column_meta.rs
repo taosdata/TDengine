@@ -46,6 +46,7 @@ impl ColumnMeta {
             OracleType::Object(_) => Ok(IpcDataType::NChar(50)),
             OracleType::Long => Ok(IpcDataType::NChar(50)),
             OracleType::Json => Ok(IpcDataType::NChar(50)),
+            OracleType::Xml => Ok(IpcDataType::NChar(50)),
             // 字节数组
             OracleType::Raw(_) => Ok(IpcDataType::VarBinary(50)),
             OracleType::LongRaw => Ok(IpcDataType::VarBinary(50)),
@@ -88,6 +89,7 @@ pub fn to_arrow_data_type(column_type: &OracleType) -> anyhow::Result<DataType> 
         OracleType::Object(_) => Ok(DataType::Utf8),
         OracleType::Long => Ok(DataType::Utf8),
         OracleType::Json => Ok(DataType::Utf8),
+        OracleType::Xml => Ok(DataType::Utf8),
         // 字节数组
         OracleType::Raw(_) => Ok(DataType::Binary),
         OracleType::LongRaw => Ok(DataType::Binary),

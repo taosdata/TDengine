@@ -1,3 +1,4 @@
+use ringbuf::traits::{Consumer, RingBuffer};
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::runners::opc::csv::CsvParser;
 use taosx_core::runners::opc::csv::header::CsvHeader;
@@ -200,7 +201,6 @@ pub async fn opc_to_taos(
             }
 
             if line.contains("panic") {
-                use ringbuf::Rb;
                 let mut guard = error_buf_producer.lock().await;
                 let _ = guard.push_overwrite(line.clone());
             }
@@ -245,7 +245,6 @@ pub async fn opc_to_taos(
                 tracing::info!("OPC exit with {}", status);
                 if !status.success() {
                     safe_exit!();
-                    use ringbuf::Rb;
                     let error = error_buf.lock().await.iter().join("");
                     anyhow::bail!("OPC exit with {}\n{error}", status);
                 } else {

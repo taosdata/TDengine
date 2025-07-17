@@ -6,16 +6,12 @@ rust-version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-arrow.workspace = true
 chrono.workspace = true
 flume.workspace = true
-serde.workspace = true
-serde_with.workspace = true
 taos.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
-serde_json.workspace = true
 
 source-historian.path = "../source-historian"
 source-influxdb.path = "../source-influxdb"

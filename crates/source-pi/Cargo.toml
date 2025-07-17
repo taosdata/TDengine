@@ -13,13 +13,11 @@ tokio-process-terminate.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
 toml.workspace = true
-linked-hash-map.workspace = true
 tempfile.workspace = true
 chrono.workspace = true
 tokio.workspace = true
 
 taosx-core.workspace = true
-taosx-ipc.workspace = true
 
 [lints]
 workspace = true

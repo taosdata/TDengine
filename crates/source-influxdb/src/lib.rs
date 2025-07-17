@@ -3,6 +3,7 @@ use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 use anyhow::Context;
 use chrono::Local;
 use itertools::Itertools;
+use ringbuf::traits::{Consumer, RingBuffer};
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
@@ -184,7 +185,6 @@ pub async fn influxdb_to_taos(
                 break; // End of stream, exit the loop
             }
             if line.contains("ERROR") {
-                use ringbuf::Rb;
                 let mut guard = error_buf_producer.lock().await;
                 let _ = guard.push_overwrite(line.clone());
             }
@@ -211,7 +211,6 @@ pub async fn influxdb_to_taos(
                 let status = status?;
                 tracing::info!("InfluxDB exit with {}", status);
                 if !status.success() {
-                    use ringbuf::Rb;
                     safe_exit!();
                     let error = error_buf.lock().await.iter().join("");
                     anyhow::bail!("InfluxDB exit with status {status}: {error}");

@@ -1665,12 +1665,14 @@ function generateInput() {
     indentifiedColumns.value.forEach((item: any) => {
       if (msg) {
         if (sourceForm.type == 'mqtt') {
+          inputobj = inputobj ? inputobj : {};
           if (item.name == 'payload') {
             inputobj['payload'] = msg;
           } else {
             inputobj[item.name] = item.type == 'timestamp' ? '' : item.name;
           }
         } else if (sourceForm.type == 'kafka' || sourceForm.type == 'mongodb') {
+          inputobj = inputobj ? inputobj : {};
           if (item.name == 'value') {
             inputobj['value'] = msg;
           } else {

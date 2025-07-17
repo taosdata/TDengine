@@ -17,13 +17,13 @@ regex = "1"
 sysinfo = { version = "0.31.4", default-features = false, features = ["disk"] }
 flume.workspace = true
 arrow-schema.workspace = true
-http = "0.2.12"
+http.workspace = true
 nu-ansi-term = { version = "0.50.1", optional = true }
 rayon.workspace = true
 
 [dev-dependencies]
-crossbeam = "0.8.4"
-log = "0.4.22"
+crossbeam.workspace = true
+log.workspace = true
 rand.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true, features = ["log"] }

@@ -15,6 +15,7 @@ use notify::{
     event::{DataChange, ModifyKind},
 };
 use opentelemetry::trace::TracerProvider;
+use opentelemetry::trace::noop::NoopTracerProvider;
 use serde::{Deserialize, Serialize};
 use serde_with::{FromInto, serde_as};
 use serve::monitor::MonitorCfg;
@@ -722,21 +723,24 @@ fn init_tracing_layers(
 
     // Enable opentelemetry layer
     if otel_enabled(args) {
-        let provider = opentelemetry_otlp::new_pipeline()
-            .tracing()
-            .with_exporter(opentelemetry_otlp::new_exporter().tonic())
-            .with_trace_config(
-                opentelemetry_sdk::trace::Config::default()
-                    .with_sampler(opentelemetry_sdk::trace::Sampler::AlwaysOn)
-                    .with_id_generator(opentelemetry_sdk::trace::RandomIdGenerator::default())
-                    .with_max_events_per_span(64)
-                    .with_max_attributes_per_span(16)
-                    .with_max_events_per_span(16)
-                    .with_resource(opentelemetry_sdk::Resource::new(vec![
-                        opentelemetry::KeyValue::new("service.name", build::CUS_CLI_NAME),
-                    ])),
+        let exporter = opentelemetry_otlp::SpanExporter::builder()
+            .with_tonic()
+            .build()?;
+        let provider = opentelemetry_sdk::trace::SdkTracerProvider::builder()
+            .with_simple_exporter(exporter)
+            .with_sampler(opentelemetry_sdk::trace::Sampler::AlwaysOn)
+            .with_id_generator(opentelemetry_sdk::trace::RandomIdGenerator::default())
+            .with_max_events_per_span(64)
+            .with_max_attributes_per_span(16)
+            .with_resource(
+                opentelemetry_sdk::Resource::builder_empty()
+                    .with_attributes(vec![opentelemetry::KeyValue::new(
+                        "service.name",
+                        build::CUS_CLI_NAME,
+                    )])
+                    .build(),
             )
-            .install_simple()?;
+            .build();
         let tracer = provider.tracer("taosx");
         // Create a tracing layer with the configured tracer
         let telemetry = tracing_opentelemetry::layer()
@@ -1089,7 +1093,7 @@ fn main() -> Result<()> {
         }
     };
     runtime.block_on(async move {
-        opentelemetry::global::shutdown_tracer_provider();
+        opentelemetry::global::set_tracer_provider(NoopTracerProvider::new());
     });
     tracing::trace!("Shutdown main runtime");
     runtime.shutdown_timeout(std::time::Duration::from_secs(1));
