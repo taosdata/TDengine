@@ -1492,7 +1492,9 @@ int32_t tRowMergeWithBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlobSet,
   if (!doMerge) {
     code = tRowRebuildBlob(aRowP, pTSchema, pBlobSet);
   } else {
-    code = tRowMergeAndRebuildBlob(aRowP, pTSchema, pBlobSet);
+    code = TSDB_CODE_BLOB_NOT_SUPPORT;
+    return code;
+    // code = tRowMergeAndRebuildBlob(aRowP, pTSchema, pBlobSet);
   }
   return code;
 }
