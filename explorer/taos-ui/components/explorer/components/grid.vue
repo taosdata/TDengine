@@ -94,6 +94,7 @@ watch(
   head,
   val => {
     currentHead.value = val.slice(0, colSize.value);
+    currentCol.value = 1;
   },
   {
     immediate: true
