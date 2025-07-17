@@ -742,11 +742,11 @@ class Test_IDMP_Meters:
 
     def verify_stream4_sub9(self):
         # result_stream4_sub9
-        ts = 1752487800000
+        ts = 1752487860000
         result_sql = f"select * from {self.vdb}.`result_stream4_sub9` "
         tdSql.checkResultsByFunc (
             sql = result_sql, 
-            func = lambda: tdSql.getRows() >= 119
+            func = lambda: tdSql.getRows() == 119
         )
 
         for i in range(tdSql.getRows()):
