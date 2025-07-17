@@ -47,7 +47,7 @@ static int32_t stRealtimeGroupGetDataBlock(SSTriggerRealtimeGroup *pGroup, bool 
 // Clear all temporary states and variables in the group after checking.
 static void stRealtimeGroupClearTempState(SSTriggerRealtimeGroup *pGroup);
 // Clear metadatas that have been checked
-static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup);
+static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup, int64_t prevWindowEnd);
 
 static int32_t stHistoryGroupInit(SSTriggerHistoryGroup *pGroup, SSTriggerHistoryContext *pContext, int64_t gid);
 static void    stHistoryGroupDestroy(void *ptr);
@@ -2265,6 +2265,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         pContext->status = STRIGGER_CONTEXT_SEND_CALC_REQ;
       }
       case STRIGGER_CONTEXT_SEND_CALC_REQ: {
+        int64_t prevWindowEnd = INT64_MIN;
         if (pContext->pCalcReq == NULL) {
           QUERY_CHECK_CONDITION(TARRAY_SIZE(pGroup->pPendingCalcParams) == 0, code, lino, _end,
                                 TSDB_CODE_INTERNAL_ERROR);
@@ -2282,6 +2283,9 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
             }
           }
           if (TARRAY_SIZE(pContext->pCalcReq->params) > 0) {
+            SSTriggerCalcParam *pParam= taosArrayGetLast(pContext->pCalcReq->params);
+            QUERY_CHECK_NULL(pParam, code, lino,_end, terrno);
+            prevWindowEnd = pParam->wend;
             code = stRealtimeContextSendCalcReq(pContext);
             QUERY_CHECK_CODE(code, lino, _end);
             if (pContext->pCalcReq != NULL) {
@@ -2294,7 +2298,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
             QUERY_CHECK_CODE(code, lino, _end);
           }
         }
-        stRealtimeGroupClearMetadatas(pGroup);
+        stRealtimeGroupClearMetadatas(pGroup, prevWindowEnd);
         break;
       }
       default: {
@@ -4238,23 +4242,30 @@ static void stRealtimeGroupClearTempState(SSTriggerRealtimeGroup *pGroup) {
   }
 }
 
-static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup) {
+static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup, int64_t prevWindowEnd) {
   SSTriggerRealtimeContext *pContext = pGroup->pContext;
   SStreamTriggerTask       *pTask = pContext->pTask;
   int32_t                   iter = 0;
   SSTriggerTableMeta       *pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
   while (pTableMeta != NULL) {
-    if ((pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) && IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) &&
-        (taosArrayGetSize(pTableMeta->pMetas) > 0)) {
-      int64_t endTime = TRINGBUF_HEAD(&pGroup->winBuf)->range.skey - 1;
-      endTime = TMAX(endTime, pGroup->prevWindowEnd);
+    if (taosArrayGetSize(pTableMeta->pMetas) > 0) {
+      int64_t endTime = prevWindowEnd;
+      if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) {
+        if (TARRAY_SIZE(pGroup->pPendingCalcParams) > 0) {
+          SSTriggerCalcParam *pParam = TARRAY_DATA(pGroup->pPendingCalcParams);
+          endTime = TMAX(endTime, pParam->wstart - 1);
+        } else if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+          endTime = TMAX(endTime, TRINGBUF_HEAD(&pGroup->winBuf)->range.skey - 1);
+        } else {
+          endTime = TMAX(endTime, pGroup->newThreshold);
+        }
+      } else {
+        endTime = TMAX(endTime, pGroup->newThreshold);
+      }
       int32_t idx = taosArraySearchIdx(pTableMeta->pMetas, &endTime, stRealtimeGroupMetaDataSearch, TD_GT);
       taosArrayPopFrontBatch(pTableMeta->pMetas, idx);
       idx = taosArraySearchIdx(pTableMeta->pMetas, &pGroup->newThreshold, stRealtimeGroupMetaDataSearch, TD_GT);
       pTableMeta->metaIdx = (idx == -1) ? TARRAY_SIZE(pTableMeta->pMetas) : idx;
-    } else {
-      taosArrayClear(pTableMeta->pMetas);
-      pTableMeta->metaIdx = 0;
     }
     pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, pTableMeta, &iter);
   }
@@ -4445,7 +4456,6 @@ static int32_t stRealtimeGroupAddMetaDatas(SSTriggerRealtimeGroup *pGroup, SArra
   QUERY_CHECK_CONDITION(pGroup->newThreshold != INT64_MAX, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
 _end:
-
   tSimpleHashCleanup(pAddedUids);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -4680,10 +4690,6 @@ static int32_t stRealtimeGroupCloseWindow(SSTriggerRealtimeGroup *pGroup, char *
     *ppExtraNotifyContent = NULL;
   }
 
-  if (!saveWindow) {
-    pGroup->prevWindowEnd = param.wend;
-  }
-
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -4834,7 +4840,6 @@ static int32_t stRealtimeGroupMergeSavedWindows(SSTriggerRealtimeGroup *pGroup, 
         void *px = taosArrayPush(pContext->pNotifyParams, &param);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       }
-      pGroup->prevWindowEnd = param.wend;
     }
   }
 
