@@ -237,7 +237,7 @@ class TestStreamRecalcExpiredTime:
         # Test 1.5: PERIOD with EXPIRED_TIME - should not process expired data
         stream = StreamItem(
             id=5,
-            stream="create stream rdb.s_period_expired period(30s) from tdb.trigger_period partition by tbname stream_options(expired_time(1h)) into rdb.r_period_expired as select _tlocaltime ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _tlocaltime - 30000000000 and cts <= _tlocaltime;",
+            stream="create stream rdb.s_period_expired period(30s) from tdb.trigger_period partition by tbname stream_options(expired_time(1h)) into rdb.r_period_expired as select cast(_tlocaltime/1000000 as timestamp) ts, count(*) cnt, avg(cint) avg_val from qdb.meters;",
             check_func=self.check05,
         )
         self.streams.append(stream)
