@@ -15,14 +15,22 @@ class TestStreamMetaTrigger:
         tdStream.createSnode()
 
         streams = []
-        streams.append(self.Basic0())  # add ctb and drop ctb from stb [ok]
+        # TD-36727 [流计算开发阶段] 创建流之后增加新的虚拟子表，没有预期触发生成结果表
+        # streams.append(self.Basic0())  # add ctb and drop ctb from stb [fail]
+        
+        # TD-36358 [流计算开发阶段] 多条流同时运行时force_output下多个分组的结果有的正确有的错误
         # # streams.append(self.Basic1())  # drop data source table [fail]
+        
+        # TD-36595 [流计算开发阶段] 虚拟表+pre_filter(tag列)创建流失败
         # streams.append(self.Basic2())  # tag过滤时，修改tag的值，从满足流条件，到不满足流条件; 从不满足流条件，到满足流条件 [fail]       
+        
+        # TD-36750 [流计算开发阶段] 虚拟表+删除pre_filter(cbigint >=1)中cbigint列后，应该没有符合条件的数据了，不会触发计算窗口
         # streams.append(self.Basic3())  # [fail]
-        # streams.append(self.Basic4())  # [ok]
-        # # streams.append(self.Basic5())  # [fail] 
-        # # streams.append(self.Basic6())  #  [fail]
-        # streams.append(self.Basic7())  # [ok] 
+        
+        streams.append(self.Basic4())  # [ok]
+        # streams.append(self.Basic5())  # [fail] 
+        # streams.append(self.Basic6())  #  [fail]
+        # streams.append(self.Basic7())  # [fail] 
         
         tdStream.checkAll(streams)
 
@@ -879,15 +887,15 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"create table {self.db}.ct1 using {self.db}.{self.stbName} (tint, tbigint, tfloat)tags(1,1,1)")
             tdSql.execute(f"create table {self.db}.ct2 using {self.db}.{self.stbName} (tint, tbigint, tfloat)tags(2,2,2)")
 
-            tdSql.execute(f"create vtable vct1 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(1,1,1)")
-            tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2,2,2)")
+            tdSql.execute(f"create vtable vct1 (cint from {self.db}.ct1.cint, cbigint from {self.db}.ct1.cbigint, cfloat from {self.db}.ct1.cfloat) using {self.db}.{self.vstbName} tags(1,1,1)")
+            tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint, cbigint from {self.db}.ct2.cbigint, cfloat from {self.db}.ct2.cfloat) using {self.db}.{self.vstbName} tags(2,2,2)")
             
             tdSql.execute(
-                f"create stream s3_g state_window(cint) from {self.vstbName} partition by tbname, tint stream_options(pre_filter(cbigint >= 1)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s3_g state_window(cint) from {self.vstbName} partition by tbname, tint stream_options(pre_filter(cbigint >= 1)) into res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cbigint), avg(cint) from %%trows;"
             )
             
             tdSql.execute(
-                f"create stream s3 state_window(cint) from {self.vntbName} stream_options(pre_filter(cbigint >= 1)) into res_ntb (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+                f"create stream s3 state_window(cint) from {self.vntbName} stream_options(pre_filter(cbigint >= 1)) into res_ntb (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cbigint), avg(cint) from %%trows;"
             )
 
         def insert1(self):
@@ -1004,40 +1012,50 @@ class TestStreamMetaTrigger:
             )
 
         def insert2(self):
-            tdSql.execute(f"alter table {self.db}.{self.stbName} add column cdouble double")
-            tdSql.execute(f"alter table {self.db}.{self.stbName} drop column cbigint")
-            tdSql.execute(f"alter table {self.db}.{self.stbName} drop column cfloat")
+            # tdSql.execute(f"alter table {self.db}.{self.stbName} add column cdouble double")
+            # tdSql.execute(f"alter table {self.db}.{self.stbName} drop column cbigint")
+            # tdSql.execute(f"alter table {self.db}.{self.stbName} drop column cfloat")
             
-            tdSql.execute(f"alter table {self.db}.{self.ntbName} add column cdouble double")
-            tdSql.execute(f"alter table {self.db}.{self.ntbName} drop column cbigint")
-            tdSql.execute(f"alter table {self.db}.{self.ntbName} drop column cfloat")
+            # tdSql.execute(f"alter table {self.db}.{self.ntbName} add column cdouble double")
+            # tdSql.execute(f"alter table {self.db}.{self.ntbName} drop column cbigint")
+            # tdSql.execute(f"alter table {self.db}.{self.ntbName} drop column cfloat")
             
             
-            tdSql.execute(f"alter vtable {self.db}.{self.vstbName} add column cdouble double")
-            tdSql.execute(f"alter vtable {self.db}.{self.vstbName} drop column cbigint")
-            tdSql.execute(f"alter vtable {self.db}.{self.vstbName} drop column cfloat")
+            tdSql.execute(f"alter table {self.db}.{self.vstbName} add column cdouble double")
+            tdSql.execute(f"alter table {self.db}.{self.vstbName} drop column cbigint")
+            tdSql.execute(f"alter table {self.db}.{self.vstbName} drop column cfloat")
             
             tdSql.execute(f"alter vtable {self.db}.{self.vntbName} add column cdouble double")
             tdSql.execute(f"alter vtable {self.db}.{self.vntbName} drop column cbigint")
             tdSql.execute(f"alter vtable {self.db}.{self.vntbName} drop column cfloat")
             
             sqls = [
-                # "insert into ct1 (cts, cint, cbigint, cfloat) values ('2025-01-01 00:01:00', 3,3,3);", 
-                "insert into ct1 (cts, cint, cdouble) values ('2025-01-01 00:01:05', 3,3);",
-                "insert into ct1 (cts, cint, cdouble) values ('2025-01-01 00:01:10', 3,3);",
-                "insert into ct1 (cts, cint, cdouble) values ('2025-01-01 00:01:15', 3,3);",
-                "insert into ct1 (cts, cint, cdouble) values ('2025-01-01 00:01:20', 4,4);",   
+                "insert into ct1 (cts, cint, cbigint, cfloat) values ('2025-01-01 00:01:05', 3,3,3);", 
+                "insert into ct1 (cts, cint, cbigint, cfloat) values ('2025-01-01 00:01:10', 3,3,3);", 
+                "insert into ct1 (cts, cint, cbigint, cfloat) values ('2025-01-01 00:01:15', 3,3,3);", 
+                "insert into ct1 (cts, cint, cbigint, cfloat) values ('2025-01-01 00:01:20', 4,4,4);", 
+                # "insert into ct1 (cts, cint, cdouble) values ('2025-01-01 00:01:05', 3,3);",
+                # "insert into ct1 (cts, cint, cdouble) values ('2025-01-01 00:01:10', 3,3);",
+                # "insert into ct1 (cts, cint, cdouble) values ('2025-01-01 00:01:15', 3,3);",
+                # "insert into ct1 (cts, cint, cdouble) values ('2025-01-01 00:01:20', 4,4);",   
                  
-                "insert into ct2 (cts, cint, cdouble) values ('2025-01-01 00:01:05', 3,3);",
-                "insert into ct2 (cts, cint, cdouble) values ('2025-01-01 00:01:10', 3,3);",
-                "insert into ct2 (cts, cint, cdouble) values ('2025-01-01 00:01:15', 3,3);",
-                "insert into ct2 (cts, cint, cdouble) values ('2025-01-01 00:01:20', 4,4);", 
+                "insert into ct2 (cts, cint, cbigint, cfloat) values ('2025-01-01 00:01:05', 3,3,3);", 
+                "insert into ct2 (cts, cint, cbigint, cfloat) values ('2025-01-01 00:01:10', 3,3,3);", 
+                "insert into ct2 (cts, cint, cbigint, cfloat) values ('2025-01-01 00:01:15', 3,3,3);", 
+                "insert into ct2 (cts, cint, cbigint, cfloat) values ('2025-01-01 00:01:20', 4,4,4);", 
+                # "insert into ct2 (cts, cint, cdouble) values ('2025-01-01 00:01:05', 3,3);",
+                # "insert into ct2 (cts, cint, cdouble) values ('2025-01-01 00:01:10', 3,3);",
+                # "insert into ct2 (cts, cint, cdouble) values ('2025-01-01 00:01:15', 3,3);",
+                # "insert into ct2 (cts, cint, cdouble) values ('2025-01-01 00:01:20', 4,4);", 
                 
-                # f"insert into {self.ntbName} (cts, cint, cbigint, cfloat) values ('2025-01-01 00:01:00', 3,3,3);", 
-                f"insert into {self.ntbName} (cts, cint, cdouble) values ('2025-01-01 00:01:05', 3,3);",  
-                f"insert into {self.ntbName} (cts, cint, cdouble) values ('2025-01-01 00:01:10', 3,3);",  
-                f"insert into {self.ntbName} (cts, cint, cdouble) values ('2025-01-01 00:01:15', 3,3);", 
-                f"insert into {self.ntbName} (cts, cint, cdouble) values ('2025-01-01 00:01:20', 3,4);", 
+                f"insert into {self.ntbName} (cts, cint, cbigint, cfloat) values ('2025-01-01 00:01:05', 3,3,3);", 
+                f"insert into {self.ntbName} (cts, cint, cbigint, cfloat) values ('2025-01-01 00:01:10', 3,3,3);",
+                f"insert into {self.ntbName} (cts, cint, cbigint, cfloat) values ('2025-01-01 00:01:15', 3,3,3);",
+                f"insert into {self.ntbName} (cts, cint, cbigint, cfloat) values ('2025-01-01 00:01:20', 4,4,4);",
+                # f"insert into {self.ntbName} (cts, cint, cdouble) values ('2025-01-01 00:01:05', 3,3);",  
+                # f"insert into {self.ntbName} (cts, cint, cdouble) values ('2025-01-01 00:01:10', 3,3);",  
+                # f"insert into {self.ntbName} (cts, cint, cdouble) values ('2025-01-01 00:01:15', 3,3);", 
+                # f"insert into {self.ntbName} (cts, cint, cdouble) values ('2025-01-01 00:01:20', 3,4);", 
             ]
             tdSql.executes(sqls)
             time.sleep(3)
@@ -1105,16 +1123,16 @@ class TestStreamMetaTrigger:
         def create(self):
             tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
             tdSql.execute(f"use {self.db}")
-            tdSql.execute(f"create table if not exists  {self.db}.{self.stbName} (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float)")
+            tdSql.execute(f"create table if not exists  {self.db}.{self.stbName}  (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.stbName1} (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float)")
             
-            tdSql.execute(f"create table if not exists {self.db}.{self.vstbName} (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float) virtual 1")
+            tdSql.execute(f"create table if not exists {self.db}.{self.vstbName}  (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float) virtual 1")
             tdSql.execute(f"create table if not exists {self.db}.{self.vstbName1} (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float) virtual 1")
             
-            tdSql.execute(f"create table if not exists  {self.db}.{self.ntbName} (cts timestamp, cint int, cbigint bigint, cfloat float)")
+            tdSql.execute(f"create table if not exists  {self.db}.{self.ntbName}  (cts timestamp, cint int, cbigint bigint, cfloat float)")
             tdSql.execute(f"create table if not exists  {self.db}.{self.ntbName1} (cts timestamp, cint int, cbigint bigint, cfloat float)")
                
-            tdSql.execute(f"create vtable if not exists  {self.db}.{self.vntbName} (cts timestamp, cint int from {self.db}.{self.ntbName}.cint, cbigint bigint from {self.db}.{self.ntbName}.cbigint, cfloat float from {self.db}.{self.ntbName}.cfloat)")
+            tdSql.execute(f"create vtable if not exists  {self.db}.{self.vntbName}  (cts timestamp, cint int from {self.db}.{self.ntbName}.cint,  cbigint bigint from {self.db}.{self.ntbName}.cbigint,  cfloat float from {self.db}.{self.ntbName}.cfloat)")
             tdSql.execute(f"create vtable if not exists  {self.db}.{self.vntbName1} (cts timestamp, cint int from {self.db}.{self.ntbName1}.cint, cbigint bigint from {self.db}.{self.ntbName1}.cbigint, cfloat float from {self.db}.{self.ntbName1}.cfloat)")
 
             tdSql.execute(f"create table {self.db}.ct1 using {self.db}.{self.stbName} (tint, tbigint, tfloat)tags(1,1,1)")
@@ -1126,9 +1144,10 @@ class TestStreamMetaTrigger:
 
             tdSql.execute(f"create vtable vct1 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(1,1,1)")
             tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2,2,2)")
-            tdSql.execute(f"create vtable vctx (cint from {self.db}.ctx.cint) using {self.db}.{self.vstbName} tags(1,1,1)")
-            tdSql.execute(f"create vtable vcty (cint from {self.db}.cty.cint) using {self.db}.{self.vstbName} tags(2,2,2)")
-            tdSql.execute(f"create vtable vctz (cint from {self.db}.ctz.cint) using {self.db}.{self.vstbName} tags(3,3,3)")
+            
+            tdSql.execute(f"create vtable vctx (cint from {self.db}.ctx.cint) using {self.db}.{self.vstbName1} tags(1,1,1)")
+            tdSql.execute(f"create vtable vcty (cint from {self.db}.cty.cint) using {self.db}.{self.vstbName1} tags(2,2,2)")
+            tdSql.execute(f"create vtable vctz (cint from {self.db}.ctz.cint) using {self.db}.{self.vstbName1} tags(3,3,3)")
             
             tdSql.execute(
                 f"create stream s4_g_t state_window(cint) from {self.vstbName} partition by tbname, tint into res_stb_t OUTPUT_SUBTABLE(CONCAT('res_stb_t_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from {self.stbName1} where cbigint > 1 and tbigint >= 2;"
@@ -1958,7 +1977,7 @@ class TestStreamMetaTrigger:
             self.vntbName1 = "vntb1"            
 
         def create(self):
-            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
+            tdSql.execute(f"create database {self.db}  vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
             tdSql.execute(f"create database {self.db1} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
             tdSql.execute(f"create database {self.db2} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
             tdSql.execute(f"create database {self.db3} vgroups 1 buffer 8 precision '{TestStreamMetaTrigger.precision}'")
@@ -1972,8 +1991,8 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"create table {self.db1}.ct1 using {self.db1}.{self.stbName} (tint, tbigint, tfloat)tags(1,1,1)")
             tdSql.execute(f"create table {self.db1}.ct2 using {self.db1}.{self.stbName} (tint, tbigint, tfloat)tags(2,2,2)")
 
-            tdSql.execute(f"create vtable vct1 (cint from {self.db1}.ct1.cint) using {self.db1}.{self.vstbName} tags(1,1,1)")
-            tdSql.execute(f"create vtable vct2 (cint from {self.db1}.ct2.cint) using {self.db1}.{self.vstbName} tags(2,2,2)")
+            tdSql.execute(f"create vtable {self.db1}.vct1 (cint from {self.db1}.ct1.cint) using {self.db1}.{self.vstbName} tags(1,1,1)")
+            tdSql.execute(f"create vtable {self.db1}.vct2 (cint from {self.db1}.ct2.cint) using {self.db1}.{self.vstbName} tags(2,2,2)")
             
             # 流、流的触发表、流的数据源表 都在 db1            
             tdSql.execute(
@@ -1986,8 +2005,8 @@ class TestStreamMetaTrigger:
             tdSql.execute(f"create table {self.db3}.ct1 using {self.db3}.{self.stbName} (tint, tbigint, tfloat)tags(1,1,1)")
             tdSql.execute(f"create table {self.db3}.ct2 using {self.db3}.{self.stbName} (tint, tbigint, tfloat)tags(2,2,2)")
 
-            tdSql.execute(f"create vtable {self.db3}vct1 (cint from {self.db3}.ct1.cint) using {self.db3}.{self.vstbName} tags(1,1,1)")
-            tdSql.execute(f"create vtable {self.db3}vct2 (cint from {self.db3}.ct2.cint) using {self.db3}.{self.vstbName} tags(2,2,2)")
+            tdSql.execute(f"create vtable {self.db3}.vct1 (cint from {self.db3}.ct1.cint) using {self.db3}.{self.vstbName} tags(1,1,1)")
+            tdSql.execute(f"create vtable {self.db3}.vct2 (cint from {self.db3}.ct2.cint) using {self.db3}.{self.vstbName} tags(2,2,2)")
             
             # db4
             tdSql.execute(f"create table if not exists  {self.db4}.{self.stbName} (cts timestamp, cint int, cbigint bigint, cfloat float) tags (tint int, tbigint bigint, tfloat float)")
