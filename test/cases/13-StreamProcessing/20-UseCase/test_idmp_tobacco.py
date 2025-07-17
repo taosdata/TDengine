@@ -23,6 +23,7 @@ class TestIdmpTobacco:
 class TestIdmpTobaccoImpl:
     def init(self):
         self.stream_ids = []
+        self.assert_retry = -1
 
     def run(self):
 
@@ -38,10 +39,7 @@ class TestIdmpTobaccoImpl:
         # insert trigger data
         self.insertTriggerData()
 
-        # # wait stream processing
-        time.sleep(5)
-
-        # # verify results
+        # verify results
         self.verifyResults()
 
         tdLog.info("test IDMP tobacco scene done")
@@ -205,38 +203,68 @@ class TestIdmpTobaccoImpl:
             name = obj.name if obj and obj.name else f"stream_{id}"
 
             # check the output table
-            res = tdSql.getResult(f"SHOW `{self.vdb}`.stables like '{name}';")
-            if res is None or len(res) == 0:
-                res = tdSql.getResult(f"SHOW `{self.vdb}`.tables like '{name}';")
-                if res is None or len(res) == 0:
-                    raise RuntimeError(
-                        f"assert failed: output table '{name}' not found"
-                    )
+            sql = f"select stable_name as name from information_schema.ins_stables where stable_name = '{name}' UNION select table_name as name from information_schema.ins_tables where table_name = '{name}';"
+            tdLog.info(f"check output table SQL: {sql}")
+            tdSql.checkResultsByFunc(
+                sql,
+                func=lambda: tdSql.getRows() > 0,
+            )
 
             # check the output
-            output = tdSql.getResult(f"SELECT * FROM `{self.vdb}`.`{name}`;")
-            for a in obj.assert_list:
-                if a.row >= len(output) or a.col >= len(output[a.row]):
-                    raise AssertionError(
-                        f"assert failed: out of boundary, row: {a.row}, col: {a.col}"
-                    )
-                actual = output[a.row][a.col]
-                if str(actual) != str(a.data):
-                    raise AssertionError(
-                        f"assert failed: not equal, row: {a.row}, col: {a.col}, expect: {a.data}, actual: {actual}"
-                    )
+            sql = f"SELECT * FROM `{self.vdb}`.`{name}`;"
+            tdLog.info(f"check output SQL: {sql}")
+
+            def assert_func():
+                output = tdSql.getResult(sql)
+                tdLog.info(f"output: {output}")
+                for a in obj.assert_list:
+                    if a.row >= len(output):
+                        tdLog.error(
+                            f"assert failed: out of boundary, row: {a.row}, col: {a.col}, output rows: {len(output)}"
+                        )
+                        return False
+                    if a.col >= len(output[a.row]):
+                        tdLog.error(
+                            f"assert failed: out of boundary, row: {a.row}, col: {a.col}, output cols: {len(output[a.row])}"
+                        )
+                        return False
+                    actual = output[a.row][a.col]
+                    if str(actual) != str(a.data):
+                        tdLog.error(
+                            f"assert failed: not equal, row: {a.row}, col: {a.col}, expect: {a.data}, actual: {actual}"
+                        )
+                        return False
+                return True
+
+            retry_count = (
+                self.assert_retry
+                if hasattr(self, "assert_retry") and self.assert_retry > 0
+                else obj.retry
+            )
+            tdLog.info(f"retry count: {retry_count}")
+            tdSql.checkResultsByFunc(sql, func=assert_func, retry=retry_count)
 
         tdLog.info("verify results done")
 
 
 class StreamObj:
-    def __init__(self, id, name, create, data=None, interval=None, assert_list=None):
+    def __init__(
+        self,
+        id,
+        name,
+        create,
+        data=None,
+        interval=None,
+        assert_list=None,
+        assert_retry=60,
+    ):
         self.id = id
         self.name = name
         self.create = create
         self.data = data
         self.interval = interval
         self.assert_list = assert_list if assert_list else []
+        self.retry = assert_retry
 
     @staticmethod
     def from_dict(d):
@@ -248,6 +276,7 @@ class StreamObj:
             data=d.get("data"),
             interval=d.get("interval"),
             assert_list=assert_list,
+            assert_retry=d.get("assert_retry", 60),
         )
 
 

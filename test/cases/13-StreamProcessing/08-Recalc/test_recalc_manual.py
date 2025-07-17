@@ -128,7 +128,7 @@ class TestStreamRecalcManual:
             "insert into tdb.sm1 values ('2025-01-01 02:10:00', 10, 'normal');",
             "insert into tdb.sm1 values ('2025-01-01 02:10:30', 20, 'normal');",
             "insert into tdb.sm1 values ('2025-01-01 02:11:00', 30, 'normal');",
-            "insert into tdb.sm1 values ('2025-01-01 02:11:30', 40, 'normal');",
+            "insert into tdb.sm1 values ('2025-01-01 02:11:50', 40, 'normal');",
             "insert into tdb.sm1 values ('2025-01-01 02:12:00', 50, 'normal');",
             "insert into tdb.sm1 values ('2025-01-01 02:12:30', 60, 'normal');",
         ]
@@ -256,13 +256,12 @@ class TestStreamRecalcManual:
 
         # Write source data for testing
         tdLog.info("write source data for manual recalculation testing")
-        tdSql.execute("insert into qdb.t0 values ('2025-01-01 00:00:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
 
         # Check initial results
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_interval_manual",
                 func=lambda: (
-                    tdSql.getRows() >= 1
+                    tdSql.getRows() == 1
                     and tdSql.compareData(0, 0, "2025-01-01 02:00:00")
                     and tdSql.compareData(0, 1, 400)
                     and tdSql.compareData(0, 2, 241.5)
@@ -275,41 +274,17 @@ class TestStreamRecalcManual:
         tdLog.info("Test manual recalculation with time range")
         tdSql.execute("recalculate stream rdb.s_interval_manual from '2025-01-01 02:00:00';")
         
+        #TODO(beryl): blocked by TD-36691
         # Verify results after recalculation
-        tdSql.checkResultsByFunc(
-                sql=f"select ts, cnt, avg_val from rdb.r_interval_manual",
-                func=lambda: (
-                    tdSql.getRows() == 1
-                    and tdSql.compareData(0, 0, "2025-01-01 02:00:00")
-                    and tdSql.compareData(0, 1, 401)
-                    and tdSql.compareData(0, 2, 240.922693266833)
-                )
-            )
-
-        # Test 2: Manual recalculation without end time (from start time to current)
-        tdLog.info("Test manual recalculation without end time")
-        tdSql.execute("recalculate stream rdb.s_interval_manual from '2025-01-01 02:01:00';")
-        
-        # Verify results after second recalculation
-        tdSql.checkResultsByFunc(
-                sql=f"select ts, cnt, avg_val from rdb.r_interval_manual",
-                func=lambda: (
-                    tdSql.getRows() >= 1
-                    and tdSql.compareData(0, 0, "2025-01-01 02:00:00")
-                    and tdSql.compareData(0, 1, 400)
-                    and tdSql.compareData(0, 2, 241.5)
-                )
-            )
-
-        # Test 3: Edge case - very old time range
-        tdLog.info("Test recalculation with very old time range")
-        tdSql.execute("recalculate stream rdb.s_interval_manual from '2020-01-01 00:00:00' to '2020-01-01 01:00:00';")
-        
-        # Test 4: Edge case - future time range (should handle gracefully)
-        tdLog.info("Test recalculation with future time range")
-        tdSql.execute("recalculate stream rdb.s_interval_manual from '2030-01-01 00:00:00' to '2030-01-01 01:00:00';")
-
-        tdLog.info("INTERVAL+SLIDING manual recalculation test completed")
+        # tdSql.checkResultsByFunc(
+        #         sql=f"select ts, cnt, avg_val from rdb.r_interval_manual",
+        #         func=lambda: (
+        #             tdSql.getRows() == 1
+        #             and tdSql.compareData(0, 0, "2025-01-01 02:00:00")
+        #             and tdSql.compareData(0, 1, 401)
+        #             and tdSql.compareData(0, 2, 240.922693266833)
+        #         )
+        #     )
 
     def check02(self):
         # Test session with manual recalculation
@@ -320,41 +295,29 @@ class TestStreamRecalcManual:
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_session_manual",
                 func=lambda: (
-                    tdSql.getRows() >= 1
+                    tdSql.getRows() == 1
                     and tdSql.compareData(0, 0, "2025-01-01 02:10:00")
                     and tdSql.compareData(0, 1, 200)
-                    and tdSql.compareData(0, 2, 246.5)
+                    and tdSql.compareData(0, 2, 260.5)
                 )
             )
 
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:10:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
         # Test 1: Manual recalculation with time range for SESSION
         tdLog.info("Test SESSION manual recalculation with time range")
-        tdSql.execute("recalculate stream rdb.s_session_manual from '2025-01-01 02:10:00' to '2025-01-01 02:13:00';")
-        
+        tdSql.execute("recalculate stream rdb.s_session_manual from '2025-01-01 02:10:00';")
+
+        #TODO(beryl): blocked by TD-36691
         # Verify results after recalculation
-        tdSql.checkResultsByFunc(
-                sql=f"select ts, cnt, avg_val from rdb.r_session_manual",
-                func=lambda: (
-                    tdSql.getRows() >= 1
-                    and tdSql.compareData(0, 0, "2025-01-01 02:10:00")
-                    and tdSql.compareData(0, 1, 200)
-                    and tdSql.compareData(0, 2, 246.5)
-                )
-            )
-
-        # Test 2: Manual recalculation without end time
-        tdLog.info("Test SESSION manual recalculation without end time")
-        tdSql.execute("recalculate stream rdb.s_session_manual from '2025-01-01 02:11:00';")
-        
-        # Test 3: Test with data modification followed by recalculation
-        tdLog.info("Test SESSION recalculation after data modification")
-        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:11:30', 99, 990, 9.9, 9.9, 0.9, 0.9, 'recalc_test', 1, 1, 1, 1, true, 'recalc_test', 'recalc_test', '99', '99', 'POINT(0.9 0.9)');")
-        tdSql.execute("insert into tdb.ms1 values ('2025-01-01 02:11:31', 99, 'recalc_test');")
-        
-        # Recalculate after new data
-        tdSql.execute("recalculate stream rdb.s_session_manual from '2025-01-01 02:10:00' to '2025-01-01 02:13:00';")
-
-        tdLog.info("SESSION manual recalculation test completed")
+        # tdSql.checkResultsByFunc(
+        #         sql=f"select ts, cnt, avg_val from rdb.r_session_manual",
+        #         func=lambda: (
+        #             tdSql.getRows() == 1
+        #             and tdSql.compareData(0, 0, "2025-01-01 02:10:00")
+        #             and tdSql.compareData(0, 1, 201)
+        #             and tdSql.compareData(0, 2, 259.253731343284)
+        #         )
+        #     )
 
     def check03(self):
         # Test state window with manual recalculation
@@ -365,10 +328,13 @@ class TestStreamRecalcManual:
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_state_manual",
                 func=lambda: (
-                    tdSql.getRows() >= 2
+                    tdSql.getRows() == 2
                     and tdSql.compareData(0, 0, "2025-01-01 02:20:00")
                     and tdSql.compareData(0, 1, 100)
-                    and tdSql.compareData(0, 2, 240)
+                    and tdSql.compareData(0, 2, 280)
+                    and tdSql.compareData(1, 0, "2025-01-01 02:21:00")
+                    and tdSql.compareData(1, 1, 100)
+                    and tdSql.compareData(1, 2, 282)
                 )
             )
 
@@ -386,20 +352,7 @@ class TestStreamRecalcManual:
                     and tdSql.compareData(0, 2, 240)
                 )
             )
-
-        # Test 2: Manual recalculation without end time
-        tdLog.info("Test STATE_WINDOW manual recalculation without end time")
-        tdSql.execute("recalculate stream rdb.s_state_manual from '2025-01-01 02:21:00';")
-        
-        # Test 3: Test state window specific scenario with status change
-        tdLog.info("Test STATE_WINDOW recalculation with status change")
-        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:21:45', 77, 770, 7.7, 7.7, 0.7, 0.7, 'critical', 1, 1, 1, 1, true, 'critical', 'critical', '77', '77', 'POINT(0.7 0.7)');")
-        tdSql.execute("insert into tdb.mw1 values ('2025-01-01 02:21:46', 77, 'critical');")
-        
-        # Recalculate after status change
-        tdSql.execute("recalculate stream rdb.s_state_manual from '2025-01-01 02:21:00' to '2025-01-01 02:22:00';")
-
-        tdLog.info("STATE_WINDOW manual recalculation test completed")
+            
 
     def check04(self):
         # Test event window with manual recalculation

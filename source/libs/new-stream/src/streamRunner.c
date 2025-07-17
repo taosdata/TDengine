@@ -512,7 +512,7 @@ static int32_t stRunnerForceOutputHelp(SStreamRunnerTask* pTask, SStreamRunnerTa
       rowsToCopy++;
       continue;
     } else {
-      if (ts == curWin.ekey) {
+      if (pExec->runtimeInfo.funcInfo.triggerType != STREAM_TRIGGER_SLIDING && ts == curWin.ekey) {
         rowIdx++;
         rowsToCopy++;
       }

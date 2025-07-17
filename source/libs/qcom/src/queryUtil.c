@@ -233,6 +233,10 @@ void destroyAhandle(void *ahandle) {
   SMsgSendInfo *pSendInfo = ahandle;
   if (pSendInfo == NULL) return;
 
+  if (pSendInfo->streamAHandle) {
+    qDebug("stream ahandle %p freed", pSendInfo);
+  }
+
   destroySendMsgInfo(pSendInfo);
 }
 
