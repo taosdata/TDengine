@@ -144,8 +144,9 @@ class MqttUtil:
         client.on_connect = self.on_connect
         client.on_subscribe = self.on_subscribe
         client.on_unsubscribe = self.on_unsubscribe
+
         res = [x[1] for x in conf['sub_prop'].UserProperty if x[0] == 'proto']
-        if len(res) > 0:
+        if len(res) > 0 and res[0] == 'rawblock':
             client.on_message = self.on_message_rawblock
         else:
             client.on_message = self.on_message
