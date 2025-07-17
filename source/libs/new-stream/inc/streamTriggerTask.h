@@ -260,6 +260,7 @@ typedef struct SStreamTriggerTask {
 
   // virtual table info
   SSDataBlock *pVirDataBlock;
+  int32_t      nVirDataCols;      // number of non-pseudo data columns in pVirDataBlock
   SArray      *pVirTrigSlots;     // SArray<int32_t>
   SArray      *pVirCalcSlots;     // SArray<int32_t>
   SArray      *pVirTableInfoRsp;  // SArray<VTableInfo>

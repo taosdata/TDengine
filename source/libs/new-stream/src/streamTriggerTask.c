@@ -401,7 +401,11 @@ static int32_t stTriggerTaskGenVirColRefs(SStreamTriggerTask *pTask, VTableInfo 
   int32_t nCols = taosArrayGetSize(pSlots);
 
   for (int32_t i = 0; i < nCols; i++) {
-    int32_t          slotId = *(int32_t *)TARRAY_GET_ELEM(pSlots, i);
+    int32_t slotId = *(int32_t *)TARRAY_GET_ELEM(pSlots, i);
+    if (slotId >= pTask->nVirDataCols) {
+      // ignore pseudo columns
+      continue;
+    }
     SColumnInfoData *pCol = TARRAY_GET_ELEM(pTask->pVirDataBlock->pDataBlock, slotId);
     col_id_t         colId = pCol->info.colId;
     SColRef         *pColRef = NULL;
@@ -636,11 +640,12 @@ _end:
 }
 
 static int32_t stTriggerTaskCollectVirCols(SStreamTriggerTask *pTask, void *plan, SArray **ppColids,
-                                           SNodeList **ppSlots) {
+                                           SArray **ppIsPseudoCol, SNodeList **ppSlots) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SNode  *pScanPlan = NULL;
   SArray *pColids = NULL;
+  SArray *pIsPseudoCol = NULL;
 
   *ppColids = NULL;
   *ppSlots = NULL;
@@ -658,27 +663,60 @@ static int32_t stTriggerTaskCollectVirCols(SStreamTriggerTask *pTask, void *plan
                         TSDB_CODE_INVALID_PARA);
   SNodeList *pSlots = pScanNode->scan.node.pOutputDataBlockDesc->pSlots;
   SNodeList *pScanCols = pScanNode->scan.pScanCols;
+  SNodeList *pScanPseudoCols = pScanNode->scan.pScanPseudoCols;
 
   int32_t nTrigCols = LIST_LENGTH(pSlots);
   pColids = taosArrayInit(nTrigCols, sizeof(col_id_t));
   QUERY_CHECK_NULL(pColids, code, lino, _end, terrno);
+  pIsPseudoCol = taosArrayInit(nTrigCols, sizeof(bool));
+  QUERY_CHECK_NULL(pIsPseudoCol, code, lino, _end, terrno);
   SNode *pColNode = NULL;
   SNode *pSlotNode = NULL;
   FOREACH(pSlotNode, pSlots) {
     SSlotDescNode *p1 = (SSlotDescNode *)pSlotNode;
+    bool           isPseudoCol = false;
+    col_id_t       colId = 0;
     FOREACH(pColNode, pScanCols) {
       STargetNode *pTarget = (STargetNode *)pColNode;
-      SColumnNode *p2 = (SColumnNode *)pTarget->pExpr;
-      if (nodeType(p2) == QUERY_NODE_COLUMN && pTarget->slotId == p1->slotId) {
-        void *px = taosArrayPush(pColids, &p2->colId);
-        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      if (pTarget->slotId != p1->slotId) {
+        continue;
+      }
+      QUERY_CHECK_CONDITION(nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN, code, lino, _end, TSDB_CODE_INVALID_PARA);
+      colId = ((SColumnNode *)pTarget->pExpr)->colId;
+      isPseudoCol = false;
+      break;
+    }
+    if (colId == 0) {
+      FOREACH(pColNode, pScanPseudoCols) {
+        STargetNode *pTarget = (STargetNode *)pColNode;
+        if (pTarget->slotId != p1->slotId) {
+          continue;
+        }
+        if (nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN) {
+          colId = ((SColumnNode *)pTarget->pExpr)->colId;
+        } else if (nodeType(pTarget->pExpr) == QUERY_NODE_FUNCTION) {
+          SFunctionNode *p2 = (SFunctionNode *)pTarget->pExpr;
+          QUERY_CHECK_CONDITION(strcmp(p2->functionName, "tbname") == 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
+          colId = -1;
+        } else {
+          code = TSDB_CODE_INVALID_PARA;
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        isPseudoCol = true;
         break;
       }
     }
+    QUERY_CHECK_CONDITION(colId != 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
+    void *px = taosArrayPush(pColids, &colId);
+    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    px = taosArrayPush(pIsPseudoCol, &isPseudoCol);
+    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
   }
 
   *ppColids = pColids;
   pColids = NULL;
+  *ppIsPseudoCol = pIsPseudoCol;
+  pIsPseudoCol = NULL;
   *ppSlots = pSlots;
   pScanNode->scan.node.pOutputDataBlockDesc->pSlots = NULL;
 
@@ -688,6 +726,9 @@ _end:
   }
   if (pColids != NULL) {
     taosArrayDestroy(pColids);
+  }
+  if (pIsPseudoCol != NULL) {
+    taosArrayDestroy(pIsPseudoCol);
   }
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -699,7 +740,9 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    lino = 0;
   SArray    *pTrigColids = NULL;
+  SArray    *pTrigIsPseudoCol = NULL;
   SArray    *pCalcColids = NULL;
+  SArray    *pCalcIsPseudoCol = NULL;
   SNodeList *pTrigSlots = NULL;
   SNodeList *pCalcSlots = NULL;
   SArray    *pVirColIds = NULL;
@@ -709,41 +752,79 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   int64_t    bufLen = 0;
   int64_t    bufCap = 1024;
 
-  code = stTriggerTaskCollectVirCols(pTask, triggerScanPlan, &pTrigColids, &pTrigSlots);
+  code = stTriggerTaskCollectVirCols(pTask, triggerScanPlan, &pTrigColids, &pTrigIsPseudoCol, &pTrigSlots);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = stTriggerTaskCollectVirCols(pTask, calcCacheScanPlan, &pCalcColids, &pCalcSlots);
+  code = stTriggerTaskCollectVirCols(pTask, calcCacheScanPlan, &pCalcColids, &pCalcIsPseudoCol, &pCalcSlots);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  // combine all column ids from trig-cols and calc-cols
   int32_t nTrigCols = taosArrayGetSize(pTrigColids);
   int32_t nCalcCols = taosArrayGetSize(pCalcColids);
   pVirColIds = taosArrayInit(nTrigCols + nCalcCols, sizeof(col_id_t));
   QUERY_CHECK_NULL(pVirColIds, code, lino, _end, terrno);
+
+  // combine non-pseudo column ids from trig-cols and calc-cols
   for (int32_t i = 0; i < nTrigCols; i++) {
+    if (*(bool *)TARRAY_GET_ELEM(pTrigIsPseudoCol, i)) {
+      continue;
+    }
     col_id_t id = *(col_id_t *)TARRAY_GET_ELEM(pTrigColids, i);
     void    *px = taosArrayPush(pVirColIds, &id);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
   }
   for (int32_t i = 0; i < nCalcCols; i++) {
+    if (*(bool *)TARRAY_GET_ELEM(pCalcIsPseudoCol, i)) {
+      continue;
+    }
     col_id_t id = *(col_id_t *)TARRAY_GET_ELEM(pCalcColids, i);
     void    *px = taosArrayPush(pVirColIds, &id);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
   }
-  QUERY_CHECK_CONDITION(TARRAY_SIZE(pVirColIds) > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
-
-  // sort and unique these column ids
-  taosArraySort(pVirColIds, compareInt16Val);
-  col_id_t *pColIds = pVirColIds->pData;
-  int32_t   j = 0;
-  for (int32_t i = 1; i < TARRAY_SIZE(pVirColIds); i++) {
-    if (pColIds[i] != pColIds[j]) {
-      ++j;
-      pColIds[j] = pColIds[i];
+  int32_t nDataCols = TARRAY_SIZE(pVirColIds);
+  if (nDataCols > 0) {
+    taosSort(TARRAY_DATA(pVirColIds), nDataCols, sizeof(col_id_t), compareUint16Val);
+    col_id_t *pColIds = pVirColIds->pData;
+    int32_t   j = 0;
+    for (int32_t i = 1; i < TARRAY_SIZE(pVirColIds); i++) {
+      if (pColIds[i] != pColIds[j]) {
+        ++j;
+        pColIds[j] = pColIds[i];
+      }
     }
+    TARRAY_SIZE(pVirColIds) = j + 1;
+    nDataCols = TARRAY_SIZE(pVirColIds);
   }
-  TARRAY_SIZE(pVirColIds) = j + 1;
-  QUERY_CHECK_CONDITION(*(col_id_t *)TARRAY_DATA(pVirColIds) == PRIMARYKEY_TIMESTAMP_COL_ID, code, lino, _end,
-                        TSDB_CODE_INVALID_PARA);
+
+  // combine pseudo column ids from trig-cols and calc-cols
+  for (int32_t i = 0; i < nTrigCols; i++) {
+    if (!*(bool *)TARRAY_GET_ELEM(pTrigIsPseudoCol, i)) {
+      continue;
+    }
+    col_id_t id = *(col_id_t *)TARRAY_GET_ELEM(pTrigColids, i);
+    void    *px = taosArrayPush(pVirColIds, &id);
+    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+  }
+  for (int32_t i = 0; i < nCalcCols; i++) {
+    if (!*(bool *)TARRAY_GET_ELEM(pCalcIsPseudoCol, i)) {
+      continue;
+    }
+    col_id_t id = *(col_id_t *)TARRAY_GET_ELEM(pCalcColids, i);
+    void    *px = taosArrayPush(pVirColIds, &id);
+    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+  }
+  int32_t nPseudoCols = TARRAY_SIZE(pVirColIds) - nDataCols;
+  if (nPseudoCols > 0) {
+    taosSort(TARRAY_DATA(pVirColIds) + nDataCols, nPseudoCols, sizeof(col_id_t), compareUint16Val);
+    col_id_t *pColIds = pVirColIds->pData;
+    int32_t   j = nDataCols;
+    for (int32_t i = nDataCols + 1; i < TARRAY_SIZE(pVirColIds); i++) {
+      if (pColIds[i] != pColIds[j]) {
+        ++j;
+        pColIds[j] = pColIds[i];
+      }
+    }
+    TARRAY_SIZE(pVirColIds) = j + 1;
+    nPseudoCols = TARRAY_SIZE(pVirColIds) - nDataCols;
+  }
 
   if (stDebugFlag & DEBUG_DEBUG) {
     infoBuf = taosMemoryMalloc(bufCap);
@@ -782,6 +863,7 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
       bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", id);
     }
   }
+  pTask->nVirDataCols = nDataCols;
 
   if (infoBuf && bufLen < bufCap) {
     infoBuf[bufLen - 1] = '}';
@@ -793,7 +875,13 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   QUERY_CHECK_NULL(pTrigSlotids, code, lino, _end, terrno);
   for (int32_t i = 0; i < nTrigCols; i++) {
     col_id_t id = *(col_id_t *)TARRAY_GET_ELEM(pTrigColids, i);
-    int32_t  slotid = taosArraySearchIdx(pVirColIds, &id, compareInt16Val, TD_EQ);
+    int32_t slotid = -1;
+    for (int32_t j = 0; j < nTotalCols; j++) {
+      if (id == *(col_id_t *)TARRAY_GET_ELEM(pVirColIds, j)) {
+        slotid = j;
+        break;
+      }
+    }
     QUERY_CHECK_CONDITION(slotid >= 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     void *px = taosArrayPush(pTrigSlotids, &slotid);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
@@ -811,7 +899,13 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   QUERY_CHECK_NULL(pCalcSlotids, code, lino, _end, terrno);
   for (int32_t i = 0; i < nCalcCols; i++) {
     col_id_t id = *(col_id_t *)TARRAY_GET_ELEM(pCalcColids, i);
-    int32_t  slotid = taosArraySearchIdx(pVirColIds, &id, compareInt16Val, TD_EQ);
+    int32_t slotid = -1;
+    for (int32_t j = 0; j < nTotalCols; j++) {
+      if (id == *(col_id_t *)TARRAY_GET_ELEM(pVirColIds, j)) {
+        slotid = j;
+        break;
+      }
+    }
     QUERY_CHECK_CONDITION(slotid >= 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     void *px = taosArrayPush(pCalcSlotids, &slotid);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
@@ -857,8 +951,14 @@ _end:
   if (pTrigColids != NULL) {
     taosArrayDestroy(pTrigColids);
   }
+  if (pTrigIsPseudoCol != NULL) {
+    taosArrayDestroy(pTrigIsPseudoCol);
+  }
   if (pCalcColids != NULL) {
     taosArrayDestroy(pCalcColids);
+  }
+  if (pCalcIsPseudoCol != NULL) {
+    taosArrayDestroy(pCalcIsPseudoCol);
   }
   if (pTrigSlots != NULL) {
     nodesDestroyList(pTrigSlots);
@@ -1655,7 +1755,7 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
     QUERY_CHECK_CODE(code, lino, _end);
     pContext->pMerger = taosMemoryCalloc(1, sizeof(SSTriggerVtableMerger));
     QUERY_CHECK_NULL(pContext->pMerger, code, lino, _end, terrno);
-    code = stVtableMergerInit(pContext->pMerger, pTask, &pVirDataBlock, &pVirDataFilter);
+    code = stVtableMergerInit(pContext->pMerger, pTask, &pVirDataBlock, &pVirDataFilter, pTask->nVirDataCols);
     QUERY_CHECK_CODE(code, lino, _end);
   }
   if (pTask->triggerType == STREAM_TRIGGER_SLIDING || pTask->triggerType == STREAM_TRIGGER_SESSION) {
@@ -1853,13 +1953,34 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerVirTableInfoRequest *pReq = &pProgress->pullReq.virTableInfoReq;
-      int32_t                       nCols = taosArrayGetSize(pTask->pVirDataBlock->pDataBlock);
+      int32_t                       nCols = pTask->nVirDataCols;
       pReq->cids = pProgress->reqCids;
       taosArrayEnsureCap(pReq->cids, nCols);
       TARRAY_SIZE(pReq->cids) = nCols;
       for (int32_t i = 0; i < nCols; i++) {
         SColumnInfoData *pCol = TARRAY_GET_ELEM(pTask->pVirDataBlock->pDataBlock, i);
         *(col_id_t *)TARRAY_GET_ELEM(pReq->cids, i) = pCol->info.colId;
+      }
+      break;
+    }
+
+    case STRIGGER_PULL_VTABLE_PSEUDO_COL: {
+      SSTriggerRealtimeGroup *pGroup = stRealtimeContextGetCurrentGroup(pContext);
+      QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
+      QUERY_CHECK_CONDITION(pTask->isVirtualTable, code, lino, _end, TSDB_CODE_INVALID_PARA);
+      SSTriggerVirTableInfo *pTable = taosArrayGetP(pGroup->pVirTableInfos, 0);
+      QUERY_CHECK_NULL(pTable, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pTable->vgId, sizeof(int32_t));
+      QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      SSTriggerVirTablePseudoColRequest *pReq = &pProgress->pullReq.virTablePseudoColReq;
+      pReq->uid = pTable->tbUid;
+      pReq->cids = pProgress->reqCids;
+      taosArrayClear(pReq->cids);
+      int32_t nCol = taosArrayGetSize(pTask->pVirDataBlock->pDataBlock);
+      for (int32_t i = pTask->nVirDataCols; i < nCol; i++) {
+        SColumnInfoData *pCol = TARRAY_GET_ELEM(pTask->pVirDataBlock->pDataBlock, i);
+        void            *px = taosArrayPush(pReq->cids, &pCol->info.colId);
+        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       }
       break;
     }
@@ -2048,8 +2169,12 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
       }
 
       if (needFetchData) {
-        if (pContext->pColRefToFetch != NULL) {
+        if (pContext->pColRefToFetch != NULL && pContext->pMetaToFetch != NULL) {
           code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_DATA);
+          QUERY_CHECK_CODE(code, lino, _end);
+          goto _end;
+        } else if (pContext->pColRefToFetch != NULL && pContext->pMetaToFetch == NULL) {
+          code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_VTABLE_PSEUDO_COL);
           QUERY_CHECK_CODE(code, lino, _end);
           goto _end;
         } else {
@@ -2258,8 +2383,12 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         code = stRealtimeGroupCheck(pGroup);
         QUERY_CHECK_CODE(code, lino, _end);
         pContext->reenterCheck = true;
-        if (pContext->pColRefToFetch != NULL) {
+        if (pContext->pColRefToFetch != NULL && pContext->pMetaToFetch != NULL) {
           code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_DATA);
+          QUERY_CHECK_CODE(code, lino, _end);
+          goto _end;
+        } else if (pContext->pColRefToFetch != NULL && pContext->pMetaToFetch == NULL) {
+          code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_VTABLE_PSEUDO_COL);
           QUERY_CHECK_CODE(code, lino, _end);
           goto _end;
         } else if (pContext->pMetaToFetch != NULL) {
@@ -2910,6 +3039,26 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       break;
     }
 
+    case STRIGGER_PULL_VTABLE_PSEUDO_COL: {
+      QUERY_CHECK_CONDITION(
+          pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ || pContext->status == STRIGGER_CONTEXT_CHECK_CONDITION,
+          code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+      QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
+      QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
+      const char *pCont = pRsp->pCont;
+      code = blockDecode(pDataBlock, pCont, &pCont);
+      QUERY_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CONDITION(pCont == (char *)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      QUERY_CHECK_NULL(pContext->pColRefToFetch, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      code = stVtableMergerSetPseudoCols(pContext->pMerger, &pDataBlock);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pContext->pColRefToFetch = NULL;
+      code = stRealtimeContextCheck(pContext);
+      QUERY_CHECK_CODE(code, lino, _end);
+      break;
+    }
+
     case STRIGGER_PULL_VTABLE_INFO: {
       QUERY_CHECK_CONDITION(pContext->status == STRIGGER_CONTEXT_GATHER_VTABLE_INFO, code, lino, _end,
                             TSDB_CODE_INTERNAL_ERROR);
@@ -3236,7 +3385,7 @@ static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTr
     QUERY_CHECK_CODE(code, lino, _end);
     pContext->pMerger = taosMemoryCalloc(1, sizeof(SSTriggerVtableMerger));
     QUERY_CHECK_NULL(pContext->pMerger, code, lino, _end, terrno);
-    code = stVtableMergerInit(pContext->pMerger, pTask, &pVirDataBlock, &pVirDataFilter);
+    code = stVtableMergerInit(pContext->pMerger, pTask, &pVirDataBlock, &pVirDataFilter, pTask->nVirDataCols);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
