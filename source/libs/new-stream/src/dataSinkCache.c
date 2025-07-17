@@ -357,7 +357,7 @@ int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlo
   SSlidingWindowInMem* pSlidingWinInMem = (SSlidingWindowInMem*)(getNextBuffStart(pAlignBlockInfo));
   pSlidingWinInMem->endTime = wend;
   pSlidingWinInMem->startTime = wstart;
-  pSlidingWinInMem->dataLen = dataEncodeBufSize;
+  pSlidingWinInMem->dataLen = buffSize;
 
   char*   pStart = getWindowDataBuf(pSlidingWinInMem);
   int32_t len = 0;
