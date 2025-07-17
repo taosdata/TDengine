@@ -7284,3 +7284,4 @@ taos> select nchar_32_col from test_vtable_select.vtb_virtual_stb where tbname =
  山景城 - Mountain View         |
  洛杉矶 - Los Angles            |
  圣克拉拉 - Santa Clara         |
+

@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
 
-import time
-from util.log import *
-from util.cases import *
-from util.sql import *
-from util.common import *
-from util.sqlset import *
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
+from new_test_framework.utils.sqlset import TDSetSql
+import os
+import shutil
 
-class TDTestCase:
+class TestCase:
     """ Test case for mount data path function.
 
     1. Prepare mount path with data.
@@ -54,11 +52,9 @@ class TDTestCase:
         'clientCfg'        : clientCfgDict
     }
 
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
+    def setup_cls(cls):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
-        self.setsql = TDSetSql()
+        cls.setsql = TDSetSql()
 
     def s0_prepare_mount_path(self):
         tdSql.execute("drop database if exists db0")
@@ -335,7 +331,27 @@ class TDTestCase:
         tdDnodes.start(1)
         self.s3_create_drop_show_mount()
 
-    def run(self):
+    def test_mount(self):
+        """ Test case for mount data path function.
+
+        1. Prepare mount path with data.
+        2. Prepare host cluster.
+        3. Check mount error cases.
+        4. Create, drop, and show mount.
+        5. Check mount SDB object conflicts.
+
+        Catalog:
+            - xxx:xxx
+
+        Since: v3.3.7.0
+
+        Lables: common,ci,mount
+
+        Jira: TS-5868
+
+        History:
+            - 2025-07-08: Initial version from Kaili Xu.
+        """
         self.s0_prepare_mount_path()
         self.s1_prepare_host_cluster()
         self.s2_check_mount_error()
@@ -344,9 +360,5 @@ class TDTestCase:
         self.s5_check_remount()
         self.s4_recheck_mount_path() # recheck
 
-    def stop(self):
-        tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
