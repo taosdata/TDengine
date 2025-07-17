@@ -872,9 +872,17 @@ bool searchBArray(BArray *pArray, const char *field_name, int32_t name_len, uint
     if (pArray == NULL || field_name == NULL) {
         return false;
     }
+
     for (int i = 0; i < pArray->size; i++) {
         Field *field = benchArrayGet(pArray, i);
-        if (strlen(field->name) == name_len && strncasecmp(field->name, field_name, name_len) == 0) {
+        char * field_name_ptr = field->name;
+        int32_t field_name_len = strlen(field_name_ptr);
+        if (field_name_ptr[0] == '`' && field_name_ptr[field_name_len - 1] == '`') {
+            // remove the back quote
+            field_name_ptr++;
+            field_name_len -= 2;
+        }
+        if (field_name_len == name_len && strncasecmp(field_name_ptr, field_name, name_len) == 0) {
             if (field->type == field_type) {
                 return true;
             }
@@ -1054,13 +1062,13 @@ char* genQMark( int32_t QCnt) {
 }
 
 // get colNames , first is tbname if tbName is true
-char *genColNames(BArray *cols, bool tbName) {
+char *genColNames(BArray *cols, bool tbName, char * primaryKeyName) {
     // reserve tbname,ts and "," space
     char * buf = benchCalloc(TSDB_TABLE_NAME_LEN + 1, cols->size + 1, false);
     if (tbName) {
-        strcpy(buf, "tbname,ts");
+        snprintf(buf, TSDB_TABLE_NAME_LEN, "tbname,%s", primaryKeyName);
     } else {
-        strcpy(buf, "ts");
+        strcpy(buf, primaryKeyName);
     }
    
     for (int32_t i = 0; i < cols->size; i++) {
