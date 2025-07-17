@@ -235,7 +235,7 @@ class TestStreamRecalcExpiredTime:
 
         exp_sql = "select count(*),avg(cint) from qdb.meters where cts >= '2025-01-01 02:00:00.000' and cts < '2025-01-01 02:01:00.000';"
         res_sql = "select cnt, avg_val from rdb.r_session_expired;"
-        self.streams[0].checkResultsBySql(res_sql, exp_sql)
+        tdSql.checkResultsBySql(res_sql, exp_sql)
 
         # trigger data for session stream
         trigger_sqls = [
@@ -248,4 +248,4 @@ class TestStreamRecalcExpiredTime:
         # check results
         exp_sql = "select count(*),avg(cint) from qdb.meters where cts >= '2025-01-01 01:30:00.000' and cts < '2025-01-01 01:30:30.000';"
         res_sql = "select cnt, avg_val from rdb.r_session_expired where ts = '2025-01-01 01:30:00.000';"
-        self.streams[0].checkResultsBySql(res_sql, exp_sql)
+        tdSql.checkResultsBySql(res_sql, exp_sql)
