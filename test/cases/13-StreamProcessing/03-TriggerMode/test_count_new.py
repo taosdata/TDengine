@@ -2441,7 +2441,7 @@ class TestStreamCountTrigger:
 
             tdSql.execute(
                 f"create stream s10_0 count_window(4,cint) "
-                f"from ct1 stream_options(EVENT_TYPE(WINDOW_CLOSE)|MAX_DELAY(1s)) "
+                f"from ct1 stream_options(EVENT_TYPE(WINDOW_CLOSE)|max_delay(3s)) "
                 f"into res_ct1 (firstts, lastts, exects, cnt_v, sum_v, avg_v) as "
                 f"select first(_c0), last_row(_c0), cast(_tlocaltime/1000000 as timestamp) exec_ts, count(cint), sum(cint), avg(cint) from %%trows;"
             )

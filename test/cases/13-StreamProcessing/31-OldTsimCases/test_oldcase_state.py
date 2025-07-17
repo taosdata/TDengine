@@ -53,7 +53,7 @@ class TestStreamOldCaseState:
                 f"create table t1(ts timestamp, a int, b int, c int, d double, e int);"
             )
 
-            sql = "create stream streams1 state_window(a) from t1 stream_options(max_delay(1s)) into streamt1 as select _twstart, _twend, _twrownum, count(*) c1, count(d) c2, sum(a) c3, max(a) c4, min(c) c5, max(e) c6 from t1 where ts >= _twstart and ts <= _twend;"
+            sql = "create stream streams1 state_window(a) from t1 stream_options(max_delay(3s)) into streamt1 as select _twstart, _twend, _twrownum, count(*) c1, count(d) c2, sum(a) c3, max(a) c4, min(c) c5, max(e) c6 from t1 where ts >= _twstart and ts <= _twend;"
             tdSql.execute(sql)
 
         def insert1(self):
