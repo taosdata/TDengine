@@ -1876,6 +1876,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
   code = tmsgSendReq(&pReader->epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
 
+  ST_TASK_DLOG("send pull request of type %d to node:%d task:%" PRIx64, pReq->type, pReader->nodeId, pReader->taskId);
   ST_TASK_DLOG("trigger pull req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
 
 _end:
@@ -2036,7 +2037,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) 
   code = tmsgSendReq(&pCalcRunner->addr.epset, &msg);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  ST_TASK_DLOG("calc request is sent to node:%d task:%" PRIx64, pCalcRunner->addr.nodeId, pCalcRunner->addr.taskId);
+  ST_TASK_DLOG("send calc request to node:%d task:%" PRIx64, pCalcRunner->addr.nodeId, pCalcRunner->addr.taskId);
   ST_TASK_DLOG("trigger calc req 0x%" PRIx64 ":0x%" PRIx64 " sent", msg.info.traceId.rootId, msg.info.traceId.msgId);
 
   pContext->pCalcReq = NULL;
@@ -2503,6 +2504,9 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
   SMsgSendInfo         *ahandle = pRsp->info.ahandle;
   SSTriggerAHandle     *pAhandle = ahandle->param;
   SSTriggerPullRequest *pReq = pAhandle->param;
+
+  ST_TASK_DLOG("receive pull response of type %d from task:%"PRIx64, pReq->type, pReq->readerTaskId);
+
   switch (pReq->type) {
     case STRIGGER_PULL_LAST_TS: {
       QUERY_CHECK_CONDITION(pContext->status == STRIGGER_CONTEXT_DETERMINE_BOUND, code, lino, _end,
@@ -3067,6 +3071,8 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
   SMsgSendInfo     *ahandle = pRsp->info.ahandle;
   SSTriggerAHandle *pAhandle = ahandle->param;
   pReq = pAhandle->param;
+
+  ST_TASK_DLOG("receive calc response from task:%" PRIx64, pReq->runnerTaskId);
 
   code = stTriggerTaskReleaseRequest(pTask, &pReq);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -5351,7 +5357,7 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
       char   *newVal = colDataGetData(pStateCol, startIdx);
       int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
       if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
-        code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCol->info.type, NULL, newVal,
+        code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, NULL, newVal,
                                              &pExtraNotifyContent);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -5368,14 +5374,14 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
         TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
       } else {
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
-          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, pStateCol->info.type, pStateData, newVal,
+          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, pStateData, newVal,
                                                &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         code = stRealtimeGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
         QUERY_CHECK_CODE(code, lino, _end);
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
-          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCol->info.type, pStateData, newVal,
+          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, pStateData, newVal,
                                                &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
@@ -6619,7 +6625,7 @@ static int32_t stHitoryGrupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
       char   *newVal = colDataGetData(pStateCol, startIdx);
       int32_t bytes = isVarType ? varDataTLen(newVal) : pStateCol->info.bytes;
       if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
-        code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCol->info.type, NULL, newVal,
+        code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, NULL, newVal,
                                              &pExtraNotifyContent);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -6636,14 +6642,14 @@ static int32_t stHitoryGrupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
         TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
       } else {
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
-          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, pStateCol->info.type, pStateData, newVal,
+          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_CLOSE, &pStateCol->info, pStateData, newVal,
                                                &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false);
         QUERY_CHECK_CODE(code, lino, _end);
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
-          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, pStateCol->info.type, pStateData, newVal,
+          code = streamBuildStateNotifyContent(STRIGGER_EVENT_WINDOW_OPEN, &pStateCol->info, pStateData, newVal,
                                                &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }

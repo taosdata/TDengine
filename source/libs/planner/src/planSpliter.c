@@ -315,7 +315,7 @@ static bool stbSplNeedSplitWindow(SLogicNode* pNode) {
   }
 
   if (WINDOW_TYPE_EXTERNAL == pWindow->winType) {
-    return stbSplHasMultiTbScan(pNode);
+    return !stbSplHasGatherExecFunc(pWindow->pFuncs) && stbSplHasMultiTbScan(pNode);
   }
 
   if (WINDOW_TYPE_SESSION == pWindow->winType) {
