@@ -810,7 +810,7 @@ typedef struct SSTriggerVirTableInfoRequest {
 typedef struct SSTriggerVirTablePseudoColRequest {
   SSTriggerPullRequest base;
   int64_t              uid;
-  SArray*              cids;  // SArray<int16_t>, -1 means tbname
+  SArray*              cids;  // SArray<col_id_t>, -1 means tbname
 } SSTriggerVirTablePseudoColRequest;
 
 typedef struct OTableInfo {
