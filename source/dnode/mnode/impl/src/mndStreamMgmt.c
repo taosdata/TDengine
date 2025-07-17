@@ -365,6 +365,10 @@ static int32_t msmTDAddToVgroupMap(SHashObj* pVgMap, SStmTaskDeploy* pDeploy, in
     }
 
     taosWLockLatch(&pVg->lock);
+    if (NULL == pVg->taskList) {
+      pVg->taskList = taosArrayInit(20, sizeof(SStmTaskToDeployExt));
+      TSDB_CHECK_NULL(pVg->taskList, code, lino, _return, terrno);
+    }
     if (NULL == taosArrayPush(pVg->taskList, &ext)) {
       taosWUnLockLatch(&pVg->lock);
       TSDB_CHECK_NULL(NULL, code, lino, _return, terrno);
@@ -1228,6 +1232,7 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
   SSdb   *pSdb = pCtx->pMnode->pSdb;
   SStmTaskStatus* pState = NULL;
   SVgObj *pVgroup = NULL;
+  SDbObj* pDb = NULL;
   
   switch (pStream->pCreate->triggerTblType) {
     case TSDB_NORMAL_TABLE:
@@ -1242,7 +1247,7 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
       break;
     }
     case TSDB_SUPER_TABLE: {
-      SDbObj* pDb = mndAcquireDb(pCtx->pMnode, pStream->pCreate->triggerDB);
+      pDb = mndAcquireDb(pCtx->pMnode, pStream->pCreate->triggerDB);
       if (NULL == pDb) {
         code = terrno;
         mstsError("failed to acquire db %s, error:%s", pStream->pCreate->triggerDB, terrstr());
@@ -1282,6 +1287,8 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
   }
 
 _exit:
+
+  mndReleaseDb(pCtx->pMnode, pDb);
 
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -1963,6 +1970,7 @@ static int32_t msmInitTrigReaderList(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStrea
   int64_t streamId = pStream->pCreate->streamId;
   SSdb   *pSdb = pCtx->pMnode->pSdb;
   SStmTaskStatus* pState = NULL;
+  SDbObj* pDb = NULL;
   
   switch (pStream->pCreate->triggerTblType) {
     case TSDB_NORMAL_TABLE:
@@ -1975,7 +1983,7 @@ static int32_t msmInitTrigReaderList(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStrea
       break;
     }
     case TSDB_SUPER_TABLE: {
-      SDbObj* pDb = mndAcquireDb(pCtx->pMnode, pStream->pCreate->triggerDB);
+      pDb = mndAcquireDb(pCtx->pMnode, pStream->pCreate->triggerDB);
       if (NULL == pDb) {
         code = terrno;
         mstsError("failed to acquire db %s, error:%s", pStream->pCreate->triggerDB, terrstr());
@@ -1985,6 +1993,8 @@ static int32_t msmInitTrigReaderList(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStrea
       pInfo->trigReaders = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SStmTaskStatus));
       TSDB_CHECK_NULL(pInfo->trigReaders, code, lino, _exit, terrno);
       pInfo->trigReaderNum = pDb->cfg.numOfVgroups;
+      mndReleaseDb(pCtx->pMnode, pDb);
+      pDb = NULL;
       break;
     }
     default:
@@ -1996,6 +2006,7 @@ static int32_t msmInitTrigReaderList(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStrea
 _exit:
 
   if (code) {
+    mndReleaseDb(pCtx->pMnode, pDb);
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
