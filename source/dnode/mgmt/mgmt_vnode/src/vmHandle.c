@@ -879,6 +879,7 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
               .req.tagVer = mr.me.stbEntry.schemaTag.version,
               .req.numOfColumns = mr.me.stbEntry.schemaRow.nCols,
               .req.numOfTags = mr.me.stbEntry.schemaTag.nCols,
+              .req.virtualStb = TABLE_IS_VIRTUAL(mr.me.flags) ? 1 : 0,
           };
           snprintf(stbInfo.req.name, sizeof(stbInfo.req.name), "%s", mr.me.name);
           if (!pCols && !(pCols = taosArrayInit(stbInfo.req.numOfColumns, sizeof(SFieldWithOptions)))) {
