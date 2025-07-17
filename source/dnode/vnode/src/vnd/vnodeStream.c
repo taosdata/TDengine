@@ -1898,7 +1898,8 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo = taosArrayGetP(calcInfoList, req.execId);
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo, terrno);
   void* pTask = sStreamReaderCalcInfo->pTask;
-  ST_TASK_DLOG("vgId:%d %s start", TD_VID(pVnode), __func__);
+  ST_TASK_DLOG("vgId:%d %s start, execId:%d, reset:%d, pTaskInfo:%p", TD_VID(pVnode), __func__, req.execId, req.reset,
+               sStreamReaderCalcInfo->pTaskInfo);
 
   if (req.reset || sStreamReaderCalcInfo->pTaskInfo == NULL) {
     qDestroyTask(sStreamReaderCalcInfo->pTaskInfo);
@@ -1943,7 +1944,9 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
 
   while (1) {
     uint64_t ts = 0;
-    qUpdateOperatorParam(sStreamReaderCalcInfo->pTaskInfo, req.pOpParam);
+    if (req.pOpParam != NULL) {
+      qUpdateOperatorParam(sStreamReaderCalcInfo->pTaskInfo, req.pOpParam);
+    }
     STREAM_CHECK_RET_GOTO(qExecTask(sStreamReaderCalcInfo->pTaskInfo, &pBlock, &ts));
     printDataBlock(pBlock, __func__, "fetch");
 

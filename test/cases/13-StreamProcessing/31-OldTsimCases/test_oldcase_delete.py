@@ -52,7 +52,7 @@ class TestStreamOldCaseDelete:
 
         tdSql.execute(f"create table t1(ts timestamp, a int, b int, c int, d double);")
         tdSql.execute(
-            f"create stream streams0 interval(10s) sliding(10s) from t1 stream_options(max_delay(1s) | delete_recalc) into streamt as select _twstart c1, count(*) c2, max(a) c3 from %%trows;"
+            f"create stream streams0 interval(10s) sliding(10s) from t1 stream_options(max_delay(3s) | delete_recalc) into streamt as select _twstart c1, count(*) c2, max(a) c3 from %%trows;"
         )
 
         tdStream.checkStreamStatus()

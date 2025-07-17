@@ -3928,6 +3928,54 @@ void tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq) {
   }
 }
 
+int32_t tSerializeSTriggerCtrlRequest(void* buf, int32_t bufLen, const SSTriggerCtrlRequest* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t  tlen = 0;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->type));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->streamId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->taskId));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->sessionId));
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSTriggerCtrlRequest(void* buf, int32_t bufLen, SSTriggerCtrlRequest* pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+
+  int32_t type = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &type));
+  pReq->type = type;
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->streamId));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->taskId));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->sessionId));
+
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo) {
   int32_t code = 0, lino = 0;
   TAOS_CHECK_EXIT(tSerializeSTriggerCalcParam(pEncoder, pInfo->pStreamPesudoFuncVals, true));

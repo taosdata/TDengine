@@ -48,7 +48,7 @@ class TestStreamOldCaseBasic2:
         tdSql.execute(f"create table t2 using st tags(2, 2, 2);")
 
         tdSql.execute(
-            f"create stream streams1 interval(10s) sliding (5s) from t1 stream_options(MAX_DELAY(1s)) into streamt as select _twstart, _twend, first(ts), last(ts), count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
+            f"create stream streams1 interval(10s) sliding (5s) from t1 stream_options(max_delay(3s)) into streamt as select _twstart, _twend, first(ts), last(ts), count(*) c1, sum(a) c3, max(b) c4, min(c) c5 from t1 where ts >= _twstart and ts < _twend;"
         )
 
         tdStream.checkStreamStatus()
