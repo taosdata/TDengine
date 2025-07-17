@@ -362,6 +362,7 @@ class TestStreamRecalcWatermark:
             )
         tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:13:02', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
         tdSql.execute("insert into tdb.ws1 values ('2025-01-01 02:14:30', 10, 'normal');")
+        tdSql.execute("insert into tdb.ws1 values ('2025-01-01 02:16:00', 10, 'normal');")
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_session_watermark",
                 func=lambda: (
@@ -370,8 +371,8 @@ class TestStreamRecalcWatermark:
                     and tdSql.compareData(0, 1, 301)
                     and tdSql.compareData(0, 2, 260.166112956811)
                     and tdSql.compareData(1, 0, "2025-01-01 02:11:50")
-                    and tdSql.compareData(1, 1, 100)
-                    and tdSql.compareData(1, 2, 264)
+                    and tdSql.compareData(1, 1, 200)
+                    and tdSql.compareData(1, 2, 264.5)
 
                 )
             )
@@ -437,20 +438,20 @@ class TestStreamRecalcWatermark:
                     and tdSql.compareData(0, 2, 299.054726368159)
                 )
             )
-        # TODO(beryl): blocked 
-        # tdSql.execute("insert into tdb.we1 values ('2025-01-01 02:35:00', 10, 1);")
-        # tdSql.checkResultsByFunc(
-        #         sql=f"select ts, cnt, avg_val from rdb.r_event_watermark",
-        #         func=lambda: (
-        #             tdSql.getRows() == 2
-        #             and tdSql.compareData(0, 0, "2025-01-01 02:30:00.000")
-        #             and tdSql.compareData(0, 1, 201)
-        #             and tdSql.compareData(0, 2, 299.054726368159)
-        #             and tdSql.compareData(1, 0, "2025-01-01 02:31:30.000")
-        #             and tdSql.compareData(1, 1, 200)
-        #             and tdSql.compareData(1, 2, 303.5)
-        #         )
-        #     )
+
+        tdSql.execute("insert into tdb.we1 values ('2025-01-01 02:35:00', 10, 1);")
+        tdSql.checkResultsByFunc(
+                sql=f"select ts, cnt, avg_val from rdb.r_event_watermark",
+                func=lambda: (
+                    tdSql.getRows() == 2
+                    and tdSql.compareData(0, 0, "2025-01-01 02:30:00.000")
+                    and tdSql.compareData(0, 1, 201)
+                    and tdSql.compareData(0, 2, 299.054726368159)
+                    and tdSql.compareData(1, 0, "2025-01-01 02:31:30.000")
+                    and tdSql.compareData(1, 1, 200)
+                    and tdSql.compareData(1, 2, 303.5)
+                )
+            )
 
         # With WATERMARK, the event window stream should process out-of-order data within tolerance
         tdLog.info("EVENT_WINDOW with WATERMARK successfully handled out-of-order data")
