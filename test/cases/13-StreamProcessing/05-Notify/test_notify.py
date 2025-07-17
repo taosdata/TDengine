@@ -37,8 +37,8 @@ class TestStreamNotifyTrigger:
         # streams.append(self.Basic3())    # failed
         # streams.append(self.Basic4())    # OK
         # streams.append(self.Basic5())    # OK
-        # streams.append(self.Basic6())    # failed
-        streams.append(self.Basic7())      # OK
+        streams.append(self.Basic6())    # failed
+        # streams.append(self.Basic7())      # OK
 
         tdStream.checkAll(streams)
 
@@ -850,14 +850,14 @@ class TestStreamNotifyTrigger:
                 f"where _c0>= _twstart and _c0 <= _twend "
             )
 
-            # tdSql.execute(
-            #     f"create stream s5 period(20a) from stb partition by tbname, tag1 "
-            #     f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
-            #     f"into "
-            #     f"res_ct0_period_stb (ts, xint, xbool, xfloat, xdouble, xbytes, xdecimal) as "
-            #     f"select ts, cint, cbool, cfloat, cdouble, cbytes, cdecimal from stb "
-            #     f"partition by tbname, tag2, tag1 "
-            # )
+            tdSql.execute(
+                f"create stream s5 period(20a) from stb partition by tbname, tag1 "
+                f"notify('ws://localhost:12345/notify') on(window_open|window_close) notify_options(notify_history) "
+                f"into "
+                f"res_ct0_period_stb (ts, xint, xbool, xfloat, xdouble, xbytes, xdecimal) as "
+                f"select ts, cint, cbool, cfloat, cdouble, cbytes, cdecimal from stb "
+                f"partition by tbname, tag2, tag1 "
+            )
 
         def insert1(self):
             tdLog.info(f"=============== insert data into stb")
