@@ -703,10 +703,8 @@ class Test_IDMP_Meters:
         # ***** bug4 ****
         #self.verify_stream4_sub9()
 
-
         # verify virtual table ts null
-        # ***** bug3 ****
-        #self.check_vt_ts()
+        self.check_vt_ts()
 
     def getSlidingWindow(self, start, step, cnt):
         wins = []
@@ -986,8 +984,8 @@ class Test_IDMP_Meters:
         # vt_em-4
         tdSql.checkResultsByFunc (
             sql  = "SELECT *  FROM tdasset.`vt_em-4` WHERE `电流` is null;",
-            func = lambda: tdSql.getRows() == 239 
-            and tdSql.compareData(0, 0, self.start2) 
-            and tdSql.compareData(0, 1, 400)
-            and tdSql.compareData(0, 2, 200)
-        )        
+            func = lambda: tdSql.getRows() == 120 
+            and tdSql.compareData(0, 0, 1752574200000) 
+            and tdSql.compareData(0, 2, 400)
+            and tdSql.compareData(0, 3, 200)
+        )
