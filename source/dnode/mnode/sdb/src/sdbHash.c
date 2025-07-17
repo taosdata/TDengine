@@ -382,7 +382,7 @@ void sdbReleaseLock(SSdb *pSdb, void *pObj, bool lock) {
   if (ref <= 0 && pRow->status == SDB_STATUS_DROPPED) {
     if(pRow->type == SDB_CONSUMER) {
       //SMqConsumerObj* consume = (SMqConsumerObj*)pObj;
-      mError("delete consumer vgId:1, deleteFp:%p, type:%s, row:%p, consumer:%p", deleteFp, sdbTableName(pRow->type), pRow,pObj);
+      mError("delete consumer type:%s, row:%p, consumer:%p",sdbTableName(pRow->type), pRow,pObj);
     }
     sdbFreeRow(pSdb, pRow, true);
   }
