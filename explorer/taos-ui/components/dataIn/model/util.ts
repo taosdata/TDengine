@@ -32,6 +32,10 @@ export function getSourceConfig(isEn: boolean) {
     if (!modulesFiles[path].default.id) {
       continue;
     }
+    if (modulesFiles[path].default.id == 'sparkplugb') {
+      // FIXME(@huolinhe): sparkplugb support starts from 3.3.7.0
+      continue;
+    }
     definitionsList.push({
       id: modulesFiles[path].default.id,
       name: modulesFiles[path].default.name
