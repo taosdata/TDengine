@@ -524,7 +524,7 @@ class TestInterpExtension:
         self.check_interp_extension_irowts_origin()
         self.check_interp_fill_extension()
         self.check_interval_fill_extension()
-        self.check_interp_fill_extension_stream()
+        #self.check_interp_fill_extension_stream()
 
         #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")

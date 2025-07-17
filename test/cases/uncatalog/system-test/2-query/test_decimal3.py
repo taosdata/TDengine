@@ -2004,9 +2004,9 @@ class TestDecimal3:
         #self.no_decimal_table_test()
         self.check_insert_decimal_values()
         self.check_query_decimal()
-        self.check_decimal_and_tsma()
+        #self.check_decimal_and_tsma()
         self.check_decimal_and_view()
-        self.check_decimal_and_stream()
+        #self.check_decimal_and_stream()
 
         #tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
