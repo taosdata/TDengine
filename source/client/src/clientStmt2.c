@@ -799,8 +799,8 @@ static int32_t stmtAsyncOutput(STscStmt2* pStmt, void* param) {
     atomic_store_8((int8_t*)&pStmt->sql.siInfo.tableColsReady, true);
     STMT2_TLOG_E("restore pTableCols finished");
   } else {
-    int code = qAppendStmtTableOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, &pParam->tblData, pStmt->exec.pCurrBlock,
-                                      &pStmt->sql.siInfo, pParam->pCreateTbReq);
+    int code = qAppendStmt2TableOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, &pParam->tblData, pStmt->exec.pCurrBlock,
+                                       &pStmt->sql.siInfo, pParam->pCreateTbReq);
     // taosMemoryFree(pParam->pTbData);
     (void)atomic_sub_fetch_64(&pStmt->sql.siInfo.tbRemainNum, 1);
     if (code != TSDB_CODE_SUCCESS) {
