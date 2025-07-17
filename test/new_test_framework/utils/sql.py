@@ -2648,6 +2648,17 @@ class TDSql:
 
         return ts
 
+    
+    # insert now
+    def insertNow(self, table, sleepS, count, cols, fixedVals):
+        # loop count
+        for i in range(count):
+            sql = f"INSERT INTO {table}({cols}) VALUES(now,{fixedVals})"
+            self.execute(sql, show=True)
+            # next
+            time.sleep(sleepS)
+
+
     # insert table with order values, only support number cols, return next write ts
     def insertOrderVal(self, table, startTs, step, count, cols, orderVals, colStep = 1):
         # init
