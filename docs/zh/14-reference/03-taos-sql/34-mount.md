@@ -16,11 +16,13 @@ CREATE MOUNT mountName ON DNODE dnodeId FROM TDenginePath
 ```
 
 说明
+
 - mountName：挂载名称，不能包含下划线 `_`，挂载后的数据库名为 mountName_<dbname>。
 - dnodeId：源集群数据目录所在的宿主集群 dnode 节点标识。
 - TDenginePath：源集群数据目录的绝对路径，需用英文单引号或双引号括起。
 
 使用限制​
+
 - 同一宿主集群中，mountName 不能重复​。
 - mountName 不能与宿主集群中已有数据库重名​。
 - mountName 和 TDenginePath 一一对应。
@@ -34,16 +36,21 @@ CREATE MOUNT mountName ON DNODE dnodeId FROM TDenginePath
 - 只有超级管理员拥有操作权限。
 
 示例​
+
 - 执行以下命令，可在宿主集群的 dnode 1 节点上，将源集群的 /var/lib/taos_1 数据目录以 mount1 为名称挂载到本地，挂载后宿主集群可通过 mount1_<dbname> 访问源集群的数据库：​
+
 ```sql
 CREATE MOUNT mount1 ON DNODE 1 FROM "/var/lib/taos_1"
 ```
 
 ### 查看挂载
+
   ```sql
   SHOW MOUNTS;
   ```
+
 说明
+
 - name：挂载名称​。
 - dnode：宿主集群中执行挂载的 dnode 节点​。
 - create_time：挂载在宿主集群的创建时间​。
@@ -51,11 +58,13 @@ CREATE MOUNT mount1 ON DNODE 1 FROM "/var/lib/taos_1"
 - 只有拥有系统信息查看权限的用户可以查看。
 
 ### 删除挂载​
+
 ```sql
 DROP MOUNT mountName;
 ```
 
 说明​
+
 - 清空宿主集群中与该挂载相关的元数据。
 - 恢复源集群数据目录的配置信息，解除宿主集群对源集群的访问关联​。
 - 不会删除源集群的实际数据文件。
