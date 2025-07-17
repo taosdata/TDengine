@@ -755,7 +755,11 @@ static void tmq_ctx_do_msg(struct tmqtt* ctxt, TAOS_RES* msg) {
   const int  qos = 1;
   int        data_len = strlen(data);
 
+#if 0
   rc = ttq_broker_publish(context->cid, topic_name, data_len, data, qos, retain, props);
+#else
+  rc = ttq_broker_publish(NULL, topic_name, data_len, data, qos, retain, props);
+#endif
   if (rc != TTQ_ERR_SUCCESS) {
     bndError("json msg/pub: out of memory.");
     ttq_free(data);
