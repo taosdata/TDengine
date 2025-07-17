@@ -721,13 +721,17 @@ int32_t syncCheckSynced(int64_t rid) {
   }
 
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
-    code = TSDB_CODE_VND_ARB_NOT_SYNCED;
+    code = TSDB_CODE_SYN_NOT_LEADER;
     syncNodeRelease(pSyncNode);
     TAOS_RETURN(code);
   }
 
   bool isSync = pSyncNode->commitIndex >= pSyncNode->assignedCommitIndex;
   code = (isSync ? TSDB_CODE_SUCCESS : TSDB_CODE_VND_ARB_NOT_SYNCED);
+  if (!isSync) {
+    sInfo("vgId:%d, not synced, assignedCommitIndex:%" PRId64 ", commitIndex:%" PRId64, pSyncNode->vgId,
+          pSyncNode->assignedCommitIndex, pSyncNode->commitIndex);
+  }
 
   syncNodeRelease(pSyncNode);
   TAOS_RETURN(code);
