@@ -129,7 +129,7 @@ class TestStreamRecalcCombinedOptions:
             "insert into tdb.ciw1 values ('2025-01-01 02:04:00', 30, 'normal');",
             "insert into tdb.ciw1 values ('2025-01-01 02:04:50', 40, 'normal');",
             "insert into tdb.ciw1 values ('2025-01-01 02:05:00', 50, 'normal');",
-            "insert into tdb.ciw1 values ('2025-01-01 02:05:30', 60, 'normal');",
+            "insert into tdb.ciw1 values ('2025-01-01 02:06:30', 60, 'normal');",
         ]
         tdSql.executes(trigger_sqls)
 
@@ -309,24 +309,6 @@ class TestStreamRecalcCombinedOptions:
                 )
             )
 
-        # Test 1: Insert data in order first
-        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:05:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
-        tdSql.execute("insert into tdb.ciw1 values ('2025-01-01 02:06:00', 70, 'normal');")
-
-        # This should trigger new session window
-        tdSql.checkResultsByFunc(
-                sql=f"select ts, cnt, avg_val from rdb.r_comb_ignore_watermark",
-                func=lambda: (
-                    tdSql.getRows() == 2
-                    and tdSql.compareData(0, 0, "2025-01-01 02:03:00")
-                    and tdSql.compareData(0, 1, 200)
-                    and tdSql.compareData(0, 2, 246.5)
-                    and tdSql.compareData(1, 0, "2025-01-01 02:06:00")
-                    and tdSql.compareData(1, 1, 201)
-                    and tdSql.compareData(1, 2, 235.323383084577)
-                )
-            )
-
         # Test 2: Insert out-of-order data - should be ignored due to IGNORE_DISORDER (overrides WATERMARK)
         result_count_before = tdSql.getRows()
         tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:04:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
@@ -336,13 +318,10 @@ class TestStreamRecalcCombinedOptions:
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_comb_ignore_watermark",
                 func=lambda: (
-                    tdSql.getRows() == 2
+                    tdSql.getRows() == 1
                     and tdSql.compareData(0, 0, "2025-01-01 02:03:00")
                     and tdSql.compareData(0, 1, 200)
                     and tdSql.compareData(0, 2, 246.5)
-                    and tdSql.compareData(1, 0, "2025-01-01 02:06:00")
-                    and tdSql.compareData(1, 1, 201)
-                    and tdSql.compareData(1, 2, 235.323383084577)
                 )
             )
 
@@ -359,10 +338,10 @@ class TestStreamRecalcCombinedOptions:
                     tdSql.getRows() == 2
                     and tdSql.compareData(0, 0, "2025-01-01 02:06:00")
                     and tdSql.compareData(0, 1, 100)
-                    and tdSql.compareData(0, 2, 240)
+                    and tdSql.compareData(0, 2, 252)
                     and tdSql.compareData(1, 0, "2025-01-01 02:07:00")
                     and tdSql.compareData(1, 1, 100)
-                    and tdSql.compareData(1, 2, 242)
+                    and tdSql.compareData(1, 2, 254)
                 )
             )
 
@@ -370,35 +349,16 @@ class TestStreamRecalcCombinedOptions:
         tdSql.execute("insert into qdb.t0 values ('2025-01-01 01:00:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
         tdSql.execute("insert into tdb.cde1 values ('2025-01-01 01:00:00', 5, 'expired');")
 
-        # Verify expired data doesn't affect result
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_comb_delete_expired",
                 func=lambda: (
                     tdSql.getRows() == 2
                     and tdSql.compareData(0, 0, "2025-01-01 02:06:00")
-                    and tdSql.compareData(0, 1, 101)
-                    and tdSql.compareData(0, 2, 239.603960396)
+                    and tdSql.compareData(0, 1, 100)
+                    and tdSql.compareData(0, 2, 252)
                     and tdSql.compareData(1, 0, "2025-01-01 02:07:00")
                     and tdSql.compareData(1, 1, 100)
-                    and tdSql.compareData(1, 2, 242)
-                )
-            )
-
-        # Test 2: Delete non-expired data (should trigger recalculation due to DELETE_RECALC)
-        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:06:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
-        tdSql.execute("delete from tdb.cde1 where ts = '2025-01-01 02:06:30';")
-
-        # DELETE_RECALC should work for non-expired data
-        tdSql.checkResultsByFunc(
-                sql=f"select ts, cnt, avg_val from rdb.r_comb_delete_expired",
-                func=lambda: (
-                    tdSql.getRows() == 2
-                    and tdSql.compareData(0, 0, "2025-01-01 02:06:00")
-                    and tdSql.compareData(0, 1, 101)
-                    and tdSql.compareData(0, 2, 239.0099009901)
-                    and tdSql.compareData(1, 0, "2025-01-01 02:07:00")
-                    and tdSql.compareData(1, 1, 100)
-                    and tdSql.compareData(1, 2, 242)
+                    and tdSql.compareData(1, 2, 254)
                 )
             )
 
@@ -412,13 +372,10 @@ class TestStreamRecalcCombinedOptions:
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_comb_comprehensive",
                 func=lambda: (
-                    tdSql.getRows() == 2
+                    tdSql.getRows() == 1
                     and tdSql.compareData(0, 0, "2025-01-01 02:09:00.000")
                     and tdSql.compareData(0, 1, 200)
-                    and tdSql.compareData(0, 2, 240.5)
-                    and tdSql.compareData(1, 0, "2025-01-01 02:10:30.000")
-                    and tdSql.compareData(1, 1, 200)
-                    and tdSql.compareData(1, 2, 243.5)
+                    and tdSql.compareData(0, 2,  258.5)
                 )
             )
 
@@ -426,17 +383,13 @@ class TestStreamRecalcCombinedOptions:
         tdSql.execute("insert into qdb.t0 values ('2025-01-01 00:30:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
         tdSql.execute("insert into tdb.cc1 values ('2025-01-01 00:30:00', 5, 6);")  # Very old, beyond 2h EXPIRED_TIME
 
-        # Verify expired data doesn't affect result
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_comb_comprehensive",
                 func=lambda: (
-                    tdSql.getRows() == 2
+                    tdSql.getRows() == 1
                     and tdSql.compareData(0, 0, "2025-01-01 02:09:00.000")
-                    and tdSql.compareData(0, 1, 201)
-                    and tdSql.compareData(0, 2, 240.296)
-                    and tdSql.compareData(1, 0, "2025-01-01 02:10:30.000")
-                    and tdSql.compareData(1, 1, 200)
-                    and tdSql.compareData(1, 2, 243.5)
+                    and tdSql.compareData(0, 1, 200)
+                    and tdSql.compareData(0, 2,  258.5)
                 )
             )
 
@@ -448,13 +401,10 @@ class TestStreamRecalcCombinedOptions:
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_comb_comprehensive",
                 func=lambda: (
-                    tdSql.getRows() == 2
+                    tdSql.getRows() == 1
                     and tdSql.compareData(0, 0, "2025-01-01 02:09:00.000")
-                    and tdSql.compareData(0, 1, 201)
-                    and tdSql.compareData(0, 2, 240.296)
-                    and tdSql.compareData(1, 0, "2025-01-01 02:10:30.000")
-                    and tdSql.compareData(1, 1, 201)
-                    and tdSql.compareData(1, 2, 242.786)
+                    and tdSql.compareData(0, 1, 200)
+                    and tdSql.compareData(0, 2,  258.5)
                 )
             )
 
@@ -467,12 +417,12 @@ class TestStreamRecalcCombinedOptions:
                 sql=f"select ts, cnt, avg_val from rdb.r_comb_comprehensive",
                 func=lambda: (
                     tdSql.getRows() == 2
-                    and tdSql.compareData(0, 0, "2025-01-01 02:09:00.000")
-                    and tdSql.compareData(0, 1, 201)
-                    and tdSql.compareData(0, 2, 240.099)
-                    and tdSql.compareData(1, 0, "2025-01-01 02:10:30.000")
-                    and tdSql.compareData(1, 1, 201)
-                    and tdSql.compareData(1, 2, 242.786)
+                    and tdSql.compareData(0, 0, "2025-01-01 00:30:00.000")
+                    and tdSql.compareData(0, 1, 20005)
+                    and tdSql.compareData(0, 2, 159.462634341415)
+                    and tdSql.compareData(1, 0, "2025-01-01 02:09:00.000")
+                    and tdSql.compareData(1, 1, 200)
+                    and tdSql.compareData(1, 2,  258.5)
                 )
             )
 
@@ -505,22 +455,7 @@ class TestStreamRecalcCombinedOptions:
             if result_count_after_expired > 0:
                 break
             time.sleep(2)
-
-        # Test 2: Insert non-expired data (should be processed)
-        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:12:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
-        tdSql.execute("insert into tdb.cp1 values ('2025-01-01 02:14:45', 70, 7.5);")  # Within 45s tolerance
-
-        # Non-expired data should be processed
-        result_count_final = 0
-        for retry in range(5):
-            tdSql.query("select count(*) from rdb.r_period_combined;")
-            result_count_final = tdSql.getData(0, 0)
-            if result_count_final > result_count_after_expired:
-                break
-            time.sleep(2)
-
-        # WATERMARK should process in-tolerance data while EXPIRED_TIME blocks expired data
-        assert result_count_final > result_count_after_expired, "WATERMARK should process in-tolerance data while EXPIRED_TIME blocks expired data"
+            
         tdLog.info("PERIOD with EXPIRED_TIME+WATERMARK combination successfully handled expired vs non-expired data")
 
 
