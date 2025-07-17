@@ -46,7 +46,9 @@ class TestPeriodOutputSubtable:
         self.sdnydata()
 
         sql = (f"create stream {self.dbname}.sdny1 interval(1m) sliding(1m) from {self.dbname}.sldc_dp partition by tbname stream_options(fill_history('2025-07-17 09:00:00')) into {self.dbname}.sdny1out output_subtable(concat('sdny_',tbname)) as select _wstart as start_time,_wend as point_min,'01072016' as unit_code,'盛鲁电厂' as unit_name,'机组1' as jz_name,last(jz1fdgl) as fh ,-1.0 as glxl, last((jz1fdgl+jz1ssfdfh)/2) as zzqwd from {self.dbname}.sldc_dp tb where ts >= '2025-07-11 14:45:00.000'  and ts <= '2025-07-17 09:30:00.000' interval(1m) fill(prev)")
-        # sql = (f"create stream {self.dbname}.s0 interval(60s) sliding(60s) from {self.dbname}.stba partition by tbname stream_options(fill_history('1970-01-01 00:00:00')) into {self.dbname}.s0_out output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100) comment 'table name1' as 'tint+10')  as select _twstart, sum(cint) ,count(i1) from %%tbname where _c0 >= _twstart and _c0 <= _twend")
+        sql2 = (f"create stream {self.dbname}.sdny2 interval(1m) sliding(1m) from {self.dbname}.sldc_dp partition by tbname stream_options(fill_history('2025-07-17 09:00:00')) into {self.dbname}.sdny2out output_subtable(concat('sdny_',tbname)) as select _wstart as start_time,_wend as point_min,'01072016' as unit_code,'盛鲁电厂' as unit_name,'机组1' as jz_name,last(jz1fdgl) as fh ,-1.0 as glxl /*机组2凝结水泵b电流*/, last((jz1fdgl+jz1ssfdfh)/2) as zzqwd /*机组2凝结水泵a电流**/ from %%tbname tb where ts >= '2025-07-17 08:59:00.000'  and ts <= '2025-07-17 09:30:00.000' interval(1m) fill(prev)")
+        sql3 = (f"create stream {self.dbname}.sdny3 interval(1m) sliding(1m) from {self.dbname}.sldc_dp partition by tbname stream_options(fill_history('2025-07-17 09:00:00')) into {self.dbname}.sdny3out output_subtable(concat('sdny_',tbname)) as select _wstart as start_time,_wend as point_min,'01072016' as unit_code,'盛鲁电厂' as unit_name,'机组1' as jz_name,last(jz1fdgl) as fh ,-1.0 as glxl, last((jz1fdgl+jz1ssfdfh)/2) as zzqwd from test1.sldc_dp tb where ts >= '2025-07-17 08:55:00.000'  and ts <= now() interval(1m) fill(prev);")
+        sql4 = (f"create stream {self.dbname}.sdny4 state_window(cast(jz1fdgl as int)) from {self.dbname}.sldc_dp partition by tbname stream_options(pre_filter(jz1fdgl>403)|fill_history('1970-01-01 00:00:00')) into {self.dbname}.s4_out output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100) comment 'table name1' as 'tint+10')  as select _wstart as start_time,_wend as point_min,'01072016' as unit_code,'盛鲁电厂' as unit_name,'机组1' as jz_name,last(jz1fdgl) as fh ,-1.0 as glxl, last((jz1fdgl+jz1ssfdfh)/2) as zzqwd from test1.sldc_dp tb where ts >= '2025-07-17 08:55:00.000'  and ts <= '2025-07-17 09:30:00.000' interval(1m) fill(prev);")
         # sql4 = ("create stream s4 sliding(5s) from stba partition by  tbname stream_options(fill_history('1970-01-01 00:00:00')) into s4_out output_subtable(concat('xxxx',tbname))  tags(yyyy varchar(100) comment 'table name1' as 'tint+10')  as select _wstart,_wend, sum(cint) ,count(i1),last(tint) from stba  partition by tbname interval(60s) ")
         # sql5 = ("create stream s5 sliding(5s) from stba partition by tint, tbname stream_options(fill_history('1970-01-01 00:00:00')) into s5_out  as select _wstart,_wend, sum(cint),sum(i1) from  (select _wstart,_wend, sum(cint) cint ,count(i1) i1 from a1 event_window start with cint>0 end with cint <9 ) interval(3s)")
         # sql6 = ("create stream s6 sliding(5s) from stba partition by tint, tbname stream_options(fill_history('1970-01-01 00:00:00')) into s6_out  as select _wstart,_wend, sum(cint),sum(i1) from  (select _wstart,_wend, sum(cint) cint ,count(i1) i1 from stba event_window start with cint>0 end with cint <9 ) interval(3s)")
@@ -59,7 +61,7 @@ class TestPeriodOutputSubtable:
         # sql13 = ("create stream s13 sliding(30s) from s12_out partition by tbname stream_options(fill_history(0)) into s13_out as select _tcurrent_ts,sum(c1),avg(c2) ,last(c3) from s12_out ;")
         #create stream
 
-        tdSql.execute(sql)
+        tdSql.execute(sql,queryTimes=2)
 
         
         self.checkStreamRunning()
@@ -262,8 +264,8 @@ class TestPeriodOutputSubtable:
         tdSql.execute(stbsql)
         tdSql.execute(tb1sql)
         tdSql.execute(tb2sql)
-        tdSql.execute(f"insert into {self.dbname}.e010720169990001 file e010720169990001.csv;")
-        tdSql.execute(f"insert into {self.dbname}.e010720169990002 file e010720169990001.csv;")
+        tdSql.execute(f"insert into {self.dbname}.e010720169990001 file 'cases/13-StreamProcessing/20-UseCase/e010720169990001.csv';")
+        tdSql.execute(f"insert into {self.dbname}.e010720169990002 file 'cases/13-StreamProcessing/20-UseCase/e010720169990001.csv';")
         tdLog.info("load csv file success.")
         
     
