@@ -219,12 +219,12 @@ class Test_IDMP_Meters:
         )
 
         # sub
-        #self.verify_stream5_sub1()
+        self.verify_stream5_sub1()
 
 
     def verify_stream5_sub1(self):    
         # result_stream5_sub1
-        result_sql_sub1 = f"select * from {self.vdb}.`result_stream5_sub1` "
+        result_sql = f"select * from {self.vdb}.`result_stream5_sub1` "
         tdSql.checkResultsByFunc (
             sql  = result_sql, 
             func = lambda: tdSql.getRows() == 1
