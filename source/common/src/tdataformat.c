@@ -324,6 +324,17 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
   return 0;
 }
 
+static int32_t addEmptyItemToBlobSet(SBlobSet *pBlobSet, int8_t type, uint64_t *pSeq) {
+  SBlobItem item = {.type = type, .len = 0};
+  uint64_t  seq = 0;
+  int32_t   code = tBlobSetPush(pBlobSet, &item, &seq, 0);
+  if (code != 0) return code;
+
+  if (pSeq != NULL) {
+    *pSeq = seq;
+  }
+  return 0;
+}
 static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *sinfo, const STSchema *schema,
                                       SRow **ppRow, SBlobSet *pBlobSet) {
   int32_t  code = 0;
@@ -342,11 +353,8 @@ static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *
     return TSDB_CODE_INVALID_PARA;
   }
   if (sinfo->tupleFlag == HAS_NONE || sinfo->tupleFlag == HAS_NULL) {
-    uint64_t  seq = 0;
-    SBlobItem item = {.type = TSDB_DATA_BLOB_NULL_VALUE, .len = 0};
-    int32_t   code = tBlobSetPush(pBlobSet, &item, &seq, 1);
-    if (code != 0) return code;
-    return 0;
+    code = addEmptyItemToBlobSet(pBlobSet, TSDB_DATA_BLOB_NULL_VALUE, NULL);
+    return code;
   }
 
   uint8_t *primaryKeys = (*ppRow)->data;
@@ -404,18 +412,7 @@ static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *
                 varlen += tPutU64(varlen, seq);
               }
             } else {
-              if (hasBlob) {
-                uint64_t  seq = 0;
-                SBlobItem item = {.seqOffsetInRow = varlen - (*ppRow)->data,
-                                  .data = colValArray[colValIndex].value.pData,
-                                  .len = colValArray[colValIndex].value.nData,
-                                  .type = TSDB_DATA_BLOB_EMPTY_VALUE};
-                code = tBlobSetPush(pBlobSet, &item, &seq, firstBlobCol);
-                if (firstBlobCol == 1) {
-                  firstBlobCol = 0;
-                }
-                if (code != 0) return code;
-              }
+              if (hasBlob) TAOS_CHECK_RETURN(addEmptyItemToBlobSet(pBlobSet, TSDB_DATA_BLOB_EMPTY_VALUE, NULL));
             }
           } else {
             (void)memcpy(fixed + schema->columns[i].offset,
@@ -425,17 +422,11 @@ static int32_t tRowBuildTupleWithBlob(SArray *aColVal, const SRowBuildScanInfo *
         } else if (COL_VAL_IS_NULL(&colValArray[colValIndex])) {  // NULL
           ROW_SET_BITMAP(bitmap, sinfo->tupleFlag, i - 1, BIT_FLG_NULL);
           if (IS_STR_DATA_BLOB(schema->columns[i].type)) {
-            uint64_t  seq = 0;
-            SBlobItem item = {.type = TSDB_DATA_BLOB_NULL_VALUE, .len = 0};
-            int32_t   code = tBlobSetPush(pBlobSet, &item, &seq, firstBlobCol);
-            if (code != 0) return code;
+            TAOS_CHECK_RETURN(addEmptyItemToBlobSet(pBlobSet, TSDB_DATA_BLOB_NULL_VALUE, NULL));
           }
         } else if (COL_VAL_IS_NONE(&colValArray[colValIndex])) {  // NONE
           if (IS_STR_DATA_BLOB(schema->columns[i].type)) {
-            uint64_t  seq = 0;
-            SBlobItem item = {.type = TSDB_DATA_BLOB_NULL_VALUE, .len = 0};
-            int32_t   code = tBlobSetPush(pBlobSet, &item, &seq, firstBlobCol);
-            if (code != 0) return code;
+            TAOS_CHECK_RETURN(addEmptyItemToBlobSet(pBlobSet, TSDB_DATA_BLOB_NULL_VALUE, NULL));
           }
           ROW_SET_BITMAP(bitmap, sinfo->tupleFlag, i - 1, BIT_FLG_NONE);
         }
@@ -621,18 +612,7 @@ static int32_t tRowBuildKVRowWithBlob(SArray *aColVal, const SRowBuildScanInfo *
               }
             } else {
               if (hasBlob) {
-                uint64_t  seq = 0;
-                uint32_t  seqOffset = payloadSize + payload - (*ppRow)->data;
-                SBlobItem item = {.seqOffsetInRow = seqOffset,
-                                  .data = colValArray[colValIndex].value.pData,
-                                  .len = colValArray[colValIndex].value.nData,
-                                  .type = TSDB_DATA_BLOB_EMPTY_VALUE};
-                int32_t   code = tBlobSetPush(ppBlobSet, &item, &seq, firstBlobCol);
-                if (firstBlobCol == 1) {
-                  firstBlobCol = 0;
-                }
-                if (code != 0) return code;
-                // payloadSize += tPutU64(payload + payloadSize, seq);
+                TAOS_CHECK_RETURN(addEmptyItemToBlobSet(ppBlobSet, TSDB_DATA_BLOB_EMPTY_VALUE, NULL));
               }
             }
           } else {
@@ -645,13 +625,9 @@ static int32_t tRowBuildKVRowWithBlob(SArray *aColVal, const SRowBuildScanInfo *
           tRowBuildKVRowSetIndex(sinfo->kvFlag, indices, payloadSize);
           payloadSize += tPutI16v(payload + payloadSize, -schema->columns[i].colId);
           if (IS_STR_DATA_BLOB(schema->columns[i].type)) {
-            uint64_t  seq = 0;
-            SBlobItem item = {.type = TSDB_DATA_BLOB_NULL_VALUE, .len = 0};
-            int32_t   code = tBlobSetPush(ppBlobSet, &item, &seq, firstBlobCol);
-            if (code != 0) return code;
+            TAOS_CHECK_RETURN(addEmptyItemToBlobSet(ppBlobSet, TSDB_DATA_BLOB_NULL_VALUE, NULL));
           }
         }
-
         colValIndex++;
         break;
       } else if (colValArray[colValIndex].cid > schema->columns[i].colId) {  // NONE
@@ -1270,13 +1246,8 @@ static int32_t tRowRebuildBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlo
     uint64_t seq = 0;
     SColVal *pVal = taosArrayGet(aColVal, i);
     if (COL_VAL_IS_NULL(pVal) || pVal->value.pData == NULL) {
-      SBlobItem item = {.type = TSDB_DATA_BLOB_NULL_VALUE, .seqOffsetInRow = 0, .data = NULL, .len = 0};
-      if (!COL_VAL_IS_NULL(pVal)) {
-        item.type = TSDB_DATA_BLOB_EMPTY_VALUE;  // empty blob
-      }
-
-      code = tBlobSetPush(pTempBlob, &item, &seq, 1);
-
+      int8_t type = COL_VAL_IS_NULL(pVal) ? TSDB_DATA_BLOB_NULL_VALUE : TSDB_DATA_BLOB_EMPTY_VALUE;
+      code = addEmptyItemToBlobSet(pTempBlob, type, NULL);
       TAOS_CHECK_GOTO(code, &lino, _error);
       continue;
     } else {
