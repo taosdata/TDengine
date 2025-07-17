@@ -51,7 +51,7 @@ class TestStreamOldCaseCheckPoint:
             )
 
             tdSql.execute(
-                f"create stream interval0_stream0 interval(10s) sliding(10s) from interval0_t1 stream_options(max_delay(1s)) into interval0_result0 as select _twstart, count(*) c1, sum(a) from interval0_t1 where ts >= _twstart and ts < _twend;"
+                f"create stream interval0_stream0 interval(10s) sliding(10s) from interval0_t1 stream_options(max_delay(3s)) into interval0_result0 as select _twstart, count(*) c1, sum(a) from interval0_t1 where ts >= _twstart and ts < _twend;"
             )
             tdSql.execute(
                 f"create stream interval0_stream1 interval(10s) sliding(10s) from interval0_t1 into interval0_result1 as select _twstart, count(*) c1, sum(a) from interval0_t1 where ts >= _twstart and ts < _twend;"
@@ -171,7 +171,7 @@ class TestStreamOldCaseCheckPoint:
             )
 
             tdSql.execute(
-                f"create stream interval1_stream interval(10s) sliding(10s) from interval1_st stream_options(max_delay(1s)) into interval1_result as select _twstart, count(*) c1, sum(a) from interval1_st where ts >= _twstart and ts < _twend;"
+                f"create stream interval1_stream interval(10s) sliding(10s) from interval1_st stream_options(max_delay(3s)) into interval1_result as select _twstart, count(*) c1, sum(a) from interval1_st where ts >= _twstart and ts < _twend;"
             )
 
         def insert1(self):
@@ -221,7 +221,7 @@ class TestStreamOldCaseCheckPoint:
             )
 
             tdSql.execute(
-                f"create stream session0_stream session(ts, 10s) from session0_t1 stream_options(max_delay(1s)) into session0_result as select _twstart, _twend, count(*) c1, sum(a) from session0_t1 where ts >= _twstart and ts <= _twend;"
+                f"create stream session0_stream session(ts, 10s) from session0_t1 stream_options(max_delay(3s)) into session0_result as select _twstart, _twend, count(*) c1, sum(a) from session0_t1 where ts >= _twstart and ts <= _twend;"
             )
 
         def insert1(self):
@@ -307,7 +307,7 @@ class TestStreamOldCaseCheckPoint:
             tdSql.execute(f"create table session1_t2 using session1_st tags(2, 2, 2);")
 
             tdSql.execute(
-                f"create stream session1_stream session(ts, 10s) from session1_st stream_options(max_delay(1s)) into session1_result as select _twstart, _twend, count(*) c1, sum(a) from session1_st where ts >= _twstart and ts <= _twend;"
+                f"create stream session1_stream session(ts, 10s) from session1_st stream_options(max_delay(3s)) into session1_result as select _twstart, _twend, count(*) c1, sum(a) from session1_st where ts >= _twstart and ts <= _twend;"
             )
 
         def insert1(self):
@@ -362,7 +362,7 @@ class TestStreamOldCaseCheckPoint:
             )
 
             tdSql.execute(
-                f"create stream state0_stream state_window(b) from state0_t1 stream_options(max_delay(1s)) into state0_result as select _twstart, _twend, count(*) c1, sum(a) from state0_t1  where ts >= _twstart and ts <= _twend;"
+                f"create stream state0_stream state_window(b) from state0_t1 stream_options(max_delay(3s)) into state0_result as select _twstart, _twend, count(*) c1, sum(a) from state0_t1  where ts >= _twstart and ts <= _twend;"
             )
 
         def insert1(self):

@@ -837,6 +837,8 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     if (pTaskInfo->pStreamRuntimeInfo) {
       req.dynTbname = pExchangeInfo->dynTbname;
       req.execId = pTaskInfo->pStreamRuntimeInfo->execId;
+      if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_RUNNER)
+        qDebug("doSendFetchDataRequest to execId:%d, %p", req.execId, pTaskInfo->pStreamRuntimeInfo);
       req.pStRtFuncInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
       if (!pDataInfo->fetchSent) {
         req.reset = pDataInfo->fetchSent = true;
