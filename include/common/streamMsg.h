@@ -900,6 +900,21 @@ int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalc
 void    tDestroySSTriggerCalcParam(void* ptr);
 void    tDestroySTriggerCalcRequest(SSTriggerCalcRequest* pReq);
 
+typedef enum ESTriggerCtrlType {
+  STRIGGER_CTRL_START = 0,
+  STRIGGER_CTRL_STOP = 1,
+} ESTriggerCtrlType;
+
+typedef struct SSTriggerCtrlRequest {
+  ESTriggerCtrlType type;
+  int64_t           streamId;
+  int64_t           taskId;
+  int64_t           sessionId;
+} SSTriggerCtrlRequest;
+
+int32_t tSerializeSTriggerCtrlRequest(void* buf, int32_t bufLen, const SSTriggerCtrlRequest* pReq);
+int32_t tDeserializeSTriggerCtrlRequest(void* buf, int32_t bufLen, SSTriggerCtrlRequest* pReq);
+
 typedef struct SStreamRuntimeFuncInfo {
   SArray* pStreamPesudoFuncVals;
   SArray* pStreamPartColVals;
