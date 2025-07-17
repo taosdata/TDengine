@@ -65,12 +65,15 @@ class TestWalLevelSkip:
         time.sleep(2)
         tdLog.info("restart taosd")
         tdDnodes.start(1)
+        time.sleep(1)
 
         tdLog.info(" alter wal level from 0 to 1")
         self.alterWalLevel(1)
+        time.sleep(1)
         self.insertData()
         tdDnodes.stop(1)
         tdDnodes.start(1)
+        time.sleep(1)
 
         tdLog.info("create database wal_level = 0 and insert data")
         self.preData()
@@ -78,12 +81,15 @@ class TestWalLevelSkip:
         time.sleep(2)
         tdLog.info("restart taosd")
         tdDnodes.start(1)
+        time.sleep(1)
 
         tdLog.info(" alter wal level from 0 to 2")
         self.alterWalLevel(2)
+        time.sleep(1)
         self.insertData()
         tdDnodes.forcestop(1)
         tdDnodes.start(1)
+        time.sleep(1)
 
 
         tdLog.info("-----------test for kill taosd before alter wal level-----------")
@@ -93,11 +99,14 @@ class TestWalLevelSkip:
         time.sleep(2)
         tdLog.info("restart taosd")
         tdDnodes.start(1)
+        time.sleep(1)
 
         tdLog.info(" alter wal level from 0 to 1")
         self.alterWalLevel(1)
+        time.sleep(1)
         tdDnodes.forcestop(1)
         tdDnodes.start(1)
+        time.sleep(1)
 
         tdLog.info("create database wal_level = 0 and insert data")
         self.preData()
@@ -105,11 +114,14 @@ class TestWalLevelSkip:
         time.sleep(2)
         tdLog.info("restart taosd")
         tdDnodes.start(1)
+        time.sleep(1)
 
         tdLog.info(" alter wal level from 0 to 2")
         self.alterWalLevel(2)
+        time.sleep(1)
         tdDnodes.forcestop(1)
         tdDnodes.start(1)
+        time.sleep(1)
 
         tdLog.info("-----------test for stop taosd after alter wal level-----------")
         tdLog.info("create database wal_level = 0 and insert data")
@@ -122,6 +134,7 @@ class TestWalLevelSkip:
         time.sleep(2)
         tdLog.info("restart taosd")
         tdDnodes.start(1)
+        time.sleep(1)
 
 
         tdLog.info("create database wal_level = 0 and insert data")
@@ -134,6 +147,7 @@ class TestWalLevelSkip:
         time.sleep(2)
         tdLog.info("restart taosd")
         tdDnodes.start(1)
+        time.sleep(1)
 
         tdLog.info("-----------test for kill taosd after alter wal level-----------")
         tdLog.info("create database wal_level = 0 and insert data")
@@ -146,6 +160,7 @@ class TestWalLevelSkip:
         time.sleep(2)
         tdLog.info("restart taosd")
         tdDnodes.start(1)
+        time.sleep(1)
 
 
         tdLog.info("create database wal_level = 0 and insert data")

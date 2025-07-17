@@ -260,7 +260,12 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
       sWarn("vgId:%d, failed to get log entry since %s, index:%" PRId64, pNode->vgId, tstrerror(code), index);
       break;
     }
-
+#ifdef USE_MOUNT
+    if (pNode->mountVgId) {
+      SMsgHead* pMsgHead = (SMsgHead*)pEntry->data;
+      if (pMsgHead->vgId != pNode->vgId) pMsgHead->vgId = pNode->vgId;
+    }
+#endif
     bool taken = false;
     if (toIndex - index + 1 <= pBuf->size - emptySize) {
       SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = -1, .prevLogTerm = -1};
@@ -524,10 +529,16 @@ int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncNode* pNode, SSyncRaf
   lastVer = pLogStore->syncLogLastIndex(pLogStore);
   if (pEntry->index != lastVer + 1) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
+#ifdef USE_MOUNT
+  if (pNode->mountVgId) {
+    SMsgHead* pHead = (SMsgHead*)pEntry->data;
+    if (pHead->vgId != pNode->mountVgId) pHead->vgId = pNode->mountVgId;
+  }
+#endif
   bool doFsync = syncLogStoreNeedFlush(pEntry, pNode->replicaNum);
   if ((code = pLogStore->syncLogAppendEntry(pLogStore, pEntry, doFsync)) < 0) {
-    sError("failed to persist raft entry since %s, index:%" PRId64 ", term:%" PRId64, tstrerror(code),
-           pEntry->index, pEntry->term);
+    sError("failed to persist raft entry since %s, index:%" PRId64 ", term:%" PRId64, tstrerror(code), pEntry->index,
+           pEntry->term);
     TAOS_RETURN(code);
   }
 
@@ -1107,7 +1118,8 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
     if (pMsg->fsmState == SYNC_FSM_STATE_INCOMPLETE || (!pMsg->success && pMsg->matchIndex >= pMsg->lastSendIndex)) {
       char* msg1 = " rollback match index failure";
       char* msg2 = " incomplete fsm state";
-      sInfo("vgId:%d, snapshot replication to dnode:%d, reason:%s, match index:%" PRId64 ", last sent:%" PRId64,
+      sInfo("vgId:%d, snapshot replication progress:1/8:leader:1/4 to dnode:%d, reason:%s, match index:%" PRId64
+            ", last sent:%" PRId64,
             pNode->vgId, DID(&destId), (pMsg->fsmState == SYNC_FSM_STATE_INCOMPLETE ? msg2 : msg1), pMsg->matchIndex,
             pMsg->lastSendIndex);
       if ((code = syncNodeStartSnapshot(pNode, &destId)) < 0) {
@@ -1552,6 +1564,12 @@ int32_t syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncInd
   if (index > pBuf->startIndex) {  // startIndex might be dummy
     *pInBuf = true;
     *ppEntry = pBuf->entries[index % pBuf->size].pItem;
+#ifdef USE_MOUNT
+    if (pNode->mountVgId) {
+      SMsgHead* pMsgHead = (SMsgHead*)(*ppEntry)->data;
+      if (pMsgHead->vgId != pNode->vgId) pMsgHead->vgId = pNode->vgId;
+    }
+#endif
   } else {
     *pInBuf = false;
 
@@ -1559,6 +1577,7 @@ int32_t syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncInd
       sWarn("vgId:%d, failed to get log entry since %s, index:%" PRId64, pNode->vgId, tstrerror(code), index);
     }
   }
+
   TAOS_RETURN(code);
 }
 

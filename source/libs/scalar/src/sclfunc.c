@@ -2759,13 +2759,7 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
                    typeGetTypeModFromColInfo(&pInput[2].columnData->info));
   }
 
-  int64_t factor = TSDB_TICK_PER_SECOND(timePrec);
-  int32_t numOfRows = 0;
-  for (int32_t i = 0; i < inputNum; ++i) {
-    if (pInput[i].numOfRows > numOfRows) {
-      numOfRows = pInput[i].numOfRows;
-    }
-  }
+  int32_t numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
 
   char *input[2];
   for (int32_t i = 0; i < numOfRows; ++i) {
@@ -2776,40 +2770,18 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
         break;
       }
 
-      int32_t rowIdx = (pInput[k].numOfRows == 1) ? 0 : i;
+      int32_t rowIdx = (pInput[k].numOfRows == numOfRows) ? i : 0;
       input[k] = colDataGetData(pInput[k].columnData, rowIdx);
 
       int32_t type = GET_PARAM_TYPE(&pInput[k]);
       if (IS_VAR_DATA_TYPE(type)) { /* datetime format strings */
-        int32_t ret = convertStringToTimestamp(type, input[k], TSDB_TIME_PRECISION_NANO, &timeVal[k], pInput->tz, pInput->charsetCxt);
-        if (ret != TSDB_CODE_SUCCESS) {
+        int32_t code = convertStringToTimestamp(type, input[k], timePrec, &timeVal[k], pInput->tz, pInput->charsetCxt);
+        if (code != TSDB_CODE_SUCCESS) {
           hasNull = true;
           break;
         }
-      } else if (type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column*/
+      } else if (type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column */
         GET_TYPED_DATA(timeVal[k], int64_t, type, input[k], typeGetTypeModFromColInfo(&pInput[k].columnData->info));
-        if (type == TSDB_DATA_TYPE_TIMESTAMP) {
-          int64_t timeValSec = timeVal[k] / factor;
-          if (timeValSec < 1000000000) {
-            timeVal[k] = timeValSec;
-          }
-        }
-
-        char buf[20] = {0};
-        NUM_TO_STRING(TSDB_DATA_TYPE_BIGINT, &timeVal[k], sizeof(buf), buf);
-        int32_t tsDigits = (int32_t)strlen(buf);
-        if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
-          timeVal[k] = timeVal[k] * 1000000000;
-        } else if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-          timeVal[k] = timeVal[k] * 1000000;
-        } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-          timeVal[k] = timeVal[k] * 1000;
-        } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-          timeVal[k] = timeVal[k] * 1;
-        } else {
-          hasNull = true;
-          break;
-        }
       }
     }
 
@@ -2818,62 +2790,11 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
       continue;
     }
 
+    // now both timeVal[0] and timeVal[1] are valid and have same
+    // precision as timeUnit so we can safely perform operations on them
     int64_t result = timeVal[0] - timeVal[1];
-
-    if (timeUnit < 0) {  // if no time unit given use db precision
-      switch (timePrec) {
-        case TSDB_TIME_PRECISION_MILLI: {
-          result = result / 1000000;
-          break;
-        }
-        case TSDB_TIME_PRECISION_MICRO: {
-          result = result / 1000;
-          break;
-        }
-        case TSDB_TIME_PRECISION_NANO: {
-          result = result / 1;
-          break;
-        }
-      }
-    } else {
-      int64_t unit = timeUnit * 1000 / factor;
-      switch (unit) {
-        case 0: { /* 1u or 1b */
-          if (timePrec == TSDB_TIME_PRECISION_NANO && timeUnit == 1) {
-            result = result / 1;
-          } else {
-            result = result / 1000;
-          }
-          break;
-        }
-        case 1: { /* 1a */
-          result = result / 1000000;
-          break;
-        }
-        case 1000: { /* 1s */
-          result = result / 1000000000;
-          break;
-        }
-        case 60000: { /* 1m */
-          result = result / 1000000000 / 60;
-          break;
-        }
-        case 3600000: { /* 1h */
-          result = result / 1000000000 / 3600;
-          break;
-        }
-        case 86400000: { /* 1d */
-          result = result / 1000000000 / 86400;
-          break;
-        }
-        case 604800000: { /* 1w */
-          result = result / 1000000000 / 604800;
-          break;
-        }
-        default: {
-          break;
-        }
-      }
+    if (timeUnit > 0) {
+      result = result / timeUnit;
     }
 
     SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (char *)&result, false));
@@ -4244,6 +4165,81 @@ int32_t hllScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 
 int32_t csumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return sumScalarFunction(pInput, inputNum, pOutput);
+  // SColumnInfoData *pInputData = pInput->columnData;
+  // SColumnInfoData *pOutputData = pOutput->columnData;
+
+  // int32_t type = GET_PARAM_TYPE(pInput);
+
+  // union {
+  //   int64_t    d;
+  //   uint64_t   u;
+  //   double     dub;
+  //   Decimal128 dec;
+  // } csumVal;
+
+  // memset(&csumVal, 0, sizeof(csumVal));
+  // for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+  //   if (colDataIsNull_s(pInputData, i)) {
+  //     colDataSetNULL(pOutputData, i);
+  //     continue;
+  //   }
+
+  //   if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
+  //     if (type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_BOOL) {
+  //       int8_t *in = (int8_t *)pInputData->pData;
+  //       csumVal.d += in[i];
+  //     } else if (type == TSDB_DATA_TYPE_SMALLINT) {
+  //       int16_t *in = (int16_t *)pInputData->pData;
+  //       csumVal.d += in[i];
+  //     } else if (type == TSDB_DATA_TYPE_INT) {
+  //       int32_t *in = (int32_t *)pInputData->pData;
+  //       csumVal.d += in[i];
+  //     } else if (type == TSDB_DATA_TYPE_BIGINT) {
+  //       int64_t *in = (int64_t *)pInputData->pData;
+  //       csumVal.d += in[i];
+  //     }
+  //     SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (const char *)&csumVal.d, false));
+  //   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+  //     if (type == TSDB_DATA_TYPE_UTINYINT) {
+  //       uint8_t *in = (uint8_t *)pInputData->pData;
+  //       csumVal.u += in[i];
+  //     } else if (type == TSDB_DATA_TYPE_USMALLINT) {
+  //       uint16_t *in = (uint16_t *)pInputData->pData;
+  //       csumVal.u += in[i];
+  //     } else if (type == TSDB_DATA_TYPE_UINT) {
+  //       uint32_t *in = (uint32_t *)pInputData->pData;
+  //       csumVal.u += in[i];
+  //     } else if (type == TSDB_DATA_TYPE_UBIGINT) {
+  //       uint64_t *in = (uint64_t *)pInputData->pData;
+  //       csumVal.u += in[i];
+  //     }
+  //     SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (const char *)&csumVal.u, false));
+  //   } else if (IS_FLOAT_TYPE(type)) {
+  //     if (type == TSDB_DATA_TYPE_FLOAT) {
+  //       float *in = (float *)pInputData->pData;
+  //       csumVal.dub += in[i];
+  //     } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+  //       double *in = (double *)pInputData->pData;
+  //       csumVal.dub += in[i];
+  //     }
+  //     SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (const char *)&csumVal.dub, false));
+  //   } else if (type == TSDB_DATA_TYPE_DECIMAL) {
+  //     Decimal128 out = {0};
+  //     if (type == TSDB_DATA_TYPE_DECIMAL64) {
+  //       const Decimal64   *pIn = (Decimal64 *)pInputData->pData;
+  //       const SDecimalOps *pOps = getDecimalOps(type);
+  //       pOps->add(&csumVal.dec, pIn + i, DECIMAL_WORD_NUM(Decimal64));
+  //     } else if (type == TSDB_DATA_TYPE_DECIMAL) {
+  //       const Decimal128  *pIn = (Decimal128 *)pInputData->pData;
+  //       const SDecimalOps *pOps = getDecimalOps(type);
+  //       pOps->add(&csumVal.dec, pIn + i, DECIMAL_WORD_NUM(Decimal128));
+  //     }
+  //     SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (const char *)&csumVal.dec, false));
+  //   }
+  // }
+
+  // pOutput->numOfRows = pInput->numOfRows;
+  // return TSDB_CODE_SUCCESS;
 }
 
 typedef enum {
@@ -4858,3 +4854,39 @@ int32_t leastFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   return greatestLeastImpl(pInput, inputNum, pOutput, OP_TYPE_LOWER_THAN);
 }
 
+int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  TSWAP(pInput->columnData, pOutput->columnData);
+  return 0;
+}
+
+void calcTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinRange, bool *winRangeValid) {
+  SStreamTSRangeParas timeStartParas = {.eType = SCL_VALUE_TYPE_START, .timeValue = INT64_MIN};
+  SStreamTSRangeParas timeEndParas = {.eType = SCL_VALUE_TYPE_END, .timeValue = INT64_MAX};
+  if (scalarCalculate(node->pStart, NULL, NULL, pStRtFuncInfo, &timeStartParas) == 0) {
+    if (timeStartParas.opType == OP_TYPE_GREATER_THAN || timeStartParas.opType == OP_TYPE_LOWER_THAN) {
+      // For greater than or lower than, used different param, rigth or left. 
+      pWinRange->skey = timeStartParas.timeValue + 1;
+    } else if (timeStartParas.opType == OP_TYPE_GREATER_EQUAL || OP_TYPE_LOWER_EQUAL) {
+      pWinRange->skey = timeStartParas.timeValue;
+    } else {
+      qError("start time range error, opType:%d", timeStartParas.opType);
+      return;
+    }
+  } else {
+    pWinRange->skey = 0;
+  }
+  if (scalarCalculate(node->pEnd, NULL, NULL, pStRtFuncInfo, &timeEndParas) == 0) {
+    if (timeEndParas.opType == OP_TYPE_LOWER_THAN || timeEndParas.opType == OP_TYPE_GREATER_THAN) {
+      pWinRange->ekey = timeEndParas.timeValue - 1;
+    } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL || timeEndParas.opType == OP_TYPE_GREATER_EQUAL) {
+      pWinRange->ekey = timeEndParas.timeValue;
+    } else {
+      qError("end time range error, opType:%d", timeEndParas.opType);
+      return;
+    }
+  } else {
+    pWinRange->ekey = INT64_MAX;
+  }
+  qInfo("%s, skey:%" PRId64 ", ekey:%" PRId64, __func__, pWinRange->skey, pWinRange->ekey);
+  *winRangeValid = true;
+}

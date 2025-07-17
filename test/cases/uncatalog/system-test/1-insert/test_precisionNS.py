@@ -145,10 +145,10 @@ class TestPrecisionns:
             tdSql.execute(sql)
 
         # create stream
-        if platform.system().lower() != 'windows':
-            sql = "create stream ma into sta as select count(ts) from st interval(100b)"
-            tdLog.info(sql)
-            tdSql.execute(sql)
+        #newstm if platform.system().lower() != 'windows':
+        #newstm     sql = "create stream ma into sta as select count(ts) from st interval(100b)"
+        #newstm     tdLog.info(sql)
+        #newstm     tdSql.execute(sql)
 
         # insert data
         self.insertData()
@@ -328,8 +328,8 @@ class TestPrecisionns:
         self.checkWhere()
 
         # check stream
-        if platform.system().lower() != 'windows':
-            self.checkStream()
+        #newstm if platform.system().lower() != 'windows':
+        #newstm     self.checkStream()
 
         tdLog.success(f"{__file__} successfully executed")
 

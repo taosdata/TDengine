@@ -359,10 +359,11 @@ typedef struct {
 } SCacheFlushState;
 
 typedef struct SCompMonitor SCompMonitor;
-
+typedef struct SSsMigrateMonitor SSsMigrateMonitor;
 struct STsdb {
   char                *path;
   SVnode              *pVnode;
+  char                 name[VNODE_TSDB_NAME_LEN];
   STsdbKeepCfg         keepCfg;
   TdThreadMutex        mutex;
   bool                 bgTaskDisabled;
@@ -380,6 +381,7 @@ struct STsdb {
   struct STFileSystem *pFS;  // new
   SRocksCache          rCache;
   SCompMonitor        *pCompMonitor;
+  SSsMigrateMonitor   *pSsMigrateMonitor;
   struct {
     SVHashTable *ht;
     SArray      *arr;
@@ -662,7 +664,7 @@ typedef struct {
   int64_t     szFile;
   STsdb      *pTsdb;
   const char *objName;
-  uint8_t     s3File;
+  uint8_t     ssFile;
   int32_t     lcn;
   int32_t     fid;
   int64_t     cid;
@@ -955,9 +957,9 @@ void    tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h);
 int32_t tsdbCacheGetBlockIdx(SLRUCache *pCache, SDataFReader *pFileReader, LRUHandle **handle);
 int32_t tsdbBICacheRelease(SLRUCache *pCache, LRUHandle *h);
 
-int32_t tsdbCacheGetBlockS3(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle);
-int32_t tsdbCacheGetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHandle **handle);
-void    tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *pPage);
+int32_t tsdbCacheGetBlockSs(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle);
+int32_t tsdbCacheGetPageSs(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHandle **handle);
+void    tsdbCacheSetPageSs(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *pPage);
 
 int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);

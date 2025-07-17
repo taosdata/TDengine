@@ -166,21 +166,19 @@ The effective value of charset is UTF-8.
 
 ### Storage Related
 
-| Parameter Name         | Supported Version | Dynamic Modification               | Description                                                  |
-| ---------------------- | ----------------- | ---------------------------------- | ------------------------------------------------------------ |
-| dataDir                |                   | Not supported                      | Directory for data files, all data files are written to this directory, default value /var/lib/taos |
-| tempDir                |                   | Not supported                      | Specifies the directory for generating temporary files during system operation, default value /tmp |
-| minimalDataDirGB       |                   | Not supported                      | Minimum space to be reserved in the time-series data storage directory specified by dataDir, in GB, default value 2 |
-| minimalTmpDirGB        |                   | Not supported                      | Minimum space to be reserved in the temporary file directory specified by tempDir, in GB, default value 1 |
-| minDiskFreeSize        | After 3.1.1.0     | Supported, effective immediately   | When the available space on a disk is less than or equal to this threshold, the disk will no longer be selected for generating new data files, unit is bytes, range 52428800-2199023255552, default value 52428800; Enterprise parameter |
-| s3MigrateIntervalSec   | After 3.3.4.3     | Supported, effective immediately   | Trigger cycle for automatic upload of local data files to S3, in seconds. Minimum: 600; Maximum: 100000. Default value 3600; Enterprise parameter |
-| s3MigrateEnabled       | After 3.3.4.3     | Supported, effective immediately   | Whether to automatically perform S3 migration, default value is 0, which means auto S3 migration is off, can be set to 1; Enterprise parameter |
-| s3Accesskey            | After 3.3.4.3     | Supported, effective after restart | Colon-separated user SecretId:SecretKey, for example AKIDsQmwsfKxTo2A6nGVXZN0UlofKn6JRRSJ:lIdoy99ygEacU7iHfogaN2Xq0yumSm1E; Enterprise parameter |
-| s3Endpoint             | After 3.3.4.3     | Supported, effective after restart | COS service domain name in the user's region, supports http and https, the region of the bucket must match the endpoint, otherwise it cannot be accessed; Enterprise parameter |
-| s3BucketName           | After 3.3.4.3     | Supported, effective after restart | Bucket name, followed by a hyphen and the AppId of the user registered COS service, where AppId is unique to COS, not present in AWS and Alibaba Cloud, needs to be part of the bucket name, separated by a hyphen; parameter values are string type, but do not need quotes; for example test0711-1309024725; Enterprise parameter |
-| s3PageCacheSize        | After 3.3.4.3     | Supported, effective after restart | Number of S3 page cache pages, range 4-1048576, unit is pages, default value 4096; Enterprise parameter |
-| s3UploadDelaySec       | After 3.3.4.3     | Supported, effective immediately   | How long a data file remains unchanged before being uploaded to S3, range 1-2592000 (30 days), in seconds, default value 60; Enterprise parameter |
-| cacheLazyLoadThreshold |                   | Supported, effective immediately   | Internal parameter, cache loading strategy                   |
+| Parameter Name           | Supported Version | Dynamic Modification               | Description                                                  |
+| ------------------------ | ----------------- | ---------------------------------- | ------------------------------------------------------------ |
+| dataDir                  |                   | Not supported                      | Directory for data files, all data files are written to this directory, default value /var/lib/taos |
+| tempDir                  |                   | Not supported                      | Specifies the directory for generating temporary files during system operation, default value /tmp |
+| minimalDataDirGB         |                   | Not supported                      | Minimum space to be reserved in the time-series data storage directory specified by dataDir, in GB, default value 2 |
+| minimalTmpDirGB          |                   | Not supported                      | Minimum space to be reserved in the temporary file directory specified by tempDir, in GB, default value 1 |
+| minDiskFreeSize          | After 3.1.1.0     | Supported, effective immediately   | When the available space on a disk is less than or equal to this threshold, the disk will no longer be selected for generating new data files, unit is bytes, range 52428800-2199023255552, default value 52428800; Enterprise parameter |
+| ssAutoMigrateIntervalSec | After 3.3.7.0     | Supported, effective immediately   | Trigger cycle for automatic upload of local data files to shared storage, in seconds. Minimum: 600; Maximum: 100000. Default value 3600; Enterprise parameter |
+| ssEnabled                | After 3.3.7.0     | Supported, effective after restart | Whether to enable shared storage, default value is 0, which means disabled, 1 means only enable manual shared storage migration, 2 means enable auto shared storage migration |
+| ssAccessString           | After 3.3.7.0     | Supported, effective after restart | A string which contains various options for accessing the shared storage, the format is `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`, the possible options vary from shared storage providers, please refer related document for details |
+| ssPageCacheSize          | After 3.3.7.0     | Supported, effective after restart | Number of shared storage page cache pages, range 4-1048576, unit is pages, default value 4096; Enterprise parameter |
+| ssUploadDelaySec         | After 3.3.7.0     | Supported, effective immediately   | How long a data file remains unchanged before being uploaded to S3, range 1-2592000 (30 days), in seconds, default value 60; Enterprise parameter |
+| cacheLazyLoadThreshold   |                   | Supported, effective immediately   | Internal parameter, cache loading strategy                   |
 
 ### Cluster Related
 
@@ -227,6 +225,7 @@ The effective value of charset is UTF-8.
 | ttlFlushThreshold          |                   | Supported, effective immediately   | Internal parameter, frequency of ttl timer                   |
 | compactPullupInterval      |                   | Supported, effective immediately   | Internal parameter, frequency of data reorganization timer   |
 | walFsyncDataSizeLimit      |                   | Supported, effective immediately   | Internal parameter, threshold for WAL to perform FSYNC       |
+| walForceRepair             |                   | Not supported                      | Internal parameter, repair WAL file forcibly, range 0-1; default value 0, 0 means not repair, 1 means repair |
 | transPullupInterval        |                   | Supported, effective immediately   | Internal parameter, retry interval for mnode to execute transactions |
 | mqRebalanceInterval        |                   | Supported, effective immediately   | Internal parameter, interval for consumer rebalancing        |
 | uptimeInterval             |                   | Supported, effective immediately   | Internal parameter, for recording system uptime              |
@@ -378,7 +377,7 @@ taosd reports monitoring metrics to taosKeeper, which are written into the monit
 | connections\_total       | DOUBLE    |         | total number of connections in the current cluster           |
 | topics\_total            | DOUBLE    |         | total number of topics in the current cluster                |
 | streams\_total           | DOUBLE    |         | total number of streams in the current cluster               |
-| grants_expire\_time      | DOUBLE    |         | authentication expiration time, valid in enterprise edition, maximum DOUBLE value in community edition |
+| grants_expire\_time      | DOUBLE    |         | authentication expiration time, valid in TSDB-Enterprise, maximum DOUBLE value in TSDB-OSS |
 | grants_timeseries\_used  | DOUBLE    |         | number of used timeseries                                    |
 | grants_timeseries\_total | DOUBLE    |         | total number of timeseries, maximum DOUBLE value in open source version |
 | cluster\_id              | VARCHAR   | tag     | cluster id                                                   |

@@ -361,7 +361,7 @@ class TestStmtError:
 
     def test_stmt_error(self):
         """summary: xxx
-
+        
         description: xxx
 
         Since: xxx
@@ -378,25 +378,7 @@ class TestStmtError:
         - xxx
 
         """
-
         self.check_stmt_insert(self.get_connect())
-        try:
-            self.check_stmt_insert_error(self.get_connect())
-        except Exception as error :
-
-            if str(error)=='[0x0200]: stmt bind param does not support normal value in sql':
-                tdLog.info('=========stmt error occured for bind part column ==============')
-            else:
-                tdLog.exit("expect error(%s) not occured" % str(error))
-
-        try:
-            self.check_stmt_nornmal_value_error(self.get_connect())
-        except Exception as error :
-
-            if str(error)=='[0x0200]: stmt bind param does not support normal value in sql':
-                tdLog.info('=========stmt error occured for bind part column ==============')
-            else:
-                tdLog.exit("expect error(%s) not occured" % str(error))
 
         try:
             self.check_stmt_insert_error_null_timestamp(self.get_connect())

@@ -15,13 +15,16 @@
 
 #define _DEFAULT_SOURCE
 // clang-format off
+//#include "storageapi.h"
 #include "dmMgmt.h"
 #include "audit.h"
 #include "libs/function/tudf.h"
+#include "metrics.h"
 #include "tgrant.h"
 #include "tcompare.h"
-#include "tcs.h"
+#include "tss.h"
 #include "tanalytics.h"
+#include "stream.h"
 // clang-format on
 
 #define DM_INIT_AUDIT()                       \
@@ -176,22 +179,31 @@ static int32_t dmCheckDataDirVersionWrapper() {
 int32_t dmInit() {
   dInfo("start to init dnode env");
   int32_t code = 0;
+
+#ifdef USE_SHARED_STORAGE
+  if (tsSsEnabled) {
+    if ((code = tssInit()) != 0) return code;
+    if ((code = tssCreateDefaultInstance()) != 0) return code;
+  }
+#endif
+
   if ((code = dmDiskInit()) != 0) return code;
   if (!dmCheckDataDirVersion()) {
     code = TSDB_CODE_INVALID_DATA_FMT;
     return code;
   }
+  SDnode* pDnode = dmInstance();
   if ((code = dmCheckDiskSpace()) != 0) return code;
-  if ((code = dmCheckRepeatInit(dmInstance())) != 0) return code;
+  if ((code = dmCheckRepeatInit(pDnode)) != 0) return code;
   if ((code = dmInitSystem()) != 0) return code;
   if ((code = dmInitMonitor()) != 0) return code;
   if ((code = dmInitMetrics()) != 0) return code;
   if ((code = dmInitAudit()) != 0) return code;
-  if ((code = dmInitDnode(dmInstance())) != 0) return code;
+  if ((code = dmInitDnode(pDnode)) != 0) return code;
   if ((code = InitRegexCache() != 0)) return code;
-#if defined(USE_S3)
-  if ((code = tcsInit()) != 0) return code;
-#endif
+
+  gExecInfoInit(&pDnode->data, (getDnodeId_f)dmGetDnodeId, dmGetMnodeEpSet);
+  if ((code = streamInit(&pDnode->data, (getDnodeId_f)dmGetDnodeId, dmGetMnodeEpSet, dmGetSynEpset)) != 0) return code;
 
   dInfo("dnode env is initialized");
   return 0;
@@ -224,8 +236,11 @@ void dmCleanup() {
   (void)dmDiskClose();
   DestroyRegexCache();
 
-#if defined(USE_S3)
-  tcsUninit();
+#ifdef USE_SHARED_STORAGE
+  if (tsSsEnabled) {
+    tssCloseDefaultInstance();
+    tssUninit();
+  }
 #endif
 
   dInfo("dnode env is cleaned up");
@@ -275,12 +290,15 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   dInfo("start to process create-node-request");
 
   pWrapper = &pDnode->wrappers[ntype];
-  if (taosMkDir(pWrapper->path) != 0) {
+
+  if (taosMulMkDir(pWrapper->path) != 0) {
     dmReleaseWrapper(pWrapper);
     code = terrno;
     dError("failed to create dir:%s since %s", pWrapper->path, tstrerror(code));
     return code;
   }
+
+  dInfo("path %s created", pWrapper->path);
 
   (void)taosThreadMutexLock(&pDnode->mutex);
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
@@ -302,6 +320,40 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   (void)taosThreadMutexUnlock(&pDnode->mutex);
   return code;
 }
+
+
+static int32_t dmProcessAlterNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
+  int32_t code = 0;
+  if (SNODE != ntype) {
+    dError("failed to process msgType %d since node type is NOT snode", pMsg->msgType);
+    return TSDB_CODE_INVALID_MSG;
+  }
+  
+  SDnode *pDnode = dmInstance();
+  SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
+
+  dInfo("start to process alter-node-request");
+
+  pWrapper = &pDnode->wrappers[ntype];
+
+  (void)taosThreadMutexLock(&pDnode->mutex);
+  SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
+
+  dInfo("node:%s, start to update", pWrapper->name);
+  code = (*pWrapper->func.createFp)(&input, pMsg);
+  if (code != 0) {
+    dError("node:%s, failed to update since %s", pWrapper->name, tstrerror(code));
+  } else {
+    dInfo("node:%s, has been updated", pWrapper->name);
+  }
+
+  (void)taosThreadMutexUnlock(&pDnode->mutex);
+
+  dmReleaseWrapper(pWrapper);
+  
+  return code;
+}
+
 
 static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   int32_t code = 0;
@@ -431,6 +483,7 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .pTfs = pWrapper->pDnode->pTfs,
       .pData = &pWrapper->pDnode->data,
       .processCreateNodeFp = dmProcessCreateNodeReq,
+      .processAlterNodeFp = dmProcessAlterNodeReq,
       .processAlterNodeTypeFp = dmProcessAlterNodeTypeReq,
       .processDropNodeFp = dmProcessDropNodeReq,
       .sendMonitorReportFp = dmSendMonitorReport,

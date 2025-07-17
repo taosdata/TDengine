@@ -16,10 +16,10 @@ TDengine 的流计算引擎还提供了其他使用上的便利。针对结果�
 ## 创建流式计算
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name stream_options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
+CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
-stream_options: {
-    trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [OPTIONS(stream_option [|...])] [notification_definition]
+options: {
+    trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
 }
     
 trigger_type: {
@@ -276,27 +276,27 @@ tag_definition:
 | 滑动触发 | _tcurrent_ts     | 本次触发的事件时间（精度同记录）     |
 | 滑动触发 | _tnext_ts        | 下一次触发的事件时间（精度同记录）   |
 | 窗口触发 | _twstart         | 本次触发窗口的起始时间戳            |
-| 窗口触发 | _twend           | 本次触发窗口的结束时间戳            |
-| 窗口触发 | _twduration      | 本次触发窗口的持续时间              |
-| 窗口触发 | _twrownum        | 本次触发窗口的记录条数              |
+| 窗口触发 | _twend           | 本次触发窗口的结束时间戳，只适用于 `WINDOW_CLOSE` 触发使用 |
+| 窗口触发 | _twduration      | 本次触发窗口的持续时间，只适用于 `WINDOW_CLOSE` 触发使用   |
+| 窗口触发 | _twrownum        | 本次触发窗口的记录条数，只适用于 `WINDOW_CLOSE` 触发使用   |
 | 定时触发 | _tprev_localtime | 上一次触发时刻的系统时间（精度：ns） |
 | 定时触发 | _tnext_localtime | 下一次触发时刻的系统时间（精度：ns） |
 | 通用     | _tgrpid     | 触发分组的 ID 值，类型为 BIGINT         |
 | 通用     | _tlocaltime | 本次触发时刻的系统时间（精度：ns）       |
 | 通用     | %%n         | 触发分组列的引用<br/>n 为分组列（来自 `[PARTITION BY col1[, ...]]`）的下标（从 1 开始）       |
 | 通用     | %%tbname    | 触发表每个分组表名的引用<br/>只有触发分组含 tbname 时可用<br/>可作为查询表名使用（`FROM %%tbname`）  |
-| 通用     | %%trows     | 触发表每个分组的触发数据集（满足本次触发的数据集）的引用<br/>定时触发时为上次与本次触发之间写入的触发表数据 |
+| 通用     | %%trows     | 触发表每个分组的触发数据集（满足本次触发的数据集）的引用<br/>定时触发时为上次与本次触发之间写入的触发表数据<br/>只可作为查询表名使用（`FROM %%trows`）<br/>只适用于 `WINDOW_CLOSE` 触发使用<br/>推荐在小数据量场景下使用|
 
 使用限制：
 
-- %%trows：只能用于 FROM 子句，推荐在小数据量场景下使用。
+- %%trows：只能用于 FROM 子句，在使用 %%trows 的语句中不支持 where 条件过滤，不支持对 %%trows 进行关联查询。
 - %%tbname：可以用于 FROM、SELECT 和 WHERE 子句。
 - 其他占位符：只能用于 SELECT 和 WHERE 子句。
 
 ### 流式计算的控制选项
 
 ```sql
-[OPTIONS(stream_option [|...])]
+[STREAM_OPTIONS(stream_option [|...])]
 
 stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER}
 ```
@@ -304,8 +304,8 @@ stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISOR
 控制选项用于控制触发和计算行为，可以多选，同一个选项不可以多次指定。包括：
 
 - WATERMARK(duration_time)：指定数据乱序的容忍时长，超过该时长的数据会被当做乱序数据，根据不同触发方式的乱序数据处理策略和用户配置进行处理，未指定时默认 `duration_time` 值为 0。
-- EXPIRED_TIME(exp_time) ：指定过期数据间隔并忽略过期数据，未指定时无过期数据。不需要感知超过一定时间范围的数据写入或更新时可以指定。`exp_time` 为过期时间间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)，最小值为 1a。
-- IGNORE_DISORDER：指定忽略触发表的乱序数据，未指定时不忽略乱序数据。注重计算或通知的时效性、触发表乱序数据不影响计算结果等场景可以指定。
+- EXPIRED_TIME(exp_time) ：指定过期数据间隔并忽略过期数据，未指定时无过期数据。不需要感知超过一定时间范围的数据写入或更新时可以指定。`exp_time` 为过期时间间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)。
+- IGNORE_DISORDER：指定忽略触发表的乱序数据，未指定时不忽略乱序数据。注重计算或通知的时效性、触发表乱序数据不影响计算结果等场景可以指定。乱序数据既包括新的乱序数据的写入，也包括对已写入数据的更新操作。
 - DELETE_RECALC: 指定触发表的数据删除（包含触发子表被删除场景）需要自动重新计算，只有触发方式支持数据删除的自动重算才可以指定。未指定时忽略数据删除，只有触发表数据删除会影响计算结果的场景才需要指定。
 - DELETE_OUTPUT_TABLE：指定触发子表被删除时其对应的输出子表也需要被删除，只适用于按表分组的场景，未指定时触发子表被删除不会删除其输出子表。
 - FILL_HISTORY[(start_time)]：指定需要从 `start_time`（事件时间）开始触发历史数据计算，未指定时从最早的记录开始触发计算。如果未指定 `FILL_HISTORY` 和 `FILL_HISTORY_FIRST`，则不进行历史数据的触发计算。该选项不能与 `FILL_HISTORY_FIRST` 同时指定。定时触发（PERIOD）模式下不支持历史计算。
@@ -715,7 +715,7 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 
 引入 `expired_time` 来设置数据的过期时间，流的触发产生的每个分组根据最新数据的事件时间和 `expired_time` 来判断新数据是否过期，过期数据的临界点是通过最新事件时间减去 `expired_time` 得出，所有早于过期数据临界点的数据视为过期数据。
 
-- 过期数据不会自动触发产生新的重算。如果用户没有需要忽略重算的时间区间，则不需要指定 `expired_time`。如果用户指定了过期数据，同时想对部分过期数据进行重算，那么用户可以通过手动重算的方式实现。
+- 过期数据不会自动触发产生新的计算和重算。如果用户没有需要忽略计算和重算的时间区间，则不需要指定 `expired_time`。如果用户指定了过期数据，同时想对部分过期数据进行计算或重算，那么用户可以通过手动重算的方式实现。
 - 过期数据只对是否产生触发有影响，不对计算数据的范围有任何影响。因此如果某次触发的计算范围包含过期数据，这部分过期数据仍然会被计算使用。
 
 ### 库表操作说明
@@ -737,6 +737,8 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 | 用户拆分 vnode                               |当被拆分 vnode 所在库为数据源库或触发表库时不允许 <br/> 当存在虚拟表触发或虚拟表计算时不允许 <br/> 用户在确认无影响后可指定强制执行（`SPLIT VGROUP N FORCE`）|
 | 用户删除数据库                               | 当被删库为某个流的数据源库、或触发表库且不是该流的所在库时不允许 <br/> 当存在非目标数据库的虚拟表触发或虚拟表计算流时不允许 <br/> 用户在确认无影响后可指定强制执行（`DROP DATABASE name FORCE`）|
 
+除了上表中有明确限制和额外处理的操作外，其他未说明的操作和上表中说**忽略不额外处理***的操作都没有限制。但是如果操作对流的计算可能产生影响，需要用户根据情况自行进行处理，可选忽略或者通过手动重算的方式进行重新计算。
+
 ### 配置参数说明
 
 流计算相关配置参数包括，详细参见 [taosd 参考手册](../../components/taosd/#流计算参数)  
@@ -746,7 +748,7 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 - **numOfVnodeStreamReaderThreads**：vnode 流计算读线程个数
 - **numOfStreamTriggerThreads**：流计算触发线程个数
 - **numOfStreamRunnerThreads**：流计算执行线程个数
-- **streamBufferSize**：整个流计算可以使用的最大缓存大小
+- **streamBufferSize**：流计算可以使用的最大缓存大小，只适用于 `%%trows` 的结果缓存（单位：MB）
 - **streamNotifyMessageSize**：用于控制事件通知的消息大小
 - **streamNotifyFrameSize**：用于控制事件通知消息发送时底层的帧大小
 
@@ -766,6 +768,7 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 - 流计算可以嵌套使用，也就是说可以基于一个流的输出表再创建一个新的流计算。
 - 计数窗口触发不支持乱序、更新、删除的自动处理（采取忽略处理的方式），在非 `FILL_HISTORY_FIRST` 模式下历史与实时窗口可能不对齐。
 - 对于超级表的窗口触发方式，只有 `interval` 和 `session` 窗口支持按照标签、子表分组和不分组，其他窗口只支持按子表分组。
+- 不支持在查询中使用伪列，`qstart`、`qend`、`qduration`。
 
 短期使用限制
 
@@ -817,16 +820,16 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 - **用最优的数据写入方式**：每个分组的数据都能顺序写入是流计算最佳的写入方式，如果存在大量的乱序写入、更新写入、数据删除操作，将可能造成大量的重算处理，因此如果有条件能够保证写入顺序将可以有效提升流计算的计算效能。
 - **确认写入数据的乱序情况**:根据每个子表的写入乱序情况确定是否需要指定 `WATERMARK` 以及确定合适的 `WATERMARK` 时长。
 - **确认乱序数据写入对流计算的影响**：
-  - 如果存在乱序写入数据，需要确认这些乱序写入的数据的计算结果的影响，对于业务非常注重计算或通知的时效性、触发表乱序数据不影响计算结果等场景，可以指定 `OPTIONS(IGNORE_DISORDER)` 忽略这些乱序数据。
-  - 如果存在严重的过去时间的乱序写入数据（写入数据的事件时间与当前已经处理的事件时间相差太大），且这些数据不影响计算结果或时效性已经丧失，可以通过 `OPTIONS(EXPIRED_TIME(exp_time))` 指定其为过期数据且忽略处理。
+  - 如果存在乱序写入数据，需要确认这些乱序写入的数据的计算结果的影响，对于业务非常注重计算或通知的时效性、触发表乱序数据不影响计算结果等场景，可以指定 `STREAM_OPTIONS(IGNORE_DISORDER)` 忽略这些乱序数据。
+  - 如果存在严重的过去时间的乱序写入数据（写入数据的事件时间与当前已经处理的事件时间相差太大），且这些数据不影响计算结果或时效性已经丧失，可以通过 `STREAM_OPTIONS(EXPIRED_TIME(exp_time))` 指定其为过期数据且忽略处理。
 - **确认重算对流计算结果的有效性**：乱序、更新、删除场景主要是通过重算方式来解决，如果重算结果不具有幂等性或有效性，则会影响结果的正确性，需可结合业务特点进行判断。
-- **确认删除数据对流计算的影响**：如果存在数据删除，且需要根据删除的数据重新计算结果时，可以通过 `OPTIONS(DELETE_RECALC)` 指定。
+- **确认删除数据对流计算的影响**：如果存在数据删除，且需要根据删除的数据重新计算结果时，可以通过 `STREAM_OPTIONS(DELETE_RECALC)` 指定。
 - **确认历史数据是否需要计算和计算方式**：
   - 在建流前，数据库中已经写入的数据需要进行计算，需要根据业务特点和处理逻辑进一步确认是优先计算历史数据还是实时数据，例如 `COUNT_WINDOW` 触发需优先历史数据计算，否则可能造成窗口无法衔接。
-  - 如果优先历史数据计算，可以指定 `OPTIONS(FILL_HISTORY_FIRST)`，否则指定 `OPTIONS(FILL_HISTORY)`。
-- **确认业务对流计算实时性要求程度**：如果业务对流计算通知或计算的实时性要求很高，可以指定 `OPTIONS(LOW_LATENCY_CALC)`，在这种模式下会对计算资源有更高的要求。
+  - 如果优先历史数据计算，可以指定 `STREAM_OPTIONS(FILL_HISTORY_FIRST)`，否则指定 `STREAM_OPTIONS(FILL_HISTORY)`。
+- **确认业务对流计算实时性要求程度**：如果业务对流计算通知或计算的实时性要求很高，可以指定 `OPSTREAM_OPTIONSTIONS(LOW_LATENCY_CALC)`，在这种模式下会对计算资源有更高的要求。
 - **确认使用流计算的用途**：如果只需要一个事件触发通知，而不需要做计算，那可以使用只通知不计算模式（即不指定计算语句）。
-- **确认计算后结果的应用方式**：如果只需要结果通知而不需要保存，可以使用只通知不保存选项（`OPTIONS(CALC_NOTIFY_ONLY)`）。
+- **确认计算后结果的应用方式**：如果只需要结果通知而不需要保存，可以使用只通知不保存选项（`STREAM_OPTIONS(CALC_NOTIFY_ONLY)`）。
 - **确认结果写入的可靠性**：运算过程中如果计算结果的主键为 NULL 值，则对应的计算结果会被丢弃。
   - 如果查询语句也包含分组子句，且分组结果写入到同一个子表，则不同分组产生的相同时间戳记录会出现数据覆盖。
   - 如果同一个分组多次触发计算产生的主键时间戳相同，那么它们会互相覆盖。
@@ -853,7 +856,7 @@ CREATE stream sm1 count_window(1) FROM tb1
 
 ```SQL
 CREATE stream sm2 count_window(10, 1, col1) FROM tb1 
-  OPTIONS(CALC_ONTIFY_ONLY | PRE_FILTER(col1 > 0)) 
+  STREAM_OPTIONS(CALC_ONTIFY_ONLY | PRE_FILTER(col1 > 0)) 
   NOTIFY("ws://localhost:8080/notify") ON (WINDOW_CLOSE) 
   AS 
     SELECT avg(col1) FROM %%trows;
@@ -865,7 +868,7 @@ CREATE stream sm2 count_window(10, 1, col1) FROM tb1
 
 ```SQL
 CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
-  OPTIONS(FILL_HISTORY_FIRST) 
+  STREAM_OPTIONS(FILL_HISTORY_FIRST) 
   INTO stb2 AS 
     SELECT _twstart, avg(col1) FROM %%tbname 
     WHERE _c0 >= _twstart AND _c0 <= _twend;
@@ -877,7 +880,7 @@ CREATE stream sm1 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname
 
 ```SQL
 CREATE stream sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname 
-  OPTIONS(MAX_DELAY(1m) | FILL_HISTORY_FIRST) 
+  STREAM_OPTIONS(MAX_DELAY(1m) | FILL_HISTORY_FIRST) 
   INTO stb2 AS 
     SELECT _twstart, avg(col1) FROM %%tbname WHERE _c0 >= _twstart AND _c0 <= _twend;
 ```

@@ -1,5 +1,4 @@
 # vnode
-add_subdirectory(src/tqCommon)
 add_library(vnode STATIC "")
 if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
   DEP_ext_rocksdb(vnode)
@@ -21,9 +20,10 @@ set(
     "src/vnd/vnodeSync.c"
     "src/vnd/vnodeSnapshot.c"
     "src/vnd/vnodeRetention.c"
-    "src/vnd/vnodeInitApi.c"
     "src/vnd/vnodeAsync.c"
+    "src/vnd/vnodeApi.c"
     "src/vnd/vnodeHash.c"
+    "src/vnd/vnodeStream.c"
 
     # meta
     "src/meta/metaOpen.c"
@@ -74,11 +74,7 @@ set(
     "src/tq/tqOffset.c"
     "src/tq/tqPush.c"
     "src/tq/tqSink.c"
-    "src/tq/tqStreamTask.c"
     "src/tq/tqSnapshot.c"
-    "src/tq/tqStreamStateSnap.c"
-    "src/tq/tqStreamTaskSnap.c"
-    "src/tq/tqStreamNotify.c"
 )
 
 aux_source_directory("src/tsdb/" TSDB_SOURCE_FILES)
@@ -110,7 +106,7 @@ if(${BUILD_CONTRIB})
         vnode
         PUBLIC "inc"
         PUBLIC "src/inc"
-        PUBLIC "${TD_SOURCE_DIR}/include/libs/tcs"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/tss"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
         PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
@@ -120,7 +116,7 @@ else()
         vnode
         PUBLIC "inc"
         PUBLIC "src/inc"
-        PUBLIC "${TD_SOURCE_DIR}/include/libs/tcs"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/tss"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
         PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
@@ -157,15 +153,14 @@ target_link_libraries(
     PUBLIC tdb
     PUBLIC audit
     PUBLIC crypt
-    PUBLIC tcs
+    PUBLIC tss
 
     # PUBLIC bdb
     # PUBLIC scalar
     # PUBLIC zstd
     PUBLIC transport
-    PUBLIC stream
     PUBLIC index
-    PUBLIC tqCommon
+    PUBLIC new-stream
 )
 
 if(TD_GRANT)

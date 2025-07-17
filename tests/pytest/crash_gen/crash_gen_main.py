@@ -1767,7 +1767,10 @@ class TaskCreateStream(StateTransitionTask):
         return state.canCreateStreams()
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
+        Logging.info("[OPS] *** TaskCreateStream._executeInternal() called ***")
+        
         dbname = self._db.getName()
+        Logging.debug("[OPS] Database name: {}".format(dbname))
 
         sub_stream_name = dbname + '_sub_stream'
         sub_stream_tb_name = 'stream_tb_sub'
@@ -1786,16 +1789,152 @@ class TaskCreateStream(StateTransitionTask):
             'last(speed)',
             'apercentile(speed, 10)', 'last_row(*)', 'twa(speed)'])
 
+        # Create snode first, as it's required for stream creation
+        try:
+            # Check if snode already exists on dnode 1
+            snode_check_sql = "show snodes"
+            self.queryWtSql(wt, snode_check_sql)
+            snodes = wt.getQueryResult()
+            
+            # Check if snode exists on dnode 1
+            snode_exists = False
+            if snodes:
+                for snode in snodes:
+                    if len(snode) > 0 and snode[1] == 1:  # dnode id is typically the second column
+                        snode_exists = True
+                        break
+            
+            if not snode_exists:
+                # Create snode on dnode 1
+                create_snode_sql = "create snode on dnode 1"
+                self.execWtSql(wt, create_snode_sql)
+                Logging.debug("[OPS] snode created on dnode 1 at {}".format(time.time()))
+            else:
+                Logging.debug("[OPS] snode already exists on dnode 1")
+                
+        except taos.error.ProgrammingError as err:
+            errno = Helper.convertErrno(err.errno)
+            # Ignore some acceptable errors related to snode creation
+            if errno in [0x0369, 0x0333, 0x032C]:  # snode already exists or is being created
+                Logging.debug("[OPS] snode creation skipped: errno=0x{:X}, msg={}".format(errno, err))
+            else:
+                Logging.warning("[OPS] snode creation failed: errno=0x{:X}, msg={}".format(errno, err))
+                # Continue with stream creation anyway, as snode might exist but not be visible
+
         stream_sql = ''  # set default value
+
+        # Choose modern stream window types following TDengine 3.0+ syntax
+        window_types = [
+            'SESSION(ts, {}s)'.format(Dice.choice([10, 15, 30, 60])),
+            'PERIOD({}s)'.format(Dice.choice([10, 20, 30, 44])),
+            'PERIOD({}s, {}s)'.format(Dice.choice([20, 30, 44]), Dice.choice([5, 10, 15])),
+            'INTERVAL({}s) SLIDING({}s)'.format(Dice.choice([10, 20, 30]), Dice.choice([5, 10, 15])),
+            'INTERVAL({}h) SLIDING({}s, {}s)'.format(Dice.choice([1, 2, 3]), Dice.choice([10, 20, 30]), Dice.choice([5, 10, 15])),
+            'EVENT_WINDOW(START WITH speed > {} END WITH speed < {})'.format(Dice.choice([10, 20, 30]), Dice.choice([5, 10, 15])),
+            'STATE_WINDOW(color)',
+            'STATE_WINDOW(speed) TRUE_FOR({}s)'.format(Dice.choice([10, 20, 30])),
+        ]
+        
+        window_type = Dice.choice(window_types)
+        Logging.debug("[OPS] Selected window type: {}".format(window_type))
+        
+        # Choose modern stream options following TDengine best practices
+        options_list = []
+        if Dice.throw(3) == 0:  # 1/3 chance to add options
+            option_choices = [
+                'MAX_DELAY({}s)'.format(Dice.choice([5, 10, 15, 18])),
+                'WATERMARK({}h)'.format(Dice.choice([1, 2, 20])),
+                'EXPIRED_TIME({}h)'.format(Dice.choice([1, 2, 16])),
+                'CALC_NOTIFY_ONLY',
+                'event_type(WINDOW_CLOSE)',
+            ]
+            # Select 1-2 options to avoid conflicts
+            num_options = Dice.choice([1, 2])
+            if num_options == 1:
+                options_list = [Dice.choice(option_choices)]
+            else:
+                # Ensure we don't select conflicting options
+                selected = []
+                for _ in range(2):
+                    option = Dice.choice(option_choices)
+                    if option not in selected:
+                        selected.append(option)
+                options_list = selected[:2]  # Take at most 2 options
+        
+        options_str = 'OPTIONS({})'.format(', '.join(options_list)) if options_list else ''
+        Logging.debug("[OPS] Options string: '{}'".format(options_str))
+        
+        # Choose partition clause
+        partition_clause = 'partition by tbname' if Dice.throw(2) == 0 else ''
+        Logging.debug("[OPS] Partition clause: '{}'".format(partition_clause))
+        
+        # Choose diverse columns for select clause
+        select_columns = [aggExpr]
+        
+        # Add common aggregation functions
+        agg_funcs = ['avg(speed)', 'max(speed)', 'min(speed)', 'sum(speed)', 'count(*)']
+        select_columns.append(Dice.choice(agg_funcs))
+        
+        # Sometimes add timestamp columns for different window types
+        if Dice.throw(2) == 0:  # 50% chance to add timestamp
+            if 'EVENT_WINDOW' in window_type or 'STATE_WINDOW' in window_type:
+                select_columns.insert(0, '_twend as ts')
+            elif 'SESSION' in window_type or 'PERIOD' in window_type:
+                select_columns.insert(0, '_twstart as ts')
+            else:  # INTERVAL window
+                if Dice.throw(2) == 0:
+                    select_columns.insert(0, '_twstart as ts')
+                else:
+                    select_columns.insert(0, '_twend as ts')
+        
+        # Sometimes add partition column
+        if 'partition by tbname' in partition_clause and Dice.throw(3) == 0:
+            select_columns.append('tbname')
+        
+        select_clause = 'select {}'.format(', '.join(select_columns))
+        Logging.debug("[OPS] Select clause: '{}'".format(select_clause))
+
+        # Generate where clause randomly  
+        where_clause = ''
+        if Dice.throw(3) == 0:  # 1/3 chance to add where clause
+            where_conditions = [
+                'speed > 0',
+                'speed between 10 and 100', 
+                'color is not null',
+                'ts >= now() - 1h'
+            ]
+            where_clause = 'where {}'.format(Dice.choice(where_conditions))
+        Logging.debug("[OPS] Where clause: '{}'".format(where_clause))
+        
+        # Debug table information
+        Logging.debug("[OPS] Database name: {}".format(dbname))
+        Logging.debug("[OPS] Super table name: {}".format(stbname))
+        Logging.debug("[OPS] Sub tables: {}".format(sub_tables))
 
         if sub_tables:
             sub_tbname = sub_tables[0]
-            # create stream with query above sub_table
-            stream_sql = 'create stream {} into {}.{} as select  {}, avg(speed) FROM {}.{}  PARTITION BY tbname INTERVAL(5s) SLIDING(3s)  '. \
-                format(sub_stream_name, dbname, sub_stream_tb_name, aggExpr, dbname, sub_tbname)
+            Logging.debug("[OPS] Using sub table: {}".format(sub_tbname))
+            # create stream with modern syntax from sub_table
+            # Format: create stream <stream_name> <window_type> from <source_table> [partition by] [options] into <target_table> as <select_clause> from <source_table> [where_clause]
+            stream_sql = 'create stream {} {} from {}.{} {} {} into {}.{} as {} from {}.{} {}'. \
+                format(sub_stream_name, window_type, dbname, sub_tbname, partition_clause, options_str, 
+                       dbname, sub_stream_tb_name, select_clause, dbname, sub_tbname, where_clause).strip()
         else:
-            stream_sql = 'create stream {} into {}.{} as select  {}, avg(speed) FROM {}.{}  PARTITION BY tbname INTERVAL(5s) SLIDING(3s)  '. \
-                format(super_stream_name, dbname, super_stream_tb_name, aggExpr, dbname, stbname)
+            Logging.debug("[OPS] Using super table: {}".format(stbname))
+            # create stream with modern syntax from super table  
+            # Format: create stream <stream_name> <window_type> from <source_table> [partition by] [options] into <target_table> as <select_clause> from <source_table> [where_clause]
+            stream_sql = 'create stream {} {} from {}.{} {} {} into {}.{} as {} from {}.{} {}'. \
+                format(super_stream_name, window_type, dbname, stbname, partition_clause, options_str,
+                       dbname, super_stream_tb_name, select_clause, dbname, stbname, where_clause).strip()
+        
+        # Clean up the SQL by removing extra spaces
+        stream_sql = ' '.join(stream_sql.split())
+        
+        Logging.info("[OPS] *** GENERATED STREAM SQL: {}".format(stream_sql))
+        
+        # Also print to stdout for immediate visibility
+        print("[STREAM_SQL] {}".format(stream_sql))
+        
         self.execWtSql(wt, stream_sql)
         Logging.debug("[OPS] stream is creating at {}".format(time.time()))
 
@@ -2103,7 +2242,7 @@ class TdSuperTable:
         return dbc.query("show {}.stables like 'stream_tb%'".format(self._dbName)) > 0
 
     def hasStreams(self, dbc: DbConn):
-        return dbc.query("show streams") > 0
+        return dbc.query("show {}.streams".format(self._dbName)) > 0
 
     def hasTopics(self, dbc: DbConn):
 
@@ -2142,13 +2281,18 @@ class TdSuperTable:
             pass
 
     def dropStreams(self, dbc: DbConn):
-        dbc.query("show streams ")
+        dbc.query("show {}.streams".format(self._dbName))
         Streams = dbc.getQueryResult()
         for Stream in Streams:
             if Stream[0].startswith(self._dbName):
-                dbc.execute('drop stream {}'.format(Stream[0]))
+                # Include database name when dropping stream to ensure proper targeting
+                stream_name = Stream[0]
+                if '.' not in stream_name:  # if stream name doesn't include database prefix
+                    stream_name = "{}.{}".format(self._dbName, stream_name)
+                dbc.execute('drop stream {}'.format(stream_name))
+                Logging.debug("[OPS] Dropped stream: {} at {}".format(stream_name, time.time()))
 
-        return not dbc.query("show streams ") > 0
+        return not dbc.query("show {}.streams".format(self._dbName)) > 0
 
     def dropStreamTables(self, dbc: DbConn):
         dbc.query("show {}.stables like 'stream_tb%'".format(self._dbName))

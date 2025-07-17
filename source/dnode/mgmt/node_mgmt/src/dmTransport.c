@@ -169,6 +169,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     case TDMT_SCH_MERGE_FETCH_RSP:
     case TDMT_VND_SUBMIT_RSP:
     case TDMT_MND_GET_DB_INFO_RSP:
+    case TDMT_STREAM_FETCH_RSP:
+    case TDMT_STREAM_FETCH_FROM_RUNNER_RSP:
+    case TDMT_STREAM_FETCH_FROM_CACHE_RSP:
       code = qWorkerProcessRspMsg(NULL, NULL, pRpc, 0);
       return;
     case TDMT_MND_STATUS_RSP:
@@ -263,10 +266,13 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   pRpc->info.wrapper = pWrapper;
 
   EQItype itype = RPC_QITEM;  // rsp msg is not restricted by tsQueueMemoryUsed
-  if (pRpc->msgType == TDMT_SYNC_HEARTBEAT || pRpc->msgType == TDMT_SYNC_HEARTBEAT_REPLY) {
+  if (IsReq(pRpc)) {
+    if (pRpc->msgType == TDMT_SYNC_HEARTBEAT || pRpc->msgType == TDMT_SYNC_HEARTBEAT_REPLY)
+      itype = DEF_QITEM;
+    else
+      itype = RPC_QITEM;
+  } else {
     itype = DEF_QITEM;
-  } else if (IsReq(pRpc)) {
-    itype = APPLY_QITEM;
   }
   code = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg);
   if (code) goto _OVER;
@@ -354,8 +360,10 @@ static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
     return code;
   } else {
     pMsg->info.handle = 0;
-    if (rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL) != 0) {
+    code = rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL);
+    if (code != 0) {
       dError("failed to send rpc msg");
+      return code;
     }
     return 0;
   }
@@ -400,8 +408,9 @@ static bool rpcRfp(int32_t code, tmsg_t msgType) {
   }
 }
 static bool rpcNoDelayMsg(tmsg_t msgType) {
-  if (msgType == TDMT_VND_FETCH_TTL_EXPIRED_TBS || msgType == TDMT_VND_S3MIGRATE || msgType == TDMT_VND_S3MIGRATE ||
-      msgType == TDMT_VND_QUERY_COMPACT_PROGRESS || msgType == TDMT_VND_DROP_TTL_TABLE) {
+  if (msgType == TDMT_VND_FETCH_TTL_EXPIRED_TBS || msgType == TDMT_VND_SSMIGRATE ||
+      msgType == TDMT_VND_QUERY_COMPACT_PROGRESS || msgType == TDMT_VND_DROP_TTL_TABLE ||
+      msgType == TDMT_VND_FOLLOWER_SSMIGRATE) {
     return true;
   }
   return false;

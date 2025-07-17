@@ -1420,8 +1420,8 @@ class TestColsFunction:
         self.star_test()
         self.check_null2()
         self.window_test2()
-        self.stream_cols_test()
-        self.stream_cols_test2()
+        #newstm self.stream_cols_test()
+        #newstm self.stream_cols_test2()
 
         #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

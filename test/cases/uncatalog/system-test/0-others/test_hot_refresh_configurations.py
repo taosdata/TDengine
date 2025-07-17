@@ -117,28 +117,10 @@ class TestHotRefreshConfigurations:
                     "except_values": [0, 10001]
                 },
                 {
-                    "name": "checkpointInterval",
-                    "alias": "tsStreamCheckpointInterval",
-                    "values": [60, 1000, 1800],
-                    "except_values": [59, 1801]
-                },
-                {
                     "name": "trimVDbIntervalSec",
                     "alias": "tsTrimVDbIntervalSec",
                     "values": [1, 1000, 100000],
                     "except_values": [0, 100001]
-                },
-                {
-                    "name": "disableStream",
-                    "alias": "tsDisableStream",
-                    "values": [0, 1],
-                    "except_values": [-1]
-                },
-                {
-                    "name": "maxStreamBackendCache",
-                    "alias": "tsMaxStreamBackendCache",
-                    "values": [16, 512, 1024],
-                    "except_values": [15, 1025]
                 },
                 {
                     "name": "numOfLogLines",

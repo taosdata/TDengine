@@ -40,11 +40,12 @@ class TestTagfilter:
             tdSql.execute(f"create table {dbname}.ct{i+1} using {dbname}.stb1 tags ( '{tag_value}' )")
 
     def __query_data(self, rows, dbname="db"):
-        tdSql.execute(
-            f'''select count(*) from {dbname}.stb1 where tag1 like '%a'
-            '''
-        )
-        tdSql.checkRows(0)
+        # tdSql.execute(
+        #     f'''select count(*) from {dbname}.stb1 where tag1 like '%a'
+        #     '''
+        # )
+        # tdSql.checkRows(0)
+        tdSql.checkAgg(f"select count(*) from {dbname}.stb1 where tag1 like '%a'", 0)
 
     def __ts4421(self, dbname="db", stbname='stb4421', ctbname='ctb4421'):
         TAG_BIND             = [True, False]

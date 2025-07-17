@@ -52,8 +52,11 @@ def isArm64Cpu():
 #
 
 # wait util execute file finished 
-def exe(file):
-    return os.system(file)
+def exe(command, show = False):
+    code = os.system(command)
+    if show:
+        print(f"eos.exe retcode={code} command:{command}")
+    return code    
 
 # execute file and return immediately
 def exeNoWait(file):
@@ -111,3 +114,24 @@ def runRetList(command, timeout=10, checkRun=False, retFail=False):
 
 def delFile(file):
     return exe(f"rm -rf {file}")
+
+def readFileContext(filename):
+    file = open(filename)
+    context = file.read()
+    file.close()
+    return context
+
+def writeFileContext(filename, context):
+    file = open(filename, "w")
+    file.write(context)
+    file.close()
+
+def appendFileContext(filename, context):
+    global resultContext
+    resultContext += context
+    try:
+        file = open(filename, "a")
+        wsize = file.write(context)
+        file.close()
+    except:
+        print(f"appand file error  context={context} .")

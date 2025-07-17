@@ -645,9 +645,10 @@ _end:
   return code;
 }
 
-void tsdbReleaseDataBlock2(STsdbReader* pReader) {
-  if (pReader == NULL) return;
+void tsdbReleaseDataBlock2(void* p) {
+  if (p == NULL) return;
 
+  STsdbReader* pReader = (STsdbReader*)p;
   SReaderStatus* pStatus = &pReader->status;
   if (!pStatus->composedDataBlock) {
     (void) tsdbReleaseReader(pReader);
@@ -2333,12 +2334,15 @@ _end:
   return ps;
 }
 
-// deep copy the primary key, to avoid ref invalid buffer is the primary key is varchar or something.
+// deep copy the primary key, to avoid ref invalid buffer if the primary key is varchar or something.
 static int32_t primaryKeyDup(SRowKey* pKey) {
   if (pKey->numOfPKs > 0) {
     if (!IS_NUMERIC_TYPE(pKey->pks[0].type)) {
       void* p = taosMemoryMalloc(pKey->pks[0].nData);
       if (p == NULL)  {
+        tsdbError("%s failed at %s:%d since %s", __func__, __FILE__, __LINE__, tstrerror(terrno));
+        // memory allocation failed, set pData to NULL to avoid freeing original buffer
+        pKey->pks[0].pData = NULL;
         return terrno;
       }
 
@@ -3198,6 +3202,7 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
     tColRowGetKey(pBlockData, pDumpInfo->rowIndex, pKey);
     code = primaryKeyDup(pKey);
     TSDB_CHECK_CODE(code, lino, _end);
+    lino = __LINE__;
   } else {
     pKey = NULL;
   }
@@ -5427,7 +5432,7 @@ _end:
 }
 
 // TODO refactor: with createDataBlockScanInfo
-int32_t tsdbSetTableList2(STsdbReader* pReader, const void* pTableList, int32_t num) {
+int32_t tsdbSetTableList2(void* ptr, const void* pTableList, int32_t num) {
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
   int32_t               size = 0;
@@ -5436,8 +5441,8 @@ int32_t tsdbSetTableList2(STsdbReader* pReader, const void* pTableList, int32_t 
   int32_t               iter = 0;
   bool                  acquired = false;
 
+  STsdbReader* pReader = (STsdbReader*)ptr;
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
-
   size = tSimpleHashGetSize(pReader->status.pTableMap);
 
   code = tsdbAcquireReader(pReader);
@@ -5675,11 +5680,11 @@ _end:
   return code;
 }
 
-void tsdbReaderClose2(STsdbReader* pReader) {
-  if (pReader == NULL) {
+void tsdbReaderClose2(void* ptr) {
+  if (ptr == NULL) {
     return;
   }
-
+  STsdbReader* pReader = (STsdbReader*)ptr;
   int32_t code = tsdbAcquireReader(pReader);
   if (code) {
     return;
@@ -6116,12 +6121,13 @@ _end:
   return code;
 }
 
-int32_t tsdbNextDataBlock2(STsdbReader* pReader, bool* hasNext) {
+int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SReaderStatus* pStatus = NULL;
   bool           acquired = false;
 
+  STsdbReader* pReader = (STsdbReader*)p;
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(hasNext, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
@@ -6449,11 +6455,12 @@ _end:
   return code;
 }
 
-int32_t tsdbRetrieveDataBlock2(STsdbReader* pReader, SSDataBlock** pBlock, SArray* pIdList) {
+int32_t tsdbRetrieveDataBlock2(void* p, SSDataBlock** pBlock, SArray* pIdList) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   STsdbReader* pTReader = NULL;
 
+  STsdbReader* pReader = (STsdbReader*)p;
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
@@ -6491,11 +6498,12 @@ _end:
   return code;
 }
 
-int32_t tsdbReaderReset2(STsdbReader* pReader, SQueryTableDataCond* pCond) {
+int32_t tsdbReaderReset2(void* p, SQueryTableDataCond* pCond) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   bool    acquired = false;
 
+  STsdbReader* pReader = (STsdbReader*)p;
   tsdbTrace("tsdb/reader-reset: %p, take read mutex", pReader);
   code = tsdbAcquireReader(pReader);
   TSDB_CHECK_CODE(code, lino, _end);

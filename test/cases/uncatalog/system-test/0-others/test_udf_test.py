@@ -727,7 +727,7 @@ class TestUdfTest:
         tdSql.execute(f"drop function {func_name}")
         tdSql.error(f"select {func_name}(num1) from db.tb", TSDB_CODE_MND_FUNC_NOT_EXIST)
         
-        self.test_change_udf_normal("change_udf_normal")
+        self.run_change_udf_normal("change_udf_normal")
         tdSql.execute(f"create function {func_name} as '%s' outputtype varchar(256)"%self.libchange_udf_normal)
         functions = tdSql.getResult("show functions")
         for function in functions:

@@ -34,7 +34,7 @@ class TestOpentsdbTelnetLineTaoscInsert:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
         #tdSql.init(conn.cursor(), logSql), True)
-        # cls._conn = conn
+        cls._conn = cls.conn
         cls.smlChildTableName_value = "id"
 
     def create_database(self, name="test", db_update_tag=0, protocol=None):

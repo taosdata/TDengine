@@ -313,7 +313,7 @@ static int createSuperTable(SDataBase* database, SSuperTable* stbInfo) {
         (char *)benchCalloc(len + TIMESTAMP_BUFF_LEN, 1, true);
 
     snprintf(stbInfo->colsOfCreateChildTable, len + TIMESTAMP_BUFF_LEN,
-             "(ts timestamp%s)", colsBuf);
+             "(%s timestamp%s)", stbInfo->primaryKeyName, colsBuf);
 
     if (stbInfo->tags->size == 0) {
         free(colsBuf);
@@ -391,9 +391,9 @@ skip:
     int length = snprintf(
         command, TSDB_MAX_ALLOWED_SQL_LEN,
         g_arguments->escape_character
-            ? "CREATE TABLE IF NOT EXISTS `%s`.`%s` (ts TIMESTAMP%s) TAGS %s"
-            : "CREATE TABLE IF NOT EXISTS %s.%s (ts TIMESTAMP%s) TAGS %s",
-        database->dbName, stbInfo->stbName, colsBuf, tagsBuf);
+            ? "CREATE TABLE IF NOT EXISTS `%s`.`%s` (%s TIMESTAMP%s) TAGS %s"
+            : "CREATE TABLE IF NOT EXISTS %s.%s (%s TIMESTAMP%s) TAGS %s",
+        database->dbName, stbInfo->stbName, stbInfo->primaryKeyName, colsBuf, tagsBuf);
     tmfree(colsBuf);
     tmfree(tagsBuf);
     if (stbInfo->comment != NULL) {
@@ -460,7 +460,7 @@ skip:
     if (!first_sma) {
         snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length, ")");
     }
-    infoPrint("create stable: <%s>\n", command);
+    debugPrint("create stable: <%s>\n", command);
 
     int ret = queryDbExec(database, stbInfo, command);
     free(command);
@@ -790,22 +790,42 @@ int createDatabase(SDataBase* database) {
 
 static int generateChildTblName(int len, char *buffer, SDataBase *database,
                                 SSuperTable *stbInfo, uint64_t tableSeq, char* tagData, int i,
-                                char *ttl) {
+                                char *ttl, char *tableName) {
     if (0 == len) {
         memset(buffer, 0, TSDB_MAX_ALLOWED_SQL_LEN);
         len += snprintf(buffer + len,
                         TSDB_MAX_ALLOWED_SQL_LEN - len, "CREATE TABLE");
     }
 
-    len += snprintf(
-            buffer + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
-            g_arguments->escape_character
-            ? " IF NOT EXISTS `%s`.`%s%" PRIu64 "` USING `%s`.`%s` TAGS (%s) %s "
-            : " IF NOT EXISTS %s.%s%" PRIu64 " USING %s.%s TAGS (%s) %s ",
-            database->dbName, stbInfo->childTblPrefix, tableSeq, database->dbName,
-            stbInfo->stbName,
-            tagData + i * stbInfo->lenOfTags, ttl);
+    const char *tagStart = tagData + i * stbInfo->lenOfTags;  // start position of current row's TAG
+    const char *tagsForSQL = tagStart;  // actual TAG part for SQL
+    const char *fmt = g_arguments->escape_character ?
+        " IF NOT EXISTS `%s`.`%s` USING `%s`.`%s` TAGS (%s) %s " :
+        " IF NOT EXISTS %s.%s USING %s.%s TAGS (%s) %s ";
 
+    if (stbInfo->useTagTableName) {
+        char *firstComma = strchr(tagStart, ',');
+        if (firstComma == NULL && tagStart >= firstComma) {
+            errorPrint("Invalid tag data format: %s\n", tagStart);
+            return -1;
+        }
+        size_t nameLen = firstComma - tagStart;
+        strncpy(tableName, tagStart, nameLen);
+        tableName[nameLen] = '\0';
+        tagsForSQL = firstComma + 1;      
+    } else {
+        // generate table name using prefix + sequence number 
+        snprintf(tableName, TSDB_MAX_ALLOWED_SQL_LEN, "%s%" PRIu64, 
+                 stbInfo->childTblPrefix, tableSeq);
+        tagsForSQL = tagStart;
+
+    }        
+
+    len += snprintf(buffer + len, TSDB_MAX_ALLOWED_SQL_LEN - len, fmt,
+                    database->dbName, tableName,
+                    database->dbName, stbInfo->stbName,
+                    tagsForSQL, ttl);
+    debugPrint("create table: <%s> <%s>\n", buffer, tableName);
     return len;
 }
 
@@ -875,9 +895,15 @@ static void *createTable(void *sarg) {
 
     int smallBatchCount = 0;
     int index=  pThreadInfo->start_table_from;
-    for (uint64_t i = pThreadInfo->start_table_from;
+    int tableSum = pThreadInfo->end_table_to - pThreadInfo->start_table_from + 1;
+    if (stbInfo->useTagTableName) {
+        pThreadInfo->childNames = benchCalloc(tableSum, sizeof(char *), false);
+        pThreadInfo->childTblCount = tableSum;
+    }
+
+    for (uint64_t i = pThreadInfo->start_table_from, j = 0;
                   i <= pThreadInfo->end_table_to && !g_arguments->terminate;
-                  i++) {
+                  i++, j++) {
         if (g_arguments->terminate) {
             goto create_table_end;
         }
@@ -909,9 +935,12 @@ static void *createTable(void *sarg) {
                     goto create_table_end;
                 }
             }
-
+            char tbName[TSDB_TABLE_NAME_LEN] = {0};
             len = generateChildTblName(len, pThreadInfo->buffer,
-                                       database, stbInfo, i, tagData, w, ttl);
+                                       database, stbInfo, i, tagData, w, ttl, tbName);
+            if (stbInfo->useTagTableName) {                     
+                pThreadInfo->childNames[j] = strdup(tbName);
+            }
             // move next
             if (++w >= TAG_BATCH_COUNT) {
                 // reset for gen again
@@ -1025,6 +1054,7 @@ static int startMultiThreadCreateChildTable(SDataBase* database, SSuperTable* st
     int32_t code    = -1;
     int32_t threads = g_arguments->table_threads;
     int64_t ntables;
+
     if (stbInfo->childTblTo > 0) {
         ntables = stbInfo->childTblTo - stbInfo->childTblFrom;
     } else if(stbInfo->childTblFrom > 0) {
@@ -1086,12 +1116,20 @@ static int startMultiThreadCreateChildTable(SDataBase* database, SSuperTable* st
 
     if (g_arguments->terminate)  toolsMsleep(100);
 
+    int nCount = 0;
     for (int i = 0; i < threadCnt; i++) {
         threadInfo *pThreadInfo = infos + i;
         g_arguments->actualChildTables += pThreadInfo->tables_created;
 
         if ((REST_IFACE != stbInfo->iface) && pThreadInfo->conn) {
             closeBenchConn(pThreadInfo->conn);
+        }
+        
+        if (stbInfo->useTagTableName) {
+            for (int j = 0; j < pThreadInfo->childTblCount; j++) {
+                stbInfo->childTblArray[nCount++]->name = pThreadInfo->childNames[j];
+            }
+            tmfree(pThreadInfo->childNames);
         }
     }
 
@@ -1839,8 +1877,8 @@ static void *syncWriteInterlace(void *sarg) {
             } else {
                 childTbl = stbInfo->childTblArray[tableSeq];
             }
-
-            char *  tableName   = childTbl->name;
+            
+            char*  tableName   = childTbl->name;
             char *sampleDataBuf = childTbl->useOwnSample?
                                         childTbl->sampleDataBuf:
                                         stbInfo->sampleDataBuf;
@@ -3351,6 +3389,10 @@ static int parseBufferToStmtBatch(SSuperTable* stbInfo, uint64_t *bind_ts_array)
 }
 
 static int64_t fillChildTblNameByCount(SSuperTable *stbInfo) {
+    if (stbInfo->useTagTableName) {
+        return stbInfo->childTblCount;
+    }
+
     for (int64_t i = 0; i < stbInfo->childTblCount; i++) {
         char childName[TSDB_TABLE_NAME_LEN]={0};
         snprintf(childName,
@@ -4463,94 +4505,6 @@ static void* create_tsmas(void* args) {
     return NULL;
 }
 
-static int32_t createStream(SSTREAM* stream) {
-    int32_t code = -1;
-    char * command = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, false);
-    snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN, "DROP STREAM IF EXISTS %s",
-             stream->stream_name);
-    infoPrint("%s\n", command);
-    SBenchConn* conn = initBenchConn();
-    if (NULL == conn) {
-        goto END_STREAM;
-    }
-
-    code = queryDbExecCall(conn, command);
-    int32_t trying = g_arguments->keep_trying;
-    while (code && trying) {
-        infoPrint("will sleep %"PRIu32" milliseconds then re-drop stream %s\n",
-                          g_arguments->trying_interval, stream->stream_name);
-        toolsMsleep(g_arguments->trying_interval);
-        code = queryDbExecCall(conn, command);
-        if (trying != -1) {
-            trying--;
-        }
-    }
-
-    if (code) {
-        closeBenchConn(conn);
-        goto END_STREAM;
-    }
-
-    memset(command, 0, TSDB_MAX_ALLOWED_SQL_LEN);
-    int pos = snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
-            "CREATE STREAM IF NOT EXISTS %s ", stream->stream_name);
-    if (stream->trigger_mode[0] != '\0') {
-        pos += snprintf(command + pos, TSDB_MAX_ALLOWED_SQL_LEN - pos,
-                "TRIGGER %s ", stream->trigger_mode);
-    }
-    if (stream->watermark[0] != '\0') {
-        pos += snprintf(command + pos, TSDB_MAX_ALLOWED_SQL_LEN - pos,
-                "WATERMARK %s ", stream->watermark);
-    }
-    if (stream->ignore_update[0] != '\0') {
-        pos += snprintf(command + pos, TSDB_MAX_ALLOWED_SQL_LEN - pos,
-                "IGNORE UPDATE %s ", stream->ignore_update);
-    }
-    if (stream->ignore_expired[0] != '\0') {
-        pos += snprintf(command + pos, TSDB_MAX_ALLOWED_SQL_LEN - pos,
-                "IGNORE EXPIRED %s ", stream->ignore_expired);
-    }
-    if (stream->fill_history[0] != '\0') {
-        pos += snprintf(command + pos, TSDB_MAX_ALLOWED_SQL_LEN - pos,
-                "FILL_HISTORY %s ", stream->fill_history);
-    }
-    pos += snprintf(command + pos, TSDB_MAX_ALLOWED_SQL_LEN - pos,
-            "INTO %s ", stream->stream_stb);
-    if (stream->stream_stb_field[0] != '\0') {
-        pos += snprintf(command + pos, TSDB_MAX_ALLOWED_SQL_LEN - pos,
-                "%s ", stream->stream_stb_field);
-    }
-    if (stream->stream_tag_field[0] != '\0') {
-        pos += snprintf(command + pos, TSDB_MAX_ALLOWED_SQL_LEN - pos,
-                "TAGS%s ", stream->stream_tag_field);
-    }
-    if (stream->subtable[0] != '\0') {
-        pos += snprintf(command + pos, TSDB_MAX_ALLOWED_SQL_LEN - pos,
-                "SUBTABLE%s ", stream->subtable);
-    }
-    snprintf(command + pos, TSDB_MAX_ALLOWED_SQL_LEN - pos,
-            "as %s", stream->source_sql);
-    infoPrint("%s\n", command);
-
-    code = queryDbExecCall(conn, command);
-    trying = g_arguments->keep_trying;
-    while (code && trying) {
-        infoPrint("will sleep %"PRIu32" milliseconds "
-                  "then re-create stream %s\n",
-                  g_arguments->trying_interval, stream->stream_name);
-        toolsMsleep(g_arguments->trying_interval);
-        code = queryDbExecCall(conn, command);
-        if (trying != -1) {
-            trying--;
-        }
-    }
-
-    closeBenchConn(conn);
-END_STREAM:
-    tmfree(command);
-    return code;
-}
-
 void changeGlobalIface() {
     if (g_arguments->databases->size == 1) {
             SDataBase *db = benchArrayGet(g_arguments->databases, 0);
@@ -4703,17 +4657,6 @@ int insertTestProcess() {
     }
 
     if (createChildTables()) return -1;
-
-    if (g_arguments->taosc_version == 3) {
-        for (int j = 0; j < g_arguments->streams->size; j++) {
-            SSTREAM * stream = benchArrayGet(g_arguments->streams, j);
-            if (stream->drop) {
-                if (createStream(stream)) {
-                    return -1;
-                }
-            }
-        }
-    }
 
     // create sub threads for inserting data
     for (int i = 0; i < g_arguments->databases->size; i++) {

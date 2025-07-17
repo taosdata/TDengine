@@ -32,7 +32,7 @@ class TestOpentsdbJsonTaoscInsert:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
         #tdSql.init(conn.cursor(), logSql), logSql)
-        # cls._conn = conn
+        cls._conn = cls.conn
         cls.defaultJSONStrType_value = "BINARY"
 
     def create_database(self, name="test", db_update_tag=0, protocol=None):
