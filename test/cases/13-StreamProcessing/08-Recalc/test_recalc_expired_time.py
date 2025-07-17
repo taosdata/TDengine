@@ -329,6 +329,8 @@ class TestStreamRecalcExpiredTime:
         # )
 
 
+        time.sleep(5)
+
         tdSql.query("select count(*) from rdb.r_session_expired;")
         result_count_before = tdSql.getData(0, 0)
         tdLog.info(f"SESSION result count: {result_count_before}")

@@ -33,9 +33,9 @@ void* getNextBuffStart(SAlignBlocksInMem* pAlignBlockInfo) {
   return (char*)pAlignBlockInfo + sizeof(SAlignBlocksInMem) + pAlignBlockInfo->dataLen;
 }
 
-void moveBlockBuf(SAlignBlocksInMem* pAlignBlockInfo, size_t dataEncodeBufSize) {
+void setUsedBlockBuf(SAlignBlocksInMem* pAlignBlockInfo, size_t usedSize) {
   ++pAlignBlockInfo->nWindow;
-  pAlignBlockInfo->dataLen += dataEncodeBufSize;
+  pAlignBlockInfo->dataLen += usedSize;
 }
 
 void* getWindowDataBuf(SSlidingWindowInMem* pWindowData) { return (char*)pWindowData + sizeof(SSlidingWindowInMem); }
@@ -111,7 +111,7 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
 
       if (++pResult->winIndex >= pBlockInfo->nWindow) {
         pResult->winIndex = 0;
-        pResult->offset += 0;
+        pResult->offset = 0;
         destroyAlignBlockInMemPP(ppBlockInfo);
         taosArrayRemove(pAlignGrpMgr->blocksInMem, 0);
         if (pAlignGrpMgr->blocksInMem->size == 0) {
@@ -368,7 +368,7 @@ int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlo
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
-  moveBlockBuf(pAlignBlockInfo, buffSize);
+  setUsedBlockBuf(pAlignBlockInfo, buffSize);
 
   return TSDB_CODE_SUCCESS;
 _end:
@@ -400,7 +400,7 @@ int32_t buildMoveAlignWindowInMem(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBloc
   pMoveInfo->moveSize = moveSize;
   pMoveInfo->pData = pBlock;
   atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, moveSize);
-  moveBlockBuf(pAlignBlockInfo, dataEncodeBufSize);
+  setUsedBlockBuf(pAlignBlockInfo, dataEncodeBufSize);
 
   return TSDB_CODE_SUCCESS;
 _end:
