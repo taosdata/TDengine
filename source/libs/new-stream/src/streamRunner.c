@@ -188,7 +188,7 @@ bool stRunnerTaskWaitQuit(SStreamRunnerTask* pTask) { return taosHasRWWFlag(&pTa
 static int32_t streamResetTaskExec(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, bool ignoreTbName) {
   int32_t code = 0;
   if (!ignoreTbName) pExec->tbname[0] = '\0';
-  ST_TASK_DLOG("streamResetTaskExec:%p, execId:%d, ignoreTbName:%d tbname: %s", pExec, pExec->runtimeInfo.execId, ignoreTbName, pExec->tbname);
+  ST_TASK_DLOG("streamResetTaskExec:%p, execId:%d exec finished, ignoreTbName:%d tbname: %s", pExec, pExec->runtimeInfo.execId, ignoreTbName, pExec->tbname);
   code = streamClearStatesForOperators(pExec->pExecutor);
   return code;
 }
@@ -656,13 +656,17 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   int32_t                     lino = 0;
   SSDataBlock*                pForceOutBlock = NULL;
   SStreamRunnerTaskExecution* pExec = NULL;
-  ST_TASK_DLOG("[runner calc]start, gid:%" PRId64 ", topTask: %d", pReq->gid, pTask->topTask);
+  
+  ST_TASK_DLOG("[runner calc]start, gid:%" PRId64 ", topTask: %d, req execId:%d", pReq->gid, pTask->topTask, pReq->execId);
 
   code = stRunnerTaskExecMgrAcquireExec(pTask, pReq->execId, &pExec);
   if (code != 0) {
     ST_TASK_ELOG("failed to get task exec for stream code:%s", tstrerror(code));
     return code;
   }
+
+  ST_TASK_DLOG("execId %d start to run", pExec->runtimeInfo.execId);
+  
   pTask->task.status = STREAM_STATUS_RUNNING;
   pTask->task.sessionId = pReq->sessionId;
   TSWAP(pExec->runtimeInfo.funcInfo.pStreamPartColVals, pReq->groupColVals);
@@ -687,7 +691,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   int32_t nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx;
   while (pExec->runtimeInfo.funcInfo.curOutIdx < winNum && code == 0) {
     if (stRunnerTaskWaitQuit(pTask)) {
-      ST_TASK_ILOG("[runner calc]quit, skip calc. gid:%" PRId64 ",, status:%d", pReq->gid, pTask->task.status);
+      ST_TASK_ILOG("[runner calc]quit, skip calc. gid:%" PRId64 ", status:%d", pReq->gid, pTask->task.status);
       break;
     }
     bool         finished = false;
@@ -746,6 +750,9 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   }
 
 end:
+  
+  ST_TASK_DLOG("execId %d stop to run", pExec->runtimeInfo.execId);
+  
   stRunnerTaskExecMgrReleaseExec(pTask, pExec);
   if (pForceOutBlock != NULL) blockDataDestroy(pForceOutBlock);
   if (code) {

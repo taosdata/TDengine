@@ -942,7 +942,11 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 _OVER:
 
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mstsError("failed to create stream %s at line:%d since %s", pStream->pCreate ? pStream->pCreate->name : "unknown", lino, tstrerror(code));
+    if (pStream && pStream->pCreate) {
+      mstsError("failed to create stream %s at line:%d since %s", pStream->pCreate->name, lino, tstrerror(code));
+    } else {
+      mstsError("failed to create stream at line:%d since %s", lino, tstrerror(code));
+    }
   } else {
     mstsDebug("create stream %s half completed", pStream->pCreate ? pStream->pCreate->name : "unknown");
   }
