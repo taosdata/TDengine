@@ -30,7 +30,7 @@ class TestStreamOptionsTrigger:
         # streams.append(self.Basic9())  # PRE_FILTER     [ok]
         # streams.append(self.Basic10()) # FORCE_OUTPUT   [ok] 
         # streams.append(self.Basic11()) # MAX_DELAY  [ok]      
-        streams.append(self.Basic11_1()) # MAX_DELAY [fail]       
+        streams.append(self.Basic11_1()) # MAX_DELAY [ok]       
         # streams.append(self.Basic12()) # EVENT_TYPE [ok]
         # # # streams.append(self.Basic13()) # IGNORE_NODATA_TRIGGER [fail]   
         
