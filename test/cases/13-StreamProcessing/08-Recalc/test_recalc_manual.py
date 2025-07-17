@@ -340,6 +340,7 @@ class TestStreamRecalcManual:
 
         # Test 1: Manual recalculation with time range for STATE_WINDOW
         tdLog.info("Test STATE_WINDOW manual recalculation with time range")
+        tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:20:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
         tdSql.execute("recalculate stream rdb.s_state_manual from '2025-01-01 02:20:00' to '2025-01-01 02:23:00';")
         
         # Verify results after recalculation
