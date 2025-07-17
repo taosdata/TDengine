@@ -65,14 +65,14 @@ Metric details (from top to bottom, left to right):
 
 - **First EP**: The `firstEp` setting in the current TDengine cluster.
 - **Version**: TDengine server version (master mnode).
-- **Expire Time** - Expiration time for the enterprise edition.
-- **Used Measuring Points** - Number of measuring points used in the enterprise edition.
+- **Expire Time** - Expiration time for the TSDB-Enterprise.
+- **Used Measuring Points** - Number of measuring points used in the TSDB-Enterprise.
 - **Databases** - Number of databases.
 - **Connections** - Current number of connections.
 - **DNodes/MNodes/VGroups/VNodes**: Total and alive count of each resource.
 - **Classified Connection Counts**: The current number of active connections, classified by user, application, and IP.
 - **DNodes/MNodes/VGroups/VNodes Alive Percent**: The ratio of alive/total for each resource, enable alert rules, and trigger when the resource survival rate (average healthy resource ratio within 1 minute) is less than 100%.
-- **Measuring Points Used**: Number of measuring points used with alert rules enabled (no data for community edition, healthy by default).
+- **Measuring Points Used**: Number of measuring points used with alert rules enabled (no data for TSDB-OSS, healthy by default).
 
 ### DNodes Overview
 

@@ -208,11 +208,11 @@ To use the monitoring capabilities of TDengine, taosKeeper is an essential compo
 
 ## Deploying taosX
 
-To utilize the data ingestion capabilities of TDengine, it is necessary to deploy the taosX service. For detailed explanations and deployment, please refer to the enterprise edition reference manual.
+To utilize the data ingestion capabilities of TDengine, it is necessary to deploy the taosX service. For detailed explanations and deployment, please refer to the TSDB-Enterprise reference manual.
 
 ## Deploying taosX-Agent
 
-For some data sources such as Pi, OPC, etc., due to network conditions and data source access restrictions, taosX cannot directly access the data sources. In such cases, a proxy service, taosX-Agent, needs to be deployed. For detailed explanations and deployment, please refer to the enterprise edition reference manual.
+For some data sources such as Pi, OPC, etc., due to network conditions and data source access restrictions, taosX cannot directly access the data sources. In such cases, a proxy service, taosX-Agent, needs to be deployed. For detailed explanations and deployment, please refer to the TSDB-Enterprise reference manual.
 
 ## Deploying taos-Explorer
 

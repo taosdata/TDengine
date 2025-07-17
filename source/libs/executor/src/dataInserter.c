@@ -1038,7 +1038,8 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
     }
 
     SRow* pRow = NULL;
-    if ((terrno = tRowBuild(pVals, pTSchema, &pRow)) < 0) {
+    SRowBuildScanInfo sinfo = {0};
+    if ((terrno = tRowBuild(pVals, pTSchema, &pRow, &sinfo)) < 0) {
       tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
       goto _end;
     }
@@ -1341,8 +1342,9 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
       }
     }
 
-    SRow* pRow = NULL;
-    if ((terrno = tRowBuild(pVals, pTSchema, &pRow)) < 0) {
+    SRow*             pRow = NULL;
+    SRowBuildScanInfo sinfo = {0};
+    if ((terrno = tRowBuild(pVals, pTSchema, &pRow, &sinfo)) < 0) {
       tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
       goto _end;
     }
@@ -1860,7 +1862,9 @@ static int32_t buildInsertData(SStreamInserterParam* pInsertParam, const SSDataB
     }
     if(tsIsNull) continue;  // skip this row if primary key is null
     SRow* pRow = NULL;
-    if ((code = tRowBuild(pVals, pTSchema, &pRow)) != TSDB_CODE_SUCCESS) {
+    
+    SRowBuildScanInfo sinfo = {0};
+    if ((code = tRowBuild(pVals, pTSchema, &pRow, &sinfo)) != TSDB_CODE_SUCCESS) {
       QUERY_CHECK_CODE(code, lino, _end);
     }
     if (NULL == taosArrayPush(tbData->aRowP, &pRow)) {

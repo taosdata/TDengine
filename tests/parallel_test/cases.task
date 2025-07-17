@@ -132,7 +132,7 @@
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to-continue.py
-
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/create_table_keywords.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/json_tag.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_sml.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert_tag_order_sql.py

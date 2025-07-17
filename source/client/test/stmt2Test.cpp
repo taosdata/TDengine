@@ -1869,7 +1869,7 @@ TEST(stmt2Case, stmt2_nchar) {
   do_query(taos, "create database IF NOT EXISTS stmt2_testdb_10;");
   do_query(taos, "use stmt2_testdb_10;");
   do_query(taos,
-           "create table m1 (ts timestamp, blob2 nchar(10), blob nchar(10),blob3 nchar(10),blob4 nchar(10),blob5 "
+           "create table m1 (ts timestamp, blob1 nchar(10), blob2 nchar(10),blob3 nchar(10),blob4 nchar(10),blob5 "
            "nchar(10))");
 
   // insert 10 records
@@ -1939,7 +1939,125 @@ TEST(stmt2Case, stmt2_nchar) {
   params[5].is_null = is_null;
   params[5].num = 10;
 
-  int code = taos_stmt2_prepare(stmt, "insert into ? (ts, blob2, blob, blob3, blob4, blob5) values(?,?,?,?,?,?)", 0);
+  int code = taos_stmt2_prepare(stmt, "insert into ? (ts, blob1, blob2 blob3, blob4, blob5) values(?,?,?,?,?,?)", 0);
+  checkError(stmt, code);
+
+  int64_t ts = 1591060628000;
+  for (int i = 0; i < 10; ++i) {
+    is_null[i] = 0;
+
+    v.ts[i] = ts++;
+
+    v.blob[i][0] = 'a' + i;
+    v.blob2[i][0] = 'f' + i;
+    v.blob3[i][0] = 't' + i;
+    v.blob4[i][0] = 'A' + i;
+    v.blob5[i][0] = 'G' + i;
+
+    blob_len[i] = sizeof(char);
+    blob_len2[i] = sizeof(char);
+    blob_len3[i] = sizeof(char);
+    blob_len4[i] = sizeof(char);
+    blob_len5[i] = sizeof(char);
+  }
+
+  char*            tbname = "m1";
+  TAOS_STMT2_BIND* bind_cols[1] = {&params[0]};
+  TAOS_STMT2_BINDV bindv = {1, &tbname, NULL, &bind_cols[0]};
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  checkError(stmt, code);
+
+  int affected_rows;
+  code = taos_stmt2_exec(stmt, &affected_rows);
+  checkError(stmt, code);
+  ASSERT_EQ(affected_rows, 10);
+
+  taos_stmt2_close(stmt);
+  do_query(taos, "drop database if exists stmt2_testdb_10;");
+  taos_close(taos);
+  taosMemoryFree(blob_len);
+  taosMemoryFree(blob_len2);
+  taosMemoryFree(blob_len5);
+  taosMemoryFree(blob_len3);
+  taosMemoryFree(blob_len4);
+}
+
+TEST(stmt2Case, stmt2_blob) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  do_query(taos, "drop database if exists stmt2_testdb_10;");
+  do_query(taos, "create database IF NOT EXISTS stmt2_testdb_10;");
+  do_query(taos, "use stmt2_testdb_10;");
+  do_query(taos,
+           "create table m1 (ts timestamp, blob1 blob, blob2 nchar(10),blob3 nchar(10),blob4 nchar(10),blob5 nchar(12))");
+
+  // insert 10 records
+  struct {
+    int64_t ts[10];
+    char    blob[10][1];
+    char    blob2[10][1];
+    char    blob3[10][1];
+    char    blob4[10][1];
+    char    blob5[10][1];
+
+  } v;
+
+  int32_t* t64_len = (int32_t*)taosMemMalloc(sizeof(int32_t) * 10);
+  int32_t* blob_len = (int32_t*)taosMemMalloc(sizeof(int32_t) * 10);
+  int32_t* blob_len2 = (int32_t*)taosMemMalloc(sizeof(int32_t) * 10);
+  int32_t* blob_len3 = (int32_t*)taosMemMalloc(sizeof(int32_t) * 10);
+  int32_t* blob_len4 = (int32_t*)taosMemMalloc(sizeof(int32_t) * 10);
+  int32_t* blob_len5 = (int32_t*)taosMemMalloc(sizeof(int32_t) * 10);
+
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+
+  TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+  TAOS_STMT2_BIND params[10];
+  char            is_null[10] = {0};
+
+  params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+  // params[0].buffer_length = sizeof(v.ts[0]);
+  params[0].buffer = v.ts;
+  params[0].length = t64_len;
+  params[0].is_null = is_null;
+  params[0].num = 10;
+
+  params[1].buffer_type = TSDB_DATA_TYPE_BLOB;
+  // params[8].buffer_length = sizeof(v.blob2[0]);
+  params[1].buffer = v.blob2;
+  params[1].length = blob_len2;
+  params[1].is_null = is_null;
+  params[1].num = 10;
+
+  params[2].buffer_type = TSDB_DATA_TYPE_NCHAR;
+  // params[9].buffer_length = sizeof(v.blob[0]);
+  params[2].buffer = v.blob3;
+  params[2].length = blob_len;
+  params[2].is_null = is_null;
+  params[2].num = 10;
+
+  params[3].buffer_type = TSDB_DATA_TYPE_NCHAR;
+  // params[9].buffer_length = sizeof(v.blob[0]);
+  params[3].buffer = v.blob4;
+  params[3].length = blob_len;
+  params[3].is_null = is_null;
+  params[3].num = 10;
+
+  params[4].buffer_type = TSDB_DATA_TYPE_NCHAR;
+  // params[9].buffer_length = sizeof(v.blob[0]);
+  params[4].buffer = v.blob;
+  params[4].length = blob_len;
+  params[4].is_null = is_null;
+  params[4].num = 10;
+
+  params[5].buffer_type = TSDB_DATA_TYPE_NCHAR;
+  // params[9].buffer_length = sizeof(v.blob[0]);
+  params[5].buffer = v.blob5;
+  params[5].length = blob_len;
+  params[5].is_null = is_null;
+  params[5].num = 10;
+
+  int code = taos_stmt2_prepare(stmt, "insert into ? (ts, blob1, blob2 blob3, blob4, blob5) values(?,?,?,?,?,?)", 0);
   checkError(stmt, code);
 
   int64_t ts = 1591060628000;
