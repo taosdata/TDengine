@@ -149,7 +149,7 @@ jobs:
         id: cache-ext
         with:
           path: ${{ github.workspace }}/.externals
-          key: ${{ runner.os }}-${{ matrix.os }}-${{ hashFiles('cmake/external.cmake', 'cmake/in/**') }}-build-ext-v3 # this is tailing cache-version-tick
+          key: ${{ runner.os }}-${{ matrix.os }}-${{ hashFiles('cmake/external.cmake', 'cmake/in/**') }}-debug-build-ext-v3 # this is tailing cache-version-tick
 
       - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os != 'Windows' }}
         name: Build externals on Linux and macOS
